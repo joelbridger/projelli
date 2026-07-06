@@ -59,26 +59,27 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
   age. NOT fixable on our timeline. `populate-inbox.py` (IMAP APPEND) is kept as a fallback for when the
   lock lifts, but we did NOT use it.
 - **What WE USED — send the emails IN via Brevo (works immediately):**
-  `scripts/demo/brevo_send.py all` sends the 15 client emails TO Sarah from a Brevo-**verified** domain
+  `scripts/demo/brevo_send.py all` sends the demo client emails TO Sarah from a Brevo-**verified** domain
   (`jamesondaines.com`) with the real client **display names** (Thomas Brennan, Priya Patel, ...). Data
   lives in `scripts/demo/inbox_emails.py`. They arrive as genuine received mail with correct sender
   NAMES. Two cosmetic compromises vs IMAP: sender ADDRESS is `first.last@jamesondaines.com` (not a
   gmail), and DATES are "today" (Brevo can't backdate). Brevo first lands them in **Junk** — fixed by
   adding `jamesondaines.com` to Sarah's Safe-senders list (Outlook web → Settings → Mail → Junk email);
-  after that all 15 go straight to Inbox. Verified all 15 in Sarah's Inbox.
+  after that they go straight to Inbox. Verified with the original 15 Northcrest messages; the seed now
+  also includes 12 Beacon Ridge messages for the three sample families.
 - **Connect in Advisor Prep Hero on the bench — did NOT use the in-app browser OAuth** (the connector opens the
   bench's *system* browser, which we can't drive). Instead:
   1. Got a **Graph refresh token** for Advisor Prep Hero's own connector client (`845ddba0-70ab-4f90-88ba-e3522157e37a`,
      scopes `offline_access openid User.Read Mail.Read Mail.Send`, redirect `http://localhost`) via the
      always-on Chrome (Sarah already logged in → no password). Auth-code+PKCE, no secret. Scripts in
-     scratchpad: `oauth_url_graph.py` + `oauth_exchange_graph.py`. Verified the token reads all 15 via Graph.
+     scratchpad: `oauth_url_graph.py` + `oauth_exchange_graph.py`. Verified the token reads the seeded messages via Graph.
   2. **Injected the refresh token into the bench's Windows Credential Manager** (service `keepance-mail-ms`,
      key `ms-refresh-token` — what `mail_is_connected` / `fresh_access_token` read). Used a tiny Rust helper
      (`C:\Users\james\kcset`, `keyring = "3" features=["windows-native"]`, same crate as the app so the
      credential format matches exactly). **Must run in the INTERACTIVE desktop session** — over SSH it
      fails with `NoStorageAccess(1312)`; run it via a one-shot scheduled task (`run-kcset.ps1`).
   3. Triggered import: `window.__TAURI__.core.invoke('mail_sync_all', { matterMap: [], onlyProvider: 'm365' })`
-     (matterMap is an ARRAY, not an object). → **20 messages written** (15 clients + 5 MS welcome). Account
+     (matterMap is an ARRAY, not an object). → **20 messages written** in the original run (15 clients + 5 MS welcome). Account
      window then shows "Connected. All mail imported and searchable."
 - **Cited-from-email Ask — VERIFIED.** "What did Thomas Brennan ask me about converting his IRA to a Roth
   before year-end?" → grounded answer with 3 citation chips + green "Answered over your own files"
@@ -93,9 +94,9 @@ functional first, THEN a dedicated UI pass** (hold all UI changes until the end)
   - **Two demo flows, both verified:**
     1. **GLOBAL** (no active client): clear `activeMatterId` → ask a CONTENT-SPECIFIC question (Roth
        conversion, 529, etc.). Works but needs careful wording (see rule above).
-    2. **OPEN-CLIENT-THEN-ASK (recommended — robust, no careful wording):** the 14 client emails are now
+    2. **OPEN-CLIENT-THEN-ASK (recommended — robust, no careful wording):** the demo client emails are now
        **tagged to their matters** (`scripts/demo/bench-tag-emails.mjs`, via `mail_retag_message_matter`
-       — in-place RAG retag, no re-embed, matched by surname; only "Hollings Family Office" unmatched).
+       — in-place RAG retag, no re-embed, matched by sender name against the loaded client list).
        Open a client (sets activeMatter) → Email scope → even a VAGUE question ("What did this client
        email me about their retirement accounts?") returns a cited answer from THAT client's email,
        because retrieval is scoped to the matter (no cross-client confusion). Verified in Brennan's hub:

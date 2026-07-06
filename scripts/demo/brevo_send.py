@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Send the 15 demo client emails TO Sarah's real inbox via Brevo (works immediately,
+"""Send the demo client emails TO Sarah's real inbox via Brevo (works immediately,
 unlike IMAP APPEND which the new-account anti-abuse lock blocks). Keeps the real client
 display NAMES; uses a Brevo-verified domain for the address so it delivers cleanly to
 Outlook (DKIM-aligned). Usage: brevo_send.py test   (send only #1)  |  brevo_send.py all"""

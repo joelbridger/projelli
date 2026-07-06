@@ -1,6 +1,7 @@
-// Tag each imported client email to its Northcrest matter (in-place RAG retag),
+// Tag each imported client email to its matching demo matter (in-place RAG retag),
 // so opening a client + asking (email scope) reliably finds THAT client's email.
 import { getPage } from '../robot/connection.mjs';
+import { matchMatterIdForSender } from './email-matter-matching.mjs';
 const page = await getPage();
 
 const data = await page.evaluate(async () => {
@@ -11,22 +12,9 @@ const data = await page.evaluate(async () => {
   return { items, matters };
 });
 
-// matter surname (text before comma / '&') -> matterId
-const surnameToMatter = new Map();
-for (const mt of data.matters) {
-  const surname = (mt.name.split(',')[0].split('&')[0] || '').trim().toLowerCase();
-  if (surname) surnameToMatter.set(surname, mt.id);
-}
-
-function matchMatter(fromName) {
-  const words = (fromName || '').toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
-  for (const w of words) if (surnameToMatter.has(w)) return surnameToMatter.get(w);
-  return null;
-}
-
 const plan = data.items
   .filter((m) => /jamesondaines\.com/.test(m.fromAddr)) // only the demo client emails
-  .map((m) => ({ ...m, matterId: matchMatter(m.fromName) }));
+  .map((m) => ({ ...m, matterId: matchMatterIdForSender(m.fromName, data.matters) }));
 
 console.log('messages (client demo emails):', plan.length);
 const matched = plan.filter((p) => p.matterId);
