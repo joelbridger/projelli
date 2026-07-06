@@ -32,6 +32,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Recording Notice guest now gets ONE clean second try, so it stops
+  intermittently never joining (~1/3 of meetings).** The headless guest that
+  joins a meeting to show the "recording" notice card had NO pre-lobby retry: a
+  single transient hiccup before it ever knocked (unrecognized Teams page, a
+  stuck launcher/interstitial, or a slow cold-load tripping the ~28s give-up)
+  became a permanent no-show — the host saw zero join request and the widget
+  fell back to "say the notice aloud". This is distinct from the fixed QA-91
+  layers (WebView2 creation crash, stale selectors, post-admit self-destruct).
+  Fix (supervisor state machine, framework-free, unit-tested):
+  - `NoticeCardSupervisor` now performs exactly ONE fresh re-open (destroy +
+    re-navigate the companion window, restart the join timer) on a pre-lobby
+    give-up (`page-unrecognized` or a pre-lobby `join-timeout`) before the honest
+    terminal failure. Gated on never-admitted + never-reached-lobby + reason, so
+    it NEVER re-knocks after a denial or a lobby timeout (no double-signal to the
+    host) and never fabricates presence. `startedAtMs` is untouched, so a late
+    admit on the retry still forfeits full-duration presence.
+  - New optional `onDiagnostic` supervisor dependency emits attempt-trail
+    breadcrumbs (`attempt`/`pre-admit-giveup`/`admitted`/`terminal`); the
+    lifecycle glue logs them tagged `[notice-card]` so the next live bench run
+    shows how far each attempt got and which give-up fired — the telemetry that
+    was missing to prove the live root cause.
+  - Investigation + ranked root-cause hypotheses (incl. the persistent/shared
+    WebView2 profile as the likely intermittency driver, recommended as a
+    bench-verified follow-up): `coordination/reports/noknock-investigation.md`.
+  - Files: `src/features/meetings/noticeCard/supervisor.ts`,
+    `noticeCardLifecycle.ts`, `supervisor.test.ts`.
 - **Local AI patience: a big on-device question no longer reports a FALSE
   failure while the engine is still reading your documents.** On the local
   (`keepance-local`) engine, a real Ask over a large RAG prompt (~4,574 tokens)

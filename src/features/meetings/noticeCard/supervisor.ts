@@ -44,6 +44,18 @@ export interface NoticeCardDriver {
   close(): Promise<void>;
 }
 
+/**
+ * Diagnostic breadcrumbs (no-knock investigation). Emitted alongside status so a
+ * live bench run can see HOW FAR each join attempt got and which give-up fired —
+ * the telemetry that was missing to prove the intermittent "never knocked" no-show.
+ * These are logs, NOT consent-ledger evidence (the ledger stays untouched).
+ */
+export type NoticeCardDiagnostic =
+  | { kind: 'attempt'; attempt: number; reason: 'initial' | 'pre-admit-retry' }
+  | { kind: 'pre-admit-giveup'; reason: NoticeCardFailureReason; willRetry: boolean }
+  | { kind: 'admitted'; attempt: number }
+  | { kind: 'terminal'; reason: NoticeCardFailureReason };
+
 /** Injectable clock so timeouts + elapsed measurement are deterministic in tests. */
 export interface SupervisorClock {
   setTimeout(fn: () => void, ms: number): number;
@@ -78,6 +90,8 @@ export interface SupervisorDeps {
   record: (entry: NoticeCardLedgerEvent) => void;
   clock?: SupervisorClock;
   onStatus?: (status: NoticeCardStatus) => void;
+  /** Attempt-trail breadcrumbs for the no-knock investigation (see NoticeCardDiagnostic). */
+  onDiagnostic?: (event: NoticeCardDiagnostic) => void;
   /** Max time from first open until "admitted" before we give up. */
   joinTimeoutMs?: number;
   /** If a close() hasn't confirmed within this, force another close. */
@@ -97,6 +111,7 @@ export class NoticeCardSupervisor {
   private readonly record: (entry: NoticeCardLedgerEvent) => void;
   private readonly clock: SupervisorClock;
   private readonly onStatus?: ((status: NoticeCardStatus) => void) | undefined;
+  private readonly onDiagnostic?: ((event: NoticeCardDiagnostic) => void) | undefined;
   private readonly joinTimeoutMs: number;
   private readonly watchdogMs: number;
   private readonly fullPresenceToleranceMs: number;
@@ -104,7 +119,12 @@ export class NoticeCardSupervisor {
   private _status: NoticeCardStatus = { phase: 'idle' };
   private config: NoticeCardConfig | null = null;
   private everAdmitted = false;
+  private everReachedLobby = false;
   private rejoinUsed = false;
+  // The card gets exactly ONE fresh re-open before it ever knocks (no-knock fix):
+  // a single transient pre-lobby failure (unrecognized page / stuck launcher /
+  // cold-load timing) otherwise becomes a permanent no-show, the observed ~1/3.
+  private preAdmitRetryUsed = false;
   private terminal = false;
   private joinTimer: number | null = null;
   private watchdogTimer: number | null = null;
@@ -116,6 +136,7 @@ export class NoticeCardSupervisor {
     this.record = deps.record;
     this.clock = deps.clock ?? realClock;
     this.onStatus = deps.onStatus;
+    this.onDiagnostic = deps.onDiagnostic;
     this.joinTimeoutMs = deps.joinTimeoutMs ?? DEFAULT_JOIN_TIMEOUT_MS;
     this.watchdogMs = deps.watchdogMs ?? DEFAULT_WATCHDOG_MS;
     this.fullPresenceToleranceMs = deps.fullPresenceToleranceMs ?? DEFAULT_FULL_PRESENCE_TOLERANCE_MS;
@@ -147,7 +168,7 @@ export class NoticeCardSupervisor {
     this.clearJoinTimer();
     this.joinTimer = this.clock.setTimeout(() => {
       this.joinTimer = null;
-      this.fail('join-timeout');
+      this.failOrRetryPreAdmission('join-timeout');
     }, this.joinTimeoutMs);
   }
 
@@ -162,7 +183,9 @@ export class NoticeCardSupervisor {
   start(config: NoticeCardConfig): void {
     this.config = config;
     this.everAdmitted = false;
+    this.everReachedLobby = false;
     this.rejoinUsed = false;
+    this.preAdmitRetryUsed = false;
     this.terminal = false;
     this.startedAtMs = this.clock.now();
     this.admittedAtMs = null;
@@ -179,6 +202,7 @@ export class NoticeCardSupervisor {
       return;
     }
     this.setStatus({ phase: 'joining', platform: config.platform, meetingTitle: config.meetingTitle });
+    this.onDiagnostic?.({ kind: 'attempt', attempt: 1, reason: 'initial' });
     void this.openWindow();
     this.startJoinTimer();
   }
@@ -206,6 +230,10 @@ export class NoticeCardSupervisor {
   handleLobby(): void {
     if (this.terminal) return;
     if (this._status.phase !== 'joining') return;
+    // The card physically knocked — the host saw a join request. Past this point a
+    // timeout is an admission delay, NOT a no-show: never re-knock (that would
+    // double-signal the host), so the pre-admit retry is disabled once here.
+    this.everReachedLobby = true;
     this.setStatus({
       phase: 'lobby',
       platform: this._status.platform,
@@ -231,6 +259,7 @@ export class NoticeCardSupervisor {
     if (!this.everAdmitted) {
       this.everAdmitted = true;
       this.admittedAtMs = this.clock.now();
+      this.onDiagnostic?.({ kind: 'admitted', attempt: this.preAdmitRetryUsed ? 2 : 1 });
       this.record({
         kind: 'notice-card-joined',
         meetingDir: this.meetingDir(),
@@ -292,7 +321,49 @@ export class NoticeCardSupervisor {
   /** Any other adapter-reported failure (page drift, internal error, …). */
   handleFailed(reason: NoticeCardFailureReason): void {
     if (this.terminal) return;
-    this.fail(reason);
+    this.failOrRetryPreAdmission(reason);
+  }
+
+  /**
+   * A pre-lobby give-up (the card never even knocked). Grant EXACTLY ONE fresh
+   * re-open before the honest terminal failure — the no-knock fix. A single
+   * transient pre-lobby hiccup (unrecognized page, stuck launcher, cold-load
+   * timing) would otherwise become a permanent no-show (the observed ~1/3),
+   * because the pre-admission leg had no retry (the one existing rejoin is
+   * post-admission only).
+   *
+   * Retry ONLY when: never admitted, never reached the lobby (so we never
+   * re-knock and double-signal the host), the retry is unused, and the reason is
+   * a "stuck/unrecognized" one — NEVER a `denied` (the host said no) or a lobby
+   * timeout. A fresh `openWindow()` destroys + re-navigates the companion window,
+   * re-running the whole launcher→prejoin→knock flow. `startedAtMs` is NOT reset,
+   * so a late admit on the retry correctly forfeits full-duration presence.
+   */
+  private failOrRetryPreAdmission(reason: NoticeCardFailureReason): void {
+    if (this.terminal) return;
+    const eligible =
+      !this.everAdmitted &&
+      !this.everReachedLobby &&
+      !this.preAdmitRetryUsed &&
+      (reason === 'page-unrecognized' || reason === 'join-timeout');
+    this.onDiagnostic?.({ kind: 'pre-admit-giveup', reason, willRetry: eligible });
+    if (!eligible) {
+      this.fail(reason);
+      return;
+    }
+    this.preAdmitRetryUsed = true;
+    this.clearJoinTimer();
+    this.setStatus({
+      phase: 'joining',
+      platform: this.config?.platform ?? 'none',
+      meetingTitle: this.config?.meetingTitle,
+    });
+    this.onDiagnostic?.({ kind: 'attempt', attempt: 2, reason: 'pre-admit-retry' });
+    // Fire-and-forget like the other open sites (start/rejoin): openWindow has its
+    // own try/catch and never rejects, so there is nothing to await or handle.
+    // eslint-disable-next-line lantern-async/no-silent-failure -- openWindow catches internally; it cannot reject
+    void this.openWindow();
+    this.startJoinTimer();
   }
 
   // ── Stop (the hard leave guarantee) ────────────────────────────────────────
@@ -370,6 +441,7 @@ export class NoticeCardSupervisor {
   private fail(reason: NoticeCardFailureReason): void {
     this.terminal = true;
     this.clearJoinTimer();
+    this.onDiagnostic?.({ kind: 'terminal', reason });
     this.record({
       kind: 'notice-card-failed',
       meetingDir: this.config?.meetingDir ?? '',
