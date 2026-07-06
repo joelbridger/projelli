@@ -31,6 +31,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **QA-91b: Notice Card now recognizes today's Teams web join page (selector
+  drift).** On a real live Teams meeting the recording companion opened its
+  window but soft-failed with `page-unrecognized` after ~29s (3/3), never
+  knocking on the host's lobby. Root cause: Teams web moved its prejoin under a
+  new `[data-tid="calling-prejoin-screen"]` region and turned the mic control
+  into a `role="switch"` checkbox (state in `data-cid="toggle-mute-<bool>"` /
+  `aria-checked`), so the adapter's old selectors matched nothing and
+  `detectPhase` sat in `loading` forever. Selectors are re-grounded in a real
+  DOM capture of the current page (evidence:
+  `coordination/qa-campaign/evidence/qa91b-teams-adapter/`): the prejoin is now
+  recognized by its container (so a name-field drift degrades to `ready-to-join`
+  and still clicks Join, instead of a hard `page-unrecognized`); `ensureMuted`
+  handles the switch toggle and never clicks a disabled one; the join button
+  (`prejoin-join-button`) is unchanged. Old selectors are kept as secondary
+  fallbacks, and lobby/admitted/denied use multi-signal (tid + aria-label +
+  text) detection pending the Legion live retest.
+  - Files: `adapters/teamsAdapter.ts`, `adapters/teamsAdapter.test.ts`
+    (current + legacy DOM fixtures, 29 tests).
+  - Review round 2: `detectPhase` now uses the *same* name-field lookup as
+    `fillGuestName` (identical inline `findNameField` helper — kept inline, not
+    module-scope, because the methods are serialized standalone into the
+    webview). Previously a drifted name `data-tid` with a still-labeled name box
+    read as `ready-to-join`, so the runner (which only fills the name during
+    `name-entry`) would have joined with a nameless card. Now a labeled empty
+    box → `name-entry` → fill → `ready-to-join`.
+
 ### Added
 - **QA-90: "still importing" banner + honest zero-hit decline on Ask.** While
   email, OneDrive, Wealthbox CRM, or workspace file indexing is actively
