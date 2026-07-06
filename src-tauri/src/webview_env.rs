@@ -13,11 +13,11 @@
 //! Card companion window (`commands/notice_card/mod.rs`). Before this module the
 //! main window passed an explicit args string (the wry default PLUS anything in
 //! `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, e.g. `--remote-debugging-port=…`
-//! when the app is driven over CDP), while the Notice Card window passed no args
-//! at all and got wry's bare default. Those two strings match only when the env
-//! var is unset — so under CDP-driven Windows testing (and any run that sets the
-//! env var) the Notice Card webview creation failed with `0x8007139F` and the
-//! recording-notice guest never joined the meeting.
+//! when a developer/bench build is driven over CDP), while the Notice Card
+//! window passed no args at all and got wry's bare default. Those two strings
+//! match only when the env var is unset — so under CDP-driven Windows testing
+//! (and any run that sets the env var) the Notice Card webview creation failed
+//! with `0x8007139F` and the recording-notice guest never joined the meeting.
 //!
 //! The fix is to compute the argument string in ONE place and hand the *same*
 //! string to BOTH window builders. Passing an explicit string makes wry use it
@@ -58,17 +58,26 @@ pub const WRY_DEFAULT_BROWSER_ARGS: &str =
     "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
 
 /// The additional-browser-args string that EVERY webview window in the app must
-/// use. Reads the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` env var (set when the
-/// app is driven over CDP) and appends it to the shared base. Call this from
-/// every `WebviewWindowBuilder`; never build the string ad hoc.
+/// use. In debug builds only, reads the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`
+/// env var (set when the app is driven over CDP) and appends it to the shared
+/// base. Release builds deliberately ignore that process/machine env var so a
+/// real user's WebView2 profile/cache cannot be redirected by outside state.
+/// Call this from every `WebviewWindowBuilder`; never build the string ad hoc.
 pub fn webview_browser_args() -> String {
-    webview_browser_args_with(std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok())
+    webview_browser_args_with(
+        std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok(),
+        cfg!(debug_assertions),
+    )
 }
 
 /// Pure core of [`webview_browser_args`], split out so the env-independent
 /// behavior is unit-testable without touching process-global state.
-fn webview_browser_args_with(extra: Option<String>) -> String {
+fn webview_browser_args_with(extra: Option<String>, allow_env_extra_args: bool) -> String {
     let mut args = String::from(WRY_DEFAULT_BROWSER_ARGS);
+    if !allow_env_extra_args {
+        return args;
+    }
+
     if let Some(extra) = extra {
         let extra = extra.trim();
         if !extra.is_empty() {
@@ -112,21 +121,32 @@ mod tests {
     fn no_extra_yields_exactly_the_base() {
         // With no env override the string is byte-identical to wry's default, so
         // it can never conflict with any other webview created without options.
-        assert_eq!(webview_browser_args_with(None), WRY_DEFAULT_BROWSER_ARGS);
+        assert_eq!(
+            webview_browser_args_with(None, true),
+            WRY_DEFAULT_BROWSER_ARGS
+        );
     }
 
     #[test]
     fn empty_or_whitespace_extra_is_ignored() {
-        assert_eq!(webview_browser_args_with(Some(String::new())), WRY_DEFAULT_BROWSER_ARGS);
-        assert_eq!(webview_browser_args_with(Some("   ".into())), WRY_DEFAULT_BROWSER_ARGS);
+        assert_eq!(
+            webview_browser_args_with(Some(String::new()), true),
+            WRY_DEFAULT_BROWSER_ARGS
+        );
+        assert_eq!(
+            webview_browser_args_with(Some("   ".into()), true),
+            WRY_DEFAULT_BROWSER_ARGS
+        );
     }
 
     #[test]
-    fn extra_is_appended_after_a_single_space() {
+    fn debug_or_bench_extra_is_appended_after_a_single_space() {
         // This is the CDP case that used to crash the Notice Card: the main
         // window got the port arg, the companion window didn't. Now the SAME
-        // function produces the SAME string for both.
-        let args = webview_browser_args_with(Some("--remote-debugging-port=9223".into()));
+        // function produces the SAME string for both. The cloud/Legion bench
+        // launches `npm run tauri:dev`, so `debug_assertions` is true and this
+        // extra CDP port remains available there.
+        let args = webview_browser_args_with(Some("--remote-debugging-port=9223".into()), true);
         assert_eq!(
             args,
             format!("{WRY_DEFAULT_BROWSER_ARGS} --remote-debugging-port=9223")
@@ -134,8 +154,19 @@ mod tests {
     }
 
     #[test]
+    fn release_build_ignores_external_webview_args() {
+        // This is the production hardening: a machine-level env var must not be
+        // able to redirect a real user's WebView2 profile/cache.
+        let args = webview_browser_args_with(
+            Some("--remote-debugging-port=9223 --user-data-dir=C:\\wrong-profile".into()),
+            false,
+        );
+        assert_eq!(args, WRY_DEFAULT_BROWSER_ARGS);
+    }
+
+    #[test]
     fn surrounding_whitespace_on_extra_is_trimmed() {
-        let args = webview_browser_args_with(Some("  --foo=bar  ".into()));
+        let args = webview_browser_args_with(Some("  --foo=bar  ".into()), true);
         assert_eq!(args, format!("{WRY_DEFAULT_BROWSER_ARGS} --foo=bar"));
     }
 
@@ -144,8 +175,8 @@ mod tests {
         // The invariant the whole fix rests on: two independent calls with the
         // same input produce identical output, so the main window and the Notice
         // Card window are guaranteed to match.
-        let a = webview_browser_args_with(Some("--remote-debugging-port=9223".into()));
-        let b = webview_browser_args_with(Some("--remote-debugging-port=9223".into()));
+        let a = webview_browser_args_with(Some("--remote-debugging-port=9223".into()), true);
+        let b = webview_browser_args_with(Some("--remote-debugging-port=9223".into()), true);
         assert_eq!(a, b);
     }
 }
