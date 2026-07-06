@@ -9,11 +9,19 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
 
 import { useWorkspaceLifecycle, type UseWorkspaceLifecycleOptions } from './useWorkspaceLifecycle';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import {
+  getCitationVerificationCacheSnapshotForTests,
+  resetCitationVerificationForTests,
+  useCitationVerification,
+} from '@/features/ask/citationVerification';
+import type { AnswerCitation } from '@/features/ask/askHelpers';
+import type { ImportStatus } from '@/features/ask/useStillImporting';
+import type { CitationVerdict } from '@/platform/utils/tauri-commands';
 import {
   useMatterStore,
   getMatters,
@@ -21,6 +29,32 @@ import {
   clearPendingMatterMigrationAudit,
 } from '@/platform/matter/matterStore';
 import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
+
+const { ragVerifyCitationsBatchMock, useStillImportingMock } = vi.hoisted(() => ({
+  ragVerifyCitationsBatchMock: vi.fn(),
+  useStillImportingMock: vi.fn<() => ImportStatus>(),
+}));
+
+vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
+  return {
+    ...original,
+    ragVerifyCitationsBatch: (...args: unknown[]): unknown => ragVerifyCitationsBatchMock(...args),
+  };
+});
+
+vi.mock('@/features/ask/useStillImporting', async (importOriginal) => {
+  const original = await importOriginal<typeof import('@/features/ask/useStillImporting')>();
+  return { ...original, useStillImporting: (): ImportStatus => useStillImportingMock() };
+});
+
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
 
 function makeOptions(): UseWorkspaceLifecycleOptions {
   return {
@@ -64,6 +98,9 @@ const baseMatter = {
 
 beforeEach(() => {
   localStorage.clear();
+  resetCitationVerificationForTests();
+  ragVerifyCitationsBatchMock.mockReset();
+  useStillImportingMock.mockReset().mockReturnValue('idle');
   setActiveWorkspaceScopeRoot(null);
   useWorkspaceStore.setState({ rootPath: null });
   useMatterStore.setState({ matters: [], activeMatterId: null, snapshots: {}, cache: {}, statusByMatterId: {} });
@@ -71,6 +108,7 @@ beforeEach(() => {
   setMatterAuditEmitter(null);
 });
 afterEach(() => {
+  resetCitationVerificationForTests();
   setActiveWorkspaceScopeRoot(null);
   useWorkspaceStore.setState({ rootPath: null });
   clearPendingMatterMigrationAudit();
@@ -223,5 +261,57 @@ describe('QA-93 stage B — switching the workspace root swaps the visible matte
     expect(getMatters()).toEqual([]);
 
     unmount();
+  });
+
+  it('ROUND 5: a workspace switch clears citation verification so an old in-flight result cannot land in the new workspace', async () => {
+    const firstCheck = deferred<CitationVerdict[]>();
+    const secondCheck = deferred<CitationVerdict[]>();
+    ragVerifyCitationsBatchMock
+      .mockReturnValueOnce(firstCheck.promise)
+      .mockReturnValueOnce(secondCheck.promise);
+    const onAuditLog = vi.fn();
+    const citation: AnswerCitation = {
+      n: 1,
+      label: 'plan.docx',
+      excerpt: 'The client wants to retire at 62.',
+      path: 'Clients/Acme/plan.docx',
+      locator: 'p.1',
+      verified: false,
+      id: 'chunk-workspace-race',
+      matterId: 'matter-acme',
+    };
+
+    const lifecycle = renderHook(() => useWorkspaceLifecycle(makeOptions()));
+    const verifier = renderHook(() => useCitationVerification([citation], onAuditLog));
+
+    await waitFor(() => {
+      expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(getCitationVerificationCacheSnapshotForTests().requestedKeys).toHaveLength(1);
+
+    act(() => {
+      useWorkspaceStore.getState().setRootPath('/wsA');
+    });
+
+    await waitFor(() => {
+      expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(2);
+    });
+
+    firstCheck.resolve([{ verdict: 'verified' } satisfies CitationVerdict]);
+    await act(async () => {
+      await firstCheck.promise;
+    });
+
+    expect(onAuditLog).not.toHaveBeenCalled();
+    expect(getCitationVerificationCacheSnapshotForTests().verdictKeys).toEqual([]);
+
+    secondCheck.resolve([{ verdict: 'verified' } satisfies CitationVerdict]);
+    await waitFor(() => {
+      expect(onAuditLog).toHaveBeenCalledTimes(1);
+    });
+    expect(getCitationVerificationCacheSnapshotForTests().verdictKeys).toHaveLength(1);
+
+    verifier.unmount();
+    lifecycle.unmount();
   });
 });

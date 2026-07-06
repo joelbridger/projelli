@@ -32,6 +32,7 @@ import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
 import { describeWorkspaceOpenError } from '@/platform/fs/workspaceOpenErrors';
 import { reloadWorkspaceScopedStores } from '@/platform/state/reloadWorkspaceScopedStores';
 import { flushPendingMatterMigrationAudit } from '@/platform/matter/matterStore';
+import { clearCitationVerificationCache } from '@/features/ask/citationVerification';
 
 // Bounds only the native SETUP (backend creation + initialize) — the SAME
 // budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
@@ -102,6 +103,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
       const nextRoot = state.rootPath;
       if (nextRoot === prevRoot) return;
       prevRoot = nextRoot;
+      clearCitationVerificationCache();
       reloadWorkspaceScopedStores(nextRoot);
     });
   }, []);
