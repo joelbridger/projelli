@@ -32,6 +32,15 @@ pub const LLAMA_PARALLEL: u32 = 1;
 pub const HEALTH_TIMEOUT_SECS: u64 = 120;
 const HEALTH_POLL_MS: u64 = 200;
 const MAX_LOG_LINES: usize = 200;
+// After /health reports the model loaded, the FIRST real generation still pays a
+// cold-cache cost (prompt-eval kernels, KV cache, weights paged in) that can run
+// well past the Ask watchdog. So readiness ends with one tiny generation probe;
+// give it generous headroom because that first forward pass is the slow one.
+const WARMUP_PROBE_TIMEOUT_SECS: u64 = 90;
+// The probe prompt is trivial and we only need to observe that tokens flow, so a
+// tiny cap keeps it fast on a warm server while still exercising a full forward
+// pass on a cold one.
+const WARMUP_PROBE_MAX_TOKENS: u32 = 4;
 
 #[derive(Clone, Debug)]
 pub struct LlamaServerLog {
@@ -74,6 +83,10 @@ impl LlamaServerSidecar {
         format!("{}/health", self.endpoint())
     }
 
+    pub fn completions_url(&self) -> String {
+        format!("{}/v1/chat/completions", self.endpoint())
+    }
+
     pub fn model_path(&self) -> PathBuf {
         self.model.clone()
     }
@@ -107,28 +120,40 @@ impl LlamaServerSidecar {
         ]
     }
 
-    /// Start llama-server and wait until its health endpoint is ready.
+    /// Start llama-server and wait until it can actually generate.
+    ///
+    /// Readiness has two gates, not one. First the HTTP `/health` endpoint must
+    /// report the model loaded (`{"status":"ok"}`). But "model loaded" is only
+    /// the door opening — the very first generation still pays a cold-cache cost
+    /// that on a modest laptop can exceed the Ask answer-stall watchdog, which is
+    /// exactly the "first question fails, retry works" bug. So after health we
+    /// run one tiny warm-up generation and only return `Ok` once it produces
+    /// output. Pre-start then absorbs the whole cold cost in the background,
+    /// before the user ever asks. A probe failure surfaces as a real error (the
+    /// "starting…" state resolves to a failure, never an infinite spinner).
     pub async fn start(&mut self) -> Result<()> {
-        if self.health_check().await {
-            return Ok(());
+        if !self.health_check().await {
+            if self
+                .process
+                .as_mut()
+                .and_then(|child| child.try_wait().ok())
+                .flatten()
+                .is_some()
+            {
+                self.process = None;
+            }
+
+            if self.process.is_none() {
+                self.spawn()?;
+            }
+
+            self.wait_until_healthy(Duration::from_secs(HEALTH_TIMEOUT_SECS))
+                .await?;
         }
 
-        if self
-            .process
-            .as_mut()
-            .and_then(|child| child.try_wait().ok())
-            .flatten()
-            .is_some()
-        {
-            self.process = None;
-        }
-
-        if self.process.is_none() {
-            self.spawn()?;
-        }
-
-        self.wait_until_healthy(Duration::from_secs(HEALTH_TIMEOUT_SECS))
-            .await
+        // Health is green; now prove it can speak. On a warm server this returns
+        // in milliseconds; on a cold one it absorbs the slow first forward pass.
+        self.warmup_probe().await
     }
 
     pub async fn stop(&mut self) -> Result<()> {
@@ -139,6 +164,11 @@ impl LlamaServerSidecar {
         Ok(())
     }
 
+    /// True only when llama-server reports the model fully loaded. llama.cpp
+    /// returns `503` (with a "loading model" body) while the GGUF is still
+    /// loading and `200 {"status":"ok"}` once ready — but a 2xx status alone is
+    /// not trusted: the body must parse and say `status == "ok"`. Anything else
+    /// (loading, a garbage body, a non-JSON `OK`) counts as not ready.
     pub async fn health_check(&self) -> bool {
         match timeout(
             Duration::from_secs(2),
@@ -146,9 +176,68 @@ impl LlamaServerSidecar {
         )
         .await
         {
-            Ok(Ok(resp)) => resp.status().is_success(),
+            Ok(Ok(resp)) => {
+                if !resp.status().is_success() {
+                    return false;
+                }
+                match resp.text().await {
+                    Ok(body) => health_body_is_ok(&body),
+                    Err(_) => false,
+                }
+            }
             _ => false,
         }
+    }
+
+    /// Fire one tiny generation at the OpenAI-compatible endpoint and require it
+    /// to actually produce output. This is the difference between "the server is
+    /// up" and "the model can answer": it forces the slow first forward pass to
+    /// complete here — during the "Local AI is starting…" window — instead of
+    /// inside the user's first question where it can trip the answer-stall
+    /// timeout. Returns `Err` (not a hang) if the probe fails, times out, or
+    /// comes back with no generated text.
+    async fn warmup_probe(&self) -> Result<()> {
+        let body = serde_json::json!({
+            "model": "keepance-local",
+            "messages": [{ "role": "user", "content": "Hi" }],
+            "max_tokens": WARMUP_PROBE_MAX_TOKENS,
+            "temperature": 0,
+            "stream": false,
+        });
+
+        let resp = timeout(
+            Duration::from_secs(WARMUP_PROBE_TIMEOUT_SECS),
+            self.client.post(self.completions_url()).json(&body).send(),
+        )
+        .await
+        .map_err(|_| {
+            anyhow!(
+                "local AI warm-up generation did not respond within {} seconds",
+                WARMUP_PROBE_TIMEOUT_SECS
+            )
+        })?
+        .map_err(|e| anyhow!("local AI warm-up generation request failed: {e}"))?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            return Err(anyhow!(
+                "local AI warm-up generation returned HTTP {}",
+                status.as_u16()
+            ));
+        }
+
+        let text = resp
+            .text()
+            .await
+            .map_err(|e| anyhow!("reading local AI warm-up generation response: {e}"))?;
+
+        if !probe_response_has_output(&text) {
+            return Err(anyhow!(
+                "local AI warm-up generation produced no output (server healthy but not generating)"
+            ));
+        }
+
+        Ok(())
     }
 
     pub fn is_running(&mut self) -> bool {
@@ -328,6 +417,54 @@ fn read_log_tail(path: &Path, max_lines: usize) -> Vec<String> {
     lines.into_iter().skip(skip).collect()
 }
 
+/// A llama.cpp `/health` body reports ready only as `{"status":"ok"}`. Parse the
+/// body and require exactly that; a missing/other status, an error body, or
+/// unparseable text all mean "not ready". Status code is checked separately by
+/// the caller — this guards against a 2xx whose body says otherwise.
+fn health_body_is_ok(body: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(body)
+        .ok()
+        .and_then(|v| {
+            v.get("status")
+                .and_then(|s| s.as_str())
+                .map(|s| s == "ok")
+        })
+        .unwrap_or(false)
+}
+
+/// Did the warm-up generation actually produce tokens? A non-streaming
+/// chat-completion response carries `choices[0].message.content`; require it to
+/// be non-empty. As a defensive fallback, a choice that finished (non-null
+/// `finish_reason`) also counts — that still proves a forward pass ran. An error
+/// body, empty `choices`, or unparseable text all mean "no output".
+fn probe_response_has_output(body: &str) -> bool {
+    let Ok(value) = serde_json::from_str::<serde_json::Value>(body) else {
+        return false;
+    };
+    let Some(first) = value
+        .get("choices")
+        .and_then(|c| c.as_array())
+        .and_then(|choices| choices.first())
+    else {
+        return false;
+    };
+
+    let has_content = first
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .map(|text| !text.trim().is_empty())
+        .unwrap_or(false);
+    if has_content {
+        return true;
+    }
+
+    first
+        .get("finish_reason")
+        .map(|f| !f.is_null())
+        .unwrap_or(false)
+}
+
 fn with_platform_ext(name: &str) -> String {
     if cfg!(windows) {
         format!("{name}.exe")
@@ -406,7 +543,39 @@ mod tests {
         )
     }
 
-    async fn fake_health_server() -> (u16, tokio::task::JoinHandle<()>) {
+    /// How the fake server answers `/health`.
+    #[derive(Clone, Copy)]
+    enum HealthReply {
+        /// 200 with `{"status":"ok"}` — model loaded.
+        Ok,
+        /// 503 with a loading body — model still warming up.
+        Loading,
+    }
+
+    /// How the fake server answers `/v1/chat/completions`.
+    #[derive(Clone, Copy)]
+    enum CompletionReply {
+        /// 200 with a choice carrying generated text.
+        WithOutput,
+        /// 200 but an empty `choices` array — accepted, produced nothing.
+        NoOutput,
+        /// 500 — the request failed outright.
+        Error,
+    }
+
+    fn http_json(status_line: &str, body: &str) -> String {
+        format!(
+            "HTTP/1.1 {status_line}\r\ncontent-type: application/json\r\nconnection: close\r\ncontent-length: {}\r\n\r\n{body}",
+            body.len()
+        )
+    }
+
+    /// A fake llama-server that answers `/health` and `/v1/chat/completions`
+    /// according to the given behaviors. Serves connections until aborted.
+    async fn fake_llama_server(
+        health: HealthReply,
+        completion: CompletionReply,
+    ) -> (u16, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind((LLAMA_SERVER_HOST, 0)).await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let handle = tokio::spawn(async move {
@@ -415,13 +584,35 @@ mod tests {
                     break;
                 };
                 tokio::spawn(async move {
-                    let mut buf = [0_u8; 1024];
-                    let _ = socket.read(&mut buf).await;
-                    let req = String::from_utf8_lossy(&buf);
+                    let mut buf = [0_u8; 2048];
+                    let n = socket.read(&mut buf).await.unwrap_or(0);
+                    let req = String::from_utf8_lossy(&buf[..n]);
                     let response = if req.starts_with("GET /health ") {
-                        "HTTP/1.1 200 OK\r\ncontent-length: 2\r\n\r\nOK"
+                        match health {
+                            HealthReply::Ok => {
+                                http_json("200 OK", r#"{"status":"ok"}"#)
+                            }
+                            HealthReply::Loading => http_json(
+                                "503 Service Unavailable",
+                                r#"{"error":{"code":503,"message":"Loading model","type":"unavailable_error"}}"#,
+                            ),
+                        }
+                    } else if req.starts_with("POST /v1/chat/completions ") {
+                        match completion {
+                            CompletionReply::WithOutput => http_json(
+                                "200 OK",
+                                r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Hi"},"finish_reason":"length"}]}"#,
+                            ),
+                            CompletionReply::NoOutput => {
+                                http_json("200 OK", r#"{"choices":[]}"#)
+                            }
+                            CompletionReply::Error => http_json(
+                                "500 Internal Server Error",
+                                r#"{"error":{"message":"boom"}}"#,
+                            ),
+                        }
                     } else {
-                        "HTTP/1.1 404 Not Found\r\ncontent-length: 0\r\n\r\n"
+                        http_json("404 Not Found", "{}")
                     };
                     let _ = socket.write_all(response.as_bytes()).await;
                 });
@@ -507,10 +698,96 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health_check_uses_fake_sidecar_endpoint() {
-        let (port, server) = fake_health_server().await;
+    async fn health_check_true_only_on_status_ok_body() {
+        let (port, server) =
+            fake_llama_server(HealthReply::Ok, CompletionReply::WithOutput).await;
         let s = sidecar(port);
         assert!(s.health_check().await);
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn health_check_false_while_model_loading() {
+        // llama.cpp answers /health with 503 + a loading body until the GGUF is
+        // fully loaded. That must read as NOT ready, not "up".
+        let (port, server) =
+            fake_llama_server(HealthReply::Loading, CompletionReply::WithOutput).await;
+        let s = sidecar(port);
+        assert!(!s.health_check().await);
+        server.abort();
+    }
+
+    #[test]
+    fn health_body_parsing_requires_status_ok() {
+        assert!(health_body_is_ok(r#"{"status":"ok"}"#));
+        assert!(health_body_is_ok(r#"{"status":"ok","slots_idle":1}"#));
+        // Loading / other status → not ready.
+        assert!(!health_body_is_ok(r#"{"status":"loading model"}"#));
+        assert!(!health_body_is_ok(r#"{"error":{"message":"loading"}}"#));
+        // Bare non-JSON "OK" (an older/other build) → not trusted.
+        assert!(!health_body_is_ok("OK"));
+        // Garbage / empty → not ready.
+        assert!(!health_body_is_ok("<html>oops</html>"));
+        assert!(!health_body_is_ok(""));
+        assert!(!health_body_is_ok("{}"));
+    }
+
+    #[test]
+    fn probe_output_detection_requires_generated_text() {
+        // A real non-streaming completion with content → output present.
+        assert!(probe_response_has_output(
+            r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"Hi"},"finish_reason":"length"}]}"#
+        ));
+        // Empty content but a finished choice → a forward pass still ran.
+        assert!(probe_response_has_output(
+            r#"{"choices":[{"index":0,"message":{"content":""},"finish_reason":"stop"}]}"#
+        ));
+        // Accepted but produced nothing → no output.
+        assert!(!probe_response_has_output(r#"{"choices":[]}"#));
+        // An error body (e.g. still loading) → no output.
+        assert!(!probe_response_has_output(
+            r#"{"error":{"message":"Loading model"}}"#
+        ));
+        // Content present but empty and no finish_reason → no output.
+        assert!(!probe_response_has_output(
+            r#"{"choices":[{"message":{"content":"   "}}]}"#
+        ));
+        // Garbage / empty → no output.
+        assert!(!probe_response_has_output("not json"));
+        assert!(!probe_response_has_output(""));
+    }
+
+    #[tokio::test]
+    async fn start_succeeds_only_after_warmup_generation_produces_output() {
+        // Server is already healthy, so start() skips spawn and must still run
+        // the warm-up probe. A probe that produces output → ready.
+        let (port, server) =
+            fake_llama_server(HealthReply::Ok, CompletionReply::WithOutput).await;
+        let mut s = sidecar(port);
+        s.start().await.unwrap();
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn start_errors_when_warmup_generation_produces_no_output() {
+        // Health is green but the model accepts the request and returns nothing:
+        // this is the exact cold-start trap. It must surface as an error, never
+        // an infinite "starting…".
+        let (port, server) =
+            fake_llama_server(HealthReply::Ok, CompletionReply::NoOutput).await;
+        let mut s = sidecar(port);
+        let err = s.start().await.unwrap_err().to_string();
+        assert!(err.contains("no output"), "{err}");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn start_errors_when_warmup_generation_request_fails() {
+        let (port, server) =
+            fake_llama_server(HealthReply::Ok, CompletionReply::Error).await;
+        let mut s = sidecar(port);
+        let err = s.start().await.unwrap_err().to_string();
+        assert!(err.contains("HTTP 500"), "{err}");
         server.abort();
     }
 
@@ -561,9 +838,26 @@ port = int(sys.argv[2])
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/health":
+            body = b'{"status":"ok"}'
             self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
             self.end_headers()
-            self.wfile.write(b"OK")
+            self.wfile.write(body)
+        else:
+            self.send_response(404)
+            self.end_headers()
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", 0))
+        if length:
+            self.rfile.read(length)
+        if self.path == "/v1/chat/completions":
+            body = b'{"choices":[{"index":0,"message":{"role":"assistant","content":"Hi"},"finish_reason":"length"}]}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
         else:
             self.send_response(404)
             self.end_headers()
