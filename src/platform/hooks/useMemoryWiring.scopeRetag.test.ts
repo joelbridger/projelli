@@ -867,6 +867,10 @@ describe('mail hydration-suspect actually fails closed on ALL mail (F2, R8)', ()
     // The banner's promise is now real: a mail hit — under ANY matter — is dropped
     // from retrieval, not silently surfaced.
     expect(shouldExcludeHitFromRetrieval(mailHit)).toBe(true);
+    // R8 hardening: an older/odd mail row that carries NO sourceType and NO sourceId,
+    // identified only by a `mail:`-prefixed `path`, is still caught by the blanket hold.
+    const legacyMailHit = { path: 'mail:legacy', chunkText: '', score: 1, paragraphIndex: 0 };
+    expect(shouldExcludeHitFromRetrieval(legacyMailHit)).toBe(true);
     // …but FILE hits are unaffected by a MAIL-store suspicion.
     expect(shouldExcludeHitFromRetrieval(fileHit)).toBe(false);
   });

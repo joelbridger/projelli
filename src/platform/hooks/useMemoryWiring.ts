@@ -1170,7 +1170,14 @@ export function restoreFolderHolds(workspaceRoot: string | null | undefined): vo
  * files, and a FOLDER-store suspicion never hides mail.
  */
 export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
-  const isMail = hit.sourceType === 'mail' || (hit.sourceId ?? '').startsWith('mail:');
+  // Detect mail across every id form a row might carry: the typed `sourceType`, the
+  // `mail:`-prefixed `sourceId`, AND (R8 hardening) the `mail:`-prefixed `path` —
+  // older/odd rows can lack `sourceType`/`sourceId` but still key by `path`, and
+  // missing one form would let such a mail hit slip past the fail-closed all-mail hold.
+  const isMail =
+    hit.sourceType === 'mail' ||
+    (hit.sourceId ?? '').startsWith('mail:') ||
+    (hit.path ?? '').startsWith('mail:');
   if (isMail) {
     // R8 (F2): a corrupt mail-retag store can't say WHICH matters lost their hold, so
     // fail closed on ALL mail until the boot mail retag reconverges every tag.
