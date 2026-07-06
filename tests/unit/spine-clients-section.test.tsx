@@ -2,6 +2,13 @@
  * Spine — the "Clients" section (UI Simplification Pass): the redundant
  * repeated light-gray client name is gone, and the list is now a collapsible
  * section instead of an always-expanded block that force-fills the rail.
+ *
+ * Rule (round 2): there is never a separate subtext line for the client
+ * name — matterLabel() itself folds the client into the one-line label
+ * ("Client - Name" when the matter's internal name differs from the client,
+ * or just the shared name/client when they match), so the client's name
+ * stays visible in the row either way. This suite uses the REAL matterLabel
+ * (not a mock) so that folding behavior is actually exercised.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -15,6 +22,9 @@ vi.mock('react-i18next', () => ({
 const MATTERS: Matter[] = [
   { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [] },
   { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [] },
+  // Internal name deliberately differs from the client — exercises matterLabel's
+  // "Client - Name" folding branch instead of the name===client shortcut above.
+  { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [] },
 ];
 
 vi.mock('@/platform/matter/matterStore', () => ({
@@ -24,9 +34,6 @@ vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: (selector: (s: { setActiveMatter: () => void }) => unknown) =>
     selector({ setActiveMatter: vi.fn() }),
 }));
-vi.mock('@/platform/rag/matterResolver', () => ({
-  matterLabel: (m: { name: string }) => m.name,
-}));
 
 describe('Spine — Clients section', () => {
   it('does not render the redundant repeated client-name subtext', () => {
@@ -35,6 +42,15 @@ describe('Spine — Clients section', () => {
     expect(screen.getByText('Hendricks Household')).toBeInTheDocument();
     // ...but not a second time as a separate light-gray subtext line under it.
     expect(screen.getAllByText('Hendricks Household')).toHaveLength(1);
+  });
+
+  it('folds the client name into the one-line label when the internal name differs, with no separate subtext', () => {
+    render(<Spine activeTab="matters" />);
+    // matterLabel formats this as "Alvarez - Retirement Plan Review" — the
+    // client name is still visible, just folded into the single label line
+    // rather than duplicated as its own row underneath.
+    expect(screen.getByText('Alvarez - Retirement Plan Review')).toBeInTheDocument();
+    expect(screen.getAllByText(/Alvarez/)).toHaveLength(1);
   });
 
   it('is a collapsible section: open by default, and toggling hides the client rows', () => {
