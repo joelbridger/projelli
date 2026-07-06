@@ -1,6 +1,6 @@
 # The Demo Script
 
-**⚠️ DRAFT — this is the plan for the demo, but not every step has a final "yes, tested and works" checkmark yet. Before the real demo, ask for the latest test results and update this line.**
+**✅ CERTIFIED 2026-07-06: this exact script passed three complete back-to-back rehearsals on the demo laptop (evidence: the 3× dry-run report). The laptop is kept frozen on the rehearsed build — don't update it before the demo.**
 
 This is a step-by-step script for showing off the app live, in front of people. Follow it in order. Read the whole thing once before you do it live — especially the "if something goes sideways" page near the end.
 
@@ -26,6 +26,8 @@ Do all of this **before** anyone is watching. None of it should happen live.
 If you skip this checklist, the risk is: long boring waits, a download bar nobody wants to watch, or clients that show up "missing" because the filing cabinet got switched mid-show.
 
 ---
+
+**Two timing notes from the rehearsals:** (1) When you switch to Local AI and ask, the answer takes one to two minutes on this laptop — the app now says "reading your documents" while it works. Use that wait deliberately: it's your privacy pitch. Say: *"Right now it's reading the Hendersons' documents entirely on this laptop — nothing is leaving the machine. That's the whole point."* (2) If the Recording Notice guest doesn't knock within a couple of minutes (it happened once in three rehearsals), just use the fallback line and say the notice aloud — the recording works fine either way.
 
 ## The 6 steps of the demo
 
