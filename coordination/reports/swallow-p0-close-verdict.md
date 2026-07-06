@@ -228,3 +228,52 @@ on boot-pass duration and user timing I did not measure on a bench. I did not ru
 session; nothing in this review required one, but round 7's verification should include one
 scripted remap-fail-restart pass on the Legion bench to see the restored hold + banner with real
 eyes.
+
+---
+
+## ROUND 7 — IMPLEMENTED (cc-lantern-swallow7, 2026-07-06)
+
+All seven items done, each with red→green evidence. The branch was **merged** with the current
+`origin/lantern-plus` tip (63→74 commits behind at start; a merge, not a linear rebase, because the
+branch already carries prior origin-merge commits — a rebase would replay them and risk losing the
+per-round conflict resolutions). Merge-base was `b1794baf`. Full QA-44 + wiring vitest green; Rust
+`mail::matter::tests` green; `tsc` clean.
+
+- **R7-1 (merge + semantic reconciliation) — DONE.** Both collisions resolved by hand:
+  (1) *identity-abort ≠ success* — `reindexFolderPaths` keeps origin's quiet-return-on-switch
+  contract (origin's "bails on switch" test stays green), and the scheduler op + pre-mount fallback
+  now pin the identity, re-check it after the re-tag resolves, and throw a `WorkspaceIdentityChangedError`
+  on abort so the fail-closed hold is never discharged. `retagFolderPathsInPlace` /
+  `retagExistingMailFolders` store-write guards tightened from root-only to full identity.
+  (2) *`retagMatterBatch` misses API* — rebuilt on `Promise<string[]>`: misses → re-index; a miss
+  that FAILS to re-index rejoins the hold (the auto-merge had dropped `reindexPaths`' failure count).
+  Red→green tests in `scopeRetag.test.ts`. Commit `9f618d3e`.
+- **R7-2 (Rust partial-failure swallow) — DONE.** `mail_retag_folder_matter` now fails on ANY
+  per-message error via a pure, tested `summarize_mail_retag` (Ok(0 rows) stays a no-op). 5 Rust
+  unit tests; proven red (the swallow build failed the two failure-path tests) → green. Commit `87a657e3`.
+- **R7-5 (queued-op-after-dispose + workspace pin) — DONE.** (a) `runSerialized` re-checks
+  supersession/disposal when a queued op would START — the documenting `it.fails` flipped to a
+  passing `it` (red→green). (b) `mail_retag_folder_matter` takes an optional `expected_workspace`
+  pin; the 3 QA-44 callers pass the captured root and the backend refuses on a switch. Commit `87a657e3`.
+- **R7-3 (durable FILE-folder holds) — DONE.** New per-workspace `pendingFolderRetagStore` +
+  `restoreFolderHolds` (synchronous at mount, mirror of `restoreMailHolds`); the live reaction
+  records up front + discharges on success; the boot pass records failed folders + discharges clean
+  ones. 5 wiring tests + 6 store tests. Commit `8a0f4c42`.
+- **R7-4 (boot vs live write race) — DONE.** Both boot passes re-resolve each target's CURRENT
+  matter immediately before the write (FILE: skip a file whose matter changed; MAIL: write the live
+  mapping, not the snapshot). 2 tests, proven red→green. Commit `ea04cb75`.
+- **R7-6 (corrupt pending-store hydration) — DONE (proportionate, per this doc's ranking, not the
+  heavier "exclude all mail").** `sanitizePersistedMailRetag` (wired as the persist `merge`) keeps
+  well-formed records, drops malformed ones, and marks the store SUSPECT; `restoreMailHolds`
+  surfaces a visible failed banner when suspect. 5 sanitizer + 2 banner tests. Commit `44633cff`.
+- **R7-7 (explainer routing) — DONE.** `PrivilegeExclusionExplainer` now defaults its demo to
+  `MemoryService.retrieve` (the fail-closed choke point) instead of raw `ragRetrieve`, so its
+  "withheld" count agrees with real Ask. Explainer tests green.
+
+**Merge-gate note for the coordinator:** the eslint gate reports 4 findings in
+`teamsAdapter*` / `OneDriveConnect` — those files are byte-identical to origin and the baseline
+already equals origin's, so this is lantern-plus's own pre-existing lint debt, NOT introduced by
+this branch (this branch adds zero new eslint findings). The sidecar `binaries/` (piper,
+llama-server) were copied from the `lantern-plus` base into this fresh worktree so `cargo test`
+could build — gitignored, tree stays clean. A live Legion remap-fail-restart pass (this doc's
+suggestion) was NOT run — build-only during the demo freeze.
