@@ -24,6 +24,15 @@ export const NOTICE_CARD_TITLE_PREFIX = 'NC:';
 const POLL_MS = 700;
 /** Ticks in an unrecognized "loading" state before we declare page drift. */
 const UNRECOGNIZED_TICKS = 40; // ~28s at POLL_MS
+/**
+ * AFTER admission only (QA-91d r2 heartbeat): how many CONSECUTIVE polls with the
+ * in-call anchors ABSENT and no recognized page we tolerate as brief DOM drift
+ * (still presumed present) before declaring a real disconnect. Small on purpose — a
+ * healthy in-call page always carries the call-duration/hangup anchors (→ 'admitted'),
+ * so this window only spans a sub-second re-render, never a genuine drop. Keeps a
+ * real network drop / reconnect from being reported as presence forever.
+ */
+const PRESENT_UNKNOWN_GRACE_TICKS = 5; // ~3.5s at POLL_MS
 
 /**
  * Build the injection script for one card. `cameraScript` (v2) is prepended so
@@ -59,6 +68,7 @@ export function buildInjectionScript(
   const prefix = JSON.stringify(NOTICE_CARD_TITLE_PREFIX);
   const pollMs = JSON.stringify(POLL_MS);
   const unrecognizedTicks = JSON.stringify(UNRECOGNIZED_TICKS);
+  const graceTicks = JSON.stringify(PRESENT_UNKNOWN_GRACE_TICKS);
   const camera = opts?.cameraScript ?? '';
 
   return `(function () {
@@ -76,12 +86,14 @@ ${camera}
     var TITLE_PREFIX = ${prefix};
     var POLL_MS = ${pollMs};
     var UNRECOGNIZED_TICKS = ${unrecognizedTicks};
+    var PRESENT_UNKNOWN_GRACE_TICKS = ${graceTicks};
     var adapter = {
 ${methods}
     };
     var lastReported = '';
     var everAdmitted = false;
     var loadingTicks = 0;
+    var driftTicks = 0;
     function report(status) {
       // Re-assert even when the status is unchanged if the meeting page has
       // overwritten our title (Teams/Zoom rewrite document.title constantly).
@@ -95,6 +107,46 @@ ${methods}
     function tick() {
       try {
         var phase = adapter.detectPhase(document);
+        // ── AFTER admission: one-way latch, but distinguish drift from a real exit ──
+        // (QA-91d r2). The latch must NEVER silence a genuine disconnect: the consent
+        // evidence must not record presence while the notice was actually absent.
+        if (everAdmitted) {
+          if (phase === 'admitted') {
+            // Still in the call (the in-call anchors are present). Latch holds.
+            driftTicks = 0;
+            report('admitted');
+          } else if (phase === 'denied') {
+            // The host removed the card mid-meeting — a real, honest terminal.
+            report('denied');
+          } else if (
+            phase === 'lobby' ||
+            phase === 'launcher' ||
+            phase === 'name-entry' ||
+            phase === 'ready-to-join'
+          ) {
+            // A RECOGNIZED non-call page after admission = we genuinely bounced OUT of
+            // the meeting (network reconnect, back to prejoin, re-lobby). This is a
+            // real disconnect — NEVER keep claiming presence. Signal it so the
+            // supervisor rejoins / reports honestly and the evidence ledger reflects
+            // the gap (a rejoin forfeits the full-duration-presence claim).
+            report('disconnected');
+          } else {
+            // Unrecognized/loading AND the in-call anchors are absent (else detectPhase
+            // would have returned 'admitted'). This is the ONLY genuine drift case:
+            // either a sub-second in-call re-render, or a drop whose page we don't
+            // recognize. Heartbeat — tolerate a SHORT grace window as presumed-present,
+            // but if the in-call anchors stay gone past it, declare a real disconnect.
+            // Never present-unknown forever.
+            driftTicks++;
+            if (driftTicks > PRESENT_UNKNOWN_GRACE_TICKS) {
+              report('disconnected');
+            } else {
+              report('present-unknown');
+            }
+          }
+          return;
+        }
+        // ── BEFORE admission: the join flow (unchanged) ──
         if (phase === 'launcher') {
           // "Continue on this browser" vs "Open the Teams app" chooser: click
           // through it so the page advances to the real prejoin. A SUCCESSFUL
@@ -125,21 +177,10 @@ ${methods}
         } else if (phase === 'admitted') {
           everAdmitted = true;
           loadingTicks = 0;
+          driftTicks = 0;
           report('admitted');
         } else if (phase === 'denied') {
           report('denied');
-        } else if (everAdmitted) {
-          // ADMISSION IS A ONE-WAY LATCH (QA-91d). We were admitted, so the card is
-          // PHYSICALLY in the meeting doing its job. An unrecognized page after that
-          // is almost always just post-admission DOM drift (the exact QA-82 bug: the
-          // in-call selectors moved, so detectPhase read 'loading' ~28s after a real
-          // admit). NEVER report 'unrecognized' or 'disconnected' here — those make the
-          // supervisor force-close the card and tell the presenter "couldn't join"
-          // while the tile is still on screen. Downgrade to "state unknown, card
-          // presumed present" and stay in the meeting until recording stops normally.
-          // (A genuinely CLOSED window is still caught app-side by a null status title;
-          // this only governs DOM drift within a still-live page.)
-          report('present-unknown');
         } else {
           // loading / nothing recognized, and never admitted → the honest fast-fail.
           loadingTicks++;

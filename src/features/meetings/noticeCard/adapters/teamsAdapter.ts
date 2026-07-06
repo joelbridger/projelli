@@ -32,8 +32,10 @@
  * (single shared signed-in profile — no anonymous second identity), so those use
  * multi-signal detection (data-tid + aria-label + text) with the old selectors retained;
  * the Legion live retest confirmed lobby end-to-end (the card reached the lobby + was
- * admitted). Admission is additionally a one-way latch (supervisor.ts / injectionScript.ts)
- * so ANY post-admission page drift can never again force-close an admitted card.
+ * admitted). Admission is additionally a one-way latch (supervisor.ts / injectionScript.ts):
+ * brief post-admission DOM drift can never force-close an admitted card, while a genuine
+ * exit (a recognized non-call page, or in-call anchors gone past a heartbeat window) is
+ * still reported honestly so the consent evidence never lies about presence.
  *
  * Every method is self-contained (DOM-only, no imports, no module closures) so
  * the exact source can be serialized into the injected webview script.

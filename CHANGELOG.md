@@ -51,15 +51,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     controls (by tid AND aria-label), and the `calling-screen-*` /
     `stage-layouts-renderer` stage — with an `aria-label="Leave"` button fallback;
     the old tids are kept as legacy fallbacks. Files: `adapters/teamsAdapter.ts`.
-  - **Admission is now a one-way latch:** once the runner has observed admitted,
-    an unrecognized page can NEVER force-close the card or report failure — the
-    card is physically in the meeting. It downgrades to a "state unknown, card
-    presumed present" status (`present-unknown` token / phase) and stays in the
-    meeting until recording stops normally; the recorder pill never reads "couldn't
-    join" after an observed admission. The never-admitted fast-fail is unchanged.
-    Files: `injectionScript.ts`, `supervisor.ts`, `tauriDriver.ts`,
-    `noticeCardPill.ts`. Tests: adapter fixture from the capture + supervisor/
-    injection latch tests (165 noticeCard tests green, tsc clean).
+  - **Admission is now a one-way latch — but it never silences a real exit.**
+    Once the runner has observed admitted, brief post-admission DOM drift (the
+    in-call anchors momentarily gone) downgrades to a "state unknown, card presumed
+    present" status (`present-unknown` token / phase) instead of force-closing the
+    card or reporting failure — so the demo bug (tile vanishes + "couldn't join")
+    can't recur. Crucially, the latch distinguishes drift from a genuine disconnect
+    so the consent evidence can never lie about presence: a RECOGNIZED non-call page
+    after admission (bounce back to prejoin / lobby / launcher) is a real disconnect
+    → the supervisor rejoins / reports honestly and forfeits the full-duration
+    presence claim; and an unrecognized page whose in-call anchors (call-duration
+    timer / hangup button) stay absent past a short heartbeat grace window (~3.5s)
+    is likewise treated as a real disconnect, never presumed-present forever. The
+    recorder pill never reads "couldn't join" after an observed admission; the
+    never-admitted fast-fail is unchanged. Files: `injectionScript.ts`,
+    `supervisor.ts`, `tauriDriver.ts`, `noticeCardPill.ts`. Tests: adapter fixture
+    from the capture + supervisor/injection latch & evidence-integrity tests (169
+    noticeCard tests green, tsc clean).
 - **Demo dress-rehearsal fixes: persisted key-verify status + Local AI
   mode-switch pre-start now cover the ConfidentialityModeSettings path.**
   Two findings from the Legion dress-rehearsal (`legion-dressrun1/REPORT.md`):

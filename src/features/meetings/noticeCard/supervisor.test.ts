@@ -306,6 +306,26 @@ describe('NoticeCardSupervisor — admission is a one-way latch (QA-91d)', () =>
     expect(h.sup.status.phase).toBe('joining');
     expect(h.driver.opens).toHaveLength(2);
   });
+
+  it('EVIDENCE INTEGRITY (r2): a detected gap after admission never yields full-duration presence', async () => {
+    // The compliance rule: the consent ledger must never claim the card covered the
+    // WHOLE recording if there was a detected disconnect gap. A brief drift stays
+    // present (presumed present); a real disconnect (grace exceeded / bounce to a
+    // non-call page) forfeits the full-duration claim but still honestly files 'left'.
+    const h = make();
+    h.sup.start(CONFIG);
+    h.clock.advance(3_000);
+    h.sup.handleAdmitted(); // prompt admit
+    h.sup.handlePresumedPresent(); // brief unreadable window (still presumed present)
+    h.sup.handleDisconnected(); // grace exceeded → a REAL gap → one rejoin
+    expect(h.sup.status.phase).toBe('joining'); // no longer claiming presence
+    h.clock.advance(10_000); // stop while still rejoining (before the rejoin times out)
+    await h.sup.stop(); // user stops before any re-admit
+    // Honest: it WAS in the meeting earlier, so 'left' is filed — but NEVER
+    // full-duration presence, because there was a detected gap.
+    expect(kinds(h.ledger)).toContain('notice-card-left');
+    expect(kinds(h.ledger)).not.toContain('notice-card-present-for-entire-recording');
+  });
 });
 
 describe('NoticeCardSupervisor — watchdog (the hard leave guarantee)', () => {
