@@ -20,21 +20,42 @@
 //! recording-notice guest never joined the meeting.
 //!
 //! The fix is to compute the argument string in ONE place and hand the *same*
-//! string to BOTH window builders. Passing an explicit string also makes wry use
-//! it verbatim (wry only appends its autoplay/proxy extras when the caller passes
-//! `None`), so the two windows are byte-for-byte identical in every config.
+//! string to BOTH window builders. Passing an explicit string makes wry use it
+//! verbatim — it only appends its own autoplay/proxy extras on the `None` path —
+//! so this string must itself REPRODUCE every extra wry would have added for our
+//! windows. In particular it keeps `--autoplay-policy=no-user-gesture-required`
+//! (wry's default, which the companion window needs to play meeting media with no
+//! user gesture); see `WRY_DEFAULT_BROWSER_ARGS`. With both windows fed the same
+//! complete string they are byte-for-byte identical in every config.
 
-/// wry's built-in default additional-browser-args string. Kept as a constant so
-/// the base we pass is provably identical to wry's own default — which is what
-/// guarantees that, when no extra args are supplied, our explicit string can
-/// never differ from what any other wry webview would use.
+/// The full additional-browser-args string wry would build for THIS app's
+/// webviews when left to its own devices — reproduced exactly so that our
+/// explicit string is byte-identical to wry's own default and can never differ
+/// from what an un-overridden wry webview would use.
 ///
-/// Mirrors `wry::webview2` `default_args`
-/// (`--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`). If a wry
-/// upgrade changes that default, `base_matches_wry_default` in the tests will
-/// flag it.
+/// Derived directly from wry-0.55.1 `webview2/mod.rs` (the `unwrap_or_else`
+/// default at lines 294-322), which assembles, in order:
+///   1. `--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection`
+///      (wry's `default_args`, always present).
+///   2. ` --autoplay-policy=no-user-gesture-required` — appended when
+///      `attributes.autoplay` is true. wry defaults `autoplay: true`
+///      (`wry/src/lib.rs:843`) and Tauri never overrides it (the identifier
+///      "autoplay" appears nowhere in tauri / tauri-runtime / tauri-runtime-wry),
+///      so it is ALWAYS true for our windows — hence always present here. This is
+///      the flag the Notice Card companion window needs: it auto-joins with no
+///      user gesture, so gesture-free autoplay is what lets the meeting page play
+///      remote participants' media and drive the canvas camera feed. Dropping it
+///      (as the first cut of this fix did) risks the card's media stalling.
+///   3. proxy args — appended only when `attributes.proxy_config` is `Some`.
+///      This app configures NO proxy on either window, so wry never appends them;
+///      they are deliberately omitted here (fabricating a `--proxy-server` would
+///      be wrong, and their absence is identical on both windows so it is not a
+///      mismatch risk).
+///
+/// If a wry upgrade changes any of the above, `base_matches_wry_default` in the
+/// tests will flag it.
 pub const WRY_DEFAULT_BROWSER_ARGS: &str =
-    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection";
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
 
 /// The additional-browser-args string that EVERY webview window in the app must
 /// use. Reads the `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` env var (set when the
@@ -64,12 +85,26 @@ mod tests {
 
     #[test]
     fn base_matches_wry_default() {
-        // The base MUST equal wry's own default string. If it doesn't, a window
+        // The base MUST equal the COMPLETE string wry builds by default for our
+        // windows (disable-features + autoplay, no proxy). If it doesn't, a window
         // that falls back to wry's default (or a wry upgrade) would diverge from
-        // one that uses our string, reintroducing the 0x8007139F mismatch.
+        // one that uses our string, reintroducing the 0x8007139F mismatch — and,
+        // per QA-91 round 2, dropping autoplay would also stall the Notice Card's
+        // gesture-free media.
         assert_eq!(
             WRY_DEFAULT_BROWSER_ARGS,
-            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection"
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required"
+        );
+    }
+
+    #[test]
+    fn base_includes_gesture_free_autoplay() {
+        // Explicit guard for the specific flag the companion window relies on to
+        // play meeting media without a user gesture. wry appends this whenever
+        // autoplay is enabled (its default); our explicit string must carry it.
+        assert!(
+            WRY_DEFAULT_BROWSER_ARGS.contains("--autoplay-policy=no-user-gesture-required"),
+            "shared args must keep gesture-free autoplay for the Notice Card media feed"
         );
     }
 
@@ -94,17 +129,14 @@ mod tests {
         let args = webview_browser_args_with(Some("--remote-debugging-port=9223".into()));
         assert_eq!(
             args,
-            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --remote-debugging-port=9223"
+            format!("{WRY_DEFAULT_BROWSER_ARGS} --remote-debugging-port=9223")
         );
     }
 
     #[test]
     fn surrounding_whitespace_on_extra_is_trimmed() {
         let args = webview_browser_args_with(Some("  --foo=bar  ".into()));
-        assert_eq!(
-            args,
-            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --foo=bar"
-        );
+        assert_eq!(args, format!("{WRY_DEFAULT_BROWSER_ARGS} --foo=bar"));
     }
 
     #[test]

@@ -126,9 +126,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and the companion webview failed to create, leaving the recording-notice guest
   unable to join (the recorder widget eventually fell back to "say the notice
   aloud"). Both window builders now source the identical args string from one
-  place. Files: `src-tauri/src/webview_env.rs` (new, shared + unit-tested),
-  `src-tauri/src/lib.rs` (main window), `src-tauri/src/commands/notice_card/mod.rs`
-  (companion window).
+  place. The shared string reproduces every extra wry adds by default for our
+  windows — notably `--autoplay-policy=no-user-gesture-required`, which the
+  companion window needs to play meeting media without a user gesture — so the
+  windows match without losing autoplay. Files: `src-tauri/src/webview_env.rs`
+  (new, shared + unit-tested), `src-tauri/src/lib.rs` (main window),
+  `src-tauri/src/commands/notice_card/mod.rs` (companion window).
 - **QA-92 (P0 demo blocker): a client's files that were already on disk when the
   workspace opened are now found by Ask.** Ask could answer about files created
   or imported during a live session but silently could NOT find pre-existing

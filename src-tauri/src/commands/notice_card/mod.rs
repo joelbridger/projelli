@@ -67,9 +67,11 @@ pub async fn notice_card_open(
         // differ with ERROR_INVALID_STATE (HRESULT 0x8007139F). Without this the
         // companion window failed to open whenever the main window carried extra
         // args (e.g. `--remote-debugging-port=…` under CDP-driven testing), and
-        // the recording-notice guest never joined the meeting (QA-91). Passing an
-        // explicit string also makes wry use it verbatim (no autoplay/proxy
-        // appends), keeping the two windows byte-for-byte identical.
+        // the recording-notice guest never joined the meeting (QA-91). The shared
+        // string reproduces every extra wry would add on its own (notably
+        // `--autoplay-policy=no-user-gesture-required`, which this window needs to
+        // play meeting media without a user gesture), so the two windows stay
+        // byte-for-byte identical without losing any behavior.
         .additional_browser_args(&crate::webview_env::webview_browser_args())
         // CRITICAL for the status channel: the injected script reports the join
         // phase by writing `NC:<phase>` into the PAGE's `document.title`, but
