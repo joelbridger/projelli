@@ -15,22 +15,56 @@ describe('handle integrity: real-control attachment (round-2 P0)', () => {
     expect(r.issues.join(' ')).toMatch(/wrapper/i);
   });
 
-  it('passes a wrapper ONLY via an explicit ALLOWED_WRAPPERS entry with a live target', () => {
-    const allowed = { x: { target: 'button' } };
-    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: true };
+  it('passes a wrapper ONLY via an explicit ALLOWED_WRAPPERS entry with a live, real target', () => {
+    const allowed = { x: { target: 'button', clickPoint: 'center' } };
+    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: true, targetControl: true };
     expect(evaluateHandleFacts(facts, 'control', allowed).ok).toBe(true);
   });
 
   it('FAILS an allowed wrapper when its inner target is disabled', () => {
-    const allowed = { x: { target: 'button' } };
-    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: false };
+    const allowed = { x: { target: 'button', clickPoint: 'center' } };
+    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: false, targetControl: true };
     expect(evaluateHandleFacts(facts, 'control', allowed).ok).toBe(false);
   });
 
   it('FAILS an allowed wrapper when its target selector matches nothing', () => {
-    const allowed = { x: { target: 'button' } };
+    const allowed = { x: { target: 'button', clickPoint: 'center' } };
     const facts = { ...base, selfControl: false, targetExists: false };
     expect(evaluateHandleFacts(facts, 'control', allowed).ok).toBe(false);
+  });
+
+  // Round-3 MEDIUM: a whitelisted wrapper whose target is a visible NON-control
+  // (a plain div) must NOT pass.
+  it('FAILS an allowed wrapper whose target is not a real control', () => {
+    const allowed = { x: { target: 'div.card', clickPoint: 'center' } };
+    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: true, targetControl: false };
+    expect(evaluateHandleFacts(facts, 'control', allowed).ok).toBe(false);
+  });
+
+  // Round-3 MEDIUM: an entry must store BOTH a target selector and a click point.
+  it('FAILS an allowed-wrapper entry that is missing a target selector', () => {
+    const allowed = { x: { clickPoint: 'center' } };
+    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: true, targetControl: true };
+    expect(evaluateHandleFacts(facts, 'control', allowed).ok).toBe(false);
+  });
+  it('FAILS an allowed-wrapper entry that is missing a click point', () => {
+    const allowed = { x: { target: 'button' } };
+    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: true, targetControl: true };
+    expect(evaluateHandleFacts(facts, 'control', allowed).ok).toBe(false);
+  });
+});
+
+// Round-3 HIGH: disabled INPUTs must fail exactly like disabled controls —
+// both the self path and the allowed-wrapper path.
+describe('handle integrity: disabled inputs (round-3 HIGH)', () => {
+  it('FAILS a disabled real input (self path)', () => {
+    const facts = { ...base, selfControl: false, selfInput: true, disabled: true };
+    expect(evaluateHandleFacts(facts, 'input').ok).toBe(false);
+  });
+  it('FAILS a disabled allowed-wrapper input target', () => {
+    const allowed = { x: { target: 'input', clickPoint: 'center' } };
+    const facts = { ...base, selfInput: false, targetExists: true, targetVisible: true, targetEnabled: false, targetInput: true };
+    expect(evaluateHandleFacts(facts, 'input', allowed).ok).toBe(false);
   });
 });
 

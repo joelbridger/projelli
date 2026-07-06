@@ -40,13 +40,20 @@ export const BEHAVIOUR_CODE = [
   /\b(disabled|aria-disabled|aria-checked|aria-selected|aria-expanded)\s*=/, // interactive state
   /\bhref\s*=/, // navigation target
   /\baction\s*=/, // form action
-  /\btype\s*=\s*['"{]?\s*(submit|reset)\b/i, // form submit/reset button
+  /\btype\s*=\s*['"{]?\s*(submit|reset|button)\b/i, // button type — incl. type="button" (removing it inside a form defaults to submit = behaviour change)
   /\bimport\b[^;]*from\s*['"]@\/platform\//, // reaching into the behaviour layer
   /\b(provider|model)\b\s*[:=]/i, // provider/model selection
 ];
 
 /** Which coarse bucket a path falls in (before content scanning). */
 export function pathBucket(f) {
+  // Test-only files are not a UI change — their own tier, they never gate the UI
+  // (field-test addendum). gate-tier still auto-RUNS them for the changed code.
+  if (/\.(test|spec)\.(tsx?|mjs)$/.test(f)) return 'TEST';
+  // Connectors live under platform/ but a pure copy/tooltip/header hunk in one is
+  // NOT behaviour — content-scan them (field-test addendum) instead of forcing B
+  // by folder. Checked BEFORE the platform→B rule below.
+  if (/^src\/platform\/connectors\//.test(f) && /\.tsx?$/.test(f)) return 'CONNECTOR';
   if (
     f.startsWith('src-tauri/') ||
     f.startsWith('backend/') ||
@@ -66,6 +73,31 @@ export function pathBucket(f) {
     return 'UICODE';
   }
   return 'NONE';
+}
+
+/**
+ * Map a file's bucket + changed lines to its tier. Pure, so classify-tier.mjs
+ * and the unit tests share one source of truth.
+ * @returns {'B'|'S'|'P-safe'|'NONE'}
+ */
+export function fileTier(bucket, lines) {
+  switch (bucket) {
+    case 'B':
+      return 'B';
+    case 'CSS':
+      return cssTier(lines);
+    case 'COPY':
+    case 'PAINT-ASSET':
+      return 'P-safe';
+    case 'UICODE':
+    case 'CONNECTOR':
+      // Content-scanned: behaviour → B, otherwise structural markup/copy → S.
+      return uiCodeTier(lines);
+    case 'TEST':
+    case 'NONE':
+    default:
+      return 'NONE';
+  }
 }
 
 /** Classify a CSS change from its changed lines. */

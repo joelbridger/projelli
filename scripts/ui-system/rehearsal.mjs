@@ -193,6 +193,8 @@ async function handleIntegrity(page, id, kind) {
         const tr = t.getBoundingClientRect();
         out.targetVisible = ts.display !== 'none' && ts.visibility !== 'hidden' && tr.width > 0 && tr.height > 0;
         out.targetEnabled = !(t.disabled === true || t.getAttribute('aria-disabled') === 'true');
+        out.targetControl = t.matches(controlSel) || t.matches(inputSel);
+        out.targetInput = t.matches(inputSel);
       }
     }
     return out;

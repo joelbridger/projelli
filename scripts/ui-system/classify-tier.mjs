@@ -35,7 +35,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
-import { pathBucket, cssTier, uiCodeTier } from './lib/classify.mjs';
+import { pathBucket, fileTier } from './lib/classify.mjs';
 
 const RANK = { NONE: 0, 'P-safe': 1, S: 2, B: 3 };
 
@@ -98,26 +98,21 @@ const files = explicit ?? committedFiles();
 const useBase = explicit ? null : base; // explicit list → whole-file scan (no diff)
 
 // ---- classify ---------------------------------------------------------------
+const WHY = {
+  B: 'behaviour layer (path)',
+  COPY: 'user-facing copy (locale)',
+  'PAINT-ASSET': 'paint asset / brand config',
+  TEST: 'test-only file (not a UI change)',
+  NONE: 'non-UI (docs/scripts/config)',
+};
 const perFile = files.map((f) => {
   const bucket = pathBucket(f);
-  let tier = 'NONE';
-  let why = '';
-  switch (bucket) {
-    case 'B': tier = 'B'; why = 'behaviour layer (path)'; break;
-    case 'CSS': {
-      tier = cssTier(changedLines(useBase, f, !!explicit));
-      why = tier === 'P-safe' ? 'CSS token/value swap only' : 'behaviour-adjacent CSS (P-risky → S)';
-      break;
-    }
-    case 'COPY': tier = 'P-safe'; why = 'user-facing copy (locale)'; break;
-    case 'PAINT-ASSET': tier = 'P-safe'; why = 'paint asset / brand config'; break;
-    case 'UICODE': {
-      tier = uiCodeTier(changedLines(useBase, f, !!explicit));
-      why = tier === 'B' ? 'UI file with behaviour changes (hooks/async/state/handlers/invoke)' : 'UI markup/structure only';
-      break;
-    }
-    default: tier = 'NONE'; why = 'non-UI (docs/tests/scripts/config)';
-  }
+  const tier = fileTier(bucket, changedLines(useBase, f, !!explicit));
+  let why;
+  if (bucket === 'CSS') why = tier === 'P-safe' ? 'CSS token/value swap only' : 'behaviour-adjacent CSS (P-risky → S)';
+  else if (bucket === 'UICODE') why = tier === 'B' ? 'UI file with behaviour changes (hooks/async/state/handlers/invoke)' : 'UI markup/structure only';
+  else if (bucket === 'CONNECTOR') why = tier === 'B' ? 'connector with behaviour changes' : 'connector copy/markup only (content-scanned → S)';
+  else why = WHY[bucket] ?? 'non-UI';
   return { file: f, tier, why };
 });
 

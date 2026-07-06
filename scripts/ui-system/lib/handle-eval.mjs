@@ -21,7 +21,7 @@
  *   selfInput,           // handle element ITSELF is a text input
  *   disabled,            // handle element itself disabled/aria-disabled
  *   // only when an ALLOWED_WRAPPERS entry exists for this id:
- *   targetExists, targetVisible, targetEnabled,
+ *   targetExists, targetVisible, targetEnabled, targetControl, targetInput,
  * }
  */
 
@@ -29,7 +29,13 @@
 // the inner interactive target. Empty by default — the rule is "the handle IS
 // the control" unless a wrapper is deliberately registered here. Adding an entry
 // is a conscious decision (like a handle migration), not an accident.
-// Shape: { '<testid>': { target: '<css selector within the wrapper>' } }
+//
+// Shape (round-3 review): an entry MUST store the target selector AND a click
+// point, and the resolved target must be proven a real control/input at runtime
+// — a bare `{}` (or a target pointing at a plain div) is rejected, so
+// whitelisting can never wave a non-control through.
+//   { '<testid>': { target: '<css selector within the wrapper>', clickPoint: 'center' } }
+// clickPoint is 'center' (default) or { x, y } offsets within the target.
 export const ALLOWED_WRAPPERS = {};
 
 /**
@@ -46,23 +52,35 @@ export function evaluateHandleFacts(facts, kind, allowed = ALLOWED_WRAPPERS) {
   if (facts.pointerNone) issues.push('pointer-events:none (unclickable)');
 
   if (kind === 'control' || kind === 'input') {
-    const wrapper = allowed && Object.prototype.hasOwnProperty.call(allowed, facts.id);
-    if (wrapper) {
+    const entry = allowed && Object.prototype.hasOwnProperty.call(allowed, facts.id) ? allowed[facts.id] : null;
+    if (entry) {
       // Deliberate wrapper: the INNER target is the real control/click point.
-      if (!facts.targetExists) issues.push('allowed-wrapper target selector matches nothing');
-      else {
+      // The entry itself must be well-formed (target selector + click point).
+      if (!entry.target || typeof entry.target !== 'string') {
+        issues.push('ALLOWED_WRAPPERS entry missing a target selector');
+      } else if (!entry.clickPoint) {
+        issues.push('ALLOWED_WRAPPERS entry missing a clickPoint');
+      } else if (!facts.targetExists) {
+        issues.push('allowed-wrapper target selector matches nothing');
+      } else {
         if (!facts.targetVisible) issues.push('allowed-wrapper target not visible');
-        if (kind === 'control' && facts.targetEnabled === false) issues.push('allowed-wrapper target control is disabled');
+        // The resolved target must be PROVEN a real control/input — a visible
+        // <div> must not pass just because it was whitelisted.
+        const targetIsReal = kind === 'input' ? facts.targetInput : facts.targetControl;
+        if (!targetIsReal) issues.push(`allowed-wrapper target is not a real ${kind}`);
+        // Disabled applies to inputs exactly like controls.
+        if (facts.targetEnabled === false) issues.push(`allowed-wrapper target ${kind} is disabled`);
       }
     } else {
       // Default rule: the handle element must BE the interactive element.
       const selfOk = kind === 'input' ? facts.selfInput : facts.selfControl;
       if (!selfOk) {
         issues.push(
-          `handle is on a wrapper, not the real ${kind} (register it in ALLOWED_WRAPPERS with a target selector if intentional)`,
+          `handle is on a wrapper, not the real ${kind} (register it in ALLOWED_WRAPPERS with a target selector + clickPoint if intentional)`,
         );
-      } else if (kind === 'control' && facts.disabled) {
-        issues.push('control is disabled');
+      } else if (facts.disabled) {
+        // A disabled INPUT is as unusable as a disabled control (round-3 P0).
+        issues.push(`${kind} is disabled`);
       }
     }
   }

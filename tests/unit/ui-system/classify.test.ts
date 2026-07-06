@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — plain .mjs pure-logic module, no d.ts
-import { pathBucket, cssTier, uiCodeTier } from '../../../scripts/ui-system/lib/classify.mjs';
+import { pathBucket, cssTier, uiCodeTier, fileTier } from '../../../scripts/ui-system/lib/classify.mjs';
 
 describe('classify-tier: path buckets', () => {
   it('routes behaviour layers to B by path', () => {
@@ -16,6 +16,31 @@ describe('classify-tier: path buckets', () => {
     expect(pathBucket('brand/brand.config.json')).toBe('PAINT-ASSET');
     expect(pathBucket('public/logo.svg')).toBe('PAINT-ASSET');
     expect(pathBucket('docs/x.md')).toBe('NONE');
+  });
+
+  // Field-test addendum: test files are their own tier (not a UI change), and
+  // connectors are content-scanned rather than B-by-folder.
+  it('routes test-only files to TEST (not UICODE)', () => {
+    expect(pathBucket('src/features/ask/Ask.test.tsx')).toBe('TEST');
+    expect(pathBucket('src/app/shell/layout/Spine.test.tsx')).toBe('TEST');
+    expect(pathBucket('tests/unit/ui-system/classify.test.ts')).toBe('TEST');
+  });
+  it('routes connector files to CONNECTOR (content-scanned)', () => {
+    expect(pathBucket('src/platform/connectors/email/MailConnect.tsx')).toBe('CONNECTOR');
+  });
+});
+
+describe('classify-tier: fileTier (bucket + content → tier)', () => {
+  it('a connector copy/tooltip/header hunk is S, not B (addendum a)', () => {
+    expect(fileTier('CONNECTOR', ['-        <span>Connect</span>', '+        <span>Connect Microsoft 365</span>'].map((l) => l.slice(1)))).toBe('S');
+    expect(fileTier('CONNECTOR', ['        title="Sync your calendar"'])).toBe('S');
+  });
+  it('a connector behaviour hunk is still B', () => {
+    expect(fileTier('CONNECTOR', ['        onClick={disconnect}'])).toBe('B');
+    expect(fileTier('CONNECTOR', ['  await invoke("onedrive_sync");'])).toBe('B');
+  });
+  it('test files never gate the UI (addendum b)', () => {
+    expect(fileTier('TEST', ['expect(x).toBe(1)'])).toBe('NONE');
   });
 });
 
@@ -53,6 +78,12 @@ describe('classify-tier: UI code content (S vs B)', () => {
     expect(uiCodeTier(['        href="/pricing"'])).toBe('B');
     expect(uiCodeTier(['      <form action={onSubmit}>'])).toBe('B');
     expect(uiCodeTier(['        type="submit"'])).toBe('B');
+  });
+  // Round-3 MEDIUM: type="button" changes are B too — removing type="button"
+  // inside a <form> defaults the button to submit (a behaviour change).
+  it('type="button" changes are B (round-3 case)', () => {
+    expect(uiCodeTier(['        type="button"'])).toBe('B');
+    expect(uiCodeTier(['-        <button type="button" onClick={x}>'].map((l) => l.slice(1)))).toBe('B');
   });
   it('hooks / async / invoke / platform import are B', () => {
     expect(uiCodeTier(['  const [s, set] = useState(0);'])).toBe('B');

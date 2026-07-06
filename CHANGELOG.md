@@ -68,7 +68,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Tier S gate now RUNS auto-selected scoped component tests and FAILS when
       none exist (was: printed a reminder). Pure logic extracted to
       `scripts/ui-system/lib/{classify,handle-eval,select-tests}.mjs` and unit-
-      tested in `tests/unit/ui-system/` (29 tests).
+      tested in `tests/unit/ui-system/`.
+  - **Round-3 delta-review fixes (TDD):** disabled INPUT handles now fail exactly
+    like disabled controls (self + allowed-wrapper paths); `ALLOWED_WRAPPERS`
+    entries must store a target selector AND a click point, and the resolved
+    target must be proven a real control/input (a whitelisted `<div>` is
+    rejected); `type="button"` attribute changes classify as Tier B (removing it
+    inside a form defaults to submit).
+  - **Field-test addendum:** the classifier content-scans `src/platform/connectors/**`
+    (a pure copy/tooltip/header hunk in a connector is Tier S, not B-by-folder),
+    and test-only files (`*.test.tsx`) are their own tier (never gate the UI).
+    Shared per-file mapping extracted to `fileTier()`. 38 unit tests.
   - Files: `scripts/ui-system/*`, `scripts/gate.sh`, `ARCHITECTURE.md`,
     `src/ui/kp/SegmentedToggle.tsx`, `src/ui/ConfirmDialog.tsx`,
     `src/app/shell/layout/Spine.tsx`, `src/platform/connectors/{email/MailConnect,onedrive/OneDriveConnect,crm/WealthboxConnect}.tsx`.
