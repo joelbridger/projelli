@@ -1,9 +1,31 @@
-# The 3× Demo Dry-Run — Legion, frozen tip `273183da`
+# The 3× Demo Dry-Run — Legion
 
 **Date:** 2026-07-06
 **Bench:** Legion Windows laptop (Tailscale `james@100.127.67.22`)
-**Tip (frozen for this run, exact SHA):** `273183da` — "coordination: STATUS endgame entry + dry-run brief + session-9 briefs batch 2"
 **Worker:** cc-lantern-legionverify
+
+## TAKE 2 — frozen tip `abcedeb0` (lp/localai-patience merged)
+
+**Tip:** `abcedeb0` — "merge: lp/localai-patience — local first-token patience scales with prompt size, provider request timeout aligned, honest 'reading your documents' waiting state"
+
+### Run 1 (Take 2): **CLEAN PASS — all 6 steps.**
+
+| Step | Verdict | Notes |
+|---|---|---|
+| Prep checklist | PASS | Sidebar clean (3 real households), leftover meetings cleared, crib ready. |
+| Step 1 checkmark persistence | PASS | Both keys "✓ Working — checked 50 min / 6 hr ago," zero re-clicking. `run1-take2-01`. |
+| Step 2 connections | PASS (honest) | OneDrive + Wealthbox show "Connected." Outlook still not connected (known-pending, NEED-JAMESON) — the runbook's own script explicitly covers this ("show the two that are live instead"), so this is not a run failure. `run1-take2-08`. |
+| Step 3 indexing banner | **PASS** | Restarted the app; banner read **"Indexing PDFs: 36 / 36. Nothing leaves your machine."** — clean, visible, matches the script's example almost verbatim. `run1-take2-05`. |
+| Step 4 — Cloud AI | PASS | Correct, cited answer, first try. `run1-take2-02`. |
+| Step 4 — Local AI (the patience-fix checkpoint) | **PASS** | Switched to Local AI (Network Lockdown auto-enabled as scripted). Warm-up question showed the new honest message **"The on-device AI is reading your documents — bigger questions take it a minute or two"** the whole time, completed in ~126s. Real crib question completed cleanly in ~110s with a correct, cited answer — no false error, both within the app's own stated "a minute or two" window. `run1-take2-03`, `run1-take2-04`. |
+| Step 5 — Notice Card | **PASS** | Real 2-person Teams meeting (host = server's shared Chrome, guest = genuinely separate Chrome Guest-mode window on the Legion). Card reached lobby, admitted, and **stayed visible for the full recording** (confirmed present on 10 consecutive checks over ~2.5 minutes while real speech played) — recorder widget said "Notice card in meeting" throughout, never reverted to a false failure. `run1-take2-06`. |
+| Step 6 — Search Transcript | **PASS** | Got **real spoken content** into the recording per the coordinator's instruction: triggered Windows built-in text-to-speech (`System.Speech.Synthesis.SpeechSynthesizer`, run in the Legion's own interactive desktop session, not over SSH) speaking a few Henderson-specific sentences during the meeting — captured cleanly on both the loopback and mic channels. Asked "What did we decide about the Roth conversion in our meeting?" → **1 claim cited from your files** (`notes.docx`, generated from the transcript), correct content with timestamps, "✓ Verified against source." `run1-take2-07`. |
+
+**Verdict: Run 1 (Take 2) is fully clean — no unscripted recovery anywhere.** Moving to Run 2.
+
+---
+
+## TAKE 1 (superseded) — frozen tip `273183da`
 
 ## Result: STOPPED after Run 1 — a real, unscripted failure at Step 4 (Local AI)
 
