@@ -1,19 +1,22 @@
 /**
- * QA-56 (P1) — SourcePanel citation-verify stale-async guard.
+ * QA-56 (P1) / QA-85 — SourcePanel citation-verify stale-async guard.
  *
- * The SOURCES cards are keyed by citation identity (id + matterId), so a card
- * whose id/matterId changes remounts with fresh state. This test closes the
- * residual gap: while a verify is in flight, the SAME card's cite can change
- * in place (same id/matterId, different quoted excerpt). The late verdict —
- * computed for the OLD excerpt — must NOT paint onto the new quote.
+ * QA-85 replaced the manual "Verify against source" button with an automatic
+ * check: the moment a citation appears, SourcePanel fires the REAL backend
+ * verifier for it (batched, no click). This test locks in that the async race
+ * QA-56 fixed still holds under the automatic design: verdicts are keyed by
+ * (id, matterId, EXCERPT), so a citation whose quoted excerpt changes in place
+ * (same card identity, new quote) can never show a verdict computed for the
+ * OLD quote — the old key's late-arriving result lands under a key nobody
+ * reads anymore.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 
-const { mockRagVerifyCitation } = vi.hoisted(() => ({ mockRagVerifyCitation: vi.fn() }));
+const { mockRagVerifyCitationsBatch } = vi.hoisted(() => ({ mockRagVerifyCitationsBatch: vi.fn() }));
 vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
-  return { ...actual, ragVerifyCitation: mockRagVerifyCitation };
+  return { ...actual, ragVerifyCitationsBatch: mockRagVerifyCitationsBatch };
 });
 
 import { SourcePanel } from '@/features/ask/SourcePanel';
@@ -26,13 +29,19 @@ function deferred<T>(): Deferred<T> {
 }
 
 beforeEach(() => {
-  mockRagVerifyCitation.mockReset();
+  mockRagVerifyCitationsBatch.mockReset();
 });
 
-describe('SourcePanel — QA-56 stale citation-verify isolation', () => {
+describe('SourcePanel — QA-56/QA-85 stale citation-verify isolation', () => {
   it('does not paint a late verdict onto a card whose quote changed mid-verify', async () => {
-    const d = deferred<{ verdict: string }>();
-    mockRagVerifyCitation.mockReturnValue(d.promise);
+    const dA = deferred<{ verdict: string }[]>();
+    const dB = deferred<{ verdict: string }[]>();
+    mockRagVerifyCitationsBatch.mockImplementation((cites: { quotedText: string }[]) => {
+      const quote = cites[0]?.quotedText;
+      if (quote === 'Original quote A.') return dA.promise;
+      if (quote === 'A totally different quote B.') return dB.promise;
+      throw new Error(`unexpected quote: ${String(quote)}`);
+    });
 
     const citeA = {
       n: 1, label: 'contract.docx', excerpt: 'Original quote A.',
@@ -42,27 +51,34 @@ describe('SourcePanel — QA-56 stale citation-verify isolation', () => {
     const { rerender } = render(
       <SourcePanel citations={[citeA]} selectedN={null} onSelect={() => {}} />,
     );
-    fireEvent.click(screen.getByTestId('verify-citation-btn'));
+    await waitFor(() => expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(1));
 
     // Same identity (id + matterId), but the quoted excerpt changed in place —
-    // the card stays mounted (key unchanged) and now shows a DIFFERENT quote.
+    // the card stays mounted (key unchanged) and now shows a DIFFERENT quote,
+    // firing a SECOND, independent batch check for the new excerpt.
     const citeB = { ...citeA, excerpt: 'A totally different quote B.' };
     rerender(<SourcePanel citations={[citeB]} selectedN={null} onSelect={() => {}} />);
+    await waitFor(() => expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(2));
 
     // The verify for the OLD quote resolves LATE with a problem verdict.
     await act(async () => {
-      d.resolve({ verdict: 'notFound' });
+      dA.resolve([{ verdict: 'notFound' }]);
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    // The stale verdict must NOT be shown against the new quote.
-    await waitFor(() => {
-      expect(screen.queryByTestId('verify-verdict')).toBeNull();
+    // The stale verdict for quote A must NOT be shown against quote B's card —
+    // B's own check is still pending, so the card stays neutral.
+    expect(screen.queryByTestId('verify-verdict')).toBeNull();
+    expect(screen.getByTestId('verify-status').textContent).toMatch(/source found/i);
+
+    // Now B's own check resolves — its verdict (and only its verdict) shows.
+    await act(async () => {
+      dB.resolve([{ verdict: 'notFound' }]);
+      await Promise.resolve();
+      await Promise.resolve();
     });
-    // ...and the verify button must be actionable again (not stuck on 'loading'),
-    // so the user can re-verify the CURRENT quote.
-    expect(screen.getByTestId('verify-citation-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('verify-citation-btn')).not.toBeDisabled();
+    await waitFor(() => expect(screen.getByTestId('verify-verdict')).toBeInTheDocument());
+    expect(screen.getByTestId('verify-verdict')).toHaveAttribute('data-verdict', 'notFound');
   });
 });

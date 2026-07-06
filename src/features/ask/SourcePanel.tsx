@@ -1,8 +1,8 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
-import { ragVerifyCitation, type CitationVerdict } from '@/platform/utils/tauri-commands';
+import { ragVerifyCitationsBatch, type CitationVerdict } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenance';
@@ -13,14 +13,111 @@ import { EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
 /* -------------------------------------------------------------------------- */
 /* SourcePanel — the SOURCES column. A list of clean white numbered cards,     */
 /* one per citation in the active answer (matches the demo Ask source panel).  */
-/* Each card: number badge + file icon + filename, a grey quote, and a green   */
-/* "Verified against source" line that runs the real cryptographic check.      */
-/* Clicking a card opens the cited source. All real functionality preserved.   */
+/* Each card: number badge + file icon + filename, a grey quote, and a verify  */
+/* line. The moment a citation appears it is checked automatically against    */
+/* the real store (rag_verify_citations_batch, QA-85) — the card starts in a  */
+/* neutral "Source found" state and only ever earns the green "Verified       */
+/* against source" label once that REAL check comes back verified. A genuine  */
+/* mismatch degrades to a red problem line; an unavailable check (browser dev */
+/* mode) stays neutral forever — it never fakes a verification that didn't    */
+/* run. Clicking a card opens the cited source.                               */
 /* -------------------------------------------------------------------------- */
 
 const LABEL_SOURCES = 'Sources';
 const LABEL_VERIFIED = 'Verified against source';
-const LABEL_VERIFY = 'Verify against source';
+const LABEL_SOURCE_FOUND = 'Source found';
+
+/**
+ * QA-85 — the real check's outcome for one citation. Extends the backend's
+ * four verdicts with `'unavailable'`: thrown when the verifier can't run at
+ * all (browser/dev mode has no Tauri backend). `'unavailable'` is NEVER
+ * treated as verified — the card just stays in the neutral "Source found"
+ * state, same as while the check is still pending.
+ */
+type RealVerdict = CitationVerdict['verdict'] | 'unavailable';
+
+/** Content-addressed key: (id, matterId, excerpt). Keying by the QUOTED TEXT,
+ *  not just citation identity, means a citation whose excerpt changes in
+ *  place (same card, new quote) can never show a verdict computed for the old
+ *  quote — the old key's late-arriving result lands under a key nobody reads
+ *  anymore (QA-56's stale-async guard, now structural instead of ref-based). */
+function verifyKey(id: string, matterId: string, excerpt: string): string {
+  return `${id} ${matterId} ${excerpt}`;
+}
+
+/**
+ * QA-85 — automatically runs the real backend citation check for every
+ * eligible citation (id + matterId present) the moment it appears, batched in
+ * one `rag_verify_citations_batch` call per new set of citations. No user
+ * action required. A citation without `id`/`matterId` (pre-3.0 persisted
+ * data) is simply never fetched — it stays "Source found" forever, honestly.
+ */
+function useCitationVerification(
+  citations: AnswerCitation[],
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void,
+): Map<string, RealVerdict> {
+  const [verdicts, setVerdicts] = useState<Map<string, RealVerdict>>(new Map());
+  const requested = useRef<Set<string>>(new Set());
+
+  const eligible = citations.filter(
+    (c): c is AnswerCitation & { id: string; matterId: string } => Boolean(c.id && c.matterId),
+  );
+  const signature = eligible.map((c) => verifyKey(c.id, c.matterId, c.excerpt)).join('|');
+
+  useEffect(() => {
+    const toFetch = eligible.filter((c) => !requested.current.has(verifyKey(c.id, c.matterId, c.excerpt)));
+    if (toFetch.length === 0) return;
+    toFetch.forEach((c) => requested.current.add(verifyKey(c.id, c.matterId, c.excerpt)));
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const results = await ragVerifyCitationsBatch(
+          toFetch.map((c) => ({ id: c.id, claimedMatterId: c.matterId, quotedText: c.excerpt })),
+        );
+        if (!cancelled) {
+          setVerdicts((prev) => {
+            const next = new Map(prev);
+            toFetch.forEach((c, i) => {
+              const r = results[i];
+              if (r) next.set(verifyKey(c.id, c.matterId, c.excerpt), r.verdict);
+            });
+            return next;
+          });
+          toFetch.forEach((c, i) => {
+            const r = results[i];
+            if (r) {
+              onAuditLog?.(
+                auditEventToEntry({
+                  type: 'citation_verified',
+                  timestamp: new Date().toISOString(),
+                  payload: { citationId: c.id, verdict: r.verdict },
+                }),
+              );
+            }
+          });
+        }
+      } catch {
+        // Browser/dev mode (no Tauri backend) or a verifier error — never
+        // fake-verify. Mark 'unavailable' so these exact keys are not
+        // endlessly retried; the card stays neutral "Source found".
+        if (!cancelled) {
+          setVerdicts((prev) => {
+            const next = new Map(prev);
+            toFetch.forEach((c) => next.set(verifyKey(c.id, c.matterId, c.excerpt), 'unavailable'));
+            return next;
+          });
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is keyed by `signature` (content), not by the `eligible`/`onAuditLog` references which are recreated every render.
+  }, [signature]);
+
+  return verdicts;
+}
 
 /** Open the cited source (document → contextual editor; email → reading view). */
 function openCitation(cite: AnswerCitation): void {
@@ -39,7 +136,7 @@ function openCitation(cite: AnswerCitation): void {
   }
 }
 
-function problemMessage(v: CitationVerdict['verdict']): string {
+function problemMessage(v: RealVerdict): string {
   switch (v) {
     case 'notFound':
       return 'Quote not found in the source';
@@ -105,28 +202,19 @@ function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
 function SourceCard({
   cite,
   selected,
+  verifyState,
   onSelect,
-  onAuditLog,
   onOpenCitation,
 }: {
   cite: AnswerCitation;
   selected: boolean;
+  /** QA-85: the REAL check's outcome for this citation — `'pending'` until the
+   *  automatic batch verify resolves. Owned by the parent `SourcePanel` (one
+   *  batch call covers every card), so a card never runs its own check. */
+  verifyState: RealVerdict | 'pending';
   onSelect: (n: number) => void;
-  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
   onOpenCitation?: (cite: AnswerCitation) => void;
 }) {
-  const [verdict, setVerdict] = useState<CitationVerdict | 'loading' | null>(null);
-  const canVerify = Boolean(cite.id && cite.matterId);
-  // QA-56: cards are keyed by citation identity (id + matterId) so an
-  // identity change remounts with fresh state. This ref closes the residual
-  // gap: while a verify is in flight, the SAME card's cite can change in place
-  // (same id/matterId, different quoted excerpt). Compare the freshest cite
-  // after the async check so a verdict computed for the OLD quote never paints
-  // onto a new one.
-  // Synced in a LAYOUT effect (commit phase, before any promise callback) so a
-  // late verify always compares against the currently-rendered quote — no gap.
-  const citeRef = useRef(cite);
-  useLayoutEffect(() => { citeRef.current = cite; }, [cite]);
   // When the host supplies its own opener (e.g. the Client Map, whose sources
   // include CRM / OneDrive / e-sign / meeting kinds the built-in path opener
   // can't route), every card is openable and routes there. Otherwise fall back
@@ -137,41 +225,12 @@ function SourceCard({
         cite.path && (cite.path.startsWith('mail:') || (!cite.path.startsWith('crm:') && cite.matterId)),
       );
 
-  async function runVerify(e: MouseEvent<HTMLButtonElement>): Promise<void> {
-    e.stopPropagation();
-    if (!cite.id || !cite.matterId) return;
-    const verified = { id: cite.id, matterId: cite.matterId, excerpt: cite.excerpt };
-    setVerdict('loading');
-    try {
-      const r = await ragVerifyCitation(verified.id, verified.matterId, verified.excerpt);
-      // Drop the result if this card now represents a different citation/quote.
-      // Reset to unverified (not the stale verdict, not a stuck 'loading') so the
-      // NEW quote shows an actionable verify button rather than a frozen spinner.
-      const now = citeRef.current;
-      if (now.id !== verified.id || now.matterId !== verified.matterId || now.excerpt !== verified.excerpt) {
-        setVerdict(null);
-        return;
-      }
-      setVerdict(r);
-      onAuditLog?.(
-        auditEventToEntry({
-          type: 'citation_verified',
-          timestamp: new Date().toISOString(),
-          payload: { citationId: cite.id, verdict: r.verdict },
-        }),
-      );
-    } catch {
-      // ragVerifyCitation throws in browser/test mode — treat as "not run".
-      // Same either way (stale or current): reset to unverified so the button is
-      // actionable again and never stuck on 'loading'.
-      setVerdict(null);
-    }
-  }
-
-  const isProblem = verdict !== null && verdict !== 'loading' && verdict.verdict !== 'verified';
-  const isGreen =
-    (verdict !== null && verdict !== 'loading' && verdict.verdict === 'verified') ||
-    (verdict === null && cite.verified);
+  // Only a REAL negative verdict (a proven mismatch) is a "problem" — pending,
+  // unavailable (browser/dev, no backend), and not-yet-checked (no id/matterId)
+  // all render the same honest neutral "Source found" state below.
+  const isProblem =
+    verifyState !== 'pending' && verifyState !== 'unavailable' && verifyState !== 'verified';
+  const isVerified = verifyState === 'verified';
 
   function handleOpen(): void {
     onSelect(cite.n);
@@ -260,47 +319,50 @@ function SourceCard({
         {cite.excerpt}
       </div>
 
-      {/* Verify line — green "Verified against source"; runs the real check. */}
+      {/* Verify line — automatic (QA-85): starts "Source found" the instant the
+          citation appears, upgrades to green "Verified against source" only
+          once the REAL backend check returns verified, degrades to a red
+          problem line on a proven mismatch. Never a button — nothing to click. */}
       <div style={{ marginTop: 10 }}>
         {isProblem ? (
           <span
             data-testid="verify-verdict"
-            data-verdict={(verdict as CitationVerdict).verdict}
-            title={problemMessage((verdict as CitationVerdict).verdict)}
+            data-verdict={verifyState}
+            title={problemMessage(verifyState as RealVerdict)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, color: 'var(--kp-danger, #b02a1f)' }}
           >
             <AlertTriangle size={12} strokeWidth={2} style={{ flex: 'none' }} />
-            {problemMessage((verdict as CitationVerdict).verdict)}
+            {problemMessage(verifyState as RealVerdict)}
           </span>
         ) : (
-          <button
-            type="button"
-            data-testid="verify-citation-btn"
-            onClick={(e) => { void runVerify(e); }}
-            disabled={!canVerify || verdict === 'loading'}
-            title={canVerify ? 'Check this quote against the stored source' : 'Verification is not available for this citation (pre-3.0 or browser mode)'}
+          <span
+            data-testid="verify-status"
+            data-state={isVerified ? 'verified' : verifyState === 'pending' ? 'pending' : 'source-found'}
+            title={
+              isVerified
+                ? 'The stored source was checked and contains this exact quote.'
+                : verifyState === 'pending'
+                  ? 'Checking this quote against the stored source…'
+                  : 'This source was found; the automatic check could not confirm the exact quote (pre-3.0 citation or browser/dev mode).'
+            }
             style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: 6,
               fontSize: 11.5,
               fontWeight: 600,
-              color: '#16654a',
-              background: 'none',
-              border: 'none',
-              padding: 0,
-              cursor: canVerify ? 'pointer' : 'default',
+              color: isVerified ? '#16654a' : 'var(--kp-text-dim)',
             }}
           >
-            {verdict === 'loading' ? (
+            {verifyState === 'pending' ? (
               <Loader2 size={12} strokeWidth={2} className="animate-spin" style={{ flex: 'none' }} />
-            ) : isGreen ? (
+            ) : isVerified ? (
               <CheckCircle2 size={12} strokeWidth={2} style={{ flex: 'none' }} />
             ) : (
               <ShieldCheck size={12} strokeWidth={2} style={{ flex: 'none' }} />
             )}
-            {isGreen ? LABEL_VERIFIED : LABEL_VERIFY}
-          </button>
+            {isVerified ? LABEL_VERIFIED : LABEL_SOURCE_FOUND}
+          </span>
         )}
       </div>
     </div>
@@ -324,7 +386,7 @@ export function SourcePanel({
   /** Select citation n (drives the chip↔card highlight). */
   onSelect: (n: number) => void;
   /**
-   * When provided, each "Verify against source" result emits a
+   * When provided, each automatic real-verification result emits a
    * `citation_verified` audit entry so the check is on the record.
    */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
@@ -345,6 +407,12 @@ export function SourcePanel({
   emptyHint?: ReactNode;
   footerNote?: ReactNode;
 }) {
+  // QA-85: ONE batch call covers every card in the panel — no per-card click,
+  // no per-card fetch. Re-derived automatically whenever the citation set
+  // changes (a new turn, a reload), so a stale persisted `verified` flag can
+  // never be shown as a real verdict; the panel always re-checks live.
+  const verdicts = useCitationVerification(citations, onAuditLog);
+
   return (
     <div data-testid="source-panel">
       <div
@@ -394,9 +462,9 @@ export function SourcePanel({
           key={`${String(c.n)}:${c.id ?? c.path ?? ''}:${c.matterId ?? ''}`}
           cite={c}
           selected={c.n === selectedN}
+          verifyState={c.id && c.matterId ? (verdicts.get(verifyKey(c.id, c.matterId, c.excerpt)) ?? 'pending') : 'unavailable'}
           onSelect={onSelect}
           {...(onOpenCitation ? { onOpenCitation } : {})}
-          {...(onAuditLog ? { onAuditLog } : {})}
         />
       ))}
 
