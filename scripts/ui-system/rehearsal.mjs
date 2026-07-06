@@ -42,6 +42,7 @@ import { mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { evaluateHandleFacts, ALLOWED_WRAPPERS } from './lib/handle-eval.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
@@ -163,33 +164,41 @@ async function shot(page, name) {
 // visible, enabled, and that it IS or CONTAINS the real interactive control.
 // `kind`: 'control' (button/link), 'input' (text field), 'region' (container).
 async function handleIntegrity(page, id, kind) {
-  const issues = [];
-  const info = await ev(page, ({ id, kind }) => {
+  // Collect FACTS in the live DOM; the pass/fail DECISION is the pure,
+  // unit-tested evaluateHandleFacts (tests/unit/ui-system/handle-eval.test.ts).
+  // Round-2 P0: the handle must BE the control (selfControl/selfInput), not merely
+  // CONTAIN one — a wrapper is accepted ONLY via an explicit ALLOWED_WRAPPERS
+  // entry naming the inner target selector (the real click point).
+  const wrapperSel = (ALLOWED_WRAPPERS[id] && ALLOWED_WRAPPERS[id].target) || null;
+  const facts = await ev(page, ({ id, wrapperSel }) => {
     const els = [...document.querySelectorAll(`[data-testid="${id}"]`)];
-    if (els.length === 0) return { count: 0 };
+    if (els.length === 0) return { id, count: 0 };
     const el = els[0];
     const style = getComputedStyle(el);
     const r = el.getBoundingClientRect();
-    const visible = style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.01 && r.width > 0 && r.height > 0;
-    const controlSel = 'button,a[href],[role="button"],input,select,textarea,[contenteditable="true"],[role="textbox"],[role="tab"],[role="switch"],[role="option"]';
-    const isControl = el.matches(controlSel) || !!el.querySelector(controlSel);
+    const visible =
+      style.display !== 'none' && style.visibility !== 'hidden' && Number(style.opacity) > 0.01 && r.width > 0 && r.height > 0;
+    const controlSel = 'button,a[href],[role="button"],[role="tab"],[role="switch"],[role="option"],select';
     const inputSel = 'input,textarea,[contenteditable="true"],[role="textbox"]';
-    const isInput = el.matches(inputSel) || !!el.querySelector(inputSel);
-    const target = el.matches(controlSel) ? el : el.querySelector(controlSel);
-    const disabled = !!target && (target.disabled === true || target.getAttribute('aria-disabled') === 'true');
+    const selfControl = el.matches(controlSel) || el.matches(inputSel);
+    const selfInput = el.matches(inputSel);
+    const disabled = el.disabled === true || el.getAttribute('aria-disabled') === 'true';
     const pointerNone = style.pointerEvents === 'none';
-    return { count: els.length, visible, isControl, isInput, disabled, pointerNone };
-  }, { id, kind });
-  if (!info || info.count === 0) return { id, ok: false, issues: ['not present on this screen'] };
-  if (info.count > 1) issues.push(`duplicate handle (${info.count} matches — robot may grip the wrong one)`);
-  if (!info.visible) issues.push('not visible');
-  if (info.pointerNone) issues.push('pointer-events:none (unclickable)');
-  if (kind === 'control') {
-    if (!info.isControl) issues.push('handle is not / does not contain a real control');
-    if (info.disabled) issues.push('control is disabled');
-  }
-  if (kind === 'input' && !info.isInput) issues.push('handle is not / does not contain a real input');
-  return { id, ok: issues.length === 0, issues };
+    const out = { id, count: els.length, visible, selfControl, selfInput, disabled, pointerNone };
+    if (wrapperSel) {
+      const t = el.querySelector(wrapperSel);
+      out.targetExists = !!t;
+      if (t) {
+        const ts = getComputedStyle(t);
+        const tr = t.getBoundingClientRect();
+        out.targetVisible = ts.display !== 'none' && ts.visibility !== 'hidden' && tr.width > 0 && tr.height > 0;
+        out.targetEnabled = !(t.disabled === true || t.getAttribute('aria-disabled') === 'true');
+      }
+    }
+    return out;
+  }, { id, wrapperSel });
+  const decision = evaluateHandleFacts(facts || { id, count: 0 }, kind, ALLOWED_WRAPPERS);
+  return { id, ok: decision.ok, issues: decision.issues };
 }
 
 async function checkHandles(page, specs) {
@@ -280,12 +289,24 @@ async function main() {
   // P0-3 + P1: prove the reachable demo-path handles are unique/visible/enabled
   // real controls, and the screen has no horizontal overflow / off-viewport
   // controls — at desktop AND a narrow width (copy-overflow guard).
+  // Resolve the dynamic client-row handle (id carries the matter id) so it's
+  // covered too — not just the static nav handles.
+  const clientRowId = await ev(page, () => {
+    const el = document.querySelector('[data-testid^="spine-client-row-"]');
+    return el ? el.getAttribute('data-testid') : null;
+  });
   const clientMapHandles = [
     ['spine-nav-matters', 'control'],
     ['spine-nav-search', 'control'],
     ['spine-nav-workflows', 'control'],
     ['spine-new-client', 'control'],
+    ['hub-subtab-overview', 'control'],
+    ['hub-subtab-documents', 'control'],
+    ['hub-subtab-email', 'control'],
+    ['hub-subtab-meetings', 'control'],
+    ['hub-subtab-activity', 'control'],
     ['clientmap-panel', 'region'],
+    ...(clientRowId ? [[clientRowId, 'control']] : []),
   ];
   const integ1 = await checkHandles(page, clientMapHandles);
   const integ1Bad = integ1.filter((r) => !r.ok);

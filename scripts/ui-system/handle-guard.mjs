@@ -90,9 +90,17 @@ function collectHandles() {
 const handles = collectHandles();
 const currentKeys = [...handles.keys()].sort();
 
+// Static uniqueness (round-2 P0): a handle rendered from MORE THAN ONE source
+// location is a likely runtime duplicate — the robot may grip the wrong one.
+// Runtime uniqueness is only checkable on reachable screens; this static check
+// covers the WHOLE inventory. Existing duplicates are frozen in the baseline
+// (many are legit mutually-exclusive branches); the guard blocks NEW ones.
+const currentDupes = new Map();
+for (const [k, e] of handles) if (e.files.size > 1) currentDupes.set(k, e.files.size);
+
 if (process.argv.includes('--list')) {
   for (const k of currentKeys) console.log(`${k}  (${handles.get(k).count})`);
-  console.log(`\nTOTAL HANDLE KEYS: ${currentKeys.length}`);
+  console.log(`\nTOTAL HANDLE KEYS: ${currentKeys.length} | cross-file duplicates: ${currentDupes.size}`);
   process.exit(0);
 }
 
@@ -101,12 +109,15 @@ if (process.argv.includes('--update-baseline')) {
     _comment:
       'Permanent-handle baseline for the UI Iteration System. Regenerate with ' +
       '`node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a ' +
-      'handle removal/rename is intentional and logged in handles.migrations.json.',
+      'handle removal/rename is intentional and logged in handles.migrations.json. ' +
+      '`duplicates` freezes handles rendered from >1 file (frozen debt; the guard ' +
+      'blocks NEW cross-file duplicates so a handle can\'t silently become ambiguous).',
     count: currentKeys.length,
     keys: currentKeys,
+    duplicates: Object.fromEntries([...currentDupes].sort(([a], [b]) => a.localeCompare(b))),
   };
   writeFileSync(baselinePath, JSON.stringify(payload, null, 2) + '\n');
-  console.log(`✅ Wrote baseline: ${currentKeys.length} handle keys → ${relative(repoRoot, baselinePath)}`);
+  console.log(`✅ Wrote baseline: ${currentKeys.length} handle keys, ${currentDupes.size} frozen duplicates → ${relative(repoRoot, baselinePath)}`);
   process.exit(0);
 }
 
@@ -163,5 +174,24 @@ if (missingReplacements.length) {
   process.exit(1);
 }
 
-console.log('\n✅ Handle guard passed — no permanent handle vanished without a migration entry.');
+// New / widened cross-file duplicates → likely a handle silently made ambiguous.
+const baseDupes = baseline.duplicates ?? {};
+const newDupes = [];
+for (const [k, n] of currentDupes) {
+  const b = baseDupes[k] ?? 0;
+  if (b === 0) newDupes.push(`${k} (now in ${n} files)`);
+  else if (n > b) newDupes.push(`${k} (${b} → ${n} files)`);
+}
+if (newDupes.length) {
+  console.error(`\n❌ HANDLE GUARD FAILED — ${newDupes.length} handle(s) newly rendered from more than one location (ambiguous — the robot may grip the wrong one):`);
+  for (const k of newDupes) console.error(`     ⧉ ${k}`);
+  console.error(
+    '\nGive each interactive element a UNIQUE data-testid. If this duplication is\n' +
+      'genuinely intentional (mutually-exclusive render branches), run\n' +
+      '`node scripts/ui-system/handle-guard.mjs --update-baseline` to freeze it.',
+  );
+  process.exit(1);
+}
+
+console.log(`\n✅ Handle guard passed — no permanent handle vanished, and no new ambiguous (duplicate) handles (${currentDupes.size} frozen).`);
 process.exit(0);

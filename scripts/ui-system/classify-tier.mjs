@@ -35,64 +35,14 @@
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
+import { pathBucket, cssTier, uiCodeTier } from './lib/classify.mjs';
 
 const RANK = { NONE: 0, 'P-safe': 1, S: 2, B: 3 };
 
-// ---- content signals --------------------------------------------------------
-// Behaviour-adjacent CSS: touching any of these escalates a CSS change to S
-// (P-risky). Only pure token value swaps stay P-safe.
-const RISKY_CSS = [
-  /\b(display|position|overflow(?:-[xy])?|pointer-events|z-index|opacity|visibility|animation|transition|transform|inset|top|right|bottom|left|width|height|max-width|min-width|max-height|min-height|flex|grid|float|clip|clip-path|content)\s*:/i,
-  /:(hover|focus|focus-visible|active|disabled|checked|invalid)\b/i,
-  /\[(?:aria-disabled|disabled|hidden|aria-hidden)\b/i,
-  /@media\b/i,
-  /@keyframes\b/i,
-  // A changed line that opens a rule for a class/id/element selector = adding or
-  // reshaping a component style, not a token value swap.
-  /^[.#][\w-]+.*\{/,
-  /^\s*(button|input|select|textarea|a|dialog|\*)\b[^:{]*\{/i,
-];
-// A changed CSS line is "P-safe" only if it's blank, a comment, a brace, or a
-// custom-property / plain colour / font value declaration.
-const SAFE_CSS_LINE =
-  /^\s*(\/\*.*|\*.*|\}|\{|@import\b.*|@source\b.*|--[\w-]+\s*:\s*[^;]+;?|(color|background|background-color|font-family|font-weight|border-color|fill|stroke|caret-color|accent-color)\s*:\s*[^;]+;?)?\s*$/i;
-
-// Behaviour signals in changed lines of a UI code file → Tier B.
-const BEHAVIOUR_CODE = [
-  /\buse(State|Effect|Ref|Reducer|Memo|Callback|LayoutEffect|Context|Store|[A-Z]\w*Store)\s*\(/, // hooks incl store hooks
-  /\b(await|fetch\s*\(|\.then\s*\(|async\b)/, // async / IO
-  /\binvoke\s*\(/, // Tauri command
-  /\.(setState|getState|subscribe)\s*\(/, // zustand / store mutation
-  /\b(localStorage|sessionStorage|indexedDB|navigator\.storage)\b/, // storage
-  /\b(addEventListener|removeEventListener|dispatchEvent)\s*\(/, // events
-  /\b(setTimeout|setInterval|requestAnimationFrame)\s*\(/, // timers
-  /\bon(Click|Change|Submit|Input|KeyDown|KeyUp|Blur|Focus)\s*=\s*\{\s*(async\b|\([^)]*\)\s*=>|\w+\s*=>|function\b)/, // INLINE handler logic (not a bare reference)
-  /\bimport\b[^;]*from\s*['"]@\/platform\//, // reaching into the behaviour layer
-  /\b(provider|model)\b\s*[:=]/i, // provider/model selection
-];
-
-// ---- path buckets -----------------------------------------------------------
-function pathBucket(f) {
-  if (
-    f.startsWith('src-tauri/') ||
-    f.startsWith('backend/') ||
-    f.startsWith('src/platform/') ||
-    f.startsWith('src/lib/') ||
-    f.startsWith('packages/') ||
-    /\/[A-Za-z0-9]+(Store|Service)\.ts$/.test(f) ||
-    (/\/(store|state)\//.test(f) && /\.tsx?$/.test(f))
-  ) {
-    return 'B'; // behaviour by location
-  }
-  if (f.endsWith('.css')) return 'CSS';
-  if (f.startsWith('src/locales/')) return 'COPY';
-  if (f.startsWith('brand/')) return 'PAINT-ASSET';
-  if (f.startsWith('public/') && !/\.(html?|m?jsx?|m?tsx?)$/.test(f)) return 'PAINT-ASSET';
-  if (/\.tsx?$/.test(f) && (f.startsWith('src/ui/') || f.startsWith('src/app/') || f.startsWith('src/features/'))) {
-    return 'UICODE';
-  }
-  return 'NONE';
-}
+// The classification RULES live in ./lib/classify.mjs (pure, unit-tested in
+// tests/unit/ui-system/classify.test.ts — incl. the round-2 review's
+// handler-rebind / disabled / href / submit-type misclassifying diffs). This
+// file only gathers the diff and applies them.
 
 // ---- changed-line extraction ------------------------------------------------
 function changedLines(base, file, wholeFileFallback) {
@@ -118,25 +68,6 @@ function changedLines(base, file, wholeFileFallback) {
     try { return readFileSync(file, 'utf8').split('\n'); } catch { /* ignore */ }
   }
   return lines;
-}
-
-function cssTier(lines) {
-  // Empty diff we couldn't read → be conservative, treat as S.
-  if (lines.length === 0) return 'S';
-  for (const raw of lines) {
-    const ln = raw.trimEnd();
-    if (RISKY_CSS.some((re) => re.test(ln))) return 'S';
-    if (!SAFE_CSS_LINE.test(ln)) return 'S'; // anything not clearly a value swap escalates
-  }
-  return 'P-safe';
-}
-
-function uiCodeTier(lines) {
-  if (lines.length === 0) return 'S'; // couldn't read the diff → assume structural, not behaviour
-  for (const raw of lines) {
-    if (BEHAVIOUR_CODE.some((re) => re.test(raw))) return 'B';
-  }
-  return 'S';
 }
 
 // ---- input ------------------------------------------------------------------

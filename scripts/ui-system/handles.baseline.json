@@ -1,5 +1,5 @@
 {
-  "_comment": "Permanent-handle baseline for the UI Iteration System. Regenerate with `node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a handle removal/rename is intentional and logged in handles.migrations.json.",
+  "_comment": "Permanent-handle baseline for the UI Iteration System. Regenerate with `node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a handle removal/rename is intentional and logged in handles.migrations.json. `duplicates` freezes handles rendered from >1 file (frozen debt; the guard blocks NEW cross-file duplicates so a handle can't silently become ambiguous).",
   "count": 1392,
   "keys": [
     "account-identity",
@@ -1394,5 +1394,38 @@
     "workspace-auto-resume-loading",
     "workspace-command-chip",
     "workspace-selector-dialog"
-  ]
+  ],
+  "duplicates": {
+    "account-identity": 2,
+    "add-custom-section-form": 2,
+    "archived-matters-section": 2,
+    "archived-matters-toggle": 2,
+    "ask-cited-attestation": 2,
+    "clientmap-ask": 2,
+    "clientmap-ask-flag": 2,
+    "clientmap-ask-know": 2,
+    "clientmap-completeness": 2,
+    "clientmap-completeness-level": 2,
+    "clientmap-item": 2,
+    "clientmap-item-assumption": 2,
+    "clientmap-item-edit": 2,
+    "clientmap-section-${}": 2,
+    "clientmap-source-link": 2,
+    "clientmap-template-apply": 2,
+    "clientmap-template-row": 2,
+    "custom-section-description": 2,
+    "custom-section-error": 2,
+    "custom-section-submit": 2,
+    "custom-section-title": 2,
+    "docx-editor": 2,
+    "file-tree": 2,
+    "firm-remove-member-${}": 2,
+    "matter-archive-${}": 2,
+    "matter-restore-${}": 2,
+    "matter-row-${}": 2,
+    "privilege-option-${}": 2,
+    "scope-option-${}": 2,
+    "settings-gear": 2,
+    "status-bar-trial-chip": 2
+  }
 }

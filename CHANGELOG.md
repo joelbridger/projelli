@@ -55,6 +55,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
      checks (no overflow, in-viewport) + a screenshot & verdict per step. Fast,
      deterministic, machine-local; the live Legion smoke stays the slow drift run.
   - The permanent-handle and token guards are wired into `scripts/gate.sh`.
+  - **Round-2 review hardening (all BLOCKING findings fixed, TDD):**
+    - Classifier now escalates handler REBINDS (`onClick={connect}`→`{disconnect}`),
+      `disabled`/`aria-disabled`, `href`, form `action`, and `type="submit"`
+      changes in UI files to Tier B (was only catching inline-arrow handlers).
+    - Handle integrity now requires the handle to BE the interactive element;
+      a wrapper is accepted only via an explicit `ALLOWED_WRAPPERS` entry naming
+      the inner target (was: passed if it merely CONTAINED a control). Reachable
+      coverage widened (nav + hub subtabs + client row + Ask composer).
+    - Handle guard adds static cross-file uniqueness (baselined; blocks NEW
+      ambiguous/duplicate handles across the whole inventory).
+    - Tier S gate now RUNS auto-selected scoped component tests and FAILS when
+      none exist (was: printed a reminder). Pure logic extracted to
+      `scripts/ui-system/lib/{classify,handle-eval,select-tests}.mjs` and unit-
+      tested in `tests/unit/ui-system/` (29 tests).
   - Files: `scripts/ui-system/*`, `scripts/gate.sh`, `ARCHITECTURE.md`,
     `src/ui/kp/SegmentedToggle.tsx`, `src/ui/ConfirmDialog.tsx`,
     `src/app/shell/layout/Spine.tsx`, `src/platform/connectors/{email/MailConnect,onedrive/OneDriveConnect,crm/WealthboxConnect}.tsx`.
