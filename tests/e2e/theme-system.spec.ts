@@ -5,7 +5,7 @@
  * The default (unset) preference is 'light' (settings schema.ts — no
  * dark-mode-by-default). In 'system' mode the app listens to
  * prefers-color-scheme so OS changes flow through. Persistence lives in
- * localStorage['theme'].
+ * localStorage['lantern:settings'].
  */
 
 import { test, expect, type Page } from '@playwright/test';
@@ -20,15 +20,14 @@ async function addThemePreferenceInitScript(
       'lantern:settings',
       JSON.stringify({
         state: {
-          values: { theme: nextTheme },
+          values: { theme: nextTheme, themeExplicitlyChosen: true },
           _migrated: true,
           featuresTourCompleted: false,
           language: null,
         },
-        version: 0,
+        version: 1,
       })
     );
-    localStorage.setItem('theme', nextTheme);
   }, theme);
 }
 
