@@ -53,6 +53,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **Local-AI trimming budgets against the context window Ollama requests
+  actually get, not the model's theoretical maximum.** Round-2 review (F1,
+  blocker): `OllamaProvider.getMetadata()` reported the model's trained
+  maximum (`getMaxContextTokens`, e.g. 131k for llama3.2:3b) while every real
+  request pins `num_ctx` to the clamped working window
+  (`OLLAMA_WORKING_CONTEXT_WINDOW`, 16384) — so the trimmer could approve a
+  100k+ prompt that Ollama silently truncated to 16k, the exact failure the
+  trimming exists to prevent. Fixed by making the reported
+  `capabilities.maxContextTokens` equal `resolveNumCtx()` (the working
+  window); the trimmer is the field's only consumer (verified by grep — every
+  other `getMetadata()` caller reads `.model`/`.providerId`/cost), so no
+  display or estimator loses the theoretical number. Files:
+  `OllamaProvider.ts`. Tests: `ollama-provider.test.ts` (real provider:
+  llama3.2:3b reports 16384; llama3:8b keeps its smaller 8192 max).
+- **A single oversized retrieved chunk no longer erases usable history and
+  then refuses anyway (smart mode).** Round-2 review (F2): the trim loop
+  never dropped the last remaining chunk, so one huge chunk drained all
+  history trying to make room, then still reported "doesn't fit" — breaking
+  follow-ups like "summarize what you just said" that would have worked from
+  history alone. Now `trimForLocalContext` takes the Ask mode: in **smart**
+  mode, when the sole remaining chunk still busts the budget, it's dropped
+  too (zero fresh evidence — the existing no-evidence prompt wording stays
+  honest) and history is re-admitted newest-first as much as fits;
+  **files-only** mode keeps its honest decline (an Ask about your documents
+  must not answer without them). The smart-mode prompt size estimate now uses
+  the longer no-evidence hint so it stays an upper bound either way. Files:
+  `localContextTrim.ts`, `useAsk.ts`. Tests: `localContextTrim.test.ts`,
+  `useAsk.localTrim.test.ts` (follow-up-from-history scenario, both modes).
 - **Local-AI context trimming now also covers the local Ollama route, not
   just the embedded model.** Pre-merge review (P2) found the trim check at
   `useAsk.ts` gated only on `providerId === 'keepance-local'`, so when the

@@ -1022,6 +1022,10 @@ export function useAsk({
       // fallback) and a user-run Ollama daemon (resolved when the embedded model
       // isn't ready — see resolveLocalProvider.ts), each reading ITS OWN
       // provider-reported window via getMetadata(), never a hard-coded number.
+      // That reported window is the WORKING window the request actually gets
+      // (round-2 F1: OllamaProvider reports its clamped num_ctx, not the
+      // model's theoretical max — budgeting against 131k while sending into a
+      // 16k window is exactly the silent truncation this exists to prevent).
       // If over budget, drop retrieved chunks lowest-relevance-first (whole
       // chunks only, so a surviving citation never points at truncated text),
       // then oldest history. Cloud providers never take this path — no
@@ -1036,13 +1040,21 @@ export function useAsk({
               scopeHint: matterHint,
               workspaceBlock: '',
               historyBlock: '',
-              hasEvidence: groundingHits.length > 0,
+              // Estimate with the LONGER no-evidence hint: smart-mode trimming
+              // may drop every chunk (round-2 F2), flipping the real prompt to
+              // the no-evidence variant — sizing against the longer of the two
+              // keeps the estimate an upper bound in both outcomes.
+              hasEvidence: false,
             });
         const trimResult = trimForLocalContext(
           {
             fixedText: `${staticSystemPrompt}\n\n${q}`,
             hits: groundingHits,
             historyTurns: historyInPrompt,
+            // Smart mode may drop even the last chunk (answering honestly from
+            // history / general knowledge via the no-evidence prompt below);
+            // files-only must decline instead — see localContextTrim.ts.
+            mode: filesOnly ? 'files-only' : 'smart',
             buildWorkspaceBlock: buildWorkspaceContextBlock,
             buildHistoryBlock: (turnsForBlock) => buildHistoryBlock(turnsForBlock, HISTORY_WINDOW),
           },

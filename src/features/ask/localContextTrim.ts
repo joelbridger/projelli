@@ -19,9 +19,16 @@
  *      point at truncated text.
  *   3. Once only the single highest-relevance chunk remains, oldest history
  *      turns are dropped next.
- * If even the question plus that one top chunk (no history) still doesn't
- * fit, `fits` comes back false — the caller should show an honest "too long"
- * message instead of sending a prompt doomed to overflow.
+ * When even the question plus that one top chunk (no history) doesn't fit,
+ * the two Ask modes diverge (round-2 review, F2):
+ *   - 'files-only' answers ONLY from file evidence, so it reports fits=false
+ *     and the caller declines honestly instead of sending a prompt doomed to
+ *     overflow — it must never answer a files question without the files.
+ *   - 'smart' can answer honestly with zero file evidence (its no-evidence
+ *     prompt leads with a nothing-found block), so the unusable chunk is
+ *     dropped too and history is re-admitted, newest-first as much as fits —
+ *     a follow-up like "summarize what you just said" answers from history
+ *     instead of being refused because one oversized chunk erased it.
  *
  * Only used for the local provider; cloud providers never call this.
  */
@@ -47,6 +54,12 @@ export interface LocalTrimInput {
   hits: RagHit[];
   /** Conversation history turns available for the prompt, oldest first. */
   historyTurns: AskTurn[];
+  /** Which Ask mode this send is for — decides what happens when the single
+   *  top-relevance chunk alone can't fit (see the module comment):
+   *  'files-only' keeps it and reports fits=false (honest decline);
+   *  'smart' drops it and keeps as much history as fits (zero fresh
+   *  evidence — the caller's no-evidence prompt handles honest wording). */
+  mode: 'files-only' | 'smart';
   /** Builds the `<workspace_context>` block from a hit subset — pass the real
    *  app builder so the estimate matches exactly what would be sent. */
   buildWorkspaceBlock: (hits: RagHit[]) => string;
@@ -61,9 +74,11 @@ export interface LocalTrimResult {
   historyTurns: AskTurn[];
   /** True when anything was cut relative to the input. */
   trimmed: boolean;
-  /** False when even the question plus the single top-relevance chunk (no
-   *  history) can't fit — the caller should decline with
-   *  LOCAL_CONTEXT_TOO_LONG_MESSAGE instead of sending. */
+  /** False when nothing sendable fits the budget — the caller should decline
+   *  with LOCAL_CONTEXT_TOO_LONG_MESSAGE instead of sending. In 'files-only'
+   *  mode that means the question + the single top-relevance chunk (no
+   *  history) can't fit; in 'smart' mode only the fixed text alone (question
+   *  + system prompt) exceeding the budget can make this false. */
   fits: boolean;
 }
 
@@ -100,7 +115,19 @@ export function trimForLocalContext(
       history = history.slice(1); // drop the oldest remaining turn
       continue;
     }
-    break; // down to at most the single top chunk and no history
+    if (input.mode === 'smart' && hits.length === 1) {
+      // Even alone (all history already dropped) the top chunk busts the
+      // budget — it can never be sent whole, and partial is never allowed.
+      // Smart mode can answer honestly with zero file evidence, so drop the
+      // chunk and re-admit the history it displaced; the loop then trims
+      // oldest turns again until what remains fits (round-2 review, F2).
+      // Files-only mode instead keeps the chunk and falls through to
+      // fits=false: an Ask about your documents must not answer without them.
+      hits = [];
+      history = [...input.historyTurns];
+      continue;
+    }
+    break; // nothing left this mode is allowed to cut
   }
 
   const fits = currentTokens() <= budget;

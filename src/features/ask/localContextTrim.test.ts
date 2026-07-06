@@ -33,6 +33,7 @@ function baseInput(overrides: Partial<LocalTrimInput> = {}): LocalTrimInput {
     fixedText: 'You are a helpful assistant. Question: what is the plan?',
     hits: [],
     historyTurns: [],
+    mode: 'files-only',
     buildWorkspaceBlock,
     buildHistoryBlock,
     ...overrides,
@@ -99,15 +100,94 @@ describe('trimForLocalContext', () => {
     expect(result.historyTurns.map((t) => t.question)).toEqual(['newer q']);
   });
 
-  it('reports fits=false when even the question + top-1 chunk cannot fit', () => {
+  it('files-only mode: reports fits=false when even the question + top-1 chunk cannot fit', () => {
+    // Files-only mode answers ONLY from file evidence, so when no usable file
+    // context fits, the honest move is to decline — never drop the last chunk
+    // and answer from nothing (round-2 F2: this floor is files-only-specific).
     const hugeChunk = 'x'.repeat(100_000);
     const hits = [makeHit('only.md', 0.9, hugeChunk)];
-    const result = trimForLocalContext(baseInput({ hits }), 16384);
+    const result = trimForLocalContext(baseInput({ hits, mode: 'files-only' }), 16384);
 
     expect(result.fits).toBe(false);
     // Never drops below the single top chunk trying to make it fit.
     expect(result.hits).toHaveLength(1);
     expect(result.hits[0]?.path).toBe('only.md');
+    expect(result.historyTurns).toHaveLength(0);
+  });
+
+  it('smart mode: drops a sole oversized chunk and keeps all history that fits (round-2 F2)', () => {
+    // The follow-up scenario: "summarize what you just said" retrieves one
+    // huge chunk that can never fit, but the answer lives in history. Smart
+    // mode drops the chunk (zero fresh evidence — the caller's no-evidence
+    // prompt stays honest) instead of erasing the history and refusing.
+    const hugeChunk = 'x'.repeat(100_000);
+    const hits = [makeHit('only.md', 0.9, hugeChunk)];
+    const history = [
+      makeTurn('what does the plan say?', 'The plan says to rebalance in Q3.'),
+      makeTurn('anything else?', 'It also flags the concentrated position.'),
+    ];
+    const result = trimForLocalContext(
+      baseInput({ hits, historyTurns: history, mode: 'smart' }),
+      16384,
+    );
+
+    expect(result.fits).toBe(true);
+    expect(result.trimmed).toBe(true);
+    expect(result.hits).toHaveLength(0);
+    // Both history turns fit once the oversized chunk is gone — all kept.
+    expect(result.historyTurns.map((t) => t.question)).toEqual([
+      'what does the plan say?',
+      'anything else?',
+    ]);
+  });
+
+  it('smart mode: after dropping the sole chunk, still trims oldest history to fit', () => {
+    const hugeChunk = 'x'.repeat(100_000);
+    const hits = [makeHit('only.md', 0.9, hugeChunk)];
+    const history = [
+      makeTurn('oldest q', 'oldest a '.repeat(200)),
+      makeTurn('newest q', 'newest a '.repeat(200)),
+    ];
+    // Budget fits ONE restored history turn (plus fixed text), not both.
+    const result = trimForLocalContext(
+      baseInput({ hits, historyTurns: history, mode: 'smart' }),
+      700 + LOCAL_TRIM_OUTPUT_RESERVE_TOKENS,
+    );
+
+    expect(result.fits).toBe(true);
+    expect(result.hits).toHaveLength(0);
+    // Oldest dropped, newest kept.
+    expect(result.historyTurns.map((t) => t.question)).toEqual(['newest q']);
+  });
+
+  it('smart mode: does not drop the sole chunk when it fits with zero history', () => {
+    // Evidence beats history — the chunk-drop is a last resort, only when the
+    // chunk can NEVER fit. Here it fits once history is trimmed away, so the
+    // top chunk survives (same chunks-over-history priority as before).
+    const chunk = 'x'.repeat(1500);
+    const hits = [makeHit('top.md', 0.9, chunk)];
+    const history = [
+      makeTurn('old q', 'old a '.repeat(200)),
+      makeTurn('new q', 'new a '.repeat(200)),
+    ];
+    // Fits fixed + the chunk, but not fixed + chunk + any history turn.
+    const result = trimForLocalContext(
+      baseInput({ hits, historyTurns: history, mode: 'smart' }),
+      500 + LOCAL_TRIM_OUTPUT_RESERVE_TOKENS,
+    );
+
+    expect(result.fits).toBe(true);
+    expect(result.hits.map((h) => h.path)).toEqual(['top.md']);
+    expect(result.historyTurns).toHaveLength(0);
+  });
+
+  it('smart mode: reports fits=false only when the fixed text alone exceeds the budget', () => {
+    const result = trimForLocalContext(
+      baseInput({ fixedText: 'x'.repeat(100_000), hits: [makeHit('a.md', 0.9, 'chunk')], mode: 'smart' }),
+      16384,
+    );
+    expect(result.fits).toBe(false);
+    expect(result.hits).toHaveLength(0);
     expect(result.historyTurns).toHaveLength(0);
   });
 

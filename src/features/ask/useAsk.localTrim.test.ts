@@ -133,12 +133,18 @@ describe('useAsk — local-AI context trimming', () => {
     expect(sendOptions.systemPrompt).not.toContain('doc-5.md');
   });
 
-  it('declines honestly instead of sending when even the question + top chunk cannot fit', async () => {
+  it('files-only mode: declines honestly instead of sending when even the question + top chunk cannot fit', async () => {
+    // Files-only is the mode whose whole contract is "answer only from the
+    // files" — when no usable file context fits the window, it must decline,
+    // never answer from nothing (round-2 F2 keeps this decline files-only).
+    localStorage.setItem(SK_ASK_FILES_ONLY, '1');
     const hits = makeHits(3);
     retrieveMock.mockResolvedValue(hits);
     // Sized so even the single highest-relevance chunk plus the fixed prompt
-    // overflows the window (see the module comment for the token estimate).
-    const fakeProvider = makeFakeProvider({ providerId: 'keepance-local', maxContextTokens: 2600 });
+    // overflows the window (see the module comment for the token estimate —
+    // one ~4000-char chunk is ~1000 tokens; the files-only fixed prompt is
+    // short, so the window must be small enough that chunk + fixed busts it).
+    const fakeProvider = makeFakeProvider({ providerId: 'keepance-local', maxContextTokens: 1200 });
     buildResolvedAskProviderMock.mockResolvedValue({
       provider: fakeProvider,
       providerId: 'keepance-local',
@@ -159,6 +165,62 @@ describe('useAsk — local-AI context trimming', () => {
     expect(fakeProvider.sendMessage).not.toHaveBeenCalled();
     expect(result.current.turns).toHaveLength(1);
     expect(result.current.turns[0]?.answer).toBe(LOCAL_CONTEXT_TOO_LONG_MESSAGE);
+  });
+
+  it('smart mode: a follow-up whose sole retrieved chunk cannot fit still answers from history (round-2 F2)', async () => {
+    // Turn 1: a normal ask that fits, so the conversation has history.
+    retrieveMock.mockResolvedValue(makeHits(1));
+    const fakeProvider = makeFakeProvider({
+      providerId: 'keepance-local',
+      maxContextTokens: 5000,
+      answer: 'The rebalance is scheduled for Q3.',
+    });
+    buildResolvedAskProviderMock.mockResolvedValue({
+      provider: fakeProvider,
+      providerId: 'keepance-local',
+      model: 'qwen3-4b-instruct-2507',
+    });
+
+    const { result } = renderHook(() => useAsk({}));
+
+    act(() => {
+      // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects
+      void result.current.handleAsk('when is the rebalance?');
+    });
+    await waitFor(() => {
+      expect(result.current.turns).toHaveLength(1);
+      expect(result.current.status).toBe('done');
+    });
+
+    // Turn 2: retrieval returns ONE chunk far too big for the window. Before
+    // round-2 F2 this erased all history and refused; now smart mode drops the
+    // unusable chunk and answers the follow-up from history alone.
+    retrieveMock.mockResolvedValue([
+      {
+        path: 'Clients/Test/huge.md',
+        chunkText: 'x'.repeat(100_000),
+        score: 0.9,
+        paragraphIndex: 0,
+      },
+    ]);
+
+    act(() => {
+      // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects
+      void result.current.handleAsk('summarize what you just said');
+    });
+    await waitFor(() => {
+      expect(result.current.turns).toHaveLength(2);
+      expect(result.current.status).toBe('done');
+    });
+
+    // The follow-up was SENT (no "too long" decline)…
+    expect(fakeProvider.sendMessage).toHaveBeenCalledTimes(2);
+    expect(result.current.turns[1]?.answer).not.toBe(LOCAL_CONTEXT_TOO_LONG_MESSAGE);
+    const [, sendOptions] = fakeProvider.sendMessage.mock.calls[1] as [string, { systemPrompt: string }];
+    // …without the oversized chunk…
+    expect(sendOptions.systemPrompt).not.toContain('huge.md');
+    // …but WITH the turn-1 history the answer lives in.
+    expect(sendOptions.systemPrompt).toContain('The rebalance is scheduled for Q3.');
   });
 
   it('trims for a local Ollama route too, reading Ollama\'s own reported context budget', async () => {

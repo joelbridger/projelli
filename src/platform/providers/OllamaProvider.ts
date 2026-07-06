@@ -476,9 +476,12 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         streaming: true,
         functionCalling: false,
         vision: false,
-        // Context length depends on the model. Most Ollama defaults cap
-        // around 8k; individual models (llama3.1, qwen2.5) go much higher.
-        maxContextTokens: getMaxContextTokens('ollama', this.model),
+        // The WORKING window every request actually gets (num_ctx is pinned to
+        // resolveNumCtx() on every send), NOT the model's theoretical maximum.
+        // The Ask context trimmer budgets against this field; reporting the
+        // theoretical max (e.g. 131k for llama3.2:3b) would let it approve
+        // prompts Ollama silently truncates in the real 16k window.
+        maxContextTokens: this.resolveNumCtx(),
       },
     };
   }
