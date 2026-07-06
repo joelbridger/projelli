@@ -3,7 +3,7 @@
 # not an open question. Fires every 10 min. Each idle resource is a concrete fact
 # the coordinator must either USE or justify as genuinely blocked. "It would add
 # to my merge gate" is NOT a valid reason to leave a bench/Codex/analysis slot idle.
-INTERVAL="${1:-600}"
+INTERVAL="${1:-600}"   # 10 min default (Jameson 2026-07-06: ask the parallelism question every 10 minutes)
 while true; do
   sleep "$INTERVAL"
   OUT="IDLE-CAPACITY CHECK — use each idle resource or state why it's genuinely blocked (NOT 'adds to my gate'):"
@@ -38,5 +38,6 @@ while true; do
   • WORKER LANES: $LANES active. Steady-state sweet spot ~5-6 writers; memory is NOT the constraint. If building lanes < that AND independent work exists, open more."
 
   echo "$OUT
-  → Answer each line. Bench/cloud/Codex/analysis idle capacity is throughput you are leaving on the table — the merge gate does not gate THEM."
+  → Answer each line. Bench/cloud/Codex/analysis idle capacity is throughput you are leaving on the table — the merge gate does not gate THEM.
+  → JAMESON'S STANDING QUESTION (answer it fresh every time, don't pattern-match to your last answer): \"Is there anything else you could be doing in parallel or any other resources you could be using?\" Remember: a tip-freeze blocks MERGES, not isolated-worktree BUILDS; build-only lanes are allowed during freezes."
 done
