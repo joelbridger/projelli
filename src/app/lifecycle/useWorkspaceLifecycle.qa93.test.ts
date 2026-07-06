@@ -25,7 +25,7 @@ import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
 function makeOptions(): UseWorkspaceLifecycleOptions {
   return {
     workspaceServiceRef: createRef() as never,
-    auditServiceRef: { current: { hydrate: vi.fn(), getAll: () => [], verifyIntegrity: vi.fn() } } as never,
+    auditServiceRef: { current: { hydrate: vi.fn().mockResolvedValue(true), getAll: () => [], verifyIntegrity: vi.fn() } } as never,
     templatesMarketplaceServiceRef: createRef() as never,
     templatesMetadataReaderRef: createRef() as never,
     setShowWorkspaceSelector: vi.fn(),
@@ -41,6 +41,18 @@ function makeOptions(): UseWorkspaceLifecycleOptions {
     setChatFiles: vi.fn(),
     confirm: vi.fn().mockResolvedValue(true),
   };
+}
+
+function makeWorkspaceService(root: string): never {
+  return {
+    getRootPath: () => root,
+    getBackend: () => null,
+    exists: () => Promise.resolve(true),
+    mkdir: () => Promise.resolve(),
+    getFileTree: () => Promise.resolve([]),
+    readFile: () => Promise.resolve(''),
+    readFileBinary: () => Promise.resolve(new Uint8Array()),
+  } as never;
 }
 
 const baseMatter = {
@@ -115,23 +127,87 @@ describe('QA-93 stage B — switching the workspace root swaps the visible matte
     options.setRootPath = (p: string) => { useWorkspaceStore.getState().setRootPath(p); };
     const { result, unmount } = renderHook(() => useWorkspaceLifecycle(options));
 
-    const service = {
-      getRootPath: () => '/wsA',
-      getBackend: () => null,
-      exists: () => Promise.resolve(true),
-      mkdir: () => Promise.resolve(),
-      getFileTree: () => Promise.resolve([]),
-      readFile: () => Promise.resolve(''),
-      readFileBinary: () => Promise.resolve(new Uint8Array()),
-    } as never;
     await act(async () => {
-      await result.current.handleWorkspaceSelected(service);
+      await result.current.handleWorkspaceSelected(makeWorkspaceService('/wsA'));
     });
 
     // The migration's dropped-mapping trail reached the live Activity Log.
     expect(emitted).toHaveLength(1);
     expect(emitted[0]).toContain('Hendricks');
     expect(emitted[0]).toContain('"Clients/Legacy"');
+
+    unmount();
+  });
+
+  it('ROUND 4: keeps migration audit entries pending when audit hydrate does not reach the new workspace, then flushes later', async () => {
+    localStorage.setItem('lantern:matters', JSON.stringify({
+      state: {
+        matters: [{ ...baseMatter, id: 'mix', name: 'Hendricks', folderPaths: ['Clients/Legacy', '/wsA/Acme'] }],
+        activeMatterId: null,
+      },
+      version: 10,
+    }));
+    const emitted: string[] = [];
+    setMatterAuditEmitter((entry) => { emitted.push(entry.description); });
+
+    const options = makeOptions();
+    options.auditServiceRef.current.hydrate = vi
+      .fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(true) as never;
+    options.setRootPath = (p: string) => { useWorkspaceStore.getState().setRootPath(p); };
+    const { result, unmount } = renderHook(() => useWorkspaceLifecycle(options));
+
+    await act(async () => {
+      await result.current.handleWorkspaceSelected(makeWorkspaceService('/wsA'));
+    });
+    expect(emitted).toEqual([]);
+
+    await act(async () => {
+      await result.current.handleWorkspaceSelected(makeWorkspaceService('/wsA'));
+    });
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toContain('Hendricks');
+    expect(emitted[0]).toContain('"Clients/Legacy"');
+
+    unmount();
+  });
+
+  it('ROUND 4: emits one overflow audit entry when migration drops folder links for more than 500 clients', async () => {
+    localStorage.setItem('lantern:matters', JSON.stringify({
+      state: {
+        matters: Array.from({ length: 502 }, (_unused, index) => ({
+          ...baseMatter,
+          id: `client-${index}`,
+          name: `Client ${index}`,
+          folderPaths: [`Clients/Legacy ${index}`, `/wsA/Clients/Client ${index}`],
+        })),
+        activeMatterId: null,
+      },
+      version: 10,
+    }));
+    const emitted: Array<{ description: string; metadata: Record<string, unknown> }> = [];
+    setMatterAuditEmitter((entry) => {
+      emitted.push({ description: entry.description, metadata: entry.metadata });
+    });
+
+    const options = makeOptions();
+    options.setRootPath = (p: string) => { useWorkspaceStore.getState().setRootPath(p); };
+    const { result, unmount } = renderHook(() => useWorkspaceLifecycle(options));
+
+    await act(async () => {
+      await result.current.handleWorkspaceSelected(makeWorkspaceService('/wsA'));
+    });
+
+    const individualEntries = emitted.filter(
+      (entry) => entry.metadata['auditEventType'] === 'matter_migration_folder_link_dropped',
+    );
+    const overflowEntry = emitted.find(
+      (entry) => entry.metadata['auditEventType'] === 'matter_migration_folder_link_drop_overflow',
+    );
+    expect(individualEntries).toHaveLength(500);
+    expect(overflowEntry?.metadata['omittedClientCount']).toBe(2);
+    expect(overflowEntry?.description).toContain('2 more clients were affected');
 
     unmount();
   });

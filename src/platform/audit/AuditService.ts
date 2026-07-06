@@ -159,14 +159,14 @@ export class AuditService {
    * after the synchronous localStorage load already done in the constructor).
    * Call this when the workspace is opened/changed.
    */
-  async hydrate(workspacePath?: string): Promise<void> {
-    if (!this.encrypted) return; // browser already loaded from localStorage
+  async hydrate(workspacePath?: string): Promise<boolean> {
+    if (!this.encrypted) return true; // browser already loaded from localStorage
     if (workspacePath) {
       try {
         await auditSetWorkspace(workspacePath);
       } catch {
         // If we can't set the workspace, leave the in-memory log as-is.
-        return;
+        return false;
       }
     }
     try {
@@ -176,6 +176,7 @@ export class AuditService {
       // Best-effort hydrate; an unreadable store leaves the session log empty
       // rather than crashing the app.
     }
+    return true;
   }
 
   async verifyIntegrity(): Promise<AuditIntegrityVerdict | undefined> {

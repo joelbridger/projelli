@@ -542,13 +542,62 @@ interface PendingMigrationDropAudit {
 const pendingMigrationDropAudits: PendingMigrationDropAudit[] = [];
 /** Hard cap so a pathological legacy dataset can't grow the queue unbounded. */
 const MAX_PENDING_MIGRATION_DROP_AUDITS = 500;
+const MIGRATION_DROP_OVERFLOW_EVENT_TYPE = 'matter_migration_folder_link_drop_overflow';
+
+function queueMigrationDropOverflowAudit(root: string): void {
+  const existing = pendingMigrationDropAudits.find(
+    (p) =>
+      p.root === root &&
+      p.entry.metadata['auditEventType'] === MIGRATION_DROP_OVERFLOW_EVENT_TYPE,
+  );
+  const omittedClientCount =
+    (existing?.entry.metadata['omittedClientCount'] as number | undefined) ?? 0;
+  const nextCount = omittedClientCount + 1;
+  const description =
+    `${String(nextCount)} more ${nextCount === 1 ? 'client was' : 'clients were'} affected by this workspace setup, ` +
+    `but were not listed one by one because the safety log hit its ${String(MAX_PENDING_MIGRATION_DROP_AUDITS)}-client limit. ` +
+    `Review client folder links if files seem unassigned.`;
+
+  if (existing) {
+    existing.entry.description = description;
+    existing.entry.metadata = {
+      ...existing.entry.metadata,
+      omittedClientCount: nextCount,
+    };
+    return;
+  }
+
+  pendingMigrationDropAudits.push({
+    root,
+    entry: {
+      action: 'user_action',
+      description,
+      model: undefined,
+      inputs: {},
+      outputs: {},
+      userDecision: 'auto',
+      metadata: {
+        auditEventType: MIGRATION_DROP_OVERFLOW_EVENT_TYPE,
+        omittedClientCount: nextCount,
+        workspaceRoot: root,
+        individualEntryLimit: MAX_PENDING_MIGRATION_DROP_AUDITS,
+      },
+    },
+  });
+}
 
 function queueMigrationDropAudit(
   matter: Matter,
   droppedFolderPaths: string[],
   root: string,
 ): void {
-  if (pendingMigrationDropAudits.length >= MAX_PENDING_MIGRATION_DROP_AUDITS) return;
+  const individualEntryCount = pendingMigrationDropAudits.filter(
+    (p) => p.entry.metadata['auditEventType'] === 'matter_migration_folder_link_dropped',
+  ).length;
+  if (individualEntryCount >= MAX_PENDING_MIGRATION_DROP_AUDITS) {
+    queueMigrationDropOverflowAudit(root);
+    return;
+  }
   const clientName = matter.name || matter.client || matter.id;
   const list = droppedFolderPaths.map((p) => `"${p}"`).join(', ');
   const plural = droppedFolderPaths.length > 1;

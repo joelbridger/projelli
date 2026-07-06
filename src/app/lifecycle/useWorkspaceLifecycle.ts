@@ -213,14 +213,19 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     // match the AuditLog's prepend ordering. Best-effort: never block workspace
     // selection on the audit store.
     if (newRootPath) {
+      let auditWorkspaceReady = false;
       try {
-        await auditServiceRef.current.hydrate(newRootPath);
-        const loaded = auditServiceRef.current
-          .getAll()
-          .slice()
-          .reverse(); // store is oldest-first; UI shows newest-first
-        setAuditEntries(loaded);
-        setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
+        auditWorkspaceReady = await auditServiceRef.current.hydrate(newRootPath);
+        if (auditWorkspaceReady) {
+          const loaded = auditServiceRef.current
+            .getAll()
+            .slice()
+            .reverse(); // store is oldest-first; UI shows newest-first
+          setAuditEntries(loaded);
+          setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
+        } else {
+          setAuditIntegrity(undefined);
+        }
       } catch (err) {
         console.warn('[App] Audit store hydrate failed:', err);
         setAuditIntegrity(undefined);
@@ -236,7 +241,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
       // plain-language entries about folder mappings it could not carry over.
       // Deliver them NOW — after the audit store points at THIS workspace — so
       // they land in the right workspace's Activity Log, never the previous one's.
-      flushPendingMatterMigrationAudit(newRootPath);
+      if (auditWorkspaceReady) flushPendingMatterMigrationAudit(newRootPath);
     }
 
     // Stream C1 — Construct the templates marketplace service for this
