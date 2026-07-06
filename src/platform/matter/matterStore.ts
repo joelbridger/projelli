@@ -58,8 +58,10 @@ import {
   getActiveWorkspaceScopeRoot,
 } from '@/platform/state/workspaceScope';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
-import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
+import {
+  purgeDeletedMatterForWorkspace,
+  usePendingDeletedMatterStore,
+} from '@/platform/rag/pendingDeletedMatterStore';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
@@ -1057,6 +1059,18 @@ export const useMatterStore = create<MatterState>()(
       },
 
       deleteMatter: (id) => {
+        const workspaceRoot = getWorkspaceRootNonReactive();
+        if (workspaceRoot) {
+          try {
+            usePendingDeletedMatterStore.getState().record(workspaceRoot, id);
+          } catch (err) {
+            console.error(
+              '[matterStore] deleted matter hold could not be saved; refusing to delete matter:',
+              err,
+            );
+            return;
+          }
+        }
         set((state) => {
           // Also drop every per-matter slice so a deleted matter leaves no
           // orphaned persisted state behind (stale at-a-glance AI cache, saved
@@ -1087,9 +1101,10 @@ export const useMatterStore = create<MatterState>()(
         // "hide but keep everything" path; delete is the more final one that
         // never destroys documents — a law practice has retention duties.)
         //
-        // To make "wipe from the AI" honest we clear the two durable AI-side
-        // traces of the matter, both best-effort + fire-and-forget (no-op
-        // outside Tauri, never blocks the delete):
+        // To make "wipe from the AI" honest we first saved a durable pending
+        // delete record, then clear the two durable AI-side traces of the
+        // matter. If either purge fails, the pending record keeps that matter
+        // hidden from retrieval and the next workspace boot retries it:
         //   1. The matter's CURRENT RAG chunks (so they stop surfacing under the
         //      now-gone scope). BUG-040. A later re-index of the files re-adds
         //      them as 'unassigned' — correct, because the files are still the
@@ -1102,18 +1117,7 @@ export const useMatterStore = create<MatterState>()(
         //      their folder happens to map to — content filed to one matter must
         //      never cross into another (legal invariant; Codex review #1).
         // To make content truly disappear the user deletes the files themselves.
-        void ragDeleteMatter(id).catch((err: unknown) => {
-          console.warn(
-            '[matterStore] rag purge for deleted matter failed:',
-            err
-          );
-        });
-        void mailClearMatterFilings(id).catch((err: unknown) => {
-          console.warn(
-            '[matterStore] mail filing purge for deleted matter failed:',
-            err
-          );
-        });
+        if (workspaceRoot) void purgeDeletedMatterForWorkspace(workspaceRoot, id);
       },
 
       setFolderPaths: (id, folderPaths) => {

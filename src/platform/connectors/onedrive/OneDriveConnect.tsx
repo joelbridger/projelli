@@ -316,9 +316,8 @@ export function OneDriveConnect() {
     try {
       await oneDriveCancel();
       // A purge that removed RAG rows announces itself from the BACKEND on the
-      // standard rag-indexing-progress channel (deleted > 0), which the
-      // citation-verification cache already subscribes to — platform must not
-      // import features (architecture DAG).
+      // dedicated rag-content-invalidated event, which the citation-verification
+      // cache subscribes to — platform must not import features (architecture DAG).
       const result: OneDriveDisconnectResult = await oneDriveDisconnect(deleteFiles);
 
       // A clean disconnect: the connection + search index were removed. When the

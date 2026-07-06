@@ -24,9 +24,11 @@
 import { useEffect, useRef } from 'react';
 import { create } from 'zustand';
 import {
+  RAG_CONTENT_INVALIDATED_EVENT,
   RAG_PROGRESS_EVENT,
   ragVerifyCitationsBatch,
   type CitationVerdict,
+  type RagContentInvalidated,
   type RagIndexingProgress,
 } from '@/platform/utils/tauri-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
@@ -80,12 +82,15 @@ const lruKeys = new Map<string, true>();
 let cacheEpoch = 0;
 let ragProgressListenerStarted = false;
 let ragProgressUnlisten: (() => void) | null = null;
+let ragContentInvalidatedUnlisten: (() => void) | null = null;
 
 /** Test-only: clear all module/store state between tests (verdicts are
  *  content-addressed and would otherwise leak across test cases). */
 export function resetCitationVerificationForTests(): void {
   ragProgressUnlisten?.();
   ragProgressUnlisten = null;
+  ragContentInvalidatedUnlisten?.();
+  ragContentInvalidatedUnlisten = null;
   ragProgressListenerStarted = false;
   requested.clear();
   heldForRetry.clear();
@@ -172,6 +177,10 @@ export function handleRagIndexingProgressForCitationVerification(payload: RagInd
   if (contentChanged) clearCitationVerificationCache();
 }
 
+export function handleRagContentInvalidatedForCitationVerification(payload: RagContentInvalidated): void {
+  if (payload.deleted > 0) clearCitationVerificationCache();
+}
+
 function installRagProgressInvalidationListener(): void {
   if (ragProgressListenerStarted) return;
   ragProgressListenerStarted = true;
@@ -183,6 +192,12 @@ function installRagProgressInvalidationListener(): void {
       ragProgressUnlisten = await listen<RagIndexingProgress>(RAG_PROGRESS_EVENT, (event) => {
         handleRagIndexingProgressForCitationVerification(event.payload);
       });
+      ragContentInvalidatedUnlisten = await listen<RagContentInvalidated>(
+        RAG_CONTENT_INVALIDATED_EVENT,
+        (event) => {
+          handleRagContentInvalidatedForCitationVerification(event.payload);
+        },
+      );
     } catch {
       // Browser/test mode: no native indexing event to subscribe to.
     }

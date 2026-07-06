@@ -19,6 +19,7 @@ import { SourcePanel } from './SourcePanel';
 import {
   CITATION_VERDICT_CACHE_MAX_ENTRIES,
   getCitationVerificationCacheSnapshotForTests,
+  handleRagContentInvalidatedForCitationVerification,
   handleRagIndexingProgressForCitationVerification,
   resetCitationVerificationForTests,
   verifyKey,
@@ -263,6 +264,36 @@ describe('SourcePanel — shared citation verdict cache hardening', () => {
     });
     await waitFor(() => {
       expect(screen.getByTestId('verify-verdict').dataset['verdict']).toBe('textMismatch');
+    });
+  });
+
+  it('clears old verdicts on RAG content invalidation so deleted connector content gets checked again', async () => {
+    const cite = makeCitation({ id: 'chunk-purged', excerpt: 'The cached connector quote.' });
+    ragVerifyCitationsBatchMock.mockResolvedValueOnce([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+
+    const { rerender } = render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('verify-status').dataset['state']).toBe('verified');
+    });
+    expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(1);
+
+    ragVerifyCitationsBatchMock.mockResolvedValueOnce([
+      { verdict: 'notFound' } satisfies CitationVerdict,
+    ]);
+    handleRagContentInvalidatedForCitationVerification({
+      source: 'onedrive',
+      deleted: 1,
+    });
+    rerender(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+
+    await waitFor(() => {
+      expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('verify-verdict').dataset['verdict']).toBe('notFound');
     });
   });
 });

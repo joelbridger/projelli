@@ -194,6 +194,16 @@ pub enum IndexingStatus {
 /// Tauri event name. Mirrored in `src/utils/tauri-commands.ts`.
 pub const PROGRESS_EVENT: &str = "rag-indexing-progress";
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ContentInvalidated {
+    pub source: String,
+    pub deleted: u32,
+}
+
+/// Tauri event name. Mirrored in `src/utils/tauri-commands.ts`.
+pub const CONTENT_INVALIDATED_EVENT: &str = "rag-content-invalidated";
+
 /// BUG-099 hardening: a single pathological file must not hold the whole
 /// workspace walk forever. Five minutes is intentionally generous for normal
 /// text/office sources under the existing size caps (5 MiB text, 50 MiB office)
@@ -931,4 +941,3 @@ pub(crate) fn spawn_bm25_warm(
         }
     });
 }
-
