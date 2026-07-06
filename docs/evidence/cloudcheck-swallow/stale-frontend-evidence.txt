@@ -1,0 +1,41 @@
+STALE-FRONTEND EVIDENCE (why Check B could not be validly tested)
+
+VM HEAD: 6fdcc5ed (lp/swallow-p0), git tree clean.
+Disk file C:\lantern-plus\src\platform\hooks\useMemoryWiring.ts:
+  - scheduleFolderMatterRetag  -> present (export at line 1602)  [SSH Select-String: 3 matches]
+  - size 106 KB, lastWrite 2026-07-06 13:58 (the checkout)
+
+Vite serves the CORRECT fresh code to VM-side clients:
+  - Invoke-WebRequest http://[::1]:5173/src/platform/hooks/useMemoryWiring.ts
+    -> len 226557, contains 'scheduleFolderMatterRetag' = True
+  - .../pendingFolderRetagStore.ts -> Content-Type text/javascript, len 10775 (real module)
+
+The WebView2 client (the running app) loads STALE code for the same URLs:
+  - fetch('/src/platform/hooks/useMemoryWiring.ts')  -> len 157177
+      indexOf('scheduleFolderMatterRetag')  = -1
+      indexOf('recordDurableFolderHold')    = -1
+      indexOf('restoreFolderHolds')         = -1
+      indexOf('pendingFolderRetagStore')    = -1
+      indexOf('changedFolderPaths')         = 13284   (this OLD symbol IS present)
+      hasSourcemap = true   (so 157 KB is not "sourcemap-stripped fresh" — it is genuinely older code)
+  - import('/src/platform/rag/pendingFolderRetagStore.ts') -> "Failed to fetch dynamically imported module" (HTML fallback, 931 bytes)
+  - import('.../useMemoryWiring.ts').scheduleFolderMatterRetag -> undefined
+
+=> The webview runs the pre-R7-3 frontend (the branch the VM was on BEFORE the in-place checkout:
+   lp/ui-simplification). The QA-44 R7-3 durable-folder-hold code is NOT executing in the app.
+
+Remediation attempted (ALL failed to refresh the webview; VM-side curl stayed fresh throughout):
+  1. Deleted Vite dep/transform cache (node_modules/.vite)
+  2. Deleted WebView2 Default\Cache + Code Cache
+  3. Deleted the ENTIRE EBWebView profile (x3)
+  4. Added --disable-http-cache --disk-cache-size=1 to WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS
+  5. CDP Network.clearBrowserCache + setCacheDisabled + hard navigation reload (x2)
+  6. FULL VM reboot (Restart-Computer) + auto-relaunch from clean boot
+  7. Production build: `npm run build` (vite build, 40s, dist bundle WITH R7-3) + `vite preview` on 5173
+     - preview served the bundled index (/assets/index-*.js) to curl, but the webview STILL loaded a
+       dev-style page (/src/main.tsx) with the same stale useMemoryWiring.
+
+Behavioral corroboration (import-independent): a localStorage.setItem spy over a 9s remap window
+recorded writes ONLY to lantern:matters (x2) + 2 UI keys — NEVER lantern:pending-folder-retag.
+A 15s change-timeline of a live remap showed dur=0 and banner=0 throughout, and MemoryService.retrieve
+never withheld the folder (ms tracked raw exactly) — all consistent with the R7-3 code being absent.
