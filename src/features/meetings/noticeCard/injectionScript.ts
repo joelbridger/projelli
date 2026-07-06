@@ -128,18 +128,22 @@ ${methods}
           report('admitted');
         } else if (phase === 'denied') {
           report('denied');
+        } else if (everAdmitted) {
+          // ADMISSION IS A ONE-WAY LATCH (QA-91d). We were admitted, so the card is
+          // PHYSICALLY in the meeting doing its job. An unrecognized page after that
+          // is almost always just post-admission DOM drift (the exact QA-82 bug: the
+          // in-call selectors moved, so detectPhase read 'loading' ~28s after a real
+          // admit). NEVER report 'unrecognized' or 'disconnected' here — those make the
+          // supervisor force-close the card and tell the presenter "couldn't join"
+          // while the tile is still on screen. Downgrade to "state unknown, card
+          // presumed present" and stay in the meeting until recording stops normally.
+          // (A genuinely CLOSED window is still caught app-side by a null status title;
+          // this only governs DOM drift within a still-live page.)
+          report('present-unknown');
         } else {
-          // loading / nothing recognized
-          if (everAdmitted) {
-            report('disconnected');
-          } else {
-            loadingTicks++;
-            if (loadingTicks > UNRECOGNIZED_TICKS) report('unrecognized');
-          }
-        }
-        // A drop back out of the call after being admitted is a disconnect.
-        if (everAdmitted && phase !== 'admitted' && phase !== 'denied') {
-          report('disconnected');
+          // loading / nothing recognized, and never admitted → the honest fast-fail.
+          loadingTicks++;
+          if (loadingTicks > UNRECOGNIZED_TICKS) report('unrecognized');
         }
       } catch (e) {
         /* never throw into the meeting page */
@@ -160,6 +164,7 @@ export type NoticeCardTitleStatus =
   | 'joining'
   | 'lobby'
   | 'admitted'
+  | 'present-unknown' // admitted, then an unrecognized page — presumed still present (QA-91d latch)
   | 'denied'
   | 'disconnected'
   | 'unrecognized';
@@ -172,6 +177,7 @@ export function parseNoticeCardTitle(title: string | null | undefined): NoticeCa
     case 'joining':
     case 'lobby':
     case 'admitted':
+    case 'present-unknown':
     case 'denied':
     case 'disconnected':
     case 'unrecognized':

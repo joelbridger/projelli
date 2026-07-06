@@ -104,6 +104,56 @@ const CURRENT_ADMITTED = `
   <div id="app"><div data-tid="calling-composite-inner-container"></div>
     <button data-tid="hangup-button" aria-label="Leave"></button></div>`;
 
+/* ------------------------------------------------------------------ */
+/* REAL ADMITTED / in-meeting DOM — captured live 2026-07-06           */
+/* coordination/qa-campaign/evidence/qa91d-teams-admitted/.            */
+/* The bug QA-82: none of the OLD admitted selectors matched this page, */
+/* so detectPhase never returned 'admitted' → ~28s page-unrecognized   */
+/* AFTER a real admission → the card was force-closed on stage.         */
+/* ------------------------------------------------------------------ */
+
+// The real in-call calling composite: the ubar controls toolbar, the Leave
+// (hangup-main-btn) button, the running call-duration timer, the stage. This is
+// the exact page a Notice Card guest lands on the moment the host admits it —
+// and it contains NONE of the old hangup-button/calling-retention-banner tids.
+const REAL_ADMITTED = `
+  <div id="app">
+    <div data-tid="ubar-toolbar-wrapper">
+      <div data-tid="ubar-indicators" aria-label="Calling indicators">
+        <span dir="auto" data-tid="call-duration">00:51</span>
+      </div>
+      <div role="toolbar" aria-label="Meeting controls" data-tid="ubar-horizontal-middle-end" id="horizontalMiddleEnd">
+        <button data-inp="recording-button" aria-label="Record">Record</button>
+        <button data-tid="reaction-menu-button-without-raise-hand" aria-label="React">React</button>
+        <button data-tid="view-mode-button" aria-label="View">View</button>
+      </div>
+      <div role="group" aria-label="Calling controls" data-tid="ubar-horizontal-end" id="horizontalEnd">
+        <button type="button" data-tid="hangup-main-btn" data-inp="hangup-button"
+                aria-keyshortcuts="Ctrl+Shift+H" aria-label="Leave" id="hangup-button">Leave</button>
+        <button data-tid="hangup-toggle-more-options-btn" aria-label="More options"></button>
+      </div>
+    </div>
+    <div data-tid="stage-layouts-renderer">
+      <div data-tid="calling-screen-avatar" data-person-mri="8:live:.cid.50f0c28861a90997">
+        <span data-tid="participant-avatar"></span>
+      </div>
+    </div>
+    <div data-tid="calling-screen-background"></div>
+  </div>`;
+
+// Same in-call page with the primary hangup tid drifted away — the aria-label
+// "Leave" button + the call-duration timer + the calling controls group must
+// still classify it as admitted (multi-signal, survives a single tid drift).
+const REAL_ADMITTED_TID_DRIFT = `
+  <div id="app">
+    <div data-tid="ubar-toolbar-wrapper">
+      <span dir="auto" data-tid="call-duration">02:14</span>
+      <div role="group" aria-label="Calling controls">
+        <button type="button" aria-label="Leave">Leave</button>
+      </div>
+    </div>
+  </div>`;
+
 const CURRENT_DENIED = `
   <div id="app"><div data-tid="calling-declined-screen">You weren't admitted to the meeting</div></div>`;
 
@@ -243,6 +293,23 @@ describe('teamsAdapter.detectPhase — current Teams web (captured 2026-07-06)',
   });
   it('reads admitted from the hangup button / in-call container', () => {
     expect(teamsAdapter.detectPhase(dom(CURRENT_ADMITTED))).toBe('admitted');
+  });
+  it('reads admitted from the REAL captured in-meeting DOM (QA-91d ground truth)', () => {
+    // The reported bug: the OLD selectors matched none of this page, so detectPhase
+    // returned 'loading' and the runner soft-failed page-unrecognized ~28s AFTER a
+    // genuine admission. It MUST read admitted here.
+    const phase = teamsAdapter.detectPhase(dom(REAL_ADMITTED));
+    expect(phase).not.toBe('loading');
+    expect(phase).toBe('admitted');
+  });
+  it('reads admitted from the real in-meeting page even when the hangup tid drifts', () => {
+    // Multi-signal: the aria-label "Leave" button + the call-duration timer must
+    // still be recognized as in-meeting if data-tid="hangup-main-btn" ever changes.
+    expect(teamsAdapter.detectPhase(dom(REAL_ADMITTED_TID_DRIFT))).toBe('admitted');
+  });
+  it('reads admitted from the call-duration timer alone (in-call-only signal)', () => {
+    const doc = dom('<div id="app"><span data-tid="call-duration">10:03</span></div>');
+    expect(teamsAdapter.detectPhase(doc)).toBe('admitted');
   });
   it('reads denied from the declined screen', () => {
     expect(teamsAdapter.detectPhase(dom(CURRENT_DENIED))).toBe('denied');

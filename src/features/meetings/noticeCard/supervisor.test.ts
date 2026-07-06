@@ -222,6 +222,92 @@ describe('NoticeCardSupervisor — one auto-rejoin', () => {
   });
 });
 
+describe('NoticeCardSupervisor — admission is a one-way latch (QA-91d)', () => {
+  it('presumed-present after admission does NOT fail or close the card', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleAdmitted();
+    expect(h.sup.status.phase).toBe('present');
+
+    // The runner saw an unrecognized post-admission page (DOM drift). The card is
+    // physically in the meeting — this must NEVER become a failure or a close.
+    h.sup.handlePresumedPresent();
+    expect(h.sup.status.phase).toBe('present-unknown');
+    expect(kinds(h.ledger)).not.toContain('notice-card-failed');
+    expect(h.driver.closes).toBe(0); // still in the meeting, window untouched
+  });
+
+  it('the recorder pill never reads "failed" after an observed admission', () => {
+    // Regression for the exact demo bug: tile visible, then "couldn't join".
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleAdmitted();
+    h.sup.handlePresumedPresent();
+    // present-unknown must be a PRESENT-ish, non-failed state.
+    expect(h.sup.status.phase).not.toBe('failed');
+  });
+
+  it('stays alive across repeated drift, then files an honest left on stop', async () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.clock.advance(3_000);
+    h.sup.handleAdmitted(); // prompt admit
+    h.sup.handlePresumedPresent();
+    h.sup.handlePresumedPresent(); // more drift ticks
+    h.clock.advance(600_000);
+    await h.sup.stop();
+    expect(h.driver.closes).toBeGreaterThanOrEqual(1);
+    // Admitted + never truly dropped → honest full-duration presence still stands.
+    expect(kinds(h.ledger)).toEqual([
+      'notice-card-joined',
+      'notice-card-left',
+      'notice-card-present-for-entire-recording',
+    ]);
+    expect(h.sup.status.phase).toBe('left');
+  });
+
+  it('re-admit after drift returns to a clean present state', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleAdmitted();
+    h.sup.handlePresumedPresent();
+    expect(h.sup.status.phase).toBe('present-unknown');
+    h.sup.handleAdmitted(); // the in-call DOM became readable again
+    expect(h.sup.status.phase).toBe('present');
+  });
+
+  it('presumed-present BEFORE any admission is ignored (never fabricates presence)', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleLobby();
+    h.sup.handlePresumedPresent(); // stray token with no prior admit
+    expect(h.sup.status.phase).toBe('lobby'); // unchanged
+    expect(kinds(h.ledger)).not.toContain('notice-card-joined');
+  });
+
+  it('the NEVER-ADMITTED fast-fail is unchanged — a page-unrecognized still fails+closes', () => {
+    // The latch must not weaken the honest give-up when the card never got in.
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleFailed('page-unrecognized');
+    expect(h.sup.status).toEqual({ phase: 'failed', reason: 'page-unrecognized' });
+    expect(kinds(h.ledger)).toEqual(['notice-card-failed']);
+    expect(h.driver.closes).toBeGreaterThanOrEqual(1);
+  });
+
+  it('a genuinely closed window while presumed-present still triggers the one rejoin', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleAdmitted();
+    h.sup.handlePresumedPresent(); // drift → presumed present
+    h.sup.handleDisconnected(); // the window physically vanished (null title)
+    // A real window death is still worth the one rejoin (latch suppresses DOM drift,
+    // not an actually-gone window).
+    expect(h.sup.status.phase).toBe('joining');
+    expect(h.driver.opens).toHaveLength(2);
+  });
+});
+
 describe('NoticeCardSupervisor — watchdog (the hard leave guarantee)', () => {
   it('always closes the window on stop, even if never admitted', async () => {
     const h = make();

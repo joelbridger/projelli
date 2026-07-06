@@ -72,6 +72,67 @@ describe('buildInjectionScript', () => {
     expect(driftDoc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'unrecognized');
   });
 
+  it('LATCH (QA-91d): after admission, an unrecognized page reports present-unknown, never a give-up', () => {
+    // The exact demo bug: the card was admitted + visible, then ~28s later the runner
+    // hit an unrecognized post-admission page and reported page-unrecognized, so the app
+    // force-closed the card and told the presenter "couldn't join". Once admitted, drift
+    // must downgrade to present-unknown and NEVER reach unrecognized/disconnected.
+    const src = buildInjectionScript(cfg());
+    // One live document we mutate between ticks (the runner re-reads it each tick).
+    const doc = new DOMParser().parseFromString(
+      '<html><body><button data-tid="hangup-main-btn" aria-label="Leave">Leave</button>' +
+        '<span data-tid="call-duration">00:10</span></body></html>',
+      'text/html',
+    );
+    let tick: (() => void) | undefined;
+    const setIntervalStub = (fn: () => void): number => {
+      tick = fn;
+      return 1;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs our own generated runner
+    const runRunner = new Function('document', 'window', 'setInterval', src) as (
+      d: Document,
+      w: object,
+      si: (fn: () => void) => number,
+    ) => void;
+    runRunner(doc, {}, setIntervalStub);
+    // Immediate tick saw the real admitted DOM.
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'admitted');
+    // Now the in-call DOM drifts to something the adapter doesn't recognize.
+    doc.body.innerHTML = '<div>reconnecting…</div>';
+    tick?.();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'present-unknown');
+    // Drive well past the ~40-tick give-up threshold — it must STAY present-unknown,
+    // never flip to unrecognized or disconnected.
+    for (let i = 0; i < 60; i++) tick?.();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'present-unknown');
+    expect(doc.title).not.toContain('unrecognized');
+    expect(doc.title).not.toContain('disconnected');
+  });
+
+  it('LATCH does not fire without an admission — a never-admitted unrecognized page still fast-fails', () => {
+    // Guard: the latch must not swallow the honest give-up when the card never got in.
+    const src = buildInjectionScript(cfg());
+    const doc = new DOMParser().parseFromString(
+      '<html><body><div>still loading</div></body></html>',
+      'text/html',
+    );
+    let tick: (() => void) | undefined;
+    const setIntervalStub = (fn: () => void): number => {
+      tick = fn;
+      return 1;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs our own generated runner
+    const runRunner = new Function('document', 'window', 'setInterval', src) as (
+      d: Document,
+      w: object,
+      si: (fn: () => void) => number,
+    ) => void;
+    runRunner(doc, {}, setIntervalStub);
+    for (let i = 0; i < 45; i++) tick?.();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'unrecognized');
+  });
+
   it('reports state through the document.title channel and strips the IPC bridge', () => {
     const src = buildInjectionScript(cfg());
     expect(src).toContain(NOTICE_CARD_TITLE_PREFIX);
