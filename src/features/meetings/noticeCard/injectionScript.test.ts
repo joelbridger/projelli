@@ -25,6 +25,17 @@ describe('buildInjectionScript', () => {
     expect(src).toContain('detectPhase('); // Teams adapter method serialized in
   });
 
+  it('serializes the launcher-dismiss method and drives it on the launcher phase (QA-91c)', () => {
+    // The "Continue on this browser" chooser must be clicked through before the
+    // prejoin is ever reached, or the card soft-fails page-unrecognized at ~29s.
+    const src = buildInjectionScript(cfg());
+    expect(src).toContain('dismissLauncher('); // method serialized into the runner
+    expect(src).toContain("phase === 'launcher'"); // runner acts on the launcher phase
+    expect(src).toContain('adapter.dismissLauncher(document)');
+    // (the "produces a syntactically valid IIFE" test already compile-checks the
+    // full script, including this newly-serialized method.)
+  });
+
   it('reports state through the document.title channel and strips the IPC bridge', () => {
     const src = buildInjectionScript(cfg());
     expect(src).toContain(NOTICE_CARD_TITLE_PREFIX);

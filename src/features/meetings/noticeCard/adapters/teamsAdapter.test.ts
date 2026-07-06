@@ -20,6 +20,40 @@ function dom(html: string): Document {
 }
 
 /* ------------------------------------------------------------------ */
+/* LAUNCHER chooser — captured from live Teams (2026-07-06)             */
+/* teams.live.com/dl/launcher/launcher.html — the "browser or app?" page */
+/* the cookieless companion webview lands on BEFORE the prejoin.        */
+/* See coordination/qa-campaign/evidence/qa91c-teams-launcher/.         */
+/* ------------------------------------------------------------------ */
+
+// Real captured buttons: joinOnWeb ("Continue on this browser") is the click
+// target; joinInApp ("Join on the Teams app") must NEVER be clicked.
+const CURRENT_LAUNCHER = `
+  <div class="mainActionsContent">
+    <h1>Join your Teams meeting</h1>
+    <button aria-label="Join meeting from this browser" class="btn primary" data-tid="joinOnWeb">
+      <div class="btnIcon"><div class="text"><h3>Continue on this browser</h3></div></div>
+    </button>
+    <button aria-label="Open Teams app to join a meeting" class="btn secondary" data-tid="joinInApp">
+      <div class="btnIcon"><div class="text"><h3>Join on the Teams app</h3></div></div>
+    </button>
+    <a data-tid="download" aria-label="Download Teams application" href="#">Download it now</a>
+  </div>`;
+
+// Launcher with the primary data-tid drifted away — text/aria fallback must still
+// recognize it and still avoid the "Teams app" control.
+const LAUNCHER_TID_DRIFT = `
+  <div class="mainActionsContent">
+    <h1>Join your Teams meeting</h1>
+    <button aria-label="Join meeting from this browser" class="btn primary">
+      <h3>Continue on this browser</h3>
+    </button>
+    <button aria-label="Open Teams app to join a meeting" class="btn secondary">
+      <h3>Join on the Teams app</h3>
+    </button>
+  </div>`;
+
+/* ------------------------------------------------------------------ */
 /* CURRENT variant — captured from live Teams web (2026-07-06)         */
 /* ------------------------------------------------------------------ */
 
@@ -99,6 +133,72 @@ const LEGACY_DENIED = `
   <div id="app"><div data-tid="rejoin-title">You've been removed from this meeting</div></div>`;
 
 /* ================================================================== */
+
+describe('teamsAdapter — launcher "browser or app?" chooser (QA-91c)', () => {
+  it('detectPhase reads launcher from the joinOnWeb chooser page', () => {
+    expect(teamsAdapter.detectPhase(dom(CURRENT_LAUNCHER))).toBe('launcher');
+  });
+
+  it('detectPhase reads launcher even when the joinOnWeb tid drifts (text/aria fallback)', () => {
+    expect(teamsAdapter.detectPhase(dom(LAUNCHER_TID_DRIFT))).toBe('launcher');
+  });
+
+  it('launcher wins over everything else — it must be handled FIRST (before loading)', () => {
+    // The reported bug: detectPhase sat in loading on this page and the runner
+    // soft-failed page-unrecognized at ~29s. It must NOT read loading here.
+    const phase = teamsAdapter.detectPhase(dom(CURRENT_LAUNCHER));
+    expect(phase).not.toBe('loading');
+    expect(phase).toBe('launcher');
+  });
+
+  it('dismissLauncher clicks "Continue on this browser" (joinOnWeb)', () => {
+    const doc = dom(CURRENT_LAUNCHER);
+    let webClicks = 0;
+    let appClicks = 0;
+    doc.querySelector('[data-tid="joinOnWeb"]')?.addEventListener('click', () => {
+      webClicks += 1;
+    });
+    doc.querySelector('[data-tid="joinInApp"]')?.addEventListener('click', () => {
+      appClicks += 1;
+    });
+    expect(teamsAdapter.dismissLauncher(doc)).toBe(true);
+    expect(webClicks).toBe(1);
+    expect(appClicks).toBe(0); // NEVER the Teams-app control
+  });
+
+  it('dismissLauncher clicks the browser control via fallback and still avoids the app control', () => {
+    const doc = dom(LAUNCHER_TID_DRIFT);
+    const buttons = Array.from(doc.querySelectorAll('button'));
+    const clicked: string[] = [];
+    buttons.forEach((b) => {
+      b.addEventListener('click', () => {
+        clicked.push((b.getAttribute('aria-label') || '').toLowerCase());
+      });
+    });
+    expect(teamsAdapter.dismissLauncher(doc)).toBe(true);
+    expect(clicked).toEqual(['join meeting from this browser']);
+    expect(clicked.join(' ')).not.toContain('app');
+  });
+
+  it('dismissLauncher returns false when no chooser is present (e.g. the prejoin)', () => {
+    expect(teamsAdapter.dismissLauncher(dom(CURRENT_NAME_ENTRY))).toBe(false);
+  });
+
+  it('the prejoin is NOT mistaken for the launcher', () => {
+    // "Join now" on the prejoin must never read as launcher / trigger a launcher click.
+    expect(teamsAdapter.detectPhase(dom(CURRENT_NAME_ENTRY))).not.toBe('launcher');
+    expect(teamsAdapter.detectPhase(dom(CURRENT_SIGNEDIN))).not.toBe('launcher');
+    expect(teamsAdapter.detectPhase(dom(LEGACY_NAME_ENTRY))).not.toBe('launcher');
+  });
+
+  it('after clicking through the launcher, the prejoin fixtures still drive normally', () => {
+    // Sequence proof: launcher → click → the page becomes the prejoin, which the
+    // existing QA-91b flow recognizes as name-entry (then ready-to-join once filled).
+    expect(teamsAdapter.detectPhase(dom(CURRENT_LAUNCHER))).toBe('launcher');
+    expect(teamsAdapter.detectPhase(dom(CURRENT_NAME_ENTRY))).toBe('name-entry');
+    expect(teamsAdapter.detectPhase(dom(CURRENT_READY))).toBe('ready-to-join');
+  });
+});
 
 describe('teamsAdapter.detectPhase — current Teams web (captured 2026-07-06)', () => {
   it('reads name-entry from the calling-prejoin-screen with an empty name field', () => {

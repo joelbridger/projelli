@@ -43,8 +43,15 @@ export function buildInjectionScript(
   // `toString()` yields `name(args){...}`, which is valid inside `{ ... }`.
   // These references are only stringified (never invoked here), so `this`
   // binding is irrelevant — the unbound-method rule doesn't apply.
-  // eslint-disable-next-line @typescript-eslint/unbound-method
-  const methods = [adapter.detectPhase, adapter.fillGuestName, adapter.ensureMuted, adapter.clickJoin]
+  /* eslint-disable @typescript-eslint/unbound-method */
+  const methods = [
+    adapter.detectPhase,
+    adapter.dismissLauncher,
+    adapter.fillGuestName,
+    adapter.ensureMuted,
+    adapter.clickJoin,
+  ]
+    /* eslint-enable @typescript-eslint/unbound-method */
     .map((fn) => fn.toString())
     .join(',\n');
 
@@ -88,7 +95,14 @@ ${methods}
     function tick() {
       try {
         var phase = adapter.detectPhase(document);
-        if (phase === 'name-entry') {
+        if (phase === 'launcher') {
+          // "Continue on this browser" vs "Open the Teams app" chooser: click
+          // through it so the page advances to the real prejoin. This is a distinct
+          // branch from the loading/else path, so it does NOT increment loadingTicks
+          // — the card can't drift into the ~29s unrecognized give-up while on it.
+          adapter.dismissLauncher(document);
+          report('joining');
+        } else if (phase === 'name-entry') {
           adapter.fillGuestName(document, DISPLAY_NAME);
           adapter.ensureMuted(document);
           report('joining');

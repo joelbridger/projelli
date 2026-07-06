@@ -46,11 +46,58 @@ const ADMITTED_SELECTOR =
   '[data-tid="hangup-button"], [data-tid="call-hangup"], [data-tid="calling-retention-banner"], [data-tid="calling-composite-inner-container"]';
 const DENIED_SELECTOR =
   '[data-tid="rejoin-title"], [data-tid="cannot-join-title"], [data-tid="calling-declined-screen"]';
+// Launcher / "browser or app?" chooser — the continue-in-browser control. Grounded
+// in a real capture (2026-07-06) of `teams.live.com/dl/launcher/launcher.html`: the
+// primary button is `[data-tid="joinOnWeb"]` (text "Continue on this browser",
+// aria-label "Join meeting from this browser"). The desktop-app button is
+// `[data-tid="joinInApp"]` — we must NEVER click that. See
+// `coordination/qa-campaign/evidence/qa91c-teams-launcher/`.
+const LAUNCHER_JOIN_WEB_SELECTOR = '[data-tid="joinOnWeb"]';
 
 export const teamsAdapter: JoinAdapter = {
   platform: 'teams',
 
   detectPhase(doc) {
+    // The launcher chooser is the FIRST page a fresh, cookieless webview lands on:
+    // "Continue on this browser / Join on the Teams app". The companion webview
+    // (a Tauri WebView2, a desktop-style UA) hits it every time, so it MUST be
+    // recognized and clicked through BEFORE anything else, or detectPhase would
+    // sit in `loading` and the runner would soft-fail `page-unrecognized` at ~29s.
+    // Keyed on the grounded `joinOnWeb` control, with text/aria/URL fallbacks.
+    // Inlined (not a module helper) because these methods are serialized
+    // standalone into the webview — a module-scope helper would be undefined there.
+    const findLauncherWebButton = (d: Document): HTMLElement | null => {
+      const primary = d.querySelector('[data-tid="joinOnWeb"]');
+      if (primary instanceof HTMLElement) return primary;
+      // Fallbacks: a button whose text/aria says "continue in this browser" / "join
+      // from this browser". Deliberately excludes the "Teams app" control so a tid
+      // drift never makes us click "Open the app" by accident.
+      const buttons = d.querySelectorAll('button, a[role="button"], [role="button"]');
+      for (let i = 0; i < buttons.length; i++) {
+        const b = buttons[i];
+        if (!(b instanceof HTMLElement)) continue;
+        const hint = (
+          (b.textContent || '') +
+          ' ' +
+          (b.getAttribute('aria-label') || '')
+        ).toLowerCase();
+        if (/\bapp\b/.test(hint)) continue; // never the "open the Teams app" button
+        if (
+          /continue (?:on|in) this browser|continue in (?:the )?browser|join (?:meeting )?(?:from|in|on) (?:this |the |your )?browser|join on the web/.test(
+            hint,
+          )
+        ) {
+          return b;
+        }
+      }
+      return null;
+    };
+    // `doc.URL` is a plain string (about:blank in jsdom fixtures), so no
+    // nullable guard is needed. Secondary signal only — the button is primary.
+    const onLauncherUrl = /\/dl\/launcher\/launcher\.html/i.test(doc.URL);
+    if (findLauncherWebButton(doc) || onLauncherUrl) {
+      return 'launcher';
+    }
     // Terminal / late states win over a lingering prejoin form.
     if (
       doc.querySelector(
@@ -118,6 +165,43 @@ export const teamsAdapter: JoinAdapter = {
       return 'ready-to-join';
     }
     return 'loading';
+  },
+
+  dismissLauncher(doc) {
+    // Click "Continue on this browser" on the launcher chooser so the join proceeds
+    // to the real prejoin. Grounded on `[data-tid="joinOnWeb"]`; falls back to a
+    // button whose text/aria says "continue/join ... in this browser". The
+    // "Join on the Teams app" control (`joinInApp`, text/aria containing "app") is
+    // explicitly excluded so we never dead-end into a desktop-app handoff. Inlined
+    // (see detectPhase) because this method is serialized standalone into the webview.
+    const findLauncherWebButton = (d: Document): HTMLElement | null => {
+      const primary = d.querySelector('[data-tid="joinOnWeb"]');
+      if (primary instanceof HTMLElement) return primary;
+      const buttons = d.querySelectorAll('button, a[role="button"], [role="button"]');
+      for (let i = 0; i < buttons.length; i++) {
+        const b = buttons[i];
+        if (!(b instanceof HTMLElement)) continue;
+        const hint = (
+          (b.textContent || '') +
+          ' ' +
+          (b.getAttribute('aria-label') || '')
+        ).toLowerCase();
+        if (/\bapp\b/.test(hint)) continue; // never the "open the Teams app" button
+        if (
+          /continue (?:on|in) this browser|continue in (?:the )?browser|join (?:meeting )?(?:from|in|on) (?:this |the |your )?browser|join on the web/.test(
+            hint,
+          )
+        ) {
+          return b;
+        }
+      }
+      return null;
+    };
+    const btn = findLauncherWebButton(doc);
+    if (!(btn instanceof HTMLElement)) return false;
+    if (btn instanceof HTMLButtonElement && btn.disabled) return false;
+    btn.click();
+    return true;
   },
 
   fillGuestName(doc, displayName) {
@@ -220,6 +304,7 @@ export const teamsAdapter: JoinAdapter = {
 // Referenced only to keep the selector constants documented + tree-shake-safe;
 // the injected script uses the inline selectors above (closure-free methods).
 export const TEAMS_SELECTORS = {
+  LAUNCHER_JOIN_WEB_SELECTOR,
   PREJOIN_SELECTOR,
   NAME_SELECTOR,
   JOIN_SELECTOR,

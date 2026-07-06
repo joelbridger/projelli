@@ -32,6 +32,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **QA-91c: Notice Card now clicks through Teams' "browser or app?" launcher
+  (the real reason it never joined).** Proven live (evidence `cca5e1a4`): the
+  recording companion's hidden window always landed on Teams' launcher chooser —
+  *"Join your Teams meeting / Continue on this browser / Join on the Teams app"* —
+  and never clicked through it, so it never reached the prejoin screen the QA-91b
+  fix targets. `detectPhase` sat in `loading` and the runner soft-failed
+  `page-unrecognized` at ~29s (6/6 across two Legion rounds). The companion is a
+  fresh, cookieless WebView2 (desktop-style UA), so Teams shows the chooser every
+  time; the QA-91b DOM capture used a warmed browser that had long since dismissed
+  it, which is why it never saw this page. Fixed in three layers so a private-route
+  change can't break it:
+  - **Layer A (URL rewrite, primary):** before the webview opens, Teams
+    `…/meet/<id>` and `…/l/meetup-join/…` links are rewritten to the direct web
+    route `…/v2/?meetingjoin=true#/<route>?…&anon=true&webjoin=true`, which loads
+    the web client with **no chooser**. Verified live: the rewritten URL (same
+    WebView2 UA) goes straight to the prejoin.
+  - **Layer B:** `webjoin=true` is carried inside the meeting URL (the launcher
+    script honors it if any redirect still bounces through the launcher).
+  - **Layer C (click-through, safety net):** a new adapter phase `launcher` is
+    detected before the prejoin (grounded on `[data-tid="joinOnWeb"]` = "Continue
+    on this browser", with text/aria fallbacks) and a new `dismissLauncher` method
+    clicks it — never the "Join on the Teams app" control. Recognized and acted on
+    within a poll or two, so it can't drift into the ~29s give-up.
+  - Files: `adapters/teamsAdapter.ts` (+`adapterTypes.ts`, `zoomAdapter.ts`),
+    `injectionScript.ts`, `meetingPlatform.ts` (`rewriteTeamsJoinUrl`),
+    `tauriDriver.ts`; tests: `adapters/teamsAdapter.test.ts` (launcher fixtures
+    from the real capture), `meetingPlatform.test.ts` (URL-rewrite cases),
+    `injectionScript.test.ts`. Evidence:
+    `coordination/qa-campaign/evidence/qa91c-teams-launcher/`.
 - **QA-91b: Notice Card now recognizes today's Teams web join page (selector
   drift).** On a real live Teams meeting the recording companion opened its
   window but soft-failed with `page-unrecognized` after ~29s (3/3), never
