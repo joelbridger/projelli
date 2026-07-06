@@ -44,6 +44,11 @@ export type ExplainerRetrieve = (
 /** Matches the chat's retrieval depth closely enough to be representative. */
 const DEMO_TOP_K = 8;
 
+/** Production default: the fail-closed retrieval choke point (`MemoryService.retrieve`),
+ *  wrapped as a standalone function so it isn't passed as an unbound method. */
+const defaultRetrieve: ExplainerRetrieve = (query, topK, scope, includePrivileged) =>
+  MemoryService.retrieve(query, topK, scope, includePrivileged);
+
 interface PrivilegeExclusionExplainerProps {
   /**
    * The question to demonstrate with: the chat input draft, or the last
@@ -65,7 +70,7 @@ type DemoState =
 export function PrivilegeExclusionExplainer({
   query,
   scope,
-  retrieve = MemoryService.retrieve,
+  retrieve = defaultRetrieve,
 }: PrivilegeExclusionExplainerProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
