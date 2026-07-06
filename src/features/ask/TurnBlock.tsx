@@ -8,7 +8,7 @@ import { stripBlockMarkers } from './answerBlockMarkers';
 import { stalePlanNotices, formatExportDate } from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
-import { ASK_ANSWER_STALL_WARNING, ASK_LOCAL_AI_STARTING_MESSAGE } from './askTimeout';
+import { ASK_ANSWER_STALL_WARNING, ASK_LOCAL_AI_STARTING_MESSAGE, ASK_LOCAL_AI_EVALUATING_MESSAGE } from './askTimeout';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -26,6 +26,7 @@ export function TurnBlock({
   isStreaming = false,
   answerStalled = false,
   localAiStarting = false,
+  localEvaluating = false,
   onOpenAiStatus,
   onOpenFileAtPath,
 }: {
@@ -53,6 +54,17 @@ export function TurnBlock({
    * applies at the same time).
    */
   localAiStarting?: boolean;
+  /**
+   * lp/localai-patience — true while THIS Local-only send is prompt-evaluating
+   * (the engine is up and reading the retrieved documents) BEFORE its first
+   * token. A bigger question can legitimately take a minute or two of CPU
+   * prompt-eval, so the pre-first-token spinner shows a calm "reading your
+   * documents" message instead of "Answering…", and the alarming stalled
+   * warning is suppressed until the prompt-scaled budget is actually exceeded.
+   * Distinct from `localAiStarting` (engine not up yet) — that one wins if both
+   * are somehow set.
+   */
+  localEvaluating?: boolean;
   /** QA-7 — "View AI status" link shown alongside the stalled warning. */
   onOpenAiStatus?: () => void;
   /**
@@ -140,7 +152,13 @@ export function TurnBlock({
         {isStreaming && !turn.answer ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--kp-text-dim)', fontSize: '14.5px' }}>
             <Loader2 size={14} strokeWidth={2} className="animate-spin" />
-            <span>{localAiStarting ? ASK_LOCAL_AI_STARTING_MESSAGE : 'Answering…'}</span>
+            <span>
+              {localAiStarting
+                ? ASK_LOCAL_AI_STARTING_MESSAGE
+                : localEvaluating
+                  ? ASK_LOCAL_AI_EVALUATING_MESSAGE
+                  : 'Answering…'}
+            </span>
           </div>
         ) : usingBlocks ? (
           // Source-aware agent: labelled provenance blocks + per-answer tally.
@@ -175,7 +193,7 @@ export function TurnBlock({
             feedback until the 45s hard timeout. Rendered once, after
             whichever answer view is showing (spinner or partial text), so
             it covers both the empty and the partial-answer stall. */}
-        {isStreaming && answerStalled && (
+        {isStreaming && answerStalled && !localEvaluating && (
           <div data-testid="ask-answer-stalled-warning">
             <Callout variant="warning" icon={AlertTriangle}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

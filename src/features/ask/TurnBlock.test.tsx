@@ -116,3 +116,43 @@ describe('TurnBlock — Fix 1b "Local AI is starting" state', () => {
     expect(screen.queryByText('Local AI is starting…')).toBeNull();
   });
 });
+
+/**
+ * lp/localai-patience — once the local engine is UP and prompt-evaluating a big
+ * question (reading the retrieved documents), the pre-first-token wait is an
+ * honest, expected minute-or-two — not a stall. It shows a CALM "reading your
+ * documents" message in place of the plain spinner, and NEVER the alarming
+ * "taking longer than expected" warning before the (prompt-scaled) budget.
+ */
+describe('TurnBlock — lp/localai-patience "reading your documents" state', () => {
+  it('shows the calm "reading your documents" message instead of "Answering…" while localEvaluating is true', () => {
+    render(<TurnBlock {...baseProps} localEvaluating />);
+    expect(screen.getByText(/reading your documents/)).toBeTruthy();
+    expect(screen.queryByText('Answering…')).toBeNull();
+  });
+
+  it('never shows the alarming stalled warning while calmly evaluating', () => {
+    render(<TurnBlock {...baseProps} localEvaluating answerStalled={false} />);
+    expect(screen.queryByTestId('ask-answer-stalled-warning')).toBeNull();
+    expect(screen.queryByText(/taking longer than expected/)).toBeNull();
+  });
+
+  it('falls back to the plain "Answering…" spinner once localEvaluating clears', () => {
+    render(<TurnBlock {...baseProps} localEvaluating={false} />);
+    expect(screen.getByText('Answering…')).toBeTruthy();
+    expect(screen.queryByText(/reading your documents/)).toBeNull();
+  });
+
+  it('the sidecar-start message takes precedence over the evaluating message', () => {
+    render(<TurnBlock {...baseProps} localAiStarting localEvaluating />);
+    expect(screen.getByText('Local AI is starting…')).toBeTruthy();
+    expect(screen.queryByText(/reading your documents/)).toBeNull();
+  });
+
+  it('only affects the pre-first-token spinner — partial text still renders normally', () => {
+    const partialTurn: AskTurn = { ...streamingTurn, answer: 'The Chen household is doing a' };
+    render(<TurnBlock {...baseProps} turn={partialTurn} localEvaluating />);
+    expect(screen.getByText(/The Chen household is doing a/)).toBeTruthy();
+    expect(screen.queryByText(/reading your documents/)).toBeNull();
+  });
+});

@@ -110,8 +110,71 @@ export const ASK_LOCAL_AI_STARTING_MESSAGE = 'Local AI is starting…';
 /** No token/progress for this long → show "taking longer than expected". */
 export const ASK_ANSWER_WARNING_MS = 12_000;
 
-/** No token/progress for this long → give up honestly and offer a retry. */
+/**
+ * No token/progress for this long → give up honestly and offer a retry.
+ *
+ * This is the ceiling for a CLOUD send and for the BETWEEN-TOKEN gap on any
+ * send (once tokens are streaming, silence really is a stall). The FIRST-token
+ * wait on a LOCAL send is governed instead by a prompt-scaled budget — see
+ * `computeAnswerFirstTokenBudgetMs` — because a local CPU prompt-eval can
+ * legitimately take a minute or more before the first token appears.
+ */
 export const ASK_ANSWER_TIMEOUT_MS = 45_000;
+
+/**
+ * lp/localai-patience — assumed FLOOR prompt-eval rate for the embedded local
+ * engine (keepance-local, llama.cpp on the CPU), in tokens/second. The Legion
+ * autopsy measured a 4,574-token Ask prompt at ~70.5s of prompt-eval — a real
+ * rate of ~65 tok/s. We deliberately assume a SLOWER 40 tok/s so the derived
+ * budget clears the real eval time with headroom on slower/busier machines,
+ * never killing a working local Ask.
+ */
+export const LOCAL_FIRST_TOKEN_EVAL_RATE_TOKENS_PER_SEC = 40;
+
+/**
+ * lp/localai-patience — hard ceiling on the local first-token budget (4 min).
+ * Beyond this, even a huge prompt is treated as a genuinely wedged engine and
+ * fails honestly with a retry, rather than spinning without bound.
+ */
+export const LOCAL_FIRST_TOKEN_BUDGET_CEILING_MS = 240_000;
+
+/**
+ * lp/localai-patience — how long to wait for the FIRST answer token before the
+ * stall watchdog gives up honestly.
+ *
+ * The bug this fixes: the embedded local engine COMPLETED a real Ask in 81.7s
+ * server-side (70.5s prompt-eval on a 4,574-token RAG prompt on a laptop CPU +
+ * 11.2s generation, zero errors) — but the flat 45s no-first-token ceiling gave
+ * up at 45s and reported a FALSE failure. The warm-up probe uses a tiny prompt,
+ * so it passes; a real RAG prompt is two orders of magnitude more eval work.
+ *
+ * The fix: for the LOCAL provider ONLY, scale the first-token budget with the
+ * prompt size:
+ *
+ *     budget = ASK_ANSWER_TIMEOUT_MS + (promptTokens / RATE) * 1000
+ *
+ * - base = ASK_ANSWER_TIMEOUT_MS (45s) covers model-load slack and a tiny
+ *   prompt (which evals near-instantly, so a small local Ask behaves as before).
+ * - RATE = LOCAL_FIRST_TOKEN_EVAL_RATE_TOKENS_PER_SEC (40 tok/s), the assumed
+ *   slow floor. Worked example on the measured prompt: 4,574 tok → 45s +
+ *   4,574/40·1s = 45s + 114.35s = 159.35s — >2× the measured 70.5s eval, so a
+ *   working local Ask always clears the budget.
+ * - capped at LOCAL_FIRST_TOKEN_BUDGET_CEILING_MS (4 min).
+ *
+ * Cloud providers are unaffected — they always get the base 45s, so the cloud
+ * path is byte-for-byte unchanged.
+ */
+export function computeAnswerFirstTokenBudgetMs(opts: {
+  isLocal: boolean;
+  estimatedPromptTokens: number;
+}): number {
+  if (!opts.isLocal) return ASK_ANSWER_TIMEOUT_MS;
+  const tokens = Math.max(0, opts.estimatedPromptTokens);
+  const scaled =
+    ASK_ANSWER_TIMEOUT_MS +
+    Math.round((tokens / LOCAL_FIRST_TOKEN_EVAL_RATE_TOKENS_PER_SEC) * 1000);
+  return Math.min(LOCAL_FIRST_TOKEN_BUDGET_CEILING_MS, scaled);
+}
 
 /**
  * Warning copy shown in the "Answering…" spinner once ASK_ANSWER_WARNING_MS
@@ -126,6 +189,28 @@ export const ASK_ANSWER_STALL_WARNING =
 export const ASK_ANSWER_STALL_ERROR_MESSAGE =
   "Advisor Prep Hero couldn't get an answer — it may still be downloading or loading the local model. Check its status, then try again.";
 
+/**
+ * lp/localai-patience — CALM waiting copy shown while the LOCAL engine is still
+ * prompt-evaluating (reading the retrieved documents) before its first token.
+ * This is the honest, expected state for a bigger question on-device: the CPU
+ * reads the whole prompt token-by-token first, which can take a minute or two,
+ * and the engine is working normally the whole time. It replaces the alarming
+ * "taking longer than expected — may be downloading/loading" warning for this
+ * case (that warning is for a genuine mid-stream stall, not normal eval), and it
+ * never appears for a cloud send.
+ */
+export const ASK_LOCAL_AI_EVALUATING_MESSAGE =
+  'The on-device AI is reading your documents — bigger questions take it a minute or two.';
+
+/**
+ * lp/localai-patience — which phase of the answer the stall watchdog is in when
+ * it warns: `'first-token'` (no answer token has arrived yet — for a local send
+ * this is normal prompt-eval) vs `'streaming'` (tokens were arriving and then
+ * went silent — a genuine stall). The caller shows a calm waiting state for a
+ * local `'first-token'` warning and the alarming warning otherwise.
+ */
+export type AnswerStallPhase = 'first-token' | 'streaming';
+
 export interface AnswerStallWatchdog {
   /** Call on every chunk/progress signal — re-arms both timers from now. */
   markProgress: () => void;
@@ -135,20 +220,38 @@ export interface AnswerStallWatchdog {
 
 /**
  * Starts a two-stage silence watchdog: `onWarning` fires after `warningMs` of
- * no progress, `onTimeout` after `timeoutMs`. Both re-arm on `markProgress()`.
- * `onTimeout` fires at most once and cancels the watchdog itself afterward.
+ * no progress, `onTimeout` after the applicable timeout. Both re-arm on
+ * `markProgress()`. `onTimeout` fires at most once and cancels the watchdog
+ * itself afterward.
+ *
+ * lp/localai-patience — the timeout is phase-dependent: until the FIRST progress
+ * signal, the (possibly large, prompt-scaled) `firstTokenTimeoutMs` applies,
+ * because a local CPU prompt-eval can legitimately be silent for a minute or
+ * more before the first token. Once any progress has arrived, the tight
+ * `timeoutMs` governs the between-token gap (streaming silence really is a
+ * stall). `onWarning` is told which phase it fired in so the caller can show a
+ * calm "still reading your documents" state for a local first-token wait rather
+ * than the alarming "taking longer than expected" copy. For a cloud send the
+ * caller passes `firstTokenTimeoutMs === timeoutMs` (45s), so behaviour is
+ * unchanged.
  */
 export function createAnswerStallWatchdog(opts: {
-  onWarning: () => void;
+  onWarning: (phase: AnswerStallPhase) => void;
   onTimeout: () => void;
   warningMs?: number;
   timeoutMs?: number;
+  /** Budget for the FIRST progress signal. Defaults to `timeoutMs` (cloud). */
+  firstTokenTimeoutMs?: number;
 }): AnswerStallWatchdog {
   const warningMs = opts.warningMs ?? ASK_ANSWER_WARNING_MS;
   const timeoutMs = opts.timeoutMs ?? ASK_ANSWER_TIMEOUT_MS;
+  const firstTokenTimeoutMs = opts.firstTokenTimeoutMs ?? timeoutMs;
   let warningTimer: ReturnType<typeof setTimeout> | undefined;
   let timeoutTimer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
+  // Once any progress (a token/chunk) has arrived, we leave the generous
+  // first-token budget behind for the tight between-token ceiling.
+  let progressed = false;
 
   const clearTimers = (): void => {
     if (warningTimer !== undefined) clearTimeout(warningTimer);
@@ -160,21 +263,26 @@ export function createAnswerStallWatchdog(opts: {
   const arm = (): void => {
     clearTimers();
     if (stopped) return;
+    const phase: AnswerStallPhase = progressed ? 'streaming' : 'first-token';
+    const currentTimeoutMs = progressed ? timeoutMs : firstTokenTimeoutMs;
     warningTimer = setTimeout(() => {
-      if (!stopped) opts.onWarning();
+      if (!stopped) opts.onWarning(phase);
     }, warningMs);
     timeoutTimer = setTimeout(() => {
       if (stopped) return;
       stopped = true;
       clearTimers();
       opts.onTimeout();
-    }, timeoutMs);
+    }, currentTimeoutMs);
   };
 
   arm();
 
   return {
-    markProgress: arm,
+    markProgress: () => {
+      progressed = true;
+      arm();
+    },
     cancel: () => {
       stopped = true;
       clearTimers();

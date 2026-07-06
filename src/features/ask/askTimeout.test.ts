@@ -5,10 +5,67 @@ import {
   withAskTimeout,
   createAnswerStallWatchdog,
   waitForLocalAiSidecarReady,
+  computeAnswerFirstTokenBudgetMs,
   LOCAL_AI_HEALTH_PROBE_GRACE_MS,
+  LOCAL_FIRST_TOKEN_EVAL_RATE_TOKENS_PER_SEC,
+  LOCAL_FIRST_TOKEN_BUDGET_CEILING_MS,
   ASK_ANSWER_WARNING_MS,
   ASK_ANSWER_TIMEOUT_MS,
 } from './askTimeout';
+
+/**
+ * lp/localai-patience — the embedded local engine runs prompt-eval on the CPU:
+ * a big RAG prompt is evaluated token-by-token before the FIRST answer token
+ * appears. Measured on the Legion: a 4,574-token Ask prompt took ~70.5s of
+ * prompt-eval (~65 tok/s) before generation began — so the cloud 45s
+ * first-token ceiling fired a FALSE timeout on a working local Ask. The
+ * first-token budget must scale with the prompt for the LOCAL provider only.
+ */
+describe('computeAnswerFirstTokenBudgetMs', () => {
+  it('returns the unchanged 45s base for a cloud send, regardless of prompt size', () => {
+    expect(computeAnswerFirstTokenBudgetMs({ isLocal: false, estimatedPromptTokens: 0 })).toBe(
+      ASK_ANSWER_TIMEOUT_MS,
+    );
+    expect(computeAnswerFirstTokenBudgetMs({ isLocal: false, estimatedPromptTokens: 50_000 })).toBe(
+      ASK_ANSWER_TIMEOUT_MS,
+    );
+  });
+
+  it('returns the base for a local send with a tiny prompt (a small question evals near-instantly)', () => {
+    expect(computeAnswerFirstTokenBudgetMs({ isLocal: true, estimatedPromptTokens: 0 })).toBe(
+      ASK_ANSWER_TIMEOUT_MS,
+    );
+  });
+
+  it('scales a local budget with prompt tokens: base + tokens / RATE seconds', () => {
+    const tokens = 4_574; // the measured Legion prompt
+    const expected =
+      ASK_ANSWER_TIMEOUT_MS + Math.round((tokens / LOCAL_FIRST_TOKEN_EVAL_RATE_TOKENS_PER_SEC) * 1000);
+    expect(computeAnswerFirstTokenBudgetMs({ isLocal: true, estimatedPromptTokens: tokens })).toBe(
+      expected,
+    );
+  });
+
+  it('clears the real measured eval time (70.5s) with generous headroom for the measured prompt', () => {
+    const budget = computeAnswerFirstTokenBudgetMs({ isLocal: true, estimatedPromptTokens: 4_574 });
+    // Measured first-token was ~70.5s; the budget must sit well above it so a
+    // working local Ask is never killed, while staying under the ceiling.
+    expect(budget).toBeGreaterThan(140_000); // > 2× the measured eval time
+    expect(budget).toBeLessThan(LOCAL_FIRST_TOKEN_BUDGET_CEILING_MS);
+  });
+
+  it('caps a huge local prompt at the ceiling so a genuinely wedged engine still fails honestly', () => {
+    expect(
+      computeAnswerFirstTokenBudgetMs({ isLocal: true, estimatedPromptTokens: 1_000_000 }),
+    ).toBe(LOCAL_FIRST_TOKEN_BUDGET_CEILING_MS);
+  });
+
+  it('never returns below the base, even for a negative/garbage token count', () => {
+    expect(computeAnswerFirstTokenBudgetMs({ isLocal: true, estimatedPromptTokens: -100 })).toBe(
+      ASK_ANSWER_TIMEOUT_MS,
+    );
+  });
+});
 
 describe('withAskTimeout', () => {
   beforeEach(() => { vi.useFakeTimers(); });
@@ -125,6 +182,73 @@ describe('createAnswerStallWatchdog', () => {
 
     vi.advanceTimersByTime(200);
     expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * lp/localai-patience — the FIRST token gets a generous, prompt-scaled budget
+   * (a local CPU prompt-eval can legitimately take a minute+), while the
+   * between-token gap keeps the tight 45s ceiling (once generation is streaming,
+   * silence really is a stall). So a long local eval must NOT trip onTimeout
+   * before the first-token budget expires.
+   */
+  it('uses firstTokenTimeoutMs for the pre-first-token wait, not the between-token timeoutMs', () => {
+    const onWarning = vi.fn();
+    const onTimeout = vi.fn();
+    createAnswerStallWatchdog({
+      onWarning,
+      onTimeout,
+      warningMs: 12_000,
+      timeoutMs: 45_000,
+      firstTokenTimeoutMs: 159_000,
+    });
+
+    // Well past the 45s between-token ceiling but inside the first-token budget:
+    // a working local eval must NOT be killed here.
+    vi.advanceTimersByTime(45_001);
+    expect(onTimeout).not.toHaveBeenCalled();
+
+    // Only once the scaled first-token budget expires does it fail honestly.
+    vi.advanceTimersByTime(159_000 - 45_001);
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it('after the first progress, the tight between-token timeoutMs governs (not the big first-token budget)', () => {
+    const onWarning = vi.fn();
+    const onTimeout = vi.fn();
+    const watchdog = createAnswerStallWatchdog({
+      onWarning,
+      onTimeout,
+      warningMs: 12_000,
+      timeoutMs: 45_000,
+      firstTokenTimeoutMs: 200_000,
+    });
+
+    // First token arrives quickly; now a mid-stream stall is a real stall and
+    // must be caught at the tight 45s ceiling, not the 200s first-token budget.
+    vi.advanceTimersByTime(1_000);
+    watchdog.markProgress();
+    vi.advanceTimersByTime(45_000);
+    expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells onWarning which phase fired: "first-token" before any progress, "streaming" after', () => {
+    const onWarning = vi.fn();
+    const onTimeout = vi.fn();
+    const watchdog = createAnswerStallWatchdog({
+      onWarning,
+      onTimeout,
+      warningMs: 12_000,
+      timeoutMs: 45_000,
+      firstTokenTimeoutMs: 200_000,
+    });
+
+    vi.advanceTimersByTime(12_000);
+    expect(onWarning).toHaveBeenLastCalledWith('first-token');
+
+    watchdog.markProgress();
+    vi.advanceTimersByTime(12_000);
+    expect(onWarning).toHaveBeenLastCalledWith('streaming');
+    watchdog.cancel();
   });
 });
 
