@@ -312,4 +312,37 @@ describe('createRetagScheduler', () => {
     expect(entries()).toHaveLength(0);
     expect(getExcludedMatterFolders()).not.toContain('/ws/Acme');
   });
+
+  // Close-out review (2026-07-06): documents a KNOWN remaining hole for round 7.
+  // `runSerialized` chains a same-id op behind the in-flight one, but the chained
+  // continuation never re-checks `disposed` — so an op QUEUED before a workspace
+  // switch still fires its backend call after `disposeAll()`, against whatever
+  // workspace is then active on the Rust side (the exact cross-workspace hazard
+  // the module doc says cancellation makes impossible). `it.fails` = asserts the
+  // DESIRED behaviour and passes only while the bug exists; round 7's fix (skip
+  // the op when disposed/superseded at start time) flips it to a plain `it`.
+  it.fails('a same-id op queued behind an in-flight op does not execute after disposeAll', async () => {
+    const scheduler = createRetagScheduler();
+    let resolveFirst!: (value: unknown) => void;
+    const first = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    const second = vi.fn().mockResolvedValue(1);
+
+    scheduler.run({ id: 'mail:outlook|a|inbox', kind: 'mail', label: 'a', op: first });
+    // Same id again while the first op is still in flight — queued behind it.
+    scheduler.run({ id: 'mail:outlook|a|inbox', kind: 'mail', label: 'b', op: second });
+    // Workspace switch while the first op is in flight.
+    scheduler.disposeAll();
+
+    resolveFirst(1);
+    await vi.runAllTimersAsync();
+
+    // The queued op was captured for the CLOSED workspace; firing it now targets
+    // whatever workspace is currently active on the Rust side.
+    expect(second).not.toHaveBeenCalled();
+  });
 });
