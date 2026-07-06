@@ -40,6 +40,7 @@ vi.mock('@/platform/rag/MemoryService', async (importOriginal) => {
 });
 
 import {
+  restoreFolderHolds,
   restoreMailHolds,
   retagExistingMailFolders,
   retagExistingMatterFolderPaths,
@@ -49,6 +50,7 @@ import {
 } from './useMemoryWiring';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { usePendingMailRetagStore } from '@/platform/rag/pendingMailRetagStore';
+import { usePendingFolderRetagStore } from '@/platform/rag/pendingFolderRetagStore';
 import type { Matter } from '@/platform/types/matter';
 import type { RetagScheduler, RetagTask } from '@/platform/rag/retagScheduler';
 import { createRetagScheduler } from '@/platform/rag/retagScheduler';
@@ -640,6 +642,114 @@ describe('scheduleFolderMatterRetag — a mid-flight workspace switch never clea
     // survive — an aborted op is NOT a clean success.
     expect(vi.mocked(MemoryService.reindexPaths)).not.toHaveBeenCalled();
     expect(getExcludedMatterFolders()).toContain('/ws/A/file.docx');
+  });
+});
+
+// ── R7-3 · durable per-workspace FILE-folder holds (the file mirror of the mail
+//    hold). A live folder re-map that never lands must leave a hold that survives a
+//    close and is re-established synchronously on next open, so the files aren't
+//    retrievable under the wrong client in the window before the slow boot retag. ─
+describe('durable per-workspace FILE-folder hold (R7-3)', () => {
+  beforeEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: [] });
+  });
+  afterEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('records a re-mapped folder durably up front and restores its hold on next open', () => {
+    // A live folder re-map is scheduled but never lands (recordingScheduler never
+    // runs the op — the app closed, or every retry failed).
+    const { scheduler } = recordingScheduler();
+    scheduleFolderMatterRetag(['/wsA/Acme'], null, scheduler);
+    expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toContain('/wsA/Acme');
+
+    // Close: the in-memory scope holds are wiped (the mount cleanup's clearAll).
+    useScopeUpdateStore.getState().clearAll();
+    expect(getExcludedMatterFolders()).toHaveLength(0);
+
+    // Reopen: the durable record re-establishes the fail-closed hold SYNCHRONOUSLY,
+    // before the slow boot retag runs — so /wsA/Acme's files are held out now.
+    restoreFolderHolds('/wsA');
+    expect(getExcludedMatterFolders()).toContain('/wsA/Acme');
+  });
+
+  it('does not bleed one workspace hold into another on switch', () => {
+    const { scheduler } = recordingScheduler();
+    scheduleFolderMatterRetag(['/wsA/Acme'], null, scheduler);
+    // Switch to workspace B and restore ITS holds — A's hold must not appear.
+    useScopeUpdateStore.getState().clearAll();
+    restoreFolderHolds('/wsB');
+    expect(getExcludedMatterFolders()).toHaveLength(0);
+  });
+
+  it('a live folder re-map SUCCESS discharges the durable hold (no stale hold next open)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(MemoryService.reindexPaths).mockResolvedValue(0); // clean re-index
+      const scheduler = createRetagScheduler();
+      scheduleFolderMatterRetag(['/wsA/Acme'], null, scheduler);
+      // Recorded up front…
+      expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toContain('/wsA/Acme');
+      // …then the op succeeds and discharges it, so nothing survives to next open.
+      await vi.runAllTimersAsync();
+      expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toHaveLength(0);
+      restoreFolderHolds('/wsA');
+      expect(getExcludedMatterFolders()).toHaveLength(0);
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
+  });
+
+  const treeAcme = [
+    {
+      id: 'Acme',
+      type: 'folder' as const,
+      name: 'Acme',
+      path: '/wsA/Acme',
+      children: [
+        { id: 'Acme/f', type: 'file' as const, name: 'f.docx', path: '/wsA/Acme/f.docx' },
+      ],
+    },
+  ];
+
+  it('a boot in-place retag FAILURE records the folder durably', async () => {
+    useMatterStore.setState({
+      matters: [matter({ id: 'M', folderPaths: ['/wsA/Acme'] })],
+      activeMatterId: null,
+    });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: treeAcme });
+    vi.mocked(MemoryService.retagMatterBatch).mockRejectedValue(new Error('down'));
+
+    await retagExistingMatterFolderPaths(null);
+
+    // The failed folder is recorded durably so next open re-holds it synchronously.
+    expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toContain('/wsA/Acme');
+  });
+
+  it('a clean boot in-place retag discharges a prior durable folder hold', async () => {
+    // A durable hold survives from a prior session and is restored on open.
+    usePendingFolderRetagStore.getState().hold('/wsA', ['/wsA/Acme']);
+    restoreFolderHolds('/wsA');
+    expect(getExcludedMatterFolders()).toContain('/wsA/Acme');
+
+    useMatterStore.setState({
+      matters: [matter({ id: 'M', folderPaths: ['/wsA/Acme'] })],
+      activeMatterId: null,
+    });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: treeAcme });
+    vi.mocked(MemoryService.retagMatterBatch).mockResolvedValue([]); // clean, no misses
+
+    await retagExistingMatterFolderPaths(null);
+
+    // A clean boot re-tag discharges the durable record AND prunes the restored hold.
+    expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toHaveLength(0);
+    expect(getExcludedMatterFolders()).not.toContain('/wsA/Acme');
   });
 });
 

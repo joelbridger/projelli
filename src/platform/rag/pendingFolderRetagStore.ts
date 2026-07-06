@@ -81,21 +81,23 @@ export const usePendingFolderRetagStore = create<PendingFolderRetagState>()(
         const drop = new Set(paths);
         const remaining = existing.filter((p) => !drop.has(p));
         if (remaining.length === existing.length) return; // nothing overlapped
-        set((state) => {
-          const next = { ...state.heldByWorkspace };
-          if (remaining.length === 0) delete next[workspaceRoot];
-          else next[workspaceRoot] = remaining;
-          return { heldByWorkspace: next };
-        });
+        set((state) => ({
+          heldByWorkspace:
+            remaining.length === 0
+              ? Object.fromEntries(
+                  Object.entries(state.heldByWorkspace).filter(([k]) => k !== workspaceRoot),
+                )
+              : { ...state.heldByWorkspace, [workspaceRoot]: remaining },
+        }));
       },
 
       clearWorkspace: (workspaceRoot) => {
         if (!(workspaceRoot in get().heldByWorkspace)) return;
-        set((state) => {
-          const next = { ...state.heldByWorkspace };
-          delete next[workspaceRoot];
-          return { heldByWorkspace: next };
-        });
+        set((state) => ({
+          heldByWorkspace: Object.fromEntries(
+            Object.entries(state.heldByWorkspace).filter(([k]) => k !== workspaceRoot),
+          ),
+        }));
       },
 
       forWorkspace: (workspaceRoot) => get().heldByWorkspace[workspaceRoot] ?? [],

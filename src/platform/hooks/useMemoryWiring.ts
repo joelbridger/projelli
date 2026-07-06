@@ -45,6 +45,7 @@ import {
   useScopeUpdateStore,
 } from '@/platform/rag/scopeUpdateStore';
 import { usePendingMailRetagStore } from '@/platform/rag/pendingMailRetagStore';
+import { usePendingFolderRetagStore } from '@/platform/rag/pendingFolderRetagStore';
 import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
@@ -1056,25 +1057,78 @@ const BOOT_RETAG_ID = 'matter:boot-retag';
  * Prune the just-retagged folder's paths from the boot hold (removing it entirely
  * once empty) so a live success makes its files visible immediately.
  */
-function dischargeBootRetagForFolder(folder: string): void {
+/** Prune every held prefix under `folder` from the scope hold `id` (removing the
+ *  entry once empty), preserving its failed/visible state. Shared by the boot
+ *  retag hold and the R7-3 durable folder hold. */
+function pruneFolderFromScopeHold(id: string, folder: string, root: string | null): void {
   const store = useScopeUpdateStore.getState();
-  const entry = store.entries[BOOT_RETAG_ID];
+  const entry = store.entries[id];
   if (!entry) return;
-  const root = useWorkspaceStore.getState().rootPath;
   const remaining = entry.excludeFolders.filter((p) => !pathInAnyFolder(p, [folder], root));
   if (remaining.length === entry.excludeFolders.length) return; // nothing overlapped
   if (remaining.length === 0) {
-    store.remove(BOOT_RETAG_ID);
+    store.remove(id);
     return;
   }
   store.begin({
-    id: BOOT_RETAG_ID,
+    id,
     kind: entry.kind,
     label: entry.label,
     excludeFolders: remaining,
     excludeMailMatters: entry.excludeMailMatters,
   });
-  store.markFailed(BOOT_RETAG_ID);
+  store.markFailed(id);
+}
+
+function dischargeBootRetagForFolder(folder: string): void {
+  pruneFolderFromScopeHold(BOOT_RETAG_ID, folder, useWorkspaceStore.getState().rootPath);
+}
+
+/** QA-44 (R7-3) — scope-hold id for FILE-folder holds RESTORED from the durable
+ *  per-workspace store on open. Distinct from the live per-folder `matter:<folder>`
+ *  ids and the boot `matter:boot-retag` aggregate so it survives independently. */
+const DURABLE_FOLDER_ID = 'matter:durable-folder';
+
+/** QA-44 (R7-3) — persist that these folder prefixes are held out (a live re-map is
+ *  pending, or a boot in-place retag failed under them) so the hold survives a
+ *  close/switch. The FILE mirror of `usePendingMailRetagStore.record`. */
+function recordDurableFolderHold(root: string | null | undefined, folders: string[]): void {
+  if (!root || folders.length === 0) return;
+  usePendingFolderRetagStore.getState().hold(root, folders);
+}
+
+/** QA-44 (R7-3) — a re-tag of `folder` LANDED: release every durable held prefix
+ *  under it AND prune the restored `matter:durable-folder` scope hold, so its files
+ *  become visible immediately rather than staying hidden until the next boot. */
+function dischargeDurableFolderHold(folder: string, root: string | null | undefined): void {
+  if (!root) return;
+  const held = usePendingFolderRetagStore.getState().forWorkspace(root);
+  const under = held.filter((p) => pathInAnyFolder(p, [folder], root));
+  if (under.length > 0) usePendingFolderRetagStore.getState().release(root, under);
+  pruneFolderFromScopeHold(DURABLE_FOLDER_ID, folder, root);
+}
+
+/**
+ * QA-44 (R7-3) — re-establish this workspace's DURABLE file-folder holds
+ * SYNCHRONOUSLY on open (fail closed) BEFORE the slow boot chain runs — the FILE
+ * mirror of {@link restoreMailHolds}. Without it, a folder whose live re-map failed
+ * in a prior session has NO hold from workspace-open until the boot in-place retag
+ * reaches it, and that retag runs LAST in the boot chain (minutes on a large
+ * workspace) — a cross-session wrong-client window. Entries use the dedicated
+ * `matter:durable-folder` id; a live or boot success discharges them.
+ */
+export function restoreFolderHolds(workspaceRoot: string | null | undefined): void {
+  if (!workspaceRoot) return;
+  const held = usePendingFolderRetagStore.getState().forWorkspace(workspaceRoot);
+  if (held.length === 0) return;
+  const store = useScopeUpdateStore.getState();
+  store.begin({
+    id: DURABLE_FOLDER_ID,
+    kind: 'matter',
+    label: 'Applying client scope to search',
+    excludeFolders: held,
+  });
+  store.markFailed(DURABLE_FOLDER_ID);
 }
 
 /**
@@ -1195,6 +1249,21 @@ async function retagFolderPathsInPlace(
     // A clean pass — clear any exclusion a prior failed pass left behind.
     store.remove(BOOT_RETAG_ID);
   }
+
+  // R7-3: mirror the outcome into the DURABLE per-workspace folder-hold store so a
+  // hold survives a close/switch and is re-established synchronously on next open.
+  // A folder with ANY failed file is recorded; a folder whose files ALL re-tagged
+  // cleanly is discharged (which also prunes any `matter:durable-folder` hold this
+  // pass restored at mount, making its files visible now). Folder granularity
+  // matches the live per-folder hold; the precise per-file hold stays in
+  // `matter:boot-retag` for THIS session.
+  const failedFolders = folders.filter((f) =>
+    failedPaths.some((p) => pathInAnyFolder(p, [f], rootPath)),
+  );
+  for (const f of folders) {
+    if (!failedFolders.includes(f)) dischargeDurableFolderHold(f, rootPath);
+  }
+  recordDurableFolderHold(rootPath, failedFolders);
 }
 
 export async function retagExistingMatterFolderPaths(
@@ -1496,6 +1565,12 @@ export function scheduleFolderMatterRetag(
   scheduler: RetagScheduler | null,
 ): void {
   if (folders.length === 0) return;
+  // R7-3: record these folders in the DURABLE per-workspace hold BEFORE the re-tag
+  // runs, so a re-tag that never lands (failed all retries, or the app closed
+  // mid-flight) leaves a hold that `restoreFolderHolds` re-establishes next open —
+  // the file mirror of how the mail reaction records its pending intent upfront. A
+  // success discharges it below.
+  recordDurableFolderHold(useWorkspaceStore.getState().rootPath, folders);
   if (!scheduler) {
     // Pre-mount fallback (no scheduler yet). Pin the identity so a switch/reload
     // mid-scan does NOT read as a clean success: only discharge the boot hold if
@@ -1504,7 +1579,10 @@ export function scheduleFolderMatterRetag(
     void reindexFolderPaths(folders, workspaceService, identity)
       .then(() => {
         if (!isWorkspaceIdentityCurrent(identity)) return;
-        for (const folder of folders) dischargeBootRetagForFolder(folder);
+        for (const folder of folders) {
+          dischargeBootRetagForFolder(folder);
+          dischargeDurableFolderHold(folder, identity.rootPath);
+        }
       })
       // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort pre-mount fallback; a failed re-index stays held out and the next boot reconcile re-tags it
       .catch(() => {});
@@ -1540,8 +1618,11 @@ export function scheduleFolderMatterRetag(
         }
         // A live success also re-tagged any of this folder's files the boot
         // retag had failed on — discharge them from the boot hold so they don't
-        // stay hidden until a clean boot (final round P2).
+        // stay hidden until a clean boot (final round P2). R7-3: also discharge
+        // the DURABLE folder hold (release the record + prune any restored hold),
+        // so its files become visible now and no stale hold survives to next open.
         dischargeBootRetagForFolder(folder);
+        dischargeDurableFolderHold(folder, identity.rootPath);
       },
     });
   }
@@ -1762,6 +1843,11 @@ export function useMemoryWiring(
     // run. The boot re-tag (`retagExistingMailFolders`, after the reconcile)
     // discharges them only on success.
     restoreMailHolds(rootPath);
+    // R7-3 — the FILE mirror: rebuild this workspace's durable FILE-folder holds
+    // synchronously on open too, so a folder whose live re-map failed in a prior
+    // session is held out from the first retrieval — not only after the slow boot
+    // in-place retag (which runs LAST in the boot chain) reaches it.
+    restoreFolderHolds(rootPath);
     return () => {
       scheduler.disposeAll();
       // Round 4 — reset the transient scope-update holds on close/switch so this
