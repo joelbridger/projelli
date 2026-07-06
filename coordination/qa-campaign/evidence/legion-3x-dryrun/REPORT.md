@@ -11,6 +11,10 @@ Per the brief's explicit rule ("One failure = stop, report precisely, await the 
 
 **0/3 clean runs completed. 1 run attempted, failed at Step 4.**
 
+**Update — autopsy completed, root cause found (not wedged, too slow):** at the coordinator's request I checked the local engine directly rather than just through the app UI. The `llama-server` process was alive and healthy the whole time (`/health` → `{"status":"ok"}`, model loaded). Its own log showed the "failed" request had actually been quietly completed by the engine in **81.7 seconds** (70.5s prompt eval on ~4,500 tokens + 11.2s generation) — the UI's own patience window was much shorter than that, so it gave up and showed a false "couldn't get an answer" error while the real answer was still being computed underneath. A third live retry of the identical question, given a full ~90 seconds this time, **succeeded cleanly in ~50 seconds** with a correct, cited answer (screenshot `run1-06`). **Root cause: too-short UI patience for how long local answers genuinely take on this laptop, not a broken engine.** A fix (`lp/localai-patience`: prompt-size-scaled patience + an honest "still thinking" message) is in flight. App has been reset back to Cloud AI / Network Lockdown off (normal state) to stand by for the fix.
+
+**Runbook note for whoever owns the script:** the runbook should tell the presenter plainly that **local (on-this-computer) answers can take 1-2 minutes on this laptop, and that's normal** — it's a real CPU-bound wait, not a malfunction. Once the patience fix lands, the app itself will say so on screen; until then, a presenter watching the current error message would reasonably (but wrongly) conclude Local AI is broken.
+
 ---
 
 ## Prep (done once, before Run 1)
@@ -40,9 +44,9 @@ Per the brief's explicit rule ("One failure = stop, report precisely, await the 
 5. Outlook — not reached; still known-pending per the standing NEED-JAMESON item.
 
 ## Evidence
-5 screenshots in `screenshots/`, named `run1-0N-...` for the story each supports.
+6 screenshots in `screenshots/`, named `run1-0N-...` for the story each supports (`run1-06` is the successful third-try autopsy retry).
 
 ## State left on the Legion
-- App running at tip `273183da`, currently in **Local AI / Network Lockdown mode** (mid-Step-4, not reset back to Cloud AI — left as-is so the coordinator or next session can inspect the exact failure state if useful, rather than me clearing evidence by continuing to click around).
+- App running at tip `273183da`, reset back to **Cloud AI mode, Network Lockdown off** (normal state) after the autopsy.
 - Sidebar clean, 3 real households, no leftover test meetings.
-- Awaiting the coordinator's direction: retry Run 1 fresh, investigate the Local AI double-failure first, or something else.
+- **Standing by** for the `lp/localai-patience` fix to merge. Per the coordinator: once it does, rebuild and restart the 3x dry-run from Run 1 on the new tip — all 3 runs must be on the same final tip.
