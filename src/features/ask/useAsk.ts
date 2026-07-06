@@ -339,6 +339,16 @@ export function useAsk({
   // banner doesn't flash on every mount.
   const importStatus = useStillImporting();
   const stillImporting = importStatus === 'importing';
+  // Round 2 (coordinator review): `handleAsk` is a long-running async closure
+  // — retrieval alone can await a real search. Reading the closed-over
+  // `importStatus` const at the gate would use whatever it was at the moment
+  // THIS call of handleAsk was CREATED, not the CURRENT status by the time
+  // retrieval finishes and the gate actually runs. A ref updated every render
+  // (mirrors `statusRef` above) always reflects the latest known status.
+  const importStatusRef = useRef(importStatus);
+  useEffect(() => {
+    importStatusRef.current = importStatus;
+  }, [importStatus]);
 
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
@@ -787,8 +797,12 @@ export function useAsk({
       // in BOTH files-only and smart mode (a confident "nothing found, here's
       // general advice" would be actively misleading mid-import). Checked
       // before the files-only gate below so it takes priority whenever both
-      // would otherwise apply.
-      if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatus)) {
+      // would otherwise apply. Reads `importStatusRef` (round 2 coordinator
+      // review), NOT the closed-over `importStatus`, so a status that resolves
+      // to idle WHILE retrieval above was still awaiting is seen fresh here —
+      // otherwise a stale "unsettled" snapshot from send time would emit the
+      // still-importing decline even though nothing is importing anymore.
+      if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatusRef.current)) {
         emitDecline(STILL_IMPORTING_DECLINE);
         return;
       }
@@ -840,7 +854,7 @@ export function useAsk({
             hits = hits.filter((h) => recognizeHit(h) === null);
             // QA-90: same still-importing gate as above, now that filtering
             // may have newly emptied the evidence.
-            if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatus)) {
+            if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatusRef.current)) {
               emitDecline(STILL_IMPORTING_DECLINE);
               return;
             }
@@ -1326,7 +1340,7 @@ export function useAsk({
       // on error we put it back.
       setQuestion(q);
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, importStatus, onAuditLog, buildAuditScope, confirmExportConsent]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, onAuditLog, buildAuditScope, confirmExportConsent]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

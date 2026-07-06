@@ -98,6 +98,14 @@ function useCitationVerification(
     const keys = toFetch.map((c) => verifyKey(c.id, c.matterId, c.excerpt));
     keys.forEach((k) => requestedKeys.add(k));
     let cancelled = false;
+    // QA-92 round 2 (coordinator review round 2): capture whether indexing
+    // was unsettled at the moment THIS batch was ISSUED, not whatever
+    // `importUnsettledRef.current` happens to read once the result lands. A
+    // batch issued while unsettled can still race a re-index that started
+    // just before it and finished before the result comes back — reading the
+    // ref only at result time would miss exactly that case and let a
+    // transient negative stick.
+    const importUnsettledAtStart = importUnsettledRef.current;
     // QA-85 round 2: distinct from `cancelled` — tracks whether THIS batch
     // ever reached a result (stored or not). If the effect is torn down
     // before that happens (citations changed mid-flight), the cleanup below
@@ -112,19 +120,23 @@ function useCitationVerification(
         );
         settled = true;
         if (!cancelled) {
+          const newlyHeld: string[] = [];
           setVerdicts((prev) => {
             const next = new Map(prev);
             toFetch.forEach((c, i) => {
               const r = results[i];
               if (!r) return;
               const key = verifyKey(c.id, c.matterId, c.excerpt);
-              // QA-92 round 2: a negative verdict that lands while indexing is
-              // still unsettled is held back — it never enters `verdicts`, so
-              // the card stays "pending" rather than falsely turning red. It's
-              // released for one retry the moment indexing settles to idle
-              // (see the `importUnsettled` effect above).
-              if (r.verdict !== 'verified' && importUnsettledRef.current) {
+              // QA-92 round 2: a negative verdict from a batch ISSUED while
+              // indexing was unsettled is held back — it never enters
+              // `verdicts`, so the card stays "pending" rather than falsely
+              // turning red. It's released for one retry the moment indexing
+              // settles to idle (see the `importUnsettled` effect above) — or
+              // immediately below, if indexing already settled while this
+              // batch was in flight.
+              if (r.verdict !== 'verified' && importUnsettledAtStart) {
                 heldForRetry.current.add(key);
+                newlyHeld.push(key);
                 return;
               }
               next.set(key, r.verdict);
@@ -143,6 +155,18 @@ function useCitationVerification(
               );
             }
           });
+          // Indexing already settled to idle by the time this result landed
+          // (the transition-watching effect above would have already fired,
+          // with nothing yet held then — so it won't fire again on its own).
+          // Retry these specific keys right away instead of waiting for a
+          // future unsettled→idle transition that isn't coming.
+          if (newlyHeld.length > 0 && !importUnsettledRef.current) {
+            newlyHeld.forEach((key) => {
+              requested.current.delete(key);
+              heldForRetry.current.delete(key);
+            });
+            setRetryTick((t) => t + 1);
+          }
         }
       } catch {
         // Browser/dev mode (no Tauri backend) or a verifier error — never

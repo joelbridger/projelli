@@ -38,6 +38,14 @@ vi.mock('./useStillImporting', async (importOriginal) => {
   return { ...original, useStillImporting: (): ImportStatus => useStillImportingMock() };
 });
 
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve!: (v: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 function makeCitation(overrides: Partial<AnswerCitation> = {}): AnswerCitation {
   return {
     n: 1,
@@ -102,6 +110,42 @@ describe('SourcePanel — negative verdicts during an active import (QA-92 round
       expect(screen.getByTestId('verify-verdict')).toBeTruthy();
     });
     expect(screen.getByTestId('verify-verdict').dataset['verdict']).toBe('notFound');
+  });
+
+  it('holds (and auto-retries) a negative verdict from a batch ISSUED while unsettled, even if indexing finishes before the result lands (round 2 race)', async () => {
+    useStillImportingMock.mockReturnValue('importing');
+    const firstCall = deferred<CitationVerdict[]>();
+    ragVerifyCitationsBatchMock.mockReturnValueOnce(firstCall.promise);
+
+    const cite = makeCitation({ id: 'chunk-race' });
+    const { rerender } = render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+
+    await waitFor(() => {
+      expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(1);
+    });
+
+    // Indexing settles to idle WHILE the first batch call is still in flight.
+    useStillImportingMock.mockReturnValue('idle');
+    rerender(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+
+    // Primed for the automatic retry this race should still trigger.
+    ragVerifyCitationsBatchMock.mockResolvedValueOnce([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+
+    // The FIRST call — issued while unsettled — now resolves negative. Buggy
+    // code would read `importUnsettledRef.current` (already false/idle) at
+    // this point and store the negative directly, turning the card red
+    // forever with no second call ever issued.
+    firstCall.resolve([{ verdict: 'notFound' } satisfies CitationVerdict]);
+
+    await waitFor(() => {
+      expect(ragVerifyCitationsBatchMock).toHaveBeenCalledTimes(2);
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId('verify-status').dataset['state']).toBe('verified');
+    });
+    expect(screen.queryByTestId('verify-verdict')).toBeNull();
   });
 
   it('stays pending (never held forever) when indexing is merely unknown, not confirmed importing', async () => {

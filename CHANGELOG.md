@@ -169,6 +169,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `isImportStatusUnsettled` predicate. The still-importing banner is
     unaffected (it only lights up on confirmed `'importing'`, so it never
     flashes on mount). Files: `useStillImporting.ts`, `useAsk.ts`.
+  - **Round 2 (coordinator review): fixed the same read-at-the-wrong-moment
+    bug in two more places.** (1) The citation-hold decision above used to
+    check the LIVE import status when the batch's *result* landed — so a
+    batch issued while unsettled that resolved AFTER indexing flipped to idle
+    would skip the hold and stick red anyway. It now captures whether
+    indexing was unsettled at the moment the batch was *issued*, and holds
+    negatives from any batch issued during that window (retrying immediately
+    if indexing has already finished by the time the result arrives, rather
+    than waiting on a transition that already happened). (2) `handleAsk`
+    closed over `importStatus` at send time; since retrieval can still be
+    awaiting when the gate runs, a status that resolved to idle mid-retrieval
+    was invisible to the gate, which kept using the stale unsettled snapshot.
+    The gate now reads a ref updated every render, so it always sees the
+    freshest known status. Files: `SourcePanel.tsx`, `useAsk.ts`.
 - **Connect-flow demo hardening: four honesty/clarity fixes on the connect
   screens surfaced by adversarial review.**
   - **Wealthbox connect/sync no longer looks frozen.** The first
