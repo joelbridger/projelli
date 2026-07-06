@@ -28,9 +28,12 @@ export function psQuote(arg) {
 
 export function buildRemoteCommandString(target, desktopDriveArgs) {
   const quotedArgs = desktopDriveArgs.map(psQuote).join(' ');
+  const cdpPort = String(target.cdpPort ?? 9223);
+  const appOrigins = JSON.stringify(target.appOrigins ?? ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173']);
   return (
     `cd ${psQuote(target.repoDir)}; ` +
-    `[Environment]::SetEnvironmentVariable('DESKTOP_CDP_PORT','9223'); ` +
+    `[Environment]::SetEnvironmentVariable('DESKTOP_CDP_PORT',${psQuote(cdpPort)}); ` +
+    `[Environment]::SetEnvironmentVariable('DESKTOP_APP_ORIGINS',${psQuote(appOrigins)}); ` +
     `node scripts/desktop-drive.mjs ${quotedArgs}`
   );
 }

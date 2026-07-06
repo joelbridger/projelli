@@ -129,6 +129,9 @@ async function main() {
   console.log(`[bench-smoke] reachable: ${reachable}`);
 
   if (reachable) {
+    const originCheck = await driver.assertSameOrigin();
+    console.log(`[bench-smoke] origin preflight: ${originCheck.fetchUrl} matches ${originCheck.webviewOrigin}`);
+
     const overlay = await driver.dismissBlockingOverlay();
     if (overlay.before > 0) {
       console.log(

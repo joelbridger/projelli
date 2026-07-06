@@ -80,14 +80,15 @@ if ! ssh "${SSH_OPTS[@]}" "$SSH_DEST" "Stop-Process -Name node,cargo,keepance,Ke
   finish 1 "rebuild-start-failed"
 fi
 
-echo "[auto-smoke] waiting for CDP(9223)+Vite(5173)..."
+echo "[auto-smoke] waiting for CDP(9223)+Vite(5173 on IPv4 or IPv6 localhost)..."
 ready=0
 for i in $(seq 1 40); do
-  out="$(ssh "${SSH_OPTS[@]}" "$SSH_DEST" "try { (Invoke-WebRequest http://127.0.0.1:9223/json/version -UseBasicParsing -TimeoutSec 4).StatusCode } catch { Write-Output 0 }; (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count" 2>/dev/null || true)"
+  out="$(ssh "${SSH_OPTS[@]}" "$SSH_DEST" "\$cdp=0; try { \$cdp=(Invoke-WebRequest 'http://127.0.0.1:9223/json/version' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}; \$vite4=0; try { \$vite4=(Invoke-WebRequest 'http://127.0.0.1:5173/' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}; \$vite6=0; try { \$vite6=(Invoke-WebRequest 'http://[::1]:5173/' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}; Write-Output \$cdp; Write-Output \$vite4; Write-Output \$vite6" 2>/dev/null || true)"
   cdp="$(printf '%s\n' "$out" | grep -oE '^(200|0)$' | head -1)"
-  vite="$(printf '%s\n' "$out" | tail -1 | tr -dc '0-9')"
-  echo "  poll $i: cdp=${cdp:-?} vite=${vite:-?}"
-  if [[ "$cdp" == "200" && "${vite:-0}" -ge 1 ]] 2>/dev/null; then
+  vite4="$(printf '%s\n' "$out" | sed -n '2p' | tr -dc '0-9')"
+  vite6="$(printf '%s\n' "$out" | sed -n '3p' | tr -dc '0-9')"
+  echo "  poll $i: cdp=${cdp:-?} vite4=${vite4:-?} vite6=${vite6:-?}"
+  if [[ "$cdp" == "200" && ( "${vite4:-0}" == "200" || "${vite6:-0}" == "200" ) ]]; then
     ready=1
     break
   fi

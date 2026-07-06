@@ -12,7 +12,13 @@ import {
   execInvocation,
 } from '../remote.mjs';
 
-const TARGET = { sshUser: 'james', sshHost: '100.127.67.22', repoDir: 'C:\\lantern-plus' };
+const TARGET = {
+  sshUser: 'james',
+  sshHost: '100.127.67.22',
+  repoDir: 'C:\\lantern-plus',
+  cdpPort: 9223,
+  appOrigins: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173'],
+};
 
 describe('psQuote', () => {
   it('wraps a plain arg in single quotes', () => {
@@ -33,8 +39,15 @@ describe('buildRemoteCommandString', () => {
     const cmd = buildRemoteCommandString(TARGET, ['type', 'to-field', "Jennifer's note"]);
     expect(cmd).toBe(
       "cd 'C:\\lantern-plus'; [Environment]::SetEnvironmentVariable('DESKTOP_CDP_PORT','9223'); " +
+        `[Environment]::SetEnvironmentVariable('DESKTOP_APP_ORIGINS','["http://localhost:5173","http://127.0.0.1:5173","http://[::1]:5173"]'); ` +
         "node scripts/desktop-drive.mjs 'type' 'to-field' 'Jennifer''s note'"
     );
+  });
+
+  it('uses the target CDP port instead of a hardcoded fallback', () => {
+    const cmd = buildRemoteCommandString({ ...TARGET, cdpPort: 9445 }, ['pages']);
+    expect(cmd).toContain("SetEnvironmentVariable('DESKTOP_CDP_PORT','9445')");
+    expect(cmd).not.toContain("SetEnvironmentVariable('DESKTOP_CDP_PORT','9223')");
   });
 });
 

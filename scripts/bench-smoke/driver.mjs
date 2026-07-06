@@ -14,6 +14,51 @@ import { dismissOverlayScript } from './overlay-dismiss.mjs';
 
 export class DriverError extends Error {}
 
+const DEFAULT_APP_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://[::1]:5173'];
+
+export function originOf(rawUrl) {
+  try {
+    return new URL(rawUrl).origin;
+  } catch {
+    return null;
+  }
+}
+
+export function buildOriginProbeScript(appOrigins = DEFAULT_APP_ORIGINS) {
+  return `((async () => {
+    const urls = ${JSON.stringify(appOrigins)};
+    return Promise.all(urls.map(async (url) => {
+      const origin = new URL(url).origin;
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        const text = await res.text();
+        return { url, origin, ok: res.ok, status: res.status, length: text.length };
+      } catch (err) {
+        return { url, origin, ok: false, error: String(err && err.message ? err.message : err) };
+      }
+    }));
+  })())`;
+}
+
+export function selectSameOriginProbe(webviewUrl, probes) {
+  const webviewOrigin = originOf(webviewUrl);
+  const all = Array.isArray(probes) ? probes : [];
+  const same = all.find((probe) => probe?.ok && probe.origin === webviewOrigin);
+  const otherReachable = all.filter((probe) => probe?.ok && probe.origin !== webviewOrigin);
+  return { webviewUrl, webviewOrigin, same, otherReachable, probes: all };
+}
+
+export function formatOriginProbeFailure(result) {
+  const rows = result.probes
+    .map((probe) => `${probe.url} -> ${probe.ok ? `OK ${probe.status}` : `BLOCKED ${probe.error || 'unknown error'}`}`)
+    .join('; ');
+  return (
+    'Origin preflight failed: the bench fetch probe and the WebView app are not on the same origin. ' +
+    `WebView URL=${result.webviewUrl}; WebView origin=${result.webviewOrigin || 'unreadable'}; probes=[${rows}]. ` +
+    'This is a bench wiring problem, not proof of stale bundled code.'
+  );
+}
+
 export class Driver {
   constructor(target, { evidenceDir } = {}) {
     this.target = target;
@@ -35,6 +80,26 @@ export class Driver {
     const { code, stdout, stderr } = await runDesktopDrive(this.target, ['pages']);
     if (code !== 0) throw new DriverError(`pages failed (exit ${code}): ${stderr || stdout}`);
     return parsePages(stdout);
+  }
+
+  async currentUrl() {
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['url']);
+    if (code !== 0) throw new DriverError(`url failed (exit ${code}): ${stderr || stdout}`);
+    return stdout.trim();
+  }
+
+  async assertSameOrigin() {
+    const webviewUrl = await this.currentUrl();
+    const probes = await this.evalJs(buildOriginProbeScript(this.target.appOrigins ?? DEFAULT_APP_ORIGINS));
+    const result = selectSameOriginProbe(webviewUrl, probes);
+    if (!result.same) throw new DriverError(formatOriginProbeFailure(result));
+    return {
+      webviewUrl,
+      webviewOrigin: result.webviewOrigin,
+      fetchUrl: result.same.url,
+      fetchOrigin: result.same.origin,
+      probes: result.probes,
+    };
   }
 
   async click(testid) {
