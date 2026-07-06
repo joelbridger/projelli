@@ -51,7 +51,7 @@ import {
   buildSmartAskSystemPrompt,
   scopeHintForMatter,
 } from './askPrompt';
-import { useStillImporting } from './useStillImporting';
+import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
 import { bindAnswerBlocks } from './answerBlockHelpers';
 import {
   withAskTimeout,
@@ -329,7 +329,16 @@ export function useAsk({
   // active right now. Read fresh inside handleAsk's retrieval-evidence gate so
   // a zero-hit answer during an active import says so, instead of reading as
   // "nothing exists" (see STILL_IMPORTING_DECLINE).
-  const stillImporting = useStillImporting();
+  //
+  // QA-90 round 3 — `importStatus` is a tri-state (`unknown` covers the brief
+  // window before the first status fetch resolves). The retrieval-evidence
+  // gate treats `unknown` the same as `importing` via `isImportStatusUnsettled`
+  // — a question asked the instant Ask opens must not read as a confident
+  // "nothing found" just because we haven't heard back yet. `stillImporting`
+  // (the banner-facing boolean) stays strictly "confirmed importing" so the
+  // banner doesn't flash on every mount.
+  const importStatus = useStillImporting();
+  const stillImporting = importStatus === 'importing';
 
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
@@ -772,13 +781,14 @@ export function useAsk({
         pendingQuestionRef.current = null;
       };
 
-      // QA-90: zero hits WHILE a content import is actively running is
-      // ambiguous — "nothing exists" vs. "just not indexed yet" — so it gets
-      // its own, more reassuring decline, in BOTH files-only and smart mode
-      // (a confident "nothing found, here's general advice" would be
-      // actively misleading mid-import). Checked before the files-only gate
-      // below so it takes priority whenever both would otherwise apply.
-      if (memoryEnabled && hits.length === 0 && stillImporting) {
+      // QA-90: zero hits WHILE a content import is actively running (or we
+      // simply don't know yet, round 3) is ambiguous — "nothing exists" vs.
+      // "just not indexed yet" — so it gets its own, more reassuring decline,
+      // in BOTH files-only and smart mode (a confident "nothing found, here's
+      // general advice" would be actively misleading mid-import). Checked
+      // before the files-only gate below so it takes priority whenever both
+      // would otherwise apply.
+      if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatus)) {
         emitDecline(STILL_IMPORTING_DECLINE);
         return;
       }
@@ -830,7 +840,7 @@ export function useAsk({
             hits = hits.filter((h) => recognizeHit(h) === null);
             // QA-90: same still-importing gate as above, now that filtering
             // may have newly emptied the evidence.
-            if (memoryEnabled && hits.length === 0 && stillImporting) {
+            if (memoryEnabled && hits.length === 0 && isImportStatusUnsettled(importStatus)) {
               emitDecline(STILL_IMPORTING_DECLINE);
               return;
             }
@@ -1316,7 +1326,7 @@ export function useAsk({
       // on error we put it back.
       setQuestion(q);
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, stillImporting, onAuditLog, buildAuditScope, confirmExportConsent]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, importStatus, onAuditLog, buildAuditScope, confirmExportConsent]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {

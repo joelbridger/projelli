@@ -148,6 +148,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `commands/rag/store/maintain.rs` (`paths_missing_rows_under_matter`),
     `platform/hooks/useMemoryWiring.ts` (`retagFolderPathsInPlace`),
     `platform/rag/MemoryService.ts`, `platform/utils/tauri-commands.ts`.
+- **QA-92 round 2: two timing gaps between the boot-reconcile fix above and the
+  still-importing/citation-verification UI, surfaced by cross-branch review.**
+  - **A negative citation verdict during active re-indexing no longer sticks
+    forever.** `SourcePanel`'s automatic citation check is keyed by
+    (id, matterId, excerpt) and never retried. If the real backend check ran
+    while boot repair/re-indexing was still in flight, a genuinely correct
+    source could transiently come back `notFound`/`matterMismatch` and then
+    stay falsely red until the panel remounted. A negative verdict that lands
+    while a content import is unsettled is now held back — the card stays
+    "pending" — and is released for one retry the moment indexing settles to
+    idle. Files: `SourcePanel.tsx`.
+  - **"Still importing" is now a tri-state, not a boolean that defaults to
+    false.** `useStillImporting` used to return `false` during the brief async
+    window between mount and the first status fetch resolving, so a question
+    asked the instant Ask opened could get the generic "nothing found" decline
+    instead of the honest still-importing one. `useStillImporting` now returns
+    `'unknown' | 'importing' | 'idle'`; `useAsk.ts`'s retrieval-evidence gate
+    treats `'unknown'` the same as `'importing'` via the new
+    `isImportStatusUnsettled` predicate. The still-importing banner is
+    unaffected (it only lights up on confirmed `'importing'`, so it never
+    flashes on mount). Files: `useStillImporting.ts`, `useAsk.ts`.
 - **Connect-flow demo hardening: four honesty/clarity fixes on the connect
   screens surfaced by adversarial review.**
   - **Wealthbox connect/sync no longer looks frozen.** The first
