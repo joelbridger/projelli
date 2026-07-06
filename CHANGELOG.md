@@ -114,6 +114,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **Archived clients no longer linger in the rail's client switcher.** The
+  sidebar's compact client list (`Spine.tsx`) read the full matter list
+  (`useMatters`, which intentionally includes archived matters for RAG path
+  resolution) instead of the active-only selector, so archiving a client never
+  actually removed it from the switcher — found live on the Legion pre-flight.
+  Now reads `useActiveMatters()`, matching the Client Map's default view and
+  the Clients management dialog, both of which already filtered correctly.
+  Archived clients remain reachable via the Client Map's "Archived" section and
+  the Clients management dialog. Files: `src/app/shell/layout/Spine.tsx`.
+  Tests: `Spine.test.tsx` (new).
+- **The welcome feature tour reappeared on every app restart after being
+  skipped.** "Skip tour" (and Escape / clicking outside) only set a
+  session-only flag, so unless a user clicked through all 5 steps to
+  "Finish," the tour auto-showed again on the very next launch, forever —
+  found live on the Legion pre-flight. Skipping now persists the same
+  "seen it" flag Finish uses, so any dismissal is one-time; "Reset Feature
+  Tour" in Settings still brings it back on request. Files:
+  `src/platform/hooks/useFeatureTour.ts`. Tests: `useFeatureTour.test.ts`
+  (new).
 - **QA-91 (demo P0): the Notice Card now actually joins the meeting under
   CDP-driven Windows testing — fixed a WebView2 `0x8007139F`
   (ERROR_INVALID_STATE) crash creating the companion window.** wry creates a
