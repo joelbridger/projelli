@@ -49,7 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   fallbacks, and lobby/admitted/denied use multi-signal (tid + aria-label +
   text) detection pending the Legion live retest.
   - Files: `adapters/teamsAdapter.ts`, `adapters/teamsAdapter.test.ts`
-    (current + legacy DOM fixtures, 27 tests).
+    (current + legacy DOM fixtures, 29 tests).
+  - Review round 2: `detectPhase` now uses the *same* name-field lookup as
+    `fillGuestName` (identical inline `findNameField` helper — kept inline, not
+    module-scope, because the methods are serialized standalone into the
+    webview). Previously a drifted name `data-tid` with a still-labeled name box
+    read as `ready-to-join`, so the runner (which only fills the name during
+    `name-entry`) would have joined with a nameless card. Now a labeled empty
+    box → `name-entry` → fill → `ready-to-join`.
 
 ### Added
 - **QA-90: "still importing" banner + honest zero-hit decline on Ask.** While

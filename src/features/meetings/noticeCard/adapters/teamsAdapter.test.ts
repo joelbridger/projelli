@@ -135,6 +135,33 @@ describe('teamsAdapter.detectPhase — regression guard for QA-91b', () => {
   });
 });
 
+describe('teamsAdapter — name-tid drift must not join nameless (review round 2)', () => {
+  // Primary name data-tid gone, but a labeled name box is still present. If
+  // detectPhase treated this as ready-to-join, the runner would clickJoin
+  // without ever filling the "Recording Notice" name → a nameless card.
+  const DRIFTED_NAME_TID = `
+    <div data-tid="calling-prejoin-screen" role="region">
+      <input type="text" aria-label="Enter your name" value="" />
+      <input role="switch" type="checkbox" data-tid="toggle-mute" data-cid="toggle-mute-false" aria-checked="true" />
+      <button data-tid="prejoin-join-button" aria-label="Join now">Join now</button>
+    </div>`;
+
+  it('detectPhase reads name-entry when only a labeled name box remains (empty)', () => {
+    expect(teamsAdapter.detectPhase(dom(DRIFTED_NAME_TID))).toBe('name-entry');
+  });
+
+  it('detectPhase flips to ready-to-join after the labeled box is filled', () => {
+    const doc = dom(DRIFTED_NAME_TID);
+    expect(teamsAdapter.detectPhase(doc)).toBe('name-entry');
+    // Runner would call fillGuestName during name-entry:
+    expect(teamsAdapter.fillGuestName(doc, '⏺ Recording Notice — Sarah')).toBe(true);
+    expect(doc.querySelector<HTMLInputElement>('input[aria-label="Enter your name"]')!.value).toBe(
+      '⏺ Recording Notice — Sarah',
+    );
+    expect(teamsAdapter.detectPhase(doc)).toBe('ready-to-join');
+  });
+});
+
 describe('teamsAdapter.detectPhase — legacy Teams web (fallback selectors)', () => {
   it('still reads name-entry from the legacy prejoin', () => {
     expect(teamsAdapter.detectPhase(dom(LEGACY_NAME_ENTRY))).toBe('name-entry');

@@ -83,44 +83,68 @@ export const teamsAdapter: JoinAdapter = {
       '[data-tid="calling-prejoin-screen"], [data-tid="prejoin-join-button"], [data-tid="prejoin-screen"]',
     );
     if (inPrejoin) {
-      const name = doc.querySelector(
-        '[data-tid="prejoin-display-name-input"], input[data-tid="prejoin-display-name-input"], [data-tid="calling-prejoin-display-name-input"]',
-      );
-      if (name instanceof HTMLInputElement) {
+      // MUST use the SAME name-field lookup as fillGuestName, or a drifted name
+      // tid would read as ready-to-join here and the card would JOIN NAMELESS
+      // (the runner only fills the name during 'name-entry'). The helper is
+      // duplicated locally on purpose: these methods are serialized standalone
+      // into the webview (see injectionScript.ts), so a module-scope helper
+      // would be undefined there — keep it inline, keep it identical.
+      const findNameField = (d: Document): HTMLInputElement | null => {
+        const byTid = d.querySelector(
+          '[data-tid="prejoin-display-name-input"], input[data-tid="prejoin-display-name-input"], [data-tid="calling-prejoin-display-name-input"]',
+        );
+        if (byTid instanceof HTMLInputElement) return byTid;
+        const region = d.querySelector('[data-tid="calling-prejoin-screen"], [data-tid="prejoin-screen"]');
+        const scope = region || d;
+        const candidates = scope.querySelectorAll('input[type="text"], input:not([type])');
+        for (let i = 0; i < candidates.length; i++) {
+          const c = candidates[i];
+          if (!(c instanceof HTMLInputElement)) continue;
+          const hint = (
+            (c.getAttribute('aria-label') || '') +
+            ' ' +
+            (c.getAttribute('placeholder') || '')
+          ).toLowerCase();
+          if (hint.includes('name')) return c;
+        }
+        return null;
+      };
+      const name = findNameField(doc);
+      if (name) {
         return name.value.trim() ? 'ready-to-join' : 'name-entry';
       }
-      // No name field (signed-in account flow, or a drifted tid): the page is
-      // still the prejoin, so treat it as ready — clicking Join is the right move.
+      // No name field found at all — the signed-in account flow uses the account
+      // card by design, so the page is still a ready-to-join prejoin.
       return 'ready-to-join';
     }
     return 'loading';
   },
 
   fillGuestName(doc, displayName) {
-    let input = doc.querySelector(
-      '[data-tid="prejoin-display-name-input"], input[data-tid="prejoin-display-name-input"], [data-tid="calling-prejoin-display-name-input"]',
-    );
-    // Fallback: any text input inside the prejoin region whose purpose looks like
-    // a name field (aria-label / placeholder), covering a tid drift.
-    if (!(input instanceof HTMLInputElement)) {
-      const region = doc.querySelector('[data-tid="calling-prejoin-screen"], [data-tid="prejoin-screen"]');
-      const scope = region || doc;
+    // Identical name-field lookup to detectPhase (see the note there): kept inline
+    // and in sync so both agree on where the "Recording Notice" name goes.
+    const findNameField = (d: Document): HTMLInputElement | null => {
+      const byTid = d.querySelector(
+        '[data-tid="prejoin-display-name-input"], input[data-tid="prejoin-display-name-input"], [data-tid="calling-prejoin-display-name-input"]',
+      );
+      if (byTid instanceof HTMLInputElement) return byTid;
+      const region = d.querySelector('[data-tid="calling-prejoin-screen"], [data-tid="prejoin-screen"]');
+      const scope = region || d;
       const candidates = scope.querySelectorAll('input[type="text"], input:not([type])');
       for (let i = 0; i < candidates.length; i++) {
         const c = candidates[i];
-        if (!c) continue;
+        if (!(c instanceof HTMLInputElement)) continue;
         const hint = (
           (c.getAttribute('aria-label') || '') +
           ' ' +
           (c.getAttribute('placeholder') || '')
         ).toLowerCase();
-        if (hint.includes('name')) {
-          input = c;
-          break;
-        }
+        if (hint.includes('name')) return c;
       }
-    }
-    if (!(input instanceof HTMLInputElement)) return false;
+      return null;
+    };
+    const input = findNameField(doc);
+    if (!input) return false;
     // React controls the value; set via the native setter, then fire `input`
     // so React's onChange sees it (a plain assignment is silently overwritten).
     const desc = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
