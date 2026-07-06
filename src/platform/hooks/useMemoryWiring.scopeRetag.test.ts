@@ -753,6 +753,105 @@ describe('durable per-workspace FILE-folder hold (R7-3)', () => {
   });
 });
 
+// ── R7-4 · the boot passes snapshot their targets once but write over time; a
+//    folder re-mapped mid-pass (the live scheduler already re-tagged it + cleared
+//    its hold) must NOT get the stale snapshot matter written last. Both boot
+//    passes re-resolve each target's CURRENT matter right before the write. ───────
+describe('boot passes re-resolve targets at write time (R7-4)', () => {
+  beforeEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    usePendingMailRetagStore.setState({ intents: {} });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: [] });
+  });
+  afterEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    usePendingMailRetagStore.setState({ intents: {} });
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('FILE boot pass skips a folder re-mapped mid-pass (no stale write)', async () => {
+    useWorkspaceStore.setState({
+      rootPath: '/wsA',
+      rootGeneration: 1,
+      fileTree: [
+        {
+          id: 'A',
+          type: 'folder',
+          name: 'A',
+          path: '/wsA/A',
+          children: [{ id: 'A/f', type: 'file', name: 'a.docx', path: '/wsA/A/a.docx' }],
+        },
+        {
+          id: 'B',
+          type: 'folder',
+          name: 'B',
+          path: '/wsA/B',
+          children: [{ id: 'B/f', type: 'file', name: 'b.docx', path: '/wsA/B/b.docx' }],
+        },
+      ],
+    });
+    useMatterStore.setState({
+      matters: [
+        matter({ id: 'mA', folderPaths: ['/wsA/A'] }),
+        matter({ id: 'mB', folderPaths: ['/wsA/B'] }),
+      ],
+      activeMatterId: null,
+    });
+
+    const written: string[] = [];
+    vi.mocked(MemoryService.retagMatterBatch).mockImplementation((_paths, m) => {
+      written.push(m);
+      // While re-tagging folder A, the user unmaps folder B (b.docx stops
+      // resolving to mB) — the classic mid-pass re-map.
+      if (m === 'mA') {
+        useMatterStore.setState({
+          matters: [matter({ id: 'mA', folderPaths: ['/wsA/A'] }), matter({ id: 'mB', folderPaths: [] })],
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    await retagExistingMatterFolderPaths(null);
+
+    // mA's batch wrote; mB's batch was SKIPPED because b.docx no longer resolves to
+    // mB — the stale mB tag was never re-written.
+    expect(written).toContain('mA');
+    expect(written).not.toContain('mB');
+  });
+
+  it('MAIL boot pass writes a re-mapped folder to its CURRENT matter, not the stale one', async () => {
+    useMatterStore.setState({
+      matters: [
+        matter({ id: 'X', mailFolderPaths: ['m365/acct/Inbox'] }),
+        matter({ id: 'Y', mailFolderPaths: ['m365/acct/Sent'] }),
+      ],
+    });
+
+    const calls: Array<{ folder: string; matter: string }> = [];
+    vi.mocked(mailRetagFolderMatter).mockImplementation((_p, _a, folder, m) => {
+      calls.push({ folder, matter: m });
+      if (folder === 'Inbox') {
+        // While re-tagging Inbox, the user re-maps Sent from Y → Z.
+        useMatterStore.setState({
+          matters: [
+            matter({ id: 'X', mailFolderPaths: ['m365/acct/Inbox'] }),
+            matter({ id: 'Z', mailFolderPaths: ['m365/acct/Sent'] }),
+          ],
+        });
+      }
+      return Promise.resolve(1);
+    });
+
+    await retagExistingMailFolders();
+
+    const sent = calls.find((c) => c.folder === 'Sent');
+    expect(sent?.matter).toBe('Z'); // current matter, not the stale snapshot Y
+  });
+});
+
 // ── R7-1 · the other half of the merge with origin's per-path-misses retag API:
 //    a MISS returned by `retagMatterBatch` is a never-indexed file, NOT a failure,
 //    so it is re-indexed — but if that RE-INDEX itself fails, the file may still

@@ -1187,10 +1187,24 @@ async function retagFolderPathsInPlace(
   const failedPaths: string[] = [];
   for (const [matterId, paths] of byMatter) {
     if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+    // R7-4: re-resolve each file's CURRENT matter right before the write. This
+    // boot pass snapshotted `byMatter` once at the start but writes over
+    // seconds/minutes; if a folder is re-mapped mid-pass, the live scheduler
+    // re-tags (and clears its hold) while we still hold the STALE snapshot. Writing
+    // the snapshot matter now would silently re-tag the re-mapped file to the WRONG
+    // client with NO hold, healed only on the next boot. Skipping any file whose
+    // current matter no longer matches this batch leaves it as the live scheduler
+    // (correctly) tagged it. An unchanged file still resolves to `matterId`, so the
+    // common case is untouched. (`resolveMatterIdForWorkspacePath` is order-
+    // independent across path forms, so re-resolving the abs path is consistent.)
+    const currentPaths = paths.filter(
+      (abs) => resolveMatterIdForWorkspacePath(abs, rootPath) === matterId,
+    );
+    if (currentPaths.length === 0) continue;
     try {
       // In-place, batched — no re-extract / re-embed. Returns the PER-PATH
       // misses: files that still have no rows under `matterId` after the retag.
-      const missing = await MemoryService.retagMatterBatch(paths, matterId);
+      const missing = await MemoryService.retagMatterBatch(currentPaths, matterId);
       // QA-92: those files never got vector rows to re-tag (a timing gap, or a
       // path-form mismatch). Left as-is they stay UNASSIGNED and are invisible to
       // client-scoped Ask this session. Re-index EXACTLY the misses under the
@@ -1211,7 +1225,7 @@ async function retagFolderPathsInPlace(
     } catch {
       // The batched UPDATE itself threw — the whole batch may still carry the OLD
       // matter tag, so hold every file in it out of retrieval; a later boot retries.
-      failedPaths.push(...paths);
+      failedPaths.push(...currentPaths);
     }
     if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
   }
@@ -1363,9 +1377,20 @@ export async function retagExistingMailFolders(
   }
   if (targets.size === 0) return;
   for (const [key, { provider, account, folderId, matterId }] of targets) {
+    // R7-4: re-resolve this folder's CURRENT matter right before the write. `targets`
+    // was snapshotted at pass start but we write over time; a folder re-mapped
+    // mid-pass (the live scheduler already re-tagged it and cleared its hold) would
+    // otherwise get the STALE snapshot matter written LAST — tagging the mail to the
+    // wrong client with no hold, healed only on the next boot. Re-reading the live
+    // mapping makes the boot write the CURRENT target; a folder that's still mapped
+    // (or unmapped but held via its own pending intent) is unchanged.
+    const liveEntry = buildMailMatterMap(getMatters()).find(
+      (e) => mailFolderKey(e.provider, e.account, e.folderId) === key,
+    );
+    const currentMatter = liveEntry?.matterId ?? matterId;
     try {
       // R7-5b: pin to the captured workspace so a switch mid-boot-heal refuses.
-      await mailRetagFolderMatter(provider, account, folderId, matterId, capturedRoot ?? undefined);
+      await mailRetagFolderMatter(provider, account, folderId, currentMatter, capturedRoot ?? undefined);
     } catch {
       // Failure: leave the restored exclusion + durable record in place (fail
       // closed across sessions); the idempotent retag converges on a later boot.
@@ -1376,7 +1401,7 @@ export async function retagExistingMailFolders(
     // IDENTITY AND this retag's target is still the live intent (a newer re-map
     // must keep its own hold).
     if (!isWorkspaceIdentityCurrent(workspaceIdentity)) continue;
-    if (capturedRoot && !mailIntentTargets(capturedRoot, key, matterId)) continue;
+    if (capturedRoot && !mailIntentTargets(capturedRoot, key, currentMatter)) continue;
     useScopeUpdateStore.getState().remove(`mail:${key}`);
     if (capturedRoot) usePendingMailRetagStore.getState().clear(capturedRoot, key);
   }
