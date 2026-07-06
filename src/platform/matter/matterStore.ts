@@ -520,6 +520,86 @@ function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
   );
 }
 
+/**
+ * QA-93 round 3 (Codex F1): when the one-time per-workspace migration drops a
+ * matter's UNPROVEN (relative) folder mappings, that must not vanish silently —
+ * the advisor sees a folder that quietly stopped auto-filing. One plain-language
+ * Activity Log entry per affected matter explains what happened and how to fix
+ * it (re-map the folder on the client).
+ *
+ * Entries are QUEUED, not emitted inline: migration runs synchronously inside
+ * the store's rehydrate, BEFORE the lifecycle points the durable audit store at
+ * the new workspace — emitting immediately would write the entry into the
+ * PREVIOUS workspace's audit log. `useWorkspaceLifecycle` flushes the queue for
+ * the opened root right after its audit store hydrates. Entries are tagged with
+ * the root that produced them so they can never flush into a different
+ * workspace's log.
+ */
+interface PendingMigrationDropAudit {
+  root: string;
+  entry: Omit<AuditEntry, 'id' | 'timestamp'>;
+}
+const pendingMigrationDropAudits: PendingMigrationDropAudit[] = [];
+/** Hard cap so a pathological legacy dataset can't grow the queue unbounded. */
+const MAX_PENDING_MIGRATION_DROP_AUDITS = 500;
+
+function queueMigrationDropAudit(
+  matter: Matter,
+  droppedFolderPaths: string[],
+  root: string,
+): void {
+  if (pendingMigrationDropAudits.length >= MAX_PENDING_MIGRATION_DROP_AUDITS) return;
+  const clientName = matter.name || matter.client || matter.id;
+  const list = droppedFolderPaths.map((p) => `"${p}"`).join(', ');
+  const plural = droppedFolderPaths.length > 1;
+  pendingMigrationDropAudits.push({
+    root,
+    entry: {
+      action: 'user_action',
+      description:
+        `While setting up this workspace, ${plural ? `${String(droppedFolderPaths.length)} folder links` : 'a folder link'} ` +
+        `for client "${clientName}" (${list}) ${plural ? 'were' : 'was'} not carried over, ` +
+        `because ${plural ? 'they' : 'it'} could not be confirmed to belong to this workspace. ` +
+        `Files in ${plural ? 'those folders' : 'that folder'} will stay unassigned until you link ${plural ? 'them' : 'it'} to the client again.`,
+      model: undefined,
+      inputs: {},
+      outputs: {},
+      userDecision: 'auto',
+      metadata: {
+        auditEventType: 'matter_migration_folder_link_dropped',
+        matterId: matter.id,
+        matterName: clientName,
+        droppedFolderPaths,
+        workspaceRoot: root,
+      },
+    },
+  });
+}
+
+/**
+ * Deliver the queued migration-drop entries for `root` to the live Activity
+ * Log. Called by `useWorkspaceLifecycle` right after the durable audit store
+ * has been pointed at the newly-opened workspace. Entries for OTHER roots stay
+ * queued (they belong to a workspace whose audit store isn't open); if no
+ * emitter is registered yet, everything stays queued for the next flush.
+ */
+export function flushPendingMatterMigrationAudit(root: string): void {
+  if (!activeMatterAuditEmitter) return;
+  const toEmit: PendingMigrationDropAudit[] = [];
+  const rest: PendingMigrationDropAudit[] = [];
+  for (const p of pendingMigrationDropAudits) (p.root === root ? toEmit : rest).push(p);
+  if (toEmit.length === 0) return;
+  pendingMigrationDropAudits.length = 0;
+  pendingMigrationDropAudits.push(...rest);
+  for (const p of toEmit) activeMatterAuditEmitter(p.entry);
+}
+
+/** Test seam: reset the queue so one test's migration can't leak entries into
+ *  the next. Production code never calls this. */
+export function clearPendingMatterMigrationAudit(): void {
+  pendingMigrationDropAudits.length = 0;
+}
+
 function readLegacyEnvelope(
   key: string
 ): { state?: Record<string, unknown>; version?: number } | null {
@@ -581,12 +661,24 @@ function migrateGlobalMattersForScope(root: string): StorageValue<PersistedMatte
   for (const m of migrated.matters) {
     const underRoot = m.folderPaths.some((fp) => isAbsolutePath(fp) && isPathInFolder(fp, root));
     if (!underRoot) continue;
-    // Keep folders that are under THIS root, plus any relative entries (left
-    // untouched per the no-auto-reconciliation rule); drop absolute folders that
-    // belong to a DIFFERENT workspace so they don't leak into this scope.
+    // A carried matter keeps ONLY folder mappings PROVEN to belong to this
+    // workspace: absolute paths under the opened root. A relative entry is
+    // unproven — readers resolve it against the CURRENT root, so carrying
+    // "Clients/Legacy" into /wsA would silently attribute /wsA/Clients/Legacy
+    // files to a client whose mapping may describe a folder in a different
+    // workspace. Misattributing a file to the wrong client is the worst
+    // failure class for this product, so relative entries are dropped from the
+    // carried copy (round 3, Codex F1) — and each drop is audit-logged below so
+    // the advisor can see why a folder stopped auto-filing and re-map it. The
+    // untouched global source still holds the original shape. Absolute folders
+    // under a DIFFERENT workspace are dropped too (they must not leak into
+    // this scope) but stay claimable by their own workspace, so they need no
+    // audit trail here.
     const folderPaths = m.folderPaths.filter(
-      (fp) => !isAbsolutePath(fp) || isPathInFolder(fp, root),
+      (fp) => isAbsolutePath(fp) && isPathInFolder(fp, root),
     );
+    const droppedRelative = m.folderPaths.filter((fp) => !isAbsolutePath(fp));
+    if (droppedRelative.length > 0) queueMigrationDropAudit(m, droppedRelative, root);
     kept.push({ ...m, folderPaths });
   }
   const keptIds = new Set(kept.map((m) => m.id));

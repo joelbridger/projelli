@@ -14,7 +14,12 @@ import { createRef } from 'react';
 
 import { useWorkspaceLifecycle, type UseWorkspaceLifecycleOptions } from './useWorkspaceLifecycle';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useMatterStore, getMatters } from '@/platform/matter/matterStore';
+import {
+  useMatterStore,
+  getMatters,
+  setMatterAuditEmitter,
+  clearPendingMatterMigrationAudit,
+} from '@/platform/matter/matterStore';
 import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
 
 function makeOptions(): UseWorkspaceLifecycleOptions {
@@ -50,10 +55,14 @@ beforeEach(() => {
   setActiveWorkspaceScopeRoot(null);
   useWorkspaceStore.setState({ rootPath: null });
   useMatterStore.setState({ matters: [], activeMatterId: null, snapshots: {}, cache: {}, statusByMatterId: {} });
+  clearPendingMatterMigrationAudit();
+  setMatterAuditEmitter(null);
 });
 afterEach(() => {
   setActiveWorkspaceScopeRoot(null);
   useWorkspaceStore.setState({ rootPath: null });
+  clearPendingMatterMigrationAudit();
+  setMatterAuditEmitter(null);
 });
 
 describe('QA-93 stage B — switching the workspace root swaps the visible matters', () => {
@@ -83,6 +92,46 @@ describe('QA-93 stage B — switching the workspace root swaps the visible matte
     // Back to A — A's client again.
     act(() => { useWorkspaceStore.getState().setRootPath('/wsA'); });
     expect(getMatters().map((m) => m.id)).toEqual(['a1']);
+
+    unmount();
+  });
+
+  it('ROUND 3 (Codex F1): opening a workspace whose migration dropped relative mappings delivers the audit entry AFTER the open completes', async () => {
+    // Legacy client with one proven mapping and one unproven (relative) one.
+    localStorage.setItem('lantern:matters', JSON.stringify({
+      state: {
+        matters: [{ ...baseMatter, id: 'mix', name: 'Hendricks', folderPaths: ['Clients/Legacy', '/wsA/Acme'] }],
+        activeMatterId: null,
+      },
+      version: 10,
+    }));
+    const emitted: string[] = [];
+    setMatterAuditEmitter((entry) => { emitted.push(entry.description); });
+
+    const options = makeOptions();
+    // Wire the option through to the real store so the QA-93 subscription
+    // (root change → scoped-store reload → migration) actually runs, exactly
+    // like App.tsx wires it.
+    options.setRootPath = (p: string) => { useWorkspaceStore.getState().setRootPath(p); };
+    const { result, unmount } = renderHook(() => useWorkspaceLifecycle(options));
+
+    const service = {
+      getRootPath: () => '/wsA',
+      getBackend: () => null,
+      exists: () => Promise.resolve(true),
+      mkdir: () => Promise.resolve(),
+      getFileTree: () => Promise.resolve([]),
+      readFile: () => Promise.resolve(''),
+      readFileBinary: () => Promise.resolve(new Uint8Array()),
+    } as never;
+    await act(async () => {
+      await result.current.handleWorkspaceSelected(service);
+    });
+
+    // The migration's dropped-mapping trail reached the live Activity Log.
+    expect(emitted).toHaveLength(1);
+    expect(emitted[0]).toContain('Hendricks');
+    expect(emitted[0]).toContain('"Clients/Legacy"');
 
     unmount();
   });

@@ -31,6 +31,7 @@ import type { AIChatFile } from '@/platform/types/ai';
 import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
 import { describeWorkspaceOpenError } from '@/platform/fs/workspaceOpenErrors';
 import { reloadWorkspaceScopedStores } from '@/platform/state/reloadWorkspaceScopedStores';
+import { flushPendingMatterMigrationAudit } from '@/platform/matter/matterStore';
 
 // Bounds only the native SETUP (backend creation + initialize) — the SAME
 // budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
@@ -105,7 +106,14 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
     });
   }, []);
 
-  const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
+  // Returns whether the switch COMMITTED (round 3, Codex F2): the unsaved-
+  // changes guard below can still abort after a caller has fully prepared the
+  // new workspace's service, so no caller may mutate any global state (root,
+  // file tree, recents, scoped stores) on its own — the root is committed in
+  // exactly one place, inside this handler, after the switch is irrevocable.
+  // Callers that need to know (the Workspace Selector, onboarding) await this
+  // and treat `false` as "the user stayed on the current workspace".
+  const handleWorkspaceSelected = useCallback(async (service: WorkspaceService): Promise<boolean> => {
     // BUG-046: flush any dirty tabs of the OUTGOING workspace to disk BEFORE we
     // clear them — otherwise switching workspaces within the 2s autosave window
     // silently drops the last edits.
@@ -139,7 +147,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
             variant: 'destructive',
           },
         );
-        if (!proceed) return; // abort the switch; keep the current workspace + tabs
+        if (!proceed) return false; // abort the switch; keep the current workspace + tabs
       }
       const outgoingRoot = outgoing.getRootPath();
       if (outgoingRoot) {
@@ -223,6 +231,12 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
       void import('@/platform/privacy/retentionRunner')
         .then(({ runRetentionSweep }) => runRetentionSweep(newRootPath))
         .catch((err: unknown) => { console.warn('[App] Retention sweep failed:', err); });
+      // QA-93 round 3 (Codex F1): the per-workspace migration (which ran inside
+      // the store reload when setRootPath fired above) may have queued
+      // plain-language entries about folder mappings it could not carry over.
+      // Deliver them NOW — after the audit store points at THIS workspace — so
+      // they land in the right workspace's Activity Log, never the previous one's.
+      flushPendingMatterMigrationAudit(newRootPath);
     }
 
     // Stream C1 — Construct the templates marketplace service for this
@@ -365,6 +379,7 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
         console.error('Failed to restore workspace tab state:', error);
       }
     }
+    return true;
   }, [
     auditServiceRef,
     confirm,

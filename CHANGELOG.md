@@ -128,6 +128,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     bench-verified follow-up): `coordination/reports/noknock-investigation.md`.
   - Files: `src/features/meetings/noticeCard/supervisor.ts`,
     `noticeCardLifecycle.ts`, `supervisor.test.ts`.
+- **QA-93 round 3 (merge-blocking review findings): unproven folder mappings can
+  no longer misfile documents, and a canceled workspace switch no longer strands
+  the app between two workspaces.**
+  - *Migration keeps only PROVEN folder mappings (Codex F1).* The one-time
+    per-workspace migration used to carry a matter's RELATIVE folder paths along
+    with its proven absolute ones; readers resolve relative paths against the
+    CURRENT workspace root, so `/wsA/Clients/Legacy/file.docx` could be silently
+    attributed to a client whose `Clients/Legacy` mapping was never proven to
+    belong to /wsA — misfiling a document to the wrong client. A carried matter
+    now keeps only absolute folder paths under the opened root. Dropped
+    mappings don't vanish silently: one plain-language Activity Log entry per
+    affected client lists exactly which folder links weren't carried over and
+    says how to re-link them. Entries are queued during migration and delivered
+    only after the audit store points at the NEW workspace, so they can never
+    land in the previous workspace's log.
+    Files: `matterStore.ts` (migration filter + queued audit trail),
+    `useWorkspaceLifecycle.ts` (flush after audit hydrate),
+    `tests/unit/matter/perWorkspaceScope.test.ts` (reviewer failure shape +
+    audit contract), `useWorkspaceLifecycle.qa93.test.ts` (end-to-end delivery).
+  - *Canceled switch commits nothing (Codex F2).* The Workspace Selector used to
+    commit the new root (setRootPath → per-workspace store reload) BEFORE the
+    lifecycle handler ran its unsaved-changes guard; if the user canceled the
+    switch, the app stranded — UI and open files on workspace A, client stores
+    (and root) on workspace B. The root is now committed in exactly one place,
+    inside `handleWorkspaceSelected`, after the switch is irrevocable: the
+    handler returns whether the switch committed, and the selector hands over
+    the prepared service without mutating any global state. Cancel behavior is
+    covered for all three entry paths (Open Existing, Recent Projects, boot
+    restore) in `tests/unit/lifecycle/workspaceSwitchCancel.qa93.test.tsx`.
+    Files: `WorkspaceSelector.tsx`, `useWorkspaceLifecycle.ts`, `App.tsx`
+    (onboarding treats an aborted switch as a cancel).
 - **QA-93: your client list now belongs to the workspace you're in — switching
   workspaces no longer shows the previous workspace's clients.** Matter/client
   state (the client list, per-client Client Maps, active-client selection, and

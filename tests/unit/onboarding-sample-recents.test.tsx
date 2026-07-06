@@ -96,8 +96,12 @@ const faithfulLifecycleImpl = async (svc: unknown, opts: LifecycleOpts) => {
     name: 'ws',
     lastOpened: new Date(),
   });
+  // The real handler reports whether the switch COMMITTED (QA-93 round 3);
+  // callers treat a falsy result as "the user stayed put", so the faithful
+  // stand-in must report success.
+  return true;
 };
-let handleWorkspaceSelectedImpl: (svc: unknown, opts: LifecycleOpts) => Promise<void> =
+let handleWorkspaceSelectedImpl: (svc: unknown, opts: LifecycleOpts) => Promise<boolean> =
   faithfulLifecycleImpl;
 vi.mock('@/app/lifecycle/useWorkspaceLifecycle', () => ({
   useWorkspaceLifecycle: (opts: LifecycleOpts) => ({

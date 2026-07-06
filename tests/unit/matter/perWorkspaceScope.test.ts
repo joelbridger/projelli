@@ -14,7 +14,15 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { useMatterStore, getMatters } from '@/platform/matter/matterStore';
+import {
+  useMatterStore,
+  getMatters,
+  setMatterAuditEmitter,
+  flushPendingMatterMigrationAudit,
+  clearPendingMatterMigrationAudit,
+} from '@/platform/matter/matterStore';
+import { resolveMatterIdForWorkspacePath } from '@/platform/hooks/useMemoryWiring';
+import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
 import {
   setActiveWorkspaceScopeRoot,
   workspaceScopeId,
@@ -78,10 +86,14 @@ beforeEach(() => {
     pendingMeetingOpen: null,
   });
   setActiveWorkspaceScopeRoot(null);
+  clearPendingMatterMigrationAudit();
+  setMatterAuditEmitter(null);
 });
 
 afterEach(() => {
   setActiveWorkspaceScopeRoot(null);
+  clearPendingMatterMigrationAudit();
+  setMatterAuditEmitter(null);
 });
 
 describe('QA-93 stage A — fresh install, no legacy data', () => {
@@ -210,7 +222,7 @@ describe('QA-93 stage A — relative folderPaths are NEVER guessed into a worksp
     expect(matterIdsInKey(GLOBAL_MATTERS_KEY).includes('rel')).toBe(true);
   });
 
-  it('a matter with BOTH a relative and an absolute-under-root folderPath still migrates (via the absolute one)', async () => {
+  it('a matter with BOTH a relative and an absolute-under-root folderPath migrates via the absolute one, but the RELATIVE mapping is dropped (round 3, Codex F1)', async () => {
     seed(GLOBAL_MATTERS_KEY, {
       state: {
         matters: [{ ...baseMatter, id: 'mix', folderPaths: ['Clients/Legacy', '/wsA/Clients/Acme'] }],
@@ -221,6 +233,94 @@ describe('QA-93 stage A — relative folderPaths are NEVER guessed into a worksp
     await reloadForWorkspace('/wsA');
     expect(getMatters().map((m) => m.id)).toEqual(['mix']);
     expect(useMatterStore.getState().activeMatterId).toBe('mix');
+    // The carried copy keeps ONLY mappings proven under this root. A relative
+    // mapping was never proven to belong to /wsA — carrying it would let the
+    // resolver attribute /wsA files to a client from a different workspace.
+    expect(getMatters().find((m) => m.id === 'mix')?.folderPaths).toEqual(['/wsA/Clients/Acme']);
+    // The global source still holds the original mixed shape (non-destructive).
+    const globalMix = (readEnvelope(GLOBAL_MATTERS_KEY)?.state?.['matters'] as Array<{ id: string; folderPaths: string[] }>).find((m) => m.id === 'mix');
+    expect(globalMix?.folderPaths).toEqual(['Clients/Legacy', '/wsA/Clients/Acme']);
+  });
+
+  it('REVIEWER FAILURE SHAPE (round 3, Codex F1): a carried relative mapping must not attribute this workspace\'s files to that client', async () => {
+    // Legacy data: client "mix" proved a folder under /wsA, but ALSO carries a
+    // relative "Clients/Legacy" mapping that was never proven to belong to /wsA
+    // (it may have described a folder in a completely different workspace).
+    seed(GLOBAL_MATTERS_KEY, {
+      state: {
+        matters: [{ ...baseMatter, id: 'mix', folderPaths: ['Clients/Legacy', '/wsA/Clients/Acme'] }],
+        activeMatterId: null,
+      },
+      version: 10,
+    });
+    await reloadForWorkspace('/wsA');
+    // Post-migration, resolving a file under /wsA/Clients/Legacy must be
+    // UNASSIGNED — not silently attributed to "mix". Misattributing a file to
+    // the wrong client is the worst failure class for this product; a visibly
+    // unmapped folder is the safe outcome.
+    expect(resolveMatterIdForWorkspacePath('/wsA/Clients/Legacy/estate-plan.docx', '/wsA')).toBe(UNASSIGNED_MATTER_ID);
+    // The proven mapping still resolves normally.
+    expect(resolveMatterIdForWorkspacePath('/wsA/Clients/Acme/notes.docx', '/wsA')).toBe('mix');
+  });
+});
+
+describe('QA-93 round 3 — dropped relative mappings leave a plain-language audit trail (Codex F1)', () => {
+  it('one Activity Log entry per affected matter, listing the dropped mappings, delivered when the workspace\'s audit log is flushed', async () => {
+    seed(GLOBAL_MATTERS_KEY, {
+      state: {
+        matters: [
+          // Two relative mappings dropped for this client → ONE entry listing both.
+          { ...baseMatter, id: 'mix', name: 'Hendricks', client: 'Hendricks', folderPaths: ['Clients/Legacy', 'Clients/Old Files', '/wsA/Clients/Hendricks'] },
+          // No relative mappings → NO entry for this client.
+          { ...baseMatter, id: 'clean', name: 'Acme', client: 'Acme', folderPaths: ['/wsA/Clients/Acme'] },
+        ],
+        activeMatterId: null,
+      },
+      version: 10,
+    });
+
+    const emitted: Array<{ description: string; metadata: Record<string, unknown> }> = [];
+    setMatterAuditEmitter((entry) => { emitted.push({ description: entry.description, metadata: entry.metadata }); });
+
+    await reloadForWorkspace('/wsA');
+    // Migration queues the entry but must NOT emit yet — the durable audit
+    // store is still pointed at the previous workspace at this moment.
+    expect(emitted).toHaveLength(0);
+
+    // The lifecycle flushes after pointing the audit store at /wsA.
+    flushPendingMatterMigrationAudit('/wsA');
+    expect(emitted).toHaveLength(1);
+    // Plain language: names the client, lists the exact mappings, says what to do.
+    expect(emitted[0]!.description).toContain('Hendricks');
+    expect(emitted[0]!.description).toContain('"Clients/Legacy"');
+    expect(emitted[0]!.description).toContain('"Clients/Old Files"');
+    expect(emitted[0]!.description).toContain('not carried over');
+    expect(emitted[0]!.metadata['matterId']).toBe('mix');
+    expect(emitted[0]!.metadata['droppedFolderPaths']).toEqual(['Clients/Legacy', 'Clients/Old Files']);
+
+    // A second flush delivers nothing (entries are drained, not re-sent).
+    flushPendingMatterMigrationAudit('/wsA');
+    expect(emitted).toHaveLength(1);
+  });
+
+  it('entries queued for one workspace never flush into a DIFFERENT workspace\'s audit log', async () => {
+    seed(GLOBAL_MATTERS_KEY, {
+      state: {
+        matters: [{ ...baseMatter, id: 'mix', folderPaths: ['Clients/Legacy', '/wsA/Clients/Acme'] }],
+        activeMatterId: null,
+      },
+      version: 10,
+    });
+    const emitted: unknown[] = [];
+    setMatterAuditEmitter((entry) => { emitted.push(entry); });
+
+    await reloadForWorkspace('/wsA');
+    // Flushing for a different root delivers nothing and keeps the entry queued.
+    flushPendingMatterMigrationAudit('/wsB');
+    expect(emitted).toHaveLength(0);
+    // Flushing for the producing root delivers it.
+    flushPendingMatterMigrationAudit('/wsA');
+    expect(emitted).toHaveLength(1);
   });
 });
 

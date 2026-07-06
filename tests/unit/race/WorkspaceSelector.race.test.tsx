@@ -30,12 +30,18 @@ vi.mock('@/platform/fs/BackendFactory', () => ({
 }));
 
 vi.mock('@/platform/fs/WorkspaceService', () => ({
-  createWorkspaceService: () => ({
+  createWorkspaceService: () => {
     // Echo the path so each open's resolved workspace is identifiable.
-    initialize: vi.fn((_backend: unknown, path: string) =>
-      Promise.resolve({ rootPath: path, name: path })),
-    getFileTree: vi.fn().mockResolvedValue([]),
-  }),
+    let root = '';
+    return {
+      initialize: vi.fn((_backend: unknown, path: string) => {
+        root = path;
+        return Promise.resolve({ rootPath: path, name: path });
+      }),
+      getRootPath: () => root,
+      getFileTree: vi.fn().mockResolvedValue([]),
+    };
+  },
 }));
 
 import { WorkspaceSelector } from '@/features/documents/workspace/WorkspaceSelector';
@@ -69,8 +75,14 @@ describe('WorkspaceSelector — QA-52 stale open-request isolation', () => {
       path === '/A' ? aBackend.promise : Promise.resolve({}),
     );
 
-    const onWorkspaceSelected = vi.fn();
-    render(<WorkspaceSelector open onWorkspaceSelected={onWorkspaceSelected} />);
+    // QA-93 round 3: the selector no longer commits the root itself — the
+    // handler does, after its own guards. Simulate that contract here so the
+    // race assertion still observes the committed root.
+    const onWorkspaceSelected = vi.fn(async (service: { getRootPath: () => string }) => {
+      useWorkspaceStore.getState().setRootPath(service.getRootPath());
+      return true;
+    });
+    render(<WorkspaceSelector open onWorkspaceSelected={onWorkspaceSelected as never} />);
 
     // Expand recents and click BOTH rows in the same tick, before React
     // re-renders to disable them — mirrors two opens racing.
