@@ -43,6 +43,13 @@ export function startNoticeCard(params: StartNoticeCardParams): void {
     driver,
     record: params.record,
     onStatus: params.onStatus,
+    // No-knock investigation telemetry: log the attempt trail so a live bench run
+    // shows how far each join got and which give-up fired (the evidence that was
+    // missing to prove the intermittent "never knocked" no-show). Console only —
+    // NOT consent-ledger evidence.
+    onDiagnostic: (e) => {
+      console.info(`[notice-card] ${label}`, e);
+    },
   });
   const stopPoller = startStatusPoller(label, supervisor);
   active = { supervisor, stopPoller };

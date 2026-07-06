@@ -105,13 +105,15 @@ function make() {
   const driver = new FakeDriver();
   const ledger: NoticeEntry[] = [];
   const statuses: string[] = [];
+  const diagnostics: Array<{ kind: string; reason?: string }> = [];
   const sup = new NoticeCardSupervisor({
     driver,
     clock,
     record: (e) => ledger.push(e),
     onStatus: (s) => statuses.push(s.phase),
+    onDiagnostic: (d) => diagnostics.push(d),
   });
-  return { clock, driver, ledger, statuses, sup };
+  return { clock, driver, ledger, statuses, diagnostics, sup };
 }
 const kinds = (ledger: NoticeEntry[]) => ledger.map((e) => e.kind);
 
@@ -285,11 +287,16 @@ describe('NoticeCardSupervisor — admission is a one-way latch (QA-91d)', () =>
     expect(kinds(h.ledger)).not.toContain('notice-card-joined');
   });
 
-  it('the NEVER-ADMITTED fast-fail is unchanged — a page-unrecognized still fails+closes', () => {
+  it('the NEVER-ADMITTED give-up still fails+closes honestly (after its one pre-admit retry)', () => {
     // The latch must not weaken the honest give-up when the card never got in.
+    // With the pre-admit retry (no-knock fix) the FIRST page-unrecognized retries;
+    // the SECOND is the honest terminal fail+close. Never fabricates presence.
     const h = make();
     h.sup.start(CONFIG);
-    h.sup.handleFailed('page-unrecognized');
+    h.sup.handleFailed('page-unrecognized'); // first give-up → one fresh retry
+    expect(h.sup.status.phase).toBe('joining');
+    expect(h.driver.opens).toHaveLength(2);
+    h.sup.handleFailed('page-unrecognized'); // retry also fails → honest terminal
     expect(h.sup.status).toEqual({ phase: 'failed', reason: 'page-unrecognized' });
     expect(kinds(h.ledger)).toEqual(['notice-card-failed']);
     expect(h.driver.closes).toBeGreaterThanOrEqual(1);
@@ -325,6 +332,98 @@ describe('NoticeCardSupervisor — admission is a one-way latch (QA-91d)', () =>
     // full-duration presence, because there was a detected gap.
     expect(kinds(h.ledger)).toContain('notice-card-left');
     expect(kinds(h.ledger)).not.toContain('notice-card-present-for-entire-recording');
+  });
+});
+
+describe('NoticeCardSupervisor — one pre-admission retry (the no-knock fix)', () => {
+  it('retries once on a pre-lobby page-unrecognized, then a fresh window opens', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    expect(h.driver.opens).toHaveLength(1);
+    h.sup.handleFailed('page-unrecognized'); // never reached lobby → one clean retry
+    expect(h.sup.status.phase).toBe('joining'); // not terminal
+    expect(h.driver.opens).toHaveLength(2); // a fresh window/navigation
+    expect(kinds(h.ledger)).not.toContain('notice-card-failed'); // no premature give-up
+  });
+
+  it('a retried attempt that then admits joins normally', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleFailed('page-unrecognized'); // first attempt stuck → retry
+    expect(h.driver.opens).toHaveLength(2);
+    h.sup.handleLobby();
+    h.sup.handleAdmitted(); // the retry got in
+    expect(h.sup.status.phase).toBe('present');
+    expect(kinds(h.ledger)).toContain('notice-card-joined');
+  });
+
+  it('retries once on a pre-lobby join-timeout (never even knocked)', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    // Never reaches lobby; the 120s join timer fires.
+    h.clock.advance(200_000);
+    expect(h.sup.status.phase).toBe('joining'); // retried, not failed
+    expect(h.driver.opens).toHaveLength(2);
+    // The retry also never knocks → the second timeout is the honest terminal.
+    h.clock.advance(200_000);
+    expect(h.sup.status).toEqual({ phase: 'failed', reason: 'join-timeout' });
+    expect(kinds(h.ledger)).toEqual(['notice-card-failed']);
+  });
+
+  it('does NOT retry a lobby timeout — the card already knocked (never double-knocks)', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleLobby(); // reached the lobby: the host SAW the knock
+    h.clock.advance(200_000); // host never admits
+    // Re-knocking would double-signal the host; honest single fail instead.
+    expect(h.sup.status).toEqual({ phase: 'failed', reason: 'join-timeout' });
+    expect(h.driver.opens).toHaveLength(1); // no second window
+  });
+
+  it('does NOT retry a denied admission — the host explicitly said no', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleDenied();
+    expect(h.sup.status).toEqual({ phase: 'failed', reason: 'denied' });
+    expect(h.driver.opens).toHaveLength(1); // no re-knock after a refusal
+  });
+
+  it('spends only ONE pre-admit retry across mixed give-ups', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleFailed('page-unrecognized'); // uses the one retry
+    expect(h.driver.opens).toHaveLength(2);
+    h.clock.advance(200_000); // retry hits its own join-timeout → no more retries
+    expect(h.sup.status.phase).toBe('failed');
+    expect(h.driver.opens).toHaveLength(2); // never a third window
+  });
+
+  it('a card that admits only on the retry does NOT claim full-duration presence', async () => {
+    // The first failed attempt is a real gap before admission — honest evidence
+    // must not pretend the card covered the whole recording.
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleFailed('page-unrecognized'); // ~time passes on attempt 1
+    h.clock.advance(40_000);
+    h.sup.handleAdmitted(); // the retry finally gets in, late
+    h.clock.advance(60_000);
+    await h.sup.stop();
+    expect(kinds(h.ledger)).toContain('notice-card-joined');
+    expect(kinds(h.ledger)).toContain('notice-card-left');
+    expect(kinds(h.ledger)).not.toContain('notice-card-present-for-entire-recording');
+  });
+
+  it('emits diagnostic breadcrumbs for the attempt trail (missing telemetry, now present)', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleFailed('page-unrecognized'); // give-up → retry
+    h.sup.handleFailed('page-unrecognized'); // retry give-up → terminal
+    const kindsSeen = h.diagnostics.map((d) => d.kind);
+    expect(kindsSeen).toContain('attempt'); // at least the initial + the retry
+    expect(kindsSeen).toContain('pre-admit-giveup');
+    expect(kindsSeen).toContain('terminal');
+    // The retry breadcrumb records that a second attempt happened.
+    expect(h.diagnostics.filter((d) => d.kind === 'attempt').length).toBeGreaterThanOrEqual(2);
   });
 });
 
