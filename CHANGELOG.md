@@ -32,6 +32,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Local AI cold start: "ready" now means "can generate", not just "server is
+  healthy" — kills the "first question fails, retry works" bug.** Switching to
+  Local-only, the first Ask could hit the 45s answer-stall timeout while an
+  immediate retry succeeded. Root cause: readiness was gated only on the
+  llama-server HTTP `/health` probe, but "model loaded" is not "model can
+  answer" — the very first generation still pays a cold-cache cost that can
+  exceed the watchdog. Fix (in Rust so every caller benefits — pre-start, the
+  Ask gate, provider startup):
+  - `LlamaServerSidecar::start()` now ends with a tiny warm-up generation probe
+    (1 trivial request, `max_tokens` 4, 90s headroom) against the
+    OpenAI-compatible `/v1/chat/completions` endpoint, and only reports ready
+    once it actually produces output. Pre-start on mode selection absorbs the
+    whole cold cost in the background, before the user asks; the "Local AI is
+    starting…" state naturally covers the probe window. A probe failure/timeout
+    surfaces as a real, honest error — never an infinite "starting…". The 90s
+    probe timeout wraps the ENTIRE exchange (send + body read), so a wedged
+    process that returns headers then stalls mid-body still times out and
+    releases the sidecar-state mutex instead of hanging "starting…" forever.
+  - `health_check()` now parses the `/health` body and requires
+    `{"status":"ok"}` on a 2xx (llama.cpp returns 503 + a loading body while
+    the GGUF loads); a bare non-JSON `OK` or any other status reads as not ready.
+  - Files: `src-tauri/src/sidecars/llama_server.rs`. Tests (8 new, TDD
+    red→green): health-body parsing (ok/loading/garbage), probe output
+    detection, and `start()` succeeding only after a warm-up generation
+    produces output / erroring (not hanging) when it produces none or fails.
 - **Demo dress-rehearsal fixes: persisted key-verify status + Local AI
   mode-switch pre-start now cover the ConfidentialityModeSettings path.**
   Two findings from the Legion dress-rehearsal (`legion-dressrun1/REPORT.md`):
