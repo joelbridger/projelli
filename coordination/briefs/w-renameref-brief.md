@@ -1,7 +1,7 @@
 # Worker brief — Rename reference migration (post-Phase-2, bridge active)
 
 **Lane:** cc-lantern-renameref · worktree `~/lp-renameref` · branch `lp/rename-ref-migration`. **Model:** Sonnet 5 · high.
-Context: `~/keepance` is now a symlink to `~/lantern` (Phase 2 done 2026-07-04). Everything works via the bridge; this lane migrates lingering absolute-path + name references so the bridge can eventually be removed. Plan: `~/keepance-coordination/INITIATIVES/lantern-rename-plan-2026-07-02.md` (Phase 2 step 5).
+Context: `~/keepance` is now a symlink to `~/lantern` (Phase 2 done 2026-07-04). Everything works via the bridge; this lane migrates lingering absolute-path + name references so the bridge can eventually be removed. Plan: `~/lantern-coordination/INITIATIVES/lantern-rename-plan-2026-07-02.md` (Phase 2 step 5).
 
 ## Scope — SAFE reference hygiene ONLY (do not break anything the bridge is currently covering)
 1. Grep the lantern-plus repo (`~/lantern-plus`) for hardcoded `/home/jameson/keepance` absolute paths in scripts/docs/coordination tooling; update to `/home/jameson/lantern` where the reference is ours to change AND the target is unambiguous. Leave anything that is a deliberate keepance name (domain keepance.com redirect, `AppData\Roaming\keepance` legacy data-dir functional references, `matter`/`Matter`/`matter_id`, keychain service names — all FROZEN per the plan).

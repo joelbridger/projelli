@@ -4,7 +4,7 @@ WORKDIR: ~/lp-bench (git worktree, branch lp/windows-smoke-evidence — the evid
 
 READ FIRST: docs/evidence/windows-smoke-2/RUN-LOG.md (in your worktree — the Phase-1 setup procedures and bench conventions) + ~/.claude/projects/-home-jameson/memory/reference_keepance_desktop_control.md if present.
 
-THE BENCH: Legion laptop, `ssh james@100.127.67.22` (Tailscale). Checkout at C:\lantern-plus, branch lantern-plus. App runs via the LanternPlusDev scheduled task (dev build). Workspace: C:\lantern-plus-smoke\Northcrest Wealth Partners. Test identity: Sarah Morgan — password+TOTP creds at ~/keepance-coordination/demo-creds/sarah-morgan-account.md (chmod 600; never echo/log/commit). Drive the app via scripts/desktop-drive.mjs (CDP port 9223) from the server; scripts/legion_agent.py for native dialogs.
+THE BENCH: Legion laptop, `ssh james@100.127.67.22` (Tailscale). Checkout at C:\lantern-plus, branch lantern-plus. App runs via the LanternPlusDev scheduled task (dev build). Workspace: C:\lantern-plus-smoke\Northcrest Wealth Partners. Test identity: Sarah Morgan — password+TOTP creds at ~/lantern-coordination/demo-creds/sarah-morgan-account.md (chmod 600; never echo/log/commit). Drive the app via scripts/desktop-drive.mjs (CDP port 9223) from the server; scripts/legion_agent.py for native dialogs.
 
 STEPS:
 1. Pull C:\lantern-plus to current origin/lantern-plus tip (b3bca9a0 or later — verify the SHA on the bench matches origin). npm install if the lockfile changed.

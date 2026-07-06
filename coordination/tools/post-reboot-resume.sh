@@ -11,7 +11,7 @@ rm -f "$MARKER"
   echo "=== post-reboot resume fired $(date -Is) ==="
   # give the box time to settle (network, agents, tmux server)
   sleep 90
-  /home/jameson/keepance-coordination/coordinator/tools/spawn-session.sh \
+  /home/jameson/lantern-coordination/coordinator/tools/spawn-session.sh \
     --full-name cc-lantern-coordinator-4 \
     --dir /home/jameson/lantern-plus \
     --model claude-fable-5 --effort high \

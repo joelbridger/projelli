@@ -10,14 +10,14 @@ Only YOU merge. Repo tip is pushed and clean.*
 1. **Re-arm ALL monitors** (they die with the previous session). Arm as persistent harness Monitors:
    - fleet watcher: `bash ~/lantern-plus/coordination/tools/lantern-finish-watch.sh`
    - RAM+disk watchdog (mem avail<1500MB or swap>90%&avail<4000MB; disk<25G on / AND /mnt/devcache)
-   - bulletin diff-watcher on `~/keepance-coordination/PARALLEL-EFFORTS.md` (snapshot+diff/60s, filter own lines)
+   - bulletin diff-watcher on `~/lantern-coordination/PARALLEL-EFFORTS.md` (snapshot+diff/60s, filter own lines)
    - stale-idle: `bash ~/lantern-plus/coordination/tools/lantern-stale-idle.sh`
    - build-overtime: `bash ~/lantern-plus/coordination/tools/lantern-build-overtime.sh`
    - strategic-check (10-min whole-project trigger): `bash ~/lantern-plus/coordination/tools/lantern-strategic-check.sh`
 2. **Baseline full sweep** of every `cc-lantern-*` session (watchers only see the future).
 3. Read `coordination/STATUS.md` (top entry = current state), `coordination/LANES.md` (live board),
    `coordination/QA-CAMPAIGN.md` + `coordination/qa-campaign/BUG-DB.md`, `coordination/QUESTIONS-FOR-JAMESON.md`.
-4. Read `~/keepance-coordination/coordinator/PLAYBOOK.md` (fleet technique). NOTE `~/keepance` is now a
+4. Read `~/lantern-coordination/coordinator/PLAYBOOK.md` (fleet technique). NOTE `~/keepance` is now a
    SYMLINK to `~/lantern` (rename Phase 2 done — old paths still work).
 
 ## WHERE THINGS STAND (2026-07-04 ~09:00)

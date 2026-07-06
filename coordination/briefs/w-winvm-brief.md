@@ -9,7 +9,7 @@ Jameson approved exploring a Windows VM running ON this server (64GB, KVM-capabl
 ## Phase-1 scope (all of this, nothing more)
 1. Install virtualization tooling (qemu-kvm/libvirt or plain QEMU — your call; `/dev/kvm` exists, CPU has 40 virt-flagged cores). If `sudo` is refused for installs, STOP and report — do not work around it.
 2. Obtain a legitimate free Windows 11 image: Microsoft's "Windows 11 development environment" VM (convert to qcow2 if needed) or an evaluation ISO with an unattended install — pick the fastest RELIABLE path and note the license expiry story in your report.
-3. Create the VM on `/mnt/devcache/winvm/` (qcow2). Caps: **12GB RAM max, 8 vCPUs max, 256G disk max.** Before first boot, run it through the `memq` admission queue if that's how launches are gated on this box (see ~/keepance-coordination/MEMORY-GOVERNANCE.md).
+3. Create the VM on `/mnt/devcache/winvm/` (qcow2). Caps: **12GB RAM max, 8 vCPUs max, 256G disk max.** Before first boot, run it through the `memq` admission queue if that's how launches are gated on this box (see ~/lantern-coordination/MEMORY-GOVERNANCE.md).
 4. Inside Windows: enable the built-in OpenSSH Server, set up auto-logon to an interactive desktop session (this matters — WebView2 CDP needs an interactive session; a parallel lane just proved this on Azure), and confirm you can `ssh` into it from this server via its local IP.
 5. Snapshot the clean state (qcow2 snapshot or a copy) as `winvm-clean-1`.
 6. Write a runbook section (create `coordination/winvm/SETUP-LOG.md`): how to start/stop/reset it, resource caps, license notes, what Phase 2 needs.

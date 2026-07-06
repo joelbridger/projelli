@@ -154,7 +154,7 @@
 - PER-LANE CARGO CACHES live: lp-w1 / lp-w2(=legacy dir) / lp-gate. Lanes compile concurrently. Disk is the watch-item (~150G free; <25G alarm armed).
 - P0 follow-ups queue: citation-chip hover popovers (Wave 0 modal), per-bullet brief citations (Task 17), Outlook attendee self-filter parity.
 
-*Live board for the Lantern-Plus coordinator (Fable). Playbook: ~/keepance-coordination/coordinator/PLAYBOOK.md (technique) + ~/lantern-plus/docs/plans/lantern-plus/PARALLEL-OPERATIONS.md (coexistence rules — BINDING). Wave plans = the work source. Session names: cc-lantern-*.*
+*Live board for the Lantern-Plus coordinator (Fable). Playbook: ~/lantern-coordination/coordinator/PLAYBOOK.md (technique) + ~/lantern-plus/docs/plans/lantern-plus/PARALLEL-OPERATIONS.md (coexistence rules — BINDING). Wave plans = the work source. Session names: cc-lantern-*.*
 
 ## UPDATE 2026-07-02 (later) — coordinator relay #2 seated
 - Successor Fable coordinator took over per COORDINATOR-HANDOFF.md. Monitors re-armed (fleet watcher on cc-lantern-*, RAM+disk watchdog). Baseline sweep done.

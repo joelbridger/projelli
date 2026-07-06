@@ -1,6 +1,6 @@
 # LANTERN-PLUS LANES — live ownership ledger (coordinator-maintained)
 
-**Purpose:** the O(1) answer to "what is every Lantern-Plus lane doing right now?" Updated on every spawn/merge/close (mirror of main line's `~/keepance-coordination/LANES.md` convention; the fleet dashboard reads both).
+**Purpose:** the O(1) answer to "what is every Lantern-Plus lane doing right now?" Updated on every spawn/merge/close (mirror of main line's `~/lantern-coordination/LANES.md` convention; the fleet dashboard reads both).
 
 Last updated: 2026-07-04 ~12:15 (coordinator-7 — 6 merges landed; meetpersist+webguard+qa19fix+qa4 active; Legion sidecar staged; divergence report landed)
 

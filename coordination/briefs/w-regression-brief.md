@@ -15,7 +15,7 @@ Update the Legion to current `origin/lantern-plus` tip, rebuild, launch fresh. C
 6. **Broad smoke:** onboarding, connect a client, cited Ask, one CRM push — confirm nothing from the day's churn broke the core loop.
 
 ## Optional if time (deallocate-budget aware)
-7. **Zoom live call-recording test:** the Zoom demo account is ready (`~/keepance-coordination/demo-creds/zoom-account.md`) — host + join from a 2nd context, record in-app, verify both channels + transcript. (Teams already confirmed; this adds Zoom.)
+7. **Zoom live call-recording test:** the Zoom demo account is ready (`~/lantern-coordination/demo-creds/zoom-account.md`) — host + join from a 2nd context, record in-app, verify both channels + transcript. (Teams already confirmed; this adds Zoom.)
 
 ## Reporting
 Evidence `docs/evidence/regression-20260704/` on lp/windows-smoke-evidence, commit+push (branch-check first). Per-item PASS/FAIL/REGRESSED with screenshots. Any regression is a real finding → BUG-DB with repro. Plain-language summary for Jameson. Leave the Legion quiet. Last line exactly: `WORKER-DONE: regression`

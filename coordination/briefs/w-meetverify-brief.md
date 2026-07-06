@@ -7,7 +7,7 @@
 The Legion Windows laptop (Tailscale `laptop` = `james@100.127.67.22`). One driver at a time — confirm with the coordinator you own it. Bring its repo to the current `origin/lantern-plus` tip, rebuild, launch. Drive via `scripts/desktop-drive.mjs` (CDP) + `scripts/legion_agent.py` for native dialogs. A REAL HEADSET is plugged in (mic + loopback) — use it.
 
 ## Mission — record a real meeting and read the notes, like an advisor would
-1. Host a real Teams call from the demo M365 account (the `realcall` lane proved this path — see `coordination/qa-campaign/evidence/realcall-20260704/`; creds `~/keepance-coordination/demo-creds/sarah-morgan-account.md`). Join from a second endpoint (browser session) so there's genuine two-party audio; speak/play audio on both sides.
+1. Host a real Teams call from the demo M365 account (the `realcall` lane proved this path — see `coordination/qa-campaign/evidence/realcall-20260704/`; creds `~/lantern-coordination/demo-creds/sarah-morgan-account.md`). Join from a second endpoint (browser session) so there's genuine two-party audio; speak/play audio on both sides.
 2. In the app: start recording via the record pill against a specific client. The consent dialog must appear FIRST and be accurate (two-party); confirm the consent ledger entry after.
 3. Record ≥3 minutes of real conversation, stop, let transcription run (local only — any network egress during transcription = P0, watch the egress indicator).
 4. Verify the artifacts as a user: the meeting lands in that client's Meetings tab; the transcript is real (matches what was said, both sides); audio-seek works from transcript lines; notes render; needs-review queue behaves; dictation filing if reachable.
