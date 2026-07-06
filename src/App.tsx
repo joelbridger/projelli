@@ -986,7 +986,10 @@ function AppShell() {
           const svc = createWorkspaceService();
           await svc.initialize(backend, chosen, { createDefaultStructure: true });
           // Wire the workspace into the app (sets rootPath, audit, file tree...).
-          await handleWorkspaceSelected(svc);
+          // The handler can abort (unsaved-changes guard on an already-open
+          // workspace); treat that as the user cancelling this onboarding step.
+          const committed = await handleWorkspaceSelected(svc);
+          if (!committed) return { ok: false, cancelled: true };
           const opened = svc.getRootPath();
           if (!opened) {
             return { ok: false, error: "I couldn't open a workspace. Please try again." };

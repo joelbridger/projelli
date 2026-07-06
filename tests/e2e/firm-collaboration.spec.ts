@@ -46,6 +46,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { readWorkspaceScopedJSON, MATTERS_KEY } from './helpers/scopedStorage';
 
 // ── Run ID — unique suffix so repeated backend runs don't collide ────────────
 // Computed once at module load; safe in spec files (Playwright worker constant).
@@ -269,21 +270,14 @@ async function shareNewMatter(
   const testId = await openNotesBtn.getAttribute('data-testid') ?? '';
   sharedLocalMatterIdA = testId.replace('matter-open-notes-', '');
 
-  // Capture the firm matter ID from the Zustand store via localStorage.
-  // The matterStore persists to localStorage under the key "lantern:matters".
-  sharedFirmMatterId = await page.evaluate((localId: string) => {
-    try {
-      const raw = localStorage.getItem('lantern:matters');
-      if (raw) {
-        const parsed = JSON.parse(raw) as {
-          state?: { matters?: Array<{ id: string; firmMatterId?: string }> };
-        };
-        const matter = parsed.state?.matters?.find((m) => m.id === localId);
-        return matter?.firmMatterId ?? '';
-      }
-    } catch { /* ignore */ }
-    return '';
-  }, sharedLocalMatterIdA);
+  // Capture the firm matter ID from the Zustand store via localStorage. QA-93:
+  // matters persist under a PER-WORKSPACE scoped key — resolve it (global
+  // fallback) instead of reading the legacy global key directly.
+  const parsedMatters = await readWorkspaceScopedJSON<{
+    state?: { matters?: Array<{ id: string; firmMatterId?: string }> };
+  }>(page, MATTERS_KEY);
+  sharedFirmMatterId =
+    parsedMatters?.state?.matters?.find((m) => m.id === sharedLocalMatterIdA)?.firmMatterId ?? '';
 }
 
 /**

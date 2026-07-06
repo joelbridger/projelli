@@ -36,6 +36,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { mailFolderKey } from '@/platform/rag/matterResolver';
+import { workspaceScopeId } from '@/platform/state/workspaceScope';
 
 export interface PendingMailRetag {
   /** Workspace root path this intent belongs to (the per-workspace scope key). */
@@ -53,9 +54,13 @@ export interface PendingMailRetag {
   staleMatters: string[];
 }
 
+function workspaceKey(workspaceRoot: string): string {
+  return workspaceScopeId(workspaceRoot);
+}
+
 /** Record key: workspace root + the folder key, so one folder = one live intent. */
 function intentKey(workspaceRoot: string, folderKey: string): string {
-  return `${workspaceRoot}\u0000${folderKey}`;
+  return `${workspaceKey(workspaceRoot)}\u0000${folderKey}`;
 }
 
 /** QA-44 (R7-6) — structural validation of ONE persisted intent. A record that
@@ -107,14 +112,39 @@ export function sanitizePersistedMailRetag(persisted: unknown): {
       ? (persisted as { intents?: unknown }).intents
       : undefined;
   if (rawIntents && typeof rawIntents === 'object') {
-    for (const [key, value] of Object.entries(rawIntents as Record<string, unknown>)) {
-      if (isPendingMailRetag(value)) validIntents[key] = value;
+    for (const value of Object.values(rawIntents as Record<string, unknown>)) {
+      if (isPendingMailRetag(value)) mergePendingMailRetag(validIntents, value);
       else hydrationSuspect = true; // a malformed record was dropped
     }
   } else if (persisted !== undefined && persisted !== null) {
     hydrationSuspect = true; // a persisted blob was present but not the expected shape
   }
   return { intents: validIntents };
+}
+
+function mergePendingMailRetag(
+  intents: Record<string, PendingMailRetag>,
+  intent: PendingMailRetag
+): void {
+  const folderKey = mailFolderKey(
+    intent.provider,
+    intent.account,
+    intent.folderId
+  );
+  const key = intentKey(intent.workspaceRoot, folderKey);
+  const existing = intents[key];
+  const stale = new Set(existing?.staleMatters ?? []);
+  for (const m of intent.staleMatters) stale.add(m);
+  stale.delete(intent.targetMatter); // never hold out the current target
+  if (stale.size === 0) {
+    delete intents[key];
+    return;
+  }
+  intents[key] = {
+    ...intent,
+    workspaceRoot: workspaceKey(intent.workspaceRoot),
+    staleMatters: [...stale],
+  };
 }
 
 interface PendingMailRetagState {
@@ -138,7 +168,11 @@ export const usePendingMailRetagStore = create<PendingMailRetagState>()(
       intents: {},
 
       record: (intent) => {
-        const folderKey = mailFolderKey(intent.provider, intent.account, intent.folderId);
+        const folderKey = mailFolderKey(
+          intent.provider,
+          intent.account,
+          intent.folderId
+        );
         const key = intentKey(intent.workspaceRoot, folderKey);
         const existing = get().intents[key];
         const stale = new Set(existing?.staleMatters ?? []);
@@ -149,7 +183,7 @@ export const usePendingMailRetagStore = create<PendingMailRetagState>()(
           if (!existing) return;
           set((state) => ({
             intents: Object.fromEntries(
-              Object.entries(state.intents).filter(([k]) => k !== key),
+              Object.entries(state.intents).filter(([k]) => k !== key)
             ),
           }));
           return;
@@ -157,23 +191,35 @@ export const usePendingMailRetagStore = create<PendingMailRetagState>()(
         set((state) => ({
           intents: {
             ...state.intents,
-            [key]: { ...intent, staleMatters: [...stale] },
+            [key]: {
+              ...intent,
+              workspaceRoot: workspaceKey(intent.workspaceRoot),
+              staleMatters: [...stale],
+            },
           },
         }));
       },
 
       clear: (workspaceRoot, folderKey) => {
         const key = intentKey(workspaceRoot, folderKey);
-        if (!(key in get().intents)) return;
+        const canonicalRoot = workspaceKey(workspaceRoot);
+        const shouldDrop = ([k, intent]: [string, PendingMailRetag]) =>
+          k === key ||
+          (workspaceKey(intent.workspaceRoot) === canonicalRoot &&
+            mailFolderKey(intent.provider, intent.account, intent.folderId) ===
+              folderKey);
+        if (!Object.entries(get().intents).some(shouldDrop)) return;
         set((state) => ({
           intents: Object.fromEntries(
-            Object.entries(state.intents).filter(([k]) => k !== key),
+            Object.entries(state.intents).filter((entry) => !shouldDrop(entry))
           ),
         }));
       },
 
       forWorkspace: (workspaceRoot) =>
-        Object.values(get().intents).filter((i) => i.workspaceRoot === workspaceRoot),
+        Object.values(get().intents).filter(
+          (i) => workspaceKey(i.workspaceRoot) === workspaceKey(workspaceRoot)
+        ),
     }),
     {
       name: 'lantern:pending-mail-retag',
@@ -189,6 +235,6 @@ export const usePendingMailRetagStore = create<PendingMailRetagState>()(
       onRehydrateStorage: () => (_state, error) => {
         if (error) hydrationSuspect = true;
       },
-    },
-  ),
+    }
+  )
 );

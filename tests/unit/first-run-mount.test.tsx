@@ -81,10 +81,12 @@ vi.mock('@/platform/fs/WebFSBackend', async (importOriginal) => {
   };
 });
 // handleWorkspaceSelected does heavy real work (audit/templates/file tree); the
-// onboarding workspace-first step only needs it to not throw, so no-op it.
+// onboarding workspace-first step only needs it to not throw AND to report the
+// switch committed (QA-93 round 3: a falsy result means "user stayed put" and
+// onboarding treats it as a cancel), so stub it to succeed.
 vi.mock('@/app/lifecycle/useWorkspaceLifecycle', () => ({
   useWorkspaceLifecycle: () => ({
-    handleWorkspaceSelected: vi.fn(async () => {}),
+    handleWorkspaceSelected: vi.fn(async () => true),
     handleOpenRecentProject: vi.fn(async () => {}),
   }),
 }));

@@ -90,8 +90,9 @@ describe('handleWorkspaceSelected — in-app unsaved-changes guard', () => {
     const { result, refHolder, setRootPath } = renderLifecycle(confirm);
     refHolder.current = fakeService('/old'); // an outgoing workspace exists
 
+    let outcome: boolean | undefined;
     await act(async () => {
-      await result.current.handleWorkspaceSelected(fakeService('/new'));
+      outcome = await result.current.handleWorkspaceSelected(fakeService('/new'));
     });
 
     // The guard ran with the destructive framing...
@@ -100,6 +101,9 @@ describe('handleWorkspaceSelected — in-app unsaved-changes guard', () => {
     // ...and because the user cancelled, the switch did NOT proceed.
     expect(setRootPath).not.toHaveBeenCalled();
     expect(refHolder.current!.getRootPath()).toBe('/old');
+    // Round 3 (Codex F2): the handler reports the abort so callers (the
+    // Workspace Selector) know NOT to commit anything for the new workspace.
+    expect(outcome).toBe(false);
   });
 
   it('PROCEEDS with the switch when the user confirms', async () => {
@@ -107,13 +111,16 @@ describe('handleWorkspaceSelected — in-app unsaved-changes guard', () => {
     const { result, refHolder, setRootPath } = renderLifecycle(confirm);
     refHolder.current = fakeService('/old');
 
+    let outcome: boolean | undefined;
     await act(async () => {
-      await result.current.handleWorkspaceSelected(fakeService('/new'));
+      outcome = await result.current.handleWorkspaceSelected(fakeService('/new'));
     });
 
     expect(confirm).toHaveBeenCalledTimes(1);
     // The switch went through to the new workspace.
     expect(setRootPath).toHaveBeenCalledWith('/new');
     expect(refHolder.current!.getRootPath()).toBe('/new');
+    // Round 3 (Codex F2): a committed switch reports success.
+    expect(outcome).toBe(true);
   });
 });

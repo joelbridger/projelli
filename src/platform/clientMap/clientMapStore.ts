@@ -1,6 +1,7 @@
 // src/platform/clientMap/clientMapStore.ts
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import type { ClientMap, ClientMapSection, ClientMapItem, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey } from './types';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from './types';
 import { proposalSignature } from './updater';
@@ -8,8 +9,12 @@ import { deriveCompleteness } from './completeness';
 import { extractBeneficiaryEvidence } from './estate/estateDocs';
 import { beneficiaryConsistency, beneficiaryGapQuestions } from './estate/beneficiaryConsistency';
 import { SK_CLIENT_MAPS } from '@/config/identity';
-import { getMatterAuditEmitter } from '@/platform/matter/matterStore';
+import { getMatterAuditEmitter, getMatters } from '@/platform/matter/matterStore';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import {
+  workspaceScopeSuffix,
+  getActiveWorkspaceScopeRoot,
+} from '@/platform/state/workspaceScope';
 
 /** v2 -> v3: the 5 core section keys were renamed to 4 sharper buckets (and the
  *  dated-events "Coming up" bucket was folded into Follow-ups). Remap any legacy
@@ -191,6 +196,96 @@ export function migratePersistedClientMaps(persisted: unknown, version: number):
   }
   return state;
 }
+
+const CLIENT_MAPS_VERSION = 3;
+
+/** The scoped client-maps key for the active workspace (suffix `''` — the legacy
+ *  global key — when no workspace scope is set). QA-93. */
+function scopedClientMapsKey(): string {
+  return SK_CLIENT_MAPS + workspaceScopeSuffix();
+}
+
+function readClientMapEnvelope(key: string): { state?: unknown; version?: number } | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as { state?: unknown; version?: number };
+  } catch {
+    return null;
+  }
+}
+
+/** Keep only the entries whose key is in `ids`. */
+function pickClientMapByIds<T>(rec: Record<string, T> | undefined, ids: ReadonlySet<string>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [id, value] of Object.entries(rec ?? {})) {
+    if (ids.has(id)) out[id] = value;
+  }
+  return out;
+}
+
+/**
+ * QA-93 one-time migration: seed a freshly-opened workspace scope's client maps
+ * from the LEGACY GLOBAL data, keeping ONLY the maps/questions whose matter id
+ * belongs to the current workspace (the matter store is reloaded FIRST, so
+ * `getMatters()` already reflects this workspace). Non-destructive: global is
+ * left intact so another workspace can still claim its own maps. Client maps are
+ * keyed by matter id (a UUID unique across workspaces), so filtering by the
+ * current workspace's matter ids partitions them exactly.
+ */
+function migrateGlobalClientMapsForScope(): StorageValue<PersistedClientMapState> {
+  const global = readClientMapEnvelope(SK_CLIENT_MAPS);
+  const migrated = migratePersistedClientMaps(global?.state, global?.version ?? CLIENT_MAPS_VERSION);
+  const currentIds = new Set(getMatters().map((m) => m.id));
+  const state: PersistedClientMapState = {
+    maps: pickClientMapByIds(migrated.maps, currentIds),
+    clientQuestions: pickClientMapByIds(migrated.clientQuestions, currentIds),
+  };
+  // Commit to the scoped key now (rehydrate does not write back) so the
+  // migration is durable + idempotent and leaves the global source intact.
+  writeClientMapEnvelope(scopedClientMapsKey(), state, CLIENT_MAPS_VERSION);
+  return { state, version: CLIENT_MAPS_VERSION };
+}
+
+function writeClientMapEnvelope(key: string, state: PersistedClientMapState, version: number): void {
+  try {
+    localStorage.setItem(key, JSON.stringify({ state, version }));
+  } catch (err) {
+    // Best-effort: localStorage may be unavailable (strict privacy mode). Log so
+    // a real persistence failure isn't silent.
+    console.warn('[clientMap] per-workspace persistence write failed:', err);
+  }
+}
+
+/**
+ * Per-workspace client-map persistence (QA-93). Mirrors the matter store: the
+ * scoped key carries the active workspace's `::ws:<id>` suffix; the unsuffixed
+ * key is the legacy GLOBAL key and the one-time migration's source.
+ */
+const scopedClientMapStorage: PersistStorage<PersistedClientMapState> = {
+  getItem: (): StorageValue<PersistedClientMapState> | null => {
+    const scoped = readClientMapEnvelope(scopedClientMapsKey());
+    if (scoped) {
+      return {
+        state: (scoped.state as PersistedClientMapState | undefined) ?? {},
+        version: scoped.version ?? CLIENT_MAPS_VERSION,
+      };
+    }
+    const root = getActiveWorkspaceScopeRoot();
+    if (!root) return null; // no scope + no global data — fresh user → defaults
+    return migrateGlobalClientMapsForScope();
+  },
+  setItem: (_name, value): void => {
+    writeClientMapEnvelope(scopedClientMapsKey(), value.state, value.version ?? CLIENT_MAPS_VERSION);
+  },
+  removeItem: (): void => {
+    try {
+      localStorage.removeItem(scopedClientMapsKey());
+    } catch (err) {
+      console.warn('[clientMap] per-workspace persistence remove failed:', err);
+    }
+  },
+};
 
 export const useClientMapStore = create<ClientMapState>()(
   persist(
@@ -427,8 +522,8 @@ export const useClientMapStore = create<ClientMapState>()(
     }),
     {
       name: SK_CLIENT_MAPS,
-      version: 3,
-      storage: createJSONStorage(() => localStorage),
+      version: CLIENT_MAPS_VERSION,
+      storage: scopedClientMapStorage,
       partialize: (state) => ({ maps: state.maps, clientQuestions: state.clientQuestions }),
       migrate: (persisted, version) =>
         migratePersistedClientMaps(persisted, version) as unknown as ClientMapState,

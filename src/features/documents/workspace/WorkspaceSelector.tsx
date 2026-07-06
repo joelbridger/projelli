@@ -59,7 +59,15 @@ const VAULT_LOCK_CHECK_TIMEOUT_MS = 5_000;
 
 export interface WorkspaceSelectorProps {
   open: boolean;
-  onWorkspaceSelected: (service: WorkspaceService) => void;
+  /**
+   * Hands the prepared service to the app's workspace-switch handler
+   * (`handleWorkspaceSelected`), which owns ALL root-committing state — root
+   * path, file tree, recents, per-workspace store reloads. It can still ABORT
+   * the switch (unsaved-changes guard), so this component must not mutate any
+   * global workspace state itself, before or after the call (QA-93 round 3,
+   * Codex F2). Resolves `false` when the switch was aborted.
+   */
+  onWorkspaceSelected: (service: WorkspaceService) => boolean | undefined | Promise<boolean | undefined>;
   /**
    * If provided, a dismiss/close button is shown (e.g. user already has a workspace
    * open and is switching). Leave undefined for first-run blocking mode.
@@ -199,9 +207,9 @@ export function WorkspaceSelector({
   const isTauri = isTauriEnvironment();
   // QA-52 (cross-workspace isolation): opening a workspace is async. If the user
   // opens A then quickly opens B, a slower A finishing LAST must NOT still call
-  // setRootPath / setFileTree / onWorkspaceSelected — that would land the app on
-  // the WRONG workspace. Each open/create stamps a monotonic token at its start;
-  // a commit is dropped unless its token is still the latest.
+  // onWorkspaceSelected — that would land the app on the WRONG workspace. Each
+  // open/create stamps a monotonic token at its start; a hand-off is dropped
+  // unless its token is still the latest.
   const openTokenRef = useRef(0);
 
   // Absorb a failed silent auto-resume into this component's own error
@@ -242,7 +250,7 @@ export function WorkspaceSelector({
     });
   };
 
-  const { recentWorkspaces, addRecentWorkspace, removeRecentWorkspace, setRootPath, setFileTree, expandAllFolders } = useWorkspaceStore();
+  const { recentWorkspaces, removeRecentWorkspace } = useWorkspaceStore();
 
   /**
    * Shared workspace-open logic used by all three entry points (browse, recent,
@@ -309,12 +317,10 @@ export function WorkspaceSelector({
     // can take well over 30s to walk, and rejecting it would both block a valid
     // workspace AND prune it from recents. A slow-but-valid workspace must open.
     //
-    // IMPORTANT: do all the global-store mutations (setRootPath / setFileTree /
-    // addRecentWorkspace) and onWorkspaceSelected only AFTER everything succeeds
-    // — otherwise a timeout/throw mid-load would leave the store half-set (a
-    // non-empty rootPath with no active WorkspaceService), which App reads as a
-    // dismissible-but-broken first run.
-    const { service, workspace } = await withTimeout(
+    // IMPORTANT: call onWorkspaceSelected only AFTER everything succeeds —
+    // otherwise a timeout/throw mid-load would hand the app a broken service.
+    // Global-store mutations happen inside the handler, never here.
+    const { service } = await withTimeout(
       (async () => {
         const backend = await createFSBackend(workspacePath);
         const svc = createWorkspaceService();
@@ -324,20 +330,22 @@ export function WorkspaceSelector({
       WORKSPACE_INIT_TIMEOUT_MS,
       WORKSPACE_OPEN_LABEL,
     );
-    const fileTree = await service.getFileTree();
+    // Validation-only scan: prove the workspace's tree is readable BEFORE
+    // handing it to the app, so a broken/unreadable folder surfaces as an
+    // error banner here instead of a half-opened workspace. The handler loads
+    // (and commits) the tree itself.
+    await service.getFileTree();
 
     // QA-52: a newer open/create started while this one's async load ran — drop
     // this stale result rather than landing the app on the wrong workspace.
     if (token !== openTokenRef.current) return;
-    setRootPath(workspace.rootPath);
-    setFileTree(fileTree);
-    expandAllFolders();
-    addRecentWorkspace({
-      path: workspace.rootPath,
-      name: workspace.name,
-      lastOpened: new Date(),
-    });
-    onWorkspaceSelected(service);
+    // QA-93 round 3 (Codex F2): commit NOTHING here. The lifecycle handler can
+    // still abort the switch (unsaved-changes guard); committing the root first
+    // used to strand the app with the OLD workspace's UI but the NEW
+    // workspace's client stores. handleWorkspaceSelected is the single place
+    // the root (and recents, file tree, store reloads) is committed, after the
+    // switch is irrevocable.
+    await onWorkspaceSelected(service);
   };
 
   /** Called by VaultLockedPrompt when the vault is successfully unlocked. */
@@ -392,22 +400,15 @@ export function WorkspaceSelector({
         const rootPath = '/' + handle.name;
 
         const service = createWorkspaceService();
-        const workspace = await service.initialize(webBackend, rootPath);
-        const fileTree = await service.getFileTree();
+        await service.initialize(webBackend, rootPath);
+        // Validation-only scan (see openWorkspacePath).
+        await service.getFileTree();
 
         // QA-52: drop a superseded open (see openWorkspacePath).
         if (token !== openTokenRef.current) return;
-        setRootPath(workspace.rootPath);
-        setFileTree(fileTree);
-        expandAllFolders();
-
-        addRecentWorkspace({
-          path: workspace.rootPath,
-          name: workspace.name,
-          lastOpened: new Date(),
-        });
-
-        onWorkspaceSelected(service);
+        // QA-93 round 3 (Codex F2): commit nothing here — the handler owns all
+        // root-committing state and can still abort (see openWorkspacePath).
+        await onWorkspaceSelected(service);
       }
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
@@ -480,7 +481,7 @@ export function WorkspaceSelector({
       // Only mutate global-store state after everything succeeds — a timeout/throw
       // mid-create must not leave the store half-set (a non-empty rootPath with no
       // active WorkspaceService, which App would treat as a broken first run).
-      const workspace = await withTimeout(
+      await withTimeout(
         service.initialize(backend, rootPath, {
           createIfMissing: true,
           createDefaultStructure: true,
@@ -488,21 +489,14 @@ export function WorkspaceSelector({
         WORKSPACE_INIT_TIMEOUT_MS,
         WORKSPACE_CREATE_LABEL,
       );
-      const fileTree = await service.getFileTree();
+      // Validation-only scan (see openWorkspacePath).
+      await service.getFileTree();
 
       // QA-52: drop a superseded create/open (see openWorkspacePath).
       if (token !== openTokenRef.current) return;
-      setRootPath(workspace.rootPath);
-      setFileTree(fileTree);
-      expandAllFolders();
-
-      addRecentWorkspace({
-        path: workspace.rootPath,
-        name: workspace.name,
-        lastOpened: new Date(),
-      });
-
-      onWorkspaceSelected(service);
+      // QA-93 round 3 (Codex F2): commit nothing here — the handler owns all
+      // root-committing state and can still abort (see openWorkspacePath).
+      await onWorkspaceSelected(service);
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
         return;

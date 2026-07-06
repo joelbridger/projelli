@@ -181,6 +181,69 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     bench-verified follow-up): `coordination/reports/noknock-investigation.md`.
   - Files: `src/features/meetings/noticeCard/supervisor.ts`,
     `noticeCardLifecycle.ts`, `supervisor.test.ts`.
+- **QA-93 round 3 (merge-blocking review findings): unproven folder mappings can
+  no longer misfile documents, and a canceled workspace switch no longer strands
+  the app between two workspaces.**
+  - *Migration keeps only PROVEN folder mappings (Codex F1).* The one-time
+    per-workspace migration used to carry a matter's RELATIVE folder paths along
+    with its proven absolute ones; readers resolve relative paths against the
+    CURRENT workspace root, so `/wsA/Clients/Legacy/file.docx` could be silently
+    attributed to a client whose `Clients/Legacy` mapping was never proven to
+    belong to /wsA — misfiling a document to the wrong client. A carried matter
+    now keeps only absolute folder paths under the opened root. Dropped
+    mappings don't vanish silently: one plain-language Activity Log entry per
+    affected client lists exactly which folder links weren't carried over and
+    says how to re-link them. Entries are queued during migration and delivered
+    only after the audit store points at the NEW workspace, so they can never
+    land in the previous workspace's log.
+    Files: `matterStore.ts` (migration filter + queued audit trail),
+    `useWorkspaceLifecycle.ts` (flush after audit hydrate),
+    `tests/unit/matter/perWorkspaceScope.test.ts` (reviewer failure shape +
+    audit contract), `useWorkspaceLifecycle.qa93.test.ts` (end-to-end delivery).
+  - *Canceled switch commits nothing (Codex F2).* The Workspace Selector used to
+    commit the new root (setRootPath → per-workspace store reload) BEFORE the
+    lifecycle handler ran its unsaved-changes guard; if the user canceled the
+    switch, the app stranded — UI and open files on workspace A, client stores
+    (and root) on workspace B. The root is now committed in exactly one place,
+    inside `handleWorkspaceSelected`, after the switch is irrevocable: the
+    handler returns whether the switch committed, and the selector hands over
+    the prepared service without mutating any global state. Cancel behavior is
+    covered for all three entry paths (Open Existing, Recent Projects, boot
+    restore) in `tests/unit/lifecycle/workspaceSwitchCancel.qa93.test.tsx`.
+    Files: `WorkspaceSelector.tsx`, `useWorkspaceLifecycle.ts`, `App.tsx`
+    (onboarding treats an aborted switch as a cancel).
+- **QA-93: your client list now belongs to the workspace you're in — switching
+  workspaces no longer shows the previous workspace's clients.** Matter/client
+  state (the client list, per-client Client Maps, active-client selection, and
+  their caches) used to persist under ONE app-global key, so opening a different
+  workspace moved your files/indexing but left the OLD workspace's clients on
+  screen — and a whole-practice Ask counted the wrong book. Now each workspace
+  keeps its own client state, and the app swaps to the right set the moment you
+  switch. Robust, no shortcut:
+  - New `workspaceScope.ts` derives a stable per-workspace storage-key suffix
+    from the workspace root using the app's own path-comparison policy
+    (`pathComparisonKey`, added to `appPath.ts`) — NOT a naive lowercase, so
+    `/Practice/Acme` and `/Practice/acme` stay distinct client boundaries.
+  - `matterStore` and `clientMapStore` persist under per-workspace scoped keys;
+    with no workspace open (boot, tests) they fall back to the legacy global
+    keys, so nothing pre-existing changes shape.
+  - One-time, NON-destructive migration on a workspace's first open carries the
+    legacy global matters whose ABSOLUTE folders live under that root (client
+    maps follow by matter id); relative-only folders are never guessed and stay
+    in the retained global data (reachable if another workspace claims them). A
+    matter spanning two workspaces keeps only the current workspace's folders in
+    its scoped copy.
+  - `reloadWorkspaceScopedStores.ts` + a `useWorkspaceStore` root subscription in
+    `useWorkspaceLifecycle` swap both stores atomically with the root change, so
+    all three open paths (Open Existing, Recent Projects, boot auto-resume) are
+    covered and the new workspace is never briefly shown with the old clients.
+  - Readers (`getMatters`/`resolveMatterIdForPath`/whole-practice Ask) and the
+    Client Map now read the current workspace only, with no per-reader filtering.
+  - Files: `src/platform/state/workspaceScope.ts`,
+    `src/platform/state/reloadWorkspaceScopedStores.ts`,
+    `src/platform/matter/matterStore.ts`,
+    `src/platform/clientMap/clientMapStore.ts`,
+    `src/app/lifecycle/useWorkspaceLifecycle.ts`, `src/platform/fs/appPath.ts`.
 - **Local AI patience: a big on-device question no longer reports a FALSE
   failure while the engine is still reading your documents.** On the local
   (`keepance-local`) engine, a real Ask over a large RAG prompt (~4,574 tokens)
