@@ -230,6 +230,91 @@ export function resetPrivilegeResolver(): void {
   privilegeResolver = DEFAULT_PRIVILEGE_RESOLVER;
 }
 
+// QA-44 — a privileged source can be stored under one path FORM (the privilege
+// UI marks a file by its workspace-RELATIVE `node.path`) while a RAG hit for the
+// same file carries the ABSOLUTE path. Privilege resolution is an exact-key map
+// lookup (unlike matter resolution, which already tries every path form), so a
+// stale-index hit could slip past the privilege re-check on a form mismatch.
+// This pluggable provider yields every equivalent form of a source id (as-is,
+// workspace-relative, workspace-absolute) so the re-check fails closed if ANY
+// form is privileged. Default = identity (the desktop app installs the real,
+// rootPath-aware one from `useMemoryWiring`). Kept as a seam so MemoryService
+// stays a platform leaf, mirroring the resolver seams above.
+export type SourceIdForms = (sourceId: string) => string[];
+
+const DEFAULT_SOURCE_ID_FORMS: SourceIdForms = (id) => [id];
+
+let sourceIdForms: SourceIdForms = DEFAULT_SOURCE_ID_FORMS;
+
+/** Install the source-id form expander. Called from `useMemoryWiring`. */
+export function setSourceIdForms(forms: SourceIdForms): void {
+  sourceIdForms = forms;
+}
+
+/** Reset to the identity default. Test helper. */
+export function resetSourceIdForms(): void {
+  sourceIdForms = DEFAULT_SOURCE_ID_FORMS;
+}
+
+// QA-44 — retrieval fail-closed for wrong-client (matter) exposure. While a
+// folder's matter re-tag is pending or failed, its files' chunks may still carry
+// a stale (wrong-client) tag; a swallowed re-tag failure used to leave them
+// retrievable under the old scope. This pluggable predicate lets the memory
+// wiring exclude those hits at retrieval until the re-tag lands, WITHOUT
+// MemoryService importing the workspace/scope stores (it stays a platform leaf,
+// mirroring the resolver seams above). Returns `true` to EXCLUDE a hit.
+export type RetrievalHitFilter = (hit: RagHit) => boolean;
+
+/** Default: exclude nothing. */
+const NO_HIT_EXCLUSION: RetrievalHitFilter = () => false;
+
+let excludeHitFromRetrieval: RetrievalHitFilter = NO_HIT_EXCLUSION;
+
+/** Install the retrieval exclusion predicate. Called from `useMemoryWiring`
+ *  with a closure over the pending/failed matter re-tag folders. */
+export function setRetrievalHitExclusion(filter: RetrievalHitFilter): void {
+  excludeHitFromRetrieval = filter;
+}
+
+/** Reset to the exclude-nothing default. Test helper. */
+export function resetRetrievalHitExclusion(): void {
+  excludeHitFromRetrieval = NO_HIT_EXCLUSION;
+}
+
+/**
+ * QA-44 — apply both fail-closed filters to a raw hit list, in the SAFE
+ * direction only (drop suspect hits; never add any):
+ *
+ *   1. Privilege (default path only): re-check every hit against the LIVE
+ *      privilege store and drop any source it marks privileged, even when the
+ *      hit's own index tag is a stale 'none'. This makes privilege enforcement
+ *      independent of index-tag freshness — a swallowed/failed privilege re-tag
+ *      can no longer leak an attorney-client / work-product source into normal
+ *      Ask. Skipped when `includePrivileged` is true (a deliberate opt-in).
+ *
+ *   2. Matter/client (both paths): drop any hit the installed exclusion
+ *      predicate marks, so a file whose folder re-tag is pending/failed cannot
+ *      surface under the wrong client. Applies even on the include-privileged
+ *      path — opting into privileged content is never opting into wrong-client
+ *      content.
+ */
+function applyFailClosedExclusions(hits: RagHit[], includePrivileged: boolean): RagHit[] {
+  let out = hits;
+  if (!includePrivileged) {
+    // Fail closed across path forms: drop the hit if ANY equivalent form of its
+    // source id resolves to a privileged status (the privilege store may key the
+    // source by a different form than the hit carries).
+    out = out.filter((hit) => {
+      const id = hit.sourceId ?? hit.path;
+      return sourceIdForms(id).every((form) => resolvePrivilegeForPath(form) === 'none');
+    });
+  }
+  if (excludeHitFromRetrieval !== NO_HIT_EXCLUSION) {
+    out = out.filter((hit) => !excludeHitFromRetrieval(hit));
+  }
+  return out;
+}
+
 /** Resolve a source id to its privilege via the installed resolver. Never
  *  throws — falls back to "none" (the SAFE default is non-privileged content;
  *  a resolver failure must never accidentally mark content privileged AND must
@@ -312,20 +397,26 @@ export const MemoryService = {
    * Called when a matter's folder mapping changes so the files in the newly
    * mapped (or remapped) folders are tagged with the correct matter. Walks the
    * supplied file paths and re-indexes each via `rag_index_file` with the
-   * matter id. Best-effort: individual failures are swallowed so one bad file
-   * doesn't abort the batch.
+   * matter id. One bad file never aborts the batch — but the number of files
+   * that FAILED is returned (QA-44) so the caller can keep the folder excluded
+   * from retrieval and retry, rather than treating a partial re-tag as a clean
+   * success (which would drop the exclusion while some chunks still carry the
+   * OLD, wrong-client matter tag).
    */
-  async reindexPaths(paths: string[], matterId: string): Promise<void> {
-    if (!isMemoryEnabled()) return;
+  async reindexPaths(paths: string[], matterId: string): Promise<number> {
+    if (!isMemoryEnabled()) return 0;
+    let failed = 0;
     for (const path of paths) {
       try {
         // WS-PRIV: preserve each file's privilege across a matter re-index so a
         // matter remap never silently un-privileges a source.
         await ragIndexFile(path, matterId, resolvePrivilegeForPath(path));
       } catch {
-        // Best-effort: skip and continue.
+        // Skip this file and continue the batch, but remember it failed.
+        failed += 1;
       }
     }
+    return failed;
   },
 
   /**
@@ -413,7 +504,7 @@ export const MemoryService = {
   ): Promise<RagHit[]> {
     if (!isMemoryEnabled()) return [];
     if (!query.trim() || topK <= 0) return [];
-    return retrievalBackend(
+    const hits = await retrievalBackend(
       query,
       topK,
       scope,
@@ -422,6 +513,10 @@ export const MemoryService = {
       enableReranker,
       enableHybridSearch,
     );
+    // QA-44: fail closed on privilege and wrong-client exposure regardless of
+    // whether a prior re-tag ever landed (a swallowed/failed re-tag left stale
+    // tags in the index).
+    return applyFailClosedExclusions(hits, includePrivileged);
   },
 
   /** Index a single PDF file into the RAG store. Reads bytes via the

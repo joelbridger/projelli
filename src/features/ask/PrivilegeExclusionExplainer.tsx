@@ -10,9 +10,12 @@
  *      question through retrieval twice — default (privileged excluded) and
  *      explicitly included — and reports exactly what was withheld, by name.
  *
- * The demonstration runs against the user's own index via `ragRetrieve`
- * (desktop only; the browser demo gets an honest "runs in the desktop app"
- * note). The diff itself is pure — see `summarizePrivilegeDiff`.
+ * The demonstration runs against the user's own index via `MemoryService.retrieve`
+ * — the SAME fail-closed retrieval choke point real Ask uses (QA-44 R7-7), so the
+ * "withheld" it reports agrees with what Ask actually withholds, including while a
+ * scope re-tag is pending (a raw `ragRetrieve` would skip `applyFailClosedExclusions`
+ * and could disagree). Desktop only; the browser demo gets an honest "runs in the
+ * desktop app" note. The diff itself is pure — see `summarizePrivilegeDiff`.
  */
 import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -26,10 +29,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/ui/dialog';
-import { ragRetrieve, type RagHit, type RetrievalScope } from '@/platform/utils/tauri-commands';
+import { type RagHit, type RetrievalScope } from '@/platform/utils/tauri-commands';
+import { MemoryService } from '@/platform/rag/MemoryService';
 import { summarizePrivilegeDiff } from '@/platform/rag/privilegeDiff';
 
-/** The demo runner's shape — `ragRetrieve` in production, a mock in tests. */
+/** The demo runner's shape — `MemoryService.retrieve` in production, a mock in tests. */
 export type ExplainerRetrieve = (
   query: string,
   topK: number,
@@ -40,6 +44,11 @@ export type ExplainerRetrieve = (
 /** Matches the chat's retrieval depth closely enough to be representative. */
 const DEMO_TOP_K = 8;
 
+/** Production default: the fail-closed retrieval choke point (`MemoryService.retrieve`),
+ *  wrapped as a standalone function so it isn't passed as an unbound method. */
+const defaultRetrieve: ExplainerRetrieve = (query, topK, scope, includePrivileged) =>
+  MemoryService.retrieve(query, topK, scope, includePrivileged);
+
 interface PrivilegeExclusionExplainerProps {
   /**
    * The question to demonstrate with: the chat input draft, or the last
@@ -48,7 +57,7 @@ interface PrivilegeExclusionExplainerProps {
   query: string;
   /** The chat's CURRENT retrieval scope — the demo must search what the chat would. */
   scope: RetrievalScope;
-  /** Test seam; defaults to the real desktop retrieval. */
+  /** Test seam; defaults to the real fail-closed retrieval (`MemoryService.retrieve`). */
   retrieve?: ExplainerRetrieve;
 }
 
@@ -61,7 +70,7 @@ type DemoState =
 export function PrivilegeExclusionExplainer({
   query,
   scope,
-  retrieve = ragRetrieve,
+  retrieve = defaultRetrieve,
 }: PrivilegeExclusionExplainerProps) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
