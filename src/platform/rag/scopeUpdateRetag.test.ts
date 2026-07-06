@@ -313,15 +313,13 @@ describe('createRetagScheduler', () => {
     expect(getExcludedMatterFolders()).not.toContain('/ws/Acme');
   });
 
-  // Close-out review (2026-07-06): documents a KNOWN remaining hole for round 7.
-  // `runSerialized` chains a same-id op behind the in-flight one, but the chained
-  // continuation never re-checks `disposed` — so an op QUEUED before a workspace
-  // switch still fires its backend call after `disposeAll()`, against whatever
-  // workspace is then active on the Rust side (the exact cross-workspace hazard
-  // the module doc says cancellation makes impossible). `it.fails` = asserts the
-  // DESIRED behaviour and passes only while the bug exists; round 7's fix (skip
-  // the op when disposed/superseded at start time) flips it to a plain `it`.
-  it.fails('a same-id op queued behind an in-flight op does not execute after disposeAll', async () => {
+  // QA-44 R7-5 (fixed round 7): `runSerialized` chains a same-id op behind the
+  // in-flight one; the chained continuation now RE-CHECKS supersession/disposal at
+  // the moment it would start, so an op QUEUED before a workspace switch does NOT
+  // fire its backend call after `disposeAll()` against whatever workspace is then
+  // active on the Rust side (the cross-workspace hazard the module doc promises
+  // cancellation makes impossible). Was an `it.fails` documenting the hole.
+  it('a same-id op queued behind an in-flight op does not execute after disposeAll', async () => {
     const scheduler = createRetagScheduler();
     let resolveFirst!: (value: unknown) => void;
     const first = vi.fn(

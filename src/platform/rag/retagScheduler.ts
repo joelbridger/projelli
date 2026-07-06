@@ -106,12 +106,29 @@ export function createRetagScheduler(): RetagScheduler {
    * The tail tracks settlement (success OR failure) so the chain never stalls on
    * a rejection.
    */
-  const runSerialized = (id: string, op: () => Promise<unknown>): Promise<unknown> => {
+  const runSerialized = (
+    id: string,
+    generation: number,
+    op: () => Promise<unknown>,
+  ): Promise<unknown> => {
     const prior = opTails.get(id);
     // No in-flight op for this id → start immediately (synchronously, as before).
     // Otherwise chain AFTER the prior op settles so its physical write can't land
     // after ours.
-    const run = prior ? prior.then(() => op()) : op();
+    //
+    // QA-44 (R7-5): a QUEUED op must re-check supersession/disposal AT THE MOMENT
+    // IT WOULD START, not only when it was enqueued. Cancellation cancels pending
+    // retry TIMERS, but it cannot reach into a promise already chained behind an
+    // in-flight op — so without this guard an op queued just before a workspace
+    // switch still fires its backend call after `disposeAll()`, tagging the
+    // NOW-active workspace's content with the closed workspace's target (a
+    // cross-workspace leak the scheduler's own doc claims is impossible). Skipping
+    // a superseded queued op is also a pure efficiency win: its physical write is
+    // a guaranteed no-op (a newer op for this id already ran, or the scheduler is
+    // gone), so running it can only do harm.
+    const run = prior
+      ? prior.then(() => (superseded(id, generation) ? undefined : op()))
+      : op();
     opTails.set(
       id,
       run.then(
@@ -138,7 +155,7 @@ export function createRetagScheduler(): RetagScheduler {
     disposed || generations.get(id) !== generation;
 
   const attempt = (task: RetagTask, retryCount: number, generation: number): void => {
-    runSerialized(task.id, task.op)
+    runSerialized(task.id, generation, task.op)
       .then(() => {
         // A superseded attempt must NOT clear the entry — a newer run() has
         // re-registered this id, and removing it would drop the newer intent

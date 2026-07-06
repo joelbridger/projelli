@@ -145,13 +145,59 @@ pub async fn mail_list_messages_by_matter(
     .map_err(|e| format!("join: {e}"))?
 }
 
+/// QA-44 (R7-2) — fold the per-message in-place re-tag results into the command
+/// result. This is the SUCCESS CRITERION for a mail folder re-tag, and it is the
+/// linchpin of the durable fail-closed hold: the frontend discharges the hold
+/// (and clears the persisted pending-retag record) ONLY on `Ok`, so `Ok` must
+/// mean a GENUINE success. Therefore ANY per-message failure fails the WHOLE
+/// command — the frontend then keeps the folder's mail held out of retrieval and
+/// retries, instead of laundering a partial re-tag (99 of 100 messages moved, 1
+/// still physically tagged the OLD client) into a "success" that durably drops
+/// the hold and re-opens the exact QA-44 wrong-client leak.
+///
+/// `Ok(0)` (the message has no indexed rows yet — a timing gap; it will pick up
+/// the right matter when it is indexed) is a legitimate NO-OP, NOT a failure, and
+/// must stay a no-op or every not-yet-indexed folder would be held out forever.
+fn summarize_mail_retag(results: &[Result<u64, String>]) -> Result<u32, String> {
+    let mut retagged = 0u32;
+    let mut failures = 0u32;
+    let mut last_err: Option<&str> = None;
+    for r in results {
+        match r {
+            Ok(rows) if *rows > 0 => retagged += 1,
+            Ok(_) => {} // Ok(0): not indexed yet — a legitimate no-op, never a failure
+            Err(e) => {
+                failures += 1;
+                last_err = Some(e.as_str());
+            }
+        }
+    }
+    if failures > 0 {
+        return Err(format!(
+            "mail_retag_folder_matter: {failures} message(s) failed to re-tag (last: {}); \
+             folder stays held out of retrieval until a clean re-tag",
+            last_err.unwrap_or("")
+        ));
+    }
+    Ok(retagged)
+}
+
 /// WS-B/C: re-tag every message stored under a (provider, account, folder) to a
 /// matter, IN PLACE in the RAG store (no re-embedding) — the same re-tag path
 /// files use. Called by the frontend when a mail folder's matter mapping
 /// changes, so already-indexed mail picks up the new scope immediately. An empty
 /// `folder_id` re-tags every folder in the account (an account-level mapping).
 /// Returns the number of messages re-tagged. No-op (Ok(0)) when memory/index has
-/// nothing for those messages yet.
+/// nothing for those messages yet. QA-44 (R7-2): FAILS if ANY message's re-tag
+/// errors, so a partial re-tag never reports success (see `summarize_mail_retag`).
+///
+/// QA-44 (R7-5b): `expected_workspace` (when the caller supplies it) PINS the
+/// re-tag to the workspace that was open when the op was scheduled. A scheduled
+/// re-tag op can outlive a workspace switch — the frontend scheduler cancels retry
+/// TIMERS but cannot reach into an in-flight/queued backend call — and this command
+/// otherwise re-tags whatever workspace is current on the Rust side, so an op
+/// captured for workspace A could tag workspace B's mail with A's target. When the
+/// pin does not match the now-current workspace, the command REFUSES.
 #[tauri::command]
 pub async fn mail_retag_folder_matter(
     state: State<'_, MailState>,
@@ -159,6 +205,7 @@ pub async fn mail_retag_folder_matter(
     account: String,
     folder_id: String,
     matter_id: String,
+    expected_workspace: Option<String>,
 ) -> Result<u32, String> {
     // Validate the matter id up front (defence-in-depth before any SQL update).
     crate::commands::rag::store::validate_matter_id(&matter_id)
@@ -169,6 +216,19 @@ pub async fn mail_retag_folder_matter(
         .await
         .clone()
         .ok_or("workspace not set")?;
+
+    // R7-5b: refuse a cross-workspace write. `Path` equality compares components,
+    // so a trailing separator difference is not a false mismatch. An empty/omitted
+    // pin means the caller did not capture a root (e.g. a live user filing that
+    // cannot span a switch) — then we don't pin.
+    if let Some(expected) = expected_workspace.as_deref() {
+        if !expected.is_empty() && std::path::Path::new(expected) != workspace.as_path() {
+            return Err(format!(
+                "mail_retag_folder_matter: workspace changed (expected {expected}); \
+                 refusing to re-tag a different workspace's mail"
+            ));
+        }
+    }
 
     // List the message ids for this folder + each message's durable per-message
     // matter override, from the encrypted metadata store (one open).
@@ -218,7 +278,7 @@ pub async fn mail_retag_folder_matter(
     let vec_key = crate::commands::rag::crypto::get_or_create_master_key()
         .map_err(|e| format!("vectors key: {e}"))?;
 
-    let mut retagged = 0u32;
+    let mut results: Vec<Result<u64, String>> = Vec::with_capacity(ids_and_overrides.len());
     for (id, override_matter) in ids_and_overrides {
         let path_key = format!("mail:{}", id);
         // BUG-013: a manually-filed message keeps its DURABLE per-message matter
@@ -229,17 +289,20 @@ pub async fn mail_retag_folder_matter(
         // deleted) stays unassigned rather than being absorbed into the folder.
         let effective_matter =
             resolve_effective_matter(override_matter.as_deref(), matter_id.as_str());
-        match crate::commands::rag::store::retag_matter_for_path(
+        let outcome = crate::commands::rag::store::retag_matter_for_path(
             &table, &path_key, &effective_matter, &vec_key,
         )
-        .await
-        {
-            Ok(rows) if rows > 0 => retagged += 1,
-            Ok(_) => {}
-            Err(e) => log::warn!("retag matter for {path_key} failed: {e}"),
+        .await;
+        if let Err(e) = &outcome {
+            log::warn!("retag matter for {path_key} failed: {e}");
         }
+        // QA-44 (R7-2): a per-message Err means that message may STILL carry the
+        // OLD (wrong-client) matter tag. Collect every outcome and fail the whole
+        // command if any errored — a swallowed failure here would let the frontend
+        // discharge the durable fail-closed hold on a false success.
+        results.push(outcome.map_err(|e| e.to_string()));
     }
-    Ok(retagged)
+    summarize_mail_retag(&results)
 }
 
 /// File a SINGLE message to a matter, durably.
@@ -364,4 +427,52 @@ pub async fn mail_clear_matter_filings(
     .map_err(|e| format!("join: {e}"))?
     .map_err(|e| format!("clear matter filings: {e}"))?;
     Ok(cleared)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // QA-44 (R7-2) — the per-message fold that decides whether a mail folder
+    // re-tag SUCCEEDED. `Ok` from the command durably discharges the fail-closed
+    // hold, so `Ok` must mean EVERY message re-tagged (or was legitimately not
+    // indexed yet). A single failure must fail the command.
+
+    #[test]
+    fn all_indexed_messages_retagged_is_ok_with_count() {
+        // Three messages, each had rows updated → Ok(3), no failure.
+        assert_eq!(summarize_mail_retag(&[Ok(2), Ok(1), Ok(5)]), Ok(3));
+    }
+
+    #[test]
+    fn zero_rows_is_a_noop_not_a_failure() {
+        // Ok(0) = the message is not indexed yet (a timing gap). Holding it out
+        // forever would strand every not-yet-indexed folder, so it is NOT a
+        // failure — the command still succeeds with 0 re-tagged.
+        assert_eq!(summarize_mail_retag(&[Ok(0), Ok(0)]), Ok(0));
+    }
+
+    #[test]
+    fn mixed_indexed_and_not_indexed_counts_only_the_indexed() {
+        assert_eq!(summarize_mail_retag(&[Ok(3), Ok(0), Ok(1)]), Ok(2));
+    }
+
+    #[test]
+    fn a_single_per_message_failure_fails_the_whole_command() {
+        // The R7-2 invariant: 99 messages re-tag, 1 errors (e.g. a LanceDB row
+        // update failure). The command MUST fail so the frontend keeps the folder
+        // held out + retries, instead of discharging the durable hold on a false
+        // success and re-opening the wrong-client leak.
+        let mut results: Vec<Result<u64, String>> = (0..99).map(|_| Ok(1u64)).collect();
+        results.push(Err("lancedb update failed".to_string()));
+        let out = summarize_mail_retag(&results);
+        assert!(out.is_err(), "one failed message must fail the command");
+        assert!(out.unwrap_err().contains("failed to re-tag"));
+    }
+
+    #[test]
+    fn a_failure_wins_even_when_the_rest_were_not_indexed() {
+        // Not-yet-indexed no-ops must not mask a real failure.
+        assert!(summarize_mail_retag(&[Ok(0), Err("boom".to_string()), Ok(2)]).is_err());
+    }
 }

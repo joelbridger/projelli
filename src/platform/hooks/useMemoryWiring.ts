@@ -1295,7 +1295,8 @@ export async function retagExistingMailFolders(
   if (targets.size === 0) return;
   for (const [key, { provider, account, folderId, matterId }] of targets) {
     try {
-      await mailRetagFolderMatter(provider, account, folderId, matterId);
+      // R7-5b: pin to the captured workspace so a switch mid-boot-heal refuses.
+      await mailRetagFolderMatter(provider, account, folderId, matterId, capturedRoot ?? undefined);
     } catch {
       // Failure: leave the restored exclusion + durable record in place (fail
       // closed across sessions); the idempotent retag converges on a later boot.
@@ -1566,6 +1567,7 @@ export function scheduleMailMatterRetag(
         parsed.account,
         parsed.folderId,
         matterId,
+        useWorkspaceStore.getState().rootPath ?? undefined,
       ).catch(() => {});
       continue;
     }
@@ -1623,6 +1625,10 @@ export function scheduleMailMatterRetag(
           parsed.account,
           parsed.folderId,
           matterId,
+          // R7-5b: pin to the workspace captured when this op was scheduled — an
+          // op that outlives a switch is refused by the backend rather than
+          // re-tagging the new workspace's mail.
+          workspaceRoot ?? undefined,
         );
         // Success: the mail is now physically tagged `matterId`, so the durable
         // hold is discharged — BUT only if this retag's target is still the live

@@ -134,7 +134,10 @@ describe('scheduleMailMatterRetag', () => {
     expect(task.excludeMailMatters).toBeUndefined();
 
     await task.op();
-    expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'm1');
+    // First four args are the folder + target; the 5th (R7-5b workspace pin)
+    // depends on the ambient rootPath, so assert only the folder/target here.
+    const call = vi.mocked(mailRetagFolderMatter).mock.calls[0];
+    expect(call?.slice(0, 4)).toEqual(['m365', 'acct', 'Inbox', 'm1']);
   });
 
   it('holds out the OLD client mail when a folder is re-mapped between real clients', () => {
@@ -350,7 +353,8 @@ describe('durable per-workspace mail hold (round 4)', () => {
 
     await retagExistingMailFolders();
 
-    expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'B');
+    // R7-5b: the captured workspace root is passed as the pin (5th arg).
+    expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'B', '/wsA');
   });
 
   // FINDING #1 — the double-failure leak. A live re-map fails, the workspace is
@@ -436,7 +440,7 @@ describe('durable per-workspace mail hold (round 4)', () => {
     // discharges the hold — the mail isn't stranded held-out forever.
     vi.mocked(mailRetagFolderMatter).mockResolvedValue(1);
     await retagExistingMailFolders();
-    expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'unassigned');
+    expect(vi.mocked(mailRetagFolderMatter)).toHaveBeenCalledWith('m365', 'acct', 'Inbox', 'unassigned', '/wsA');
     expect(getExcludedMailMatters()).not.toContain('A');
     expect(usePendingMailRetagStore.getState().forWorkspace('/wsA')).toHaveLength(0);
   });

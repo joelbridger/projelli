@@ -163,9 +163,19 @@ export async function mailRetagFolderMatter(
   account: string,
   folderId: string,
   matterId: string,
+  /** QA-44 (R7-5b): the workspace root the caller captured when scheduling. The
+   *  backend refuses if the workspace has since switched, so a scheduled op can't
+   *  re-tag a different workspace's mail. Omit for a live user filing. */
+  expectedWorkspace?: string,
 ): Promise<number> {
   if (!isTauri()) return 0;
-  return invoke<number>('mail_retag_folder_matter', { provider, account, folderId, matterId });
+  return invoke<number>('mail_retag_folder_matter', {
+    provider,
+    account,
+    folderId,
+    matterId,
+    expectedWorkspace,
+  });
 }
 
 /** A connected mail account offered for matter mapping. Mirror of the Rust
