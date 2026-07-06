@@ -54,8 +54,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     shows a calm "The on-device AI is reading your documents — bigger questions
     take it a minute or two" instead of the alarming "taking longer than
     expected" warning, and never errors before the scaled budget expires.
+  - Request-layer alignment: the local providers wrap their fetch in a 120s
+    whole-request timeout (`composeRequestSignal` /
+    `DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS`), which would abort a big local prompt
+    BEFORE the scaled UI budget. `SendOptions.requestTimeoutMs` now lets Ask hand
+    the LOCAL providers (`AppLocalProvider`, `OllamaProvider`) a matching
+    per-request timeout (`max(120s, budget)` — a small prompt keeps today's 120s
+    ceiling; a big one gets the scaled budget). Cloud sends are untouched.
   - Files: `src/features/ask/askTimeout.ts`, `useAsk.ts`, `TurnBlock.tsx`,
-    `Ask.tsx` (+ tests in `askTimeout.test.ts`, `TurnBlock.test.tsx`).
+    `Ask.tsx`, `platform/providers/{Provider,AppLocalProvider,OllamaProvider}.ts`
+    (+ tests in `askTimeout.test.ts`, `TurnBlock.test.tsx`,
+    `AppLocalProvider.timeout.test.ts`).
 - **Local AI cold start: "ready" now means "can generate", not just "server is
   healthy" — kills the "first question fails, retry works" bug.** Switching to
   Local-only, the first Ask could hit the 45s answer-stall timeout while an

@@ -66,6 +66,7 @@ import {
   waitForLocalAiSidecarReady,
 } from './askTimeout';
 import { estimateTokens } from './compression';
+import { DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS } from '@/platform/providers/requestControl';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
@@ -1164,6 +1165,19 @@ export function useAsk({
         isLocal: isLocalSend,
         estimatedPromptTokens,
       });
+      // lp/localai-patience (round 2) — the UI watchdog above is not the only
+      // clock: the LOCAL providers wrap their fetch in composeRequestSignal with
+      // a 120s whole-request timeout (DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS), which
+      // would abort the request FIRST on a big local prompt whose scaled budget
+      // exceeds 120s — so the intended 159s/240s patience is never honoured. For
+      // a local send, hand the provider a matching timeout so the two clocks
+      // agree. We take the MAX of the default and the budget so a SMALL local
+      // prompt (budget < 120s) keeps today's 120s request ceiling rather than
+      // shrinking it — a small prompt with a long GENERATION must not be cut
+      // short. Cloud sends pass `undefined` and keep the provider default.
+      const providerRequestTimeoutMs: number | undefined = isLocalSend
+        ? Math.max(DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS, firstTokenBudgetMs)
+        : undefined;
       const watchdog = createAnswerStallWatchdog({
         onWarning: (phase) => {
           // A local send that has produced NO token yet is normal prompt-eval,
@@ -1186,6 +1200,9 @@ export function useAsk({
           const streamResp = await Promise.race([
             provider.sendMessageStreaming(q, {
               systemPrompt,
+              // lp/localai-patience (round 2) — align the provider's whole-
+              // request timeout with the UI first-token budget for local sends.
+              ...(providerRequestTimeoutMs !== undefined ? { requestTimeoutMs: providerRequestTimeoutMs } : {}),
               onChunk: (chunk) => {
                 if (abort.signal.aborted) return;
                 watchdog.markProgress();
@@ -1207,7 +1224,15 @@ export function useAsk({
         } else {
           failedStage = 'provider-send';
           providerCallStarted = true;
-          const resp = await Promise.race([provider.sendMessage(q, { systemPrompt }), stallPromise]);
+          const resp = await Promise.race([
+            provider.sendMessage(q, {
+              systemPrompt,
+              // lp/localai-patience (round 2) — same alignment for the non-
+              // streaming path (local sends only; cloud keeps its default).
+              ...(providerRequestTimeoutMs !== undefined ? { requestTimeoutMs: providerRequestTimeoutMs } : {}),
+            }),
+            stallPromise,
+          ]);
           answerText = resp.content;
           emitSuccessfulEgress();
           emitModelCall(answerText.length, resp.usage, resp.cost);

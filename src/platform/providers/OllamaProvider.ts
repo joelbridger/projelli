@@ -293,7 +293,12 @@ export class OllamaProvider implements Provider {
   async sendMessage(prompt: string, options?: SendOptions): Promise<ProviderResponse> {
     const request = await this.buildRequest(prompt, options, false);
     const started = Date.now();
-    const controlled = composeRequestSignal(options?.signal, this.requestTimeoutMs);
+    // lp/localai-patience — honour a per-request timeout override (the
+    // prompt-scaled local budget) so the request layer doesn't abort before it.
+    const controlled = composeRequestSignal(
+      options?.signal,
+      options?.requestTimeoutMs ?? this.requestTimeoutMs,
+    );
     let resp: Response;
     try {
       resp = await fetch(`${this.baseUrl}/api/chat`, {
@@ -331,7 +336,9 @@ export class OllamaProvider implements Provider {
     const { onChunk, signal, ...sendOpts } = options;
     const request = await this.buildRequest(prompt, sendOpts, true);
     const started = Date.now();
-    const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
+    // lp/localai-patience — honour a per-request timeout override (the
+    // prompt-scaled local budget) so the request layer doesn't abort before it.
+    const controlled = composeRequestSignal(signal, sendOpts.requestTimeoutMs ?? this.requestTimeoutMs);
     const resp = await fetch(`${this.baseUrl}/api/chat`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
