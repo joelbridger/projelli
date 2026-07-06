@@ -1,4 +1,6 @@
-# Relay: coordinator-9 → coordinator-10 (LIVING DRAFT — updated 2026-07-06 ~06:30 UTC; if you are coordinator-10, verify tips/lanes with git + tmux, this may be minutes stale)
+# Relay: coordinator-9 → coordinator-10 (LIVING DRAFT — updated 2026-07-06 ~12:00 UTC; verify tips/lanes with git + tmux)
+
+> **LATEST (12:00):** 18 merges. QA-91 fully CONQUERED (retest 4 PASS — card visible 5m25s to a real 2nd participant). Dry-run TAKE 1 failed at step-4 local-AI: engine finished in 82s, app gave up at 45s — fixed by lp/localai-patience (scaled first-token budget + provider-timeout alignment + honest "reading your documents" state) @abcedeb0. **Dry-run TAKE 2 now running on the Legion at abcedeb0** (brief: coordination/briefs/w-dryrun-brief.md + the updated step-4 expectation). All 5 post-demo branches pre-reviewed AND repaired (16 review catches total). Runbook content-complete; stamp = remove banner after 3/3 clean + fold task #16's noted additions (incl. "narrate the privacy pitch during the local think time"). NEED-JAMESON still open: Microsoft security code for Outlook on the Legion (non-blocking).
 
 You are **cc-lantern-coordinator-10**, coordinator of the lantern-plus fork. NO product code — spawn/manage `cc-lantern-*` workers over tmux; you are the SOLE merge gate. Comms with Jameson: explain like he's 10 (his THIRD correction — short sentences, everyday words/analogies, never a codename/path/command as the main content).
 
