@@ -285,8 +285,11 @@ export class AppLocalProvider implements Provider {
     endpoint: string,
     body: OAChatRequest,
     signal: AbortSignal | undefined,
+    // lp/localai-patience — per-request timeout override; falls back to the
+    // provider default (120s) when the caller doesn't scale it.
+    timeoutMs?: number,
   ): Promise<Response> {
-    const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
+    const controlled = composeRequestSignal(signal, timeoutMs ?? this.requestTimeoutMs);
     try {
       return await this.fetchChatCompletion(endpoint, body, controlled.signal);
     } finally {
@@ -298,7 +301,12 @@ export class AppLocalProvider implements Provider {
     const endpoint = await this.ensureEndpoint();
     const messages = await this.buildMessages(prompt, options?.systemPrompt, options?.attachmentBytes);
     const started = Date.now();
-    const resp = await this.post(endpoint, this.buildBody(messages, options, false), options?.signal);
+    const resp = await this.post(
+      endpoint,
+      this.buildBody(messages, options, false),
+      options?.signal,
+      options?.requestTimeoutMs,
+    );
     const data = (await resp.json()) as OAChatResponse;
     const content = data.choices?.[0]?.message?.content ?? '';
     const inputTokens = data.usage?.prompt_tokens ?? 0;
@@ -318,7 +326,9 @@ export class AppLocalProvider implements Provider {
     const endpoint = await this.ensureEndpoint();
     const messages = await this.buildMessages(prompt, sendOpts.systemPrompt, sendOpts.attachmentBytes);
     const started = Date.now();
-    const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
+    // lp/localai-patience — honour a per-request timeout override (the
+    // prompt-scaled local budget) so the request layer doesn't abort before it.
+    const controlled = composeRequestSignal(signal, sendOpts.requestTimeoutMs ?? this.requestTimeoutMs);
     let resp: Response;
     try {
       // fetchChatCompletion retries the initial contact through the sidecar's

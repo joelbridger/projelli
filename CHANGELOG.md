@@ -32,6 +32,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Local AI patience: a big on-device question no longer reports a FALSE
+  failure while the engine is still reading your documents.** On the local
+  (`keepance-local`) engine, a real Ask over a large RAG prompt (~4,574 tokens)
+  completed server-side in ~81.7s (70.5s of CPU prompt-eval before the first
+  token + 11.2s generation, zero errors) — but the flat 45s no-first-token
+  watchdog gave up at 45s and showed an error, even though the engine was
+  working normally. The warm-up probe uses a tiny prompt, so it passes; a real
+  prompt is two orders of magnitude more eval work. Fix (frontend-only; cloud
+  paths untouched):
+  - New `computeAnswerFirstTokenBudgetMs()` in `askTimeout.ts` scales the
+    FIRST-token patience with the prompt for the LOCAL provider only:
+    `45s base + promptTokens/40s`, capped at 4 min. Math: measured ~65 tok/s
+    eval, but we assume a slower 40 tok/s floor, so 4,574 tokens → 159s of
+    budget (>2× the real 70.5s). Cloud providers keep the flat 45s, and the
+    between-token gap keeps the tight 45s ceiling on every provider (once tokens
+    stream, silence really is a stall).
+  - `createAnswerStallWatchdog()` now takes a `firstTokenTimeoutMs` and tells
+    `onWarning` which phase it fired in (`'first-token'` vs `'streaming'`).
+  - Honest waiting state: while a local send is prompt-evaluating, the spinner
+    shows a calm "The on-device AI is reading your documents — bigger questions
+    take it a minute or two" instead of the alarming "taking longer than
+    expected" warning, and never errors before the scaled budget expires.
+  - Request-layer alignment: the local providers wrap their fetch in a 120s
+    whole-request timeout (`composeRequestSignal` /
+    `DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS`), which would abort a big local prompt
+    BEFORE the scaled UI budget. `SendOptions.requestTimeoutMs` now lets Ask hand
+    the LOCAL providers (`AppLocalProvider`, `OllamaProvider`) a matching
+    per-request timeout (`max(120s, budget)` — a small prompt keeps today's 120s
+    ceiling; a big one gets the scaled budget). Cloud sends are untouched.
+  - Files: `src/features/ask/askTimeout.ts`, `useAsk.ts`, `TurnBlock.tsx`,
+    `Ask.tsx`, `platform/providers/{Provider,AppLocalProvider,OllamaProvider}.ts`
+    (+ tests in `askTimeout.test.ts`, `TurnBlock.test.tsx`,
+    `AppLocalProvider.timeout.test.ts`).
 - **Local AI cold start: "ready" now means "can generate", not just "server is
   healthy" — kills the "first question fails, retry works" bug.** Switching to
   Local-only, the first Ask could hit the 45s answer-stall timeout while an

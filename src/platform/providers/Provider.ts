@@ -105,6 +105,17 @@ export interface SendOptions {
   /** UX-39: AbortSignal so callers can cancel in-flight requests. */
   signal?: AbortSignal;
   /**
+   * lp/localai-patience — per-request override for the whole-request timeout
+   * that the LOCAL providers wrap around their fetch (see `composeRequestSignal`
+   * / `DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS`). Ask sets this for an on-device send
+   * to the SAME prompt-scaled budget its first-token watchdog uses, so the
+   * request layer never aborts BEFORE that budget on a slow/big local prompt
+   * (its default 120s is shorter than the up-to-4-min local budget). Omitted for
+   * cloud sends, which keep the provider's default timeout unchanged. Only the
+   * local providers (`AppLocalProvider`, `OllamaProvider`) read it.
+   */
+  requestTimeoutMs?: number;
+  /**
    * Stream A1 — image attachments to include in the provider request.
    * Each entry contains the ChatAttachment metadata plus the raw bytes
    * already read from the workspace. Providers call their own

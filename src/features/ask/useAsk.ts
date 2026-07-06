@@ -61,9 +61,12 @@ import {
   ASK_ANSWER_STALL_ERROR_MESSAGE,
   AskTimeoutError,
   createAnswerStallWatchdog,
+  computeAnswerFirstTokenBudgetMs,
   isAskTimeoutError,
   waitForLocalAiSidecarReady,
 } from './askTimeout';
+import { estimateTokens } from './compression';
+import { DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS } from '@/platform/providers/requestControl';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
@@ -246,6 +249,15 @@ export function useAsk({
   // this is "the engine hasn't come up yet", an honest, expected state on
   // the first Local-only question after switching modes or launching the app.
   const [localAiStarting, setLocalAiStarting] = useState(false);
+  // lp/localai-patience — true only while THIS Local-only send is prompt-
+  // evaluating (the engine is UP and reading the retrieved documents) before
+  // its first token. Distinct from both `answerStalled` ("generating but
+  // silent") and `localAiStarting` ("engine not up yet"): a bigger question can
+  // legitimately take a minute or two of CPU prompt-eval, which is honest,
+  // expected work — so the spinner shows a calm "reading your documents"
+  // message instead of "Answering…", and the alarming stall warning/error are
+  // held off until the prompt-scaled first-token budget is genuinely exceeded.
+  const [localEvaluating, setLocalEvaluating] = useState(false);
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -382,6 +394,7 @@ export function useAsk({
     setStatus('idle');
     setAnswerStalled(false);
     setLocalAiStarting(false);
+    setLocalEvaluating(false);
 
     // QA-25 (P2) — this effect's cleanup runs right before `chatId` changes
     // again, i.e. the instant the user switches to a different client/
@@ -521,6 +534,7 @@ export function useAsk({
     setStatus('idle');
     setAnswerStalled(false);
     setLocalAiStarting(false);
+    setLocalEvaluating(false);
   }, [activeMatter, rootPath]);
 
   const handleLoadSession = useCallback((sid: string) => {
@@ -567,6 +581,7 @@ export function useAsk({
     setStatus('retrieving');
     setAnswerStalled(false);
     setLocalAiStarting(false);
+    setLocalEvaluating(false);
 
     // Add user message to stream placeholder
     const newStreamingTurn: AskTurn = {
@@ -1133,9 +1148,50 @@ export function useAsk({
       const stallPromise = new Promise<never>((_resolve, reject) => {
         rejectStall = reject;
       });
+      // lp/localai-patience — the embedded local engine runs prompt-eval on the
+      // CPU, so a big RAG prompt is silent for a minute or more before its FIRST
+      // token (measured: a 4,574-token prompt took ~70.5s of eval on the Legion),
+      // even though the engine is working normally the whole time. The flat 45s
+      // no-first-token ceiling therefore fired a FALSE timeout on a real local
+      // Ask. So for the LOCAL provider we scale the FIRST-token budget with the
+      // prompt size (base 45s + promptTokens/40s, capped 4min); the between-token
+      // gap keeps the tight 45s ceiling, and cloud is unchanged (its budget is
+      // the same 45s). While that generous first-token window is running we show
+      // a calm "reading your documents" state (localEvaluating), never the
+      // alarming stall warning, until the budget is genuinely exceeded.
+      const isLocalSend = isLocalProvider(resolvedProvider.providerId);
+      const estimatedPromptTokens = estimateTokens(systemPrompt) + estimateTokens(q);
+      const firstTokenBudgetMs = computeAnswerFirstTokenBudgetMs({
+        isLocal: isLocalSend,
+        estimatedPromptTokens,
+      });
+      // lp/localai-patience (round 2) — the UI watchdog above is not the only
+      // clock: the LOCAL providers wrap their fetch in composeRequestSignal with
+      // a 120s whole-request timeout (DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS), which
+      // would abort the request FIRST on a big local prompt whose scaled budget
+      // exceeds 120s — so the intended 159s/240s patience is never honoured. For
+      // a local send, hand the provider a matching timeout so the two clocks
+      // agree. We take the MAX of the default and the budget so a SMALL local
+      // prompt (budget < 120s) keeps today's 120s request ceiling rather than
+      // shrinking it — a small prompt with a long GENERATION must not be cut
+      // short. Cloud sends pass `undefined` and keep the provider default.
+      const providerRequestTimeoutMs: number | undefined = isLocalSend
+        ? Math.max(DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS, firstTokenBudgetMs)
+        : undefined;
       const watchdog = createAnswerStallWatchdog({
-        onWarning: () => { setAnswerStalled(true); },
+        onWarning: (phase) => {
+          // A local send that has produced NO token yet is normal prompt-eval,
+          // not a stall — reassure calmly instead of alarming. Every other case
+          // (any cloud silence, or a local stall AFTER tokens began streaming)
+          // is a genuine stall and keeps the existing warning.
+          if (isLocalSend && phase === 'first-token') {
+            setLocalEvaluating(true);
+          } else {
+            setAnswerStalled(true);
+          }
+        },
         onTimeout: () => { rejectStall?.(new AskTimeoutError('answer', ASK_ANSWER_TIMEOUT_MS)); },
+        firstTokenTimeoutMs: firstTokenBudgetMs,
       });
       try {
         if (typeof provider.sendMessageStreaming === 'function') {
@@ -1144,10 +1200,17 @@ export function useAsk({
           const streamResp = await Promise.race([
             provider.sendMessageStreaming(q, {
               systemPrompt,
+              // lp/localai-patience (round 2) — align the provider's whole-
+              // request timeout with the UI first-token budget for local sends.
+              ...(providerRequestTimeoutMs !== undefined ? { requestTimeoutMs: providerRequestTimeoutMs } : {}),
               onChunk: (chunk) => {
                 if (abort.signal.aborted) return;
                 watchdog.markProgress();
                 setAnswerStalled(false);
+                // lp/localai-patience — the first token means eval is done and
+                // generation has begun; drop the calm "reading your documents"
+                // state so the streamed answer replaces the spinner.
+                setLocalEvaluating(false);
                 answerText += chunk;
                 setStreamingTurn((prev) => prev ? { ...prev, answer: answerText } : prev);
               },
@@ -1161,7 +1224,15 @@ export function useAsk({
         } else {
           failedStage = 'provider-send';
           providerCallStarted = true;
-          const resp = await Promise.race([provider.sendMessage(q, { systemPrompt }), stallPromise]);
+          const resp = await Promise.race([
+            provider.sendMessage(q, {
+              systemPrompt,
+              // lp/localai-patience (round 2) — same alignment for the non-
+              // streaming path (local sends only; cloud keeps its default).
+              ...(providerRequestTimeoutMs !== undefined ? { requestTimeoutMs: providerRequestTimeoutMs } : {}),
+            }),
+            stallPromise,
+          ]);
           answerText = resp.content;
           emitSuccessfulEgress();
           emitModelCall(answerText.length, resp.usage, resp.cost);
@@ -1169,6 +1240,7 @@ export function useAsk({
       } finally {
         watchdog.cancel();
         setAnswerStalled(false);
+        setLocalEvaluating(false);
       }
 
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -1367,6 +1439,7 @@ export function useAsk({
       );
       setAnswerStalled(false);
       setLocalAiStarting(false);
+      setLocalEvaluating(false);
       setStreamingTurn(null);
       setStatus('error');
       pendingQuestionRef.current = null;
@@ -1416,6 +1489,7 @@ export function useAsk({
     status,
     answerStalled,
     localAiStarting,
+    localEvaluating,
     savingIdx,
     displayedProvider,
     confidentialityMode,
