@@ -20,6 +20,7 @@ import type { NoticeCardDriver } from './supervisor';
 export interface SupervisorEventSink {
   handleLobby(): void;
   handleAdmitted(): void;
+  handlePresumedPresent(): void;
   handleDenied(): void;
   handleDisconnected(): void;
   handleFailed(reason: 'page-unrecognized'): void;
@@ -68,6 +69,11 @@ export function applyTitleStatus(sup: SupervisorEventSink, title: string | null 
       break;
     case 'admitted':
       sup.handleAdmitted();
+      break;
+    case 'present-unknown':
+      // Admitted, then an unrecognized page (QA-91d latch): presumed still present —
+      // never a failure. The supervisor keeps the card alive.
+      sup.handlePresumedPresent();
       break;
     case 'denied':
       sup.handleDenied();

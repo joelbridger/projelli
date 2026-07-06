@@ -57,6 +57,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     red→green): health-body parsing (ok/loading/garbage), probe output
     detection, and `start()` succeeding only after a warm-up generation
     produces output / erroring (not hanging) when it produces none or fails.
+- **QA-91d: Notice Card no longer flickers in and vanishes ~28s after it is
+  admitted (the last broken step in the join saga).** Proven live in the round-3
+  Legion retest: the card genuinely reached the lobby, was admitted, and was
+  VISIBLE with readable text to a real second participant — then ~28s later the
+  app's own detection decided the join had failed, force-closed the companion
+  window (the tile disappeared from the meeting), and told the presenter "couldn't
+  join" — a false failure on stage. Two root causes, both fixed:
+  - **Admitted-state detection was grounded in a real live capture** of today's
+    in-meeting Teams web page (evidence
+    `coordination/qa-campaign/evidence/qa91d-teams-admitted/`). The OLD admitted
+    selectors (`hangup-button` / `call-hangup` / `calling-retention-banner` /
+    `calling-composite-inner-container`) match NONE of the current in-call DOM, so
+    `detectPhase` sat in `loading` on the admitted page and the runner soft-failed
+    `page-unrecognized` ~28s after a real admit. Admitted now keys on the real
+    in-call anchors — the `hangup-main-btn` Leave button (also `#hangup-button` /
+    `data-inp`), the running `call-duration` timer, the `ubar-*` calling/meeting
+    controls (by tid AND aria-label), and the `calling-screen-*` /
+    `stage-layouts-renderer` stage — with an `aria-label="Leave"` button fallback;
+    the old tids are kept as legacy fallbacks. Files: `adapters/teamsAdapter.ts`.
+  - **Admission is now a one-way latch — but it never silences a real exit.**
+    Once the runner has observed admitted, brief post-admission DOM drift (the
+    in-call anchors momentarily gone) downgrades to a "state unknown, card presumed
+    present" status (`present-unknown` token / phase) instead of force-closing the
+    card or reporting failure — so the demo bug (tile vanishes + "couldn't join")
+    can't recur. Crucially, the latch distinguishes drift from a genuine disconnect
+    so the consent evidence can never lie about presence: a RECOGNIZED non-call page
+    after admission (bounce back to prejoin / lobby / launcher) is a real disconnect
+    → the supervisor rejoins / reports honestly and forfeits the full-duration
+    presence claim; and an unrecognized page whose in-call anchors (call-duration
+    timer / hangup button) stay absent past a short heartbeat grace window (~3.5s)
+    is likewise treated as a real disconnect, never presumed-present forever. The
+    recorder pill never reads "couldn't join" after an observed admission; the
+    never-admitted fast-fail is unchanged. Files: `injectionScript.ts`,
+    `supervisor.ts`, `tauriDriver.ts`, `noticeCardPill.ts`. Tests: adapter fixture
+    from the capture + supervisor/injection latch & evidence-integrity tests (169
+    noticeCard tests green, tsc clean).
 - **Demo dress-rehearsal fixes: persisted key-verify status + Local AI
   mode-switch pre-start now cover the ConfidentialityModeSettings path.**
   Two findings from the Legion dress-rehearsal (`legion-dressrun1/REPORT.md`):

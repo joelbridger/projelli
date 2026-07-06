@@ -27,6 +27,10 @@ export function noticeCardPillView(status: NoticeCardStatus | null): NoticeCardP
     case 'lobby':
       return { kind: 'lobby', tone: 'pending' };
     case 'present':
+    case 'present-unknown':
+      // 'present-unknown' = admitted, DOM momentarily unreadable (QA-91d latch): the
+      // card IS in the meeting, so it reads as present — NEVER "couldn't join". Reuses
+      // the 'present' pill (no new i18n key) since to the advisor the card is just there.
       return { kind: 'present', tone: 'ok' };
     case 'failed':
       return { kind: 'failed', tone: 'warn' };

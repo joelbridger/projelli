@@ -66,6 +66,10 @@ export type NoticeCardStatus =
   | { phase: 'joining'; platform: NoticeCardPlatform; meetingTitle?: string | undefined }
   | { phase: 'lobby'; platform: NoticeCardPlatform; meetingTitle?: string | undefined }
   | { phase: 'present'; platform: NoticeCardPlatform; meetingTitle?: string | undefined }
+  // Admitted, then the page stopped matching (QA-91d one-way latch): the card is
+  // physically in the meeting but the DOM is momentarily unreadable. A PRESENT-ish,
+  // never-failed state — the recorder widget must not read "couldn't join" here.
+  | { phase: 'present-unknown'; platform: NoticeCardPlatform; meetingTitle?: string | undefined }
   | { phase: 'failed'; reason: NoticeCardFailureReason }
   | { phase: 'left' };
 
@@ -211,7 +215,16 @@ export class NoticeCardSupervisor {
 
   handleAdmitted(): void {
     if (this.terminal) return;
-    if (this._status.phase !== 'joining' && this._status.phase !== 'lobby') return;
+    // Allow re-admit from 'present-unknown' too (QA-91d): when the in-call DOM becomes
+    // readable again after drift, snap back to a clean 'present'. The everAdmitted guard
+    // below keeps the 'notice-card-joined' ledger entry to exactly once.
+    if (
+      this._status.phase !== 'joining' &&
+      this._status.phase !== 'lobby' &&
+      this._status.phase !== 'present-unknown'
+    ) {
+      return;
+    }
     this.clearJoinTimer();
     const platform = this._status.platform;
     const meetingTitle = this._status.meetingTitle;
@@ -234,9 +247,35 @@ export class NoticeCardSupervisor {
     this.fail('denied');
   }
 
+  /**
+   * The runner observed an unrecognized page AFTER admission (QA-91d one-way latch).
+   * The card is physically in the meeting, so we NEVER fail or close here — that is
+   * exactly the false "couldn't join" the demo hit ~28s after a real admit. Downgrade
+   * to a present-but-state-unknown status and keep the card alive until stop() ends the
+   * recording normally. Defensive: ignored before a real admission (never fabricates
+   * presence) and once terminal.
+   */
+  handlePresumedPresent(): void {
+    if (this.terminal) return;
+    if (!this.everAdmitted) return; // never claim presence we didn't actually reach
+    this.clearJoinTimer(); // admission already happened; no give-up clock applies
+    // Already left the call for real (rejoin exhausted → failed) can't reach here
+    // (terminal). From 'present' or a prior 'present-unknown', re-assert presumed
+    // present. Carry the platform/title from config (stable across the whole card).
+    if (this._status.phase === 'failed' || this._status.phase === 'left') return;
+    this.setStatus({
+      phase: 'present-unknown',
+      platform: this.config?.platform ?? 'none',
+      meetingTitle: this.config?.meetingTitle,
+    });
+  }
+
   handleDisconnected(): void {
     if (this.terminal) return;
-    if (this._status.phase !== 'present') return; // only meaningful once in-meeting
+    // Meaningful only once in-meeting. Includes 'present-unknown' (QA-91d): a genuinely
+    // CLOSED window while presumed-present is still a real drop worth one rejoin — the
+    // latch only suppresses DOM-drift disconnects, not an actually-gone window.
+    if (this._status.phase !== 'present' && this._status.phase !== 'present-unknown') return;
     const platform = this._status.platform;
     const meetingTitle = this._status.meetingTitle;
     if (!this.rejoinUsed) {
@@ -269,8 +308,14 @@ export class NoticeCardSupervisor {
     this.terminal = true;
     this.clearJoinTimer();
     const current = this._status;
-    const wasPresent = current.phase === 'present';
-    const platform = wasPresent ? current.platform : this.config?.platform ?? 'none';
+    // 'present-unknown' counts as present (QA-91d): the card was admitted and never
+    // actually left — the DOM was just momentarily unreadable. Filing 'left' (and, if
+    // it joined promptly and never truly dropped, full-duration) is the honest record.
+    const wasPresent = current.phase === 'present' || current.phase === 'present-unknown';
+    const platform =
+      current.phase === 'present' || current.phase === 'present-unknown'
+        ? current.platform
+        : this.config?.platform ?? 'none';
 
     if (wasPresent) {
       const meetingDir = this.meetingDir();
