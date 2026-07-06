@@ -1012,17 +1012,18 @@ async function retagFolderPathsInPlace(
   for (const [matterId, paths] of byMatter) {
     if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
     try {
-      // In-place, batched — no re-extract / re-embed. Returns rows updated.
-      const updated = await MemoryService.retagMatterBatch(paths, matterId);
-      // QA-92: a retag that matched ZERO rows means those files never got vector
-      // rows to re-tag (a timing gap, or a path-form mismatch). Left as-is they
-      // stay UNASSIGNED and are invisible to client-scoped Ask this session. Fall
-      // back to a real index under the target matter so they become searchable
-      // now — not only after the next boot's row-verified reconcile heals them.
-      // (`updated` counts rows MATCHED by the path predicate, so an already-tagged
-      // folder returns > 0 and never triggers this — no per-boot re-embed.)
-      if (updated === 0) {
-        await MemoryService.reindexPaths(paths, matterId);
+      // In-place, batched — no re-extract / re-embed. Returns the PER-PATH
+      // misses: files that still have no rows under `matterId` after the retag.
+      const missing = await MemoryService.retagMatterBatch(paths, matterId);
+      // QA-92: those files never got vector rows to re-tag (a timing gap, or a
+      // path-form mismatch). Left as-is they stay UNASSIGNED and are invisible to
+      // client-scoped Ask this session. Re-index EXACTLY the misses under the
+      // target matter so they become searchable now — not only after the next
+      // boot's row-verified reconcile heals them. Checking per-path (not the
+      // aggregate count) is what catches a MIXED batch where a sibling retagged
+      // fine but this one silently missed.
+      if (missing.length > 0) {
+        await MemoryService.reindexPaths(missing, matterId);
       }
     } catch {
       // Best-effort: skip and continue with the next matter.

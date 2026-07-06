@@ -115,11 +115,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     its scope. PDF entries record `row_count = 0`, so this gates on row PRESENCE,
     not count — an unchanged, still-indexed PDF is not re-OCR'd. Files:
     `commands/rag/lifecycle.rs` (`pdf_can_skip`, `rag_manifest_pdf_fresh`).
-  - **Boot retag falls back to real indexing when it matches zero rows.** If the
-    in-place folder→client retag updates no rows (a timing gap or path-form
-    mismatch), those files would stay unassigned and invisible to client-scoped
-    Ask this session; they are now re-indexed under the target client. Files:
-    `platform/hooks/useMemoryWiring.ts` (`retagFolderPathsInPlace`).
+  - **Boot retag re-indexes the exact per-path misses.** The in-place folder→
+    client retag now reports, per path, which files still have no rows under the
+    target client after the retag (never-indexed / path-form mismatch); those —
+    and only those — are re-indexed under the client. Checking per path (not the
+    batch's aggregate updated-count) is what catches a MIXED folder where one file
+    retags fine but a sibling silently misses and would otherwise stay unassigned
+    and invisible to client-scoped Ask. Files: `commands/rag/lifecycle.rs`
+    (`rag_retag_matter_batch` now returns the miss list),
+    `commands/rag/store/maintain.rs` (`paths_missing_rows_under_matter`),
+    `platform/hooks/useMemoryWiring.ts` (`retagFolderPathsInPlace`),
+    `platform/rag/MemoryService.ts`, `platform/utils/tauri-commands.ts`.
 - **QA-81 (P0 silent data loss): a brand-new .docx being actively TYPED no
   longer loses in-progress text on a crash/power-loss while the toolbar shows
   "Saved".** A keystroke lives only in the run's editable DOM until the run

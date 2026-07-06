@@ -1143,4 +1143,96 @@ mod qa92_tests {
             "a pre-existing file with a fresh receipt but NO rows must re-index"
         );
     }
+
+    // QA-92 round 2: a MIXED batch retag must be checked PER PATH — the file
+    // with rows under the target matter is fine, but the sibling with zero rows
+    // (never indexed / path-form mismatch) is a miss and must be reported so the
+    // caller re-indexes only it. The aggregate rows-updated count hides this.
+    #[tokio::test]
+    async fn paths_missing_rows_under_matter_flags_only_the_zero_row_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+
+        // plan.docx has rows under matter m-acme; statement.pdf has none.
+        let has_rows = workspace.join("Acme/plan.docx").to_string_lossy().to_string();
+        let no_rows = workspace.join("Acme/statement.pdf").to_string_lossy().to_string();
+        store::upsert_chunks_for_path(
+            &table,
+            &has_rows,
+            vec![(
+                chunker::Chunk {
+                    path: has_rows.clone(),
+                    paragraph_index: 0,
+                    text: "retirement plan".to_string(),
+                    start_offset: 0,
+                    end_offset: 15,
+                    locator: None,
+                },
+                vec![0.1; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            "m-acme",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        let misses = store::paths_missing_rows_under_matter(
+            &table,
+            &[has_rows.clone(), no_rows.clone()],
+            "m-acme",
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            misses,
+            vec![no_rows],
+            "only the zero-row sibling must be reported as a miss"
+        );
+    }
+
+    // A path whose rows live under a DIFFERENT matter is a miss for the target
+    // matter (it needs (re)indexing/retag under the target), and it must NOT be
+    // wrongly treated as present just because it has rows somewhere.
+    #[tokio::test]
+    async fn paths_under_a_different_matter_are_misses_for_the_target() {
+        let dir = tempfile::tempdir().unwrap();
+        let workspace = dir.path();
+        let conn = store::open_connection(workspace).await.unwrap();
+        let table = store::open_or_create_table(&conn).await.unwrap();
+
+        let path = workspace.join("doc.docx").to_string_lossy().to_string();
+        store::upsert_chunks_for_path(
+            &table,
+            &path,
+            vec![(
+                chunker::Chunk {
+                    path: path.clone(),
+                    paragraph_index: 0,
+                    text: "held elsewhere".to_string(),
+                    start_offset: 0,
+                    end_offset: 14,
+                    locator: None,
+                },
+                vec![0.3; embedder::EMBEDDING_DIM],
+            )],
+            store::SourceType::Text,
+            "m-other",
+            store::PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .unwrap();
+
+        let misses =
+            store::paths_missing_rows_under_matter(&table, &[path.clone()], "m-acme", &TEST_KEY)
+                .await
+                .unwrap();
+        assert_eq!(misses, vec![path], "rows under another matter don't count");
+    }
 }
