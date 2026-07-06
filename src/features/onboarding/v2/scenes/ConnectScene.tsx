@@ -25,6 +25,7 @@ import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
 
 import { SecurityPill } from '../components/SecurityPill';
 import { ONB_COPY, ONB_COMING_SOON_LOGOS } from '../copy';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 const PILL_ICONS = [Lock, Monitor, EyeOff] as const;
 
@@ -91,9 +92,10 @@ export function ConnectScene() {
             <FileDown className="h-[18px] w-[18px] text-[var(--kp-accent)]" strokeWidth={1.75} aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-bold text-[var(--kp-navy)]">{C.worksWith.title}</div>
-            <p className="mt-1 text-sm leading-relaxed text-[#41506a]">{C.worksWith.body}</p>
-            <p className="mt-2 text-xs leading-relaxed text-[#6b7a90]">{C.worksWith.disclaimer}</p>
+            <div className="inline-flex items-center gap-1.5 text-sm font-bold text-[var(--kp-navy)]">
+              {C.worksWith.title}
+              <InfoHelp content={`${C.worksWith.body} ${C.worksWith.disclaimer}`} />
+            </div>
           </div>
         </div>
       </div>

@@ -20,6 +20,7 @@ import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
 import { Key, X, ArrowRight, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { ApiKeyWizard, type WizardProvider } from './ApiKeyWizard';
 import type { KeyProvider } from '@/platform/providers/KeychainService';
 import { SK_API_KEY_CARD_DISMISSED } from '@/config/identity';
@@ -100,17 +101,15 @@ export function ApiKeySetupCard({ onAddKey, onDismiss, className, onSaveKey }: A
               <Key className="h-5 w-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="text-sm font-semibold leading-tight">
+              <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold leading-tight">
                 {t('onboarding.api-key-card.title')}
+                <InfoHelp content={t('onboarding.api-key-card.description')} />
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 1 min setup
               </p>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {t('onboarding.api-key-card.description')}
-          </p>
           <Button
             data-testid="api-key-setup-card-cta"
             onClick={handleCta}
