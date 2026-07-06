@@ -2852,6 +2852,140 @@ mod tests {
         );
     }
 
+    /// SWAP-1 (re-index atomicity): re-indexing a file must be an ATOMIC swap —
+    /// a retrieval that lands on ANY committed table version during the re-index
+    /// still finds the file.
+    ///
+    /// The bug (demo step-4 finding 4): the old write path DELETED a path's
+    /// chunks, then ADDED the new ones as TWO separate LanceDB commits. Between
+    /// those commits there was a briefly-committed version in which the file had
+    /// ZERO rows — an Ask that retrieved in that window missed the file entirely
+    /// (a silent, brief disappearance of a source mid-write).
+    ///
+    /// This test reconstructs, via `checkout`, EXACTLY what a concurrent reader
+    /// would have seen at every committed version from just-after-the-first-index
+    /// through the final version, and proves the file is retrievable at each one —
+    /// the literal "a retrieval interleaved between the write phases still finds
+    /// the file" property.
+    ///
+    /// Deterministic RED→GREEN: with delete-then-add the re-index bumps the table
+    /// version by TWO and the intermediate (post-delete) version has the file gone
+    /// (RED). With the merge_insert atomic swap it bumps by exactly ONE and no gap
+    /// version exists (GREEN).
+    #[tokio::test]
+    async fn reindex_is_atomic_no_retrieval_gap() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/engagement.md";
+        let matter = "matter_acme";
+        let q = vec![0.11f32; EMBEDDING_DIM];
+        let mk_rows = |texts: &[&str]| {
+            texts
+                .iter()
+                .enumerate()
+                .map(|(i, t)| {
+                    (
+                        Chunk {
+                            path: path.into(),
+                            paragraph_index: i as u32,
+                            text: (*t).into(),
+                            start_offset: 0,
+                            end_offset: t.len(),
+                            locator: None,
+                        },
+                        vec![0.11f32; EMBEDDING_DIM],
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+
+        // v1: index the file with 3 chunks. This is the state a reader sees
+        // BEFORE the re-index begins.
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows(&["a1", "a2", "a3"]),
+            SourceType::Text,
+            matter,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("v1 upsert");
+        let version_before = table.version().await.expect("version before re-index");
+        assert!(
+            !nearest(&table, &q, 10, Some(matter), false, &[])
+                .await
+                .unwrap()
+                .is_empty(),
+            "file must be retrievable after the initial index"
+        );
+
+        // Re-index the SAME path with new content and a DIFFERENT chunk count
+        // (3 → 2), exercising update + insert + stale-delete in one swap.
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows(&["b1", "b2"]),
+            SourceType::Text,
+            matter,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("re-index upsert");
+        let version_after = table.version().await.expect("version after re-index");
+
+        // (1) The swap is a SINGLE commit — there is no briefly-committed
+        // in-between state a reader could land on. delete-then-add would be +2.
+        assert_eq!(
+            version_after,
+            version_before + 1,
+            "re-index must be ONE atomic commit (delete-then-add is +2, exposing a gap)"
+        );
+
+        // (2) The literal interleaving proof: for EVERY committed version a
+        // reader could have landed on from just-after-v1 through the final
+        // version, the file stays retrievable. Old code's post-delete/pre-add
+        // version has the file gone → this fails deterministically.
+        let reader = conn
+            .open_table(TABLE_NAME)
+            .execute()
+            .await
+            .expect("reader handle");
+        for v in (version_before + 1)..=version_after {
+            reader
+                .checkout(v)
+                .await
+                .unwrap_or_else(|e| panic!("checkout v{v}: {e}"));
+            let hits = nearest(&reader, &q, 10, Some(matter), false, &[])
+                .await
+                .unwrap_or_else(|e| panic!("nearest at v{v}: {e}"));
+            assert!(
+                hits.iter().any(|h| stored_path(h) == path),
+                "file disappeared at committed version {v} during re-index — a \
+                 retrieval interleaved with the write would miss it"
+            );
+        }
+
+        // (3) After the swap, retrieval returns exactly the 2 NEW chunks — no
+        // orphaned v1 rows, no dupes (guards QA-92's row-count contract).
+        reader.checkout_latest().await.expect("checkout latest");
+        let final_hits = nearest(&reader, &q, 10, Some(matter), false, &[])
+            .await
+            .unwrap();
+        assert_eq!(
+            final_hits
+                .iter()
+                .filter(|h| stored_path(h) == path)
+                .count(),
+            2,
+            "after re-index exactly the 2 new chunks are present (no orphans/dupes)"
+        );
+    }
+
     /// P1.1 (Windows regression): rows written under the NATIVE backslash path
     /// (what the Rust WalkDir/reconcile sees on Windows) must be reachable by a
     /// delete/retag issued with the FORWARD-SLASH form (what the TS side builds

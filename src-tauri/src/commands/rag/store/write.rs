@@ -460,35 +460,59 @@ pub async fn upsert_chunks_for_path(
     privilege: &str,
     key: &[u8; 32],
 ) -> Result<()> {
-    // Always delete first — even if `rows` is empty (the file may have
-    // been emptied by the user) we want to drop stale chunks.
-    // VG-6e: the column holds the keyed token, so the predicate matches on
-    // the token computed from the same plaintext path + key. (The predicate
-    // string lands in LanceDB's transaction log — tokenizing it is part of
-    // the no-plaintext-paths-on-disk guarantee.)
+    // VG-6e: the `path` column holds the keyed token, so every predicate matches
+    // on the token computed from the same plaintext path + key. (The predicate
+    // string lands in LanceDB's transaction log — tokenizing it is part of the
+    // no-plaintext-paths-on-disk guarantee.)
     let predicate = format!(
         "path = '{}'",
         sql_escape(&super::super::crypto::path_token(key, path))
     );
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for {}", path))?;
 
+    // Empty `rows` means the file was emptied by the user — there is nothing to
+    // swap IN, so a plain delete is correct and exposes no gap (a reader
+    // correctly sees the source disappear because it genuinely has). The atomic
+    // path below only matters when we are REPLACING content.
     if rows.is_empty() {
+        table
+            .delete(&predicate)
+            .await
+            .with_context(|| format!("delete failed for {}", path))?;
         return Ok(());
     }
 
+    // SWAP-1 (atomic re-index): do NOT delete-then-add. Those are two separate
+    // LanceDB commits, and with a zero read-consistency interval a concurrent
+    // Ask can land on the briefly-committed post-delete version and miss this
+    // file entirely (demo step-4 finding 4). Instead perform the whole replace
+    // as ONE `merge_insert` transaction so readers only ever see the OLD content
+    // or the NEW content, never a gap:
+    //   - join on `id` (= chunk_id(path, paragraph_index), unique per source);
+    //   - when_matched_update_all: a paragraph that survives re-index is updated
+    //     in place (new text/vector/timestamp);
+    //   - when_not_matched_insert_all: brand-new paragraphs are inserted;
+    //   - when_not_matched_by_source_delete SCOPED to this path's token: stale
+    //     paragraphs that no longer exist (the file shrank) are dropped — and the
+    //     `path = '<token>'` filter guarantees rows for OTHER files/matters are
+    //     never touched, so matter/privilege scoping semantics are unchanged.
+    // Row-count outcome is identical to the old delete-then-add, so QA-92's
+    // reconcile row-count proofs still hold; only the atomicity changes.
+    //
     // WS-VEC: build_batch encrypts the text column under the vector-store key.
     // VG-2: this path serves native text extraction only — never OCR.
     let batch = build_batch(&rows, source_type, matter_id, privilege, None, key)?;
     let schema = batch.schema();
     let iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
-    table
-        .add(Box::new(iter))
-        .execute()
+
+    let mut merge = table.merge_insert(&["id"]);
+    merge
+        .when_matched_update_all(None)
+        .when_not_matched_insert_all()
+        .when_not_matched_by_source_delete(Some(predicate));
+    merge
+        .execute(Box::new(iter))
         .await
-        .context("add chunks batch failed")?;
+        .with_context(|| format!("atomic re-index merge_insert failed for {}", path))?;
     Ok(())
 }
 
@@ -520,10 +544,6 @@ pub async fn upsert_grouped(
         "path = '{}'",
         sql_escape(&super::super::crypto::path_token(key, path))
     );
-    table
-        .delete(&predicate)
-        .await
-        .with_context(|| format!("delete failed for {}", path))?;
 
     use arrow_schema::ArrowError;
     let mut count = 0usize;
@@ -537,15 +557,40 @@ pub async fn upsert_grouped(
             .map_err(|e| anyhow::anyhow!("build grouped batch for {}: {e}", path))?;
         batches.push(Ok(batch));
     }
-    if !batches.is_empty() {
-        let schema = build_schema();
-        let iter = RecordBatchIterator::new(batches.into_iter(), schema);
+
+    if batches.is_empty() {
+        // Every group was empty — the sectioned file emptied. A plain delete is
+        // correct (nothing to swap in) and exposes no retrieval gap. See
+        // upsert_chunks_for_path for the same empty-source reasoning.
         table
-            .add(Box::new(iter))
-            .execute()
+            .delete(&predicate)
             .await
-            .context("add grouped chunks batch failed")?;
+            .with_context(|| format!("delete failed for {}", path))?;
+        return Ok(count);
     }
+
+    // SWAP-1 (atomic re-index): replace all of this path's rows across every
+    // section (PDF pages / xlsx sheets / pptx slides) in ONE `merge_insert`
+    // transaction — never delete-then-add — so a concurrent Ask can't land on a
+    // committed post-delete version and miss the file. Same three clauses as
+    // upsert_chunks_for_path; the `when_not_matched_by_source_delete` filter is
+    // scoped to this path's token so stale sections are dropped while rows for
+    // other files/matters are untouched (scoping semantics unchanged, QA-92
+    // row-count proofs preserved). Merging on `id` across the multi-batch source
+    // is fine: chunk_id is unique per (path, paragraph_index), so page/sheet
+    // groups never collide.
+    let schema = build_schema();
+    let iter = RecordBatchIterator::new(batches.into_iter(), schema);
+
+    let mut merge = table.merge_insert(&["id"]);
+    merge
+        .when_matched_update_all(None)
+        .when_not_matched_insert_all()
+        .when_not_matched_by_source_delete(Some(predicate));
+    merge
+        .execute(Box::new(iter))
+        .await
+        .with_context(|| format!("atomic grouped re-index merge_insert failed for {}", path))?;
     Ok(count)
 }
 
