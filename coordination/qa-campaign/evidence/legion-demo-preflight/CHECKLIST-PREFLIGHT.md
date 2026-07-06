@@ -41,6 +41,21 @@ I did the normal-UI thing the checklist describes: opened the Clients page and c
 - `03-openai-and-anthropic-working.jpeg` — both provider keys "✓ Working" after Check
 - `04-local-ai-installed-ready.jpeg` — Local AI card, "Installed and ready"
 - `05-post-restart-warmup-question-answered.jpeg` — full restart + warm-up Ask question answered correctly with citation
+- `06-3-leftover-test-meetings-before.jpeg` — the 3 leftover QA-91 test recordings under The Hendersons' Meetings tab
+- `07-delete-audio-confirm-dialog.jpeg` — the app's own delete confirmation ("Delete this meeting's audio? ... The transcript and notes stay.")
+- `08-3-meetings-after-audio-deleted-rows-remain.jpeg` — after deleting all 3, the rows still show (see note below)
+
+## Update 2026-07-06 (later same day) — 42 clients re-confirmed archived; test meeting recordings cleaned up
+
+**42 old test clients:** already archived from the prior pass (this was persistent app state, confirmed unchanged — "3 clients, 3 folders indexed" in the main table, "Archived clients (42)" section still present and collapsed). No new action was needed; re-verified only.
+
+**3 leftover test meeting recordings:** the app's normal UI does **not** offer a "delete this whole meeting" action — the only delete affordance on a meeting entry is **"Delete audio · keep transcript"** (`meeting-entry-delete-audio`), which explicitly deletes just the audio file and keeps the transcript/notes document. I used it on all 3 (per-recording confirm dialog each time — `07-delete-audio-confirm-dialog.jpeg`). Verified on disk that all 3 meeting folders now contain only `meeting.json` + `notes.docx` + `transcript.json` — no audio file remains in any of them:
+```
+C:\Users\james\Documents\Beacon Ridge Demo\The Hendersons\Meetings\2026-07-06-matter_880a5033-93f0-4c41-8ddc-b24ebfd20457\
+C:\Users\james\Documents\Beacon Ridge Demo\The Hendersons\Meetings\2026-07-06-matter_880a5033-93f0-4c41-8ddc-b24ebfd20457-2\
+C:\Users\james\Documents\Beacon Ridge Demo\The Hendersons\Meetings\2026-07-06-matter_880a5033-93f0-4c41-8ddc-b24ebfd20457-3\
+```
+**What remains, precisely:** the audio (the actual recording — the part that mattered most to remove) is gone. All 3 meeting **rows still show** in The Hendersons' Meetings tab and Activity timeline, each tagged "Needs review," because deleting audio doesn't remove the entry itself — `08-3-meetings-after-audio-deleted-rows-remain.jpeg`. Each row's transcript is empty/near-empty (these were failed Notice Card test attempts with no real conversation — the transcript viewer shows "No spoken recording notice was detected"), and `notes.docx` is just the auto-generated empty-meeting shell, not real content. Nothing sensitive or real-looking remains — just 3 harmless stub rows a presenter could click into and see "Needs review" with no audio. If a fully clean Meetings tab (zero rows) is required for the demo, that needs either a product change (a real "delete meeting" action) or manual deletion of the 3 meeting folders directly on disk from outside the app.
 
 ## State left on the Legion
 
@@ -48,3 +63,4 @@ I did the normal-UI thing the checklist describes: opened the Clients page and c
 - 42 old clients **archived** (not deleted) — reversible via "Restore" in the Clients dialog.
 - Both OpenAI and Anthropic keys verified "Working."
 - Workspace: Beacon Ridge Demo, 3 clients, files indexed, one warm-up question already asked (harmless, doesn't need clearing before the real demo).
+- The Hendersons' Meetings tab: 3 rows remain (audio deleted from all 3, transcripts near-empty, notes.docx are auto-generated shells) — see note above for exact remaining file paths.
