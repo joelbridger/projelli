@@ -207,7 +207,7 @@ fn is_internal_service(service: &str) -> bool {
     // supplied name like "lantern-docs-ms\0x" would NOT match the exact
     // denylist below in Rust, yet resolve to the real internal entry at the OS
     // layer — a denylist bypass. Any control character makes the name suspect,
-    // and no legitimate renderer-owned service (com.keepance.*) contains one,
+    // and no legitimate renderer-owned service (com.lantern.*) contains one,
     // so we treat it as internal (denied).
     if normalized.chars().any(|c| c.is_control()) {
         return true;
@@ -576,12 +576,12 @@ mod tests {
         );
     }
 
-    /// Live keychain test. Gated behind `KEEPANCE_TEST_KEYCHAIN=1` at runtime
+    /// Live keychain test. Gated behind `LANTERN_TEST_KEYCHAIN=1` at runtime
     /// so CI (which typically has no secret service daemon running) doesn't
-    /// fail. Run locally with `KEEPANCE_TEST_KEYCHAIN=1 cargo test -- --test-threads=1`.
+    /// fail. Run locally with `LANTERN_TEST_KEYCHAIN=1 cargo test -- --test-threads=1`.
     #[test]
     fn live_roundtrip_set_get_delete() {
-        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("LANTERN_TEST_KEYCHAIN").is_none() {
             return;
         }
         let svc = format!("{}.test", identity::DEFAULT_KEYCHAIN_SERVICE);

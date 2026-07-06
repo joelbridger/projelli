@@ -1286,12 +1286,12 @@ mod tests {
     }
 
     // ── Live keychain round-trip ──────────────────────────────────────────────
-    // Gated behind KEEPANCE_TEST_KEYCHAIN=1 like commands/keychain.rs, so CI
+    // Gated behind LANTERN_TEST_KEYCHAIN=1 like commands/keychain.rs, so CI
     // (which has no secret service daemon) doesn't fail.
 
     #[test]
     fn live_vmk_roundtrip_set_get_delete() {
-        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("LANTERN_TEST_KEYCHAIN").is_none() {
             return;
         }
         let id = "test-vault-roundtrip-id";
@@ -1309,7 +1309,7 @@ mod tests {
     // ── Task 9: recovery + escrow crate-level unit tests ─────────────────────
     // These tests exercise the underlying crate functions directly rather than
     // calling the async Tauri commands (which require a full Tauri runtime).
-    // The live-keychain path is gated behind KEEPANCE_TEST_KEYCHAIN=1.
+    // The live-keychain path is gated behind LANTERN_TEST_KEYCHAIN=1.
 
     /// Round-trip: create recovery wrap → recover VMK → verifier passes.
     #[test]
@@ -1439,7 +1439,7 @@ mod tests {
     /// `vault_export_vmk_for_escrow` — gated on vault being unlocked.
     /// Exercises the load_vmk path: absent VMK → Locked error.
     ///
-    /// GATED: requires `KEEPANCE_TEST_KEYCHAIN=1` because the test needs the OS
+    /// GATED: requires `LANTERN_TEST_KEYCHAIN=1` because the test needs the OS
     /// keychain API to be accessible (even just to confirm no credential exists).
     /// On Windows CI runners and headless service contexts the Credential Manager
     /// returns `ERROR_NO_SUCH_LOGON_SESSION` rather than `NoEntry`, making the
@@ -1447,7 +1447,7 @@ mod tests {
     /// the Credential Manager is always reachable, so the product path is sound.
     #[test]
     fn export_vmk_requires_unlocked_vault() {
-        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("LANTERN_TEST_KEYCHAIN").is_none() {
             return;
         }
 
@@ -1486,7 +1486,7 @@ mod tests {
 
     // ── Task 10: vault_disable safety + encrypt_all/decrypt_all crate helpers ──
     // These tests drive the crate funcs directly in a temp workspace.
-    // The keychain-dependent code paths are gated behind KEEPANCE_TEST_KEYCHAIN=1;
+    // The keychain-dependent code paths are gated behind LANTERN_TEST_KEYCHAIN=1;
     // the "refuse while encrypted" scan has NO keychain dependency and is ALWAYS run.
 
     /// After encrypt_all, vault_disable must refuse with FilesStillEncrypted.
@@ -1638,10 +1638,10 @@ mod tests {
     }
 
     /// Live keychain round-trip for vault_unlock_with_recovery.
-    /// Gated behind KEEPANCE_TEST_KEYCHAIN=1.
+    /// Gated behind LANTERN_TEST_KEYCHAIN=1.
     #[test]
     fn live_vault_unlock_with_recovery_round_trip() {
-        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("LANTERN_TEST_KEYCHAIN").is_none() {
             return;
         }
         use lantern_vault::{
