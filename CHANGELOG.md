@@ -53,6 +53,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **Theme light-lock: the app can no longer come up dark unprompted after a
+  restart.** (Legion 3× demo dry-run, Run 2: the persisted Theme value read
+  "dark" at boot even though Light had been explicitly selected all through
+  Run 1.) Root causes closed: (1) startup trusted whatever theme value sat in
+  storage — a new persisted `themeExplicitlyChosen` stamp is now written only
+  by real user writes (Settings dropdown, toolbar toggle, settings import),
+  and on EVERY hydration an unstamped non-light value is normalized back to
+  light (done in zustand persist `merge`, which unlike version-gated `migrate`
+  actually runs on normal launches — this also makes the BUG-026 sanitization
+  effective on same-version blobs); (2) the one-shot legacy-settings migration
+  never ran at all (its `onFinishHydration` listener registered after the
+  synchronous localStorage hydration had already finished — a long-lived
+  install still showed `_migrated: false` live) and, had it ever run, would
+  have imported the legacy raw `localStorage['theme']` key ('system' on most
+  historical installs, echoed there every session by the theme manager) —
+  the echo write is removed, the legacy key is never imported and is deleted;
+  (3) `useThemeManager`'s invalid-value fallback was 'system' (OS decides) —
+  now 'light'; (4) first paint + native chrome: `:root { color-scheme: light }`
+  in `globals.css` and `"theme": "Light"` in `tauri.conf.json` keep the WebView
+  and titlebar light on a dark-mode OS, with the titlebar re-synced at runtime
+  only for an explicitly chosen theme.
+  Files: `settingsStore.ts`, `useThemeManager.ts`, `globals.css`,
+  `tauri.conf.json`; tests: `tests/unit/settings/startup-theme-lock.test.ts`,
+  `src/app/lifecycle/useThemeManager.test.tsx`.
 - **Local AI patience: a big on-device question no longer reports a FALSE
   failure while the engine is still reading your documents.** On the local
   (`keepance-local`) engine, a real Ask over a large RAG prompt (~4,574 tokens)
