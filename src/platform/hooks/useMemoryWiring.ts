@@ -34,6 +34,7 @@ import {
   resetRetrievalHitExclusion,
   setSourceIdForms,
   resetSourceIdForms,
+  type RagHit,
 } from '@/platform/rag/MemoryService';
 import {
   createRetagScheduler,
@@ -42,13 +43,18 @@ import {
 import {
   getExcludedMatterFolders,
   getExcludedMailMatters,
+  isAllMailHeld,
+  isAllFilesHeld,
   useScopeUpdateStore,
 } from '@/platform/rag/scopeUpdateStore';
 import {
   usePendingMailRetagStore,
   pendingMailRetagHydrationSuspect,
 } from '@/platform/rag/pendingMailRetagStore';
-import { usePendingFolderRetagStore } from '@/platform/rag/pendingFolderRetagStore';
+import {
+  usePendingFolderRetagStore,
+  pendingFolderRetagHydrationSuspect,
+} from '@/platform/rag/pendingFolderRetagStore';
 import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
 import {
   buildMailMatterMap,
@@ -1092,6 +1098,11 @@ function dischargeBootRetagForFolder(folder: string): void {
  *  ids and the boot `matter:boot-retag` aggregate so it survives independently. */
 const DURABLE_FOLDER_ID = 'matter:durable-folder';
 
+/** QA-44 (R8, F3) — scope-hold id for the BLANKET all-files hold installed when the
+ *  durable folder-retag store hydrated incompletely. The file mirror of the mail
+ *  `mail:hydration-suspect` id; discharged when the boot folder retag runs clean. */
+const FILE_HYDRATION_SUSPECT_ID = 'matter:hydration-suspect';
+
 /** QA-44 (R7-3) — persist that these folder prefixes are held out (a live re-map is
  *  pending, or a boot in-place retag failed under them) so the hold survives a
  *  close/switch. The FILE mirror of `usePendingMailRetagStore.record`. */
@@ -1123,15 +1134,59 @@ function dischargeDurableFolderHold(folder: string, root: string | null | undefi
 export function restoreFolderHolds(workspaceRoot: string | null | undefined): void {
   if (!workspaceRoot) return;
   const held = usePendingFolderRetagStore.getState().forWorkspace(workspaceRoot);
-  if (held.length === 0) return;
   const store = useScopeUpdateStore.getState();
-  store.begin({
-    id: DURABLE_FOLDER_ID,
-    kind: 'matter',
-    label: 'Applying client scope to search',
-    excludeFolders: held,
-  });
-  store.markFailed(DURABLE_FOLDER_ID);
+  if (held.length > 0) {
+    store.begin({
+      id: DURABLE_FOLDER_ID,
+      kind: 'matter',
+      label: 'Applying client scope to search',
+      excludeFolders: held,
+    });
+    store.markFailed(DURABLE_FOLDER_ID);
+  }
+  // F3 (R8): if the durable FOLDER store hydrated incompletely (corrupt/partial
+  // localStorage), the holds above may be MISSING records. We can't know which
+  // folders were lost, so fail closed on ALL files (`excludeAllFiles`) — the file
+  // mirror of the mail suspect hold — until the idempotent boot folder retag
+  // reconverges every mapped folder's tag and discharges this entry.
+  if (pendingFolderRetagHydrationSuspect()) {
+    store.begin({
+      id: FILE_HYDRATION_SUSPECT_ID,
+      kind: 'matter',
+      label: 'Applying client scope to search',
+      excludeAllFiles: true,
+    });
+    store.markFailed(FILE_HYDRATION_SUSPECT_ID);
+  }
+}
+
+/**
+ * QA-44 — the retrieval fail-closed predicate: true drops the hit. Installed once
+ * at mount ({@link setRetrievalHitExclusion}); exported as a pure function so its
+ * fail-closed behavior is unit-testable without rendering the hook. Reads live
+ * store state on every call, so it always reflects the current holds.
+ *
+ * Mail and file hits are governed independently: a MAIL-store suspicion never hides
+ * files, and a FOLDER-store suspicion never hides mail.
+ */
+export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
+  const isMail = hit.sourceType === 'mail' || (hit.sourceId ?? '').startsWith('mail:');
+  if (isMail) {
+    // R8 (F2): a corrupt mail-retag store can't say WHICH matters lost their hold, so
+    // fail closed on ALL mail until the boot mail retag reconverges every tag.
+    if (isAllMailHeld()) return true;
+    // A mail folder re-mapped between clients: hold out any mail hit still carrying
+    // the OLD client's matter id until the re-tag lands.
+    if (hit.matterId && getExcludedMailMatters().includes(hit.matterId)) return true;
+    return false;
+  }
+  // R8 (F3): the file mirror — a corrupt folder-retag store fails closed on ALL files.
+  if (isAllFilesHeld()) return true;
+  // Files under a folder whose matter re-tag is pending/failed.
+  const folders = getExcludedMatterFolders();
+  if (folders.length === 0) return false;
+  const { rootPath: liveRoot } = useWorkspaceStore.getState();
+  return pathInAnyFolder(hit.sourceId ?? hit.path, folders, liveRoot);
 }
 
 /**
@@ -1152,10 +1207,14 @@ async function retagFolderPathsInPlace(
   folders: string[],
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
   workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
-): Promise<void> {
+): Promise<boolean> {
+  // Returns TRUE only on a fully CLEAN pass (no failed files AND the workspace
+  // identity never changed under it). An identity-abort or any failed file returns
+  // FALSE, so the caller never treats an aborted/partial pass as a clean success
+  // (which would wrongly discharge the F3 all-files suspect hold).
   const { rootPath } = workspaceIdentity;
   const allPaths = collectAllFilePaths(await getFreshOrCachedFileTree(workspaceService));
-  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
 
   const affected = allPaths.filter((p) => pathInAnyFolder(p, folders, rootPath));
 
@@ -1189,7 +1248,7 @@ async function retagFolderPathsInPlace(
 
   const failedPaths: string[] = [];
   for (const [matterId, paths] of byMatter) {
-    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
     // R7-4: re-resolve each file's CURRENT matter right before the write. This
     // boot pass snapshotted `byMatter` once at the start but writes over
     // seconds/minutes; if a folder is re-mapped mid-pass, the live scheduler
@@ -1230,16 +1289,16 @@ async function retagFolderPathsInPlace(
       // matter tag, so hold every file in it out of retrieval; a later boot retries.
       failedPaths.push(...currentPaths);
     }
-    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
   }
   for (const { abs, privilege } of privileged) {
-    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
     try {
       await MemoryService.retagPrivilege(abs, privilege);
     } catch {
       // Best-effort.
     }
-    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
   }
 
   // Round 4 + R7-1: guard the store write by the workspace IDENTITY this pass ran
@@ -1250,7 +1309,7 @@ async function retagFolderPathsInPlace(
   // the current workspace still needs. The entry is not owned by the disposed
   // scheduler, and the new workspace's own `retagExistingMatterFolderPaths`
   // early-returns when it has no mapped folders, so nothing would clear a bled hold.
-  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+  if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
   const store = useScopeUpdateStore.getState();
   if (failedPaths.length > 0) {
     store.begin({
@@ -1281,26 +1340,60 @@ async function retagFolderPathsInPlace(
     if (!failedFolders.includes(f)) dischargeDurableFolderHold(f, rootPath);
   }
   recordDurableFolderHold(rootPath, failedFolders);
+  // Clean iff no file failed to retag (identity stayed current — early returns above
+  // already returned false on abort).
+  return failedPaths.length === 0;
 }
 
 export async function retagExistingMatterFolderPaths(
   workspaceService: MemoryWiringWorkspaceService | null | undefined,
   workspaceIdentity: WorkspaceIdentitySnapshot = captureWorkspaceIdentity(),
 ): Promise<void> {
+  const capturedRoot = workspaceIdentity.rootPath;
+  // F1 (R8): union in every folder/path that still has a DURABLE pending hold but
+  // may no longer be MAPPED. Without this, a folder that was unmapped/removed while
+  // its retag was pending is re-held by `restoreFolderHolds` on every open but the
+  // boot pass — which built its list ONLY from currently-mapped `folderPaths` — never
+  // retagged it, so it stayed held out of search FOREVER. Driving the held paths here
+  // retags each file to its CURRENT matter (unmapped → unassigned, resolved per file
+  // inside `retagFolderPathsInPlace`) and discharges the durable hold on success. This
+  // is the FILE mirror of `retagExistingMailFolders`, which already unions its pending
+  // intents so a mail hold is always retried until it lands.
+  const pendingHeld = capturedRoot
+    ? usePendingFolderRetagStore.getState().forWorkspace(capturedRoot)
+    : [];
   const folders = Array.from(
     new Set(
-      getMatters()
-        .flatMap((matter) => matter.folderPaths)
-        .filter((folder): folder is string => Boolean(folder)),
+      [
+        ...getMatters().flatMap((matter) => matter.folderPaths),
+        ...pendingHeld,
+      ].filter((folder): folder is string => Boolean(folder)),
     ),
   );
-  if (folders.length === 0) return;
-  try {
-    // P1.1: retag IN PLACE (no re-embed) so a warm boot of a mapped workspace
-    // stays cheap. (Was `reindexFolderPaths`, which re-embedded every file.)
-    await retagFolderPathsInPlace(folders, workspaceService, workspaceIdentity);
-  } catch {
-    // Best-effort: the initial index already completed; do not block startup.
+  // Mind the early-return: a pending-only workspace (holds but no mapped folders)
+  // MUST still run so the stranded hold can be discharged. When there are genuinely
+  // NO folders to retag, the pass is TRIVIALLY clean — still discharge the F3 hold.
+  let clean = false;
+  if (folders.length === 0) {
+    clean = true;
+  } else {
+    try {
+      // P1.1: retag IN PLACE (no re-embed) so a warm boot of a mapped workspace
+      // stays cheap. (Was `reindexFolderPaths`, which re-embedded every file.)
+      clean = await retagFolderPathsInPlace(folders, workspaceService, workspaceIdentity);
+    } catch {
+      // Best-effort: the initial index already completed; do not block startup.
+      clean = false;
+    }
+  }
+  // F3 (R8): a fully clean boot folder retag means every mapped folder's files
+  // reconverged to the correct client, so release the blanket all-files hold a
+  // hydration-suspect folder store installed (see `restoreFolderHolds`) for THIS
+  // session. A failure keeps it (still fail closed). Guarded by identity so a stale
+  // pass that resolved after a switch can't clear the now-active workspace's hold;
+  // the still-suspect module flag re-establishes it on the next open.
+  if (clean && isWorkspaceIdentityCurrent(workspaceIdentity)) {
+    useScopeUpdateStore.getState().remove(FILE_HYDRATION_SUSPECT_ID);
   }
 }
 
@@ -1378,7 +1471,9 @@ export async function retagExistingMailFolders(
       }
     }
   }
-  if (targets.size === 0) return;
+  // NB: no early-return on an empty target set — a fully clean (even trivially
+  // empty) pass must still fall through to discharge the F2 all-mail suspect hold.
+  let anyFailure = false;
   for (const [key, { provider, account, folderId, matterId }] of targets) {
     // R7-4: re-resolve this folder's CURRENT matter right before the write. `targets`
     // was snapshotted at pass start but we write over time; a folder re-mapped
@@ -1397,6 +1492,7 @@ export async function retagExistingMailFolders(
     } catch {
       // Failure: leave the restored exclusion + durable record in place (fail
       // closed across sessions); the idempotent retag converges on a later boot.
+      anyFailure = true;
       // eslint-disable-next-line lantern-async/no-silent-failure -- fail-closed by design: KEEP the restored exclusion + durable record so the mail stays held out until a retag succeeds
       continue;
     }
@@ -1407,6 +1503,16 @@ export async function retagExistingMailFolders(
     if (capturedRoot && !mailIntentTargets(capturedRoot, key, currentMatter)) continue;
     useScopeUpdateStore.getState().remove(`mail:${key}`);
     if (capturedRoot) usePendingMailRetagStore.getState().clear(capturedRoot, key);
+  }
+  // R8 (F2): a fully clean boot mail retag means every mapped mail folder's tag
+  // reconverged, so the blanket all-mail hold installed for a hydration-suspect
+  // store (see `restoreMailHolds`) can be released for THIS session. Any per-folder
+  // failure keeps it (still fail closed). Guarded by identity so a stale pass that
+  // resolved after a switch can't clear the now-active workspace's hold. The entry
+  // is re-established from the still-suspect module flag on the next open, so a later
+  // workspace with its own incomplete records still fails closed.
+  if (!anyFailure && isWorkspaceIdentityCurrent(workspaceIdentity)) {
+    useScopeUpdateStore.getState().remove('mail:hydration-suspect');
   }
 }
 
@@ -1435,15 +1541,18 @@ export function restoreMailHolds(workspaceRoot: string | null | undefined): void
     });
     store.markFailed(id);
   }
-  // R7-6: if the durable store hydrated incompletely (corrupt/partial localStorage),
-  // the holds above may be MISSING records. We can't know which matters were lost,
-  // so surface a visible failed banner (fail closed as a signal, not silence); the
-  // idempotent boot mail retag reconverges every mapped folder's tag regardless.
+  // R7-6/R8 (F2): if the durable store hydrated incompletely (corrupt/partial
+  // localStorage), the holds above may be MISSING records. We can't know which
+  // matters were lost, so fail closed for REAL — hold EVERY mail hit out of retrieval
+  // (`excludeAllMail`) AND surface the visible failed banner — until the idempotent
+  // boot mail retag reconverges every mapped folder's tag and discharges this entry.
+  // (R7-6 only showed the banner while holding NOTHING, so the copy overstated.)
   if (pendingMailRetagHydrationSuspect()) {
     store.begin({
       id: 'mail:hydration-suspect',
       kind: 'mail',
       label: 'Updating email search scope',
+      excludeAllMail: true,
     });
     store.markFailed('mail:hydration-suspect');
   }
@@ -1845,20 +1954,7 @@ export function useMemoryWiring(
     // folder->matter re-tag is pending or failed is dropped from retrieval (fail
     // closed) until the re-tag lands, instead of surfacing under the wrong
     // client. Reads live state each call, so a `[]`-deps install is correct.
-    setRetrievalHitExclusion((hit) => {
-      // Mail whose folder is being re-mapped between clients: hold out any mail
-      // hit still carrying the OLD client's matter id until the re-tag lands.
-      const isMail = hit.sourceType === 'mail' || (hit.sourceId ?? '').startsWith('mail:');
-      if (isMail && hit.matterId) {
-        const mailMatters = getExcludedMailMatters();
-        if (mailMatters.includes(hit.matterId)) return true;
-      }
-      // Files under a folder whose matter re-tag is pending/failed.
-      const folders = getExcludedMatterFolders();
-      if (folders.length === 0) return false;
-      const { rootPath: liveRoot } = useWorkspaceStore.getState();
-      return pathInAnyFolder(hit.sourceId ?? hit.path, folders, liveRoot);
-    });
+    setRetrievalHitExclusion(shouldExcludeHitFromRetrieval);
     // QA-44 (Codex round 1): the privilege UI marks a file by its workspace-
     // RELATIVE path while RAG hits carry the ABSOLUTE path, so the privilege
     // re-check must try every equivalent form (as-is, relative, absolute) and

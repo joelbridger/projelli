@@ -43,6 +43,56 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+/** F3 (R8) — a well-formed per-workspace hold list is an array of string prefixes.
+ *  A value that fails this (a corrupted/partial `localStorage` blob) is DROPPED
+ *  rather than trusted, so a malformed hold can never feed garbage into retrieval
+ *  filtering (`pathInAnyFolder` over a non-string) or restore a bogus exclusion. */
+function isHeldPathList(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((p) => typeof p === 'string');
+}
+
+// F3 (R8) — set when the persisted store failed to hydrate, or contained malformed
+// entries that had to be dropped. The restored hold set may then be INCOMPLETE, so
+// `restoreFolderHolds` fails closed on ALL files (a blanket hold + banner) and lets
+// the idempotent boot folder retag reconverge — never a silent open. Module-level
+// (not store state) so it survives the same hydration that may have failed. Mirrors
+// `pendingMailRetagHydrationSuspect`.
+let hydrationSuspect = false;
+
+/** F3 (R8) — true when the durable folder-retag store hydrated incompletely
+ *  (corrupt/partial `localStorage`): the restored holds may be missing records. */
+export function pendingFolderRetagHydrationSuspect(): boolean {
+  return hydrationSuspect;
+}
+
+/** Test-only reset of the F3 hydration-suspect flag. */
+export function __resetPendingFolderRetagHydrationSuspect(): void {
+  hydrationSuspect = false;
+}
+
+/** Validate + salvage a persisted state blob: keep every well-formed per-workspace
+ *  hold list, drop (and flag) any malformed one, and flag a wholly wrong-shaped
+ *  blob. Exported for unit testing the shape gate without touching real
+ *  `localStorage`. Mirrors `sanitizePersistedMailRetag`. */
+export function sanitizePersistedFolderRetag(persisted: unknown): {
+  heldByWorkspace: Record<string, string[]>;
+} {
+  const valid: Record<string, string[]> = {};
+  const raw =
+    persisted && typeof persisted === 'object'
+      ? (persisted as { heldByWorkspace?: unknown }).heldByWorkspace
+      : undefined;
+  if (raw && typeof raw === 'object') {
+    for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+      if (isHeldPathList(value)) valid[key] = value;
+      else hydrationSuspect = true; // a malformed workspace entry was dropped
+    }
+  } else if (persisted !== undefined && persisted !== null) {
+    hydrationSuspect = true; // a persisted blob was present but not the expected shape
+  }
+  return { heldByWorkspace: valid };
+}
+
 interface PendingFolderRetagState {
   /** workspaceRoot → the held path prefixes (mapped folders or exact files) whose
    *  folder→matter re-tag has not cleanly landed. */
@@ -105,6 +155,18 @@ export const usePendingFolderRetagStore = create<PendingFolderRetagState>()(
     {
       name: 'lantern:pending-folder-retag',
       version: 1,
+      // F3 (R8): validate the persisted shape on hydration. A corrupt/partial blob
+      // keeps its well-formed per-workspace holds (still held) and drops malformed
+      // ones, marking the store SUSPECT so `restoreFolderHolds` fails closed on ALL
+      // files — never trusting a garbage record and never silently failing open.
+      // Mirrors `usePendingMailRetagStore`.
+      merge: (persisted, current) => ({
+        ...current,
+        ...sanitizePersistedFolderRetag(persisted),
+      }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) hydrationSuspect = true;
+      },
     },
   ),
 );

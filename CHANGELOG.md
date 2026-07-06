@@ -32,6 +32,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **QA-44 (swallow-p0 R8): three client-scope leak/trust gaps closed.** (1) A folder
+  that was unmapped/removed while its re-tag was still pending was re-held on every
+  boot but never re-tagged — stranded out of search forever. The boot pass now unions
+  the durable pending-folder paths (mirror of the mail heal), re-tags each to its
+  current client (unmapped → unassigned), and discharges the hold on success. (2) The
+  "email search scope updating" suspect banner claimed content was held while holding
+  nothing; it now truly fails closed — every email hit is held out until the boot mail
+  re-tag runs clean. (3) The durable folder-hold store gained the same corruption guard
+  the mail store has: a corrupt/partial saved blob keeps well-formed holds, drops
+  malformed ones, and falls closed on all files until the boot folder re-tag runs clean.
+  Files modified: `useMemoryWiring.ts`, `scopeUpdateStore.ts`, `pendingFolderRetagStore.ts`.
 - **Local AI cold start: "ready" now means "can generate", not just "server is
   healthy" — kills the "first question fails, retry works" bug.** Switching to
   Local-only, the first Ask could hit the 45s answer-stall timeout while an

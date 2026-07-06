@@ -3,12 +3,22 @@
  * mirror of the mail hold). Pure set semantics: union `hold`, exact `release`,
  * per-workspace isolation.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { usePendingFolderRetagStore } from './pendingFolderRetagStore';
+import {
+  __resetPendingFolderRetagHydrationSuspect,
+  pendingFolderRetagHydrationSuspect,
+  sanitizePersistedFolderRetag,
+  usePendingFolderRetagStore,
+} from './pendingFolderRetagStore';
 
 beforeEach(() => {
   usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+  __resetPendingFolderRetagHydrationSuspect();
+});
+
+afterEach(() => {
+  __resetPendingFolderRetagHydrationSuspect();
 });
 
 describe('pendingFolderRetagStore', () => {
@@ -57,5 +67,44 @@ describe('pendingFolderRetagStore', () => {
     s.hold('', ['/x']);
     s.hold('/wsA', []);
     expect(usePendingFolderRetagStore.getState().heldByWorkspace).toEqual({});
+  });
+});
+
+// F3 (R8) — the folder store, like the mail store, must VALIDATE its hydrated shape.
+// A corrupt/partial `localStorage` blob keeps its well-formed per-workspace hold
+// lists, drops malformed ones rather than feeding garbage into retrieval filtering,
+// and marks the store SUSPECT so the restore can fail closed on all files.
+describe('sanitizePersistedFolderRetag (F3 shape validation)', () => {
+  it('keeps well-formed workspace holds and does NOT flag suspicion', () => {
+    const out = sanitizePersistedFolderRetag({ heldByWorkspace: { '/wsA': ['/wsA/Acme'] } });
+    expect(out.heldByWorkspace['/wsA']).toEqual(['/wsA/Acme']);
+    expect(pendingFolderRetagHydrationSuspect()).toBe(false);
+  });
+
+  it('drops a malformed workspace entry, keeps the good ones, and flags suspicion', () => {
+    const out = sanitizePersistedFolderRetag({
+      heldByWorkspace: {
+        '/wsA': ['/wsA/Acme'],
+        '/wsBad': 'not-an-array',
+        '/wsMixed': ['/ok', 7],
+      },
+    });
+    expect(out.heldByWorkspace['/wsA']).toEqual(['/wsA/Acme']);
+    expect(out.heldByWorkspace['/wsBad']).toBeUndefined();
+    expect(out.heldByWorkspace['/wsMixed']).toBeUndefined();
+    expect(pendingFolderRetagHydrationSuspect()).toBe(true);
+  });
+
+  it('flags a wholly wrong-shaped blob and yields no holds', () => {
+    const out = sanitizePersistedFolderRetag({ heldByWorkspace: 'garbage' });
+    expect(out.heldByWorkspace).toEqual({});
+    expect(pendingFolderRetagHydrationSuspect()).toBe(true);
+  });
+
+  it('treats a legitimately empty / absent store as NOT suspect', () => {
+    expect(sanitizePersistedFolderRetag(undefined).heldByWorkspace).toEqual({});
+    expect(sanitizePersistedFolderRetag(null).heldByWorkspace).toEqual({});
+    expect(sanitizePersistedFolderRetag({ heldByWorkspace: {} }).heldByWorkspace).toEqual({});
+    expect(pendingFolderRetagHydrationSuspect()).toBe(false);
   });
 });

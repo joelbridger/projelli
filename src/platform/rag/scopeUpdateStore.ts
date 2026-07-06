@@ -51,6 +51,22 @@ export interface ScopeUpdateEntry {
    * file/privilege updates and for a fresh (previously-unassigned) mail mapping.
    */
   excludeMailMatters: string[];
+  /**
+   * QA-44 (R8) — BLANKET hold: exclude EVERY mail hit from retrieval, not just
+   * specific stale matter ids. Set only when the durable mail-retag store hydrated
+   * incompletely (corrupt/partial `localStorage`): we can't know WHICH matters lost
+   * their hold, so we fail closed on ALL mail until the idempotent boot mail retag
+   * reconverges every mapped folder's tag and discharges this entry. Without it the
+   * "hydration-suspect" banner claimed content was held while holding NOTHING.
+   */
+  excludeAllMail?: boolean;
+  /**
+   * QA-44 (R8) — the FILE mirror of {@link excludeAllMail}: exclude EVERY file hit
+   * from retrieval. Set only when the durable FOLDER-retag store hydrated
+   * incompletely, so we fail closed on ALL files until the boot in-place folder
+   * retag reconverges and discharges this entry.
+   */
+  excludeAllFiles?: boolean;
 }
 
 interface ScopeUpdateState {
@@ -62,6 +78,8 @@ interface ScopeUpdateState {
     label: string;
     excludeFolders?: string[];
     excludeMailMatters?: string[];
+    excludeAllMail?: boolean;
+    excludeAllFiles?: boolean;
   }) => void;
   /** Mark an update as failed (retries exhausted). Keeps its excludeFolders so
    *  the fail-closed exclusion persists until it eventually succeeds. */
@@ -77,11 +95,28 @@ interface ScopeUpdateState {
 export const useScopeUpdateStore = create<ScopeUpdateState>((set) => ({
   entries: {},
 
-  begin: ({ id, kind, label, excludeFolders = [], excludeMailMatters = [] }) => {
+  begin: ({
+    id,
+    kind,
+    label,
+    excludeFolders = [],
+    excludeMailMatters = [],
+    excludeAllMail = false,
+    excludeAllFiles = false,
+  }) => {
     set((state) => ({
       entries: {
         ...state.entries,
-        [id]: { id, kind, label, status: 'retrying', excludeFolders, excludeMailMatters },
+        [id]: {
+          id,
+          kind,
+          label,
+          status: 'retrying',
+          excludeFolders,
+          excludeMailMatters,
+          excludeAllMail,
+          excludeAllFiles,
+        },
       },
     }));
   },
@@ -149,6 +184,23 @@ export function getExcludedMailMatters(): string[] {
     for (const matterId of entry.excludeMailMatters) seen.add(matterId);
   }
   return Array.from(seen);
+}
+
+/**
+ * QA-44 (R8) — true when a BLANKET all-mail hold is active (the durable mail-retag
+ * store hydrated incompletely). The retrieval predicate drops EVERY mail hit while
+ * this holds, so a corrupt store fails closed on all mail rather than pretending to
+ * hold content it can't identify. Cleared when the boot mail retag completes cleanly.
+ */
+export function isAllMailHeld(): boolean {
+  return Object.values(useScopeUpdateStore.getState().entries).some((e) => e.excludeAllMail);
+}
+
+/** QA-44 (R8) — the FILE mirror of {@link isAllMailHeld}: true when a BLANKET
+ *  all-files hold is active (the durable FOLDER-retag store hydrated incompletely).
+ *  The retrieval predicate drops EVERY file hit while this holds. */
+export function isAllFilesHeld(): boolean {
+  return Object.values(useScopeUpdateStore.getState().entries).some((e) => e.excludeAllFiles);
 }
 
 // ─────────────────────────────────────────────────────────────────────

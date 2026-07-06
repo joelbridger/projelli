@@ -47,6 +47,7 @@ import {
   scheduleFolderMatterRetag,
   scheduleMailMatterRetag,
   schedulePrivilegeRetag,
+  shouldExcludeHitFromRetrieval,
 } from './useMemoryWiring';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
@@ -54,7 +55,11 @@ import {
   sanitizePersistedMailRetag,
   usePendingMailRetagStore,
 } from '@/platform/rag/pendingMailRetagStore';
-import { usePendingFolderRetagStore } from '@/platform/rag/pendingFolderRetagStore';
+import {
+  __resetPendingFolderRetagHydrationSuspect,
+  sanitizePersistedFolderRetag,
+  usePendingFolderRetagStore,
+} from '@/platform/rag/pendingFolderRetagStore';
 import type { Matter } from '@/platform/types/matter';
 import type { RetagScheduler, RetagTask } from '@/platform/rag/retagScheduler';
 import { createRetagScheduler } from '@/platform/rag/retagScheduler';
@@ -826,6 +831,202 @@ describe('durable per-workspace FILE-folder hold (R7-3)', () => {
       vi.runOnlyPendingTimers();
       vi.useRealTimers();
     }
+  });
+});
+
+// ── F2 (R8) · the R7-6 mail hydration-suspect banner was DISHONEST: it claimed
+//    "content is held out of search until it applies" but installed NO exclusion, so
+//    nothing was actually held. It must fail closed for real — exclude EVERY mail hit
+//    while the suspect hold exists — and clear only once the boot mail retag completes
+//    cleanly for the workspace. ───────────────────────────────────────────────────
+describe('mail hydration-suspect actually fails closed on ALL mail (F2, R8)', () => {
+  const mailHit = { path: 'mail:m1', chunkText: '', score: 1, paragraphIndex: 0, sourceType: 'mail' as const, matterId: 'X', sourceId: 'mail:m1' };
+  const fileHit = { path: '/wsA/doc.docx', chunkText: '', score: 1, paragraphIndex: 0, sourceType: 'docx' as const, sourceId: '/wsA/doc.docx' };
+  beforeEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    useMatterStore.setState({ matters: [] });
+    usePendingMailRetagStore.setState({ intents: {} });
+    __resetPendingMailRetagHydrationSuspect();
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: [] });
+  });
+  afterEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    useMatterStore.setState({ matters: [] });
+    usePendingMailRetagStore.setState({ intents: {} });
+    __resetPendingMailRetagHydrationSuspect();
+    useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('excludes EVERY mail hit while the suspect hold exists (word matches deed)', () => {
+    // A corrupt/partial persisted blob dropped a malformed record → suspect.
+    sanitizePersistedMailRetag({ intents: { bad: { staleMatters: 5 } } });
+    useScopeUpdateStore.getState().clearAll();
+
+    restoreMailHolds('/wsA');
+
+    // The banner's promise is now real: a mail hit — under ANY matter — is dropped
+    // from retrieval, not silently surfaced.
+    expect(shouldExcludeHitFromRetrieval(mailHit)).toBe(true);
+    // …but FILE hits are unaffected by a MAIL-store suspicion.
+    expect(shouldExcludeHitFromRetrieval(fileHit)).toBe(false);
+  });
+
+  it('releases the all-mail hold once the boot mail retag completes cleanly', async () => {
+    sanitizePersistedMailRetag({ intents: { bad: { staleMatters: 5 } } });
+    useScopeUpdateStore.getState().clearAll();
+    restoreMailHolds('/wsA');
+    expect(shouldExcludeHitFromRetrieval(mailHit)).toBe(true);
+
+    // A mapped mail folder retags cleanly → every mapped tag reconverged → safe to
+    // release the blanket hold for this session.
+    useMatterStore.setState({ matters: [matter({ id: 'B', mailFolderPaths: ['m365/acct/Inbox'] })] });
+    vi.mocked(mailRetagFolderMatter).mockResolvedValue(3);
+    await retagExistingMailFolders();
+
+    expect(shouldExcludeHitFromRetrieval(mailHit)).toBe(false);
+  });
+
+  it('keeps the all-mail hold when the boot mail retag FAILS (still fail closed)', async () => {
+    sanitizePersistedMailRetag({ intents: { bad: { staleMatters: 5 } } });
+    useScopeUpdateStore.getState().clearAll();
+    restoreMailHolds('/wsA');
+
+    useMatterStore.setState({ matters: [matter({ id: 'B', mailFolderPaths: ['m365/acct/Inbox'] })] });
+    vi.mocked(mailRetagFolderMatter).mockRejectedValue(new Error('down'));
+    await retagExistingMailFolders();
+
+    // A failed retag means tags may still be stale — the blanket hold MUST survive.
+    expect(shouldExcludeHitFromRetrieval(mailHit)).toBe(true);
+  });
+});
+
+// ── F3 (R8) · the durable FOLDER store had NO corruption guard (the mail store got
+//    one in R7-6). A corrupt/partial blob silently lost holds (fail open). It must
+//    validate its hydrated shape AND — when suspect — fail closed on ALL files until
+//    the boot in-place folder retag reconverges every mapped folder's tag. ─────────
+describe('folder hydration-suspect fails closed on ALL files (F3, R8)', () => {
+  const fileHit = { path: '/wsA/doc.docx', chunkText: '', score: 1, paragraphIndex: 0, sourceType: 'docx' as const, sourceId: '/wsA/doc.docx' };
+  const mailHit = { path: 'mail:m1', chunkText: '', score: 1, paragraphIndex: 0, sourceType: 'mail' as const, matterId: 'X', sourceId: 'mail:m1' };
+  const treeAcme = [
+    {
+      id: 'Acme',
+      type: 'folder' as const,
+      name: 'Acme',
+      path: '/wsA/Acme',
+      children: [
+        { id: 'Acme/f', type: 'file' as const, name: 'f.docx', path: '/wsA/Acme/f.docx' },
+      ],
+    },
+  ];
+  beforeEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    __resetPendingFolderRetagHydrationSuspect();
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: [] });
+  });
+  afterEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    __resetPendingFolderRetagHydrationSuspect();
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('excludes EVERY file hit while the folder store is hydration-suspect', () => {
+    // A corrupt/partial persisted blob dropped a malformed workspace entry → suspect.
+    sanitizePersistedFolderRetag({ heldByWorkspace: { '/wsBad': 'not-an-array' } });
+    useScopeUpdateStore.getState().clearAll();
+
+    restoreFolderHolds('/wsA');
+
+    // Every FILE hit is dropped (fail closed) — not just ones under a known folder…
+    expect(shouldExcludeHitFromRetrieval(fileHit)).toBe(true);
+    // …but MAIL hits are unaffected by a FOLDER-store suspicion.
+    expect(shouldExcludeHitFromRetrieval(mailHit)).toBe(false);
+  });
+
+  it('releases the all-files hold once the boot folder retag completes cleanly', async () => {
+    sanitizePersistedFolderRetag({ heldByWorkspace: { '/wsBad': 'not-an-array' } });
+    useScopeUpdateStore.getState().clearAll();
+    restoreFolderHolds('/wsA');
+    expect(shouldExcludeHitFromRetrieval(fileHit)).toBe(true);
+
+    // A mapped folder retags cleanly → every mapped tag reconverged → release.
+    useMatterStore.setState({ matters: [matter({ id: 'M', folderPaths: ['/wsA/Acme'] })], activeMatterId: null });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: treeAcme });
+    vi.mocked(MemoryService.retagMatterBatch).mockResolvedValue([]);
+    await retagExistingMatterFolderPaths(null);
+
+    expect(shouldExcludeHitFromRetrieval(fileHit)).toBe(false);
+  });
+
+  it('keeps the all-files hold when the boot folder retag FAILS (still fail closed)', async () => {
+    sanitizePersistedFolderRetag({ heldByWorkspace: { '/wsBad': 'not-an-array' } });
+    useScopeUpdateStore.getState().clearAll();
+    restoreFolderHolds('/wsA');
+
+    useMatterStore.setState({ matters: [matter({ id: 'M', folderPaths: ['/wsA/Acme'] })], activeMatterId: null });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: treeAcme });
+    vi.mocked(MemoryService.retagMatterBatch).mockRejectedValue(new Error('down'));
+    await retagExistingMatterFolderPaths(null);
+
+    expect(shouldExcludeHitFromRetrieval(fileHit)).toBe(true);
+  });
+});
+
+// ── F1 (R8) · a durable FILE-folder hold for a folder that was UNMAPPED/removed
+//    while its retag was still pending strands FOREVER: the boot pass built its
+//    folder list ONLY from currently-mapped folders, so it never retagged the
+//    unmapped folder — `restoreFolderHolds` re-held it every open, nothing ever
+//    discharged it. The boot pass must UNION the durable pending paths (mirror of
+//    `retagExistingMailFolders`), retag each to its CURRENT matter (unmapped →
+//    unassigned), and discharge the hold on success. ─────────────────────────────
+describe('durable FILE-folder hold for an UNMAPPED folder is retagged + discharged on boot (F1, R8)', () => {
+  const treeGamma = [
+    {
+      id: 'Gamma',
+      type: 'folder' as const,
+      name: 'Gamma',
+      path: '/wsA/Gamma',
+      children: [
+        { id: 'Gamma/g', type: 'file' as const, name: 'g.docx', path: '/wsA/Gamma/g.docx' },
+      ],
+    },
+  ];
+  beforeEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: treeGamma });
+  });
+  afterEach(() => {
+    useScopeUpdateStore.getState().clearAll();
+    usePendingFolderRetagStore.setState({ heldByWorkspace: {} });
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('retags an unmapped-but-held folder to unassigned and discharges its durable hold', async () => {
+    // A prior session left /wsA/Gamma held (a pending re-map), then the folder was
+    // UNMAPPED — no matter maps it anymore.
+    usePendingFolderRetagStore.getState().hold('/wsA', ['/wsA/Gamma']);
+    restoreFolderHolds('/wsA');
+    expect(getExcludedMatterFolders()).toContain('/wsA/Gamma');
+
+    // Boot pass, no MAPPED folders at all. The clean retag lands.
+    vi.mocked(MemoryService.retagMatterBatch).mockResolvedValue([]);
+    await retagExistingMatterFolderPaths(null);
+
+    // The held folder's file was retagged to its CURRENT matter (unassigned) — not
+    // skipped just because no matter maps it anymore…
+    expect(vi.mocked(MemoryService.retagMatterBatch)).toHaveBeenCalledWith(
+      ['/wsA/Gamma/g.docx'],
+      'unassigned',
+    );
+    // …and the durable hold + scope exclusion are discharged, so it isn't stranded.
+    expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toHaveLength(0);
+    expect(getExcludedMatterFolders()).not.toContain('/wsA/Gamma');
   });
 });
 
