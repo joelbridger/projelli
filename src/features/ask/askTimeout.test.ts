@@ -4,6 +4,7 @@ import {
   isAskTimeoutError,
   withAskTimeout,
   createAnswerStallWatchdog,
+  waitForLocalAiSidecarReady,
   ASK_ANSWER_WARNING_MS,
   ASK_ANSWER_TIMEOUT_MS,
 } from './askTimeout';
@@ -123,5 +124,157 @@ describe('createAnswerStallWatchdog', () => {
 
     vi.advanceTimersByTime(200);
     expect(onTimeout).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Fix 1b (demo readiness) — waitForLocalAiSidecarReady is what stands between
+ * a Local-only send and createAnswerStallWatchdog above: the watchdog must
+ * only start counting once the embedded engine is actually ready to
+ * generate, never while the sidecar is still legitimately cold-starting
+ * (which can take up to two minutes).
+ */
+describe('waitForLocalAiSidecarReady', () => {
+  it('is a no-op for any provider other than keepance-local', async () => {
+    const checkHealth = vi.fn();
+    const startSidecar = vi.fn();
+    const onStarting = vi.fn();
+
+    await waitForLocalAiSidecarReady({ providerId: 'ollama', checkHealth, startSidecar, onStarting });
+    await waitForLocalAiSidecarReady({ providerId: 'anthropic', checkHealth, startSidecar, onStarting });
+    await waitForLocalAiSidecarReady({ providerId: '', checkHealth, startSidecar, onStarting });
+
+    expect(checkHealth).not.toHaveBeenCalled();
+    expect(startSidecar).not.toHaveBeenCalled();
+    expect(onStarting).not.toHaveBeenCalled();
+  });
+
+  it('does nothing (never calls onStarting or startSidecar) when off desktop, even for keepance-local', async () => {
+    const checkHealth = vi.fn();
+    const startSidecar = vi.fn();
+    const onStarting = vi.fn();
+
+    await waitForLocalAiSidecarReady({
+      providerId: 'keepance-local',
+      checkHealth,
+      startSidecar,
+      onStarting,
+      isDesktop: () => false,
+    });
+
+    expect(checkHealth).not.toHaveBeenCalled();
+    expect(startSidecar).not.toHaveBeenCalled();
+    expect(onStarting).not.toHaveBeenCalled();
+  });
+
+  it('does nothing (never calls onStarting or startSidecar) when the sidecar is already healthy', async () => {
+    const checkHealth = vi.fn().mockResolvedValue(true);
+    const startSidecar = vi.fn();
+    const onStarting = vi.fn();
+
+    await waitForLocalAiSidecarReady({
+      providerId: 'keepance-local',
+      checkHealth,
+      startSidecar,
+      onStarting,
+      isDesktop: () => true,
+    });
+
+    expect(startSidecar).not.toHaveBeenCalled();
+    expect(onStarting).not.toHaveBeenCalled();
+  });
+
+  it('starts the sidecar and toggles onStarting(true) then onStarting(false) when not yet healthy', async () => {
+    const checkHealth = vi.fn().mockResolvedValue(false);
+    const startSidecar = vi.fn().mockResolvedValue('http://127.0.0.1:18089');
+    const onStarting = vi.fn();
+
+    await waitForLocalAiSidecarReady({
+      providerId: 'keepance-local',
+      checkHealth,
+      startSidecar,
+      onStarting,
+      isDesktop: () => true,
+    });
+
+    expect(startSidecar).toHaveBeenCalledTimes(1);
+    expect(onStarting.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it('treats a checkHealth failure as "not healthy yet" and proceeds to start', async () => {
+    const checkHealth = vi.fn().mockRejectedValue(new Error('probe failed'));
+    const startSidecar = vi.fn().mockResolvedValue('http://127.0.0.1:18089');
+    const onStarting = vi.fn();
+
+    await waitForLocalAiSidecarReady({
+      providerId: 'keepance-local',
+      checkHealth,
+      startSidecar,
+      onStarting,
+      isDesktop: () => true,
+    });
+
+    expect(startSidecar).toHaveBeenCalledTimes(1);
+    expect(onStarting.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it('still calls onStarting(false) and propagates the error when startSidecar fails', async () => {
+    const checkHealth = vi.fn().mockResolvedValue(false);
+    const startSidecar = vi.fn().mockRejectedValue(new Error('binary missing'));
+    const onStarting = vi.fn();
+
+    await expect(
+      waitForLocalAiSidecarReady({
+        providerId: 'keepance-local',
+        checkHealth,
+        startSidecar,
+        onStarting,
+        isDesktop: () => true,
+      }),
+    ).rejects.toThrow('binary missing');
+
+    expect(onStarting.mock.calls).toEqual([[true], [false]]);
+  });
+
+  it('a slow (but successful) cold start never trips the 45s watchdog, because the watchdog is armed only AFTER the gate resolves', async () => {
+    vi.useFakeTimers();
+    try {
+      const onWarning = vi.fn();
+      const onTimeout = vi.fn();
+      const onStarting = vi.fn();
+
+      let resolveStart: (v: string) => void = () => undefined;
+      const startSidecar = vi.fn(
+        () => new Promise<string>((resolve) => { resolveStart = resolve; }),
+      );
+      const checkHealth = vi.fn().mockResolvedValue(false);
+
+      const gatePromise = waitForLocalAiSidecarReady({
+        providerId: 'keepance-local',
+        checkHealth,
+        startSidecar,
+        onStarting,
+        isDesktop: () => true,
+      });
+
+      // The sidecar takes far longer than the answer watchdog's 45s ceiling
+      // to become healthy — this must never be able to trip a timeout that
+      // doesn't exist yet.
+      await vi.advanceTimersByTimeAsync(ASK_ANSWER_TIMEOUT_MS + 10_000);
+      expect(onStarting).toHaveBeenCalledWith(true);
+      expect(onTimeout).not.toHaveBeenCalled();
+
+      resolveStart('http://127.0.0.1:18089');
+      await gatePromise;
+      expect(onStarting).toHaveBeenLastCalledWith(false);
+
+      // Only NOW — exactly mirroring the call order in useAsk.ts — does the
+      // no-token watchdog get armed. It must start counting from zero.
+      createAnswerStallWatchdog({ onWarning, onTimeout });
+      await vi.advanceTimersByTimeAsync(ASK_ANSWER_TIMEOUT_MS - 1);
+      expect(onTimeout).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

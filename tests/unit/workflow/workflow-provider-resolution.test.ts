@@ -368,7 +368,7 @@ describe('F-502 — local-only mode', () => {
 // local provider to OLLAMA only. On a machine that has the embedded on-device
 // model downloaded but NO Ollama daemon, private-mode workflows failed with
 // "Local AI unreachable". Ask / Chat / Client Map already prefer the embedded
-// model (resolveLocalAskProvider / resolveLocalProviderForClientMap); this
+// model (resolveLocalOnlyAskProvider / resolveLocalProviderForClientMap); this
 // extends the SAME resolution to workflows.
 // ---------------------------------------------------------------------------
 

@@ -8,7 +8,7 @@ import { stripBlockMarkers } from './answerBlockMarkers';
 import { stalePlanNotices, formatExportDate } from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
-import { ASK_ANSWER_STALL_WARNING } from './askTimeout';
+import { ASK_ANSWER_STALL_WARNING, ASK_LOCAL_AI_STARTING_MESSAGE } from './askTimeout';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -25,6 +25,7 @@ export function TurnBlock({
   isPersisted,
   isStreaming = false,
   answerStalled = false,
+  localAiStarting = false,
   onOpenAiStatus,
   onOpenFileAtPath,
 }: {
@@ -43,6 +44,15 @@ export function TurnBlock({
    * `isStreaming && !turn.answer`.
    */
   answerStalled?: boolean;
+  /**
+   * Fix 1b — true while THIS send is waiting for the embedded llama-server
+   * sidecar to become healthy, before the no-token watchdog is even armed.
+   * Takes over the pre-first-token spinner with an honest "Local AI is
+   * starting…" message instead of the generic "Answering…" (this is an
+   * expected wait, not a stall, so `answerStalled`'s warning copy never
+   * applies at the same time).
+   */
+  localAiStarting?: boolean;
   /** QA-7 — "View AI status" link shown alongside the stalled warning. */
   onOpenAiStatus?: () => void;
   /**
@@ -130,7 +140,7 @@ export function TurnBlock({
         {isStreaming && !turn.answer ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--kp-text-dim)', fontSize: '14.5px' }}>
             <Loader2 size={14} strokeWidth={2} className="animate-spin" />
-            <span>Answering…</span>
+            <span>{localAiStarting ? ASK_LOCAL_AI_STARTING_MESSAGE : 'Answering…'}</span>
           </div>
         ) : usingBlocks ? (
           // Source-aware agent: labelled provenance blocks + per-answer tally.

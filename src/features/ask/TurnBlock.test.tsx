@@ -87,3 +87,32 @@ describe('TurnBlock — QA-7 stalled-answer feedback', () => {
     expect(onOpenAiStatus).toHaveBeenCalledTimes(1);
   });
 });
+
+/**
+ * Fix 1b (demo readiness) — before the no-token watchdog is even armed, a
+ * Local-only send may be waiting on the embedded sidecar to become healthy
+ * (a cold model load can legitimately take up to two minutes). That's an
+ * honest, expected wait — not a stall — so it gets its own message instead of
+ * the generic "Answering…" spinner or the "taking longer than expected"
+ * stall warning.
+ */
+describe('TurnBlock — Fix 1b "Local AI is starting" state', () => {
+  it('shows "Local AI is starting…" instead of "Answering…" while localAiStarting is true', () => {
+    render(<TurnBlock {...baseProps} localAiStarting />);
+    expect(screen.getByText('Local AI is starting…')).toBeTruthy();
+    expect(screen.queryByText('Answering…')).toBeNull();
+  });
+
+  it('falls back to the plain "Answering…" spinner once localAiStarting clears', () => {
+    render(<TurnBlock {...baseProps} localAiStarting={false} />);
+    expect(screen.getByText('Answering…')).toBeTruthy();
+    expect(screen.queryByText('Local AI is starting…')).toBeNull();
+  });
+
+  it('only affects the pre-first-token spinner — partial text still renders normally', () => {
+    const partialTurn: AskTurn = { ...streamingTurn, answer: 'The Chen household is doing a' };
+    render(<TurnBlock {...baseProps} turn={partialTurn} localAiStarting />);
+    expect(screen.getByText(/The Chen household is doing a/)).toBeTruthy();
+    expect(screen.queryByText('Local AI is starting…')).toBeNull();
+  });
+});

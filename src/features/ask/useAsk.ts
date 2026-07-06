@@ -20,6 +20,7 @@ import {
   buildWorkspaceContextBlock,
 } from '@/platform/rag/workspaceCommand';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
+import { localLlmSidecarHealth, localLlmSidecarStart } from '@/platform/utils/tauri-commands';
 import {
   useAIChatStore,
   useFileAccessConsent,
@@ -61,11 +62,12 @@ import {
   AskTimeoutError,
   createAnswerStallWatchdog,
   isAskTimeoutError,
+  waitForLocalAiSidecarReady,
 } from './askTimeout';
 import {
   hasCloudKey,
   buildResolvedAskProvider,
-  resolveLocalAskProvider,
+  resolveLocalOnlyAskProvider,
   resolveActiveAskProviderId,
   askConsentScope,
   resolveEmailCitationLabels,
@@ -237,6 +239,13 @@ export function useAsk({
   // token/progress, so the "Answering…" spinner can say so instead of sitting
   // silent. Cleared the instant a token arrives, on completion, and on error.
   const [answerStalled, setAnswerStalled] = useState(false);
+  // Fix 1b (demo readiness) — true only while THIS send is waiting for the
+  // embedded llama-server sidecar to become healthy, before the no-token
+  // watchdog is even armed (see the pre-flight block in handleAsk). Distinct
+  // from `answerStalled`: that's "the model is generating but silent";
+  // this is "the engine hasn't come up yet", an honest, expected state on
+  // the first Local-only question after switching modes or launching the app.
+  const [localAiStarting, setLocalAiStarting] = useState(false);
   const [savingIdx, setSavingIdx] = useState<number | null>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -372,6 +381,7 @@ export function useAsk({
     setErrorMsg(null);
     setStatus('idle');
     setAnswerStalled(false);
+    setLocalAiStarting(false);
 
     // QA-25 (P2) — this effect's cleanup runs right before `chatId` changes
     // again, i.e. the instant the user switches to a different client/
@@ -510,6 +520,7 @@ export function useAsk({
     setErrorMsg(null);
     setStatus('idle');
     setAnswerStalled(false);
+    setLocalAiStarting(false);
   }, [activeMatter, rootPath]);
 
   const handleLoadSession = useCallback((sid: string) => {
@@ -555,6 +566,7 @@ export function useAsk({
     setErrorMsg(null);
     setStatus('retrieving');
     setAnswerStalled(false);
+    setLocalAiStarting(false);
 
     // Add user message to stream placeholder
     const newStreamingTurn: AskTurn = {
@@ -899,9 +911,12 @@ export function useAsk({
       // await: if Local-only is now on and the resolved provider is NOT local,
       // re-resolve to the on-device engine so the user still gets a private answer
       // instead of a failed query (local sends are always safe, whatever the mode
-      // does next).
+      // does next). resolveLocalOnlyAskProvider throws an honest "still setting
+      // up" message rather than silently constructing an unreachable Ollama
+      // provider (Fix 2) — that throw is caught by this function's outer catch,
+      // same as any other resolution failure.
       if (isLocalOnlyMode() && !isLocalProvider(resolvedProvider.providerId)) {
-        resolvedProvider = await resolveLocalAskProvider();
+        resolvedProvider = await resolveLocalOnlyAskProvider();
         // QA-25 (P2, Codex review) — same re-check as above: this branch adds
         // its OWN await, so a navigation-triggered abort during THIS one must
         // be caught here too, not just after the first resolution.
@@ -1083,6 +1098,25 @@ export function useAsk({
           provider: providerAudit.providerId,
         });
       };
+
+      // Fix 1b (demo readiness) — see waitForLocalAiSidecarReady's doc comment
+      // in askTimeout.ts: a Local-only send must not let the 45s no-token
+      // watchdog below start counting while the sidecar is still legitimately
+      // cold-starting (which can take up to two minutes).
+      await waitForLocalAiSidecarReady({
+        providerId: providerAudit.providerId,
+        checkHealth: localLlmSidecarHealth,
+        startSidecar: localLlmSidecarStart,
+        onStarting: (starting) => {
+          if (starting) {
+            failedStage = 'provider-send';
+            providerCallStarted = true;
+          }
+          setLocalAiStarting(starting);
+        },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- abort.signal flips via an external AbortController across the await (ESLint can't see it; same async pattern baselined elsewhere in this file).
+      if (abort.signal.aborted) return;
 
       // QA-7 — the "Answering…" spinner had no ceiling: a stalled provider call
       // (most often the embedded local model still mid-download/load) left it
@@ -1332,6 +1366,7 @@ export function useAsk({
               }),
       );
       setAnswerStalled(false);
+      setLocalAiStarting(false);
       setStreamingTurn(null);
       setStatus('error');
       pendingQuestionRef.current = null;
@@ -1380,6 +1415,7 @@ export function useAsk({
     errorMsg,
     status,
     answerStalled,
+    localAiStarting,
     savingIdx,
     displayedProvider,
     confidentialityMode,

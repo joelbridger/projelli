@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { providerDisplayName, isLocalProvider } from '@/platform/privacy/egress';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
+import { preStartLocalAi } from '@/platform/providers/localAiPreStart';
 import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 import type { ModelInfo } from '@/platform/providers/ModelListService';
 import type { APIKey } from '@/features/ask/AIChatViewer';
@@ -119,6 +120,14 @@ export function ChatModelPicker({
     [ollama.models],
   );
 
+  // Fix 1 (demo readiness): explicitly picking Advisor Prep Hero Local AI here is as
+  // clear a signal as selecting Local-only mode — kick off the sidecar now
+  // instead of waiting for the first message to discover it isn't running yet.
+  const handleSelect = (p: ChatProvider, modelId: string): void => {
+    if (p === 'keepance-local') preStartLocalAi();
+    onSelect(p, modelId);
+  };
+
   // Trigger label: "OpenAI · gpt-4o-mini", or just the provider when no model,
   // or "Choose a model" when nothing is set yet.
   const triggerLabel = useMemo(() => {
@@ -186,7 +195,7 @@ export function ChatModelPicker({
                   // the local provider uses its own default.
                   <DropdownMenuItem
                     data-testid={`chat-model-option-${p}-default`}
-                    onClick={() => onSelect(p, '')}
+                    onClick={() => handleSelect(p, '')}
                     className="flex items-center gap-2 pl-7 text-xs"
                   >
                     <span className="flex-1 truncate">Default model</span>
@@ -201,7 +210,7 @@ export function ChatModelPicker({
                       <DropdownMenuItem
                         key={m.id}
                         data-testid={`chat-model-option-${p}-${m.id}`}
-                        onClick={() => onSelect(p, m.id)}
+                        onClick={() => handleSelect(p, m.id)}
                         className="flex items-center gap-2 pl-7 text-xs"
                       >
                         <span className="flex-1 truncate" title={m.id}>

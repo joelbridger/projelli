@@ -17,10 +17,7 @@ import {
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import { createProvider } from '@/platform/providers/providerFactory';
-import {
-  resolveAvailableLocalGenerationProvider,
-  resolveLocalGenerationProvider,
-} from '@/platform/providers/resolveLocalProvider';
+import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
 import { mailGetMessage } from '@/platform/utils/mail-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
@@ -316,21 +313,32 @@ export async function hasCloudKey(): Promise<boolean> {
   return false;
 }
 
-/**
- * The local engine the Ask / Search surface should use when no cloud provider is
- * chosen: the embedded Advisor Prep Hero Local AI when it is downloaded and READY,
- * otherwise the user's own Ollama daemon. Delegates to the shared resolver so
- * every surface (Ask / Chat / Client Map / Glance / email / workflows) prefers
- * the same on-device engine — and so Local-only mode is honest about WHICH local
- * model runs (a fresh install with the embedded model ready must NOT fail with
- * "couldn't reach your AI provider" because Ollama isn't installed).
- */
-export async function resolveLocalAskProvider(): Promise<ResolvedAskProvider> {
-  return await resolveLocalGenerationProvider();
-}
-
 async function resolveAvailableLocalAskProvider(): Promise<ResolvedAskProvider | null> {
   return await resolveAvailableLocalGenerationProvider();
+}
+
+/**
+ * Honest, actionable failure shown when Local-only mode has no usable local
+ * engine yet — never surfaced generically; `friendlyErrorMessage` passes this
+ * exact string through unchanged (same pattern as NO_ASK_PROVIDER_CONNECTED_MESSAGE).
+ */
+export const LOCAL_AI_NOT_READY_MESSAGE =
+  "Advisor Prep Hero Local AI is still downloading or setting up. Check its progress in Settings, then try again.";
+
+/**
+ * The local engine Local-only mode actually sends to: the embedded Advisor Prep
+ * Hero Local AI when it is downloaded and READY, otherwise the user's own Ollama
+ * daemon — but ONLY if Ollama is PROVABLY REACHABLE right now (see
+ * `resolveAvailableLocalGenerationProvider`). This is the fix for the demo's
+ * #2 failure mode: a fresh install with the embedded model still downloading
+ * and no Ollama installed must fail with an honest "still setting up" message
+ * up front, never silently construct an OllamaProvider that is guaranteed to
+ * fail deep inside the send with a confusing "Ollama unreachable" error.
+ */
+export async function resolveLocalOnlyAskProvider(): Promise<ResolvedAskProvider> {
+  const local = await resolveAvailableLocalAskProvider();
+  if (local) return local;
+  throw new Error(LOCAL_AI_NOT_READY_MESSAGE);
 }
 
 /**
@@ -405,10 +413,12 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
   // Local-only ENFORCEMENT (privacy): Ask has no per-chat provider — it picks by
   // key presence below — so in Local-only mode it would otherwise build a cloud
   // provider whenever a cloud key exists, contradicting the "nothing leaves"
-  // indicator. Force the local model instead (embedded-when-ready, else Ollama),
-  // so Ask honours Local-only.
+  // indicator. Force the local model instead (embedded-when-ready, else Ollama
+  // ONLY if it's provably reachable — see resolveLocalOnlyAskProvider), so Ask
+  // honours Local-only without ever silently routing to an engine that isn't
+  // actually there.
   if (isLocalOnlyMode()) {
-    return await resolveLocalAskProvider();
+    return await resolveLocalOnlyAskProvider();
   }
   // Web demo (browser): there is no OS keychain and no on-device engine, so the
   // cloud/local resolution below would throw NO_ASK_PROVIDER_CONNECTED. Route Ask
@@ -533,6 +543,9 @@ export function friendlyErrorMessage(
 
   if (raw === NO_ASK_PROVIDER_CONNECTED_MESSAGE) {
     return NO_ASK_PROVIDER_CONNECTED_MESSAGE;
+  }
+  if (raw === LOCAL_AI_NOT_READY_MESSAGE) {
+    return LOCAL_AI_NOT_READY_MESSAGE;
   }
 
   // Genuine auth — the ONLY branch that mentions a key.
