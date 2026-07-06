@@ -144,6 +144,44 @@ fn safe_workspace_path(
     Some(p)
 }
 
+/// When the connector wants to write to `target` but a file it does NOT own is
+/// already sitting there (a user's kept-and-edited copy after a keep-files
+/// disconnect, or another item's same-named file), it diverts here so nothing
+/// the user has is ever overwritten. Produces a sibling `name (OneDrive).ext`,
+/// then `name (OneDrive 2).ext`, … until a free path is found.
+fn conflict_copy_path(target: &Path) -> PathBuf {
+    let parent = target.parent();
+    let stem = target
+        .file_stem()
+        .map(|s| s.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let ext = target
+        .extension()
+        .map(|e| e.to_string_lossy().to_string());
+    let build = |suffix: &str| -> PathBuf {
+        let filename = match &ext {
+            Some(e) => format!("{stem} ({suffix}).{e}"),
+            None => format!("{stem} ({suffix})"),
+        };
+        match parent {
+            Some(p) => p.join(filename),
+            None => PathBuf::from(filename),
+        }
+    };
+    let first = build("OneDrive");
+    if !first.exists() {
+        return first;
+    }
+    for n in 2..1000 {
+        let candidate = build(&format!("OneDrive {n}"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    // Extremely unlikely fallback (1000 collisions): reuse the base name.
+    first
+}
+
 fn site_ids_match_for_item(item_site_id: Option<&str>, folder_site_id: Option<&str>) -> bool {
     match item_site_id {
         Some(site_id) => folder_site_id == Some(site_id),
@@ -293,25 +331,52 @@ pub async fn sync_documents(
                 report.cancelled = true;
                 break;
             }
-            if let Some(parent) = target.parent() {
+            let target_rel = target
+                .strip_prefix(workspace)
+                .ok()
+                .map(|p| p.to_string_lossy().replace('\\', "/"));
+            // The path THIS item was last materialized to, if any. After a
+            // keep-files disconnect the tracking DB is gone, so this is `None`
+            // even though the user's kept copy still sits on disk.
+            let owned = store.get_local_path(&key.source_id)?;
+
+            // F2: never overwrite a file this item does not already own. Writing
+            // remote bytes straight onto a user's kept-and-edited copy (owned is
+            // None after a keep-files disconnect, yet the file exists at `target`)
+            // would silently lose their edits. Resolve the real write path:
+            //   - we already own the target        → in-place update (overwrite)
+            //   - target free                       → normal write (first import / rename)
+            //   - target occupied, we own elsewhere → keep updating OUR copy in place
+            //   - target occupied, we own nothing   → divert to a conflict copy
+            let (write_path, write_rel): (PathBuf, Option<String>) =
+                if owned.as_deref() == target_rel.as_deref() || !target.exists() {
+                    (target.clone(), target_rel.clone())
+                } else if let Some(other) = &owned {
+                    (workspace.join(other), Some(other.clone()))
+                } else {
+                    let cp = conflict_copy_path(target);
+                    let rel = cp
+                        .strip_prefix(workspace)
+                        .ok()
+                        .map(|p| p.to_string_lossy().replace('\\', "/"));
+                    (cp, rel)
+                };
+
+            if let Some(parent) = write_path.parent() {
                 std::fs::create_dir_all(parent).map_err(|e| {
                     anyhow::anyhow!("create client folder {}: {e}", parent.display())
                 })?;
             }
-            let rel = target
-                .strip_prefix(workspace)
-                .ok()
-                .map(|p| p.to_string_lossy().replace('\\', "/"));
             // If this item was previously materialized at a DIFFERENT path (a
             // remote rename or move keeps the same source_id), remove the old copy
             // so it can't linger as stale content in the client's Documents.
-            if let Some(old) = store.get_local_path(&key.source_id)? {
-                if rel.as_deref() != Some(old.as_str()) {
-                    let _ = std::fs::remove_file(workspace.join(&old));
+            if let Some(old) = &owned {
+                if write_rel.as_deref() != Some(old.as_str()) {
+                    let _ = std::fs::remove_file(workspace.join(old));
                 }
             }
-            std::fs::write(target, &bytes)
-                .map_err(|e| anyhow::anyhow!("write {}: {e}", target.display()))?;
+            std::fs::write(&write_path, &bytes)
+                .map_err(|e| anyhow::anyhow!("write {}: {e}", write_path.display()))?;
             // If this item was previously indexed RAG-only (unmapped), drop those
             // chunks so the on-disk copy (indexed by the watcher under its disk
             // path) is not duplicated by stale `onedrive:` chunks.
@@ -330,7 +395,7 @@ pub async fn sync_documents(
                 true,
                 false,
             )?;
-            if let Some(rel) = rel {
+            if let Some(rel) = write_rel {
                 store.set_local_path(&key.source_id, &rel)?;
             }
             report.imported += 1;
@@ -1642,5 +1707,176 @@ mod tests {
         .unwrap();
         assert_eq!(report.removed, 1);
         assert!(!on_disk.exists(), "remote delete must remove the local copy");
+    }
+
+    // F2: after a keep-files disconnect the tracking DB is gone; on reconnect the
+    // engine must NOT overwrite a kept-and-edited file with remote bytes. It
+    // diverts the remote copy to a conflict copy, so the user's edits survive.
+    #[tokio::test]
+    async fn reconnect_does_not_overwrite_a_kept_and_edited_file() {
+        let dir = TempDir::new().unwrap();
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+        let page = || DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("d".into()),
+            ..Default::default()
+        };
+
+        // First import writes the cloud copy and tracks it.
+        {
+            let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+            let source = FakeSource::new(page())
+                .with_download("item-1", b"cloud v1")
+                .await;
+            sync_documents(
+                &source,
+                &store,
+                dir.path(),
+                &matter_map,
+                &AtomicBool::new(false),
+                &[0x55; 32],
+                &AtomicU32::new(0),
+            )
+            .await
+            .unwrap();
+        }
+        let target = dir.path().join("Clients/Acme/OneDrive/memo.docx");
+        assert_eq!(std::fs::read(&target).unwrap(), b"cloud v1");
+
+        // Keep-files disconnect: the tracking DB is purged; the file STAYS.
+        OneDriveStore::purge(dir.path()).unwrap();
+        // The user then edits their kept file.
+        std::fs::write(&target, b"USER EDITS I MUST KEEP").unwrap();
+
+        // Reconnect: a fresh store (no tracking) syncs the same item again.
+        let store2 = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let source2 = FakeSource::new(page())
+            .with_download("item-1", b"cloud v1")
+            .await;
+        let report = sync_documents(
+            &source2,
+            &store2,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(report.imported, 1);
+        assert_eq!(
+            std::fs::read(&target).unwrap(),
+            b"USER EDITS I MUST KEEP",
+            "reconnect must not overwrite the user's kept edits"
+        );
+        let conflict = dir.path().join("Clients/Acme/OneDrive/memo (OneDrive).docx");
+        assert!(
+            conflict.exists(),
+            "remote bytes must land as a conflict copy, not over the user's file"
+        );
+        assert_eq!(std::fs::read(&conflict).unwrap(), b"cloud v1");
+        assert_eq!(
+            store2.get_local_path("onedrive:drive-a:item-1").unwrap(),
+            Some("Clients/Acme/OneDrive/memo (OneDrive).docx".to_string()),
+            "the store must track the conflict copy as this item's path"
+        );
+    }
+
+    // F2: once a conflict copy exists, a later remote update rewrites THAT copy in
+    // place — it never multiplies conflict copies and never touches the user's file.
+    #[tokio::test]
+    async fn conflict_copy_is_updated_in_place_never_multiplied() {
+        let dir = TempDir::new().unwrap();
+        let store = OneDriveStore::open_with_key(dir.path(), &[0x44; 32]).unwrap();
+        let matter_map = vec![OneDriveMatterMapEntry {
+            folder_key: folder_key(DEFAULT_ACCOUNT, None, "drive-a", "/clients/acme"),
+            matter_id: "matter-acme".into(),
+            dest_folder: "Clients/Acme".into(),
+        }];
+        // A user file already occupies the deterministic target.
+        let target = dir.path().join("Clients/Acme/OneDrive/memo.docx");
+        std::fs::create_dir_all(target.parent().unwrap()).unwrap();
+        std::fs::write(&target, b"USER FILE").unwrap();
+
+        let first = FakeSource::new(DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v1",
+            )],
+            delta_link: Some("d1".into()),
+            ..Default::default()
+        })
+        .with_download("item-1", b"cloud v1")
+        .await;
+        sync_documents(
+            &first,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        let second = FakeSource::new(DeltaPage {
+            value: vec![file_item(
+                "item-1",
+                "memo.docx",
+                "drive-a",
+                "/drive/root:/Clients/Acme",
+                "v2",
+            )],
+            delta_link: Some("d2".into()),
+            ..Default::default()
+        })
+        .with_download("item-1", b"cloud v2")
+        .await;
+        sync_documents(
+            &second,
+            &store,
+            dir.path(),
+            &matter_map,
+            &AtomicBool::new(false),
+            &[0x55; 32],
+            &AtomicU32::new(0),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            std::fs::read(&target).unwrap(),
+            b"USER FILE",
+            "the user's file must never be touched"
+        );
+        let conflict = dir.path().join("Clients/Acme/OneDrive/memo (OneDrive).docx");
+        assert_eq!(
+            std::fs::read(&conflict).unwrap(),
+            b"cloud v2",
+            "the conflict copy is updated in place"
+        );
+        assert!(
+            !dir
+                .path()
+                .join("Clients/Acme/OneDrive/memo (OneDrive 2).docx")
+                .exists(),
+            "a remote update must not spawn a second conflict copy"
+        );
     }
 }

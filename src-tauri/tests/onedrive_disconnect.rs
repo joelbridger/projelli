@@ -1,6 +1,6 @@
 use arrow_array::RecordBatchIterator;
 use lantern_lib::commands::onedrive::commands::{
-    onedrive_disconnect_logic, onedrive_disconnect_logic_with, OneDriveState,
+    acquire_sync_slot, onedrive_disconnect_logic, onedrive_disconnect_logic_with, OneDriveState,
 };
 use lantern_lib::commands::onedrive::store::OneDriveStore;
 use lantern_lib::commands::rag::chunker::chunk_text;
@@ -43,6 +43,7 @@ fn make_state(ws: Option<std::path::PathBuf>) -> OneDriveState {
         progress_seen: Arc::new(AtomicU32::new(0)),
         last_report: tokio::sync::Mutex::new(None),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
+        disconnecting: Arc::new(AtomicBool::new(false)),
     }
 }
 
@@ -414,5 +415,69 @@ async fn disconnect_times_out_when_a_sync_never_stops_and_keeps_everything() {
         result.warnings.iter().any(|w| w.contains("still stopping")),
         "the warning must explain the sync was still stopping; got {:?}",
         result.warnings
+    );
+}
+
+// ── F1: disconnect holds the sync gate for its whole run ─────────────────────
+
+/// F1: a sync starting during disconnect would re-download and re-materialize
+/// files right after the purge, resurrecting everything. Disconnect must hold
+/// the `disconnecting` gate for its ENTIRE run (so `acquire_sync_slot` refuses a
+/// racing sync start) and release it only once it finishes.
+#[tokio::test]
+async fn disconnect_holds_the_sync_gate_while_running_and_releases_it_after() {
+    let workspace = tempfile::tempdir().unwrap();
+    let ws = workspace.path().to_path_buf();
+    let abs = seed_materialized_file(&ws);
+    assert!(abs.exists());
+
+    let state = Arc::new(make_state(Some(ws.clone())));
+    // An in-flight sync that only stops partway through the disconnect.
+    state.is_syncing.store(true, Ordering::SeqCst);
+    let syncing = state.is_syncing.clone();
+    let stopper = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        syncing.store(false, Ordering::SeqCst);
+    });
+
+    // While the disconnect is still running (waiting on the in-flight sync), the
+    // gate must be closed so any racing sync start is refused.
+    let observed = state.clone();
+    let gate_closed_mid_run = Arc::new(AtomicBool::new(false));
+    let mid = gate_closed_mid_run.clone();
+    let observer = tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(80)).await;
+        if observed.disconnecting.load(Ordering::SeqCst) {
+            mid.store(true, Ordering::SeqCst);
+        }
+    });
+
+    let result =
+        onedrive_disconnect_logic_with(&*state, true, open_with_test_key, Duration::from_secs(15))
+            .await;
+    stopper.await.unwrap();
+    observer.await.unwrap();
+
+    assert!(
+        gate_closed_mid_run.load(Ordering::SeqCst),
+        "the disconnect must hold the sync gate while it is running"
+    );
+    assert!(
+        !abs.exists(),
+        "the materialized file must be deleted (opt-in delete), not left behind"
+    );
+    assert!(
+        !result.data_remains,
+        "with the sync stopped and the file deleted, no data should remain; warnings: {:?}",
+        result.warnings
+    );
+    // The gate is released once disconnect finishes, so future syncs can run.
+    assert!(
+        !state.disconnecting.load(Ordering::SeqCst),
+        "the gate must be released after disconnect completes"
+    );
+    assert!(
+        acquire_sync_slot(&state).is_ok(),
+        "a sync must be allowed again once the disconnect gate is released"
     );
 }

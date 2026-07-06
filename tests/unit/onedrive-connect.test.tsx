@@ -332,4 +332,54 @@ describe('OneDriveConnect — disconnect confirmation (F1)', () => {
     // The retry repeats the same choice (delete files = true), not a silent false.
     await waitFor(() => expect(oneDriveDisconnect).toHaveBeenNthCalledWith(2, true));
   });
+
+  // F1: a sync must not be startable while a disconnect purge is running — it
+  // would re-materialize the files the disconnect is about to delete. The
+  // "Sync now" button is disabled for the whole purge.
+  it('pauses "Sync now" while a disconnect is in progress', async () => {
+    let resolveDisconnect: (r: unknown) => void = () => {};
+    oneDriveDisconnect.mockReturnValue(
+      new Promise((res) => {
+        resolveDisconnect = res;
+      })
+    );
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-confirm'));
+
+    // While the purge is in flight, Sync now is disabled.
+    await waitFor(() =>
+      expect(screen.getByTestId('onedrive-sync-now')).toBeDisabled()
+    );
+
+    // Let the purge settle so the component reaches a stable state.
+    await act(async () => {
+      resolveDisconnect(disconnectResult());
+    });
+  });
+
+  // F4: when only the token step failed (the data IS gone), the retry must say
+  // "Finish disconnecting" — never the misleading "Finish deleting local data".
+  it('says "Finish disconnecting" when only the connection could not be removed', async () => {
+    oneDriveDisconnect.mockResolvedValue(
+      disconnectResult({
+        tokenDeleted: false,
+        ragPurged: true,
+        localDataPurged: true,
+        dataRemains: false,
+        warnings: ['the keychain was busy'],
+      })
+    );
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-confirm'));
+
+    const retry = await screen.findByTestId('onedrive-finish-delete');
+    expect(retry.textContent).toMatch(/Finish disconnecting/i);
+    const banner = screen.getByTestId('onedrive-data-remains');
+    expect(banner.textContent).not.toMatch(/Finish deleting local data/i);
+    expect(banner.textContent).toMatch(/connection could not be fully removed/i);
+  });
 });

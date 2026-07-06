@@ -121,11 +121,21 @@ export function OneDriveConnect() {
   // silent-looking window a slow or resource-starved listing hits.
   const [localSyncing, setLocalSyncing] = useState(false);
   // B3-parity (mirrors WealthboxConnect): disconnect didn't fully remove the
-  // data/connection — keep a visible "Finish deleting local data" retry so
-  // the user is never stuck with data on disk and no way to finish removing it.
+  // data/connection — keep a visible retry so the user is never stuck.
+  // F4: these are two DIFFERENT conditions and must not be conflated —
+  //   dataRemains        → imported files may still be on disk (mirrors
+  //                        result.dataRemains ONLY), needs "Finish deleting local data".
+  //   disconnectIncomplete → the data is gone but the connection wasn't fully
+  //                        removed (the token couldn't be deleted), needs
+  //                        "Finish disconnecting".
   const [dataRemains, setDataRemains] = useState(false);
+  const [disconnectIncomplete, setDisconnectIncomplete] = useState(false);
   const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
   const [finishingDelete, setFinishingDelete] = useState(false);
+  // F1: true while a disconnect purge is running. Syncing is paused in the UI
+  // (as it is in the backend) so a click can't start a sync that would
+  // re-materialize files the disconnect is about to delete.
+  const [disconnecting, setDisconnecting] = useState(false);
   // Disconnect is a two-step, user-in-control flow: clicking Disconnect opens a
   // plain-language confirmation that says imported files STAY unless the user
   // opts in to deleting them. `deleteFilesChoice` is remembered so the "Finish
@@ -300,6 +310,8 @@ export function OneDriveConnect() {
    */
   async function runDisconnectPurge(deleteFiles: boolean) {
     setError(null);
+    // F1: pause syncing in the UI for the whole purge.
+    setDisconnecting(true);
     try {
       await oneDriveCancel();
       const result: OneDriveDisconnectResult = await oneDriveDisconnect(deleteFiles);
@@ -312,26 +324,36 @@ export function OneDriveConnect() {
 
       if (connectionRemoved) {
         setDataRemains(false);
+        setDisconnectIncomplete(false);
         setDisconnectNote(null);
         setConnected(false);
         setLastReport(null);
       } else {
-        // Either the connection could not be removed, or the user opted to
-        // delete imported files and some couldn't be removed. Keep a visible
-        // retry; re-check the real connection state.
-        setDataRemains(true);
-        const reason = !result.tokenDeleted
-          ? 'the OneDrive connection could not be removed'
-          : 'some imported OneDrive files could not be deleted yet';
+        // F4: keep the two failure conditions SEPARATE so the copy is honest.
+        // `dataRemains` mirrors the backend flag ONLY (imported files may still
+        // be on disk). `disconnectIncomplete` means the data IS gone but the
+        // connection wasn't fully removed (the token couldn't be deleted) — so
+        // when only the token step failed we say "Finish disconnecting", not the
+        // misleading "Finish deleting local data".
+        setDataRemains(result.dataRemains);
+        setDisconnectIncomplete(!result.tokenDeleted);
+        const reason = result.dataRemains
+          ? 'some imported OneDrive files could not be deleted yet'
+          : 'the OneDrive connection could not be fully removed';
+        const action = result.dataRemains
+          ? 'Finish deleting local data'
+          : 'Finish disconnecting';
         const warn = result.warnings.length > 0 ? ` (${result.warnings.join('; ')})` : '';
         setDisconnectNote(
-          `Disconnect is not finished — ${reason}${warn}. Use "Finish deleting local data" to try again.`
+          `Disconnect is not finished — ${reason}${warn}. Use "${action}" to try again.`
         );
         refreshConnectedState();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       refreshConnectedState();
+    } finally {
+      setDisconnecting(false);
     }
   }
 
@@ -405,16 +427,20 @@ export function OneDriveConnect() {
         </p>
       )}
 
-      {/* Disconnect didn't fully remove the data/connection — keep a visible
-          retry regardless of connection state, so the user is never stuck
-          with data on disk and no way to finish removing it. */}
-      {dataRemains && (
+      {/* Disconnect didn't fully finish — keep a visible retry regardless of
+          connection state. F4: the copy depends on WHICH step is unfinished:
+          files still on disk (dataRemains) vs the connection not fully removed
+          (disconnectIncomplete). */}
+      {(dataRemains || disconnectIncomplete) && (
         <div
           data-testid="onedrive-data-remains"
           className="mt-3 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3"
         >
           <p className="text-sm text-amber-900">
-            {disconnectNote ?? 'Some imported OneDrive data could not be deleted yet.'}
+            {disconnectNote ??
+              (dataRemains
+                ? 'Some imported OneDrive data could not be deleted yet.'
+                : 'The OneDrive connection could not be fully removed yet.')}
           </p>
           <button
             type="button"
@@ -429,7 +455,13 @@ export function OneDriveConnect() {
             }}
             className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
           >
-            {finishingDelete ? 'Deleting…' : 'Finish deleting local data'}
+            {finishingDelete
+              ? dataRemains
+                ? 'Deleting…'
+                : 'Finishing…'
+              : dataRemains
+                ? 'Finish deleting local data'
+                : 'Finish disconnecting'}
           </button>
         </div>
       )}
@@ -437,7 +469,7 @@ export function OneDriveConnect() {
       {!connected ? (
         <div className="mt-3 space-y-3">
           {error && <p className="text-sm text-red-700">{error}</p>}
-          {disconnectNote && !dataRemains && (
+          {disconnectNote && !dataRemains && !disconnectIncomplete && (
             <p className="text-sm text-slate-600">{disconnectNote}</p>
           )}
           <div className="flex items-center gap-2">
@@ -519,13 +551,14 @@ export function OneDriveConnect() {
           <div className="mt-2 flex items-center gap-2">
             <button
               type="button"
-              disabled={localOnly || syncing}
+              data-testid="onedrive-sync-now"
+              disabled={localOnly || syncing || disconnecting}
               onClick={() => {
                 void syncNow();
               }}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >
-              {syncing ? 'Syncing...' : 'Sync now'}
+              {disconnecting ? 'Disconnecting...' : syncing ? 'Syncing...' : 'Sync now'}
             </button>
             {error && isMicrosoftSignInExpiredError(error) && (
               <button
@@ -543,7 +576,7 @@ export function OneDriveConnect() {
             <button
               type="button"
               data-testid="onedrive-disconnect"
-              disabled={confirmingDisconnect}
+              disabled={confirmingDisconnect || disconnecting}
               onClick={beginDisconnect}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
             >

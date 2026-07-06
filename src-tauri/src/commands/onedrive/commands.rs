@@ -58,6 +58,14 @@ pub struct OneDriveState {
     /// (`onedrive_connect`'s wait for the browser redirect) without touching
     /// sync state. See `onedrive_connect_cancel`.
     pub oauth_cancel: Arc<AtomicBool>,
+    /// Held for the WHOLE disconnect flow (F1). While it's set, `onedrive_sync`
+    /// and `onedrive_list_folders` refuse to start — otherwise a sync that
+    /// begins during the disconnect's cancel+wait window (it even clears the
+    /// cancel flag as it starts) would re-download and re-materialize files
+    /// right after the purge deletes them, resurrecting everything the user
+    /// asked to remove. Set BEFORE cancel is raised, released when disconnect
+    /// finishes.
+    pub disconnecting: Arc<AtomicBool>,
 }
 
 pub fn manage_state(app: &tauri::App) {
@@ -68,14 +76,53 @@ pub fn manage_state(app: &tauri::App) {
         progress_seen: Arc::new(AtomicU32::new(0)),
         last_report: tokio::sync::Mutex::new(None),
         oauth_cancel: Arc::new(AtomicBool::new(false)),
+        disconnecting: Arc::new(AtomicBool::new(false)),
     });
 }
 
-struct SyncGuard(Arc<AtomicBool>);
+pub struct SyncGuard(Arc<AtomicBool>);
 impl Drop for SyncGuard {
     fn drop(&mut self) {
         self.0.store(false, Ordering::SeqCst);
     }
+}
+
+/// Sets `disconnecting` false again when the disconnect flow ends (F1),
+/// however it returns — so a refused/early-return disconnect never leaves the
+/// gate stuck closed against future syncs.
+struct DisconnectGuard(Arc<AtomicBool>);
+impl Drop for DisconnectGuard {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+/// Rejected-sync message when a disconnect is in progress (F1).
+const DISCONNECTING_MSG: &str = "OneDrive is disconnecting; syncing is paused until that finishes.";
+
+/// Win the single sync slot for one run. Refuses if a sync is already running
+/// OR a disconnect is in progress (F1). The disconnect check happens AFTER
+/// winning `is_syncing`, which is what closes the race: under the SeqCst total
+/// order, a sync that gets past this check must have set `is_syncing` before
+/// disconnect's idle-wait reads it (so disconnect WAITS for this sync rather
+/// than purging under it), and a sync that starts after disconnect raised the
+/// flag observes it here and bails without clearing `cancel` or writing
+/// anything. On refusal the returned guard is never created, so `is_syncing`
+/// is released immediately.
+pub fn acquire_sync_slot(state: &OneDriveState) -> Result<SyncGuard, String> {
+    if state
+        .is_syncing
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("a OneDrive sync is already in progress".into());
+    }
+    let guard = SyncGuard(state.is_syncing.clone());
+    if state.disconnecting.load(Ordering::SeqCst) {
+        // `guard` drops here, releasing the slot we just took.
+        return Err(DISCONNECTING_MSG.into());
+    }
+    Ok(guard)
 }
 
 fn client_id() -> String {
@@ -358,14 +405,35 @@ where
 {
     let store = open_store(ws).map_err(|e| e.to_string())?;
     let paths = store.all_local_paths().map_err(|e| e.to_string())?;
+    // F3: enforce the workspace boundary on every stored path BEFORE touching
+    // the filesystem. The DB strings are ours, but a delete is destructive, so
+    // apply the repo's PathValidator principle (`pathguard`): reject an
+    // absolute path, any `..` component, and any symlink escape. Resolve
+    // containment against the canonicalized workspace root; if the root itself
+    // can't be canonicalized, we can't safely delete anything.
+    let canon_ws = ws
+        .canonicalize()
+        .map_err(|e| format!("workspace root unavailable, cannot delete safely: {e}"))?;
     let mut failed = Vec::new();
     for rel in paths {
-        let abs = ws.join(&rel);
-        match std::fs::remove_file(&abs) {
-            Ok(()) => {}
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        match crate::commands::pathguard::canonicalize_workspace_relative(&canon_ws, &rel) {
+            // A safe, contained, symlink-free path that exists on disk — remove it.
+            Ok(Some(abs)) => match std::fs::remove_file(&abs) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => {
+                    log::warn!("onedrive_disconnect: failed to delete imported file {}: {e}", abs.display());
+                    failed.push(rel);
+                }
+            },
+            // The path resolved safely but no file is there (already gone) —
+            // that counts as successfully removed, same as NotFound above.
+            Ok(None) => {}
+            // Unsafe stored path (absolute, `..`, or a symlink component). NEVER
+            // delete through it — treat it as a failed delete so the token + DB
+            // are kept and `data_remains` is flagged for a retry.
             Err(e) => {
-                log::warn!("onedrive_disconnect: failed to delete imported file {}: {e}", abs.display());
+                log::warn!("onedrive_disconnect: refusing to delete unsafe stored path {rel}: {e}");
                 failed.push(rel);
             }
         }
@@ -420,6 +488,13 @@ where
     F: Fn(&std::path::Path) -> anyhow::Result<OneDriveStore>,
 {
     let mut result = OneDriveDisconnectResult::default();
+
+    // F1: close the gate FIRST — before raising cancel or waiting — so no new
+    // sync (or folder-discovery walk that leads into one) can start during the
+    // whole disconnect and re-materialize files right after the purge. Released
+    // when this function returns, however it returns.
+    state.disconnecting.store(true, Ordering::SeqCst);
+    let _disconnect_guard = DisconnectGuard(state.disconnecting.clone());
 
     state.cancel.store(true, Ordering::SeqCst);
 
@@ -556,6 +631,13 @@ pub async fn onedrive_list_drives() -> Result<Vec<Drive>, String> {
 pub async fn onedrive_list_folders(
     state: State<'_, OneDriveState>,
 ) -> Result<Vec<OneDriveFolderDto>, String> {
+    // F1: refuse the folder-discovery walk (the step `runSync()` runs BEFORE
+    // `onedrive_sync`) while a disconnect is in progress — it would otherwise
+    // clear the cancel flag below and lead straight into a sync that
+    // re-materializes files the disconnect is about to purge.
+    if state.disconnecting.load(Ordering::SeqCst) {
+        return Err(DISCONNECTING_MSG.to_string());
+    }
     // Fresh call, fresh cancel intent — a flag left set by a PRIOR stop
     // (Cancel button, or a cancelled sync) must not immediately kill this
     // brand new listing before it even starts.
@@ -729,14 +811,10 @@ pub async fn onedrive_sync(
     state: State<'_, OneDriveState>,
     matter_map: Vec<OneDriveMatterMapEntry>,
 ) -> Result<OneDriveSyncReport, String> {
-    if state
-        .is_syncing
-        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-        .is_err()
-    {
-        return Err("a OneDrive sync is already in progress".into());
-    }
-    let _guard = SyncGuard(state.is_syncing.clone());
+    // Win the sync slot and refuse if a disconnect is in progress (F1). Only
+    // AFTER this succeeds is `cancel` cleared below — a sync that bails because
+    // a disconnect is underway must not erase the cancel the disconnect raised.
+    let _guard = acquire_sync_slot(&state)?;
     state.cancel.store(false, Ordering::SeqCst);
     state.progress_seen.store(0, Ordering::SeqCst);
 
@@ -1181,6 +1259,129 @@ mod tests {
             outcome.is_err(),
             "expected the outer timeout to fire while the Graph call was still stalled"
         );
+    }
+
+    // ── F1: the sync gate ────────────────────────────────────────────────────
+
+    fn test_state(ws: Option<PathBuf>) -> OneDriveState {
+        OneDriveState {
+            workspace: tokio::sync::Mutex::new(ws),
+            is_syncing: Arc::new(AtomicBool::new(false)),
+            cancel: Arc::new(AtomicBool::new(false)),
+            progress_seen: Arc::new(AtomicU32::new(0)),
+            last_report: tokio::sync::Mutex::new(None),
+            oauth_cancel: Arc::new(AtomicBool::new(false)),
+            disconnecting: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    // A sync must be refused while a disconnect holds the gate — and the refusal
+    // must NOT leave the sync slot stuck occupied (or every later sync would be
+    // wrongly rejected as "already in progress").
+    #[test]
+    fn acquire_sync_slot_is_refused_while_disconnecting() {
+        let state = test_state(None);
+        state.disconnecting.store(true, Ordering::SeqCst);
+        assert!(acquire_sync_slot(&state).is_err());
+        assert!(
+            !state.is_syncing.load(Ordering::SeqCst),
+            "a refused acquire must release the sync slot"
+        );
+    }
+
+    // With no disconnect underway the slot is granted, held for the guard's
+    // lifetime (a second concurrent acquire is refused), and cleared on drop.
+    #[test]
+    fn acquire_sync_slot_grants_and_releases_on_drop() {
+        let state = test_state(None);
+        {
+            let _g = acquire_sync_slot(&state).expect("idle slot should be granted");
+            assert!(state.is_syncing.load(Ordering::SeqCst));
+            assert!(
+                acquire_sync_slot(&state).is_err(),
+                "a second sync must be refused while one is running"
+            );
+        }
+        assert!(!state.is_syncing.load(Ordering::SeqCst));
+        assert!(acquire_sync_slot(&state).is_ok());
+    }
+
+    // ── F3: delete_materialized_files enforces the workspace boundary ─────────
+
+    const TEST_DB_KEY: [u8; 32] = [0x31u8; 32];
+
+    fn open_test_store(ws: &std::path::Path) -> anyhow::Result<OneDriveStore> {
+        OneDriveStore::open_with_key(ws, &TEST_DB_KEY)
+    }
+
+    fn seed_local_path(ws: &std::path::Path, source_id: &str, name: &str, local_path: &str) {
+        let store = OneDriveStore::open_with_key(ws, &TEST_DB_KEY).unwrap();
+        store
+            .upsert_item(
+                source_id, "d", None, source_id, name, "/clients/acme", None, "sig", "hash",
+                "matter-a", true, false,
+            )
+            .unwrap();
+        store.set_local_path(source_id, local_path).unwrap();
+    }
+
+    // An absolute stored path is refused — never deleted — and reported as a
+    // failed delete so the caller keeps the token + DB and flags data_remains.
+    #[test]
+    fn delete_materialized_files_refuses_an_absolute_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // A real file OUTSIDE the workspace that must never be touched.
+        let outside = tempfile::TempDir::new().unwrap();
+        let victim = outside.path().join("secret.txt");
+        std::fs::write(&victim, b"do not delete").unwrap();
+        seed_local_path(dir.path(), "onedrive:d:abs", "secret.txt", victim.to_str().unwrap());
+
+        let failed = delete_materialized_files(dir.path(), &open_test_store).unwrap();
+        assert_eq!(failed.len(), 1, "the absolute path must be a failed delete");
+        assert!(
+            victim.exists(),
+            "a file outside the workspace must never be deleted"
+        );
+    }
+
+    // A `..` traversal is refused — never deleted — and reported as failed.
+    #[test]
+    fn delete_materialized_files_refuses_a_parent_traversal() {
+        let dir = tempfile::TempDir::new().unwrap();
+        // Create the traversal target so a naive `ws.join(rel)` delete WOULD hit it.
+        let escape = dir.path().parent().unwrap().join("onedrive-f3-escape.txt");
+        std::fs::write(&escape, b"keep me").unwrap();
+        // Point the stored path at that concrete escape target via `..`.
+        seed_local_path(
+            dir.path(),
+            "onedrive:d:dots",
+            "onedrive-f3-escape.txt",
+            "../onedrive-f3-escape.txt",
+        );
+
+        let failed = delete_materialized_files(dir.path(), &open_test_store).unwrap();
+        assert_eq!(failed.len(), 1);
+        assert!(
+            escape.exists(),
+            "a `..` traversal must never delete outside the workspace"
+        );
+        let _ = std::fs::remove_file(&escape);
+    }
+
+    // A normal, in-workspace path deletes cleanly (the guard doesn't break the
+    // happy path).
+    #[test]
+    fn delete_materialized_files_deletes_a_safe_in_workspace_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let rel = "Clients/Acme/memo.docx";
+        let abs = dir.path().join(rel);
+        std::fs::create_dir_all(abs.parent().unwrap()).unwrap();
+        std::fs::write(&abs, b"bytes").unwrap();
+        seed_local_path(dir.path(), "onedrive:d:ok", "memo.docx", rel);
+
+        let failed = delete_materialized_files(dir.path(), &open_test_store).unwrap();
+        assert!(failed.is_empty(), "a safe path must delete cleanly");
+        assert!(!abs.exists());
     }
 }
 
