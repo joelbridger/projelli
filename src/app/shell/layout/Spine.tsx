@@ -11,7 +11,7 @@ import {
   Sparkles, ListChecks,
   Map as MapIcon, Plus, ChevronLeft, ChevronRight, type LucideIcon,
 } from 'lucide-react';
-import { useMatters, useActiveMatterId } from '@/platform/matter/matterStore';
+import { useActiveMatters, useActiveMatterId } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -61,7 +61,11 @@ export function Spine({
 }: SpineProps) {
   const { t } = useTranslation();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const matters = useMatters();
+  // Archived clients stay reachable via the Client Map's archived section
+  // (MattersHome) and the Clients management dialog — the rail switcher
+  // only ever lists the active roster, so archiving a client actually
+  // shrinks this list instead of leaving it there forever.
+  const matters = useActiveMatters();
   const activeMatterId = useActiveMatterId();
   const entityLabel = useEntityLabel();
   const newClientLabel = t('spine.new-client', { entity: entityLabel.one });
