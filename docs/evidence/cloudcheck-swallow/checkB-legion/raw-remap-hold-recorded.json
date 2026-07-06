@@ -1,0 +1,38 @@
+{
+  "phase": "remap",
+  "mappedBefore": [
+    "Maria & Luis Alvarez"
+  ],
+  "hold": {
+    "heldForWorkspace": [
+      "C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez"
+    ],
+    "folderStillHeld": true,
+    "hydrationSuspect": false,
+    "excludedMatterFolders": [
+      "C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez"
+    ],
+    "isAllFilesHeld": false,
+    "scopeEntryIds": [
+      "matter:C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez"
+    ],
+    "scopeEntries": [
+      {
+        "id": "matter:C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez",
+        "status": "retrying",
+        "kind": "matter",
+        "excludeFolders": [
+          "C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez"
+        ],
+        "excludeAllFiles": false
+      }
+    ],
+    "excludeSampleUnderA": true,
+    "folderMappedTo": [
+      {
+        "id": "matter_80be9e50-d154-4a72-bd7c-ad558d4c1a55",
+        "name": "Dr. Priya Nair"
+      }
+    ]
+  }
+}

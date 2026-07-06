@@ -1,0 +1,33 @@
+{
+  "phase": "verify",
+  "hold": {
+    "heldForWorkspace": [],
+    "folderStillHeld": false,
+    "hydrationSuspect": false,
+    "excludedMatterFolders": [],
+    "isAllFilesHeld": false,
+    "scopeEntryIds": [],
+    "scopeEntries": [],
+    "excludeSampleUnderA": false,
+    "folderMappedTo": [
+      {
+        "id": "matter_80be9e50-d154-4a72-bd7c-ad558d4c1a55",
+        "name": "Dr. Priya Nair"
+      }
+    ]
+  },
+  "retrieveA": {
+    "total": 0,
+    "alvarezFolderHits": 0,
+    "sampleAlvarezPaths": []
+  },
+  "retrieveB": {
+    "total": 12,
+    "alvarezFolderHits": 6,
+    "sampleAlvarezPaths": [
+      "C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez/Meeting Prep Notes - Alvarez - 2026-02-11.docx",
+      "C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez/IPS Excerpt - Alvarez.docx",
+      "C:/Users/james/Documents/Beacon Ridge Demo/Maria & Luis Alvarez/Schwab Brokerage Statement Summary - Q4 2025.pdf"
+    ]
+  }
+}

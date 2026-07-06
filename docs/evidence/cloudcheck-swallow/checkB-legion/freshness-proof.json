@@ -1,0 +1,24 @@
+{
+  "ts": "2026-07-06T18:36:33.553Z",
+  "url": "http://localhost:5173/",
+  "title": "Advisor Prep Hero",
+  "proof1_dynamicImport": {
+    "ok": true,
+    "hasFreshnessFn": "function",
+    "freshnessValue": false,
+    "hasSanitize": "function",
+    "hasStore": "function"
+  },
+  "proof2_fetchSource": {
+    "status": 200,
+    "contentType": "text/javascript",
+    "length": 17276,
+    "hasFreshnessSymbol": true,
+    "hasStoreKey": true
+  },
+  "proof3_banner": {
+    "status": 200,
+    "length": 8147,
+    "isReactSource": true
+  }
+}

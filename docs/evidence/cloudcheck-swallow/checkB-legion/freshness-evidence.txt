@@ -1,0 +1,43 @@
+RUNTIME-FRESHNESS PROOF — LEGION (physical Windows bench), lp/swallow-p0-r8 @ 2efa2e05
+=======================================================================================
+This is the MANDATORY gate the two cloud benches FAILED. On bench-1 and bench-2 the
+WebView2 client executed a STALE pre-R7-3 frontend for the same URL curl fetched fresh,
+so Check B could not be validly exercised. The Legion executes FRESH code — proven below
+at the RUNNING-WEBVIEW level BEFORE any Check B step ran.
+
+DISK / GIT TRUTH (on the Legion, C:\lantern-plus)
+  clean checkout: killed ALL app/dev/build procs BEFORE `git checkout` (bench-1 lesson)
+  git rev-parse HEAD               = 2efa2e05add7396546a826bce28252be7b52d88e   (exact target)
+  tree status                      = clean (0 changed)
+  pendingFolderRetagStore.ts       = present on disk; contains 'pendingFolderRetagHydrationSuspect'
+  ScopeUpdateBanner.tsx            = present on disk
+  node_modules/.vite cache cleared before relaunch; tauri:dev rebuilt the one changed
+  Rust file (src-tauri/.../mail/matter.rs) incrementally, then booted.
+
+THE RUNNING WEBVIEW EXECUTES THE R8 CODE (over CDP, port 9223) — freshness-proof.json
+  webview url   = http://localhost:5173/   (CLEAN — NOT the poisoned [::1]:5173/?fresh
+                  token the cloud benches were frozen on)
+  title         = "Advisor Prep Hero"
+
+  PROOF 1 — dynamic import of the r8-only module + call its r8-only export
+    import('/src/platform/rag/pendingFolderRetagStore.ts')  -> RESOLVED (ok:true)
+    typeof m.pendingFolderRetagHydrationSuspect              = "function"
+    m.pendingFolderRetagHydrationSuspect()                   = false (a real boolean)
+    typeof m.sanitizePersistedFolderRetag                    = "function"
+    typeof m.usePendingFolderRetagStore                      = "function"
+    >>> On BOTH cloud benches this identical import FAILED:
+        "Failed to fetch dynamically imported module". Here it RESOLVES and RUNS. <<<
+
+  PROOF 2 — webview fetch of the raw source (bench got stale 931-byte HTML here)
+    fetch('/src/platform/rag/pendingFolderRetagStore.ts?fp=<t>', {cache:'no-store'})
+      status        = 200
+      content-type  = text/javascript      (bench: text/html SPA fallback)
+      length        = 17276 bytes          (bench webview: 931 bytes; bench VM-curl: 17254)
+      contains 'pendingFolderRetagHydrationSuspect' = true   (bench webview: false)
+      contains 'lantern:pending-folder-retag'       = true
+
+  PROOF 3 — the r8-only banner component served fresh
+    fetch('/src/platform/rag/ui/ScopeUpdateBanner.tsx')  -> 200, 8147 bytes, is React source
+
+CONCLUSION: the Legion's running webview provably executes lp/swallow-p0-r8 @ 2efa2e05.
+The pin was lifted (demo postponed); Check B was then exercised LIVE on this fresh code.
