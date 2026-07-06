@@ -23,11 +23,11 @@ use zeroize::Zeroize;
 
 /// HKDF info string — identifies this key derivation purpose. Versioned so a
 /// future change to the derivation parameters doesn't silently break old wraps.
-const INFO: &[u8] = b"keepance-vault-recovery-kek:v1";
+const INFO: &[u8] = b"lantern-vault-recovery-kek:v1";
 
 /// AAD bound to every recovery-wrap ciphertext. A forged or reused nonce cannot
 /// produce a valid tag without this AAD matching exactly.
-const AAD: &[u8] = b"keepance-vault-recovery:v1";
+const AAD: &[u8] = b"lantern-vault-recovery:v1";
 
 /// Errors that can occur during recovery-phrase operations.
 #[derive(Debug, thiserror::Error)]

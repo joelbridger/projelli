@@ -19,7 +19,7 @@ use crate::format::{decrypt_file, encrypt_file, VaultFormatError};
 /// The fixed plaintext encrypted to form the verifier blob.
 /// Must be treated as a public constant — its secrecy provides no security;
 /// only the GCM auth tag does.
-const VERIFIER_PLAINTEXT: &[u8] = b"keepance-vault-verifier:v1";
+const VERIFIER_PLAINTEXT: &[u8] = b"lantern-vault-verifier:v1";
 
 /// Produce a verifier blob by encrypting `VERIFIER_PLAINTEXT` under `vmk`.
 ///

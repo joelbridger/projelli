@@ -20,7 +20,7 @@
  *
  *   ephemeral_priv  x  recipient_pub  →  ECDH shared secret (32 bytes)
  *   HKDF-SHA256(ikm = shared_secret, salt = salt_16B,
- *               info = utf8("keepance-matter-key-wrap:v1:epoch:<epoch>"))
+ *               info = utf8("lantern-matter-key-wrap:v1:epoch:<epoch>"))
  *   → 32-byte AES-256 wrapping key
  *
  * ## Authenticated encryption
@@ -135,7 +135,7 @@ function b64ToBytes(b64: string): Uint8Array {
 }
 
 function epochInfo(epoch: number): Uint8Array {
-  return new TextEncoder().encode(`keepance-matter-key-wrap:v1:epoch:${String(epoch)}`);
+  return new TextEncoder().encode(`lantern-matter-key-wrap:v1:epoch:${String(epoch)}`);
 }
 
 function epochAad(epoch: number): Uint8Array {

@@ -28,11 +28,11 @@ const KEY_LEN: usize = 32;
 /// so the token keyspace is cryptographically independent of the AES-GCM
 /// use of the same master key (and of any future derived key, which must
 /// pick its own label).
-const PATH_TOKEN_DOMAIN: &[u8] = b"keepance-path-token-v1";
+const PATH_TOKEN_DOMAIN: &[u8] = b"lantern-path-token-v1";
 
 /// VG-6e — deterministic keyed token for the queryable `path` / `source_id`
 /// columns: `hex(HMAC-SHA256(token_key, path))` where
-/// `token_key = HMAC-SHA256(master_key, "keepance-path-token-v1")`.
+/// `token_key = HMAC-SHA256(master_key, "lantern-path-token-v1")`.
 ///
 /// Determinism is the point: every equality predicate the store runs over
 /// `path` (upsert's stale-row delete, delete_path, the retag UPDATEs) keeps
