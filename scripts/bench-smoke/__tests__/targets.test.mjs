@@ -17,6 +17,12 @@ describe('resolveTarget', () => {
     const t = resolveTarget('azure-cloud-bench-1');
     expect(t.sshUser).toBe('lpbench');
     expect(t.sshHost).toBe('100.75.247.98');
+    expect(t.cdpPort).toBe(9223);
+  });
+
+  it('probes localhost through both IPv4 and IPv6 app origins', () => {
+    const t = resolveTarget('azure-cloud-bench-1');
+    expect(t.appOrigins).toEqual(expect.arrayContaining(['http://127.0.0.1:5173', 'http://[::1]:5173']));
   });
 
   it('gives each registered target its own scheduled-task name', () => {
@@ -50,6 +56,7 @@ describe('resolveTarget', () => {
     expect(t.sshHost).toBe('10.0.0.9');
     expect(t.sshUser).toBe('bob');
     expect(t.repoDir).toBe('C:\\lantern-plus');
+    expect(t.cdpPort).toBe(9223);
   });
 
   it('listTargets returns every registered target', () => {

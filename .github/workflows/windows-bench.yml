@@ -110,7 +110,7 @@ jobs:
           # re-runs on every boot only pays once (in the next step) instead
           # of twice; only a genuinely cold Legion pays for two.
           $cdp = 0
-          try { $cdp = (Invoke-WebRequest http://127.0.0.1:9223/json/version -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
+          try { $cdp = (Invoke-WebRequest 'http://127.0.0.1:9223/json/version' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
           if ($cdp -eq 200) { Write-Output "app already reachable on CDP 9223 — skipping restart"; exit 0 }
 
           Write-Output "app not reachable — starting it"
@@ -122,13 +122,16 @@ jobs:
           for ($i = 0; $i -lt 120; $i++) {
             Start-Sleep -Seconds 10
             $cdp = 0
-            try { $cdp = (Invoke-WebRequest http://127.0.0.1:9223/json/version -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
-            $vite = (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count
-            Write-Output "poll ${i}: cdp=$cdp vite=$vite"
-            if ($cdp -eq 200 -and $vite -ge 1) { $ok = $true; break }
+            try { $cdp = (Invoke-WebRequest 'http://127.0.0.1:9223/json/version' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
+            $vite4 = 0
+            try { $vite4 = (Invoke-WebRequest 'http://127.0.0.1:5173/' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
+            $vite6 = 0
+            try { $vite6 = (Invoke-WebRequest 'http://[::1]:5173/' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}
+            Write-Output "poll ${i}: cdp=$cdp vite4=$vite4 vite6=$vite6"
+            if ($cdp -eq 200 -and ($vite4 -eq 200 -or $vite6 -eq 200)) { $ok = $true; break }
           }
           if (-not $ok) {
-            Write-Error "App never came up on CDP 9223 / Vite 5173 within budget."
+            Write-Error "App never came up on CDP 9223 / Vite 5173 on either IPv4 or IPv6 localhost within budget."
             Get-Content C:\tauri-dev.log -Tail 80 -ErrorAction SilentlyContinue
             exit 1
           }

@@ -32,14 +32,15 @@ ok=0; for a in 1 2 3; do "${SCP[@]}" "$TMP" "$LEGION:C:/keepance/legion-src.tgz"
 echo "[3/4] restarting KeepanceDev (kill -> free ports -> start) ..."
 "${SSH[@]}" "$LEGION" "Stop-Process -Name node,cargo,keepance,Keepance,msedgewebview2 -Force -ErrorAction SilentlyContinue; Start-Sleep -Seconds 6; Start-ScheduledTask -TaskName KeepanceDev" || { echo "FAIL: restart"; exit 1; }
 
-echo "[4/4] waiting for CDP(9223)+Vite(5173) ..."
+echo "[4/4] waiting for CDP(9223)+Vite(5173 on IPv4 or IPv6 localhost) ..."
 for i in $(seq 1 40); do
   sleep 15
-  out=$("${SSH[@]}" "$LEGION" "try { (Invoke-WebRequest http://127.0.0.1:9223/json/version -UseBasicParsing -TimeoutSec 4).StatusCode } catch { Write-Output 0 }; (Get-NetTCPConnection -LocalPort 5173 -State Listen -ErrorAction SilentlyContinue | Measure-Object).Count" 2>/dev/null)
+  out=$("${SSH[@]}" "$LEGION" "\$cdp=0; try { \$cdp=(Invoke-WebRequest 'http://127.0.0.1:9223/json/version' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}; \$vite4=0; try { \$vite4=(Invoke-WebRequest 'http://127.0.0.1:5173/' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}; \$vite6=0; try { \$vite6=(Invoke-WebRequest 'http://[::1]:5173/' -UseBasicParsing -TimeoutSec 4).StatusCode } catch {}; Write-Output \$cdp; Write-Output \$vite4; Write-Output \$vite6" 2>/dev/null)
   cdp=$(printf '%s\n' "$out" | grep -oE '^(200|0)$' | head -1)
-  vite=$(printf '%s\n' "$out" | tail -1 | tr -dc '0-9')
-  echo "  poll $i: cdp=${cdp:-?} vite=${vite:-?}"
-  if [ "$cdp" = "200" ] && [ "${vite:-0}" -ge 1 ] 2>/dev/null; then
+  vite4=$(printf '%s\n' "$out" | sed -n '2p' | tr -dc '0-9')
+  vite6=$(printf '%s\n' "$out" | sed -n '3p' | tr -dc '0-9')
+  echo "  poll $i: cdp=${cdp:-?} vite4=${vite4:-?} vite6=${vite6:-?}"
+  if [ "$cdp" = "200" ] && { [ "${vite4:-0}" = "200" ] || [ "${vite6:-0}" = "200" ]; }; then
     echo "READY. Drive it with:  scripts/legion-drive.sh snapshot"
     exit 0
   fi

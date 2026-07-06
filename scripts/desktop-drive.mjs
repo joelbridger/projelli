@@ -20,18 +20,35 @@
 //   node scripts/desktop-drive.mjs screenshot <path.jpeg>     # via CDP (works even if window hidden)
 //   node scripts/desktop-drive.mjs waitfor "<text>" [seconds]
 //
-// Env: DESKTOP_CDP_PORT (default 9444, the tunnel port on this server).
+// Env: DESKTOP_CDP_PORT (default 9223 on the bench; set 9444 only when using a local tunnel).
+//      DESKTOP_CDP_HOSTS comma-list is optional; defaults to 127.0.0.1,localhost,[::1].
 import { chromium } from 'playwright';
 
-const PORT = process.env.DESKTOP_CDP_PORT || '9444';
-const BASE = `http://localhost:${PORT}`;
+const PORT = process.env.DESKTOP_CDP_PORT || '9223';
+const CDP_HOSTS = (process.env.DESKTOP_CDP_HOSTS || process.env.DESKTOP_CDP_HOST || '127.0.0.1,localhost,[::1]')
+  .split(',')
+  .map((host) => host.trim())
+  .filter(Boolean);
+const APP_URL_RE = /(?:localhost|127\.0\.0\.1|\[::1\]):5173/;
+
+function httpBase(host) {
+  return `http://${host}:${PORT}`;
+}
 
 async function getBrowser() {
   // /json/version returns a ws URL pointing at the bench's own :9223; rewrite
   // its host:port to our tunnel port so the connection goes through the tunnel.
-  const info = await (await fetch(`${BASE}/json/version`)).json();
-  const ws = info.webSocketDebuggerUrl.replace(/^ws:\/\/[^/]+\//, `ws://localhost:${PORT}/`);
-  return chromium.connectOverCDP(ws);
+  const errors = [];
+  for (const host of CDP_HOSTS) {
+    try {
+      const info = await (await fetch(`${httpBase(host)}/json/version`)).json();
+      const ws = info.webSocketDebuggerUrl.replace(/^ws:\/\/[^/]+\//, `ws://${host}:${PORT}/`);
+      return chromium.connectOverCDP(ws);
+    } catch (err) {
+      errors.push(`${host}:${PORT} ${err.message || err}`);
+    }
+  }
+  throw new Error(`Could not reach WebView2 CDP on any configured host: ${errors.join('; ')}`);
 }
 
 function pickPage(browser) {
@@ -39,8 +56,8 @@ function pickPage(browser) {
   // Prefer that; fall back to the first non-devtools page.
   const pages = browser.contexts().flatMap((c) => c.pages());
   return (
-    pages.find((p) => /localhost:5173/.test(p.url()) && !/connector|account-window/i.test(p.url())) ||
-    pages.find((p) => /localhost:5173|index\.html|tauri/i.test(p.url())) ||
+    pages.find((p) => APP_URL_RE.test(p.url()) && !/connector|account-window/i.test(p.url())) ||
+    pages.find((p) => APP_URL_RE.test(p.url()) || /index\.html|tauri/i.test(p.url())) ||
     pages.find((p) => !/devtools/i.test(p.url())) ||
     pages[0] ||
     null
