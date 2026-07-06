@@ -22,8 +22,9 @@
  * workspace opened with a differently-spelled-but-equal path maps to one scope,
  * WITHOUT the naive `toLowerCase()` that would wrongly collapse `/Practice/Acme`
  * and `/Practice/acme` (two different client boundaries) into one key. The
- * raw-path-in-key precedent is `editorStore`'s `workspace_tabs_<rootPath>` and
- * swallow-p0's per-workspace `pendingMailRetagStore`.
+ * raw-path-in-key precedent is `editorStore`'s `workspace_tabs_<rootPath>`;
+ * durable fail-closed retag holds intentionally share this canonical workspace
+ * identity so equivalent reopen spellings cannot strand a hold.
  *
  * When NO workspace scope is active (app boot before a workspace opens; unit
  * tests that never call the reload), the suffix is `''` → the base (legacy

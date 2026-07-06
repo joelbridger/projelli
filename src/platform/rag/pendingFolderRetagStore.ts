@@ -43,6 +43,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import { workspaceScopeId } from '@/platform/state/workspaceScope';
+
+/** Canonical workspace identity shared with QA-93 matter/client persistence. */
+function workspaceKey(workspaceRoot: string): string {
+  return workspaceScopeId(workspaceRoot);
+}
+
 /** F3 (R8) — a well-formed per-workspace hold list is an array of string prefixes.
  *  A value that fails this (a corrupted/partial `localStorage` blob) is DROPPED
  *  rather than trusted, so a malformed hold can never feed garbage into retrieval
@@ -84,13 +91,39 @@ export function sanitizePersistedFolderRetag(persisted: unknown): {
       : undefined;
   if (raw && typeof raw === 'object') {
     for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
-      if (isHeldPathList(value)) valid[key] = value;
+      if (isHeldPathList(value)) mergeHeldPaths(valid, key, value);
       else hydrationSuspect = true; // a malformed workspace entry was dropped
     }
   } else if (persisted !== undefined && persisted !== null) {
     hydrationSuspect = true; // a persisted blob was present but not the expected shape
   }
   return { heldByWorkspace: valid };
+}
+
+function mergeHeldPaths(
+  heldByWorkspace: Record<string, string[]>,
+  workspaceRoot: string,
+  paths: string[]
+): void {
+  const key = workspaceKey(workspaceRoot);
+  const union = new Set(heldByWorkspace[key] ?? []);
+  for (const p of paths) union.add(p);
+  if (union.size === 0) delete heldByWorkspace[key];
+  else heldByWorkspace[key] = [...union];
+}
+
+function equivalentWorkspaceEntries(
+  heldByWorkspace: Record<string, string[]>,
+  workspaceRoot: string
+): Array<[string, string[]]> {
+  const key = workspaceKey(workspaceRoot);
+  return Object.entries(heldByWorkspace).filter(
+    ([k]) => workspaceKey(k) === key
+  );
+}
+
+function uniquePaths(paths: string[]): string[] {
+  return [...new Set(paths)];
 }
 
 interface PendingFolderRetagState {
@@ -115,42 +148,83 @@ export const usePendingFolderRetagStore = create<PendingFolderRetagState>()(
 
       hold: (workspaceRoot, paths) => {
         if (!workspaceRoot || paths.length === 0) return;
-        const existing = get().heldByWorkspace[workspaceRoot] ?? [];
-        const union = new Set(existing);
-        for (const p of paths) union.add(p);
-        if (union.size === existing.length) return; // nothing new
+        const key = workspaceKey(workspaceRoot);
+        const existing = equivalentWorkspaceEntries(
+          get().heldByWorkspace,
+          workspaceRoot
+        ).flatMap(([, held]) => held);
+        const union = uniquePaths([...existing, ...paths]);
+        if (
+          existing.length === union.length &&
+          get().heldByWorkspace[key]?.length === union.length
+        ) {
+          return; // nothing new and already canonical
+        }
         set((state) => ({
-          heldByWorkspace: { ...state.heldByWorkspace, [workspaceRoot]: [...union] },
+          heldByWorkspace: {
+            ...Object.fromEntries(
+              Object.entries(state.heldByWorkspace).filter(
+                ([k]) => workspaceKey(k) !== key
+              )
+            ),
+            [key]: union,
+          },
         }));
       },
 
       release: (workspaceRoot, paths) => {
         if (!workspaceRoot || paths.length === 0) return;
-        const existing = get().heldByWorkspace[workspaceRoot];
+        const key = workspaceKey(workspaceRoot);
+        const existing = equivalentWorkspaceEntries(
+          get().heldByWorkspace,
+          workspaceRoot
+        ).flatMap(([, held]) => held);
         if (!existing || existing.length === 0) return;
         const drop = new Set(paths);
-        const remaining = existing.filter((p) => !drop.has(p));
+        const remaining = uniquePaths(existing.filter((p) => !drop.has(p)));
         if (remaining.length === existing.length) return; // nothing overlapped
         set((state) => ({
           heldByWorkspace:
             remaining.length === 0
               ? Object.fromEntries(
-                  Object.entries(state.heldByWorkspace).filter(([k]) => k !== workspaceRoot),
+                  Object.entries(state.heldByWorkspace).filter(
+                    ([k]) => workspaceKey(k) !== key
+                  )
                 )
-              : { ...state.heldByWorkspace, [workspaceRoot]: remaining },
+              : {
+                  ...Object.fromEntries(
+                    Object.entries(state.heldByWorkspace).filter(
+                      ([k]) => workspaceKey(k) !== key
+                    )
+                  ),
+                  [key]: remaining,
+                },
         }));
       },
 
       clearWorkspace: (workspaceRoot) => {
-        if (!(workspaceRoot in get().heldByWorkspace)) return;
+        const key = workspaceKey(workspaceRoot);
+        if (
+          equivalentWorkspaceEntries(get().heldByWorkspace, workspaceRoot)
+            .length === 0
+        )
+          return;
         set((state) => ({
           heldByWorkspace: Object.fromEntries(
-            Object.entries(state.heldByWorkspace).filter(([k]) => k !== workspaceRoot),
+            Object.entries(state.heldByWorkspace).filter(
+              ([k]) => workspaceKey(k) !== key
+            )
           ),
         }));
       },
 
-      forWorkspace: (workspaceRoot) => get().heldByWorkspace[workspaceRoot] ?? [],
+      forWorkspace: (workspaceRoot) =>
+        uniquePaths(
+          equivalentWorkspaceEntries(
+            get().heldByWorkspace,
+            workspaceRoot
+          ).flatMap(([, held]) => held)
+        ),
     }),
     {
       name: 'lantern:pending-folder-retag',
@@ -167,6 +241,6 @@ export const usePendingFolderRetagStore = create<PendingFolderRetagState>()(
       onRehydrateStorage: () => (_state, error) => {
         if (error) hydrationSuspect = true;
       },
-    },
-  ),
+    }
+  )
 );
