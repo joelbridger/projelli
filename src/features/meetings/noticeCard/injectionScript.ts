@@ -97,11 +97,21 @@ ${methods}
         var phase = adapter.detectPhase(document);
         if (phase === 'launcher') {
           // "Continue on this browser" vs "Open the Teams app" chooser: click
-          // through it so the page advances to the real prejoin. This is a distinct
-          // branch from the loading/else path, so it does NOT increment loadingTicks
-          // — the card can't drift into the ~29s unrecognized give-up while on it.
-          adapter.dismissLauncher(document);
-          report('joining');
+          // through it so the page advances to the real prejoin. A SUCCESSFUL
+          // click reports 'joining' (like name-entry) and doesn't count toward the
+          // give-up clock. But if dismissLauncher can't act — the continue-in-
+          // browser control is absent/disabled/renamed (drift), yet the page still
+          // reads as the launcher (e.g. by URL) — we must NOT sit on 'joining'
+          // forever. Count each failed attempt toward the SAME unrecognized give-up
+          // as the loading path, so the card fast-fails to page-unrecognized (and
+          // the honest say-the-notice-aloud fallback) instead of hanging until the
+          // long supervisor timeout.
+          if (adapter.dismissLauncher(document)) {
+            report('joining');
+          } else {
+            loadingTicks++;
+            if (loadingTicks > UNRECOGNIZED_TICKS) report('unrecognized');
+          }
         } else if (phase === 'name-entry') {
           adapter.fillGuestName(document, DISPLAY_NAME);
           adapter.ensureMuted(document);

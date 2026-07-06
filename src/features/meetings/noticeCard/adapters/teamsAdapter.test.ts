@@ -184,6 +184,29 @@ describe('teamsAdapter — launcher "browser or app?" chooser (QA-91c)', () => {
     expect(teamsAdapter.dismissLauncher(dom(CURRENT_NAME_ENTRY))).toBe(false);
   });
 
+  it('reads launcher by URL even when the continue-in-browser control is absent, and then dismissLauncher fails (drift → runner must fast-fail)', () => {
+    // The page still IS the launcher (its URL), but the joinOnWeb control is gone/
+    // renamed, so there is nothing to click. detectPhase must still classify it as
+    // launcher (URL signal), and dismissLauncher must honestly return false so the
+    // runner counts it toward the unrecognized give-up instead of hanging.
+    const doc = dom('<div class="mainActionsContent"><h1>Join your Teams meeting</h1></div>');
+    Object.defineProperty(doc, 'URL', {
+      value: 'https://teams.live.com/dl/launcher/launcher.html?url=%2Fmeet%2F1',
+      configurable: true,
+    });
+    expect(teamsAdapter.detectPhase(doc)).toBe('launcher');
+    expect(teamsAdapter.dismissLauncher(doc)).toBe(false);
+  });
+
+  it('dismissLauncher returns false for a DISABLED continue-in-browser button (can\'t act)', () => {
+    const doc = dom(`
+      <div class="mainActionsContent">
+        <button data-tid="joinOnWeb" disabled aria-label="Join meeting from this browser">Continue on this browser</button>
+      </div>`);
+    expect(teamsAdapter.detectPhase(doc)).toBe('launcher'); // still the launcher
+    expect(teamsAdapter.dismissLauncher(doc)).toBe(false); // but not actionable
+  });
+
   it('the prejoin is NOT mistaken for the launcher', () => {
     // "Join now" on the prejoin must never read as launcher / trigger a launcher click.
     expect(teamsAdapter.detectPhase(dom(CURRENT_NAME_ENTRY))).not.toBe('launcher');
