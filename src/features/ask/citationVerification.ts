@@ -146,7 +146,7 @@ function markRequested(key: string): void {
   pruneStoreVerdicts(evictOverflowKeys());
 }
 
-function clearCitationVerificationCache(): void {
+export function clearCitationVerificationCache(): void {
   if (
     requested.size === 0 &&
     heldForRetry.size === 0 &&
