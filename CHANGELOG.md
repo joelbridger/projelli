@@ -151,6 +151,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `localAiPreStart.test.ts`, `askTimeout.test.ts`, `TurnBlock.test.tsx`) to
     confirm — all passing; no code change needed for this half.
 
+- **OneDrive connector — four re-review findings (connector-parity round 3).**
+  - **F1 (a sync starting mid-disconnect can no longer resurrect deleted data):**
+    a new `disconnecting` gate on `OneDriveState` is held for the whole disconnect
+    (set before cancel, released when it finishes). `onedrive_sync` and
+    `onedrive_list_folders` refuse to start while it's held, and the sync-slot
+    check happens AFTER winning `is_syncing` so it can't interleave with the
+    disconnect's idle-wait. The UI disables "Sync now" and "Disconnect" for the
+    whole purge. Files: `commands.rs` (`acquire_sync_slot`, `DisconnectGuard`),
+    `OneDriveConnect.tsx`.
+  - **F2 (reconnect no longer overwrites a kept-and-edited file):** after a
+    keep-files disconnect the tracking DB is gone, so on reconnect the engine
+    would write remote bytes straight over the user's edited file. It now never
+    overwrites a path the item doesn't already own — it writes a conflict copy
+    (`name (OneDrive).ext`) beside the user's file (updated in place on later
+    syncs, never multiplied). File: `engine.rs`.
+  - **F3 (opt-in delete no longer trusts stored paths):** `delete_materialized_files`
+    now runs every stored path through `pathguard` (reject absolute, `..`, and
+    symlink escapes; require workspace containment). An unsafe path is a failed
+    delete that keeps the token + DB and flags `dataRemains`. File: `commands.rs`.
+  - **F4 (honest disconnect-incomplete copy):** the UI no longer conflates "data
+    remains on disk" with "the connection wasn't fully removed". A separate
+    `disconnectIncomplete` state drives "Finish disconnecting" copy when only the
+    token step failed, vs "Finish deleting local data" when files remain. File:
+    `OneDriveConnect.tsx`.
+- **OneDrive disconnect — honest promise + no data-loss race (connector-parity round 2).**
+  Two verified review findings:
+  - **F1 (disconnect no longer overpromises):** disconnect now opens a plain-language
+    confirmation stating that importing stops, the connection + search index are
+    removed, and files already imported into client folders **STAY** in the workspace.
+    Deleting those files is a deliberate opt-in ("Also delete the files imported from
+    OneDrive") — never silent, since they're the user's documents now (possibly edited).
+    When opted in, the backend enumerates every saved `local_path` and deletes those
+    files BEFORE removing the tracking DB; any delete failure keeps the token +
+    tracking DB and flags `dataRemains` so the "Finish deleting local data" retry can
+    re-enumerate and finish. Keeping files (opt-out) is no longer reported as a failure.
+    Files: `OneDriveStore::all_local_paths` (`store.rs`), `onedrive_disconnect_logic`
+    +`delete_materialized_files` (`commands.rs`), `oneDriveDisconnect(deleteFiles)`
+    (`onedrive-commands.ts`), `OneDriveConnect.tsx` confirmation flow.
+  - **F2 (disconnect no longer races an active sync):** `onedrive_disconnect_logic`
+    now sets cancel and then WAITS (bounded ~15s) for `is_syncing` to clear before
+    purging, so a file caught between the engine's cancel checks and its write can't
+    commit after the purge (which would resurrect deleted data and could recreate the
+    tracking DB). On timeout it keeps the token, keeps the DB, and reports `dataRemains`
+    with an honest warning. Files: `wait_for_sync_idle` + `onedrive_disconnect_logic_with`
+    (`commands.rs`); Rust tests in `tests/onedrive_disconnect.rs`.
 - **QA-91c: Notice Card now clicks through Teams' "browser or app?" launcher
   (the real reason it never joined).** Proven live (evidence `cca5e1a4`): the
   recording companion's hidden window always landed on Teams' launcher chooser —

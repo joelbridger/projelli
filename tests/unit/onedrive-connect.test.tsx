@@ -231,3 +231,155 @@ describe('OneDriveConnect — cancel connect (F2.4)', () => {
     expect(screen.queryByText(/cancelled/i)).not.toBeInTheDocument();
   });
 });
+
+// F1: disconnect is a two-step, user-in-control flow. Clicking Disconnect must
+// open a confirmation that states files already imported STAY unless the user
+// opts in — no silent deletion of the user's documents.
+describe('OneDriveConnect — disconnect confirmation (F1)', () => {
+  function disconnectResult(
+    overrides: Partial<import('@/platform/utils/onedrive-commands').OneDriveDisconnectResult> = {}
+  ): import('@/platform/utils/onedrive-commands').OneDriveDisconnectResult {
+    return {
+      tokenDeleted: true,
+      ragPurged: true,
+      localDataPurged: true,
+      dataRemains: false,
+      warnings: [],
+      ...overrides,
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+    oneDriveIsConnected.mockResolvedValue(true);
+    oneDriveCancel.mockResolvedValue(undefined);
+    oneDriveListFolders.mockResolvedValue([]);
+    oneDriveDisconnect.mockResolvedValue(disconnectResult());
+  });
+
+  it('clicking Disconnect opens a confirmation that says files stay, and does NOT purge yet', async () => {
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+
+    const panel = await screen.findByTestId('onedrive-disconnect-confirm-panel');
+    expect(panel).toBeInTheDocument();
+    expect(screen.getByText(/will STAY in your workspace/i)).toBeInTheDocument();
+    // The checkbox defaults to OFF (keep files).
+    expect(
+      (screen.getByTestId('onedrive-delete-files-checkbox') as HTMLInputElement).checked
+    ).toBe(false);
+    // Nothing was purged just by opening the confirmation.
+    expect(oneDriveDisconnect).not.toHaveBeenCalled();
+  });
+
+  it('confirming with the box unchecked disconnects but keeps files (deleteFiles=false)', async () => {
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-confirm'));
+
+    await waitFor(() => expect(oneDriveDisconnect).toHaveBeenCalledWith(false));
+    // Clean disconnect returns to the connect view.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Connect OneDrive' })).toBeInTheDocument()
+    );
+  });
+
+  it('checking the box then confirming deletes the imported files (deleteFiles=true)', async () => {
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-delete-files-checkbox'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-confirm'));
+
+    await waitFor(() => expect(oneDriveDisconnect).toHaveBeenCalledWith(true));
+  });
+
+  it('"Keep connected" cancels the confirmation without disconnecting', async () => {
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-cancel'));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId('onedrive-disconnect-confirm-panel')).not.toBeInTheDocument()
+    );
+    expect(oneDriveDisconnect).not.toHaveBeenCalled();
+    // Still connected.
+    expect(screen.getByTestId('onedrive-disconnect')).toBeInTheDocument();
+  });
+
+  it('a delete failure shows the retry banner, and Finish deleting repeats the SAME opt-in choice', async () => {
+    oneDriveDisconnect.mockResolvedValue(
+      disconnectResult({
+        tokenDeleted: false,
+        ragPurged: false,
+        localDataPurged: false,
+        dataRemains: true,
+        warnings: ['1 imported OneDrive file could not be deleted'],
+      })
+    );
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-delete-files-checkbox'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-confirm'));
+
+    // First attempt opted in to deleting files.
+    await waitFor(() => expect(oneDriveDisconnect).toHaveBeenNthCalledWith(1, true));
+    // The retry banner appears because data remains.
+    expect(await screen.findByTestId('onedrive-data-remains')).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByTestId('onedrive-finish-delete'));
+    // The retry repeats the same choice (delete files = true), not a silent false.
+    await waitFor(() => expect(oneDriveDisconnect).toHaveBeenNthCalledWith(2, true));
+  });
+
+  // F1: a sync must not be startable while a disconnect purge is running — it
+  // would re-materialize the files the disconnect is about to delete. The
+  // "Sync now" button is disabled for the whole purge.
+  it('pauses "Sync now" while a disconnect is in progress', async () => {
+    let resolveDisconnect: (r: unknown) => void = () => {};
+    oneDriveDisconnect.mockReturnValue(
+      new Promise((res) => {
+        resolveDisconnect = res;
+      })
+    );
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-confirm'));
+
+    // While the purge is in flight, Sync now is disabled.
+    await waitFor(() =>
+      expect(screen.getByTestId('onedrive-sync-now')).toBeDisabled()
+    );
+
+    // Let the purge settle so the component reaches a stable state.
+    await act(async () => {
+      resolveDisconnect(disconnectResult());
+    });
+  });
+
+  // F4: when only the token step failed (the data IS gone), the retry must say
+  // "Finish disconnecting" — never the misleading "Finish deleting local data".
+  it('says "Finish disconnecting" when only the connection could not be removed', async () => {
+    oneDriveDisconnect.mockResolvedValue(
+      disconnectResult({
+        tokenDeleted: false,
+        ragPurged: true,
+        localDataPurged: true,
+        dataRemains: false,
+        warnings: ['the keychain was busy'],
+      })
+    );
+
+    render(<OneDriveConnect />);
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect'));
+    fireEvent.click(await screen.findByTestId('onedrive-disconnect-confirm'));
+
+    const retry = await screen.findByTestId('onedrive-finish-delete');
+    expect(retry.textContent).toMatch(/Finish disconnecting/i);
+    const banner = screen.getByTestId('onedrive-data-remains');
+    expect(banner.textContent).not.toMatch(/Finish deleting local data/i);
+    expect(banner.textContent).toMatch(/connection could not be fully removed/i);
+  });
+});

@@ -51,7 +51,9 @@ pub(crate) async fn await_redirect_code_or_cancel(
 /// `http://localhost` listed as a Mobile and desktop redirect URI.
 #[tauri::command]
 pub async fn outlook_connect(state: State<'_, MailState>) -> Result<(), String> {
-    use crate::commands::mail::gmail::oauth::{bind_loopback_host, gen_pkce, gen_state, open_browser};
+    use crate::commands::mail::gmail::oauth::{
+        bind_loopback_host, gen_pkce, gen_state, open_browser, store_or_rollback_on_cancel,
+    };
     use crate::commands::mail::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
 
     // Reset from any prior cancelled/finished attempt before starting a new one.
@@ -69,17 +71,36 @@ pub async fn outlook_connect(state: State<'_, MailState>) -> Result<(), String> 
     let (listener, redirect_uri) = bind_loopback_host("localhost").await.map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
     open_browser(&url);
-    let code = await_redirect_code_or_cancel(listener, &state_token, std::time::Duration::from_secs(300), cancel)
+    let code = await_redirect_code_or_cancel(listener, &state_token, std::time::Duration::from_secs(300), cancel.clone())
         .await
         .map_err(|e| e.to_string())?;
     let tokens = ms_exchange_code(&client_id(), &code, &verifier, &redirect_uri, MS_TOKEN_ENDPOINT)
         .await
         .map_err(|e| e.to_string())?;
-    keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?
-        .set_password(&tokens.refresh)
+
+    // Cancel can arrive while the token exchange (a network round trip) was in
+    // flight — check again before persisting so a canceled flow never leaves a
+    // stored credential behind, even though the redirect wait itself already
+    // resolved successfully. Mirrors onedrive_connect / gmail_connect.
+    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
-    Ok(())
+    // Snapshot whatever was there before (if this is a reconnect over an
+    // existing connection) so a cancel-after-store rolls back to THAT, rather
+    // than always deleting — a canceled reconnect must not disconnect an
+    // already-working account.
+    let previous_token = entry.get_password().ok();
+    store_or_rollback_on_cancel(
+        &cancel,
+        || entry.set_password(&tokens.refresh).map_err(|e| e.to_string()),
+        || match &previous_token {
+            Some(prev) => {
+                let _ = entry.set_password(prev);
+            }
+            None => {
+                let _ = entry.delete_credential();
+            }
+        },
+    )
 }
 
 /// Abort a pending `outlook_connect` interactive sign-in immediately (e.g. the
