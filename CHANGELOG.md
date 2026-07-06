@@ -78,7 +78,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Field-test addendum:** the classifier content-scans `src/platform/connectors/**`
     (a pure copy/tooltip/header hunk in a connector is Tier S, not B-by-folder),
     and test-only files (`*.test.tsx`) are their own tier (never gate the UI).
-    Shared per-file mapping extracted to `fileTier()`. 38 unit tests.
+    Shared per-file mapping extracted to `fileTier()`.
+  - **Round-4:** `ALLOWED_WRAPPERS` `clickPoint` is now strictly validated — only
+    the string `"center"` or `{x, y}` finite numbers pass (a truthy junk value
+    like `true` no longer satisfies the requirement). 39 unit tests.
   - Files: `scripts/ui-system/*`, `scripts/gate.sh`, `ARCHITECTURE.md`,
     `src/ui/kp/SegmentedToggle.tsx`, `src/ui/ConfirmDialog.tsx`,
     `src/app/shell/layout/Spine.tsx`, `src/platform/connectors/{email/MailConnect,onedrive/OneDriveConnect,crm/WealthboxConnect}.tsx`.

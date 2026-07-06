@@ -52,6 +52,27 @@ describe('handle integrity: real-control attachment (round-2 P0)', () => {
     const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: true, targetControl: true };
     expect(evaluateHandleFacts(facts, 'control', allowed).ok).toBe(false);
   });
+
+  // Round-4: clickPoint must be exactly 'center' or {x,y} finite numbers — a
+  // truthy junk value must NOT satisfy the requirement.
+  it('accepts only clickPoint "center" or {x,y} finite numbers; rejects junk', () => {
+    const facts = { ...base, selfControl: false, targetExists: true, targetVisible: true, targetEnabled: true, targetControl: true };
+    const ok = (cp: unknown) => evaluateHandleFacts(facts, 'control', { x: { target: 'button', clickPoint: cp } }).ok;
+    // valid
+    expect(ok('center')).toBe(true);
+    expect(ok({ x: 10, y: 20 })).toBe(true);
+    expect(ok({ x: 0, y: 0 })).toBe(true);
+    // invalid
+    expect(ok(true)).toBe(false);
+    expect(ok(1)).toBe(false);
+    expect(ok('centre')).toBe(false);
+    expect(ok({})).toBe(false);
+    expect(ok({ x: 1 })).toBe(false);
+    expect(ok({ x: 'a', y: 2 })).toBe(false);
+    expect(ok({ x: NaN, y: 2 })).toBe(false);
+    expect(ok({ x: Infinity, y: 2 })).toBe(false);
+    expect(ok(null)).toBe(false);
+  });
 });
 
 // Round-3 HIGH: disabled INPUTs must fail exactly like disabled controls —

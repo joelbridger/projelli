@@ -39,6 +39,16 @@
 export const ALLOWED_WRAPPERS = {};
 
 /**
+ * A valid clickPoint is the string 'center' or an {x, y} of FINITE numbers.
+ * Anything else (true, {}, {x:1}, {x:'a',y:2}, null) is rejected — a truthy
+ * junk value must not satisfy the "entry stores a click point" requirement.
+ */
+export function isValidClickPoint(cp) {
+  if (cp === 'center') return true;
+  return !!cp && typeof cp === 'object' && Number.isFinite(cp.x) && Number.isFinite(cp.y);
+}
+
+/**
  * @param {object} facts
  * @param {'control'|'input'|'region'} kind
  * @param {object} [allowed] ALLOWED_WRAPPERS (injectable for tests)
@@ -58,8 +68,8 @@ export function evaluateHandleFacts(facts, kind, allowed = ALLOWED_WRAPPERS) {
       // The entry itself must be well-formed (target selector + click point).
       if (!entry.target || typeof entry.target !== 'string') {
         issues.push('ALLOWED_WRAPPERS entry missing a target selector');
-      } else if (!entry.clickPoint) {
-        issues.push('ALLOWED_WRAPPERS entry missing a clickPoint');
+      } else if (!isValidClickPoint(entry.clickPoint)) {
+        issues.push('ALLOWED_WRAPPERS entry clickPoint must be "center" or {x, y} finite numbers');
       } else if (!facts.targetExists) {
         issues.push('allowed-wrapper target selector matches nothing');
       } else {
