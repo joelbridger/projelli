@@ -479,6 +479,7 @@ export function OneDriveConnect() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              data-testid="connect-onedrive-button"
               disabled={connecting || localOnly}
               onClick={() => {
                 void connect();

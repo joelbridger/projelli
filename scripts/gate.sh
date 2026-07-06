@@ -29,6 +29,12 @@ npm run i18n:check || echo "⚠️  i18n key drift (KNOWN-I18N-01, deferred) —
 step "i18n locale completeness" npm run i18n:completeness
 step "Unit tests"      npx vitest run
 step "ESLint gate"     npm run lint:gate
+# ── UI Iteration System guards (keep future UI rounds honest) ────────────────
+# Permanent-handle guard: fails if a data-testid the tests/robot grip vanished
+# without a migration entry. Design-token guard: fails if a NEW hard-coded colour
+# leaked into component code (reskins must touch only the token/paint layer).
+step "Permanent-handle guard" node scripts/ui-system/handle-guard.mjs
+step "Design-token leak guard" node scripts/ui-system/token-guard.mjs
 # ── Connector outcome-contract reviewer check (F2.1) ─────────────────────────
 # A connector operation must NEVER fail silently: no network/IO Result that
 # affects a user-visible sync outcome may be swallowed by `.unwrap_or_default()`,

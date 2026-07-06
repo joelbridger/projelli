@@ -115,6 +115,27 @@ Layer sizes (≈): app 33 · features 279 · platform 179 · ui 34 · lib 4.
 - **Adding a new product surface?** Create `src/features/<surface>/`, depend on
   platform/ui/lib, and wire it into the shell in `src/app/`. If two features need
   the same thing, it belongs in `platform/`, not copied or cross-imported.
+- **Permanent handle (`data-testid`) naming** — tests and the robot grip elements
+  by `data-testid`, never by copy, class, or DOM shape. Rules:
+  - **Every interactive element** (button, input, select, tab, clickable card,
+    list row) gets a `data-testid`. Shared primitives in `src/ui/kp/` forward it
+    (`Button`, `IconButton`, `Chip`, `Card`, `Badge`, `Dropdown`, `SearchField`),
+    so most handles are added at the call site; `SegmentedToggle`, `ConfirmDialog`,
+    `SlidePanel`, `EmptyState`, `FilterBar`, `SurfaceToolbar` take an explicit
+    `data-testid`/`testId` prop.
+  - **Kebab-case, semantic, role-based** — name the element's ROLE, not its label
+    or position: `ask-composer-input`, `connect-onedrive-button`,
+    `spine-nav-matters`, `record-meeting-button`, `confirm-dialog-confirm`. Never
+    an English display word (`ok-button`) or a bare index unless the item has no
+    stable id (then suffix a stable id: `spine-client-row-${matterId}`).
+  - **Handles are permanent.** They're a machine contract. Removing or renaming
+    one requires a migration entry in
+    `scripts/ui-system/handles.migrations.json`; the handle guard
+    (`scripts/ui-system/handle-guard.mjs`, wired into `npm run gate`) fails the
+    build otherwise. Adding handles is always free.
+  - **Copy assertions go through i18n keys**, never literal strings. See
+    `scripts/ui-system/README.md` for the full UI Iteration System (handles,
+    tokens, tier gates, robot rehearsal).
 
 ## Two local-AI paths — which is canonical
 
