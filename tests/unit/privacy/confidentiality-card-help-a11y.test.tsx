@@ -59,17 +59,17 @@ describe('ConfidentialityModeSettings — card help trigger a11y (F2)', () => {
 
   it('the card still selects through its select control, with pressed semantics', () => {
     render(<ConfidentialityModeSettings />);
-    const select = screen.getByTestId('confidentiality-mode-local-only-select');
+    const select = screen.getByTestId('confidentiality-mode-local-only');
     expect(select).toHaveAttribute('aria-pressed', 'false');
     fireEvent.click(select);
     expect(useSettingsStore.getState().getSetting(CONFIDENTIALITY_MODE_SETTING_KEY)).toBe(
       'local-only',
     );
-    expect(screen.getByTestId('confidentiality-mode-local-only')).toHaveAttribute(
+    expect(screen.getByTestId('confidentiality-mode-card-local-only')).toHaveAttribute(
       'data-selected',
       'true',
     );
-    expect(screen.getByTestId('confidentiality-mode-local-only-select')).toHaveAttribute(
+    expect(screen.getByTestId('confidentiality-mode-local-only')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -79,7 +79,7 @@ describe('ConfidentialityModeSettings — card help trigger a11y (F2)', () => {
     // Firm user without a managed key: the Assured card renders disabled.
     useFirmStore.setState({ assuredProviders: [], session: FIRM_SESSION_STUB });
     render(<ConfidentialityModeSettings />);
-    expect(screen.getByTestId('confidentiality-mode-assured-select')).toBeDisabled();
+    expect(screen.getByTestId('confidentiality-mode-assured')).toBeDisabled();
     const help = screen.getByLabelText('About Assured');
     help.focus();
     expect(document.activeElement).toBe(help);

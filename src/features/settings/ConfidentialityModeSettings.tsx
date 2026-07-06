@@ -142,7 +142,7 @@ export function ConfidentialityModeSettings() {
           return (
             <div
               key={card.mode}
-              data-testid={`confidentiality-mode-${card.mode}`}
+              data-testid={`confidentiality-mode-card-${card.mode}`}
               data-selected={selected ? 'true' : 'false'}
               data-disabled={disabled ? 'true' : 'false'}
               className={cn(
@@ -156,7 +156,7 @@ export function ConfidentialityModeSettings() {
             >
               <button
                 type="button"
-                data-testid={`confidentiality-mode-${card.mode}-select`}
+                data-testid={`confidentiality-mode-${card.mode}`}
                 disabled={disabled}
                 aria-pressed={selected}
                 aria-label={card.title}

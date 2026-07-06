@@ -99,11 +99,11 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
     // Firm user with no managed key yet: card should appear but be disabled.
     useFirmStore.setState({ assuredProviders: [], session: FIRM_SESSION_STUB });
     renderSettings();
-    const card = screen.getByTestId('confidentiality-mode-assured');
+    const card = screen.getByTestId('confidentiality-mode-card-assured');
     expect(card).toHaveAttribute('data-disabled', 'true');
     // The card is a non-interactive container; the disabled state lives on
     // its stretched select control.
-    expect(screen.getByTestId('confidentiality-mode-assured-select')).toBeDisabled();
+    expect(screen.getByTestId('confidentiality-mode-assured')).toBeDisabled();
     expect(card.textContent).toContain('Needs admin key');
     expect(card.textContent).not.toMatch(/coming soon/i);
   });
@@ -111,9 +111,9 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
   it('makes Assured selectable when the firm has a managed key', () => {
     useFirmStore.setState({ assuredProviders: ['anthropic'], session: FIRM_SESSION_STUB });
     renderSettings();
-    const card = screen.getByTestId('confidentiality-mode-assured');
+    const card = screen.getByTestId('confidentiality-mode-card-assured');
     expect(card).toHaveAttribute('data-disabled', 'false');
-    const select = screen.getByTestId('confidentiality-mode-assured-select');
+    const select = screen.getByTestId('confidentiality-mode-assured');
     expect(select).not.toBeDisabled();
     expect(card.textContent).not.toContain('Needs admin key');
 
@@ -126,6 +126,7 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
     renderSettings();
     expect(screen.queryByTestId('confidentiality-mode-assured')).toBeNull();
+    expect(screen.queryByTestId('confidentiality-mode-card-assured')).toBeNull();
   });
 });
 
@@ -140,7 +141,7 @@ describe('ConfidentialityModeSettings — honest per-card tags, not a bare Recom
   it('tags the Direct (cloud) card "Most capable", not "Recommended"', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
     renderSettings();
-    const directCard = screen.getByTestId('confidentiality-mode-direct');
+    const directCard = screen.getByTestId('confidentiality-mode-card-direct');
     expect(directCard.textContent).toMatch(/Most capable/i);
     expect(directCard.textContent).not.toMatch(/Recommended/i);
   });
@@ -148,7 +149,7 @@ describe('ConfidentialityModeSettings — honest per-card tags, not a bare Recom
   it('tags the Local-only card "Most private"', () => {
     useFirmStore.setState({ assuredProviders: [], session: null });
     renderSettings();
-    const localCard = screen.getByTestId('confidentiality-mode-local-only');
+    const localCard = screen.getByTestId('confidentiality-mode-card-local-only');
     expect(localCard.textContent).toMatch(/Most private/i);
     expect(localCard.textContent).not.toMatch(/Recommended/i);
   });
