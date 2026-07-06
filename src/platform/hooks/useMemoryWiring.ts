@@ -44,7 +44,10 @@ import {
   getExcludedMailMatters,
   useScopeUpdateStore,
 } from '@/platform/rag/scopeUpdateStore';
-import { usePendingMailRetagStore } from '@/platform/rag/pendingMailRetagStore';
+import {
+  usePendingMailRetagStore,
+  pendingMailRetagHydrationSuspect,
+} from '@/platform/rag/pendingMailRetagStore';
 import { usePendingFolderRetagStore } from '@/platform/rag/pendingFolderRetagStore';
 import { getMatters, resolveMatterMatchForPaths, useMatterStore } from '@/platform/matter/matterStore';
 import {
@@ -1431,6 +1434,18 @@ export function restoreMailHolds(workspaceRoot: string | null | undefined): void
       excludeMailMatters: intent.staleMatters,
     });
     store.markFailed(id);
+  }
+  // R7-6: if the durable store hydrated incompletely (corrupt/partial localStorage),
+  // the holds above may be MISSING records. We can't know which matters were lost,
+  // so surface a visible failed banner (fail closed as a signal, not silence); the
+  // idempotent boot mail retag reconverges every mapped folder's tag regardless.
+  if (pendingMailRetagHydrationSuspect()) {
+    store.begin({
+      id: 'mail:hydration-suspect',
+      kind: 'mail',
+      label: 'Updating email search scope',
+    });
+    store.markFailed('mail:hydration-suspect');
   }
 }
 

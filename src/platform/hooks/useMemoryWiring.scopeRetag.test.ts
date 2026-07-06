@@ -49,7 +49,11 @@ import {
   schedulePrivilegeRetag,
 } from './useMemoryWiring';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { usePendingMailRetagStore } from '@/platform/rag/pendingMailRetagStore';
+import {
+  __resetPendingMailRetagHydrationSuspect,
+  sanitizePersistedMailRetag,
+  usePendingMailRetagStore,
+} from '@/platform/rag/pendingMailRetagStore';
 import { usePendingFolderRetagStore } from '@/platform/rag/pendingFolderRetagStore';
 import type { Matter } from '@/platform/types/matter';
 import type { RetagScheduler, RetagTask } from '@/platform/rag/retagScheduler';
@@ -90,6 +94,7 @@ function onlyTask(tasks: RetagTask[]): RetagTask {
 beforeEach(() => {
   vi.clearAllMocks();
   useScopeUpdateStore.getState().clearAll();
+  __resetPendingMailRetagHydrationSuspect(); // R7-6 global flag must not leak between tests
   usePrivilegeStore.setState({ privilegeBySource: {}, includePrivileged: false });
 });
 
@@ -345,6 +350,25 @@ describe('durable per-workspace mail hold (round 4)', () => {
     useMatterStore.setState({ matters: [] });
     usePendingMailRetagStore.setState({ intents: {} });
     useWorkspaceStore.setState({ rootPath: null });
+  });
+
+  it('R7-6: surfaces a failed banner when the durable store hydrated incompletely', () => {
+    // A corrupt/partial persisted blob dropped a malformed record → suspect.
+    sanitizePersistedMailRetag({ intents: { bad: { staleMatters: 5 } } });
+    useScopeUpdateStore.getState().clearAll();
+
+    restoreMailHolds('/wsA');
+
+    // A visible failed banner signals the mail scope may still be settling — the
+    // hold set could be missing records, so we don't fail SILENTLY open.
+    const entry = useScopeUpdateStore.getState().entries['mail:hydration-suspect'];
+    expect(entry?.status).toBe('failed');
+    expect(entry?.kind).toBe('mail');
+  });
+
+  it('R7-6: does NOT surface the suspect banner when hydration was clean', () => {
+    restoreMailHolds('/wsA');
+    expect(useScopeUpdateStore.getState().entries['mail:hydration-suspect']).toBeUndefined();
   });
 
   it('re-tags every mapped mail folder to its CURRENT matter on boot', async () => {

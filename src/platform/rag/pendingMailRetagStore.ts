@@ -58,6 +58,65 @@ function intentKey(workspaceRoot: string, folderKey: string): string {
   return `${workspaceRoot}\u0000${folderKey}`;
 }
 
+/** QA-44 (R7-6) — structural validation of ONE persisted intent. A record that
+ *  fails this (a corrupted/partial `localStorage` blob) is DROPPED rather than
+ *  trusted, so a malformed hold can never crash `restoreMailHolds` (e.g. reading
+ *  `.length` off a non-array) or restore a garbage exclusion. */
+function isPendingMailRetag(v: unknown): v is PendingMailRetag {
+  if (typeof v !== 'object' || v === null) return false;
+  const o = v as Record<string, unknown>;
+  return (
+    typeof o['workspaceRoot'] === 'string' &&
+    typeof o['provider'] === 'string' &&
+    typeof o['account'] === 'string' &&
+    typeof o['folderId'] === 'string' &&
+    typeof o['targetMatter'] === 'string' &&
+    Array.isArray(o['staleMatters']) &&
+    o['staleMatters'].every((m) => typeof m === 'string')
+  );
+}
+
+// QA-44 (R7-6) — set when the persisted store failed to hydrate, or contained
+// malformed records that had to be dropped. The restored hold set may then be
+// INCOMPLETE, so `restoreMailHolds` surfaces a visible "scope updating" banner and
+// lets the idempotent boot retag reconverge — fail closed (a signal + the boot
+// heal), never a silent open. Module-level (not store state) so it survives the
+// same hydration that may have failed.
+let hydrationSuspect = false;
+
+/** QA-44 (R7-6) — true when the durable mail-retag store hydrated incompletely
+ *  (corrupt/partial `localStorage`): the restored holds may be missing records. */
+export function pendingMailRetagHydrationSuspect(): boolean {
+  return hydrationSuspect;
+}
+
+/** Test-only reset of the R7-6 hydration-suspect flag. */
+export function __resetPendingMailRetagHydrationSuspect(): void {
+  hydrationSuspect = false;
+}
+
+/** Validate + salvage a persisted state blob: keep every well-formed intent, drop
+ *  (and flag) any malformed one, and flag a wholly wrong-shaped blob. Exported for
+ *  unit testing the shape gate without touching real `localStorage`. */
+export function sanitizePersistedMailRetag(persisted: unknown): {
+  intents: Record<string, PendingMailRetag>;
+} {
+  const validIntents: Record<string, PendingMailRetag> = {};
+  const rawIntents =
+    persisted && typeof persisted === 'object'
+      ? (persisted as { intents?: unknown }).intents
+      : undefined;
+  if (rawIntents && typeof rawIntents === 'object') {
+    for (const [key, value] of Object.entries(rawIntents as Record<string, unknown>)) {
+      if (isPendingMailRetag(value)) validIntents[key] = value;
+      else hydrationSuspect = true; // a malformed record was dropped
+    }
+  } else if (persisted !== undefined && persisted !== null) {
+    hydrationSuspect = true; // a persisted blob was present but not the expected shape
+  }
+  return { intents: validIntents };
+}
+
 interface PendingMailRetagState {
   intents: Record<string, PendingMailRetag>;
   /**
@@ -119,6 +178,17 @@ export const usePendingMailRetagStore = create<PendingMailRetagState>()(
     {
       name: 'lantern:pending-mail-retag',
       version: 1,
+      // QA-44 (R7-6): validate the persisted shape on hydration. A corrupt/partial
+      // blob keeps its well-formed records (still held) and drops malformed ones,
+      // marking the store SUSPECT so `restoreMailHolds` surfaces a banner — never
+      // trusting a garbage record and never silently failing open.
+      merge: (persisted, current) => ({
+        ...current,
+        ...sanitizePersistedMailRetag(persisted),
+      }),
+      onRehydrateStorage: () => (_state, error) => {
+        if (error) hydrationSuspect = true;
+      },
     },
   ),
 );
