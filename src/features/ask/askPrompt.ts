@@ -27,6 +27,19 @@ export const NO_EVIDENCE_DECLINE =
   "I couldn't find anything about that in your documents.";
 
 /**
+ * QA-90 — the honest decline for the specific, more misleading case of zero
+ * retrieval hits WHILE a content import (email, CRM, OneDrive, or file
+ * indexing) is actively running. A plain "nothing found" reads as "this
+ * doesn't exist"; during an active import it may really just mean "not
+ * indexed yet" — a materially different, more reassuring answer. Emitted the
+ * same deterministic, no-model-call way as NO_EVIDENCE_DECLINE (see
+ * useAsk.ts's retrieval-evidence gate) so it never depends on the model
+ * remembering to mention the import.
+ */
+export const STILL_IMPORTING_DECLINE =
+  "I didn't find anything about that yet — you're still importing your files and email, so it may just not be in yet. Try again once that finishes, or ask something else.";
+
+/**
  * QA-25 (P2) — the honest record left behind when a question is still
  * retrieving/answering and the user navigates away from its conversation
  * before it finishes — switching to a different client, starting a new

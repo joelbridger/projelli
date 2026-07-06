@@ -46,10 +46,12 @@ import type { AnswerBlock, AnswerCitation, AskFailureStage, AskScope, AskTurn } 
 import {
   ASK_CANCELLED_BY_NAVIGATION_MESSAGE,
   NO_EVIDENCE_DECLINE,
+  STILL_IMPORTING_DECLINE,
   buildAskSystemPrompt,
   buildSmartAskSystemPrompt,
   scopeHintForMatter,
 } from './askPrompt';
+import { useStillImporting } from './useStillImporting';
 import { bindAnswerBlocks } from './answerBlockHelpers';
 import {
   withAskTimeout,
@@ -320,6 +322,12 @@ export function useAsk({
       /* ignore storage failures (private mode / quota) */
     }
   }, []);
+
+  // QA-90 — whether a content import (email/CRM/OneDrive/file indexing) is
+  // active right now. Read fresh inside handleAsk's retrieval-evidence gate so
+  // a zero-hit answer during an active import says so, instead of reading as
+  // "nothing exists" (see STILL_IMPORTING_DECLINE).
+  const stillImporting = useStillImporting();
 
   // On mount / chatId change: init session and reconstruct turns from persisted messages.
   // Fix #1: read getState() instead of the closed-over `sessions` selector so we always
@@ -742,10 +750,10 @@ export function useAsk({
        * binds citations ONLY inside files blocks against real retrieved chunks,
        * so an empty context can never produce a green, fake-cited claim.
        */
-      const emitNoEvidenceDecline = (): void => {
+      const emitDecline = (answer: string): void => {
         const declineTurn: AskTurn = {
           question: q,
-          answer: NO_EVIDENCE_DECLINE,
+          answer,
           citations: [],
           sources: [],
           // A "couldn't find this" decline carries NO file content — mark it
@@ -755,17 +763,28 @@ export function useAsk({
         };
         const nowDecline = new Date().toISOString();
         addMessage(chatId, { role: 'user', content: q, timestamp: nowDecline });
-        addMessage(chatId, { role: 'assistant', content: NO_EVIDENCE_DECLINE, timestamp: nowDecline, askGroundedFromFiles: false });
+        addMessage(chatId, { role: 'assistant', content: answer, timestamp: nowDecline, askGroundedFromFiles: false });
         setTurns((prev) => [...prev, declineTurn]);
         setStreamingTurn(null);
         setStatus('done');
         pendingQuestionRef.current = null;
       };
 
+      // QA-90: zero hits WHILE a content import is actively running is
+      // ambiguous — "nothing exists" vs. "just not indexed yet" — so it gets
+      // its own, more reassuring decline, in BOTH files-only and smart mode
+      // (a confident "nothing found, here's general advice" would be
+      // actively misleading mid-import). Checked before the files-only gate
+      // below so it takes priority whenever both would otherwise apply.
+      if (memoryEnabled && hits.length === 0 && stillImporting) {
+        emitDecline(STILL_IMPORTING_DECLINE);
+        return;
+      }
+
       // Ask-smart (Decision 3): only files-only mode dead-ends on no evidence;
       // smart mode proceeds and leads with an honest nothing-found block.
       if (filesOnly && memoryEnabled && hits.length === 0) {
-        emitNoEvidenceDecline();
+        emitDecline(NO_EVIDENCE_DECLINE);
         return;
       }
 
@@ -807,10 +826,16 @@ export function useAsk({
           } else {
             // Fail closed: drop the recognized exports from this answer.
             hits = hits.filter((h) => recognizeHit(h) === null);
+            // QA-90: same still-importing gate as above, now that filtering
+            // may have newly emptied the evidence.
+            if (memoryEnabled && hits.length === 0 && stillImporting) {
+              emitDecline(STILL_IMPORTING_DECLINE);
+              return;
+            }
             // Only files-only mode dead-ends when that empties the evidence;
             // smart mode proceeds (leads with an honest nothing-found block).
             if (filesOnly && memoryEnabled && hits.length === 0) {
-              emitNoEvidenceDecline();
+              emitDecline(NO_EVIDENCE_DECLINE);
               return;
             }
           }
@@ -1269,7 +1294,7 @@ export function useAsk({
       // on error we put it back.
       setQuestion(q);
     }
-  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, onAuditLog, buildAuditScope, confirmExportConsent]);
+  }, [question, status, activeMatter, turns, chatId, addMessage, rootPath, askScope, profession, filesOnly, stillImporting, onAuditLog, buildAuditScope, confirmExportConsent]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1319,6 +1344,7 @@ export function useAsk({
     toggleRailCollapsed,
     filesOnly,
     setFilesOnly,
+    stillImporting,
     selectedCite,
     anyHasCitations,
     handleCitationSelect,

@@ -108,6 +108,7 @@ export function Ask(props: UseAskProps) {
     toggleRailCollapsed,
     filesOnly,
     setFilesOnly,
+    stillImporting,
     handleCitationSelect,
     handleNewAsk,
     handleLoadSession,
@@ -633,7 +634,7 @@ export function Ask(props: UseAskProps) {
           {/* QA-90: still-importing notice, directly above the composer so it's
               visible without scrolling while a demo answer might be incomplete. */}
           <div style={{ padding: '0 var(--kp-gutter)' }}>
-            <StillImportingBanner />
+            <StillImportingBanner importing={stillImporting} />
           </div>
 
           {/* The composer — ONLY the scope filters + the search bar (the egress

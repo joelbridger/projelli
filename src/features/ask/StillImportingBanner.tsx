@@ -1,17 +1,16 @@
 // StillImportingBanner (QA-90) — while connectors are still bringing in
 // email, files, or CRM data, a half-empty Ask answer should read as "still
-// importing," not "broken." Reuses the same setup-progress signal the setup
-// screen shows (useSetupProgress, QA-89) rather than tracking sync state a
-// second way. Auto-hides the moment every content source finishes.
+// importing," not "broken." Auto-hides the moment every content source
+// finishes. `importing` comes from useAsk (which reads useStillImporting
+// once for the whole surface — handleAsk's retrieval-evidence gate needs the
+// same signal, so this component takes it as a prop rather than each
+// consumer mounting its own listener).
 
 import { Download } from 'lucide-react';
 import { Callout } from '@/ui/kp';
-import { useSetupProgress } from '@/platform/hooks/useSetupProgress';
-import { isImportingContent } from '@/platform/utils/setup-progress-commands';
 
-export function StillImportingBanner() {
-  const progress = useSetupProgress();
-  if (!progress || !isImportingContent(progress)) return null;
+export function StillImportingBanner({ importing }: { importing: boolean }) {
+  if (!importing) return null;
 
   return (
     <div data-testid="ask-still-importing-banner" role="status" aria-live="polite">
