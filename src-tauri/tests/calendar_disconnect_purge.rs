@@ -88,7 +88,7 @@ async fn purge_failure_from_a_bad_master_key_leaves_local_rows_and_index_untouch
     // its headless-test override requires exactly 32 bytes of hex.
     std::env::set_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX", "00");
     let state = test_state(ws.clone());
-    let result = calendar_disconnect_inner(&state, "outlook", "keepance-calendar-ms-test").await;
+    let result = calendar_disconnect_inner(&state, "outlook", "lantern-calendar-ms-test").await;
     std::env::remove_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
 
     assert!(
@@ -128,7 +128,7 @@ async fn purge_failure_from_an_unavailable_vector_store_leaves_local_rows_untouc
 
     std::env::set_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX", "11".repeat(32));
     let state = test_state(ws.clone());
-    let result = calendar_disconnect_inner(&state, "outlook", "keepance-calendar-ms-test").await;
+    let result = calendar_disconnect_inner(&state, "outlook", "lantern-calendar-ms-test").await;
     std::env::remove_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
 
     assert!(

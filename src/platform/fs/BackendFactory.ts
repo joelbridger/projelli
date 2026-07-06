@@ -57,32 +57,22 @@ export async function createFSBackend(
     await backend.setRootPath(workspacePath, options);
     console.log('[BackendFactory] Backend initialized successfully');
 
-    // Data-folder rename migration (`.keepance` → `.lantern`) — MUST run here,
-    // the single desktop backend factory every open path funnels through, and
-    // BEFORE vault_status below. A legacy workspace still has its vault metadata
-    // at `.keepance-vault.json`; migrating it first means vault_status sees the
-    // renamed `.lantern-vault.json` and correctly wraps the backend, instead of
-    // opening a vaulted workspace unwrapped (ciphertext) for a session. This
-    // also migrates the data stores before audit/mail/RAG open them.
+    // Data-folder setup check — MUST run here, the single desktop backend
+    // factory every open path funnels through, and BEFORE vault_status below.
+    // Dev-data reset is approved for the Lantern rename, so old folders are not
+    // migrated. This check keeps every store pointed at the same `.lantern`
+    // folder before audit/mail/RAG open.
     //
-    // Deliberately NOT time-bounded (coordinator review, 2026-07-04): unlike
-    // vault_status (a pure read), this is a MUTATING rename on disk. A
-    // withTimeout() here would only make the FRONTEND stop waiting — the
-    // Rust-side rename keeps running regardless — so a "timed out" migration
-    // could still be mid-rename while this same function goes on to open
-    // audit/mail/RAG stores against a data dir that is neither fully
-    // `.keepance` nor fully `.lantern`, and WorkspaceSelector's own migration
-    // call (which runs before this one, on the manual-open path) could end up
-    // racing a SECOND migration attempt against the same still-in-flight
-    // rename. Honest-slow beats fast-corrupt: always wait for the real
-    // rename to finish (or fail) before any store opens. The try/catch below
-    // still makes a genuine FAILURE non-fatal (best-effort, "using data in
-    // place") — only an artificial abandon-while-still-running is unsafe.
+    // Deliberately NOT time-bounded (coordinator review, 2026-07-04):
+    // vault_status is a pure read, but data-folder setup is the front door for
+    // every internal store. Always wait for it to finish (or fail) before any
+    // store opens. The try/catch below still makes a genuine FAILURE non-fatal
+    // (best-effort, "using data in place").
     try {
       const report = await migrateWorkspaceDataDir(workspacePath);
-      if (report) console.log('[data-dir-migration]', report);
+      if (report) console.log('[data-dir-setup]', report);
     } catch (err) {
-      console.warn('[data-dir-migration] failed (using data in place):', err);
+      console.warn('[data-dir-setup] failed (using data in place):', err);
     }
 
     // Wrap in VaultFSBackend if the workspace has an active vault.

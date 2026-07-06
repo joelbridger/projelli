@@ -33,7 +33,7 @@ export function FileGridView({
   const [dragOverBreadcrumbIndex, setDragOverBreadcrumbIndex] = useState<number | null>(null);
 
   // Get current folder contents, with internal dot-prefixed entries (e.g. the
-  // .keepance config folder) hidden from the grid (UX-21). Recursive navigation
+  // .lantern config folder) hidden from the grid (UX-21). Recursive navigation
   // (no in-place reassignment) keeps the memo compiler-optimizable.
   const visibleContents = useMemo(() => {
     const navigate = (nodes: FileNode[], path: string[]): FileNode[] => {

@@ -63,7 +63,7 @@
  * ## CONTRACT — w:id allocation
  *
  * `yDocToDocumentJson` emits `meta.id = ''` for every tracked run.
- * keepance-docx serialize is the single allocator for w:id (Task 12 verifies
+ * lantern-docx serialize is the single allocator for w:id (Task 12 verifies
  * and, if needed, adds a pre-save allocation pass using max_revision_id()+1).
  * Downstream code that hands this JSON to `docx_save` must NOT rely on
  * meta.id being non-empty from the CRDT layer.
@@ -223,9 +223,9 @@ function buildSubRun(run: DocxRun): Y.Map<unknown> {
  * Read the converged Y.Doc back to engine JSON (for save and editor render).
  *
  * CONTRACT: every tracked revision is emitted with `meta.id = ''`.
- * keepance-docx serialize is the single allocator for w:id (Task 12).
+ * lantern-docx serialize is the single allocator for w:id (Task 12).
  *
- * Comments are NOT in the CRDT (design §5). They are preserved by keepance-docx
+ * Comments are NOT in the CRDT (design §5). They are preserved by lantern-docx
  * from the original package at save. The returned `comments` is always `{}`.
  */
 export function yDocToDocumentJson(ydoc: Y.Doc): DocumentJson {

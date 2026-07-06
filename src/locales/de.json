@@ -485,7 +485,7 @@
     "memory-facts": {
       "title": "Gespeicherte Fakten",
       "title__sourceHash": "888f11c434dffd4e5591f7e78260af7167a662074a7242ac8af8f1f16bc8098f",
-      "description": "Dauerhaft gespeicherte Fakten über Sie, die die KI stets kennt. Lokal gespeichert unter <c>.keepance/memory.json</c> in Ihrem Arbeitsbereich.",
+      "description": "Dauerhaft gespeicherte Fakten über Sie, die die KI stets kennt. Lokal gespeichert unter <c>.lantern/memory.json</c> in Ihrem Arbeitsbereich.",
       "description__sourceHash": "891a2dab6715e634e930534cf9b1aba00a8aa91fc59c3b4d1ba416f26d882be1",
       "load-error": "Fakten konnten nicht geladen werden: {{error}}",
       "load-error__sourceHash": "aeded781473b21e0d11fce47f1284724ac9850051fac1bea4299dfedf818ea81",

@@ -43,11 +43,11 @@ pub fn run() {
             commands::fs::check_path,
             commands::fs::get_home_dir,
             // First-launch migration of the per-workspace data folder
-            // (`.keepance` → `.lantern`). Called from the renderer at workspace
+            // (`.lantern` → `.lantern`). Called from the renderer at workspace
             // open, BEFORE any store (audit/mail/rag/…) is opened.
             commands::data_dir::migrate_workspace_data_dir,
             // Resolve the live internal data-dir name (`.lantern` / legacy
-            // `.keepance`) so renderer-side writers land on the same folder the
+            // `.lantern`) so renderer-side writers land on the same folder the
             // Rust stores use, even in the migration fail-safe state.
             commands::data_dir::resolve_workspace_data_dir_name,
             commands::fs::open_in_explorer,
@@ -385,14 +385,13 @@ pub fn run() {
                     .additional_browser_args(&browser_args)
                     .build()?;
             }
-            // Migrate the OS-level data subdir (`<data_dir>/keepance` →
-            // `<data_dir>/lantern`, holding downloaded models + logs) once at
-            // startup, before anything resolves a model/log path. Best-effort:
-            // these artifacts are regenerable, so a fail-safe outcome only means
-            // a one-time re-download, never data loss.
+            // Check the OS-level data subdir (`<data_dir>/lantern`, holding
+            // downloaded models + logs) once at startup, before anything
+            // resolves a model/log path. Dev-data reset is approved for the
+            // Lantern rename, so old app-data folders are not migrated.
             match commands::data_dir::migrate_os_data_dir() {
-                Some(outcome) => log::info!("[data-dir-migration] OS data dir: {outcome:?}"),
-                None => log::warn!("[data-dir-migration] OS data dir unavailable; skipped"),
+                Some(outcome) => log::info!("[data-dir-setup] OS data dir: {outcome:?}"),
+                None => log::warn!("[data-dir-setup] OS data dir unavailable; skipped"),
             }
             // Phase 3 M1 — manage shared RAG state (active workspace +
             // cancellation flag for the workspace indexer). Required by all

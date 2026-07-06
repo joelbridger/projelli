@@ -16,9 +16,10 @@ pub mod keychain;
 // files. `pub` (not `pub(crate)`) so the `lantern-mcp` sidecar binary can
 // reuse it too — see the module doc comment.
 pub mod pathguard;
-// Single seam for resolving + migrating the per-workspace internal data folder
-// (`.keepance` → `.lantern`), the vault-metadata file, and the OS-level data
-// subdir. See data_dir.rs for the marker-based, fail-safe migration.
+// Single seam for resolving the per-workspace internal data folder
+// (`.lantern`), the vault-metadata file, and the OS-level data subdir.
+// Dev-data reset is approved for the Lantern rename, so old folders are not
+// migrated.
 pub mod data_dir;
 // Advisor Prep Hero 3.0 — SQLCipher-encrypted, append-only audit "defense file" store.
 pub mod audit;

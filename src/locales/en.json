@@ -298,7 +298,7 @@
     },
     "memory-facts": {
       "title": "Memory Facts",
-      "description": "Durable facts about you that the AI always knows. Stored locally at <c>.keepance/memory.json</c> in your workspace.",
+      "description": "Durable facts about you that the AI always knows. Stored locally at <c>.lantern/memory.json</c> in your workspace.",
       "load-error": "Couldn't load facts: {{error}}",
       "empty": "No facts saved yet. Proposed facts from chat conversations will show up here after you accept them.",
       "delete-aria": "Delete fact",

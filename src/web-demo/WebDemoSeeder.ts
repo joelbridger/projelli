@@ -3,7 +3,7 @@
  *
  * One-time seeder that pre-populates the demo workspace with a curated set of
  * notes, chats, source cards, and template descriptions. Runs at most once per
- * browser; the `__keepance_demo_seeded` localStorage key gates re-runs across
+ * browser; the `__lantern_demo_seeded` localStorage key gates re-runs across
  * page reloads.
  *
  * The desktop app never imports this module: the demo entry point in
@@ -37,8 +37,8 @@ const PDF_ASSETS: Record<string, string> = {
   '/Webb Household/Client Intake.pdf': clientIntakePdfUrl,
 };
 
-const SEED_FLAG_KEY = '__keepance_demo_seeded';
-const SEED_VERSION_KEY = '__keepance_demo_seed_version';
+const SEED_FLAG_KEY = '__lantern_demo_seeded';
+const SEED_VERSION_KEY = '__lantern_demo_seed_version';
 
 /**
  * The workspace root the demo files actually live under in the app. The seeder
@@ -341,7 +341,7 @@ function writeSeedVersion(version: number): void {
   }
 }
 
-const SEED_PROFESSION_KEY = '__keepance_demo_seed_profession';
+const SEED_PROFESSION_KEY = '__lantern_demo_seed_profession';
 
 function readSeedProfession(): DemoProfession | null {
   try {

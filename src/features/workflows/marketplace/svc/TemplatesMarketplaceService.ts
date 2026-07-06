@@ -8,7 +8,7 @@ import { MarketplaceService } from './MarketplaceService';
 import { WORKSPACE_DATA_DIR } from '@/config/identity';
 
 export const TEMPLATES_REPO_URL =
-  'https://raw.githubusercontent.com/keepance/community-templates/main';
+  'https://raw.githubusercontent.com/lantern-app/community-templates/main';
 export const TEMPLATES_CATALOG_PATH = 'catalog.json';
 
 export interface CreateTemplatesMarketplaceOptions {

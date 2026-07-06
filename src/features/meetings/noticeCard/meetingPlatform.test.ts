@@ -34,7 +34,7 @@ describe('detectPlatform', () => {
   });
 
   it('returns other for a URL it cannot classify', () => {
-    expect(detectPlatform('https://whereby.com/keepance-room')).toBe('other');
+    expect(detectPlatform('https://whereby.com/lantern-room')).toBe('other');
     expect(detectPlatform('https://example.com/join/123')).toBe('other');
   });
 

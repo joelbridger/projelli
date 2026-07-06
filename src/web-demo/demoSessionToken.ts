@@ -15,7 +15,7 @@
  * suffix becomes stale; we re-mint on the first call after a date change.
  */
 
-const STORAGE_KEY = '__keepance_demo_session_token';
+const STORAGE_KEY = '__lantern_demo_session_token';
 const SECRET_BYTES = 16; // 128 bits → ~22 url-safe chars; well within proxy's 8..96 bound.
 
 function utcDate(): string {

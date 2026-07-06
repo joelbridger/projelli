@@ -13,18 +13,18 @@ Foundation skeleton for v2.0 Stream C (templates marketplace + plugins marketpla
 
 ```typescript
 const templatesMarket = new MarketplaceService({
-  repoUrl: 'https://raw.githubusercontent.com/keepance/community-templates/main',
+  repoUrl: 'https://raw.githubusercontent.com/lantern-app/community-templates/main',
   catalogPath: 'catalog.json',
-  cachePath: '.keepance/cache/marketplace-templates.json',
-  installRoot: '.keepance/templates',
+  cachePath: '.lantern/cache/marketplace-templates.json',
+  installRoot: '.lantern/templates',
   fs: workspaceService.fs,
 });
 
 const pluginsMarket = new MarketplaceService({
-  repoUrl: 'https://raw.githubusercontent.com/keepance/community-plugins/main',
+  repoUrl: 'https://raw.githubusercontent.com/lantern-app/community-plugins/main',
   catalogPath: 'catalog.json',
-  cachePath: '.keepance/cache/marketplace-plugins.json',
-  installRoot: '.keepance/plugins',
+  cachePath: '.lantern/cache/marketplace-plugins.json',
+  installRoot: '.lantern/plugins',
   fs: workspaceService.fs,
 });
 ```

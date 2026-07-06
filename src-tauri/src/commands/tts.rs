@@ -245,7 +245,7 @@ mod tests {
     fn resolve_piper_binary_returns_none_for_nonexistent() {
         // In test context, no Tauri AppHandle is available so we test the
         // path-building logic via the helper function.
-        let fake_root = PathBuf::from("/nonexistent-keepance-test-dir");
+        let fake_root = PathBuf::from("/nonexistent-lantern-test-dir");
         let candidate = fake_root.join("binaries").join(with_platform_ext("piper"));
         assert!(!candidate.exists());
     }

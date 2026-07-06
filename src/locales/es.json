@@ -485,7 +485,7 @@
     "memory-facts": {
       "title": "Hechos de memoria",
       "title__sourceHash": "888f11c434dffd4e5591f7e78260af7167a662074a7242ac8af8f1f16bc8098f",
-      "description": "Datos permanentes sobre ti que la IA siempre conoce. Se almacenan localmente en <c>.keepance/memory.json</c> dentro de tu espacio de trabajo.",
+      "description": "Datos permanentes sobre ti que la IA siempre conoce. Se almacenan localmente en <c>.lantern/memory.json</c> dentro de tu espacio de trabajo.",
       "description__sourceHash": "891a2dab6715e634e930534cf9b1aba00a8aa91fc59c3b4d1ba416f26d882be1",
       "load-error": "No se pudieron cargar los hechos: {{error}}",
       "load-error__sourceHash": "aeded781473b21e0d11fce47f1284724ac9850051fac1bea4299dfedf818ea81",

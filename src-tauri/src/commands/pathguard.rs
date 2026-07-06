@@ -748,8 +748,8 @@ mod tests {
         #[test]
         fn is_a_no_op_for_a_unix_path() {
             assert_eq!(
-                display_path(Path::new("/home/jane/keepance/Clients/Acme")),
-                "/home/jane/keepance/Clients/Acme"
+                display_path(Path::new("/home/jane/lantern/Clients/Acme")),
+                "/home/jane/lantern/Clients/Acme"
             );
         }
     }

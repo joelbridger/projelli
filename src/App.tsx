@@ -300,7 +300,7 @@ function AppShell() {
 
   // Stream C1 — Templates Marketplace service. Constructed once when a
   // workspace is selected (each workspace gets its own install root under
-  // `<workspaceRoot>/.keepance/templates`). The metadata reader reads
+  // `<workspaceRoot>/.lantern/templates`). The metadata reader reads
   // installed entries off disk and adapts them into WorkflowTemplate for the
   // engine. Both refs are nullable until a workspace is loaded.
   const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
