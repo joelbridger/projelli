@@ -56,6 +56,7 @@ pub struct LlamaServerSidecar {
     process: Option<Child>,
     log_path: PathBuf,
     client: reqwest::Client,
+    probe_timeout: Duration,
 }
 
 impl LlamaServerSidecar {
@@ -72,6 +73,7 @@ impl LlamaServerSidecar {
             process: None,
             log_path: default_log_path(),
             client: reqwest::Client::new(),
+            probe_timeout: Duration::from_secs(WARMUP_PROBE_TIMEOUT_SECS),
         }
     }
 
@@ -205,31 +207,41 @@ impl LlamaServerSidecar {
             "stream": false,
         });
 
-        let resp = timeout(
-            Duration::from_secs(WARMUP_PROBE_TIMEOUT_SECS),
-            self.client.post(self.completions_url()).json(&body).send(),
-        )
+        // The timeout must cover the ENTIRE exchange — send AND body read — not
+        // just `.send()`. A stalled or wedged process can return response
+        // headers and then never finish the body; if only `.send()` were guarded
+        // the following `.text().await` would hang forever while
+        // `local_llm_sidecar_start` holds the state mutex, leaving Local AI stuck
+        // on "starting…" with no error. Guarding the whole future guarantees a
+        // real timeout error and releases the mutex.
+        let text = timeout(self.probe_timeout, async {
+            let resp = self
+                .client
+                .post(self.completions_url())
+                .json(&body)
+                .send()
+                .await
+                .map_err(|e| anyhow!("local AI warm-up generation request failed: {e}"))?;
+
+            let status = resp.status();
+            if !status.is_success() {
+                return Err(anyhow!(
+                    "local AI warm-up generation returned HTTP {}",
+                    status.as_u16()
+                ));
+            }
+
+            resp.text()
+                .await
+                .map_err(|e| anyhow!("reading local AI warm-up generation response: {e}"))
+        })
         .await
         .map_err(|_| {
             anyhow!(
                 "local AI warm-up generation did not respond within {} seconds",
-                WARMUP_PROBE_TIMEOUT_SECS
+                self.probe_timeout.as_secs()
             )
-        })?
-        .map_err(|e| anyhow!("local AI warm-up generation request failed: {e}"))?;
-
-        let status = resp.status();
-        if !status.is_success() {
-            return Err(anyhow!(
-                "local AI warm-up generation returned HTTP {}",
-                status.as_u16()
-            ));
-        }
-
-        let text = resp
-            .text()
-            .await
-            .map_err(|e| anyhow!("reading local AI warm-up generation response: {e}"))?;
+        })??;
 
         if !probe_response_has_output(&text) {
             return Err(anyhow!(
@@ -543,6 +555,41 @@ mod tests {
         )
     }
 
+    /// A fake server whose `/health` is fine but whose completion response sends
+    /// HTTP headers and then stalls forever without finishing the body — the
+    /// "wedged process returned headers then hung" case. Holds the socket open
+    /// (never dropped) so the client's body read never completes on its own.
+    async fn fake_stalled_body_server() -> (u16, tokio::task::JoinHandle<()>) {
+        let listener = TcpListener::bind((LLAMA_SERVER_HOST, 0)).await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let handle = tokio::spawn(async move {
+            let mut held = Vec::new();
+            loop {
+                let Ok((mut socket, _)) = listener.accept().await else {
+                    break;
+                };
+                let mut buf = [0_u8; 2048];
+                let n = socket.read(&mut buf).await.unwrap_or(0);
+                let req = String::from_utf8_lossy(&buf[..n]).to_string();
+                if req.starts_with("GET /health ") {
+                    let _ = socket
+                        .write_all(http_json("200 OK", r#"{"status":"ok"}"#).as_bytes())
+                        .await;
+                } else if req.starts_with("POST /v1/chat/completions ") {
+                    // Promise a body via content-length, send headers, then never
+                    // send the body. Keep the socket alive by stashing it.
+                    let _ = socket
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 4096\r\n\r\n",
+                        )
+                        .await;
+                    held.push(socket);
+                }
+            }
+        });
+        (port, handle)
+    }
+
     /// How the fake server answers `/health`.
     #[derive(Clone, Copy)]
     enum HealthReply {
@@ -778,6 +825,20 @@ mod tests {
         let mut s = sidecar(port);
         let err = s.start().await.unwrap_err().to_string();
         assert!(err.contains("no output"), "{err}");
+        server.abort();
+    }
+
+    #[tokio::test]
+    async fn start_errors_when_warmup_body_stalls_after_headers() {
+        // Health is green and the completion returns headers, then the body
+        // never arrives (a wedged/stale process on the port). The probe timeout
+        // must cover the body read too — otherwise start() hangs forever holding
+        // the mutex. A short probe_timeout proves it returns a timeout error.
+        let (port, server) = fake_stalled_body_server().await;
+        let mut s = sidecar(port);
+        s.probe_timeout = Duration::from_millis(400);
+        let err = s.start().await.unwrap_err().to_string();
+        assert!(err.contains("did not respond within"), "{err}");
         server.abort();
     }
 

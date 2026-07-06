@@ -46,7 +46,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     once it actually produces output. Pre-start on mode selection absorbs the
     whole cold cost in the background, before the user asks; the "Local AI is
     starting…" state naturally covers the probe window. A probe failure/timeout
-    surfaces as a real, honest error — never an infinite "starting…".
+    surfaces as a real, honest error — never an infinite "starting…". The 90s
+    probe timeout wraps the ENTIRE exchange (send + body read), so a wedged
+    process that returns headers then stalls mid-body still times out and
+    releases the sidecar-state mutex instead of hanging "starting…" forever.
   - `health_check()` now parses the `/health` body and requires
     `{"status":"ok"}` on a 2xx (llama.cpp returns 503 + a loading body while
     the GGUF loads); a bare non-JSON `OK` or any other status reads as not ready.
