@@ -14,7 +14,7 @@
  * gate now uses instead of a plain boolean.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 
 const { isTauriMock, listenMock, getSetupProgressMock, oneDriveStatusMock } = vi.hoisted(() => ({
   isTauriMock: vi.fn(() => true),
@@ -39,13 +39,27 @@ vi.mock('@/platform/utils/onedrive-commands', async (importOriginal) => {
 });
 
 import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
-import { EMPTY_SETUP_PROGRESS } from '@/platform/utils/setup-progress-commands';
+import { EMPTY_SETUP_PROGRESS, SETUP_PROGRESS_CHANGED_EVENT } from '@/platform/utils/setup-progress-commands';
+import { ONEDRIVE_SYNC_EVENT, type OneDriveSyncProgress } from '@/platform/utils/onedrive-commands';
 
 /** A never-resolving promise — simulates a fetch that hasn't landed yet. */
 function pending<T>(): Promise<T> {
   return new Promise<T>(() => {
     /* never resolves */
   });
+}
+
+/**
+ * QA-90 (round 1/2) live-event coverage, reconciled here (round 3) after the
+ * tri-state fix superseded the old boolean-era `tests/unit/ask/
+ * useStillImporting.test.ts` — rather than duplicate the hook's coverage
+ * across two files with two different (and now conflicting) contracts, the
+ * still-valid live-event assertions live here, updated to tri-state.
+ */
+let capturedListeners: Record<string, (event?: { payload: unknown }) => void> = {};
+
+function fireOneDrive(payload: OneDriveSyncProgress) {
+  capturedListeners[ONEDRIVE_SYNC_EVENT]?.({ payload });
 }
 
 function snapshot(overrides: {
@@ -65,7 +79,16 @@ function snapshot(overrides: {
 
 beforeEach(() => {
   isTauriMock.mockReturnValue(true);
-  listenMock.mockReset().mockResolvedValue(vi.fn());
+  capturedListeners = {};
+  listenMock.mockReset().mockImplementation(
+    (eventName: string, handler: (event?: { payload: unknown }) => void) => {
+      capturedListeners[eventName] = handler;
+      return Promise.resolve(() => {
+        // eslint-disable-next-line @typescript-eslint/no-dynamic-delete -- test-only cleanup of a mock event-listener registry
+        delete capturedListeners[eventName];
+      });
+    },
+  );
   getSetupProgressMock.mockReset();
   oneDriveStatusMock.mockReset();
 });
@@ -146,6 +169,56 @@ describe('useStillImporting — tri-state (QA-90 round 3)', () => {
     expect(result.current).toBe('idle');
     expect(getSetupProgressMock).not.toHaveBeenCalled();
     expect(oneDriveStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("flips to 'importing' after a setup-progress-changed refetch reveals CRM syncing", async () => {
+    getSetupProgressMock.mockResolvedValueOnce(snapshot());
+    oneDriveStatusMock.mockResolvedValue({ isSyncing: false, lastReport: null });
+
+    const { result } = renderHook(() => useStillImporting());
+    await waitFor(() => { expect(result.current).toBe('idle'); });
+
+    getSetupProgressMock.mockResolvedValueOnce(snapshot({ crmSyncing: true }));
+    act(() => {
+      capturedListeners[SETUP_PROGRESS_CHANGED_EVENT]?.();
+    });
+
+    await waitFor(() => { expect(result.current).toBe('importing'); }, { timeout: 1000 });
+  });
+
+  it("flips to 'importing' on a live OneDrive \"syncing\" event, and back to 'idle' on \"done\"", async () => {
+    getSetupProgressMock.mockResolvedValue(snapshot());
+    oneDriveStatusMock.mockResolvedValue({ isSyncing: false, lastReport: null });
+
+    const { result } = renderHook(() => useStillImporting());
+    await waitFor(() => { expect(result.current).toBe('idle'); });
+
+    act(() => {
+      fireOneDrive({ status: 'syncing', seen: 2, imported: 1 });
+    });
+    await waitFor(() => { expect(result.current).toBe('importing'); });
+
+    act(() => {
+      fireOneDrive({ status: 'done', seen: 5, imported: 5 });
+    });
+    await waitFor(() => { expect(result.current).toBe('idle'); });
+  });
+
+  /**
+   * QA-90 round 2 — a OneDrive sync already running BEFORE Ask mounts (or one
+   * that emits no further progress after mount) must still be reflected: the
+   * event listener alone would miss it, since it only reports transitions
+   * after it attaches. The hook seeds its initial value from the backend's
+   * own live status instead.
+   */
+  it('reflects a OneDrive sync that was ALREADY running before mount, with no event fired', async () => {
+    getSetupProgressMock.mockResolvedValue(snapshot());
+    oneDriveStatusMock.mockResolvedValue({ isSyncing: true, lastReport: null });
+
+    const { result } = renderHook(() => useStillImporting());
+
+    await waitFor(() => { expect(result.current).toBe('importing'); });
+    // No fireOneDrive(...) call in this test — proves the seed, not the listener.
   });
 });
 
