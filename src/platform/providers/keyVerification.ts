@@ -31,6 +31,13 @@ export type VerifiableProvider = 'anthropic' | 'openai' | 'google';
 
 const VERIFIED_PROVIDERS: VerifiableProvider[] = ['anthropic', 'openai', 'google'];
 
+/** True when `id` is one of the three cloud providers with a verifiable key
+ *  (as opposed to a local engine like Ollama or the embedded model, which
+ *  have no key to mark verified/invalid). */
+export function isVerifiableProvider(id: string): id is VerifiableProvider {
+  return (VERIFIED_PROVIDERS as string[]).includes(id);
+}
+
 /** localStorage keys for a provider's status markers. */
 function verifiedKey(provider: string): string {
   return skKeyVerified(provider);

@@ -34,17 +34,18 @@ import { isLocalOnlyModeFailClosed } from '@/platform/privacy/cloudSendGuard';
 export type ValidationProvider = 'anthropic' | 'openai' | 'google';
 
 /**
- * The four outcomes we distinguish, in priority order:
- *   malformed  - failed client-side format check; no network call made
- *   rejected   - provider returned 401 / 403 (bad key)
- *   network    - couldn't reach the provider at all
- *   ok         - call succeeded
- *
- * We intentionally do NOT surface "rate limited" as a separate bucket here
- * because a rate-limit (429) still means the key is structurally valid; we
- * treat it as "ok" so the user isn't blocked from saving a working key.
+ * The five outcomes we distinguish, in priority order:
+ *   malformed     - failed client-side format check; no network call made
+ *   rejected      - provider returned 401 / 403 (bad key)
+ *   network       - couldn't reach the provider at all
+ *   rate_limited  - provider returned 429: the key reached the server and
+ *                   authenticated, but the account is over its usage limit
+ *                   right now. The key is real (not a bad-key error) but the
+ *                   call itself proved nothing about whether inference will
+ *                   succeed, so it is NOT treated as a full "ok" either.
+ *   ok            - call succeeded
  */
-export type ValidationOutcome = 'ok' | 'malformed' | 'rejected' | 'network';
+export type ValidationOutcome = 'ok' | 'malformed' | 'rejected' | 'network' | 'rate_limited';
 
 export interface ValidationResult {
   outcome: ValidationOutcome;
@@ -112,6 +113,8 @@ export function outcomeToMessage(
       return `The provider rejected this key. Go back to ${providerConsoleLabel(provider)} and make sure you copied an active key.`;
     case 'network':
       return "Couldn't reach the provider. Check your internet connection and try again.";
+    case 'rate_limited':
+      return 'This key is real, but the account is over its limit right now. Wait a bit and try again.';
   }
 }
 
@@ -206,8 +209,14 @@ async function validateAnthropicKey(
     return { outcome: 'rejected', message: outcomeToMessage('anthropic', 'rejected') };
   }
 
-  // 429 = rate limited but key is valid; 200 = success. Both count as ok.
-  if (response.ok || response.status === 429) {
+  // 429 means the key authenticated (it reached the account) but the account
+  // is over its usage limit right now — distinct from a bad key AND from a
+  // proven-working call.
+  if (response.status === 429) {
+    return { outcome: 'rate_limited', message: outcomeToMessage('anthropic', 'rate_limited') };
+  }
+
+  if (response.ok) {
     return { outcome: 'ok', message: outcomeToMessage('anthropic', 'ok') };
   }
 
@@ -248,7 +257,11 @@ async function validateOpenAIKey(
     return { outcome: 'rejected', message: outcomeToMessage('openai', 'rejected') };
   }
 
-  if (response.ok || response.status === 429) {
+  if (response.status === 429) {
+    return { outcome: 'rate_limited', message: outcomeToMessage('openai', 'rate_limited') };
+  }
+
+  if (response.ok) {
     return { outcome: 'ok', message: outcomeToMessage('openai', 'ok') };
   }
 
@@ -304,7 +317,11 @@ async function validateGoogleKey(
     }
   }
 
-  if (response.ok || response.status === 429) {
+  if (response.status === 429) {
+    return { outcome: 'rate_limited', message: outcomeToMessage('google', 'rate_limited') };
+  }
+
+  if (response.ok) {
     return { outcome: 'ok', message: outcomeToMessage('google', 'ok') };
   }
 

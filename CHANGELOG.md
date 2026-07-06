@@ -92,6 +92,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **Connect-flow demo hardening: four honesty/clarity fixes on the connect
+  screens surfaced by adversarial review.**
+  - **Wealthbox connect/sync no longer looks frozen.** The first
+    `crmListHouseholds()` call is now bounded by a frontend timeout
+    (`crmTimeout.ts`, 90s) so a sustained Wealthbox 429 retry storm
+    (`client.rs` retries with backoff up to 64s/attempt) fails cleanly instead
+    of hanging forever; a "Wealthbox is taking longer than usual — still
+    trying…" warning appears after ~20s of no progress; and the Stop button
+    now stays visible for the whole sync, including the household-list phase
+    before any `crm-sync-progress` event arrives (it used to only show once
+    the backend's own progress events started).
+  - **A 429 while testing an API key is no longer shown as a valid key.**
+    `apiKeyValidation.ts` now returns a distinct `rate_limited` outcome
+    ("This key is real, but the account is over its limit right now") instead
+    of folding 429 into `ok`. `ApiKeyManager`, `ApiKeyWizard`, and
+    `ApiKeyTester` show it as a warning, not "Working" or "Invalid" — the key
+    is neither marked verified nor invalid.
+  - **A bad AI key used in Ask is now marked invalid.** A 401/403 from the
+    resolved cloud provider during an Ask send now calls
+    `markKeyInvalid(provider)` (previously only the Settings "Check" button
+    and the key wizard did this), and a successful send marks the provider
+    `markKeyVerified`, so a new chat no longer silently defaults back to a
+    dead key. `isAuthRejectionError` in `askHelpers.ts` is shared by the
+    error-copy path and this new marking so the two can never disagree.
+  - **An expired Microsoft sign-in shows plain language, not engineer-speak.**
+    `invalid_grant` / `scope_upgrade_required` / `refresh failed` / `not
+    connected` from `graph.rs` / `connect.rs` / `onedrive/commands.rs` now map
+    to "Your Microsoft sign-in expired. Click Reconnect." in both
+    `MailConnect` and `OneDriveConnect` (new shared
+    `microsoft/microsoftAuthError.ts`), and OneDriveConnect gained a
+    Reconnect action next to the message (Mail already had one).
+  - Files: `src/platform/connectors/crm/{WealthboxConnect.tsx,crmTimeout.ts}`,
+    `src/platform/providers/{apiKeyValidation.ts,keyVerification.ts}`,
+    `src/features/onboarding/{ApiKeyWizard.tsx,ApiKeyTester.tsx}`,
+    `src/features/settings/ApiKeyManager.tsx`,
+    `src/features/ask/{askHelpers.ts,useAsk.ts}`,
+    `src/platform/connectors/microsoft/microsoftAuthError.ts`,
+    `src/platform/connectors/email/MailConnect.tsx`,
+    `src/platform/connectors/onedrive/OneDriveConnect.tsx`.
 - **QA-81 (P0 silent data loss): a brand-new .docx being actively TYPED no
   longer loses in-progress text on a crash/power-loss while the toolbar shows
   "Saved".** A keystroke lives only in the run's editable DOM until the run

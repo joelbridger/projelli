@@ -103,7 +103,7 @@ describe('checkKeyFormat', () => {
 
 describe('outcomeToMessage', () => {
   const providers: ValidationProvider[] = ['anthropic', 'openai', 'google'];
-  const outcomes: ValidationOutcome[] = ['ok', 'malformed', 'rejected', 'network'];
+  const outcomes: ValidationOutcome[] = ['ok', 'malformed', 'rejected', 'network', 'rate_limited'];
 
   // Every provider x outcome combination returns a non-empty string with no em dashes.
   it.each(providers)('returns a non-empty message for every outcome on %s', (provider) => {
@@ -129,6 +129,15 @@ describe('outcomeToMessage', () => {
   it('network outcome message mentions connection', () => {
     for (const p of providers) {
       expect(outcomeToMessage(p, 'network')).toMatch(/connection|reach/i);
+    }
+  });
+
+  it('rate_limited outcome message says the key is real but over its limit (not invalid, not fully verified)', () => {
+    for (const p of providers) {
+      const msg = outcomeToMessage(p, 'rate_limited');
+      expect(msg).toMatch(/real/i);
+      expect(msg).toMatch(/limit/i);
+      expect(msg).not.toMatch(/rejected|invalid/i);
     }
   });
 
@@ -215,22 +224,31 @@ describe('validateApiKeyLive', () => {
     });
   });
 
-  // --- ok outcome on 429 (rate-limited but key is valid) ---
-  describe('ok outcome on 429 (rate limited but key valid)', () => {
-    it('Anthropic: 429 → ok', async () => {
+  // --- rate_limited outcome on 429 (key is real, but account is over limit) ---
+  describe('rate_limited outcome on 429 (key is real, not fully verified, not invalid)', () => {
+    it('Anthropic: 429 → rate_limited', async () => {
       mockFetch.mockResolvedValueOnce(
         new Response('{}', { status: 429 })
       );
       const result = await validateApiKeyLive('anthropic', 'sk-ant-api03-RealLookingKeyValue');
-      expect(result.outcome).toBe('ok');
+      expect(result.outcome).toBe('rate_limited');
+      expect(result.message).toMatch(/real/i);
     });
 
-    it('OpenAI: 429 → ok', async () => {
+    it('OpenAI: 429 → rate_limited', async () => {
       mockFetch.mockResolvedValueOnce(
         new Response('{}', { status: 429 })
       );
       const result = await validateApiKeyLive('openai', 'sk-realOpenAIKeyValue1234567890');
-      expect(result.outcome).toBe('ok');
+      expect(result.outcome).toBe('rate_limited');
+    });
+
+    it('Google: 429 → rate_limited', async () => {
+      mockFetch.mockResolvedValueOnce(
+        new Response('{}', { status: 429 })
+      );
+      const result = await validateApiKeyLive('google', 'AIzaSyFakeGoogleKeyValue1234567890');
+      expect(result.outcome).toBe('rate_limited');
     });
   });
 

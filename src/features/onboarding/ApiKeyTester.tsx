@@ -18,7 +18,7 @@
  */
 
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { CheckCircle, XCircle, Loader2, Wifi } from 'lucide-react';
+import { CheckCircle, XCircle, AlertCircle, Loader2, Wifi } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 import {
@@ -149,6 +149,20 @@ function ResultBadge({ outcome, message }: ResultBadgeProps) {
         className="flex items-center gap-1.5 text-xs text-emerald-700 font-medium"
       >
         <CheckCircle className="h-3.5 w-3.5 shrink-0" />
+        {message}
+      </p>
+    );
+  }
+
+  // rate_limited: the key IS real (it authenticated) — a warning, not a
+  // rejection, so it gets amber styling rather than the destructive red X.
+  if (outcome === 'rate_limited') {
+    return (
+      <p
+        data-testid="api-key-tester-result-rate_limited"
+        className="flex items-center gap-1.5 text-xs text-amber-700"
+      >
+        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
         {message}
       </p>
     );

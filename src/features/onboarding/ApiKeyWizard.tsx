@@ -273,15 +273,21 @@ export function ApiKeyWizard({
       return;
     }
 
-    // 'ok' (verified) or 'network' (couldn't verify right now) both save.
-    // For 'network' we save anyway and tell the user we couldn't verify it.
+    // 'ok' (verified), 'network' (couldn't verify right now), and
+    // 'rate_limited' (the key is real, but the account is over its limit
+    // right now) all save — none of them is a bad-key error.
     setValidation(
       result.outcome === 'network'
         ? {
             outcome: 'network',
             message: "Couldn't verify the key right now, but it has been saved. We'll use it on your next request.",
           }
-        : { outcome: 'ok', message: 'Key verified.' },
+        : result.outcome === 'rate_limited'
+          ? {
+              outcome: 'rate_limited',
+              message: `${result.message} It has been saved.`,
+            }
+          : { outcome: 'ok', message: 'Key verified.' },
     );
 
     // `provider` is narrowed to a cloud provider here (the ollama path returned
@@ -661,10 +667,10 @@ function WizardValidationBadge({ outcome, message }: WizardValidationBadgeProps)
     );
   }
 
-  if (outcome === 'network') {
+  if (outcome === 'network' || outcome === 'rate_limited') {
     return (
       <p
-        data-testid="api-key-wizard-result-network"
+        data-testid={`api-key-wizard-result-${outcome}`}
         className="flex items-center gap-1.5 text-xs text-amber-700"
       >
         <AlertCircle className="h-3.5 w-3.5 shrink-0" />

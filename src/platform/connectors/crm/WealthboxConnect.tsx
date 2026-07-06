@@ -13,6 +13,11 @@ import {
 } from '@/platform/utils/wealthbox-commands';
 import { useCrmSync } from '@/platform/connectors/crm/useCrmSync';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
+import {
+  CRM_LIST_HOUSEHOLDS_TIMEOUT_MS,
+  CrmTimeoutError,
+  withCrmTimeout,
+} from '@/platform/connectors/crm/crmTimeout';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
@@ -39,6 +44,14 @@ export function WealthboxConnect() {
   const [token, setToken] = useState('');
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  // True only while a Wealthbox NETWORK call (household list / backend sync)
+  // is actually in flight — NOT while the confirm-import dialog is waiting on
+  // the user, which is an unbounded, user-controlled pause, not a stall.
+  // Drives the 20s "taking longer than usual" watchdog below, since these are
+  // exactly the two calls the backend can hold for a long time on a
+  // sustained 429 (client.rs retries with exponential backoff up to 64s).
+  const [networkBusy, setNetworkBusy] = useState(false);
+  const [syncStalled, setSyncStalled] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   const [lastSyncReport, setLastSyncReport] = useState<{
@@ -82,6 +95,20 @@ export function WealthboxConnect() {
       setSyncing(false);
     }
   }, [progress?.status]);
+
+  // Connect/sync stall watchdog: while a Wealthbox network call is genuinely
+  // in flight with no progress to show, reassure the user after ~20s instead
+  // of leaving the static "Connecting.../Syncing..." label looking frozen.
+  // Resets on every progress tick (a slow-but-advancing sync never warns).
+  useEffect(() => {
+    if (!networkBusy) {
+      setSyncStalled(false);
+      return;
+    }
+    setSyncStalled(false);
+    const timer = setTimeout(() => { setSyncStalled(true); }, 20_000);
+    return () => { clearTimeout(timer); };
+  }, [networkBusy, progress?.households, progress?.records]);
 
   async function connect() {
     const trimmed = token.trim();
@@ -134,7 +161,20 @@ export function WealthboxConnect() {
       // Step 1: Fetch the household list.
       // Clicking "Sync now" is the user's consent to read the list from Wealthbox.
       // No local data is written until the user confirms in Step 2.
-      const households = await crmListHouseholds();
+      // Bounded by a frontend timeout (crmTimeout.ts): the Rust client retries a
+      // 429 with backoff up to 64s per attempt, so a sustained rate limit can
+      // otherwise hold this await for minutes with no way to fail cleanly.
+      setNetworkBusy(true);
+      let households;
+      try {
+        households = await withCrmTimeout(
+          crmListHouseholds(),
+          'household list',
+          CRM_LIST_HOUSEHOLDS_TIMEOUT_MS
+        );
+      } finally {
+        setNetworkBusy(false);
+      }
 
       if (households.length === 0) {
         setSyncError('Your Wealthbox account has no households to import.');
@@ -220,6 +260,7 @@ export function WealthboxConnect() {
       // (QA-74: a full-batch rollback over one indexing hiccup was silently
       // erasing every Client Map entry the advisor had just confirmed, with
       // the connector still showing "Connected").
+      setNetworkBusy(true);
       try {
         const map = filterCrmMatterMapForProvider(
           buildCrmMatterMap(getMatters()),
@@ -240,6 +281,8 @@ export function WealthboxConnect() {
         setSyncError(
           `Imported ${String(count)} household${count === 1 ? '' : 's'} into your Client Map, but search indexing didn't finish (${reason}). Records may not be fully searchable yet — click "Sync now" to retry.`
         );
+      } finally {
+        setNetworkBusy(false);
       }
     } catch (err) {
       // B2 rollback: Steps 1-3 failed before anything was confirmed as
@@ -259,15 +302,21 @@ export function WealthboxConnect() {
         for (const { matterId, key } of linkedKeys)
           removeCrmHouseholdKey(matterId, key);
       }
+      // A CrmTimeoutError means the sync genuinely stalled past a sane
+      // ceiling (see crmTimeout.ts) — surface that plainly rather than the
+      // technical "timed out after Nms" message.
       setSyncError(
-        typeof err === 'string'
-          ? err
-          : err instanceof Error
-            ? err.message
-            : 'Sync could not complete. Please try again.'
+        err instanceof CrmTimeoutError
+          ? "Wealthbox didn't respond in time. Check your connection and try again."
+          : typeof err === 'string'
+            ? err
+            : err instanceof Error
+              ? err.message
+              : 'Sync could not complete. Please try again.'
       );
     } finally {
       setSyncing(false);
+      setNetworkBusy(false);
     }
   }
 
@@ -467,14 +516,24 @@ export function WealthboxConnect() {
               .
             </p>
 
-            {syncing && progress?.status === 'syncing' && (
+            {/* Stop must stay visible for the WHOLE sync, including the
+                household-list phase BEFORE any crm-sync-progress event
+                arrives — gating on progress.status alone left the user with
+                no way out while that first network call was in flight. */}
+            {syncing && (
               <div className="flex items-center gap-3">
                 <p>
-                  Syncing...
-                  {progress.households !== undefined &&
-                    ` ${String(progress.households)} households`}
-                  {progress.records !== undefined &&
-                    `, ${String(progress.records)} records`}
+                  {progress?.status === 'syncing' ? (
+                    <>
+                      Syncing...
+                      {progress.households !== undefined &&
+                        ` ${String(progress.households)} households`}
+                      {progress.records !== undefined &&
+                        `, ${String(progress.records)} records`}
+                    </>
+                  ) : (
+                    'Connecting to Wealthbox...'
+                  )}
                 </p>
                 <button
                   type="button"
@@ -484,6 +543,15 @@ export function WealthboxConnect() {
                   Stop
                 </button>
               </div>
+            )}
+
+            {syncStalled && (
+              <p
+                data-testid="wealthbox-stalled"
+                className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1"
+              >
+                Wealthbox is taking longer than usual — still trying…
+              </p>
             )}
 
             {!syncing && progress?.status === 'done' && lastSyncReport && (
