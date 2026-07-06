@@ -100,6 +100,29 @@ export function isKeyInvalid(provider: string): boolean {
   }
 }
 
+/** Status + last-checked timestamp for one provider, for surfaces (like
+ *  ApiKeyManager) that show the persisted state instead of resetting to
+ *  "unverified" on every mount. `checkedAt` is the ISO timestamp `markKey*`
+ *  recorded, or null when neither marker is set. */
+export interface KeyCheckStatus {
+  status: 'verified' | 'invalid' | 'unknown';
+  checkedAt: string | null;
+}
+
+/** Read the persisted verify/invalid marker for `provider`, if any. */
+export function getKeyCheckStatus(provider: string): KeyCheckStatus {
+  try {
+    if (typeof localStorage === 'undefined') return { status: 'unknown', checkedAt: null };
+    const verifiedAt = localStorage.getItem(verifiedKey(provider));
+    if (verifiedAt !== null) return { status: 'verified', checkedAt: verifiedAt };
+    const invalidAt = localStorage.getItem(invalidKey(provider));
+    if (invalidAt !== null) return { status: 'invalid', checkedAt: invalidAt };
+    return { status: 'unknown', checkedAt: null };
+  } catch {
+    return { status: 'unknown', checkedAt: null };
+  }
+}
+
 /** The set of providers with a verified marker right now. */
 export function getVerifiedProviders(): Set<string> {
   const out = new Set<string>();
