@@ -32,6 +32,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **QA-90: "still importing" banner + honest zero-hit decline on Ask.** While
+  email, OneDrive, Wealthbox CRM, or workspace file indexing is actively
+  importing, Ask shows a small, non-blocking note above the composer ("Still
+  bringing in your files and email — answers may be incomplete.") so a
+  half-empty answer during that window reads as still-importing, not broken.
+  Auto-hides the instant every source finishes; reads the same backend
+  setup-progress signal the setup screen uses (QA-89), via a new
+  `useStillImporting` hook, rather than tracking sync state a second way.
+  - Adversarial-review follow-up: a zero-retrieval-hit answer during an active
+    import used to get the generic "nothing found" treatment (or, in smart
+    mode, a confident general answer) — actively misleading, since the real
+    cause may just be "not indexed yet." `handleAsk`'s retrieval-evidence gate
+    now checks for this case FIRST (in both files-only and smart mode) and
+    answers with a new deterministic `STILL_IMPORTING_DECLINE` (no model
+    call, so the message never depends on the model remembering to mention
+    the import), rendered with the same calm "this is on purpose" styling as
+    the existing no-evidence decline rather than the red uncited-claim
+    warning.
+  - Files: `StillImportingBanner.tsx`, `useStillImporting.ts` (new),
+    `isImportingContent` selector in `setup-progress-commands.ts`, wired into
+    `Ask.tsx`; `STILL_IMPORTING_DECLINE` in `askPrompt.ts`, the new gate in
+    `useAsk.ts`, and the calm-note rendering in `TurnBlock.tsx`.
 - **The Notice Card — a local notice participant (v1 + v2).** When the advisor
   records an online meeting, a second participant that runs entirely on the
   advisor's own computer joins the call as "⏺ Recording Notice — <advisor>",
