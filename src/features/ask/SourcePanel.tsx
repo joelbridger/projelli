@@ -9,6 +9,7 @@ import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenan
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
 import { EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
+import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
 
 /* -------------------------------------------------------------------------- */
 /* SourcePanel — the SOURCES column. A list of clean white numbered cards,     */
@@ -59,6 +60,29 @@ function useCitationVerification(
   const [verdicts, setVerdicts] = useState<Map<string, RealVerdict>>(new Map());
   const requested = useRef<Set<string>>(new Set());
 
+  // QA-92 round 2 — a negative verdict (notFound/textMismatch/matterMismatch)
+  // that arrives while a content import (email/CRM/OneDrive/file indexing) is
+  // still unsettled must not stick: a re-index in flight can transiently make
+  // a real source look missing or mismatched. Keys held here stay absent from
+  // `verdicts` (so the card reads "pending", never a false red) and are
+  // released for exactly one retry the moment indexing settles to idle.
+  const importStatus = useStillImporting();
+  const importUnsettled = isImportStatusUnsettled(importStatus);
+  const importUnsettledRef = useRef(importUnsettled);
+  importUnsettledRef.current = importUnsettled;
+  const heldForRetry = useRef<Set<string>>(new Set());
+  const wasUnsettled = useRef(importUnsettled);
+  const [retryTick, setRetryTick] = useState(0);
+
+  useEffect(() => {
+    if (wasUnsettled.current && !importUnsettled && heldForRetry.current.size > 0) {
+      heldForRetry.current.forEach((key) => requested.current.delete(key));
+      heldForRetry.current.clear();
+      setRetryTick((t) => t + 1);
+    }
+    wasUnsettled.current = importUnsettled;
+  }, [importUnsettled]);
+
   const eligible = citations.filter(
     (c): c is AnswerCitation & { id: string; matterId: string } => Boolean(c.id && c.matterId),
   );
@@ -74,6 +98,14 @@ function useCitationVerification(
     const keys = toFetch.map((c) => verifyKey(c.id, c.matterId, c.excerpt));
     keys.forEach((k) => requestedKeys.add(k));
     let cancelled = false;
+    // QA-92 round 2 (coordinator review round 2): capture whether indexing
+    // was unsettled at the moment THIS batch was ISSUED, not whatever
+    // `importUnsettledRef.current` happens to read once the result lands. A
+    // batch issued while unsettled can still race a re-index that started
+    // just before it and finished before the result comes back — reading the
+    // ref only at result time would miss exactly that case and let a
+    // transient negative stick.
+    const importUnsettledAtStart = importUnsettledRef.current;
     // QA-85 round 2: distinct from `cancelled` — tracks whether THIS batch
     // ever reached a result (stored or not). If the effect is torn down
     // before that happens (citations changed mid-flight), the cleanup below
@@ -88,17 +120,32 @@ function useCitationVerification(
         );
         settled = true;
         if (!cancelled) {
+          const newlyHeld: string[] = [];
           setVerdicts((prev) => {
             const next = new Map(prev);
             toFetch.forEach((c, i) => {
               const r = results[i];
-              if (r) next.set(verifyKey(c.id, c.matterId, c.excerpt), r.verdict);
+              if (!r) return;
+              const key = verifyKey(c.id, c.matterId, c.excerpt);
+              // QA-92 round 2: a negative verdict from a batch ISSUED while
+              // indexing was unsettled is held back — it never enters
+              // `verdicts`, so the card stays "pending" rather than falsely
+              // turning red. It's released for one retry the moment indexing
+              // settles to idle (see the `importUnsettled` effect above) — or
+              // immediately below, if indexing already settled while this
+              // batch was in flight.
+              if (r.verdict !== 'verified' && importUnsettledAtStart) {
+                heldForRetry.current.add(key);
+                newlyHeld.push(key);
+                return;
+              }
+              next.set(key, r.verdict);
             });
             return next;
           });
           toFetch.forEach((c, i) => {
             const r = results[i];
-            if (r) {
+            if (r && !heldForRetry.current.has(verifyKey(c.id, c.matterId, c.excerpt))) {
               onAuditLog?.(
                 auditEventToEntry({
                   type: 'citation_verified',
@@ -108,6 +155,18 @@ function useCitationVerification(
               );
             }
           });
+          // Indexing already settled to idle by the time this result landed
+          // (the transition-watching effect above would have already fired,
+          // with nothing yet held then — so it won't fire again on its own).
+          // Retry these specific keys right away instead of waiting for a
+          // future unsettled→idle transition that isn't coming.
+          if (newlyHeld.length > 0 && !importUnsettledRef.current) {
+            newlyHeld.forEach((key) => {
+              requested.current.delete(key);
+              heldForRetry.current.delete(key);
+            });
+            setRetryTick((t) => t + 1);
+          }
         }
       } catch {
         // Browser/dev mode (no Tauri backend) or a verifier error — never
@@ -130,8 +189,8 @@ function useCitationVerification(
         keys.forEach((k) => requestedKeys.delete(k));
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is keyed by `signature` (content), not by the `eligible`/`onAuditLog` references which are recreated every render.
-  }, [signature]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refetch is keyed by `signature` (content) and `retryTick` (QA-92 round 2 retry trigger), not by the `eligible`/`onAuditLog` references which are recreated every render.
+  }, [signature, retryTick]);
 
   return verdicts;
 }

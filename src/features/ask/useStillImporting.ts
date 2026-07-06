@@ -20,9 +20,35 @@ import { ONEDRIVE_SYNC_EVENT, oneDriveStatus, type OneDriveSyncProgress } from '
 /** Coalesce bursts of source events — mirrors useSetupProgress's debounce. */
 const REFETCH_DEBOUNCE_MS = 150;
 
-export function useStillImporting(): boolean {
-  const [backendImporting, setBackendImporting] = useState(false);
-  const [oneDriveSyncing, setOneDriveSyncing] = useState(false);
+/**
+ * QA-90 round 3 — tri-state, not a plain boolean. `'unknown'` covers the brief
+ * window between mount and the first `get_setup_progress` / `onedrive_status`
+ * round-trip resolving. A question asked in that window must NOT read as a
+ * confident "nothing is importing" — the bug this fixes: `useAsk.ts`'s
+ * retrieval-evidence gate used to receive a `false` default during that
+ * window, so an instant zero-hit question got the generic "nothing found"
+ * decline instead of the honest still-importing one. Callers that need a
+ * single "is this ambiguous" boolean should use `isImportStatusUnsettled`
+ * below rather than comparing to `'importing'` directly.
+ */
+export type ImportStatus = 'unknown' | 'importing' | 'idle';
+
+/**
+ * True when a zero-hit answer should be treated as ambiguous rather than a
+ * confident "nothing found" — either a content source is actively
+ * importing, or we don't know yet.
+ */
+export function isImportStatusUnsettled(status: ImportStatus): boolean {
+  return status !== 'idle';
+}
+
+export function useStillImporting(): ImportStatus {
+  // `null` = not yet known; `false`/`true` = resolved. In browser/dev mode
+  // there's no native backend to ask, so both sources start already settled
+  // (lazy initializer, not a setState-in-effect) instead of sitting 'unknown'
+  // forever.
+  const [backendImporting, setBackendImporting] = useState<boolean | null>(() => (isTauri() ? null : false));
+  const [oneDriveSyncing, setOneDriveSyncing] = useState<boolean | null>(() => (isTauri() ? null : false));
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -35,8 +61,12 @@ export function useStillImporting(): boolean {
         const snapshot = await getSetupProgress();
         if (!guard.cancelled) setBackendImporting(isImportingContent(snapshot));
       } catch (err) {
-        // Keep the last known value on a transient failure.
+        // Keep the last known value on a transient failure — but if this is
+        // the very first attempt (still 'unknown'), settle to the safe
+        // default rather than leaving the retrieval-evidence gate stuck
+        // treating every zero-hit answer as ambiguous forever.
         console.warn('useStillImporting: setup-progress refetch failed.', err);
+        if (!guard.cancelled) setBackendImporting((prev) => prev ?? false);
       }
     };
 
@@ -83,6 +113,7 @@ export function useStillImporting(): boolean {
       })
       .catch((err: unknown) => {
         console.warn('useStillImporting: initial OneDrive status check failed.', err);
+        if (!disposed) setOneDriveSyncing((prev) => prev ?? false);
       });
 
     let unlisten: (() => void) | undefined;
@@ -102,5 +133,7 @@ export function useStillImporting(): boolean {
     };
   }, []);
 
-  return backendImporting || oneDriveSyncing;
+  if (backendImporting === true || oneDriveSyncing === true) return 'importing';
+  if (backendImporting === null || oneDriveSyncing === null) return 'unknown';
+  return 'idle';
 }
