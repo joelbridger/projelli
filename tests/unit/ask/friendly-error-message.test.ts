@@ -11,7 +11,32 @@
  *   - always offer the "search by keyword instead" fallback.
  */
 import { describe, it, expect } from 'vitest';
-import { friendlyErrorMessage } from '@/features/ask/askHelpers';
+import { friendlyErrorMessage, isAuthRejectionError } from '@/features/ask/askHelpers';
+
+describe('isAuthRejectionError', () => {
+  it('true for a genuine 401/invalid_api_key error reaching a cloud provider', () => {
+    expect(isAuthRejectionError('401 Unauthorized: invalid_api_key', { mode: 'direct', reachedProvider: true })).toBe(true);
+  });
+
+  it('true for a 403 (disabled/revoked/permission-denied key) reaching a cloud provider', () => {
+    expect(isAuthRejectionError('403 Forbidden', { mode: 'direct', reachedProvider: true })).toBe(true);
+  });
+
+  it('false in local-only mode even for an auth-shaped string (no key to blame)', () => {
+    expect(isAuthRejectionError('401 unauthorized', { mode: 'local-only', reachedProvider: true })).toBe(false);
+    expect(isAuthRejectionError('403 forbidden', { mode: 'local-only', reachedProvider: true })).toBe(false);
+  });
+
+  it('false when the provider was never reached (file-search stage failure)', () => {
+    expect(isAuthRejectionError('401 unauthorized', { mode: 'direct', reachedProvider: false })).toBe(false);
+    expect(isAuthRejectionError('403 forbidden', { mode: 'direct', reachedProvider: false })).toBe(false);
+  });
+
+  it('false for a rate-limit or generic failure', () => {
+    expect(isAuthRejectionError('429 rate limited', { mode: 'direct', reachedProvider: true })).toBe(false);
+    expect(isAuthRejectionError('network error', { mode: 'direct', reachedProvider: true })).toBe(false);
+  });
+});
 
 describe('friendlyErrorMessage', () => {
   it('mentions the key ONLY for a genuine auth error (cloud)', () => {

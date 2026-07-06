@@ -68,6 +68,7 @@ import {
   askConsentScope,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
+  isAuthRejectionError,
   buildHistoryBlock,
   reconstructTurns,
   filterHitsByScope,
@@ -78,6 +79,7 @@ import {
   dedupeRecognizedHits,
   recognizeHit,
 } from './askHelpers';
+import { markKeyInvalid, markKeyVerified, isVerifiableProvider } from '@/platform/providers/keyVerification';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import {
   isExternalExportConsentGiven,
@@ -1008,6 +1010,12 @@ export function useAsk({
             fileToolsEnabled,
           },
         }));
+        // A real response came back from a cloud provider's key, so it is
+        // proven to work — prefer it for future chats (mirrors the "Check"
+        // button in ApiKeyManager and the Wizard's on-save verification).
+        if (isVerifiableProvider(providerAudit.providerId)) {
+          markKeyVerified(providerAudit.providerId);
+        }
       };
 
       const emitModelCall = (contentLength: number, usage?: { inputTokens?: number; outputTokens?: number }, cost?: number) => {
@@ -1243,6 +1251,20 @@ export function useAsk({
         });
       }
       const raw = err instanceof Error ? err.message : '';
+      // Fix 3 (connect-flow demo hardening): a genuine auth rejection from the
+      // resolved cloud provider means the stored key is bad — record it so a
+      // new chat never defaults back to it (mirrors the "Check" button in
+      // ApiKeyManager). Uses the SAME classification friendlyErrorMessage uses
+      // below, so the "your key was rejected" copy and this marker can never
+      // disagree about what counts as an auth failure.
+      if (
+        providerCallStarted &&
+        providerAudit &&
+        isVerifiableProvider(providerAudit.providerId) &&
+        isAuthRejectionError(raw, { mode: getConfidentialityMode(), reachedProvider: providerCallStarted })
+      ) {
+        markKeyInvalid(providerAudit.providerId);
+      }
       // Fix #4 / UX-29: plain-language copy that is mode- and stage-aware.
       // `providerCallStarted === false` means the failure was in the file-search
       // stage (not the AI/key), so the message must not blame a key.

@@ -6,6 +6,10 @@ import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
+import {
+  isMicrosoftSignInExpiredError,
+  MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
+} from '@/platform/connectors/microsoft/microsoftAuthError';
 
 export function MailConnect() {
   const { t } = useTranslation();
@@ -192,7 +196,9 @@ export function MailConnect() {
           {progress && progress.status === 'error' && (
             <p className="mt-1 text-red-700">
               {progress.error
-                ? `Mail sync ran into a problem: ${progress.error}`
+                ? isMicrosoftSignInExpiredError(progress.error)
+                  ? MICROSOFT_SIGNIN_EXPIRED_MESSAGE
+                  : `Mail sync ran into a problem: ${progress.error}`
                 : 'Mail sync ran into a problem. Open this panel again to retry.'}
             </p>
           )}
