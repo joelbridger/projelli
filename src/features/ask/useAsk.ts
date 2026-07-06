@@ -53,6 +53,8 @@ import {
   scopeHintForMatter,
 } from './askPrompt';
 import { useStillImporting, isImportStatusUnsettled } from './useStillImporting';
+import { trimForLocalContext, LOCAL_CONTEXT_TOO_LONG_MESSAGE } from './localContextTrim';
+import { LANTERN_LOCAL_CONTEXT_WINDOW } from '@/platform/providers/AppLocalProvider';
 import { bindAnswerBlocks } from './answerBlockHelpers';
 import {
   withAskTimeout,
@@ -1003,10 +1005,8 @@ export function useAsk({
         isCloudProvider: providerIsCloud,
         fileAccessGranted: currentFileAccessGranted,
       }).shouldRetrieve;
-      const groundingHits: RagHit[] = fileContentPermitted ? hits : [];
+      let groundingHits: RagHit[] = fileContentPermitted ? hits : [];
 
-      const workspaceBlock =
-        groundingHits.length > 0 ? buildWorkspaceContextBlock(groundingHits) : '';
       // B4 (audit honesty): build the prompt scope from the SAME retrievalScope
       // the retrieval actually used — NOT from activeMatter. Otherwise, when a
       // matter is active but the user picked the "All matters" scope, the prompt
@@ -1028,7 +1028,63 @@ export function useAsk({
       // (Codex final review P2): an older file-grounded turn OUTSIDE the window
       // never reaches the model, so it must not mark this answer file-derived (a
       // misleading fileToolsEnabled=true audit + needless future redaction).
-      const historyInPrompt = historyTurnsForSend.slice(-HISTORY_WINDOW);
+      let historyInPrompt = historyTurnsForSend.slice(-HISTORY_WINDOW);
+
+      // Local-AI context trimming (step-4 adversarial review, finding 6; round-2
+      // fix, P2) — every LOCAL engine runs with a small, model-reported context
+      // window, unlike cloud providers, which tolerate an oversized prompt. This
+      // covers BOTH local routes: the embedded on-device model (LANTERN_LOCAL_CONTEXT_WINDOW
+      // fallback) and a user-run Ollama daemon (resolved when the embedded model
+      // isn't ready — see resolveLocalProvider.ts), each reading ITS OWN
+      // provider-reported window via getMetadata(), never a hard-coded number.
+      // That reported window is the WORKING window the request actually gets
+      // (round-2 F1: OllamaProvider reports its clamped num_ctx, not the
+      // model's theoretical max — budgeting against 131k while sending into a
+      // 16k window is exactly the silent truncation this exists to prevent).
+      // If over budget, drop retrieved chunks lowest-relevance-first (whole
+      // chunks only, so a surviving citation never points at truncated text),
+      // then oldest history. Cloud providers never take this path — no
+      // behavior change for them.
+      if (isLocalProvider(resolvedProvider.providerId)) {
+        const maxContextTokens =
+          resolvedProvider.provider.getMetadata().capabilities?.maxContextTokens ??
+          LANTERN_LOCAL_CONTEXT_WINDOW;
+        const staticSystemPrompt = filesOnly
+          ? buildAskSystemPrompt({ scopeHint: matterHint, workspaceBlock: '', historyBlock: '' })
+          : buildSmartAskSystemPrompt({
+              scopeHint: matterHint,
+              workspaceBlock: '',
+              historyBlock: '',
+              // Estimate with the LONGER no-evidence hint: smart-mode trimming
+              // may drop every chunk (round-2 F2), flipping the real prompt to
+              // the no-evidence variant — sizing against the longer of the two
+              // keeps the estimate an upper bound in both outcomes.
+              hasEvidence: false,
+            });
+        const trimResult = trimForLocalContext(
+          {
+            fixedText: `${staticSystemPrompt}\n\n${q}`,
+            hits: groundingHits,
+            historyTurns: historyInPrompt,
+            // Smart mode may drop even the last chunk (answering honestly from
+            // history / general knowledge via the no-evidence prompt below);
+            // files-only must decline instead — see localContextTrim.ts.
+            mode: filesOnly ? 'files-only' : 'smart',
+            buildWorkspaceBlock: buildWorkspaceContextBlock,
+            buildHistoryBlock: (turnsForBlock) => buildHistoryBlock(turnsForBlock, HISTORY_WINDOW),
+          },
+          maxContextTokens,
+        );
+        if (!trimResult.fits) {
+          emitDecline(LOCAL_CONTEXT_TOO_LONG_MESSAGE);
+          return;
+        }
+        groundingHits = trimResult.hits;
+        historyInPrompt = trimResult.historyTurns;
+      }
+
+      const workspaceBlock =
+        groundingHits.length > 0 ? buildWorkspaceContextBlock(groundingHits) : '';
       const historyBlock = buildHistoryBlock(historyInPrompt, HISTORY_WINDOW);
       // F2.5b (Codex round-4) — grounding is TRANSITIVE: this answer draws on
       // client file content from fresh hits AND from any file-grounded history in

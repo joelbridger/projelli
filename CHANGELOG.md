@@ -31,6 +31,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Local-AI context trimming — Ask no longer overflows the on-device model's
+  context window.** The embedded Advisor Prep Hero Local AI reports a
+  ~16k-token working window (`AppLocalProvider.LANTERN_LOCAL_CONTEXT_WINDOW`),
+  but Ask always sent up to 8 retrieved chunks + conversation history with no
+  local-specific size check — a long question on a well-indexed workspace
+  could overflow it and come back truncated or garbled (step-4 adversarial
+  review, finding 6). Fixed by estimating the assembled prompt with a
+  conservative ~4-chars/token heuristic against the resolved provider's OWN
+  reported `maxContextTokens` (never a hard-coded number), and — only when
+  the resolved provider is `keepance-local` — trimming deterministically:
+  retrieved chunks are dropped lowest-relevance-first (whole chunks only, so a
+  surviving citation can never point at truncated text), then oldest
+  conversation history. When even the question plus the single
+  highest-relevance chunk can't fit, Ask declines honestly ("This question is
+  too long for the on-device AI — shorten it or switch to a cloud model.")
+  instead of sending a doomed-to-garble request. Cloud providers are
+  completely unaffected — no behavior change. Files:
+  `localContextTrim.ts` (new), `useAsk.ts`. Tests: `localContextTrim.test.ts`,
+  `useAsk.localTrim.test.ts`.
+
 ### Fixed
 - **Local AI patience: a big on-device question no longer reports a FALSE
   failure while the engine is still reading your documents.** On the local
@@ -126,6 +147,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `supervisor.ts`, `tauriDriver.ts`, `noticeCardPill.ts`. Tests: adapter fixture
     from the capture + supervisor/injection latch & evidence-integrity tests (169
     noticeCard tests green, tsc clean).
+- **Local-AI trimming budgets against the context window Ollama requests
+  actually get, not the model's theoretical maximum.** Round-2 review (F1,
+  blocker): `OllamaProvider.getMetadata()` reported the model's trained
+  maximum (`getMaxContextTokens`, e.g. 131k for llama3.2:3b) while every real
+  request pins `num_ctx` to the clamped working window
+  (`OLLAMA_WORKING_CONTEXT_WINDOW`, 16384) — so the trimmer could approve a
+  100k+ prompt that Ollama silently truncated to 16k, the exact failure the
+  trimming exists to prevent. Fixed by making the reported
+  `capabilities.maxContextTokens` equal `resolveNumCtx()` (the working
+  window); the trimmer is the field's only consumer (verified by grep — every
+  other `getMetadata()` caller reads `.model`/`.providerId`/cost), so no
+  display or estimator loses the theoretical number. Files:
+  `OllamaProvider.ts`. Tests: `ollama-provider.test.ts` (real provider:
+  llama3.2:3b reports 16384; llama3:8b keeps its smaller 8192 max).
+- **A single oversized retrieved chunk no longer erases usable history and
+  then refuses anyway (smart mode).** Round-2 review (F2): the trim loop
+  never dropped the last remaining chunk, so one huge chunk drained all
+  history trying to make room, then still reported "doesn't fit" — breaking
+  follow-ups like "summarize what you just said" that would have worked from
+  history alone. Now `trimForLocalContext` takes the Ask mode: in **smart**
+  mode, when the sole remaining chunk still busts the budget, it's dropped
+  too (zero fresh evidence — the existing no-evidence prompt wording stays
+  honest) and history is re-admitted newest-first as much as fits;
+  **files-only** mode keeps its honest decline (an Ask about your documents
+  must not answer without them). The smart-mode prompt size estimate now uses
+  the longer no-evidence hint so it stays an upper bound either way. Files:
+  `localContextTrim.ts`, `useAsk.ts`. Tests: `localContextTrim.test.ts`,
+  `useAsk.localTrim.test.ts` (follow-up-from-history scenario, both modes).
+- **An oversized top-ranked chunk no longer throws away smaller chunks that
+  would have fit.** Round-3 review: the trim loop always dropped the
+  LOWEST-ranked chunk first, so when the #1-ranked chunk was too big to ever
+  fit by itself, every fitting lower-ranked chunk got dropped before it —
+  ending at zero file evidence (smart mode) or an honest-but-needless decline
+  (files-only) even when the #2-ranked chunk alone fit comfortably. Now any
+  chunk that can never fit alone (question + that one chunk, no history) is
+  excluded up front regardless of rank, and both modes end at the best-ranked
+  SUBSET of chunks that actually fits. Round-2 contracts intact: smart mode
+  still answers from history when NO chunk fits; files-only still declines
+  honestly when no usable file context remains. Files: `localContextTrim.ts`.
+  Tests: `localContextTrim.test.ts` (oversized-top, oversized-mid, and
+  all-oversized scenarios, both modes).
+- **Local-AI context trimming now also covers the local Ollama route, not
+  just the embedded model.** Pre-merge review (P2) found the trim check at
+  `useAsk.ts` gated only on `providerId === 'keepance-local'`, so when the
+  embedded model wasn't ready and Ask fell back to a locally-run Ollama
+  daemon, no trimming happened at all — even though `OllamaProvider` reports
+  its own finite `maxContextTokens` just like the embedded model does. Fixed
+  by gating on `isLocalProvider(providerId)` (covers both `'keepance-local'`
+  and `'ollama'`), reading each route's own provider-reported budget — cloud
+  providers are untouched. Test added: `useAsk.localTrim.test.ts`.
 - **Demo dress-rehearsal fixes: persisted key-verify status + Local AI
   mode-switch pre-start now cover the ConfidentialityModeSettings path.**
   Two findings from the Legion dress-rehearsal (`legion-dressrun1/REPORT.md`):

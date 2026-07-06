@@ -39,6 +39,23 @@ describe('OllamaProvider (Q7)', () => {
       const p = new OllamaProvider();
       expect(p.getMetadata().capabilities?.streaming).toBe(true);
     });
+
+    it('reports the WORKING context window, not the theoretical model max (localai-trimming round 2, F1)', () => {
+      // llama3.2:3b's trained maximum is 131072 tokens, but every actual
+      // request pins num_ctx to the clamped working window. The metadata the
+      // context trimmer budgets against must equal the window the request
+      // will really get — otherwise the trimmer approves prompts that Ollama
+      // silently truncates.
+      const p = new OllamaProvider({ model: 'llama3.2:3b' });
+      expect(p.getMetadata().capabilities?.maxContextTokens).toBe(OLLAMA_WORKING_CONTEXT_WINDOW);
+    });
+
+    it('reports the model max when it is smaller than the working window', () => {
+      // llama3:8b's trained maximum (8192) is below the working window, so
+      // the clamp keeps the smaller number — never over-report a small model.
+      const p = new OllamaProvider({ model: 'llama3:8b' });
+      expect(p.getMetadata().capabilities?.maxContextTokens).toBe(8192);
+    });
   });
 
   describe('isConfigured', () => {
