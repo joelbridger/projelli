@@ -435,7 +435,7 @@ describe('EmailWorkspace', () => {
     fireEvent.click(screen.getByTestId('compose-btn'));
 
     fireEvent.change(screen.getByTestId('compose-to'), { target: { value: 'alice@example.com' } });
-    fireEvent.change(screen.getByTestId('compose-subject'), { target: { value: 'Hello from Keepance' } });
+    fireEvent.change(screen.getByTestId('compose-subject'), { target: { value: 'Hello from Lantern' } });
     fireEvent.change(screen.getByTestId('compose-body'), { target: { value: 'Test body text.' } });
 
     // Click send and flush all microtasks + timers
@@ -450,7 +450,7 @@ describe('EmailWorkspace', () => {
       ['alice@example.com'],
       [],
       [],
-      'Hello from Keepance',
+      'Hello from Lantern',
       'Test body text.',
       undefined,
       undefined,

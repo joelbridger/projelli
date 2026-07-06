@@ -262,12 +262,12 @@ export interface AIChatFile {
   updated: string; // ISO datetime
   messages: ChatMessage[];
   /**
-   * Which AI provider this chat sends to. `'ollama'` and `'keepance-local'` are
+   * Which AI provider this chat sends to. `'ollama'` and `'lantern-local'` are
    * LOCAL providers: inference runs on the user's own machine (Ollama on
    * 127.0.0.1:11434, or the embedded llama.cpp engine "Advisor Prep Hero Local AI") and
    * nothing leaves the device. The cloud providers (anthropic/openai/google)
    * send the prompt directly to that vendor with the user's own key (BYOK).
    */
-  provider?: 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+  provider?: 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
   model?: string; // Optional: specific model ID (e.g. 'claude-sonnet-4-5-20250514' or 'llama3.2:3b')
 }

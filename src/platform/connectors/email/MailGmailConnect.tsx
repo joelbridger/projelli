@@ -25,7 +25,7 @@ export function MailGmailConnect() {
   }, []);
 
   // A build with no Google OAuth client credentials baked in
-  // (KEEPANCE_GMAIL_CLIENT_ID/_SECRET missing at compile time) can never
+  // (LANTERN_GMAIL_CLIENT_ID/_SECRET missing at compile time) can never
   // complete a Gmail sign-in — check up front so the panel shows an honest
   // "not set up" note instead of letting the user hit Google's raw
   // "Error 400: invalid_request" after a real browser window already opened.
@@ -131,7 +131,7 @@ export function MailGmailConnect() {
 
           {!configured && (
             /* This build has no Google OAuth client credentials baked in
-               (KEEPANCE_GMAIL_CLIENT_ID/_SECRET missing at compile time) — a
+               (LANTERN_GMAIL_CLIENT_ID/_SECRET missing at compile time) — a
                calm info note, not a red alarm, since this is a build/setup
                gap rather than something the user did wrong (UX-22). */
             <div data-testid="mail-gmail-not-configured" className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">

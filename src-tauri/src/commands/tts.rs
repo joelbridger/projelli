@@ -188,7 +188,7 @@ pub async fn tts_download_voice(app: AppHandle, voice_id: String) -> Result<Stri
         .await
         .map_err(|e| e.to_string())?;
 
-    let cdn_url = format!("https://keepance.com/voices/{voice_id}.tar.gz");
+    let cdn_url = format!("https://lantern.com/voices/{voice_id}.tar.gz");
     let response = reqwest::get(&cdn_url).await.map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {

@@ -93,7 +93,7 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
 
 vi.mock('@/platform/providers/AppLocalProvider', () => ({
   AppLocalProvider: class {
-    kind = 'keepance-local';
+    kind = 'lantern-local';
     getMetadata() {
       return { model: 'qwen3-4b' };
     }

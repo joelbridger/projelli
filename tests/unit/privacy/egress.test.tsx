@@ -70,7 +70,7 @@ describe('resolveEgress (the single source of truth)', () => {
       const expectedName = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' }[provider];
       expect(info.label).toContain(expectedName);
       expect(info.label).toMatch(/Sent to your/i);
-      // The note is honest that the provider sees the prompt + that Keepance isn't in between.
+      // The note is honest that the provider sees the prompt + that Lantern isn't in between.
       expect(info.note).toMatch(/receives the prompt/i);
       expect(info.note).toMatch(/Advisor Prep Hero is not in between/i);
     }
@@ -101,13 +101,13 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(DEFAULT_CONFIDENTIALITY_MODE).toBe('direct');
   });
 
-  // Embedded Keepance Local AI engine (llama.cpp) — local-model initiative.
-  it('Keepance Local AI => nothing leaves the machine, named correctly', () => {
-    const info = resolveEgress({ provider: 'keepance-local', mode: 'direct' });
+  // Embedded Lantern Local AI engine (llama.cpp) — local-model initiative.
+  it('Lantern Local AI => nothing leaves the machine, named correctly', () => {
+    const info = resolveEgress({ provider: 'lantern-local', mode: 'direct' });
     expect(info.destination).toBe('local');
     expect(info.severity).toBe('safe');
     expect(info.dataLeaves).toBe(false);
-    expect(info.provider).toBe('keepance-local');
+    expect(info.provider).toBe('lantern-local');
     // The honest note names the actual local engine, not Ollama.
     expect(info.note).toMatch(/Advisor Prep Hero Local AI/);
     expect(info.note).not.toMatch(/Ollama/);
@@ -125,10 +125,10 @@ describe('resolveEgress (the single source of truth)', () => {
   });
 
   it('both local providers are recognised as local; cloud is not', () => {
-    expect(isLocalProvider('keepance-local')).toBe(true);
+    expect(isLocalProvider('lantern-local')).toBe(true);
     expect(isLocalProvider('ollama')).toBe(true);
     expect(isLocalProvider('anthropic')).toBe(false);
-    expect(providerDisplayName('keepance-local')).toBe('Advisor Prep Hero Local AI');
+    expect(providerDisplayName('lantern-local')).toBe('Advisor Prep Hero Local AI');
   });
 });
 
@@ -147,11 +147,11 @@ describe('EgressIndicator', () => {
     expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/on your machine/i);
   });
 
-  it('names the embedded Keepance Local AI engine in the note (not Ollama)', () => {
+  it('names the embedded Lantern Local AI engine in the note (not Ollama)', () => {
     // Regression: the local note used a static i18n string that hard-coded
-    // "(Ollama)"; for a keepance-local chat it must name the actual engine.
+    // "(Ollama)"; for a lantern-local chat it must name the actual engine.
     setMode('direct');
-    render(<EgressIndicator provider="keepance-local" />);
+    render(<EgressIndicator provider="lantern-local" />);
     const el = screen.getByTestId('egress-indicator');
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
@@ -175,7 +175,7 @@ describe('EgressIndicator', () => {
   it('BLOCKER regression: an unset-provider chat with the local model ready shows data-destination=local (never "data leaves")', () => {
     // The exact bad state Codex flagged: a chat with no saved provider while the
     // embedded model is ready. effectiveChatProvider must resolve it to
-    // 'keepance-local' (not the old 'anthropic' fallback), so the badge the user
+    // 'lantern-local' (not the old 'anthropic' fallback), so the badge the user
     // sees says nothing leaves — matching the on-device send.
     setMode('direct');
     const provider = effectiveChatProvider(undefined, /* local */ 'ready');
@@ -275,7 +275,7 @@ describe('DataMapDialog', () => {
     // Email encrypted locally.
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();
 
-    // Keepance servers: honest about the license check plus opt-in analytics + bug reports.
+    // Lantern servers: honest about the license check plus opt-in analytics + bug reports.
     expect(screen.getByText(/only automatic contact with Advisor Prep Hero.s servers is a periodic license check/i)).toBeTruthy();
     expect(screen.getByText(/Neither analytics nor bug reports are on by default/i)).toBeTruthy();
 

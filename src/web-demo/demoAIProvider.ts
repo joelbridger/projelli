@@ -9,7 +9,7 @@
  *      key never leaves the browser; requests go straight to api.anthropic.com.
  *   2. Shared — no BYOK key. We instantiate a thin DemoProxyProvider that
  *      POSTs to `/api/demo-chat`, routed by Caddy to the on-server Bun proxy
- *      (`~/services/keepance-demo-proxy`). The proxy enforces rate limits,
+ *      (`~/services/lantern-demo-proxy`). The proxy enforces rate limits,
  *      monthly spend caps, and uses Advisor Prep Hero's shared Anthropic key.
  *
  * Limit-hit detection: when the proxy returns 429 (rate-limited) or 503/502
@@ -100,7 +100,7 @@ function emitMessageSent(): void {
 }
 
 /**
- * Provider that forwards calls to the keepance-demo-proxy. Implements only
+ * Provider that forwards calls to the lantern-demo-proxy. Implements only
  * the methods AIChatViewer actually calls in the demo context: sendMessage,
  * a non-streaming structuredOutput, and the attachment shims.
  *

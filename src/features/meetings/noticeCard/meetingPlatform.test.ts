@@ -68,7 +68,7 @@ describe('buildDisplayName', () => {
 
   it('trims to the per-platform length guard without cutting mid-token ugliness', () => {
     const longName = 'Bartholomew-Alexander';
-    const template = 'Recording Notice for {advisor} from Keepance Advisory Group LLC';
+    const template = 'Recording Notice for {advisor} from Lantern Advisory Group LLC';
     const teams = buildDisplayName(template, longName, 'teams');
     const zoom = buildDisplayName(template, longName, 'zoom');
     expect(teams.length).toBeLessThanOrEqual(PLATFORM_NAME_MAX.teams);

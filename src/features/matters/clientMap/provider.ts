@@ -44,7 +44,7 @@ export async function hasCloudKeyForClientMap(): Promise<boolean> {
 
 export interface ResolvedClientMapProvider {
   provider: Provider;
-  providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+  providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
   model: string;
 }
 

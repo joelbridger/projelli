@@ -308,16 +308,16 @@ async fn crm_purge_e2e_removes_both_db_rows_and_rag_chunks() {
     // The headless test runner has no OS keychain, so the production key loader
     // reads this test-only override and opens the same DB key seeded above.
     std::env::set_var(
-        "KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX",
+        "LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX",
         hex::encode(CRM_KEY),
     );
     std::env::set_var(
-        "KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX",
+        "LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX",
         hex::encode(VEC_KEY),
     );
     let result = crm_disconnect_logic(&state).await;
-    std::env::remove_var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX");
-    std::env::remove_var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
+    std::env::remove_var("LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX");
+    std::env::remove_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
 
     // ── 5: Assert purge flags ─────────────────────────────────────────────────
     // token_deleted may be false in a headless CI environment with no usable

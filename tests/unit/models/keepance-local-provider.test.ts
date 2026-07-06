@@ -1,5 +1,5 @@
 /**
- * Local-model initiative — KeepanceLocalProvider (embedded llama.cpp engine).
+ * Local-model initiative — LanternLocalProvider (embedded llama.cpp engine).
  *
  * Covers the chat path that talks to the llama-server sidecar's OpenAI-compatible
  * endpoint: metadata, SSE stream parsing, sendMessage / streaming / structured
@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
-  AppLocalProvider as KeepanceLocalProvider,
+  AppLocalProvider as LanternLocalProvider,
   parseSseChunk,
   LANTERN_LOCAL_DEFAULT_MODEL,
   LANTERN_LOCAL_CONTEXT_WINDOW,
@@ -20,14 +20,14 @@ const ENDPOINT = 'http://127.0.0.1:18089';
 const fakeStart = () => Promise.resolve(ENDPOINT);
 
 function provider(start = fakeStart) {
-  return new KeepanceLocalProvider({ model: LANTERN_LOCAL_DEFAULT_MODEL, startSidecar: start });
+  return new LanternLocalProvider({ model: LANTERN_LOCAL_DEFAULT_MODEL, startSidecar: start });
 }
 
-describe('KeepanceLocalProvider', () => {
+describe('LanternLocalProvider', () => {
   describe('getMetadata', () => {
     it('reports providerId, $0 cost, streaming, no vision, the real ctx window', () => {
       const meta = provider().getMetadata();
-      expect(meta.providerId).toBe('keepance-local');
+      expect(meta.providerId).toBe('lantern-local');
       expect(meta.name).toBe('Advisor Prep Hero Local AI');
       expect(meta.costPerInputToken).toBe(0);
       expect(meta.costPerOutputToken).toBe(0);

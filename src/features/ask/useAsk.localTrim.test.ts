@@ -104,10 +104,10 @@ describe('useAsk — local-AI context trimming', () => {
     // Sized (see the module comment for the ~4-char/token estimate) so the top
     // 3 of 6 chunks fit but not all 6 — a genuine partial trim, not a
     // collapse-to-one.
-    const fakeProvider = makeFakeProvider({ providerId: 'keepance-local', maxContextTokens: 5000 });
+    const fakeProvider = makeFakeProvider({ providerId: 'lantern-local', maxContextTokens: 5000 });
     buildResolvedAskProviderMock.mockResolvedValue({
       provider: fakeProvider,
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       model: 'qwen3-4b-instruct-2507',
     });
 
@@ -144,10 +144,10 @@ describe('useAsk — local-AI context trimming', () => {
     // overflows the window (see the module comment for the token estimate —
     // one ~4000-char chunk is ~1000 tokens; the files-only fixed prompt is
     // short, so the window must be small enough that chunk + fixed busts it).
-    const fakeProvider = makeFakeProvider({ providerId: 'keepance-local', maxContextTokens: 1200 });
+    const fakeProvider = makeFakeProvider({ providerId: 'lantern-local', maxContextTokens: 1200 });
     buildResolvedAskProviderMock.mockResolvedValue({
       provider: fakeProvider,
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       model: 'qwen3-4b-instruct-2507',
     });
 
@@ -171,13 +171,13 @@ describe('useAsk — local-AI context trimming', () => {
     // Turn 1: a normal ask that fits, so the conversation has history.
     retrieveMock.mockResolvedValue(makeHits(1));
     const fakeProvider = makeFakeProvider({
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       maxContextTokens: 5000,
       answer: 'The rebalance is scheduled for Q3.',
     });
     buildResolvedAskProviderMock.mockResolvedValue({
       provider: fakeProvider,
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       model: 'qwen3-4b-instruct-2507',
     });
 

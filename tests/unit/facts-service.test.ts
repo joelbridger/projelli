@@ -102,11 +102,11 @@ describe('FactsService — addFact / updateFact / deleteFact', () => {
   it('adds a fact and stamps id + created', async () => {
     const { service } = makeService();
     const added = await service.addFact({
-      text: 'The user ships products using Keepance.',
+      text: 'The user ships products using Lantern.',
       approved_by: 'user',
     });
     expect(added.id).toBe('fact-1');
-    expect(added.text).toBe('The user ships products using Keepance.');
+    expect(added.text).toBe('The user ships products using Lantern.');
     expect(added.created).toBe('2026-04-16T12:00:00.000Z');
     expect(added.approved_by).toBe('user');
     const facts = await service.listFacts();

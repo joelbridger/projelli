@@ -49,7 +49,7 @@ export function resolveRedlineProvider({
   // Local-only: on-machine model, no key needed. Prefer the embedded Advisor Prep Hero
   // Local AI when ready (F-503); else the egress-resolved local provider, which
   // is 'ollama' here.
-  if (localOnly) return localModelReady ? 'keepance-local' : egressProvider;
+  if (localOnly) return localModelReady ? 'lantern-local' : egressProvider;
 
   // Prefer the trust-bar provider when it actually has a usable key.
   if (apiKeys.some((k) => k.provider === egressProvider && k.isValid)) {

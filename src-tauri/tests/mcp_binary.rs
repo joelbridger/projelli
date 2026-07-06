@@ -33,7 +33,7 @@ fn spawn_with_workspace() -> (std::process::Child, tempfile::TempDir) {
         .expect("tmpdir");
     let child = Command::new(binary_path())
         .env("LANTERN_WORKSPACE_ROOT", tmp.path())
-        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .env("LANTERN_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -50,7 +50,7 @@ fn spawn_scoped_workspace(lockdown: bool) -> (std::process::Child, tempfile::Tem
     write_scope_state(tmp.path(), "matter-a", &["matter-a"], lockdown);
     let child = Command::new(binary_path())
         .env("LANTERN_WORKSPACE_ROOT", tmp.path())
-        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .env("LANTERN_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -67,7 +67,7 @@ fn spawn_root_granted_workspace() -> (std::process::Child, tempfile::TempDir) {
     write_root_scope_state(tmp.path(), false);
     let child = Command::new(binary_path())
         .env("LANTERN_WORKSPACE_ROOT", tmp.path())
-        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .env("LANTERN_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -347,7 +347,7 @@ fn read_workspace_file_denies_active_matter_without_explicit_grant() {
     .unwrap();
     let mut child = Command::new(binary_path())
         .env("LANTERN_WORKSPACE_ROOT", tmp.path())
-        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .env("LANTERN_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -427,7 +427,7 @@ fn stale_scope_state_denies_read_and_audits() {
     .unwrap();
     let mut child = Command::new(binary_path())
         .env("LANTERN_WORKSPACE_ROOT", tmp.path())
-        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .env("LANTERN_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -509,7 +509,7 @@ fn future_scope_state_denies_read_and_audits() {
     .unwrap();
     let mut child = Command::new(binary_path())
         .env("LANTERN_WORKSPACE_ROOT", tmp.path())
-        .env("KEEPANCE_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
+        .env("LANTERN_MCP_AUDIT_KEY_HEX", TEST_AUDIT_KEY_HEX)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

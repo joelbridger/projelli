@@ -1,6 +1,6 @@
 /**
  * Unit tests for `scripts/build-mcpb.mjs` — the zip writer that produces
- * the Keepance MCP `.mcpb` Desktop Extension bundle.
+ * the Lantern MCP `.mcpb` Desktop Extension bundle.
  *
  * We verify:
  *   - the emitted bytes start with the local-file-header magic (`PK\x03\x04`)

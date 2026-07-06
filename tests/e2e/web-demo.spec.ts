@@ -29,7 +29,7 @@ const DEMO_URL = '/index.demo.html';
 
 test.describe('Web demo sandbox (/try)', () => {
   test.beforeEach(async ({ context }) => {
-    // The demo proxy lives at keepance.com in production. In dev it is not
+    // The demo proxy lives at lantern.com in production. In dev it is not
     // reachable, so any real send would fail. We mock it to a 200 response
     // shaped like the proxy's contract so the limit-gate code path runs as
     // designed.

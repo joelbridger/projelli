@@ -18,21 +18,21 @@ pub(crate) const GMAIL_REFRESH_KEY: &str = "refresh-token";
 pub(crate) const GMAIL_ACCOUNT: &str = "default"; // single Gmail account today; cursors are (provider,account,folder)-scoped
 
 pub(crate) fn gmail_client_id() -> String {
-    // Injected at build time from the KEEPANCE_GMAIL_CLIENT_ID secret (CI job
+    // Injected at build time from the LANTERN_GMAIL_CLIENT_ID secret (CI job
     // env in .github/workflows/release.yml). Kept out of source so it is never
     // committed; set the env locally for `tauri dev` Gmail testing.
-    option_env!("KEEPANCE_GMAIL_CLIENT_ID").unwrap_or("").to_string()
+    option_env!("LANTERN_GMAIL_CLIENT_ID").unwrap_or("").to_string()
 }
 
 pub(crate) fn gmail_client_secret() -> String {
     // Google requires the client_secret at its token endpoint for Desktop-type
     // OAuth clients (even with PKCE). Injected at build time from the
-    // KEEPANCE_GMAIL_CLIENT_SECRET secret; never committed to source.
-    option_env!("KEEPANCE_GMAIL_CLIENT_SECRET").unwrap_or("").to_string()
+    // LANTERN_GMAIL_CLIENT_SECRET secret; never committed to source.
+    option_env!("LANTERN_GMAIL_CLIENT_SECRET").unwrap_or("").to_string()
 }
 
 /// True when this build has real Google OAuth client credentials baked in
-/// (both `KEEPANCE_GMAIL_CLIENT_ID` and `_SECRET` were set when `cargo build`
+/// (both `LANTERN_GMAIL_CLIENT_ID` and `_SECRET` were set when `cargo build`
 /// ran — `option_env!` is compile-time, so this is fixed for the lifetime of
 /// the running binary). `gmail_connect` checks this before ever opening a
 /// browser window, so a build missing the secrets fails with an honest
@@ -105,7 +105,7 @@ impl Drop for SyncGuard {
 }
 
 pub(crate) fn client_id() -> String {
-    option_env!("KEEPANCE_MS_CLIENT_ID")
+    option_env!("LANTERN_MS_CLIENT_ID")
         .unwrap_or("845ddba0-70ab-4f90-88ba-e3522157e37a")
         .to_string()
 }

@@ -28,7 +28,7 @@ const h = vi.hoisted(() => {
     },
     defaultProvider: '',
     defaultModel: '',
-    // Embedded Keepance Local AI status as local_llm_model_status() would report.
+    // Embedded Lantern Local AI status as local_llm_model_status() would report.
     localStatus: 'absent' as string,
     // Fix 2 (demo readiness): Local-only mode now falls back to Ollama ONLY
     // when it's provably reachable (detectOllama), never blindly — see
@@ -102,7 +102,7 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
 }));
 vi.mock('@/platform/providers/AppLocalProvider', () => ({
   AppLocalProvider: class {
-    kind = 'keepance-local';
+    kind = 'lantern-local';
     getMetadata() { return { model: 'qwen3-4b' }; }
   },
 }));
@@ -168,9 +168,9 @@ describe('localOnlyGuard (A1)', () => {
     expect(() => assertLocalOnlyAllowsSend('ollama')).not.toThrow();
   });
 
-  it('allows the embedded Keepance Local AI send in local-only mode', () => {
+  it('allows the embedded Lantern Local AI send in local-only mode', () => {
     h.mode = 'local-only';
-    expect(() => assertLocalOnlyAllowsSend('keepance-local')).not.toThrow();
+    expect(() => assertLocalOnlyAllowsSend('lantern-local')).not.toThrow();
   });
 
   it('allows cloud sends when NOT in local-only mode', () => {
@@ -199,15 +199,15 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
     expect(provider.kind).toBe('ollama');
   });
 
-  it('prefers the EMBEDDED Keepance Local AI in local-only mode when the model is ready', async () => {
+  it('prefers the EMBEDDED Lantern Local AI in local-only mode when the model is ready', async () => {
     // The live Windows-bench gap: a fresh install with the embedded model ready
     // must use it for Ask/Search, NOT route to an external Ollama that is not
     // installed (which failed with "I couldn't reach your AI provider").
     h.mode = 'local-only';
     h.localStatus = 'ready';
     const resolved = await buildResolvedAskProvider();
-    expect(resolved.providerId).toBe('keepance-local');
-    expect((resolved.provider as unknown as { kind: string }).kind).toBe('keepance-local');
+    expect(resolved.providerId).toBe('lantern-local');
+    expect((resolved.provider as unknown as { kind: string }).kind).toBe('lantern-local');
   });
 
   it('falls back to Ollama in local-only mode ONLY when the embedded model is absent AND Ollama is provably reachable', async () => {
@@ -240,7 +240,7 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
     h.keys = { anthropic: null, openai: null, google: null };
     h.localStatus = 'ready';
     const resolved = await buildResolvedAskProvider();
-    expect(resolved.providerId).toBe('keepance-local');
+    expect(resolved.providerId).toBe('lantern-local');
   });
 
   it('uses the cloud provider (key present) when not in local-only mode', async () => {
@@ -280,7 +280,7 @@ describe('resolveActiveAskProviderId names the real send engine (pre-send badge)
   it('names the embedded model in local-only mode when ready (not a generic Ollama)', async () => {
     h.mode = 'local-only';
     h.localStatus = 'ready';
-    expect(await resolveActiveAskProviderId()).toBe('keepance-local');
+    expect(await resolveActiveAskProviderId()).toBe('lantern-local');
   });
 
   it('names Ollama in local-only mode only when the embedded model is absent', async () => {
@@ -307,6 +307,6 @@ describe('resolveActiveAskProviderId names the real send engine (pre-send badge)
     h.mode = 'direct';
     h.keys = { anthropic: null, openai: null, google: null };
     h.localStatus = 'ready';
-    expect(await resolveActiveAskProviderId()).toBe('keepance-local');
+    expect(await resolveActiveAskProviderId()).toBe('lantern-local');
   });
 });

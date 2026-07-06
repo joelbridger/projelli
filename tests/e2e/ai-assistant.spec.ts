@@ -1,7 +1,7 @@
 /**
  * AI Assistant current surface
  *
- * Keepance 3.0 moved AI chat out of the old sidebar pane. The assistant now
+ * Lantern 3.0 moved AI chat out of the old sidebar pane. The assistant now
  * opens as a main editor tab with AIChatViewer mounted inside it.
  */
 

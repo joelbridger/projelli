@@ -1,7 +1,7 @@
 /**
  * Empty state tests (UX-07)
  *
- * Keepance 3.0 replaced the old sidebar panels with full-page surfaces in the
+ * Lantern 3.0 replaced the old sidebar panels with full-page surfaces in the
  * Spine shell. These tests cover the empty states that still exist in that
  * current shell.
  */

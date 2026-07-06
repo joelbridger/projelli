@@ -11,7 +11,7 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { seedWebDemoClientMap } from '@/web-demo/seedWebDemoClientMap';
 
 const WEBB_ID = 'matter_demo_webb';
-const WEBB_DIR = '/keepance-demo/Webb Household';
+const WEBB_DIR = '/lantern-demo/Webb Household';
 
 beforeEach(() => {
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null });

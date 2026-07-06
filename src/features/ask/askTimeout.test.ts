@@ -260,7 +260,7 @@ describe('createAnswerStallWatchdog', () => {
  * (which can take up to two minutes).
  */
 describe('waitForLocalAiSidecarReady', () => {
-  it('is a no-op for any provider other than keepance-local', async () => {
+  it('is a no-op for any provider other than lantern-local', async () => {
     const checkHealth = vi.fn();
     const startSidecar = vi.fn();
     const onStarting = vi.fn();
@@ -274,13 +274,13 @@ describe('waitForLocalAiSidecarReady', () => {
     expect(onStarting).not.toHaveBeenCalled();
   });
 
-  it('does nothing (never calls onStarting or startSidecar) when off desktop, even for keepance-local', async () => {
+  it('does nothing (never calls onStarting or startSidecar) when off desktop, even for lantern-local', async () => {
     const checkHealth = vi.fn();
     const startSidecar = vi.fn();
     const onStarting = vi.fn();
 
     await waitForLocalAiSidecarReady({
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       checkHealth,
       startSidecar,
       onStarting,
@@ -298,7 +298,7 @@ describe('waitForLocalAiSidecarReady', () => {
     const onStarting = vi.fn();
 
     await waitForLocalAiSidecarReady({
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       checkHealth,
       startSidecar,
       onStarting,
@@ -315,7 +315,7 @@ describe('waitForLocalAiSidecarReady', () => {
     const onStarting = vi.fn();
 
     await waitForLocalAiSidecarReady({
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       checkHealth,
       startSidecar,
       onStarting,
@@ -332,7 +332,7 @@ describe('waitForLocalAiSidecarReady', () => {
     const onStarting = vi.fn();
 
     await waitForLocalAiSidecarReady({
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       checkHealth,
       startSidecar,
       onStarting,
@@ -350,7 +350,7 @@ describe('waitForLocalAiSidecarReady', () => {
 
     await expect(
       waitForLocalAiSidecarReady({
-        providerId: 'keepance-local',
+        providerId: 'lantern-local',
         checkHealth,
         startSidecar,
         onStarting,
@@ -375,7 +375,7 @@ describe('waitForLocalAiSidecarReady', () => {
       const checkHealth = vi.fn().mockResolvedValue(false);
 
       const gatePromise = waitForLocalAiSidecarReady({
-        providerId: 'keepance-local',
+        providerId: 'lantern-local',
         checkHealth,
         startSidecar,
         onStarting,
@@ -423,7 +423,7 @@ describe('waitForLocalAiSidecarReady', () => {
       );
 
       const gatePromise = waitForLocalAiSidecarReady({
-        providerId: 'keepance-local',
+        providerId: 'lantern-local',
         checkHealth,
         startSidecar,
         onStarting,
@@ -466,7 +466,7 @@ describe('waitForLocalAiSidecarReady', () => {
       );
 
       const gatePromise = waitForLocalAiSidecarReady({
-        providerId: 'keepance-local',
+        providerId: 'lantern-local',
         checkHealth,
         startSidecar,
         onStarting,
@@ -496,7 +496,7 @@ describe('waitForLocalAiSidecarReady', () => {
       const checkHealth = vi.fn().mockResolvedValue(true);
 
       await waitForLocalAiSidecarReady({
-        providerId: 'keepance-local',
+        providerId: 'lantern-local',
         checkHealth,
         startSidecar,
         onStarting,

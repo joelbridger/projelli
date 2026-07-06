@@ -1,4 +1,4 @@
-// LIVE end-to-end test of the real Keepance mail pipeline against a real
+// LIVE end-to-end test of the real Lantern mail pipeline against a real
 // Microsoft 365 mailbox. #[ignore]d so it never runs in normal CI — run
 // explicitly with:
 //   cargo test --test mail_e2e -- --ignored --nocapture

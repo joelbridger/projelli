@@ -1,5 +1,5 @@
 /**
- * LocalAiDownloadCard — the opt-in Keepance Local AI download PROGRESS banner.
+ * LocalAiDownloadCard — the opt-in Lantern Local AI download PROGRESS banner.
  * It must stay invisible when there's nothing to show (idle/absent/ready) so the
  * big optional download never nags, and surface progress / errors while active.
  */

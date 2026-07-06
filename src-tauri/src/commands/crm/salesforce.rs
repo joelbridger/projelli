@@ -41,11 +41,11 @@ pub struct SalesforceAccountInfo {
 }
 
 pub fn salesforce_client_id() -> Option<String> {
-    std::env::var("KEEPANCE_SALESFORCE_CLIENT_ID")
+    std::env::var("LANTERN_SALESFORCE_CLIENT_ID")
         .ok()
         .filter(|v| !v.trim().is_empty())
         .or_else(|| {
-            option_env!("KEEPANCE_SALESFORCE_CLIENT_ID")
+            option_env!("LANTERN_SALESFORCE_CLIENT_ID")
                 .filter(|v| !v.trim().is_empty())
                 .map(str::to_string)
         })
@@ -164,7 +164,7 @@ pub struct SalesforceClient {
 impl SalesforceClient {
     pub fn new(stored_json: String) -> anyhow::Result<Self> {
         let client_id = salesforce_client_id()
-            .ok_or_else(|| anyhow::anyhow!("KEEPANCE_SALESFORCE_CLIENT_ID is not configured"))?;
+            .ok_or_else(|| anyhow::anyhow!("LANTERN_SALESFORCE_CLIENT_ID is not configured"))?;
         Self::new_with_token_endpoint(
             stored_json,
             client_id,

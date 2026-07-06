@@ -44,11 +44,11 @@ const SEED_VERSION_KEY = '__keepance_demo_seed_version';
  * The workspace root the demo files actually live under in the app. The seeder
  * writes the raw sample paths (`/Webb Household/...`) into an OPFS directory
  * mounted at this root, so the app — and the matter folder mappings (e.g. the
- * Webb matter is scoped to `/keepance-demo/Webb Household`) — see them
+ * Webb matter is scoped to `/lantern-demo/Webb Household`) — see them
  * root-prefixed. The browser retriever must index the same root-prefixed paths
  * or matter-scoped retrieval would mark every file `unassigned` and drop it.
  */
-export const DEMO_WORKSPACE_ROOT = '/keepance-demo';
+export const DEMO_WORKSPACE_ROOT = '/lantern-demo';
 
 export type DemoProfession = 'advisor' | 'legal' | 'tax' | 'consulting';
 

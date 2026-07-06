@@ -4,7 +4,7 @@
  *
  * The web demo (advisorprephero.com/try, advisor pack) seeds the Webb Household FILES
  * into OPFS but no client record, so its Client Map tab would render empty. This
- * module creates a demo-only matter keyed to the seeded `/keepance-demo/Webb
+ * module creates a demo-only matter keyed to the seeded `/lantern-demo/Webb
  * Household` folder and seeds a hand-authored "solid" Client Map for it — no AI,
  * pure data, exactly like the desktop `seedDemoClients`. Every fact cites a real
  * seeded Webb file, so the [source] chips open the actual demo documents.
@@ -28,10 +28,10 @@ import type {
 } from '@/platform/clientMap/types';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 
-// The demo workspace root is `/keepance-demo`; the seeded Webb files live under
-// `/keepance-demo/Webb Household/...` (root-prefixed, matching the file tree).
+// The demo workspace root is `/lantern-demo`; the seeded Webb files live under
+// `/lantern-demo/Webb Household/...` (root-prefixed, matching the file tree).
 const WEBB_MATTER_ID = 'matter_demo_webb';
-const WEBB_DIR = '/keepance-demo/Webb Household';
+const WEBB_DIR = '/lantern-demo/Webb Household';
 const SEED_TS = '2026-06-13T09:30:00.000Z';
 
 let itemSeq = 0;

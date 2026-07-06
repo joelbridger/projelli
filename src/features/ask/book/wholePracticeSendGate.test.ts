@@ -21,7 +21,7 @@ describe('decideWholePracticeSend (R6 — whole-practice pre-send truth)', () =>
 
   it('does NOT confirm in local-only mode (nothing leaves the machine)', () => {
     expect(decideWholePracticeSend({ provider: 'ollama', clientCount: 40, remembered: false }).needsConfirm).toBe(false);
-    expect(decideWholePracticeSend({ provider: 'keepance-local', clientCount: 40, remembered: false }).needsConfirm).toBe(false);
+    expect(decideWholePracticeSend({ provider: 'lantern-local', clientCount: 40, remembered: false }).needsConfirm).toBe(false);
   });
 
   it('does NOT confirm when nothing would be sent (no clients with facts)', () => {

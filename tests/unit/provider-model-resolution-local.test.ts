@@ -1,10 +1,10 @@
 /**
- * providerModelResolution — Keepance Local AI ('keepance-local') additions.
+ * providerModelResolution — Lantern Local AI ('lantern-local') additions.
  *
  * The embedded engine serves whichever GGUF is loaded, so its model id is
  * cosmetic. Like ollama it carries no fallback model: the picker offers it as a
  * selectable provider with a "Default model" entry and the provider then uses
- * its own KEEPANCE_LOCAL_DEFAULT_MODEL. These tests lock that contract.
+ * its own LANTERN_LOCAL_DEFAULT_MODEL. These tests lock that contract.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -39,13 +39,13 @@ describe('effectiveChatProvider — the privacy-badge fallback fix + its initial
     expect(effectiveChatProvider('openai', 'ready')).toBe('openai');
     expect(effectiveChatProvider('openai', 'absent')).toBe('openai');
     expect(effectiveChatProvider('openai', 'unknown')).toBe('openai');
-    expect(effectiveChatProvider('keepance-local', 'absent')).toBe('keepance-local');
+    expect(effectiveChatProvider('lantern-local', 'absent')).toBe('lantern-local');
   });
 
-  it("an UNSET chat resolves to 'keepance-local' when the embedded model is ready (NEVER a cloud fallback)", () => {
+  it("an UNSET chat resolves to 'lantern-local' when the embedded model is ready (NEVER a cloud fallback)", () => {
     // BLOCKER regression: this is the unset-provider state that made the egress
     // badge falsely claim "data leaves" for an on-device chat.
-    expect(effectiveChatProvider(undefined, 'ready')).toBe('keepance-local');
+    expect(effectiveChatProvider(undefined, 'ready')).toBe('lantern-local');
     expect(effectiveChatProvider(undefined, 'ready')).not.toBe('anthropic');
   });
 
@@ -75,28 +75,28 @@ describe('effectiveChatProvider — the privacy-badge fallback fix + its initial
   });
 
   it('the on-device model still wins over the key list when it is ready', () => {
-    expect(effectiveChatProvider(undefined, 'ready', [])).toBe('keepance-local');
+    expect(effectiveChatProvider(undefined, 'ready', [])).toBe('lantern-local');
     expect(effectiveChatProvider(undefined, 'unknown', [])).toBeNull();
   });
 });
 
-describe("providerModelResolution — 'keepance-local'", () => {
+describe("providerModelResolution — 'lantern-local'", () => {
   it('is part of the ChatProvider union (assignable)', () => {
-    const p: ChatProvider = 'keepance-local';
-    expect(p).toBe('keepance-local');
+    const p: ChatProvider = 'lantern-local';
+    expect(p).toBe('lantern-local');
   });
 
   it('has an empty fallback model (model id is cosmetic, like ollama)', () => {
-    expect(FALLBACK_MODEL['keepance-local']).toBe('');
+    expect(FALLBACK_MODEL['lantern-local']).toBe('');
   });
 
   it('offers no concrete model list (so the picker shows a Default model)', () => {
-    expect(resolveModelsForProvider('keepance-local')).toEqual([]);
+    expect(resolveModelsForProvider('lantern-local')).toEqual([]);
   });
 
   it('resolves to an empty model, letting the provider use its own default', () => {
-    expect(resolveModelForProvider('keepance-local')).toBe('');
+    expect(resolveModelForProvider('lantern-local')).toBe('');
     // A preferred model that does not exist for this provider is ignored.
-    expect(resolveModelForProvider('keepance-local', 'qwen3-4b-instruct-2507')).toBe('');
+    expect(resolveModelForProvider('lantern-local', 'qwen3-4b-instruct-2507')).toBe('');
   });
 });

@@ -122,7 +122,7 @@ export function providerDisplayName(provider: EgressProvider): string {
       return 'Google';
     case 'ollama':
       return 'Ollama';
-    case 'keepance-local':
+    case 'lantern-local':
       return 'Advisor Prep Hero Local AI';
     default:
       return provider;
@@ -131,11 +131,11 @@ export function providerDisplayName(provider: EgressProvider): string {
 
 /**
  * True when a provider id denotes a local (on-machine) model: the embedded
- * Advisor Prep Hero Local AI engine ('keepance-local') or a user-run Ollama daemon
+ * Advisor Prep Hero Local AI engine ('lantern-local') or a user-run Ollama daemon
  * ('ollama'). Both keep all inference on the device.
  */
 export function isLocalProvider(provider: EgressProvider): boolean {
-  return provider === 'ollama' || provider === 'keepance-local';
+  return provider === 'ollama' || provider === 'lantern-local';
 }
 
 export interface ResolveEgressInput {
@@ -178,7 +178,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
   const treatAsLocal = isLocalProvider(provider) || mode === 'local-only';
 
   if (treatAsLocal) {
-    // Preserve the actual local provider id (keepance-local vs ollama) so the
+    // Preserve the actual local provider id (lantern-local vs ollama) so the
     // note names the right engine; fall back to ollama only when local-only mode
     // forced locality on a non-local stored provider.
     const localProvider = isLocalProvider(provider) ? provider : 'ollama';

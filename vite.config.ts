@@ -10,12 +10,12 @@ const __dirname = path.dirname(__filename);
 // Optional HTTPS for the dev server. The browser File System Access API
 // (workspace folder picker) only works in a secure context, so opening the
 // dev server over a plain-http Tailscale/LAN IP disables it. Set
-// KEEPANCE_DEV_HTTPS=1 and provide .certs/dev-{cert,key}.pem to serve over
+// LANTERN_DEV_HTTPS=1 and provide .certs/dev-{cert,key}.pem to serve over
 // https so the folder picker works when testing remotely. Off by default.
 const devCertPath = path.resolve(__dirname, '.certs/dev-cert.pem');
 const devKeyPath = path.resolve(__dirname, '.certs/dev-key.pem');
 const devHttps =
-  process.env['KEEPANCE_DEV_HTTPS'] === '1' && existsSync(devCertPath) && existsSync(devKeyPath)
+  process.env['LANTERN_DEV_HTTPS'] === '1' && existsSync(devCertPath) && existsSync(devKeyPath)
     ? { cert: readFileSync(devCertPath), key: readFileSync(devKeyPath) }
     : undefined;
 

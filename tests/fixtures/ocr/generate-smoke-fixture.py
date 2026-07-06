@@ -20,7 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 WIDTH, HEIGHT = 720, 100
 # The smoke test asserts recognition of this sentence (lowercased contains-check)
 # and that mean word confidence clears the OCR_LOW_CONFIDENCE = 60 convention.
-SENTENCE = "Keepance reads scanned pages locally."
+SENTENCE = "Lantern reads scanned pages locally."
 FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
 
 out_dir = pathlib.Path(__file__).parent

@@ -10,7 +10,7 @@ import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 
 export interface ResolvedEmailProvider {
   provider: Provider;
-  /** 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local' — always
+  /** 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local' — always
    *  accurate, unlike `provider.getMetadata().providerId`, which only the
    *  local providers set (a cloud provider's metadata leaves it undefined). */
   providerId: string;

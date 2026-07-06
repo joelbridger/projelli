@@ -2,14 +2,14 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
-// icon.ico was regenerated 2026-06-10 from the Keepance brand master.
+// icon.ico was regenerated 2026-06-10 from the Lantern brand master.
 // It must never regress to the stale Projelli icon below.
 const STALE_PROJELLI_ICO_SHA256 = '6f3d612509bd8cf122c00b241d40b53a4fdfdbc01c9b2028fe9b82011b8fa4d7';
 
 // icon.icns (macOS) was stale Projelli art until 2026-06-10 too; guard it the same way (campaign finding F-003).
 const STALE_PROJELLI_ICNS_SHA256 = '6682c59636aece208cd4beda3432402a892d048ffad268f8edcb2366beab1abc';
 
-describe('app icons are Keepance brand', () => {
+describe('app icons are Lantern brand', () => {
   it('icon.ico is not the stale Projelli icon', () => {
     const buf = readFileSync('src-tauri/icons/icon.ico');
     expect(createHash('sha256').update(buf).digest('hex')).not.toBe(STALE_PROJELLI_ICO_SHA256);

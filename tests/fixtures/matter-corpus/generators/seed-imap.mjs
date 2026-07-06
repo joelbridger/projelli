@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Seed the Greenmail test IMAP server with 12 realistic emails for the
- * Keepance campaign fixture: attorney Diane Marchetti at
+ * Lantern campaign fixture: attorney Diane Marchetti at
  * diane@marchetti-law.test.
  *
  * The emails cover the Johnson v. Nexus Dynamics matter and include:

@@ -2,7 +2,7 @@
  * Q11 (Wave 1.5) — Sample workspace seed files.
  *
  * Verifies the three Markdown samples under src/platform/matter/samples exist on
- * disk, contain no em dashes (Keepance voice rule — see
+ * disk, contain no em dashes (Lantern voice rule — see
  * `feedback_no_em_dashes.md`), and each begins with a `# Sample:` heading as
  * required by the spec.
  *

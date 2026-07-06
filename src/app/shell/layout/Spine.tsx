@@ -1,5 +1,5 @@
 /**
- * Spine — the matter-centric navy "Spine" nav, brand-matched to keepance.com.
+ * Spine — the matter-centric navy "Spine" nav, brand-matched to lantern.com.
  * The 3-tab IA: Client Map · Ask · Workflows. Documents, Email, Activity Log,
  * Privacy Center, and Settings are reached via the gear menu, the Ask source
  * filter, and Client Map quick actions — they stay routable content surfaces,
@@ -37,7 +37,7 @@ interface SpineProps {
   onCollapsedChange?: ((next: boolean) => void) | undefined;
 }
 
-/** The Advisor Prep Hero keep-mark from keepance.com — white keep + gradient sparkle. */
+/** The Advisor Prep Hero keep-mark from lantern.com — white keep + gradient sparkle. */
 function AppBrandMark() {
   return (
     <svg viewBox="0 99 651 652" width="22" height="22" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style={{ flex: 'none' }}>

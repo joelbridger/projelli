@@ -1,7 +1,7 @@
 /**
  * telemetry-consent.test.ts — unit tests for the anonymous-telemetry consent gate.
  *
- * This test guards the "no telemetry by default" promise that the Keepance
+ * This test guards the "no telemetry by default" promise that the Lantern
  * trust story depends on. Any regression that lets events escape without
  * explicit consent breaks the product's core privacy claim.
  *

@@ -97,8 +97,8 @@ export function ChatModelPicker({
   const providers = useMemo(() => {
     const available = resolveAvailableProviders(apiKeys);
     let withLocal: ChatProvider[] = available;
-    if (localAiReady && !withLocal.includes('keepance-local')) {
-      withLocal = ['keepance-local' as ChatProvider, ...withLocal];
+    if (localAiReady && !withLocal.includes('lantern-local')) {
+      withLocal = ['lantern-local' as ChatProvider, ...withLocal];
     }
     if (ollama.reachable && !withLocal.includes('ollama')) {
       withLocal = [...withLocal, 'ollama' as ChatProvider];
@@ -124,7 +124,7 @@ export function ChatModelPicker({
   // clear a signal as selecting Local-only mode — kick off the sidecar now
   // instead of waiting for the first message to discover it isn't running yet.
   const handleSelect = (p: ChatProvider, modelId: string): void => {
-    if (p === 'keepance-local') preStartLocalAi();
+    if (p === 'lantern-local') preStartLocalAi();
     onSelect(p, modelId);
   };
 

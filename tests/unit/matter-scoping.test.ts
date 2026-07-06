@@ -38,7 +38,7 @@ function makeFile(path: string): ExtractedContext {
 // ---------------------------------------------------------------------------
 
 describe('filterByScope', () => {
-  const ROOT = '/home/jane/Keepance';
+  const ROOT = '/home/jane/Lantern';
 
   it('returns all paths unchanged when scopedFolder is null', () => {
     const paths = [
@@ -186,7 +186,7 @@ describe('getTopLevelFolderNames', () => {
 // ---------------------------------------------------------------------------
 
 describe('matter scoping with ExtractedContext objects', () => {
-  const ROOT = '/Users/lawyer/Keepance';
+  const ROOT = '/Users/lawyer/Lantern';
 
   it('given a set of open files and a scopedFolder, returns only matching files', () => {
     const allFiles: ExtractedContext[] = [

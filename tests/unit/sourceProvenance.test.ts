@@ -1,7 +1,7 @@
 /**
  * sourceProvenance — recognizing the OUTPUT of external advisor tools
  * (RightCapital financial plans, Jump meeting notes) wherever it lands in the
- * pile, so Keepance can label it honestly, date it, de-duplicate it, and warn
+ * pile, so Lantern can label it honestly, date it, de-duplicate it, and warn
  * when a plan snapshot is stale.
  *
  * Per docs/strategy/2026-06-29-connector-access-options-rightcapital-jump.md:

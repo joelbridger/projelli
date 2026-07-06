@@ -117,7 +117,7 @@ pub struct EscrowJson {
 /// A single admin-device VMK wrap entry in the escrow section.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AdminWrapJson {
-    /// Identifies the admin user (e.g. their Keepance user ID).
+    /// Identifies the admin user (e.g. their Lantern user ID).
     pub user_id: String,
     /// Identifies the admin's device (the ECDH public key fingerprint or device UUID).
     pub device_id: String,

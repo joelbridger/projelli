@@ -1,5 +1,5 @@
 /**
- * app.mjs — high-level Keepance-specific helpers built on the WebDriver Session.
+ * app.mjs — high-level Lantern-specific helpers built on the WebDriver Session.
  *
  * These encode the app's real entry flows so specs stay short and read like a
  * user story. The localStorage seeding mirrors the proven probe: it bypasses

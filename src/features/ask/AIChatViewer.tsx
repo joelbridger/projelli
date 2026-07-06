@@ -497,7 +497,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         }
 
         // One front door: build through the shared factory (fix F2.2). Local
-        // ids ('ollama'/'keepance-local') construct the local engine and ignore
+        // ids ('ollama'/'lantern-local') construct the local engine and ignore
         // the empty key; cloud ids use the validated key resolved above. The
         // factory throws on an unknown id rather than defaulting to a cloud
         // provider, so a local/confidential selection can never be downgraded.

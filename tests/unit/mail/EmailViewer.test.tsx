@@ -1,5 +1,5 @@
 /**
- * EmailViewer (Keepance 3.0) — the read-only mail viewer.
+ * EmailViewer (Lantern 3.0) — the read-only mail viewer.
  *
  * Verifies that:
  *   - it fetches the message by id and renders from / to / cc / subject / date,

@@ -118,7 +118,7 @@ export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
   chatData: AIChatFile;
   /** Whether the embedded Advisor Prep Hero Local AI model is ready — so a chat with no
-   *  saved provider resolves to 'keepance-local' (on-device) instead of a cloud
+   *  saved provider resolves to 'lantern-local' (on-device) instead of a cloud
    *  fallback. Keeps the send path in agreement with the egress badge. */
   localAvailability: LocalModelAvailability;
   onSave: ((updatedChat: AIChatFile) => void) | undefined;
@@ -324,8 +324,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // Use the chat's ACTUAL local engine for compression so a Advisor Prep Hero Local
       // AI chat isn't silently rerouted to the user's Ollama daemon (which may
       // not even be running). Both stay fully on-device.
-      return chatProvider === 'keepance-local'
-        ? createProvider({ provider: 'keepance-local' })
+      return chatProvider === 'lantern-local'
+        ? createProvider({ provider: 'lantern-local' })
         : createProvider({ provider: 'ollama' });
     }
     // Personal-install choice gate (Task 1.3 fix): compression is cloud generation;
@@ -1471,7 +1471,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // WS-C honesty — one front door (fix F2.2): this is the single chat
           // send path, and it builds the provider through the shared factory so
           // it can never drift from redline / Client Map / At-a-Glance on which
-          // provider a selection maps to. A LOCAL id ('ollama'/'keepance-local')
+          // provider a selection maps to. A LOCAL id ('ollama'/'lantern-local')
           // constructs the on-device engine and ignores the empty key + assured
           // route; the factory throws on an unknown id rather than defaulting to
           // Claude, so a confidential/local chat can never be silently routed to

@@ -74,7 +74,7 @@ fn derive_kek(entropy: &[u8], salt: &[u8]) -> [u8; 32] {
 ///
 /// Returns `(phrase_string, RecoveryWrap)`. The phrase is the ONLY way to recover
 /// the VMK if the keychain is lost. It must be shown to the user once and never
-/// stored by Keepance.
+/// stored by Lantern.
 ///
 /// Security guarantees:
 /// - The 256-bit entropy and the derived KEK are zeroized after use.

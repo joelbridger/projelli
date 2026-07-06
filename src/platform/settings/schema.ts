@@ -773,7 +773,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'aboutWebsite',
     category: 'help',
     label: 'Website',
-    description: 'Open keepance.com in your browser.',
+    description: 'Open lantern.com in your browser.',
     type: 'text',
     defaultValue: '',
     action: { label: 'Open website', actionId: 'open-website' },

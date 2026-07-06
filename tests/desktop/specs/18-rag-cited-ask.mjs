@@ -22,7 +22,7 @@ const ANSWER_TOKEN = 'MARIGOLD-4820';
 const FACT = `The Alvarez matter file number is ${ANSWER_TOKEN}.`;
 const QUERY = 'What is the file number for the Alvarez matter?';
 const MODEL_BLOCKED =
-  'BLOCKED: needs the intfloat/multilingual-e5-small embedding model downloaded by the desktop model_ensure command from Hugging Face into Keepance app data; headless model preparation did not reach ready.';
+  'BLOCKED: needs the intfloat/multilingual-e5-small embedding model downloaded by the desktop model_ensure command from Hugging Face into Lantern app data; headless model preparation did not reach ready.';
 
 export default {
   name: '18-rag-cited-ask',

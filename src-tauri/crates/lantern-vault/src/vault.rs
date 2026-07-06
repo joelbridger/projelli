@@ -171,7 +171,7 @@ where
             .map_err(|e| VaultError::io(&path, e))?;
 
         if file_type.is_dir() {
-            // Never descend into Keepance-internal store dirs (read raw by other
+            // Never descend into Lantern-internal store dirs (read raw by other
             // subsystems); encrypting their contents would corrupt those stores.
             if should_skip_dirname(&name_str) {
                 continue;

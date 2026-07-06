@@ -38,7 +38,7 @@ export interface DemoFile {
 /**
  * Normalise a raw sample path (`/Webb Household/Financial Plan Summary.md`) to
  * the workspace-root-prefixed path the app and the matter folder mappings use
- * (`/keepance-demo/Webb Household/Financial Plan Summary.md`). Without this,
+ * (`/lantern-demo/Webb Household/Financial Plan Summary.md`). Without this,
  * `resolveMatterForPath` marks every seeded file `unassigned` and a
  * client-scoped Ask returns zero hits (and source chips would point outside the
  * workspace root and fail to open). Idempotent: a path already under the root is
@@ -172,7 +172,7 @@ export function createDemoRetriever(
  * the workspace is seeded, so the first Ask query already has a working index.
  *
  * `root` is the workspace root the files actually live under (e.g.
- * `/keepance-demo`); the raw sample paths are normalised to it so chunk paths
+ * `/lantern-demo`); the raw sample paths are normalised to it so chunk paths
  * line up with the matter folder mappings (matter-scoped retrieval) and with the
  * file viewer (clickable source chips).
  */

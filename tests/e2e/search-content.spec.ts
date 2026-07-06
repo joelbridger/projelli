@@ -1,7 +1,7 @@
 /**
  * Search surface
  *
- * Keepance 3.0 replaced the old filename/content result-card panel with the
+ * Lantern 3.0 replaced the old filename/content result-card panel with the
  * cited Ask search surface. These tests pin the visible controls that exist
  * today without sending a real AI request.
  */

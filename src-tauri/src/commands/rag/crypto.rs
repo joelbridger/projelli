@@ -67,7 +67,7 @@ pub fn path_token(master_key: &[u8; KEY_LEN], path: &str) -> String {
 /// Get the vector-store master key from the OS keychain, creating and storing it
 /// on first call. Returns the 32-byte key as a fixed-size array.
 pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
-    if let Ok(hex) = std::env::var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX") {
+    if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX") {
         let bytes =
             hex::decode(hex.trim()).context("decode headless test vectors master key hex")?;
         if bytes.len() != KEY_LEN {

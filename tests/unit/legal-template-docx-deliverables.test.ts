@@ -1,7 +1,7 @@
 /**
  * F-112 — Legal pack deliverables must be real .docx files, not .md files.
  *
- * Keepance 3.0 positions Word as the first-class format: "Real Word documents
+ * Lantern 3.0 positions Word as the first-class format: "Real Word documents
  * in a normal folder." Every legal template's generate/analyze step should
  * produce a .docx deliverable, not a SCREAMING_SNAKE .md file.
  *

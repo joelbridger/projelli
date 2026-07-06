@@ -32,7 +32,7 @@ const doc: DocumentJson = {
   comments: {},
 };
 
-const ROOT = '/home/user/Keepance';
+const ROOT = '/home/user/Lantern';
 
 describe('docx-commands path resolution (relative → absolute)', () => {
   beforeEach(() => {

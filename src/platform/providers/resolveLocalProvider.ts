@@ -23,7 +23,7 @@ import type { Provider } from '@/platform/providers/Provider';
 
 export interface ResolvedLocalProvider {
   provider: Provider;
-  providerId: 'keepance-local' | 'ollama';
+  providerId: 'lantern-local' | 'ollama';
   model: string;
 }
 
@@ -50,7 +50,7 @@ export async function isEmbeddedLocalModelReady(): Promise<boolean> {
 export async function resolveLocalGenerationProvider(): Promise<ResolvedLocalProvider> {
   if (await isEmbeddedLocalModelReady()) {
     const provider = new AppLocalProvider({});
-    return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
+    return { provider, providerId: 'lantern-local', model: provider.getMetadata().model };
   }
   const provider = new OllamaProvider({});
   return { provider, providerId: 'ollama', model: provider.getMetadata().model };
@@ -67,7 +67,7 @@ export async function resolveLocalGenerationProvider(): Promise<ResolvedLocalPro
 export async function resolveAvailableLocalGenerationProvider(): Promise<ResolvedLocalProvider | null> {
   if (await isEmbeddedLocalModelReady()) {
     const provider = new AppLocalProvider({});
-    return { provider, providerId: 'keepance-local', model: provider.getMetadata().model };
+    return { provider, providerId: 'lantern-local', model: provider.getMetadata().model };
   }
 
   try {

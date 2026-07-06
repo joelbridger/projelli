@@ -75,7 +75,7 @@ export function resolveTemplateModel(
 /**
  * Discriminated union for the result of resolveWorkflowProvider.
  *
- *   'keepance-local'   — run on the embedded Advisor Prep Hero Local AI (on-device,
+ *   'lantern-local'   — run on the embedded Advisor Prep Hero Local AI (on-device,
  *                        downloaded + ready). Preferred local engine in private
  *                        mode — needs no separate Ollama daemon.
  *   'ollama'           — run locally on Ollama (reachable, confirmed by caller)

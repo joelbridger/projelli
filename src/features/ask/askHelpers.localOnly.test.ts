@@ -36,7 +36,7 @@ describe('Local-only mode never silently swaps to an unreachable Ollama (Fix 2)'
   });
 
   it('resolves to the embedded local engine when it is ready', async () => {
-    const fakeProvider = { provider: {}, providerId: 'keepance-local' as const, model: 'qwen3-4b' };
+    const fakeProvider = { provider: {}, providerId: 'lantern-local' as const, model: 'qwen3-4b' };
     resolveAvailableLocalGenerationProviderMock.mockResolvedValue(fakeProvider);
 
     const resolved = await buildResolvedAskProvider();
@@ -67,7 +67,7 @@ describe('Local-only mode never silently swaps to an unreachable Ollama (Fix 2)'
     resolveAvailableLocalGenerationProviderMock.mockResolvedValue(null);
     await expect(resolveLocalOnlyAskProvider()).rejects.toThrow(LOCAL_AI_NOT_READY_MESSAGE);
 
-    const fakeProvider = { provider: {}, providerId: 'keepance-local' as const, model: 'qwen3-4b' };
+    const fakeProvider = { provider: {}, providerId: 'lantern-local' as const, model: 'qwen3-4b' };
     resolveAvailableLocalGenerationProviderMock.mockResolvedValue(fakeProvider);
     await expect(resolveLocalOnlyAskProvider()).resolves.toBe(fakeProvider);
   });

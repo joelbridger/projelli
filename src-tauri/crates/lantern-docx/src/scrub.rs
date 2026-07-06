@@ -114,7 +114,7 @@ const SCRUBBED_CORE_XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standa
 /// keep `Application` (it identifies the producing app, not the user) so the
 /// file still looks like a normal Office document, and drop `Company`,
 /// `Manager`, `Template`, edit-time, the title-of-parts outline, etc.
-const SCRUBBED_APP_XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\"><Application>Keepance</Application></Properties>";
+const SCRUBBED_APP_XML: &str = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n<Properties xmlns=\"http://schemas.openxmlformats.org/officeDocument/2006/extended-properties\" xmlns:vt=\"http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes\"><Application>Lantern</Application></Properties>";
 
 /// Strip identifying metadata from a package IN PLACE: replace
 /// `docProps/core.xml` and `docProps/app.xml` with scrubbed skeletons, remove

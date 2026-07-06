@@ -1,6 +1,6 @@
 /**
  * Exhaustive tests for the entitlement decision layer — the single most
- * important safety gate before Keepance 3.0 ships.
+ * important safety gate before Lantern 3.0 ships.
  *
  * The non-negotiable invariant under test: DATA ACCESS IS ALWAYS TRUE. No
  * input combination may ever yield a state where the user cannot open, edit, or

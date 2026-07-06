@@ -1,7 +1,7 @@
 /**
  * API key management tests.
  *
- * Keepance 3.0 moved key management out of the old AI Assistant "Keys" tab.
+ * Lantern 3.0 moved key management out of the old AI Assistant "Keys" tab.
  * The current path is Settings -> AI & Privacy -> Manage AI Account Keys,
  * backed by the ApiKeyManager dialog and the add-key wizard.
  */

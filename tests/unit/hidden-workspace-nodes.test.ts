@@ -13,7 +13,7 @@ import {
 } from '@/features/documents/workspace/hiddenNodes';
 
 describe('hidden workspace nodes', () => {
-  it('hides Keepance-internal entries (.keepance)', () => {
+  it('hides Lantern-internal entries (.keepance)', () => {
     expect(isHiddenNode({ name: '.lantern' })).toBe(true);
   });
 

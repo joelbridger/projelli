@@ -1,6 +1,6 @@
 # Matter Corpus — Campaign Fixture Files
 
-Fixture corpus for the Keepance 3.0 quality campaign. Used by:
+Fixture corpus for the Lantern 3.0 quality campaign. Used by:
 - Playwright campaign specs (`tests/campaign/`)
 - Rust fixture validation tests (`src-tauri/crates/keepance-docx/tests/campaign_fixtures.rs`)
 

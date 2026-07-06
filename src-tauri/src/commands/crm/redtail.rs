@@ -424,10 +424,10 @@ impl CrmSource for RedtailClient {
 }
 
 pub fn redtail_api_key() -> anyhow::Result<String> {
-    let key = std::env::var("KEEPANCE_REDTAIL_API_KEY")
+    let key = std::env::var("LANTERN_REDTAIL_API_KEY")
         .ok()
         .filter(|v| !v.trim().is_empty())
-        .ok_or_else(|| anyhow::anyhow!("KEEPANCE_REDTAIL_API_KEY is not configured"))?;
+        .ok_or_else(|| anyhow::anyhow!("LANTERN_REDTAIL_API_KEY is not configured"))?;
     Ok(key)
 }
 

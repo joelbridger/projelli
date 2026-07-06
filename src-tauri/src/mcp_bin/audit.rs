@@ -4,7 +4,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use lantern_lib::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
 use serde_json::{json, Value};
 
-const TEST_AUDIT_KEY_ENV: &str = "KEEPANCE_MCP_AUDIT_KEY_HEX";
+const TEST_AUDIT_KEY_ENV: &str = "LANTERN_MCP_AUDIT_KEY_HEX";
 
 pub fn append_mcp_audit(
     workspace_root: &Path,

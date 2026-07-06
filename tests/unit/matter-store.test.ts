@@ -25,7 +25,7 @@ import {
   setMatterAuditEmitter,
 } from '@/platform/matter/matterStore';
 
-const ROOT = '/home/lawyer/Keepance';
+const ROOT = '/home/lawyer/Lantern';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });

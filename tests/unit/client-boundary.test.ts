@@ -21,7 +21,7 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('getTopLevelFolder', () => {
-  const ROOT = '/home/jane/Keepance';
+  const ROOT = '/home/jane/Lantern';
 
   it('returns the immediate child folder for a deeply nested file', () => {
     expect(

@@ -54,7 +54,7 @@ test.describe('v1.5 Flag 1 — Memory', () => {
 
     const input = page.getByTestId('settings-facts-add-input');
     const addBtn = page.getByTestId('settings-facts-add');
-    await input.fill('The user is shipping Keepance v1.5 in April 2026');
+    await input.fill('The user is shipping Lantern v1.5 in April 2026');
     await expect(addBtn).toBeEnabled();
     await addBtn.click();
 
@@ -62,7 +62,7 @@ test.describe('v1.5 Flag 1 — Memory', () => {
     await expect(input).toHaveValue('');
     const factsTable = page.getByTestId('settings-facts-table');
     await expect(factsTable).toBeVisible();
-    await expect(factsTable).toContainText('shipping Keepance v1.5');
+    await expect(factsTable).toContainText('shipping Lantern v1.5');
   });
 
   test('AI Assistant pane mounts without error', async ({ page }) => {

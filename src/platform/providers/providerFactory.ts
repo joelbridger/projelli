@@ -21,7 +21,7 @@ import type { AssuredRoute } from '@/platform/firm/assuredInference';
 /**
  * The provider ids the chat surfaces use.
  *
- * `'keepance-local'` (the embedded llama.cpp engine) and `'ollama'` (a user-run
+ * `'lantern-local'` (the embedded llama.cpp engine) and `'ollama'` (a user-run
  * Ollama daemon at 127.0.0.1:11434) are the LOCAL providers — inference runs on
  * the user's own machine, nothing leaves the device, and they need no API key.
  * The other three are cloud providers reached BYOK (the user's own key, direct
@@ -29,7 +29,7 @@ import type { AssuredRoute } from '@/platform/firm/assuredInference';
  * redline) constructs the same provider for the same id and they can never
  * drift on which selection is local vs cloud.
  */
-export type ChatProviderId = CloudProviderId | 'ollama' | 'keepance-local'; // 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local'
+export type ChatProviderId = CloudProviderId | 'ollama' | 'lantern-local'; // 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local'
 
 /** Default model for the embedded Advisor Prep Hero Local AI engine — defined in
  *  AppLocalProvider and re-exported here so factory callers/tests can
@@ -38,11 +38,11 @@ export { LANTERN_LOCAL_DEFAULT_MODEL };
 
 /**
  * True when a provider id denotes a LOCAL (on-machine) model — either the
- * embedded Advisor Prep Hero Local AI engine (`'keepance-local'`) or a user-run Ollama
+ * embedded Advisor Prep Hero Local AI engine (`'lantern-local'`) or a user-run Ollama
  * daemon (`'ollama'`). Both run inference on the user's machine; nothing leaves.
  */
 export function isLocalProviderId(provider: ChatProviderId): boolean {
-  return provider === 'ollama' || provider === 'keepance-local';
+  return provider === 'ollama' || provider === 'lantern-local';
 }
 
 export interface CreateProviderOptions {
@@ -85,7 +85,7 @@ export function createProvider(opts: CreateProviderOptions): Provider {
       const model = opts.model ?? OLLAMA_DEFAULT_MODEL;
       return new OllamaProvider({ model, ...rulesOpt });
     }
-    case 'keepance-local': {
+    case 'lantern-local': {
       // Embedded llama.cpp engine ("Advisor Prep Hero Local AI"). Local, keyless, $0,
       // never assured-routed. The Rust side owns the model download + sidecar
       // lifecycle; the provider streams from the local sidecar endpoint.

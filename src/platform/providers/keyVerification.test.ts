@@ -61,7 +61,7 @@ describe('isVerifiableProvider', () => {
   });
 
   it('rejects local engines, which have no key to verify', () => {
-    expect(isVerifiableProvider('keepance-local')).toBe(false);
+    expect(isVerifiableProvider('lantern-local')).toBe(false);
     expect(isVerifiableProvider('ollama')).toBe(false);
     expect(isVerifiableProvider('none')).toBe(false);
   });

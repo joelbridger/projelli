@@ -1,5 +1,5 @@
 /**
- * Smoke spec — Keepance 3.0 campaign baseline.
+ * Smoke spec — Lantern 3.0 campaign baseline.
  *
  * Loads ?testMode=true, asserts:
  *   - app shell is visible (sidebar + status-bar + app-container)

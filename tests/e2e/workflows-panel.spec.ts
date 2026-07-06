@@ -1,7 +1,7 @@
 /**
  * Workflows surface tests
  *
- * Keepance 3.0 replaced the old narrow WorkflowPanel + "full view" modal
+ * Lantern 3.0 replaced the old narrow WorkflowPanel + "full view" modal
  * with the main Workflows page (`AssociateHome`). These tests cover the
  * current user-facing workflow picker instead of the removed modal.
  */

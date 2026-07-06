@@ -125,10 +125,10 @@ function localResolved() {
         h.capturedLocalPrompt = opts.systemPrompt ?? '';
         return h.localSend(q, opts);
       },
-      getMetadata: () => ({ model: 'keepance-local-stub' }),
+      getMetadata: () => ({ model: 'lantern-local-stub' }),
     },
-    providerId: 'keepance-local' as const,
-    model: 'keepance-local-stub',
+    providerId: 'lantern-local' as const,
+    model: 'lantern-local-stub',
   };
 }
 
@@ -206,7 +206,7 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     });
     h.localSend.mockResolvedValue({
       content: `Grounded [plan.pdf paragraph 2].`,
-      usage: { inputTokens: 5, outputTokens: 5 }, cost: 0, model: 'keepance-local-stub',
+      usage: { inputTokens: 5, outputTokens: 5 }, cost: 0, model: 'lantern-local-stub',
     });
   });
 

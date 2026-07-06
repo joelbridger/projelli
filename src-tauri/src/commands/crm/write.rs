@@ -1238,7 +1238,7 @@ mod tests {
     }
 
     /// Minimal valid Salesforce token-set JSON — bypasses the
-    /// `KEEPANCE_SALESFORCE_CLIENT_ID` env requirement in `SalesforceClient::new`
+    /// `LANTERN_SALESFORCE_CLIENT_ID` env requirement in `SalesforceClient::new`
     /// by constructing directly via `new_with_token_endpoint`.
     fn salesforce_client() -> crate::commands::crm::salesforce::SalesforceClient {
         let stored_json = serde_json::json!({
@@ -1258,7 +1258,7 @@ mod tests {
 
     #[tokio::test]
     async fn redtail_and_salesforce_writes_return_typed_not_supported() {
-        // RedtailClient::new() requires KEEPANCE_REDTAIL_API_KEY (redtail_api_key()),
+        // RedtailClient::new() requires LANTERN_REDTAIL_API_KEY (redtail_api_key()),
         // unset in tests — new_with_base bypasses it, matching redtail.rs's own tests.
         let r = crate::commands::crm::redtail::RedtailClient::new_with_base(
             "api-key".into(),
@@ -1288,8 +1288,8 @@ mod tests {
         let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
         assert_eq!(wb.provider_id(), "wealthbox");
 
-        // Redtail/Salesforce's real constructors need KEEPANCE_REDTAIL_API_KEY /
-        // KEEPANCE_SALESFORCE_CLIENT_ID configured. Whether they ARE configured
+        // Redtail/Salesforce's real constructors need LANTERN_REDTAIL_API_KEY /
+        // LANTERN_SALESFORCE_CLIENT_ID configured. Whether they ARE configured
         // on this machine is genuinely out of this test's control: both
         // `redtail_api_key()` and `salesforce_client_id()` also fall back to
         // `option_env!`, a COMPILE-TIME value baked into the binary — a

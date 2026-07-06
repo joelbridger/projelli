@@ -1,5 +1,5 @@
 /**
- * Keepance 3.0 — audit "defense file" provenance events.
+ * Lantern 3.0 — audit "defense file" provenance events.
  *
  * These pin that the new structured AuditEvents are emitted AT THEIR ACTION
  * POINTS in the chat send path (via the `onAuditLog` callback). The audit log
@@ -176,7 +176,7 @@ async function sendWorkspaceMessage(
   await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalled());
 }
 
-describe('Keepance 3.0 audit provenance events', () => {
+describe('Lantern 3.0 audit provenance events', () => {
   beforeEach(() => {
     mocks.retrieve.mockReset();
     mocks.sendMessage.mockReset();

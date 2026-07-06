@@ -38,7 +38,7 @@ describe('provider front door (F2.2): createProvider is the one door', () => {
     expect(createProvider({ provider: 'google', apiKey: 'k' })).toBeInstanceOf(GeminiProvider);
     // Local: on-device engines, keyless — a local id can NEVER become a cloud provider.
     expect(createProvider({ provider: 'ollama' })).toBeInstanceOf(OllamaProvider);
-    expect(createProvider({ provider: 'keepance-local' })).toBeInstanceOf(AppLocalProvider);
+    expect(createProvider({ provider: 'lantern-local' })).toBeInstanceOf(AppLocalProvider);
   });
 
   it('throws loudly on an unknown id instead of defaulting to a cloud provider', () => {
@@ -52,7 +52,7 @@ describe('provider front door (F2.2): createProvider is the one door', () => {
 
   it('agrees with isLocalProviderId on which selections are on-device', () => {
     expect(isLocalProviderId('ollama')).toBe(true);
-    expect(isLocalProviderId('keepance-local')).toBe(true);
+    expect(isLocalProviderId('lantern-local')).toBe(true);
     expect(isLocalProviderId('anthropic')).toBe(false);
     expect(isLocalProviderId('openai')).toBe(false);
     expect(isLocalProviderId('google')).toBe(false);
