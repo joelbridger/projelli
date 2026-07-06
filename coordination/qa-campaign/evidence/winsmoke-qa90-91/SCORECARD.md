@@ -48,6 +48,16 @@ This is a different failure *presentation* than QA-81 (which hung silently forev
 
 **Evidence:** `17-record-meeting-dialog.jpeg` through `19-recording-started.jpeg` (Legion side, notice card "joining"), `20-guest-joined-2person-meeting.jpeg` / `21-host-view-2person.jpeg` (real 2-person roster), `22-legion-recorder-widget-check.jpeg` (explicit failure message after ~9 min), `23-guest-participants-panel-no-notice-bot.jpeg` (Participants panel, no notice-card bot), `24-guest-chat-no-notice-message.jpeg` (chat log, no notice message), `25-recording-stopped.jpeg` (recording/notes pipeline worked fine).
 
+### Redo — root-causing one step further (per coordinator intel)
+
+Mid-task, coordinator intel arrived: the Notice Card is actually a **companion guest participant** (not a passive banner) that joins the meeting like any other guest and must be **admitted from the host's own Teams lobby** — success means the card's video tile is visible on the second participant's screen, and "the app marking it present" isn't proof of anything. This meant my first pass might have missed a real admit request sitting in the host's lobby the whole time.
+
+**Redo:** created a brand-new live meeting, started Legion recording again, and this time **watched the HOST's own Teams lobby/People panel directly** — polled 9 times over ~135 seconds while the recorder showed "Notice card joining". **Result: zero lobby or admit requests ever appeared from any bot.** The recorder failed even faster this time (4:35 vs. ~9 min in the first run) with the same message, **"Notice card couldn't join. Say the notice aloud."**
+
+**This rules out "unadmitted guest sitting in the lobby" as the explanation and confirms a more precise root cause:** the notice-card automation never gets far enough to even ask Teams to let it in — it's failing at (or before) creating the hidden WebView2 window used to drive the join, exactly matching the backend crash already logged in QA-81 (`failed to create webview: WebView2 error: WindowsError(HRESULT(0x8007139F), ...)`). This is a real, deeper bug in the notice-card's automation engine, not a UI/lobby-attention gap.
+
+**Additional evidence:** `26-redo-recording-started.jpeg` (2nd live meeting, recording started), `27-redo-recorder-status-after-2min.jpeg` (failure at 4:35, faster than run 1's ~9 min, after confirming zero lobby requests appeared on the host side).
+
 ---
 
 ## State restored after testing
