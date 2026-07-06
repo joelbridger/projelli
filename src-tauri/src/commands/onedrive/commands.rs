@@ -405,9 +405,16 @@ async fn wait_for_sync_idle(is_syncing: &AtomicBool, max: Duration) -> bool {
 /// for (the imported documents sitting in the user's client folders). Returns
 /// the workspace-relative paths that could NOT be removed — empty means every
 /// file is gone. A file already missing (the user moved/deleted it themselves)
-/// counts as successfully removed. The store is opened by the caller-supplied
-/// `open_store` so tests can inject a known key instead of the OS keychain.
-fn delete_materialized_files<F>(ws: &std::path::Path, open_store: &F) -> Result<Vec<String>, String>
+/// counts as successfully removed. After each successful file removal, the
+/// matching normal-document RAG rows are purged by path too; that cleanup is
+/// part of the disconnect, not just a best-effort watcher side effect. The
+/// store is opened by the caller-supplied `open_store` so tests can inject a
+/// known key instead of the OS keychain.
+async fn delete_materialized_files<F>(
+    ws: &std::path::Path,
+    open_store: &F,
+    rag_key: &[u8; 32],
+) -> Result<Vec<String>, String>
 where
     F: Fn(&std::path::Path) -> anyhow::Result<OneDriveStore>,
 {
@@ -422,13 +429,37 @@ where
     let canon_ws = ws
         .canonicalize()
         .map_err(|e| format!("workspace root unavailable, cannot delete safely: {e}"))?;
+    let conn = crate::commands::rag::store::open_connection(ws)
+        .await
+        .map_err(|e| e.to_string())?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
     let mut failed = Vec::new();
     for rel in paths {
         match crate::commands::pathguard::canonicalize_workspace_relative(&canon_ws, &rel) {
             // A safe, contained, symlink-free path that exists on disk — remove it.
             Ok(Some(abs)) => match std::fs::remove_file(&abs) {
-                Ok(()) => {}
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Ok(()) => {
+                    if let Err(e) =
+                        crate::commands::rag::store::delete_path(&table, &rel, rag_key).await
+                    {
+                        log::warn!(
+                            "onedrive_disconnect: failed to purge RAG rows for deleted file {rel}: {e}"
+                        );
+                        failed.push(rel);
+                    }
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                    if let Err(e) =
+                        crate::commands::rag::store::delete_path(&table, &rel, rag_key).await
+                    {
+                        log::warn!(
+                            "onedrive_disconnect: failed to purge RAG rows for missing file {rel}: {e}"
+                        );
+                        failed.push(rel);
+                    }
+                }
                 Err(e) => {
                     log::warn!(
                         "onedrive_disconnect: failed to delete imported file {}: {e}",
@@ -439,7 +470,16 @@ where
             },
             // The path resolved safely but no file is there (already gone) —
             // that counts as successfully removed, same as NotFound above.
-            Ok(None) => {}
+            Ok(None) => {
+                if let Err(e) =
+                    crate::commands::rag::store::delete_path(&table, &rel, rag_key).await
+                {
+                    log::warn!(
+                        "onedrive_disconnect: failed to purge RAG rows for already-missing file {rel}: {e}"
+                    );
+                    failed.push(rel);
+                }
+            }
             // Unsafe stored path (absolute, `..`, or a symlink component). NEVER
             // delete through it — treat it as a failed delete so the token + DB
             // are kept and `data_remains` is flagged for a retry.
@@ -467,6 +507,10 @@ pub async fn onedrive_disconnect_logic(
         state,
         delete_files,
         |ws| OneDriveStore::open(ws),
+        || {
+            crate::commands::rag::crypto::get_or_create_master_key()
+                .map_err(|e| format!("vectors key: {e}"))
+        },
         DISCONNECT_SYNC_WAIT,
     )
     .await
@@ -493,6 +537,7 @@ pub async fn onedrive_disconnect_logic_with<F>(
     state: &OneDriveState,
     delete_files: bool,
     open_store: F,
+    rag_key_provider: impl Fn() -> Result<[u8; 32], String>,
     sync_wait: Duration,
 ) -> Result<OneDriveDisconnectResult, String>
 where
@@ -547,7 +592,18 @@ where
     // failure → keep the token AND the DB, flag data_remains, and stop — so the
     // "Finish deleting local data" retry can re-enumerate the paths and finish.
     if delete_files {
-        match delete_materialized_files(&ws, &open_store) {
+        let rag_key = match rag_key_provider() {
+            Ok(key) => key,
+            Err(e) => {
+                result.data_remains = true;
+                result.warnings.push(format!(
+                    "The imported OneDrive files could not be deleted ({e}); your account \
+                     connection was kept so you can try disconnecting again to finish deleting."
+                ));
+                return Ok(result);
+            }
+        };
+        match delete_materialized_files(&ws, &open_store, &rag_key).await {
             Ok(failed) if failed.is_empty() => {}
             Ok(failed) => {
                 result.data_remains = true;
@@ -1352,6 +1408,7 @@ mod tests {
     // ── F3: delete_materialized_files enforces the workspace boundary ─────────
 
     const TEST_DB_KEY: [u8; 32] = [0x31u8; 32];
+    const TEST_RAG_KEY: [u8; 32] = [0x42u8; 32];
 
     fn open_test_store(ws: &std::path::Path) -> anyhow::Result<OneDriveStore> {
         OneDriveStore::open_with_key(ws, &TEST_DB_KEY)
@@ -1378,10 +1435,21 @@ mod tests {
         store.set_local_path(source_id, local_path).unwrap();
     }
 
+    fn rag_test_row(path: &str, text: &str) -> crate::commands::rag::chunker::Chunk {
+        crate::commands::rag::chunker::Chunk {
+            path: path.into(),
+            paragraph_index: 0,
+            text: text.into(),
+            start_offset: 0,
+            end_offset: text.len(),
+            locator: None,
+        }
+    }
+
     // An absolute stored path is refused — never deleted — and reported as a
     // failed delete so the caller keeps the token + DB and flags data_remains.
-    #[test]
-    fn delete_materialized_files_refuses_an_absolute_path() {
+    #[tokio::test]
+    async fn delete_materialized_files_refuses_an_absolute_path() {
         let dir = tempfile::TempDir::new().unwrap();
         // A real file OUTSIDE the workspace that must never be touched.
         let outside = tempfile::TempDir::new().unwrap();
@@ -1394,7 +1462,9 @@ mod tests {
             victim.to_str().unwrap(),
         );
 
-        let failed = delete_materialized_files(dir.path(), &open_test_store).unwrap();
+        let failed = delete_materialized_files(dir.path(), &open_test_store, &TEST_RAG_KEY)
+            .await
+            .unwrap();
         assert_eq!(failed.len(), 1, "the absolute path must be a failed delete");
         assert!(
             victim.exists(),
@@ -1403,8 +1473,8 @@ mod tests {
     }
 
     // A `..` traversal is refused — never deleted — and reported as failed.
-    #[test]
-    fn delete_materialized_files_refuses_a_parent_traversal() {
+    #[tokio::test]
+    async fn delete_materialized_files_refuses_a_parent_traversal() {
         let dir = tempfile::TempDir::new().unwrap();
         // Create the traversal target so a naive `ws.join(rel)` delete WOULD hit it.
         let escape = dir.path().parent().unwrap().join("onedrive-f3-escape.txt");
@@ -1417,7 +1487,9 @@ mod tests {
             "../onedrive-f3-escape.txt",
         );
 
-        let failed = delete_materialized_files(dir.path(), &open_test_store).unwrap();
+        let failed = delete_materialized_files(dir.path(), &open_test_store, &TEST_RAG_KEY)
+            .await
+            .unwrap();
         assert_eq!(failed.len(), 1);
         assert!(
             escape.exists(),
@@ -1428,8 +1500,8 @@ mod tests {
 
     // A normal, in-workspace path deletes cleanly (the guard doesn't break the
     // happy path).
-    #[test]
-    fn delete_materialized_files_deletes_a_safe_in_workspace_path() {
+    #[tokio::test]
+    async fn delete_materialized_files_deletes_a_safe_in_workspace_path() {
         let dir = tempfile::TempDir::new().unwrap();
         let rel = "Clients/Acme/memo.docx";
         let abs = dir.path().join(rel);
@@ -1437,9 +1509,78 @@ mod tests {
         std::fs::write(&abs, b"bytes").unwrap();
         seed_local_path(dir.path(), "onedrive:d:ok", "memo.docx", rel);
 
-        let failed = delete_materialized_files(dir.path(), &open_test_store).unwrap();
+        let failed = delete_materialized_files(dir.path(), &open_test_store, &TEST_RAG_KEY)
+            .await
+            .unwrap();
         assert!(failed.is_empty(), "a safe path must delete cleanly");
         assert!(!abs.exists());
+    }
+
+    #[tokio::test]
+    async fn delete_materialized_files_purges_normal_document_rag_rows_for_deleted_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let rel = "Clients/Acme/retirement-plan.txt";
+        let abs = dir.path().join(rel);
+        std::fs::create_dir_all(abs.parent().unwrap()).unwrap();
+        std::fs::write(&abs, b"retirement plan").unwrap();
+        seed_local_path(dir.path(), "onedrive:d:rag", "retirement-plan.txt", rel);
+
+        let conn = crate::commands::rag::store::open_connection(dir.path())
+            .await
+            .expect("open rag conn");
+        let table = crate::commands::rag::store::open_or_create_table(&conn)
+            .await
+            .expect("open rag table");
+        crate::commands::rag::store::upsert_chunks_for_path(
+            &table,
+            rel,
+            vec![(
+                rag_test_row(rel, "Retirement income ladder shows the ghost chunk."),
+                vec![0.25f32; crate::commands::rag::embedder::EMBEDDING_DIM],
+            )],
+            crate::commands::rag::store::SourceType::Text,
+            "matter-acme",
+            crate::commands::rag::store::PRIVILEGE_NONE,
+            &TEST_RAG_KEY,
+        )
+        .await
+        .expect("seed normal-file rag row");
+        let query = vec![0.25f32; crate::commands::rag::embedder::EMBEDDING_DIM];
+        let before = crate::commands::rag::store::nearest(
+            &table,
+            &query,
+            10,
+            Some("matter-acme"),
+            false,
+            &[],
+        )
+        .await
+        .expect("retrieve before delete");
+        assert!(
+            !before.is_empty(),
+            "precondition: the normal file row is searchable"
+        );
+
+        let failed = delete_materialized_files(dir.path(), &open_test_store, &TEST_RAG_KEY)
+            .await
+            .expect("delete materialized files");
+        assert!(failed.is_empty(), "delete + RAG purge must both succeed");
+        assert!(!abs.exists(), "the materialized file should be deleted");
+
+        let after = crate::commands::rag::store::nearest(
+            &table,
+            &query,
+            10,
+            Some("matter-acme"),
+            false,
+            &[],
+        )
+        .await
+        .expect("retrieve after delete");
+        assert!(
+            after.is_empty(),
+            "deleted OneDrive file must not leave ghost RAG hits"
+        );
     }
 }
 

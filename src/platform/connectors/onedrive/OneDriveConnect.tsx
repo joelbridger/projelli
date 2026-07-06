@@ -36,6 +36,7 @@ import {
   isMicrosoftSignInExpiredError,
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
+import { clearCitationVerificationCache } from '@/features/ask/citationVerification';
 import type { Matter } from '@/platform/types/matter';
 
 // Durable, append-only audit trail for connector activity, so a OneDrive sync
@@ -315,6 +316,7 @@ export function OneDriveConnect() {
     try {
       await oneDriveCancel();
       const result: OneDriveDisconnectResult = await oneDriveDisconnect(deleteFiles);
+      if (result.ragPurged) clearCitationVerificationCache();
 
       // A clean disconnect: the connection + search index were removed. When the
       // user did NOT opt in to deleting files, those files staying is expected
