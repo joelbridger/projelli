@@ -2986,6 +2986,148 @@ mod tests {
         );
     }
 
+    /// P2 (adversarial review of SWAP-1): a pre-existing duplicate `id` — two
+    /// physical rows already sharing the same chunk id under one path, however
+    /// they got there (corruption, a stale race, migrated data) — must COLLAPSE
+    /// back to exactly one row on the next re-index. `merge_insert`'s join on
+    /// `id` documents behavior on multiple matches as undefined; the reviewer's
+    /// repro showed `when_matched_update_all` updating BOTH duplicates in place
+    /// (row count stays 2) instead of collapsing them. The old delete-then-add
+    /// path cleaned such dupes for free (a fresh `add` after a full delete can
+    /// never duplicate) — the atomic merge_insert swap needs its own dedup pass
+    /// to keep that guarantee.
+    ///
+    /// Also proves the fix stays gap-free: every committed version from just
+    /// before the re-index through the final (deduped) version still has the
+    /// row retrievable — the collapse never passes through a "row missing"
+    /// state, only a possibly-briefly-duplicated one.
+    #[tokio::test]
+    async fn reindex_collapses_preexisting_duplicate_id_rows() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/dup.md";
+        let matter = "matter_dup";
+        let q = vec![0.33f32; EMBEDDING_DIM];
+        let mk_rows = |text: &str| {
+            vec![(
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: text.into(),
+                    start_offset: 0,
+                    end_offset: text.len(),
+                    locator: None,
+                },
+                vec![0.33f32; EMBEDDING_DIM],
+            )]
+        };
+
+        // Seed a pre-existing DUPLICATE: two physical rows sharing the same id
+        // (sha256(path, 0)), written directly via `add` (bypassing merge_insert
+        // entirely) to reconstruct exactly the corruption the reviewer's repro
+        // found — a state that must never happen going forward once this fix
+        // ships, but must be recoverable if it's already on disk.
+        for _ in 0..2 {
+            let batch = build_batch(
+                &mk_rows("stale"),
+                SourceType::Text,
+                matter,
+                PRIVILEGE_NONE,
+                None,
+                &TEST_KEY,
+            )
+            .expect("build stale batch");
+            let schema = batch.schema();
+            table
+                .add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+                .execute()
+                .await
+                .expect("seed duplicate row");
+        }
+
+        let token = super::super::crypto::path_token(&TEST_KEY, path);
+        let path_predicate = format!("path = '{}'", sql_escape(&token));
+        let precondition = table
+            .count_rows(Some(path_predicate.clone()))
+            .await
+            .expect("count rows before re-index");
+        assert_eq!(
+            precondition, 2,
+            "test setup must seed exactly 2 duplicate rows"
+        );
+        let version_before = table.version().await.expect("version before re-index");
+
+        // Re-index the SAME single-chunk file. This drives merge_insert's `id`
+        // join straight into the pre-existing duplicate — the exact repro.
+        upsert_chunks_for_path(
+            &table,
+            path,
+            mk_rows("fresh"),
+            SourceType::Text,
+            matter,
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect("re-index over duplicate rows");
+        let version_after = table.version().await.expect("version after re-index");
+
+        let after = table
+            .count_rows(Some(path_predicate))
+            .await
+            .expect("count rows after re-index");
+        assert_eq!(
+            after, 1,
+            "re-index must collapse the pre-existing duplicate to exactly ONE row"
+        );
+
+        // Gap-free proof: at every committed version from just-before the
+        // re-index through the final (deduped) version, the row stays
+        // retrievable — the collapse never passes through "row missing".
+        let reader = conn
+            .open_table(TABLE_NAME)
+            .execute()
+            .await
+            .expect("reader handle");
+        for v in version_before..=version_after {
+            reader
+                .checkout(v)
+                .await
+                .unwrap_or_else(|e| panic!("checkout v{v}: {e}"));
+            let hits = nearest(&reader, &q, 10, Some(matter), false, &[])
+                .await
+                .unwrap_or_else(|e| panic!("nearest at v{v}: {e}"));
+            assert!(
+                hits.iter().any(|h| stored_path(h) == path),
+                "row disappeared at committed version {v} while collapsing the \
+                 pre-existing duplicate — a retrieval interleaved with the \
+                 dedup pass would miss it"
+            );
+        }
+
+        let hits = nearest(&table, &q, 10, Some(matter), false, &[])
+            .await
+            .unwrap();
+        let matches: Vec<_> = hits.iter().filter(|h| stored_path(h) == path).collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "retrieval must see exactly one row post-collapse"
+        );
+        let text = {
+            use crate::commands::mail::crypto::decrypt_with_key;
+            let blob = hex::decode(&matches[0].text).expect("hex text");
+            String::from_utf8(decrypt_with_key(&blob, &TEST_KEY).expect("decrypt text"))
+                .expect("utf8")
+        };
+        assert_eq!(
+            text, "fresh",
+            "surviving row must carry the NEW content, not the stale duplicate"
+        );
+    }
+
     /// P1.1 (Windows regression): rows written under the NATIVE backslash path
     /// (what the Rust WalkDir/reconcile sees on Windows) must be reachable by a
     /// delete/retag issued with the FORWARD-SLASH form (what the TS side builds

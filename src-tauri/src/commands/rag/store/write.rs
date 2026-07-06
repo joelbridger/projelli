@@ -1,4 +1,78 @@
 use super::*;
+use arrow_array::UInt64Array;
+use futures_util::TryStreamExt;
+
+/// After an atomic `merge_insert` commits, collapse any rows that were ALREADY
+/// duplicated under the same `id` before this call ran (P2 finding: LanceDB
+/// documents `merge_insert` behavior on multiple matches as undefined — when a
+/// pre-existing duplicate `id` matches the join, `when_matched_update_all`
+/// updates EVERY matching row instead of collapsing them, so a corrupt id
+/// stays duplicated forever across every future re-index).
+///
+/// Scoped to `path_predicate` — the same token-scoped predicate the caller
+/// already builds — so this only ever scans/touches the one file's rows.
+///
+/// No retrieval gap: every candidate id was JUST brought current by
+/// `when_matched_update_all` in the merge that preceded this call, so every
+/// physical copy of a duplicated id already holds identical, correct content.
+/// Deleting the extras never changes what a reader sees content-wise, and
+/// addressing the extras individually by `_rowid` (never by `id`) means the
+/// N-1 excess copies are removed in a SINGLE delete commit while at least one
+/// row for the id is always left alive — unlike a delete-then-add, a reader
+/// can never land on a version where the id is missing entirely.
+async fn dedup_duplicate_ids_for_path(table: &Table, path_predicate: &str) -> Result<()> {
+    let mut stream = table
+        .query()
+        .only_if(path_predicate)
+        .with_row_id()
+        .select(Select::columns(&["id"]))
+        .execute()
+        .await
+        .context("dedup scan failed")?;
+
+    let mut seen: HashSet<String> = HashSet::new();
+    let mut extra_row_ids: Vec<u64> = Vec::new();
+    while let Some(batch) = stream
+        .try_next()
+        .await
+        .context("dedup scan stream failed")?
+    {
+        let id_col = batch
+            .column_by_name("id")
+            .context("dedup scan missing id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("dedup scan id column is not StringArray")?;
+        let rowid_col = batch
+            .column_by_name("_rowid")
+            .context("dedup scan missing _rowid column")?
+            .as_any()
+            .downcast_ref::<UInt64Array>()
+            .context("dedup scan _rowid column is not UInt64Array")?;
+        for i in 0..batch.num_rows() {
+            let id = id_col.value(i).to_string();
+            let row_id = rowid_col.value(i);
+            if !seen.insert(id) {
+                extra_row_ids.push(row_id);
+            }
+        }
+    }
+
+    if extra_row_ids.is_empty() {
+        return Ok(());
+    }
+
+    let list = extra_row_ids
+        .iter()
+        .map(|r| r.to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    table
+        .delete(&format!("_rowid IN ({list})"))
+        .await
+        .context("dedup delete of duplicate rows failed")?;
+    Ok(())
+}
 
 pub fn build_batch(
     rows: &[(Chunk, Vec<f32>)],
@@ -508,11 +582,17 @@ pub async fn upsert_chunks_for_path(
     merge
         .when_matched_update_all(None)
         .when_not_matched_insert_all()
-        .when_not_matched_by_source_delete(Some(predicate));
+        .when_not_matched_by_source_delete(Some(predicate.clone()));
     merge
         .execute(Box::new(iter))
         .await
         .with_context(|| format!("atomic re-index merge_insert failed for {}", path))?;
+
+    // P2 fix: collapse any pre-existing duplicate ids the merge above just
+    // updated in place rather than collapsed. See dedup_duplicate_ids_for_path.
+    dedup_duplicate_ids_for_path(table, &predicate)
+        .await
+        .with_context(|| format!("post-merge dedup failed for {}", path))?;
     Ok(())
 }
 
@@ -586,11 +666,17 @@ pub async fn upsert_grouped(
     merge
         .when_matched_update_all(None)
         .when_not_matched_insert_all()
-        .when_not_matched_by_source_delete(Some(predicate));
+        .when_not_matched_by_source_delete(Some(predicate.clone()));
     merge
         .execute(Box::new(iter))
         .await
         .with_context(|| format!("atomic grouped re-index merge_insert failed for {}", path))?;
+
+    // P2 fix: collapse any pre-existing duplicate ids the merge above just
+    // updated in place rather than collapsed. See dedup_duplicate_ids_for_path.
+    dedup_duplicate_ids_for_path(table, &predicate)
+        .await
+        .with_context(|| format!("post-merge grouped dedup failed for {}", path))?;
     Ok(count)
 }
 
