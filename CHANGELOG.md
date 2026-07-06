@@ -114,6 +114,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **R9 — biometric consent before voiceprint enrollment.** "Separate speakers" requires an explicit affirmation that the client consented to a voice profile (with an honest state-biometric-law note) before any new voiceprint is enrolled; the attestation is ledgered as a `voiceprint_consent` audit event (`SpeakerNamesPanel.tsx`).
 
 ### Fixed
+- **QA-91 (demo P0): the Notice Card now actually joins the meeting under
+  CDP-driven Windows testing — fixed a WebView2 `0x8007139F`
+  (ERROR_INVALID_STATE) crash creating the companion window.** wry creates a
+  separate `CoreWebView2Environment` per webview window, and WebView2 rejects a
+  second environment on the same user-data-folder whose additional browser args
+  differ. The main window passed `--disable-features=…` **plus** anything in
+  `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` (e.g. `--remote-debugging-port=…` when
+  driven over CDP), while the Notice Card companion window passed no args and got
+  wry's bare default — so whenever that env var was set the two strings differed
+  and the companion webview failed to create, leaving the recording-notice guest
+  unable to join (the recorder widget eventually fell back to "say the notice
+  aloud"). Both window builders now source the identical args string from one
+  place. Files: `src-tauri/src/webview_env.rs` (new, shared + unit-tested),
+  `src-tauri/src/lib.rs` (main window), `src-tauri/src/commands/notice_card/mod.rs`
+  (companion window).
 - **QA-92 (P0 demo blocker): a client's files that were already on disk when the
   workspace opened are now found by Ask.** Ask could answer about files created
   or imported during a live session but silently could NOT find pre-existing
