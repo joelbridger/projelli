@@ -7,21 +7,18 @@
 // that earlier verbs hardcoded. Look the id up by name at runtime instead of
 // assuming it never changes.
 
+import { readWorkspaceMatters } from '../../lib/scopedStorage.mjs';
+
 /**
  * @param {import('playwright').Page} page
  * @param {string} nameSubstring case-insensitive substring of the matter's display name
  * @returns {Promise<string|null>}
  */
 export async function resolveMatterId(page, nameSubstring) {
-  return page.evaluate((needle) => {
-    try {
-      const raw = localStorage.getItem('lantern:matters');
-      if (!raw) return null;
-      const matters = JSON.parse(raw)?.state?.matters ?? [];
-      const hit = matters.find((m) => String(m.name || '').toLowerCase().includes(needle.toLowerCase()));
-      return hit ? hit.id : null;
-    } catch {
-      return null;
-    }
-  }, nameSubstring);
+  // QA-93: matters persist under a PER-WORKSPACE scoped key — read via the shared
+  // resolver (scoped key, global fallback) rather than the legacy global key.
+  const matters = await readWorkspaceMatters(page);
+  const needle = nameSubstring.toLowerCase();
+  const hit = matters.find((m) => String(m.name || '').toLowerCase().includes(needle));
+  return hit ? String(hit.id) : null;
 }

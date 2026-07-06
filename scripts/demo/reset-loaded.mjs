@@ -82,8 +82,11 @@ for (let i = 0; i < 4; i++) {
 await page.waitForSelector('[data-testid="spine-nav-matters"]', { timeout: 30000 }).catch(() => {});
 const verify = await page.evaluate(() => {
   const tids = new Set([...document.querySelectorAll('[data-testid]')].map((e) => e.getAttribute('data-testid')));
-  const m = JSON.parse(localStorage.getItem('lantern:matters') || '{}');
-  const cm = JSON.parse(localStorage.getItem('lantern:client-maps') || '{}');
+  // QA-93: the app persists matters/maps PER WORKSPACE — verify the SCOPED key
+  // the app actually hydrated (global fallback), not the retained global seed.
+  const suffix = window.__lanternWorkspaceScopeSuffix || '';
+  const m = JSON.parse(localStorage.getItem('lantern:matters' + suffix) || localStorage.getItem('lantern:matters') || '{}');
+  const cm = JSON.parse(localStorage.getItem('lantern:client-maps' + suffix) || localStorage.getItem('lantern:client-maps') || '{}');
   const maps = (cm.state ? cm.state.maps : cm.maps) || {};
   return {
     workspaceOpen: tids.has('spine-nav-matters'),

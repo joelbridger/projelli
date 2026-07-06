@@ -33,6 +33,19 @@
 
 import { pathComparisonKey } from '@/platform/fs/appPath';
 
+declare global {
+  interface Window {
+    /**
+     * QA-93: the active workspace's persistence-key suffix (`::ws:<id>`, or `''`
+     * when no workspace is open). Published by the app so OUT-OF-APP browser
+     * readers (Playwright e2e specs, the robot/demo harness) resolve the SAME
+     * scoped key the app writes to — without duplicating the suffix derivation.
+     * See `scripts/lib/scopedStorage.mjs` / `tests/e2e/helpers/scopedStorage.ts`.
+     */
+    __lanternWorkspaceScopeSuffix?: string;
+  }
+}
+
 /** The currently-active workspace root, or null when no workspace scope is set
  *  (boot before a workspace opens, or tests). Module-level, never persisted. */
 let activeWorkspaceRoot: string | null = null;
@@ -43,9 +56,14 @@ export function getActiveWorkspaceScopeRoot(): string | null {
 }
 
 /** Set the active workspace scope root. Called only by the reload orchestrator
- *  at a workspace switch — the storage adapters read it on the next rehydrate. */
+ *  at a workspace switch — the storage adapters read it on the next rehydrate.
+ *  Also publishes the derived suffix to `window` so external browser readers can
+ *  resolve the same scoped key (QA-93 round 2). */
 export function setActiveWorkspaceScopeRoot(root: string | null): void {
   activeWorkspaceRoot = root;
+  if (typeof window !== 'undefined') {
+    window.__lanternWorkspaceScopeSuffix = workspaceScopeSuffix();
+  }
 }
 
 /** Derive the stable workspace-identity id from a root path. Exported for the

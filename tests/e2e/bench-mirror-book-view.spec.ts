@@ -37,8 +37,13 @@ async function seedGapMatterAndReload(page: Page) {
   await page.evaluate(
     ({ matterId, gapText }) => {
       const ts = new Date().toISOString();
+      // QA-93: the app persists per workspace; with the test workspace open it
+      // reads the SCOPED key. Seed the scoped key (published on window) so the
+      // app hydrates this fixture instead of an empty scoped store.
+      const suffix =
+        (window as unknown as { __lanternWorkspaceScopeSuffix?: string }).__lanternWorkspaceScopeSuffix ?? '';
       localStorage.setItem(
-        'lantern:matters',
+        'lantern:matters' + suffix,
         JSON.stringify({
           state: {
             matters: [
@@ -74,7 +79,7 @@ async function seedGapMatterAndReload(page: Page) {
         { id: 'followups', kind: 'core', key: 'followups', title: 'Follow-ups', items: [] },
       ];
       localStorage.setItem(
-        'lantern:client-maps',
+        'lantern:client-maps' + suffix,
         JSON.stringify({
           state: {
             maps: {

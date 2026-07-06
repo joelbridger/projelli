@@ -15,14 +15,13 @@
  */
 import { test, expect, type Page } from '@playwright/test';
 import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
-
-const MATTERS_KEY = 'lantern:matters';
+import { readWorkspaceScopedJSON, MATTERS_KEY } from './helpers/scopedStorage';
 
 async function readMatters(page: Page): Promise<Array<{ client: string; folderPaths: string[] }>> {
-  const raw = await page.evaluate((key) => localStorage.getItem(key), MATTERS_KEY);
-  if (!raw) return [];
-  const parsed = JSON.parse(raw) as { state?: { matters?: Array<{ client: string; folderPaths: string[] }> } };
-  return parsed.state?.matters ?? [];
+  // QA-93: matters persist under a PER-WORKSPACE scoped key — resolve it (with a
+  // global fallback) instead of reading the legacy global key directly.
+  const parsed = await readWorkspaceScopedJSON<{ state?: { matters?: Array<{ client: string; folderPaths: string[] }> } }>(page, MATTERS_KEY);
+  return parsed?.state?.matters ?? [];
 }
 
 test.describe('Bench mirror: QA-5 — new client gets its own scoped folder', () => {

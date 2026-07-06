@@ -184,7 +184,11 @@ async function applyPurgeAndSeed(page, matters) {
       // baked into the frozen snapshot's vector index; if this key is wrong,
       // the app falls back to a live CRM resync that assigns fresh random
       // ids every boot, permanently orphaning the frozen index's matter tags.
-      localStorage.setItem('lantern:matters', JSON.stringify({
+      // QA-93: the app persists matters PER WORKSPACE — seed the active
+      // workspace's scoped key (suffix published on window; '' -> the legacy
+      // global key, which the app then migrates on the next open).
+      const wsScopeSuffix = window.__lanternWorkspaceScopeSuffix || '';
+      localStorage.setItem('lantern:matters' + wsScopeSuffix, JSON.stringify({
         state: { matters, activeMatterId: null },
         version: 5,
       }));
@@ -216,7 +220,11 @@ async function readSeededState(page) {
     // post-rename) — reading the old `keepance:*` names here would report
     // stale/zero counts even when the seed correctly landed in the app's real
     // storage, since the app itself no longer writes those legacy keys either.
-    const mm = JSON.parse(localStorage.getItem('lantern:matters') || '{}');
+    // QA-93: read the active workspace's SCOPED matters key (global fallback).
+    const suffix = window.__lanternWorkspaceScopeSuffix || '';
+    const mm = JSON.parse(
+      localStorage.getItem('lantern:matters' + suffix) || localStorage.getItem('lantern:matters') || '{}',
+    );
     const ss = JSON.parse(localStorage.getItem('lantern:settings') || '{}');
     return {
       profession: localStorage.getItem('lantern_profession'),

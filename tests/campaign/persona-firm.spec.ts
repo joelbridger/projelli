@@ -17,6 +17,7 @@
 
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { snap, collectConsoleErrors } from './helpers/campaign';
+import { readWorkspaceScopedJSON, MATTERS_KEY } from '../e2e/helpers/scopedStorage';
 
 const RUN_ID = Date.now().toString(36);
 const BACKEND_URL = process.env['FIRM_E2E_BACKEND_URL'];
@@ -250,13 +251,12 @@ test.describe('Task 6 — firm scenario (two contexts)', () => {
     const openNotesBtn = pageA.locator('[data-testid^="matter-open-notes-"]').last();
     await openNotesBtn.waitFor({ state: 'visible', timeout: 6000 });
     localMatterIdA = (await openNotesBtn.getAttribute('data-testid') ?? '').replace('matter-open-notes-', '');
-    firmMatterId = await pageA.evaluate((localId: string) => {
-      try {
-        const raw = localStorage.getItem('lantern:matters');
-        const parsed = raw ? JSON.parse(raw) as { state?: { matters?: Array<{ id: string; firmMatterId?: string }> } } : null;
-        return parsed?.state?.matters?.find((m) => m.id === localId)?.firmMatterId ?? '';
-      } catch { return ''; }
-    }, localMatterIdA);
+    // QA-93: matters persist under a PER-WORKSPACE scoped key — resolve it
+    // (global fallback) instead of reading the legacy global key directly.
+    {
+      const parsed = await readWorkspaceScopedJSON<{ state?: { matters?: Array<{ id: string; firmMatterId?: string }> } }>(pageA, MATTERS_KEY);
+      firmMatterId = parsed?.state?.matters?.find((m) => m.id === localMatterIdA)?.firmMatterId ?? '';
+    }
     console.log(`PERSONA-NOTE: firmMatterId=${firmMatterId} localMatterIdA=${localMatterIdA}`);
 
     // ── Admin opens shared notes + types ──

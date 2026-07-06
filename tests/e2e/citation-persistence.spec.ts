@@ -69,7 +69,11 @@ async function seedAndReload(
         },
         version: 2,
       };
-      localStorage.setItem('lantern:matters', JSON.stringify(matterState));
+      // QA-93: the app persists per workspace; with the test workspace open it
+      // reads the SCOPED key. Seed the scoped key (published on window).
+      const suffix =
+        (window as unknown as { __lanternWorkspaceScopeSuffix?: string }).__lanternWorkspaceScopeSuffix ?? '';
+      localStorage.setItem('lantern:matters' + suffix, JSON.stringify(matterState));
 
       if (chatId && messages) {
         const ts = new Date().toISOString();
