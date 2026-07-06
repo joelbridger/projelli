@@ -140,7 +140,7 @@ describe('scheduleMailMatterRetag', () => {
     // Fresh mapping (was unassigned) → no old-client hold-out.
     expect(task.excludeMailMatters).toBeUndefined();
 
-    await task.op();
+    await task.op(() => false);
     // First four args are the folder + target; the 5th (R7-5b workspace pin)
     // depends on the ambient rootPath, so assert only the folder/target here.
     const call = vi.mocked(mailRetagFolderMatter).mock.calls[0];
@@ -178,7 +178,7 @@ describe('schedulePrivilegeRetag', () => {
     expect(task.kind).toBe('privilege');
     expect(task.id).toBe('privilege:/ws/secret.docx');
 
-    await task.op();
+    await task.op(() => false);
     expect(vi.mocked(MemoryService.retagPrivilege)).toHaveBeenCalledWith(
       '/ws/secret.docx',
       'attorney-client',
@@ -652,8 +652,10 @@ describe('scheduleFolderMatterRetag — a mid-flight workspace switch never clea
     scheduleFolderMatterRetag(['/ws/A'], ws as never, scheduler);
     const task = onlyTask(tasks);
 
-    // Op captures identity {/ws/A, gen1} and awaits the fresh scan…
-    const opPromise = task.op();
+    // Op captures identity {/ws/A, gen1} and awaits the fresh scan… (driving the
+    // op directly, so stand in for the scheduler's supersession check: never
+    // superseded here — the identity-abort is what must keep the hold).
+    const opPromise = task.op(() => false);
     // …then the user switches workspace before the scan resolves.
     useWorkspaceStore.getState().setRootPath('/ws/B');
     resolveTree([]);
@@ -774,6 +776,56 @@ describe('durable per-workspace FILE-folder hold (R7-3)', () => {
     // A clean boot re-tag discharges the durable record AND prunes the restored hold.
     expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toHaveLength(0);
     expect(getExcludedMatterFolders()).not.toContain('/wsA/Acme');
+  });
+
+  // R8 (P1) — supersession race across sessions. A folder is re-mapped, then
+  // re-mapped AGAIN before the first re-tag lands. Op bodies run to completion
+  // even once superseded (serialization only delays the NEXT op, it can't abort
+  // an already-running one), so the OLDER op finishes LAST-ish and — keyed only
+  // by folder path — used to clear the durable record the NEWER pending re-tag
+  // just wrote. Close the app before the newer re-tag succeeds and reopen: NO
+  // hold is restored, so stale wrong-client chunks are searchable across
+  // sessions. The durable release must be tied to the generation that wrote it:
+  // a stale generation's release is a no-op.
+  it('an OLDER superseded re-tag does NOT clear the durable hold a NEWER pending re-tag wrote (cross-session fail-closed)', async () => {
+    vi.useFakeTimers();
+    try {
+      useWorkspaceStore.setState({ rootPath: '/wsA', rootGeneration: 1, fileTree: treeAcme });
+      let call = 0;
+      vi.mocked(MemoryService.reindexPaths).mockImplementation(() => {
+        call += 1;
+        // Call 1 = the OLDER (gen1) op: re-indexes cleanly but is already
+        // superseded. Call 2 = the NEWER (gen2) op: still in flight (never lands)
+        // when the app closes.
+        return call === 1 ? Promise.resolve(0) : new Promise<number>(() => {});
+      });
+
+      const scheduler = createRetagScheduler();
+      // Same folder, same `matter:/wsA/Acme` id → the second run() supersedes the
+      // first. Both record the folder durably up front.
+      scheduleFolderMatterRetag(['/wsA/Acme'], null, scheduler); // gen1 (older)
+      scheduleFolderMatterRetag(['/wsA/Acme'], null, scheduler); // gen2 (newer)
+      expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toContain('/wsA/Acme');
+
+      // Run the older op to completion (clean re-index) and start the newer op
+      // (which hangs, in flight).
+      await vi.runAllTimersAsync();
+
+      // The older, superseded op must NOT have cleared the durable record — it
+      // re-tagged to a STALE mapping; only the newest generation's op may clear.
+      expect(usePendingFolderRetagStore.getState().forWorkspace('/wsA')).toContain('/wsA/Acme');
+
+      // Close before the newer re-tag lands, then reopen: the hold MUST come back
+      // (fail closed across sessions).
+      scheduler.disposeAll();
+      useScopeUpdateStore.getState().clearAll();
+      expect(getExcludedMatterFolders()).toHaveLength(0);
+      restoreFolderHolds('/wsA');
+      expect(getExcludedMatterFolders()).toContain('/wsA/Acme');
+    } finally {
+      vi.runOnlyPendingTimers();
+      vi.useRealTimers();
+    }
   });
 });
 

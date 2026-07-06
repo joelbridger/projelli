@@ -63,8 +63,15 @@ export interface RetagTask {
   kind: ScopeUpdateKind;
   /** Plain-language label for the banner. */
   label: string;
-  /** The re-tag operation. Rejecting triggers a retry; resolving clears it. */
-  op: () => Promise<unknown>;
+  /** The re-tag operation. Rejecting triggers a retry; resolving clears it.
+   *  `isSuperseded()` reports whether a NEWER `run()` for this id has replaced
+   *  this attempt (or the scheduler was disposed). An op that clears a DURABLE,
+   *  cross-session hold OUTSIDE the scheduler's own status store MUST check it
+   *  before releasing — an older op body still runs to completion (serialization
+   *  only delays the next op, it can't abort a running one), so without the guard
+   *  a stale generation would clear the hold the newest intent still relies on.
+   *  The scheduler already guards its OWN status cleanup this way. */
+  op: (isSuperseded: () => boolean) => Promise<unknown>;
   /** Matter folders to exclude from retrieval while this is pending/failed. */
   excludeFolders?: string[];
   /** Matter ids whose mail to hold out of retrieval while this is pending/failed
@@ -155,7 +162,11 @@ export function createRetagScheduler(): RetagScheduler {
     disposed || generations.get(id) !== generation;
 
   const attempt = (task: RetagTask, retryCount: number, generation: number): void => {
-    runSerialized(task.id, generation, task.op)
+    // Bind this attempt's generation into the supersession check the op sees, so
+    // an op that clears an out-of-band durable hold can no-op once a newer run()
+    // has taken over this id (see RetagTask.op).
+    const guardedOp = (): Promise<unknown> => task.op(() => superseded(task.id, generation));
+    runSerialized(task.id, generation, guardedOp)
       .then(() => {
         // A superseded attempt must NOT clear the entry — a newer run() has
         // re-registered this id, and removing it would drop the newer intent

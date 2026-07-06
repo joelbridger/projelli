@@ -1643,7 +1643,7 @@ export function scheduleFolderMatterRetag(
       // Fail closed: hold this folder's files out of retrieval until its
       // re-index lands, so stale chunks can't surface under the wrong client.
       excludeFolders: [folder],
-      op: async () => {
+      op: async (isSuperseded) => {
         // Pin the workspace identity for this attempt. Origin's guards make
         // reindexFolderPaths return QUIETLY if the workspace switches/reloads
         // mid-flight; a bare resolution would then look like a clean success and
@@ -1656,6 +1656,18 @@ export function scheduleFolderMatterRetag(
         if (!isWorkspaceIdentityCurrent(identity)) {
           throw new WorkspaceIdentityChangedError();
         }
+        // R8 (P1): if a NEWER re-map of this same folder superseded this attempt
+        // while it ran, this op re-tagged to a STALE mapping. Its body still runs
+        // to completion (serialization only delays the newer op, it can't abort
+        // this one), so discharging here would clear the DURABLE hold the newer
+        // pending re-tag just re-recorded — and closing the app before that newer
+        // re-tag lands would reopen with NO fail-closed hold, leaking stale
+        // wrong-client chunks across sessions. Tie the release to the generation
+        // that owns this id: a stale generation's discharge is a no-op, and the
+        // newest generation's op (which re-tagged to the CURRENT mapping) is the
+        // one that clears the hold. Mirrors the mail op's `mailIntentTargets`
+        // guard. The scheduler's own status cleanup is already generation-guarded.
+        if (isSuperseded()) return;
         // A live success also re-tagged any of this folder's files the boot
         // retag had failed on — discharge them from the boot hold so they don't
         // stay hidden until a clean boot (final round P2). R7-3: also discharge
