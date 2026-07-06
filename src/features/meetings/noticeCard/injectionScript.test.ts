@@ -72,6 +72,110 @@ describe('buildInjectionScript', () => {
     expect(driftDoc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'unrecognized');
   });
 
+  // A live document the runner re-reads each tick, plus its driven tick fn.
+  const driveRunner = (src: string, initialHtml: string) => {
+    const doc = new DOMParser().parseFromString(initialHtml, 'text/html');
+    let tick: (() => void) | undefined;
+    const setIntervalStub = (fn: () => void): number => {
+      tick = fn;
+      return 1;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs our own generated runner (trusted source)
+    const runRunner = new Function('document', 'window', 'setInterval', src) as (
+      d: Document,
+      w: object,
+      si: (fn: () => void) => number,
+    ) => void;
+    runRunner(doc, {}, setIntervalStub);
+    return { doc, tick: () => tick?.() };
+  };
+  const ADMITTED_HTML =
+    '<html><body><button data-tid="hangup-main-btn" aria-label="Leave">Leave</button>' +
+    '<span data-tid="call-duration">00:10</span></body></html>';
+
+  it('LATCH (QA-91d): brief post-admission drift → present-unknown, then a heartbeat timeout → disconnected', () => {
+    // The demo bug was force-closing the card ~28s after a real admit. Drift must NOT
+    // fast-fail to unrecognized. But it also must NOT claim presence FOREVER (r2): once
+    // the in-call anchors stay gone past the short grace window, it's a real disconnect.
+    const { doc, tick } = driveRunner(buildInjectionScript(cfg()), ADMITTED_HTML);
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'admitted');
+    // In-call anchors vanish to an unrecognized page (jsdom has no live call).
+    doc.body.innerHTML = '<div>reconnecting…</div>';
+    tick();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'present-unknown'); // within grace
+    // Never fast-fails to the pre-admission 'unrecognized' give-up.
+    for (let i = 0; i < 4; i++) tick();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'present-unknown'); // still in grace
+    expect(doc.title).not.toContain('unrecognized');
+    // …but past the grace window the heartbeat declares a real disconnect (evidence
+    // must reflect the gap, not keep reporting presence).
+    for (let i = 0; i < 5; i++) tick();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'disconnected');
+  });
+
+  it('LATCH holds while the in-call anchors are still present (real drift, still in call)', () => {
+    // "drifted-but-call-anchors-present": the page mutated but the hangup/call-duration
+    // anchors remain → we ARE still in the call. detectPhase reads admitted; the latch
+    // holds as admitted (never a disconnect).
+    const { doc, tick } = driveRunner(buildInjectionScript(cfg()), ADMITTED_HTML);
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'admitted');
+    // Heavy re-render but the Leave button + call timer survive.
+    doc.body.innerHTML =
+      '<div class="new-stage-layout"><button data-tid="hangup-main-btn" aria-label="Leave"></button>' +
+      '<span data-tid="call-duration">05:42</span></div>';
+    for (let i = 0; i < 20; i++) tick();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'admitted');
+    expect(doc.title).not.toContain('disconnected');
+    expect(doc.title).not.toContain('present-unknown');
+  });
+
+  it('LATCH: post-admission bounce to the PREJOIN is a real disconnect (not presumed present)', () => {
+    // A recognized non-call page after admission = we genuinely left the meeting. This
+    // must NOT read as present — the consent evidence must never lie about presence.
+    const { doc, tick } = driveRunner(buildInjectionScript(cfg()), ADMITTED_HTML);
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'admitted');
+    // Bounced back to the prejoin (name field) — e.g. the call dropped and reloaded.
+    doc.body.innerHTML =
+      '<div data-tid="calling-prejoin-screen" role="region">' +
+      '<input data-tid="prejoin-display-name-input" type="text" value="" aria-label="Type your name" />' +
+      '<button data-tid="prejoin-join-button" aria-label="Join now">Join now</button></div>';
+    tick();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'disconnected');
+    expect(doc.title).not.toContain('present-unknown');
+  });
+
+  it('LATCH: post-admission bounce to the LOBBY is a real disconnect', () => {
+    const { doc, tick } = driveRunner(buildInjectionScript(cfg()), ADMITTED_HTML);
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'admitted');
+    doc.body.innerHTML =
+      '<div data-tid="calling-lobby-screen">Someone in the meeting should let you in soon</div>';
+    tick();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'disconnected');
+  });
+
+  it('LATCH does not fire without an admission — a never-admitted unrecognized page still fast-fails', () => {
+    // Guard: the latch must not swallow the honest give-up when the card never got in.
+    const src = buildInjectionScript(cfg());
+    const doc = new DOMParser().parseFromString(
+      '<html><body><div>still loading</div></body></html>',
+      'text/html',
+    );
+    let tick: (() => void) | undefined;
+    const setIntervalStub = (fn: () => void): number => {
+      tick = fn;
+      return 1;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs our own generated runner
+    const runRunner = new Function('document', 'window', 'setInterval', src) as (
+      d: Document,
+      w: object,
+      si: (fn: () => void) => number,
+    ) => void;
+    runRunner(doc, {}, setIntervalStub);
+    for (let i = 0; i < 45; i++) tick?.();
+    expect(doc.title).toBe(NOTICE_CARD_TITLE_PREFIX + 'unrecognized');
+  });
+
   it('reports state through the document.title channel and strips the IPC bridge', () => {
     const src = buildInjectionScript(cfg());
     expect(src).toContain(NOTICE_CARD_TITLE_PREFIX);

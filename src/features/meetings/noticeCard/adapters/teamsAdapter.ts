@@ -20,10 +20,22 @@
  * hard `page-unrecognized`. Old selectors are kept as secondary fallbacks
  * because Teams web ships variants.
  *
- * VERIFY-LIVE: the lobby / admitted / denied states could not be driven from the
- * server bench (single shared signed-in profile + passcode-gated link), so those
- * use multi-signal detection (data-tid + aria-label + text) with the old
- * selectors retained; the Legion live retest confirms them end-to-end.
+ * ADMITTED / in-meeting is ALSO grounded in a real live capture (2026-07-06) — see
+ * `coordination/qa-campaign/evidence/qa91d-teams-admitted/`. That fixed QA-82: the old
+ * admitted selectors (`hangup-button` / `calling-retention-banner` / …) matched NONE of
+ * today's in-call DOM, so the runner soft-failed `page-unrecognized` ~28s AFTER a genuine
+ * admission and the card was force-closed on stage. Admitted now keys on the real in-call
+ * anchors (`hangup-main-btn` / `call-duration` / the `ubar-*` calling controls / the
+ * `calling-screen-*` stage) with an aria-label="Leave" fallback; old tids kept as legacy.
+ *
+ * VERIFY-LIVE: the lobby / denied states still could not be driven from the server bench
+ * (single shared signed-in profile — no anonymous second identity), so those use
+ * multi-signal detection (data-tid + aria-label + text) with the old selectors retained;
+ * the Legion live retest confirmed lobby end-to-end (the card reached the lobby + was
+ * admitted). Admission is additionally a one-way latch (supervisor.ts / injectionScript.ts):
+ * brief post-admission DOM drift can never force-close an admitted card, while a genuine
+ * exit (a recognized non-call page, or in-call anchors gone past a heartbeat window) is
+ * still reported honestly so the consent evidence never lies about presence.
  *
  * Every method is self-contained (DOM-only, no imports, no module closures) so
  * the exact source can be serialized into the injected webview script.
@@ -42,7 +54,19 @@ const JOIN_SELECTOR = '[data-tid="prejoin-join-button"]';
 const MUTE_SELECTOR = '[data-tid="toggle-mute"]';
 const LOBBY_SELECTOR =
   '[data-tid="calling-lobby-screen"], [data-tid="lobby-screen-title"], [data-tid="lobby-screen"], [data-tid="calling-lobby"]';
+// ADMITTED / in-meeting anchors — GROUNDED in a real live capture (2026-07-06) of the
+// post-admission Teams web page, see `coordination/qa-campaign/evidence/qa91d-teams-admitted/`.
+// This fixed QA-82: the OLD selectors (kept below as legacy fallbacks) matched NONE of
+// today's in-call DOM, so `detectPhase` sat in `loading` and the runner soft-failed
+// `page-unrecognized` ~28s AFTER a genuine admission → the card was force-closed on stage.
+// The real in-call-only signals: the `hangup-main-btn` Leave button (also `#hangup-button`
+// / `data-inp="hangup-button"`), the running `call-duration` timer, the `ubar-*`
+// calling/meeting controls (by tid AND by aria-label), and the `calling-screen-*` /
+// `stage-layouts-renderer` stage. Old tids retained last so legacy variants still match.
 const ADMITTED_SELECTOR =
+  '[data-tid="hangup-main-btn"], #hangup-button, [data-inp="hangup-button"], ' +
+  '[data-tid="call-duration"], [data-tid="ubar-horizontal-end"], [data-tid="ubar-horizontal-middle-end"], ' +
+  '[data-tid="ubar-toolbar-wrapper"], [data-tid="stage-layouts-renderer"], [data-tid="calling-screen-background"], ' +
   '[data-tid="hangup-button"], [data-tid="call-hangup"], [data-tid="calling-retention-banner"], [data-tid="calling-composite-inner-container"]';
 const DENIED_SELECTOR =
   '[data-tid="rejoin-title"], [data-tid="cannot-join-title"], [data-tid="calling-declined-screen"]';
@@ -99,11 +123,40 @@ export const teamsAdapter: JoinAdapter = {
       return 'launcher';
     }
     // Terminal / late states win over a lingering prejoin form.
-    if (
-      doc.querySelector(
-        '[data-tid="hangup-button"], [data-tid="call-hangup"], [data-tid="calling-retention-banner"], [data-tid="calling-composite-inner-container"]',
-      )
-    ) {
+    // ADMITTED / in-meeting: grounded on the real live capture (QA-91d). Multi-signal
+    // so a single tid drift can't re-open the ~28s-after-admit self-destruct bug:
+    //  1. the real in-call anchors (hangup-main-btn / #hangup-button / call-duration /
+    //     the ubar calling+meeting controls / the calling-screen stage), PLUS the old
+    //     tids as legacy fallbacks — all in ADMITTED_SELECTOR-equivalent form here; and
+    //  2. a button whose aria-label is exactly "Leave" / "Leave meeting" / "Hang up"
+    //     (the in-call hang-up control), which the left-nav app bar never has.
+    // Inlined (not the module const) because detectPhase is serialized standalone into
+    // the webview — a module-scope reference would be undefined there.
+    const inMeeting = () => {
+      if (
+        doc.querySelector(
+          '[data-tid="hangup-main-btn"], #hangup-button, [data-inp="hangup-button"], ' +
+            '[data-tid="call-duration"], [data-tid="ubar-horizontal-end"], [data-tid="ubar-horizontal-middle-end"], ' +
+            '[data-tid="ubar-toolbar-wrapper"], [data-tid="stage-layouts-renderer"], [data-tid="calling-screen-background"], ' +
+            '[data-tid="hangup-button"], [data-tid="call-hangup"], [data-tid="calling-retention-banner"], [data-tid="calling-composite-inner-container"]',
+        )
+      ) {
+        return true;
+      }
+      // aria-label fallback: the in-call hang-up button. Scoped to real hang-up copy
+      // so it can never match a left-nav "People"/"Meet" app-bar control.
+      const buttons = doc.querySelectorAll('button, [role="button"]');
+      for (let i = 0; i < buttons.length; i++) {
+        const b = buttons[i];
+        if (!(b instanceof HTMLElement)) continue;
+        const label = (b.getAttribute('aria-label') || '').trim().toLowerCase();
+        if (label === 'leave' || label === 'leave meeting' || label === 'hang up' || label === 'hangup') {
+          return true;
+        }
+      }
+      return false;
+    };
+    if (inMeeting()) {
       return 'admitted';
     }
     if (

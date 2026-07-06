@@ -6,6 +6,7 @@ function fakeSupervisor() {
   return {
     handleLobby: vi.fn(),
     handleAdmitted: vi.fn(),
+    handlePresumedPresent: vi.fn(),
     handleDenied: vi.fn(),
     handleDisconnected: vi.fn(),
     handleFailed: vi.fn(),
@@ -17,6 +18,7 @@ describe('applyTitleStatus', () => {
     const cases: Array<[string, keyof ReturnType<typeof fakeSupervisor>]> = [
       ['NC:lobby', 'handleLobby'],
       ['NC:admitted', 'handleAdmitted'],
+      ['NC:present-unknown', 'handlePresumedPresent'],
       ['NC:denied', 'handleDenied'],
       ['NC:disconnected', 'handleDisconnected'],
     ];
