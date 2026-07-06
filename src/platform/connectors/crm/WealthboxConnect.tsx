@@ -512,6 +512,7 @@ export function WealthboxConnect() {
 
             <input
               type="password"
+              data-testid="wealthbox-api-key-input"
               value={token}
               onChange={(e) => {
                 setToken(e.target.value);
@@ -530,6 +531,7 @@ export function WealthboxConnect() {
 
             <button
               type="button"
+              data-testid="connect-wealthbox-button"
               disabled={connecting}
               onClick={() => void connect()}
               className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"

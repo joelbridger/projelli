@@ -1,0 +1,4 @@
+{
+  "_comment": "Deliberate permanent-handle removals/renames. Adding a handle never needs an entry; REMOVING or RENAMING one does. When you intentionally drop or rename a data-testid, add an entry here, then run `node scripts/ui-system/handle-guard.mjs --update-baseline`. The guard fails on any baseline handle that vanishes without a matching entry.",
+  "migrations": []
+}

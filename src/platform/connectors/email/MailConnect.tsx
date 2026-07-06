@@ -141,6 +141,7 @@ export function MailConnect() {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              data-testid="connect-m365-button"
               disabled={connecting}
               onClick={() => void connect()}
               className="rounded-md bg-[var(--kp-navy)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-60"

@@ -32,6 +32,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **UI Iteration System — a foundation so UI can be re-skinned fast and safely,
+  round after round, without a full manual re-test each time.** Four machine
+  checks (`scripts/ui-system/`, documented in `scripts/ui-system/README.md`):
+  1. **Permanent handles** — `handle-guard.mjs` baselines every `data-testid`
+     (~1,392) and fails the build if one is removed/renamed without a migration
+     entry (`handles.migrations.json`). Added handles to shared primitives that
+     couldn't receive one (`SegmentedToggle`, `ConfirmDialog`) and to demo-path
+     controls (`Spine` client rows, the M365/OneDrive/Wealthbox connect
+     buttons + Wealthbox key input). Naming convention documented in
+     `ARCHITECTURE.md`.
+  2. **Design-token guard** — `token-guard.mjs` freezes existing hard-coded
+     colours (301 fingerprints) and fails on any NEW colour literal in component
+     code, so a reskin touches only the token/paint layer.
+  3. **Tiered gate classifier** — `classify-tier.mjs` reads the changed CODE
+     (not just paths): behaviour-adjacent CSS escalates P-safe→S; a UI file that
+     changes hooks/async/state/handlers/invokes is Tier B. `gate-tier.mjs` runs
+     the matching gate per tier.
+  4. **Robot rehearsal** — `rehearsal.mjs` drives the DEMO-V1 6-step path against
+     the local `build:web-demo` browser bundle, gripping handles, with runtime
+     handle-integrity (unique/visible/enabled/real-control) + geometric visual
+     checks (no overflow, in-viewport) + a screenshot & verdict per step. Fast,
+     deterministic, machine-local; the live Legion smoke stays the slow drift run.
+  - The permanent-handle and token guards are wired into `scripts/gate.sh`.
+  - **Round-2 review hardening (all BLOCKING findings fixed, TDD):**
+    - Classifier now escalates handler REBINDS (`onClick={connect}`→`{disconnect}`),
+      `disabled`/`aria-disabled`, `href`, form `action`, and `type="submit"`
+      changes in UI files to Tier B (was only catching inline-arrow handlers).
+    - Handle integrity now requires the handle to BE the interactive element;
+      a wrapper is accepted only via an explicit `ALLOWED_WRAPPERS` entry naming
+      the inner target (was: passed if it merely CONTAINED a control). Reachable
+      coverage widened (nav + hub subtabs + client row + Ask composer).
+    - Handle guard adds static cross-file uniqueness (baselined; blocks NEW
+      ambiguous/duplicate handles across the whole inventory).
+    - Tier S gate now RUNS auto-selected scoped component tests and FAILS when
+      none exist (was: printed a reminder). Pure logic extracted to
+      `scripts/ui-system/lib/{classify,handle-eval,select-tests}.mjs` and unit-
+      tested in `tests/unit/ui-system/`.
+  - **Round-3 delta-review fixes (TDD):** disabled INPUT handles now fail exactly
+    like disabled controls (self + allowed-wrapper paths); `ALLOWED_WRAPPERS`
+    entries must store a target selector AND a click point, and the resolved
+    target must be proven a real control/input (a whitelisted `<div>` is
+    rejected); `type="button"` attribute changes classify as Tier B (removing it
+    inside a form defaults to submit).
+  - **Field-test addendum:** the classifier content-scans `src/platform/connectors/**`
+    (a pure copy/tooltip/header hunk in a connector is Tier S, not B-by-folder),
+    and test-only files (`*.test.tsx`) are their own tier (never gate the UI).
+    Shared per-file mapping extracted to `fileTier()`.
+  - **Round-4:** `ALLOWED_WRAPPERS` `clickPoint` is now strictly validated — only
+    the string `"center"` or `{x, y}` finite numbers pass (a truthy junk value
+    like `true` no longer satisfies the requirement). 39 unit tests.
+  - Files: `scripts/ui-system/*`, `scripts/gate.sh`, `ARCHITECTURE.md`,
+    `src/ui/kp/SegmentedToggle.tsx`, `src/ui/ConfirmDialog.tsx`,
+    `src/app/shell/layout/Spine.tsx`, `src/platform/connectors/{email/MailConnect,onedrive/OneDriveConnect,crm/WealthboxConnect}.tsx`.
 - **Local-AI context trimming — Ask no longer overflows the on-device model's
   context window.** The embedded Advisor Prep Hero Local AI reports a
   ~16k-token working window (`AppLocalProvider.LANTERN_LOCAL_CONTEXT_WINDOW`),

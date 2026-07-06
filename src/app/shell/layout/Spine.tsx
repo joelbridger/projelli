@@ -171,6 +171,7 @@ export function Spine({
               const on = m.id === activeMatterId;
               return (
                 <button key={m.id} type="button"
+                  data-testid={`spine-client-row-${m.id}`}
                   onClick={() => {
                     // Return to this matter: App restores its last working
                     // surface + focused document (no explicit surface here).

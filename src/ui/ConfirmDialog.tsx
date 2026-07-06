@@ -19,6 +19,7 @@ export interface ConfirmDialogProps {
   variant?: 'default' | 'destructive';
   onConfirm: () => void;
   onCancel: () => void;
+  'data-testid'?: string;
 }
 
 export function ConfirmDialog({
@@ -31,6 +32,7 @@ export function ConfirmDialog({
   variant = 'default',
   onConfirm,
   onCancel,
+  'data-testid': testId = 'confirm-dialog',
 }: ConfirmDialogProps) {
   const handleConfirm = () => {
     onConfirm();
@@ -44,18 +46,19 @@ export function ConfirmDialog({
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent data-testid={testId}>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={handleCancel}>
+          <AlertDialogCancel onClick={handleCancel} data-testid="confirm-dialog-cancel">
             {cancelLabel}
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             className={variant === 'destructive' ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90' : ''}
+            data-testid="confirm-dialog-confirm"
           >
             {confirmLabel}
           </AlertDialogAction>
