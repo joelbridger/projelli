@@ -5,6 +5,7 @@ import {
   withAskTimeout,
   createAnswerStallWatchdog,
   waitForLocalAiSidecarReady,
+  LOCAL_AI_HEALTH_PROBE_GRACE_MS,
   ASK_ANSWER_WARNING_MS,
   ASK_ANSWER_TIMEOUT_MS,
 } from './askTimeout';
@@ -273,6 +274,114 @@ describe('waitForLocalAiSidecarReady', () => {
       createAnswerStallWatchdog({ onWarning, onTimeout });
       await vi.advanceTimersByTimeAsync(ASK_ANSWER_TIMEOUT_MS - 1);
       expect(onTimeout).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * Round-2 review finding: `local_llm_sidecar_start` holds the Rust-side
+   * sidecar mutex through its ENTIRE up-to-120s health wait, and
+   * `local_llm_sidecar_health` takes the SAME mutex — so when a boot/selection
+   * pre-start is already mid-warm-up, a concurrent `checkHealth()` call
+   * QUEUES behind it instead of answering quickly. Naively awaiting it (the
+   * round-1 shape) left the user on the plain "Answering…" spinner for the
+   * ENTIRE queued wait — exactly the failure this function exists to prevent.
+   */
+  it('shows the starting state when the health probe is blocked behind an in-flight warm-up, then clears it without a redundant startSidecar call once it resolves healthy', async () => {
+    vi.useFakeTimers();
+    try {
+      const onStarting = vi.fn();
+      const startSidecar = vi.fn();
+      let resolveHealth: (v: boolean) => void = () => undefined;
+      const checkHealth = vi.fn(
+        () => new Promise<boolean>((resolve) => { resolveHealth = resolve; }),
+      );
+
+      const gatePromise = waitForLocalAiSidecarReady({
+        providerId: 'keepance-local',
+        checkHealth,
+        startSidecar,
+        onStarting,
+        isDesktop: () => true,
+      });
+
+      // Still inside the grace window — the probe just hasn't answered yet
+      // (queued behind the other in-flight warm-up's mutex hold); nothing to
+      // show the user until we're sure this isn't just a normal fast probe.
+      await vi.advanceTimersByTimeAsync(LOCAL_AI_HEALTH_PROBE_GRACE_MS - 1);
+      expect(onStarting).not.toHaveBeenCalled();
+
+      // Past the grace window: the probe STILL hasn't answered, so show
+      // "starting" now, before we know whether we'll need to call
+      // startSidecar ourselves at all.
+      await vi.advanceTimersByTimeAsync(1);
+      expect(onStarting).toHaveBeenCalledWith(true);
+      expect(onStarting).toHaveBeenCalledTimes(1);
+
+      // The blocked probe finally answers healthy (the OTHER in-flight start
+      // succeeded) — clear the state and never redundantly start it ourselves.
+      resolveHealth(true);
+      await gatePromise;
+      expect(onStarting).toHaveBeenLastCalledWith(false);
+      expect(onStarting).toHaveBeenCalledTimes(2);
+      expect(startSidecar).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a probe blocked past the grace window that resolves NOT healthy falls through to starting the sidecar without a duplicate onStarting(true) call', async () => {
+    vi.useFakeTimers();
+    try {
+      const onStarting = vi.fn();
+      const startSidecar = vi.fn().mockResolvedValue('http://127.0.0.1:18089');
+      let resolveHealth: (v: boolean) => void = () => undefined;
+      const checkHealth = vi.fn(
+        () => new Promise<boolean>((resolve) => { resolveHealth = resolve; }),
+      );
+
+      const gatePromise = waitForLocalAiSidecarReady({
+        providerId: 'keepance-local',
+        checkHealth,
+        startSidecar,
+        onStarting,
+        isDesktop: () => true,
+      });
+
+      await vi.advanceTimersByTimeAsync(LOCAL_AI_HEALTH_PROBE_GRACE_MS);
+      expect(onStarting).toHaveBeenCalledWith(true);
+      expect(onStarting).toHaveBeenCalledTimes(1);
+
+      resolveHealth(false);
+      await gatePromise;
+      // Still exactly one onStarting(true) — never a redundant second call —
+      // followed by exactly one onStarting(false) once startSidecar settles.
+      expect(onStarting.mock.calls).toEqual([[true], [false]]);
+      expect(startSidecar).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('never flashes "starting" on the fast path — a quick health check answers well inside the grace window', async () => {
+    vi.useFakeTimers();
+    try {
+      const onStarting = vi.fn();
+      const startSidecar = vi.fn();
+      const checkHealth = vi.fn().mockResolvedValue(true);
+
+      await waitForLocalAiSidecarReady({
+        providerId: 'keepance-local',
+        checkHealth,
+        startSidecar,
+        onStarting,
+        isDesktop: () => true,
+      });
+      await vi.advanceTimersByTimeAsync(LOCAL_AI_HEALTH_PROBE_GRACE_MS + 1000);
+
+      expect(onStarting).not.toHaveBeenCalled();
+      expect(startSidecar).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

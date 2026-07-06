@@ -183,6 +183,22 @@ export function createAnswerStallWatchdog(opts: {
 }
 
 /**
+ * Fix 1b round 2 — the Rust-side sidecar state is guarded by a single mutex
+ * that `local_llm_sidecar_start` holds for its ENTIRE up-to-120s health wait
+ * (see `local_llm_sidecar_start` in `commands/local_llm/mod.rs`), and
+ * `local_llm_sidecar_health` takes the SAME mutex to read state. So when a
+ * boot/selection pre-start (`localAiPreStart.ts`) is already mid-warm-up, a
+ * concurrent `checkHealth()` call QUEUES behind it instead of answering
+ * quickly — awaiting it naively (as the round-1 fix did) would leave the user
+ * on the generic "Answering…" spinner for the entire queued wait, exactly the
+ * failure this function exists to prevent. This grace window is how long we
+ * let the probe be silent before assuming it's blocked and showing "starting"
+ * anyway; a normal, uncontended probe resolves in low tens of ms, so this
+ * never flashes on the fast path.
+ */
+export const LOCAL_AI_HEALTH_PROBE_GRACE_MS = 1500;
+
+/**
  * Fix 1b (demo readiness) — waits for the embedded llama-server sidecar to
  * become healthy BEFORE `createAnswerStallWatchdog` above is armed, for a
  * `keepance-local` send. The sidecar's own health wait can legitimately take
@@ -203,12 +219,17 @@ export function createAnswerStallWatchdog(opts: {
  * demo, hypothetically) can carry that id without one, and must not reach for
  * a sidecar that was never there.
  *
- * `checkHealth` is a quick, bounded probe (~2s) — the common case (sidecar
- * already warm from a prior question or the pre-start) calls `onStarting`
- * zero times, so the "Local AI is starting…" state never flashes when nothing
- * is actually starting. `checkHealth` errors are treated as "not healthy yet"
- * rather than propagated, since the real signal of success/failure is whether
- * `startSidecar` itself succeeds.
+ * `checkHealth` races against `LOCAL_AI_HEALTH_PROBE_GRACE_MS`: if it hasn't
+ * answered by then (queued behind another in-flight warm-up's mutex hold —
+ * see the constant's doc comment — or just a genuinely slow probe), we show
+ * "starting" WHILE STILL WAITING for the real answer, then either clear it
+ * (already healthy — no redundant `startSidecar` call) or fall through to
+ * starting it ourselves. On the common fast path (already warm, or a
+ * never-started sidecar answering near-instantly) `onStarting` is called
+ * zero times, so the "Local AI is starting…" state never flashes when
+ * nothing is actually starting. `checkHealth` errors are treated as "not
+ * healthy yet" rather than propagated, since the real signal of success/
+ * failure is whether `startSidecar` itself succeeds.
  */
 export async function waitForLocalAiSidecarReady(opts: {
   providerId: string;
@@ -221,15 +242,47 @@ export async function waitForLocalAiSidecarReady(opts: {
   if (opts.providerId !== 'keepance-local') return;
   if (!(opts.isDesktop ?? isTauri)()) return;
 
-  let healthy = false;
-  try {
-    healthy = await opts.checkHealth();
-  } catch {
-    healthy = false;
-  }
-  if (healthy) return;
+  // Plain `let`s mutated inside the `probe` closure below would get
+  // over-narrowed by TS's control-flow analysis at the read sites further
+  // down (it can't see the closure's mutation across the `await
+  // Promise.race(...)` boundary) — an object property read isn't narrowed
+  // the same way, so this state lives in one.
+  const state: { healthy: boolean; settled: boolean } = { healthy: false, settled: false };
+  const probe = (async () => {
+    try {
+      state.healthy = await opts.checkHealth();
+    } catch {
+      state.healthy = false;
+    } finally {
+      state.settled = true;
+    }
+  })();
 
-  opts.onStarting(true);
+  let signaledStarting = false;
+  let graceTimer: ReturnType<typeof setTimeout> | undefined;
+  const grace = new Promise<void>((resolve) => {
+    graceTimer = setTimeout(resolve, LOCAL_AI_HEALTH_PROBE_GRACE_MS);
+  });
+  try {
+    await Promise.race([probe, grace]);
+  } finally {
+    if (graceTimer !== undefined) clearTimeout(graceTimer);
+  }
+  if (!state.settled) {
+    // The probe is still pending past the grace window — either genuinely
+    // slow, or queued behind another in-flight warm-up's mutex hold. Either
+    // way, the user must see SOMETHING now, not silence until it resolves.
+    signaledStarting = true;
+    opts.onStarting(true);
+    await probe;
+  }
+
+  if (state.healthy) {
+    if (signaledStarting) opts.onStarting(false);
+    return;
+  }
+
+  if (!signaledStarting) opts.onStarting(true);
   try {
     await opts.startSidecar();
   } finally {
