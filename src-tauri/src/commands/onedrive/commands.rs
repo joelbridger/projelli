@@ -324,20 +324,117 @@ async fn purge_onedrive_local_data(ws: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Core disconnect logic — extracted for testability so integration tests can
-/// drive the full disconnect path without a Tauri runtime.
+/// How long the disconnect flow waits for an in-flight sync to actually stop
+/// after setting the cancel flag, before giving up. The cancel is honored at
+/// the engine's per-file checkpoints, so this only ever waits out the current
+/// file's download+write — 15s is generous headroom over that.
+const DISCONNECT_SYNC_WAIT: Duration = Duration::from_secs(15);
+
+/// Poll `is_syncing` until it clears, or `max` elapses. Returns `true` if the
+/// sync stopped in time, `false` on timeout. This is the backend guarantee for
+/// F2: disconnect must not purge/report while a sync could still commit a
+/// mid-flight write AFTER the purge (which would resurrect deleted data and can
+/// even recreate the tracking DB via a store upsert).
+async fn wait_for_sync_idle(is_syncing: &AtomicBool, max: Duration) -> bool {
+    let start = std::time::Instant::now();
+    while is_syncing.load(Ordering::SeqCst) {
+        if start.elapsed() >= max {
+            return false;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    true
+}
+
+/// Delete every materialized OneDrive file the store recorded a `local_path`
+/// for (the imported documents sitting in the user's client folders). Returns
+/// the workspace-relative paths that could NOT be removed — empty means every
+/// file is gone. A file already missing (the user moved/deleted it themselves)
+/// counts as successfully removed. The store is opened by the caller-supplied
+/// `open_store` so tests can inject a known key instead of the OS keychain.
+fn delete_materialized_files<F>(ws: &std::path::Path, open_store: &F) -> Result<Vec<String>, String>
+where
+    F: Fn(&std::path::Path) -> anyhow::Result<OneDriveStore>,
+{
+    let store = open_store(ws).map_err(|e| e.to_string())?;
+    let paths = store.all_local_paths().map_err(|e| e.to_string())?;
+    let mut failed = Vec::new();
+    for rel in paths {
+        let abs = ws.join(&rel);
+        match std::fs::remove_file(&abs) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                log::warn!("onedrive_disconnect: failed to delete imported file {}: {e}", abs.display());
+                failed.push(rel);
+            }
+        }
+    }
+    Ok(failed)
+}
+
+/// Core disconnect logic — thin wrapper over `onedrive_disconnect_logic_with`
+/// using the real OS-keychain store opener and the production sync-wait bound.
 ///
-/// Purges local data FIRST (RAG chunks + the OneDrive sync-state DB), and
-/// removes the Microsoft refresh token from the OS keychain ONLY AFTER that
-/// purge succeeds — mirroring `crm_disconnect_logic_for_provider`'s ordering.
-/// The previous ordering deleted the token first, so a purge failure left the
-/// account looking disconnected while imported data was still on disk with no
-/// way to finish removing it. Returns an `OneDriveDisconnectResult` that
-/// reports exactly what happened; essentially never propagates `Err`.
-pub async fn onedrive_disconnect_logic(state: &OneDriveState) -> OneDriveDisconnectResult {
+/// `delete_files` = the user's opt-in choice: when `true`, the materialized
+/// OneDrive files in their client folders are deleted too; when `false`
+/// (default), those files STAY (they're the user's documents now, possibly
+/// edited) and only the connection + search index are removed.
+pub async fn onedrive_disconnect_logic(
+    state: &OneDriveState,
+    delete_files: bool,
+) -> OneDriveDisconnectResult {
+    onedrive_disconnect_logic_with(
+        state,
+        delete_files,
+        |ws| OneDriveStore::open(ws),
+        DISCONNECT_SYNC_WAIT,
+    )
+    .await
+}
+
+/// Core disconnect logic with injectable seams — extracted for testability so
+/// integration tests can drive the full disconnect path without a Tauri runtime
+/// or the OS keychain, and with a short sync-wait bound.
+///
+/// Order of operations:
+/// 1. Set cancel, then WAIT for any in-flight sync to actually stop (F2). On
+///    timeout, keep the token and report `data_remains` — never purge/report
+///    while a sync could still commit a write after the purge.
+/// 2. If `delete_files`, delete the materialized files FIRST (before the
+///    tracking DB — the only record of their paths — is removed). Any failure
+///    keeps everything (token + DB) so the retry can re-enumerate and finish.
+/// 3. Purge local data (RAG chunks + the OneDrive sync-state DB), and remove
+///    the Microsoft refresh token ONLY AFTER that purge succeeds — so the user
+///    is never disconnected with data stranded on disk.
+///
+/// Returns an `OneDriveDisconnectResult` that reports exactly what happened;
+/// essentially never propagates `Err`.
+pub async fn onedrive_disconnect_logic_with<F>(
+    state: &OneDriveState,
+    delete_files: bool,
+    open_store: F,
+    sync_wait: Duration,
+) -> OneDriveDisconnectResult
+where
+    F: Fn(&std::path::Path) -> anyhow::Result<OneDriveStore>,
+{
     let mut result = OneDriveDisconnectResult::default();
 
     state.cancel.store(true, Ordering::SeqCst);
+
+    // F2: an in-flight sync must fully stop before we purge — otherwise a file
+    // caught between the engine's cancel checks and its write commits AFTER the
+    // purge, reappearing on disk (and its store upsert can recreate the DB).
+    if !wait_for_sync_idle(&state.is_syncing, sync_wait).await {
+        result.data_remains = true;
+        result.warnings.push(
+            "An import was still stopping, so the OneDrive data was NOT deleted yet. Your \
+             account connection was kept — try disconnecting again in a moment to finish."
+                .to_string(),
+        );
+        return result;
+    }
 
     // No workspace → the imported data can't be located/deleted. KEEP the
     // token + connected state so the user can finish deleting once a
@@ -352,6 +449,34 @@ pub async fn onedrive_disconnect_logic(state: &OneDriveState) -> OneDriveDisconn
         );
         return result;
     };
+
+    // F1: opt-in delete of the materialized files. Do this BEFORE the tracking
+    // DB is purged (it's the only record of where those files live). Any
+    // failure → keep the token AND the DB, flag data_remains, and stop — so the
+    // "Finish deleting local data" retry can re-enumerate the paths and finish.
+    if delete_files {
+        match delete_materialized_files(&ws, &open_store) {
+            Ok(failed) if failed.is_empty() => {}
+            Ok(failed) => {
+                result.data_remains = true;
+                result.warnings.push(format!(
+                    "{} imported OneDrive {} could not be deleted; your account connection was \
+                     kept so you can try disconnecting again to finish deleting.",
+                    failed.len(),
+                    if failed.len() == 1 { "file" } else { "files" },
+                ));
+                return result;
+            }
+            Err(e) => {
+                result.data_remains = true;
+                result.warnings.push(format!(
+                    "The imported OneDrive files could not be deleted ({e}); your account \
+                     connection was kept so you can try disconnecting again to finish deleting."
+                ));
+                return result;
+            }
+        }
+    }
 
     match purge_onedrive_local_data(&ws).await {
         Ok(()) => {
@@ -403,17 +528,19 @@ pub async fn onedrive_disconnect_logic(state: &OneDriveState) -> OneDriveDisconn
     result
 }
 
-/// Disconnect the OneDrive/SharePoint account: purge locally-imported data
-/// (RAG chunks + the OneDrive sync-state DB), then remove the Microsoft
-/// refresh token from the OS keychain. Returns an `OneDriveDisconnectResult`
-/// that reports exactly what was and was not deleted — the UI must use these
-/// flags to show an honest status rather than always claiming "disconnected".
-/// Thin wrapper over `onedrive_disconnect_logic`.
+/// Disconnect the OneDrive/SharePoint account: stop any in-flight sync, remove
+/// the connection + search index, and — only when the user opts in via
+/// `delete_files` — delete the materialized files imported into their client
+/// folders. Returns an `OneDriveDisconnectResult` that reports exactly what was
+/// and was not deleted — the UI must use these flags to show an honest status
+/// rather than always claiming "disconnected". Thin wrapper over
+/// `onedrive_disconnect_logic`.
 #[tauri::command]
 pub async fn onedrive_disconnect(
     state: State<'_, OneDriveState>,
+    delete_files: bool,
 ) -> Result<OneDriveDisconnectResult, String> {
-    Ok(onedrive_disconnect_logic(&state).await)
+    Ok(onedrive_disconnect_logic(&state, delete_files).await)
 }
 
 #[tauri::command]

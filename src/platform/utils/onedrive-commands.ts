@@ -88,11 +88,17 @@ export async function oneDriveIsConnected(): Promise<boolean> {
   return invoke<boolean>('onedrive_is_connected');
 }
 
-export async function oneDriveDisconnect(): Promise<OneDriveDisconnectResult> {
+/**
+ * Disconnect OneDrive. `deleteFiles` is the user's opt-in choice: when true the
+ * files already imported into client folders are deleted too; when false
+ * (default) those files STAY in the workspace and only the connection + search
+ * index are removed.
+ */
+export async function oneDriveDisconnect(deleteFiles = false): Promise<OneDriveDisconnectResult> {
   if (!isTauri()) {
     return { tokenDeleted: false, ragPurged: false, localDataPurged: false, dataRemains: true, warnings: [] };
   }
-  return invoke<OneDriveDisconnectResult>('onedrive_disconnect');
+  return invoke<OneDriveDisconnectResult>('onedrive_disconnect', { deleteFiles });
 }
 
 export async function oneDriveListDrives(): Promise<OneDriveDrive[]> {

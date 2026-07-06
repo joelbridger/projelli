@@ -210,6 +210,24 @@ impl OneDriveStore {
         Ok(())
     }
 
+    /// Every workspace-relative on-disk path this store has materialized a file
+    /// to (rows with a non-NULL, non-empty `local_path`). These are the imported
+    /// OneDrive files sitting in the user's client folders — the disconnect flow
+    /// enumerates them to offer an opt-in delete BEFORE the tracking DB (the only
+    /// record of these paths) is removed.
+    pub fn all_local_paths(&self) -> Result<Vec<String>> {
+        let c = self.conn.lock().unwrap();
+        let mut stmt = c.prepare(
+            "SELECT local_path FROM onedrive_items
+             WHERE local_path IS NOT NULL AND local_path <> ''",
+        )?;
+        let rows = stmt
+            .query_map([], |r| r.get::<_, String>(0))?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(anyhow::Error::from)?;
+        Ok(rows)
+    }
+
     /// The workspace-relative on-disk path a downloaded item was written to, if it
     /// was materialized to disk (mapped-to-a-client files). `None` for RAG-only
     /// items and older rows.
@@ -402,5 +420,31 @@ mod tests {
         )
         .unwrap();
         assert!(s.list_needs_index().unwrap().is_empty());
+    }
+
+    #[test]
+    fn all_local_paths_lists_only_materialized_rows() {
+        let (_d, s) = store();
+        // A materialized (mapped-to-a-client) row.
+        s.upsert_item(
+            "onedrive:d:memo", "d", None, "memo", "memo.docx", "/clients/acme", None, "sig",
+            "hash", "matter-a", true, false,
+        )
+        .unwrap();
+        s.set_local_path("onedrive:d:memo", "Clients/Acme/memo.docx")
+            .unwrap();
+        // A RAG-only (unmapped) row: never materialized, so no local_path.
+        s.upsert_item(
+            "onedrive:d:notes", "d", None, "notes", "notes.docx", "/misc", None, "sig", "hash",
+            "unassigned", true, false,
+        )
+        .unwrap();
+
+        let paths = s.all_local_paths().unwrap();
+        assert_eq!(paths, vec!["Clients/Acme/memo.docx".to_string()]);
+
+        // Clearing the path drops it from the list.
+        s.clear_local_path("onedrive:d:memo").unwrap();
+        assert!(s.all_local_paths().unwrap().is_empty());
     }
 }

@@ -32,6 +32,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **OneDrive disconnect — honest promise + no data-loss race (connector-parity round 2).**
+  Two verified review findings:
+  - **F1 (disconnect no longer overpromises):** disconnect now opens a plain-language
+    confirmation stating that importing stops, the connection + search index are
+    removed, and files already imported into client folders **STAY** in the workspace.
+    Deleting those files is a deliberate opt-in ("Also delete the files imported from
+    OneDrive") — never silent, since they're the user's documents now (possibly edited).
+    When opted in, the backend enumerates every saved `local_path` and deletes those
+    files BEFORE removing the tracking DB; any delete failure keeps the token +
+    tracking DB and flags `dataRemains` so the "Finish deleting local data" retry can
+    re-enumerate and finish. Keeping files (opt-out) is no longer reported as a failure.
+    Files: `OneDriveStore::all_local_paths` (`store.rs`), `onedrive_disconnect_logic`
+    +`delete_materialized_files` (`commands.rs`), `oneDriveDisconnect(deleteFiles)`
+    (`onedrive-commands.ts`), `OneDriveConnect.tsx` confirmation flow.
+  - **F2 (disconnect no longer races an active sync):** `onedrive_disconnect_logic`
+    now sets cancel and then WAITS (bounded ~15s) for `is_syncing` to clear before
+    purging, so a file caught between the engine's cancel checks and its write can't
+    commit after the purge (which would resurrect deleted data and could recreate the
+    tracking DB). On timeout it keeps the token, keeps the DB, and reports `dataRemains`
+    with an honest warning. Files: `wait_for_sync_idle` + `onedrive_disconnect_logic_with`
+    (`commands.rs`); Rust tests in `tests/onedrive_disconnect.rs`.
 - **QA-91c: Notice Card now clicks through Teams' "browser or app?" launcher
   (the real reason it never joined).** Proven live (evidence `cca5e1a4`): the
   recording companion's hidden window always landed on Teams' launcher chooser —
