@@ -20,6 +20,7 @@ import { getMatters } from '@/platform/matter/matterStore';
 import { buildEsignMatterMap } from '@/platform/rag/matterResolver';
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 export function DocuSignConnect() {
   const [progress, setProgress] = useState<DocusignSyncProgress | null>(null);
@@ -115,8 +116,10 @@ export function DocuSignConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">DocuSign</h3>
-        <p className="mt-1 text-xs text-slate-500">DocuSign sync is available in the desktop app.</p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          DocuSign
+          <InfoHelp content="DocuSign sync is available in the desktop app." />
+        </h3>
       </section>
     );
   }
@@ -129,10 +132,10 @@ export function DocuSignConnect() {
             <FileSignature className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">DocuSign</h3>
-            <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import completed envelopes, recipients, document names, and signing history. Advisor Prep Hero only reads DocuSign data.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+              DocuSign
+              <InfoHelp content="Import completed envelopes, recipients, document names, and signing history. Advisor Prep Hero only reads DocuSign data." />
+            </h3>
           </div>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">

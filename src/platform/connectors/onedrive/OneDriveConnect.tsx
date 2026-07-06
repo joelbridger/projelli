@@ -1,5 +1,6 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
+import { InfoHelp } from '@/ui/InfoHelp';
 import {
   oneDriveCancel,
   oneDriveConnect,
@@ -307,19 +308,10 @@ export function OneDriveConnect() {
 
   return (
     <section className="rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900">
+      <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
         OneDrive and SharePoint documents
+        <InfoHelp content="Imports documents from any OneDrive or SharePoint folder named after one of your clients. Advisor Prep Hero downloads those files into the client's folder on this device, so they appear in the client's Documents and become searchable. Read-only in the cloud: Advisor Prep Hero only asks Microsoft for files. It never edits, uploads, moves, or deletes anything in OneDrive or SharePoint." />
       </h3>
-      <p className="mt-1 text-sm text-slate-600">
-        Imports documents from any OneDrive or SharePoint folder named after one
-        of your clients. Advisor Prep Hero downloads those files into the client's
-        folder on this device, so they appear in the client's Documents and become
-        searchable.
-      </p>
-      <p className="mt-2 text-xs text-slate-500">
-        Read-only in the cloud: Advisor Prep Hero only asks Microsoft for files. It
-        never edits, uploads, moves, or deletes anything in OneDrive or SharePoint.
-      </p>
       {localOnly && (
         <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
           Local-only mode is on, so OneDrive sync is paused. Switch out of

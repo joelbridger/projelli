@@ -23,6 +23,7 @@ import {
 } from '@/platform/rag/matterResolver';
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 
@@ -179,8 +180,10 @@ export function BoxConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Box</h3>
-        <p className="mt-1 text-xs text-slate-500">Box sync is available in the desktop app.</p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Box
+          <InfoHelp content="Box sync is available in the desktop app." />
+        </h3>
       </section>
     );
   }
@@ -193,10 +196,10 @@ export function BoxConnect() {
             <BoxIcon className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">Box</h3>
-            <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import supported documents from Box into encrypted local search. Advisor Prep Hero only reads Box files.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+              Box
+              <InfoHelp content="Import supported documents from Box into encrypted local search. Advisor Prep Hero only reads Box files." />
+            </h3>
           </div>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">

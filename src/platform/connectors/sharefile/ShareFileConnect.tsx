@@ -19,6 +19,7 @@ import { getMatters, useMatterStore } from '@/platform/matter/matterStore';
 import { buildSharefileMatterMap } from '@/platform/rag/matterResolver';
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { InfoHelp } from '@/ui/InfoHelp';
 import type { Matter } from '@/platform/types/matter';
 
 function normalizeClientName(value: string): string {
@@ -181,8 +182,10 @@ export function ShareFileConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">ShareFile documents</h3>
-        <p className="mt-1 text-xs text-slate-500">ShareFile sync is available in the desktop app.</p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          ShareFile documents
+          <InfoHelp content="ShareFile sync is available in the desktop app." />
+        </h3>
       </section>
     );
   }
@@ -195,13 +198,10 @@ export function ShareFileConnect() {
             <FolderLock className="h-4 w-4" aria-hidden="true" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-900">ShareFile documents</h3>
-            <p className="mt-1 max-w-xl text-xs text-slate-500">
-              Import documents this ShareFile token can read. Advisor Prep Hero downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client.
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Read-only: Advisor Prep Hero lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile.
-            </p>
+            <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+              ShareFile documents
+              <InfoHelp content="Import documents this ShareFile token can read. Advisor Prep Hero downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client. Read-only: Advisor Prep Hero lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile." />
+            </h3>
           </div>
         </div>
         <span className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">

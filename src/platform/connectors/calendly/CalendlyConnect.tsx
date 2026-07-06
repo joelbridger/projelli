@@ -17,6 +17,7 @@ import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
+import { InfoHelp } from '@/ui/InfoHelp';
 
 // Durable, append-only audit trail for connector activity, so a Calendly sync
 // (including one that indexed zero meetings or failed) always leaves a record —
@@ -144,10 +145,10 @@ export function CalendlyConnect() {
   if (!isTauri()) {
     return (
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Calendly</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Import scheduled meetings and invitee intake answers into matter memory. Requires the Advisor Prep Hero desktop app.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Calendly
+          <InfoHelp content="Import scheduled meetings and invitee intake answers into matter memory. Requires the Advisor Prep Hero desktop app." />
+        </h3>
       </section>
     );
   }
@@ -155,10 +156,10 @@ export function CalendlyConnect() {
   return (
     <>
       <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h3 className="text-sm font-semibold text-slate-900">Calendly</h3>
-        <p className="mt-1 text-sm text-slate-600">
-          Import scheduled events and invitee Q&A as read-only meeting memory. Advisor Prep Hero uses GET requests only.
-        </p>
+        <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+          Calendly
+          <InfoHelp content="Import scheduled events and invitee Q&A as read-only meeting memory. Advisor Prep Hero uses GET requests only." />
+        </h3>
         {!connected && (
           <div className="mt-3 space-y-3">
             {disconnectNote && <p className="text-sm text-slate-600">{disconnectNote}</p>}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { gmailConnect, gmailConnectCancel, gmailOauthConfigured, gmailIsConnected, gmailDisconnect, mailSyncAll, mailCancelSync, isDesktopOnlyMailError } from '@/platform/utils/mail-commands';
 import { useMailSync } from '@/platform/connectors/email/useMailSync';
 import { useMailStore } from '@/platform/connectors/email/mailStore';
@@ -114,11 +115,10 @@ export function MailGmailConnect() {
 
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-slate-900">Gmail</h3>
-      <p className="mt-1 text-sm text-slate-600">
-        Signs in with your Google account directly. Your email stays on this device and never
-        leaves your machine. Requires the Advisor Prep Hero desktop app.
-      </p>
+      <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
+        Gmail
+        <InfoHelp content="Signs in with your Google account directly. Your email stays on this device and never leaves your machine. Requires the Advisor Prep Hero desktop app." />
+      </h3>
 
       {!connected && (
         <div className="mt-3 space-y-3">
