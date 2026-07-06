@@ -101,7 +101,9 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
     renderSettings();
     const card = screen.getByTestId('confidentiality-mode-assured');
     expect(card).toHaveAttribute('data-disabled', 'true');
-    expect(card).toBeDisabled();
+    // The card is a non-interactive container; the disabled state lives on
+    // its stretched select control.
+    expect(screen.getByTestId('confidentiality-mode-assured-select')).toBeDisabled();
     expect(card.textContent).toContain('Needs admin key');
     expect(card.textContent).not.toMatch(/coming soon/i);
   });
@@ -111,10 +113,11 @@ describe('ConfidentialityModeSettings — Assured selectability', () => {
     renderSettings();
     const card = screen.getByTestId('confidentiality-mode-assured');
     expect(card).toHaveAttribute('data-disabled', 'false');
-    expect(card).not.toBeDisabled();
+    const select = screen.getByTestId('confidentiality-mode-assured-select');
+    expect(select).not.toBeDisabled();
     expect(card.textContent).not.toContain('Needs admin key');
 
-    fireEvent.click(card);
+    fireEvent.click(select);
     expect(useSettingsStore.getState().getSetting(CONFIDENTIALITY_MODE_SETTING_KEY)).toBe('assured');
   });
 

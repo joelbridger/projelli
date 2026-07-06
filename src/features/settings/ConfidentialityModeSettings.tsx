@@ -132,29 +132,46 @@ export function ConfidentialityModeSettings() {
           const disabled =
             (!!card.comingSoon && card.mode !== 'assured') ||
             modeNeedsManagedKey(card.mode, assuredAvailable);
+          // The card is a NON-interactive container. Selection happens through
+          // an invisible "stretched" button covering the whole card, and the
+          // per-card InfoHelp is a real sibling button layered above it — so no
+          // focusable control is ever nested inside another (which broke
+          // keyboard/screen-reader behavior and made the help unreachable on
+          // disabled cards). The rendered pixels are identical to the old
+          // single-<button> card.
           return (
-            <button
+            <div
               key={card.mode}
-              type="button"
               data-testid={`confidentiality-mode-${card.mode}`}
               data-selected={selected ? 'true' : 'false'}
               data-disabled={disabled ? 'true' : 'false'}
-              disabled={disabled}
-              aria-pressed={selected}
-              onClick={() => {
-                if (!disabled) setMode(card.mode);
-              }}
               className={cn(
                 'relative text-left rounded-lg border p-3 transition-colors',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                 disabled
-                  ? 'opacity-60 cursor-not-allowed border-border bg-muted/20'
+                  ? 'opacity-60 border-border bg-muted/20'
                   : selected
                     ? cn('bg-background shadow-sm', card.accent)
                     : 'border-border hover:bg-muted/30',
               )}
             >
-              <div className="flex items-center justify-between gap-2 mb-1">
+              <button
+                type="button"
+                data-testid={`confidentiality-mode-${card.mode}-select`}
+                disabled={disabled}
+                aria-pressed={selected}
+                aria-label={card.title}
+                onClick={() => {
+                  if (!disabled) setMode(card.mode);
+                }}
+                className={cn(
+                  // -inset-px stretches over the card's 1px border so the
+                  // clickable area and focus ring match the old full-card button.
+                  'absolute -inset-px rounded-lg',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  disabled && 'cursor-not-allowed',
+                )}
+              />
+              <div className="pointer-events-none relative flex items-center justify-between gap-2 mb-1">
                 <span
                   className={cn(
                     'inline-flex items-center gap-1.5 font-medium text-sm',
@@ -163,7 +180,11 @@ export function ConfidentialityModeSettings() {
                 >
                   <Icon className="h-4 w-4 shrink-0" aria-hidden />
                   {card.title}
-                  <InfoHelp as="span" content={card.blurb} label={`About ${card.title}`} />
+                  <InfoHelp
+                    className="pointer-events-auto"
+                    content={card.blurb}
+                    label={`About ${card.title}`}
+                  />
                 </span>
                 <span className="flex items-center gap-1.5 shrink-0">
                   {card.tag && (
@@ -184,7 +205,7 @@ export function ConfidentialityModeSettings() {
                   )}
                 </span>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>

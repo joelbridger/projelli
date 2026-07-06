@@ -316,7 +316,7 @@ export default {
       10_000,
     );
     await session.click(collapseButton);
-    await session.testid('spine-nav-collapsed-files', 10_000);
+    await session.testid('spine-nav-collapsed-matters', 10_000);
     await session.clickTestid('spine-nav-collapsed-search', 10_000);
     await session.testid('ask-composer-input', 15_000);
     await pressShortcut(session, 'b', { ctrlKey: true });
