@@ -37,7 +37,12 @@ import {
   validateApiKeyLive,
   type ValidationProvider,
 } from '@/platform/providers/apiKeyValidation';
-import { markKeyVerified, markKeyInvalid, clearKeyStatus } from '@/platform/providers/keyVerification';
+import {
+  markKeyVerified,
+  markKeyInvalid,
+  clearKeyStatus,
+  getKeyCheckStatus,
+} from '@/platform/providers/keyVerification';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
@@ -87,6 +92,24 @@ interface KeyRow {
   masked: string;
   status: RowStatus;
   checkError?: string;
+  /** ISO timestamp of the last persisted verify/invalid check, if any —
+   *  shown as "checked 5 min ago" so a restored status reads as current
+   *  info, not a fresh result of this page load. */
+  checkedAt?: string;
+}
+
+/** "checked just now" / "checked 5 min ago" / "checked 3 hr ago" / "checked
+ *  2 days ago", relative to now. Resolution matches how stale the info
+ *  practically is — no need for second-level precision past a minute. */
+function formatCheckedAgo(iso: string): string {
+  const deltaMs = Math.max(0, Date.now() - new Date(iso).getTime());
+  const mins = Math.floor(deltaMs / 60_000);
+  if (mins < 1) return 'checked just now';
+  if (mins < 60) return `checked ${String(mins)} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `checked ${String(hrs)} hr ago`;
+  const days = Math.floor(hrs / 24);
+  return `checked ${String(days)} day${days === 1 ? '' : 's'} ago`;
 }
 
 export function ApiKeyManager({
@@ -113,10 +136,22 @@ export function ApiKeyManager({
         Promise.all(
           stored.map(async (entry): Promise<KeyRow> => {
             const masked = await keychainService.getMaskedKey(entry.provider);
+            // Show the LAST KNOWN check result on open instead of resetting to
+            // Unverified — the dialog used to hold this only in local state, so
+            // reopening it (even seconds later, no app restart) lost a result a
+            // "Check" click had just proven. A dead key still flips to Invalid
+            // the next time it actually fails a live check (unchanged below).
+            const persisted = getKeyCheckStatus(entry.provider);
             return {
               provider: entry.provider,
               masked: masked ?? `${entry.keyPrefix}...`,
-              status: 'unverified',
+              status:
+                persisted.status === 'verified'
+                  ? 'working'
+                  : persisted.status === 'invalid'
+                    ? 'invalid'
+                    : 'unverified',
+              ...(persisted.checkedAt ? { checkedAt: persisted.checkedAt } : {}),
             };
           }),
         ),
@@ -154,17 +189,25 @@ export function ApiKeyManager({
     };
   }, []);
 
-  const setRowStatus = useCallback((provider: KeyProvider, status: RowStatus, checkError?: string) => {
-    setRows((prev) =>
-      prev
-        ? prev.map((r) => {
-            if (r.provider !== provider) return r;
-            const { checkError: _drop, ...rest } = r;
-            return checkError ? { ...rest, status, checkError } : { ...rest, status };
-          })
-        : prev,
-    );
-  }, []);
+  const setRowStatus = useCallback(
+    (provider: KeyProvider, status: RowStatus, checkError?: string, checkedAt?: string) => {
+      setRows((prev) =>
+        prev
+          ? prev.map((r) => {
+              if (r.provider !== provider) return r;
+              const { checkError: _drop, checkedAt: _dropAt, ...rest } = r;
+              return {
+                ...rest,
+                status,
+                ...(checkError ? { checkError } : {}),
+                ...(checkedAt ? { checkedAt } : {}),
+              };
+            })
+          : prev,
+      );
+    },
+    [],
+  );
 
   const handleCheck = useCallback(
     async (provider: KeyProvider) => {
@@ -197,13 +240,15 @@ export function ApiKeyManager({
         // either way: leave it unverified rather than mislabel a possibly-good
         // key as invalid.
         if (result.outcome === 'ok') {
-          setRowStatus(provider, 'working');
-          // Remember this provider is verified so a new chat prefers it.
+          // Remember this provider is verified so a new chat prefers it, and
+          // read back the exact checked-at moment just persisted so the badge's
+          // "checked just now" agrees with what a later dialog reopen will show.
           markKeyVerified(provider);
+          setRowStatus(provider, 'working', undefined, getKeyCheckStatus(provider).checkedAt ?? undefined);
         } else if (result.outcome === 'rejected' || result.outcome === 'malformed') {
-          setRowStatus(provider, 'invalid');
           // The stored key is bad, so a new chat must never default to it.
           markKeyInvalid(provider);
+          setRowStatus(provider, 'invalid', undefined, getKeyCheckStatus(provider).checkedAt ?? undefined);
         } else if (result.outcome === 'rate_limited') {
           setRowStatus(provider, 'rate_limited', result.message);
         } else {
@@ -306,6 +351,14 @@ export function ApiKeyManager({
                         {PROVIDER_NAMES[row.provider]}
                       </span>
                       <StatusBadge status={row.status} />
+                      {row.checkedAt && (row.status === 'working' || row.status === 'invalid') && (
+                        <span
+                          data-testid={`api-key-manager-checked-at-${row.provider}`}
+                          className="text-xs text-muted-foreground"
+                        >
+                          {formatCheckedAgo(row.checkedAt)}
+                        </span>
+                      )}
                     </div>
                     <code className="mt-1 block text-xs text-muted-foreground">{row.masked}</code>
                     {row.checkError && (
