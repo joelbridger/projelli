@@ -1,5 +1,15 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-06 ~21:30 — merge window: 6 branches landed green; swallow-p0 awaits Check B (coordinator-10)
+
+- **Merged + pushed (each: fresh independent review rounds → all findings batch-fixed → full gate with bare exit codes):** connector-parity @f90acab7 (4 rounds, 11 findings — disconnect gate + wait-for-sync-stop, keep-files-by-default with opt-in delete + conflict-copy guard, path safety) · reindex-swap @39f81a58 (atomic swap hardened: pre-merge dedup, PDF band overflow, dup-id rejection) · localai-trimming @c39b02dc (num_ctx budget, oversized-chunk fallback) · theme-light-lock @f321381e (dark-drift killed at the root: explicit-choice stamp; Jameson-priority) · badge-consistency @8953f35b (+gate repair @8b85eb7c) · notice-noknock @d86ece89 (pre-lobby retry + telemetry). Tip d86ece89, 6,723 tests green.
+- **Review scoreboard:** ALL NINE prepared branches drew real findings on fresh review (~25 verified findings total this shift); every fix round since the batching policy went to CODEX (free), coordinator verified each diff at the gate.
+- **Two gate incidents, both honest-logged:** (1) a delta re-review died silently without a verdict — treated as not-a-pass, re-ran; (2) coordinator chained `git push` to a gate command and pushed a red tip (2 stale-contract test failures) — repaired forward in ~15 min. Rule: never chain push to a gate command.
+- **swallow-p0 (+r8 @2efa2e05, re-review MERGE-READY):** Check A PASSED live on bench-1; Check B BLOCKED there (WebView2 executed a stale bundle — tooling, not branch). Re-run on clean bench-2 IN FLIGHT (cc-lantern-cloudcheck2, runtime-freshness protocol). qa93-per-workspace (@fc8dfc40, 4 rounds) merges right after swallow-p0.
+- **Waiting on Jameson:** ui-simplification gallery verdict (branch fully repaired @5b72a7bd, pixel-identical) + the Outlook security code (non-blocking).
+- **New standing policy (Jameson-approved):** batch ALL findings into ONE combined fix round (WORKER-DISCIPLINE.md 🧺); token economy: Codex builds bounded fixes, Claude lanes only for open-ended judgment work.
+- **Next after Check B:** merge swallow-p0 → rebase+merge qa93 → (gallery OK) ui-simplification → then the UI Iteration System build (prep analysis saved: coordination/reports/uisystem-implementation-analysis.md).
+
 ## UPDATE 2026-07-06 ~08:00 — endgame: 17 merges, all 4 notice-card layers fixed, retest-4 running (coordinator-9)
 
 - **Since the 04:15 entry:** QA-91 layers 3+4 merged (launcher /v2/ side-door + click-through @bb3d68a1; admitted-detection grounded in real in-meeting DOM + admission-latch-with-honest-disconnects @658dbf13 — review caught the latch silencing real exits, fixed). Local-AI cold start ROOT-CAUSED (readiness was HTTP-health, not can-generate) and fixed with a warm-up generation probe @931639ce. Dress-rehearsal fixes merged (persistent ✓Working state @c754a286). Runbook content-complete @c0d8a399 (PDF-kit step 3, exact clicks, warm-up habit, honest fallbacks).
