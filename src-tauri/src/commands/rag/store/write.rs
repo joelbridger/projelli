@@ -2,24 +2,33 @@ use super::*;
 use arrow_array::UInt64Array;
 use futures_util::TryStreamExt;
 
-/// After an atomic `merge_insert` commits, collapse any rows that were ALREADY
-/// duplicated under the same `id` before this call ran (P2 finding: LanceDB
-/// documents `merge_insert` behavior on multiple matches as undefined — when a
-/// pre-existing duplicate `id` matches the join, `when_matched_update_all`
-/// updates EVERY matching row instead of collapsing them, so a corrupt id
-/// stays duplicated forever across every future re-index).
+/// BEFORE the atomic `merge_insert` runs, collapse any rows that are ALREADY
+/// duplicated under the same `id` on disk (P2 finding: LanceDB documents
+/// `merge_insert` behavior on multiple matches as undefined — when a pre-existing
+/// duplicate `id` matches the join, `when_matched_update_all` updates EVERY
+/// matching row instead of collapsing them, so a corrupt id stays duplicated
+/// forever across every future re-index).
+///
+/// ORDERING (F1): this runs BEFORE the merge, never after. Any fallible work
+/// AFTER a committed merge turns a SUCCEEDED content swap into a hidden file — a
+/// transient failure would make the whole command return Err, and the caller's
+/// fail-closed path (indexing.rs) would durably tombstone the freshly-written
+/// path, making the file vanish from search until a later re-index. Recreating
+/// exactly the disappearing-file symptom this branch exists to kill. Run here
+/// instead: if the cleanup fails, the content is UNTOUCHED (old rows still
+/// serve retrieval) and the error is honest — a genuine, complete failure, not
+/// a partial success. Combined with the incoming-id uniqueness check, no
+/// post-merge dedup is needed: a deduped table plus a unique incoming batch
+/// cannot produce a duplicate id.
 ///
 /// Scoped to `path_predicate` — the same token-scoped predicate the caller
 /// already builds — so this only ever scans/touches the one file's rows.
 ///
-/// No retrieval gap: every candidate id was JUST brought current by
-/// `when_matched_update_all` in the merge that preceded this call, so every
-/// physical copy of a duplicated id already holds identical, correct content.
-/// Deleting the extras never changes what a reader sees content-wise, and
-/// addressing the extras individually by `_rowid` (never by `id`) means the
-/// N-1 excess copies are removed in a SINGLE delete commit while at least one
-/// row for the id is always left alive — unlike a delete-then-add, a reader
-/// can never land on a version where the id is missing entirely.
+/// No retrieval gap: the duplicated rows all hold the CURRENT (pre-swap)
+/// content, so deleting the N-1 excess copies by `_rowid` (never by `id`) in a
+/// SINGLE delete commit always leaves at least one row for the id alive holding
+/// that content — a reader can never land on a version where the id is missing.
+/// The subsequent atomic merge then swaps the surviving row to the new content.
 async fn dedup_duplicate_ids_for_path(table: &Table, path_predicate: &str) -> Result<()> {
     let mut stream = table
         .query()
@@ -71,6 +80,39 @@ async fn dedup_duplicate_ids_for_path(table: &Table, path_predicate: &str) -> Re
         .delete(&format!("_rowid IN ({list})"))
         .await
         .context("dedup delete of duplicate rows failed")?;
+    Ok(())
+}
+
+/// F2 defense-in-depth: the atomic `merge_insert` keys on `id`, and LanceDB's
+/// behavior on duplicate SOURCE ids is undefined — the merge would then update
+/// in place and the pre-merge dedup can't help (it only collapses rows already
+/// on disk, not duplicates arriving IN the batch), so all-but-one incoming copy
+/// is silently lost. Chunk-id generation upstream (chunk_id = path +
+/// paragraph_index band) is supposed to make in-batch collisions impossible,
+/// but a bug there (e.g. a PDF page overflowing its band) must fail LOUDLY here
+/// rather than silently drop a chunk. Validates the exact `id` column the merge
+/// will key on, across every batch of the incoming source.
+fn ensure_unique_incoming_ids(batches: &[RecordBatch], path: &str) -> Result<()> {
+    let mut seen: HashSet<String> = HashSet::new();
+    for batch in batches {
+        let id_col = batch
+            .column_by_name("id")
+            .context("id-uniqueness check: batch missing id column")?
+            .as_any()
+            .downcast_ref::<StringArray>()
+            .context("id-uniqueness check: id column is not StringArray")?;
+        for i in 0..id_col.len() {
+            let id = id_col.value(i);
+            if !seen.insert(id.to_string()) {
+                anyhow::bail!(
+                    "duplicate incoming chunk id for {} — refusing merge_insert \
+                     (undefined on duplicate source ids); this indicates a chunk-id \
+                     banding overflow upstream",
+                    path
+                );
+            }
+        }
+    }
     Ok(())
 }
 
@@ -575,6 +617,19 @@ pub async fn upsert_chunks_for_path(
     // WS-VEC: build_batch encrypts the text column under the vector-store key.
     // VG-2: this path serves native text extraction only — never OCR.
     let batch = build_batch(&rows, source_type, matter_id, privilege, None, key)?;
+
+    // F2: reject a batch with duplicate incoming ids BEFORE touching the table —
+    // merge_insert on duplicate source ids is undefined and silently loses rows.
+    ensure_unique_incoming_ids(std::slice::from_ref(&batch), path)?;
+
+    // F1 + P2: collapse any pre-existing on-disk duplicate ids BEFORE the merge
+    // (never after). If it fails, content is untouched and the error is honest;
+    // running it after a committed merge would turn a succeeded swap into a
+    // tombstoned, vanished file. See dedup_duplicate_ids_for_path.
+    dedup_duplicate_ids_for_path(table, &predicate)
+        .await
+        .with_context(|| format!("pre-merge dedup failed for {}", path))?;
+
     let schema = batch.schema();
     let iter = RecordBatchIterator::new(vec![Ok(batch)], schema);
 
@@ -587,12 +642,6 @@ pub async fn upsert_chunks_for_path(
         .execute(Box::new(iter))
         .await
         .with_context(|| format!("atomic re-index merge_insert failed for {}", path))?;
-
-    // P2 fix: collapse any pre-existing duplicate ids the merge above just
-    // updated in place rather than collapsed. See dedup_duplicate_ids_for_path.
-    dedup_duplicate_ids_for_path(table, &predicate)
-        .await
-        .with_context(|| format!("post-merge dedup failed for {}", path))?;
     Ok(())
 }
 
@@ -627,7 +676,7 @@ pub async fn upsert_grouped(
 
     use arrow_schema::ArrowError;
     let mut count = 0usize;
-    let mut batches: Vec<std::result::Result<RecordBatch, ArrowError>> = Vec::new();
+    let mut batches: Vec<RecordBatch> = Vec::new();
     for (source_type, extraction, rows) in &groups {
         if rows.is_empty() {
             continue;
@@ -635,7 +684,7 @@ pub async fn upsert_grouped(
         count += rows.len();
         let batch = build_batch(rows, *source_type, matter_id, privilege, *extraction, key)
             .map_err(|e| anyhow::anyhow!("build grouped batch for {}: {e}", path))?;
-        batches.push(Ok(batch));
+        batches.push(batch);
     }
 
     if batches.is_empty() {
@@ -659,8 +708,25 @@ pub async fn upsert_grouped(
     // row-count proofs preserved). Merging on `id` across the multi-batch source
     // is fine: chunk_id is unique per (path, paragraph_index), so page/sheet
     // groups never collide.
+    // F2: reject duplicate incoming ids ACROSS every group's batch BEFORE
+    // touching the table — chunk_id is unique per (path, paragraph_index), so a
+    // collision here means a banding overflow (a long PDF page spilling into the
+    // next page's id band). merge_insert on duplicate source ids is undefined
+    // and would silently drop content; fail loudly instead.
+    ensure_unique_incoming_ids(&batches, path)?;
+
+    // F1 + P2: collapse any pre-existing on-disk duplicate ids BEFORE the merge
+    // (never after) — a post-merge failure would tombstone the freshly-swapped
+    // file. See dedup_duplicate_ids_for_path.
+    dedup_duplicate_ids_for_path(table, &predicate)
+        .await
+        .with_context(|| format!("pre-merge grouped dedup failed for {}", path))?;
+
     let schema = build_schema();
-    let iter = RecordBatchIterator::new(batches.into_iter(), schema);
+    let iter = RecordBatchIterator::new(
+        batches.into_iter().map(Ok::<RecordBatch, ArrowError>),
+        schema,
+    );
 
     let mut merge = table.merge_insert(&["id"]);
     merge
@@ -671,12 +737,6 @@ pub async fn upsert_grouped(
         .execute(Box::new(iter))
         .await
         .with_context(|| format!("atomic grouped re-index merge_insert failed for {}", path))?;
-
-    // P2 fix: collapse any pre-existing duplicate ids the merge above just
-    // updated in place rather than collapsed. See dedup_duplicate_ids_for_path.
-    dedup_duplicate_ids_for_path(table, &predicate)
-        .await
-        .with_context(|| format!("post-merge grouped dedup failed for {}", path))?;
     Ok(count)
 }
 

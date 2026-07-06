@@ -3128,6 +3128,99 @@ mod tests {
         );
     }
 
+    /// F2 defense-in-depth: an incoming batch whose rows share a chunk `id`
+    /// (same path + paragraph_index — the shape a PDF band overflow would
+    /// produce) must be REJECTED before the merge, not silently collapsed to
+    /// one row by undefined `merge_insert` behavior. An honest indexing failure
+    /// beats silent content loss.
+    #[tokio::test]
+    async fn duplicate_incoming_ids_are_rejected_single_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/collide.md";
+        // Two rows with the SAME paragraph_index -> the SAME chunk_id.
+        let rows = vec![
+            (
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: "first".into(),
+                    start_offset: 0,
+                    end_offset: 5,
+                    locator: None,
+                },
+                vec![0.5f32; EMBEDDING_DIM],
+            ),
+            (
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: 0,
+                    text: "second".into(),
+                    start_offset: 0,
+                    end_offset: 6,
+                    locator: None,
+                },
+                vec![0.5f32; EMBEDDING_DIM],
+            ),
+        ];
+
+        let err = upsert_chunks_for_path(
+            &table,
+            path,
+            rows,
+            SourceType::Text,
+            "matter_x",
+            PRIVILEGE_NONE,
+            &TEST_KEY,
+        )
+        .await
+        .expect_err("duplicate incoming ids must be rejected");
+        assert!(
+            format!("{err:#}").contains("duplicate incoming chunk id"),
+            "error must name the duplicate-id cause, got: {err:#}"
+        );
+    }
+
+    /// F2 defense-in-depth, grouped (sectioned) path: two page/sheet groups
+    /// carrying a colliding chunk `id` (what a band overflow produces across
+    /// PDF pages) must be rejected before the merge.
+    #[tokio::test]
+    async fn duplicate_incoming_ids_are_rejected_grouped_path() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = open_connection(dir.path()).await.expect("open conn");
+        let table = open_or_create_table(&conn).await.expect("open table");
+
+        let path = "/ws/clients/acme/collide.pdf";
+        let mk = |pi: u32, text: &str| {
+            (
+                Chunk {
+                    path: path.into(),
+                    paragraph_index: pi,
+                    text: text.into(),
+                    start_offset: 0,
+                    end_offset: text.len(),
+                    locator: None,
+                },
+                vec![0.5f32; EMBEDDING_DIM],
+            )
+        };
+        // Two groups (different pages) whose rows collide on paragraph_index 0.
+        let groups: Vec<(SourceType, Option<(&str, f32)>, Vec<(Chunk, Vec<f32>)>)> = vec![
+            (SourceType::Pdf { page_number: 1 }, None, vec![mk(0, "p1")]),
+            (SourceType::Pdf { page_number: 2 }, None, vec![mk(0, "p2")]),
+        ];
+
+        let err = upsert_grouped(&table, path, groups, "matter_x", PRIVILEGE_NONE, &TEST_KEY)
+            .await
+            .expect_err("duplicate incoming ids across groups must be rejected");
+        assert!(
+            format!("{err:#}").contains("duplicate incoming chunk id"),
+            "error must name the duplicate-id cause, got: {err:#}"
+        );
+    }
+
     /// P1.1 (Windows regression): rows written under the NATIVE backslash path
     /// (what the Rust WalkDir/reconcile sees on Windows) must be reachable by a
     /// delete/retag issued with the FORWARD-SLASH form (what the TS side builds
