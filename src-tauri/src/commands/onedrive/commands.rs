@@ -401,6 +401,25 @@ async fn wait_for_sync_idle(is_syncing: &AtomicBool, max: Duration) -> bool {
     true
 }
 
+async fn delete_materialized_rag_rows(
+    table: &lancedb::Table,
+    ws: &std::path::Path,
+    rel: &str,
+    rag_key: &[u8; 32],
+) -> anyhow::Result<()> {
+    crate::commands::rag::store::delete_path(table, rel, rag_key).await?;
+
+    // The file watcher indexes materialized files with the exact absolute path
+    // string emitted by notify (`PathBuf::to_string_lossy`). The OneDrive store
+    // records the workspace-relative path, so disconnect must purge both keys.
+    let abs = ws.join(rel).to_string_lossy().to_string();
+    if abs != rel {
+        crate::commands::rag::store::delete_path(table, &abs, rag_key).await?;
+    }
+
+    Ok(())
+}
+
 /// Delete every materialized OneDrive file the store recorded a `local_path`
 /// for (the imported documents sitting in the user's client folders). Returns
 /// the workspace-relative paths that could NOT be removed — empty means every
@@ -441,9 +460,7 @@ where
             // A safe, contained, symlink-free path that exists on disk — remove it.
             Ok(Some(abs)) => match std::fs::remove_file(&abs) {
                 Ok(()) => {
-                    if let Err(e) =
-                        crate::commands::rag::store::delete_path(&table, &rel, rag_key).await
-                    {
+                    if let Err(e) = delete_materialized_rag_rows(&table, ws, &rel, rag_key).await {
                         log::warn!(
                             "onedrive_disconnect: failed to purge RAG rows for deleted file {rel}: {e}"
                         );
@@ -451,9 +468,7 @@ where
                     }
                 }
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                    if let Err(e) =
-                        crate::commands::rag::store::delete_path(&table, &rel, rag_key).await
-                    {
+                    if let Err(e) = delete_materialized_rag_rows(&table, ws, &rel, rag_key).await {
                         log::warn!(
                             "onedrive_disconnect: failed to purge RAG rows for missing file {rel}: {e}"
                         );
@@ -471,9 +486,7 @@ where
             // The path resolved safely but no file is there (already gone) —
             // that counts as successfully removed, same as NotFound above.
             Ok(None) => {
-                if let Err(e) =
-                    crate::commands::rag::store::delete_path(&table, &rel, rag_key).await
-                {
+                if let Err(e) = delete_materialized_rag_rows(&table, ws, &rel, rag_key).await {
                     log::warn!(
                         "onedrive_disconnect: failed to purge RAG rows for already-missing file {rel}: {e}"
                     );
