@@ -161,6 +161,41 @@ describe('useAsk — local-AI context trimming', () => {
     expect(result.current.turns[0]?.answer).toBe(LOCAL_CONTEXT_TOO_LONG_MESSAGE);
   });
 
+  it('trims for a local Ollama route too, reading Ollama\'s own reported context budget', async () => {
+    const hits = makeHits(6); // way over this test's window if all sent
+    retrieveMock.mockResolvedValue(hits);
+    // Same sizing as the embedded-model trim test above: the top 3 of 6 chunks
+    // fit but not all 6 — a genuine partial trim, not a collapse-to-one. This
+    // proves trimming reads Ollama's OWN reported maxContextTokens (round-2
+    // fix, P2), not just the embedded-model path.
+    const fakeProvider = makeFakeProvider({ providerId: 'ollama', maxContextTokens: 5000 });
+    buildResolvedAskProviderMock.mockResolvedValue({
+      provider: fakeProvider,
+      providerId: 'ollama',
+      model: 'llama3.2:3b',
+    });
+
+    const { result } = renderHook(() => useAsk({}));
+
+    act(() => {
+      // eslint-disable-next-line lantern-async/no-silent-failure -- handleAsk has its own try/catch and never rejects
+      void result.current.handleAsk('what does the highest relevance doc say?');
+    });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('done');
+    });
+
+    expect(fakeProvider.sendMessage).toHaveBeenCalledTimes(1);
+    const [, sendOptions] = fakeProvider.sendMessage.mock.calls[0] as [string, { systemPrompt: string }];
+    expect(sendOptions.systemPrompt).toContain('doc-0.md');
+    expect(sendOptions.systemPrompt).toContain('doc-1.md');
+    expect(sendOptions.systemPrompt).toContain('doc-2.md');
+    expect(sendOptions.systemPrompt).not.toContain('doc-3.md');
+    expect(sendOptions.systemPrompt).not.toContain('doc-4.md');
+    expect(sendOptions.systemPrompt).not.toContain('doc-5.md');
+  });
+
   it('does not trim for a cloud provider — the full retrieved context is sent untouched', async () => {
     const hits = makeHits(6);
     retrieveMock.mockResolvedValue(hits);

@@ -1015,15 +1015,18 @@ export function useAsk({
       // misleading fileToolsEnabled=true audit + needless future redaction).
       let historyInPrompt = historyTurnsForSend.slice(-HISTORY_WINDOW);
 
-      // Local-AI context trimming (step-4 adversarial review, finding 6) — the
-      // embedded on-device model runs with a small, fixed context window (see
-      // LANTERN_LOCAL_CONTEXT_WINDOW), unlike cloud providers, which tolerate an
-      // oversized prompt. Estimate the assembled prompt against the model's OWN
-      // reported window (never a hard-coded number) and, if it's over budget,
-      // drop retrieved chunks lowest-relevance-first (whole chunks only, so a
-      // surviving citation never points at truncated text), then oldest history.
-      // Cloud providers never take this path — no behavior change for them.
-      if (resolvedProvider.providerId === 'keepance-local') {
+      // Local-AI context trimming (step-4 adversarial review, finding 6; round-2
+      // fix, P2) — every LOCAL engine runs with a small, model-reported context
+      // window, unlike cloud providers, which tolerate an oversized prompt. This
+      // covers BOTH local routes: the embedded on-device model (LANTERN_LOCAL_CONTEXT_WINDOW
+      // fallback) and a user-run Ollama daemon (resolved when the embedded model
+      // isn't ready — see resolveLocalProvider.ts), each reading ITS OWN
+      // provider-reported window via getMetadata(), never a hard-coded number.
+      // If over budget, drop retrieved chunks lowest-relevance-first (whole
+      // chunks only, so a surviving citation never points at truncated text),
+      // then oldest history. Cloud providers never take this path — no
+      // behavior change for them.
+      if (isLocalProvider(resolvedProvider.providerId)) {
         const maxContextTokens =
           resolvedProvider.provider.getMetadata().capabilities?.maxContextTokens ??
           LANTERN_LOCAL_CONTEXT_WINDOW;

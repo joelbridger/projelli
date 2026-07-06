@@ -53,6 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **Local-AI context trimming now also covers the local Ollama route, not
+  just the embedded model.** Pre-merge review (P2) found the trim check at
+  `useAsk.ts` gated only on `providerId === 'keepance-local'`, so when the
+  embedded model wasn't ready and Ask fell back to a locally-run Ollama
+  daemon, no trimming happened at all — even though `OllamaProvider` reports
+  its own finite `maxContextTokens` just like the embedded model does. Fixed
+  by gating on `isLocalProvider(providerId)` (covers both `'keepance-local'`
+  and `'ollama'`), reading each route's own provider-reported budget — cloud
+  providers are untouched. Test added: `useAsk.localTrim.test.ts`.
 - **Demo dress-rehearsal fixes: persisted key-verify status + Local AI
   mode-switch pre-start now cover the ConfidentialityModeSettings path.**
   Two findings from the Legion dress-rehearsal (`legion-dressrun1/REPORT.md`):
