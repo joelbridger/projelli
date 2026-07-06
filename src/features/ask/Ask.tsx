@@ -597,6 +597,7 @@ export function Ask(props: UseAskProps) {
                       isSaving={savingIdx === idx}
                       isPersisted={false}
                       {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                      {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
                     />
                   ))}
 
@@ -619,6 +620,7 @@ export function Ask(props: UseAskProps) {
                         window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
                       }}
                       {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+                      {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
                     />
                   )}
                 </div>

@@ -32,6 +32,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **Ask: the answer's summary badges can no longer contradict the source cards
+  about verification** (Legion dry-run Run-2 finding, evidence run2-06: the
+  header read "1 source found · not verified" in amber while the citation card
+  below showed a green "✓ Verified against source" for the SAME citation).
+  Root cause: two independent signals — QA-85 wired the cards to the real
+  backend citation verifier, but the header tally pills and per-block "From
+  your files" labels still derived "verified" from the static bind-time
+  citation flag and never heard the live result.
+  - Single source of truth: the QA-85/QA-92 verification hook and its verdicts
+    moved from `SourcePanel` into a shared, content-addressed store
+    (`citationVerification.ts`); cards, block labels, and tally pills all
+    derive from the same live per-citation verdicts (`citationTrustState`),
+    deduped app-wide (one backend call and one audit entry per citation, even
+    with multiple surfaces mounted — and the header still verifies when the
+    Sources column is hidden at narrow widths).
+  - The header updates when verification completes (new quiet "Checking N
+    sources…" pill while in flight), a real negative verdict downgrades even a
+    bind-time-verified citation, and a genuinely-unverified citation stays
+    amber in BOTH places; when the checker can't run (browser/dev), the header
+    falls back to the honest bind-time grounding split.
+  - Files modified: `citationVerification.ts` (new), `AnswerBlocks.tsx`,
+    `SourcePanel.tsx`, `answerBlockHelpers.ts`, `TurnBlock.tsx`, `Ask.tsx`;
+    tests: `AnswerBlocks.test.tsx` (new, 6 disagreement/tri-state scenarios),
+    `answerBlockHelpers.test.ts`, `SourcePanel.test.tsx`,
+    `ws3-hallucination-hardening.test.tsx`, `SourcePanel.race.test.tsx`.
 - **Local AI patience: a big on-device question no longer reports a FALSE
   failure while the engine is still reading your documents.** On the local
   (`keepance-local`) engine, a real Ask over a large RAG prompt (~4,574 tokens)

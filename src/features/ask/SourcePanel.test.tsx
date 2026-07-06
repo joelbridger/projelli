@@ -16,6 +16,7 @@ import '@/i18n';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { SourcePanel } from './SourcePanel';
+import { resetCitationVerificationForTests } from './citationVerification';
 import type { AnswerCitation } from './askHelpers';
 import type { CitationVerdict } from '@/platform/utils/tauri-commands';
 import type { ImportStatus } from './useStillImporting';
@@ -61,6 +62,9 @@ function makeCitation(overrides: Partial<AnswerCitation> = {}): AnswerCitation {
 }
 
 beforeEach(() => {
+  // The verdict store is app-global (shared with the answer header) and
+  // content-addressed - clear it so verdicts never leak across tests.
+  resetCitationVerificationForTests();
   ragVerifyCitationsBatchMock.mockReset();
   useStillImportingMock.mockReset().mockReturnValue('idle');
 });

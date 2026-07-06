@@ -1,5 +1,6 @@
 import { Quote, Loader2, ShieldCheck, Save, AlertTriangle, Info, Clock, Download } from 'lucide-react';
 import { Button, Callout } from '@/ui/kp';
+import type { AuditEntry } from '@/platform/types/audit';
 import type { AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
 import { NO_EVIDENCE_DECLINE, STILL_IMPORTING_DECLINE } from './askPrompt';
@@ -29,6 +30,7 @@ export function TurnBlock({
   localEvaluating = false,
   onOpenAiStatus,
   onOpenFileAtPath,
+  onAuditLog,
 }: {
   turn: AskTurn;
   turnIdx: number;
@@ -72,6 +74,12 @@ export function TurnBlock({
    * the cited paragraph in the editor — single-click navigation.
    */
   onOpenFileAtPath?: (path: string, paragraphIndex: number, snippet?: string) => void;
+  /**
+   * lp/badge-consistency: forwarded to AnswerBlocks, whose header/labels now
+   * trigger the same live citation check the Sources cards use (shared store,
+   * deduped) — so a check first issued here still lands on the audit log.
+   */
+  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
@@ -167,6 +175,7 @@ export function TurnBlock({
             selected={selectedForThisTurn}
             onSelect={(n) => { onCitationSelect(turnIdx, n); }}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
+            {...(onAuditLog !== undefined ? { onAuditLog } : {})}
           />
         ) : isPersisted ? (
           // Persisted (loaded history) turns: plain text.
