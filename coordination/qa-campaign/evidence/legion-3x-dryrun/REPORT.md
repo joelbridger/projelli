@@ -39,6 +39,42 @@ Reset like a presenter would: closed the app fully, fresh `LanternPlusDev` resta
 
 **Verdict: Run 2 (Take 2) is clean** — no unscripted recovery on any of the 6 steps. The dark-theme surprise and the verification-badge inconsistency are genuine, real findings worth fixing, but neither one broke a demo step or forced an unscripted recovery.
 
+### Run 3 (Take 2): **CLEAN PASS — all 6 steps** (Step 5 hit a documented runbook fallback, not a failure)
+
+Reset like a presenter would: closed the app fully. This restart hit a real infra landmine — `C:\tauri-dev.log` had become permanently locked by an unidentified process, silently breaking every `LanternPlusDev` restart attempt (the `-ErrorAction SilentlyContinue` on cleanup calls had been masking the lock error all session). Fixed by repointing `C:\run-dev-lantern.bat`'s log redirect to a new file, `C:\tauri-dev2.log` — this is bench/tooling infrastructure, not an app finding, and is fully resolved for the rest of this evidence lane.
+
+| Step | Verdict | Notes |
+|---|---|---|
+| Prep / boot | PASS | Fresh boot into Beacon Ridge Demo, 3 real households, Light theme (no repeat of Run 2's dark-theme surprise). `run3-boot` (scratch only). |
+| Step 1 checkmark persistence | PASS | Both keys "✓ Working — checked 21 min ago / checked 7 hr ago," zero re-clicking. `run3-01-checkmark.jpg`. |
+| Step 2 connections | PASS (honest) | Confirmed via Account → Connections: OneDrive "Connected," Wealthbox "Connected," Outlook calendar connected — Microsoft 365 **email** still not connected (known-pending, NEED-JAMESON), same honest state as Run 1/Run 2. `run3-02-connections.jpg`. |
+| Step 3 indexing banner | **Scripted fallback, not a failure** | Same as Run 2 — the index was already fresh by the first post-boot check, so the live counting-up banner wasn't caught. Matches the runbook's own contingency ("this one was quick"). |
+| Step 4 — Cloud AI | PASS | "What is the Hendersons target asset allocation?" → correct, fully cited answer (60/40 equities/fixed income breakdown with rebalance bands), "Verified against source." `run3-03-cloud-cited.jpg`. |
+| Step 4 — Local AI (patience-fix checkpoint) | **PASS** | Switched to Local AI (Network Lockdown auto-enabled). Warm-up ("Warm up, hello") showed the honest **"The on-device AI is reading your documents — bigger questions take it a minute or two"** message throughout, completed cleanly in ~106s. Real crib question ("When is Robert Hendersons first RMD due and how much?") completed in ~132s (including a bonus drafted follow-up email) with a fully correct, dual-cited answer ($50,566 RMD, April 1 2027, cited from both Financial Plan Summary and the Fidelity IRA Statement) — no false error, both within the app's own "a minute or two" window. `run3-04-local-waiting.jpg`, `run3-05-local-warmup-done.jpg`, `run3-06-local-cited-PASS.jpg`. |
+| Step 5 — Notice Card | **PASS (scripted fallback used) — see note below** | Real 2-person Teams meeting (host = server's shared Chrome, guest = genuine separate Chrome Guest-mode window on the Legion). This time the Recording Notice guest **never knocked to join the lobby** — the app's own recorder widget said plainly: *"Notice card couldn't join. Say the notice aloud."* This is not an ad-hoc failure: it is a scenario **explicitly documented** in `docs/demo/DEMO-RUNBOOK.md`'s "If something goes sideways" table (Step 5 row: *"The notice guest never knocks at all → Say: 'We'll keep going and check the recording after the call.' Keep recording and move on; don't restart the meeting live"*) — verified by reading that file directly (`git show origin/lantern-plus:docs/demo/DEMO-RUNBOOK.md`). I followed the runbook's own script exactly: said the consent notice aloud via the same TTS technique (its first line **is** the consent notice), kept recording, and did not restart the meeting live. Per the dry-run brief's rule, using the runbook's own scripted fallback counts as clean — **but this is honestly a different, weaker proof of the Notice Card fix than Run 1 and Run 2's full multi-minute persisted-visibility demonstration**, since the card never actually appeared on screen this run. Recorded ~3:04 of real content either way. `run3-07-recording-stopped.jpg`. |
+| Step 6 — Search Transcript | **PASS** | Confirms the recording was not wasted despite Step 5's fallback. Asked "What did we say about revisiting the Roth conversion for Robert?" → answer **dual-cited from both `notes.docx` and `transcript.json` directly**, quoting the TTS speech verbatim ("We should also revisit the Roth conversion for Robert now that he's retiring, since his taxable income will be lower for the next two years."), "Verified against source." `run3-08-transcript-cited.jpg`. **Minor observation (not a failure):** the raw `transcript.json` source excerpt shows the `mic` channel transcribed as garbled nonsense for one segment while the `sys` (speaker loopback) channel transcribed the same segment correctly — the answer was grounded in the correct channel regardless, but this is worth a look if it recurs. |
+
+Cleanup: guest left and closed cleanly, host left the meeting, `dryrun-r3-host` chrome-cdp session closed, app reset to Cloud AI / Network Lockdown off. `run3-09-cleanup-cloud.jpg`.
+
+**Verdict: Run 3 (Take 2) is clean.** Every step completed without an unscripted recovery — Step 5's Notice Card outcome used a fallback the runbook itself anticipates and scripts for word-for-word, and Step 6 proves the underlying recording/transcript pipeline still worked end-to-end despite it.
+
+---
+
+## Overall verdict — Take 2: **3/3 CLEAN**
+
+All three runs on frozen tip `abcedeb0` completed cleanly with no unscripted recovery:
+
+- **Run 1:** fully clean, no findings.
+- **Run 2:** clean, with two genuine-but-non-blocking findings filed (an unprompted dark-theme restart, and a contradictory verification-badge label) — neither touched any of the 6 demo steps' functionality.
+- **Run 3:** clean, with one runbook-scripted fallback used on Step 5 (Notice Card didn't knock; said the notice aloud and kept going, per the runbook's own documented contingency) — Step 6 confirmed the recording was still fully usable afterward.
+
+**The local-AI patience fix (`lp/localai-patience`) is confirmed working across all 3 runs**, with zero false "couldn't get an answer" errors this Take, resolving the exact failure that stopped Take 1 at Run 1.
+
+**Two small, real product findings surfaced along the way (filed for the team, not blocking this proof):**
+1. Unprompted dark-theme on a fresh restart despite Light being explicitly selected (Run 2).
+2. A citation can simultaneously show "not verified" (amber) and "✓ Verified against source" (green) for the same source (Run 2).
+3. The Notice Card can occasionally fail to join the meeting lobby at all (Run 3) — the runbook already scripts a fallback for this, but it's worth understanding why it happens intermittently across otherwise-identical runs (worked in Run 1 & 2, didn't in Run 3, same meeting-link technique each time).
+
 ---
 
 ## TAKE 1 (superseded) — frozen tip `273183da`
