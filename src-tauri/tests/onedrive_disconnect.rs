@@ -5,7 +5,7 @@ use lantern_lib::commands::onedrive::commands::{
 use lantern_lib::commands::onedrive::store::OneDriveStore;
 use lantern_lib::commands::rag::chunker::chunk_text;
 use lantern_lib::commands::rag::embedder::EMBEDDING_DIM;
-use lantern_lib::commands::rag::store::{self, PRIVILEGE_NONE};
+use lantern_lib::commands::rag::store::{self, SourceType, PRIVILEGE_NONE};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -41,6 +41,29 @@ async fn index_onedrive_entry(
         .execute()
         .await
         .expect("add fixture onedrive chunk");
+}
+
+async fn index_text_file_entry(table: &lancedb::Table, path: &str, text: &str, matter_id: &str) {
+    let chunks = chunk_text(path, text);
+    assert!(
+        !chunks.is_empty(),
+        "fixture text should produce at least one chunk"
+    );
+    let rows: Vec<_> = chunks
+        .into_iter()
+        .map(|chunk| (chunk, vec![0.3f32; EMBEDDING_DIM]))
+        .collect();
+    store::upsert_chunks_for_path(
+        table,
+        path,
+        rows,
+        SourceType::Text,
+        matter_id,
+        PRIVILEGE_NONE,
+        &VEC_KEY,
+    )
+    .await
+    .expect("upsert text file fixture chunk");
 }
 
 fn make_state(ws: Option<std::path::PathBuf>) -> OneDriveState {
@@ -244,10 +267,15 @@ async fn opt_in_delete_removes_the_materialized_files() {
     assert!(abs.exists(), "seeded file should exist before disconnect");
 
     let state = make_state(Some(ws.clone()));
-    let result =
-        onedrive_disconnect_logic_with(&state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
-            .await
-            .expect("disconnect should run");
+    let result = onedrive_disconnect_logic_with(
+        &state,
+        true,
+        open_with_test_key,
+        || Ok(VEC_KEY),
+        Duration::from_secs(15),
+    )
+    .await
+    .expect("disconnect should run");
 
     assert!(
         !abs.exists(),
@@ -264,6 +292,89 @@ async fn opt_in_delete_removes_the_materialized_files() {
     );
 }
 
+/// Regression for a path-form mismatch: normal file watching indexes the
+/// materialized document under the absolute workspace-joined path, while the
+/// OneDrive tracking DB stores the relative path. Disconnect must purge both
+/// exact strings or deleted files can remain searchable.
+#[tokio::test]
+async fn opt_in_delete_purges_relative_and_absolute_materialized_rag_rows() {
+    let workspace = tempfile::tempdir().unwrap();
+    let ws = workspace.path().to_path_buf();
+    let abs = seed_materialized_file(&ws);
+    let abs_path = ws.join(MEMO_REL).to_string_lossy().to_string();
+
+    let conn = store::open_connection(&ws)
+        .await
+        .expect("open vector store");
+    let table = store::open_or_create_table(&conn)
+        .await
+        .expect("open chunks table");
+    index_text_file_entry(&table, MEMO_REL, FIXTURE_TEXT, ONEDRIVE_MATTER).await;
+    index_text_file_entry(&table, &abs_path, FIXTURE_TEXT, ONEDRIVE_MATTER).await;
+
+    let hits_before = store::nearest(
+        &table,
+        &vec![0.3f32; EMBEDDING_DIM],
+        20,
+        Some(ONEDRIVE_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest before disconnect");
+    let text_rows_before = hits_before
+        .iter()
+        .filter(|h| h.source_type.as_deref() == Some("text"))
+        .count();
+    assert_eq!(
+        text_rows_before, 2,
+        "fixture must seed both relative and absolute text rows before disconnect"
+    );
+
+    let state = make_state(Some(ws.clone()));
+    let result = onedrive_disconnect_logic_with(
+        &state,
+        true,
+        open_with_test_key,
+        || Ok(VEC_KEY),
+        Duration::from_secs(15),
+    )
+    .await
+    .expect("disconnect should run");
+
+    assert!(!abs.exists(), "opt-in delete must remove the file");
+    assert!(
+        !result.data_remains,
+        "both RAG path forms should purge cleanly; warnings: {:?}",
+        result.warnings
+    );
+
+    let conn2 = store::open_connection(&ws)
+        .await
+        .expect("reopen vector store after disconnect");
+    let table2 = store::open_or_create_table(&conn2)
+        .await
+        .expect("reopen chunks table after disconnect");
+    let hits_after = store::nearest(
+        &table2,
+        &vec![0.3f32; EMBEDDING_DIM],
+        20,
+        Some(ONEDRIVE_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest after disconnect");
+    let text_rows_after = hits_after
+        .iter()
+        .filter(|h| h.source_type.as_deref() == Some("text"))
+        .count();
+    assert_eq!(
+        text_rows_after, 0,
+        "disconnect must remove text rows indexed under both relative and absolute paths"
+    );
+}
+
 /// F1: with `delete_files = false` (the default), the materialized files STAY on
 /// disk — they are the user's documents now — but the connection + search index
 /// are still removed, and keeping the files is NOT reported as a failure.
@@ -274,10 +385,15 @@ async fn opt_out_keeps_the_materialized_files_but_still_removes_the_connection()
     let abs = seed_materialized_file(&ws);
 
     let state = make_state(Some(ws.clone()));
-    let result =
-        onedrive_disconnect_logic_with(&state, false, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
-            .await
-            .expect("disconnect should run");
+    let result = onedrive_disconnect_logic_with(
+        &state,
+        false,
+        open_with_test_key,
+        || Ok(VEC_KEY),
+        Duration::from_secs(15),
+    )
+    .await
+    .expect("disconnect should run");
 
     assert!(
         abs.exists(),
@@ -330,10 +446,15 @@ async fn opt_in_delete_failure_keeps_token_and_db_for_retry() {
     let db_path = OneDriveStore::db_path(&ws);
 
     let state = make_state(Some(ws.clone()));
-    let result =
-        onedrive_disconnect_logic_with(&state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
-            .await
-            .expect("disconnect should run");
+    let result = onedrive_disconnect_logic_with(
+        &state,
+        true,
+        open_with_test_key,
+        || Ok(VEC_KEY),
+        Duration::from_secs(15),
+    )
+    .await
+    .expect("disconnect should run");
 
     assert!(
         result.data_remains,
@@ -409,10 +530,15 @@ async fn disconnect_waits_for_an_in_flight_sync_then_deletes_the_file_it_just_wr
     });
 
     let start = Instant::now();
-    let result =
-        onedrive_disconnect_logic_with(&state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
-            .await
-            .expect("disconnect should run");
+    let result = onedrive_disconnect_logic_with(
+        &state,
+        true,
+        open_with_test_key,
+        || Ok(VEC_KEY),
+        Duration::from_secs(15),
+    )
+    .await
+    .expect("disconnect should run");
     writer.await.unwrap();
 
     assert!(
@@ -514,10 +640,15 @@ async fn disconnect_holds_the_sync_gate_while_running_and_releases_it_after() {
         }
     });
 
-    let result =
-        onedrive_disconnect_logic_with(&*state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
-            .await
-            .expect("disconnect should run");
+    let result = onedrive_disconnect_logic_with(
+        &*state,
+        true,
+        open_with_test_key,
+        || Ok(VEC_KEY),
+        Duration::from_secs(15),
+    )
+    .await
+    .expect("disconnect should run");
     stopper.await.unwrap();
     observer.await.unwrap();
 
