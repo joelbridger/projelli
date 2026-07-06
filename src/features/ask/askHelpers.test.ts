@@ -7,6 +7,7 @@ import {
   filterHitsByScope,
   askConsentScope,
   composerIsBusy,
+  isAuthRejectionError,
 } from './askHelpers';
 
 function hit(overrides: Partial<RagHit> = {}): RagHit {
@@ -19,6 +20,40 @@ function hit(overrides: Partial<RagHit> = {}): RagHit {
     ...overrides,
   };
 }
+
+describe('isAuthRejectionError', () => {
+  // Both useAsk's unified send path and useChatSending's legacy chat-send
+  // path (connect-flow demo hardening, fix 3) call markKeyInvalid based on
+  // this classification — a false positive/negative here would mark a good
+  // key dead (or miss a truly dead one) from either send path.
+  it('recognizes the standard shapes of a genuine provider auth rejection', () => {
+    expect(isAuthRejectionError('HTTP 401: Unauthorized')).toBe(true);
+    expect(isAuthRejectionError('403 Forbidden')).toBe(true);
+    expect(isAuthRejectionError('invalid_api_key: the key is not valid')).toBe(true);
+    expect(isAuthRejectionError('Authentication failed for this request')).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isAuthRejectionError('UNAUTHORIZED')).toBe(true);
+  });
+
+  it('does not classify a rate-limit or context-length error as auth', () => {
+    expect(isAuthRejectionError('429 Too Many Requests')).toBe(false);
+    expect(isAuthRejectionError('maximum context length exceeded')).toBe(false);
+  });
+
+  it('is never true in Local-only mode (there is no key to check)', () => {
+    expect(isAuthRejectionError('401 Unauthorized', { mode: 'local-only' })).toBe(false);
+  });
+
+  it('is never true when the provider was never reached (failure was in file-search/index)', () => {
+    expect(isAuthRejectionError('401 Unauthorized', { reachedProvider: false })).toBe(false);
+  });
+
+  it('defaults to reached when reachedProvider is omitted', () => {
+    expect(isAuthRejectionError('401 Unauthorized', {})).toBe(true);
+  });
+});
 
 describe('filterHitsByScope', () => {
   it('whole-practice scope passes hits through unchanged (scope never reaches retrieval anyway)', () => {

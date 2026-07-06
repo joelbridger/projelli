@@ -8,6 +8,7 @@ import {
   oneDriveIsConnected,
   oneDriveListFolders,
   oneDriveSync,
+  type OneDriveDisconnectResult,
   type OneDriveFolder,
   type OneDriveSyncReport,
 } from '@/platform/utils/onedrive-commands';
@@ -119,6 +120,12 @@ export function OneDriveConnect() {
   // double-click) dark during the whole folder-listing phase — exactly the
   // silent-looking window a slow or resource-starved listing hits.
   const [localSyncing, setLocalSyncing] = useState(false);
+  // B3-parity (mirrors WealthboxConnect): disconnect didn't fully remove the
+  // data/connection — keep a visible "Finish deleting local data" retry so
+  // the user is never stuck with data on disk and no way to finish removing it.
+  const [dataRemains, setDataRemains] = useState(false);
+  const [disconnectNote, setDisconnectNote] = useState<string | null>(null);
+  const [finishingDelete, setFinishingDelete] = useState(false);
   const addOneDriveFolderKey = useMatterStore((s) => s.addOneDriveFolderKey);
   const addFolderPath = useMatterStore((s) => s.addFolderPath);
 
@@ -268,18 +275,63 @@ export function OneDriveConnect() {
     }
   }
 
-  async function disconnect() {
+  /** Best-effort re-check of the real connection state after a disconnect
+   *  attempt didn't cleanly resolve — shared by both failure paths below so
+   *  there is exactly one silent-catch call site to reason about. */
+  function refreshConnectedState() {
+    oneDriveIsConnected()
+      .then(setConnected)
+      .catch(() => {});
+  }
+
+  /**
+   * The disconnect purge itself, shared by the Disconnect button and the
+   * "Finish deleting local data" retry. Idempotent — safe to run repeatedly
+   * until the data and connection are fully removed. Mirrors
+   * WealthboxConnect's runDisconnectPurge.
+   */
+  async function runDisconnectPurge() {
     setError(null);
     try {
       await oneDriveCancel();
-      await oneDriveDisconnect();
-      setConnected(false);
-      setLastReport(null);
+      const result: OneDriveDisconnectResult = await oneDriveDisconnect();
+
+      const dataDeleted = !result.dataRemains && result.ragPurged && result.localDataPurged;
+
+      if (dataDeleted && result.tokenDeleted) {
+        setDataRemains(false);
+        setDisconnectNote(null);
+        setConnected(false);
+        setLastReport(null);
+      } else {
+        // Either the connection could not be removed or imported data still
+        // remains. Keep a visible retry; re-check the real connection state.
+        setDataRemains(true);
+        const reason = !result.tokenDeleted
+          ? 'the OneDrive connection could not be removed'
+          : 'some imported OneDrive data could not be deleted yet';
+        const warn = result.warnings.length > 0 ? ` (${result.warnings.join('; ')})` : '';
+        setDisconnectNote(
+          `Disconnect is not finished — ${reason}${warn}. Use "Finish deleting local data" to try again.`
+        );
+        refreshConnectedState();
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      oneDriveIsConnected()
-        .then(setConnected)
-        .catch(() => {});
+      refreshConnectedState();
+    }
+  }
+
+  async function disconnect() {
+    await runDisconnectPurge();
+  }
+
+  async function finishDeletingLocalData() {
+    setFinishingDelete(true);
+    try {
+      await runDisconnectPurge();
+    } finally {
+      setFinishingDelete(false);
     }
   }
 
@@ -328,9 +380,41 @@ export function OneDriveConnect() {
         </p>
       )}
 
+      {/* Disconnect didn't fully remove the data/connection — keep a visible
+          retry regardless of connection state, so the user is never stuck
+          with data on disk and no way to finish removing it. */}
+      {dataRemains && (
+        <div
+          data-testid="onedrive-data-remains"
+          className="mt-3 space-y-2 rounded-md border border-amber-300 bg-amber-50 p-3"
+        >
+          <p className="text-sm text-amber-900">
+            {disconnectNote ?? 'Some imported OneDrive data could not be deleted yet.'}
+          </p>
+          <button
+            type="button"
+            data-testid="onedrive-finish-delete"
+            disabled={finishingDelete}
+            onClick={() => {
+              // finishDeletingLocalData handles all its own errors internally
+              // (via runDisconnectPurge's try/catch) and never rejects —
+              // same shape as disconnect()/connect()/syncNow() above.
+              // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort UI trigger; errors are surfaced via setError inside runDisconnectPurge
+              void finishDeletingLocalData();
+            }}
+            className="rounded-md bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {finishingDelete ? 'Deleting…' : 'Finish deleting local data'}
+          </button>
+        </div>
+      )}
+
       {!connected ? (
         <div className="mt-3 space-y-3">
           {error && <p className="text-sm text-red-700">{error}</p>}
+          {disconnectNote && !dataRemains && (
+            <p className="text-sm text-slate-600">{disconnectNote}</p>
+          )}
           <div className="flex items-center gap-2">
             <button
               type="button"

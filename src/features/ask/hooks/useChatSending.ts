@@ -38,6 +38,8 @@ import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/platform/providers/fetchUtils';
+import { isAuthRejectionError } from '@/features/ask/askHelpers';
+import { markKeyInvalid, isVerifiableProvider } from '@/platform/providers/keyVerification';
 import { FILE_ACCESS_TOOLS } from '@/platform/tools/fileAccessTools';
 import type { useActiveMatter } from '@/platform/matter/matterStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -863,6 +865,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // caught inside; the outer .catch surfaces any unexpected escape.
     void (async () => {
       let providerSendCompletedOrCancelledAfterEgress = false;
+      // Fix 3 (connect-flow demo hardening) — set true right BEFORE the
+      // provider call, unlike providerSendCompletedOrCancelledAfterEgress
+      // (which only flips on a SUCCESSFUL completion/cancel). Mirrors
+      // useAsk's providerCallStarted: it must stay true even when the call
+      // itself throws, so the catch block below can tell "the provider
+      // rejected this" apart from "we never reached the provider" (e.g. no
+      // API key configured).
+      let providerCallAttempted = false;
       try {
         // Determine provider from chat data, fallback to anthropic
         const chatProvider = effectiveProvider;
@@ -1623,6 +1633,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             // BEFORE the attachment/memory awaits, so re-check immediately before
             // the actual network send.
             assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
+            providerCallAttempted = true;
             streamingResponse = await provider.sendMessageStreaming!(userMessage.content, {
               systemPrompt,
               maxTokens: 4096,
@@ -1721,6 +1732,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // Race guard (defense-in-depth): re-check the mode immediately before
           // the actual send (the top-of-send check predates the awaits above).
           assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
+          providerCallAttempted = true;
           const response = await provider.sendMessage(userMessage.content, {
             systemPrompt,
             maxTokens: 4096,
@@ -1851,6 +1863,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
               dataLeaves: egress.dataLeaves,
             },
           });
+        }
+
+        // Fix 3 (connect-flow demo hardening): a genuine auth rejection from
+        // the resolved cloud provider means the stored key is bad — record it
+        // so a new chat never defaults back to it. Reuses the SAME
+        // classification useAsk's unified send path uses (isAuthRejectionError),
+        // so the two paths can never disagree about what counts as a dead key.
+        const rawErrorMessage = error instanceof Error ? error.message : String(error);
+        if (
+          providerCallAttempted &&
+          isVerifiableProvider(chatProvider) &&
+          isAuthRejectionError(rawErrorMessage, {
+            mode: getConfidentialityMode(),
+            reachedProvider: providerCallAttempted,
+          })
+        ) {
+          markKeyInvalid(chatProvider);
         }
 
         let errorContent: string;

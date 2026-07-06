@@ -34,6 +34,26 @@ export interface OneDriveSyncReport {
   cancelled: boolean;
 }
 
+/**
+ * Result returned by `onedrive_disconnect`. Each boolean reflects whether
+ * that purge step actually completed. When either is false the corresponding
+ * data may still be on disk; `warnings` carries the human-readable reason(s).
+ * Mirrors `CrmDisconnectResult` (wealthbox-commands.ts).
+ */
+export interface OneDriveDisconnectResult {
+  tokenDeleted: boolean;
+  ragPurged: boolean;
+  localDataPurged: boolean;
+  /**
+   * True when imported OneDrive data could NOT be fully removed and may still
+   * be on disk (e.g. no workspace was open, or a purge step failed). The
+   * backend keeps the saved connection when this is true so the user can
+   * retry; the UI surfaces a "Finish deleting local data" action.
+   */
+  dataRemains: boolean;
+  warnings: string[];
+}
+
 export type OneDriveSyncEventStatus = 'syncing' | 'done' | 'error' | 'cancelled';
 
 export interface OneDriveSyncProgress {
@@ -68,9 +88,11 @@ export async function oneDriveIsConnected(): Promise<boolean> {
   return invoke<boolean>('onedrive_is_connected');
 }
 
-export async function oneDriveDisconnect(): Promise<void> {
-  if (!isTauri()) return;
-  await invoke('onedrive_disconnect');
+export async function oneDriveDisconnect(): Promise<OneDriveDisconnectResult> {
+  if (!isTauri()) {
+    return { tokenDeleted: false, ragPurged: false, localDataPurged: false, dataRemains: true, warnings: [] };
+  }
+  return invoke<OneDriveDisconnectResult>('onedrive_disconnect');
 }
 
 export async function oneDriveListDrives(): Promise<OneDriveDrive[]> {

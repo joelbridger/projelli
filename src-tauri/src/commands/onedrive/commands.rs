@@ -282,27 +282,138 @@ pub async fn onedrive_is_connected() -> Result<bool, String> {
     Ok(token_entry()?.get_password().is_ok())
 }
 
-#[tauri::command]
-pub async fn onedrive_disconnect(state: State<'_, OneDriveState>) -> Result<(), String> {
-    state.cancel.store(true, Ordering::SeqCst);
-    match token_entry()?.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => {}
-        Err(e) => return Err(e.to_string()),
-    }
-    if let Some(ws) = state.workspace.lock().await.clone() {
-        let conn = crate::commands::rag::store::open_connection(&ws)
-            .await
-            .map_err(|e| e.to_string())?;
-        let table = crate::commands::rag::store::open_or_create_table(&conn)
-            .await
-            .map_err(|e| e.to_string())?;
-        crate::commands::rag::store::delete_source_type(&table, "onedrive")
-            .await
-            .map_err(|e| e.to_string())?;
-        OneDriveStore::purge(&ws).map_err(|e| e.to_string())?;
-        let _ = OneDriveStore::delete_master_key();
-    }
+/// Returned by `onedrive_disconnect` — reports exactly what was purged so the
+/// UI can show an accurate post-disconnect status instead of always claiming
+/// "deleted imported data" regardless of what actually happened. Mirrors
+/// `CrmDisconnectResult` (`src/commands/crm/commands.rs`).
+#[derive(Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct OneDriveDisconnectResult {
+    /// `true` when the Microsoft refresh token was removed from the OS keychain.
+    pub token_deleted: bool,
+    /// `true` when `source_type='onedrive'` RAG chunks were purged from the
+    /// LanceDB vector store.
+    pub rag_purged: bool,
+    /// `true` when the local OneDrive sync-state database file was deleted.
+    pub local_data_purged: bool,
+    /// `true` when imported OneDrive data may STILL be on disk after this
+    /// disconnect — because the purge could not run (no workspace) or a purge
+    /// step failed. The refresh token is KEPT in that case, so the UI can
+    /// offer a "finish deleting" retry instead of stranding the data.
+    pub data_remains: bool,
+    /// Non-empty when any purge step was skipped or failed (best-effort).
+    /// Each entry is a plain-English sentence suitable for a UI warning banner.
+    pub warnings: Vec<String>,
+}
+
+/// Purge every local trace of imported OneDrive data: `source_type='onedrive'`
+/// RAG chunks and the local OneDrive sync-state database. Extracted so
+/// `onedrive_disconnect_logic` can purge BEFORE touching the token (see its
+/// doc comment for why that ordering matters).
+async fn purge_onedrive_local_data(ws: &std::path::Path) -> Result<(), String> {
+    let conn = crate::commands::rag::store::open_connection(ws)
+        .await
+        .map_err(|e| e.to_string())?;
+    let table = crate::commands::rag::store::open_or_create_table(&conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    crate::commands::rag::store::delete_source_type(&table, "onedrive")
+        .await
+        .map_err(|e| e.to_string())?;
+    OneDriveStore::purge(ws).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+/// Core disconnect logic — extracted for testability so integration tests can
+/// drive the full disconnect path without a Tauri runtime.
+///
+/// Purges local data FIRST (RAG chunks + the OneDrive sync-state DB), and
+/// removes the Microsoft refresh token from the OS keychain ONLY AFTER that
+/// purge succeeds — mirroring `crm_disconnect_logic_for_provider`'s ordering.
+/// The previous ordering deleted the token first, so a purge failure left the
+/// account looking disconnected while imported data was still on disk with no
+/// way to finish removing it. Returns an `OneDriveDisconnectResult` that
+/// reports exactly what happened; essentially never propagates `Err`.
+pub async fn onedrive_disconnect_logic(state: &OneDriveState) -> OneDriveDisconnectResult {
+    let mut result = OneDriveDisconnectResult::default();
+
+    state.cancel.store(true, Ordering::SeqCst);
+
+    // No workspace → the imported data can't be located/deleted. KEEP the
+    // token + connected state so the user can finish deleting once a
+    // workspace is open.
+    let Some(ws) = state.workspace.lock().await.clone() else {
+        result.data_remains = true;
+        result.warnings.push(
+            "No workspace is open, so the imported OneDrive data could not be located and \
+             was NOT deleted. Your account connection was kept — open the workspace and \
+             disconnect again to finish deleting."
+                .to_string(),
+        );
+        return result;
+    };
+
+    match purge_onedrive_local_data(&ws).await {
+        Ok(()) => {
+            result.rag_purged = true;
+            result.local_data_purged = true;
+        }
+        Err(e) => {
+            log::warn!("onedrive_disconnect: local data purge failed (non-fatal): {e}");
+            result
+                .warnings
+                .push(format!("OneDrive imported-data purge failed: {e}"));
+        }
+    }
+
+    // Remove the refresh token (= become "disconnected") ONLY AFTER the local
+    // purge succeeds, so the user is never disconnected with data stranded on
+    // disk. If the purge failed, KEEP the token + connected state and flag
+    // `data_remains` so the UI can retry.
+    if result.rag_purged && result.local_data_purged {
+        match token_entry() {
+            Ok(entry) => match entry.delete_credential() {
+                Ok(()) | Err(keyring::Error::NoEntry) => result.token_deleted = true,
+                Err(e) => {
+                    log::warn!("onedrive_disconnect: token deletion failed (non-fatal): {e}");
+                    result.warnings.push(format!(
+                        "Imported data was deleted, but the OneDrive connection could not be \
+                         removed from the keychain: {e}"
+                    ));
+                }
+            },
+            Err(e) => {
+                log::warn!("onedrive_disconnect: keychain entry unavailable (non-fatal): {e}");
+                result.warnings.push(format!(
+                    "Imported data was deleted, but the OneDrive connection could not be \
+                     removed from the keychain: {e}"
+                ));
+            }
+        }
+        let _ = OneDriveStore::delete_master_key();
+    } else {
+        result.data_remains = true;
+        result.warnings.push(
+            "Some imported OneDrive data could not be deleted; your account connection was \
+             kept so you can try disconnecting again to finish deleting."
+                .to_string(),
+        );
+    }
+
+    result
+}
+
+/// Disconnect the OneDrive/SharePoint account: purge locally-imported data
+/// (RAG chunks + the OneDrive sync-state DB), then remove the Microsoft
+/// refresh token from the OS keychain. Returns an `OneDriveDisconnectResult`
+/// that reports exactly what was and was not deleted — the UI must use these
+/// flags to show an honest status rather than always claiming "disconnected".
+/// Thin wrapper over `onedrive_disconnect_logic`.
+#[tauri::command]
+pub async fn onedrive_disconnect(
+    state: State<'_, OneDriveState>,
+) -> Result<OneDriveDisconnectResult, String> {
+    Ok(onedrive_disconnect_logic(&state).await)
 }
 
 #[tauri::command]
