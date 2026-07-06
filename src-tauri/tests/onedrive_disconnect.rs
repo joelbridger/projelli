@@ -245,7 +245,7 @@ async fn opt_in_delete_removes_the_materialized_files() {
 
     let state = make_state(Some(ws.clone()));
     let result =
-        onedrive_disconnect_logic_with(&state, true, open_with_test_key, Duration::from_secs(15))
+        onedrive_disconnect_logic_with(&state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
             .await
             .expect("disconnect should run");
 
@@ -275,7 +275,7 @@ async fn opt_out_keeps_the_materialized_files_but_still_removes_the_connection()
 
     let state = make_state(Some(ws.clone()));
     let result =
-        onedrive_disconnect_logic_with(&state, false, open_with_test_key, Duration::from_secs(15))
+        onedrive_disconnect_logic_with(&state, false, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
             .await
             .expect("disconnect should run");
 
@@ -331,7 +331,7 @@ async fn opt_in_delete_failure_keeps_token_and_db_for_retry() {
 
     let state = make_state(Some(ws.clone()));
     let result =
-        onedrive_disconnect_logic_with(&state, true, open_with_test_key, Duration::from_secs(15))
+        onedrive_disconnect_logic_with(&state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
             .await
             .expect("disconnect should run");
 
@@ -410,7 +410,7 @@ async fn disconnect_waits_for_an_in_flight_sync_then_deletes_the_file_it_just_wr
 
     let start = Instant::now();
     let result =
-        onedrive_disconnect_logic_with(&state, true, open_with_test_key, Duration::from_secs(15))
+        onedrive_disconnect_logic_with(&state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
             .await
             .expect("disconnect should run");
     writer.await.unwrap();
@@ -455,6 +455,7 @@ async fn disconnect_times_out_when_a_sync_never_stops_and_keeps_everything() {
         &state,
         false,
         open_with_test_key,
+        || Ok(VEC_KEY),
         Duration::from_millis(200), // short bound so the test is fast
     )
     .await
@@ -514,7 +515,7 @@ async fn disconnect_holds_the_sync_gate_while_running_and_releases_it_after() {
     });
 
     let result =
-        onedrive_disconnect_logic_with(&*state, true, open_with_test_key, Duration::from_secs(15))
+        onedrive_disconnect_logic_with(&*state, true, open_with_test_key, || Ok(VEC_KEY), Duration::from_secs(15))
             .await
             .expect("disconnect should run");
     stopper.await.unwrap();
@@ -558,6 +559,7 @@ async fn concurrent_double_disconnect_rejects_the_second_call_without_releasing_
             &first_state,
             false,
             open_with_test_key,
+            || Ok(VEC_KEY),
             Duration::from_secs(5),
         )
         .await
@@ -576,6 +578,7 @@ async fn concurrent_double_disconnect_rejects_the_second_call_without_releasing_
         &state,
         false,
         open_with_test_key,
+        || Ok(VEC_KEY),
         Duration::from_millis(50),
     )
     .await;
