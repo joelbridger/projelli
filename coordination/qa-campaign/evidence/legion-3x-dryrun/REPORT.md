@@ -23,6 +23,22 @@
 
 **Verdict: Run 1 (Take 2) is fully clean — no unscripted recovery anywhere.** Moving to Run 2.
 
+### Run 2 (Take 2): **CLEAN PASS — all 6 steps** (one cosmetic finding, one minor UI inconsistency — neither breaks a step)
+
+Reset like a presenter would: closed the app fully, fresh `LanternPlusDev` restart (workspace not wiped).
+
+| Step | Verdict | Notes |
+|---|---|---|
+| Step 1 checkmark persistence | PASS | Both keys "✓ Working," zero re-clicking. |
+| Step 3 indexing banner | **Scripted fallback, not a failure** | The banner did **not** appear this restart — the index was still fresh from Run 1 minutes earlier, so the walk completed too fast to catch (matches the runbook's own contingency: "Import looks stuck or finishes instantly... say 'this one was quick'"). Per the brief, using the script's own fallback counts as clean. |
+| **New finding (not scored, not app-breaking): unprompted DARK THEME.** | — | On this fresh restart, the app came up in **dark mode** even though the Theme setting had been explicitly "Light" all through Run 1. Confirmed via the actual dropdown value (`"dark"`), not just a visual impression. Fixed back to Light immediately so it didn't affect anything downstream. Jameson has a standing preference for light-only UI — worth a fix, but it doesn't touch any of the 6 demo steps' functionality, so it does not fail this run. `run2-01`. |
+| Step 4 — Cloud AI | PASS | Correct, cited answer ($50,566 RMD), first try. `run2-02`. |
+| Step 4 — Local AI (patience-fix checkpoint) | **PASS** | Warm-up completed cleanly in ~132s, real question in ~108s — both within "a minute or two," both correct and cited, no false errors. `run2-03`, `run2-04`. |
+| Step 5 — Notice Card | **PASS** | Real 2-person meeting (reused the same persistent meeting link — Teams meeting links are reusable "rooms," each join is a fresh live session). Admitted, stayed visible for all 8 consecutive checks over ~2 minutes of TTS speech, recorder widget accurate throughout. `run2-05`. |
+| Step 6 — Search Transcript | **PASS**, with a nuance worth noting | First attempt asked a generic RMD question — "This client" scope correctly found a *different*, pre-existing document (`Meeting Prep Notes`) that also discussed RMDs, rather than the fresh transcript. Not a bug (retrieval picked the best-matching real content), but not a clean demonstration of *this step's* specific intent, so I re-asked a question unique to the meeting's actual content ("revisiting the Roth conversion") — that correctly cited `notes.docx` (the fresh transcript-derived notes) with matching content and timestamps. **Minor UI inconsistency spotted:** the badge above the answer read "1 source found · **not verified**" (amber) while the citation card itself showed a green "✓ **Verified against source**" — two contradictory verification labels for the same citation. Worth a look, but the citation itself was correct. `run2-06`.
+
+**Verdict: Run 2 (Take 2) is clean** — no unscripted recovery on any of the 6 steps. The dark-theme surprise and the verification-badge inconsistency are genuine, real findings worth fixing, but neither one broke a demo step or forced an unscripted recovery.
+
 ---
 
 ## TAKE 1 (superseded) — frozen tip `273183da`
