@@ -267,10 +267,18 @@ pub async fn onedrive_connect(state: State<'_, OneDriveState>) -> Result<(), Str
     let previous_token = entry.get_password().ok();
     crate::commands::mail::gmail::oauth::store_or_rollback_on_cancel(
         &cancel,
-        || entry.set_password(&tokens.refresh).map_err(|e| e.to_string()),
+        || {
+            entry
+                .set_password(&tokens.refresh)
+                .map_err(|e| e.to_string())
+        },
         || match &previous_token {
-            Some(prev) => { let _ = entry.set_password(prev); }
-            None => { let _ = entry.delete_credential(); }
+            Some(prev) => {
+                let _ = entry.set_password(prev);
+            }
+            None => {
+                let _ = entry.delete_credential();
+            }
         },
     )
 }
@@ -422,7 +430,10 @@ where
                 Ok(()) => {}
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                 Err(e) => {
-                    log::warn!("onedrive_disconnect: failed to delete imported file {}: {e}", abs.display());
+                    log::warn!(
+                        "onedrive_disconnect: failed to delete imported file {}: {e}",
+                        abs.display()
+                    );
                     failed.push(rel);
                 }
             },
@@ -451,7 +462,7 @@ where
 pub async fn onedrive_disconnect_logic(
     state: &OneDriveState,
     delete_files: bool,
-) -> OneDriveDisconnectResult {
+) -> Result<OneDriveDisconnectResult, String> {
     onedrive_disconnect_logic_with(
         state,
         delete_files,
@@ -483,7 +494,7 @@ pub async fn onedrive_disconnect_logic_with<F>(
     delete_files: bool,
     open_store: F,
     sync_wait: Duration,
-) -> OneDriveDisconnectResult
+) -> Result<OneDriveDisconnectResult, String>
 where
     F: Fn(&std::path::Path) -> anyhow::Result<OneDriveStore>,
 {
@@ -493,7 +504,13 @@ where
     // sync (or folder-discovery walk that leads into one) can start during the
     // whole disconnect and re-materialize files right after the purge. Released
     // when this function returns, however it returns.
-    state.disconnecting.store(true, Ordering::SeqCst);
+    if state
+        .disconnecting
+        .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+        .is_err()
+    {
+        return Err("OneDrive disconnect is already running; try again in a moment.".into());
+    }
     let _disconnect_guard = DisconnectGuard(state.disconnecting.clone());
 
     state.cancel.store(true, Ordering::SeqCst);
@@ -508,7 +525,7 @@ where
              account connection was kept — try disconnecting again in a moment to finish."
                 .to_string(),
         );
-        return result;
+        return Ok(result);
     }
 
     // No workspace → the imported data can't be located/deleted. KEEP the
@@ -522,7 +539,7 @@ where
              disconnect again to finish deleting."
                 .to_string(),
         );
-        return result;
+        return Ok(result);
     };
 
     // F1: opt-in delete of the materialized files. Do this BEFORE the tracking
@@ -540,7 +557,7 @@ where
                     failed.len(),
                     if failed.len() == 1 { "file" } else { "files" },
                 ));
-                return result;
+                return Ok(result);
             }
             Err(e) => {
                 result.data_remains = true;
@@ -548,7 +565,7 @@ where
                     "The imported OneDrive files could not be deleted ({e}); your account \
                      connection was kept so you can try disconnecting again to finish deleting."
                 ));
-                return result;
+                return Ok(result);
             }
         }
     }
@@ -600,7 +617,7 @@ where
         );
     }
 
-    result
+    Ok(result)
 }
 
 /// Disconnect the OneDrive/SharePoint account: stop any in-flight sync, remove
@@ -615,7 +632,7 @@ pub async fn onedrive_disconnect(
     state: State<'_, OneDriveState>,
     delete_files: bool,
 ) -> Result<OneDriveDisconnectResult, String> {
-    Ok(onedrive_disconnect_logic(&state, delete_files).await)
+    onedrive_disconnect_logic(&state, delete_files).await
 }
 
 #[tauri::command]
@@ -858,8 +875,8 @@ pub async fn onedrive_sync(
         let token = fresh_access_token().await?;
         let refresh = graph_token_refresh();
         let store = OneDriveStore::open(&workspace).map_err(|e| e.to_string())?;
-        let rag_key = crate::commands::rag::crypto::get_or_create_master_key()
-            .map_err(|e| e.to_string())?;
+        let rag_key =
+            crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
         let available_drives = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
             .list_drives()
@@ -874,7 +891,9 @@ pub async fn onedrive_sync(
                 .map(|drive| is_personal_drive(&drive))
                 .unwrap_or(false);
             let source = GraphDocumentSource::new_for_default_drive_with_refresh(
-                token, omit_select, refresh,
+                token,
+                omit_select,
+                refresh,
             );
             sync_documents(
                 &source,
@@ -1091,7 +1110,13 @@ mod tests {
         let client = OneDriveClient::new_with_base("AT".into(), server.uri());
         let cancel = Arc::new(AtomicBool::new(true));
         let mut out = Vec::new();
-        let items = vec![folder("folder-1", "Clients", "drive-1", "/drive/root:", None)];
+        let items = vec![folder(
+            "folder-1",
+            "Clients",
+            "drive-1",
+            "/drive/root:",
+            None,
+        )];
 
         let result = collect_folders(
             &client,
@@ -1141,7 +1166,13 @@ mod tests {
 
         let mut out = Vec::new();
         let items = vec![
-            folder("folder-1", "Should Not Visit", "drive-1", "/drive/root:", None),
+            folder(
+                "folder-1",
+                "Should Not Visit",
+                "drive-1",
+                "/drive/root:",
+                None,
+            ),
             folder("folder-2", "Clients", "drive-1", "/drive/root:", None),
         ];
         let result = collect_folders(
@@ -1194,7 +1225,13 @@ mod tests {
         });
 
         let mut out = Vec::new();
-        let items = vec![folder("folder-1", "Clients", "drive-1", "/drive/root:", None)];
+        let items = vec![folder(
+            "folder-1",
+            "Clients",
+            "drive-1",
+            "/drive/root:",
+            None,
+        )];
         let result = collect_folders(
             &client,
             Some("drive-1"),
@@ -1238,7 +1275,13 @@ mod tests {
         let client = OneDriveClient::new_with_base("AT".into(), server.uri());
         let cancel = Arc::new(AtomicBool::new(false));
         let mut out = Vec::new();
-        let items = vec![folder("folder-1", "Clients", "drive-1", "/drive/root:", None)];
+        let items = vec![folder(
+            "folder-1",
+            "Clients",
+            "drive-1",
+            "/drive/root:",
+            None,
+        )];
 
         let outcome = tokio::time::timeout(
             Duration::from_millis(50),
@@ -1318,8 +1361,18 @@ mod tests {
         let store = OneDriveStore::open_with_key(ws, &TEST_DB_KEY).unwrap();
         store
             .upsert_item(
-                source_id, "d", None, source_id, name, "/clients/acme", None, "sig", "hash",
-                "matter-a", true, false,
+                source_id,
+                "d",
+                None,
+                source_id,
+                name,
+                "/clients/acme",
+                None,
+                "sig",
+                "hash",
+                "matter-a",
+                true,
+                false,
             )
             .unwrap();
         store.set_local_path(source_id, local_path).unwrap();
@@ -1334,7 +1387,12 @@ mod tests {
         let outside = tempfile::TempDir::new().unwrap();
         let victim = outside.path().join("secret.txt");
         std::fs::write(&victim, b"do not delete").unwrap();
-        seed_local_path(dir.path(), "onedrive:d:abs", "secret.txt", victim.to_str().unwrap());
+        seed_local_path(
+            dir.path(),
+            "onedrive:d:abs",
+            "secret.txt",
+            victim.to_str().unwrap(),
+        );
 
         let failed = delete_materialized_files(dir.path(), &open_test_store).unwrap();
         assert_eq!(failed.len(), 1, "the absolute path must be a failed delete");

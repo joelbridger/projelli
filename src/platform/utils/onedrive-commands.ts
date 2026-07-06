@@ -32,6 +32,7 @@ export interface OneDriveSyncReport {
   repaired: number;
   deltaReset: boolean;
   cancelled: boolean;
+  errors: string[];
 }
 
 /**

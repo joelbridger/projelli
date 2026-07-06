@@ -18,9 +18,17 @@ Client intake memo: Acme Holdings — quarterly review notes, imported from a \
 OneDrive folder named after the client.\
 ";
 
-async fn index_onedrive_entry(table: &lancedb::Table, source_id: &str, text: &str, matter_id: &str) {
+async fn index_onedrive_entry(
+    table: &lancedb::Table,
+    source_id: &str,
+    text: &str,
+    matter_id: &str,
+) {
     let chunks = chunk_text(source_id, text);
-    assert!(!chunks.is_empty(), "fixture text should produce at least one chunk");
+    assert!(
+        !chunks.is_empty(),
+        "fixture text should produce at least one chunk"
+    );
     let rows: Vec<_> = chunks
         .into_iter()
         .map(|chunk| (chunk, vec![0.3f32; EMBEDDING_DIM]))
@@ -59,11 +67,19 @@ async fn disconnect_purges_local_data_and_reports_an_honest_result() {
     let workspace = tempfile::tempdir().expect("workspace tempdir");
     let ws = workspace.path().to_path_buf();
 
-    let conn = store::open_connection(&ws).await.expect("open vector store");
+    let conn = store::open_connection(&ws)
+        .await
+        .expect("open vector store");
     let table = store::open_or_create_table(&conn)
         .await
         .expect("open chunks table");
-    index_onedrive_entry(&table, "onedrive:drive-demo:item-intake-memo", FIXTURE_TEXT, ONEDRIVE_MATTER).await;
+    index_onedrive_entry(
+        &table,
+        "onedrive:drive-demo:item-intake-memo",
+        FIXTURE_TEXT,
+        ONEDRIVE_MATTER,
+    )
+    .await;
 
     // Seed the local OneDrive sync-state DB too, so we can assert the whole
     // file is gone after disconnect (mirrors OneDriveStore::purge's contract).
@@ -77,20 +93,34 @@ async fn disconnect_purges_local_data_and_reports_an_honest_result() {
             OneDriveStore::open_with_key(&ws, &ONEDRIVE_DB_KEY).expect("open onedrive store");
     }
     let db_path = OneDriveStore::db_path(&ws);
-    assert!(db_path.exists(), "onedrive sync-state db should exist before disconnect");
+    assert!(
+        db_path.exists(),
+        "onedrive sync-state db should exist before disconnect"
+    );
 
     // Confirm the RAG chunk is present before disconnect.
-    let hits_before = store::nearest(&table, &vec![0.3f32; EMBEDDING_DIM], 20, Some(ONEDRIVE_MATTER), false, &[])
-        .await
-        .expect("nearest before disconnect");
+    let hits_before = store::nearest(
+        &table,
+        &vec![0.3f32; EMBEDDING_DIM],
+        20,
+        Some(ONEDRIVE_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest before disconnect");
     assert!(
-        hits_before.iter().any(|h| h.source_type.as_deref() == Some("onedrive")),
+        hits_before
+            .iter()
+            .any(|h| h.source_type.as_deref() == Some("onedrive")),
         "at least one onedrive rag chunk must exist before disconnect"
     );
 
     // ── 2: Drive the REAL disconnect path with a workspace open ──────────────
     let state = make_state(Some(ws.clone()));
-    let result = onedrive_disconnect_logic(&state, false).await;
+    let result = onedrive_disconnect_logic(&state, false)
+        .await
+        .expect("disconnect should run");
 
     // token_deleted may be false in a headless CI environment with no usable
     // keychain — that is expected and acceptable; we only assert on the DATA
@@ -124,9 +154,16 @@ async fn disconnect_purges_local_data_and_reports_an_honest_result() {
     let table2 = store::open_or_create_table(&conn2)
         .await
         .expect("reopen chunks table after disconnect");
-    let hits_after = store::nearest(&table2, &vec![0.3f32; EMBEDDING_DIM], 20, Some(ONEDRIVE_MATTER), false, &[])
-        .await
-        .expect("nearest after disconnect");
+    let hits_after = store::nearest(
+        &table2,
+        &vec![0.3f32; EMBEDDING_DIM],
+        20,
+        Some(ONEDRIVE_MATTER),
+        false,
+        &[],
+    )
+    .await
+    .expect("nearest after disconnect");
     let remaining_onedrive = hits_after
         .iter()
         .filter(|h| h.source_type.as_deref() == Some("onedrive"))
@@ -144,7 +181,9 @@ async fn disconnect_purges_local_data_and_reports_an_honest_result() {
 #[tokio::test]
 async fn disconnect_without_a_workspace_keeps_the_connection_and_flags_data_remains() {
     let state = make_state(None);
-    let result = onedrive_disconnect_logic(&state, false).await;
+    let result = onedrive_disconnect_logic(&state, false)
+        .await
+        .expect("disconnect should run");
 
     assert!(
         result.data_remains,
@@ -173,8 +212,18 @@ fn seed_materialized_file(ws: &std::path::Path) -> std::path::PathBuf {
     let store = OneDriveStore::open_with_key(ws, &ONEDRIVE_DB_KEY).unwrap();
     store
         .upsert_item(
-            "onedrive:d:memo", "d", None, "memo", "memo.docx", "/clients/acme", None, "sig",
-            "hash", ONEDRIVE_MATTER, true, false,
+            "onedrive:d:memo",
+            "d",
+            None,
+            "memo",
+            "memo.docx",
+            "/clients/acme",
+            None,
+            "sig",
+            "hash",
+            ONEDRIVE_MATTER,
+            true,
+            false,
         )
         .unwrap();
     store.set_local_path("onedrive:d:memo", MEMO_REL).unwrap();
@@ -195,13 +244,10 @@ async fn opt_in_delete_removes_the_materialized_files() {
     assert!(abs.exists(), "seeded file should exist before disconnect");
 
     let state = make_state(Some(ws.clone()));
-    let result = onedrive_disconnect_logic_with(
-        &state,
-        true,
-        open_with_test_key,
-        Duration::from_secs(15),
-    )
-    .await;
+    let result =
+        onedrive_disconnect_logic_with(&state, true, open_with_test_key, Duration::from_secs(15))
+            .await
+            .expect("disconnect should run");
 
     assert!(
         !abs.exists(),
@@ -228,13 +274,10 @@ async fn opt_out_keeps_the_materialized_files_but_still_removes_the_connection()
     let abs = seed_materialized_file(&ws);
 
     let state = make_state(Some(ws.clone()));
-    let result = onedrive_disconnect_logic_with(
-        &state,
-        false,
-        open_with_test_key,
-        Duration::from_secs(15),
-    )
-    .await;
+    let result =
+        onedrive_disconnect_logic_with(&state, false, open_with_test_key, Duration::from_secs(15))
+            .await
+            .expect("disconnect should run");
 
     assert!(
         abs.exists(),
@@ -268,8 +311,18 @@ async fn opt_in_delete_failure_keeps_token_and_db_for_retry() {
         let store = OneDriveStore::open_with_key(&ws, &ONEDRIVE_DB_KEY).unwrap();
         store
             .upsert_item(
-                "onedrive:d:stub", "d", None, "stub", "stubborn", "/clients/acme", None, "sig",
-                "hash", ONEDRIVE_MATTER, true, false,
+                "onedrive:d:stub",
+                "d",
+                None,
+                "stub",
+                "stubborn",
+                "/clients/acme",
+                None,
+                "sig",
+                "hash",
+                ONEDRIVE_MATTER,
+                true,
+                false,
             )
             .unwrap();
         store.set_local_path("onedrive:d:stub", rel).unwrap();
@@ -277,13 +330,10 @@ async fn opt_in_delete_failure_keeps_token_and_db_for_retry() {
     let db_path = OneDriveStore::db_path(&ws);
 
     let state = make_state(Some(ws.clone()));
-    let result = onedrive_disconnect_logic_with(
-        &state,
-        true,
-        open_with_test_key,
-        Duration::from_secs(15),
-    )
-    .await;
+    let result =
+        onedrive_disconnect_logic_with(&state, true, open_with_test_key, Duration::from_secs(15))
+            .await
+            .expect("disconnect should run");
 
     assert!(
         result.data_remains,
@@ -298,7 +348,10 @@ async fn opt_in_delete_failure_keeps_token_and_db_for_retry() {
         "the tracking DB must be kept on delete failure so the retry can re-enumerate the paths"
     );
     assert!(
-        result.warnings.iter().any(|w| w.contains("could not be deleted")),
+        result
+            .warnings
+            .iter()
+            .any(|w| w.contains("could not be deleted")),
         "the warning must explain the delete failure; got {:?}",
         result.warnings
     );
@@ -335,8 +388,18 @@ async fn disconnect_waits_for_an_in_flight_sync_then_deletes_the_file_it_just_wr
         let store = OneDriveStore::open_with_key(&ws_task, &ONEDRIVE_DB_KEY).unwrap();
         store
             .upsert_item(
-                "onedrive:d:memo", "d", None, "memo", "memo.docx", "/clients/acme", None, "sig",
-                "hash", ONEDRIVE_MATTER, true, false,
+                "onedrive:d:memo",
+                "d",
+                None,
+                "memo",
+                "memo.docx",
+                "/clients/acme",
+                None,
+                "sig",
+                "hash",
+                ONEDRIVE_MATTER,
+                true,
+                false,
             )
             .unwrap();
         store.set_local_path("onedrive:d:memo", MEMO_REL).unwrap();
@@ -346,13 +409,10 @@ async fn disconnect_waits_for_an_in_flight_sync_then_deletes_the_file_it_just_wr
     });
 
     let start = Instant::now();
-    let result = onedrive_disconnect_logic_with(
-        &state,
-        true,
-        open_with_test_key,
-        Duration::from_secs(15),
-    )
-    .await;
+    let result =
+        onedrive_disconnect_logic_with(&state, true, open_with_test_key, Duration::from_secs(15))
+            .await
+            .expect("disconnect should run");
     writer.await.unwrap();
 
     assert!(
@@ -397,7 +457,8 @@ async fn disconnect_times_out_when_a_sync_never_stops_and_keeps_everything() {
         open_with_test_key,
         Duration::from_millis(200), // short bound so the test is fast
     )
-    .await;
+    .await
+    .expect("disconnect should run");
 
     assert!(
         result.data_remains,
@@ -454,7 +515,8 @@ async fn disconnect_holds_the_sync_gate_while_running_and_releases_it_after() {
 
     let result =
         onedrive_disconnect_logic_with(&*state, true, open_with_test_key, Duration::from_secs(15))
-            .await;
+            .await
+            .expect("disconnect should run");
     stopper.await.unwrap();
     observer.await.unwrap();
 
@@ -479,5 +541,68 @@ async fn disconnect_holds_the_sync_gate_while_running_and_releases_it_after() {
     assert!(
         acquire_sync_slot(&state).is_ok(),
         "a sync must be allowed again once the disconnect gate is released"
+    );
+}
+
+/// F1 regression: two overlapping disconnect calls must not share the same
+/// gate. The second call is rejected, and it must not release the first call's
+/// gate while the first one is still waiting for a sync to stop.
+#[tokio::test]
+async fn concurrent_double_disconnect_rejects_the_second_call_without_releasing_gate() {
+    let state = Arc::new(make_state(None));
+    state.is_syncing.store(true, Ordering::SeqCst);
+
+    let first_state = state.clone();
+    let first = tokio::spawn(async move {
+        onedrive_disconnect_logic_with(
+            &first_state,
+            false,
+            open_with_test_key,
+            Duration::from_secs(5),
+        )
+        .await
+    });
+
+    let started = Instant::now();
+    while !state.disconnecting.load(Ordering::SeqCst) {
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "first disconnect should acquire the gate promptly"
+        );
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+
+    let second = onedrive_disconnect_logic_with(
+        &state,
+        false,
+        open_with_test_key,
+        Duration::from_millis(50),
+    )
+    .await;
+
+    assert!(
+        second
+            .as_ref()
+            .err()
+            .is_some_and(|e| e.contains("already running")),
+        "the second disconnect must be rejected clearly"
+    );
+    assert!(
+        state.disconnecting.load(Ordering::SeqCst),
+        "the rejected second disconnect must not release the first disconnect's gate"
+    );
+
+    state.is_syncing.store(false, Ordering::SeqCst);
+    let first_result = first
+        .await
+        .unwrap()
+        .expect("first disconnect should finish");
+    assert!(
+        first_result.data_remains,
+        "the first disconnect should still finish its own no-workspace path"
+    );
+    assert!(
+        !state.disconnecting.load(Ordering::SeqCst),
+        "the first disconnect releases the gate after it finishes"
     );
 }
