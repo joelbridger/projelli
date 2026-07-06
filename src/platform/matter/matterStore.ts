@@ -49,9 +49,14 @@ import {
   findMatter,
   normalize as normalizeMatterPath,
   normalizeMeetingKey,
+  isPathInFolder,
   type MatterMatch,
 } from '@/platform/rag/matterResolver';
 import { isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
+import {
+  workspaceScopeSuffix,
+  getActiveWorkspaceScopeRoot,
+} from '@/platform/state/workspaceScope';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { ragDeleteMatter } from '@/platform/utils/tauri-commands';
 import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
@@ -458,10 +463,25 @@ interface PersistedMatterState {
   cache: Record<string, MatterAtAGlanceEntry>;
 }
 
-const MATTERS_KEY = SK_MATTERS;
-const UI_KEY = SK_MATTER_UI_SNAPSHOTS;
-const GLANCE_KEY = SK_MATTER_AT_A_GLANCE;
+// Base (unsuffixed) localStorage keys. When a workspace scope is active these
+// gain a `::ws:<id>` suffix (QA-93); the unsuffixed keys are ALSO the legacy
+// GLOBAL keys (pre-QA-93 single-store data), which the per-workspace migration
+// reads NON-destructively as its source.
+const MATTERS_BASE_KEY = SK_MATTERS;
+const UI_BASE_KEY = SK_MATTER_UI_SNAPSHOTS;
+const GLANCE_BASE_KEY = SK_MATTER_AT_A_GLANCE;
 const MATTERS_VERSION = 10;
+
+/** The three scoped keys for the currently-active workspace scope (suffix is
+ *  `''` — i.e. the legacy global keys — when no workspace scope is set). */
+function scopedMatterKeys(): { matters: string; ui: string; glance: string } {
+  const suffix = workspaceScopeSuffix();
+  return {
+    matters: MATTERS_BASE_KEY + suffix,
+    ui: UI_BASE_KEY + suffix,
+    glance: GLANCE_BASE_KEY + suffix,
+  };
+}
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 
@@ -515,75 +535,305 @@ function readLegacyEnvelope(
   }
 }
 
+/** Keep only the object entries whose key is in `ids`. */
+function pickByIds<T>(rec: Record<string, T>, ids: ReadonlySet<string>): Record<string, T> {
+  const out: Record<string, T> = {};
+  for (const [id, value] of Object.entries(rec)) {
+    if (ids.has(id)) out[id] = value;
+  }
+  return out;
+}
+
 /**
- * Multi-key persistence: this single store fans out to the THREE legacy
- * localStorage keys so existing users' data hydrates and is written back
- * unchanged (plan risk R4 — no key rename, no destructive migration).
- * `partialize` controls WHAT persists; this storage controls WHERE — splitting
- * the partialized state into the three keys on write and reassembling on read.
+ * QA-93 one-time migration: seed a freshly-opened workspace scope from the
+ * LEGACY GLOBAL matter data. Non-destructive — the global keys are LEFT INTACT
+ * so a different workspace can still claim its own matters on ITS first open.
+ *
+ * A matter is carried into `root` iff it has at least one ABSOLUTE folderPath
+ * that lives under `root` (`isPathInFolder`, the app's case-correct containment
+ * predicate). Relative folderPaths are NEVER guessed — they can't be proven to
+ * belong to any workspace (see the "no automatic reconciliation" note below), so
+ * a matter with ONLY relative folders is left in global (reachable only if it
+ * later gains an absolute match). A carried matter's folderPaths are FILTERED to
+ * those under `root` (plus any relative ones, left untouched) so a matter that
+ * happens to span two workspaces never drags one workspace's absolute folder
+ * claims into the other's scope. activeMatterId, snapshots, and cache ride along
+ * only for carried matter ids.
+ *
+ * Always returns a CONCRETE envelope (never null) at the current schema version,
+ * so persist REPLACES any stale in-memory slice from a previously-open workspace
+ * (a null return would leave zustand's merge keeping the old matters).
+ */
+function migrateGlobalMattersForScope(root: string): StorageValue<PersistedMatterState> {
+  const gMatters = readLegacyEnvelope(MATTERS_BASE_KEY);
+  const gUi = readLegacyEnvelope(UI_BASE_KEY);
+  const gGlance = readLegacyEnvelope(GLANCE_BASE_KEY);
+  const migrated = migrateMatters(
+    {
+      matters: (gMatters?.state?.['matters'] as Matter[] | undefined) ?? [],
+      activeMatterId: (gMatters?.state?.['activeMatterId'] as string | null | undefined) ?? null,
+      snapshots: (gUi?.state?.['snapshots'] as Record<string, MatterUiSnapshot> | undefined) ?? {},
+      cache: (gGlance?.state?.['cache'] as Record<string, MatterAtAGlanceEntry> | undefined) ?? {},
+    },
+    gMatters?.version ?? MATTERS_VERSION,
+  );
+  const kept: Matter[] = [];
+  for (const m of migrated.matters) {
+    const underRoot = m.folderPaths.some((fp) => isAbsolutePath(fp) && isPathInFolder(fp, root));
+    if (!underRoot) continue;
+    // Keep folders that are under THIS root, plus any relative entries (left
+    // untouched per the no-auto-reconciliation rule); drop absolute folders that
+    // belong to a DIFFERENT workspace so they don't leak into this scope.
+    const folderPaths = m.folderPaths.filter(
+      (fp) => !isAbsolutePath(fp) || isPathInFolder(fp, root),
+    );
+    kept.push({ ...m, folderPaths });
+  }
+  const keptIds = new Set(kept.map((m) => m.id));
+  const state: PersistedMatterState = {
+    matters: kept,
+    activeMatterId:
+      migrated.activeMatterId && keptIds.has(migrated.activeMatterId)
+        ? migrated.activeMatterId
+        : null,
+    snapshots: pickByIds(migrated.snapshots, keptIds),
+    cache: pickByIds(migrated.cache, keptIds),
+  };
+  // COMMIT the migration to this workspace's scoped keys now. zustand's
+  // `rehydrate()` does NOT write hydrated state back to storage, so without this
+  // the one-time migration would recompute from global on every open. Writing
+  // here makes it durable + idempotent (the next open finds the scoped key and
+  // skips migration entirely) and leaves the global source intact.
+  writeScopedMatterEnvelopes(scopedMatterKeys(), state, MATTERS_VERSION);
+  return { state, version: MATTERS_VERSION };
+}
+
+/** Write the partialized state out to a scope's three keys (matters + activeId,
+ *  ui snapshots, at-a-glance cache). Shared by `setItem` and the one-time
+ *  migration so there is ONE definition of the on-disk envelope shape. */
+function writeScopedMatterEnvelopes(
+  keys: { matters: string; ui: string; glance: string },
+  state: PersistedMatterState,
+  version: number,
+): void {
+  try {
+    localStorage.setItem(
+      keys.matters,
+      JSON.stringify({
+        state: { matters: state.matters, activeMatterId: state.activeMatterId },
+        version,
+      })
+    );
+    localStorage.setItem(
+      keys.ui,
+      JSON.stringify({ state: { snapshots: state.snapshots }, version: 0 })
+    );
+    localStorage.setItem(
+      keys.glance,
+      JSON.stringify({ state: { cache: state.cache }, version: 0 })
+    );
+  } catch {
+    /* localStorage may be unavailable (strict privacy mode) */
+  }
+}
+
+/**
+ * Multi-key, PER-WORKSPACE persistence (QA-93). This single store fans out to
+ * THREE localStorage keys, each carrying the active workspace's `::ws:<id>`
+ * suffix. `partialize` controls WHAT persists; this storage controls WHERE.
+ *
+ * WHERE rules:
+ *   - No workspace scope active (app boot before a workspace opens; unit tests) →
+ *     suffix `''` → the legacy GLOBAL keys, so pre-QA-93 behavior is unchanged.
+ *   - A workspace scope active with data already at its scoped keys → load it.
+ *   - A workspace scope active with NO scoped data yet → one-time migrate from
+ *     the legacy global data (see `migrateGlobalMattersForScope`).
+ *
  * The sync slice is never partialized, so it never reaches here.
  */
 const multiKeyMatterStorage: PersistStorage<PersistedMatterState> = {
   getItem: (): StorageValue<PersistedMatterState> | null => {
-    const matters = readLegacyEnvelope(MATTERS_KEY);
-    const ui = readLegacyEnvelope(UI_KEY);
-    const glance = readLegacyEnvelope(GLANCE_KEY);
-    if (!matters && !ui && !glance) return null; // fresh user — use store defaults
-    const state: PersistedMatterState = {
-      matters: (matters?.state?.['matters'] as Matter[] | undefined) ?? [],
-      activeMatterId:
-        (matters?.state?.['activeMatterId'] as string | null | undefined) ??
-        null,
-      snapshots:
-        (ui?.state?.['snapshots'] as
-          | Record<string, MatterUiSnapshot>
-          | undefined) ?? {},
-      cache:
-        (glance?.state?.['cache'] as
-          | Record<string, MatterAtAGlanceEntry>
-          | undefined) ?? {},
-    };
-    // Return the matters key's stored version so `persist` runs the matters
-    // migration (v1→v4) when an older user hydrates. The ui/glance slices have
-    // never been versioned and carry no migration of their own.
-    return { state, version: matters?.version ?? MATTERS_VERSION };
+    const keys = scopedMatterKeys();
+    const matters = readLegacyEnvelope(keys.matters);
+    const ui = readLegacyEnvelope(keys.ui);
+    const glance = readLegacyEnvelope(keys.glance);
+    if (matters || ui || glance) {
+      const state: PersistedMatterState = {
+        matters: (matters?.state?.['matters'] as Matter[] | undefined) ?? [],
+        activeMatterId:
+          (matters?.state?.['activeMatterId'] as string | null | undefined) ?? null,
+        snapshots:
+          (ui?.state?.['snapshots'] as Record<string, MatterUiSnapshot> | undefined) ?? {},
+        cache:
+          (glance?.state?.['cache'] as Record<string, MatterAtAGlanceEntry> | undefined) ?? {},
+      };
+      // Return the matters key's stored version so `persist` runs the schema
+      // migration when an older user hydrates. ui/glance are unversioned.
+      return { state, version: matters?.version ?? MATTERS_VERSION };
+    }
+    // No data at this scope.
+    const root = getActiveWorkspaceScopeRoot();
+    if (!root) return null; // no scope + no global data — fresh user → defaults
+    // A workspace is open but has no scoped data yet → migrate from global.
+    return migrateGlobalMattersForScope(root);
   },
   setItem: (_name, value): void => {
-    const { state } = value;
-    const version = value.version ?? MATTERS_VERSION;
-    try {
-      localStorage.setItem(
-        MATTERS_KEY,
-        JSON.stringify({
-          state: {
-            matters: state.matters,
-            activeMatterId: state.activeMatterId,
-          },
-          version,
-        })
-      );
-      localStorage.setItem(
-        UI_KEY,
-        JSON.stringify({ state: { snapshots: state.snapshots }, version: 0 })
-      );
-      localStorage.setItem(
-        GLANCE_KEY,
-        JSON.stringify({ state: { cache: state.cache }, version: 0 })
-      );
-    } catch {
-      /* localStorage may be unavailable (strict privacy mode) */
-    }
+    writeScopedMatterEnvelopes(scopedMatterKeys(), value.state, value.version ?? MATTERS_VERSION);
   },
   removeItem: (): void => {
+    const keys = scopedMatterKeys();
     try {
-      localStorage.removeItem(MATTERS_KEY);
-      localStorage.removeItem(UI_KEY);
-      localStorage.removeItem(GLANCE_KEY);
+      localStorage.removeItem(keys.matters);
+      localStorage.removeItem(keys.ui);
+      localStorage.removeItem(keys.glance);
     } catch {
       /* ignore */
     }
   },
 };
+
+/**
+ * Schema migration for the persisted matters slice (v1 -> v10). Extracted from
+ * the persist config so the QA-93 per-workspace storage adapter can reuse it to
+ * bring LEGACY GLOBAL data up to the current schema before filtering it by the
+ * opened workspace root (see `multiKeyMatterStorage`). Pure function; the persist
+ * `migrate` hook just delegates to it.
+ */
+function migrateMatters(persisted: unknown, version: number): PersistedMatterState {
+  const state = persisted as Partial<PersistedMatterState> | undefined;
+  if (!state || !Array.isArray(state.matters))
+    return state as PersistedMatterState;
+  if (version < 2) {
+    state.matters = state.matters.map((m) => ({
+      ...m,
+      mailFolderPaths: m.mailFolderPaths ?? [],
+    }));
+  }
+  if (version < 3) {
+    state.matters = state.matters.map((m) => ({
+      ...m,
+      privileged: m.privileged ?? false,
+    }));
+  }
+  if (version < 4) {
+    // Firm linkage fields are optional — missing values are treated as
+    // undefined (local-only). Guard against stale `shared: true` without
+    // `firmMatterId` by normalising shared to false when firmMatterId is absent.
+    state.matters = state.matters.map((m) => {
+      if (!m.firmMatterId) {
+        // Drop any stale shared flag; don't set other firm fields.
+        const { shared: _shared, ...rest } = m;
+        return { ...rest, shared: false };
+      }
+      return { ...m, shared: m.shared ?? false };
+    });
+  }
+  if (version < 5) {
+    state.matters = state.matters.map((m) => ({
+      ...m,
+      mcpAccessGranted: m.mcpAccessGranted ?? false,
+    }));
+  }
+  if (version < 6) {
+    // v5 -> v6: matters gained `crmHouseholdKeys` for the Wealthbox
+    // connector. Backfill an empty array so older persisted matters parse
+    // cleanly; a missing value on disk is treated as an empty list.
+    state.matters = state.matters.map((m) => ({
+      ...m,
+      crmHouseholdKeys: m.crmHouseholdKeys ?? [],
+    }));
+  }
+  if (version < 7) {
+    // v6 -> v7: additive connector mapping slots. These are empty until
+    // each connector branch provides its real mapping UI/rules.
+    state.matters = state.matters.map((m) => ({
+      ...m,
+      onedriveFolderKeys: m.onedriveFolderKeys ?? [],
+      esignKeys: m.esignKeys ?? [],
+      meetingKeys: m.meetingKeys ?? [],
+    }));
+  }
+  if (version < 8) {
+    // v7 -> v8: more additive connector mapping slots. These are no-op
+    // shells until each connector branch supplies real mapping logic.
+    state.matters = state.matters.map((m) => ({
+      ...m,
+      boxFolderKeys: m.boxFolderKeys ?? [],
+      jotformKeys: m.jotformKeys ?? [],
+      sharefileFolderKeys: m.sharefileFolderKeys ?? [],
+      zocksKeys: m.zocksKeys ?? [],
+      addeparKeys: m.addeparKeys ?? [],
+    }));
+  }
+  if (version < 9) {
+    // v8 -> v9: SANITISE `folderPaths` (2026-07-01 QA re-fix). Earlier
+    // migrations only ADDED fields; none ever re-validated the existing
+    // `folderPaths`. `folderPaths` is TYPED `string[]`, but a persisted
+    // matter could carry a NON-STRING entry (a folder-picker object, or a
+    // corrupted write). Left alone it survives into `folderPaths[0]` and
+    // stringifies to the literal `"[object Object]"` when used as a
+    // create target — the exact bug where scoped "New document" wrote to a
+    // real garbage folder named `[object Object]` and the scoped
+    // Grid/Tree showed empty. `dedupeFolderPaths` now coerces each entry
+    // to a real string path and drops anything that can't be, so every
+    // persisted matter comes back with a clean `string[]`.
+    state.matters = state.matters.map((m) => ({
+      ...m,
+      folderPaths: dedupeFolderPaths(
+        Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [],
+        null,
+      ),
+    }));
+  }
+  if (version < 10) {
+    // v9 -> v10: re-validate `folderPaths` SHAPE ONLY (2026-07
+    // path-shape-discipline fix, F2.3) — coerce/drop non-strings and
+    // dedupe, same as v9, but this version bump exists to carry the
+    // real-path-proof log below. It deliberately does NOT attempt to
+    // resolve a surviving workspace-RELATIVE entry to absolute here.
+    //
+    // Earlier drafts of this fix DID call `getWorkspaceRootNonReactive()`
+    // at this exact point and resolved relative -> absolute against
+    // whatever root that returned — and a later draft added a
+    // `useWorkspaceStore.subscribe` reconciliation that auto-bound a
+    // surviving relative entry once a folder at that path was verified
+    // to exist in the current workspace's tree. Both were removed after
+    // independent review: neither can prove the entry actually belongs
+    // to THIS workspace rather than a same-named coincidence in a
+    // DIFFERENT one the user also has, and once wrongly rewritten to
+    // absolute, that mistake can never self-correct (see the "no
+    // automatic reconciliation" note right after this store's
+    // definition for the full rationale). No available signal proves
+    // workspace IDENTITY here without threading a workspace-root
+    // parameter through `matterResolver.resolveMatterId`'s hot path —
+    // out of lane, per this module's write-choke-point doc above.
+    //
+    // So this migration always passes `workspaceRoot: null` — a
+    // surviving relative entry stays relative (shape-clean, not
+    // dropped), and stays that way until the user touches that
+    // specific matter's folders again with the CORRECT workspace open
+    // (the write-time choke-point above, which is unambiguous by
+    // construction — only one workspace is ever in play there).
+    //
+    // Not gated on `import.meta.env.DEV` (that block is stripped from
+    // `vite build`) — this line is the real-path proof a later bench
+    // pass greps for to confirm the migration actually ran in the
+    // shipped app, not just in tests.
+    let canonicalizedCount = 0;
+    let droppedCount = 0;
+    state.matters = state.matters.map((m) => {
+      const before = Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [];
+      const after = dedupeFolderPaths(before, null);
+      canonicalizedCount += after.length;
+      droppedCount += before.length - after.length;
+      return { ...m, folderPaths: after };
+    });
+    console.log(
+      `[PathShape] canonicalized ${String(canonicalizedCount)} folderPaths, dropped ${String(droppedCount)} invalid`,
+    );
+  }
+  return state as PersistedMatterState;
+}
 
 export const useMatterStore = create<MatterState>()(
   persist(
@@ -1191,141 +1441,7 @@ export const useMatterStore = create<MatterState>()(
       // values are tolerated by readers, but normalising here keeps the shape
       // consistent). Only the `matters` slice is versioned;
       // the snapshots/cache slices pass through untouched.
-      migrate: (persisted, version) => {
-        const state = persisted as Partial<PersistedMatterState> | undefined;
-        if (!state || !Array.isArray(state.matters))
-          return state as PersistedMatterState;
-        if (version < 2) {
-          state.matters = state.matters.map((m) => ({
-            ...m,
-            mailFolderPaths: m.mailFolderPaths ?? [],
-          }));
-        }
-        if (version < 3) {
-          state.matters = state.matters.map((m) => ({
-            ...m,
-            privileged: m.privileged ?? false,
-          }));
-        }
-        if (version < 4) {
-          // Firm linkage fields are optional — missing values are treated as
-          // undefined (local-only). Guard against stale `shared: true` without
-          // `firmMatterId` by normalising shared to false when firmMatterId is absent.
-          state.matters = state.matters.map((m) => {
-            if (!m.firmMatterId) {
-              // Drop any stale shared flag; don't set other firm fields.
-              const { shared: _shared, ...rest } = m;
-              return { ...rest, shared: false };
-            }
-            return { ...m, shared: m.shared ?? false };
-          });
-        }
-        if (version < 5) {
-          state.matters = state.matters.map((m) => ({
-            ...m,
-            mcpAccessGranted: m.mcpAccessGranted ?? false,
-          }));
-        }
-        if (version < 6) {
-          // v5 -> v6: matters gained `crmHouseholdKeys` for the Wealthbox
-          // connector. Backfill an empty array so older persisted matters parse
-          // cleanly; a missing value on disk is treated as an empty list.
-          state.matters = state.matters.map((m) => ({
-            ...m,
-            crmHouseholdKeys: m.crmHouseholdKeys ?? [],
-          }));
-        }
-        if (version < 7) {
-          // v6 -> v7: additive connector mapping slots. These are empty until
-          // each connector branch provides its real mapping UI/rules.
-          state.matters = state.matters.map((m) => ({
-            ...m,
-            onedriveFolderKeys: m.onedriveFolderKeys ?? [],
-            esignKeys: m.esignKeys ?? [],
-            meetingKeys: m.meetingKeys ?? [],
-          }));
-        }
-        if (version < 8) {
-          // v7 -> v8: more additive connector mapping slots. These are no-op
-          // shells until each connector branch supplies real mapping logic.
-          state.matters = state.matters.map((m) => ({
-            ...m,
-            boxFolderKeys: m.boxFolderKeys ?? [],
-            jotformKeys: m.jotformKeys ?? [],
-            sharefileFolderKeys: m.sharefileFolderKeys ?? [],
-            zocksKeys: m.zocksKeys ?? [],
-            addeparKeys: m.addeparKeys ?? [],
-          }));
-        }
-        if (version < 9) {
-          // v8 -> v9: SANITISE `folderPaths` (2026-07-01 QA re-fix). Earlier
-          // migrations only ADDED fields; none ever re-validated the existing
-          // `folderPaths`. `folderPaths` is TYPED `string[]`, but a persisted
-          // matter could carry a NON-STRING entry (a folder-picker object, or a
-          // corrupted write). Left alone it survives into `folderPaths[0]` and
-          // stringifies to the literal `"[object Object]"` when used as a
-          // create target — the exact bug where scoped "New document" wrote to a
-          // real garbage folder named `[object Object]` and the scoped
-          // Grid/Tree showed empty. `dedupeFolderPaths` now coerces each entry
-          // to a real string path and drops anything that can't be, so every
-          // persisted matter comes back with a clean `string[]`.
-          state.matters = state.matters.map((m) => ({
-            ...m,
-            folderPaths: dedupeFolderPaths(
-              Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [],
-              null,
-            ),
-          }));
-        }
-        if (version < 10) {
-          // v9 -> v10: re-validate `folderPaths` SHAPE ONLY (2026-07
-          // path-shape-discipline fix, F2.3) — coerce/drop non-strings and
-          // dedupe, same as v9, but this version bump exists to carry the
-          // real-path-proof log below. It deliberately does NOT attempt to
-          // resolve a surviving workspace-RELATIVE entry to absolute here.
-          //
-          // Earlier drafts of this fix DID call `getWorkspaceRootNonReactive()`
-          // at this exact point and resolved relative -> absolute against
-          // whatever root that returned — and a later draft added a
-          // `useWorkspaceStore.subscribe` reconciliation that auto-bound a
-          // surviving relative entry once a folder at that path was verified
-          // to exist in the current workspace's tree. Both were removed after
-          // independent review: neither can prove the entry actually belongs
-          // to THIS workspace rather than a same-named coincidence in a
-          // DIFFERENT one the user also has, and once wrongly rewritten to
-          // absolute, that mistake can never self-correct (see the "no
-          // automatic reconciliation" note right after this store's
-          // definition for the full rationale). No available signal proves
-          // workspace IDENTITY here without threading a workspace-root
-          // parameter through `matterResolver.resolveMatterId`'s hot path —
-          // out of lane, per this module's write-choke-point doc above.
-          //
-          // So this migration always passes `workspaceRoot: null` — a
-          // surviving relative entry stays relative (shape-clean, not
-          // dropped), and stays that way until the user touches that
-          // specific matter's folders again with the CORRECT workspace open
-          // (the write-time choke-point above, which is unambiguous by
-          // construction — only one workspace is ever in play there).
-          //
-          // Not gated on `import.meta.env.DEV` (that block is stripped from
-          // `vite build`) — this line is the real-path proof a later bench
-          // pass greps for to confirm the migration actually ran in the
-          // shipped app, not just in tests.
-          let canonicalizedCount = 0;
-          let droppedCount = 0;
-          state.matters = state.matters.map((m) => {
-            const before = Array.isArray(m.folderPaths) ? (m.folderPaths as unknown[]) : [];
-            const after = dedupeFolderPaths(before, null);
-            canonicalizedCount += after.length;
-            droppedCount += before.length - after.length;
-            return { ...m, folderPaths: after };
-          });
-          console.log(
-            `[PathShape] canonicalized ${String(canonicalizedCount)} folderPaths, dropped ${String(droppedCount)} invalid`,
-          );
-        }
-        return state as PersistedMatterState;
-      },
+      migrate: migrateMatters,
       partialize: (state) => ({
         // `matters` carries `privileged` per matter, so the privileged
         // designation persists across reloads. snapshots + cache persist to their

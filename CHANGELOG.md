@@ -128,6 +128,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     bench-verified follow-up): `coordination/reports/noknock-investigation.md`.
   - Files: `src/features/meetings/noticeCard/supervisor.ts`,
     `noticeCardLifecycle.ts`, `supervisor.test.ts`.
+- **QA-93: your client list now belongs to the workspace you're in — switching
+  workspaces no longer shows the previous workspace's clients.** Matter/client
+  state (the client list, per-client Client Maps, active-client selection, and
+  their caches) used to persist under ONE app-global key, so opening a different
+  workspace moved your files/indexing but left the OLD workspace's clients on
+  screen — and a whole-practice Ask counted the wrong book. Now each workspace
+  keeps its own client state, and the app swaps to the right set the moment you
+  switch. Robust, no shortcut:
+  - New `workspaceScope.ts` derives a stable per-workspace storage-key suffix
+    from the workspace root using the app's own path-comparison policy
+    (`pathComparisonKey`, added to `appPath.ts`) — NOT a naive lowercase, so
+    `/Practice/Acme` and `/Practice/acme` stay distinct client boundaries.
+  - `matterStore` and `clientMapStore` persist under per-workspace scoped keys;
+    with no workspace open (boot, tests) they fall back to the legacy global
+    keys, so nothing pre-existing changes shape.
+  - One-time, NON-destructive migration on a workspace's first open carries the
+    legacy global matters whose ABSOLUTE folders live under that root (client
+    maps follow by matter id); relative-only folders are never guessed and stay
+    in the retained global data (reachable if another workspace claims them). A
+    matter spanning two workspaces keeps only the current workspace's folders in
+    its scoped copy.
+  - `reloadWorkspaceScopedStores.ts` + a `useWorkspaceStore` root subscription in
+    `useWorkspaceLifecycle` swap both stores atomically with the root change, so
+    all three open paths (Open Existing, Recent Projects, boot auto-resume) are
+    covered and the new workspace is never briefly shown with the old clients.
+  - Readers (`getMatters`/`resolveMatterIdForPath`/whole-practice Ask) and the
+    Client Map now read the current workspace only, with no per-reader filtering.
+  - Files: `src/platform/state/workspaceScope.ts`,
+    `src/platform/state/reloadWorkspaceScopedStores.ts`,
+    `src/platform/matter/matterStore.ts`,
+    `src/platform/clientMap/clientMapStore.ts`,
+    `src/app/lifecycle/useWorkspaceLifecycle.ts`, `src/platform/fs/appPath.ts`.
 - **Local AI patience: a big on-device question no longer reports a FALSE
   failure while the engine is still reading your documents.** On the local
   (`keepance-local`) engine, a real Ask over a large RAG prompt (~4,574 tokens)

@@ -190,13 +190,27 @@ function asciiLower(s: string): string {
 }
 
 /**
+ * The canonical comparison KEY for a path: separator-normalised, dot-segments
+ * resolved, trailing separator stripped, and (on Windows) only the drive/UNC
+ * volume root case-folded — directory segments preserve their case. Two paths
+ * are `pathsEqual` iff their keys are string-equal. Exported so callers that
+ * need a STABLE per-path identity string (e.g. the QA-93 per-workspace storage
+ * scope id) derive it from the SAME policy the isolation checks use, instead of
+ * a naive `toLowerCase()` that would wrongly collapse `/Practice/Acme` and
+ * `/Practice/acme` into one client boundary.
+ */
+export function pathComparisonKey(p: string): string {
+  return caseNormalize(normalizeForComparison(p));
+}
+
+/**
  * True when `a` and `b` denote the same path, ignoring separator style, trailing
  * separators, and (on Windows) the case of the drive/UNC volume root. Directory
  * segments are compared case-sensitively.
  */
 export function pathsEqual(a: string, b: string): boolean {
   if (!a || !b) return false;
-  return caseNormalize(normalizeForComparison(a)) === caseNormalize(normalizeForComparison(b));
+  return pathComparisonKey(a) === pathComparisonKey(b);
 }
 
 /**

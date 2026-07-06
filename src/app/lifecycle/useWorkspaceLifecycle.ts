@@ -30,6 +30,7 @@ import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { ConfirmOptions } from '@/platform/hooks/useConfirmDialog';
 import { describeWorkspaceOpenError } from '@/platform/fs/workspaceOpenErrors';
+import { reloadWorkspaceScopedStores } from '@/platform/state/reloadWorkspaceScopedStores';
 
 // Bounds only the native SETUP (backend creation + initialize) — the SAME
 // budget/label WorkspaceSelector's manual "Open Existing" flow uses for the
@@ -83,6 +84,26 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
   // that happens, instead of a silent no-op.
   const [workspaceOpenError, setWorkspaceOpenError] = useState<string | null>(null);
   const dismissWorkspaceOpenError = useCallback(() => { setWorkspaceOpenError(null); }, []);
+
+  // QA-93: swap the per-workspace matter + client-map stores whenever the active
+  // workspace root changes. Driving this off the store (rather than calling it
+  // from each open handler) makes the swap ATOMIC with the `rootPath` change for
+  // EVERY entry path — Open Existing, Recent Projects, and boot auto-resume all
+  // funnel through the same `useWorkspaceStore` `setRootPath` — so a new
+  // workspace is never briefly visible with the previous workspace's clients.
+  useEffect(() => {
+    let prevRoot = useWorkspaceStore.getState().rootPath;
+    // Load the current root once at mount too (covers a remount with a workspace
+    // already open, e.g. a hot reload), so the stores are never left showing the
+    // legacy global data while a workspace is open.
+    if (prevRoot) reloadWorkspaceScopedStores(prevRoot);
+    return useWorkspaceStore.subscribe((state) => {
+      const nextRoot = state.rootPath;
+      if (nextRoot === prevRoot) return;
+      prevRoot = nextRoot;
+      reloadWorkspaceScopedStores(nextRoot);
+    });
+  }, []);
 
   const handleWorkspaceSelected = useCallback(async (service: WorkspaceService) => {
     // BUG-046: flush any dirty tabs of the OUTGOING workspace to disk BEFORE we
