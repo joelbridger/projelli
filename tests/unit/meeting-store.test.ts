@@ -36,7 +36,7 @@ vi.mock('@/platform/utils/docx-io', () => ({
 
 vi.mock('@/platform/rag/MemoryService', () => ({
   MemoryService: {
-    indexFile: (...args: unknown[]) => indexFileMock(...args),
+    indexFile: (path: string, matterId?: string) => indexFileMock(path, matterId),
   },
 }));
 
