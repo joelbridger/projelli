@@ -115,7 +115,7 @@ export function MeetingArtifactSendPanel({
       setConfirmOpen(false);
       const failed = entries.filter((entry) => entry.status === 'failed').length;
       setStatus(failed > 0
-        ? `${t('meetings.entry.send.sent-with-errors', { failed, total: entries.length })} ${entries
+        ? `${t('meetings.entry.send.sent-with-errors', { count: entries.length, failed, total: entries.length })} ${entries
           .filter((entry) => entry.status === 'failed')
           .map((entry) => `${entry.artifactLabel}: ${entry.error ?? t('meetings.entry.send.failed-without-message')}`)
           .join(' ')}`

@@ -36,7 +36,7 @@ import { InfoHelp } from '@/ui/InfoHelp';
 import {
   setAutoJoinCalendarPref,
   useAutoJoinCalendarPrefs,
-} from '@/features/meetings/autoJoinSettings';
+} from './autoJoinSettings';
 
 // Durable, append-only audit trail for connector activity, so a calendar
 // sync (including one that indexed zero meetings or failed) always leaves a

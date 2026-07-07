@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 214,
         "media": 92,
-        "meetings": 183,
+        "meetings": 217,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -253,7 +253,9 @@ describe('en.json structure snapshot', () => {
     // +17 = R7 Meetings: detail sub-tabs/export/rename copy (15) + spoken announcement phrases (2).
     // +16 = MF1 meeting recipients: per-artifact recipient picker labels, helper copy,
     //       save/add/remove controls, validation, and saved/saving status text.
-    expect(flat.length).toBe(1393); // 1377 + 16 (MF1 meeting recipients)
+    // +34 = MF2/MF3 meeting send + auto-join: reviewed send UI, email
+    //       delivery status/log copy, and calendar-driven auto-join panel copy.
+    expect(flat.length).toBe(1427); // 1393 + 34 (MF2/MF3 send + auto-join)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

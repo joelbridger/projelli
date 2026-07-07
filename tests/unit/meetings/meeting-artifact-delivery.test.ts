@@ -10,7 +10,8 @@ import {
 } from '@/features/meetings/meetingArtifactDelivery';
 import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/features/meetings/meetingRecipientPlan';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
-import type { ConnectedAccount } from '@/platform/utils/mail-commands';
+import type { AuditService } from '@/platform/audit/AuditService';
+import type { ConnectedAccount, MailAttachmentInput } from '@/platform/utils/mail-commands';
 
 vi.mock('@/platform/privacy/localOnlyGuard', () => ({
   isPersistedLocalOnly: vi.fn(() => false),
@@ -23,6 +24,19 @@ vi.mock('@/platform/privacy/localOnlyGuard', () => ({
 }));
 
 const NOW = '2026-07-07T12:00:00.000Z';
+
+type TestMailSend = (
+  provider: string,
+  account: string,
+  to: string[],
+  cc: string[],
+  bcc: string[],
+  subject: string,
+  body: string,
+  inReplyToId?: string,
+  attachments?: MailAttachmentInput[],
+) => Promise<string>;
+type TestAuditLogDurable = Pick<AuditService, 'logDurable'>['logDurable'];
 
 const account: ConnectedAccount = {
   provider: 'm365',
@@ -154,8 +168,12 @@ describe('meeting artifact delivery', () => {
       clientName: 'Hendricks',
       t: t as never,
     });
-    const sendMail = vi.fn(async () => 'provider-message-1');
-    const audit = { logDurable: vi.fn(async () => ({ id: 'audit-1' })) };
+    const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
+    const audit = {
+      logDurable: vi.fn<TestAuditLogDurable>(
+        async () => ({ id: 'audit-1' }) as Awaited<ReturnType<TestAuditLogDurable>>,
+      ),
+    };
 
     const entries = await sendMeetingArtifacts({
       workspaceService: ws,
@@ -182,10 +200,13 @@ describe('meeting artifact delivery', () => {
 
     expect(entries).toHaveLength(3);
     expect(sendMail).toHaveBeenCalledTimes(3);
-    expect(sendMail.mock.calls[0][0]).toBe('m365');
-    expect(sendMail.mock.calls[0][2]).toEqual(['ops@example.com']);
-    expect(sendMail.mock.calls[0][7]).toBeUndefined();
-    expect(sendMail.mock.calls[0][8][0]).toMatchObject({
+    const firstSendCall = sendMail.mock.calls[0];
+    expect(firstSendCall).toBeDefined();
+    if (!firstSendCall) throw new Error('Expected the first email send call.');
+    expect(firstSendCall[0]).toBe('m365');
+    expect(firstSendCall[2]).toEqual(['ops@example.com']);
+    expect(firstSendCall[7]).toBeUndefined();
+    expect(firstSendCall[8]?.[0]).toMatchObject({
       name: 'Annual review audio.wav',
       contentType: 'audio/wav',
     });
@@ -204,14 +225,20 @@ describe('meeting artifact delivery', () => {
     ]);
 
     expect(audit.logDurable).toHaveBeenCalledTimes(3);
-    expect(audit.logDurable.mock.calls[0][0]).toBe('email.send');
-    expect(audit.logDurable.mock.calls[0][2].metadata).toMatchObject({
+    const firstAuditCall = audit.logDurable.mock.calls[0];
+    expect(firstAuditCall).toBeDefined();
+    if (!firstAuditCall) throw new Error('Expected the first audit log call.');
+    expect(firstAuditCall[0]).toBe('email.send');
+    const firstAuditOptions = firstAuditCall[2];
+    expect(firstAuditOptions).toBeDefined();
+    if (!firstAuditOptions) throw new Error('Expected the first audit log options.');
+    expect(firstAuditOptions.metadata).toMatchObject({
       matterId: 'matter-1',
       meetingDir: '/client/Meetings/one',
       mailProvider: 'm365',
       recipientCount: 1,
     });
-    expect(JSON.stringify(audit.logDurable.mock.calls[0][2].metadata)).not.toContain('ops@example.com');
+    expect(JSON.stringify(firstAuditOptions.metadata)).not.toContain('ops@example.com');
   });
 
   it('refuses to write a send log for a meeting from another client', async () => {
@@ -324,7 +351,7 @@ describe('meeting artifact delivery', () => {
     });
     const { files, ws } = makeWs(opened);
     files.set('/client/Meetings/one/meeting.json', JSON.stringify(latest));
-    const sendMail = vi.fn(async () => 'provider-message-1');
+    const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
 
     await expect(sendMeetingArtifacts({
       workspaceService: ws,
