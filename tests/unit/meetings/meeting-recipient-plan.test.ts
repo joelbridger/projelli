@@ -1,12 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  MEETING_ARTIFACTS,
+  addGroupToMeetingDeliveryPlan,
   addRecipientToArtifact,
   buildMeetingRecipientSuggestions,
   emptyMeetingRecipientArtifacts,
   normalizeMeetingDeliveryPlan,
+  removeRecipientFromArtifact,
+  resolveMeetingDeliveryPlan,
   saveMeetingRecipientPlan,
   validateMeetingDeliveryPlan,
   type MeetingDeliveryPlan,
+  type MeetingRecipientGroup,
 } from '@/features/meetings/meetingRecipientPlan';
 import type { Matter } from '@/platform/types/matter';
 
@@ -21,6 +26,86 @@ function emptyPlan(): MeetingDeliveryPlan {
 }
 
 describe('meeting recipient plan', () => {
+  it('auto-populates every artifact from calendar attendees when no plan has been saved', () => {
+    const plan = resolveMeetingDeliveryPlan({
+      calendarEvent: {
+        attendees: [
+          { email: 'Alex@Example.com', name: 'Alex' },
+          { email: 'alex@example.com', name: 'Duplicate Alex' },
+          { email: 'sam@example.com', name: 'Sam' },
+        ],
+      },
+    }, NOW);
+
+    for (const artifact of MEETING_ARTIFACTS) {
+      expect(plan.artifacts[artifact]).toEqual([
+        { email: 'alex@example.com', name: 'Alex', source: 'calendar' },
+        { email: 'sam@example.com', name: 'Sam', source: 'calendar' },
+      ]);
+    }
+  });
+
+  it('persists exclusions by treating a saved plan as explicit', () => {
+    const defaultPlan = resolveMeetingDeliveryPlan({
+      calendarEvent: {
+        attendees: [
+          { email: 'alex@example.com', name: 'Alex' },
+          { email: 'sam@example.com', name: 'Sam' },
+        ],
+      },
+    }, NOW);
+    const excludedSam = MEETING_ARTIFACTS.reduce(
+      (plan, artifact) => removeRecipientFromArtifact(plan, artifact, 'sam@example.com', NOW),
+      defaultPlan,
+    );
+
+    const reloaded = resolveMeetingDeliveryPlan({
+      calendarEvent: {
+        attendees: [
+          { email: 'alex@example.com', name: 'Alex' },
+          { email: 'sam@example.com', name: 'Sam' },
+        ],
+      },
+      deliveryPlan: excludedSam,
+    }, NOW);
+
+    for (const artifact of MEETING_ARTIFACTS) {
+      expect(reloaded.artifacts[artifact]).toEqual([
+        { email: 'alex@example.com', name: 'Alex', source: 'calendar' },
+      ]);
+    }
+  });
+
+  it('expands a saved group to every meeting artifact', () => {
+    const group: MeetingRecipientGroup = {
+      id: 'family',
+      name: 'Hendricks family',
+      recipients: [
+        { email: 'alex@example.com', name: 'Alex', source: 'manual' },
+        { email: 'sam@example.com', name: 'Sam', source: 'manual' },
+      ],
+      createdAt: NOW,
+      updatedAt: NOW,
+    };
+
+    const plan = addGroupToMeetingDeliveryPlan(emptyPlan(), group, NOW);
+
+    for (const artifact of MEETING_ARTIFACTS) {
+      expect(plan.artifacts[artifact]).toEqual([
+        { email: 'alex@example.com', name: 'Alex', source: 'group' },
+        { email: 'sam@example.com', name: 'Sam', source: 'group' },
+      ]);
+    }
+  });
+
+  it('keeps the old manual fallback when a meeting has no calendar attendees', () => {
+    const plan = resolveMeetingDeliveryPlan({
+      calendarEvent: { attendees: [] },
+    }, NOW);
+
+    expect(plan).toEqual(emptyPlan());
+  });
+
   it('keeps each artifact recipient list separate and dedupes by email', () => {
     let plan = emptyPlan();
 

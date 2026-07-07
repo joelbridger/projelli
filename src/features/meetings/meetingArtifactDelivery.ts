@@ -8,6 +8,7 @@ import { meetingDisplayTitle } from './meetingDisplay';
 import {
   MEETING_ARTIFACTS,
   normalizeMeetingDeliveryPlan,
+  resolveMeetingDeliveryPlan,
   type MeetingArtifact,
   type MeetingRecipient,
 } from './meetingRecipientPlan';
@@ -106,7 +107,7 @@ export function buildMeetingSendPreview(input: {
   clientName: string;
   t: TFunction;
 }): MeetingSendPreview {
-  const plan = normalizeMeetingDeliveryPlan(input.meta.deliveryPlan);
+  const plan = resolveMeetingDeliveryPlan(input.meta);
   const missing: MeetingArtifact[] = [];
   const items: MeetingSendPreviewItem[] = [];
 

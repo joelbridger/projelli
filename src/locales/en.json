@@ -1643,12 +1643,21 @@
       "recipients": {
         "title": "Recipients",
         "description": "Choose who should receive each meeting item later. This only saves the plan.",
+        "auto-title": "Included from the invite",
+        "auto-description": "Everyone on the calendar invite starts included for every meeting item. Uncheck a person or item to leave it out.",
+        "add-person": "Add person",
         "save": "Save plan",
         "saving": "Saving...",
         "saved": "Saved locally. Nothing has been sent.",
         "invalid-email": "Enter a real email address.",
         "email-placeholder": "person@example.com",
         "remove": "Remove {{email}}",
+        "groups-title": "Groups",
+        "groups-description": "Groups are saved inside this client's folder, so client recipient lists stay with that client.",
+        "group-name-placeholder": "Group name",
+        "save-group": "Save current people as group",
+        "group-saved": "Group saved for this client.",
+        "use-group": "Add {{name}} ({{count}})",
         "artifacts": {
           "audio": {
             "label": "Audio",
