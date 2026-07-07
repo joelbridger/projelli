@@ -1,7 +1,7 @@
 // Tab Bar Component
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
-import { useCallback, useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react';
+import { useCallback, useState, useRef, useEffect, useLayoutEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -34,8 +34,30 @@ import { FileAsMeetingDialog } from '@/features/meetings/FileAsMeetingDialog';
 
 const VOICE_NOTE_PATH_RE = /^Inbox\/note-.*\.md$/;
 
+type EditorTab = ReturnType<typeof useEditorStore.getState>['openTabs'][number];
+
+const TAB_STRIP_HEIGHT = 'var(--kp-tab-strip-height)';
+
+interface LeadingTabConfig {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+  isActive: boolean;
+  testId?: string;
+  onActivate: () => void;
+}
+
 interface TabBarProps {
   onRenameFile?: (path: string, newName: string) => Promise<void>;
+  leadingTab?: LeadingTabConfig;
+  tabFilter?: (tab: EditorTab) => boolean;
+  selectedTabPath?: string | null;
+  onActivateTab?: (path: string) => void;
+  rootTestId?: string;
+  ariaLabel?: string;
+  getTabTestId?: (path: string) => string;
+  showBorder?: boolean;
+  showGroupManagerButton?: boolean;
 }
 
 // Drop a group payload on another group chip. Zone decides merge vs. reorder:
@@ -53,7 +75,18 @@ function computeGroupDropZone(e: React.DragEvent): 'merge' | 'before' | 'after' 
   return 'merge';
 }
 
-export function TabBar({ onRenameFile }: TabBarProps = {}) {
+export function TabBar({
+  onRenameFile,
+  leadingTab,
+  tabFilter,
+  selectedTabPath,
+  onActivateTab,
+  rootTestId = 'tab-bar-root',
+  ariaLabel = 'Open document tabs',
+  getTabTestId,
+  showBorder = true,
+  showGroupManagerButton = true,
+}: TabBarProps = {}) {
   const { t } = useTranslation();
   // QA-34: re-render the tab strip when any .docx's save state changes, so a
   // tab's unsaved dot reflects a .docx whose save is pending/failing (its store
@@ -85,6 +118,23 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     pendingGroupRenameId,
     setPendingGroupRenameId,
   } = useEditorStore();
+
+  const displayedTabs = useMemo(
+    () => (tabFilter ? openTabs.filter(tabFilter) : openTabs),
+    [openTabs, tabFilter],
+  );
+  const effectiveActiveTabPath =
+    selectedTabPath === undefined ? activeTabPath : selectedTabPath;
+  const activateTab = useCallback(
+    (path: string) => {
+      if (onActivateTab) {
+        onActivateTab(path);
+        return;
+      }
+      setActiveTab(path);
+    },
+    [onActivateTab, setActiveTab],
+  );
 
   // Tab overflow mode: canonical source is settingsStore. Falls back to the
   // old editorStore value (which itself falls back to 'scroll') so existing
@@ -247,7 +297,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- scroll arrow visibility must be measured before paint to avoid flicker.
     updateScrollButtons();
-  }, [updateScrollButtons, openTabs.length, tabGroups.length]);
+  }, [updateScrollButtons, displayedTabs.length, tabGroups.length, leadingTab]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -256,14 +306,17 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     const onScroll = () => updateScrollButtons();
     el.addEventListener('scroll', onScroll, { passive: true });
 
-    const ro = new ResizeObserver(() => updateScrollButtons());
-    ro.observe(el);
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => updateScrollButtons())
+        : null;
+    ro?.observe(el);
 
     window.addEventListener('resize', onScroll);
     return () => {
       el.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
-      ro.disconnect();
+      ro?.disconnect();
     };
   }, [updateScrollButtons]);
 
@@ -281,26 +334,28 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   // it in the strip.
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || !activeTabPath) return;
-    // Query within the scroll container so we don't match similar IDs from
-    // the overflow dropdown.
-    const idx = openTabs.findIndex((t) => t.path === activeTabPath);
-    if (idx < 0) return;
-    const children = el.children;
-    const child = children.item(idx) as HTMLElement | null;
+    if (!el || !effectiveActiveTabPath) return;
+    const activeTab = displayedTabs.find((t) => t.path === effectiveActiveTabPath);
+    if (!activeTab) return;
+    let child = Array.from(el.querySelectorAll<HTMLElement>('[data-tab-path]')).find(
+      (node) => node.dataset['tabPath'] === activeTab.path,
+    ) ?? null;
+    if (!child && activeTab.groupId) {
+      child = el.querySelector<HTMLElement>(`[data-group-id="${activeTab.groupId}"]`);
+    }
     if (!child) return;
     // scrollIntoView with inline:'nearest' avoids jumpy behavior when the
     // active tab is already visible.
     child.scrollIntoView({ inline: 'nearest', block: 'nearest' });
-  }, [activeTabPath, openTabs]);
+    updateScrollButtons();
+  }, [effectiveActiveTabPath, displayedTabs, updateScrollButtons]);
 
   const handleTabClick = useCallback((path: string) => {
-    setActiveTab(path);
-  }, [setActiveTab]);
+    activateTab(path);
+  }, [activateTab]);
 
-  const handleTabClose = useCallback(
-    async (e: React.MouseEvent, path: string) => {
-      e.stopPropagation();
+  const closeTabSafely = useCallback(
+    async (path: string) => {
       const tab = openTabs.find((t) => t.path === path);
 
       // QA-34: a .docx saves directly (never a store-dirty tab) and its edits live
@@ -351,6 +406,14 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     [openTabs, closeTab, confirm]
   );
 
+  const handleTabClose = useCallback(
+    (e: React.MouseEvent, path: string) => {
+      e.stopPropagation();
+      void closeTabSafely(path);
+    },
+    [closeTabSafely],
+  );
+
   const handleMiddleClick = useCallback(
     (e: React.MouseEvent, path: string) => {
       if (e.button === 1) {
@@ -368,6 +431,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     // Set custom drag image with reduced opacity to minimize visual flashing
     if (e.currentTarget instanceof HTMLElement) {
       const dragImage = e.currentTarget.cloneNode(true) as HTMLElement;
+      dragImage.removeAttribute('data-testid');
+      dragImage.removeAttribute('role');
+      dragImage.setAttribute('aria-hidden', 'true');
       dragImage.style.opacity = '0.8';
       dragImage.style.position = 'absolute';
       dragImage.style.top = '-1000px';
@@ -692,12 +758,12 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     setDragOverIndex(null);
   }, [openTabs, ungroupTab]);
 
-  if (openTabs.length === 0) {
+  if (displayedTabs.length === 0 && !leadingTab) {
     return null;
   }
 
   const renderTab = (tab: typeof openTabs[0], index: number) => {
-    const isActive = tab.path === activeTabPath;
+    const isActive = tab.path === effectiveActiveTabPath;
     const isDragging = draggedIndex === index;
     const isDragOver = dragOverIndex === index && draggedIndex !== index;
     const showGroupIndicator = isDragOver && dragIntent === 'group';
@@ -708,8 +774,12 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     return (
       <div
         key={tab.path}
-        data-testid={`tab-${pathToTestId(tab.path)}`}
+        data-testid={getTabTestId ? getTabTestId(tab.path) : `tab-${pathToTestId(tab.path)}`}
+        data-tab-path={tab.path}
         data-active={isActive ? 'true' : 'false'}
+        role="tab"
+        tabIndex={0}
+        aria-selected={isActive}
         draggable
         onDragStart={(e) => handleDragStart(e, index)}
         onDragEnd={handleDragEnd}
@@ -718,7 +788,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         onDrop={(e) => handleDrop(e, index)}
         // `group` enables group-hover:* targeting on descendants (the close X).
         className={cn(
-          'group flex items-center gap-1 px-3 py-1.5 border-r cursor-pointer text-sm transition-colors h-9 relative flex-shrink-0 snap-start',
+          'group flex items-center gap-1 px-3 py-1.5 border-r cursor-pointer text-sm transition-colors relative flex-shrink-0 snap-start',
           'min-w-[120px] max-w-[200px]',
           isActive
             ? 'bg-background text-foreground'
@@ -728,8 +798,18 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           showBefore && 'border-l-2 border-l-primary',
           showAfter && 'border-r-2 border-r-primary'
         )}
+        style={{ height: TAB_STRIP_HEIGHT }}
         onClick={() => handleTabClick(tab.path)}
         onMouseDown={(e) => handleMiddleClick(e, tab.path)}
+        onFocus={(e) => {
+          e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleTabClick(tab.path);
+          }
+        }}
         onDoubleClick={() => handleTabDoubleClick(tab)}
         onContextMenu={(e) => {
           e.preventDefault();
@@ -786,15 +866,17 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
       <div
         key={`group-${group.id}`}
         data-group-chip
+        data-group-id={group.id}
         draggable
         className={cn(
-          "relative flex items-center gap-1 px-2 py-1.5 border-r min-w-0 transition-colors h-9 flex-shrink-0 snap-start",
+          "relative flex items-center gap-1 px-2 py-1.5 border-r min-w-0 transition-colors flex-shrink-0 snap-start",
           isGroupDragOver && dragOverGroupZone === 'merge' && "bg-primary/20 border-primary",
           // Full-chip highlight when a tab (not a group) is dragged over it.
           isGroupDragOver && !draggedGroupId && "bg-primary/20 border-primary",
           !isGroupDragOver && "bg-muted/30",
           draggedGroupId === group.id && "opacity-50",
         )}
+        style={{ height: TAB_STRIP_HEIGHT }}
         onDragStart={(e) => {
           // Use a distinct prefix so tab and group payloads can share
           // the same MIME type without being confused downstream.
@@ -1023,7 +1105,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            closeTab(tab.path);
+                            void closeTabSafely(tab.path);
                           }}
                         >
                           <X className="h-3 w-3" />
@@ -1054,6 +1136,45 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
     );
   };
 
+  const renderLeadingTab = () => {
+    if (!leadingTab) return null;
+    return (
+      <button
+        type="button"
+        role="tab"
+        data-testid={leadingTab.testId}
+        data-leading-tab-id={leadingTab.id}
+        aria-selected={leadingTab.isActive}
+        className={cn(
+          'flex items-center gap-1.5 px-3 border-r text-sm font-medium transition-colors flex-shrink-0',
+          leadingTab.isActive
+            ? 'bg-background text-foreground'
+            : 'text-muted-foreground hover:bg-muted/50',
+        )}
+        style={{ height: TAB_STRIP_HEIGHT }}
+        onClick={leadingTab.onActivate}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            leadingTab.onActivate();
+          }
+        }}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = 'none';
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      >
+        {leadingTab.icon}
+        <span className="truncate">{leadingTab.label}</span>
+      </button>
+    );
+  };
+
   // Walk openTabs in order. Render a group chip at the FIRST appearance of
   // each group's tabs; skip subsequent tabs of the same group (they live
   // inside the chip's dropdown). Ungrouped tabs render in their current
@@ -1061,7 +1182,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   // bar reflects one flat ordered sequence that drag-and-drop can reorder.
   const renderItems: Array<{ type: 'tab' | 'group'; data: typeof openTabs[0] | typeof tabGroups[0] }> = [];
   const seenGroups = new Set<string>();
-  openTabs.forEach((tab) => {
+  displayedTabs.forEach((tab) => {
     if (tab.groupId) {
       if (!seenGroups.has(tab.groupId)) {
         const group = tabGroups.find((g) => g.id === tab.groupId);
@@ -1076,7 +1197,13 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
   });
 
   return (
-    <div className="border-b bg-muted/30 min-w-0 w-full" data-testid="tab-bar-root">
+    <div
+      className={cn('bg-muted/30 min-w-0 w-full', showBorder && 'border-b')}
+      data-testid={rootTestId}
+      role="tablist"
+      aria-label={ariaLabel}
+      style={{ minHeight: TAB_STRIP_HEIGHT }}
+    >
       <div
         className={cn(
           "flex items-stretch relative transition-colors min-w-0 w-full",
@@ -1086,13 +1213,16 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
         onDragLeave={handleTabBarDragLeave}
         onDrop={handleTabBarDrop}
       >
+        {renderLeadingTab()}
+
         {/* Left scroll arrow — only visible when scrolled right */}
         {canScrollLeft && (
           <Button
             data-testid="tab-bar-scroll-left"
             variant="ghost"
             size="sm"
-            className="h-9 px-1.5 border-r flex-shrink-0"
+            className="px-1.5 border-r flex-shrink-0"
+            style={{ height: TAB_STRIP_HEIGHT }}
             onClick={() => scrollTabs('left')}
             title="Scroll tabs left"
             aria-label="Scroll tabs left"
@@ -1126,14 +1256,16 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             // If the user is using shift+wheel or a trackpad with horizontal
             // intent, deltaX is non-zero and the browser handles it for us.
             if (e.deltaY !== 0 && Math.abs(e.deltaY) >= Math.abs(e.deltaX)) {
+              e.preventDefault();
               el.scrollLeft += e.deltaY;
+              updateScrollButtons();
             }
           }}
         >
           {renderItems.map((item) => {
             if (item.type === 'group') {
               const group = item.data as typeof tabGroups[0];
-              const groupTabs = openTabs.filter((tab) => tab.groupId === group.id);
+              const groupTabs = displayedTabs.filter((tab) => tab.groupId === group.id);
               return renderGroupHeader(group, groupTabs);
             } else {
               const tab = item.data as typeof openTabs[0];
@@ -1148,7 +1280,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
             data-testid="tab-bar-scroll-right"
             variant="ghost"
             size="sm"
-            className="h-9 px-1.5 border-l flex-shrink-0"
+            className="px-1.5 border-l flex-shrink-0"
+            style={{ height: TAB_STRIP_HEIGHT }}
             onClick={() => scrollTabs('right')}
             title="Scroll tabs right"
             aria-label="Scroll tabs right"
@@ -1157,16 +1290,19 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
           </Button>
         )}
 
-        {/* Tab Group Manager Button (stays outside scroll, always visible) */}
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-9 px-2 border-l flex-shrink-0"
-          onClick={() => setShowGroupManager(true)}
-          title="Manage Tab Groups"
-        >
-          <Settings className="h-3.5 w-3.5" />
-        </Button>
+        {/* Tab Group Manager Button (stays outside scroll, always visible when document tabs exist) */}
+        {renderItems.length > 0 && showGroupManagerButton && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="px-2 border-l flex-shrink-0"
+            style={{ height: TAB_STRIP_HEIGHT }}
+            onClick={() => setShowGroupManager(true)}
+            title="Manage Tab Groups"
+          >
+            <Settings className="h-3.5 w-3.5" />
+          </Button>
+        )}
 
         {/* All-tabs overflow menu — useful even when tabs fit, as a quick jump
             list. Rendered outside scroll so it's always reachable. */}
@@ -1177,7 +1313,8 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                 data-testid="tab-bar-overflow"
                 variant="ghost"
                 size="sm"
-                className="h-9 px-2 border-l flex-shrink-0"
+                className="px-2 border-l flex-shrink-0"
+                style={{ height: TAB_STRIP_HEIGHT }}
                 title="All open tabs"
                 aria-label="All open tabs"
               >
@@ -1210,7 +1347,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
                   );
                 } else {
                   const group = item.data as typeof tabGroups[0];
-                  const groupTabs = openTabs.filter(t => t.groupId === group.id);
+                  const groupTabs = displayedTabs.filter(t => t.groupId === group.id);
                   return (
                     <DropdownMenuItem
                       key={group.id}
@@ -1273,7 +1410,7 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               role="menuitem"
               className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
-                closeTab(tabContextMenu.path);
+                void closeTabSafely(tabContextMenu.path);
                 setTabContextMenu(null);
               }}
             >
@@ -1298,9 +1435,9 @@ export function TabBar({ onRenameFile }: TabBarProps = {}) {
               role="menuitem"
               className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
-                openTabs
+                displayedTabs
                   .filter((t) => t.path !== tabContextMenu.path)
-                  .forEach((t) => closeTab(t.path));
+                  .forEach((t) => { void closeTabSafely(t.path); });
                 setTabContextMenu(null);
               }}
             >

@@ -2,14 +2,13 @@
  * DocumentsHome — R4 redesign: "Files" as a pinned tab.
  *
  * Layout: a single unified tab strip across the top, followed by a single
- * content area. The strip always contains a pinned "Files" tab first, then
- * the open document tabs (from editorStore.openTabs). Clicking "Files" shows
- * the DocumentGridView; clicking any document tab shows it in the editor
- * below the strip.
+ * content area. The strip uses the shared editor TabBar with one pinned
+ * "Files" tab first, then the open document tabs (from editorStore.openTabs).
+ * Clicking "Files" shows the DocumentGridView; clicking any document tab shows
+ * it in the editor below the strip.
  *
  * There is NO persistent left-column list and no dual tab bar:
- *   - The "Files" tab is rendered directly here as a single extra chip
- *     before the document tabs.
+ *   - The "Files" tab is rendered through TabBar's leading-tab slot.
  *   - MainPanel is rendered with hideTabBar=true so only ONE tab strip exists.
  *
  * Preserved from R3:
@@ -28,21 +27,18 @@
  * No Tailwind on layout elements — all styling via inline styles + CSS vars.
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
-import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid, Pencil } from 'lucide-react';
-import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { FolderOpen, FolderTree, FileText, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
+import { Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { isDocxUnsaved, subscribeDocxSaveRegistry, getDocxSaveVersion, closeDocxTabSafely } from '@/platform/fs/docxSaveRegistry';
-import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
-import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { getFileIcon } from '@/platform/utils/fileIcons';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
 import { FileTree } from '@/features/documents/workspace/FileTree';
+import { TabBar } from './editor/TabBar';
 import { scopeFileTreeToFolders, toAbsolute, toScopedFolderPath } from './scopeFileTree';
 import { isPathInFolder } from '@/platform/rag/matterResolver';
 import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
@@ -104,6 +100,7 @@ export interface DocumentsHomeProps {
   onCreateFile: (parentPath: string) => void;
   onCreateFolder: (parentPath: string) => void;
   onRename: (path: string) => void;
+  onRenameFile?: (path: string, newName: string) => Promise<void>;
   onDelete: (path: string) => void;
   onMove: (sourcePath: string, targetPath: string) => Promise<void>;
   onDownload: (path: string, name: string) => void;
@@ -230,154 +227,6 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
   );
 }
 
-// ── Tab strip tab chip ─────────────────────────────────────────────────────
-
-interface TabChipProps {
-  label: string;
-  isActive: boolean;
-  isDirty?: boolean;
-  icon?: React.ReactNode;
-  isPinned?: boolean;
-  testId?: string;
-  onActivate: () => void;
-  onRename?: () => void;
-  onClose?: () => void;
-}
-
-function TabChip({ label, isActive, isDirty, icon, isPinned, testId, onActivate, onRename, onClose }: TabChipProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  // Shared visual styles for the activatable chip area. The chip is a <button>
-  // so keyboard users can Tab to it and press Enter/Space to activate it.
-  const chipStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 5,
-    padding: '0 12px',
-    height: '100%',
-    cursor: 'pointer',
-    // borderBottom provides the active-tab underline; border resets the button default.
-    // We set border first (shorthand) then override borderBottom so only the bottom
-    // active indicator shows.
-    border: 'none',
-    borderBottom: isActive ? '2px solid var(--kp-navy)' : '2px solid transparent',
-    borderRadius: 0,
-    outline: 'none',
-    background: isActive
-      ? 'rgba(10,37,64,0.05)'
-      : isHovered
-        ? 'rgba(10,37,64,0.02)'
-        : 'transparent',
-    flexShrink: 0,
-    userSelect: 'none',
-    transition: 'background 0.1s',
-    minWidth: 0,
-    maxWidth: onClose ? 176 : 200, // leave room for the close sibling
-    position: 'relative',
-    fontFamily: 'inherit',
-  };
-
-  return (
-    // Wrap chip + close button in a containing div so they sit side-by-side
-    // inside the flex strip without nesting one button inside another.
-    <div
-      style={{ display: 'flex', alignItems: 'stretch', flexShrink: 0, position: 'relative', maxWidth: 200 }}
-      onMouseEnter={() => { setIsHovered(true); }}
-      onMouseLeave={() => { setIsHovered(false); }}
-    >
-      <button
-        type="button"
-        role="tab"
-        {...(testId ? { 'data-testid': testId } : {})}
-        aria-selected={isActive}
-        style={chipStyle}
-        onClick={onActivate}
-        onDoubleClick={(e) => {
-          if (!onRename) return;
-          e.preventDefault();
-          onRename();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onActivate();
-          }
-        }}
-      >
-        {icon && (
-          <span style={{ flex: 'none', display: 'flex', alignItems: 'center' }}>{icon}</span>
-        )}
-        <span
-          style={{
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: isActive ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
-            color: isActive ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-            fontFamily: 'Satoshi, sans-serif',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            flex: 1,
-            minWidth: 0,
-            lineHeight: 'var(--kp-leading-tight)',
-          }}
-        >
-          {label}
-        </span>
-        {isDirty && !onClose && (
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'var(--kp-navy)',
-              opacity: 0.5,
-              flex: 'none',
-            }}
-          />
-        )}
-      </button>
-      {!isPinned && onRename && (
-        <IconButton
-          icon={Pencil}
-          label={`Rename ${label}`}
-          variant="ghost"
-          size="xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRename();
-          }}
-          style={{
-            alignSelf: 'center',
-            marginRight: onClose ? 0 : 4,
-            opacity: isHovered || isActive ? 1 : 0,
-            transition: 'opacity 0.1s',
-          }}
-        />
-      )}
-      {!isPinned && onClose && (
-        // Close button is a sibling of the tab button, not a child, to avoid
-        // nesting interactive elements (button-in-button is invalid HTML).
-        <IconButton
-          icon={X}
-          label={`Close ${label}`}
-          variant="ghost"
-          size="xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          style={{
-            alignSelf: 'center',
-            marginRight: 4,
-            opacity: isHovered ? 1 : 0,
-            transition: 'opacity 0.1s',
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
 // ── Main export ────────────────────────────────────────────────────────────
 
 export function DocumentsHome({
@@ -395,6 +244,7 @@ export function DocumentsHome({
   onCreateFile,
   onCreateFolder,
   onRename,
+  onRenameFile,
   onDelete,
   onMove,
   onDownload,
@@ -411,15 +261,6 @@ export function DocumentsHome({
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
-  const closeTab = useEditorStore((s) => s.closeTab);
-  // QA-34: re-render this tab strip when any .docx's save state changes so a
-  // tab chip's unsaved dot is truthful for a .docx whose save is pending/failing
-  // (its store tab is never dirty). Data-loss on close is handled by the shared
-  // flushTabForClose hook; this is the matching visual truthfulness.
-  useSyncExternalStore(subscribeDocxSaveRegistry, getDocxSaveVersion, getDocxSaveVersion);
-  // QA-34: in-app confirm for the rare "the .docx couldn't be saved on close"
-  // case (native window.confirm is dead in the WebView2 build).
-  const { confirm: confirmClose, dialogProps: closeConfirmDialogProps } = useConfirmDialog();
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
   // Used (only when scoping) to drop nested foreign-client folders from the tree.
@@ -561,44 +402,6 @@ export function DocumentsHome({
       }
     },
     [setActiveTab],
-  );
-
-  const handleTabClose = useCallback(
-    async (tabPath: string) => {
-      const wasActive = tabPath === activeTabPath;
-      // QA-34: for a .docx, save first (editor still mounted) and only ask to
-      // discard if the save fails — a locked file can never silently lose the doc
-      // on close. Non-.docx tabs use the normal close (autosave already flushed).
-      const handled = await closeDocxTabSafely(tabPath, {
-        closeTab,
-        confirmDiscardOnFailure: () =>
-          confirmClose(
-            `I couldn't save this document — another program may be blocking the file. ` +
-              `Close anyway and lose your latest changes?`,
-            {
-              title: 'Unsaved changes',
-              variant: 'destructive',
-              confirmLabel: 'Close and lose changes',
-              cancelLabel: 'Keep open',
-            },
-          ),
-      });
-      if (!handled) closeTab(tabPath);
-      // If the tab actually closed and it was active with nothing left, go to Files.
-      const stillOpen = useEditorStore
-        .getState()
-        .openTabs.some((t) => t.path === tabPath);
-      if (!stillOpen && wasActive) {
-        const remaining = useEditorStore
-          .getState()
-          .openTabs.filter((t) => isEditorSurfaceTab(t.type ?? 'file'));
-        if (remaining.length === 0) {
-          userOnFilesRef.current = true;
-          setUserOnFiles(true);
-        }
-      }
-    },
-    [closeTab, activeTabPath, confirmClose, setUserOnFiles],
   );
 
   // ── Toolbar folder state ──────────────────────────────────────────────────
@@ -779,55 +582,24 @@ export function DocumentsHome({
   // The "selected" tab path for highlight purposes in the strip.
   const selectedTab = showFilesGrid || !activeVisibleTab ? FILES_TAB_ID : (activeTabPath ?? FILES_TAB_ID);
 
-  // ── Tab icon helper ──────────────────────────────────────────────────────
-
-  function getTabIcon(tab: { name: string; type?: string }) {
-    if (tab.type === 'email') {
-      return <FileText style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--kp-navy)', strokeWidth: 2 }} />;
-    }
-    const ext = tab.name.split('.').pop()?.toLowerCase();
-    const { Icon, color } = getFileIcon(ext);
-    const colorMap: Record<string, string> = {
-      'text-zinc-500': '#71717a',
-      'text-blue-500': '#3b82f6',
-      'text-red-500': '#ef4444',
-      'text-green-500': '#22c55e',
-      'text-indigo-500': '#6366f1',
-      'text-amber-700': '#b45309',
-      'text-sky-500': '#0ea5e9',
-      'text-purple-500': '#a855f7',
-      'text-pink-500': '#ec4899',
-      'text-orange-500': '#f97316',
-    };
-    const cssColor = colorMap[color] ?? 'var(--color-muted-foreground)';
-    return <Icon style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: cssColor, strokeWidth: 1.75 }} />;
-  }
-
   const renderDocumentTabStrip = (inline: boolean) => (
-    <div
-      role="tablist"
-      aria-label="Documents tabs"
-      data-testid="documents-tab-strip"
-      style={{
-        display: 'flex',
-        alignItems: 'stretch',
-        height: inline ? '100%' : 38,
-        borderBottom: inline ? 'none' : '1px solid var(--kp-divider)',
-        background: 'var(--color-background)',
-        flexShrink: 0,
-        overflowX: 'auto',
-        overflowY: 'hidden',
-        scrollbarWidth: 'none',
-        minWidth: 0,
-      }}
-    >
-      {/* Pinned "Files" tab — always first */}
-      <TabChip
-        label="Files"
-        isActive={selectedTab === FILES_TAB_ID}
-        isPinned
-        testId="documents-files-tab"
-        icon={
+    <TabBar
+      rootTestId="documents-tab-strip"
+      ariaLabel="Documents tabs"
+      showBorder={!inline}
+      selectedTabPath={selectedTab === FILES_TAB_ID ? null : selectedTab}
+      tabFilter={tabBelongsToThisDocumentsView}
+      onActivateTab={(path) => { handleTabActivate(path); }}
+      getTabTestId={(path) => `documents-tab-${path.replace(/[^a-zA-Z0-9_-]+/g, '-')}`}
+      {...(onRenameFile ? { onRenameFile } : {})}
+      showGroupManagerButton={!embedded}
+      leadingTab={{
+        id: FILES_TAB_ID,
+        label: 'Files',
+        isActive: selectedTab === FILES_TAB_ID,
+        testId: 'documents-files-tab',
+        onActivate: () => { handleTabActivate(FILES_TAB_ID); },
+        icon: (
           <FolderOpen
             style={{
               width: 'var(--kp-icon-sm)',
@@ -839,35 +611,9 @@ export function DocumentsHome({
               strokeWidth: 2,
             }}
           />
-        }
-        onActivate={() => { handleTabActivate(FILES_TAB_ID); }}
-      />
-
-      {visibleTabs.length > 0 && (
-        <div
-          style={{
-            width: 1,
-            background: 'var(--color-border)',
-            margin: '8px 2px',
-            flexShrink: 0,
-          }}
-        />
-      )}
-
-      {visibleTabs.map((tab) => (
-        <TabChip
-          key={tab.path}
-          label={tab.name}
-          isActive={selectedTab === tab.path}
-          isDirty={tab.isDirty || isDocxUnsaved(tab.path)}
-          icon={getTabIcon(tab)}
-          testId={`documents-tab-${tab.path.replace(/[^a-zA-Z0-9_-]+/g, '-')}`}
-          onActivate={() => { handleTabActivate(tab.path); }}
-          onRename={() => { onRename(tab.path); }}
-          onClose={() => { void handleTabClose(tab.path); }}
-        />
-      ))}
-    </div>
+        ),
+      }}
+    />
   );
 
   const canInlineTabsIntoMainPanel =
@@ -1128,8 +874,6 @@ export function DocumentsHome({
           </div>
         )}
       </div>
-      {/* QA-34: confirm shown only when a .docx couldn't be saved on close. */}
-      <ConfirmDialog {...closeConfirmDialogProps} />
     </div>
   );
 }
