@@ -11,6 +11,14 @@ vi.mock('@/platform/utils/docx-commands', () => ({
   docxConvertToPdf: vi.fn(async () => '/tmp/meeting.pdf'),
 }));
 
+vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/utils/mail-commands')>();
+  return {
+    ...actual,
+    mailConnectedAccounts: vi.fn(async () => [{ provider: 'm365', account: 'default', label: 'Outlook' }]),
+  };
+});
+
 vi.mock('@tauri-apps/plugin-fs', () => ({
   readFile: vi.fn(async () => new Uint8Array([4, 5, 6])),
 }));
@@ -66,6 +74,58 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     vi.clearAllMocks();
   });
 
+  it('keeps four sub-tabs at the top and mounts the send panels only on Send to team', async () => {
+    const ws = makeWorkspace({ notesExists: true });
+    setMeetingsWorkspaceService(ws as never);
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    await waitFor(() => expect(screen.getByTestId('notice-trail')).toBeInTheDocument());
+
+    const tabs = [
+      screen.getByTestId('meeting-subtab-recording'),
+      screen.getByTestId('meeting-subtab-transcript'),
+      screen.getByTestId('meeting-subtab-summary'),
+      screen.getByTestId('meeting-subtab-send-to-team'),
+    ];
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['Recording', 'Transcript', 'Summary', 'Send to team']);
+    for (let index = 0; index < tabs.length - 1; index += 1) {
+      expect(tabs[index].compareDocumentPosition(tabs[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    }
+    expect(
+      tabs[3].compareDocumentPosition(screen.getByTestId('meeting-entry-tab-scroll')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      tabs[3].compareDocumentPosition(screen.getByTestId('notice-trail')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    expect(screen.getByTestId('meeting-recording-tab')).toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
+    await waitFor(() => expect(screen.getByTestId('transcript-viewer')).toBeInTheDocument());
+    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
+    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeInTheDocument());
+    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('meeting-subtab-send-to-team'));
+    await waitFor(() => expect(screen.getByTestId('meeting-recipients-panel')).toBeInTheDocument());
+    expect(screen.getByTestId('meeting-artifact-send-panel')).toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-recording-tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-transcript-tab')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-summary-tab')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('meeting-subtab-recording'));
+    expect(screen.getByTestId('meeting-recording-tab')).toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
+  });
+
   it('shows Recording, Transcript, Summary tabs; renames the meeting; exports transcript and Summary Word into the client documents folder', async () => {
     const ws = makeWorkspace({ notesExists: true });
     setMeetingsWorkspaceService(ws as never);
@@ -75,6 +135,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     expect(screen.getByTestId('meeting-subtab-recording')).toBeTruthy();
     expect(screen.getByTestId('meeting-subtab-transcript')).toBeTruthy();
     expect(screen.getByTestId('meeting-subtab-summary')).toBeTruthy();
+    expect(screen.getByTestId('meeting-subtab-send-to-team')).toBeTruthy();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-mark-reviewed')).toBeTruthy());
     fireEvent.click(screen.getByTestId('meeting-title-rename'));
