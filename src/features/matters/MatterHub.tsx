@@ -2,11 +2,12 @@
  * MatterHub — per-matter command-center hub.
  *
  * Full-page workspace for a single client: a header with back navigation, a row
- * of sub-tabs (Overview · Documents · Email · Meetings · Activity), and the
+ * of sub-tabs (Overview · Documents · Email · Meetings), and the
  * matching panel below. Overview leads with the Client Map (the hero) and a
- * compact Ask box; Documents / Email / Activity render THIS client's scoped
+ * compact Ask box; Documents / Email render THIS client's scoped
  * surfaces in place, so opening a file or reading mail never leaves the client
- * (no orphaned global destinations) — those are passed in as render props from
+ * (no orphaned global destinations). History opens the scoped activity feed in
+ * a slide-over panel. Those surfaces are passed in as render props from
  * the shell, which owns their handler wiring. Meetings (Wave 3c) is
  * self-contained (ClientMeetingsTab/MeetingEntry read the workspace/matter
  * stores directly), so it's rendered inline rather than via a render prop.
@@ -23,9 +24,14 @@ import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Badge } from '@/ui/kp';
-import { Button } from '@/ui/kp';
+import { Badge, IconButton, SlidePanel } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
@@ -96,13 +102,13 @@ const HUB_TABS: { id: HubTab; Icon: typeof FileText }[] = [
   { id: 'documents', Icon: FileText },
   { id: 'email', Icon: Mail },
   { id: 'meetings', Icon: Mic },
-  { id: 'activity', Icon: Clock },
 ];
 
-const LABEL_CLIENT_MAP_SYNC = 'Sync';
+const LABEL_CLIENT_MAP_DOWNLOAD = 'Download client map';
+const LABEL_CLIENT_MAP_SYNC = 'Sync client map';
+const LABEL_CLIENT_MAP_HISTORY = 'Open client history';
 const LABEL_CLIENT_MAP_EXPORT_WORD = 'Export Word';
 const LABEL_CLIENT_MAP_EXPORT_PDF = 'Export PDF';
-const LABEL_CLIENT_MAP_SYNC_TITLE = 'Rescan documents and refresh the client map';
 
 /** Label for a hub sub-tab (literal keys per branch — the i18n extractor
  *  can't trace a key stored in a config-array variable). */
@@ -135,7 +141,7 @@ function formatClientMapUpdated(timestamp: string | undefined): string {
 
 function formatClientMapSyncText(timestamp: string | undefined, result: ClientMapSyncResult | null): string {
   if (result === 'unchanged') return 'No new changes';
-  if (result === 'updated') return 'Updated just now';
+  if (result === 'updated') return 'Updated';
   if (result === 'in_flight') return 'Already syncing';
   if (result === 'failed') return 'Sync failed';
   return formatClientMapUpdated(timestamp);
@@ -181,7 +187,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // key on MatterHub (MattersHome keys it by matterId, so a client switch
   // remounts this whole component fresh) — no reset effect needed here, which
   // also keeps the hub free of cross-client state reuse (matter isolation).
-  const [subTab, setSubTab] = useState<HubTab>(() => pendingHubTab ?? 'overview');
+  const [subTab, setSubTab] = useState<HubTab>(() => pendingHubTab === 'activity' ? 'overview' : pendingHubTab ?? 'overview');
+  const [isHistoryOpen, setIsHistoryOpen] = useState(() => pendingHubTab === 'activity');
   const [isSyncingClientMap, setIsSyncingClientMap] = useState(false);
   const [exportingClientMap, setExportingClientMap] = useState<'word' | 'pdf' | null>(null);
   const [clientMapSyncResult, setClientMapSyncResult] = useState<ClientMapSyncResult | null>(null);
@@ -194,7 +201,11 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     if (pendingHubTab) {
       const requested = pendingHubTab;
       queueMicrotask(() => {
-        setSubTab(requested);
+        if (requested === 'activity') {
+          setIsHistoryOpen(true);
+        } else {
+          setSubTab(requested);
+        }
         setPendingHubTab(null);
       });
     }
@@ -411,7 +422,9 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     );
   }
 
-  const clientMapUpdatedText = formatClientMapSyncText(clientMap.map?.lastBuiltAt, clientMapSyncResult);
+  const clientMapUpdatedText = isSyncingClientMap
+    ? 'Syncing...'
+    : formatClientMapSyncText(clientMap.map?.lastBuiltAt, clientMapSyncResult);
 
   return (
     <div
@@ -439,26 +452,55 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           Icon={Map}
           iconColor="var(--kp-accent)"
           title={headerTitle}
-          actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
+          titleActions={
+            <div
+              data-testid="clientmap-header-icon-group"
+              style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', minWidth: 0 }}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton
+                    icon={Download}
+                    label={LABEL_CLIENT_MAP_DOWNLOAD}
+                    variant="secondary"
+                    size="md"
+                    data-testid="clientmap-download-button"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-40">
+                  <DropdownMenuItem
+                    data-testid="clientmap-export-word"
+                    disabled={clientMap.map === undefined || exportingClientMap !== null}
+                    onClick={handleExportClientMapWord}
+                  >
+                    {LABEL_CLIENT_MAP_EXPORT_WORD}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="clientmap-export-pdf"
+                    disabled={clientMap.map === undefined || exportingClientMap !== null}
+                    onClick={handleExportClientMapPdf}
+                  >
+                    {LABEL_CLIENT_MAP_EXPORT_PDF}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <div
                 data-testid="clientmap-sync-group"
-                style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-2xs)', minWidth: 0 }}
               >
-                <Button
-                  type="button"
+                <IconButton
+                  icon={isSyncingClientMap ? Loader2 : RefreshCw}
+                  iconClassName={isSyncingClientMap ? 'animate-spin' : undefined}
+                  label={LABEL_CLIENT_MAP_SYNC}
                   variant="ghost"
-                  size="sm"
-                  iconLeft={RefreshCw}
+                  size="md"
                   data-testid="clientmap-sync-button"
-                  loading={isSyncingClientMap}
+                  disabled={isSyncingClientMap}
                   onClick={handleSyncClientMap}
-                  title={LABEL_CLIENT_MAP_SYNC_TITLE}
-                >
-                  {LABEL_CLIENT_MAP_SYNC}
-                </Button>
+                />
                 <span
                   data-testid="clientmap-last-updated"
+                  aria-live="polite"
                   style={{
                     color: 'var(--color-muted-foreground)',
                     fontSize: 'var(--kp-font-xs)',
@@ -467,31 +509,19 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 >
                   {clientMapUpdatedText}
                 </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={Download}
-                  data-testid="clientmap-export-word"
-                  loading={exportingClientMap === 'word'}
-                  disabled={clientMap.map === undefined || exportingClientMap !== null}
-                  onClick={handleExportClientMapWord}
-                >
-                  {LABEL_CLIENT_MAP_EXPORT_WORD}
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  iconLeft={Download}
-                  data-testid="clientmap-export-pdf"
-                  loading={exportingClientMap === 'pdf'}
-                  disabled={clientMap.map === undefined || exportingClientMap !== null}
-                  onClick={handleExportClientMapPdf}
-                >
-                  {LABEL_CLIENT_MAP_EXPORT_PDF}
-                </Button>
               </div>
+              <IconButton
+                icon={Clock}
+                label={LABEL_CLIENT_MAP_HISTORY}
+                variant="ghost"
+                size="md"
+                data-testid="clientmap-history-button"
+                onClick={() => { setIsHistoryOpen(true); }}
+              />
+            </div>
+          }
+          actions={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
               {/* Sub-tabs, inline to the right of the client name. Minimal
                   selected style: a soft demo-blue tint pill (no dark fill). */}
               <div role="tablist" aria-label={t('matter.hub.sections-aria')} data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -744,12 +774,24 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           </div>
         )}
 
-        {subTab === 'activity' && (
-          <div data-testid="hub-subtab-panel-activity" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            {renderActivity ? renderActivity() : <SubTabUnavailable label={t('matter.hub.tab-activity')} />}
-          </div>
-        )}
       </div>
+      <SlidePanel
+        open={isHistoryOpen}
+        onClose={() => { setIsHistoryOpen(false); }}
+        title={
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Clock style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: 'var(--kp-accent)', strokeWidth: 1.75 }} />
+            <div style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)' }}>
+              {t('matter.hub.history-title')}
+            </div>
+          </div>
+        }
+        width={460}
+        closeLabel={t('matter.hub.history-close')}
+        data-testid="clientmap-history-panel"
+      >
+        {renderActivity ? renderActivity() : <SubTabUnavailable label={t('matter.hub.history-title')} />}
+      </SlidePanel>
       <PromptDialog {...promptDialogProps} />
     </div>
   );

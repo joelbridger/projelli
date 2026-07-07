@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 214,
+        "matter": 216,
         "media": 92,
         "meetings": 217,
         "memory": 6,
@@ -255,7 +255,8 @@ describe('en.json structure snapshot', () => {
     //       save/add/remove controls, validation, and saved/saving status text.
     // +34 = MF2/MF3 meeting send + auto-join: reviewed send UI, email
     //       delivery status/log copy, and calendar-driven auto-join panel copy.
-    expect(flat.length).toBe(1427); // 1393 + 34 (MF2/MF3 send + auto-join)
+    // +2 = FB-F client header: History panel title and close label.
+    expect(flat.length).toBe(1429); // 1427 + 2 (FB-F History panel)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
