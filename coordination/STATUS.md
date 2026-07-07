@@ -1,5 +1,10 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-07 (coordinator-10 wrap) — everything Jameson asked for is built; live-testing loop running
+
+- Shipped this shift beyond the merge window: keepance→lantern rename (code+folders), UI Iteration System, ALL 8 UI rounds (his markdown 100% verified), 3 meeting features (MF0-MF3: calendar link, per-artifact recipients, reviewed send, opt-in auto-join first slice), 7 live-testing fix rounds (docs tabs, map auto-populate replacing the review tray, cited pill, scroll sweep+guard, send-to-everyone defaults+groups, client-header icons+Activity retired, settings info icons). Cloud bench revived (tailscale via browser key), whole-tip smoke 0 FAIL. Codex built everything under the token-economy mode; coordinator gated ~25 merges, every one strict-gate green before push (3 push-discipline incidents early, doctrine fixed).
+- IN FLIGHT at handoff: lp-hygiene codex job greening the gate over 3 locally-merged feedback rounds → successor pushes, syncs Legion, notifies Jameson. Full detail: coordination/RELAY-10-TO-11.md.
+
 ## UPDATE 2026-07-06 ~23:45 — MERGE WINDOW CLOSED: all 15 branches landed; UI track open; demo POSTPONED for the UI overhaul (coordinator-10)
 
 - **Jameson decisions this evening (govern what follows):** UI-cleanup gallery APPROVED, but FOUNDATION-FIRST — the UI Iteration System lands before any hard-coded UI changes, more UI rounds follow, and **he will not demo until the UI meets his bar** (demo postponed; the Legion abcedeb0 pin was lifted accordingly and the Legion returned to bench duty). Full pre-overhaul backup archived: ~/archive/lantern-plus-backup-20260706-uiapproved + /mnt/backup/lantern-plus-archive/ (bundle verified) + tags on GitHub. Token economy standing: Codex builds all bounded work (it built 9 fix rounds + 2 tools today); batch-findings-into-one-round is fleet doctrine (WORKER-DISCIPLINE 🧺).
