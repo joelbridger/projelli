@@ -48,8 +48,10 @@ describe('useClientMap', () => {
     buildMock.mockResolvedValue(built);
     computeFingerprintMock.mockResolvedValue('fp-initial');
     const { result } = renderHook(() => useClientMap('m1'));
-    await act(async () => { await result.current.generate(); });
+    let buildResult = 'failed';
+    await act(async () => { buildResult = await result.current.generate(); });
     await waitFor(() => expect(result.current.status).toBe('ready'));
+    expect(buildResult).toBe('updated');
     expect(useClientMapStore.getState().getMap('m1')?.sections[0]?.items.length).toBe(1);
     // generate() should also record the source fingerprint
     expect(useClientMapStore.getState().getMap('m1')?.lastSourceFingerprint).toBe('fp-initial');
@@ -72,9 +74,11 @@ describe('useClientMap', () => {
     proposeUpdatesMock.mockReturnValue(mockProposals);
 
     const { result } = renderHook(() => useClientMap('m2'));
-    await act(async () => { await result.current.checkForUpdates(); });
+    let syncResult = 'failed';
+    await act(async () => { syncResult = await result.current.checkForUpdates(); });
 
     const stored = useClientMapStore.getState().getMap('m2');
+    expect(syncResult).toBe('updated');
     // pendingUpdates should be the mocked proposals
     expect(stored?.pendingUpdates).toEqual(mockProposals);
     // Existing items must NOT be replaced
@@ -92,12 +96,15 @@ describe('useClientMap', () => {
     proposeUpdatesMock.mockReturnValue([]);
 
     const { result } = renderHook(() => useClientMap('m3'));
-    await act(async () => { await result.current.checkForUpdates(); });
+    let syncResult = 'failed';
+    await act(async () => { syncResult = await result.current.checkForUpdates(); });
 
+    expect(syncResult).toBe('unchanged');
     // buildClientMap should NOT have been called (early return on matching fingerprint)
     expect(buildMock).not.toHaveBeenCalled();
     // pendingUpdates stays empty
     expect(useClientMapStore.getState().getMap('m3')?.pendingUpdates).toEqual([]);
+    expect(useClientMapStore.getState().getMap('m3')?.lastBuiltAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
   it('logs and surfaces the confidentiality-choice action instead of the generic AI-connection error', async () => {
@@ -106,9 +113,11 @@ describe('useClientMap', () => {
     buildMock.mockRejectedValue(new ConfidentialityChoiceRequiredError());
 
     const { result } = renderHook(() => useClientMap('m4'));
-    await act(async () => { await result.current.generate(); });
+    let buildResult = 'updated';
+    await act(async () => { buildResult = await result.current.generate(); });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(buildResult).toBe('failed');
     expect(result.current.errorMessage).toMatch(/Settings.*Privacy|Privacy.*choose/i);
     expect(result.current.errorMessage).not.toMatch(/AI connection/i);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -143,11 +152,11 @@ describe('useClientMap', () => {
     buildMock.mockRejectedValue(choiceError);
 
     const { result } = renderHook(() => useClientMap('m5'));
-    let refreshed = true;
+    let refreshed = 'updated';
     await act(async () => { refreshed = await result.current.checkForUpdates(); });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
-    expect(refreshed).toBe(false);
+    expect(refreshed).toBe('failed');
     expect(result.current.errorMessage).toMatch(/Settings.*Privacy|Privacy.*choose/i);
     expect(result.current.errorMessage).not.toMatch(/Before sending to a cloud AI/i);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
@@ -156,5 +165,31 @@ describe('useClientMap', () => {
     );
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it('checkForUpdates reports in_flight when another refresh already owns the matter', async () => {
+    const initial = { ...emptyClientMap('m6'), lastBuiltAt: '2026-01-01T00:00:00.000Z', lastSourceFingerprint: 'fp-old', pendingUpdates: [] };
+    initial.sections[0]!.items.push({ id: 'existing-item', text: 'Keep me', origin: 'ai', isAssumption: false, sources: [], updatedAt: '2026-01-01T00:00:00.000Z' });
+    useClientMapStore.getState().setMap('m6', initial);
+
+    let finishBuild!: (value: unknown) => void;
+    computeFingerprintMock.mockResolvedValue('fp-new');
+    buildMock.mockImplementation(() => new Promise((resolve) => { finishBuild = resolve; }));
+    proposeUpdatesMock.mockReturnValue([]);
+
+    const { result } = renderHook(() => useClientMap('m6'));
+    let firstRefresh!: Promise<unknown>;
+    await act(async () => {
+      firstRefresh = result.current.checkForUpdates();
+    });
+
+    let secondResult = 'failed';
+    await act(async () => {
+      secondResult = await result.current.checkForUpdates();
+    });
+    expect(secondResult).toBe('in_flight');
+
+    finishBuild({ ...emptyClientMap('m6'), lastBuiltAt: '2026-01-02T00:00:00.000Z' });
+    await act(async () => { await firstRefresh; });
   });
 });

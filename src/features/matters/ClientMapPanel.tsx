@@ -782,7 +782,7 @@ function AddSectionPanel({
 
   const addCustomSection = useClientMapStore((s) => s.addCustomSection);
   const mergeSectionItems = useClientMapStore((s) => s.mergeSectionItems);
-  const removeSection = useClientMapStore((s) => s.removeSection);
+  const removeSectionSilently = useClientMapStore((s) => s.removeSectionSilently);
   const templates = useTemplatesStore(useShallow((s) => Object.values(s.templates)));
   const [applying, setApplying] = useState<string | null>(null);
 
@@ -846,7 +846,7 @@ function AddSectionPanel({
       setPrompt('');
       onCreated(sectionId);
     } catch {
-      removeSection(matterId, sectionId);
+      removeSectionSilently(matterId, sectionId);
       setError(LABEL_SECTION_ERROR);
     } finally {
       setBusy(false);

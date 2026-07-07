@@ -53,6 +53,10 @@ export function suggestClientMapExportName(clientName: string): string {
   return `${clean || 'Client'}-Client-Map.docx`;
 }
 
+export function suggestClientMapPdfExportName(clientName: string): string {
+  return suggestClientMapExportName(clientName).replace(/\.docx$/i, '.pdf');
+}
+
 export function clientMapToMarkdown(map: ClientMap, clientName: string, generatedAt = new Date()): string {
   const generated = generatedAt.toLocaleString();
   const lines: string[] = [
@@ -103,4 +107,18 @@ export async function clientMapToDocxBytes(map: ClientMap, clientName: string): 
     firmName: firmName(),
   });
   return applyLetterheadIfConfigured(bytes);
+}
+
+export async function exportClientMapPdf(map: ClientMap, clientName: string): Promise<void> {
+  const printWindow = window.open(
+    'about:blank',
+    '_blank',
+    'width=800,height=600,menubar=no,toolbar=no,location=no,status=no',
+  );
+  const { exportMarkdownAsPdf } = await import('@/features/documents/pdf-export');
+  await exportMarkdownAsPdf(
+    clientMapToMarkdown(map, clientName),
+    suggestClientMapPdfExportName(clientName),
+    printWindow,
+  );
 }

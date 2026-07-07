@@ -61,6 +61,7 @@ interface ClientMapState {
    *  that section while the items were generating. */
   mergeSectionItems: (matterId: string, sectionKey: string, items: ClientMapItem[]) => void;
   removeSection: (matterId: string, sectionId: string) => void;
+  removeSectionSilently: (matterId: string, sectionId: string) => void;
   setPendingUpdates: (matterId: string, updates: ProposedUpdate[]) => void;
   acceptUpdate: (matterId: string, updateId: string, override?: string) => void;
   dismissUpdate: (matterId: string, updateId: string) => void;
@@ -525,6 +526,18 @@ export const useClientMapStore = create<ClientMapState>()(
             maps: {
               ...s.maps,
               [matterId]: nextMap,
+            },
+          };
+        }),
+      removeSectionSilently: (matterId, sectionId) =>
+        set((s) => {
+          const map = s.maps[matterId];
+          if (!map) return {};
+          if (!map.sections.some((sec) => sec.id === sectionId)) return {};
+          return {
+            maps: {
+              ...s.maps,
+              [matterId]: withSections(map, map.sections.filter((sec) => sec.id !== sectionId)),
             },
           };
         }),

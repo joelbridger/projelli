@@ -23,6 +23,8 @@ vi.mock('@/features/matters/clientMap/customSection', () => ({
 describe('ClientMapPanel — onAuditLog threading into buildCustomSection', () => {
   beforeEach(() => {
     useClientMapStore.setState({ maps: {} });
+    localStorage.clear();
+    buildCustomSectionMock.mockReset();
   });
 
   it('passes the panel-level onAuditLog through to buildCustomSection when a new section is created', async () => {
@@ -44,6 +46,26 @@ describe('ClientMapPanel — onAuditLog threading into buildCustomSection', () =
     });
     const call = buildCustomSectionMock.mock.calls[0]!;
     expect(call[4]).toEqual({ onAuditLog });
+  });
+
+  it('rolls back a failed new section without writing section-removed history', async () => {
+    buildCustomSectionMock.mockRejectedValue(new Error('provider down'));
+    const map = emptyClientMap('matter_demo_x');
+    map.editHistory = [];
+    useClientMapStore.getState().setMap(map.matterId, map);
+    render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('clientmap-tab-add'));
+    fireEvent.change(screen.getByTestId('custom-section-title'), { target: { value: 'Insurance' } });
+    fireEvent.click(screen.getByTestId('custom-section-submit'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Could not fill this section/i)).toBeInTheDocument();
+    });
+
+    const stored = useClientMapStore.getState().getMap(map.matterId)!;
+    expect(stored.sections.filter((s) => s.kind === 'custom')).toHaveLength(0);
+    expect(stored.editHistory).toEqual([]);
   });
 
   it('adds a bullet to the active built-in section', () => {

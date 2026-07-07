@@ -80,6 +80,12 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => vi.fn(),
 }));
 
+vi.mock('@/platform/rag/MemoryService', () => ({
+  MemoryService: {
+    retrieve: vi.fn(async () => []),
+  },
+}));
+
 // ── AI Chat Store ──────────────────────────────────────────────────────────────
 vi.mock('@/platform/state/aiChatStore', () => ({
   useAIChatStore: (sel: (s: { sessions: Record<string, unknown> }) => unknown) =>
@@ -141,6 +147,49 @@ describe('MatterHub — list to hub navigation', () => {
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
     expect(screen.getByTestId('hub-isolated-badge')).toBeInTheDocument();
+  });
+
+  it('offers both Word and PDF exports for a ready Client Map', () => {
+    useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z' };
+    map.sections[0]!.items.push({
+      id: 'i1',
+      text: 'Robert and Susan are retired.',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [],
+      updatedAt: '2026-07-07T00:00:00.000Z',
+    });
+    useClientMapStore.getState().setMap(matter.id, map);
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    expect(screen.getByTestId('clientmap-export-word')).toHaveTextContent('Export Word');
+    expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export PDF');
+  });
+
+  it('shows honest sync copy when the Client Map is unchanged', async () => {
+    useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z', lastSourceFingerprint: '0:::0:' };
+    map.sections[0]!.items.push({
+      id: 'i1',
+      text: 'Robert and Susan are retired.',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [],
+      updatedAt: '2026-07-07T00:00:00.000Z',
+    });
+    useClientMapStore.getState().setMap(matter.id, map);
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+    fireEvent.click(screen.getByTestId('clientmap-sync-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('clientmap-last-updated')).toHaveTextContent('No new changes');
+    });
+    expect(useClientMapStore.getState().getMap(matter.id)?.lastBuiltAt).toBe('2026-07-07T00:00:00.000Z');
   });
 
   it('hub does NOT show Isolated badge when matter is not privileged', () => {

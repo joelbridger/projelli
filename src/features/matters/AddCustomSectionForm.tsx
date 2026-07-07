@@ -20,7 +20,7 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
 
   const addCustomSection = useClientMapStore((s) => s.addCustomSection);
   const mergeSectionItems = useClientMapStore((s) => s.mergeSectionItems);
-  const removeSection = useClientMapStore((s) => s.removeSection);
+  const removeSectionSilently = useClientMapStore((s) => s.removeSectionSilently);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -58,7 +58,7 @@ export function AddCustomSectionForm({ matterId, onAdded }: AddCustomSectionForm
       // BUG-107: a failed populate must NOT leave a permanently-empty section or
       // an unhandled rejection. Roll back the just-added section and surface a
       // plain-language error; the user's title/description stay so they can retry.
-      removeSection(matterId, sectionId);
+      removeSectionSilently(matterId, sectionId);
       setError(LABEL_ERROR);
     } finally {
       setBusy(false);

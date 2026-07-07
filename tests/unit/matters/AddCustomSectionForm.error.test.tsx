@@ -33,8 +33,10 @@ describe('AddCustomSectionForm — failed populate (BUG-107)', () => {
     await waitFor(() => expect(screen.getByTestId('custom-section-error')).toBeInTheDocument());
 
     // No orphaned empty custom section is left behind on the map.
-    const custom = useClientMapStore.getState().getMap('m1')!.sections.filter((s) => s.kind === 'custom');
+    const stored = useClientMapStore.getState().getMap('m1')!;
+    const custom = stored.sections.filter((s) => s.kind === 'custom');
     expect(custom).toHaveLength(0);
+    expect(stored.editHistory ?? []).toEqual([]);
 
     // The title is preserved so the user can retry without retyping.
     expect((screen.getByTestId('custom-section-title') as HTMLInputElement).value).toBe('Insurance coverage');

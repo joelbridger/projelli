@@ -354,6 +354,22 @@ describe('D1: completeness stays in sync with section edits', () => {
     const after = useClientMapStore.getState().getMap('m1')!;
     expect(after.completeness.know.map((i) => i.id)).not.toContain('bill1');
   });
+
+  it('removeSectionSilently rolls back a temporary section without history', () => {
+    const m = emptyClientMap('m1');
+    const cs = { id: 'cs1', kind: 'custom' as const, key: 'cs1', title: 'Billing', scope: 'matter' as const, items: [sourced('bill1', 'Flat fee')] };
+    m.sections.push(cs);
+    m.editHistory = [];
+    m.completeness = { level: 'thin', know: [cs.items[0]!], assuming: [], ask: [] };
+    useClientMapStore.getState().setMap('m1', m);
+
+    useClientMapStore.getState().removeSectionSilently('m1', 'cs1');
+
+    const after = useClientMapStore.getState().getMap('m1')!;
+    expect(after.sections.some((s) => s.id === 'cs1')).toBe(false);
+    expect(after.completeness.know.map((i) => i.id)).not.toContain('bill1');
+    expect(after.editHistory).toEqual([]);
+  });
 });
 
 // D2: editing an AI-suggested update with the user's own override text must not

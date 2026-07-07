@@ -12,6 +12,8 @@ import { useState } from 'react';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import type { ProposedUpdate } from '@/platform/clientMap/types';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +22,10 @@ export interface ClientMapUpdatesTrayProps {
 }
 
 const INITIAL_VISIBLE_UPDATES = 8;
+const LABEL_REMOVE_BTN = 'Remove';
+const LABEL_REMOVE_BULLET_TITLE = 'Remove this bullet?';
+const LABEL_REMOVE_BULLET_DESC =
+  'This removes the bullet from the client map. The edit will stay in the history.';
 
 function sectionLabel(sectionKey: string): string {
   return sectionKey in CORE_SECTION_TITLE
@@ -53,9 +59,24 @@ function UpdateRow({
   const [editText, setEditText] = useState(update.draft?.text ?? '');
   const acceptUpdate = useClientMapStore((s) => s.acceptUpdate);
   const dismissUpdate = useClientMapStore((s) => s.dismissUpdate);
+  const { confirm, dialogProps } = useConfirmDialog();
 
   function handleAccept() {
-    acceptUpdate(matterId, update.id);
+    if (update.op !== 'remove') {
+      acceptUpdate(matterId, update.id);
+      return;
+    }
+    void (async () => {
+      const ok = await confirm(LABEL_REMOVE_BULLET_DESC, {
+        title: LABEL_REMOVE_BULLET_TITLE,
+        confirmLabel: LABEL_REMOVE_BTN,
+        cancelLabel: 'Keep it',
+        variant: 'destructive',
+      });
+      if (ok) acceptUpdate(matterId, update.id);
+    })().catch((error: unknown) => {
+      console.error('Failed to accept Client Map removal update:', error);
+    });
   }
 
   function handleDismiss() {
@@ -120,6 +141,7 @@ function UpdateRow({
           Dismiss
         </button>
       </div>
+      <ConfirmDialog {...dialogProps} data-testid="clientmap-confirm-dialog" />
     </div>
   );
 }
