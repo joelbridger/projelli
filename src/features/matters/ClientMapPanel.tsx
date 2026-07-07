@@ -12,9 +12,11 @@
 import { useState, type CSSProperties } from 'react';
 import type { ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Clock3, Plus, Sparkles, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, Chip, Eyebrow, CountBadge } from '@/ui/kp';
+import { ConfirmDialog } from '@/ui/ConfirmDialog';
+import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
 import {
   sourceChipLabel,
@@ -27,6 +29,7 @@ import type {
   SourceRef,
   CompletenessLevel,
   GapQuestion,
+  ClientMapEditHistoryEntry,
 } from '@/platform/clientMap/types';
 import { flagForClient, unresolvedAskGaps, displayCompleteness } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
@@ -95,6 +98,16 @@ const LABEL_I_KNOW = 'I know this';
 const LABEL_ASK_CLIENT = 'Ask the client';
 const LABEL_SAVE_TEMPLATE = 'Save as template';
 const LABEL_REMOVE_BTN = 'Remove';
+const LABEL_ADD_BULLET = 'Add bullet';
+const LABEL_ADD_BULLET_PH = 'Add a client-map bullet...';
+const LABEL_EDIT_HISTORY = 'Edit history';
+const LABEL_NO_HISTORY = 'No edits yet.';
+const LABEL_REMOVE_BULLET_TITLE = 'Remove this bullet?';
+const LABEL_REMOVE_BULLET_DESC =
+  'This removes the bullet from the client map. The edit will stay in the history.';
+const LABEL_REMOVE_SECTION_TITLE = 'Remove this section?';
+const LABEL_REMOVE_SECTION_DESC =
+  'This removes the section and its bullets from this client map. The edit history will keep a record.';
 const LABEL_ADD_SECTION_HEADING = 'Add a section';
 const LABEL_ADD_SECTION_BODY =
   "Name a section and say what to track. Advisor Prep Hero fills it in from this client’s documents and email, with sources you can check.";
@@ -218,6 +231,11 @@ const editButtonStyle: CSSProperties = {
   fontSize: 'var(--kp-font-xs)',
 };
 
+const removeButtonStyle: CSSProperties = {
+  ...editButtonStyle,
+  color: 'var(--kp-danger)',
+};
+
 const mutedTextStyle: CSSProperties = {
   color: 'var(--color-muted-foreground)',
   fontSize: 'var(--kp-font-sm)',
@@ -275,12 +293,14 @@ function ItemRow({
   item,
   onOpenSource,
   onEdit,
+  onRemove,
 }: {
   item: ClientMapItem;
   onOpenSource: (r: SourceRef) => void;
   onEdit?: () => void;
+  onRemove?: () => void;
 }) {
-  const hasMeta = item.sources.length > 0 || onEdit != null || item.isAssumption;
+  const hasMeta = item.sources.length > 0 || onEdit != null || onRemove != null || item.isAssumption;
   return (
     <div data-testid="clientmap-item" style={itemRowStyle}>
       <span
@@ -328,9 +348,86 @@ function ItemRow({
                 {EDIT_LABEL}
               </Button>
             )}
+            {onRemove != null && (
+              <Button
+                type="button"
+                data-testid="clientmap-item-remove"
+                variant="ghost"
+                size="sm"
+                style={removeButtonStyle}
+                onClick={onRemove}
+              >
+                {LABEL_REMOVE_BTN}
+              </Button>
+            )}
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function formatHistoryTime(timestamp: string): string {
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return timestamp;
+  return d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function historyActionText(entry: ClientMapEditHistoryEntry): string {
+  switch (entry.action) {
+    case 'bullet_added':
+      return 'added';
+    case 'bullet_edited':
+      return 'edited';
+    case 'bullet_removed':
+      return 'removed';
+    case 'section_removed':
+      return 'removed this section';
+  }
+}
+
+function HistoryList({ entries }: { entries: ClientMapEditHistoryEntry[] }) {
+  const visible = entries.slice().reverse().slice(0, 8);
+  return (
+    <div
+      data-testid="clientmap-edit-history"
+      style={{
+        marginTop: 'var(--kp-space-xl)',
+        paddingTop: 'var(--kp-space-md)',
+        borderTop: '1px solid var(--kp-divider)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', marginBottom: 'var(--kp-space-sm)' }}>
+        <Clock3 size={14} strokeWidth={1.75} style={{ color: 'var(--color-muted-foreground)' }} />
+        <Eyebrow>{LABEL_EDIT_HISTORY}</Eyebrow>
+      </div>
+      {visible.length === 0 ? (
+        <div style={mutedTextStyle}>{LABEL_NO_HISTORY}</div>
+      ) : (
+        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {visible.map((entry) => {
+            const sourceLabel = entry.sources[0] ? sourceChipLabel(entry.sources[0]) : null;
+            return (
+              <li key={entry.id} style={{ ...mutedTextStyle, fontSize: 'var(--kp-font-xs)' }}>
+                <strong style={{ color: 'var(--kp-navy)' }}>{entry.actor}</strong>{' '}
+                {historyActionText(entry)}{' '}
+                {entry.afterText || entry.beforeText ? (
+                  <span style={{ color: 'var(--kp-navy)' }}>
+                    "{entry.afterText ?? entry.beforeText}"
+                  </span>
+                ) : null}{' '}
+                {sourceLabel ? `from ${sourceLabel}` : ''}
+                {' '} - {formatHistoryTime(entry.timestamp)}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }
@@ -440,16 +537,23 @@ function SectionPanel({
   section,
   onOpenSource,
   onEdit,
+  onRemoveItem,
+  onAddItem,
   onSaveTemplate,
   onDelete,
+  historyEntries,
 }: {
   section: ClientMapSection;
   onOpenSource: (r: SourceRef) => void;
   onEdit: (itemId: string) => void;
+  onRemoveItem: (itemId: string) => void;
+  onAddItem: (text: string) => void;
   onSaveTemplate?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
+  historyEntries: ClientMapEditHistoryEntry[];
 }) {
   const isCustom = section.kind === 'custom';
+  const [newBullet, setNewBullet] = useState('');
   // Wave 0: filter this section's facts down to the ones cited to imported
   // meeting notes (Jump exports, Zocks connector, local meetings). The chip
   // only appears when the section actually has such an item.
@@ -508,12 +612,51 @@ function SectionPanel({
               onEdit={() => {
                 onEdit(it.id);
               }}
+              onRemove={() => {
+                onRemoveItem(it.id);
+              }}
             />
           ))}
         </div>
       ) : (
         <div style={mutedTextStyle}>{LABEL_SECTION_EMPTY}</div>
       )}
+      <form
+        data-testid="clientmap-add-bullet-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const text = newBullet.trim();
+          if (!text) return;
+          onAddItem(text);
+          setNewBullet('');
+        }}
+        style={{
+          marginTop: 'var(--kp-space-lg)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--kp-space-xs)',
+        }}
+      >
+        <input
+          data-testid="clientmap-add-bullet-input"
+          type="text"
+          value={newBullet}
+          onChange={(e) => { setNewBullet(e.target.value); }}
+          placeholder={LABEL_ADD_BULLET_PH}
+          style={{ ...inputStyle, height: 36, flex: 1 }}
+        />
+        <Button
+          type="submit"
+          data-testid="clientmap-add-bullet-submit"
+          variant="secondary"
+          size="sm"
+          iconLeft={Plus}
+          disabled={!newBullet.trim()}
+        >
+          {LABEL_ADD_BULLET}
+        </Button>
+      </form>
+      <HistoryList entries={historyEntries} />
     </div>
   );
 }
@@ -904,7 +1047,10 @@ export function ClientMapPanel({
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
   const removeSection = useClientMapStore((s) => s.removeSection);
+  const removeItem = useClientMapStore((s) => s.removeItem);
+  const addUserItem = useClientMapStore((s) => s.addUserItem);
   const saveTemplate = useTemplatesStore((s) => s.saveTemplate);
+  const { confirm, dialogProps } = useConfirmDialog();
 
   // Build the ordered section list: core sections first (in spec order, with
   // empty shells for any that have not been filled yet), then custom sections.
@@ -957,6 +1103,10 @@ export function ClientMapPanel({
   };
 
   const activeSection = sectionList.find((s) => s.key === activeKey);
+  const activeHistory =
+    activeSection !== undefined
+      ? (map.editHistory ?? []).filter((entry) => entry.sectionKey === activeSection.key)
+      : [];
 
   // The Sources column reflects whatever the user is currently viewing: the
   // cited sources behind the active section's facts (or, on "What I'm missing",
@@ -1081,6 +1231,22 @@ export function ClientMapPanel({
               onEdit={(itemId) => {
                 onEditItem(activeSection.key, itemId);
               }}
+              onRemoveItem={(itemId) => {
+                void (async () => {
+                  const ok = await confirm(LABEL_REMOVE_BULLET_DESC, {
+                    title: LABEL_REMOVE_BULLET_TITLE,
+                    confirmLabel: LABEL_REMOVE_BTN,
+                    cancelLabel: 'Keep it',
+                    variant: 'destructive',
+                  });
+                  if (ok) removeItem(map.matterId, activeSection.key, itemId);
+                })().catch((error: unknown) => {
+                  console.error('Failed to remove Client Map bullet:', error);
+                });
+              }}
+              onAddItem={(text) => {
+                addUserItem(map.matterId, activeSection.key, text);
+              }}
               onSaveTemplate={
                 activeSection.kind === 'custom'
                   ? () => {
@@ -1094,11 +1260,24 @@ export function ClientMapPanel({
               onDelete={
                 activeSection.kind === 'custom'
                   ? () => {
-                      removeSection(map.matterId, activeSection.id);
-                      select(MISSING_KEY);
+                      void (async () => {
+                        const ok = await confirm(LABEL_REMOVE_SECTION_DESC, {
+                          title: LABEL_REMOVE_SECTION_TITLE,
+                          confirmLabel: LABEL_REMOVE_BTN,
+                          cancelLabel: 'Keep section',
+                          variant: 'destructive',
+                        });
+                        if (ok) {
+                          removeSection(map.matterId, activeSection.id);
+                          select(MISSING_KEY);
+                        }
+                      })().catch((error: unknown) => {
+                        console.error('Failed to remove Client Map section:', error);
+                      });
                     }
                   : undefined
               }
+              historyEntries={activeHistory}
             />
           )}
         </div>
@@ -1127,6 +1306,7 @@ export function ClientMapPanel({
           }}
         />
       </div>
+      <ConfirmDialog {...dialogProps} data-testid="clientmap-confirm-dialog" />
     </div>
   );
 }

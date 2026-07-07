@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { useClientMapStore, getClientMap, migratePersistedClientMaps } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import { proposalSignature } from '@/platform/clientMap/updater';
+import { useProfileStore } from '@/platform/profile/profileStore';
 import type { ProposedUpdate, ClientMapItem } from '@/platform/clientMap/types';
 
 const item = (id: string, text: string): ClientMapItem => ({
@@ -18,7 +19,10 @@ const sourced = (id: string, text: string): ClientMapItem => ({
   sources: [{ kind: 'document', ref: '/f.pdf', snippet: 's' }],
 });
 
-beforeEach(() => { useClientMapStore.setState({ maps: {} }); });
+beforeEach(() => {
+  useClientMapStore.setState({ maps: {} });
+  useProfileStore.setState({ soloName: 'Casey Advisor', firmName: '' });
+});
 
 describe('migratePersistedClientMaps', () => {
   it('converts a legacy string[] ask into section-tagged GapQuestions', () => {
@@ -171,6 +175,41 @@ describe('clientMapStore', () => {
     expect(edited.isAssumption).toBe(false);
   });
 
+  it('records who/what/when/source history when a bullet is edited', () => {
+    const m = emptyClientMap('m1');
+    m.sections[0]!.items.push(sourced('i1', 'AI text'));
+    useClientMapStore.getState().setMap('m1', m);
+
+    useClientMapStore.getState().editItem('m1', 'household', 'i1', 'My corrected text');
+
+    const history = useClientMapStore.getState().getMap('m1')!.editHistory!;
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({
+      action: 'bullet_edited',
+      actor: 'Casey Advisor',
+      sectionKey: 'household',
+      itemId: 'i1',
+      beforeText: 'AI text',
+      afterText: 'My corrected text',
+      sources: [{ kind: 'document', ref: '/f.pdf', snippet: 's' }],
+    });
+    expect(Date.parse(history[0]!.timestamp)).not.toBeNaN();
+  });
+
+  it('records add and remove bullet history', () => {
+    const m = emptyClientMap('m1');
+    useClientMapStore.getState().setMap('m1', m);
+
+    useClientMapStore.getState().addUserItem('m1', 'goals', 'Wants to retire in 2028');
+    const added = useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'goals')!.items[0]!;
+    useClientMapStore.getState().removeItem('m1', 'goals', added.id);
+
+    const history = useClientMapStore.getState().getMap('m1')!.editHistory!;
+    expect(history.map((h) => h.action)).toEqual(['bullet_added', 'bullet_removed']);
+    expect(history[0]!.afterText).toBe('Wants to retire in 2028');
+    expect(history[1]!.beforeText).toBe('Wants to retire in 2028');
+  });
+
   it('acceptUpdate(add) appends the drafted item and clears the update', () => {
     const m = emptyClientMap('m1');
     useClientMapStore.getState().setMap('m1', m);
@@ -183,6 +222,10 @@ describe('clientMapStore', () => {
     const map = useClientMapStore.getState().getMap('m1')!;
     expect(map.sections.find((s) => s.key === 'money')!.items.map((i) => i.text)).toContain('New open issue');
     expect(map.pendingUpdates).toEqual([]);
+    expect(map.editHistory?.at(-1)).toMatchObject({
+      action: 'bullet_added',
+      afterText: 'New open issue',
+    });
   });
 
   it('dismissUpdate drops the update without changing items', () => {

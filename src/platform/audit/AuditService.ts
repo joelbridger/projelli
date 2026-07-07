@@ -677,6 +677,14 @@ function describeAuditEvent(event: AuditEvent): string {
     }
     case 'beneficiary_finding_dismissed':
       return `Beneficiary check dismissed: ${event.payload.finding}`;
+    case 'client_map_bullet_added':
+      return `Client Map bullet added in ${event.payload.sectionTitle} by ${event.payload.actor}`;
+    case 'client_map_bullet_edited':
+      return `Client Map bullet edited in ${event.payload.sectionTitle} by ${event.payload.actor}`;
+    case 'client_map_bullet_removed':
+      return `Client Map bullet removed from ${event.payload.sectionTitle} by ${event.payload.actor}`;
+    case 'client_map_section_removed':
+      return `Client Map section removed: ${event.payload.sectionTitle}`;
     default:
       return event.type;
   }

@@ -2,7 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
-import type { ClientMap, ClientMapSection, ClientMapItem, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey } from './types';
+import type { ClientMap, ClientMapSection, ClientMapItem, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey, ClientMapEditHistoryEntry, ClientMapEditAction, SourceRef } from './types';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from './types';
 import { proposalSignature } from './updater';
 import { deriveCompleteness } from './completeness';
@@ -11,6 +11,7 @@ import { beneficiaryConsistency, beneficiaryGapQuestions } from './estate/benefi
 import { SK_CLIENT_MAPS } from '@/config/identity';
 import { getMatterAuditEmitter, getMatters } from '@/platform/matter/matterStore';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { useProfileStore } from '@/platform/profile/profileStore';
 import {
   workspaceScopeSuffix,
   getActiveWorkspaceScopeRoot,
@@ -26,6 +27,8 @@ const LEGACY_SECTION_KEY_MAP: Record<string, string> = {
   upcoming: 'followups',
   next: 'followups',
 };
+
+const MAX_EDIT_HISTORY = 500;
 function remapSectionKey(k: string): string {
   return LEGACY_SECTION_KEY_MAP[k] ?? k;
 }
@@ -71,6 +74,110 @@ interface ClientMapState {
 
 function nowIso(): string {
   return new Date().toISOString();
+}
+
+function currentActor(): string {
+  const profile = useProfileStore.getState();
+  return profile.soloName.trim() || profile.firmName.trim() || 'Advisor';
+}
+
+function cloneSources(sources: SourceRef[]): SourceRef[] {
+  return sources.map((s) => ({ ...s }));
+}
+
+function makeHistoryId(action: ClientMapEditAction): string {
+  return `cmh-${action}-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`;
+}
+
+function collectUniqueSources(items: ClientMapItem[]): SourceRef[] {
+  const seen = new Set<string>();
+  const out: SourceRef[] = [];
+  for (const item of items) {
+    for (const source of item.sources) {
+      const key = `${source.kind}:${source.ref}:${source.citationId ?? ''}:${source.locator ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ...source });
+    }
+  }
+  return out;
+}
+
+function historyEntry(
+  action: ClientMapEditAction,
+  section: ClientMapSection,
+  options?: {
+    item?: ClientMapItem;
+    beforeText?: string;
+    afterText?: string;
+    timestamp?: string;
+    sources?: SourceRef[];
+  },
+): ClientMapEditHistoryEntry {
+  const timestamp = options?.timestamp ?? nowIso();
+  const item = options?.item;
+  return {
+    id: makeHistoryId(action),
+    action,
+    actor: currentActor(),
+    timestamp,
+    sectionId: section.id,
+    sectionKey: section.key,
+    sectionTitle: section.title,
+    ...(item ? { itemId: item.id } : {}),
+    ...(options?.beforeText !== undefined ? { beforeText: options.beforeText } : {}),
+    ...(options?.afterText !== undefined ? { afterText: options.afterText } : {}),
+    sources: cloneSources(options?.sources ?? item?.sources ?? []),
+  };
+}
+
+function withHistory(map: ClientMap, entries: ClientMapEditHistoryEntry[]): ClientMap {
+  if (entries.length === 0) return map;
+  return {
+    ...map,
+    editHistory: [...(map.editHistory ?? []), ...entries].slice(-MAX_EDIT_HISTORY),
+  };
+}
+
+function emitHistory(entries: ClientMapEditHistoryEntry[], matterId: string): void {
+  const emit = getMatterAuditEmitter();
+  if (!emit) return;
+  for (const entry of entries) {
+    if (entry.action === 'section_removed') {
+      emit(auditEventToEntry({
+        type: 'client_map_section_removed',
+        timestamp: entry.timestamp,
+        payload: {
+          matterId,
+          sectionKey: entry.sectionKey,
+          sectionTitle: entry.sectionTitle,
+          actor: entry.actor,
+          removedBulletCount: Number(entry.afterText ?? 0),
+          sources: entry.sources,
+        },
+      }));
+      continue;
+    }
+    emit(auditEventToEntry({
+      type:
+        entry.action === 'bullet_added'
+          ? 'client_map_bullet_added'
+          : entry.action === 'bullet_edited'
+            ? 'client_map_bullet_edited'
+            : 'client_map_bullet_removed',
+      timestamp: entry.timestamp,
+      payload: {
+        matterId,
+        sectionKey: entry.sectionKey,
+        sectionTitle: entry.sectionTitle,
+        ...(entry.itemId ? { itemId: entry.itemId } : {}),
+        actor: entry.actor,
+        ...(entry.beforeText !== undefined ? { beforeText: entry.beforeText } : {}),
+        ...(entry.afterText !== undefined ? { afterText: entry.afterText } : {}),
+        sources: entry.sources,
+      },
+    }));
+  }
 }
 
 /** Normalize a question/gap text for dedup + resolved tracking (BUG-106). */
@@ -306,6 +413,14 @@ export const useClientMapStore = create<ClientMapState>()(
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
+          const section = map.sections.find((sec) => sec.key === sectionKey);
+          const existing = section?.items.find((it) => it.id === itemId);
+          if (!section || !existing || existing.text === text) return {};
+          const entry = historyEntry('bullet_edited', section, {
+            item: existing,
+            beforeText: existing.text,
+            afterText: text,
+          });
           const sections = map.sections.map((sec) =>
             sec.key !== sectionKey
               ? sec
@@ -318,21 +433,34 @@ export const useClientMapStore = create<ClientMapState>()(
                   ),
                 },
           );
-          return { maps: { ...s.maps, [matterId]: withSections(map, sections) } };
+          const nextMap = withHistory(withSections(map, sections), [entry]);
+          emitHistory([entry], matterId);
+          return { maps: { ...s.maps, [matterId]: nextMap } };
         }),
       removeItem: (matterId, sectionKey, itemId) =>
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
+          const section = map.sections.find((sec) => sec.key === sectionKey);
+          const existing = section?.items.find((it) => it.id === itemId);
+          if (!section || !existing) return {};
+          const entry = historyEntry('bullet_removed', section, {
+            item: existing,
+            beforeText: existing.text,
+          });
           const sections = map.sections.map((sec) =>
             sec.key !== sectionKey ? sec : { ...sec, items: sec.items.filter((it) => it.id !== itemId) },
           );
-          return { maps: { ...s.maps, [matterId]: withSections(map, sections) } };
+          const nextMap = withHistory(withSections(map, sections), [entry]);
+          emitHistory([entry], matterId);
+          return { maps: { ...s.maps, [matterId]: nextMap } };
         }),
       addUserItem: (matterId, sectionKey, text) =>
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
+          const section = map.sections.find((sec) => sec.key === sectionKey);
+          if (!section) return {};
           const newItem = {
             id: `user-${String(Date.now())}-${String(Math.random()).slice(2, 8)}`,
             text,
@@ -344,7 +472,13 @@ export const useClientMapStore = create<ClientMapState>()(
           const sections = map.sections.map((sec) =>
             sec.key !== sectionKey ? sec : { ...sec, items: [...sec.items, newItem] },
           );
-          return { maps: { ...s.maps, [matterId]: withSections(map, sections) } };
+          const entry = historyEntry('bullet_added', section, {
+            item: newItem,
+            afterText: text,
+          });
+          const nextMap = withHistory(withSections(map, sections), [entry]);
+          emitHistory([entry], matterId);
+          return { maps: { ...s.maps, [matterId]: nextMap } };
         }),
       addCustomSection: (matterId, section) =>
         set((s) => {
@@ -365,10 +499,32 @@ export const useClientMapStore = create<ClientMapState>()(
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
+          const section = map.sections.find((sec) => sec.id === sectionId);
+          if (!section) return {};
+          const timestamp = nowIso();
+          const entries: ClientMapEditHistoryEntry[] = [
+            ...section.items.map((it) =>
+              historyEntry('bullet_removed', section, {
+                item: it,
+                beforeText: it.text,
+                timestamp,
+              }),
+            ),
+            historyEntry('section_removed', section, {
+              timestamp,
+              afterText: String(section.items.length),
+              sources: collectUniqueSources(section.items),
+            }),
+          ];
+          const nextMap = withHistory(
+            withSections(map, map.sections.filter((sec) => sec.id !== sectionId)),
+            entries,
+          );
+          emitHistory(entries, matterId);
           return {
             maps: {
               ...s.maps,
-              [matterId]: withSections(map, map.sections.filter((sec) => sec.id !== sectionId)),
+              [matterId]: nextMap,
             },
           };
         }),
@@ -410,11 +566,30 @@ export const useClientMapStore = create<ClientMapState>()(
               override !== undefined
                 ? { ...upd.draft, text: override, origin: 'user' as const, isAssumption: false, sources: [], updatedAt: nowIso() }
                 : upd.draft;
+            const targetSection = map.sections.find((sec) => sec.key === upd.sectionKey);
+            const targetItem = targetSection?.items.find((it) => it.id === upd.itemId);
+            const entry =
+              targetSection !== undefined
+                ? historyEntry(upd.op === 'add' ? 'bullet_added' : 'bullet_edited', targetSection, {
+                    item: upd.op === 'add' ? draft : targetItem ?? draft,
+                    ...(upd.op === 'change' && targetItem ? { beforeText: targetItem.text } : {}),
+                    afterText: draft.text,
+                    sources: draft.sources,
+                  })
+                : null;
             sections = map.sections.map((sec) => {
               if (sec.key !== upd.sectionKey) return sec;
               if (upd.op === 'add') return { ...sec, items: [...sec.items, draft] };
               return { ...sec, items: sec.items.map((it) => (it.id === upd.itemId ? draft : it)) };
             });
+            if (entry) {
+              const nextMap = {
+                ...withHistory(withSections(map, sections), [entry]),
+                pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId),
+              };
+              emitHistory([entry], matterId);
+              return { maps: { ...s.maps, [matterId]: nextMap } };
+            }
           } else if (upd.op === 'remove') {
             // AI-driven remove targeting a user-origin item is blocked.
             const targetItem = map.sections
@@ -428,9 +603,25 @@ export const useClientMapStore = create<ClientMapState>()(
                 },
               };
             }
+            const targetSection = map.sections.find((sec) => sec.key === upd.sectionKey);
+            const entry =
+              targetSection && targetItem
+                ? historyEntry('bullet_removed', targetSection, {
+                    item: targetItem,
+                    beforeText: targetItem.text,
+                  })
+                : null;
             sections = map.sections.map((sec) =>
               sec.key !== upd.sectionKey ? sec : { ...sec, items: sec.items.filter((it) => it.id !== upd.itemId) },
             );
+            if (entry) {
+              const nextMap = {
+                ...withHistory(withSections(map, sections), [entry]),
+                pendingUpdates: map.pendingUpdates.filter((u) => u.id !== updateId),
+              };
+              emitHistory([entry], matterId);
+              return { maps: { ...s.maps, [matterId]: nextMap } };
+            }
           }
           return {
             maps: {

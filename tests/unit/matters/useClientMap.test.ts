@@ -143,9 +143,11 @@ describe('useClientMap', () => {
     buildMock.mockRejectedValue(choiceError);
 
     const { result } = renderHook(() => useClientMap('m5'));
-    await act(async () => { await result.current.checkForUpdates(); });
+    let refreshed = true;
+    await act(async () => { refreshed = await result.current.checkForUpdates(); });
 
     await waitFor(() => expect(result.current.status).toBe('error'));
+    expect(refreshed).toBe(false);
     expect(result.current.errorMessage).toMatch(/Settings.*Privacy|Privacy.*choose/i);
     expect(result.current.errorMessage).not.toMatch(/Before sending to a cloud AI/i);
     expect(consoleErrorSpy).toHaveBeenCalledWith(
