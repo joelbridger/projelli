@@ -1,6 +1,6 @@
 // tests/unit/matters/ClientMapUpdatesTray.test.tsx
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
@@ -30,6 +30,39 @@ describe('ClientMapUpdatesTray', () => {
     const map = useClientMapStore.getState().getMap('m1')!;
     expect(map.pendingUpdates).toHaveLength(0);
     expect(map.sections.find((s) => s.key === 'money')!.items).toHaveLength(0);
+  });
+
+  it('asks for the same remove-bullet confirmation before accepting a remove update', async () => {
+    const map = emptyClientMap('m1');
+    map.sections.find((s) => s.key === 'money')!.items.push({
+      id: 'remove-me',
+      text: 'Outdated account note',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [],
+      updatedAt: 't',
+    });
+    useClientMapStore.setState({ maps: { m1: map } });
+    useClientMapStore.getState().setPendingUpdates('m1', [
+      { id: 'remove-update', sectionKey: 'money', op: 'remove', itemId: 'remove-me', reason: 'stale', createdAt: 't' },
+    ]);
+
+    render(<ClientMapUpdatesTray matterId="m1" />);
+    fireEvent.click(screen.getByTestId('clientmap-update-accept'));
+
+    expect(await screen.findByTestId('clientmap-confirm-dialog')).toBeInTheDocument();
+    expect(screen.getByText('Remove this bullet?')).toBeInTheDocument();
+    expect(
+      useClientMapStore.getState().getMap('m1')!.sections.find((s) => s.key === 'money')!.items,
+    ).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+
+    await waitFor(() => {
+      const after = useClientMapStore.getState().getMap('m1')!;
+      expect(after.sections.find((s) => s.key === 'money')!.items).toHaveLength(0);
+      expect(after.pendingUpdates).toHaveLength(0);
+    });
   });
 
   it('uses the exact pending count instead of saying a few', () => {

@@ -777,9 +777,8 @@ export function DocumentsHome({
         </div>
       )}
 
-      {/* ── Files toolbar — shown above the tab strip when Files tab is active */}
-      {showFilesGrid && (
-        <SurfaceToolbar data-testid="documents-toolbar">
+      {/* ── Files toolbar — stays visible above the tab strip even while a document is open. */}
+      <SurfaceToolbar data-testid="documents-toolbar">
           {/* eslint-disable lantern-i18n/no-hardcoded-string */}
 
           {/* 1. Action buttons — files view only */}
@@ -904,8 +903,7 @@ export function DocumentsHome({
           )}
 
           {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-        </SurfaceToolbar>
-      )}
+      </SurfaceToolbar>
 
       {/* ── Unified tab strip ──────────────────────────────────────────── */}
       <div

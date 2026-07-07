@@ -16,7 +16,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, Mail, Clock, Loader2, Map, Mic } from 'lucide-react';
+import { Download, Lock, FileText, Mail, Clock, Loader2, Map, Users, Mic, RefreshCw } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { isTauri } from '@tauri-apps/api/core';
@@ -24,11 +24,12 @@ import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { Badge } from '@/ui/kp';
+import { Button } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
-import { useClientMap } from '@/features/matters/useClientMap';
+import { useClientMap, type ClientMapSyncResult } from '@/features/matters/useClientMap';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { PromptDialog } from '@/ui/PromptDialog';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
@@ -44,6 +45,12 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
 import { answerQuestion, flagForClient } from '@/features/matters/clientMap/guidedInterview';
 import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
+import {
+  clientMapToDocxBytes,
+  exportClientMapPdf,
+  suggestClientMapExportName,
+} from '@/features/matters/clientMap/exportClientMap';
+import { saveFile } from '@/platform/utils/saveFile';
 import type { SourceRef } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
@@ -93,6 +100,11 @@ const HUB_TABS: { id: HubTab; Icon: typeof FileText }[] = [
   { id: 'activity', Icon: Clock },
 ];
 
+const LABEL_CLIENT_MAP_SYNC = 'Sync';
+const LABEL_CLIENT_MAP_EXPORT_WORD = 'Export Word';
+const LABEL_CLIENT_MAP_EXPORT_PDF = 'Export PDF';
+const LABEL_CLIENT_MAP_SYNC_TITLE = 'Rescan documents and refresh the client map';
+
 /** Label for a hub sub-tab (literal keys per branch — the i18n extractor
  *  can't trace a key stored in a config-array variable). */
 function hubTabLabel(id: HubTab, t: (key: string) => string): string {
@@ -110,6 +122,26 @@ function hubTabLabel(id: HubTab, t: (key: string) => string): string {
   }
 }
 
+function formatClientMapUpdated(timestamp: string | undefined): string {
+  if (!timestamp) return 'Not updated yet';
+  const d = new Date(timestamp);
+  if (Number.isNaN(d.getTime())) return 'Updated recently';
+  return `Updated ${d.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })}`;
+}
+
+function formatClientMapSyncText(timestamp: string | undefined, result: ClientMapSyncResult | null): string {
+  if (result === 'unchanged') return 'No new changes';
+  if (result === 'updated') return 'Updated just now';
+  if (result === 'in_flight') return 'Already syncing';
+  if (result === 'failed') return 'Sync failed';
+  return formatClientMapUpdated(timestamp);
+}
+
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
 export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity, workspaceService }: MatterHubProps) {
@@ -124,7 +156,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     ...(onAuditLog ? { onAuditLog } : {}),
     autoBuild: matterId !== SAMPLE_MATTER_ID,
   });
-  const { checkForUpdates } = clientMap;
+  const { checkForUpdates, generate } = clientMap;
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
@@ -151,6 +183,9 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // remounts this whole component fresh) — no reset effect needed here, which
   // also keeps the hub free of cross-client state reuse (matter isolation).
   const [subTab, setSubTab] = useState<HubTab>(() => pendingHubTab ?? 'overview');
+  const [isSyncingClientMap, setIsSyncingClientMap] = useState(false);
+  const [exportingClientMap, setExportingClientMap] = useState<'word' | 'pdf' | null>(null);
+  const [clientMapSyncResult, setClientMapSyncResult] = useState<ClientMapSyncResult | null>(null);
 
   // Honor + consume a pending sub-tab request. Reactive on `pendingHubTab` so it
   // handles a quick-action targeting the SAME already-open client (no remount).
@@ -257,6 +292,89 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     })();
   }, [matterId, prompt, t]);
 
+  const label = matter ? matterLabel(matter) : '';
+  // Title = just the client NAMES (drop the "- Household" suffix); the icon +
+  // the left nav carry the "this is the Client Map" context. No subtitle under
+  // the header (Jameson: no subtext under any tab header).
+  const headerTitle = matter
+    ? matter.client && matter.client.trim() !== ''
+      ? matter.client
+      : label
+    : '';
+
+  const handleSyncClientMap = useCallback(() => {
+    void (async () => {
+      if (isSyncingClientMap) {
+        setClientMapSyncResult('in_flight');
+        return;
+      }
+      setIsSyncingClientMap(true);
+      setClientMapSyncResult(null);
+      try {
+        const current = useClientMapStore.getState().getMap(matterId);
+        let result: ClientMapSyncResult;
+        if (!current || current.lastBuiltAt === '') {
+          result = await generate();
+        } else {
+          result = await checkForUpdates();
+        }
+        setClientMapSyncResult(result);
+      } finally {
+        setIsSyncingClientMap(false);
+      }
+    })().catch((error: unknown) => {
+      console.error('Failed to sync Client Map:', error);
+      setClientMapSyncResult('failed');
+      setIsSyncingClientMap(false);
+    });
+  }, [checkForUpdates, generate, isSyncingClientMap, matterId]);
+
+  const handleExportClientMapWord = useCallback(() => {
+    void (async () => {
+      if (exportingClientMap !== null || !clientMap.map) return;
+      setExportingClientMap('word');
+      try {
+        const bytes = await clientMapToDocxBytes(clientMap.map, headerTitle);
+        await saveFile(bytes, {
+          suggestedName: suggestClientMapExportName(headerTitle),
+          types: [
+            {
+              description: 'Word Documents',
+              accept: {
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+              },
+            },
+          ],
+          defaultExtension: 'docx',
+        });
+      } catch (error) {
+        console.error('Failed to export Client Map:', error);
+      } finally {
+        setExportingClientMap(null);
+      }
+    })().catch((error: unknown) => {
+      console.error('Unexpected Client Map export failure:', error);
+      setExportingClientMap(null);
+    });
+  }, [clientMap.map, exportingClientMap, headerTitle]);
+
+  const handleExportClientMapPdf = useCallback(() => {
+    void (async () => {
+      if (exportingClientMap !== null || !clientMap.map) return;
+      setExportingClientMap('pdf');
+      try {
+        await exportClientMapPdf(clientMap.map, headerTitle);
+      } catch (error) {
+        console.error('Failed to export Client Map PDF:', error);
+      } finally {
+        setExportingClientMap(null);
+      }
+    })().catch((error: unknown) => {
+      console.error('Unexpected Client Map PDF export failure:', error);
+      setExportingClientMap(null);
+    });
+  }, [clientMap.map, exportingClientMap, headerTitle]);
+
   if (!matter) {
     return (
       <div
@@ -294,11 +412,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     );
   }
 
-  const label = matterLabel(matter);
-  // Title = just the client NAMES (drop the "- Household" suffix); the icon +
-  // the left nav carry the "this is the Client Map" context. No subtitle under
-  // the header (Jameson: no subtext under any tab header).
-  const headerTitle = matter.client && matter.client.trim() !== '' ? matter.client : label;
+  const clientMapUpdatedText = formatClientMapSyncText(clientMap.map?.lastBuiltAt, clientMapSyncResult);
 
   return (
     <div
@@ -328,6 +442,57 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           title={headerTitle}
           actions={
             <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
+              <div
+                data-testid="clientmap-sync-group"
+                style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)' }}
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  iconLeft={RefreshCw}
+                  data-testid="clientmap-sync-button"
+                  loading={isSyncingClientMap}
+                  onClick={handleSyncClientMap}
+                  title={LABEL_CLIENT_MAP_SYNC_TITLE}
+                >
+                  {LABEL_CLIENT_MAP_SYNC}
+                </Button>
+                <span
+                  data-testid="clientmap-last-updated"
+                  style={{
+                    color: 'var(--color-muted-foreground)',
+                    fontSize: 'var(--kp-font-xs)',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {clientMapUpdatedText}
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={Download}
+                  data-testid="clientmap-export-word"
+                  loading={exportingClientMap === 'word'}
+                  disabled={clientMap.map === undefined || exportingClientMap !== null}
+                  onClick={handleExportClientMapWord}
+                >
+                  {LABEL_CLIENT_MAP_EXPORT_WORD}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  iconLeft={Download}
+                  data-testid="clientmap-export-pdf"
+                  loading={exportingClientMap === 'pdf'}
+                  disabled={clientMap.map === undefined || exportingClientMap !== null}
+                  onClick={handleExportClientMapPdf}
+                >
+                  {LABEL_CLIENT_MAP_EXPORT_PDF}
+                </Button>
+              </div>
               {/* Sub-tabs, inline to the right of the client name. Minimal
                   selected style: a soft demo-blue tint pill (no dark fill). */}
               <div role="tablist" aria-label={t('matter.hub.sections-aria')} data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>

@@ -89,6 +89,10 @@ export type AuditActionType =
   // Wave 4 Track B: the advisor dismissed/resolved a beneficiary consistency
   // finding (MISMATCH/STALE/MISSING) surfaced on their Client Map's gaps.
   | 'beneficiary_finding_dismissed'
+  | 'client_map_bullet_added'
+  | 'client_map_bullet_edited'
+  | 'client_map_bullet_removed'
+  | 'client_map_section_removed'
   // Wave 4 Track A: voiceprints are biometric data — every enrollment
   // (naming/relabeling a diarized speaker) and every deletion is a durable,
   // defensible record, even though the voiceprint itself never leaves the
@@ -234,6 +238,32 @@ export type AuditEvent =
    * `tools` lists which were present when the prompt fired (e.g. ["RightCapital"]).
    */
   | { type: 'external_export_consent'; timestamp: string; payload: { given: boolean; tools: string[] } }
+  | {
+      type: 'client_map_bullet_added' | 'client_map_bullet_edited' | 'client_map_bullet_removed';
+      timestamp: string;
+      payload: {
+        matterId: string;
+        sectionKey: string;
+        sectionTitle: string;
+        itemId?: string;
+        actor: string;
+        beforeText?: string;
+        afterText?: string;
+        sources: Array<{ kind: string; ref: string; snippet: string; citationId?: string; locator?: string }>;
+      };
+    }
+  | {
+      type: 'client_map_section_removed';
+      timestamp: string;
+      payload: {
+        matterId: string;
+        sectionKey: string;
+        sectionTitle: string;
+        actor: string;
+        removedBulletCount: number;
+        sources: Array<{ kind: string; ref: string; snippet: string; citationId?: string; locator?: string }>;
+      };
+    }
   | {
       type: 'mcp_matter_access_granted';
       timestamp: string;

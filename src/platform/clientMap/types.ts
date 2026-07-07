@@ -50,6 +50,26 @@ export interface ClientMapItem {
   updatedAt: string; // ISO 8601
 }
 
+export type ClientMapEditAction =
+  | 'bullet_added'
+  | 'bullet_edited'
+  | 'bullet_removed'
+  | 'section_removed';
+
+export interface ClientMapEditHistoryEntry {
+  id: string;
+  action: ClientMapEditAction;
+  actor: string;
+  timestamp: string; // ISO 8601
+  sectionId: string;
+  sectionKey: string;
+  sectionTitle: string;
+  itemId?: string;
+  beforeText?: string;
+  afterText?: string;
+  sources: SourceRef[];
+}
+
 export interface ClientMapSection {
   id: string;
   kind: 'core' | 'custom';
@@ -121,6 +141,8 @@ export interface ClientMap {
   /** Normalized texts of gap questions the user has answered or flagged, so the
    *  Guided Interview does not replay them (BUG-106). Optional for back-compat. */
   resolvedGaps?: string[];
+  /** Advisor-visible edit history for manual Client Map changes. */
+  editHistory?: ClientMapEditHistoryEntry[];
 }
 
 export interface CustomCategoryTemplate {
