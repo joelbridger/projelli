@@ -3,13 +3,13 @@ import {
   withGuard,
   clickElement,
   ensureClientsTableTab,
+  openAllClientsTable,
   openSmokeClientDocuments,
   openSmokeClientOverview,
   openSmokeClientDocumentsSubtab,
   openSmokeClientNote,
   openSettingsAiPrivacy,
   openAccountConnectionsTab,
-  openWholeBookView,
   openAskSurface,
 } from '../checks/_util.mjs';
 import { DriverError } from '../driver.mjs';
@@ -83,43 +83,49 @@ describe('clickElement', () => {
 });
 
 describe('ensureClientsTableTab', () => {
-  it('clicks spine-nav-matters once, then switches the toggle to "Clients", when no hub is left open', async () => {
-    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(false) };
+  it('opens the rail-pinned All Clients row', async () => {
+    const driver = { click: vi.fn(), evalJs: vi.fn().mockResolvedValue(true) };
     await ensureClientsTableTab(driver);
-    expect(driver.click).toHaveBeenCalledTimes(1);
     expect(driver.click).toHaveBeenCalledWith('spine-nav-matters');
-    expect(driver.clickByText).toHaveBeenCalledWith('Clients');
+    expect(driver.click).toHaveBeenCalledWith('spine-all-clients-row');
   });
 
-  it('clicks spine-nav-matters a second time if a client hub is still open after the first click', async () => {
-    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(true) };
+  it('opens the clients section first when All Clients is collapsed', async () => {
+    const driver = { click: vi.fn(), evalJs: vi.fn().mockResolvedValue(false) };
     await ensureClientsTableTab(driver);
-    expect(driver.click).toHaveBeenCalledTimes(2);
-    expect(driver.clickByText).toHaveBeenCalledWith('Clients');
+    expect(driver.click).toHaveBeenNthCalledWith(1, 'spine-nav-matters');
+    expect(driver.click).toHaveBeenNthCalledWith(2, 'spine-clients-toggle');
+    expect(driver.click).toHaveBeenNthCalledWith(3, 'spine-all-clients-row');
+  });
+});
+
+describe('openAllClientsTable', () => {
+  it('clicks spine-nav-matters, then the permanent All Clients rail row', async () => {
+    const driver = { click: vi.fn(), evalJs: vi.fn().mockResolvedValue(true) };
+    await openAllClientsTable(driver);
+    expect(driver.click).toHaveBeenNthCalledWith(1, 'spine-nav-matters');
+    expect(driver.click).toHaveBeenNthCalledWith(2, 'spine-all-clients-row');
   });
 });
 
 describe('openSmokeClientDocuments', () => {
   it('clicks the matter-launch-documents testid for the given matterId, then waits for the given text', async () => {
-    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(false), waitFor: vi.fn().mockResolvedValue({ found: true }) };
+    const driver = { click: vi.fn(), evalJs: vi.fn().mockResolvedValue(true), waitFor: vi.fn().mockResolvedValue({ found: true }) };
     await openSmokeClientDocuments(driver, { matterId: 'matter_abc', waitForText: 'Documents' });
     expect(driver.click).toHaveBeenCalledWith('matter-launch-documents-matter_abc');
     expect(driver.waitFor).toHaveBeenCalledWith('Documents', 10);
   });
 
   it('normalizes to the Clients table tab first (ensureClientsTableTab), before the launch-documents click', async () => {
-    // Root-caused live (2026-07-04): a prior check leaving the toggle on
-    // "Whole book" silently broke this — matter-launch-documents-<id> only
-    // exists on the Clients table.
+    // The per-client Documents launch exists on the All Clients table.
     const calls = [];
     const driver = {
       click: vi.fn((testid) => calls.push(`click:${testid}`)),
-      clickByText: vi.fn((text) => calls.push(`clickByText:${text}`)),
       evalJs: vi.fn().mockResolvedValue(false),
       waitFor: vi.fn().mockResolvedValue({ found: true }),
     };
     await openSmokeClientDocuments(driver, { matterId: 'matter_abc' });
-    expect(calls).toEqual(['click:spine-nav-matters', 'clickByText:Clients', 'click:matter-launch-documents-matter_abc']);
+    expect(calls).toEqual(['click:spine-nav-matters', 'click:spine-clients-toggle', 'click:spine-all-clients-row', 'click:matter-launch-documents-matter_abc']);
   });
 
   it('still attempts the launch-documents click when ensureClientsTableTab throws (e.g. minimal fake driver)', async () => {
@@ -195,25 +201,6 @@ describe('openAccountConnectionsTab', () => {
     const driver = { click: vi.fn((testid) => calls.push(testid)) };
     await openAccountConnectionsTab(driver);
     expect(calls).toEqual(['account-identity', 'account-tab-connections']);
-  });
-});
-
-describe('openWholeBookView', () => {
-  it('clicks spine-nav-matters once, then clicks the "Whole book" text toggle, when no hub is left open', async () => {
-    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(false) };
-    await openWholeBookView(driver);
-    expect(driver.click).toHaveBeenCalledTimes(1);
-    expect(driver.click).toHaveBeenCalledWith('spine-nav-matters');
-    expect(driver.clickByText).toHaveBeenCalledWith('Whole book');
-  });
-
-  it('clicks spine-nav-matters a second time if a client hub is still open after the first click', async () => {
-    const driver = { click: vi.fn(), clickByText: vi.fn(), evalJs: vi.fn().mockResolvedValue(true) };
-    await openWholeBookView(driver);
-    expect(driver.click).toHaveBeenCalledTimes(2);
-    expect(driver.click).toHaveBeenNthCalledWith(1, 'spine-nav-matters');
-    expect(driver.click).toHaveBeenNthCalledWith(2, 'spine-nav-matters');
-    expect(driver.clickByText).toHaveBeenCalledWith('Whole book');
   });
 });
 

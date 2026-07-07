@@ -21,22 +21,25 @@ const storeMocks = vi.hoisted(() => ({
   setClientMapHubTab: vi.fn(),
 }));
 
+const matterMocks = vi.hoisted(() => ({
+  activeMatterId: 'm1' as string | null,
+  matters: [
+    { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+    { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+    // Internal name deliberately differs from the client — exercises matterLabel's
+    // "Client - Name" folding branch instead of the name===client shortcut above.
+    { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+  ] as Matter[],
+}));
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
-const MATTERS: Matter[] = [
-  { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
-  { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
-  // Internal name deliberately differs from the client — exercises matterLabel's
-  // "Client - Name" folding branch instead of the name===client shortcut above.
-  { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
-];
-
 vi.mock('@/platform/matter/matterStore', () => ({
-  useMatters: () => MATTERS,
-  useActiveMatters: () => MATTERS,
-  useActiveMatterId: () => 'm1',
+  useMatters: () => matterMocks.matters,
+  useActiveMatters: () => matterMocks.matters,
+  useActiveMatterId: () => matterMocks.activeMatterId,
   useMatterStore: (selector: (s: {
     setActiveMatter: (id: string | null) => void;
     setClientMapHubId: (id: string | null) => void;
@@ -51,6 +54,12 @@ vi.mock('@/platform/matter/matterStore', () => ({
 
 describe('Spine — Clients section', () => {
   beforeEach(() => {
+    matterMocks.activeMatterId = 'm1';
+    matterMocks.matters = [
+      { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+      { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+      { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+    ];
     storeMocks.setActiveMatter.mockClear();
     storeMocks.setClientMapHubId.mockClear();
     storeMocks.setClientMapHubTab.mockClear();
@@ -73,6 +82,29 @@ describe('Spine — Clients section', () => {
     expect(storeMocks.setClientMapHubId).toHaveBeenCalledWith(null);
     expect(storeMocks.setClientMapHubTab).toHaveBeenCalledWith(null);
     expect(onTabChange).toHaveBeenCalledWith('matters');
+  });
+
+  it('clicking a client row always launches that client on the Client Map hub', () => {
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+    render(<Spine activeTab="email" />);
+
+    fireEvent.click(screen.getByTestId('spine-client-row-m2'));
+
+    const event = dispatchSpy.mock.calls[0]?.[0] as CustomEvent | undefined;
+    expect(event?.type).toBe('lantern:matter-launch');
+    expect(event?.detail).toEqual({ matterId: 'm2', surface: 'matters' });
+    dispatchSpy.mockRestore();
+  });
+
+  it('keeps All Clients and New Client visible when there are zero clients', () => {
+    matterMocks.activeMatterId = null;
+    matterMocks.matters = [];
+
+    render(<Spine activeTab="matters" />);
+
+    expect(screen.getByTestId('spine-clients-toggle')).toBeInTheDocument();
+    expect(screen.getByTestId('spine-all-clients-row')).toBeInTheDocument();
+    expect(screen.getByTestId('spine-new-client')).toBeInTheDocument();
   });
 
   it('does not render the redundant repeated client-name subtext', () => {

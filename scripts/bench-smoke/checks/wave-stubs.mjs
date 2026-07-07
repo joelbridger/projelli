@@ -1,7 +1,7 @@
 // scripts/bench-smoke/checks/wave-stubs.mjs — TODO stubs for waves whose UI
 // isn't bench-drivable yet. Wave 3 (local meeting capture) is backend/Rust-only
 // so far. Wave 4 Track A (diarization) hasn't merged. Wave 4 Tracks B/C
-// (whole-book Client Map + estate/beneficiary gaps, whole-practice Ask +
+// (All Clients hub + estate/beneficiary gaps, whole-practice Ask +
 // consent gate) DID merge and are now real checks in wave4.mjs, not stubs
 // here — see checklist.mjs. Acceptance text below is paraphrased from the
 // plan docs; see the cited file for the authoritative spec.

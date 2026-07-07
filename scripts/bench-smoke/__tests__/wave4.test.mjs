@@ -1,11 +1,9 @@
 import { describe, it, expect, vi } from 'vitest';
-import vm from 'node:vm';
 import {
-  checkWholeBookView,
+  checkAllClientsHub,
   checkEstateBeneficiaryGap,
   checkEstateBeneficiaryGapDismissLive,
   checkWholePracticeAsk,
-  findGapRowScript,
 } from '../checks/wave4.mjs';
 import { STATUS } from '../result.mjs';
 
@@ -22,65 +20,20 @@ function makeDriver(overrides = {}) {
   };
 }
 
-describe('findGapRowScript', () => {
-  // Executed against a fake DOM (node:vm), same technique as
-  // click-by-text.test.mjs — proves the generated script's querySelector
-  // logic actually finds the right row, not just that its source text looks
-  // plausible.
-  function runAgainstFakeDom(js, rows) {
-    const context = vm.createContext({
-      document: {
-        querySelectorAll: (selector) => {
-          expect(selector).toBe('[data-testid^="book-row-"]');
-          return rows;
-        },
-      },
-    });
-    return vm.runInContext(js, context);
-  }
-
-  function makeRow(testid, hasGap) {
-    return {
-      getAttribute: (name) => (name === 'data-testid' ? testid : null),
-      querySelector: (sel) => {
-        expect(sel).toBe('[data-testid="book-gap-chip"]');
-        return hasGap ? {} : null;
-      },
-    };
-  }
-
-  it('returns the testid of the first row containing a book-gap-chip', () => {
-    const rows = [makeRow('book-row-matter_a', false), makeRow('book-row-matter_b', true)];
-    const result = runAgainstFakeDom(findGapRowScript(), rows);
-    expect(result).toBe('book-row-matter_b');
-  });
-
-  it('returns null when no row has a gap chip', () => {
-    const rows = [makeRow('book-row-matter_a', false), makeRow('book-row-matter_b', false)];
-    const result = runAgainstFakeDom(findGapRowScript(), rows);
-    expect(result).toBeNull();
-  });
-
-  it('returns null when there are no rows at all', () => {
-    const result = runAgainstFakeDom(findGapRowScript(), []);
-    expect(result).toBeNull();
-  });
-});
-
-describe('checkWholeBookView', () => {
-  it('is SETUP-BLOCKED when no book-view container is found', async () => {
+describe('checkAllClientsHub', () => {
+  it('is SETUP-BLOCKED when the permanent All Clients rail row is missing', async () => {
     const driver = makeDriver({ snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [] }) });
-    const result = await checkWholeBookView({ driver });
+    const result = await checkAllClientsHub({ driver });
     expect(result.status).toBe(STATUS.SETUP_BLOCKED);
   });
 
-  it('FAILs when book-view is present but no book-row-* rows exist', async () => {
+  it('FAILs when All Clients opens but no matter rows exist', async () => {
     const driver = makeDriver({
-      snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [{ testid: 'book-view', tag: 'div' }] }),
+      snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [{ testid: 'spine-all-clients-row', tag: 'button' }] }),
     });
-    const result = await checkWholeBookView({ driver });
+    const result = await checkAllClientsHub({ driver });
     expect(result.status).toBe(STATUS.FAIL);
-    expect(result.detail).toMatch(/no ranked client rows/);
+    expect(result.detail).toMatch(/no client table rows/);
   });
 
   it('FAILs when clicking the first row never opens a client hub', async () => {
@@ -88,62 +41,73 @@ describe('checkWholeBookView', () => {
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
         elements: [
-          { testid: 'book-view', tag: 'div' },
-          { testid: 'book-row-matter_a', tag: 'div' },
+          { testid: 'spine-all-clients-row', tag: 'button' },
+          { testid: 'matter-row-matter_a', tag: 'button' },
         ],
       }),
       waitFor: vi.fn().mockResolvedValue({ found: false, error: 'timed out' }),
+      evalJs: vi.fn().mockResolvedValue(false),
     });
-    const result = await checkWholeBookView({ driver });
+    const result = await checkAllClientsHub({ driver });
     expect(result.status).toBe(STATUS.FAIL);
     expect(result.detail).toMatch(/did not open a client hub/);
   });
 
-  it('PASSes when the book view renders ranked rows and a row click opens the hub', async () => {
+  it('PASSes when All Clients renders matter rows and a row click opens the hub', async () => {
     const driver = makeDriver({
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
         elements: [
-          { testid: 'book-view', tag: 'div' },
-          { testid: 'book-row-matter_a', tag: 'div' },
-          { testid: 'book-row-matter_b', tag: 'div' },
+          { testid: 'spine-all-clients-row', tag: 'button' },
+          { testid: 'matter-row-shell-matter_a', tag: 'div' },
+          { testid: 'matter-row-matter_a', tag: 'button' },
+          { testid: 'matter-row-matter_b', tag: 'button' },
         ],
       }),
+      evalJs: vi.fn().mockResolvedValue(true),
     });
-    const result = await checkWholeBookView({ driver });
+    const result = await checkAllClientsHub({ driver });
     expect(result.status).toBe(STATUS.PASS);
-    expect(driver.click).toHaveBeenCalledWith('book-row-matter_a');
-    expect(result.detail).toMatch(/2 ranked client row/);
+    expect(driver.click).toHaveBeenCalledWith('matter-row-matter_a');
+    expect(result.detail).toMatch(/2 client row/);
   });
 });
 
 describe('checkEstateBeneficiaryGap', () => {
-  it('is SETUP-BLOCKED when evalJs finds no gap row', async () => {
-    const driver = makeDriver({ evalJs: vi.fn().mockResolvedValue(null) });
+  it('is SETUP-BLOCKED when All Clients has no matter rows to inspect', async () => {
+    const driver = makeDriver({
+      snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [{ testid: 'spine-all-clients-row', tag: 'button' }] }),
+    });
     const result = await checkEstateBeneficiaryGap({ driver });
     expect(result.status).toBe(STATUS.SETUP_BLOCKED);
   });
 
-  it('FAILs when the flagged row has no resolvable gap control in its Client Map sub-tab', async () => {
+  it('is SETUP-BLOCKED when no opened client has a resolvable gap control', async () => {
     const driver = makeDriver({
-      evalJs: vi.fn().mockResolvedValue('book-row-matter_a'),
-      snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [] }),
+      snapshot: vi.fn().mockResolvedValue({
+        ok: true,
+        elements: [
+          { testid: 'spine-all-clients-row', tag: 'button' },
+          { testid: 'matter-row-matter_a', tag: 'button' },
+        ],
+      }),
     });
     const result = await checkEstateBeneficiaryGap({ driver });
-    expect(result.status).toBe(STATUS.FAIL);
-    expect(result.detail).toMatch(/no resolvable gap row/);
+    expect(result.status).toBe(STATUS.SETUP_BLOCKED);
+    expect(result.detail).toMatch(/No clientmap-ask-flag row/);
   });
 
-  it('PASSes without clicking anything when a resolvable gap row is present (read-only default)', async () => {
+  it('PASSes without resolving anything when a resolvable gap row is present (read-only default)', async () => {
     // Regression guard for a Codex-review finding: this check used to click
     // clientmap-ask-flag on every normal run, mutating fixture state (a real
     // gap-resolve) during a supposedly read-only pass. It must now only
     // assert presence — dismissal moved to the --live-only sibling check.
     const driver = makeDriver({
-      evalJs: vi.fn().mockResolvedValue('book-row-matter_a'),
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
         elements: [
+          { testid: 'spine-all-clients-row', tag: 'button' },
+          { testid: 'matter-row-matter_a', tag: 'button' },
           { testid: 'clientmap-ask-know', tag: 'button' },
           { testid: 'clientmap-ask-flag', tag: 'button' },
         ],

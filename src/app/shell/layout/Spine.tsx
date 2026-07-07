@@ -162,8 +162,7 @@ export function Spine({
             );
           })}
         </div>
-        {matters.length > 0 ? (
-          <div style={{ flex: 'none', minHeight: 0, borderTop: '1px solid var(--kp-side-border)' }}>
+        <div style={{ flex: 'none', minHeight: 0, borderTop: '1px solid var(--kp-side-border)' }}>
             {/* Header row toggles the section and carries the "+ New client" affordance. */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--kp-space-xs)', padding: 'var(--kp-space-xs) 10px 6px' }}>
               <button type="button" onClick={() => { setClientsOpen((v) => !v); }}
@@ -220,9 +219,9 @@ export function Spine({
                     <button key={m.id} type="button"
                       data-testid={`spine-client-row-${m.id}`}
                       onClick={() => {
-                        // Return to this matter: App restores its last working
-                        // surface + focused document (no explicit surface here).
-                        window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: m.id } }));
+                        // Rail client clicks always mean "open this client's map",
+                        // never "restore wherever this client was last".
+                        window.dispatchEvent(new CustomEvent(EV_MATTER_LAUNCH, { detail: { matterId: m.id, surface: 'matters' } }));
                       }}
                       style={{ display: 'block', width: '100%', textAlign: 'left', border: 0, cursor: 'pointer', background: on ? 'var(--kp-side-active-bg)' : 'transparent', color: 'var(--kp-side-fg)', padding: 'var(--kp-space-xs) var(--kp-space-sm)', borderRadius: 'var(--radius-md)', position: 'relative' }}>
                       {on && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-side-accent)' }} />}
@@ -233,19 +232,6 @@ export function Spine({
               </div>
             )}
           </div>
-        ) : (
-          // Empty state: the rail still offers "+ New client" so the client
-          // switcher is never a dead end (Client Map's no-selection state
-          // handles the main canvas).
-          <div style={{ flex: 'none', padding: 'var(--kp-space-md) 12px', borderTop: '1px solid var(--kp-side-border)' }}>
-            <button type="button" data-testid="spine-new-client" title={newClientLabel} aria-label={newClientLabel}
-              onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER)); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', width: '100%', padding: 'var(--kp-space-sm)', border: '1px dashed var(--kp-side-border)', borderRadius: 'var(--radius-md)', background: 'transparent', color: 'var(--kp-side-fg-dim)', cursor: 'pointer', fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-medium)' }}>
-              <Plus size={15} strokeWidth={2} style={{ flex: 'none' }} />
-              <span>{newClientLabel}</span>
-            </button>
-          </div>
-        )}
         <div style={{ flex: 1, minHeight: 0 }} />
         <div style={{ display: 'flex', alignItems: 'stretch', borderTop: '1px solid var(--kp-side-border)', flex: 'none' }}>
           <AccountIdentity onOpen={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT)); }} />
