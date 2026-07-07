@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 
@@ -143,25 +143,30 @@ describe('MattersHome — B1 sample badge', () => {
 describe('MattersHome — B4 quick-actions visible at rest', () => {
   beforeEach(resetStore);
 
-  it('renders Ask / Documents / Email buttons in the DOM (not hidden) for each matter', () => {
+  it('renders Ask / Documents / Email / Meetings / Activity buttons in the DOM (not hidden) for each matter', () => {
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
     render(<MattersHome />);
 
-    // All three buttons must exist in the DOM
     const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
     const docsBtn = screen.getByTestId(`matter-launch-documents-${matter.id}`);
     const emailBtn = screen.getByTestId(`matter-launch-email-${matter.id}`);
+    const meetingsBtn = screen.getByTestId(`matter-launch-meetings-${matter.id}`);
+    const activityBtn = screen.getByTestId(`matter-launch-activity-${matter.id}`);
 
     expect(askBtn).toBeInTheDocument();
     expect(docsBtn).toBeInTheDocument();
     expect(emailBtn).toBeInTheDocument();
+    expect(meetingsBtn).toBeInTheDocument();
+    expect(activityBtn).toBeInTheDocument();
 
     // Must not be aria-hidden
     expect(askBtn.closest('[aria-hidden="true"]')).toBeNull();
     expect(docsBtn.closest('[aria-hidden="true"]')).toBeNull();
     expect(emailBtn.closest('[aria-hidden="true"]')).toBeNull();
+    expect(meetingsBtn.closest('[aria-hidden="true"]')).toBeNull();
+    expect(activityBtn.closest('[aria-hidden="true"]')).toBeNull();
   });
 
   it('quick-action buttons have correct aria-labels', () => {
@@ -173,10 +178,14 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
     const docsBtn = screen.getByTestId(`matter-launch-documents-${matter.id}`);
     const emailBtn = screen.getByTestId(`matter-launch-email-${matter.id}`);
+    const meetingsBtn = screen.getByTestId(`matter-launch-meetings-${matter.id}`);
+    const activityBtn = screen.getByTestId(`matter-launch-activity-${matter.id}`);
 
     expect(askBtn.getAttribute('aria-label')).toContain('Ask');
     expect(docsBtn.getAttribute('aria-label')).toContain('Open documents for');
     expect(emailBtn.getAttribute('aria-label')).toContain('Open email for');
+    expect(meetingsBtn.getAttribute('aria-label')).toContain('Open meetings for');
+    expect(activityBtn.getAttribute('aria-label')).toContain('Open activity for');
   });
 
   it('quick-action buttons are real <button> elements (keyboard-focusable)', () => {
@@ -192,22 +201,61 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     expect(askBtn.getAttribute('tabindex')).not.toBe('-1');
   });
 
-  it('quick-action click dispatches keepance:matter-launch with correct surface', () => {
-    useMatterStore.getState().createMatter({ name: 'Launch Test', client: 'Client' });
-    const matter = useMatterStore.getState().matters[0]!;
+  it('quick-action clicks dispatch keepance:matter-launch with the correct surfaces', () => {
+    const cases = [
+      ['ask', 'search'],
+      ['documents', 'files'],
+      ['email', 'email'],
+      ['meetings', 'meetings'],
+      ['activity', 'audit'],
+    ] as const;
 
-    const events: CustomEvent[] = [];
-    const handler = (e: Event) => { events.push(e as CustomEvent); };
-    window.addEventListener('lantern:matter-launch', handler);
+    for (const [handle, surface] of cases) {
+      cleanup();
+      resetStore();
+      useMatterStore.getState().createMatter({ name: `Launch ${handle}`, client: 'Client' });
+      const matter = useMatterStore.getState().matters[0]!;
+      const events: CustomEvent[] = [];
+      const handler = (e: Event) => { events.push(e as CustomEvent); };
+      window.addEventListener('lantern:matter-launch', handler);
+
+      render(<MattersHome />);
+      fireEvent.click(screen.getByTestId(`matter-launch-${handle}-${matter.id}`));
+
+      expect(events).toHaveLength(1);
+      expect(events[0]!.detail.surface).toBe(surface);
+      expect(events[0]!.detail.matterId).toBe(matter.id);
+      window.removeEventListener('lantern:matter-launch', handler);
+    }
+  });
+
+  it('archives from the three-dot row menu, not from a visible row button', async () => {
+    useMatterStore.getState().createMatter({ name: 'Archive Menu Test', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
 
     render(<MattersHome />);
 
-    fireEvent.click(screen.getByTestId(`matter-launch-ask-${matter.id}`));
-    expect(events).toHaveLength(1);
-    expect(events[0]!.detail.surface).toBe('search');
-    expect(events[0]!.detail.matterId).toBe(matter.id);
+    expect(screen.queryByRole('button', { name: 'Archive' })).not.toBeInTheDocument();
 
-    window.removeEventListener('lantern:matter-launch', handler);
+    fireEvent.pointerDown(screen.getByTestId(`matter-actions-menu-${matter.id}`));
+    fireEvent.click(await screen.findByTestId(`matter-archive-${matter.id}`));
+
+    expect(useMatterStore.getState().matters.find((m) => m.id === matter.id)?.archived).toBe(true);
+    expect(screen.queryByTestId(`matter-row-${matter.id}`)).not.toBeInTheDocument();
+  });
+
+  it('switches between the Clients list and Whole book with the tab-style header toggle', () => {
+    useMatterStore.getState().createMatter({ name: 'Toggle Test', client: 'Client' });
+
+    render(<MattersHome />);
+
+    expect(screen.getByTestId('matters-view-toggle-clients')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.queryByTestId('book-view')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('matters-view-toggle-book'));
+
+    expect(screen.getByTestId('book-view')).toBeInTheDocument();
+    expect(screen.getByTestId('matters-view-toggle-book')).toHaveAttribute('aria-pressed', 'true');
   });
 });
 

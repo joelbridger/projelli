@@ -63,8 +63,8 @@ const ACCOUNT_CATEGORIES = new Set<SettingCategory>([
   'integrations',
 ]);
 
-const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'workflows', 'audit', 'privacy', 'matters'] as const);
-type AllowedSurface = 'search' | 'files' | 'email' | 'workflows' | 'audit' | 'privacy' | 'matters';
+const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'meetings', 'workflows', 'audit', 'privacy', 'matters'] as const);
+type AllowedSurface = 'search' | 'files' | 'email' | 'meetings' | 'workflows' | 'audit' | 'privacy' | 'matters';
 
 export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
   // Keep the latest handlers in a ref so the listeners below register once.
@@ -152,6 +152,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
         const hubTab =
           surface === 'files' ? 'documents'
           : surface === 'email' ? 'email'
+          : surface === 'meetings' ? 'meetings'
           : surface === 'audit' ? 'activity'
           // Explicit request to open the hub itself (its default sub-tab,
           // the Client Map overview) rather than restore a remembered
@@ -170,7 +171,8 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
           ref.current.setSidebarActiveTab('matters');
           return;
         }
-        ref.current.setSidebarActiveTab(surface);
+        const appSurface: AppSurface = surface === 'meetings' ? 'matters' : surface;
+        ref.current.setSidebarActiveTab(appSurface);
         if (surface === 'search' && detail.question) {
           ref.current.setAskPrefill({ question: detail.question, autoSubmit: true });
         }

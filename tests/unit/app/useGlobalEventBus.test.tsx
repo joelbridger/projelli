@@ -68,6 +68,30 @@ describe('useGlobalEventBus — per-client surface routing', () => {
     expect(useMatterStore.getState().clientMapHubTab).toBe('email');
   });
 
+  it('routes a Meetings quick-action into the hub Meetings sub-tab', () => {
+    const handlers = makeHandlers();
+    render(<Harness handlers={handlers} />);
+
+    launch({ matterId: 'm2', surface: 'meetings' });
+
+    expect(handlers.setSidebarActiveTab).toHaveBeenCalledWith('matters');
+    expect(handlers.setSidebarActiveTab).not.toHaveBeenCalledWith('email');
+    expect(useMatterStore.getState().clientMapHubId).toBe('m2');
+    expect(useMatterStore.getState().clientMapHubTab).toBe('meetings');
+  });
+
+  it('routes an Activity quick-action into the hub Activity sub-tab', () => {
+    const handlers = makeHandlers();
+    render(<Harness handlers={handlers} />);
+
+    launch({ matterId: 'm2', surface: 'audit' });
+
+    expect(handlers.setSidebarActiveTab).toHaveBeenCalledWith('matters');
+    expect(handlers.setSidebarActiveTab).not.toHaveBeenCalledWith('audit');
+    expect(useMatterStore.getState().clientMapHubId).toBe('m2');
+    expect(useMatterStore.getState().clientMapHubTab).toBe('activity');
+  });
+
   it('leaves Ask (search) as a global surface, scoped to the active client', () => {
     const handlers = makeHandlers();
     render(<Harness handlers={handlers} />);
