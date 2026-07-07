@@ -2374,6 +2374,8 @@
       "primary-nav": "Principal",
       "primary-nav__sourceHash": "efe10c80ec8a9f38624cbb47103010a8cf32488a503e4b4bfe4f92307a9cefa7"
     },
+    "all-clients": "Todos los clientes",
+    "all-clients__sourceHash": "af74a947145158a6b52fa8c4803dda8ec620c47a1d0df9cebb3ec544b6c5eefc",
     "new-client": "+ Nuevo: {{entity}}",
     "new-client__sourceHash": "a9fe3fa8d9a5a54befcbdb8828c382f353f09681dabb688a40f72f49f1a82a2c"
   },

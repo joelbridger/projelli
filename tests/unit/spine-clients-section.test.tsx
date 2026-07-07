@@ -10,10 +10,16 @@
  * stays visible in the row either way. This suite uses the REAL matterLabel
  * (not a mock) so that folding behavior is actually exercised.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { Spine } from '@/app/shell/layout/Spine';
 import type { Matter } from '@/platform/types/matter';
+
+const storeMocks = vi.hoisted(() => ({
+  setActiveMatter: vi.fn(),
+  setClientMapHubId: vi.fn(),
+  setClientMapHubTab: vi.fn(),
+}));
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -31,11 +37,44 @@ vi.mock('@/platform/matter/matterStore', () => ({
   useMatters: () => MATTERS,
   useActiveMatters: () => MATTERS,
   useActiveMatterId: () => 'm1',
-  useMatterStore: (selector: (s: { setActiveMatter: () => void }) => unknown) =>
-    selector({ setActiveMatter: vi.fn() }),
+  useMatterStore: (selector: (s: {
+    setActiveMatter: (id: string | null) => void;
+    setClientMapHubId: (id: string | null) => void;
+    setClientMapHubTab: (tab: string | null) => void;
+  }) => unknown) =>
+    selector({
+      setActiveMatter: storeMocks.setActiveMatter,
+      setClientMapHubId: storeMocks.setClientMapHubId,
+      setClientMapHubTab: storeMocks.setClientMapHubTab,
+    }),
 }));
 
 describe('Spine — Clients section', () => {
+  beforeEach(() => {
+    storeMocks.setActiveMatter.mockClear();
+    storeMocks.setClientMapHubId.mockClear();
+    storeMocks.setClientMapHubTab.mockClear();
+  });
+
+  it('pins a permanent All Clients row above individual client rows', () => {
+    render(<Spine activeTab="matters" />);
+    const allClients = screen.getByTestId('spine-all-clients-row');
+    const firstClient = screen.getByTestId('spine-client-row-m1');
+    expect(allClients.compareDocumentPosition(firstClient) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('clicking All Clients clears the selected client and returns to the Client Map surface', () => {
+    const onTabChange = vi.fn();
+    render(<Spine activeTab="search" onTabChange={onTabChange} />);
+
+    fireEvent.click(screen.getByTestId('spine-all-clients-row'));
+
+    expect(storeMocks.setActiveMatter).toHaveBeenCalledWith(null);
+    expect(storeMocks.setClientMapHubId).toHaveBeenCalledWith(null);
+    expect(storeMocks.setClientMapHubTab).toHaveBeenCalledWith(null);
+    expect(onTabChange).toHaveBeenCalledWith('matters');
+  });
+
   it('does not render the redundant repeated client-name subtext', () => {
     render(<Spine activeTab="matters" />);
     // The matter name renders once (via matterLabel)...

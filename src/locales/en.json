@@ -1700,6 +1700,7 @@
     "aria": {
       "primary-nav": "Primary"
     },
+    "all-clients": "All Clients",
     "new-client": "+ New {{entity}}"
   },
   "entity-label": {

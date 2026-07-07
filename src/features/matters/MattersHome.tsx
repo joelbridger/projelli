@@ -26,9 +26,8 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, SegmentedToggle, IconButton } from '@/ui/kp';
+import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, IconButton } from '@/ui/kp';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { BookView } from './book/BookView';
 import { SK_SETUP_CARD_DISMISSED, EV_OPEN_SETTINGS, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
 
 /** localStorage key for dismissing the setup card. */
@@ -679,7 +678,6 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
   };
   const entityLabel = useEntityLabel();
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const [homeView, setHomeView] = useState<'clients' | 'book'>('clients');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -778,47 +776,6 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
     </Button>
   );
 
-  const viewToggle = (
-    <SegmentedToggle
-      ariaLabel={t('matter.book.view-toggle')}
-      variant="filled"
-      size="md"
-      data-testid="matters-view-toggle"
-      options={[
-        { value: 'clients', label: t('matter.book.view-clients') },
-        { value: 'book', label: t('matter.book.view-book') },
-      ]}
-      value={homeView}
-      onChange={setHomeView}
-    />
-  );
-
-  if (homeView === 'book') {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          flex: 1,
-          minWidth: 0,
-          background: 'var(--color-background)',
-          fontFamily: 'Satoshi, sans-serif',
-          overflowY: 'auto',
-        }}
-      >
-        {header}
-        <SurfaceToolbar>
-          {newClientButton}
-          {viewToggle}
-        </SurfaceToolbar>
-        <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)' }}>
-          <BookView onOpenClient={(id) => { openHub(id); }} />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div
       style={{
@@ -842,7 +799,6 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
       {/* Toolbar */}
       <SurfaceToolbar>
         {newClientButton}
-        {viewToggle}
         {showSearch && (
           <SearchField
             data-testid="matters-search-input"

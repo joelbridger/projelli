@@ -9,9 +9,9 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Sparkles, ListChecks,
-  Map as MapIcon, Plus, ChevronDown, ChevronLeft, ChevronRight, type LucideIcon,
+  Map as MapIcon, Plus, ChevronDown, ChevronLeft, ChevronRight, Users, type LucideIcon,
 } from 'lucide-react';
-import { useActiveMatters, useActiveMatterId } from '@/platform/matter/matterStore';
+import { useActiveMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -71,6 +71,9 @@ export function Spine({
   // shrinks this list instead of leaving it there forever.
   const matters = useActiveMatters();
   const activeMatterId = useActiveMatterId();
+  const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
+  const setClientMapHubId = useMatterStore((s) => s.setClientMapHubId);
+  const setClientMapHubTab = useMatterStore((s) => s.setClientMapHubTab);
   const entityLabel = useEntityLabel();
   const newClientLabel = t('spine.new-client', { entity: entityLabel.one });
 
@@ -97,6 +100,7 @@ export function Spine({
   };
 
   const active = (activeTab as SpineTab) in content ? (activeTab as SpineTab) : 'matters';
+  const allClientsActive = active === 'matters' && activeMatterId === null;
 
   if (collapsed) {
     return (
@@ -178,6 +182,38 @@ export function Spine({
             </div>
             {clientsOpen && (
               <div style={{ maxHeight: 280, overflowY: 'auto', padding: '0 10px var(--kp-space-xs)' }}>
+                <button
+                  type="button"
+                  data-testid="spine-all-clients-row"
+                  aria-current={allClientsActive ? 'page' : undefined}
+                  onClick={() => {
+                    setActiveMatter(null);
+                    setClientMapHubId(null);
+                    setClientMapHubTab(null);
+                    onTabChange?.('matters');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 'var(--kp-space-xs)',
+                    width: '100%',
+                    textAlign: 'left',
+                    border: '1px solid var(--kp-side-border)',
+                    cursor: 'pointer',
+                    background: allClientsActive ? 'var(--kp-side-active-bg)' : 'var(--kp-side-border)',
+                    color: 'var(--kp-side-fg)',
+                    padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+                    borderRadius: 'var(--radius-md)',
+                    position: 'relative',
+                    marginBottom: 6,
+                  }}
+                >
+                  {allClientsActive && <span style={{ position: 'absolute', left: 3, top: 8, bottom: 8, width: 3, borderRadius: 3, background: 'var(--kp-side-accent)' }} />}
+                  <Users size={14} strokeWidth={1.9} style={{ flex: 'none', color: 'var(--kp-side-accent)' }} />
+                  <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-side-fg)', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {t('spine.all-clients')}
+                  </span>
+                </button>
                 {matters.map((m) => {
                   const on = m.id === activeMatterId;
                   return (

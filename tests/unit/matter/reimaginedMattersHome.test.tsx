@@ -244,18 +244,16 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     expect(screen.queryByTestId(`matter-row-${matter.id}`)).not.toBeInTheDocument();
   });
 
-  it('switches between the Clients list and Whole book with the tab-style header toggle', () => {
+  it('renders the All Clients table without a Clients/Whole-book toggle', () => {
     useMatterStore.getState().createMatter({ name: 'Toggle Test', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
 
     render(<MattersHome />);
 
-    expect(screen.getByTestId('matters-view-toggle-clients')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId(`matter-row-${matter.id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId('matters-view-toggle')).not.toBeInTheDocument();
+    expect(screen.queryByText('Whole book')).not.toBeInTheDocument();
     expect(screen.queryByTestId('book-view')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('matters-view-toggle-book'));
-
-    expect(screen.getByTestId('book-view')).toBeInTheDocument();
-    expect(screen.getByTestId('matters-view-toggle-book')).toHaveAttribute('aria-pressed', 'true');
   });
 });
 
