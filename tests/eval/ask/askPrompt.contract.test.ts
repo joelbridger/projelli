@@ -24,7 +24,7 @@ describe('buildAskSystemPrompt', () => {
       historyBlock: 'Earlier: hello',
     });
     const order = [
-      'scoped to this client or matter: "Johnson v. Nexus"',
+      'scoped to this client: "Johnson v. Nexus"',
       ASK_INSTRUCTIONS.role,
       ASK_INSTRUCTIONS.decline,
       ASK_INSTRUCTIONS.cite,
@@ -46,7 +46,7 @@ describe('buildAskSystemPrompt', () => {
 
   it('drops empty context and history sections', () => {
     const prompt = buildAskSystemPrompt({ scopeHint: scopeHintForMatter(null) });
-    expect(prompt).toContain('across all of your clients and matters');
+    expect(prompt).toContain('across all of your clients');
     expect(prompt).toContain(ASK_INSTRUCTIONS.cite);
     expect(prompt.endsWith(ASK_INSTRUCTIONS.length)).toBe(true); // nothing after length
     expect(prompt).not.toContain('\n\n\n'); // no gaps from empty sections
@@ -54,6 +54,6 @@ describe('buildAskSystemPrompt', () => {
 
   it('uses the all-matters hint when no matter label is given', () => {
     expect(scopeHintForMatter(null)).toMatch(/across all of your clients/);
-    expect(scopeHintForMatter('Acme')).toMatch(/scoped to this client or matter: "Acme"/);
+    expect(scopeHintForMatter('Acme')).toMatch(/scoped to this client: "Acme"/);
   });
 });

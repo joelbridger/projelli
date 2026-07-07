@@ -578,9 +578,8 @@ describe('MattersHome — sortable columns', () => {
 
     // Column header buttons should be present (aria-label contains "Sort by")
     const sortBtns = screen.getAllByRole('button', { name: /Sort by/i });
-    expect(sortBtns).toHaveLength(3);
+    expect(sortBtns).toHaveLength(2);
     expect(screen.getByRole('button', { name: /Sort by Client/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Sort by Documents/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sort by Created/i })).toBeInTheDocument();
   });
 

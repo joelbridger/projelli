@@ -68,8 +68,8 @@ describe('getDemoQuestions', () => {
 
   it('returns LEGAL questions for "legal" profession', () => {
     const questions = getDemoQuestions('legal');
-    expect(questions[0]).toBe('What are the open issues in this matter?');
-    expect(questions[1]).toBe('Summarize the Garcia matter for me.');
+    expect(questions[0]).toBe('What are the open issues for this client?');
+    expect(questions[1]).toBe('Summarize the Garcia client file for me.');
     expect(questions).toContain('What is the fee arrangement?');
   });
 
@@ -78,7 +78,7 @@ describe('getDemoQuestions', () => {
     expect(questions[0]).toBe('Can Diane deduct her home office?');
     expect(questions[1]).toBe('What open questions remain for the Dwyer return?');
     // Must NOT contain legal-specific questions
-    expect(questions).not.toContain('Summarize the Garcia matter for me.');
+    expect(questions).not.toContain('Summarize the Garcia client file for me.');
     expect(questions).not.toContain('What is the status of the Meridian correspondence?');
   });
 
@@ -87,7 +87,7 @@ describe('getDemoQuestions', () => {
     expect(questions[0]).toBe('What are the key findings so far?');
     expect(questions[1]).toBe('What is the engagement scope?');
     // Must NOT contain legal or tax questions
-    expect(questions).not.toContain('Summarize the Garcia matter for me.');
+    expect(questions).not.toContain('Summarize the Garcia client file for me.');
     expect(questions).not.toContain('Can Diane deduct her home office?');
   });
 
@@ -127,7 +127,7 @@ describe('getDemoAnswerForWorkspace — profession routing', () => {
 
   it('returns null for a LEGAL question when profession is "tax"', () => {
     const result = getDemoAnswerForWorkspace(
-      'Summarize the Garcia matter for me.',
+      'Summarize the Garcia client file for me.',
       WORKSPACE,
       'tax',
     );
@@ -156,7 +156,7 @@ describe('getDemoAnswerForWorkspace — profession routing', () => {
 
   it('returns null for a LEGAL question when profession is "consulting"', () => {
     const result = getDemoAnswerForWorkspace(
-      'Summarize the Garcia matter for me.',
+      'Summarize the Garcia client file for me.',
       WORKSPACE,
       'consulting',
     );
@@ -174,7 +174,7 @@ describe('getDemoAnswerForWorkspace — profession routing', () => {
 
   it('returns a LEGAL answer for the original Garcia questions when profession is "legal"', () => {
     const result = getDemoAnswerForWorkspace(
-      'Summarize the Garcia matter for me.',
+      'Summarize the Garcia client file for me.',
       WORKSPACE,
       'legal',
     );

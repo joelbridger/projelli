@@ -306,7 +306,7 @@ describe('DocumentsHome — file open + editor tab', () => {
         embedded
         scopeFolderPaths={['/workspace/Contracts']}
         scopeMatterId="A"
-        documentsView="editor"
+        documentsView="browser"
       />,
     );
     expect(screen.getByTestId('documents-right-panel')).toBeTruthy();

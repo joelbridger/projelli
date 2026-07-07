@@ -372,7 +372,7 @@ describe('Ask', () => {
   // "Recent in this matter" list + top chip strip; the rail is the one switcher)
   // -------------------------------------------------------------------------
 
-  it('rail groups this client\'s prior threads under a "This matter" section', () => {
+  it('rail groups this client\'s prior threads under a "This client" section', () => {
     const MATTER_ID = 'matter_reyes_v_tompkins';
     mockActiveMatter = { id: MATTER_ID, name: 'Reyes v. Tompkins' };
     // Seed two prior sessions for this matter (keyed with timestamped variants)
@@ -396,12 +396,12 @@ describe('Ask', () => {
     };
     try {
       render(<Ask />);
-      // The persistent rail lists both threads under the "This matter" group.
-      // (Scope the heading lookup to the rail — "This matter" also appears as a
+      // The persistent rail lists both threads under the "This client" group.
+      // (Scope the heading lookup to the rail — the same phrase also appears as a
       // scope pill in the composer.)
       const rail = screen.getByTestId('conversations-rail');
       expect(rail).toBeInTheDocument();
-      expect(within(rail).getByText(/this matter/i)).toBeInTheDocument();
+      expect(within(rail).getByText(/this client/i)).toBeInTheDocument();
       const items = screen.getAllByTestId('rail-conversation-item');
       expect(items.length).toBe(2);
       expect(screen.getByText(/what are the deposition highlights/i)).toBeInTheDocument();

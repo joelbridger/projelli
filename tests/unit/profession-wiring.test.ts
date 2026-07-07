@@ -49,9 +49,9 @@ describe('getSamplesForProfession', () => {
       expect(samples).toHaveLength(2);
     });
 
-    it('first sample is the Matter Overview', () => {
+    it('first sample is the Client Overview', () => {
       const samples = getSamplesForProfession('legal');
-      expect(samples[0]!.filename).toBe('Sample - Matter Overview.md');
+      expect(samples[0]!.filename).toBe('Sample - Client Overview.md');
     });
 
     it('second sample is the Weekly Review', () => {
@@ -59,23 +59,23 @@ describe('getSamplesForProfession', () => {
       expect(samples[1]!.filename).toBe('Sample - Weekly Review.md');
     });
 
-    it('Matter Overview content starts with a # Sample: heading', () => {
+    it('Client Overview content starts with a # Sample: heading', () => {
       const samples = getSamplesForProfession('legal');
       expect(samples[0]!.content).toMatch(/^# Sample:\s+/m);
     });
 
-    it('Matter Overview content contains no em dashes (U+2014)', () => {
+    it('Client Overview content contains no em dashes (U+2014)', () => {
       const samples = getSamplesForProfession('legal');
       expect(samples[0]!.content).not.toContain('—');
     });
 
-    it('Matter Overview content mentions the AI chat hint', () => {
+    it('Client Overview content mentions the AI chat hint', () => {
       const samples = getSamplesForProfession('legal');
       // The spec requires a "Try asking:" hint at the bottom.
       expect(samples[0]!.content).toContain('Try asking:');
     });
 
-    it('Matter Overview content references the fictional matter name', () => {
+    it('Client Overview content references the fictional matter name', () => {
       const samples = getSamplesForProfession('legal');
       expect(samples[0]!.content).toContain('Garcia v. Meridian Properties LLC');
     });
