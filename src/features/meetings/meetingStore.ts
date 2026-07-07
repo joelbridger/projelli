@@ -1257,7 +1257,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       set({
         lastWriteFailure: { message: i18n.t('meetings.pill.write-error'), at: new Date().toISOString() },
       });
-      void get().stopRecording();
+      await get().stopRecording();
     }
   },
 }));

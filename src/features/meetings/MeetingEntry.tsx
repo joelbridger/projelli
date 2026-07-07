@@ -153,9 +153,13 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
         if (isCurrentLoad()) setHasNotes(notesExists);
         if (notesExists) {
-          const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
-          const extracted = await extractDocxText(notesBytes);
-          if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+          try {
+            const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
+            const extracted = await extractDocxText(notesBytes);
+            if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+          } catch {
+            if (isCurrentLoad()) setSummaryText('');
+          }
         } else if (isCurrentLoad()) {
           setSummaryText('');
         }
@@ -305,9 +309,13 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       if (!isCurrentLoad()) return;
       setHasNotes(notesExists);
       if (notesExists) {
-        const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
-        const extracted = await extractDocxText(notesBytes);
-        if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+        try {
+          const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
+          const extracted = await extractDocxText(notesBytes);
+          if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+        } catch {
+          if (isCurrentLoad()) setSummaryText('');
+        }
       } else {
         setSummaryText('');
       }
