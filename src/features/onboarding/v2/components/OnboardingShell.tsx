@@ -16,6 +16,7 @@
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { AppLogo } from '@/ui/brand/AppLogo';
 
 export interface OnboardingShellProps {
   children: ReactNode;
@@ -145,14 +146,14 @@ export function OnboardingShell({
       </div>
 
       {/* Corner logo (after intro) */}
-      <img
-        src="/onboarding/app-logo.svg"
-        alt="Advisor Prep Hero"
-        className={`absolute left-10 top-9 z-10 h-7 transition-opacity duration-500 ${
+      <div
+        className={`absolute left-10 top-9 z-10 transition-opacity duration-500 ${
           showLogo ? 'opacity-100' : 'opacity-0'
         }`}
         aria-hidden={!showLogo}
-      />
+      >
+        <AppLogo height={28} />
+      </div>
 
       {/* QA-9: rendered in NORMAL FLOW, ABOVE the scrolling content — it
           reserves its own height and pushes every scene down, so it can

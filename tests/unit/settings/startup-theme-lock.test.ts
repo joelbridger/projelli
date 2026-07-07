@@ -1,6 +1,8 @@
 /**
  * Theme light-lock — the app must deterministically come up LIGHT on every
- * launch unless the user explicitly chose otherwise.
+ * launch. The theme engine and explicit-choice stamp stay in place for future
+ * theme UI work, but they do not allow dark/system in the current light-only
+ * app.
  *
  * Background (Legion 3× demo dry-run, Run 2, 2026-07-06): after a restart the
  * persisted theme value was "dark" even though Light had been selected all
@@ -8,11 +10,11 @@
  * distinguished "the user chose this" from "this value drifted in" (legacy-key
  * import, a lost write resurrecting older state, a stray write). The fix:
  *
- *  1. A persisted `themeExplicitlyChosen` stamp, set ONLY by real runtime
- *     writes to the hidden theme setting, or a settings-file import.
- *  2. On EVERY hydration (zustand persist `merge`, not version-gated
- *     `migrate`), a non-light theme value without the stamp is normalized
- *     back to 'light'.
+ *  1. On EVERY hydration (zustand persist `merge`, not version-gated
+ *     `migrate`), a non-light theme value is normalized back to 'light' even
+ *     if an old build stamped it as explicitly chosen.
+ *  2. Runtime writes and settings imports accept only 'light'; dark/system are
+ *     ignored and clear the stamp.
  *  3. The legacy raw localStorage 'theme' key is never imported and is
  *     deleted; the theme manager no longer echoes the preference into it.
  *
@@ -74,12 +76,24 @@ describe('startup theme light-lock', () => {
     expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
   });
 
-  it("a persisted 'dark' WITH the explicit-choice stamp is honored", async () => {
+  it("a persisted 'system' WITH the old explicit-choice stamp is normalized to light and clears the stamp", async () => {
+    const mod = await loadStoreWithSeed({
+      values: { theme: 'system' },
+      themeExplicitlyChosen: true,
+    });
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+    expect(mod.useSettingsStore.getState().values['theme']).toBe('light');
+    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
+  });
+
+  it("a persisted 'dark' WITH the old explicit-choice stamp is normalized to light and clears the stamp", async () => {
     const mod = await loadStoreWithSeed({
       values: { theme: 'dark' },
       themeExplicitlyChosen: true,
     });
-    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('dark');
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+    expect(mod.useSettingsStore.getState().values['theme']).toBe('light');
+    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
   });
 
   it("a persisted 'light' needs no stamp and stays light", async () => {
@@ -87,15 +101,36 @@ describe('startup theme light-lock', () => {
     expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
   });
 
-  it('setSetting("theme", ...) records the explicit-choice stamp', async () => {
+  it('setSetting("theme", "dark"/"system") is ignored and clears the explicit-choice stamp', async () => {
     const mod = await loadStoreWithSeed();
-    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
+    mod.useSettingsStore.setState({
+      values: { theme: 'light' },
+      themeExplicitlyChosen: true,
+    });
     mod.useSettingsStore.getState().setSetting('theme', 'dark');
-    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(true);
-    // and the stamp is persisted, so the choice survives the next hydration
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+    expect(mod.useSettingsStore.getState().values['theme']).toBeUndefined();
+    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
     const persisted = JSON.parse(localStorage.getItem(SK_SETTINGS) ?? '{}');
-    expect(persisted.state.themeExplicitlyChosen).toBe(true);
-    expect(persisted.state.values.theme).toBe('dark');
+    expect(persisted.state.themeExplicitlyChosen).toBe(false);
+    expect(persisted.state.values.theme).toBeUndefined();
+
+    mod.useSettingsStore.setState({
+      values: { theme: 'light' },
+      themeExplicitlyChosen: true,
+    });
+    mod.useSettingsStore.getState().setSetting('theme', 'system');
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+    expect(mod.useSettingsStore.getState().values['theme']).toBeUndefined();
+    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
+  });
+
+  it('setSetting("theme", "light") is still accepted for future theme UI compatibility', async () => {
+    const mod = await loadStoreWithSeed();
+    mod.useSettingsStore.getState().setSetting('theme', 'light');
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+    expect(mod.useSettingsStore.getState().values['theme']).toBe('light');
+    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(true);
   });
 
   it('setSetting on an unrelated key does NOT stamp the theme as chosen', async () => {
@@ -104,12 +139,27 @@ describe('startup theme light-lock', () => {
     expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
   });
 
-  it('importSettings with a theme value counts as an explicit choice', async () => {
+  it('importSettings with non-light theme values ignores them and does not stamp', async () => {
     const mod = await loadStoreWithSeed();
     const ok = mod.useSettingsStore.getState().importSettings(JSON.stringify({ theme: 'dark' }));
     expect(ok).toBe(true);
+    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
+    expect(mod.useSettingsStore.getState().values['theme']).toBeUndefined();
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+
+    const systemOk = mod.useSettingsStore.getState().importSettings(JSON.stringify({ theme: 'system' }));
+    expect(systemOk).toBe(true);
+    expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
+    expect(mod.useSettingsStore.getState().values['theme']).toBeUndefined();
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+  });
+
+  it('importSettings with a light theme value is accepted', async () => {
+    const mod = await loadStoreWithSeed();
+    const ok = mod.useSettingsStore.getState().importSettings(JSON.stringify({ theme: 'light' }));
+    expect(ok).toBe(true);
     expect(mod.useSettingsStore.getState().themeExplicitlyChosen).toBe(true);
-    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('dark');
+    expect(mod.useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
   });
 
   it('importSettings without a theme value does not stamp', async () => {

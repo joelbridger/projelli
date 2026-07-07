@@ -70,11 +70,13 @@ type SanitizedSettingValue =
   | { valid: true; value: unknown }
   | { valid: false };
 
+function isPersistedThemeValue(value: unknown): value is 'light' | 'dark' | 'system' {
+  return value === 'light' || value === 'dark' || value === 'system';
+}
+
 function sanitizeSettingValue(key: string, value: unknown): SanitizedSettingValue {
   if (key === THEME_SETTING_KEY) {
-    return value === 'light' || value === 'dark' || value === 'system'
-      ? { valid: true, value }
-      : { valid: false };
+    return value === 'light' ? { valid: true, value } : { valid: false };
   }
   if (key === TEMPLATE_MODEL_OVERRIDES_KEY) {
     const sanitized = sanitizeTemplateModelOverrides(value);
@@ -89,13 +91,20 @@ function sanitizeSettingValue(key: string, value: unknown): SanitizedSettingValu
   return { valid: false };
 }
 
+function sanitizePersistedSettingValue(key: string, value: unknown): SanitizedSettingValue {
+  if (key === THEME_SETTING_KEY) {
+    return isPersistedThemeValue(value) ? { valid: true, value } : { valid: false };
+  }
+  return sanitizeSettingValue(key, value);
+}
+
 function sanitizePersistedValues(values: unknown): Record<string, unknown> {
   if (typeof values !== 'object' || values === null || Array.isArray(values)) {
     return {};
   }
   const cleaned: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(values)) {
-    const sanitized = sanitizeSettingValue(key, value);
+    const sanitized = sanitizePersistedSettingValue(key, value);
     if (sanitized.valid) {
       cleaned[key] = sanitized.value;
     }
@@ -124,19 +133,23 @@ function migratePersistedSettings(persisted: unknown): PersistedSettingsState {
 }
 
 /**
- * Theme light-lock: a persisted non-light theme is only honored when the
- * explicit-choice stamp proves a user set it. Anything else — however it got
- * into storage — resolves to 'light'. Runs on EVERY hydration (via the
- * persist `merge` hook, which unlike `migrate` is not gated on a version
- * bump), so the guarantee holds even against state written by older builds
- * or resurrected by a lost/partial storage flush.
+ * Theme light-lock: the app is light-only. Any persisted non-light theme,
+ * including an old value stamped as explicitly chosen, is normalized back to
+ * light and loses the stamp. Runs on EVERY hydration (via the persist `merge`
+ * hook, which unlike `migrate` is not gated on a version bump), so the
+ * guarantee holds even against state written by older builds or imported
+ * settings files.
  */
 function enforceStartupThemePolicy(state: PersistedSettingsState): PersistedSettingsState {
   const theme = state.values[THEME_SETTING_KEY];
-  if (theme === undefined || theme === 'light' || state.themeExplicitlyChosen) {
+  if (theme === undefined || theme === 'light') {
     return state;
   }
-  return { ...state, values: { ...state.values, [THEME_SETTING_KEY]: 'light' } };
+  return {
+    ...state,
+    values: { ...state.values, [THEME_SETTING_KEY]: 'light' },
+    themeExplicitlyChosen: false,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -151,12 +164,9 @@ interface PersistedSettingsState {
   _migrated: boolean;
   featuresTourCompleted: boolean;
   language: Language;
-  /** Theme light-lock: true only once a REAL runtime write set the theme
-   *  (hidden theme writer / settings import). A theme value
-   *  that reaches storage any other way (stale state resurrected by a lost
-   *  write, a stray/legacy import) has no stamp and is normalized back to
-   *  'light' on the next hydration — the app must never come up dark
-   *  unprompted (Legion demo dry-run Run 2, 2026-07-06). */
+  /** Theme light-lock: kept for future theme-choice UI. In the current
+   *  light-only app, old stamped non-light values are still normalized back to
+   *  'light' and the stamp is cleared. */
   themeExplicitlyChosen: boolean;
 }
 
@@ -230,15 +240,22 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setSetting: (key, value) => {
+        if (key === THEME_SETTING_KEY) {
+          if (value === 'light') {
+            set((state) => ({
+              values: { ...state.values, [key]: value },
+              themeExplicitlyChosen: true,
+            }));
+            return;
+          }
+          set((state) => {
+            const { [THEME_SETTING_KEY]: _theme, ...values } = state.values;
+            return { values, themeExplicitlyChosen: false };
+          });
+          return;
+        }
         set((state) => ({
           values: { ...state.values, [key]: value },
-          // Theme light-lock: every runtime write to 'theme' comes from a
-          // deliberate writer, so it stamps the choice as explicit. Values
-          // that arrive any other way stay unstamped and are normalized to
-          // 'light' at next boot.
-          ...(key === THEME_SETTING_KEY && (value === 'light' || value === 'dark' || value === 'system')
-            ? { themeExplicitlyChosen: true }
-            : {}),
         }));
       },
 
@@ -274,6 +291,7 @@ export const useSettingsStore = create<SettingsState>()(
           // rather than REPLACING them, so a partial import can't silently reset
           // settings (incl. privacy/workspace choices) that aren't in the file.
           const cleaned: Record<string, unknown> = {};
+          const themeKeyWasImported = Object.prototype.hasOwnProperty.call(parsed, THEME_SETTING_KEY);
           for (const [k, v] of Object.entries(parsed)) {
             const sanitized = sanitizeSettingValue(k, v);
             if (sanitized.valid) {
@@ -282,9 +300,14 @@ export const useSettingsStore = create<SettingsState>()(
           }
           set({
             values: { ...get().values, ...cleaned },
-            // A settings-file import is a deliberate user action; a theme it
-            // carries counts as an explicit choice.
-            ...(cleaned[THEME_SETTING_KEY] !== undefined ? { themeExplicitlyChosen: true } : {}),
+            // The stamp is kept for a future theme UI, but only the current
+            // light-only value may set it. Imported dark/system values are
+            // dropped before this point.
+            ...(cleaned[THEME_SETTING_KEY] === 'light'
+              ? { themeExplicitlyChosen: true }
+              : themeKeyWasImported
+                ? { themeExplicitlyChosen: false }
+                : {}),
           });
           return true;
         } catch {
@@ -325,8 +348,8 @@ function migrateLegacySettings(): void {
   // migrated, and is deleted outright. Every old session echoed its current
   // preference into that key ('system' on most historical installs), so its
   // value can never prove an explicit user choice — importing it is exactly
-  // how a clean install could come up dark/OS-following unprompted. Users who
-  // genuinely want dark re-pick it once in Settings, which stamps the choice.
+  // how a clean install could come up dark/OS-following unprompted. The app is
+  // light-only today, so old raw theme values are simply removed.
   try {
     localStorage.removeItem('theme');
   } catch { /* noop */ }

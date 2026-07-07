@@ -64,6 +64,17 @@ test.describe('Light-only theme lock', () => {
     await expect(page.locator('html')).not.toHaveClass(/dark/);
   });
 
+  test('an old dark value with the explicit-choice stamp still normalizes to light', async ({
+    page,
+  }) => {
+    await addThemeSeedInitScript(page, { theme: 'dark', themeExplicitlyChosen: true });
+    await page.goto('/?testMode=true');
+    await waitForTestModeLoad(page);
+
+    await expect(page.getByTestId('theme-toggle')).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveClass(/dark/);
+  });
+
   test('an old system value without the explicit-choice stamp ignores dark OS mode', async ({
     page,
   }) => {
