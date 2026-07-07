@@ -14,8 +14,8 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
   {
     id: 'matterType',
-    question: 'Matter type',
-    description: 'A brief description of the legal matter. This will appear in the scope of representation.',
+    question: 'Client work type',
+    description: 'A brief description of the client work. This will appear in the scope of representation.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Residential real estate purchase — 412 Oak Street, Austin TX; Business formation and operating agreement',
@@ -58,14 +58,14 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Any additional terms you want to include: limitation of liability, file retention policy, dispute resolution, termination clause, etc.',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Files will be retained for 7 years after matter close; disputes submitted to binding arbitration in Travis County, Texas',
+    placeholder: 'e.g., Files will be retained for 7 years after client work closes; disputes submitted to binding arbitration in Travis County, Texas',
   },
 ];
 
 const engagementLetterPrompt = `You are assisting a licensed attorney in drafting an engagement letter. You are not providing legal advice — you are producing a draft that the attorney will review, edit, and adapt to their firm's standard terms before sending.
 
 Client name: {{clientName}}
-Matter type: {{matterType}}
+Client work type: {{matterType}}
 Scope of representation: {{scopeOfRepresentation}}
 Fee structure: {{feeStructure}}
 Firm name and attorney: {{firmName}}
@@ -91,7 +91,7 @@ Produce a complete engagement letter draft in Markdown. Begin with the draft not
 
 Dear {{clientName}},
 
-Thank you for selecting {{firmName}} to represent you in connection with the above-referenced matter. This letter confirms the terms of our representation and asks for your agreement to those terms.
+Thank you for selecting {{firmName}} to represent you in connection with the above-referenced client work. This letter confirms the terms of our representation and asks for your agreement to those terms.
 
 ---
 
@@ -99,7 +99,7 @@ Thank you for selecting {{firmName}} to represent you in connection with the abo
 
 [Firmname] agrees to represent {{clientName}} in connection with: {{scopeOfRepresentation}}
 
-This engagement does not include representation in any other matter unless agreed in a separate written engagement. If additional legal issues arise during the engagement, we will discuss whether our representation extends to those issues before proceeding.
+This engagement does not include representation in any other client work unless agreed in a separate written engagement. If additional legal issues arise during the engagement, we will discuss whether our representation extends to those issues before proceeding.
 
 ---
 
@@ -107,7 +107,7 @@ This engagement does not include representation in any other matter unless agree
 
 {{feeStructure}}
 
-[Expand fee terms as appropriate for the structure stated above. If flat fee: state what is included and whether the fee is refundable if the matter terminates early. If hourly: state billing increments, invoice timing, and what happens if the retainer is exhausted. If contingency: state what expenses are deducted and when.]
+[Expand fee terms as appropriate for the structure stated above. If flat fee: state what is included and whether the fee is refundable if the client work ends early. If hourly: state billing increments, invoice timing, and what happens if the retainer is exhausted. If contingency: state what expenses are deducted and when.]
 
 You will be billed for reasonable out-of-pocket expenses incurred on your behalf, including filing fees, service of process, court reporter fees, and similar costs, which are separate from attorney's fees.
 
@@ -148,7 +148,7 @@ In keeping with ABA Formal Opinion 512 (2024) and our duties of competence (Rule
 
 **What AI tools do in this engagement:** AI tools assist the responsible attorney by drafting initial versions of documents, organizing research, and identifying issues for attorney review. All AI-generated content is reviewed, edited, and approved by the responsible attorney before it is sent to you or filed on your behalf. AI tools do not make legal decisions.
 
-**How your information is handled:** [Firm] uses Advisor Prep Hero, a local-first AI writing tool. Your client information and matter details are processed locally on our firm's computers and are not transmitted to or stored by third-party AI service providers as part of our use of Advisor Prep Hero. [If you use additional AI tools with cloud processing, describe that here and identify what data is sent and to whom.]
+**How your information is handled:** [Firm] uses Advisor Prep Hero, a local-first AI writing tool. Your client information and client work details are processed locally on our firm's computers and are not transmitted to or stored by third-party AI service providers as part of our use of Advisor Prep Hero. [If you use additional AI tools with cloud processing, describe that here and identify what data is sent and to whom.]
 
 **Your right to opt out:** You have the right to object to the use of AI tools in your representation. If you prefer that we not use AI tools, please tell us before signing this letter and we will discuss how to proceed.
 
@@ -195,7 +195,7 @@ export const EngagementLetterDrafter: WorkflowTemplate = {
       id: 'interview',
       type: 'interview',
       name: 'Engagement Details',
-      description: 'Provide client name, matter type, scope, fee structure, and AI disclosure information',
+      description: 'Provide client name, client work type, scope, fee structure, and AI disclosure information',
       config: {
         questions: interviewQuestions,
       } as InterviewStepConfig,

@@ -71,7 +71,7 @@ Produce a structured deadline and SOL calendar in Markdown. Begin with the draft
 
 ## Deadline and SOL Calendar
 
-**Matter:** [Describe briefly based on inputs]
+**Client file:** [Describe briefly based on inputs]
 **Jurisdiction:** {{jurisdiction}}
 **Case type / claims:** {{caseType}}
 **Accrual date:** {{incidentDate}}

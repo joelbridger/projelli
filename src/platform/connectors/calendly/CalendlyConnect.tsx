@@ -147,7 +147,7 @@ export function CalendlyConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Calendly
-          <InfoHelp content="Import scheduled meetings and invitee intake answers into matter memory. Requires the Advisor Prep Hero desktop app." />
+          <InfoHelp content="Import scheduled meetings and invitee intake answers into client memory. Requires the Advisor Prep Hero desktop app." />
         </h3>
       </section>
     );

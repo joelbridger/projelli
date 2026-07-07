@@ -101,7 +101,7 @@ Special circumstances:
 
 Produce a single Markdown file formatted as a structured estate planning summary. Begin with the draft notice and the working document reminder.
 
-> **Draft document** — Review and edit before use in any matter. This output is a draft for attorney review. It does not constitute legal advice and does not substitute for your professional judgment.
+> **Draft document** — Review and edit before use in any client work. This output is a draft for attorney review. It does not constitute legal advice and does not substitute for your professional judgment.
 >
 > **Working document reminder:** This is a working document for internal use. Verify all asset values and document status directly with the client before drafting.
 

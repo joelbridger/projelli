@@ -6,8 +6,8 @@ import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'matterName',
-    question: 'Matter name',
-    description: 'The case or matter name as you track it in your files.',
+    question: 'Client file name',
+    description: 'The case or client file name as you track it in your files.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Harrington Industries v. Vance Capital LLC',
@@ -48,7 +48,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
 
 const privilegeLogPrompt = `You are assisting a licensed attorney in drafting a privilege log for document production. You are not providing legal advice — you are helping the attorney structure descriptions and assertions that the attorney will review, edit, and certify.
 
-Matter: {{matterName}}
+Client file: {{matterName}}
 Opposing party: {{opposingParty}}
 Privilege types: {{privilegeTypes}}
 Court / jurisdiction: {{courtJurisdiction}}
@@ -58,10 +58,10 @@ Documents to log:
 
 Produce a Markdown privilege log structured as follows:
 
-> **Draft document** — Review and edit before use in any matter. Attorney must review each entry for accuracy before certifying the log for production.
+> **Draft document** — Review and edit before use in any client work. Attorney must review each entry for accuracy before certifying the log for production.
 
 # Privilege Log
-**Matter:** {{matterName}}
+**Client file:** {{matterName}}
 **Court / jurisdiction:** {{courtJurisdiction}}
 **Privilege(s) asserted:** {{privilegeTypes}}
 **Prepared for attorney review:** [date]
@@ -70,7 +70,7 @@ Produce a Markdown privilege log structured as follows:
 
 ## Cover Note
 
-This privilege log was prepared in connection with document production in the above-captioned matter. Documents have been withheld or redacted on the grounds of attorney-client privilege and/or the work product doctrine, as identified below. All entries are subject to attorney review and correction before this log is served on opposing counsel.
+This privilege log was prepared in connection with document production for the above-captioned client work. Documents have been withheld or redacted on the grounds of attorney-client privilege and/or the work product doctrine, as identified below. All entries are subject to attorney review and correction before this log is served on opposing counsel.
 
 [Note any jurisdiction-specific formatting requirements or caveats here if applicable.]
 
@@ -119,7 +119,7 @@ export const PrivilegeLogDrafter: WorkflowTemplate = {
       id: 'interview',
       type: 'interview',
       name: 'Privilege Log Details',
-      description: 'Provide the matter details and the list of documents to be logged',
+      description: 'Provide the client work details and the list of documents to be logged',
       config: {
         questions: interviewQuestions,
       } as InterviewStepConfig,

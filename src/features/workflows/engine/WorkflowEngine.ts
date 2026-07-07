@@ -695,7 +695,7 @@ export class WorkflowEngine {
 
     if (!this.analyzeDeps) {
       throw new Error(
-        'This workflow needs matter-scoped retrieval, which is only available in the Advisor Prep Hero desktop app with an active matter.',
+        'This workflow needs client-scoped retrieval, which is only available in the Advisor Prep Hero desktop app with an active client.',
       );
     }
     if (!this.fileOps.writeFileBinary) {
@@ -753,7 +753,7 @@ export class WorkflowEngine {
       ...(retrievalUnavailable
         ? { retrievalNote: 'Analyzed only the excerpts you provided; workspace retrieval was unavailable for this run.' }
         : chunks.length === 0
-          ? { retrievalNote: 'No matter documents were retrieved; this analysis covers only the excerpts you provided.' }
+          ? { retrievalNote: 'No client documents were retrieved; this analysis covers only the excerpts you provided.' }
           : {}),
     };
     const bytes = await this.analyzeDeps.serializeContradictions(result, meta);

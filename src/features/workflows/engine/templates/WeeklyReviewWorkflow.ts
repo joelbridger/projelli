@@ -18,7 +18,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Accomplishments, milestones, positive developments',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Closed a new client engagement, won a contested matter, delivered a project on time, had a strong client call',
+    placeholder: 'e.g., Closed a new client engagement, won a contested client file, delivered a project on time, had a strong client call',
   },
   {
     id: 'weekChallenges',
@@ -31,7 +31,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'keyMetrics',
     question: 'What are your key metrics this week?',
-    description: 'Numbers that matter (billable hours, active matters, revenue, pipeline, etc.)',
+    description: 'Numbers that matter (billable hours, active clients, revenue, pipeline, etc.)',
     type: 'textarea',
     required: true,
     placeholder: 'e.g., Billable hours: 32 hrs (+4), Active client matters: 18, Revenue collected: $12,400, New engagements signed: 1',
@@ -50,7 +50,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Items that carried over or got stuck',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Waiting on client documents to proceed, contract review still in progress, intake for new matter not yet started',
+    placeholder: 'e.g., Waiting on client documents to proceed, contract review still in progress, intake for new client not yet started',
   },
   {
     id: 'learnings',
@@ -83,7 +83,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'Support, advice, connections, tools',
     type: 'textarea',
     required: false,
-    placeholder: 'e.g., Referral to a specialist for a matter outside my practice area, advice on fee structure, recommendation for a bookkeeper',
+    placeholder: 'e.g., Referral to a specialist for client work outside my practice area, advice on fee structure, recommendation for a bookkeeper',
   },
 ];
 

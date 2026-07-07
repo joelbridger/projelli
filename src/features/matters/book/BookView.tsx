@@ -31,7 +31,7 @@ function ScoreBar({ score }: { score: number }) {
   return (
     <div aria-hidden style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
       <div style={{ width: 64, height: 6, borderRadius: 3, background: 'var(--kp-divider, #e5e7eb)' }}>
-        <div style={{ width: `${String(score)}%`, height: 6, borderRadius: 3, background: 'var(--kp-accent, #1e3a5f)' }} />
+        <div style={{ width: `${String(score)}%`, height: 6, borderRadius: 3, background: 'var(--kp-success)' }} />
       </div>
       <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 12 }}>{score}</span>
     </div>

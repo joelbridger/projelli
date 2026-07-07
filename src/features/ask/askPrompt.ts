@@ -100,8 +100,8 @@ export interface AskSystemPromptParts {
  */
 export function scopeHintForMatter(matterLabel: string | null): string {
   return matterLabel
-    ? `You are answering a question scoped to this client or matter: "${matterLabel}".`
-    : 'You are answering a question across all of your clients and matters.';
+    ? `You are answering a question scoped to this client: "${matterLabel}".`
+    : 'You are answering a question across all of your clients.';
 }
 
 /**

@@ -9,8 +9,8 @@ import type { WorkflowTemplate, InterviewStepConfig, AnalyzeStepConfig } from '@
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'matterName',
-    question: 'Matter name',
-    description: 'The case or matter name as you track it in your files.',
+    question: 'Client file name',
+    description: 'The case or client file name as you track it in your files.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Smith v. Acme Corp.',
@@ -69,7 +69,7 @@ const retrievalQueryTemplate = `Testimony and statements by {{witnessName}} rele
 // it against the store — the model never invents citation ids.
 const contradictionFinderPrompt = `You are a tireless first-year associate assisting a licensed attorney. You FLAG candidate contradictions for the attorney to verify. You do not render judgments and you never provide legal advice. Your job is to organize the record so the attorney can exercise their own judgment.
 
-Matter: {{matterName}}
+Client file: {{matterName}}
 Witness: {{witnessName}}
 Deposition date: {{depositionDate}}
 
@@ -88,7 +88,7 @@ Below is additional context retrieved from THIS MATTER's documents and emails. E
 
 {{retrievedContext}}
 
-Identify candidate contradictions between the witness's testimony and other statements (elsewhere in the testimony, in prior statements, or in the retrieved matter sources). For EACH candidate contradiction return a finding with:
+Identify candidate contradictions between the witness's testimony and other statements (elsewhere in the testimony, in prior statements, or in the retrieved client sources). For EACH candidate contradiction return a finding with:
   - statementA: the first statement, with the exact quote and the source NUMBER [N] it came from.
   - statementB: the conflicting statement, with the exact quote and the source NUMBER [N] it came from.
   - conflictRationale: a plain-language explanation of why they conflict.
@@ -103,7 +103,7 @@ Rules:
 export const DepositionContradictionFinder: WorkflowTemplate = {
   id: 'legal-deposition-contradiction-finder',
   name: 'Deposition Contradiction Finder',
-  description: 'Flag candidate contradictions between a witness\'s deposition testimony and the rest of the matter record (other documents, emails, prior statements). Grounded in matter-scoped retrieval; every finding carries a citation you verify. Produces a structured Word deliverable.',
+  description: 'Flag candidate contradictions between a witness\'s deposition testimony and the rest of the client record (other documents, emails, prior statements). Grounded in client-scoped retrieval; every finding carries a citation you verify. Produces a structured Word deliverable.',
   version: '2.0.0',
   category: 'legal',
   requiresVerification: true,
@@ -122,7 +122,7 @@ export const DepositionContradictionFinder: WorkflowTemplate = {
       id: 'analyze-contradictions',
       type: 'analyze',
       name: 'Flag Contradictions (cited)',
-      description: 'Retrieve the matter record, flag candidate contradictions, verify each citation, and produce a Word deliverable',
+      description: 'Retrieve the client record, flag candidate contradictions, verify each citation, and produce a Word deliverable',
       config: {
         analyzeKind: 'contradictions',
         outputFile: 'Deposition Contradiction Analysis.docx',

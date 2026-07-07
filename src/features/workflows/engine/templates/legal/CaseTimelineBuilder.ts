@@ -9,8 +9,8 @@ import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'matterName',
-    question: 'Matter name',
-    description: 'The case or matter name as you track it in your files.',
+    question: 'Client file name',
+    description: 'The case or client file name as you track it in your files.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Garcia v. Meridian Properties LLC',
@@ -18,7 +18,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'caseType',
     question: 'Case type',
-    description: 'The general nature of the matter — helps determine what phases and deadlines to flag.',
+    description: 'The general nature of the client work — helps determine what phases and deadlines to flag.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Commercial lease dispute, Personal injury, Employment discrimination',
@@ -59,7 +59,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
 
 const caseTimelinePrompt = `You are assisting a licensed attorney in building a working case timeline. You are not providing legal advice — you are helping the attorney organize the factual and procedural record for their own review.
 
-Matter: {{matterName}}
+Client file: {{matterName}}
 Case type: {{caseType}}
 Parties: {{partiesInvolved}}
 Jurisdiction: {{jurisdiction}}
@@ -70,7 +70,7 @@ Key events (raw input):
 
 Produce a formatted Markdown case timeline structured as follows:
 
-> **Draft document** — Review and edit before use in any matter.
+> **Draft document** — Review and edit before use in any client work.
 
 # Case Timeline: {{matterName}}
 **Case type:** {{caseType}}
@@ -89,7 +89,7 @@ Produce a formatted Markdown case timeline structured as follows:
 
 ## Chronological Timeline
 
-Sort all events chronologically. Organize them into phases based on the case type. Typical phases for a civil litigation matter:
+Sort all events chronologically. Organize them into phases based on the case type. Typical phases for civil litigation client work:
 - **Pre-incident period** (background facts)
 - **Incident / core facts** (the events giving rise to the claim)
 - **Post-incident / pre-litigation** (demand letters, negotiations, notices)
@@ -164,7 +164,7 @@ export const CaseTimelineBuilder: WorkflowTemplate = {
   namedInputs: [
     {
       id: 'matter_name',
-      name: 'Matter name',
+      name: 'Client file name',
       schema: 'string',
       acceptsOutputFrom: ['matter_summary'],
     },

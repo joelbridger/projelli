@@ -6,7 +6,7 @@ import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'matterName',
-    question: 'Matter name',
+    question: 'Client file name',
     description: 'The name or reference you use to track this transaction in your files.',
     type: 'text',
     required: true,
@@ -72,11 +72,11 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const transactionalMatterSummaryPrompt = `You are assisting a licensed transactional attorney in organizing the current status of a deal into a structured matter summary. You are not providing legal advice — you are helping the attorney organize the information they have gathered so they can track the transaction, manage open items, and prepare for client communications.
+const transactionalMatterSummaryPrompt = `You are assisting a licensed transactional attorney in organizing the current status of a deal into a structured client summary. You are not providing legal advice — you are helping the attorney organize the information they have gathered so they can track the transaction, manage open items, and prepare for client communications.
 
 > **Compliance note:** Do not include confidential term-sheet or NDA-protected details in the AI prompt unless you are using a local model.
 
-Matter: {{matterName}}
+Client file: {{matterName}}
 Transaction type: {{transactionType}}
 Deal value: {{dealValue}}
 
@@ -92,14 +92,14 @@ Open items:
 Key dates:
 {{keyDates}}
 
-Produce a single Markdown file formatted as a structured matter summary. Begin with the draft notice.
+Produce a single Markdown file formatted as a structured client summary. Begin with the draft notice.
 
-> **Draft document** — Review and edit before use in any matter. This output is a draft for attorney review. It does not constitute legal advice and does not substitute for your professional judgment.
+> **Draft document** — Review and edit before use in any client work. This output is a draft for attorney review. It does not constitute legal advice and does not substitute for your professional judgment.
 
 ---
 
-# Transaction Matter Summary
-**Matter:** {{matterName}}
+# Transaction Client Summary
+**Client file:** {{matterName}}
 **Transaction type:** {{transactionType}}
 **Prepared for attorney review:** [date]
 
@@ -167,12 +167,12 @@ Produce a single Markdown file formatted as a structured matter summary. Begin w
 
 export const TransactionalMatterSummary: WorkflowTemplate = {
   id: 'legal-transactional-matter-summary',
-  name: 'Transactional Matter Summary',
-  description: 'For business and transactional attorneys: given a deal\'s current status, produces a structured matter summary covering parties and roles, deal structure, key agreed terms, open issues with ownership, and key dates. Suitable for internal tracking and client update preparation.',
+  name: 'Transactional Client Summary',
+  description: 'For business and transactional attorneys: given a deal\'s current status, produces a structured client summary covering parties and roles, deal structure, key agreed terms, open issues with ownership, and key dates. Suitable for internal tracking and client update preparation.',
   version: '1.0.0',
   category: 'legal',
   requiresVerification: true,
-  verificationNote: 'Verify this output against applicable law and professional standards before use in client matters.',
+  verificationNote: 'Verify this output against applicable law and professional standards before use in client work.',
   steps: [
     {
       id: 'interview',
@@ -186,12 +186,12 @@ export const TransactionalMatterSummary: WorkflowTemplate = {
     {
       id: 'generate-matter-summary',
       type: 'generate',
-      name: 'Generate Matter Summary',
+      name: 'Generate Client Summary',
       description: 'Produce a structured summary of the transaction status',
       config: {
         outputFile: '{{matterName}}/Transaction Summary.docx',
         promptTemplate: transactionalMatterSummaryPrompt,
-        systemPrompt: 'You are a legal practice management assistant helping a licensed transactional attorney organize the current state of a deal. You produce clear, structured matter summaries that attorneys can share internally or use to prepare client updates. You present agreed terms accurately without editorializing, surface open items with clear ownership, and flag dates or dependencies that may create scheduling risk. You never provide legal advice and never characterize deal terms as favorable or unfavorable — that is the attorney\'s judgment.',
+        systemPrompt: 'You are a legal practice management assistant helping a licensed transactional attorney organize the current state of a deal. You produce clear, structured client summaries that attorneys can share internally or use to prepare client updates. You present agreed terms accurately without editorializing, surface open items with clear ownership, and flag dates or dependencies that may create scheduling risk. You never provide legal advice and never characterize deal terms as favorable or unfavorable — that is the attorney\'s judgment.',
       } as GenerateStepConfig,
     },
   ],

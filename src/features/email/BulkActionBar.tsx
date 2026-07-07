@@ -51,7 +51,7 @@ export function BulkActionBar({
           data-testid="bulk-file-to-matter"
           onClick={() => { onBulkMatterOpenChange(!bulkMatterOpen); }}
         >
-          File to matter
+          File to client
         </Button>
         <BulkMatterPicker
           selectedIds={selectedIds}

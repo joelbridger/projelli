@@ -70,7 +70,7 @@ export function pickAttestation(byMode: Record<string, number>): string {
   const total = modes.reduce((s, m) => s + (byMode[m] ?? 0), 0);
 
   if (total === 0) {
-    return 'No AI activity was recorded for this matter.';
+    return 'No AI activity was recorded for this client.';
   }
 
   const localCount = byMode['local-only'] ?? 0;
@@ -86,8 +86,8 @@ export function pickAttestation(byMode: Record<string, number>): string {
 
   if (hasLocal && !hasDirect && !hasAssured) {
     return (
-      'Every AI call for this matter ran on a local model on your machine. ' +
-      'Nothing left this machine. No third party saw this matter\'s data.'
+      'Every AI call for this client ran on a local model on your machine. ' +
+      'Nothing left this machine. No third party saw this client\'s data.'
     );
   }
 

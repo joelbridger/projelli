@@ -43,7 +43,7 @@ No payment plans beyond 90 days. I've written off more than I should have from p
 
 ## What I'm adjusting next quarter
 
-The flat-fee matter pricing is due for a review. The $600 demand letter hasn't moved since 2024 and the cost of the intake and drafting work hasn't stayed flat. Target: $750 starting July 1, grandfathered for existing clients.
+The flat-fee client work pricing is due for a review. The $600 demand letter hasn't moved since 2024 and the cost of the intake and drafting work hasn't stayed flat. Target: $750 starting July 1, grandfathered for existing clients.
 
 The hourly rate goes to $310 in January 2027. I'll give existing active clients 90 days notice.
 

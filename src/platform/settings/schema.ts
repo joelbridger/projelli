@@ -330,9 +330,9 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'privilegedMatterMode',
     category: 'ai-privacy',
-    label: 'Privileged Matter Mode',
+    label: 'Network Lockdown',
     description:
-      'When on, network-capable extensions are disabled: plugins cannot make network requests and MCP servers are turned off, so confidential work cannot be sent out through an extension. Turns on automatically while a privileged matter is active or while Local-only is selected. A custom control for this lives in the confidentiality section.',
+      'When on, network-capable extensions are disabled: plugins cannot make network requests and MCP servers are turned off, so confidential work cannot be sent out through an extension. Turns on automatically while a sensitive client is active or while Local-only is selected. A custom control for this lives in the confidentiality section.',
     type: 'toggle',
     defaultValue: false,
   },

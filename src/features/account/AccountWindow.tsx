@@ -278,7 +278,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                         Use Advisor Prep Hero with your firm
                       </p>
                       <p style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', margin: '4px 0 8px' }}>
-                        Start a firm or join one, then bring your matters over. You choose for each matter whether it stays private or is shared with colleagues.
+                        Start a firm or join one, then bring your clients over. You choose for each client whether it stays private or is shared with colleagues.
                       </p>
                       <Button
                         size="sm"

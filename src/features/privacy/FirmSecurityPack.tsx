@@ -403,7 +403,6 @@ export function FirmSecurityPack() {
         <SurfaceHeader
           Icon={FileText}
           title="Security overview for your firm"
-          description="A plain-English summary IT and General Counsel can review. Print or save as PDF to share."
           actions={
             <Button
               variant="primary"

@@ -6,7 +6,7 @@ import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'matterSummary',
-    question: 'Matter summary',
+    question: 'Client summary',
     description: 'A brief description of the case: what happened, what the core dispute is, and what the client is seeking or defending against.',
     type: 'textarea',
     required: true,
@@ -61,7 +61,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
 
 const discoveryDrafterPrompt = `You are assisting a licensed attorney in drafting discovery requests. You are not providing legal advice — you are producing a numbered draft for attorney review and adaptation. The attorney will verify compliance with applicable court rules and standing orders before serving.
 
-Matter summary: {{matterSummary}}
+Client summary: {{matterSummary}}
 Opposing party: {{opposingParty}}
 Discovery type: {{discoveryType}}
 Key claims and defenses: {{claimsAndDefenses}}
@@ -76,7 +76,7 @@ Produce a numbered draft in Markdown. Begin with the draft notice.
 
 ## Discovery Draft — {{discoveryType}}
 
-**Matter:** [Describe briefly based on inputs]
+**Client file:** [Describe briefly based on inputs]
 **Directed to:** {{opposingParty}}
 **Jurisdiction:** {{jurisdiction}}
 
@@ -125,7 +125,7 @@ export const DiscoveryDrafter: WorkflowTemplate = {
       id: 'interview',
       type: 'interview',
       name: 'Case and Discovery Details',
-      description: 'Provide the matter summary, opposing party, discovery type, and key claims and defenses',
+      description: 'Provide the client summary, opposing party, discovery type, and key claims and defenses',
       config: {
         questions: interviewQuestions,
       } as InterviewStepConfig,

@@ -1184,7 +1184,7 @@ export async function serializeContradictionsDocx(
 
   if (meta.matterName) {
     headerLines.push(
-      new Paragraph({ children: [new TextRun({ text: `Matter: ${meta.matterName}`, bold: true, size: 22 })] }),
+      new Paragraph({ children: [new TextRun({ text: `Client file: ${meta.matterName}`, bold: true, size: 22 })] }),
     );
   }
   if (meta.witnessName) {
@@ -1215,7 +1215,7 @@ export async function serializeContradictionsDocx(
           text:
             `Flagged ${String(result.totalCount)} candidate ` +
             `${result.totalCount === 1 ? 'contradiction' : 'contradictions'} for your review. ` +
-            `${String(result.verifiedCount)} verified against the matter record; ` +
+            `${String(result.verifiedCount)} verified against the client record; ` +
             `${String(result.unverifiedCount)} could not be auto-verified and ${result.unverifiedCount === 1 ? 'is' : 'are'} flagged below. ` +
             `Every finding is a starting point. Confirm each quote and citation against the original source before relying on it.`,
           size: 22,
