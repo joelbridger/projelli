@@ -1251,6 +1251,8 @@
       "tab-email": "Email",
       "tab-meetings": "Meetings",
       "tab-activity": "Activity",
+      "history-title": "History",
+      "history-close": "Close history panel",
       "sections-aria": "Client sections",
       "not-found": "{{entity}} not found",
       "back-to": "Back to {{entityOther}}",

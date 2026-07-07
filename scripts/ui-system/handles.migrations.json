@@ -48,6 +48,12 @@
       "replacement": null,
       "reason": "FB-B removes the Client Map updates review tray; safe sourced updates now auto-apply and removals use the existing map confirmation path.",
       "date": "2026-07-07"
+    },
+    {
+      "removed": "hub-subtab-panel-activity",
+      "replacement": "clientmap-history-panel",
+      "reason": "FB-F removes the Activity tab and moves the per-client feed into the header History panel.",
+      "date": "2026-07-07"
     }
   ]
 }

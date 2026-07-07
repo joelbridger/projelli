@@ -31,4 +31,12 @@ describe('AuditActionType union — cleanup3 Rust/TS gap audit', () => {
     expect(ACTION_ICONS[action]).toBeTruthy();
     expect(ACTION_CATEGORY[action]).toBeTruthy();
   });
+
+  it('uses client-facing labels for matter-scoped activity entries', () => {
+    expect(ACTION_LABELS.scope_active).toBe('Active Client');
+    expect(ACTION_LABELS.mcp_matter_access_granted).toBe('External AI Client Access Granted');
+    expect(ACTION_LABELS.mcp_matter_access_revoked).toBe('External AI Client Access Revoked');
+    expect(ACTION_LABELS.matter_shared).toBe('Client Shared');
+    expect(ACTION_LABELS.matter_unshared).toBe('Client Unshared');
+  });
 });

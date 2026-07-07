@@ -149,7 +149,7 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.getByTestId('hub-isolated-badge')).toBeInTheDocument();
   });
 
-  it('offers both Word and PDF exports for a ready Client Map', () => {
+  it('opens Word and PDF exports from one Download icon menu', async () => {
     useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
     const matter = useMatterStore.getState().matters[0]!;
     const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z' };
@@ -165,7 +165,14 @@ describe('MatterHub — list to hub navigation', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    expect(screen.getByTestId('clientmap-export-word')).toHaveTextContent('Export Word');
+    expect(screen.queryByRole('button', { name: 'Export Word' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Export PDF' })).toBeNull();
+
+    const downloadButton = screen.getByTestId('clientmap-download-button');
+    expect(downloadButton).toHaveAccessibleName('Download client map');
+    fireEvent.pointerDown(downloadButton);
+
+    expect(await screen.findByTestId('clientmap-export-word')).toHaveTextContent('Export Word');
     expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export PDF');
   });
 
@@ -184,7 +191,11 @@ describe('MatterHub — list to hub navigation', () => {
     useClientMapStore.getState().setMap(matter.id, map);
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-    fireEvent.click(screen.getByTestId('clientmap-sync-button'));
+    const syncButton = screen.getByTestId('clientmap-sync-button');
+    expect(syncButton).toHaveAccessibleName('Sync client map');
+    expect(syncButton).toHaveTextContent('');
+
+    fireEvent.click(syncButton);
 
     await waitFor(() => {
       expect(screen.getByTestId('clientmap-last-updated')).toHaveTextContent('No new changes');
@@ -286,7 +297,7 @@ describe('MatterHub — sub-tab workspace', () => {
     resetStore();
   });
 
-  it('leads with the Client Map under an Overview/Documents/Email/Activity sub-tab bar', () => {
+  it('leads with the Client Map under an Overview/Documents/Email/Meetings sub-tab bar', () => {
     useMatterStore.getState().createMatter({ name: 'Redesign Co', client: 'Redesign Co' });
     const matter = useMatterStore.getState().matters[0]!;
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
@@ -296,7 +307,8 @@ describe('MatterHub — sub-tab workspace', () => {
     expect(screen.getByTestId('hub-subtab-overview')).toBeInTheDocument();
     expect(screen.getByTestId('hub-subtab-documents')).toBeInTheDocument();
     expect(screen.getByTestId('hub-subtab-email')).toBeInTheDocument();
-    expect(screen.getByTestId('hub-subtab-activity')).toBeInTheDocument();
+    expect(screen.getByTestId('hub-subtab-meetings')).toBeInTheDocument();
+    expect(screen.queryByTestId('hub-subtab-activity')).toBeNull();
     expect(screen.queryByTestId('hub-shortcut-row')).toBeNull();
 
     // Overview is the default and leads with the Client Map.
@@ -331,15 +343,35 @@ describe('MatterHub — sub-tab workspace', () => {
     fireEvent.click(screen.getByTestId('hub-subtab-email'));
     expect(screen.getByTestId('stub-email')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('hub-subtab-activity'));
-    expect(screen.getByTestId('stub-activity')).toBeInTheDocument();
-
     // Back to Overview shows the Client Map again.
     fireEvent.click(screen.getByTestId('hub-subtab-overview'));
     expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
 
     expect(events).toHaveLength(0);
     window.removeEventListener('lantern:matter-launch', handler);
+  });
+
+  it('opens the per-client activity feed from the History icon panel', () => {
+    useMatterStore.getState().createMatter({ name: 'History Co', client: 'History Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+
+    render(
+      <MatterHub
+        matterId={matter.id}
+        onBack={() => undefined}
+        renderActivity={() => <div data-testid="stub-activity">client activity feed</div>}
+      />,
+    );
+
+    expect(screen.queryByTestId('hub-subtab-activity')).toBeNull();
+
+    const historyButton = screen.getByTestId('clientmap-history-button');
+    expect(historyButton).toHaveAccessibleName('Open client history');
+    fireEvent.keyDown(historyButton, { key: 'Enter', code: 'Enter' });
+    fireEvent.click(historyButton);
+
+    expect(screen.getByTestId('clientmap-history-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('stub-activity')).toHaveTextContent('client activity feed');
   });
 
   it('a sub-tab with no supplied surface shows a graceful placeholder', () => {

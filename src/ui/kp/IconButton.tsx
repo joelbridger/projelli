@@ -15,11 +15,12 @@ export interface IconButtonProps
   variant?: IconButtonVariant;
   size?: IconButtonSize;
   className?: string;
+  iconClassName?: string | undefined;
 }
 
 /** Icon-only button (close, refresh, clear, etc.) with a required accessible label. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { icon: Icon, label, variant = 'ghost', size = 'sm', disabled, className, type = 'button', ...rest },
+  { icon: Icon, label, variant = 'ghost', size = 'sm', disabled, className, iconClassName, type = 'button', ...rest },
   ref,
 ) {
   const classes = [
@@ -40,7 +41,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       disabled={disabled}
       {...rest}
     >
-      <Icon size={ICON_SIZE[size]} strokeWidth={1.75} />
+      <Icon size={ICON_SIZE[size]} strokeWidth={1.75} className={iconClassName} />
     </button>
   );
 });

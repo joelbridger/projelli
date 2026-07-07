@@ -17,6 +17,8 @@ export interface SurfaceHeaderProps {
   iconColor?: string;
   /** The surface title (e.g. "Matters", "Search", "Documents"). */
   title: string;
+  /** Optional controls rendered directly beside the title. */
+  titleActions?: React.ReactNode;
   /** A short one-line description shown below the title. */
   description?: React.ReactNode;
   /** Optional element rendered inline, to the LEFT of the icon/title (e.g. a
@@ -28,7 +30,7 @@ export interface SurfaceHeaderProps {
   testId?: string;
 }
 
-export function SurfaceHeader({ Icon, title, description, leading, actions, testId, iconColor = 'var(--kp-navy)' }: SurfaceHeaderProps) {
+export function SurfaceHeader({ Icon, title, titleActions, description, leading, actions, testId, iconColor = 'var(--kp-navy)' }: SurfaceHeaderProps) {
   return (
     <div
       {...(testId ? { 'data-testid': testId } : {})}
@@ -58,6 +60,11 @@ export function SurfaceHeader({ Icon, title, description, leading, actions, test
           >
             {title}
           </h1>
+          {titleActions != null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', minWidth: 0 }}>
+              {titleActions}
+            </div>
+          )}
         </div>
         {description != null && description !== '' && (
           <p
