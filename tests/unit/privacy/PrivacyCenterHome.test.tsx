@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { PrivacyCenterHome } from '@/features/privacy/PrivacyCenterHome';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import type { AuditEntry } from '@/platform/types/audit';
@@ -62,6 +62,14 @@ describe('PrivacyCenterHome', () => {
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
     // The data map content mock should be present
     expect(screen.getByTestId('data-map-content-mock')).toBeTruthy();
+  });
+
+  it('renders the Data Map as its own labeled section inside Privacy Center', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+
+    const section = screen.getByTestId('privacy-center-data-map-section');
+    expect(within(section).getByRole('heading', { name: 'Data Map' })).toBeTruthy();
+    expect(within(section).getByTestId('data-map-content-mock')).toBeTruthy();
   });
 
   it('renders the report button', () => {

@@ -15,12 +15,10 @@
  * removed; the meaning (three confidentiality states, color-coded) stays.
  */
 /* eslint-disable lantern-i18n/no-hardcoded-string */
-import { useState } from 'react';
-import { Briefcase, Globe, Map as MapIcon, Info, Lock } from 'lucide-react';
+import { Briefcase, Globe, Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
   Tooltip,
   TooltipContent,
@@ -33,7 +31,6 @@ import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 export function TrustBar() {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
-  const [dataMapOpen, setDataMapOpen] = useState(false);
   // Fixed-English escape hatch: this whole component's copy is exempted from
   // i18n (see the file-level eslint-disable above; KNOWN-I18N-01), so the
   // noun stays English too rather than mixing languages.
@@ -83,7 +80,8 @@ export function TrustBar() {
 
       {/* The AI-status pill is NOT shown here anymore — it lives once, per tab,
           top-right on each surface header (Ask / Client Map / Workflows). The
-          top bar keeps only the info + Data Map + lock affordances. */}
+          top bar keeps only the info + lock affordances. The full Data Map now
+          lives inside the Privacy Center opened by the lock. */}
 
       {/* Info affordance: reveals the full data-routing explanation on hover.
           A7: title added as a standard browser tooltip alongside the Radix tooltip. */}
@@ -105,17 +103,6 @@ export function TrustBar() {
         </TooltipContent>
       </Tooltip>
 
-      {/* Data Map button — A7: title already set; aria-label retained for screen readers. */}
-      <IconButton
-        icon={MapIcon}
-        label="Open the Data Map"
-        variant="ghost"
-        size="xs"
-        title="Where your data goes"
-        onClick={() => { setDataMapOpen(true); }}
-        style={{ flexShrink: 0 }}
-      />
-
       {/* Privacy Center shortcut — one click away from anywhere in the app. */}
       <IconButton
         icon={Lock}
@@ -126,8 +113,6 @@ export function TrustBar() {
         onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_PRIVACY_CENTER)); }}
         style={{ flexShrink: 0 }}
       />
-
-      <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
     </div>
   );
 }

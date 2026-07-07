@@ -125,7 +125,36 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
       {/* Data Map content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--kp-space-md) var(--kp-gutter)' }}>
         <VaultControlCard />
-        <DataMapContent variant="expanded" />
+        <section
+          data-testid="privacy-center-data-map-section"
+          aria-labelledby="privacy-center-data-map-heading"
+          style={{ maxWidth: 920 }}
+        >
+          {/* eslint-disable lantern-i18n/no-hardcoded-string -- fixed-English trust-document label */}
+          <h2
+            id="privacy-center-data-map-heading"
+            style={{
+              margin: '0 0 var(--kp-space-xs)',
+              fontSize: 'var(--kp-font-lg)',
+              fontWeight: 'var(--kp-weight-semibold)',
+              color: 'var(--kp-navy)',
+            }}
+          >
+            Data Map
+          </h2>
+          <p
+            style={{
+              margin: '0 0 var(--kp-space-md)',
+              fontSize: 'var(--kp-font-sm)',
+              color: 'var(--color-muted-foreground)',
+              maxWidth: 720,
+            }}
+          >
+            A plain-English map of what stays on this computer and what can leave it.
+          </p>
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+          <DataMapContent variant="expanded" />
+        </section>
       </div>
 
       {/* Confidentiality Report dialog */}
