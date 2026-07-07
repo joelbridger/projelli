@@ -11,7 +11,7 @@ export type NoticeCardPillTone = 'pending' | 'ok' | 'warn';
 
 /** A discriminator (not an i18n key) so the pill renders with LITERAL t() keys
  *  the i18n extractor can see — the codebase avoids dynamic t() keys. */
-export type NoticeCardPillKind = 'joining' | 'lobby' | 'present' | 'failed';
+export type NoticeCardPillKind = 'joining' | 'lobby' | 'present' | 'failed' | 'window-open-failed';
 
 export interface NoticeCardPillView {
   kind: NoticeCardPillKind;
@@ -33,6 +33,7 @@ export function noticeCardPillView(status: NoticeCardStatus | null): NoticeCardP
       // the 'present' pill (no new i18n key) since to the advisor the card is just there.
       return { kind: 'present', tone: 'ok' };
     case 'failed':
+      if (status.reason === 'window-open-failed') return { kind: 'window-open-failed', tone: 'warn' };
       return { kind: 'failed', tone: 'warn' };
     case 'left':
     case 'idle':

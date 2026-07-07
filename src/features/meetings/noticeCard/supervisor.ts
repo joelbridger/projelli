@@ -288,6 +288,7 @@ export class NoticeCardSupervisor {
       this.admittedAtMs = this.clock.now();
       this.onDiagnostic?.({ kind: 'admitted', attempt: this.preAdmitRetryUsed ? 2 : 1 });
       if (this.entryAnnouncement) {
+        // eslint-disable-next-line lantern-async/no-silent-failure -- announce catches and emits diagnostic breadcrumbs on failure
         void this.announce(this.entryAnnouncement);
       }
       this.record({
@@ -406,7 +407,7 @@ export class NoticeCardSupervisor {
       willRetry: eligible,
     });
     if (!eligible) {
-      this.fail('internal');
+      this.fail('window-open-failed');
       return;
     }
     this.preAdmitRetryUsed = true;
@@ -417,6 +418,7 @@ export class NoticeCardSupervisor {
       meetingTitle: this.config?.meetingTitle,
     });
     this.onDiagnostic?.({ kind: 'attempt', attempt: 2, reason: 'pre-admit-retry' });
+    // eslint-disable-next-line lantern-async/no-silent-failure -- openWindow catches and converts open failures into a ledgered failure reason
     void this.openWindow();
     this.startJoinTimer();
   }

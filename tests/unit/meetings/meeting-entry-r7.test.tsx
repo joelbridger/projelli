@@ -14,7 +14,7 @@ vi.mock('@/platform/utils/docx-commands', () => ({
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
 
-function makeWorkspace() {
+function makeWorkspace(opts: { notesExists?: boolean; existingExports?: string[] } = {}) {
   const files = new Map<string, string>();
   files.set('/ws/C/Meetings/x/meeting.json', JSON.stringify({
     matterId: 'm-1',
@@ -32,9 +32,13 @@ function makeWorkspace() {
     }),
     readFileBinary: vi.fn(async (path: string) => {
       if (path.endsWith('audio.wav')) return new Uint8Array([80, 75, 3, 4]).buffer;
+      if (path.endsWith('notes.docx')) return new Uint8Array([80, 75, 3, 4]).buffer;
       throw new Error(`missing binary ${path}`);
     }),
-    exists: vi.fn(async () => false),
+    exists: vi.fn(async (path: string) => {
+      if (path.endsWith('/notes.docx')) return opts.notesExists ?? false;
+      return opts.existingExports?.includes(path) ?? false;
+    }),
     writeFile: vi.fn(async (path: string, content: string) => {
       files.set(path, content);
     }),
@@ -59,7 +63,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
   });
 
   it('shows Recording, Transcript, Summary tabs; renames the meeting; exports transcript and Summary Word into the client documents folder', async () => {
-    const ws = makeWorkspace();
+    const ws = makeWorkspace({ notesExists: true });
     setMeetingsWorkspaceService(ws as never);
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
@@ -91,5 +95,89 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     await waitFor(() => {
       expect(ws.writeFileBinary).toHaveBeenCalledWith('/ws/C/Documents/Quarterly plan review summary.docx', expect.any(ArrayBuffer));
     });
+  });
+
+  it('does not copy or export a summary until real notes text exists', async () => {
+    const ws = makeWorkspace({ notesExists: false });
+    setMeetingsWorkspaceService(ws as never);
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
+    expect(screen.getByTestId('meeting-summary-copy')).toBeDisabled();
+    expect(screen.getByTestId('meeting-summary-export-docx')).toBeDisabled();
+    expect(screen.getByTestId('meeting-summary-export-pdf')).toBeDisabled();
+
+    fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
+    expect(ws.writeFileBinary).not.toHaveBeenCalled();
+  });
+
+  it('adds a suffix instead of overwriting an existing title-based summary export', async () => {
+    const ws = makeWorkspace({
+      notesExists: true,
+      existingExports: ['/ws/C/Documents/Meeting summary.docx'],
+    });
+    setMeetingsWorkspaceService(ws as never);
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
+    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
+
+    await waitFor(() => {
+      expect(ws.writeFileBinary).toHaveBeenCalledWith('/ws/C/Documents/Meeting summary 2.docx', expect.any(ArrayBuffer));
+    });
+  });
+
+  it('clears loaded meeting state before a different meeting can export stale notes', async () => {
+    const files = new Map<string, string>();
+    files.set('/ws/C/Meetings/A/meeting.json', JSON.stringify({
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      customTitle: 'Meeting A',
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+    }));
+    files.set('/ws/C/Meetings/A/transcript.json', JSON.stringify({
+      segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'Advisor', text: 'A transcript.' }],
+    }));
+    files.set('/ws/C/Meetings/B/meeting.json', JSON.stringify({
+      matterId: 'm-1',
+      startedAt: '2026-07-05T10:00:00Z',
+      customTitle: 'Meeting B',
+      consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-05T10:00:00Z' },
+    }));
+    const ws = {
+      readFile: vi.fn(async (path: string) => {
+        const value = files.get(path);
+        if (value === undefined) throw new Error(`missing ${path}`);
+        return value;
+      }),
+      readFileBinary: vi.fn(async (path: string) => {
+        if (path === '/ws/C/Meetings/A/notes.docx') return new Uint8Array([80, 75, 3, 4]).buffer;
+        throw new Error(`missing binary ${path}`);
+      }),
+      exists: vi.fn(async (path: string) => path === '/ws/C/Meetings/A/notes.docx'),
+      writeFile: vi.fn(async () => {}),
+      writeFileBinary: vi.fn(async () => {}),
+      delete: vi.fn(async () => {}),
+    };
+    setMeetingsWorkspaceService(ws as never);
+
+    const { rerender } = render(
+      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/A" folderName="A" workspaceService={ws as never} />,
+    );
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
+    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeTruthy());
+
+    rerender(
+      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/B" folderName="B" workspaceService={ws as never} />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('meeting-summary-export-docx')).toBeDisabled());
+    expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
+    fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
+    expect(ws.writeFileBinary).not.toHaveBeenCalled();
   });
 });

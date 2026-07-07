@@ -107,47 +107,77 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [retryingTranscript, setRetryingTranscript] = useState(false);
   const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
+  const didInitialSeek = useRef(false);
+  const meetingLoadToken = useRef(0);
   const { policy: noticePolicy } = useNoticeSettings();
   const hasTranscript = transcript !== null;
+  const summaryReady = hasNotes && summaryText.trim().length > 0;
 
   useEffect(() => {
-    let cancelled = false;
+    const token = ++meetingLoadToken.current;
+    const isCurrentLoad = () => token === meetingLoadToken.current;
+    setMeta(null);
+    setTranscript(null);
+    setHasNotes(false);
+    setSummaryText('');
+    setAudioSrc(null);
+    setHasAudio(false);
+    setSeekMs(initialSeekMs);
+    setExporting(null);
+    setExportNotice(null);
+    setNotices([]);
+    didInitialSeek.current = false;
+    // eslint-disable-next-line lantern-async/no-silent-failure -- each meeting-file read below renders a safe empty/pending state on failure
     void (async () => {
       const ws = workspaceService;
       if (!ws) return;
       try {
         const raw = await ws.readFile(`${meetingDir}/meeting.json`);
-        if (!cancelled) setMeta(JSON.parse(raw) as MeetingMeta);
-      } catch { /* pre-Task-8 meeting, or not yet written */ }
+        if (isCurrentLoad()) setMeta(JSON.parse(raw) as MeetingMeta);
+      } catch {
+        if (isCurrentLoad()) setMeta(null);
+      }
       try {
         const raw = await ws.readFile(`${meetingDir}/transcript.json`);
-        if (!cancelled) setTranscript(JSON.parse(raw) as TranscriptFile);
-      } catch { /* transcription still queued */ }
+        if (isCurrentLoad()) setTranscript(JSON.parse(raw) as TranscriptFile);
+      } catch {
+        if (isCurrentLoad()) setTranscript(null);
+      }
       try {
         // codex-review (coordinator P2): notes.docx is binary — readFile is
         // the TEXT reader (readTextFile on Tauri) and can throw decoding real
         // docx bytes even though the file exists. exists() is the correct,
         // decode-free presence check.
         const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
-        if (!cancelled) setHasNotes(notesExists);
+        if (isCurrentLoad()) setHasNotes(notesExists);
         if (notesExists) {
           const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
           const extracted = await extractDocxText(notesBytes);
-          if (!cancelled) setSummaryText(extracted.plainText.trim());
-        } else if (!cancelled) {
+          if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+        } else if (isCurrentLoad()) {
           setSummaryText('');
         }
-      } catch { /* couldn't check — treat as not-yet-generated */ }
+      } catch {
+        if (isCurrentLoad()) {
+          setHasNotes(false);
+          setSummaryText('');
+        }
+      }
       try {
         const buffer = await ws.readFileBinary(`${meetingDir}/audio.wav`);
-        if (!cancelled) {
+        if (isCurrentLoad()) {
           setAudioSrc(arrayBufferToDataUrl(buffer, 'audio/wav'));
           setHasAudio(true);
         }
-      } catch { /* audio deleted (retention) or not yet finalized */ }
+      } catch {
+        if (isCurrentLoad()) {
+          setAudioSrc(null);
+          setHasAudio(false);
+        }
+      }
     })();
-    return () => { cancelled = true; };
-  }, [meetingDir, workspaceService]);
+    return () => { meetingLoadToken.current += 1; };
+  }, [meetingDir, workspaceService, initialSeekMs]);
 
   // Recording Notice Kit — the per-client ledger for this meeting's notices.
   // matterFolder is derived from matterId (falls back to stripping the meeting
@@ -176,6 +206,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     try {
       loaded = await makeConsentLedger(ws, () => matterFolder).noticesForMeeting(meetingDir);
     } catch {
+      if (token === noticeLoadToken.current) setNotices([]);
       return; // failed read — leave the cleared state; never show a stale trail.
     }
     if (token === noticeLoadToken.current) setNotices(loaded);
@@ -191,7 +222,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     void (async () => {
       await ensureMeetingNoticeVerified(meetingDir, matterId);
       await loadNotices(token);
-    })();
+    })().catch(() => {
+      if (token === noticeLoadToken.current) setNotices([]);
+    });
   }, [meetingDir, matterId, transcript, loadNotices]);
 
   const handleRecordNotice = useCallback(async (entry: NoticeEntry) => {
@@ -200,7 +233,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     try {
       await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
       await loadNotices(noticeLoadToken.current);
-    } catch { /* best-effort */ }
+    } catch {
+      setNotices([]);
+    }
   }, [workspaceService, matterFolder, loadNotices]);
 
   const handleSeek = useCallback((ms: number) => {
@@ -213,7 +248,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // audioRef.current === null most of the time. Fire once hasAudio becomes
   // true instead, guarded so it only runs the one time (not on every
   // subsequent hasAudio-true render).
-  const didInitialSeek = useRef(false);
   useEffect(() => {
     if (initialSeekMs === undefined || didInitialSeek.current || !hasAudio) return;
     didInitialSeek.current = true;
@@ -228,6 +262,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     setHasAudio(false);
     void audit.logDurable('meeting_audio_deleted', 'Meeting audio deleted (transcript kept)', {
       metadata: { matterId, meetingDir },
+    }).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
     });
   }, [matterId, meetingDir, workspaceService]);
 
@@ -252,7 +288,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     if (!ws) return;
     try {
       setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
-    } catch { /* unreadable */ }
+    } catch {
+      setMeta(null);
+    }
     try {
       // codex-review (coordinator P2): notes.docx is binary — reading it as
       // text can throw on real docx bytes even though the write succeeded,
@@ -278,11 +316,15 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     if (!ws) return;
     try {
       setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
-    } catch { /* unreadable */ }
+    } catch {
+      setMeta(null);
+    }
     try {
       const raw = await ws.readFile(`${meetingDir}/transcript.json`);
       setTranscript(JSON.parse(raw) as TranscriptFile);
-    } catch { /* still not there */ }
+    } catch {
+      setTranscript(null);
+    }
     try {
       setHasNotes(await ws.exists(`${meetingDir}/notes.docx`));
     } catch {
@@ -319,26 +361,39 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   }, [meta, titleInput, meetingDir, workspaceService]);
 
   const copyText = useCallback(async (text: string, notice: string) => {
-    await navigator.clipboard?.writeText(text);
+    await navigator.clipboard.writeText(text);
     setExportNotice(notice);
   }, []);
 
   const summaryMarkdown = useCallback(() => {
+    if (!summaryReady) throw new Error(t('meetings.entry.summary-not-ready'));
     const title = meetingDisplayTitle(meta, t);
-    const body = summaryText || t('meetings.entry.summary-empty');
-    return `# ${title}\n\n${body}`;
-  }, [meta, summaryText, t]);
+    return `# ${title}\n\n${summaryText.trim()}`;
+  }, [meta, summaryReady, summaryText, t]);
+
+  const uniqueExportPath = useCallback(async (stem: string, ext: 'docx' | 'pdf'): Promise<string> => {
+    const ws = workspaceService;
+    if (!ws) return `${documentsDir}/${stem}.${ext}`;
+    let candidate = `${documentsDir}/${stem}.${ext}`;
+    let suffix = 2;
+    while (await ws.exists(candidate)) {
+      candidate = `${documentsDir}/${stem} ${String(suffix)}.${ext}`;
+      suffix += 1;
+    }
+    return candidate;
+  }, [workspaceService, documentsDir]);
 
   const exportSummaryDocx = useCallback(async (): Promise<string | null> => {
     const ws = workspaceService;
     if (!ws) return null;
+    if (!summaryReady) throw new Error(t('meetings.entry.summary-not-ready'));
     const stem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
-    const path = `${documentsDir}/${stem}.docx`;
+    const path = await uniqueExportPath(stem, 'docx');
     const bytes = await markdownToDocxBytes(summaryMarkdown(), `${stem}.docx`);
     const finalBytes = await applyLetterheadIfConfigured(bytes);
     await ws.writeFileBinary(path, toExactArrayBuffer(finalBytes));
     return path;
-  }, [workspaceService, meta, t, documentsDir, summaryMarkdown]);
+  }, [workspaceService, summaryReady, meta, t, uniqueExportPath, summaryMarkdown]);
 
   const runExport = useCallback(async (kind: string, work: () => Promise<string | null>) => {
     setExporting(kind);
@@ -354,7 +409,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   }, [t]);
 
   const handleExportSummaryDocx = useCallback(() => {
-    void runExport('summary-docx', exportSummaryDocx);
+    void runExport('summary-docx', exportSummaryDocx).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
+    });
   }, [runExport, exportSummaryDocx]);
 
   const handleExportSummaryPdf = useCallback(() => {
@@ -367,11 +424,13 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       const { readFile } = await import('@tauri-apps/plugin-fs');
       const pdfBytes = await readFile(pdfSource);
       const stem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
-      const pdfPath = `${documentsDir}/${stem}.pdf`;
+      const pdfPath = await uniqueExportPath(stem, 'pdf');
       await ws.writeFileBinary(pdfPath, toExactArrayBuffer(pdfBytes));
       return pdfPath;
+    }).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
     });
-  }, [workspaceService, exportSummaryDocx, runExport, meta, t, documentsDir]);
+  }, [workspaceService, exportSummaryDocx, runExport, meta, t, uniqueExportPath]);
 
   const handleExportTranscript = useCallback(() => {
     void runExport('transcript', async () => {
@@ -380,6 +439,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       const path = `${meetingDir}/transcript.txt`;
       await ws.writeFile(path, transcriptToText(transcript));
       return path;
+    }).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
     });
   }, [workspaceService, transcript, meetingDir, runExport]);
 
@@ -407,12 +468,14 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                   value={titleInput}
                   onChange={(e) => { setTitleInput(e.target.value); }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') void handleSaveTitle();
+                    if (e.key === 'Enter') void handleSaveTitle().catch((err: unknown) => {
+                      setExportNotice(err instanceof Error ? err.message : String(err));
+                    });
                     if (e.key === 'Escape') setRenaming(false);
                   }}
                   style={{ fontSize: 'var(--kp-font-sm)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '3px 6px' }}
                 />
-                <button type="button" data-testid="meeting-title-save" onClick={() => { void handleSaveTitle(); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', display: 'inline-flex' }}>
+                <button type="button" data-testid="meeting-title-save" onClick={() => { void handleSaveTitle().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', display: 'inline-flex' }}>
                   <Check style={{ width: 13, height: 13 }} />
                 </button>
               </span>
@@ -440,7 +503,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             <button
               type="button"
               data-testid="meeting-entry-mark-reviewed"
-              onClick={() => { void handleMarkReviewed(); }}
+	              onClick={() => { void handleMarkReviewed().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }}
               style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Check style={{ width: 12, height: 12 }} />
@@ -667,23 +730,27 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         {activeTab === 'summary' && (
           <div data-testid="meeting-summary-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" data-testid="meeting-summary-copy" onClick={() => { void copyText(summaryText, t('meetings.entry.summary-copied')); }} disabled={!summaryText} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryText ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+              <button type="button" data-testid="meeting-summary-copy" onClick={() => { void copyText(summaryText.trim(), t('meetings.entry.summary-copied')); }} disabled={!summaryReady} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                 <Copy style={{ width: 13, height: 13 }} />
                 {t('meetings.entry.copy')}
               </button>
-              <button type="button" data-testid="meeting-summary-export-docx" onClick={handleExportSummaryDocx} disabled={exporting === 'summary-docx'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button type="button" data-testid="meeting-summary-export-docx" onClick={handleExportSummaryDocx} disabled={!summaryReady || exporting === 'summary-docx'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                 <FileText style={{ width: 13, height: 13 }} />
                 {t('meetings.entry.export-word')}
               </button>
-              <button type="button" data-testid="meeting-summary-export-pdf" onClick={handleExportSummaryPdf} disabled={exporting === 'summary-pdf'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button type="button" data-testid="meeting-summary-export-pdf" onClick={handleExportSummaryPdf} disabled={!summaryReady || exporting === 'summary-pdf'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                 <Download style={{ width: 13, height: 13 }} />
                 {t('meetings.entry.export-pdf')}
               </button>
             </div>
-            {hasNotes ? (
+            {summaryReady ? (
               <pre data-testid="meeting-summary-text" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)', lineHeight: 1.6 }}>
-                {summaryText || t('meetings.entry.summary-empty')}
+                {summaryText.trim()}
               </pre>
+            ) : hasNotes ? (
+              <div data-testid="meeting-entry-summary-not-ready" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.summary-not-ready')}
+              </div>
             ) : meta?.notesError ? (
               <div data-testid="meeting-entry-notes-failed" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
                 <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>

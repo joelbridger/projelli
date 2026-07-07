@@ -296,6 +296,10 @@ export const teamsAdapter: JoinAdapter = {
   },
 
   ensureMuted(doc) {
+    return this.setMuted(doc, true);
+  },
+
+  setMuted(doc, targetMuted) {
     const toggle = doc.querySelector('[data-tid="toggle-mute"]');
     if (!(toggle instanceof HTMLElement)) return false;
     // A disabled toggle (e.g. no mic device) can't be actioned; report handled.
@@ -323,7 +327,7 @@ export const teamsAdapter: JoinAdapter = {
       // legacy button: aria-pressed=true or an "unmute" label means muted
       muted = toggle.getAttribute('aria-pressed') === 'true' || label.includes('unmute');
     }
-    if (!muted && !disabled) toggle.click();
+    if (muted !== targetMuted && !disabled) toggle.click();
     return true;
   },
 

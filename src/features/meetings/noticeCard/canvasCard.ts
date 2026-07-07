@@ -170,18 +170,21 @@ export function buildCameraScript(
           for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
           return bytes.buffer;
         }
-        window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__ = function (b64) {
-          try {
-            var dst = ensureAudioDestination();
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
-            audioCtx.decodeAudioData(base64ToArrayBuffer(b64).slice(0)).then(function (buffer) {
-              var source = audioCtx.createBufferSource();
-              source.buffer = buffer;
-              source.connect(dst);
-              source.start();
-            }).catch(function () {});
-          } catch (e) {}
-        };
+	        window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__ = function (b64) {
+	          return new Promise(function (resolve) {
+	            try {
+	              var dst = ensureAudioDestination();
+	              if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
+	              audioCtx.decodeAudioData(base64ToArrayBuffer(b64).slice(0)).then(function (buffer) {
+	                var source = audioCtx.createBufferSource();
+	                source.buffer = buffer;
+	                source.connect(dst);
+	                source.onended = function () { resolve(true); };
+	                source.start();
+	              }).catch(function () { resolve(false); });
+	            } catch (e) { resolve(false); }
+	          });
+	        };
         var md = navigator.mediaDevices;
         // Install the override UNCONDITIONALLY (not gated on cardStream). NEVER
         // call the real getUserMedia — the companion window must never touch the

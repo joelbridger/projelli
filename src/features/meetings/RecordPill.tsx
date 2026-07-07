@@ -210,6 +210,7 @@ export function RecordPill() {
             {noticeCardPill.kind === 'lobby' && t('meetings.notice-card.pill-lobby')}
             {noticeCardPill.kind === 'present' && t('meetings.notice-card.pill-present')}
             {noticeCardPill.kind === 'failed' && t('meetings.notice-card.pill-failed')}
+            {noticeCardPill.kind === 'window-open-failed' && t('meetings.notice-card.pill-window-open-failed')}
           </span>
         )}
       </span>

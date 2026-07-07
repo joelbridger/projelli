@@ -49,6 +49,7 @@ export type NoticeCardFailureReason =
   | 'join-timeout' // never reached "admitted" within the window
   | 'page-unrecognized' // the join page didn't match the adapter (web-client drift)
   | 'window-closed' // the companion window died unexpectedly
+  | 'window-open-failed' // the companion window could not be created
   | 'internal'; // any other error
 
 /**

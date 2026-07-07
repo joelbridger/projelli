@@ -114,6 +114,24 @@ describe('zoomAdapter.ensureMuted', () => {
   it('returns false when no mic toggle is present', () => {
     expect(zoomAdapter.ensureMuted(dom(LOBBY))).toBe(false);
   });
+  it('can briefly unmute for the spoken announcement and then mute again', () => {
+    const doc = dom(NAME_ENTRY);
+    const toggle = doc.querySelector('[aria-label="Mute microphone"]');
+    if (!(toggle instanceof HTMLElement)) throw new Error('missing Zoom mic toggle');
+    let muted = false;
+    toggle.addEventListener('click', () => {
+      muted = !muted;
+      toggle.setAttribute('aria-label', muted ? 'Unmute microphone' : 'Mute microphone');
+      toggle.setAttribute('aria-pressed', muted ? 'true' : 'false');
+    });
+
+    expect(zoomAdapter.ensureMuted(doc)).toBe(true);
+    expect(toggle.getAttribute('aria-label')).toBe('Unmute microphone');
+    expect(zoomAdapter.setMuted(doc, false)).toBe(true);
+    expect(toggle.getAttribute('aria-label')).toBe('Mute microphone');
+    expect(zoomAdapter.setMuted(doc, true)).toBe(true);
+    expect(toggle.getAttribute('aria-label')).toBe('Unmute microphone');
+  });
 });
 
 describe('zoomAdapter.clickJoin', () => {

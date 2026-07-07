@@ -45,7 +45,7 @@ class FakeDriver implements NoticeCardDriver {
   private deferNext = false;
   private pendingOpenResolve: (() => void) | null = null;
   private pendingOpenReject: ((e: unknown) => void) | null = null;
-  private rejectNextOpen = false;
+  private rejectNextOpenCount = 0;
   private rejectNextClose = false;
   makeNextCloseHang() {
     this.hangNextClose = true;
@@ -70,12 +70,12 @@ class FakeDriver implements NoticeCardDriver {
     r?.(new Error('open failed'));
   }
   makeNextOpenReject() {
-    this.rejectNextOpen = true;
+    this.rejectNextOpenCount += 1;
   }
   open(config: NoticeCardConfig): Promise<void> {
     this.opens.push(config);
-    if (this.rejectNextOpen) {
-      this.rejectNextOpen = false;
+    if (this.rejectNextOpenCount > 0) {
+      this.rejectNextOpenCount -= 1;
       return Promise.reject(new Error('open failed with HRESULT 0x8007139F'));
     }
     if (this.deferNext) {
@@ -462,6 +462,20 @@ describe('NoticeCardSupervisor — one pre-admission retry (the no-knock fix)', 
     expect(openFailed?.message).toContain('HRESULT');
     expect(openFailed?.willRetry).toBe(true);
     expect(h.sup.status.phase).toBe('joining');
+  });
+
+  it('files failed(window-open-failed) when the retry window also cannot open', async () => {
+    const h = make();
+    h.driver.makeNextOpenReject();
+    h.driver.makeNextOpenReject();
+    h.sup.start(CONFIG);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(h.sup.status).toEqual({ phase: 'failed', reason: 'window-open-failed' });
+    expect((h.ledger.at(-1) as { reason: string }).reason).toBe('window-open-failed');
   });
 
   it('includes the stalled stage in join-timeout telemetry', () => {

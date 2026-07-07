@@ -100,4 +100,10 @@ describe('buildCameraScript', () => {
     // always installed, so real devices are never handed over.
     expect(src).toContain('constraints.video && cardStream');
   });
+
+  it('makes the announcement hook report when playback ends', () => {
+    const src = buildCameraScript(VISUAL, { startEpochMs: 1_000_000 });
+    expect(src).toContain('return new Promise');
+    expect(src).toContain('source.onended = function () { resolve(true); }');
+  });
 });

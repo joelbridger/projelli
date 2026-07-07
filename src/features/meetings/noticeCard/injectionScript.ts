@@ -56,10 +56,11 @@ export function buildInjectionScript(
   const methods = [
     adapter.detectPhase,
     adapter.dismissLauncher,
-    adapter.fillGuestName,
-    adapter.ensureMuted,
-    adapter.clickJoin,
-  ]
+	    adapter.fillGuestName,
+	    adapter.ensureMuted,
+	    adapter.setMuted,
+	    adapter.clickJoin,
+	  ]
     /* eslint-enable @typescript-eslint/unbound-method */
     .map((fn) => fn.toString())
     .join(',\n');
@@ -87,10 +88,28 @@ ${camera}
     var POLL_MS = ${pollMs};
     var UNRECOGNIZED_TICKS = ${unrecognizedTicks};
     var PRESENT_UNKNOWN_GRACE_TICKS = ${graceTicks};
-    var adapter = {
+	    var adapter = {
 ${methods}
-    };
-    var lastReported = '';
+	    };
+	    var announcementInFlight = false;
+	    var rawAnnounce = window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__;
+	    if (rawAnnounce) {
+	      window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__ = function (b64) {
+	        if (announcementInFlight) return Promise.resolve(false);
+	        announcementInFlight = true;
+	        try { adapter.setMuted(document, false); } catch (e) {}
+	        return Promise.resolve(rawAnnounce(b64)).then(function (value) {
+	          try { adapter.setMuted(document, true); } catch (e) {}
+	          announcementInFlight = false;
+	          return value;
+	        }, function (err) {
+	          try { adapter.setMuted(document, true); } catch (e) {}
+	          announcementInFlight = false;
+	          throw err;
+	        });
+	      };
+	    }
+	    var lastReported = '';
     var everAdmitted = false;
     var loadingTicks = 0;
     var driftTicks = 0;

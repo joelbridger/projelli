@@ -478,6 +478,23 @@ describe('teamsAdapter.ensureMuted — current switch toggle', () => {
     expect(teamsAdapter.ensureMuted(doc)).toBe(true);
     expect(clicks).toBe(0);
   });
+
+  it('can briefly unmute for the spoken announcement and then mute again', () => {
+    const doc = dom(CURRENT_NAME_ENTRY);
+    const toggle = requireFixtureElement(doc, '[data-tid="toggle-mute"]');
+    let muted = false;
+    toggle.addEventListener('click', () => {
+      muted = !muted;
+      toggle.setAttribute('data-cid', muted ? 'toggle-mute-true' : 'toggle-mute-false');
+    });
+
+    expect(teamsAdapter.ensureMuted(doc)).toBe(true);
+    expect(toggle.getAttribute('data-cid')).toBe('toggle-mute-true');
+    expect(teamsAdapter.setMuted(doc, false)).toBe(true);
+    expect(toggle.getAttribute('data-cid')).toBe('toggle-mute-false');
+    expect(teamsAdapter.setMuted(doc, true)).toBe(true);
+    expect(toggle.getAttribute('data-cid')).toBe('toggle-mute-true');
+  });
 });
 
 describe('teamsAdapter.clickJoin', () => {

@@ -71,6 +71,10 @@ export const zoomAdapter: JoinAdapter = {
   },
 
   ensureMuted(doc) {
+    return this.setMuted(doc, true);
+  },
+
+  setMuted(doc, targetMuted) {
     const controls = Array.from(doc.querySelectorAll('[aria-label]'));
     const toggle = controls.find((control) => (control.getAttribute('aria-label') ?? '').toLowerCase().includes('mute'));
     if (!(toggle instanceof HTMLElement)) return false;
@@ -78,7 +82,7 @@ export const zoomAdapter: JoinAdapter = {
     const pressed = toggle.getAttribute('aria-pressed') === 'true';
     // "Unmute" label or aria-pressed=true means the mic is already muted.
     const alreadyMuted = pressed || label.includes('unmute');
-    if (!alreadyMuted) toggle.click();
+    if (alreadyMuted !== targetMuted) toggle.click();
     return true;
   },
 
