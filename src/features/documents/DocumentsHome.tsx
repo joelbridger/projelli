@@ -29,7 +29,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useSyncExternalStore } from 'react';
-import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
+import { FolderOpen, FolderTree, FileText, X, Plus, Upload, ListTree, LayoutGrid, Pencil } from 'lucide-react';
 import { IconButton, Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useEditorStore } from '@/platform/state/editorStore';
@@ -238,11 +238,13 @@ interface TabChipProps {
   isDirty?: boolean;
   icon?: React.ReactNode;
   isPinned?: boolean;
+  testId?: string;
   onActivate: () => void;
+  onRename?: () => void;
   onClose?: () => void;
 }
 
-function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose }: TabChipProps) {
+function TabChip({ label, isActive, isDirty, icon, isPinned, testId, onActivate, onRename, onClose }: TabChipProps) {
   const [isHovered, setIsHovered] = useState(false);
 
   // Shared visual styles for the activatable chip area. The chip is a <button>
@@ -286,9 +288,15 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
       <button
         type="button"
         role="tab"
+        {...(testId ? { 'data-testid': testId } : {})}
         aria-selected={isActive}
         style={chipStyle}
         onClick={onActivate}
+        onDoubleClick={(e) => {
+          if (!onRename) return;
+          e.preventDefault();
+          onRename();
+        }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
@@ -328,6 +336,24 @@ function TabChip({ label, isActive, isDirty, icon, isPinned, onActivate, onClose
           />
         )}
       </button>
+      {!isPinned && onRename && (
+        <IconButton
+          icon={Pencil}
+          label={`Rename ${label}`}
+          variant="ghost"
+          size="xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRename();
+          }}
+          style={{
+            alignSelf: 'center',
+            marginRight: onClose ? 0 : 4,
+            opacity: isHovered || isActive ? 1 : 0,
+            transition: 'opacity 0.1s',
+          }}
+        />
+      )}
       {!isPinned && onClose && (
         // Close button is a sibling of the tab button, not a child, to avoid
         // nesting interactive elements (button-in-button is invalid HTML).
@@ -421,6 +447,26 @@ export function DocumentsHome({
     [safeScopeFolderPaths, storeFileTree, matters, scopeMatterId, rootPath],
   );
 
+  const tabBelongsToThisDocumentsView = useCallback(
+    (tab: (typeof openTabs)[number]): boolean => {
+      const type = tab.type ?? 'file';
+      if (!isEditorSurfaceTab(type)) return false;
+      if (!embedded) return true;
+      if (!safeScopeFolderPaths || safeScopeFolderPaths.length === 0) return false;
+      if (type === 'browser' || type === 'email' || type === 'ai-assistant') return false;
+      const absPath = toAbsolute(tab.path, rootPath);
+      return safeScopeFolderPaths.some((folder) => isPathInFolder(absPath, folder));
+    },
+    [embedded, safeScopeFolderPaths, rootPath],
+  );
+
+  const hasVisibleActiveTab = useMemo(
+    () =>
+      activeTabPath != null &&
+      openTabs.some((tab) => tab.path === activeTabPath && tabBelongsToThisDocumentsView(tab)),
+    [activeTabPath, openTabs, tabBelongsToThisDocumentsView],
+  );
+
   // Trust banner state
   const [showTrustBanner, setShowTrustBanner] = useState(false);
 
@@ -447,7 +493,9 @@ export function DocumentsHome({
   // Embedded (per-client) lands on the scoped file list by default. When Ask
   // has just saved a document and explicitly sets documentsView='editor', open
   // the new file instead of forcing the user back to the list.
-  const initialOnFiles = embedded ? documentsView !== 'editor' : documentsView === 'browser';
+  const initialOnFiles = embedded
+    ? documentsView !== 'editor' || !hasVisibleActiveTab
+    : documentsView === 'browser';
   const [userOnFiles, setUserOnFiles] = useState(initialOnFiles);
   // Ref that shadows userOnFiles so we can read it synchronously in the effect
   // without capturing a stale closure.
@@ -465,7 +513,7 @@ export function DocumentsHome({
     if (activeTabPath === null) return;
     const matchingTab = openTabs.find((t) => t.path === activeTabPath);
     if (!matchingTab) return;
-    if (!isEditorSurfaceTab(matchingTab.type ?? 'file')) return;
+    if (!tabBelongsToThisDocumentsView(matchingTab)) return;
     if (prevActivePathRef.current === activeTabPath) return;
     prevActivePathRef.current = activeTabPath;
     // An editor-surface tab became active externally: navigate away from the Files
@@ -477,7 +525,7 @@ export function DocumentsHome({
         userOnFilesRef.current = false;
       });
     }
-  }, [activeTabPath, openTabs]);
+  }, [activeTabPath, openTabs, tabBelongsToThisDocumentsView]);
 
   // Fix 1 (while-mounted): the useState initializer already honors documentsView
   // on mount (the common case, since this component remounts on every nav). This
@@ -490,14 +538,14 @@ export function DocumentsHome({
     if (documentsView === undefined) return;
     if (documentsView === prevDocumentsViewRef.current) return;
     prevDocumentsViewRef.current = documentsView;
-    const wantBrowser = documentsView === 'browser';
+    const wantBrowser = documentsView === 'browser' || (embedded && !hasVisibleActiveTab);
     userOnFilesRef.current = wantBrowser;
     // queueMicrotask to stay consistent with the external-tab-change effect
     // above (same rule: no synchronous setState inside the effect body).
     queueMicrotask(() => {
       setUserOnFiles(wantBrowser);
     });
-  }, [documentsView]);
+  }, [documentsView, embedded, hasVisibleActiveTab]);
 
   // ── Tab handlers ─────────────────────────────────────────────────────────
 
@@ -717,14 +765,19 @@ export function DocumentsHome({
 
   // ── Derived content state ────────────────────────────────────────────────
 
-  // Only tabs that MainPanel can render in the Documents surface appear here.
-  const visibleTabs = openTabs.filter((t) => isEditorSurfaceTab(t.type ?? 'file'));
+  // Only tabs that MainPanel can render in this Documents surface appear here.
+  // In a client hub, that means "files inside this client's folder only".
+  const visibleTabs = openTabs.filter(tabBelongsToThisDocumentsView);
+  const activeVisibleTab = activeTabPath
+    ? visibleTabs.some((tab) => tab.path === activeTabPath)
+    : false;
 
-  // Show the grid when: user explicitly clicked Files, OR no editor-surface tabs exist.
-  const showFilesGrid = userOnFiles || visibleTabs.length === 0;
+  // Show the grid when: user explicitly clicked Files, no visible tabs exist,
+  // or this embedded client view is looking at a different client's active tab.
+  const showFilesGrid = userOnFiles || visibleTabs.length === 0 || (embedded && !activeVisibleTab);
 
   // The "selected" tab path for highlight purposes in the strip.
-  const selectedTab = showFilesGrid ? FILES_TAB_ID : (activeTabPath ?? FILES_TAB_ID);
+  const selectedTab = showFilesGrid || !activeVisibleTab ? FILES_TAB_ID : (activeTabPath ?? FILES_TAB_ID);
 
   // ── Tab icon helper ──────────────────────────────────────────────────────
 
@@ -749,6 +802,91 @@ export function DocumentsHome({
     const cssColor = colorMap[color] ?? 'var(--color-muted-foreground)';
     return <Icon style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: cssColor, strokeWidth: 1.75 }} />;
   }
+
+  const renderDocumentTabStrip = (inline: boolean) => (
+    <div
+      role="tablist"
+      aria-label="Documents tabs"
+      data-testid="documents-tab-strip"
+      style={{
+        display: 'flex',
+        alignItems: 'stretch',
+        height: inline ? '100%' : 38,
+        borderBottom: inline ? 'none' : '1px solid var(--kp-divider)',
+        background: 'var(--color-background)',
+        flexShrink: 0,
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        scrollbarWidth: 'none',
+        minWidth: 0,
+      }}
+    >
+      {/* Pinned "Files" tab — always first */}
+      <TabChip
+        label="Files"
+        isActive={selectedTab === FILES_TAB_ID}
+        isPinned
+        testId="documents-files-tab"
+        icon={
+          <FolderOpen
+            style={{
+              width: 'var(--kp-icon-sm)',
+              height: 'var(--kp-icon-sm)',
+              color:
+                selectedTab === FILES_TAB_ID
+                  ? 'var(--kp-navy)'
+                  : 'var(--color-muted-foreground)',
+              strokeWidth: 2,
+            }}
+          />
+        }
+        onActivate={() => { handleTabActivate(FILES_TAB_ID); }}
+      />
+
+      {visibleTabs.length > 0 && (
+        <div
+          style={{
+            width: 1,
+            background: 'var(--color-border)',
+            margin: '8px 2px',
+            flexShrink: 0,
+          }}
+        />
+      )}
+
+      {visibleTabs.map((tab) => (
+        <TabChip
+          key={tab.path}
+          label={tab.name}
+          isActive={selectedTab === tab.path}
+          isDirty={tab.isDirty || isDocxUnsaved(tab.path)}
+          icon={getTabIcon(tab)}
+          testId={`documents-tab-${tab.path.replace(/[^a-zA-Z0-9_-]+/g, '-')}`}
+          onActivate={() => { handleTabActivate(tab.path); }}
+          onRename={() => { onRename(tab.path); }}
+          onClose={() => { void handleTabClose(tab.path); }}
+        />
+      ))}
+    </div>
+  );
+
+  const canInlineTabsIntoMainPanel =
+    React.isValidElement(mainPanelContent) && typeof mainPanelContent.type !== 'string';
+
+  const editorMainPanelContent = canInlineTabsIntoMainPanel
+    ? React.cloneElement(
+        mainPanelContent as React.ReactElement<{
+          tabBarSlot?: React.ReactNode;
+          hideTitleHeader?: boolean;
+        }>,
+        {
+          tabBarSlot: renderDocumentTabStrip(true),
+          hideTitleHeader: true,
+        },
+      )
+    : mainPanelContent;
+
+  const shouldRenderStandaloneTabStrip = showFilesGrid || !canInlineTabsIntoMainPanel;
 
   // ── Render ───────────────────────────────────────────────────────────────
 
@@ -905,78 +1043,9 @@ export function DocumentsHome({
           {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </SurfaceToolbar>
 
-      {/* ── Unified tab strip ──────────────────────────────────────────── */}
-      <div
-        role="tablist"
-        aria-label="Documents tabs"
-        data-testid="documents-tab-strip"
-        style={{
-          display: 'flex',
-          alignItems: 'stretch',
-          height: 38,
-          borderBottom: '1px solid var(--kp-divider)',
-          background: 'var(--color-background)',
-          flexShrink: 0,
-          overflowX: 'auto',
-          overflowY: 'hidden',
-          scrollbarWidth: 'none',
-        }}
-      >
-        {/* Pinned "Files" tab — always first */}
-        <TabChip
-          label="Files"
-          isActive={selectedTab === FILES_TAB_ID}
-          isPinned
-          icon={
-            <FolderOpen
-              style={{
-                width: 'var(--kp-icon-sm)',
-                height: 'var(--kp-icon-sm)',
-                color:
-                  selectedTab === FILES_TAB_ID
-                    ? 'var(--kp-navy)'
-                    : 'var(--color-muted-foreground)',
-                strokeWidth: 2,
-              }}
-            />
-          }
-          onActivate={() => { handleTabActivate(FILES_TAB_ID); }}
-        />
-
-        {/* Document tabs are the GLOBAL editor tabs (one editor across the app),
-            so a foreign client's open file could appear here. In the per-client
-            embedded tab they are hidden entirely — the strip keeps only the
-            pinned "Files" tab (back to the scoped list); navigation is the
-            scoped file tree + opening a scoped file (matter isolation). */}
-        {!embedded && (
-          <>
-            {/* Separator after Files tab when docs are open */}
-            {visibleTabs.length > 0 && (
-              <div
-                style={{
-                  width: 1,
-                  background: 'var(--color-border)',
-                  margin: '8px 2px',
-                  flexShrink: 0,
-                }}
-              />
-            )}
-
-            {/* Document tabs */}
-            {visibleTabs.map((tab) => (
-              <TabChip
-                key={tab.path}
-                label={tab.name}
-                isActive={selectedTab === tab.path}
-                isDirty={tab.isDirty || isDocxUnsaved(tab.path)}
-                icon={getTabIcon(tab)}
-                onActivate={() => { handleTabActivate(tab.path); }}
-                onClose={() => { void handleTabClose(tab.path); }}
-              />
-            ))}
-          </>
-        )}
-      </div>
+      {/* ── Unified tab strip. While editing, this is injected into MainPanel's
+          header so tabs, save state, and actions sit on one row. */}
+      {shouldRenderStandaloneTabStrip && renderDocumentTabStrip(false)}
 
       {/* Trust banner — one-time, dismissible */}
       {showTrustBanner && (
@@ -1054,7 +1123,7 @@ export function DocumentsHome({
               overflow: 'hidden',
             }}
           >
-            {mainPanelContent}
+            {editorMainPanelContent}
           </div>
         )}
       </div>

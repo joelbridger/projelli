@@ -384,6 +384,38 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(screen.getByTestId('documents-tab-strip').textContent).toContain('Files');
   });
 
+  it('embedded mode shows this client\'s open document tabs and focuses an existing tab without making another one', async () => {
+    mockActiveTabPath = '/workspace/Contracts/NDA.docx';
+    mockOpenTabs = [
+      { path: '/workspace/Contracts/NDA.docx', name: 'NDA.docx', type: 'file' },
+      { path: '/workspace/Other Client/secret.docx', name: 'secret.docx', type: 'file' },
+    ];
+
+    render(
+      <DocumentsHome
+        {...buildDefaultProps()}
+        embedded
+        documentsView="editor"
+        scopeFolderPaths={['/workspace/Contracts']}
+        scopeMatterId="A"
+      />,
+    );
+
+    const strip = screen.getByTestId('documents-tab-strip');
+    expect(strip.textContent).toContain('NDA.docx');
+    expect(strip.textContent).not.toContain('secret.docx');
+    expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+
+    const ndaTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
+      (el) => el.textContent?.includes('NDA.docx'),
+    );
+    expect(ndaTab).toBeTruthy();
+    fireEvent.click(ndaTab!);
+
+    expect(mockSetActiveTab).toHaveBeenCalledWith('/workspace/Contracts/NDA.docx');
+    expect(mockOpenTabs).toHaveLength(2);
+  });
+
   it('embedded create/import clamps to the client folder at the scoped root (no global write)', () => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
