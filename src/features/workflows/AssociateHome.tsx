@@ -705,7 +705,12 @@ export function AssociateHome({
           iconColor="var(--kp-accent)"
           title="Workflows"
           actions={
-            <EgressIndicator provider={egressProvider} mode={confidentialityMode} variant="status" />
+            <EgressIndicator
+              provider={egressProvider}
+              mode={confidentialityMode}
+              variant="status"
+              onClick={onOpenSettings}
+            />
           }
         />
       </div>
