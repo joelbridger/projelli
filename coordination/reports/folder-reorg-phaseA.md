@@ -320,3 +320,86 @@ These were changed in this repo because they pointed at renamed support folders:
 
 - I did not rewrite old chat/session logs or old shell history.
 - The separate `~/lantern-coordination` Git repo had unrelated dirty files before this task started. I did not commit that repo because it would mix this path cleanup with prior work.
+
+## Leftovers Pass
+
+Date: 2026-07-07
+
+Scope: finish the remaining real, non-symlink `~/keepance-*` folders found by
+`ls -la ~/ | grep keepance`, while leaving the intentional compatibility
+symlinks and active worktrees alone.
+
+### Folder Checks
+
+Checked these leftover folders for Git worktree risk before moving anything:
+
+- `/home/jameson/keepance-archive-staging`: no `.git` file and no `.git/worktrees`.
+- `/home/jameson/keepance-jump-feasibility`: no `.git` file and no `.git/worktrees`.
+- `/home/jameson/keepance-lawyer-interviews`: no `.git` file and no `.git/worktrees`.
+
+Found these additional real `keepance-*` folders and left them untouched because
+their `.git` files point into `/home/jameson/keepance/.git/worktrees/`:
+
+- `/home/jameson/keepance-wt-dialin`
+- `/home/jameson/keepance-wt-onboarding`
+- `/home/jameson/keepance-wt-website`
+
+Also noticed `/home/jameson/.keepance-coord`, but left it untouched because it
+is a hidden helper folder referenced by `/home/jameson/.local/bin/keepance-coord`,
+not a visible `keepance-*` project folder.
+
+### Folder Moves
+
+These folders were still referenced by current notes, so they were renamed to
+`lantern-*` names and old-path symlinks were left behind:
+
+- `/home/jameson/keepance-archive-staging` -> `/home/jameson/lantern-archive-staging`
+- `/home/jameson/keepance-jump-feasibility` -> `/home/jameson/lantern-jump-feasibility`
+- `/home/jameson/keepance-lawyer-interviews` -> `/home/jameson/lantern-lawyer-interviews`
+
+Created `/home/jameson/archive/keepance-history-2026/` for this pass. No folders
+were moved into it because the remaining dormant folders had live references and
+therefore used the rename-plus-symlink path.
+
+### References Updated
+
+Updated current references from the old names to the new names in:
+
+- `/home/jameson/.codex/config.toml`
+- `/home/jameson/.claude/projects/-home-jameson/memory/project_keepance_lawyer_outreach.md`
+- `/home/jameson/.claude/projects/-home-jameson/memory/project_keepance_jump_feasibility.md`
+- `/home/jameson/.claude/projects/-home-jameson/memory/reference_quo_phone.md`
+- `/home/jameson/lantern-coordination/briefs/WS0-backup.md`
+- `/home/jameson/lantern-coordination/briefs/WS-CLEAN.md`
+- `/home/jameson/lantern-plus/LANTERN-PLUS.md`
+- `/home/jameson/lantern-plus/coordination/briefs/trust-fixes-findings.txt`
+- `/home/jameson/lantern-plus/coordination/qa-campaign/static-race-sweep.md`
+- `/home/jameson/lantern-plus/coordination/reports/w-renameref-report.md`
+- `/home/jameson/lantern-plus/coordination/smoke-1/P0-TRIAGE.txt`
+- `/home/jameson/lantern-plus/docs/board/cold-call-guide.html`
+- `/home/jameson/lantern-plus/docs/marketing/campaigns/2026-06-advisor-first-users/DISCOVERY-INTERVIEW.md`
+- `/home/jameson/lantern-plus/docs/marketing/campaigns/2026-06-advisor-first-users/README.md`
+- `/home/jameson/lantern-plus/feasibility/codex-codebase-readiness.md`
+- `/home/jameson/lantern-plus/feasibility/research/codex-review-of-assessment.md`
+- `/home/jameson/lantern-jump-feasibility/codex-codebase-readiness.md`
+- `/home/jameson/lantern-jump-feasibility/research/codex-review-of-assessment.md`
+- `/home/jameson/lantern-lawyer-interviews/PLAN.md`
+- `/home/jameson/lantern-lawyer-interviews/queue-wave1.sh`
+- `/home/jameson/lantern-lawyer-interviews/quo-label-lawyers.ts`
+- `/home/jameson/lantern-lawyer-interviews/send-wave1.sh`
+
+Did not rewrite historical chat logs, Claude file-history snapshots, paste
+caches, security logs, or the old rename inventory scratchpad. Those are records
+of what happened at the time, not live instructions.
+
+### Verification
+
+- Pulled `lantern-plus` first: already up to date.
+- Confirmed the three renamed leftovers are now symlinks at their old paths.
+- Confirmed the three `keepance-wt-*` folders are active Git worktrees and were
+  not moved.
+- Confirmed `crontab -l` has no references to these leftover paths.
+- Ran a focused search across current memory, `~/lantern-coordination`,
+  `~/lantern-plus`, and `~/.codex/config.toml`; no current references to
+  `keepance-archive-staging`, `keepance-jump-feasibility`, or
+  `keepance-lawyer-interviews` remain outside intentionally historical files.

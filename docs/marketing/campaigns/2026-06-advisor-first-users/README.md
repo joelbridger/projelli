@@ -30,7 +30,7 @@ The strategy and most of the words are already done. The pieces are just scatter
 - A testimonial ask. `docs/marketing/campaigns/2026-06-first-dollar/TESTIMONIAL_ASK.md`.
 
 **A proven outreach machine, but built for lawyers:**
-- A real motion is already live and working for attorneys: 40 honest-researcher emails went out, advisors book a phone time at cal.com, Jameson calls them through the Quo app, and the call records itself, writes itself up, and files into the CRM automatically. The plumbing exists. It just points at litigators right now. Source: `~/keepance-lawyer-interviews/PLAN.md` and memory `project_keepance_lawyer_outreach`.
+- A real motion is already live and working for attorneys: 40 honest-researcher emails went out, advisors book a phone time at cal.com, Jameson calls them through the Quo app, and the call records itself, writes itself up, and files into the CRM automatically. The plumbing exists. It just points at litigators right now. Source: `~/lantern-lawyer-interviews/PLAN.md` and memory `project_keepance_lawyer_outreach`.
 
 ### The gap to "first 3 to 5 advisors"
 

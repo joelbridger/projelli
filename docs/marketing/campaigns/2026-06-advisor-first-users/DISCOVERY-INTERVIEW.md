@@ -1,6 +1,6 @@
 # Advisor discovery interview: invite + question set
 
-*The advisor version of the lawyer discovery campaign that's already live (`~/keepance-lawyer-interviews/`). Same machine, re-aimed. Honest researcher, not a sales pitch. Keepance is named only if they ask. Owner: Jameson runs the calls. Customer-facing pieces in his voice, no em dashes. Contact nobody until Jameson's go.*
+*The advisor version of the lawyer discovery campaign that's already live (`~/lantern-lawyer-interviews/`). Same machine, re-aimed. Honest researcher, not a sales pitch. Keepance is named only if they ask. Owner: Jameson runs the calls. Customer-facing pieces in his voice, no em dashes. Contact nobody until Jameson's go.*
 
 This is for **ring 3** in the plan: widening past the warm circle into peer and community advisors. It does two jobs at once. It teaches you what advisors actually struggle with, and it warms up a few of them into a demo. Remember the weighting: for advisors, warm intros and demos beat cold email, so run this as a small, personal motion, not a 40-email blast.
 

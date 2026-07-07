@@ -1,4 +1,4 @@
-I did **not** write `/home/jameson/keepance-jump-feasibility/codex-codebase-readiness.md` because you set read-only mode. Writing that file would be a file mutation. Below is the report content.
+I did **not** write `/home/jameson/lantern-jump-feasibility/codex-codebase-readiness.md` because you set read-only mode. Writing that file would be a file mutation. Below is the report content.
 
 **Bottom Line**
 
@@ -94,7 +94,7 @@ Very large projects:
 My recommendation: **do not chase bots first**. Build “meeting artifact intake” first: let advisors import Jump/Zocks/transcript/audio outputs, then use Keepance’s stronger document/email/Client Map brain to make better prep, summaries, emails, tasks, and cited meeting chat. That gets useful fast without turning Keepance into the cloud notetaker it is currently designed not to be.
 tokens used
 306,920
-I did **not** write `/home/jameson/keepance-jump-feasibility/codex-codebase-readiness.md` because you set read-only mode. Writing that file would be a file mutation. Below is the report content.
+I did **not** write `/home/jameson/lantern-jump-feasibility/codex-codebase-readiness.md` because you set read-only mode. Writing that file would be a file mutation. Below is the report content.
 
 **Bottom Line**
 
