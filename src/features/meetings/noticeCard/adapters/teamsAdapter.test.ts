@@ -19,6 +19,18 @@ function dom(html: string): Document {
   return new DOMParser().parseFromString(html, 'text/html');
 }
 
+function requireFixtureElement(doc: Document, selector: string): Element {
+  const element = doc.querySelector(selector);
+  if (!element) throw new Error(`Missing fixture element: ${selector}`);
+  return element;
+}
+
+function requireFixtureInput(doc: Document, selector: string): HTMLInputElement {
+  const element = requireFixtureElement(doc, selector);
+  if (!(element instanceof HTMLInputElement)) throw new Error(`Fixture element is not an input: ${selector}`);
+  return element;
+}
+
 /* ------------------------------------------------------------------ */
 /* LAUNCHER chooser — captured from live Teams (2026-07-06)             */
 /* teams.live.com/dl/launcher/launcher.html — the "browser or app?" page */
@@ -345,7 +357,7 @@ describe('teamsAdapter — name-tid drift must not join nameless (review round 2
     expect(teamsAdapter.detectPhase(doc)).toBe('name-entry');
     // Runner would call fillGuestName during name-entry:
     expect(teamsAdapter.fillGuestName(doc, '⏺ Recording Notice — Sarah')).toBe(true);
-    expect(doc.querySelector<HTMLInputElement>('input[aria-label="Enter your name"]')!.value).toBe(
+    expect(requireFixtureInput(doc, 'input[aria-label="Enter your name"]').value).toBe(
       '⏺ Recording Notice — Sarah',
     );
     expect(teamsAdapter.detectPhase(doc)).toBe('ready-to-join');
@@ -377,11 +389,11 @@ describe('teamsAdapter.fillGuestName', () => {
   it('sets the name field and fires an input event (current DOM, React-controlled)', () => {
     const doc = dom(CURRENT_NAME_ENTRY);
     let fired = false;
-    doc.querySelector('[data-tid="prejoin-display-name-input"]')!.addEventListener('input', () => {
+    requireFixtureElement(doc, '[data-tid="prejoin-display-name-input"]').addEventListener('input', () => {
       fired = true;
     });
     expect(teamsAdapter.fillGuestName(doc, '⏺ Recording Notice — Sarah')).toBe(true);
-    const input = doc.querySelector<HTMLInputElement>('[data-tid="prejoin-display-name-input"]')!;
+    const input = requireFixtureInput(doc, '[data-tid="prejoin-display-name-input"]');
     expect(input.value).toBe('⏺ Recording Notice — Sarah');
     expect(fired).toBe(true);
   });
@@ -397,7 +409,7 @@ describe('teamsAdapter.fillGuestName', () => {
       </div>`;
     const doc = dom(drifted);
     expect(teamsAdapter.fillGuestName(doc, 'Sarah')).toBe(true);
-    expect(doc.querySelector<HTMLInputElement>('input[aria-label="Enter your name"]')!.value).toBe('Sarah');
+    expect(requireFixtureInput(doc, 'input[aria-label="Enter your name"]').value).toBe('Sarah');
   });
   it('returns false when there is no name field', () => {
     expect(teamsAdapter.fillGuestName(dom(CURRENT_LOBBY), 'x')).toBe(false);
@@ -408,7 +420,7 @@ describe('teamsAdapter.ensureMuted — current switch toggle', () => {
   it('clicks the mic switch when unmuted (data-cid=toggle-mute-false)', () => {
     const doc = dom(CURRENT_NAME_ENTRY);
     let clicks = 0;
-    doc.querySelector('[data-tid="toggle-mute"]')!.addEventListener('click', () => {
+    requireFixtureElement(doc, '[data-tid="toggle-mute"]').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.ensureMuted(doc)).toBe(true);
@@ -418,7 +430,7 @@ describe('teamsAdapter.ensureMuted — current switch toggle', () => {
     const html = CURRENT_NAME_ENTRY.replace('data-cid="toggle-mute-false" aria-checked="true"', 'data-cid="toggle-mute-true" aria-checked="false"');
     const doc = dom(html);
     let clicks = 0;
-    doc.querySelector('[data-tid="toggle-mute"]')!.addEventListener('click', () => {
+    requireFixtureElement(doc, '[data-tid="toggle-mute"]').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.ensureMuted(doc)).toBe(true);
@@ -431,7 +443,7 @@ describe('teamsAdapter.ensureMuted — current switch toggle', () => {
       </div>`;
     const doc = dom(html);
     let clicks = 0;
-    doc.querySelector('[data-tid="toggle-mute"]')!.addEventListener('click', () => {
+    requireFixtureElement(doc, '[data-tid="toggle-mute"]').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.ensureMuted(doc)).toBe(true);
@@ -441,7 +453,7 @@ describe('teamsAdapter.ensureMuted — current switch toggle', () => {
     const html = CURRENT_NAME_ENTRY.replace('data-tid="toggle-mute"', 'data-tid="toggle-mute" disabled');
     const doc = dom(html);
     let clicks = 0;
-    doc.querySelector('[data-tid="toggle-mute"]')!.addEventListener('click', () => {
+    requireFixtureElement(doc, '[data-tid="toggle-mute"]').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.ensureMuted(doc)).toBe(true);
@@ -450,7 +462,7 @@ describe('teamsAdapter.ensureMuted — current switch toggle', () => {
   it('still handles the legacy aria-pressed button', () => {
     const doc = dom(LEGACY_NAME_ENTRY);
     let clicks = 0;
-    doc.querySelector('[data-tid="toggle-mute"]')!.addEventListener('click', () => {
+    requireFixtureElement(doc, '[data-tid="toggle-mute"]').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.ensureMuted(doc)).toBe(true);
@@ -460,7 +472,7 @@ describe('teamsAdapter.ensureMuted — current switch toggle', () => {
     const html = LEGACY_NAME_ENTRY.replace('aria-label="Mute microphone" aria-pressed="false"', 'aria-label="Unmute microphone" aria-pressed="true"');
     const doc = dom(html);
     let clicks = 0;
-    doc.querySelector('[data-tid="toggle-mute"]')!.addEventListener('click', () => {
+    requireFixtureElement(doc, '[data-tid="toggle-mute"]').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.ensureMuted(doc)).toBe(true);
@@ -472,7 +484,7 @@ describe('teamsAdapter.clickJoin', () => {
   it('clicks the current join button', () => {
     const doc = dom(CURRENT_READY);
     let clicks = 0;
-    doc.querySelector('[data-tid="prejoin-join-button"]')!.addEventListener('click', () => {
+    requireFixtureElement(doc, '[data-tid="prejoin-join-button"]').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.clickJoin(doc)).toBe(true);
@@ -485,7 +497,7 @@ describe('teamsAdapter.clickJoin', () => {
       </div>`;
     const doc = dom(drifted);
     let clicks = 0;
-    doc.querySelector('button')!.addEventListener('click', () => {
+    requireFixtureElement(doc, 'button').addEventListener('click', () => {
       clicks += 1;
     });
     expect(teamsAdapter.clickJoin(doc)).toBe(true);

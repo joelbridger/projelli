@@ -172,7 +172,7 @@ export const teamsAdapter: JoinAdapter = {
         '[data-tid="calling-lobby-screen"], [data-tid="lobby-screen-title"], [data-tid="lobby-screen"], [data-tid="calling-lobby"]',
       ) ||
       /someone (?:in the meeting )?(?:should|will) let you in|waiting for the host|when the meeting starts, we[’']?ll let/i.test(
-        (doc.body && (doc.body.innerText || doc.body.textContent)) || '',
+        doc.body.innerText || doc.body.textContent || '',
       )
     ) {
       return 'lobby';

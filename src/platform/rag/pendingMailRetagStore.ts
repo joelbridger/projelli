@@ -137,7 +137,7 @@ function mergePendingMailRetag(
   for (const m of intent.staleMatters) stale.add(m);
   stale.delete(intent.targetMatter); // never hold out the current target
   if (stale.size === 0) {
-    delete intents[key];
+    Reflect.deleteProperty(intents, key);
     return;
   }
   intents[key] = {

@@ -1191,7 +1191,7 @@ export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
   const isMail =
     hit.sourceType === 'mail' ||
     (hit.sourceId ?? '').startsWith('mail:') ||
-    (hit.path ?? '').startsWith('mail:');
+    hit.path.startsWith('mail:');
   if (isMail) {
     // R8 (F2): a corrupt mail-retag store can't say WHICH matters lost their hold, so
     // fail closed on ALL mail until the boot mail retag reconverges every tag.
@@ -1513,7 +1513,6 @@ export async function retagExistingMailFolders(
       // Failure: leave the restored exclusion + durable record in place (fail
       // closed across sessions); the idempotent retag converges on a later boot.
       anyFailure = true;
-      // eslint-disable-next-line lantern-async/no-silent-failure -- fail-closed by design: KEEP the restored exclusion + durable record so the mail stays held out until a retag succeeds
       continue;
     }
     // Success — discharge the hold, but only if we're still the same workspace

@@ -185,23 +185,23 @@ function installRagProgressInvalidationListener(): void {
   if (ragProgressListenerStarted) return;
   ragProgressListenerStarted = true;
   void (async () => {
-    try {
-      const core = await import('@tauri-apps/api/core');
-      if (!core.isTauri()) return;
-      const { listen } = await import('@tauri-apps/api/event');
-      ragProgressUnlisten = await listen<RagIndexingProgress>(RAG_PROGRESS_EVENT, (event) => {
-        handleRagIndexingProgressForCitationVerification(event.payload);
-      });
-      ragContentInvalidatedUnlisten = await listen<RagContentInvalidated>(
-        RAG_CONTENT_INVALIDATED_EVENT,
-        (event) => {
-          handleRagContentInvalidatedForCitationVerification(event.payload);
-        },
-      );
-    } catch {
-      // Browser/test mode: no native indexing event to subscribe to.
-    }
-  })();
+    const core = await import('@tauri-apps/api/core');
+    if (!core.isTauri()) return;
+    const { listen } = await import('@tauri-apps/api/event');
+    ragProgressUnlisten = await listen<RagIndexingProgress>(RAG_PROGRESS_EVENT, (event) => {
+      handleRagIndexingProgressForCitationVerification(event.payload);
+    });
+    ragContentInvalidatedUnlisten = await listen<RagContentInvalidated>(
+      RAG_CONTENT_INVALIDATED_EVENT,
+      (event) => {
+        handleRagContentInvalidatedForCitationVerification(event.payload);
+      },
+    );
+  })().catch(() => {
+    // Browser/test mode: no native indexing event to subscribe to.
+    ragProgressUnlisten = null;
+    ragContentInvalidatedUnlisten = null;
+  });
 }
 
 /**
@@ -258,7 +258,9 @@ export function useCitationVerification(
   useEffect(() => {
     const toFetch = eligible.filter((c) => !requested.has(verifyKey(c.id, c.matterId, c.excerpt)));
     if (toFetch.length === 0) return;
-    toFetch.forEach((c) => markRequested(verifyKey(c.id, c.matterId, c.excerpt)));
+    toFetch.forEach((c) => {
+      markRequested(verifyKey(c.id, c.matterId, c.excerpt));
+    });
     // QA-92 round 2 (coordinator review round 2): capture whether indexing
     // was unsettled at the moment THIS batch was ISSUED, not whatever
     // `importUnsettledRef.current` happens to read once the result lands. A
