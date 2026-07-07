@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 30,
+        "ask": 37,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -244,7 +244,8 @@ describe('en.json structure snapshot', () => {
     // +2 = QA-71 fix (2026-07-05): meetings.entry gained no-transcript
     //      delete-audio button/body copy so deleting audio before transcript
     //      exists honestly warns that the only meeting copy will be lost.
-    expect(flat.length).toBe(1331); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71)
+    // +7 = R5 Ask layout: answer-scope popover copy (6) + Book Overview helper (1).
+    expect(flat.length).toBe(1338); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 7 (R5 Ask)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -14,8 +14,10 @@
  */
 
 import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from 'react';
-import { Sparkles, ArrowRight } from 'lucide-react';
-import { Button, SearchField } from '@/ui/kp';
+import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Sparkles, ArrowRight, SlidersHorizontal } from 'lucide-react';
+import { Button, Chip, Dropdown, SearchField } from '@/ui/kp';
 import { ScopeToggle } from './ScopeToggle';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
@@ -53,17 +55,13 @@ export interface AskComposerProps {
   banner?: ReactNode;
 }
 
-// Module-scope label — the i18n lint rule targets JSX text / string props, not
-// const references, so this keeps the toggle copy out of the JSX-text check
-// (same pattern the prompt builders use). Localized with the surface later.
-const FILES_ONLY_LABEL = 'Files-only mode';
-
 /**
  * Files-only mode lock — a small accessible switch. OFF = the smart, source-aware
  * advisor agent (default); ON = strict cited-from-your-files-only, the one-tap
  * answer for a compliance team that wants the general/drafting capability off.
  */
 function FilesOnlyToggle({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -71,7 +69,7 @@ function FilesOnlyToggle({ value, onChange }: { value: boolean; onChange: (v: bo
       aria-checked={value}
       data-testid="ask-files-only-toggle"
       onClick={() => { onChange(!value); }}
-      title="Files-only mode: answer only from your files, cited — no general knowledge or drafts."
+      title={t('ask.answer-scope.files-only-title')}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -111,8 +109,91 @@ function FilesOnlyToggle({ value, onChange }: { value: boolean; onChange: (v: bo
           }}
         />
       </span>
-      {FILES_ONLY_LABEL}
+      {t('ask.answer-scope.files-only-toggle')}
     </button>
+  );
+}
+
+function AnswerScopePopover({
+  filesOnly,
+  onFilesOnlyChange,
+  banner,
+}: {
+  filesOnly: boolean;
+  onFilesOnlyChange: (v: boolean) => void;
+  banner?: ReactNode;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  const label = filesOnly
+    ? t('ask.answer-scope.files-only')
+    : t('ask.answer-scope.files-general');
+
+  return (
+    <div ref={rootRef} style={{ position: 'relative', display: 'inline-flex' }}>
+      <Chip
+        size="md"
+        active
+        icon={SlidersHorizontal}
+        data-testid="ask-answer-scope-chip"
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        onClick={() => { setOpen((v) => !v); }}
+        style={{
+          padding: '8px 16px',
+          fontSize: '13.5px',
+          fontWeight: 600,
+          borderWidth: '1.5px',
+        }}
+      >
+        {label}
+      </Chip>
+      {open && (
+        <Dropdown
+          role="dialog"
+          aria-label={t('ask.answer-scope.title')}
+          data-testid="ask-answer-scope-popover"
+          style={{
+            position: 'absolute',
+            left: 0,
+            bottom: 'calc(100% + 8px)',
+            width: 360,
+            maxWidth: 'min(360px, calc(100vw - 32px))',
+            padding: 12,
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--kp-navy)' }}>
+                {t('ask.answer-scope.title')}
+              </div>
+              <div style={{ marginTop: 2, fontSize: 12, lineHeight: 1.45, color: 'var(--kp-text-dim)' }}>
+                {t('ask.answer-scope.helper')}
+              </div>
+            </div>
+            <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
+            {banner ? <div data-testid="ask-answer-scope-file-access">{banner}</div> : null}
+          </div>
+        </Dropdown>
+      )}
+    </div>
   );
 }
 
@@ -194,9 +275,8 @@ export function AskComposer({
       >
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 'var(--kp-space-sm)', flexWrap: 'wrap' }}>
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
-          <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
+          <AnswerScopePopover filesOnly={filesOnly} onFilesOnlyChange={onFilesOnlyChange} banner={banner} />
         </div>
-        {banner ? <div style={{ width: '100%' }}>{banner}</div> : null}
         {inputRow}
         <EgressIndicator provider={egressProvider} mode={egressMode} variant="full" />
       </div>
@@ -231,9 +311,8 @@ export function AskComposer({
           }}
         >
           <ScopeToggle scope={askScope} onChange={setAskScope} hasMatter={hasMatter} isSample={isSample} />
-          <FilesOnlyToggle value={filesOnly} onChange={onFilesOnlyChange} />
+          <AnswerScopePopover filesOnly={filesOnly} onFilesOnlyChange={onFilesOnlyChange} banner={banner} />
         </div>
-        {banner ? <div style={{ width: '100%' }}>{banner}</div> : null}
         {inputRow}
       </div>
     </div>

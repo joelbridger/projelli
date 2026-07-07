@@ -14,7 +14,7 @@
  */
 import '@/i18n';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SourcePanel } from './SourcePanel';
 import {
   CITATION_VERDICT_CACHE_MAX_ENTRIES,
@@ -77,6 +77,38 @@ beforeEach(() => {
 });
 
 describe('SourcePanel — negative verdicts during an active import (QA-92 round 2)', () => {
+  it('starts long source previews collapsed and expands them without opening the source', async () => {
+    ragVerifyCitationsBatchMock.mockResolvedValueOnce([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+    const onSelect = vi.fn();
+    const onOpenCitation = vi.fn();
+    const cite = makeCitation({
+      excerpt: [
+        'Line one gives context.',
+        'Line two adds a fact.',
+        'Line three is still preview.',
+        'Line four should start hidden until expanded.',
+      ].join('\n'),
+    });
+
+    render(
+      <SourcePanel
+        citations={[cite]}
+        selectedN={null}
+        onSelect={onSelect}
+        onOpenCitation={onOpenCitation}
+      />,
+    );
+
+    expect(screen.getByTestId('source-card-preview').getAttribute('data-expanded')).toBe('false');
+    fireEvent.click(screen.getByTestId('source-card-preview-toggle'));
+
+    expect(screen.getByTestId('source-card-preview').getAttribute('data-expanded')).toBe('true');
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onOpenCitation).not.toHaveBeenCalled();
+  });
+
   it('holds a negative verdict as pending while indexing is active, then retries and turns verified once idle', async () => {
     useStillImportingMock.mockReturnValue('importing');
     ragVerifyCitationsBatchMock.mockResolvedValueOnce([

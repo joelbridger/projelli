@@ -65,6 +65,27 @@ describe('ConversationsRail', () => {
     expect(props.onNewQuestion).toHaveBeenCalledTimes(1);
   });
 
+  it('searches conversation titles from the field under New question', () => {
+    renderRail();
+    fireEvent.change(screen.getByTestId('rail-conversation-search'), {
+      target: { value: 'deposition' },
+    });
+
+    expect(screen.getByText(/deposition highlights/i)).toBeInTheDocument();
+    expect(screen.queryByText(/discovery deadline/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/cross-matter question/i)).not.toBeInTheDocument();
+  });
+
+  it('shows an empty search state when no conversation title matches', () => {
+    renderRail();
+    fireEvent.change(screen.getByTestId('rail-conversation-search'), {
+      target: { value: 'nothing here' },
+    });
+
+    expect(screen.queryAllByTestId('rail-conversation-item').length).toBe(0);
+    expect(screen.getByTestId('rail-conversation-search-empty')).toBeInTheDocument();
+  });
+
   it('the toggle calls onToggleCollapsed', () => {
     const props = renderRail();
     fireEvent.click(screen.getByTestId('rail-toggle'));

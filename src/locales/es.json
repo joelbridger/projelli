@@ -1983,7 +1983,7 @@
       "all-matters": "Todos los clientes",
       "email": "Correo electrónico",
       "documents": "Documentos",
-      "whole-practice": "Toda la práctica (solo resúmenes)",
+      "whole-practice": "Resumen del libro",
       "this-matter__sourceHash": "ce64bb2112ee4c80002d4a98812be29a68d9ee00433980fa9e010809b84c97a0",
       "all-matters__sourceHash": "b695c090980a50ae44cfb20a346e398c61e1e743a11064316614660469042c86",
       "email__sourceHash": "969ccbd3cf6300ecd5c880459d81ae9027df7517563184a1b8b15282db230621",
@@ -1991,7 +1991,8 @@
       "whole-practice__sourceHash": "76b8f03cc3a5c66280521d83c770b32a198270fda621bd16e20504a1860f8bb1"
     },
     "book": {
-      "option-label": "Toda la práctica",
+      "option-label": "Resumen del libro",
+      "option-helper": "desde tus Client Maps",
       "loading": "Leyendo los resúmenes de tus clientes...",
       "no-facts": "Aún no se han generado resúmenes de clientes. Abre un cliente y crea primero su Client Map.",
       "no-matches": "Ningún cliente de tu libro coincide con esa pregunta.",
@@ -2032,6 +2033,14 @@
     "file-access": {
       "all-entity-scope": "todos tus {{entity}}",
       "all-entity-scope__sourceHash": "32edab7b7ca175a62a2ee0930dbd0e64b223458356d2fc56ffa3d1d606036b4a"
+    },
+    "answer-scope": {
+      "title": "Alcance de la respuesta",
+      "helper": "Elige si Ask puede usar conocimiento general y gestiona el acceso a archivos para este chat.",
+      "files-only": "Solo archivos",
+      "files-general": "Archivos + general",
+      "files-only-toggle": "Modo solo archivos",
+      "files-only-title": "Responder solo desde tus archivos, con citas: sin conocimiento general ni borradores."
     },
     "message-scope": {
       "all-title": "Esta respuesta buscó en todos los {{entity}}.",

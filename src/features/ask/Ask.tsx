@@ -28,9 +28,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-  Sparkles, AlertTriangle,
+  Sparkles, AlertTriangle, PanelRightClose, PanelRightOpen, ShieldCheck,
 } from 'lucide-react';
-import { Button } from '@/ui/kp';
+import { Button, IconButton } from '@/ui/kp';
 import { SourcePanel } from './SourcePanel';
 import { SampleBridgeCallout } from './SampleBridgeCallout';
 import { TurnBlock } from './TurnBlock';
@@ -135,6 +135,7 @@ export function Ask(props: UseAskProps) {
   // container query) for Tauri-WebView reliability, mirroring MainPanel.
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [autoLayout, setAutoLayout] = useState<AskLayout>({ collapseRail: false, showSources: true });
+  const [sourcesExpanded, setSourcesExpanded] = useState(false);
   useEffect(() => {
     const el = bodyRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -654,32 +655,89 @@ export function Ask(props: UseAskProps) {
             row clipping). Shows the SOURCES header over an empty soft panel
             until an answer has citations, then fills with numbered cards. */}
         {autoLayout.showSources && (
-        <div
-          style={{
-            width: SOURCES_WIDTH,
-            flex: 'none',
-            borderLeft: '1px solid var(--kp-divider)',
-            background: 'var(--kp-bg-soft)',
-            overflowY: 'auto',
-            padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
-          }}
-        >
-          <SourcePanel
-            citations={sourceCitations}
-            selectedN={selected}
-            onSelect={(n) => { handleCitationSelect(sourceTurnIdx ?? turns.length, n); }}
-            {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
-            {...(filesOnly
-              ? {}
-              : {
-                  headerSuffix: 'from your files only',
-                  emptyHint:
-                    'When an answer uses your files, the cited sources appear here. General-knowledge answers have nothing to cite — that’s the point.',
-                  footerNote:
-                    'General-knowledge answers have no source card. The Sources panel only ever fills with your files.',
-                })}
-          />
-        </div>
+          sourcesExpanded ? (
+            <div
+              data-testid="ask-sources-pane"
+              data-collapsed="false"
+              style={{
+                width: SOURCES_WIDTH,
+                flex: 'none',
+                borderLeft: '1px solid var(--kp-divider)',
+                background: 'var(--kp-bg-soft)',
+                overflowY: 'auto',
+                padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+                <IconButton
+                  icon={PanelRightClose}
+                  label="Collapse sources"
+                  size="xs"
+                  variant="ghost"
+                  data-testid="ask-sources-toggle"
+                  onClick={() => { setSourcesExpanded(false); }}
+                />
+              </div>
+              <SourcePanel
+                citations={sourceCitations}
+                selectedN={selected}
+                onSelect={(n) => { handleCitationSelect(sourceTurnIdx ?? turns.length, n); }}
+                {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
+                {...(filesOnly
+                  ? {}
+                  : {
+                      headerSuffix: 'from your files only',
+                      emptyHint:
+                        'When an answer uses your files, the cited sources appear here. General-knowledge answers have nothing to cite — that’s the point.',
+                      footerNote:
+                        'General-knowledge answers have no source card. The Sources panel only ever fills with your files.',
+                    })}
+              />
+            </div>
+          ) : (
+            <div
+              data-testid="ask-sources-pane"
+              data-collapsed="true"
+              style={{
+                width: 48,
+                flex: 'none',
+                borderLeft: '1px solid var(--kp-divider)',
+                background: 'var(--kp-bg-soft)',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 8,
+                padding: 'var(--kp-space-sm) 0',
+              }}
+            >
+              <IconButton
+                icon={PanelRightOpen}
+                label="Show sources"
+                size="sm"
+                variant="ghost"
+                data-testid="ask-sources-toggle"
+                onClick={() => { setSourcesExpanded(true); }}
+              />
+              <div
+                title="Sources"
+                style={{
+                  writingMode: 'vertical-rl',
+                  transform: 'rotate(180deg)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: 'var(--kp-text-faint)',
+                }}
+              >
+                <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
+                Sources
+              </div>
+            </div>
+          )
         )}
       </div>
 
