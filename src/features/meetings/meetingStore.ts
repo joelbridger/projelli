@@ -61,6 +61,10 @@ export interface StartOpts {
    *  (Wave 1's calendar match) — feeds Task 12c's type detection. Absent for
    *  ad-hoc recordings with no matched event. */
   calendarTitle?: string;
+  /** The selected calendar event at record-start, when there is one. Kept as a
+   *  small snapshot so later features can prefill recipients and match this
+   *  recording back to the invite without re-reading the calendar. */
+  calendarEvent?: MeetingCalendarEventMeta;
   /** Recording Notice Kit — the firm's custom spoken-notice script ('' = the
    *  built-in wording) and app language AT START, captured so verification
    *  later checks against exactly what was shown for this recording, even if
@@ -84,6 +88,20 @@ export interface StartOpts {
   };
 }
 
+export interface MeetingCalendarAttendeeMeta {
+  email: string;
+  name: string;
+}
+
+export interface MeetingCalendarEventMeta {
+  id: string;
+  title: string;
+  startUtc: string;
+  endUtc: string;
+  joinUrl?: string;
+  attendees: MeetingCalendarAttendeeMeta[];
+}
+
 /** The on-disk `meeting.json` shape this lane reads/writes. */
 export interface MeetingMeta {
   matterId: string;
@@ -104,6 +122,9 @@ export interface MeetingMeta {
   /** The matched calendar event's title at record time, if any — the key
    *  Task 12c's learned-correction map corrects against (see meetingTypes.ts). */
   calendarTitle?: string;
+  /** MF0 — selected calendar event at record-start, if the advisor started
+   *  from a matched invite. Absent for ad-hoc recordings. */
+  calendarEvent?: MeetingCalendarEventMeta;
   /** Advisor-edited display title. Kept separate from calendarTitle/typeId. */
   customTitle?: string;
   dictation?: boolean;
@@ -285,6 +306,36 @@ export async function writeMeetingJson(
     `${meetingDir}/meeting.json`,
     JSON.stringify(meta, null, 2)
   );
+}
+
+function meetingStartCalendarFields(opts: StartOpts): Pick<MeetingMeta, 'calendarTitle' | 'calendarEvent'> {
+  if (opts.calendarEvent) {
+    return {
+      calendarTitle: opts.calendarEvent.title,
+      calendarEvent: opts.calendarEvent,
+    };
+  }
+  return opts.calendarTitle ? { calendarTitle: opts.calendarTitle } : {};
+}
+
+async function recordStartCalendarMetadata(
+  meetingDir: string,
+  opts: StartOpts
+): Promise<void> {
+  const fields = meetingStartCalendarFields(opts);
+  if (!fields.calendarTitle && !fields.calendarEvent) return;
+  const ws = activeWorkspaceService;
+  if (!ws) return;
+  try {
+    const raw = await ws.readFile(`${meetingDir}/meeting.json`);
+    const base = JSON.parse(raw) as MeetingMeta;
+    await writeMeetingJson(meetingDir, {
+      ...base,
+      ...fields,
+    });
+  } catch {
+    // Best-effort. The post-stop pipeline tries the same merge again.
+  }
 }
 
 /** QA-31 — classifies a notes-generation failure so the UI can tell the
@@ -919,9 +970,7 @@ async function runPostStopPipeline(
           ...base,
           ...(durationMs && durationMs > 0 ? { durationMs } : {}),
           ...(typeId ? { typeId } : {}),
-          ...(activeConsent.calendarTitle
-            ? { calendarTitle: activeConsent.calendarTitle }
-            : {}),
+          ...meetingStartCalendarFields(activeConsent),
         }).catch(() => {});
       }
     }
@@ -1019,6 +1068,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       // A prior recording's disk-full pill must never bleed into this new one.
       lastWriteFailure: null,
     });
+    await recordStartCalendarMetadata(r.meetingDir, opts);
     // No TS-side audit.logDurable('meeting_capture_started', ...) here: the
     // Rust capture_start command already appends this exact audit action
     // (append_capture_audit_best_effort in src-tauri/src/commands/capture/

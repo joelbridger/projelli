@@ -15,10 +15,11 @@ export interface CalendarEventLike {
   joinUrl?: string;
 }
 
-export interface NoticeCardOffer {
+export interface NoticeCardOffer<TEvent extends CalendarEventLike = CalendarEventLike> {
   joinUrl: string;
   platform: NoticeCardPlatform;
   meetingTitle: string;
+  event: TEvent;
 }
 
 const DEFAULT_GRACE_MS = 5 * 60 * 1000; // ±5 minutes around now
@@ -29,11 +30,11 @@ const DEFAULT_GRACE_MS = 5 * 60 * 1000; // ±5 minutes around now
  * soonest within the grace window. Events with no classifiable join URL
  * ('none') are ignored.
  */
-export function pickNoticeCardOffer(
-  events: CalendarEventLike[],
+export function pickNoticeCardOffer<TEvent extends CalendarEventLike>(
+  events: TEvent[],
   nowMs: number,
   graceMs: number = DEFAULT_GRACE_MS,
-): NoticeCardOffer | null {
+): NoticeCardOffer<TEvent> | null {
   const candidates = events
     .map((e) => ({ e, start: Date.parse(e.startUtc), end: Date.parse(e.endUtc), platform: detectPlatform(e.joinUrl) }))
     .filter((c) => c.e.joinUrl && c.platform !== 'none')
@@ -53,5 +54,5 @@ export function pickNoticeCardOffer(
   if (!best) return null;
   const { joinUrl } = best.e;
   if (!joinUrl) return null; // guaranteed by the filter; keeps the type honest
-  return { joinUrl, platform: best.platform, meetingTitle: best.e.title };
+  return { joinUrl, platform: best.platform, meetingTitle: best.e.title, event: best.e };
 }
