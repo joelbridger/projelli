@@ -104,7 +104,7 @@ interface APIKey {
 }
 
 interface MainPanelProps {
-  onFileOpen?: (path: string, name: string) => Promise<void>;
+  onFileOpen?: (path: string, name: string) => Promise<unknown>;
   onMove?: (sourcePath: string, targetPath: string) => Promise<void>;
   onRename?: (path: string, newName: string) => Promise<void>;
   onDownload?: (path: string, name: string) => void;
@@ -152,7 +152,7 @@ interface MainPanelProps {
    * F-106/F-107 — when set, the workflow run was blocked because no usable AI
    * provider is available. The WorkflowExecutionTab renders a blocking UI.
    */
-  workflowProviderError?: 'needs-provider' | 'ollama-unreachable' | null;
+  workflowProviderError?: 'needs-provider' | 'ollama-unreachable' | 'needs-client' | null;
   /** Called when the user clicks "Open AI Settings" in the provider-error UI. */
   onOpenSettings?: () => void;
   /**
@@ -688,7 +688,7 @@ export function MainPanel({
       // Check for grid view special tab
       if (tab.path === '__grid_view__') {
         const gridViewProps: {
-          onFileOpen: (path: string, name: string) => Promise<void>;
+          onFileOpen: (path: string, name: string) => Promise<unknown>;
           onMove?: (sourcePath: string, targetPath: string) => Promise<void>;
           className: string;
         } = {

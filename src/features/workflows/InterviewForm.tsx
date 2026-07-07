@@ -1,13 +1,16 @@
 // Interview Form Component
 // Collects answers to workflow interview questions
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import type { InterviewQuestion } from '@/platform/types/workflow';
+import type { Matter } from '@/platform/types/matter';
 import { cn } from '@/lib/utils';
+import { useActiveMatter } from '@/platform/matter/matterStore';
+import { matterLabel } from '@/platform/rag/matterResolver';
 
 interface InterviewFormProps {
   questions: InterviewQuestion[];
@@ -23,13 +26,12 @@ export function InterviewForm({
   isSubmitting = false,
 }: InterviewFormProps) {
   const { t } = useTranslation();
-  const [answers, setAnswers] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
-    for (const q of questions) {
-      initial[q.id] = q.defaultValue ?? '';
-    }
-    return initial;
-  });
+  const activeMatter = useActiveMatter();
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [highlightedQuestionId, setHighlightedQuestionId] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<Record<string, string>>(() =>
+    buildInitialAnswers(questions, activeMatter),
+  );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -58,6 +60,16 @@ export function InterviewForm({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      const firstMissingId = questions.find((q) => newErrors[q.id])?.id;
+      if (firstMissingId) {
+        setHighlightedQuestionId(firstMissingId);
+        requestAnimationFrame(() => {
+          fieldRefs.current[firstMissingId]?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        });
+      }
       return;
     }
 
@@ -67,7 +79,15 @@ export function InterviewForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {questions.map((question) => (
-        <Card key={question.id}>
+        <Card
+          key={question.id}
+          ref={(node) => { fieldRefs.current[question.id] = node; }}
+          data-testid={`workflow-question-${question.id}`}
+          className={cn(
+            highlightedQuestionId === question.id &&
+              'ring-2 ring-amber-400 border-amber-400 bg-amber-50 transition-colors'
+          )}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">
               {question.question}
@@ -85,6 +105,9 @@ export function InterviewForm({
                 type="text"
                 value={answers[question.id] ?? ''}
                 onChange={(e) => handleChange(question.id, e.target.value)}
+                onFocus={() => {
+                  if (highlightedQuestionId === question.id) setHighlightedQuestionId(null);
+                }}
                 placeholder={question.placeholder}
                 className={cn(errors[question.id] && 'border-red-500')}
                 disabled={isSubmitting}
@@ -95,6 +118,9 @@ export function InterviewForm({
               <textarea
                 value={answers[question.id] ?? ''}
                 onChange={(e) => handleChange(question.id, e.target.value)}
+                onFocus={() => {
+                  if (highlightedQuestionId === question.id) setHighlightedQuestionId(null);
+                }}
                 placeholder={question.placeholder}
                 rows={4}
                 className={cn(
@@ -110,6 +136,9 @@ export function InterviewForm({
               <select
                 value={answers[question.id] ?? ''}
                 onChange={(e) => handleChange(question.id, e.target.value)}
+                onFocus={() => {
+                  if (highlightedQuestionId === question.id) setHighlightedQuestionId(null);
+                }}
                 className={cn(
                   'w-full px-3 py-2 text-sm rounded-md border bg-background',
                   'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
@@ -177,11 +206,53 @@ export function InterviewForm({
           </Button>
         )}
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Processing...' : 'Continue'}
+          {isSubmitting ? 'Running...' : 'Run'}
         </Button>
       </div>
     </form>
   );
+}
+
+function buildInitialAnswers(
+  questions: InterviewQuestion[],
+  activeMatter: Matter | null,
+): Record<string, string> {
+  const activeClientName = activeMatter ? activeMatter.client.trim() || matterLabel(activeMatter) : '';
+  const activeClientFileName = activeMatter ? activeMatter.name.trim() || matterLabel(activeMatter) : '';
+  const initial: Record<string, string> = {};
+  for (const q of questions) {
+    const defaultValue = q.defaultValue?.trim() ? q.defaultValue : undefined;
+    initial[q.id] = defaultValue ?? getClientAutofillValue(q, activeClientName, activeClientFileName);
+  }
+  return initial;
+}
+
+function getClientAutofillValue(
+  question: InterviewQuestion,
+  activeClientName: string,
+  activeClientFileName: string,
+): string {
+  const id = question.id.trim();
+  if (id === 'matterName') {
+    return activeClientFileName || activeClientName;
+  }
+  if (['clientName', 'clientOrganizationName', 'householdName'].includes(id)) {
+    return activeClientName;
+  }
+  const label = question.question.trim().toLowerCase();
+  if (label === 'client file name') {
+    return activeClientFileName || activeClientName;
+  }
+  if ([
+    'client name',
+    'prospective client name',
+    'client organization name',
+    'client name and company',
+    'household name',
+  ].includes(label)) {
+    return activeClientName;
+  }
+  return '';
 }
 
 export default InterviewForm;

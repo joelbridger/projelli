@@ -28,7 +28,7 @@ export interface KeyboardShortcutDeps {
   closeSplit: () => void;
   openAIAssistantTab: () => void;
   handleRestoreFromTrash: (id: string) => Promise<void>;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<unknown>;
   handleCreateDefaultDocument: (parentPath?: string) => Promise<void>;
 
   // Refs

@@ -25,7 +25,7 @@ export interface DocLegacyFallbackProps {
   tabName: string;
   tabPath: string;
   tabContent: string;
-  onFileOpen?: ((path: string, name: string) => Promise<void>) | undefined;
+  onFileOpen?: ((path: string, name: string) => Promise<unknown>) | undefined;
 }
 
 /**

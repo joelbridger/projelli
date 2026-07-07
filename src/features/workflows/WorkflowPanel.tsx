@@ -75,7 +75,7 @@ interface WorkflowPanelProps {
   /** F-502 — when set, the last Run click was blocked before any folder/tab
    *  was created. Rendered as a banner at the top of the panel so the click
    *  never silently does nothing. */
-  providerError?: 'needs-provider' | 'ollama-unreachable' | null;
+  providerError?: 'needs-provider' | 'ollama-unreachable' | 'needs-client' | null;
   /** Open Settings > AI (used by the banner action). */
   onOpenSettings?: () => void;
   /**
@@ -252,14 +252,18 @@ export function WorkflowPanel({
           role="alert"
         >
           <p className="font-medium">
-            {providerError === 'ollama-unreachable'
-              ? t('workflow.execution.ollama-unreachable-title')
-              : t('workflow.execution.needs-provider-title')}
+            {providerError === 'needs-client'
+              ? 'Pick your client first.'
+              : providerError === 'ollama-unreachable'
+                ? t('workflow.execution.ollama-unreachable-title')
+                : t('workflow.execution.needs-provider-title')}
           </p>
           <p className="mt-1 text-muted-foreground">
-            {providerError === 'ollama-unreachable'
-              ? t('workflow.execution.ollama-unreachable-body')
-              : t('workflow.execution.needs-provider-body')}
+            {providerError === 'needs-client'
+              ? 'Choose a client, then run the workflow again.'
+              : providerError === 'ollama-unreachable'
+                ? t('workflow.execution.ollama-unreachable-body')
+                : t('workflow.execution.needs-provider-body')}
           </p>
           {onOpenSettings && providerError === 'needs-provider' && (
             <Button size="sm" variant="outline" className="mt-2" onClick={onOpenSettings}>
@@ -673,19 +677,37 @@ interface TemplateForkModalProps {
 }
 
 function TemplateForkModal({ original, onClose, onSaved }: TemplateForkModalProps) {
-  const { t } = useTranslation();
-  const [name, setName] = useState('');
-  const [systemPrompt, setSystemPromptValue] = useState('');
+  return (
+    <Dialog
+      open={original !== null}
+      onOpenChange={(o) => { if (!o) onClose(); }}
+    >
+      {original ? (
+        <TemplateForkModalFields
+          key={original.id}
+          original={original}
+          onClose={onClose}
+          onSaved={onSaved}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
 
-  // Re-seed the fields whenever a new template opens the dialog.
-  useEffect(() => {
-    if (!original) return;
-    setName(`${original.name} (custom)`);
-    setSystemPromptValue(getSystemPrompt(original));
-  }, [original]);
+function TemplateForkModalFields({
+  original,
+  onClose,
+  onSaved,
+}: {
+  original: WorkflowTemplate;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t } = useTranslation();
+  const [name, setName] = useState(() => `${original.name} (custom)`);
+  const [systemPrompt, setSystemPromptValue] = useState(() => getSystemPrompt(original));
 
   const handleSave = useCallback(() => {
-    if (!original) return;
     const duplicated = duplicateTemplate(original, { name: name.trim() || original.name });
     const withPrompt = setSystemPrompt(duplicated, systemPrompt);
     saveUserTemplate(withPrompt);
@@ -693,10 +715,6 @@ function TemplateForkModal({ original, onClose, onSaved }: TemplateForkModalProp
   }, [original, name, systemPrompt, onSaved]);
 
   return (
-    <Dialog
-      open={original !== null}
-      onOpenChange={(o) => { if (!o) onClose(); }}
-    >
       <DialogContent
         data-testid="template-fork-modal"
         className="max-w-2xl w-[90vw]"
@@ -752,13 +770,12 @@ function TemplateForkModal({ original, onClose, onSaved }: TemplateForkModalProp
             data-testid="template-fork-save"
             size="sm"
             onClick={handleSave}
-            disabled={!original || name.trim().length === 0}
+            disabled={name.trim().length === 0}
           >
             Save template
           </Button>
         </DialogFooter>
       </DialogContent>
-    </Dialog>
   );
 }
 

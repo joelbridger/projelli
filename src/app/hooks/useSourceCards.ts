@@ -11,7 +11,7 @@ import { workspacePath } from '@/platform/fs/appPath';
 interface UseSourceCardsOptions {
   rootPath: string | null;
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<unknown>;
 }
 
 interface UseSourceCardsReturn {

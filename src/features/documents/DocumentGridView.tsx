@@ -435,7 +435,7 @@ function WorkspaceEmptyState({ onCreateDocument, onCreateFolder }: WorkspaceEmpt
 // ── Props ──────────────────────────────────────────────────────────────────
 
 export interface DocumentGridViewProps {
-  onFileOpen: (path: string, name: string) => Promise<void>;
+  onFileOpen: (path: string, name: string) => Promise<unknown>;
   onCreateFile: (parentPath: string) => void;
   onCreateFolder: (parentPath: string) => void;
   onRename: (path: string) => void;

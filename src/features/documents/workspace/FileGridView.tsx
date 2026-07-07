@@ -16,7 +16,7 @@ import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
 
 interface FileGridViewProps {
-  onFileOpen: (path: string, name: string) => Promise<void>;
+  onFileOpen: (path: string, name: string) => Promise<unknown>;
   onMove?: (sourcePath: string, targetPath: string) => Promise<void>;
   className?: string;
 }

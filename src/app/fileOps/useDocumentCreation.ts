@@ -27,7 +27,7 @@ export interface UseDocumentCreationOptions {
   setFileTree: (tree: FileNode[]) => void;
   prompt: (message: string, defaultValue?: string, options?: Omit<PromptOptions, 'defaultValue'>) => Promise<string | null>;
   confirm: (message: string, options?: ConfirmOptions) => Promise<boolean>;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<unknown>;
   openFile: OpenFile;
 }
 

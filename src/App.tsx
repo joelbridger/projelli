@@ -707,7 +707,7 @@ function AppShell() {
   // Handle file open (must be defined before useSourceCards)
   const handleFileOpen = useCallback(
     async (path: string, name: string) => {
-      if (!workspaceServiceRef.current) return;
+      if (!workspaceServiceRef.current) return false;
 
       // Auto-expand parent folders to show file location
       const { expandedPaths, setExpandedPaths } = useWorkspaceStore.getState();
@@ -733,6 +733,7 @@ function AppShell() {
           const dataUrl = arrayBufferToDataUrl(buffer, mimeType);
           openFile(path, name, dataUrl);
           setDocumentsView('editor');
+          return true;
         } else {
           const content = await workspaceServiceRef.current.readFile(path);
           // `.workflow` files are routed via openTab with the dedicated
@@ -745,10 +746,12 @@ function AppShell() {
             openFile(path, name, content);
           }
           setDocumentsView('editor');
+          return true;
         }
       } catch (error) {
         console.error('Failed to open file:', error);
         window.alert("I couldn't open that file. It may have been moved, or it's too large to preview.");
+        return false;
       }
     },
     [openFile, openTab]

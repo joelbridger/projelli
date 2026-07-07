@@ -170,18 +170,15 @@ describe('AssociateHome (law persona)', () => {
     expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
   });
 
-  it('calls onStartWorkflow after confirming the run-time household', () => {
+  it('calls onStartWorkflow as soon as Run is clicked', () => {
     const onStartWorkflow = vi.fn();
     render(<AssociateHome {...defaultProps({ onStartWorkflow })} />);
     const runBtn = screen.getByTestId('associate-run-deposition-contradiction-finder');
     fireEvent.click(runBtn);
-    // Clicking Run now opens the run-time household confirmation; it does NOT
-    // start the workflow until the user confirms.
-    expect(onStartWorkflow).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId('workflow-run-confirm-go'));
     expect(onStartWorkflow).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'deposition-contradiction-finder' })
     );
+    expect(screen.queryByTestId('workflow-run-confirm')).toBeNull();
   });
 
   it('disables Run buttons and shows trial banner when trial is locked', () => {
@@ -243,6 +240,12 @@ describe('AssociateHome (law persona)', () => {
     expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
   });
 
+  it('shows pick-client-first banner without settings button', () => {
+    render(<AssociateHome {...defaultProps({ providerError: 'needs-client' })} />);
+    expect(screen.getByText('Pick your client first.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
+  });
+
   it('renders recent runs strip when runHistory is provided', () => {
     const runHistory: RunRecord[] = [
       {
@@ -263,7 +266,7 @@ describe('AssociateHome (law persona)', () => {
     expect(screen.getByTestId('associate-run-row-run-1')).toBeTruthy();
   });
 
-  it('calls onFocusExecutionTab when a recent run row is clicked', () => {
+  it('calls onFocusExecutionTab when a recent run row without a result file is clicked', () => {
     const onFocusExecutionTab = vi.fn();
     const runHistory: RunRecord[] = [
       {
@@ -285,35 +288,94 @@ describe('AssociateHome (law persona)', () => {
     expect(onFocusExecutionTab).toHaveBeenCalledOnce();
   });
 
+  it('opens the produced document when a recent run row has a result file', () => {
+    const onOpenRunArtifact = vi.fn();
+    const onFocusExecutionTab = vi.fn();
+    const runHistory: RunRecord[] = [
+      {
+        run_id: 'run-doc',
+        workflow: 'annual-review-packet',
+        model: 'claude-sonnet-4-6',
+        inputs: {},
+        outputs: {
+          displayTitle: 'Alice Smith - Word document',
+          primaryArtifactName: 'Annual Review Packet.docx',
+          primaryArtifactPath: '/workspace/Clients/Alice/Documents/Workflows/Annual/Annual Review Packet.docx',
+        },
+        tool_calls: [],
+        start_time: new Date(Date.now() - 7200000).toISOString(),
+        end_time: new Date(Date.now() - 7100000).toISOString(),
+        status: 'completed',
+        error: undefined,
+      },
+    ];
+    render(<AssociateHome {...defaultProps({ runHistory, onOpenRunArtifact, onFocusExecutionTab })} />);
+
+    expect(screen.getByText('Alice Smith - Word document')).toBeTruthy();
+    expect(screen.getByText('Annual Review Packet.docx')).toBeTruthy();
+    fireEvent.click(screen.getByTestId('associate-run-row-run-doc'));
+
+    expect(onOpenRunArtifact).toHaveBeenCalledWith(
+      '/workspace/Clients/Alice/Documents/Workflows/Annual/Annual Review Packet.docx',
+      'Annual Review Packet.docx',
+    );
+    expect(onFocusExecutionTab).not.toHaveBeenCalled();
+  });
+
+  it('marks a recent run as missing when its produced document cannot be opened', async () => {
+    const onOpenRunArtifact = vi.fn(async () => false);
+    const runHistory: RunRecord[] = [
+      {
+        run_id: 'run-missing-doc',
+        workflow: 'annual-review-packet',
+        model: 'claude-sonnet-4-6',
+        inputs: {},
+        outputs: {
+          displayTitle: 'Alice Smith - Word document',
+          primaryArtifactName: 'Annual Review Packet.docx',
+          primaryArtifactPath: '/workspace/Clients/Alice/Documents/Workflows/Annual/Annual Review Packet.docx',
+        },
+        tool_calls: [],
+        start_time: new Date(Date.now() - 7200000).toISOString(),
+        end_time: new Date(Date.now() - 7100000).toISOString(),
+        status: 'completed',
+        error: undefined,
+      },
+    ];
+    render(<AssociateHome {...defaultProps({ runHistory, onOpenRunArtifact })} />);
+
+    fireEvent.click(screen.getByTestId('associate-run-row-run-missing-doc'));
+
+    expect(await screen.findByText('File missing')).toBeTruthy();
+    expect(screen.getByTestId('associate-run-row-run-missing-doc')).toHaveAttribute(
+      'data-file-missing',
+      'true',
+    );
+  });
+
   it('does not show recent runs strip when runHistory is empty', () => {
     render(<AssociateHome {...defaultProps({ runHistory: [] })} />);
     expect(screen.queryByTestId('associate-recent-runs')).toBeNull();
   });
 
-  // ── Active-matter context chip ────────────────────────────────────────────
+  it('shows a non-clickable animated running pill while a workflow is running', () => {
+    const template = mockTemplates[0]!;
+    render(<AssociateHome {...defaultProps({
+      currentExecution: {
+        runId: 'run-active',
+        template,
+        currentStepIndex: 0,
+        status: 'running',
+        inputs: {},
+        stepOutputs: [],
+        startTime: new Date(),
+      },
+    })} />);
 
-  it('shows no matter chip when there is no active matter', () => {
-    render(<AssociateHome {...defaultProps()} />);
-    expect(screen.queryByTestId('associate-active-matter-chip')).toBeNull();
-  });
-
-  it('surfaces the active matter at run time as a "Run in: <household>" confirmation', () => {
-    mockUseActiveMatter.mockReturnValue({
-      id: 'matter_test_1',
-      name: 'Smith v. Jones',
-      client: 'Alice Smith',
-      folderPaths: [],
-      mailFolderPaths: [],
-      privileged: false,
-      createdAt: new Date().toISOString(),
-    });
-    render(<AssociateHome {...defaultProps()} />);
-    // The persistent "Running in" pill was replaced by a run-time confirmation:
-    // clicking Run reveals the target household explicitly ("Run in <label>").
-    fireEvent.click(screen.getByTestId('associate-run-deposition-contradiction-finder'));
-    const confirm = screen.getByTestId('workflow-run-confirm');
-    expect(confirm.textContent).toContain('Run in');
-    expect(confirm.textContent).toContain('Alice Smith - Smith v. Jones');
+    const pill = screen.getByTestId('associate-running-pill');
+    expect(pill.textContent).toContain('Running Deposition Contradiction Finder');
+    expect(pill.querySelector('.animate-spin')).toBeTruthy();
+    expect((pill as HTMLElement).style.pointerEvents).toBe('none');
   });
 
   // ── Practice-area filter chips ────────────────────────────────────────────

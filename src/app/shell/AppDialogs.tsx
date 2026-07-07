@@ -128,7 +128,7 @@ export interface AppDialogsProps {
   showQuickOpen: boolean;
   setShowQuickOpen: (open: boolean) => void;
   fileTree: FileNode[];
-  handleFileOpen: (path: string, name: string) => void | Promise<void>;
+  handleFileOpen: (path: string, name: string) => unknown;
 
   // Audio recorder
   showAudioRecorder: boolean;

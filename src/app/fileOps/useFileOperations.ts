@@ -29,7 +29,7 @@ type ContentIndex = ReturnType<typeof useContentIndex>;
 export interface UseFileOperationsOptions {
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
   fileSystemWatcherRef: React.MutableRefObject<FileSystemWatcher | null>;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<unknown>;
   prompt: (message: string, defaultValue?: string, options?: Omit<PromptOptions, 'defaultValue'>) => Promise<string | null>;
   setFileTree: (tree: FileNode[]) => void;
   markSaved: (path: string, savedRev?: number) => void;

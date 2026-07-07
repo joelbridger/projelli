@@ -36,7 +36,7 @@ export interface QuickOpenProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   fileTree: FileNode[];
-  onFileOpen: (path: string, name: string) => void | Promise<void>;
+  onFileOpen: (path: string, name: string) => unknown;
 }
 
 interface FlatFile {

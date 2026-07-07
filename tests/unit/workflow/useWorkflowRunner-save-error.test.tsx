@@ -14,11 +14,13 @@
  * subfolder-preserving path join, also extracted as a pure function).
  */
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import type { WorkflowTemplate, GenerateStepConfig } from '@/platform/types/workflow';
 import type { FileNode } from '@/platform/types/workspace';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
 
 function saveErrorTemplate(): WorkflowTemplate {
   return {
@@ -58,6 +60,25 @@ function makeWorkspaceServiceRef(writeFile: (path: string, content: string) => P
 }
 
 describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () => {
+  function setActiveMatter(overrides: Partial<Matter> = {}) {
+    const activeMatter: Matter = {
+      id: 'matter-alice',
+      name: 'Retirement Review',
+      client: 'Alice Smith',
+      folderPaths: ['/workspace/Clients/Alice Smith'],
+      mailFolderPaths: [],
+      privileged: false,
+      createdAt: new Date().toISOString(),
+      ...overrides,
+    };
+    useMatterStore.setState({ matters: [activeMatter], activeMatterId: activeMatter.id });
+    return activeMatter;
+  }
+
+  beforeEach(() => {
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+  });
+
   it(
     'sets workflowSaveError and logs an audit entry when the terminal .workflow write fails on every retry',
     async () => {
@@ -73,6 +94,7 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
       });
       const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
       const addAuditEntry = vi.fn();
+      setActiveMatter();
 
       const { result } = renderHook(() =>
         useWorkflowRunner({
@@ -119,6 +141,7 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
     const writeFile = vi.fn(async () => {});
     const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
     const addAuditEntry = vi.fn();
+    setActiveMatter();
 
     const { result } = renderHook(() =>
       useWorkflowRunner({
@@ -147,5 +170,121 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
           'workflow_save_failed'
       )
     ).toBe(false);
+  });
+
+  it('saves workflow outputs under the active client Documents/Workflows folder and records a clickable result title', async () => {
+    setActiveMatter();
+
+    const writeFile = vi.fn(async () => {});
+    const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
+    const completeRun = vi.fn();
+
+    const { result } = renderHook(() =>
+      useWorkflowRunner({
+        rootPath: '/workspace',
+        isTestMode: true,
+        apiKeys: [],
+        completeRun,
+        openTab: vi.fn(),
+        setFileTree: vi.fn(),
+        addAuditEntry: vi.fn(),
+        workspaceServiceRef,
+        templatesMetadataReaderRef: { current: null },
+        templatesMarketplaceServiceRef: { current: null },
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleStartWorkflow(saveErrorTemplate());
+    });
+
+    expect(workspaceServiceRef.current.mkdir).toHaveBeenCalledWith(
+      expect.stringContaining('/workspace/Clients/Alice Smith/Documents/Workflows/Save Error Template - '),
+    );
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('/workspace/Clients/Alice Smith/Documents/Workflows/Save Error Template - '),
+      expect.any(String),
+    );
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('/Out.md'),
+      expect.any(String),
+    );
+
+    expect(completeRun).toHaveBeenCalledOnce();
+    const savedRun = completeRun.mock.calls[0]![0] as { outputs: Record<string, unknown> };
+    expect(savedRun.outputs['displayTitle']).toBe('Alice Smith - Retirement Review - Markdown document');
+    expect(savedRun.outputs['documentType']).toBe('Markdown document');
+    expect(savedRun.outputs['primaryArtifactPath']).toEqual(
+      expect.stringContaining('/workspace/Clients/Alice Smith/Documents/Workflows/Save Error Template - '),
+    );
+    expect(savedRun.outputs['primaryArtifactPath']).toEqual(expect.stringContaining('/Out.md'));
+  });
+
+  it('blocks a workflow before any disk writes when no client is active', async () => {
+    const writeFile = vi.fn(async () => {});
+    const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
+    const completeRun = vi.fn();
+
+    const { result } = renderHook(() =>
+      useWorkflowRunner({
+        rootPath: '/workspace',
+        isTestMode: true,
+        apiKeys: [],
+        completeRun,
+        openTab: vi.fn(),
+        setFileTree: vi.fn(),
+        addAuditEntry: vi.fn(),
+        workspaceServiceRef,
+        templatesMetadataReaderRef: { current: null },
+        templatesMarketplaceServiceRef: { current: null },
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleStartWorkflow(saveErrorTemplate());
+    });
+
+    expect(result.current.workflowProviderError).toBe('needs-client');
+    expect(workspaceServiceRef.current.mkdir).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(completeRun).not.toHaveBeenCalled();
+  });
+
+  it('ignores a second start click while the first workflow start is still in flight', async () => {
+    setActiveMatter();
+    let releaseExists!: () => void;
+    const existsGate = new Promise<boolean>((resolve) => {
+      releaseExists = () => resolve(false);
+    });
+    const writeFile = vi.fn(async () => {});
+    const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
+    workspaceServiceRef.current.exists = vi.fn(() => existsGate);
+
+    const { result } = renderHook(() =>
+      useWorkflowRunner({
+        rootPath: '/workspace',
+        isTestMode: true,
+        apiKeys: [],
+        completeRun: vi.fn(),
+        openTab: vi.fn(),
+        setFileTree: vi.fn(),
+        addAuditEntry: vi.fn(),
+        workspaceServiceRef,
+        templatesMetadataReaderRef: { current: null },
+        templatesMarketplaceServiceRef: { current: null },
+      })
+    );
+
+    const template = saveErrorTemplate();
+    let firstStart!: Promise<void>;
+    let secondStart!: Promise<void>;
+    await act(async () => {
+      firstStart = result.current.handleStartWorkflow(template);
+      secondStart = result.current.handleStartWorkflow(template);
+      releaseExists();
+      await Promise.all([firstStart, secondStart]);
+    });
+
+    expect(workspaceServiceRef.current.mkdir).toHaveBeenCalledTimes(1);
   });
 });
