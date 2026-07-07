@@ -424,6 +424,13 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     return path;
   }, [workspaceService, summaryReady, meta, t, uniqueExportPath, summaryMarkdown]);
 
+  const buildSummaryDocxBytes = useCallback(async (): Promise<Uint8Array> => {
+    if (!summaryReady) throw new Error(t('meetings.entry.summary-not-ready'));
+    const stem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
+    const bytes = await markdownToDocxBytes(summaryMarkdown(), `${stem}.docx`);
+    return applyLetterheadIfConfigured(bytes);
+  }, [summaryReady, meta, t, summaryMarkdown]);
+
   const runExport = useCallback(async (kind: string, work: () => Promise<string | null>) => {
     setExporting(kind);
     setExportNotice(null);
@@ -447,19 +454,24 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     void runExport('summary-pdf', async () => {
       const ws = workspaceService;
       if (!ws) return null;
-      const docxPath = await exportSummaryDocx();
-      if (!docxPath) return null;
-      const pdfSource = await docxConvertToPdf(docxPath);
-      const { readFile } = await import('@tauri-apps/plugin-fs');
-      const pdfBytes = await readFile(pdfSource);
-      const stem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
-      const pdfPath = await uniqueExportPath(stem, 'pdf');
-      await ws.writeFileBinary(pdfPath, toExactArrayBuffer(pdfBytes));
-      return pdfPath;
+      const tempStem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
+      const tempDocxPath = `${meetingDir}/.summary-pdf-${String(Date.now())}-${Math.random().toString(36).slice(2)}.docx`;
+      try {
+        const finalBytes = await buildSummaryDocxBytes();
+        await ws.writeFileBinary(tempDocxPath, toExactArrayBuffer(finalBytes));
+        const pdfSource = await docxConvertToPdf(tempDocxPath);
+        const { readFile } = await import('@tauri-apps/plugin-fs');
+        const pdfBytes = await readFile(pdfSource);
+        const pdfPath = await uniqueExportPath(tempStem, 'pdf');
+        await ws.writeFileBinary(pdfPath, toExactArrayBuffer(pdfBytes));
+        return pdfPath;
+      } finally {
+        await ws.delete(tempDocxPath).catch(() => undefined);
+      }
     }).catch((err: unknown) => {
       setExportNotice(err instanceof Error ? err.message : String(err));
     });
-  }, [workspaceService, exportSummaryDocx, runExport, meta, t, uniqueExportPath]);
+  }, [workspaceService, runExport, meta, t, meetingDir, buildSummaryDocxBytes, uniqueExportPath]);
 
   const handleExportTranscript = useCallback(() => {
     void runExport('transcript', async () => {

@@ -11,6 +11,10 @@ vi.mock('@/platform/utils/docx-commands', () => ({
   docxConvertToPdf: vi.fn(async () => '/tmp/meeting.pdf'),
 }));
 
+vi.mock('@tauri-apps/plugin-fs', () => ({
+  readFile: vi.fn(async () => new Uint8Array([4, 5, 6])),
+}));
+
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
 
@@ -129,6 +133,28 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     await waitFor(() => {
       expect(ws.writeFileBinary).toHaveBeenCalledWith('/ws/C/Documents/Meeting summary 2.docx', expect.any(ArrayBuffer));
     });
+  });
+
+  it('exports Summary PDF without leaving an extra Word document in the client documents folder', async () => {
+    const ws = makeWorkspace({ notesExists: true });
+    setMeetingsWorkspaceService(ws as never);
+
+    render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
+    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('meeting-summary-export-pdf'));
+
+    await waitFor(() => {
+      expect(ws.writeFileBinary).toHaveBeenCalledWith(
+        '/ws/C/Documents/Meeting summary.pdf',
+        expect.any(ArrayBuffer)
+      );
+    });
+    expect(ws.writeFileBinary).not.toHaveBeenCalledWith(
+      '/ws/C/Documents/Meeting summary.docx',
+      expect.any(ArrayBuffer)
+    );
   });
 
   it('clears loaded meeting state before a different meeting can export stale notes', async () => {

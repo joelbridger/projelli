@@ -26,7 +26,11 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
-import { routeSavedAskDocument } from '@/app/shell/routeSavedAskDocument';
+import {
+  resolveSavedDocumentDirectory,
+  resolveSavedDocumentPath,
+  routeSavedAskDocument,
+} from '@/app/shell/routeSavedAskDocument';
 import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import type {
@@ -396,12 +400,20 @@ export function AppSurfaceRouter({
               }
             })();
             const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
+            const targetDir = resolveSavedDocumentDirectory({
+              rootPath,
+              activeMatter,
+            });
             const finalName = await resolveUniqueName(
               workspaceServiceRef.current,
-              rootPath,
+              targetDir,
               `${base}.docx`
             );
-            const path = workspacePath(rootPath, finalName);
+            const path = resolveSavedDocumentPath({
+              rootPath,
+              activeMatter,
+              fileName: finalName,
+            });
             const bytes = await markdownToDocxBytes(content, finalName, {
               firmName,
             });
@@ -510,12 +522,20 @@ export function AppSurfaceRouter({
               /\.(md|markdown|txt)$/i,
               ''
             );
+            const targetDir = resolveSavedDocumentDirectory({
+              rootPath,
+              activeMatter,
+            });
             const finalName = await resolveUniqueName(
               workspaceServiceRef.current,
-              rootPath,
+              targetDir,
               `${base}.docx`
             );
-            const path = workspacePath(rootPath, finalName);
+            const path = resolveSavedDocumentPath({
+              rootPath,
+              activeMatter,
+              fileName: finalName,
+            });
             const bytes = await markdownToDocxBytes(content, finalName, {
               firmName,
             });
@@ -584,6 +604,9 @@ export function AppSurfaceRouter({
               name,
               handleFileOpen,
               setSidebarActiveTab,
+              setDocumentsView,
+              setMattersSurfaceMode,
+              pushNavigationSnapshot,
             })
           }
           onFocusExecutionTab={() => {
