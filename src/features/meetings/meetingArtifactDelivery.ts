@@ -242,8 +242,17 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
   return entries;
 }
 
-function artifactLabelFor(artifact: MeetingArtifact, t: TFunction): string {
-  return t(`meetings.entry.recipients.artifacts.${artifact}.label`);
+export function artifactLabelFor(artifact: MeetingArtifact, t: TFunction): string {
+  switch (artifact) {
+    case 'notes':
+      return t('meetings.entry.recipients.artifacts.notes.label');
+    case 'transcript':
+      return t('meetings.entry.recipients.artifacts.transcript.label');
+    case 'summary':
+      return t('meetings.entry.recipients.artifacts.summary.label');
+    case 'audio':
+      return t('meetings.entry.recipients.artifacts.audio.label');
+  }
 }
 
 function attachmentNameFor(artifact: MeetingArtifact, title: string): string {

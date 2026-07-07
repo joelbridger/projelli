@@ -63,7 +63,7 @@ function dateDurationLine(meta: MeetingMeta | null, t: TFunction): string | null
   return parts.length ? parts.join(' · ') : null;
 }
 
-type MeetingEntryTab = 'recording' | 'transcript' | 'summary';
+type MeetingEntryTab = 'recording' | 'transcript' | 'summary' | 'send';
 
 function sanitizeFileStem(value: string): string {
   return value
@@ -497,7 +497,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   return (
     <div
       data-testid="meeting-entry"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0, overflowY: 'auto' }}
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0, overflow: 'hidden' }}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -566,7 +566,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
               style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Trash2 style={{ width: 12, height: 12 }} />
-              {t(hasTranscript ? 'meetings.entry.delete-audio' : 'meetings.entry.delete-audio-no-transcript')}
+              {hasTranscript ? t('meetings.entry.delete-audio') : t('meetings.entry.delete-audio-no-transcript')}
             </button>
           )}
         </div>
@@ -606,48 +606,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             </span>
           )}
         </div>
-      )}
-
-      {/* Recording Notice Kit — the notice trail (verified chip / needs-review
-          / quarantine + copy actions), bound to this meeting. Hidden for
-          dictated notes, which have no meeting audio or spoken notice. */}
-      {meta && !meta.dictation && (
-        <NoticeTrail
-          meetingDir={meetingDir}
-          notices={notices}
-          policy={noticePolicy}
-          inviteDisclosure={t('meetings.notice.invite-disclosure')}
-          chatNotice={t('meetings.notice.chat-notice')}
-          onRecordNotice={handleRecordNotice}
-        />
-      )}
-
-      {meta && (
-        <MeetingRecipientsPanel
-          matterId={matterId}
-          meetingDir={meetingDir}
-          meta={meta}
-          matter={matter}
-          workspaceService={workspaceService}
-          onSaved={setMeta}
-        />
-      )}
-
-      {meta && (
-        <MeetingArtifactSendPanel
-          matterId={matterId}
-          meetingDir={meetingDir}
-          meta={meta}
-          clientName={clientName}
-          workspaceService={workspaceService}
-          hasAudio={hasAudio}
-          hasTranscript={hasTranscript}
-          hasNotes={hasNotes}
-          summaryReady={summaryReady}
-          transcript={transcript}
-          buildSummaryDocxBytes={buildSummaryDocxBytes}
-          onSent={setMeta}
-        />
       )}
 
       <div style={{ borderBottom: '1px solid var(--kp-divider)', padding: '10px var(--kp-gutter) 0', display: 'flex', gap: 6 }}>
@@ -705,17 +663,51 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         >
           {t('meetings.entry.tab-summary')}
         </button>
+        <button
+          type="button"
+          data-testid="meeting-subtab-send-to-team"
+          onClick={() => { setActiveTab('send'); }}
+          style={{
+            border: 'none',
+            borderBottom: activeTab === 'send' ? '2px solid var(--kp-accent)' : '2px solid transparent',
+            background: 'transparent',
+            color: activeTab === 'send' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            fontFamily: 'inherit',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: activeTab === 'send' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
+            padding: '8px 10px',
+            cursor: 'pointer',
+          }}
+        >
+          {t('meetings.entry.tab-send-to-team')}
+        </button>
       </div>
 
-      {exportNotice && (
-        <div data-testid="meeting-entry-export-notice" style={{ padding: '8px var(--kp-gutter) 0', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-          {exportNotice}
-        </div>
-      )}
+      <div data-testid="meeting-entry-tab-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+        {exportNotice && (
+          <div data-testid="meeting-entry-export-notice" style={{ padding: '8px var(--kp-gutter) 0', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+            {exportNotice}
+          </div>
+        )}
 
-      <div data-testid="meeting-entry-tab-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 'var(--kp-gutter)' }}>
-        {activeTab === 'recording' && (
-          <div data-testid="meeting-recording-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
+        {/* Recording Notice Kit — the notice trail (verified chip / needs-review
+            / quarantine + copy actions), bound to this meeting. It stays
+            visible for every tab while the tab content owns scrolling. Hidden
+            for dictated notes, which have no meeting audio or spoken notice. */}
+        {meta && !meta.dictation && (
+          <NoticeTrail
+            meetingDir={meetingDir}
+            notices={notices}
+            policy={noticePolicy}
+            inviteDisclosure={t('meetings.notice.invite-disclosure')}
+            chatNotice={t('meetings.notice.chat-notice')}
+            onRecordNotice={handleRecordNotice}
+          />
+        )}
+
+        <div style={{ padding: activeTab === 'send' ? '0 0 var(--kp-gutter)' : 'var(--kp-gutter)' }}>
+          {activeTab === 'recording' && (
+            <div data-testid="meeting-recording-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
             {hasAudio && audioSrc ? (
               <>
                 <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={meetingDisplayTitle(meta, t)} compact />
@@ -743,11 +735,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 {t('meetings.entry.no-one-spoke')}
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {activeTab === 'transcript' && (
-          <div data-testid="meeting-transcript-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
+          {activeTab === 'transcript' && (
+            <div data-testid="meeting-transcript-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
@@ -797,11 +789,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 {t('meetings.entry.transcript-pending')}
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
 
-        {activeTab === 'summary' && (
-          <div data-testid="meeting-summary-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
+          {activeTab === 'summary' && (
+            <div data-testid="meeting-summary-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" data-testid="meeting-summary-copy" onClick={() => { void copyText(summaryText.trim(), t('meetings.entry.summary-copied')); }} disabled={!summaryReady} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
                 <Copy style={{ width: 13, height: 13 }} />
@@ -840,8 +832,41 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 {t('meetings.entry.notes-pending')}
               </div>
             )}
-          </div>
-        )}
+            </div>
+          )}
+
+          {activeTab === 'send' && (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              {meta && (
+                <MeetingRecipientsPanel
+                  matterId={matterId}
+                  meetingDir={meetingDir}
+                  meta={meta}
+                  matter={matter}
+                  workspaceService={workspaceService}
+                  onSaved={setMeta}
+                />
+              )}
+
+              {meta && (
+                <MeetingArtifactSendPanel
+                  matterId={matterId}
+                  meetingDir={meetingDir}
+                  meta={meta}
+                  clientName={clientName}
+                  workspaceService={workspaceService}
+                  hasAudio={hasAudio}
+                  hasTranscript={hasTranscript}
+                  hasNotes={hasNotes}
+                  summaryReady={summaryReady}
+                  transcript={transcript}
+                  buildSummaryDocxBytes={buildSummaryDocxBytes}
+                  onSent={setMeta}
+                />
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Deleting the only recording of a client meeting is irreversible —
@@ -852,7 +877,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             <DialogTitle>{t('meetings.entry.delete-audio-confirm-title')}</DialogTitle>
           </DialogHeader>
           <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
-            {t(hasTranscript ? 'meetings.entry.delete-audio-confirm-body' : 'meetings.entry.delete-audio-confirm-body-no-transcript')}
+            {hasTranscript ? t('meetings.entry.delete-audio-confirm-body') : t('meetings.entry.delete-audio-confirm-body-no-transcript')}
           </p>
           <DialogFooter>
             <DialogButton variant="secondary" onClick={() => { setConfirmingDelete(false); }}>

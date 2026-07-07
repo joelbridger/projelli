@@ -13,6 +13,7 @@ import { mmss } from './meetingSources';
 import {
   buildMeetingArtifactAvailability,
   buildMeetingSendPreview,
+  artifactLabelFor,
   meetingSendLogSummary,
   meetingSendTitle,
   sendMeetingArtifacts,
@@ -230,7 +231,7 @@ export function MeetingArtifactSendPanel({
       {preview.missing.length > 0 && (
         <div data-testid="meeting-send-missing" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
           <AlertTriangle style={{ width: 13, height: 13 }} />
-          {t('meetings.entry.send.missing', { artifacts: preview.missing.map((artifact) => t(`meetings.entry.recipients.artifacts.${artifact}.label`)).join(', ') })}
+          {t('meetings.entry.send.missing', { artifacts: preview.missing.map((artifact) => artifactLabelFor(artifact, t)).join(', ') })}
         </div>
       )}
 

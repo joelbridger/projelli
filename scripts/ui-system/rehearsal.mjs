@@ -682,6 +682,7 @@ async function main() {
         ['Recording', 'meeting-subtab-recording', 'scroll-meeting-recording'],
         ['Transcript', 'meeting-subtab-transcript', 'scroll-meeting-transcript'],
         ['Summary', 'meeting-subtab-summary', 'scroll-meeting-summary'],
+        ['Send to team', 'meeting-subtab-send-to-team', 'scroll-meeting-send-to-team'],
       ]) {
         await page.locator(`[data-testid="${tabId}"]`).click({ timeout: 8000 }).catch(() => {});
         await recordScroll(

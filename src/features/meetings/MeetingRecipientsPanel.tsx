@@ -25,6 +25,7 @@ import {
   type MeetingRecipientGroup,
 } from './meetingRecipientPlan';
 import type { MeetingMeta } from './meetingStore';
+import type { TFunction } from 'i18next';
 
 export interface MeetingRecipientsPanelProps {
   matterId: string;
@@ -42,6 +43,32 @@ function emptyInputs(): Record<MeetingArtifact, string> {
     summary: '',
     audio: '',
   };
+}
+
+function artifactLabel(artifact: MeetingArtifact, t: TFunction): string {
+  switch (artifact) {
+    case 'notes':
+      return t('meetings.entry.recipients.artifacts.notes.label');
+    case 'transcript':
+      return t('meetings.entry.recipients.artifacts.transcript.label');
+    case 'summary':
+      return t('meetings.entry.recipients.artifacts.summary.label');
+    case 'audio':
+      return t('meetings.entry.recipients.artifacts.audio.label');
+  }
+}
+
+function artifactHelp(artifact: MeetingArtifact, t: TFunction): string {
+  switch (artifact) {
+    case 'notes':
+      return t('meetings.entry.recipients.artifacts.notes.help');
+    case 'transcript':
+      return t('meetings.entry.recipients.artifacts.transcript.help');
+    case 'summary':
+      return t('meetings.entry.recipients.artifacts.summary.help');
+    case 'audio':
+      return t('meetings.entry.recipients.artifacts.audio.help');
+  }
 }
 
 export function MeetingRecipientsPanel({
@@ -322,7 +349,7 @@ export function MeetingRecipientsPanel({
                           onChange={() => { togglePersonArtifact(recipient, artifact); }}
                           style={{ margin: 0 }}
                         />
-                        <span>{t(`meetings.entry.recipients.artifacts.${artifact}.label`)}</span>
+                        <span>{artifactLabel(artifact, t)}</span>
                       </label>
                     );
                   })}
@@ -396,10 +423,10 @@ export function MeetingRecipientsPanel({
               >
                 <div>
                   <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)' }}>
-                    {t(`meetings.entry.recipients.artifacts.${artifact}.label`)}
+                    {artifactLabel(artifact, t)}
                   </div>
                   <div style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', marginTop: 2 }}>
-                    {t(`meetings.entry.recipients.artifacts.${artifact}.help`)}
+                    {artifactHelp(artifact, t)}
                   </div>
                 </div>
 
