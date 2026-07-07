@@ -451,6 +451,47 @@ mod tests {
         assert_eq!(decoded, raw);
     }
 
+    #[tokio::test]
+    async fn gmail_send_still_accepts_display_name_recipients() {
+        use base64::Engine;
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/gmail/v1/users/me/messages/send"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "gmail-msg-1" })))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GmailClient::new_with_base("AT".into(), server.uri());
+        let id = client
+            .send_message(
+                "advisor@example.com",
+                &["Client Name <client@example.com>".to_string()],
+                &[],
+                &[],
+                "Test subject",
+                "Hello",
+                None,
+                None,
+                &[],
+            )
+            .await
+            .expect("Gmail should keep accepting RFC5322 recipient strings");
+        assert_eq!(id, "gmail-msg-1");
+
+        let requests = server.received_requests().await.expect("received requests");
+        let body: serde_json::Value = serde_json::from_slice(&requests[0].body).expect("json body");
+        let raw = body["raw"].as_str().expect("raw message");
+        let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .decode(raw)
+            .expect("base64url raw message");
+        let message = String::from_utf8(decoded).expect("utf8 message");
+        assert!(message.contains("To: \"Client Name\" <client@example.com>"), "{message}");
+    }
+
     // ── retry_delay ──────────────────────────────────────────────────────────
 
     #[test]

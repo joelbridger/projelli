@@ -91,4 +91,24 @@ describe('mail-commands', () => {
     expect(invoke).toHaveBeenCalledWith('mail_connected_accounts');
     expect(accts[0]?.provider).toBe('m365');
   });
+
+  it('mailSend blocks oversized attachments before invoking the backend', async () => {
+    const { mailSend } = await import('@/platform/utils/mail-commands');
+    await expect(mailSend(
+      'm365',
+      'default',
+      ['client@example.com'],
+      [],
+      [],
+      'Subject',
+      'Body',
+      undefined,
+      [{
+        name: 'meeting audio.wav',
+        contentType: 'audio/wav',
+        contentBase64: 'A'.repeat(Math.ceil(((3 * 1024 * 1024) + 1) / 3) * 4),
+      }],
+    )).rejects.toThrow('meeting audio.wav');
+    expect(invoke).not.toHaveBeenCalledWith('mail_send', expect.anything());
+  });
 });

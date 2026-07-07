@@ -2338,6 +2338,38 @@
             "help": "Die Beraternotizdatei."
           }
         }
+      },
+      "send": {
+        "title": "Besprechungsinhalte senden",
+        "privacy-note": "Zuerst prüfen. Beim Senden verlassen die ausgewählten Dateien diesen Computer über Ihr verbundenes E-Mail-Konto. Lantern erhält sie nicht.",
+        "review-button": "Senden prüfen",
+        "account-label": "E-Mail-Konto",
+        "no-account": "E-Mail in den Einstellungen verbinden",
+        "needs-review": "Markieren Sie die Besprechung als geprüft, bevor etwas gesendet wird.",
+        "no-items": "Wählen Sie mindestens einen Empfänger für einen verfügbaren Besprechungsinhalt.",
+        "local-only-blocked": "Der Nur-lokal-Modus ist aktiviert, daher ist das Senden per E-Mail ausgeschaltet.",
+        "ready-count": "{{count}} Element ist bereit zur Prüfung",
+        "ready-count_plural": "{{count}} Elemente sind bereit zur Prüfung",
+        "to-line": "An: {{recipients}}",
+        "subject-line": "Betreff: {{subject}}",
+        "body-line": "Text: {{body}}",
+        "attachment-line": "Anhang: {{attachment}}",
+        "missing": "Diese geplanten Inhalte sind noch nicht bereit: {{artifacts}}.",
+        "log-title": "Sendeprotokoll",
+        "log-row": "{{status}} {{artifact}} an {{count}} Empfänger am {{date}}",
+        "log-row_plural": "{{status}} {{artifact}} an {{count}} Empfänger am {{date}}",
+        "confirm-title": "Vor dem Senden prüfen",
+        "confirm-privacy": "Diese Dateien werden über {{account}} gesendet. Nur in diesem Schritt verlassen die Dateien diesen Computer.",
+        "send-again-warning": "{{artifact}} wurde bereits gesendet. Bestätigen Sie, dass Sie es erneut senden möchten.",
+        "confirm-button": "Jetzt senden",
+        "sending": "Wird gesendet...",
+        "failed-without-message": "Senden fehlgeschlagen.",
+        "sent": "{{count}} Besprechungsinhalt gesendet.",
+        "sent_plural": "{{count}} Besprechungsinhalte gesendet.",
+        "sent-with-errors": "{{total}} Element versucht; {{failed}} fehlgeschlagen. Prüfen Sie das Sendeprotokoll.",
+        "sent-with-errors_plural": "{{total}} Elemente versucht; {{failed}} fehlgeschlagen. Prüfen Sie das Sendeprotokoll.",
+        "email-subject": "{{client}} Besprechung {{artifact}}: {{title}}",
+        "email-body": "Hallo,\n\nangehängt ist {{artifact}} aus der Besprechung von {{client}}: {{title}}.\n\nNach Prüfung über mein verbundenes E-Mail-Konto gesendet."
       }
     },
     "types": {

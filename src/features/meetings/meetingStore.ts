@@ -54,6 +54,7 @@ import type { NoticeLocale } from './noticeMatcher';
 import i18n from '@/i18n';
 import type { MeetingSummary } from './ClientMeetingsTab';
 import type { MeetingDeliveryPlan } from './meetingRecipientPlan';
+import type { MeetingDeliveryStatus } from './meetingArtifactDelivery';
 
 export interface StartOpts {
   consentMode: 'one-party' | 'two-party';
@@ -131,6 +132,9 @@ export interface MeetingMeta {
   /** MF1 — local recipient choices per artifact. Nothing is sent by this field;
    *  MF2 will read it only after an advisor-reviewed send step exists. */
   deliveryPlan?: MeetingDeliveryPlan;
+  /** MF2 — durable local send receipts. Exact recipients stay on this meeting's
+   *  own file so the advisor can later answer who received which artifact. */
+  deliveryStatus?: MeetingDeliveryStatus;
   dictation?: boolean;
   /** QA-31 — set when the notes-generation step (tryGenerateNotes) fails or
    *  times out, so the UI can show an honest "couldn't write notes" state

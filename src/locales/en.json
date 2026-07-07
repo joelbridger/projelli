@@ -1667,6 +1667,38 @@
             "help": "The advisor notes file."
           }
         }
+      },
+      "send": {
+        "title": "Send meeting items",
+        "privacy-note": "Review first. On send, the selected files leave this computer through your connected email account. Lantern does not receive them.",
+        "review-button": "Review send",
+        "account-label": "Email account",
+        "no-account": "Connect email in Settings",
+        "needs-review": "Mark the meeting reviewed before sending anything.",
+        "no-items": "Choose at least one recipient for an available meeting item.",
+        "local-only-blocked": "Local-only mode is on, so email sending is off.",
+        "ready-count": "{{count}} item ready to review",
+        "ready-count_plural": "{{count}} items ready to review",
+        "to-line": "To: {{recipients}}",
+        "subject-line": "Subject: {{subject}}",
+        "body-line": "Body: {{body}}",
+        "attachment-line": "Attachment: {{attachment}}",
+        "missing": "These planned items are not ready yet: {{artifacts}}.",
+        "log-title": "Send log",
+        "log-row": "{{status}} {{artifact}} to {{count}} recipient at {{date}}",
+        "log-row_plural": "{{status}} {{artifact}} to {{count}} recipients at {{date}}",
+        "confirm-title": "Review before sending",
+        "confirm-privacy": "These files will be sent through {{account}}. This is the only step where the files leave this computer.",
+        "send-again-warning": "{{artifact}} was already sent. Confirm you want to send it again.",
+        "confirm-button": "Send now",
+        "sending": "Sending...",
+        "failed-without-message": "Send failed.",
+        "sent": "Sent {{count}} meeting item.",
+        "sent_plural": "Sent {{count}} meeting items.",
+        "sent-with-errors": "Tried {{total}} item; {{failed}} failed. Check the send log.",
+        "sent-with-errors_plural": "Tried {{total}} items; {{failed}} failed. Check the send log.",
+        "email-subject": "{{client}} meeting {{artifact}}: {{title}}",
+        "email-body": "Hi,\n\nAttached is the {{artifact}} from {{client}}'s meeting: {{title}}.\n\nSent from my connected email account after review."
       }
     },
     "types": {
