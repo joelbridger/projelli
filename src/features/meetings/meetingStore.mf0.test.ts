@@ -28,14 +28,15 @@ const BASE_META: MeetingMeta = {
 
 function makeWorkspace(files: Map<string, string>): WorkspaceService {
   return {
-    async readFile(path: string) {
-      return files.get(path) ?? null;
+    readFile(path: string) {
+      return Promise.resolve(files.get(path) ?? null);
     },
-    async writeFile(path: string, content: string) {
+    writeFile(path: string, content: string) {
       files.set(path, content);
+      return Promise.resolve();
     },
-    async exists(path: string) {
-      return files.has(path);
+    exists(path: string) {
+      return Promise.resolve(files.has(path));
     },
   } as unknown as WorkspaceService;
 }
