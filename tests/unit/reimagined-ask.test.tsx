@@ -8,6 +8,7 @@ const mockInitSession = vi.fn();
 const mockAddMessage = vi.fn();
 const mockUpdateLastMessage = vi.fn();
 const mockSessions: Record<string, { chatId: string; messages: unknown[]; isLoading: boolean; lastUpdated: string }> = {};
+const getComposerInput = () => screen.getByTestId('ask-composer-input') as HTMLInputElement;
 
 const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 
@@ -150,7 +151,7 @@ describe('Ask', () => {
 
   it('shows composer input', () => {
     render(<Ask />);
-    expect(screen.getByRole('textbox')).toBeDefined();
+    expect(getComposerInput()).toBeDefined();
   });
 
   it('accepts onSaveToDocument prop', () => {
@@ -161,7 +162,7 @@ describe('Ask', () => {
   it('New ask button clears conversation state', async () => {
     render(<Ask />);
     // Verify the component renders something initially
-    expect(screen.getByRole('textbox')).toBeDefined();
+    expect(getComposerInput()).toBeDefined();
   });
 
   it('shows Ask button in composer', () => {
@@ -178,7 +179,7 @@ describe('Ask', () => {
 
   it('Ask button enables when input has text', () => {
     render(<Ask />);
-    const input = screen.getByRole('textbox');
+    const input = getComposerInput();
     fireEvent.change(input, { target: { value: 'What are the key facts?' } });
     const askBtn = screen.getByRole('button', { name: /^Ask$/i });
     expect((askBtn as HTMLButtonElement).disabled).toBe(false);
@@ -194,7 +195,7 @@ describe('Ask', () => {
     // The demo-matched Ask has a calm, empty center: just the composer, no
     // headline and no suggestion pills (heading + example/demo chips were
     // removed). The composer is always present so the user can type a question.
-    expect(screen.getByRole('textbox')).toBeDefined();
+    expect(getComposerInput()).toBeDefined();
     expect(screen.queryByText(/what do you want to find/i)).toBeNull();
     expect(screen.queryByText(/summarize this matter/i)).toBeNull();
     expect(screen.queryByText(/find all related emails/i)).toBeNull();
@@ -202,7 +203,7 @@ describe('Ask', () => {
 
   it('submitting question does not throw (smoke test)', () => {
     render(<Ask />);
-    const input = screen.getByRole('textbox');
+    const input = getComposerInput();
     fireEvent.change(input, { target: { value: 'Test question' } });
     // Find the submit button — after typing, it should be enabled
     const buttons = screen.getAllByRole('button');
@@ -554,7 +555,7 @@ describe('Ask', () => {
     const emailBtn = screen.getByTestId('scope-option-email');
     fireEvent.click(emailBtn);
 
-    const input = screen.getByRole('textbox');
+    const input = getComposerInput();
     fireEvent.change(input, { target: { value: 'Who emailed?' } });
     const askBtn = screen.getByRole('button', { name: /^Ask$/i });
     fireEvent.click(askBtn);
@@ -603,7 +604,7 @@ describe('Ask', () => {
       />,
     );
     await waitFor(() => {
-      const input = screen.getByRole('textbox') as HTMLInputElement;
+      const input = getComposerInput();
       expect(input.value).toBe('What is the discovery deadline?');
     });
     expect(onConsumed).toHaveBeenCalled();
@@ -611,7 +612,7 @@ describe('Ask', () => {
 
   it('null prefillRequest does nothing to the input', () => {
     render(<Ask prefillRequest={null} />);
-    const input = screen.getByRole('textbox') as HTMLInputElement;
+    const input = getComposerInput();
     expect(input.value).toBe('');
   });
 
@@ -645,7 +646,7 @@ describe('Ask', () => {
     render(<Ask />);
     // We can't easily trigger the catch from here without integration setup,
     // but we can verify the component renders without throwing.
-    expect(screen.getByRole('textbox')).toBeDefined();
+    expect(getComposerInput()).toBeDefined();
   });
 
   // -------------------------------------------------------------------------
