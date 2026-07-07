@@ -23,19 +23,8 @@ import {
   EV_MATTER_LAUNCH,
   EV_OPEN_PRIVACY_CENTER,
 } from '@/config/identity';
-/** The shell's left-nav surfaces (the `sidebarActiveTab` union). */
-export type AppSurface =
-  | 'files'
-  | 'matters'
-  | 'search'
-  | 'email'
-  | 'workflows'
-  | 'ai-assistant'
-  | 'research'
-  | 'audit'
-  | 'privacy'
-  | 'settings'
-  | 'trash';
+export type { AppSurface } from '@/platform/types/navigation';
+import type { AppSurface } from '@/platform/types/navigation';
 
 export interface AskPrefill {
   question: string;

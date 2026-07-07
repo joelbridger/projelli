@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
+import type { AppSurface } from '@/platform/types/navigation';
 import type { ClientMapHubTab } from '@/platform/matter/matterStore';
 
 export type MattersSurfaceMode = 'client-map' | 'all-clients';

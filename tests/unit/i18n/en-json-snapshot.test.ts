@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 213,
+        "matter": 214,
         "media": 92,
         "meetings": 148,
         "memory": 6,
@@ -74,7 +74,7 @@ describe('en.json structure snapshot', () => {
         "search": 6,
         "settings": 168,
         "shortcuts-overlay": 2,
-        "spine": 6,
+        "spine": 7,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,
@@ -249,7 +249,8 @@ describe('en.json structure snapshot', () => {
     // +20 = R5 Ask layout: answer-scope popover copy + Book Overview helper +
     //       the review-driven i18n sweep (conversation search, pane labels,
     //       source-preview copy moved from hardcoded English to keys).
-    expect(flat.length).toBe(1356); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 5 (R2/R4 catch-up) + 20 (R5 Ask + i18n sweep)
+    // +2 = R3 navigation: rail-search empty state + Back button label.
+    expect(flat.length).toBe(1358); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 5 (R2/R4 catch-up) + 20 (R5 Ask + i18n sweep) + 2 (R3 nav)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
