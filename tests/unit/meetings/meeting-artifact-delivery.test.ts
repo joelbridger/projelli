@@ -143,14 +143,47 @@ describe('meeting artifact delivery', () => {
       t: t as never,
     });
 
-    expect(preview.items.map((item) => item.artifact)).toEqual(['summary', 'notes']);
+    expect(preview.items.map((item) => item.artifact)).toEqual(['notes', 'summary']);
     expect(preview.missing).toEqual(['audio']);
     expect(preview.items[0]).toMatchObject({
-      artifactLabel: 'Summary',
-      attachmentName: 'Annual review summary.docx',
-      subject: 'Hendricks meeting Summary: Annual review',
+      artifactLabel: 'Notes',
+      attachmentName: 'Annual review notes.docx',
+      subject: 'Hendricks meeting Notes: Annual review',
       recipients: [{ email: 'client@example.com', name: 'Client', source: 'manual' }],
     });
+  });
+
+  it('prefills the send preview from calendar attendees when no plan was saved', () => {
+    const preview = buildMeetingSendPreview({
+      meta: meta({
+        deliveryPlan: undefined,
+        calendarEvent: {
+          id: 'event-1',
+          title: 'Annual review',
+          startUtc: NOW,
+          endUtc: '2026-07-07T13:00:00.000Z',
+          attendees: [
+            { email: 'alex@example.com', name: 'Alex' },
+            { email: 'sam@example.com', name: 'Sam' },
+          ],
+        },
+      }),
+      availability: buildMeetingArtifactAvailability({
+        hasAudio: true,
+        hasTranscript: true,
+        hasNotes: true,
+        summaryReady: true,
+      }),
+      title: 'Annual review',
+      clientName: 'Hendricks',
+      t: t as never,
+    });
+
+    expect(preview.items.map((item) => item.artifact)).toEqual(['notes', 'transcript', 'summary', 'audio']);
+    expect(preview.items[0]?.recipients).toEqual([
+      { email: 'alex@example.com', name: 'Alex', source: 'calendar' },
+      { email: 'sam@example.com', name: 'Sam', source: 'calendar' },
+    ]);
   });
 
   it('sends every reviewed artifact, writes an exact local send log, and writes privacy-safe audit entries', async () => {
@@ -204,11 +237,11 @@ describe('meeting artifact delivery', () => {
     expect(firstSendCall).toBeDefined();
     if (!firstSendCall) throw new Error('Expected the first email send call.');
     expect(firstSendCall[0]).toBe('m365');
-    expect(firstSendCall[2]).toEqual(['ops@example.com']);
+    expect(firstSendCall[2]).toEqual(['client@example.com']);
     expect(firstSendCall[7]).toBeUndefined();
     expect(firstSendCall[8]?.[0]).toMatchObject({
-      name: 'Annual review audio.wav',
-      contentType: 'audio/wav',
+      name: 'Annual review notes.docx',
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
 
     const written = JSON.parse(String(files.get('/client/Meetings/one/meeting.json'))) as MeetingMeta & {
@@ -219,9 +252,9 @@ describe('meeting artifact delivery', () => {
       status: entry.status,
       recipients: entry.recipients,
     }))).toEqual([
-      { artifact: 'audio', status: 'sent', recipients: [{ email: 'ops@example.com', source: 'manual' }] },
-      { artifact: 'summary', status: 'sent', recipients: [{ email: 'client@example.com', name: 'Client', source: 'manual' }] },
       { artifact: 'notes', status: 'sent', recipients: [{ email: 'client@example.com', name: 'Client', source: 'manual' }] },
+      { artifact: 'summary', status: 'sent', recipients: [{ email: 'client@example.com', name: 'Client', source: 'manual' }] },
+      { artifact: 'audio', status: 'sent', recipients: [{ email: 'ops@example.com', source: 'manual' }] },
     ]);
 
     expect(audit.logDurable).toHaveBeenCalledTimes(3);
@@ -238,7 +271,7 @@ describe('meeting artifact delivery', () => {
       mailProvider: 'm365',
       recipientCount: 1,
     });
-    expect(JSON.stringify(firstAuditOptions.metadata)).not.toContain('ops@example.com');
+    expect(JSON.stringify(firstAuditOptions.metadata)).not.toContain('client@example.com');
   });
 
   it('refuses to write a send log for a meeting from another client', async () => {
@@ -427,12 +460,12 @@ describe('meeting artifact delivery', () => {
     });
 
     expect(entries.map((entry) => ({ artifact: entry.artifact, status: entry.status }))).toEqual([
-      { artifact: 'audio', status: 'failed' },
-      { artifact: 'summary', status: 'sent' },
       { artifact: 'notes', status: 'sent' },
+      { artifact: 'summary', status: 'sent' },
+      { artifact: 'audio', status: 'failed' },
     ]);
-    expect(entries[0]?.error).toContain('Annual review audio.wav');
-    expect(entries[0]?.error).toContain('limit 3 MB');
+    expect(entries[2]?.error).toContain('Annual review audio.wav');
+    expect(entries[2]?.error).toContain('limit 3 MB');
     expect(sendMail).toHaveBeenCalledTimes(2);
   });
 });

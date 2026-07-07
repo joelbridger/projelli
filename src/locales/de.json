@@ -2316,12 +2316,21 @@
       "recipients": {
         "title": "Empfänger",
         "description": "Wählen Sie aus, wer jeden Gesprächsinhalt später erhalten soll. Dies speichert nur den Plan.",
+        "auto-title": "Aus der Einladung übernommen",
+        "auto-description": "Alle Personen in der Kalendereinladung sind zuerst für jeden Gesprächsinhalt ausgewählt. Entfernen Sie eine Person oder einen Inhalt, wenn er nicht gesendet werden soll.",
+        "add-person": "Person hinzufügen",
         "save": "Plan speichern",
         "saving": "Wird gespeichert...",
         "saved": "Lokal gespeichert. Es wurde nichts gesendet.",
         "invalid-email": "Geben Sie eine gültige E-Mail-Adresse ein.",
         "email-placeholder": "person@example.com",
         "remove": "{{email}} entfernen",
+        "groups-title": "Gruppen",
+        "groups-description": "Gruppen werden im Ordner dieses Kunden gespeichert, damit Empfängerlisten beim jeweiligen Kunden bleiben.",
+        "group-name-placeholder": "Gruppenname",
+        "save-group": "Aktuelle Personen als Gruppe speichern",
+        "group-saved": "Gruppe für diesen Kunden gespeichert.",
+        "use-group": "{{name}} hinzufügen ({{count}})",
         "artifacts": {
           "audio": {
             "label": "Audio",

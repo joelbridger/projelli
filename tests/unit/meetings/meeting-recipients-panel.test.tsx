@@ -14,6 +14,52 @@ const openedMeta: MeetingMeta = {
 };
 
 describe('MeetingRecipientsPanel', () => {
+  it('shows everyone from the invite as included by default', () => {
+    render(
+      <MeetingRecipientsPanel
+        matterId="matter-1"
+        meetingDir="/ws/Hendricks/Meetings/one"
+        meta={{
+          ...openedMeta,
+          calendarEvent: {
+            id: 'event-1',
+            title: 'Annual review',
+            startUtc: '2026-07-07T12:00:00.000Z',
+            endUtc: '2026-07-07T13:00:00.000Z',
+            attendees: [
+              { email: 'alex@example.com', name: 'Alex Hendricks' },
+              { email: 'sam@example.com', name: 'Sam Hendricks' },
+            ],
+          },
+        }}
+        matter={null}
+        workspaceService={null}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('meeting-recipient-auto-list')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-recipient-person-alex@example.com')).toBeChecked();
+    expect(screen.getByTestId('meeting-recipient-person-artifact-notes-alex@example.com')).toBeChecked();
+    expect(screen.getByTestId('meeting-recipient-person-artifact-audio-sam@example.com')).toBeChecked();
+  });
+
+  it('falls back to the manual picker when the meeting has no calendar attendees', () => {
+    render(
+      <MeetingRecipientsPanel
+        matterId="matter-1"
+        meetingDir="/ws/Hendricks/Meetings/one"
+        meta={openedMeta}
+        matter={null}
+        workspaceService={null}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId('meeting-recipient-manual-picker')).toBeInTheDocument();
+    expect(screen.queryByTestId('meeting-recipient-auto-list')).not.toBeInTheDocument();
+  });
+
   it('preserves meeting fields added after the panel opened when saving recipients', async () => {
     const files = new Map<string, string>();
     files.set('/ws/Hendricks/Meetings/one/meeting.json', JSON.stringify({

@@ -2316,12 +2316,21 @@
       "recipients": {
         "title": "Destinatarios",
         "description": "Elige quién debe recibir cada elemento de la reunión más tarde. Esto solo guarda el plan.",
+        "auto-title": "Incluidos desde la invitación",
+        "auto-description": "Todas las personas de la invitación del calendario empiezan incluidas para cada elemento de la reunión. Desmarca una persona o un elemento para dejarlo fuera.",
+        "add-person": "Agregar persona",
         "save": "Guardar plan",
         "saving": "Guardando...",
         "saved": "Guardado localmente. No se ha enviado nada.",
         "invalid-email": "Ingresa una dirección de correo válida.",
         "email-placeholder": "persona@example.com",
         "remove": "Eliminar {{email}}",
+        "groups-title": "Grupos",
+        "groups-description": "Los grupos se guardan dentro de la carpeta de este cliente, para que las listas de destinatarios se queden con ese cliente.",
+        "group-name-placeholder": "Nombre del grupo",
+        "save-group": "Guardar personas actuales como grupo",
+        "group-saved": "Grupo guardado para este cliente.",
+        "use-group": "Agregar {{name}} ({{count}})",
         "artifacts": {
           "audio": {
             "label": "Audio",
