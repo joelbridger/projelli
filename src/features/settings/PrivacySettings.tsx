@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { MapPin } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { useTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
 import { useDesignPartnerConsent } from '@/platform/hooks/useDesignPartnerConsent';
 import { getInstallId } from '@/platform/utils/installId';
@@ -31,17 +32,24 @@ export function PrivacySettings() {
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-muted-foreground">
-        {t('settings.privacy.description')}
-      </p>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-sm font-medium">{t('settings.privacy.title')}</h3>
+        <InfoHelp
+          content={t('settings.privacy.description')}
+          label={`About ${t('settings.privacy.title')}`}
+        />
+      </div>
 
       {/* WS-C — the data map: a plain-English, printable account of where data
           goes, reachable from Privacy (and from Settings → AI). */}
       <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-        <h3 className="text-base font-semibold">{t('settings.privacy.data-map.title')}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t('settings.privacy.data-map.description')}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-base font-semibold">{t('settings.privacy.data-map.title')}</h3>
+          <InfoHelp
+            content={t('settings.privacy.data-map.description')}
+            label={`About ${t('settings.privacy.data-map.title')}`}
+          />
+        </div>
         <Button
           data-testid="privacy-open-data-map"
           variant="outline"
@@ -69,10 +77,57 @@ export function PrivacySettings() {
       <div className="rounded-lg border border-border bg-card p-6 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h3 className="text-base font-semibold">{t('settings.privacy.telemetry.title')}</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              {t('settings.privacy.telemetry.description')}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-base font-semibold">{t('settings.privacy.telemetry.title')}</h3>
+              <InfoHelp
+                label={`About ${t('settings.privacy.telemetry.title')}`}
+                content={
+                  <div className="space-y-2">
+                    <p>{t('settings.privacy.telemetry.description')}</p>
+                    <p className="font-medium">{t('settings.privacy.telemetry.what-is-sent')}</p>
+                    <ul className="ml-4 list-disc space-y-1">
+                      <li>
+                        <Trans
+                          i18nKey="settings.privacy.telemetry.field-install-id"
+                          components={{ c: <code /> }}
+                        />
+                      </li>
+                      <li>
+                        <Trans
+                          i18nKey="settings.privacy.telemetry.field-app-version"
+                          components={{ c: <code /> }}
+                        />
+                      </li>
+                      <li>
+                        <Trans
+                          i18nKey="settings.privacy.telemetry.field-event"
+                          components={{ c: <code /> }}
+                        />
+                      </li>
+                      <li>
+                        <Trans
+                          i18nKey="settings.privacy.telemetry.field-license-tier"
+                          components={{ c: <code /> }}
+                        />
+                      </li>
+                    </ul>
+                    <p>
+                      <Trans
+                        i18nKey="settings.privacy.telemetry.endpoint-note"
+                        components={{ c: <code /> }}
+                      />
+                    </p>
+                    <p>
+                      <Trans
+                        i18nKey="settings.privacy.telemetry.install-id-display"
+                        values={{ id: getInstallId() }}
+                        components={{ c: <code className="px-1 py-0.5 rounded bg-muted" /> }}
+                      />
+                    </p>
+                  </div>
+                }
+              />
+            </div>
           </div>
           <Button
             variant={consent === 'enabled' ? 'default' : 'outline'}
@@ -87,48 +142,6 @@ export function PrivacySettings() {
               : t('settings.privacy.telemetry.disabled')}
           </Button>
         </div>
-        <div className="border-t pt-4 space-y-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">{t('settings.privacy.telemetry.what-is-sent')}</p>
-          <ul className="space-y-1 ml-4 list-disc">
-            <li>
-              <Trans
-                i18nKey="settings.privacy.telemetry.field-install-id"
-                components={{ c: <code /> }}
-              />
-            </li>
-            <li>
-              <Trans
-                i18nKey="settings.privacy.telemetry.field-app-version"
-                components={{ c: <code /> }}
-              />
-            </li>
-            <li>
-              <Trans
-                i18nKey="settings.privacy.telemetry.field-event"
-                components={{ c: <code /> }}
-              />
-            </li>
-            <li>
-              <Trans
-                i18nKey="settings.privacy.telemetry.field-license-tier"
-                components={{ c: <code /> }}
-              />
-            </li>
-          </ul>
-          <p>
-            <Trans
-              i18nKey="settings.privacy.telemetry.endpoint-note"
-              components={{ c: <code /> }}
-            />
-          </p>
-          <p>
-            <Trans
-              i18nKey="settings.privacy.telemetry.install-id-display"
-              values={{ id: getInstallId() }}
-              components={{ c: <code className="px-1 py-0.5 rounded bg-muted" /> }}
-            />
-          </p>
-        </div>
       </div>
 
       {/* Design-partner diagnostics opt-in — strictly optional, structure-only */}
@@ -138,12 +151,32 @@ export function PrivacySettings() {
       >
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h3 className="text-base font-semibold">
-              {t('settings.privacy.design-partner.title')}
-            </h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              {t('settings.privacy.design-partner.description')}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <h3 className="text-base font-semibold">
+                {t('settings.privacy.design-partner.title')}
+              </h3>
+              <InfoHelp
+                label={`About ${t('settings.privacy.design-partner.title')}`}
+                content={
+                  <div className="space-y-2">
+                    <p>{t('settings.privacy.design-partner.description')}</p>
+                    <p className="font-medium">{t('settings.privacy.design-partner.what-is-sent')}</p>
+                    <ul className="ml-4 list-disc space-y-1">
+                      <li>{t('settings.privacy.design-partner.field-features')}</li>
+                      <li>{t('settings.privacy.design-partner.field-workflow-id')}</li>
+                      <li>{t('settings.privacy.design-partner.field-search-count')}</li>
+                      <li>{t('settings.privacy.design-partner.field-install-id')}</li>
+                    </ul>
+                    <p>
+                      <Trans
+                        i18nKey="settings.privacy.design-partner.endpoint-note"
+                        components={{ c: <code /> }}
+                      />
+                    </p>
+                  </div>
+                }
+              />
+            </div>
           </div>
           <Button
             variant={dpConsent === 'enabled' ? 'default' : 'outline'}
@@ -158,37 +191,27 @@ export function PrivacySettings() {
               : t('settings.privacy.design-partner.disabled')}
           </Button>
         </div>
-        <div className="border-t pt-4 space-y-2 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">
-            {t('settings.privacy.design-partner.what-is-sent')}
-          </p>
-          <ul className="space-y-1 ml-4 list-disc">
-            <li>{t('settings.privacy.design-partner.field-features')}</li>
-            <li>{t('settings.privacy.design-partner.field-workflow-id')}</li>
-            <li>{t('settings.privacy.design-partner.field-search-count')}</li>
-            <li>{t('settings.privacy.design-partner.field-install-id')}</li>
-          </ul>
-          <p>
-            <Trans
-              i18nKey="settings.privacy.design-partner.endpoint-note"
-              components={{ c: <code /> }}
-            />
-          </p>
-        </div>
       </div>
 
       {/* Email updates note */}
       <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-        <h3 className="text-base font-semibold">{t('settings.privacy.email.title')}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t('settings.privacy.email.intro')}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          <Trans
-            i18nKey="settings.privacy.email.unsub"
-            components={{ c: <code /> }}
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-base font-semibold">{t('settings.privacy.email.title')}</h3>
+          <InfoHelp
+            label={`About ${t('settings.privacy.email.title')}`}
+            content={
+              <div className="space-y-2">
+                <p>{t('settings.privacy.email.intro')}</p>
+                <p>
+                  <Trans
+                    i18nKey="settings.privacy.email.unsub"
+                    components={{ c: <code /> }}
+                  />
+                </p>
+              </div>
+            }
           />
-        </p>
+        </div>
       </div>
     </div>
   );

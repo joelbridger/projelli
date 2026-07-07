@@ -121,7 +121,16 @@ export function ConfidentialityModeSettings() {
     >
       <div className="mb-3 flex items-center gap-1.5">
         <h3 className="text-sm font-medium">Where AI requests go</h3>
-        <InfoHelp content="Choose whether AI requests stay on your computer or are sent to a cloud provider you control." />
+        <InfoHelp
+          content={
+            <div className="space-y-2">
+              <p>Choose whether AI requests stay on your computer or are sent to a cloud provider you control.</p>
+              {isFirmUser && (
+                <p>Firm security: the Assured option below routes AI requests through your firm's zero-retention proxy so Advisor Prep Hero retains nothing.</p>
+              )}
+            </div>
+          }
+        />
       </div>
 
       <div className={cn('grid gap-2', isFirmUser ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
@@ -209,13 +218,6 @@ export function ConfidentialityModeSettings() {
           );
         })}
       </div>
-
-      {/* Firm security note — shown when the user is a firm member so Assured is visible */}
-      {isFirmUser && (
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          Firm security: the Assured option above routes AI requests through your firm's zero-retention proxy so Advisor Prep Hero retains nothing.
-        </p>
-      )}
 
       {active === 'local-only' && (
         <p

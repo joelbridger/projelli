@@ -68,9 +68,14 @@ describe('Solo license recovery (Phase 5.1)', () => {
     const text = recovery.textContent ?? '';
 
     expect(text).toMatch(/already bought Advisor Prep Hero/i);
-    expect(text).toMatch(/restore it on this computer/i);
-    expect(text).toMatch(/no account/i);
     expect(text).not.toContain(EM_DASH);
+
+    const info = screen.getByRole('button', { name: 'About Already bought Advisor Prep Hero?' });
+    fireEvent.mouseEnter(info);
+    const help = screen.getByRole('tooltip').textContent ?? '';
+    expect(help).toMatch(/restore it on this computer/i);
+    expect(help).toMatch(/no account/i);
+    expect(help).not.toContain(EM_DASH);
   });
 
   it('re-entering a recovery code drives the existing activate() path', () => {

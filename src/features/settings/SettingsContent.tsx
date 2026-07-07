@@ -85,6 +85,7 @@ import {
   Settings,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
+import { InfoHelp } from '@/ui/InfoHelp';
 import {
   settingTestid,
   SETTINGS_GROUP_SEARCH,
@@ -201,8 +202,10 @@ function SettingRow({
         className="flex items-center justify-between py-3 border-b border-border/50 last:border-b-0"
       >
         <div className="flex-1 min-w-0 mr-4">
-          <Label className="text-sm font-medium">{def.label}</Label>
-          <p className="text-xs text-muted-foreground mt-0.5">{def.description}</p>
+          <div className="flex items-center gap-1.5">
+            <Label className="text-sm font-medium">{def.label}</Label>
+            <InfoHelp content={def.description} label={`About ${def.label}`} />
+          </div>
         </div>
         <Button
           variant="secondary"
@@ -284,10 +287,12 @@ function SettingRow({
       className="flex items-center justify-between py-3 border-b border-border/50 last:border-b-0"
     >
       <div className="flex-1 min-w-0 mr-4">
-        <Label htmlFor={controlId} className="text-sm font-medium cursor-pointer">
-          {def.label}
-        </Label>
-        <p className="text-xs text-muted-foreground mt-0.5">{def.description}</p>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor={controlId} className="text-sm font-medium cursor-pointer">
+            {def.label}
+          </Label>
+          <InfoHelp content={def.description} label={`About ${def.label}`} />
+        </div>
       </div>
       <div className="shrink-0">{control}</div>
     </div>
@@ -467,12 +472,12 @@ function ShortcutsSection({ searchQuery }: { searchQuery: string }) {
                 className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-muted/50"
               >
                 <div className="flex-1 min-w-0">
-                  <span className="text-sm">{s.label}</span>
-                  {s.description && (
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {s.description}
-                    </span>
-                  )}
+                  <span className="inline-flex items-center gap-1.5 text-sm">
+                    <span>{s.label}</span>
+                    {s.description && (
+                      <InfoHelp content={s.description} label={`About ${s.label}`} />
+                    )}
+                  </span>
                 </div>
                 <kbd className="px-2 py-1 rounded bg-muted text-xs font-mono shrink-0">
                   {formatShortcutHint(s.keys)}

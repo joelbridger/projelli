@@ -16,6 +16,39 @@ describe('InfoHelp', () => {
     expect(screen.queryByText('Explains the thing.')).not.toBeInTheDocument();
   });
 
+  it('reveals its content immediately on hover', () => {
+    render(<InfoHelp content="Explains the thing." label="About the thing" />);
+    const trigger = screen.getByRole('button', { name: 'About the thing' });
+
+    fireEvent.mouseEnter(trigger);
+
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Explains the thing.');
+  });
+
+  it('toggles its content on click', () => {
+    render(<InfoHelp content="Explains the thing." label="About the thing" />);
+    const trigger = screen.getByRole('button', { name: 'About the thing' });
+
+    fireEvent.click(trigger);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Explains the thing.');
+
+    fireEvent.click(trigger);
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
+  it('supports keyboard toggle and Escape close', () => {
+    render(<InfoHelp content="Explains the thing." label="About the thing" />);
+    const trigger = screen.getByRole('button', { name: 'About the thing' });
+
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: 'Enter' });
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Explains the thing.');
+    expect(trigger).toHaveAttribute('aria-describedby');
+
+    fireEvent.keyDown(trigger, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
+
   it('reveals its content on focus and hides it again on blur', async () => {
     render(<InfoHelp content="Explains the thing." label="About the thing" />);
     const trigger = screen.getByRole('button', { name: 'About the thing' });

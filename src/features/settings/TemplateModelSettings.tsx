@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/ui/label';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { X } from 'lucide-react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import type { WorkflowTemplate, TemplateProviderId } from '@/platform/types/workflow';
@@ -194,12 +195,17 @@ export function TemplateModelSettings({ templates }: TemplateModelSettingsProps)
 
   return (
     <div data-testid="template-model-settings" className="space-y-3">
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm font-medium">{t('settings.template-models.title')}</span>
+        <InfoHelp
+          content={t('settings.template-models.description')}
+          label={`About ${t('settings.template-models.title')}`}
+        />
+      </div>
+
       {/* Pinned override rows — only shown when at least one override exists */}
       {pinnedTemplates.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-          Your workflows use your default AI. Pin a specific model to any workflow below.
-        </p>
+        null
       ) : (
         <div className="divide-y divide-border/50 rounded-md border">
           {pinnedTemplates.map((tpl) => {

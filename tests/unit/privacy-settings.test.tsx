@@ -70,8 +70,12 @@ describe('PrivacySettings — design-partner card', () => {
   it('design-partner card does not mention content/file names/matter names/prompts as collected', () => {
     const card = screen.getByTestId('privacy-design-partner-card');
     const text = card.textContent ?? '';
-    // The card should mention "never" in context with these sensitive items
-    expect(text.toLowerCase()).toContain('never');
+    expect(text.toLowerCase()).not.toContain('never your content');
+
+    const info = screen.getByRole('button', { name: 'About Optional error reporting' });
+    fireEvent.mouseEnter(info);
+    // The sensitive-data promise still exists, but it now lives behind the info icon.
+    expect(screen.getByRole('tooltip').textContent?.toLowerCase()).toContain('never your content');
   });
 
   it('also still renders the telemetry toggle', () => {

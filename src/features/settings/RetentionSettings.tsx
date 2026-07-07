@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { Button } from '@/ui/kp';
+import { InfoHelp } from '@/ui/InfoHelp';
 import {
   useRetentionPolicyStore, sanitizePolicy, type RetentionMode,
 } from '@/platform/privacy/retentionPolicyStore';
@@ -46,18 +47,33 @@ export function RetentionSettings({ workspaceRoot }: { workspaceRoot: string }) 
 
   return (
     <section data-testid="retention-settings">
-      <h3 className="text-base font-semibold">{t('privacy.retention.title')}</h3>
-      <p style={{ fontSize: 12.5, color: 'var(--kp-text-muted, #6b7280)', margin: '4px 0 10px' }}>{t('privacy.retention.subtitle')}</p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        <h3 className="text-base font-semibold" style={{ margin: 0 }}>{t('privacy.retention.title')}</h3>
+        <InfoHelp
+          content={t('privacy.retention.subtitle')}
+          label={`About ${t('privacy.retention.title')}`}
+        />
+      </div>
       {MODES.map((mode) => (
-        <label key={mode} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '5px 0', cursor: 'pointer' }}>
-          <input type="radio" name="retention-mode" data-testid={`retention-mode-${mode}`}
+        <div key={mode} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '5px 0' }}>
+          <input
+            id={`retention-mode-${mode}`}
+            type="radio"
+            name="retention-mode"
+            data-testid={`retention-mode-${mode}`}
             checked={policy.mode === mode}
-            onChange={() => { setPolicy(workspaceRoot, { ...policy, mode }); }} />
-          <span>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>{modeLabel(mode, policy.audioRetentionDays, t)}</span>
-            <span style={{ display: 'block', fontSize: 12, color: 'var(--kp-text-muted, #6b7280)' }}>{modeHint(mode, t)}</span>
+            onChange={() => { setPolicy(workspaceRoot, { ...policy, mode }); }}
+          />
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label htmlFor={`retention-mode-${mode}`} style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {modeLabel(mode, policy.audioRetentionDays, t)}
+            </label>
+            <InfoHelp
+              content={modeHint(mode, t)}
+              label={`About ${modeLabel(mode, policy.audioRetentionDays, t)}`}
+            />
           </span>
-        </label>
+        </div>
       ))}
       {policy.mode === 'delete-audio-after-days' && (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0 0 24px', fontSize: 13 }}>

@@ -4,6 +4,7 @@
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/ui/input';
 import { IconButton } from '@/ui/kp';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { cn } from '@/lib/utils';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { BRAND } from '@/config/brand';
@@ -123,13 +124,14 @@ export function AboutHeader() {
     >
       <div className="flex items-baseline gap-2">
         <h3 className="text-base font-semibold">{BRAND.name}</h3>
+        <InfoHelp
+          content={t('settings.modal.about-tagline')}
+          label={`About ${BRAND.name}`}
+        />
         <span className="text-sm text-muted-foreground" data-testid="settings-about-version">
           v{version}
         </span>
       </div>
-      <p className="text-xs text-muted-foreground mt-1">
-        {t('settings.modal.about-tagline')}
-      </p>
     </div>
   );
 }

@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Circle, RefreshCw } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { cn } from '@/lib/utils';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import { useFirm } from '@/platform/hooks/useFirm';
@@ -114,16 +115,18 @@ export function SetupChecklist({ onRestartOnboarding, onNavigate }: SetupCheckli
       />
 
       <div className="pt-3 border-t border-border mt-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          className="gap-1.5 text-xs"
-          onClick={onRestartOnboarding}
-        >
-          <RefreshCw className="h-3 w-3" />
-          Restart guided setup
-        </Button>
-        <p className="text-xs text-muted-foreground mt-1">Your data and keys are kept.</p>
+        <div className="flex items-center gap-1.5">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-xs"
+            onClick={onRestartOnboarding}
+          >
+            <RefreshCw className="h-3 w-3" />
+            Restart guided setup
+          </Button>
+          <InfoHelp content="Your data and keys are kept." label="About restarting guided setup" />
+        </div>
       </div>
     </div>
   );
