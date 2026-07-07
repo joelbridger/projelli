@@ -1,10 +1,10 @@
 // scripts/bench-smoke/checks/wave4.mjs — Wave 4 Track B/C checks, promoted
 // from wave-stubs.mjs now that their UI is merged into lantern-plus: the
 // rail-pinned All Clients table + per-client hub behavior (Track B), and the
-// whole-practice Ask scope + its cross-client consent gate (Track C).
+// hidden whole-practice Ask entry point + remaining scope toggle behavior
+// (Track C).
 // Track A (diarization) stays a stub in wave-stubs.mjs — its lane hasn't
-// merged. Read-only: nothing here approves/sends data anywhere; the consent
-// gate is only asserted present, never clicked through (see checkWholePracticeAsk).
+// merged. Read-only: nothing here approves/sends data anywhere.
 import { STATUS, makeResult } from '../result.mjs';
 import {
   withGuard,
@@ -205,7 +205,12 @@ export const checkEstateBeneficiaryGapDismissLive = withGuard(GAP_DISMISS_LIVE_I
 });
 
 const ASK_ID = 'wave4-whole-practice-ask';
-const ASK_SECTION = 'Wave 4 — Depth (Track C: whole-practice Ask + consent gate)';
+const ASK_SECTION = 'Wave 4 — Depth (Track C: hidden whole-practice Ask scope)';
+const VISIBLE_ASK_SCOPES = [
+  { testid: 'scope-option-all-matters', expectedPill: 'All clients' },
+  { testid: 'scope-option-email', expectedPill: 'Email' },
+  { testid: 'scope-option-documents', expectedPill: 'Documents' },
+];
 
 export const checkWholePracticeAsk = withGuard(ASK_ID, ASK_SECTION, async ({ driver }) => {
   try {
@@ -215,60 +220,58 @@ export const checkWholePracticeAsk = withGuard(ASK_ID, ASK_SECTION, async ({ dri
   }
 
   const elements = await requireSnapshot(driver);
-  const scopeOption = findByTestId(elements, 'scope-option-whole-practice');
-  if (!scopeOption) {
+  const hiddenWholePracticePresent = await driver.evalJs(
+    '!!document.querySelector(\'[data-testid="scope-option-whole-practice"]\')',
+  );
+  if (hiddenWholePracticePresent === true || findByTestId(elements, 'scope-option-whole-practice')) {
+    return makeResult({
+      id: ASK_ID,
+      section: ASK_SECTION,
+      status: STATUS.FAIL,
+      detail: 'The hidden whole-practice Ask control still renders ([data-testid="scope-option-whole-practice"]).',
+    });
+  }
+
+  const missingScopes = VISIBLE_ASK_SCOPES.filter((scope) => !findByTestId(elements, scope.testid));
+  if (missingScopes.length === VISIBLE_ASK_SCOPES.length) {
     return makeResult({
       id: ASK_ID,
       section: ASK_SECTION,
       status: STATUS.SETUP_BLOCKED,
-      detail: 'No [data-testid="scope-option-whole-practice"] control found — not on the Ask surface, or the scope toggle is not present.',
+      detail: 'No visible Ask scope controls found — not on the Ask surface, or the scope toggle is not present.',
     });
   }
-
-  await driver.click('scope-option-whole-practice');
-
-  // Deliberately NOT textPresent(driver, 'Whole practice') — that substring
-  // is already visible on the scope-option-whole-practice BUTTON's own label
-  // before the click, so it would pass even if the click did nothing. Wait
-  // for the pill's distinguishing full copy ("Whole practice (summaries
-  // only)", src/locales/en.json) instead, then confirm the actual
-  // [data-testid="ask-scope-pill"] control, which only renders once the
-  // scope has actually switched.
-  const pillWait = await driver.waitFor('Whole practice (summaries only)', 10);
-  if (!pillWait.found) {
+  if (missingScopes.length > 0) {
     return makeResult({
       id: ASK_ID,
       section: ASK_SECTION,
       status: STATUS.FAIL,
-      detail: `Clicked the "Whole practice" scope option but its scope pill never appeared: ${pillWait.error}`,
+      detail: `The whole-practice chip is hidden, but these visible Ask scopes are missing: ${missingScopes.map((scope) => scope.testid).join(', ')}.`,
     });
   }
 
-  const postSelectElements = await requireSnapshot(driver);
-  const scopePill = findByTestId(postSelectElements, 'ask-scope-pill');
-  if (!scopePill) {
-    return makeResult({
-      id: ASK_ID,
-      section: ASK_SECTION,
-      status: STATUS.FAIL,
-      detail: 'Clicked the "Whole practice" scope option and its pill text appeared, but no [data-testid="ask-scope-pill"] control was found in the snapshot.',
-    });
+  for (const scope of VISIBLE_ASK_SCOPES) {
+    await driver.click(scope.testid);
+    const pillText = await driver.evalJs(
+      'document.querySelector(\'[data-testid="ask-scope-pill"]\')?.textContent?.trim() ?? null',
+    );
+    if (pillText !== scope.expectedPill) {
+      return makeResult({
+        id: ASK_ID,
+        section: ASK_SECTION,
+        status: STATUS.FAIL,
+        detail: `Clicked [data-testid="${scope.testid}"], but the Ask scope pill read ${JSON.stringify(pillText)} instead of ${JSON.stringify(scope.expectedPill)}.`,
+      });
+    }
   }
 
-  const scopeShot = await driver.captureScreenshot('wave4-whole-practice-ask-scope-pill');
-
-  // The cross-client consent gate (FileAccessConsentBanner) only appears
-  // un-asked once per session — read-only default, never granted/denied here
-  // (that belongs behind --live, since granting it is a real state change).
-  const consentGate = findByTestId(postSelectElements, 'chat-file-access-consent');
+  const scopeShot = await driver.captureScreenshot('wave4-hidden-whole-practice-scope-toggle');
 
   return makeResult({
     id: ASK_ID,
     section: ASK_SECTION,
     status: STATUS.PASS,
-    detail: consentGate
-      ? 'Whole practice scope pill renders, and the cross-client consent gate ([data-testid="chat-file-access-consent"]) appears as required. Not granted/denied here (read-only default).'
-      : 'Whole practice scope pill renders. No consent gate was present this run — likely already granted in a prior session (not treated as a failure; this check does not assert the gate always appears, only that it appears correctly when required).',
+    detail: 'Whole-practice Ask scope option is absent, and All clients, Email, and Documents each switch the Ask scope pill.',
     screenshots: [scopeShot],
   });
 });
