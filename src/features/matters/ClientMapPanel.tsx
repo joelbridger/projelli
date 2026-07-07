@@ -1,20 +1,21 @@
 // src/features/matters/ClientMapPanel.tsx
 //
 // Two-pane Client Map panel — a flag-gateable drop-in alternative to
-// ClientMapView.  Left rail = clickable vertical tabs (one per section) plus
-// "What I'm missing" and a dashed "+ New section" composer tab.  Right pane =
+// ClientMapView.  Left rail = compact action icons, clickable vertical tabs
+// (one per section), and "What I'm missing".  Right pane =
 // the selected section with big title, blue-bullet item rows, source chips,
 // inline Edit, and the custom-section / template / gap panels folded in.
 //
 // Props are IDENTICAL to ClientMapView so callers can swap the component
 // behind a feature flag without touching their own code.
 
-import { useState, type CSSProperties } from 'react';
+import { useId, useState, type CSSProperties } from 'react';
 import type { ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Clock3, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { Clock3, Plus, Sparkles, Star, Trash2, type LucideIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, Chip, Eyebrow, CountBadge } from '@/ui/kp';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
@@ -76,18 +77,25 @@ function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitati
 
 const LABEL_WHAT_MISSING = "What I'm missing";
 const LABEL_NEW_SECTION = 'New section';
-const LABEL_START_INTERVIEW = 'Start the guided interview';
+const LABEL_START_GUIDED_INTERVIEW = 'Start guided interview';
 
-// Shared OUTLINED style for the two rail-bottom action buttons (New section +
-// Start the guided interview), matching the Ask "New question" button.
-const railActionButtonStyle: CSSProperties = {
-  justifyContent: 'flex-start',
-  height: 'auto',
-  padding: '11px 13px',
-  fontSize: '14px',
-  fontWeight: 600,
-  borderRadius: 10,
-  borderColor: 'var(--kp-divider-strong)',
+const railTopActionsStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: '0 2px var(--kp-space-sm)',
+};
+
+const railTabsStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+};
+
+const railIconButtonStyle: CSSProperties = {
+  width: 22,
+  height: 22,
+  border: 0,
 };
 const EDIT_LABEL = 'Edit';
 const LABEL_STILL_MISSING = "What I'm still missing";
@@ -462,6 +470,7 @@ function TabButton({
   active,
   accent,
   muted,
+  separated,
   onClick,
 }: {
   testid: string;
@@ -470,6 +479,7 @@ function TabButton({
   active: boolean;
   accent: boolean;
   muted: boolean;
+  separated?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -484,9 +494,11 @@ function TabButton({
         alignItems: 'center',
         gap: 'var(--kp-space-xs)',
         width: '100%',
+        marginTop: separated ? 'var(--kp-space-xs)' : 0,
         textAlign: 'left',
         padding: '10px 12px',
         border: '1px solid transparent',
+        borderTopColor: separated ? 'var(--kp-divider)' : 'transparent',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
         background: active ? 'var(--kp-accent-soft)' : 'transparent',
@@ -521,6 +533,64 @@ function TabButton({
           <span style={mutedCountStyle}>{count}</span>
         ))}
     </button>
+  );
+}
+
+function RailIconActionButton({
+  icon: Icon,
+  label,
+  testid,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  testid: string;
+  onClick: () => void;
+}) {
+  const contentId = useId();
+  const [open, setOpen] = useState(false);
+
+  const show = () => {
+    setOpen(true);
+  };
+
+  const hide = () => {
+    setOpen(false);
+  };
+
+  return (
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+      <Tooltip open={open} onOpenChange={setOpen}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            aria-describedby={open ? contentId : undefined}
+            data-testid={testid}
+            className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
+            style={railIconButtonStyle}
+            onMouseEnter={show}
+            onMouseLeave={hide}
+            onFocus={show}
+            onBlur={hide}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                hide();
+              }
+            }}
+            onClick={() => {
+              hide();
+              onClick();
+            }}
+          >
+            <Icon size={15} strokeWidth={2} aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent id={contentId} side="bottom">
+          {label}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
@@ -1060,7 +1130,7 @@ export function ClientMapPanel({
   onEditItem: (sectionKey: string, itemId: string) => void;
   onAnswerQuestion?: (question: GapQuestion) => void;
   onFlagForClient?: (question: GapQuestion) => void;
-  /** Toggle the guided-interview panel — rendered as a button at the rail bottom. */
+  /** Toggle the guided-interview panel from the compact rail action icon. */
   onStartInterview?: () => void;
   /** Audit sink for custom-section builds (Trust-fixes finding #1) — threaded
    *  down to AddSectionPanel so a custom section or applied template records
@@ -1089,21 +1159,15 @@ export function ClientMapPanel({
   const sectionList = [...coreSections, ...customSections];
   const missingCount = unresolvedAskGaps(map).length;
 
-  // An unresolved gap always wins the initial tab, even over a remembered
-  // preference from localStorage. Landing on a stale remembered section tab
-  // used to silently bury the resolvable gap control — including for a client
-  // visited before the gap appeared, whose stored tab would otherwise take
-  // precedence forever until the gap is resolved (Codex review finding).
-  // Once resolved, the remembered-tab / first-content fallback applies as before.
-  const firstWithContent = sectionList.find((s) => s.items.length > 0)?.key;
+  // Fresh opens now land on Household, the first core section. A remembered tab
+  // still wins on revisit. Open gaps stay discoverable through the rail's
+  // "What I'm missing" tab instead of stealing first focus.
   const [activeKey, setActiveKey] = useState<string>(() => {
-    if (missingCount > 0) return MISSING_KEY;
     try {
       const stored = localStorage.getItem(tabStorageKey(map.matterId));
       if (
         stored !== null &&
         (stored === MISSING_KEY ||
-          stored === NEW_KEY ||
           sectionList.some((s) => s.key === stored))
       ) {
         return stored;
@@ -1111,11 +1175,12 @@ export function ClientMapPanel({
     } catch {
       // localStorage unavailable (private browsing, embedded webview) — ignore.
     }
-    return firstWithContent ?? sectionList[0]?.key ?? MISSING_KEY;
+    return sectionList[0]?.key ?? MISSING_KEY;
   });
 
   const select = (key: string): void => {
     setActiveKey(key);
+    if (key === NEW_KEY) return;
     try {
       localStorage.setItem(tabStorageKey(map.matterId), key);
     } catch {
@@ -1153,78 +1218,57 @@ export function ClientMapPanel({
 
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
-      {/* Left rail — the sections list, then "What I'm missing", then (pinned to
-          the BOTTOM) the two outlined action buttons: "+ New section" and below
-          it "Start the guided interview". */}
-      <div style={railStyle} role="tablist" aria-label="Client map sections">
-        {sectionList.map((s) => (
-          <TabButton
-            key={s.key}
-            testid={`clientmap-tab-${s.key}`}
-            title={s.title}
-            count={null}
-            active={activeKey === s.key}
-            accent={false}
-            muted={s.items.length === 0}
+      {/* Left rail: compact action icons, then sections, then "What I'm missing". */}
+      <div style={railStyle}>
+        <div style={railTopActionsStyle}>
+          <RailIconActionButton
+            icon={Plus}
+            label={LABEL_NEW_SECTION}
+            testid="clientmap-tab-add"
             onClick={() => {
-              select(s.key);
+              select(NEW_KEY);
             }}
           />
-        ))}
+          {onStartInterview && (
+            <RailIconActionButton
+              icon={Star}
+              label={LABEL_START_GUIDED_INTERVIEW}
+              testid="clientmap-start-interview"
+              onClick={onStartInterview}
+            />
+          )}
+        </div>
 
-        {/* Light divider before the special "What I'm missing" view */}
-        <div
-          style={{
-            height: 1,
-            background: 'var(--kp-divider)',
-            margin: 'var(--kp-space-xs) var(--kp-space-2xs)',
-          }}
-        />
+        <div style={railTabsStyle} role="tablist" aria-label="Client map sections">
+          {sectionList.map((s) => (
+            <TabButton
+              key={s.key}
+              testid={`clientmap-tab-${s.key}`}
+              title={s.title}
+              count={null}
+              active={activeKey === s.key}
+              accent={false}
+              muted={s.items.length === 0}
+              onClick={() => {
+                select(s.key);
+              }}
+            />
+          ))}
 
-        {/* "What I'm missing" — accent badge when there are open gaps */}
-        <TabButton
-          testid={`clientmap-tab-${MISSING_KEY}`}
-          title={LABEL_WHAT_MISSING}
-          count={null}
-          active={activeKey === MISSING_KEY}
-          accent={missingCount > 0}
-          muted={missingCount === 0}
-          onClick={() => {
-            select(MISSING_KEY);
-          }}
-        />
-
-        {/* Spacer pushes the action buttons to the bottom of the rail. */}
-        <div style={{ flex: 1 }} />
-
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={Plus}
-          fullWidth
-          data-testid="clientmap-tab-add"
-          onClick={() => {
-            select(NEW_KEY);
-          }}
-          style={{ ...railActionButtonStyle, marginBottom: 'var(--kp-space-2xs)' }}
-        >
-          {LABEL_NEW_SECTION}
-        </Button>
-
-        {onStartInterview && (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            iconLeft={Sparkles}
-            fullWidth
-            data-testid="clientmap-start-interview"
-            onClick={onStartInterview}
-            style={railActionButtonStyle}
-          >
-            {LABEL_START_INTERVIEW}
-          </Button>
-        )}
+          {/* "What I'm missing" — accent badge when there are open gaps */}
+          <TabButton
+            testid={`clientmap-tab-${MISSING_KEY}`}
+            title={LABEL_WHAT_MISSING}
+            count={missingCount > 0 ? missingCount : null}
+            active={activeKey === MISSING_KEY}
+            accent={missingCount > 0}
+            muted={missingCount === 0}
+            separated
+            onClick={() => {
+              select(MISSING_KEY);
+            }}
+          />
+        </div>
       </div>
 
       {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}

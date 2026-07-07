@@ -176,6 +176,28 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export PDF');
   });
 
+  it('renders the Client Map header icons as one matching ghost trio with updated text after History', () => {
+    useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z' };
+    useClientMapStore.getState().setMap(matter.id, map);
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    const group = screen.getByTestId('clientmap-header-icon-group');
+    const downloadButton = screen.getByTestId('clientmap-download-button');
+    const syncButton = screen.getByTestId('clientmap-sync-button');
+    const historyButton = screen.getByTestId('clientmap-history-button');
+    const lastUpdated = screen.getByTestId('clientmap-last-updated');
+
+    expect(group).toContainElement(downloadButton);
+    for (const button of [downloadButton, syncButton, historyButton]) {
+      expect(button).toHaveClass('kp-icon-btn--ghost');
+      expect(button).not.toHaveClass('kp-icon-btn--secondary');
+    }
+    expect(historyButton.compareDocumentPosition(lastUpdated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it('shows honest sync copy when the Client Map is unchanged', async () => {
     useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
     const matter = useMatterStore.getState().matters[0]!;

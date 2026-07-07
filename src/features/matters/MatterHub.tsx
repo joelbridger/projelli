@@ -463,7 +463,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   <IconButton
                     icon={Download}
                     label={LABEL_CLIENT_MAP_DOWNLOAD}
-                    variant="secondary"
+                    variant="ghost"
                     size="md"
                     data-testid="clientmap-download-button"
                   />
@@ -499,17 +499,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   disabled={isSyncingClientMap}
                   onClick={handleSyncClientMap}
                 />
-                <span
-                  data-testid="clientmap-last-updated"
-                  aria-live="polite"
-                  style={{
-                    color: 'var(--color-muted-foreground)',
-                    fontSize: 'var(--kp-font-xs)',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {clientMapUpdatedText}
-                </span>
               </div>
               <IconButton
                 icon={Clock}
@@ -519,6 +508,17 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 data-testid="clientmap-history-button"
                 onClick={() => { setIsHistoryOpen(true); }}
               />
+              <span
+                data-testid="clientmap-last-updated"
+                aria-live="polite"
+                style={{
+                  color: 'var(--color-muted-foreground)',
+                  fontSize: 'var(--kp-font-xs)',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {clientMapUpdatedText}
+              </span>
             </div>
           }
           actions={
