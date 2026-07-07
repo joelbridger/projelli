@@ -2310,7 +2310,35 @@
       "delete-audio-confirm-title": "¿Eliminar el audio de esta reunión?",
       "delete-audio-confirm-body": "El archivo de audio se elimina de este equipo. La transcripción y las notas se conservan.",
       "delete-audio-confirm-body-no-transcript": "Todavía no hay transcripción ni notas para esta reunión. Si eliminas el audio ahora, se borra permanentemente la única copia de la reunión. Esto no se puede deshacer.",
-      "delete-audio-confirm-button": "Eliminar audio"
+      "delete-audio-confirm-button": "Eliminar audio",
+      "recipients": {
+        "title": "Destinatarios",
+        "description": "Elige quién debe recibir cada elemento de la reunión más tarde. Esto solo guarda el plan.",
+        "save": "Guardar plan",
+        "saving": "Guardando...",
+        "saved": "Guardado localmente. No se ha enviado nada.",
+        "invalid-email": "Ingresa una dirección de correo válida.",
+        "email-placeholder": "persona@example.com",
+        "remove": "Eliminar {{email}}",
+        "artifacts": {
+          "audio": {
+            "label": "Audio",
+            "help": "El archivo de grabación original."
+          },
+          "transcript": {
+            "label": "Transcripción",
+            "help": "La transcripción palabra por palabra."
+          },
+          "summary": {
+            "label": "Resumen",
+            "help": "El resumen breve."
+          },
+          "notes": {
+            "label": "Notas",
+            "help": "El archivo de notas del asesor."
+          }
+        }
+      }
     },
     "types": {
       "annual-review": "Revisión anual",

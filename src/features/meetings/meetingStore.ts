@@ -53,6 +53,7 @@ import { ensureNoticeVerified, type NoticeVerificationDeps } from './noticeVerif
 import type { NoticeLocale } from './noticeMatcher';
 import i18n from '@/i18n';
 import type { MeetingSummary } from './ClientMeetingsTab';
+import type { MeetingDeliveryPlan } from './meetingRecipientPlan';
 
 export interface StartOpts {
   consentMode: 'one-party' | 'two-party';
@@ -127,6 +128,9 @@ export interface MeetingMeta {
   calendarEvent?: MeetingCalendarEventMeta;
   /** Advisor-edited display title. Kept separate from calendarTitle/typeId. */
   customTitle?: string;
+  /** MF1 — local recipient choices per artifact. Nothing is sent by this field;
+   *  MF2 will read it only after an advisor-reviewed send step exists. */
+  deliveryPlan?: MeetingDeliveryPlan;
   dictation?: boolean;
   /** QA-31 — set when the notes-generation step (tryGenerateNotes) fails or
    *  times out, so the UI can show an honest "couldn't write notes" state
@@ -951,15 +955,16 @@ async function runPostStopPipeline(
         // Task 12c: thin type detection — a matched calendar title (when the
         // recording started from one) plus any taught corrections decide the
         // type; ad-hoc recordings (no title) simply get no typeId.
+        const calendarTitle = activeConsent.calendarEvent?.title ?? activeConsent.calendarTitle;
         const typeId = await (async () => {
-          if (!activeConsent.calendarTitle || !activeWorkspaceService)
+          if (!calendarTitle || !activeWorkspaceService)
             return undefined;
           try {
             const { learned } = await makeMeetingTypesStore(
               activeWorkspaceService
             ).load();
             return (
-              detectMeetingType(activeConsent.calendarTitle, learned) ??
+              detectMeetingType(calendarTitle, learned) ??
               undefined
             );
           } catch {

@@ -201,6 +201,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const getSetting = useSettingsStore((s) => s.getSetting);
   const activeMatters = useActiveMatters();
   const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer<CalendarEventDto> | null>(null);
+  const [matchedCalendarEvent, setMatchedCalendarEvent] = useState<MeetingCalendarEventMeta | null>(null);
   const [noticeCardChecked, setNoticeCardChecked] = useState(false);
   const [noticeCardZoomAttest, setNoticeCardZoomAttest] = useState(false);
   // Manual paste fallback when calendar sync found no online meeting: lets the
@@ -277,9 +278,13 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
         );
         const map = buildCalendarMatterMap(activeMatters);
         const mine = events.filter((e) => resolveMattersForCalendarEvent(e, map).includes(matterId));
-        offer = pickNoticeCardOffer(mine, now);
+        const pickedOffer = pickNoticeCardOffer(mine, now);
+        offer = pickedOffer;
+        const matchedEvent = pickedOffer?.event ?? (mine.length === 1 ? mine[0] ?? null : null);
+        setMatchedCalendarEvent(matchedEvent ? calendarEventSnapshot(matchedEvent) : null);
       } catch {
         offer = null;
+        setMatchedCalendarEvent(null);
       }
       setNoticeCardOffer(offer);
       // Pre-check per firm default, but only for a platform we can actually
@@ -324,7 +329,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
           };
         };
         const card = buildCard();
-        const calendarEvent = noticeCardOffer ? calendarEventSnapshot(noticeCardOffer.event) : undefined;
+        const calendarEvent = matchedCalendarEvent ?? (noticeCardOffer ? calendarEventSnapshot(noticeCardOffer.event) : null);
         await startRecording(matterId, {
           consentMode,
           ...(opts.note ? { consentNote: opts.note } : {}),
@@ -353,6 +358,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
     custom,
     i18n.language,
     noticeCardOffer,
+    matchedCalendarEvent,
     noticeCardChecked,
     noticeCardZoomAttest,
     noticeCardManualUrl,
