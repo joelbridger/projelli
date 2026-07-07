@@ -351,19 +351,15 @@ impl GraphClient {
         save_to_sent: bool,
         attachments: &[crate::commands::mail::AttachmentInput],
     ) -> anyhow::Result<String> {
-        fn addr_obj(addr: &str) -> serde_json::Value {
-            serde_json::json!({ "emailAddress": { "address": addr } })
-        }
-
         let mut message = serde_json::json!({
             "subject": subject,
             "body": {
                 "contentType": "Text",
                 "content": body
             },
-            "toRecipients": to.iter().map(|a| addr_obj(a)).collect::<Vec<_>>(),
-            "ccRecipients": cc.iter().map(|a| addr_obj(a)).collect::<Vec<_>>(),
-            "bccRecipients": bcc.iter().map(|a| addr_obj(a)).collect::<Vec<_>>(),
+            "toRecipients": recipient_objs(to),
+            "ccRecipients": recipient_objs(cc),
+            "bccRecipients": recipient_objs(bcc),
         });
         if let Some(cid) = conversation_id {
             message["conversationId"] = serde_json::Value::String(cid.to_string());
@@ -456,7 +452,7 @@ impl GraphClient {
         let message = serde_json::json!({
             "subject": subject,
             "body": { "contentType": "HTML", "content": body_html },
-            "toRecipients": to.iter().map(|a| recipient_obj(a)).collect::<Vec<_>>(),
+            "toRecipients": recipient_objs(to),
         });
         let url = format!("{}/v1.0/me/messages", self.base);
         let resp = self.post_json(&url, &message).await?;
@@ -492,7 +488,7 @@ impl GraphClient {
         let patch = serde_json::json!({
             "subject": subject,
             "body": { "contentType": "HTML", "content": body_html },
-            "toRecipients": to.iter().map(|a| recipient_obj(a)).collect::<Vec<_>>(),
+            "toRecipients": recipient_objs(to),
         });
         let patch_url = format!(
             "{}/v1.0/me/messages/{}",
@@ -504,10 +500,41 @@ impl GraphClient {
     }
 }
 
-/// Build a Graph recipient object from a bare address. Shared by the draft
-/// endpoints (send_message keeps its local copy to keep that diff at zero).
+/// Build Graph recipient objects. Graph requires the email address in
+/// `emailAddress.address`; it does not accept an RFC5322 display string such as
+/// `Client Name <client@example.com>` in that field.
+fn recipient_objs(addrs: &[String]) -> Vec<serde_json::Value> {
+    addrs.iter().map(|addr| recipient_obj(addr)).collect()
+}
+
 fn recipient_obj(addr: &str) -> serde_json::Value {
-    serde_json::json!({ "emailAddress": { "address": addr } })
+    let (name, address) = split_display_address(addr);
+    let mut email_address = serde_json::json!({ "address": address });
+    if let Some(name) = name {
+        email_address["name"] = serde_json::Value::String(name);
+    }
+    serde_json::json!({ "emailAddress": email_address })
+}
+
+fn split_display_address(raw: &str) -> (Option<String>, String) {
+    let trimmed = raw.trim();
+    if let (Some(start), Some(end)) = (trimmed.rfind('<'), trimmed.rfind('>')) {
+        if start < end {
+            let address = trimmed[start + 1..end].trim();
+            if !address.is_empty() {
+                let name = trimmed[..start]
+                    .trim()
+                    .trim_matches('"')
+                    .trim()
+                    .to_string();
+                return (
+                    if name.is_empty() { None } else { Some(name) },
+                    address.to_string(),
+                );
+            }
+        }
+    }
+    (None, trimmed.to_string())
 }
 
 /// Redact a Graph URL for local logging: keep only host + path, dropping the
@@ -922,6 +949,50 @@ mod tests {
             .await
             .expect("send_message should succeed on 202");
         assert_eq!(result, ""); // 202 returns no id
+    }
+
+    #[tokio::test]
+    async fn send_message_splits_display_name_recipients_for_graph() {
+        use wiremock::matchers::{body_partial_json, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/v1.0/me/sendMail"))
+            .and(body_partial_json(serde_json::json!({
+                "message": {
+                    "toRecipients": [{
+                        "emailAddress": {
+                            "name": "Client Name",
+                            "address": "client@example.com"
+                        }
+                    }],
+                    "ccRecipients": [{
+                        "emailAddress": {
+                            "address": "cc@example.com"
+                        }
+                    }]
+                }
+            })))
+            .respond_with(ResponseTemplate::new(202).set_body_string(""))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let client = GraphClient::new_with_base("AT".into(), server.uri());
+        client
+            .send_message(
+                &["Client Name <client@example.com>".to_string()],
+                &["cc@example.com".to_string()],
+                &[],
+                "Test subject",
+                "Hello",
+                None,
+                true,
+                &[],
+            )
+            .await
+            .expect("Graph should accept split recipient objects");
     }
 
     #[tokio::test]

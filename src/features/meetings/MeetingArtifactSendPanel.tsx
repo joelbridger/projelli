@@ -82,6 +82,10 @@ export function MeetingArtifactSendPanel({
     [meta, availability, title, clientName, t],
   );
   const sendLog = meetingSendLogSummary(meta);
+  const sentArtifacts = useMemo(
+    () => new Set(sendLog.filter((entry) => entry.status === 'sent').map((entry) => entry.artifact)),
+    [sendLog],
+  );
   const selectedAccount = accounts.find((account) => accountKey(account) === selectedAccountKey) ?? accounts[0] ?? null;
   const localOnly = isPersistedLocalOnly();
   const canReview = Boolean(workspaceService && selectedAccount && preview.items.length > 0 && meta.reviewedAt && !localOnly);
@@ -99,6 +103,9 @@ export function MeetingArtifactSendPanel({
         meta,
         account: selectedAccount,
         preview,
+        availability,
+        clientName,
+        t,
         transcriptText: transcriptToText(transcript),
         buildSummaryDocxBytes,
         audit,
@@ -108,7 +115,10 @@ export function MeetingArtifactSendPanel({
       setConfirmOpen(false);
       const failed = entries.filter((entry) => entry.status === 'failed').length;
       setStatus(failed > 0
-        ? t('meetings.entry.send.sent-with-errors', { failed, total: entries.length })
+        ? `${t('meetings.entry.send.sent-with-errors', { failed, total: entries.length })} ${entries
+          .filter((entry) => entry.status === 'failed')
+          .map((entry) => `${entry.artifactLabel}: ${entry.error ?? t('meetings.entry.send.failed-without-message')}`)
+          .join(' ')}`
         : t('meetings.entry.send.sent', { count: entries.length }));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -260,7 +270,14 @@ export function MeetingArtifactSendPanel({
             {preview.items.map((item) => (
               <div key={item.artifact} data-testid={`meeting-send-confirm-${item.artifact}`} style={{ border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-md)', padding: 'var(--kp-space-sm)' }}>
                 <div style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)' }}>{item.artifactLabel}</div>
+                {sentArtifacts.has(item.artifact) && (
+                  <div style={{ marginTop: 4, color: 'var(--color-destructive)', fontWeight: 'var(--kp-weight-semibold)' }}>
+                    {t('meetings.entry.send.send-again-warning', { artifact: item.artifactLabel })}
+                  </div>
+                )}
                 <div>{t('meetings.entry.send.to-line', { recipients: item.recipients.map(formatRecipient).join(', ') })}</div>
+                <div>{t('meetings.entry.send.subject-line', { subject: item.subject })}</div>
+                <div style={{ whiteSpace: 'pre-wrap' }}>{t('meetings.entry.send.body-line', { body: item.body })}</div>
                 <div>{t('meetings.entry.send.attachment-line', { attachment: item.attachmentName })}</div>
               </div>
             ))}

@@ -471,6 +471,59 @@ export interface MailAttachmentInput {
   contentType: string;
 }
 
+export interface MailAttachmentLimit {
+  maxBytes: number;
+  label: string;
+}
+
+const DEFAULT_MAIL_ATTACHMENT_LIMIT: MailAttachmentLimit = { maxBytes: 25 * 1024 * 1024, label: '25 MB' };
+
+const MAIL_ATTACHMENT_LIMITS: Record<string, MailAttachmentLimit> = {
+  // Graph simple fileAttachment sends must stay under roughly 3 MB per file.
+  m365: { maxBytes: 3 * 1024 * 1024, label: '3 MB' },
+  gmail: DEFAULT_MAIL_ATTACHMENT_LIMIT,
+  imap: DEFAULT_MAIL_ATTACHMENT_LIMIT,
+};
+
+export function mailAttachmentLimitForProvider(provider: string): MailAttachmentLimit {
+  return MAIL_ATTACHMENT_LIMITS[provider] ?? DEFAULT_MAIL_ATTACHMENT_LIMIT;
+}
+
+export function mailAttachmentDecodedBytes(attachment: MailAttachmentInput): number {
+  const clean = attachment.contentBase64.replace(/\s/g, '');
+  if (clean.length === 0) return 0;
+  const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((clean.length * 3) / 4) - padding);
+}
+
+export function validateMailAttachmentsForProvider(
+  provider: string,
+  attachments: MailAttachmentInput[] | undefined,
+): void {
+  if (!attachments || attachments.length === 0) return;
+  const limit = mailAttachmentLimitForProvider(provider);
+  const tooLarge = attachments
+    .map((attachment) => ({
+      attachment,
+      bytes: mailAttachmentDecodedBytes(attachment),
+    }))
+    .filter((entry) => entry.bytes > limit.maxBytes);
+  if (tooLarge.length === 0) return;
+  throw new Error(
+    `These attachments are too large for ${provider}: ${tooLarge
+      .map((entry) => `${entry.attachment.name} (${formatBytes(entry.bytes)}, limit ${limit.label})`)
+      .join(', ')}.`,
+  );
+}
+
+function formatBytes(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  if (mb >= 1) return `${mb.toFixed(mb >= 10 ? 0 : 1)} MB`;
+  const kb = bytes / 1024;
+  if (kb >= 1) return `${kb.toFixed(kb >= 10 ? 0 : 1)} KB`;
+  return `${String(bytes)} B`;
+}
+
 /**
  * Send an email via the named provider/account.
  *
@@ -508,6 +561,7 @@ export async function mailSend(
   attachments?: MailAttachmentInput[],
 ): Promise<string> {
   if (!isTauri()) throw new Error('Email send is only available in the desktop app.');
+  validateMailAttachmentsForProvider(provider, attachments);
   return invoke<string>('mail_send', {
     provider,
     account,

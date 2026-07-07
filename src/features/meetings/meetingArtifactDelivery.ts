@@ -1,6 +1,7 @@
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { ConnectedAccount, MailAttachmentInput } from '@/platform/utils/mail-commands';
 import { mailSend as defaultMailSend } from '@/platform/utils/mail-commands';
+import { validateMailAttachmentsForProvider } from '@/platform/utils/mail-commands';
 import type { AuditService } from '@/platform/audit/AuditService';
 import { isPersistedLocalOnly, LocalOnlyExternalError } from '@/platform/privacy/localOnlyGuard';
 import { meetingDisplayTitle } from './meetingDisplay';
@@ -57,6 +58,9 @@ export interface MeetingSendDeps {
   meta: MeetingMeta;
   account: ConnectedAccount;
   preview: MeetingSendPreview;
+  availability: MeetingArtifactAvailability;
+  clientName: string;
+  t: TFunction;
   transcriptText?: string;
   buildSummaryDocxBytes?: () => Promise<Uint8Array>;
   audit: Pick<AuditService, 'logDurable'>;
@@ -66,6 +70,7 @@ export interface MeetingSendDeps {
 }
 
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+export const MEETING_SEND_REVIEW_AGAIN_MESSAGE = 'Recipients changed. Review the send again before emailing.';
 
 export function emptyMeetingDeliveryStatus(): MeetingDeliveryStatus {
   return { version: 1, sendLog: [] };
@@ -146,19 +151,33 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
   if (base.matterId !== deps.matterId) {
     throw new Error('This meeting belongs to a different client.');
   }
+  const openedPlan = normalizeMeetingDeliveryPlan(deps.meta.deliveryPlan);
+  const latestPlan = normalizeMeetingDeliveryPlan(base.deliveryPlan);
+  if (!sameRecipientArtifacts(openedPlan.artifacts, latestPlan.artifacts)) {
+    throw new Error(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
+  }
+  const freshPreview = buildMeetingSendPreview({
+    meta: base,
+    availability: deps.availability,
+    title: meetingSendTitle(base, deps.t),
+    clientName: deps.clientName,
+    t: deps.t,
+  });
+  if (freshPreview.items.length === 0) return [];
 
   const now = deps.nowIso ?? new Date().toISOString();
   const sendMail = deps.sendMail ?? defaultMailSend;
   const entries: MeetingSendLogEntry[] = [];
 
-  for (const item of deps.preview.items) {
+  for (const item of freshPreview.items) {
     const id = deps.idFactory?.() ?? `meeting_send_${String(Date.now())}_${Math.random().toString(36).slice(2, 9)}`;
     try {
       const attachment = await buildAttachment(item, deps);
+      validateMailAttachmentsForProvider(deps.account.provider, [attachment]);
       const messageId = await sendMail(
         deps.account.provider,
         deps.account.account,
-        item.recipients.map(formatRecipient),
+        item.recipients.map((recipient) => recipient.email),
         [],
         [],
         item.subject,
@@ -314,8 +333,23 @@ async function logMeetingSendAudit(
   );
 }
 
-function formatRecipient(recipient: MeetingRecipient): string {
-  return recipient.name ? `${recipient.name} <${recipient.email}>` : recipient.email;
+function sameRecipientArtifacts(
+  a: Record<MeetingArtifact, MeetingRecipient[]>,
+  b: Record<MeetingArtifact, MeetingRecipient[]>,
+): boolean {
+  for (const artifact of MEETING_ARTIFACTS) {
+    if (stableRecipientsKey(a[artifact]) !== stableRecipientsKey(b[artifact])) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function stableRecipientsKey(recipients: MeetingRecipient[]): string {
+  return recipients
+    .map((recipient) => `${recipient.email}\u0000${recipient.name ?? ''}`)
+    .sort()
+    .join('\u0001');
 }
 
 function sanitizeFileStem(value: string): string {
