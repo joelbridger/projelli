@@ -37,6 +37,7 @@ export function TurnBlock({
   selectedTurnIdx,
   selected,
   onCitationSelect,
+  onOpenSourcesPanel,
   onSaveToDocument,
   isSaving,
   isPersisted,
@@ -53,6 +54,8 @@ export function TurnBlock({
   selectedTurnIdx: number | null;
   selected: number | null;
   onCitationSelect: (turnIdx: number, n: number) => void;
+  /** Open the right-side Sources panel for this answer's cited files. */
+  onOpenSourcesPanel?: (turnIdx: number) => void;
   onSaveToDocument?:
     | ((idx: number, content: string) => Promise<void>)
     | undefined;
@@ -216,6 +219,9 @@ export function TurnBlock({
             onSelect={(n) => {
               onCitationSelect(turnIdx, n);
             }}
+            {...(onOpenSourcesPanel !== undefined
+              ? { onOpenSourcesPanel: () => { onOpenSourcesPanel(turnIdx); } }
+              : {})}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
             {...(onAuditLog !== undefined ? { onAuditLog } : {})}
           />

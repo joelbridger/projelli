@@ -136,6 +136,7 @@ export function Ask(props: UseAskProps) {
   const bodyRef = useRef<HTMLDivElement | null>(null);
   const [autoLayout, setAutoLayout] = useState<AskLayout>({ collapseRail: false, showSources: true });
   const [sourcesExpanded, setSourcesExpanded] = useState(false);
+  const [openedSourcesTurnIdx, setOpenedSourcesTurnIdx] = useState<number | null>(null);
   useEffect(() => {
     const el = bodyRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -358,9 +359,21 @@ export function Ask(props: UseAskProps) {
     banner: consentBanner,
   } as const;
 
+  const selectCitation = (turnIdx: number, n: number) => {
+    setOpenedSourcesTurnIdx(null);
+    handleCitationSelect(turnIdx, n);
+  };
+  const openSourcesForTurn = (turnIdx: number) => {
+    setOpenedSourcesTurnIdx(turnIdx);
+    setSourcesExpanded(true);
+  };
+
   // The SOURCES column reflects the answer the user is looking at: the turn of
   // the clicked citation, else the most recent turn that has citations.
   const sourceTurnIdx: number | null = (() => {
+    if (openedSourcesTurnIdx !== null && (turns[openedSourcesTurnIdx]?.citations.length ?? 0) > 0) {
+      return openedSourcesTurnIdx;
+    }
     if (selectedTurnIdx !== null) return selectedTurnIdx;
     for (let i = turns.length - 1; i >= 0; i--) {
       if ((turns[i]?.citations.length ?? 0) > 0) return i;
@@ -378,6 +391,7 @@ export function Ask(props: UseAskProps) {
   // sources would linger next to the new book-wide answer, looking like its
   // citations when they aren't.
   const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
+  const sourceSelectedN = sourceTurnIdx !== null && selectedTurnIdx === sourceTurnIdx ? selected : null;
   const openAiOptions = () => {
     window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
   };
@@ -594,7 +608,8 @@ export function Ask(props: UseAskProps) {
                       turnIdx={idx}
                       selectedTurnIdx={selectedTurnIdx}
                       selected={selected}
-                      onCitationSelect={handleCitationSelect}
+                      onCitationSelect={selectCitation}
+                      onOpenSourcesPanel={openSourcesForTurn}
                       onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
                       isSaving={savingIdx === idx}
                       isPersisted={false}
@@ -610,7 +625,8 @@ export function Ask(props: UseAskProps) {
                       turnIdx={turns.length}
                       selectedTurnIdx={selectedTurnIdx}
                       selected={selected}
-                      onCitationSelect={handleCitationSelect}
+                      onCitationSelect={selectCitation}
+                      onOpenSourcesPanel={openSourcesForTurn}
                       onSaveToDocument={undefined}
                       isSaving={false}
                       isPersisted={false}
@@ -680,8 +696,8 @@ export function Ask(props: UseAskProps) {
               </div>
               <SourcePanel
                 citations={sourceCitations}
-                selectedN={selected}
-                onSelect={(n) => { handleCitationSelect(sourceTurnIdx ?? turns.length, n); }}
+                selectedN={sourceSelectedN}
+                onSelect={(n) => { selectCitation(sourceTurnIdx ?? turns.length, n); }}
                 {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
                 {...(filesOnly
                   ? {}

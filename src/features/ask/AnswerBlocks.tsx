@@ -177,12 +177,15 @@ export function AnswerBlocks({
   blocks,
   selected,
   onSelect,
+  onOpenSourcesPanel,
   onOpenFileAtPath,
   onAuditLog,
 }: {
   blocks: AnswerBlock[];
   selected: number | null;
   onSelect: (n: number) => void;
+  /** Open the Ask sources rail for this answer. When omitted, the tally renders as plain status text. */
+  onOpenSourcesPanel?: () => void;
   onOpenFileAtPath?: (
     path: string,
     paragraphIndex: number,
@@ -219,6 +222,10 @@ export function AnswerBlocks({
     !tally.hasGeneral &&
     !tally.hasDraft &&
     !tally.hasNothingFound;
+  const citedTallyText =
+    trust.verified === 1
+      ? '1 claim cited from your files'
+      : `${String(trust.verified)} claims cited from your files`;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -311,16 +318,32 @@ export function AnswerBlocks({
             }}
           >
             {trust.verified > 0 && (
-              <span data-testid="ask-tally-cited" style={tallyPillStyle(FILES)}>
-                <ShieldCheck
-                  size={13}
-                  strokeWidth={2}
-                  style={{ flex: 'none' }}
-                />
-                {trust.verified === 1
-                  ? '1 claim cited from your files'
-                  : `${String(trust.verified)} claims cited from your files`}
-              </span>
+              onOpenSourcesPanel ? (
+                <button
+                  type="button"
+                  data-testid="ask-tally-cited"
+                  title="Show cited files"
+                  className="transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+                  onClick={onOpenSourcesPanel}
+                  style={{ ...tallyPillStyle(FILES), cursor: 'pointer' }}
+                >
+                  <ShieldCheck
+                    size={13}
+                    strokeWidth={2}
+                    style={{ flex: 'none' }}
+                  />
+                  {citedTallyText}
+                </button>
+              ) : (
+                <span data-testid="ask-tally-cited" style={tallyPillStyle(FILES)}>
+                  <ShieldCheck
+                    size={13}
+                    strokeWidth={2}
+                    style={{ flex: 'none' }}
+                  />
+                  {citedTallyText}
+                </span>
+              )
             )}
             {/* Live check still in flight — say so instead of a premature
                 verdict (mirrors the card's spinner), then settle green/amber. */}
