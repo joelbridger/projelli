@@ -63,6 +63,14 @@ import {
  */
 export type AskScope = 'this-matter' | 'all-matters' | 'email' | 'documents' | 'whole-practice';
 
+export function defaultAskScope(hasMatter: boolean): AskScope {
+  return hasMatter ? 'this-matter' : 'all-matters';
+}
+
+export function normalizeVisibleAskScope(scope: AskScope, hasMatter: boolean): AskScope {
+  return scope === 'whole-practice' ? defaultAskScope(hasMatter) : scope;
+}
+
 /**
  * F2.5 — the file-access consent scope for an Ask turn. It MUST mirror the
  * turn's RETRIEVAL scope (`retrievalScope` in useAsk), so a grant is bound to

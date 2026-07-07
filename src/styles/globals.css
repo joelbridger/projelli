@@ -410,6 +410,8 @@
   }
   .kp-chip--sm { padding: 3px 10px; font-size: var(--kp-font-2xs); }
   .kp-chip--md { padding: 5px 13px; font-size: var(--kp-font-xs); }
+  .kp-chip--pill { padding: 8px 16px; font-size: 13.5px; font-weight: var(--kp-weight-semibold); border-width: var(--kp-border-width-strong); }
+  .kp-chip--pill:not(.is-active) { border-color: var(--kp-divider-strong); }
   .kp-chip:hover { border-color: rgba(var(--kp-navy-rgb),0.3); color: var(--kp-navy); }
   .kp-chip.is-active { background: var(--kp-action-bg); color: var(--kp-action-fg); border-color: var(--kp-action-border); font-weight: var(--kp-weight-semibold); }
   .kp-chip.is-active:hover { color: var(--kp-action-fg); border-color: var(--kp-action-border); }

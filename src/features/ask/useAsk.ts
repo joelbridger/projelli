@@ -104,6 +104,7 @@ import {
   resolveLocalOnlyAskProvider,
   resolveActiveAskProviderId,
   askConsentScope,
+  defaultAskScope,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
   isAuthRejectionError,
@@ -258,14 +259,14 @@ export function useAsk({
   // Scope toggle — default to 'this-matter' when a matter is active, else 'all-matters'.
   // Reset to appropriate default when the active matter changes.
   const defaultScope = (): AskScope =>
-    activeMatter ? 'this-matter' : 'all-matters';
+    defaultAskScope(Boolean(activeMatter));
   const [askScope, setAskScope] = useState<AskScope>(defaultScope);
 
   // Reset the manual selection + scope when the active matter OR workspace root
   // changes (chatId itself is derived above, so it's already consistent).
   useEffect(() => {
     setSessionOverride(null);
-    setAskScope(activeMatter ? 'this-matter' : 'all-matters');
+    setAskScope(defaultAskScope(Boolean(activeMatter)));
   }, [activeMatter?.id, rootPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Store selectors
