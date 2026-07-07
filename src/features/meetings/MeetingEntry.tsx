@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Button as DialogButton } from '@/ui/button';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
+import { MeetingRecipientsPanel } from './MeetingRecipientsPanel';
 import { AuditService } from '@/platform/audit/AuditService';
 import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
@@ -27,6 +28,7 @@ import type { TranscriptFile } from '@/platform/types/meeting';
 import type { TFunction } from 'i18next';
 import { markdownToDocxBytes, applyLetterheadIfConfigured, extractDocxText } from '@/platform/utils/docx-io';
 import { docxConvertToPdf } from '@/platform/utils/docx-commands';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -110,6 +112,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const didInitialSeek = useRef(false);
   const meetingLoadToken = useRef(0);
   const { policy: noticePolicy } = useNoticeSettings();
+  const matter = useMatterStore((state) => state.matters.find((candidate) => candidate.id === matterId) ?? null);
   const hasTranscript = transcript !== null;
   const summaryReady = hasNotes && summaryText.trim().length > 0;
 
@@ -615,6 +618,17 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
           inviteDisclosure={t('meetings.notice.invite-disclosure')}
           chatNotice={t('meetings.notice.chat-notice')}
           onRecordNotice={handleRecordNotice}
+        />
+      )}
+
+      {meta && (
+        <MeetingRecipientsPanel
+          matterId={matterId}
+          meetingDir={meetingDir}
+          meta={meta}
+          matter={matter}
+          workspaceService={workspaceService}
+          onSaved={setMeta}
         />
       )}
 

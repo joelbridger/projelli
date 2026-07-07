@@ -2310,7 +2310,35 @@
       "delete-audio-confirm-title": "Audio dieses Gesprächs löschen?",
       "delete-audio-confirm-body": "Die Audiodatei wird von diesem Computer gelöscht. Transkript und Notizen bleiben erhalten.",
       "delete-audio-confirm-body-no-transcript": "Für dieses Gespräch gibt es noch kein Transkript und keine Notizen. Wenn Sie das Audio jetzt löschen, entfernen Sie dauerhaft die einzige Kopie dieses Gesprächs. Dies kann nicht rückgängig gemacht werden.",
-      "delete-audio-confirm-button": "Audio löschen"
+      "delete-audio-confirm-button": "Audio löschen",
+      "recipients": {
+        "title": "Empfänger",
+        "description": "Wählen Sie aus, wer jeden Gesprächsinhalt später erhalten soll. Dies speichert nur den Plan.",
+        "save": "Plan speichern",
+        "saving": "Wird gespeichert...",
+        "saved": "Lokal gespeichert. Es wurde nichts gesendet.",
+        "invalid-email": "Geben Sie eine gültige E-Mail-Adresse ein.",
+        "email-placeholder": "person@example.com",
+        "remove": "{{email}} entfernen",
+        "artifacts": {
+          "audio": {
+            "label": "Audio",
+            "help": "Die ursprüngliche Aufnahmedatei."
+          },
+          "transcript": {
+            "label": "Transkript",
+            "help": "Das wortgetreue Transkript."
+          },
+          "summary": {
+            "label": "Zusammenfassung",
+            "help": "Die kürzere Zusammenfassung."
+          },
+          "notes": {
+            "label": "Notizen",
+            "help": "Die Beraternotizdatei."
+          }
+        }
+      }
     },
     "types": {
       "annual-review": "Jahresgespräch",

@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 214,
         "media": 92,
-        "meetings": 167,
+        "meetings": 183,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -251,7 +251,9 @@ describe('en.json structure snapshot', () => {
     //       source-preview copy moved from hardcoded English to keys).
     // +2 = R3 navigation: rail-search empty state + Back button label.
     // +17 = R7 Meetings: detail sub-tabs/export/rename copy (15) + spoken announcement phrases (2).
-    expect(flat.length).toBe(1377); // 1358 (thru R3) + 19 (R7 Meetings, actual)
+    // +16 = MF1 meeting recipients: per-artifact recipient picker labels, helper copy,
+    //       save/add/remove controls, validation, and saved/saving status text.
+    expect(flat.length).toBe(1393); // 1377 + 16 (MF1 meeting recipients)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
