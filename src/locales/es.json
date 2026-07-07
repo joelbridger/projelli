@@ -1355,6 +1355,8 @@
     "home": {
       "archive": "Archivar",
       "archive__sourceHash": "66f4804ee23ddc092d1bae43cb88186aa541187fff7c1cc8a4aa17e59a9f4123",
+      "row-menu-aria": "Más acciones para {{name}}",
+      "open-client": "Abrir cliente",
       "restore": "Restaurar",
       "restore__sourceHash": "a76e13b9839270eb73ed11417f7d8acca55df0ad52065799361631d0fff74f27",
       "archived-section-label": "Clientes archivados",
@@ -1365,6 +1367,8 @@
       "open-documents-aria__sourceHash": "67e86510f851e830b4a4ccbb0554f21ec6a0da0ff882ba7e7acbdeff29ca92dd",
       "open-email-aria": "Abrir correo de {{name}}",
       "open-email-aria__sourceHash": "5a9e774a18b3755fe3bfc0718d1b074001fd99a066ad71a254065524f7bd4940",
+      "open-meetings-aria": "Abrir reuniones de {{name}}",
+      "open-activity-aria": "Abrir actividad de {{name}}",
       "folder-count_one": "{{count}} carpeta",
       "folder-count_one__sourceHash": "b5730f64b1fbae80d9d83c66a760cb2c32b6ce84ffc520bc51a2c586bc290ff8",
       "folder-count_other": "{{count}} carpetas",
@@ -2370,6 +2374,8 @@
       "primary-nav": "Principal",
       "primary-nav__sourceHash": "efe10c80ec8a9f38624cbb47103010a8cf32488a503e4b4bfe4f92307a9cefa7"
     },
+    "all-clients": "Todos los clientes",
+    "all-clients__sourceHash": "af74a947145158a6b52fa8c4803dda8ec620c47a1d0df9cebb3ec544b6c5eefc",
     "new-client": "+ Nuevo: {{entity}}",
     "new-client__sourceHash": "a9fe3fa8d9a5a54befcbdb8828c382f353f09681dabb688a40f72f49f1a82a2c"
   },

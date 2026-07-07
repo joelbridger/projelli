@@ -10,6 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useGlobalEventBus, type GlobalEventBusHandlers } from '@/app/lifecycle/useGlobalEventBus';
 
 function makeHandlers(): GlobalEventBusHandlers {
@@ -33,7 +34,7 @@ function launch(detail: Record<string, unknown>) {
 }
 
 beforeEach(() => {
-  useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null });
+  useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null, snapshots: {} });
   // setActiveMatter only honors ids that exist, so seed the matters under test.
   useMatterStore.getState().createMatter({ id: 'm1', name: 'M1', client: 'M1' });
   useMatterStore.getState().createMatter({ id: 'm2', name: 'M2', client: 'M2' });
@@ -66,6 +67,44 @@ describe('useGlobalEventBus — per-client surface routing', () => {
     expect(handlers.setSidebarActiveTab).not.toHaveBeenCalledWith('email');
     expect(useMatterStore.getState().clientMapHubId).toBe('m2');
     expect(useMatterStore.getState().clientMapHubTab).toBe('email');
+  });
+
+  it('routes a Meetings quick-action into the hub Meetings sub-tab', () => {
+    const handlers = makeHandlers();
+    render(<Harness handlers={handlers} />);
+
+    launch({ matterId: 'm2', surface: 'meetings' });
+
+    expect(handlers.setSidebarActiveTab).toHaveBeenCalledWith('matters');
+    expect(handlers.setSidebarActiveTab).not.toHaveBeenCalledWith('email');
+    expect(useMatterStore.getState().clientMapHubId).toBe('m2');
+    expect(useMatterStore.getState().clientMapHubTab).toBe('meetings');
+  });
+
+  it('routes an Activity quick-action into the hub Activity sub-tab', () => {
+    const handlers = makeHandlers();
+    render(<Harness handlers={handlers} />);
+
+    launch({ matterId: 'm2', surface: 'audit' });
+
+    expect(handlers.setSidebarActiveTab).toHaveBeenCalledWith('matters');
+    expect(handlers.setSidebarActiveTab).not.toHaveBeenCalledWith('audit');
+    expect(useMatterStore.getState().clientMapHubId).toBe('m2');
+    expect(useMatterStore.getState().clientMapHubTab).toBe('activity');
+  });
+
+  it('routes an explicit Client Map launch to the client hub even when a stale saved surface exists', () => {
+    const handlers = makeHandlers();
+    useMatterUiStore.getState().saveSnapshot('m2', { surface: 'email', activeTabPath: null });
+    render(<Harness handlers={handlers} />);
+
+    launch({ matterId: 'm2', surface: 'matters' });
+
+    expect(handlers.setSidebarActiveTab).toHaveBeenCalledWith('matters');
+    expect(handlers.setSidebarActiveTab).not.toHaveBeenCalledWith('email');
+    expect(useMatterStore.getState().activeMatterId).toBe('m2');
+    expect(useMatterStore.getState().clientMapHubId).toBe('m2');
+    expect(useMatterStore.getState().clientMapHubTab).toBe('overview');
   });
 
   it('leaves Ask (search) as a global surface, scoped to the active client', () => {

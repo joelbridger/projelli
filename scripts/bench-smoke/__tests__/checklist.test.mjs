@@ -31,7 +31,7 @@ describe('CHECKLIST', () => {
 
   it('includes the promoted Wave 4 Track B/C checks (no longer stubs)', () => {
     const ids = CHECKLIST.map((c) => c.id);
-    expect(ids).toContain('wave4-whole-book-view');
+    expect(ids).toContain('wave4-all-clients-hub');
     expect(ids).toContain('wave4-estate-beneficiary-gap');
     expect(ids).toContain('wave4-estate-beneficiary-gap-dismiss-live');
     expect(ids).toContain('wave4-whole-practice-ask');
@@ -63,7 +63,7 @@ describe('STUBS', () => {
     const stubIds = STUBS.map((s) => s.id);
     expect(stubIds).toContain('wave4-diarization');
     expect(stubIds).toContain('wave4-retention-attestation');
-    expect(stubIds).not.toContain('wave4-whole-book-view');
+    expect(stubIds).not.toContain('wave4-all-clients-hub');
     expect(stubIds).not.toContain('wave4-estate-beneficiary-gap');
     expect(stubIds).not.toContain('wave4-whole-practice-ask');
   });
@@ -78,7 +78,7 @@ describe('allCheckIds / findCheck', () => {
 
   it('findCheck resolves an id from either list, and undefined for unknown ids', () => {
     expect(findCheck('index-health')).toBeDefined();
-    expect(findCheck('wave4-whole-book-view')).toBeDefined();
+    expect(findCheck('wave4-all-clients-hub')).toBeDefined();
     expect(findCheck('totally-unknown')).toBeUndefined();
   });
 });

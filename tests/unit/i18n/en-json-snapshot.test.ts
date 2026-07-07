@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 209,
+        "matter": 213,
         "media": 92,
         "meetings": 148,
         "memory": 6,
@@ -74,7 +74,7 @@ describe('en.json structure snapshot', () => {
         "search": 6,
         "settings": 168,
         "shortcuts-overlay": 2,
-        "spine": 5,
+        "spine": 6,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,
@@ -244,7 +244,9 @@ describe('en.json structure snapshot', () => {
     // +2 = QA-71 fix (2026-07-05): meetings.entry gained no-transcript
     //      delete-audio button/body copy so deleting audio before transcript
     //      exists honestly warns that the only meeting copy will be lost.
-    expect(flat.length).toBe(1331); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71)
+    // +5 = R2/R4 branch key inventory catch-up: matter +4 from existing branch
+    //      drift, spine.all-clients +1 for the permanent rail entry.
+    expect(flat.length).toBe(1336); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 5 (R2/R4 catch-up)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

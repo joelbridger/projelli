@@ -1,4 +1,23 @@
 {
   "_comment": "Deliberate permanent-handle removals/renames. Adding a handle never needs an entry; REMOVING or RENAMING one does. When you intentionally drop or rename a data-testid, add an entry here, then run `node scripts/ui-system/handle-guard.mjs --update-baseline`. The guard fails on any baseline handle that vanishes without a matching entry.",
-  "migrations": []
+  "migrations": [
+    {
+      "removed": "book-gap-chip",
+      "replacement": null,
+      "reason": "R2 rework removed the standalone Whole Book surface; All Clients now uses the main client table rows.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "book-row-${}",
+      "replacement": "matter-row-${}",
+      "reason": "R2 rework removed ranked Whole Book rows; All Clients now uses the main client table row handles.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "book-view",
+      "replacement": null,
+      "reason": "R2 rework removed the standalone Whole Book surface; the rail All Clients entry opens the main client table instead.",
+      "date": "2026-07-07"
+    }
+  ]
 }

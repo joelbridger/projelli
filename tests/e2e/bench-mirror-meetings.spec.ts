@@ -4,8 +4,8 @@
  * not drivable in the browser dev build, but the tab itself, the empty
  * state, and the consent dialog gating are pure client-side UI — this spec
  * covers exactly that "browser-drivable" slice, per
- * docs/qa/E2E-SMOKE-MIRROR.md's convention (see bench-mirror-book-view.spec.ts
- * / bench-mirror-setup.spec.ts for the same pattern on other Wave surfaces).
+ * docs/qa/E2E-SMOKE-MIRROR.md's convention (see bench-mirror-setup.spec.ts
+ * for the same pattern on other Wave surfaces).
  */
 import { test, expect, type Page } from '@playwright/test';
 import { hardClick, waitForTestModeLoad } from './helpers/test-utils';

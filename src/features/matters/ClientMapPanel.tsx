@@ -923,12 +923,9 @@ export function ClientMapPanel({
   const missingCount = unresolvedAskGaps(map).length;
 
   // An unresolved gap always wins the initial tab, even over a remembered
-  // preference from localStorage: this keeps the panel in sync with the
-  // "Whole book" view (BookView.tsx), which surfaces the SAME unresolved
-  // gaps as a chip on the client's row. Landing on a stale remembered
-  // section tab instead used to silently bury the resolvable gap control the
-  // book view had just promised — including for a client visited before the
-  // gap appeared (or before this fix), whose stored tab would otherwise take
+  // preference from localStorage. Landing on a stale remembered section tab
+  // used to silently bury the resolvable gap control — including for a client
+  // visited before the gap appeared, whose stored tab would otherwise take
   // precedence forever until the gap is resolved (Codex review finding).
   // Once resolved, the remembered-tab / first-content fallback applies as before.
   const firstWithContent = sectionList.find((s) => s.items.length > 0)?.key;

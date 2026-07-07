@@ -11,10 +11,10 @@
  * anything that requires a CSS variable directly. Light theme; no dark mode.
  */
 
-import { useEffect, useState, useMemo, type ReactNode } from 'react';
+import { useEffect, useState, useMemo, type ReactNode, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Users, Lock, Plus, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
+import { Users, Lock, Plus, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore, MoreHorizontal, Mic, Clock } from 'lucide-react';
 import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
@@ -26,8 +26,8 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, ToolbarSpacer, SegmentedToggle } from '@/ui/kp';
-import { BookView } from './book/BookView';
+import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, IconButton } from '@/ui/kp';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { SK_SETUP_CARD_DISMISSED, EV_OPEN_SETTINGS, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
 
 /** localStorage key for dismissing the setup card. */
@@ -69,8 +69,8 @@ const DEFAULT_SORT: SortState = { key: 'name', dir: 'asc' };
 
 function matterRowGridColumns(showConfidentialityColumn: boolean): string {
   return showConfidentialityColumn
-    ? 'minmax(0, 1fr) 100px 120px'
-    : 'minmax(0, 1fr) 120px';
+    ? 'minmax(180px, 1fr) auto 112px 96px 36px'
+    : 'minmax(180px, 1fr) auto 96px 36px';
 }
 
 // ── Get Started card ───────────────────────────────────────────────────────
@@ -264,7 +264,7 @@ interface MatterRowProps {
 }
 
 /** Allowed surfaces for matter-launch quick-actions. */
-type MatterSurface = 'search' | 'files' | 'email';
+type MatterSurface = 'search' | 'files' | 'email' | 'meetings' | 'audit';
 
 function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onArchive }: MatterRowProps) {
   const { t } = useTranslation();
@@ -273,7 +273,7 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
   const label = matterLabel(matter);
   const [hovered, setHovered] = useState(false);
 
-  const launchSurface = (surface: MatterSurface, e: React.MouseEvent) => {
+  const launchSurface = (surface: MatterSurface, e: MouseEvent) => {
     // Prevent the button click from also firing onSelect twice
     e.stopPropagation();
     onSelect(matter.id);
@@ -285,38 +285,48 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
   };
 
 
+  const rowBackground = isActive
+    ? 'var(--kp-action-bg)'
+    : hovered
+    ? 'var(--color-muted)'
+    : 'transparent';
   return (
     <div
-      style={{ borderBottom: '1px solid var(--color-border)' }}
+      data-testid={`matter-row-shell-${matter.id}`}
+      style={{
+        display: 'grid',
+        gridTemplateColumns: matterRowGridColumns(showConfidentialityColumn),
+        alignItems: 'center',
+        gap: 'var(--kp-space-sm)',
+        width: '100%',
+        padding: '14px 20px',
+        background: rowBackground,
+        borderLeft: isActive ? '3px solid var(--kp-accent)' : '3px solid transparent',
+        borderBottom: '1px solid var(--kp-divider)',
+        transition: 'background var(--kp-duration-fast) var(--kp-ease-standard)',
+      }}
       onMouseEnter={() => { setHovered(true); }}
       onMouseLeave={() => { setHovered(false); }}
     >
-      {/* Primary row — click to select */}
+      {/* Client name — click to open this client's hub. */}
       <button
         type="button"
         data-testid={`matter-row-${matter.id}`}
         onClick={() => { onSelect(matter.id); }}
         style={{
-          display: 'grid',
-          gridTemplateColumns: matterRowGridColumns(showConfidentialityColumn),
+          display: 'flex',
           alignItems: 'center',
-          gap: 0,
+          gap: 'var(--kp-space-xs)',
           width: '100%',
-          padding: '12px 20px 8px',
-          background: isActive
-            ? 'rgba(10,37,64,0.04)'
-            : hovered
-            ? 'rgba(10,37,64,0.02)'
-            : 'transparent',
-          borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
+          minWidth: 0,
+          padding: 0,
+          background: 'transparent',
+          border: 'none',
           cursor: 'pointer',
           textAlign: 'left',
-          transition: 'background 0.12s',
-          borderBottom: 'none',
         }}
       >
-        {/* Matter name + client */}
-        <div style={{ paddingRight: 16, minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           <div
             style={{
               display: 'flex',
@@ -355,44 +365,17 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
             </div>
           )}
         </div>
-
-        {showConfidentialityColumn && (
-          <div style={{ paddingRight: 12 }}>
-            {matter.privileged && <PrivilegePill />}
-          </div>
-        )}
-
-        {/* Created */}
-        <div
-          style={{
-            fontSize: 'var(--kp-font-xs)',
-            color: 'var(--color-muted-foreground)',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {formatDate(matter.createdAt)}
-        </div>
       </button>
 
-      {/*
-       * Quick-action row.
-       * Accessible at rest (opacity 0.85 > 3:1 contrast on white at navy text)
-       * AND visible on keyboard :focus-within of the row's wrapper div.
-       * The wrapper div is not itself focusable; focus enters via the buttons.
-       */}
       <div
         data-testid={`matter-quick-actions-${matter.id}`}
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 6,
-          paddingLeft: '23px',
-          paddingRight: 20,
-          paddingBottom: 8,
-          opacity: hovered ? 1 : 0.85,
-          transition: 'opacity 0.15s',
-          background: isActive ? 'rgba(10,37,64,0.04)' : hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
-          borderLeft: isActive ? '3px solid var(--kp-navy)' : '3px solid transparent',
+          justifyContent: 'flex-end',
+          gap: 'var(--kp-space-xs)',
+          minWidth: 0,
+          whiteSpace: 'nowrap',
         }}
       >
         <Button
@@ -426,17 +409,86 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           {t('matter.hub.tab-email')}
         </Button>
         <Button
-          variant="ghost"
+          variant="secondary"
           size="sm"
-          data-testid={`matter-archive-${matter.id}`}
-          aria-label={t('matter.home.archive')}
-          iconLeft={Archive}
-          onClick={(e) => { e.stopPropagation(); onArchive(matter.id); }}
-          style={{ marginLeft: 'auto' }}
+          data-testid={`matter-launch-meetings-${matter.id}`}
+          aria-label={t('matter.home.open-meetings-aria', { name: label })}
+          iconLeft={Mic}
+          onClick={(e) => { launchSurface('meetings', e); }}
         >
-          {t('matter.home.archive')}
+          {t('matter.hub.tab-meetings')}
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
+          data-testid={`matter-launch-activity-${matter.id}`}
+          aria-label={t('matter.home.open-activity-aria', { name: label })}
+          iconLeft={Clock}
+          onClick={(e) => { launchSurface('audit', e); }}
+        >
+          {t('matter.hub.tab-activity')}
         </Button>
       </div>
+
+      {showConfidentialityColumn && (
+        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+          {matter.privileged && <PrivilegePill />}
+        </div>
+      )}
+
+      <div
+        style={{
+          fontSize: 'var(--kp-font-xs)',
+          color: 'var(--color-muted-foreground)',
+          fontVariantNumeric: 'tabular-nums',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {formatDate(matter.createdAt)}
+      </div>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <IconButton
+            icon={MoreHorizontal}
+            label={t('matter.home.row-menu-aria', { name: label })}
+            variant="ghost"
+            size="sm"
+            data-testid={`matter-actions-menu-${matter.id}`}
+            onClick={(e) => { e.stopPropagation(); }}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-48">
+          <DropdownMenuItem
+            data-testid={`matter-menu-open-client-${matter.id}`}
+            onClick={() => { onSelect(matter.id); }}
+          >
+            {t('matter.home.open-client')}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            data-testid={`matter-menu-ask-${matter.id}`}
+            onClick={(e) => { launchSurface('search', e); }}
+          >
+            {askActionLabel}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            data-testid={`matter-menu-documents-${matter.id}`}
+            onClick={(e) => { launchSurface('files', e); }}
+          >
+            {t('matter.hub.tab-documents')}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            data-testid={`matter-archive-${matter.id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchive(matter.id);
+            }}
+          >
+            {t('matter.home.archive')}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -551,8 +603,10 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
       style={{
         display: 'grid',
         gridTemplateColumns: matterRowGridColumns(showConfidentialityColumn),
+        gap: 'var(--kp-space-sm)',
         padding: '0 20px',
-        borderBottom: '1px solid var(--color-border)',
+        borderBottom: '1px solid var(--kp-divider)',
+        background: 'var(--color-muted)',
       }}
     >
       <div style={{ ...baseColStyle, paddingLeft: 3 }}>
@@ -566,6 +620,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
           <SortIndicator col="name" sort={sort} />
         </button>
       </div>
+      <div aria-hidden="true" />
       {showConfidentialityColumn && (
         <div style={baseColStyle}>
           <button
@@ -590,6 +645,7 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
           <SortIndicator col="created" sort={sort} />
         </button>
       </div>
+      <div aria-hidden="true" />
     </div>
   );
 }
@@ -622,7 +678,6 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
   };
   const entityLabel = useEntityLabel();
   const [archivedExpanded, setArchivedExpanded] = useState(false);
-  const [homeView, setHomeView] = useState<'clients' | 'book'>('clients');
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -708,45 +763,18 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
     </div>
   );
 
-  const viewToggle = (
-    <>
-      <ToolbarSpacer />
-      <SegmentedToggle
-        ariaLabel={t('matter.book.view-toggle')}
-        variant="filled"
-        size="sm"
-        options={[
-          { value: 'clients', label: t('matter.book.view-clients') },
-          { value: 'book', label: t('matter.book.view-book') },
-        ]}
-        value={homeView}
-        onChange={setHomeView}
-      />
-    </>
+  const newClientButton = (
+    <Button
+      variant="primary"
+      size="md"
+      iconLeft={Plus}
+      onClick={() => {
+        window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
+      }}
+    >
+      {t('matter.home.new-client', { entity: entityLabel.one })}
+    </Button>
   );
-
-  if (homeView === 'book') {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100%',
-          flex: 1,
-          minWidth: 0,
-          background: 'var(--color-background)',
-          fontFamily: 'Satoshi, sans-serif',
-          overflowY: 'auto',
-        }}
-      >
-        {header}
-        <SurfaceToolbar>{viewToggle}</SurfaceToolbar>
-        <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)' }}>
-          <BookView onOpenClient={(id) => { openHub(id); }} />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div
@@ -770,16 +798,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
 
       {/* Toolbar */}
       <SurfaceToolbar>
-        <Button
-          variant="primary"
-          size="md"
-          iconLeft={Plus}
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
-          }}
-        >
-          {t('matter.home.new-client', { entity: entityLabel.one })}
-        </Button>
+        {newClientButton}
         {showSearch && (
           <SearchField
             data-testid="matters-search-input"
@@ -789,10 +808,9 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
             placeholder={t('matter.home.search-placeholder', { entity: entityLabel.other })}
             aria-label={t('matter.home.search-aria', { entity: entityLabel.other })}
             size="md"
-            style={{ flex: 1, minWidth: 240 }}
+            style={{ flex: 1, minWidth: 240, marginLeft: 'auto' }}
           />
         )}
-        {viewToggle}
       </SurfaceToolbar>
 
       {/* Table card — top gap below the header; surface gap keeps it off the divider line. */}
@@ -801,6 +819,7 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
         style={{
           margin: 'var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)',
           overflow: 'hidden',
+          borderColor: 'var(--kp-divider)',
         }}
       >
         {activeMatters.length === 0 && archivedMatters.length === 0 ? (

@@ -73,36 +73,19 @@ export async function clickElement(driver, element) {
   throw new DriverError('clickElement: matched element has neither a testid nor visible text to click by');
 }
 
-/**
- * Get back to the Client Map's "Clients" TABLE sub-view (as opposed to
- * "Whole book" — src/features/matters/MattersHome.tsx's SegmentedToggle,
- * src/ui/kp/SegmentedToggle.tsx) — same normalization pattern as
- * openSmokeClientNote's Tree-view switch below: the Clients/Whole-book
- * choice persists across navigation, so any check that needs
- * `matter-launch-documents-<id>` (table-only) silently fails if a PRIOR
- * check in the same run left the toggle on "Whole book" (e.g. any of the
- * wave4 book-view checks). Root-caused live (2026-07-04): this is what was
- * behind the recurring SETUP-BLOCKED on per-client-files-visible,
- * wave0-draft-followup, and both wave2-wealthbox checks whenever a wave4
- * check ran earlier in the same suite.
- *
- * Reuses openWholeBookView's "still in hub" defensive re-click (clicking
- * spine-nav-matters while a hub is open lands back on the table/book view,
- * not the hub — see that function's comment), then switches the toggle to
- * "Clients" via clickByText. Confirmed live that clickByText('Clients') is
- * unambiguous here: of the several plain-text elements on the page whose
- * text is exactly "clients" (page title, sidebar section header, etc.),
- * only the SegmentedToggle's own option is a real interactive control — the
- * others carry no data-testid/button/role, so click-by-text.mjs's
- * controls-tier selector never matches them.
- */
-export async function ensureClientsTableTab(driver) {
+/** Open the rail-pinned All Clients table from anywhere in the app. */
+export async function openAllClientsTable(driver) {
   await driver.click('spine-nav-matters');
-  const stillInHub = await driver.evalJs('!!document.querySelector(\'[data-testid="hub-subtab-bar"]\')');
-  if (stillInHub === true) {
-    await driver.click('spine-nav-matters');
+  const rowVisible = await driver.evalJs('!!document.querySelector(\'[data-testid="spine-all-clients-row"]\')');
+  if (rowVisible !== true) {
+    await driver.click('spine-clients-toggle');
   }
-  await driver.clickByText('Clients');
+  await driver.click('spine-all-clients-row');
+}
+
+/** Get back to the Client Map's All Clients table. */
+export async function ensureClientsTableTab(driver) {
+  await openAllClientsTable(driver);
 }
 
 /**
@@ -147,31 +130,6 @@ export async function openSmokeClientOverview(driver) {
  * got opened. */
 export async function openSmokeClientDocumentsSubtab(driver) {
   await driver.click('hub-subtab-documents');
-}
-
-/**
- * Navigate to the Client Map surface, then switch its "Clients | Whole book"
- * segmented toggle (src/features/matters/MattersHome.tsx, src/ui/kp/
- * SegmentedToggle.tsx) to "Whole book" — that toggle has no per-option
- * data-testid (only visible text), so this goes through clickByText rather
- * than a testid click.
- *
- * If a client hub is already open (from an earlier check — e.g. Wave 0/Wave 2
- * open a docx note), clicking the "matters" spine tab still lands on the
- * table/book view, not the hub: confirmed in source, src/App.tsx's
- * `<AppShellNav onTabChange>` handler unconditionally nulls the store's
- * `clientMapHubId` whenever `tab === 'matters'`, before switching tabs — the
- * same effect as the hub's own (otherwise unwired, see MatterHub.tsx)
- * "<- Clients" back action. One extra defensive click covers the case where
- * the first click's re-render hadn't settled yet.
- */
-export async function openWholeBookView(driver) {
-  await driver.click('spine-nav-matters');
-  const stillInHub = await driver.evalJs('!!document.querySelector(\'[data-testid="hub-subtab-bar"]\')');
-  if (stillInHub === true) {
-    await driver.click('spine-nav-matters');
-  }
-  await driver.clickByText('Whole book');
 }
 
 /** Navigate to the Ask surface (spine's internal id for it is kept as
