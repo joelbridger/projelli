@@ -34,13 +34,14 @@ describe('useThemeManager light-lock', () => {
     expect(document.documentElement.classList.contains('dark')).toBe(false);
   });
 
-  it('an explicit setTheme("dark") applies dark and stamps the choice', () => {
+  it('setTheme("dark") stays light in the current light-only app', () => {
     const { result } = renderHook(() => useThemeManager());
     act(() => {
       result.current.setTheme('dark');
     });
-    expect(result.current.effectiveTheme).toBe('dark');
-    expect(document.documentElement.classList.contains('dark')).toBe(true);
-    expect(useSettingsStore.getState().themeExplicitlyChosen).toBe(true);
+    expect(result.current.theme).toBe('light');
+    expect(result.current.effectiveTheme).toBe('light');
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    expect(useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
   });
 });

@@ -157,19 +157,6 @@ export const EXTERNAL_EXPORT_STALE_DAYS_KEY = 'externalExportStaleDays';
 export const SETTINGS_SCHEMA: SettingDefinition[] = [
   // ── Workspace: General ────────────────────────────────────────────────
   {
-    key: 'theme',
-    category: 'workspace',
-    label: 'Theme',
-    description: 'Choose light, dark, or follow your system preference.',
-    type: 'select',
-    defaultValue: 'light',
-    options: [
-      { value: 'system', label: 'System' },
-      { value: 'light', label: 'Light' },
-      { value: 'dark', label: 'Dark' },
-    ],
-  },
-  {
     key: 'startupBehavior',
     category: 'workspace',
     label: 'On Startup',

@@ -1,6 +1,6 @@
 {
   "_comment": "Permanent-handle baseline for the UI Iteration System. Regenerate with `node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a handle removal/rename is intentional and logged in handles.migrations.json. `duplicates` freezes handles rendered from >1 file (frozen debt; the guard blocks NEW cross-file duplicates so a handle can't silently become ambiguous).",
-  "count": 1487,
+  "count": 1483,
   "keys": [
     "account-identity",
     "account-image-input",
@@ -1362,10 +1362,6 @@
     "templates-tab-subview-installed",
     "templates-tab-subview-list",
     "templates-tab-toolbar",
-    "theme-icon-dark",
-    "theme-icon-light",
-    "theme-icon-system",
-    "theme-toggle",
     "today-strip-calendar-retry",
     "today-strip-calendar-stale-warning",
     "today-strip-dismiss",

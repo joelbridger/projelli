@@ -9,6 +9,7 @@ import { WifiOff, Lock, Award } from 'lucide-react';
 import { LottiePlayer } from '../LottiePlayer';
 import { SecurityPill } from '../components/SecurityPill';
 import { ONB_COPY } from '../copy';
+import { AppLogo } from '@/ui/brand/AppLogo';
 
 const PILL_ICONS = [WifiOff, Lock, Award] as const;
 const FLOW_LOTTIES = [
@@ -25,7 +26,7 @@ export function IntroScene({ onGo }: IntroSceneProps) {
   const { intro } = ONB_COPY;
   return (
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-intro">
-      <img src="/onboarding/app-logo.svg" alt="Advisor Prep Hero" className="kp-onbv2-rise mb-12 h-8" />
+      <AppLogo height={32} className="kp-onbv2-rise mb-12" />
 
       <h1 className="kp-onbv2-rise max-w-[20ch] text-4xl font-extrabold leading-[1.12] tracking-[-0.015em] text-[var(--kp-navy)] md:text-5xl">
         {intro.headline}

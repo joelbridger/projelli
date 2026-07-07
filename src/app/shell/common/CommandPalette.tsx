@@ -20,7 +20,6 @@ import {
   History,
   BookOpen,
   Layout,
-  Moon,
   Command,
   ArrowRight,
 } from 'lucide-react';
@@ -284,7 +283,6 @@ export function getDefaultCommands(handlers: {
   onOpenFile?: () => void;
   onSaveFile?: () => void;
   onToggleSidebar?: () => void;
-  onToggleTheme?: () => void;
   onOpenSettings?: () => void;
   onOpenWorkflows?: () => void;
   onOpenResearch?: () => void;
@@ -336,18 +334,6 @@ export function getDefaultCommands(handlers: {
       icon: <Layout className="h-4 w-4" />,
       category: 'View',
       action: handlers.onToggleSidebar,
-    });
-  }
-
-  if (handlers.onToggleTheme) {
-    commands.push({
-      id: 'toggle-theme',
-      label: 'Toggle Theme',
-      description: 'Switch between light and dark mode',
-      icon: <Moon className="h-4 w-4" />,
-      category: 'View',
-      keywords: ['dark', 'light', 'mode'],
-      action: handlers.onToggleTheme,
     });
   }
 

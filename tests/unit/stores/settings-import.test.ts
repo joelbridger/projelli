@@ -12,7 +12,7 @@ import { useSettingsStore } from '@/platform/settings/settingsStore';
 
 describe('settingsStore.importSettings (BUG-026)', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ values: {} });
+    useSettingsStore.setState({ values: {}, themeExplicitlyChosen: false });
   });
 
   it('accepts valid values and rejects wrong-typed ones', () => {
@@ -39,7 +39,9 @@ describe('settingsStore.importSettings (BUG-026)', () => {
     useSettingsStore.getState().importSettings(JSON.stringify({ fontSize: 16, theme: 'dark' }));
     v = useSettingsStore.getState().values;
     expect(v['fontSize']).toBe(16);
-    expect(v['theme']).toBe('dark');
+    expect(v['theme']).toBeUndefined();
+    expect(useSettingsStore.getState().getSetting<string>('theme')).toBe('light');
+    expect(useSettingsStore.getState().themeExplicitlyChosen).toBe(false);
   });
 
   it('MERGES into existing settings rather than replacing them', () => {
