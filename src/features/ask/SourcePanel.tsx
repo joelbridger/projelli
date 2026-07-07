@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
 import type { AuditEntry } from '@/platform/types/audit';
@@ -22,7 +23,6 @@ import { useCitationVerification, verifyKey, type RealVerdict } from './citation
 /* run. Clicking a card opens the cited source.                               */
 /* -------------------------------------------------------------------------- */
 
-const LABEL_SOURCES = 'Sources';
 const LABEL_VERIFIED = 'Verified against source';
 const LABEL_SOURCE_FOUND = 'Source found';
 const PREVIEW_CHAR_LIMIT = 220;
@@ -127,6 +127,7 @@ function SourceCard({
   onSelect: (n: number) => void;
   onOpenCitation?: (cite: AnswerCitation) => void;
 }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   // When the host supplies its own opener (e.g. the Client Map, whose sources
   // include CRM / OneDrive / e-sign / meeting kinds the built-in path opener
@@ -261,7 +262,7 @@ function SourceCard({
             cursor: 'pointer',
           }}
         >
-          {expanded ? 'Show less' : 'Show more'}
+          {expanded ? t('ask.sources.show-less') : t('ask.sources.show-more')}
         </button>
       )}
 
@@ -353,6 +354,7 @@ export function SourcePanel({
   emptyHint?: ReactNode;
   footerNote?: ReactNode;
 }) {
+  const { t } = useTranslation();
   // QA-85: ONE batch call covers every card in the panel — no per-card click,
   // no per-card fetch. Re-derived automatically whenever the citation set
   // changes (a new turn, a reload), so a stale persisted `verified` flag can
@@ -375,7 +377,7 @@ export function SourcePanel({
         }}
       >
         <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
-        {LABEL_SOURCES}
+        {t('ask.sources.title')}
         {headerSuffix != null && headerSuffix !== '' && (
           <span style={{ fontWeight: 600, letterSpacing: '0.06em' }}>· {headerSuffix}</span>
         )}

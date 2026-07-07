@@ -51,11 +51,14 @@ test.describe('Bench mirror: Wave 4 Track C — whole-practice Ask + consent gat
 
     const scopePill = page.getByTestId('ask-scope-pill');
     await expect(scopePill).toBeVisible({ timeout: 10_000 });
-    await expect(scopePill).toHaveText('Whole practice (summaries only)');
+    await expect(scopePill).toHaveText('Book Overview');
 
     // Read-only: the consent gate only appears un-asked once per session, so
     // a fresh test-mode session should show it now that whole-practice scope
     // (a cross-client scope) is active. Not granted/denied here.
-    await expect(page.getByTestId('chat-file-access-consent')).toBeVisible({ timeout: 10_000 });
+    await hardClick(page.getByTestId('ask-answer-scope-chip'));
+    const answerScopePopover = page.getByTestId('ask-answer-scope-popover');
+    await expect(answerScopePopover).toBeVisible({ timeout: 10_000 });
+    await expect(answerScopePopover.getByTestId('chat-file-access-consent')).toBeVisible({ timeout: 10_000 });
   });
 });

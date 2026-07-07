@@ -17,6 +17,7 @@
 
 import { Fragment, useMemo, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Plus, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
 import { Button, IconButton, Eyebrow, SearchField } from '@/ui/kp';
 import type { RecentAskSession } from './askHelpers';
@@ -109,6 +110,7 @@ export function ConversationsRail({
   collapsed,
   onToggleCollapsed,
 }: ConversationsRailProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredGroups = useMemo(() => {
@@ -207,8 +209,8 @@ export function ConversationsRail({
           icon={Search}
           value={query}
           onChange={setQuery}
-          placeholder="Search conversations"
-          aria-label="Search conversations"
+          placeholder={t('ask.conversations.search-placeholder')}
+          aria-label={t('ask.conversations.search-placeholder')}
           data-testid="rail-conversation-search"
           size="sm"
           style={{ marginTop: 8, width: '100%' }}
@@ -232,9 +234,7 @@ export function ConversationsRail({
               lineHeight: 1.5,
             }}
           >
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Your conversations will appear here.
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            {t('ask.conversations.empty')}
           </p>
         ) : !hasFiltered ? (
           <p
@@ -246,9 +246,7 @@ export function ConversationsRail({
               lineHeight: 1.5,
             }}
           >
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            No conversations found.
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            {t('ask.conversations.no-results')}
           </p>
         ) : (
           filteredGroups.map((group) =>

@@ -2034,6 +2034,25 @@
       "all-entity-scope": "todos tus {{entity}}",
       "all-entity-scope__sourceHash": "32edab7b7ca175a62a2ee0930dbd0e64b223458356d2fc56ffa3d1d606036b4a"
     },
+    "action": {
+      "ask": "Preguntar"
+    },
+    "conversations": {
+      "other": "Otras conversaciones",
+      "search-placeholder": "Buscar conversaciones",
+      "empty": "Tus conversaciones aparecerán aquí.",
+      "no-results": "No se encontraron conversaciones."
+    },
+    "sources": {
+      "title": "Fuentes",
+      "collapse": "Contraer fuentes",
+      "show-panel": "Mostrar fuentes",
+      "show-more": "Mostrar más",
+      "show-less": "Mostrar menos",
+      "header-suffix-files-only": "solo de tus archivos",
+      "empty-hint": "Cuando una respuesta use tus archivos, las fuentes citadas aparecerán aquí. Las respuestas de conocimiento general no tienen nada que citar; esa es la idea.",
+      "footer-note": "Las respuestas de conocimiento general no tienen tarjeta de fuente. El panel Fuentes solo se llena con tus archivos."
+    },
     "answer-scope": {
       "title": "Alcance de la respuesta",
       "helper": "Elige si Ask puede usar conocimiento general y gestiona el acceso a archivos para este chat.",

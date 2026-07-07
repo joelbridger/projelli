@@ -2034,6 +2034,25 @@
       "all-entity-scope": "alle deine {{entity}}",
       "all-entity-scope__sourceHash": "32edab7b7ca175a62a2ee0930dbd0e64b223458356d2fc56ffa3d1d606036b4a"
     },
+    "action": {
+      "ask": "Fragen"
+    },
+    "conversations": {
+      "other": "Andere Unterhaltungen",
+      "search-placeholder": "Unterhaltungen suchen",
+      "empty": "Deine Unterhaltungen erscheinen hier.",
+      "no-results": "Keine Unterhaltungen gefunden."
+    },
+    "sources": {
+      "title": "Quellen",
+      "collapse": "Quellen einklappen",
+      "show-panel": "Quellen anzeigen",
+      "show-more": "Mehr anzeigen",
+      "show-less": "Weniger anzeigen",
+      "header-suffix-files-only": "nur aus deinen Dateien",
+      "empty-hint": "Wenn eine Antwort deine Dateien verwendet, erscheinen die zitierten Quellen hier. Antworten aus Allgemeinwissen haben nichts zu zitieren; genau darum geht es.",
+      "footer-note": "Antworten aus Allgemeinwissen haben keine Quellenkarte. Das Quellenfenster füllt sich nur mit deinen Dateien."
+    },
     "answer-scope": {
       "title": "Antwortbereich",
       "helper": "Wähle, ob Ask Allgemeinwissen verwenden darf, und verwalte den Dateizugriff für diesen Chat.",

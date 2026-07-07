@@ -16,7 +16,7 @@
  * this is the wiring proof the bench asked for.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { FileAccessConsent } from '@/platform/ai/fileAccessConsent';
@@ -472,9 +472,11 @@ describe('F2.5b — Ask primary-surface consent gate', () => {
     h.consent = { state: 'unasked' };
     h.hasCloudKey = true;
     render(<Ask />);
+    fireEvent.click(screen.getByTestId('ask-answer-scope-chip'));
+    const popover = await screen.findByTestId('ask-answer-scope-popover');
     await waitFor(() => {
-      expect(screen.getByTestId('chat-file-access-consent')).toBeTruthy();
+      expect(within(popover).getByTestId('chat-file-access-consent')).toBeTruthy();
     });
-    expect(screen.getByTestId('chat-file-access-consent').getAttribute('data-state')).toBe('unasked');
+    expect(within(popover).getByTestId('chat-file-access-consent').getAttribute('data-state')).toBe('unasked');
   });
 });

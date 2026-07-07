@@ -83,7 +83,7 @@ export function Ask(props: UseAskProps) {
   const entityLabel = useEntityLabel();
   const { t } = useTranslation();
   // This surface is the 3-tab IA's "Ask" tab.
-  const askVerb = 'Ask';
+  const askVerb = t('ask.action.ask');
   const {
     activeMatter,
     chatId,
@@ -302,7 +302,7 @@ export function Ask(props: UseAskProps) {
         },
         {
           key: 'other',
-          title: 'Other conversations',
+          title: t('ask.conversations.other'),
           items: railSessions.filter((s) => !belongsToActiveClient(s.chatId)),
         },
       ]
@@ -671,7 +671,7 @@ export function Ask(props: UseAskProps) {
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
                 <IconButton
                   icon={PanelRightClose}
-                  label="Collapse sources"
+                  label={t('ask.sources.collapse')}
                   size="xs"
                   variant="ghost"
                   data-testid="ask-sources-toggle"
@@ -686,11 +686,11 @@ export function Ask(props: UseAskProps) {
                 {...(filesOnly
                   ? {}
                   : {
-                      headerSuffix: 'from your files only',
+                      headerSuffix: t('ask.sources.header-suffix-files-only'),
                       emptyHint:
-                        'When an answer uses your files, the cited sources appear here. General-knowledge answers have nothing to cite — that’s the point.',
+                        t('ask.sources.empty-hint'),
                       footerNote:
-                        'General-knowledge answers have no source card. The Sources panel only ever fills with your files.',
+                        t('ask.sources.footer-note'),
                     })}
               />
             </div>
@@ -712,14 +712,14 @@ export function Ask(props: UseAskProps) {
             >
               <IconButton
                 icon={PanelRightOpen}
-                label="Show sources"
+                label={t('ask.sources.show-panel')}
                 size="sm"
                 variant="ghost"
                 data-testid="ask-sources-toggle"
                 onClick={() => { setSourcesExpanded(true); }}
               />
               <div
-                title="Sources"
+                title={t('ask.sources.title')}
                 style={{
                   writingMode: 'vertical-rl',
                   transform: 'rotate(180deg)',
@@ -734,7 +734,7 @@ export function Ask(props: UseAskProps) {
                 }}
               >
                 <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
-                Sources
+                {t('ask.sources.title')}
               </div>
             </div>
           )
