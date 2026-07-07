@@ -172,6 +172,7 @@ export function useDocumentCreation(options: UseDocumentCreationOptions) {
       setFileTree(fileTree);
       const dataUrl = docxBytesToDataUrl(bytes);
       openFile(filePath, fileName, dataUrl);
+      useEditorStore.getState().setPendingDocxFocusPath(filePath);
     } catch (error) {
       console.error('Failed to create Word document:', error);
     }

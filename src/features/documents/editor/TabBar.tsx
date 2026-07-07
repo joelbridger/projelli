@@ -4,7 +4,7 @@
 import { useCallback, useState, useRef, useEffect, useLayoutEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { isDocxUnsaved, subscribeDocxSaveRegistry, getDocxSaveVersion, closeDocxTabSafely } from '@/platform/fs/docxSaveRegistry';
@@ -48,6 +48,7 @@ interface LeadingTabConfig {
 }
 
 interface TabBarProps {
+  orientation?: 'horizontal' | 'vertical';
   onRenameFile?: (path: string, newName: string) => Promise<void>;
   leadingTab?: LeadingTabConfig;
   tabFilter?: (tab: EditorTab) => boolean;
@@ -61,21 +62,27 @@ interface TabBarProps {
 }
 
 // Drop a group payload on another group chip. Zone decides merge vs. reorder:
-//  left 30 %  -> reorder 'before'
-//  right 30 % -> reorder 'after'
+//  leading 30 %  -> reorder 'before'
+//  trailing 30 % -> reorder 'after'
 //  middle 40 % -> merge
-function computeGroupDropZone(e: React.DragEvent): 'merge' | 'before' | 'after' {
+function computeGroupDropZone(
+  e: React.DragEvent,
+  orientation: 'horizontal' | 'vertical',
+): 'merge' | 'before' | 'after' {
   const target = e.currentTarget as HTMLElement;
   const rect = target.getBoundingClientRect();
-  const x = e.clientX - rect.left;
-  const leftCut = rect.width * 0.30;
-  const rightCut = rect.width * 0.70;
-  if (x < leftCut) return 'before';
-  if (x > rightCut) return 'after';
+  const size = orientation === 'vertical' ? rect.height : rect.width;
+  if (size <= 0) return 'merge';
+  const offset = orientation === 'vertical' ? e.clientY - rect.top : e.clientX - rect.left;
+  const leadingCut = size * 0.30;
+  const trailingCut = size * 0.70;
+  if (offset < leadingCut) return 'before';
+  if (offset > trailingCut) return 'after';
   return 'merge';
 }
 
 export function TabBar({
+  orientation = 'horizontal',
   onRenameFile,
   leadingTab,
   tabFilter,
@@ -88,6 +95,7 @@ export function TabBar({
   showGroupManagerButton = true,
 }: TabBarProps = {}) {
   const { t } = useTranslation();
+  const isVertical = orientation === 'vertical';
   // QA-34: re-render the tab strip when any .docx's save state changes, so a
   // tab's unsaved dot reflects a .docx whose save is pending/failing (its store
   // tab is never marked dirty). `useSyncExternalStore` keeps this in step with
@@ -109,6 +117,7 @@ export function TabBar({
     createTabGroup,
     renameTabGroup,
     deleteTabGroup,
+    toggleGroupCollapsed,
     moveTabToGroup,
     ungroupTab,
     reorderTabGroups,
@@ -272,6 +281,11 @@ export function TabBar({
   // only render when there's something to scroll to. Runs on mount, on tab
   // count change, on window resize, and on the strip's own scroll event.
   const updateScrollButtons = useCallback(() => {
+    if (isVertical) {
+      setCanScrollLeft(false);
+      setCanScrollRight(false);
+      return;
+    }
     const el = scrollRef.current;
     if (!el) {
       setCanScrollLeft(false);
@@ -282,7 +296,7 @@ export function TabBar({
     // 1px tolerance for fractional pixel scrollLeft values in some browsers.
     setCanScrollLeft(el.scrollLeft > 1);
     setCanScrollRight(el.scrollLeft < maxScrollLeft - 1);
-  }, []);
+  }, [isVertical]);
 
   const scrollTabs = useCallback((dir: 'left' | 'right') => {
     const el = scrollRef.current;
@@ -329,26 +343,33 @@ export function TabBar({
     };
   }, []);
 
+  const displayedTabLayoutKey = useMemo(
+    () => displayedTabs.map((tab) => `${tab.path}:${tab.groupId ?? ''}`).join('|'),
+    [displayedTabs],
+  );
+  const activeTabGroupId = useMemo(
+    () => displayedTabs.find((tab) => tab.path === effectiveActiveTabPath)?.groupId ?? null,
+    [displayedTabLayoutKey, displayedTabs, effectiveActiveTabPath],
+  );
+
   // When the active tab changes (e.g. user clicked the overflow list or
   // opened a new file), scroll it into view so users don't have to hunt for
   // it in the strip.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || !effectiveActiveTabPath) return;
-    const activeTab = displayedTabs.find((t) => t.path === effectiveActiveTabPath);
-    if (!activeTab) return;
     let child = Array.from(el.querySelectorAll<HTMLElement>('[data-tab-path]')).find(
-      (node) => node.dataset['tabPath'] === activeTab.path,
+      (node) => node.dataset['tabPath'] === effectiveActiveTabPath,
     ) ?? null;
-    if (!child && activeTab.groupId) {
-      child = el.querySelector<HTMLElement>(`[data-group-id="${activeTab.groupId}"]`);
+    if (!child && activeTabGroupId) {
+      child = el.querySelector<HTMLElement>(`[data-group-id="${activeTabGroupId}"]`);
     }
     if (!child) return;
     // scrollIntoView with inline:'nearest' avoids jumpy behavior when the
     // active tab is already visible.
     child.scrollIntoView({ inline: 'nearest', block: 'nearest' });
     updateScrollButtons();
-  }, [effectiveActiveTabPath, displayedTabs, updateScrollButtons]);
+  }, [effectiveActiveTabPath, activeTabGroupId, displayedTabLayoutKey, updateScrollButtons]);
 
   const handleTabClick = useCallback((path: string) => {
     activateTab(path);
@@ -423,6 +444,15 @@ export function TabBar({
     [handleTabClose]
   );
 
+  const closeTabsSequentially = useCallback(
+    async (tabs: Array<{ path: string }>) => {
+      for (const tab of tabs) {
+        await closeTabSafely(tab.path);
+      }
+    },
+    [closeTabSafely],
+  );
+
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
     setDraggedIndex(index);
     e.dataTransfer.effectAllowed = 'move';
@@ -464,9 +494,11 @@ export function TabBar({
   // same math runs on group chips via handleGroupDragOver.
   const computeTabZone = (e: React.DragEvent): 'before' | 'combine' | 'after' => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    if (x < rect.width * 0.30) return 'before';
-    if (x > rect.width * 0.70) return 'after';
+    const size = isVertical ? rect.height : rect.width;
+    if (size <= 0) return 'combine';
+    const offset = isVertical ? e.clientY - rect.top : e.clientX - rect.left;
+    if (offset < size * 0.30) return 'before';
+    if (offset > size * 0.70) return 'after';
     return 'combine';
   };
 
@@ -591,16 +623,19 @@ export function TabBar({
         useEditorStore.getState().setPendingGroupRenameId(newId);
       }
     } else {
-      // Tab dropped on edge of another tab → reorder. Ungroup the dragged
-      // tab if it was in a group (same contract as drop-on-empty-area).
+      // Tab dropped on edge of another tab → reorder. If the target is inside
+      // a group, adopt that group so this supports moving between groups.
+      // If the target is ungrouped, the dragged tab comes out of its group.
+      if (targetTab.groupId && draggedTab.groupId !== targetTab.groupId) {
+        moveTabToGroup(draggedTab.path, targetTab.groupId);
+      } else if (!targetTab.groupId && draggedTab.groupId) {
+        ungroupTab(draggedTab.path);
+      }
       useEditorStore.getState().reorderInTabBar(
         { type: 'tab', id: draggedTab.path },
         { type: 'tab', id: targetTab.path },
         zone === 'before' ? 'before' : 'after',
       );
-      if (draggedTab.groupId) {
-        ungroupTab(draggedTab.path);
-      }
     }
 
     setDraggedIndex(null);
@@ -651,11 +686,11 @@ export function TabBar({
     // Zone is only meaningful when dragging a group payload. For tab
     // payloads we just use the whole-chip tint (moves tab to group).
     if (draggedGroupId && draggedGroupId !== groupId) {
-      setDragOverGroupZone(computeGroupDropZone(e));
+      setDragOverGroupZone(computeGroupDropZone(e, orientation));
     } else {
       setDragOverGroupZone(null);
     }
-  }, [draggedGroupId]);
+  }, [draggedGroupId, orientation]);
 
   const handleGroupDragLeave = useCallback((e: React.DragEvent) => {
     e.stopPropagation();
@@ -762,7 +797,11 @@ export function TabBar({
     return null;
   }
 
-  const renderTab = (tab: typeof openTabs[0], index: number) => {
+  const renderTab = (
+    tab: typeof openTabs[0],
+    index: number,
+    opts: { insideGroup?: boolean } = {},
+  ) => {
     const isActive = tab.path === effectiveActiveTabPath;
     const isDragging = draggedIndex === index;
     const isDragOver = dragOverIndex === index && draggedIndex !== index;
@@ -788,17 +827,24 @@ export function TabBar({
         onDrop={(e) => handleDrop(e, index)}
         // `group` enables group-hover:* targeting on descendants (the close X).
         className={cn(
-          'group flex items-center gap-1 px-3 py-1.5 border-r cursor-pointer text-sm transition-colors relative flex-shrink-0 snap-start',
-          'min-w-[120px] max-w-[200px]',
+          'group flex items-center cursor-pointer text-sm transition-colors relative flex-shrink-0 snap-start',
+          isVertical
+            ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left'
+            : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px]',
+          isVertical && opts.insideGroup && 'ml-5 w-[calc(100%-1.25rem)]',
           isActive
-            ? 'bg-background text-foreground'
-            : 'text-muted-foreground hover:bg-muted/50',
+            ? isVertical
+              ? 'bg-[var(--kp-accent-soft)] text-[var(--kp-navy)] border-[rgba(var(--kp-navy-rgb),0.10)]'
+              : 'bg-background text-foreground'
+            : isVertical
+              ? 'text-muted-foreground hover:bg-[var(--kp-accent-softer)]'
+              : 'text-muted-foreground hover:bg-muted/50',
           isDragging && 'opacity-50',
           showGroupIndicator && 'bg-primary/20 border-primary',
-          showBefore && 'border-l-2 border-l-primary',
-          showAfter && 'border-r-2 border-r-primary'
+          showBefore && (isVertical ? 'border-t-2 border-t-primary' : 'border-l-2 border-l-primary'),
+          showAfter && (isVertical ? 'border-b-2 border-b-primary' : 'border-r-2 border-r-primary')
         )}
-        style={{ height: TAB_STRIP_HEIGHT }}
+        style={isVertical ? { minHeight: 38 } : { height: TAB_STRIP_HEIGHT }}
         onClick={() => handleTabClick(tab.path)}
         onMouseDown={(e) => handleMiddleClick(e, tab.path)}
         onFocus={(e) => {
@@ -841,7 +887,9 @@ export function TabBar({
             className="min-w-0 max-w-[180px] px-1 py-0 bg-background border rounded"
           />
         ) : (
-          <span className="truncate min-w-0 max-w-[140px]">{removeExtension(tab.name)}</span>
+          <span className={cn('truncate min-w-0', isVertical ? 'flex-1' : 'max-w-[140px]')}>
+            {removeExtension(tab.name)}
+          </span>
         )}
         <AIContextChip path={tab.path} />
         {tabHasUnsavedWork(tab) && (
@@ -861,6 +909,112 @@ export function TabBar({
   const renderGroupHeader = (group: typeof tabGroups[0], tabs: typeof openTabs) => {
     const isGroupDragOver = dragOverGroupId === group.id;
     const isOpen = openDropdownGroupId === group.id;
+    const isActiveGroup = tabs.some((tab) => tab.path === effectiveActiveTabPath);
+
+    if (isVertical) {
+      return (
+        <div
+          key={`group-${group.id}`}
+          data-group-chip
+          data-group-id={group.id}
+          draggable
+          className={cn(
+            'relative flex w-full items-center gap-1 rounded-md border border-transparent px-2 py-1.5 text-sm transition-colors',
+            isActiveGroup ? 'bg-[var(--kp-accent-softer)] text-[var(--kp-navy)]' : 'text-muted-foreground hover:bg-[var(--kp-accent-softer)]',
+            isGroupDragOver && dragOverGroupZone === 'merge' && 'bg-primary/20 border-primary',
+            isGroupDragOver && !draggedGroupId && 'bg-primary/20 border-primary',
+            draggedGroupId === group.id && 'opacity-50',
+          )}
+          style={{ minHeight: 36 }}
+          onDragStart={(e) => {
+            e.dataTransfer.setData('text/plain', `group:${group.id}`);
+            e.dataTransfer.effectAllowed = 'move';
+            setDraggedGroupId(group.id);
+            setOpenDropdownGroupId(null);
+          }}
+          onDragEnd={() => {
+            setDraggedGroupId(null);
+            setDragOverGroupId(null);
+            setDragOverGroupZone(null);
+          }}
+          onDragOver={(e) => handleGroupDragOver(e, group.id)}
+          onDragLeave={handleGroupDragLeave}
+          onDrop={(e) => handleGroupDrop(e, group.id)}
+        >
+          {isGroupDragOver && dragOverGroupZone === 'before' && (
+            <span className="absolute left-0 right-0 top-0 h-0.5 bg-primary" aria-hidden />
+          )}
+          {isGroupDragOver && dragOverGroupZone === 'after' && (
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" aria-hidden />
+          )}
+          <button
+            type="button"
+            className="inline-flex h-6 w-6 flex-none items-center justify-center rounded hover:bg-background/70"
+            aria-label={group.collapsed ? 'Expand group' : 'Collapse group'}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleGroupCollapsed(group.id);
+            }}
+          >
+            {group.collapsed ? (
+              <ChevronRight className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+          </button>
+          <button
+            type="button"
+            className="min-w-0 flex-1 truncate text-left font-semibold"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (tabs[0]) handleTabClick(tabs[0].path);
+            }}
+            onDoubleClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleGroupDoubleClick(group.id, group.name);
+            }}
+          >
+            {group.name}
+          </button>
+          <span className="flex-none text-xs font-medium text-muted-foreground">
+            {tabs.length}
+          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 flex-none p-0"
+                title="Group actions"
+                aria-label="Group actions"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[160px]">
+              <DropdownMenuItem
+                onClick={() => handleGroupDoubleClick(group.id, group.name)}
+              >
+                {t('editor.tab-bar.rename-group')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => deleteTabGroup(group.id)}
+              >
+                {t('editor.tab-bar.ungroup')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => { void closeTabsSequentially(tabs); }}
+                className="text-destructive focus:text-destructive"
+              >
+                {t('editor.tab-bar.close-group')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      );
+    }
 
     return (
       <div
@@ -1146,12 +1300,19 @@ export function TabBar({
         data-leading-tab-id={leadingTab.id}
         aria-selected={leadingTab.isActive}
         className={cn(
-          'flex items-center gap-1.5 px-3 border-r text-sm font-medium transition-colors flex-shrink-0',
+          'flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0',
+          isVertical
+            ? 'w-full rounded-md border border-transparent px-3 py-2 text-left'
+            : 'px-3 border-r',
           leadingTab.isActive
-            ? 'bg-background text-foreground'
-            : 'text-muted-foreground hover:bg-muted/50',
+            ? isVertical
+              ? 'bg-[var(--kp-accent-soft)] text-[var(--kp-navy)] border-[rgba(var(--kp-navy-rgb),0.10)]'
+              : 'bg-background text-foreground'
+            : isVertical
+              ? 'text-muted-foreground hover:bg-[var(--kp-accent-softer)]'
+              : 'text-muted-foreground hover:bg-muted/50',
         )}
-        style={{ height: TAB_STRIP_HEIGHT }}
+        style={isVertical ? { minHeight: 38 } : { height: TAB_STRIP_HEIGHT }}
         onClick={leadingTab.onActivate}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
@@ -1198,15 +1359,23 @@ export function TabBar({
 
   return (
     <div
-      className={cn('bg-muted/30 min-w-0 w-full', showBorder && 'border-b')}
+      className={cn(
+        isVertical
+          ? 'bg-background min-w-0 h-full border-r'
+          : 'bg-muted/30 min-w-0 w-full',
+        showBorder && !isVertical && 'border-b',
+      )}
       data-testid={rootTestId}
       role="tablist"
       aria-label={ariaLabel}
-      style={{ minHeight: TAB_STRIP_HEIGHT }}
+      aria-orientation={orientation}
+      style={isVertical ? { width: 252, minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
     >
       <div
         className={cn(
-          "flex items-stretch relative transition-colors min-w-0 w-full",
+          isVertical
+            ? "flex h-full min-h-0 w-full flex-col gap-1 p-3"
+            : "flex items-stretch relative transition-colors min-w-0 w-full",
           dragOverTabBar && "bg-primary/10 ring-2 ring-primary/50 ring-inset"
         )}
         onDragOver={handleTabBarDragOver}
@@ -1216,7 +1385,7 @@ export function TabBar({
         {renderLeadingTab()}
 
         {/* Left scroll arrow — only visible when scrolled right */}
-        {canScrollLeft && (
+        {!isVertical && canScrollLeft && (
           <Button
             data-testid="tab-bar-scroll-left"
             variant="ghost"
@@ -1240,12 +1409,17 @@ export function TabBar({
           ref={scrollRef}
           data-testid="tab-bar-scroll"
           className={cn(
-            "flex items-stretch flex-1 min-w-0 max-w-full",
-            tabOverflow === 'scroll'
-              ? "overflow-x-auto overflow-y-hidden [scrollbar-width:thin] [scroll-snap-type:x_proximity]"
-              : "flex-wrap overflow-hidden"
+            isVertical
+              ? "flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden [scrollbar-width:thin]"
+              : "flex items-stretch flex-1 min-w-0 max-w-full",
+            !isVertical && (
+              tabOverflow === 'scroll'
+                ? "overflow-x-auto overflow-y-hidden [scrollbar-width:thin] [scroll-snap-type:x_proximity]"
+                : "flex-wrap overflow-hidden"
+            )
           )}
           onWheel={(e) => {
+            if (isVertical) return;
             // Vertical wheel → horizontal scroll (standard on tab bars). Only
             // intercept when the scroll container actually has horizontal
             // overflow, otherwise let the event bubble so nothing breaks on
@@ -1266,6 +1440,14 @@ export function TabBar({
             if (item.type === 'group') {
               const group = item.data as typeof tabGroups[0];
               const groupTabs = displayedTabs.filter((tab) => tab.groupId === group.id);
+              if (isVertical) {
+                return (
+                  <div key={group.id} className="flex flex-col gap-1">
+                    {renderGroupHeader(group, groupTabs)}
+                    {!group.collapsed && groupTabs.map((tab) => renderTab(tab, openTabs.indexOf(tab), { insideGroup: true }))}
+                  </div>
+                );
+              }
               return renderGroupHeader(group, groupTabs);
             } else {
               const tab = item.data as typeof openTabs[0];
@@ -1275,7 +1457,7 @@ export function TabBar({
         </div>
 
         {/* Right scroll arrow — only visible when there's more to the right */}
-        {canScrollRight && (
+        {!isVertical && canScrollRight && (
           <Button
             data-testid="tab-bar-scroll-right"
             variant="ghost"
@@ -1295,18 +1477,23 @@ export function TabBar({
           <Button
             variant="ghost"
             size="sm"
-            className="px-2 border-l flex-shrink-0"
-            style={{ height: TAB_STRIP_HEIGHT }}
+            className={cn(
+              isVertical
+                ? 'mt-2 h-8 w-full justify-start gap-2 border-t px-2 pt-2'
+                : 'px-2 border-l flex-shrink-0',
+            )}
+            style={isVertical ? undefined : { height: TAB_STRIP_HEIGHT }}
             onClick={() => setShowGroupManager(true)}
             title="Manage Tab Groups"
           >
             <Settings className="h-3.5 w-3.5" />
+            {isVertical && <span className="text-xs">{t('editor.tab-group-manager.title')}</span>}
           </Button>
         )}
 
         {/* All-tabs overflow menu — useful even when tabs fit, as a quick jump
             list. Rendered outside scroll so it's always reachable. */}
-        {renderItems.length > 0 && (
+        {!isVertical && renderItems.length > 0 && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1435,9 +1622,7 @@ export function TabBar({
               role="menuitem"
               className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
-                displayedTabs
-                  .filter((t) => t.path !== tabContextMenu.path)
-                  .forEach((t) => { void closeTabSafely(t.path); });
+                void closeTabsSequentially(displayedTabs.filter((t) => t.path !== tabContextMenu.path));
                 setTabContextMenu(null);
               }}
             >

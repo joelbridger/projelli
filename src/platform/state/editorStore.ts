@@ -141,6 +141,7 @@ interface EditorState {
   // Open tabs
   openTabs: OpenTab[];
   activeTabPath: string | null;
+  lastOpenRequest: { path: string; seq: number } | null;
 
   // Tab groups
   tabGroups: TabGroup[];
@@ -211,6 +212,10 @@ interface EditorState {
   pendingRenamePath: string | null;
   setPendingRenamePath: (path: string | null) => void;
 
+  // One-shot caret focus for a newly created `.docx`.
+  pendingDocxFocusPath: string | null;
+  setPendingDocxFocusPath: (path: string | null) => void;
+
   // R3-P2: One-shot flag set whenever a brand-new tab group is created
   // (via drag-to-group, explicit createTabGroup, etc.). TabBar opens the
   // Rename Tab Group dialog so the user can name the group immediately.
@@ -231,8 +236,11 @@ export const useEditorStore = create<EditorState>()(
   (set, get) => ({
   openTabs: [],
   activeTabPath: null,
+  lastOpenRequest: null,
   pendingRenamePath: null,
   setPendingRenamePath: (path) => set({ pendingRenamePath: path }),
+  pendingDocxFocusPath: null,
+  setPendingDocxFocusPath: (path) => set({ pendingDocxFocusPath: path }),
   pendingGroupRenameId: null,
   setPendingGroupRenameId: (id) => set({ pendingGroupRenameId: id }),
   layout: null,
@@ -272,12 +280,17 @@ export const useEditorStore = create<EditorState>()(
         const updatedTabs = state.openTabs.map((t) =>
           t.path === existingTab.path ? { ...t, content, isDirty: false } : t
         );
-        return { openTabs: updatedTabs, activeTabPath: existingTab.path };
+        return {
+          openTabs: updatedTabs,
+          activeTabPath: existingTab.path,
+          lastOpenRequest: { path: existingTab.path, seq: (state.lastOpenRequest?.seq ?? 0) + 1 },
+        };
       }
 
       return {
         openTabs: [...state.openTabs, { path: normalizedPath, name, content, isDirty: false }],
         activeTabPath: normalizedPath,
+        lastOpenRequest: { path: normalizedPath, seq: (state.lastOpenRequest?.seq ?? 0) + 1 },
       };
     });
   },
@@ -298,7 +311,11 @@ export const useEditorStore = create<EditorState>()(
             ? { ...t, content, isDirty: false, type, ...(metadata ? { metadata } : {}) }
             : t
         );
-        return { openTabs: updatedTabs, activeTabPath: existingTab.path };
+        return {
+          openTabs: updatedTabs,
+          activeTabPath: existingTab.path,
+          lastOpenRequest: { path: existingTab.path, seq: (state.lastOpenRequest?.seq ?? 0) + 1 },
+        };
       }
 
       const newTab: OpenTab = {
@@ -313,6 +330,7 @@ export const useEditorStore = create<EditorState>()(
       return {
         openTabs: [...state.openTabs, newTab],
         activeTabPath: normalizedPath,
+        lastOpenRequest: { path: normalizedPath, seq: (state.lastOpenRequest?.seq ?? 0) + 1 },
       };
     });
   },
@@ -866,6 +884,8 @@ export const useEditorStore = create<EditorState>()(
       secondaryTabPath: null,
       showOutline: false,
       layout: null,
+      lastOpenRequest: null,
+      pendingDocxFocusPath: null,
     });
   },
   })

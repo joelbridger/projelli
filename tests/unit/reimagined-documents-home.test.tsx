@@ -1,8 +1,8 @@
 /**
- * DocumentsHome — unit tests (R4: "Files" pinned tab + grid model)
+ * DocumentsHome — unit tests (vertical left rail + grid model)
  *
  * Covers:
- *  1. Unified tab strip: pinned "Files" tab renders + is selected by default
+ *  1. Vertical rail: pinned "Files" entry renders + is selected by default
  *  2. DocumentGridView renders when "Files" tab is active (no left column)
  *  3. Opening a file tab adds it to the strip and switches to editor view
  *  4. Clicking "Files" tab returns to the grid
@@ -78,6 +78,7 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
 let mockActiveTabPath: string | null = null;
 let mockOpenTabs: Array<{ path: string; name: string; type?: string; isDirty?: boolean }> = [];
 let mockTabGroups: Array<{ id: string; name: string; color?: string; collapsed?: boolean }> = [];
+let mockLastOpenRequest: { path: string; seq: number } | null = null;
 const mockSetActiveTab = vi.fn();
 const mockCloseTab = vi.fn();
 const mockReorderTabs = vi.fn();
@@ -98,6 +99,7 @@ function getMockEditorState() {
     activeTabPath: mockActiveTabPath,
     openTabs: mockOpenTabs,
     tabGroups: mockTabGroups,
+    lastOpenRequest: mockLastOpenRequest,
     setActiveTab: mockSetActiveTab,
     closeTab: mockCloseTab,
     reorderTabs: mockReorderTabs,
@@ -225,12 +227,13 @@ function documentsTabTestId(path: string): string {
 
 beforeEach(() => {
   mockTabGroups = [];
+  mockLastOpenRequest = null;
   vi.clearAllMocks();
 });
 
-// ── Unified tab strip ──────────────────────────────────────────────────────
+// ── Vertical tab rail ──────────────────────────────────────────────────────
 
-describe('DocumentsHome — unified tab strip (R4)', () => {
+describe('DocumentsHome — vertical tab rail', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -243,15 +246,16 @@ describe('DocumentsHome — unified tab strip (R4)', () => {
     expect(screen.getByTestId('documents-split')).toBeTruthy();
   });
 
-  it('renders a unified tab strip', () => {
+  it('renders a vertical tab rail', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('documents-tab-strip')).toBeTruthy();
+    expect(screen.getByTestId('documents-tab-strip')).toHaveAttribute('aria-orientation', 'vertical');
   });
 
-  it('shows a pinned "Files" tab as the first tab', () => {
+  it('shows a pinned "Files" entry as the first rail item', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const strip = screen.getByTestId('documents-tab-strip');
-    const tabs = Array.from(strip.querySelectorAll('[role="tab"]'));
+    const rail = screen.getByTestId('documents-tab-strip');
+    const tabs = Array.from(rail.querySelectorAll('[role="tab"]'));
     expect(tabs[0]?.textContent).toContain('Files');
     expect(screen.getByTestId('documents-files-tab')).toBe(tabs[0]);
   });
@@ -303,18 +307,15 @@ describe('DocumentsHome — unified tab strip (R4)', () => {
     expect(mockSetPendingGroupRenameId).toHaveBeenCalledWith('group-1');
   });
 
-  it('uses the shared tab height token for the unified strip and Files tab', () => {
+  it('uses a left-rail width instead of the old horizontal strip height', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
 
     expect(screen.getByTestId('documents-tab-strip')).toHaveStyle({
-      minHeight: 'var(--kp-tab-strip-height)',
-    });
-    expect(screen.getByTestId('documents-files-tab')).toHaveStyle({
-      height: 'var(--kp-tab-strip-height)',
+      width: '252px',
     });
   });
 
-  it('external editor-store opens mark the document tab active and scroll it into view', async () => {
+  it('external editor-store opens mark the document tab active and scroll it into view vertically', async () => {
     const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
     mockActiveTabPath = null;
     mockOpenTabs = [
@@ -336,6 +337,81 @@ describe('DocumentsHome — unified tab strip (R4)', () => {
       expect(scrollSpy).toHaveBeenCalled();
     });
     scrollSpy.mockRestore();
+  });
+
+  it('reopening the already-active document while Files is showing switches back to the editor', async () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+    mockLastOpenRequest = { path: '/workspace/Brief.md', seq: 1 };
+
+    const { rerender } = render(
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('documents-files-tab'));
+    await waitFor(() => {
+      expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+    });
+
+    mockLastOpenRequest = { path: '/workspace/Brief.md', seq: 2 };
+    rerender(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+      expect(screen.getByTestId(documentsTabTestId('/workspace/Brief.md'))).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    });
+  });
+
+  it('does not scroll the rail again when the active tab content changes but the layout did not', async () => {
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+
+    const { rerender } = render(
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId(documentsTabTestId('/workspace/Brief.md'))).toBeTruthy();
+    });
+    scrollSpy.mockClear();
+
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file', isDirty: true }];
+    rerender(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    await Promise.resolve();
+
+    expect(scrollSpy).not.toHaveBeenCalled();
+    scrollSpy.mockRestore();
+  });
+
+  it('"Close other tabs" asks about dirty tabs one at a time', async () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file', isDirty: true },
+      { path: '/workspace/Notes.md', name: 'Notes.md', type: 'file', isDirty: true },
+    ];
+
+    render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    fireEvent.contextMenu(screen.getByTestId(documentsTabTestId('/workspace/Brief.md')));
+    fireEvent.click(screen.getByText('editor.tab-bar.close-other-tabs'));
+
+    expect(await screen.findByText(/Evidence\.pdf.*unsaved changes/i)).toBeTruthy();
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+    await waitFor(() => {
+      expect(mockCloseTab).toHaveBeenCalledWith('/workspace/Evidence.pdf', { discard: true });
+    });
+
+    expect(await screen.findByText(/Notes\.md.*unsaved changes/i)).toBeTruthy();
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+    await waitFor(() => {
+      expect(mockCloseTab).toHaveBeenCalledWith('/workspace/Notes.md', { discard: true });
+    });
   });
 
   it('focused document tabs scroll into view for keyboard users', async () => {
@@ -362,9 +438,10 @@ describe('DocumentsHome — unified tab strip (R4)', () => {
     expect(screen.queryByTestId('main-panel')).toBeNull();
   });
 
-  it('does NOT show a left column panel', () => {
+  it('shows a left rail beside the file grid', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    expect(screen.queryByTestId('documents-left-panel')).toBeNull();
+    expect(screen.getByTestId('documents-tab-strip')).toBeTruthy();
+    expect(screen.getByTestId('documents-right-panel')).toBeTruthy();
   });
 });
 

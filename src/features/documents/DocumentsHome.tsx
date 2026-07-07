@@ -1,15 +1,9 @@
 /**
- * DocumentsHome — R4 redesign: "Files" as a pinned tab.
+ * DocumentsHome — Documents rail layout.
  *
- * Layout: a single unified tab strip across the top, followed by a single
- * content area. The strip uses the shared editor TabBar with one pinned
- * "Files" tab first, then the open document tabs (from editorStore.openTabs).
- * Clicking "Files" shows the DocumentGridView; clicking any document tab shows
- * it in the editor below the strip.
- *
- * There is NO persistent left-column list and no dual tab bar:
- *   - The "Files" tab is rendered through TabBar's leading-tab slot.
- *   - MainPanel is rendered with hideTabBar=true so only ONE tab strip exists.
+ * Layout: a vertical tab rail on the left, then the Files view or editor on the
+ * right. The rail uses the shared editor TabBar with one pinned "Files" entry
+ * first, then the open document tabs from editorStore.openTabs.
  *
  * Preserved from R3:
  *   - Email-open flow: opening an email still shows it via an editorStore tab.
@@ -260,6 +254,7 @@ export function DocumentsHome({
 }: DocumentsHomeProps) {
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
+  const lastOpenRequest = useEditorStore((s) => s.lastOpenRequest);
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
@@ -367,6 +362,22 @@ export function DocumentsHome({
       });
     }
   }, [activeTabPath, openTabs, tabBelongsToThisDocumentsView]);
+
+  const prevOpenRequestSeqRef = useRef<number>(lastOpenRequest?.seq ?? 0);
+  useEffect(() => {
+    if (!lastOpenRequest) return;
+    if (lastOpenRequest.seq === prevOpenRequestSeqRef.current) return;
+    prevOpenRequestSeqRef.current = lastOpenRequest.seq;
+    const matchingTab = openTabs.find((t) => t.path === lastOpenRequest.path);
+    if (!matchingTab) return;
+    if (!tabBelongsToThisDocumentsView(matchingTab)) return;
+    if (userOnFilesRef.current) {
+      queueMicrotask(() => {
+        setUserOnFiles(false);
+        userOnFilesRef.current = false;
+      });
+    }
+  }, [lastOpenRequest, openTabs, tabBelongsToThisDocumentsView]);
 
   // Fix 1 (while-mounted): the useState initializer already honors documentsView
   // on mount (the common case, since this component remounts on every nav). This
@@ -582,11 +593,12 @@ export function DocumentsHome({
   // The "selected" tab path for highlight purposes in the strip.
   const selectedTab = showFilesGrid || !activeVisibleTab ? FILES_TAB_ID : (activeTabPath ?? FILES_TAB_ID);
 
-  const renderDocumentTabStrip = (inline: boolean) => (
+  const renderDocumentTabStrip = () => (
     <TabBar
+      orientation="vertical"
       rootTestId="documents-tab-strip"
       ariaLabel="Documents tabs"
-      showBorder={!inline}
+      showBorder={false}
       selectedTabPath={selectedTab === FILES_TAB_ID ? null : selectedTab}
       tabFilter={tabBelongsToThisDocumentsView}
       onActivateTab={(path) => { handleTabActivate(path); }}
@@ -616,24 +628,6 @@ export function DocumentsHome({
     />
   );
 
-  const canInlineTabsIntoMainPanel =
-    React.isValidElement(mainPanelContent) && typeof mainPanelContent.type !== 'string';
-
-  const editorMainPanelContent = canInlineTabsIntoMainPanel
-    ? React.cloneElement(
-        mainPanelContent as React.ReactElement<{
-          tabBarSlot?: React.ReactNode;
-          hideTitleHeader?: boolean;
-        }>,
-        {
-          tabBarSlot: renderDocumentTabStrip(true),
-          hideTitleHeader: true,
-        },
-      )
-    : mainPanelContent;
-
-  const shouldRenderStandaloneTabStrip = showFilesGrid || !canInlineTabsIntoMainPanel;
-
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -662,7 +656,30 @@ export function DocumentsHome({
         </div>
       )}
 
-      {/* ── Files toolbar — stays visible above the tab strip even while a document is open. */}
+      <div
+        data-testid="documents-body"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          minWidth: 0,
+          display: 'flex',
+          overflow: 'hidden',
+        }}
+      >
+        {renderDocumentTabStrip()}
+
+        <div
+          data-testid="documents-content-panel"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+      {/* ── Files toolbar — stays visible above the content even while a document is open. */}
       <SurfaceToolbar data-testid="documents-toolbar">
           {/* eslint-disable lantern-i18n/no-hardcoded-string */}
 
@@ -790,10 +807,6 @@ export function DocumentsHome({
           {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </SurfaceToolbar>
 
-      {/* ── Unified tab strip. While editing, this is injected into MainPanel's
-          header so tabs, save state, and actions sit on one row. */}
-      {shouldRenderStandaloneTabStrip && renderDocumentTabStrip(false)}
-
       {/* Trust banner — one-time, dismissible */}
       {showTrustBanner && (
         <TrustBanner onDismiss={handleDismissTrust} />
@@ -870,9 +883,11 @@ export function DocumentsHome({
               overflow: 'hidden',
             }}
           >
-            {editorMainPanelContent}
+            {mainPanelContent}
           </div>
         )}
+      </div>
+        </div>
       </div>
     </div>
   );

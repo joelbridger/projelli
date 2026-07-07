@@ -635,7 +635,10 @@
       "files-in-group": "Dateien in der Gruppe",
       "files-in-group__sourceHash": "11c984550cf7682c489c2271a19bc5ae7f184ba2e503c51725b917b18e8ce1ad",
       "close-other-tabs": "Andere Tabs schließen",
-      "close-other-tabs__sourceHash": "0ddc2c568df737fa427bf91da958e3c6a3f3906da4ab6027004a49b64b1ebdd9"
+      "close-other-tabs__sourceHash": "0ddc2c568df737fa427bf91da958e3c6a3f3906da4ab6027004a49b64b1ebdd9",
+      "rename-group": "Gruppe umbenennen",
+      "ungroup": "Gruppierung aufheben",
+      "close-group": "Gruppe schließen"
     },
     "tab-group-manager": {
       "title": "Tab-Gruppen verwalten",
