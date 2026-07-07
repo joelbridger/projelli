@@ -86,6 +86,12 @@ const railTopActionsStyle: CSSProperties = {
   padding: '0 2px var(--kp-space-sm)',
 };
 
+const railTabsStyle: CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 2,
+};
+
 const railIconButtonStyle: CSSProperties = {
   width: 22,
   height: 22,
@@ -464,6 +470,7 @@ function TabButton({
   active,
   accent,
   muted,
+  separated,
   onClick,
 }: {
   testid: string;
@@ -472,6 +479,7 @@ function TabButton({
   active: boolean;
   accent: boolean;
   muted: boolean;
+  separated?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -486,9 +494,11 @@ function TabButton({
         alignItems: 'center',
         gap: 'var(--kp-space-xs)',
         width: '100%',
+        marginTop: separated ? 'var(--kp-space-xs)' : 0,
         textAlign: 'left',
         padding: '10px 12px',
         border: '1px solid transparent',
+        borderTopColor: separated ? 'var(--kp-divider)' : 'transparent',
         borderRadius: 'var(--radius-md)',
         cursor: 'pointer',
         background: active ? 'var(--kp-accent-soft)' : 'transparent',
@@ -1158,7 +1168,6 @@ export function ClientMapPanel({
       if (
         stored !== null &&
         (stored === MISSING_KEY ||
-          stored === NEW_KEY ||
           sectionList.some((s) => s.key === stored))
       ) {
         return stored;
@@ -1171,6 +1180,7 @@ export function ClientMapPanel({
 
   const select = (key: string): void => {
     setActiveKey(key);
+    if (key === NEW_KEY) return;
     try {
       localStorage.setItem(tabStorageKey(map.matterId), key);
     } catch {
@@ -1209,7 +1219,7 @@ export function ClientMapPanel({
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
       {/* Left rail: compact action icons, then sections, then "What I'm missing". */}
-      <div style={railStyle} role="tablist" aria-label="Client map sections">
+      <div style={railStyle}>
         <div style={railTopActionsStyle}>
           <RailIconActionButton
             icon={Plus}
@@ -1229,42 +1239,36 @@ export function ClientMapPanel({
           )}
         </div>
 
-        {sectionList.map((s) => (
+        <div style={railTabsStyle} role="tablist" aria-label="Client map sections">
+          {sectionList.map((s) => (
+            <TabButton
+              key={s.key}
+              testid={`clientmap-tab-${s.key}`}
+              title={s.title}
+              count={null}
+              active={activeKey === s.key}
+              accent={false}
+              muted={s.items.length === 0}
+              onClick={() => {
+                select(s.key);
+              }}
+            />
+          ))}
+
+          {/* "What I'm missing" — accent badge when there are open gaps */}
           <TabButton
-            key={s.key}
-            testid={`clientmap-tab-${s.key}`}
-            title={s.title}
-            count={null}
-            active={activeKey === s.key}
-            accent={false}
-            muted={s.items.length === 0}
+            testid={`clientmap-tab-${MISSING_KEY}`}
+            title={LABEL_WHAT_MISSING}
+            count={missingCount > 0 ? missingCount : null}
+            active={activeKey === MISSING_KEY}
+            accent={missingCount > 0}
+            muted={missingCount === 0}
+            separated
             onClick={() => {
-              select(s.key);
+              select(MISSING_KEY);
             }}
           />
-        ))}
-
-        {/* Light divider before the special "What I'm missing" view */}
-        <div
-          style={{
-            height: 1,
-            background: 'var(--kp-divider)',
-            margin: 'var(--kp-space-xs) var(--kp-space-2xs)',
-          }}
-        />
-
-        {/* "What I'm missing" — accent badge when there are open gaps */}
-        <TabButton
-          testid={`clientmap-tab-${MISSING_KEY}`}
-          title={LABEL_WHAT_MISSING}
-          count={null}
-          active={activeKey === MISSING_KEY}
-          accent={missingCount > 0}
-          muted={missingCount === 0}
-          onClick={() => {
-            select(MISSING_KEY);
-          }}
-        />
+        </div>
       </div>
 
       {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}

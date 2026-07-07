@@ -1,6 +1,6 @@
 import '@/i18n';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
@@ -46,6 +46,7 @@ describe('Client detail gap surfacing', () => {
     render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
 
     expect(screen.getByTestId('clientmap-tab-household')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('clientmap-tab-__missing')).toHaveTextContent('1');
     expect(screen.getByText('Client: Jennifer Caldwell, 58.')).toBeInTheDocument();
     expect(screen.queryByTestId('clientmap-ask-flag')).toBeNull();
   });
@@ -57,5 +58,29 @@ describe('Client detail gap surfacing', () => {
 
     expect(screen.getByTestId('clientmap-tab-money')).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByTestId('clientmap-tab-household')).toHaveAttribute('aria-selected', 'false');
+  });
+
+  it('does not remember the temporary new-section screen after leaving and returning', () => {
+    const map = gapMap();
+    const firstOpen = render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('clientmap-tab-add'));
+    expect(screen.getByTestId('custom-section-title')).toBeInTheDocument();
+    expect(localStorage.getItem(skClientMapTab(map.matterId))).not.toBe('__new');
+
+    firstOpen.unmount();
+    render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
+
+    expect(screen.getByTestId('clientmap-tab-household')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('custom-section-title')).toBeNull();
+  });
+
+  it('ignores a stale remembered new-section screen from an older build', () => {
+    const map = gapMap();
+    localStorage.setItem(skClientMapTab(map.matterId), '__new');
+    render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
+
+    expect(screen.getByTestId('clientmap-tab-household')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.queryByTestId('custom-section-title')).toBeNull();
   });
 });
