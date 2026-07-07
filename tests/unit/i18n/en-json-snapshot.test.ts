@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 216,
         "media": 92,
-        "meetings": 226,
+        "meetings": 227,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -260,7 +260,10 @@ describe('en.json structure snapshot', () => {
     //       delivery status/log copy, and calendar-driven auto-join panel copy.
     // +2 = FB-F client header: History panel title and close label.
     // +3 = Documents vertical rail: group rename, ungroup, and close-group menu labels.
-    expect(flat.length).toBe(1441); // 1429 + 9 (send-defaults recipient groups) + 3 (documents rail group menu)
+    // +2 = this batch's merge: meetings "Send to team" tab + documents rail
+    //      close-other-tabs (each branch counted only its own keys; the true
+    //      combined total is both).
+    expect(flat.length).toBe(1442); // 1429 + 9 (send-defaults recipient groups) + 4 (documents rail group menu incl. close-other-tabs)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
