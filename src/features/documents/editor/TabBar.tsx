@@ -893,27 +893,10 @@ export function TabBar({
     return (
       <div
         key={tab.path}
-        data-testid={getTabTestId ? getTabTestId(tab.path) : `tab-${pathToTestId(tab.path)}`}
-        data-tab-path={tab.path}
-        data-active={isActive ? 'true' : 'false'}
-        role="tab"
-        tabIndex={0}
-        aria-selected={isActive}
-        draggable
-        onDragStart={(e) => {
-          handleDragStart(e, index);
-        }}
-        onDragEnd={handleDragEnd}
-        onDragOver={(e) => {
-          handleDragOver(e, index);
-        }}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => {
-          handleDrop(e, index);
-        }}
-        // `group` enables group-hover:* targeting on descendants (the close X).
+        role="presentation"
+        // `group` enables group-hover:* targeting on descendants.
         className={cn(
-          'group flex items-center cursor-pointer text-sm transition-colors relative flex-shrink-0 snap-start',
+          'group flex items-center text-sm transition-colors relative flex-shrink-0 snap-start',
           isVertical
             ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left'
             : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px]',
@@ -931,63 +914,89 @@ export function TabBar({
           showAfter && (isVertical ? 'border-b-2 border-b-primary' : 'border-r-2 border-r-primary')
         )}
         style={isVertical ? { minHeight: 38 } : { height: TAB_STRIP_HEIGHT }}
-        onClick={() => handleTabClick(tab.path)}
-        onMouseDown={(e) => handleMiddleClick(e, tab.path)}
-        onFocus={(e) => {
-          e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleTabClick(tab.path);
-          }
-        }}
-        onDoubleClick={() => handleTabDoubleClick(tab)}
         onContextMenu={(e) => {
           e.preventDefault();
           e.stopPropagation();
           setTabContextMenu({ path: tab.path, x: e.clientX, y: e.clientY });
         }}
       >
-        {getTabIcon(tab)}
-        {editingTabPath === tab.path ? (
-          <input
-            type="text"
-            value={editingTabName}
-            onChange={(e) => setEditingTabName(e.target.value)}
-            onBlur={runTabRenameSubmit}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                runTabRenameSubmit();
-              } else if (e.key === 'Escape') {
-                setEditingTabPath(null);
-                setEditingTabName('');
-              }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            autoFocus
-            // Size the rename input to the tab's display width rather
-            // than letting it flex-grow into the whole tab bar.
-            size={Math.max(editingTabName.length + 1, 6)}
-            className="min-w-0 max-w-[180px] px-1 py-0 bg-background border rounded"
-          />
-        ) : (
-          <span className={cn('truncate min-w-0', isVertical ? 'flex-1' : 'max-w-[140px]')}>
-            {removeExtension(tab.name)}
-          </span>
-        )}
+        <button
+          type="button"
+          data-testid={getTabTestId ? getTabTestId(tab.path) : `tab-${pathToTestId(tab.path)}`}
+          data-tab-path={tab.path}
+          data-active={isActive ? 'true' : 'false'}
+          role="tab"
+          tabIndex={0}
+          aria-selected={isActive}
+          draggable
+          onDragStart={(e) => {
+            handleDragStart(e, index);
+          }}
+          onDragEnd={handleDragEnd}
+          onDragOver={(e) => {
+            handleDragOver(e, index);
+          }}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => {
+            handleDrop(e, index);
+          }}
+          className={cn(
+            'flex h-full min-w-0 flex-1 cursor-pointer items-center bg-transparent p-0 text-left text-inherit outline-none [font:inherit]',
+            isVertical ? 'gap-2' : 'gap-1',
+          )}
+          onClick={() => handleTabClick(tab.path)}
+          onMouseDown={(e) => handleMiddleClick(e, tab.path)}
+          onFocus={(e) => {
+            e.currentTarget.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleTabClick(tab.path);
+            }
+          }}
+          onDoubleClick={() => handleTabDoubleClick(tab)}
+        >
+          {getTabIcon(tab)}
+          {editingTabPath === tab.path ? (
+            <input
+              type="text"
+              value={editingTabName}
+              onChange={(e) => setEditingTabName(e.target.value)}
+              onBlur={runTabRenameSubmit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  runTabRenameSubmit();
+                } else if (e.key === 'Escape') {
+                  setEditingTabPath(null);
+                  setEditingTabName('');
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              autoFocus
+              // Size the rename input to the tab's display width rather
+              // than letting it flex-grow into the whole tab bar.
+              size={Math.max(editingTabName.length + 1, 6)}
+              className="min-w-0 max-w-[180px] px-1 py-0 bg-background border rounded"
+            />
+          ) : (
+            <span className={cn('truncate min-w-0', isVertical ? 'flex-1' : 'max-w-[140px]')}>
+              {removeExtension(tab.name)}
+            </span>
+          )}
+          {tabHasUnsavedWork(tab) && (
+            <span className="text-amber-700 font-bold" title="Unsaved changes">
+              *
+            </span>
+          )}
+          {!tab.isDirty && tab.lastSaved && now > 0 && now - tab.lastSaved < 3000 && (
+            <span className="text-green-600 text-[10px] ml-1 opacity-70" title="Auto-saved">
+              ✓
+            </span>
+          )}
+        </button>
         <AIContextChip path={tab.path} />
-        {tabHasUnsavedWork(tab) && (
-          <span className="text-amber-700 font-bold" title="Unsaved changes">
-            *
-          </span>
-        )}
-        {!tab.isDirty && tab.lastSaved && now > 0 && now - tab.lastSaved < 3000 && (
-          <span className="text-green-600 text-[10px] ml-1 opacity-70" title="Auto-saved">
-            ✓
-          </span>
-        )}
       </div>
     );
   };

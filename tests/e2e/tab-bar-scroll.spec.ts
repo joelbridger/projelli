@@ -1,8 +1,9 @@
 /**
- * Tab Bar Horizontal Scroll E2E Tests (Phase 7)
+ * Documents Rail Vertical Scroll E2E Tests
  *
- * The redesigned Documents surface owns the visible tab strip. It scrolls
- * horizontally instead of wrapping onto a second row.
+ * The Documents surface owns the visible tab rail. It scrolls vertically when
+ * many documents are open, keeps the pinned Files entry first, and scrolls the
+ * active document into view.
  *
  * The global document tabs beyond the pinned "Files" chip only render on the
  * standalone (non-embedded) Documents/editor surface — DocumentsHome.tsx
@@ -19,53 +20,102 @@ import { waitForTestModeLoad, switchToStandaloneEditorSurface } from './helpers/
 async function openSyntheticTab(
   page: import('@playwright/test').Page,
   n: number
-) {
+): Promise<{ path: string; testId: string }> {
+  const name = `file-with-a-moderately-long-name-${String(n).padStart(2, '0')}.md`;
+  const path = `/test-workspace/${name}`;
   await page.evaluate((i) => {
     const fn = (window as unknown as {
       __openTestFile?: (p: string, n: string, c: string) => void;
     }).__openTestFile;
     if (!fn) throw new Error('testMode helper missing');
-    // Long names with distinctive prefixes so each tab takes its full
-    // min-width (120px) and we overflow faster.
-    const name = `file-with-a-moderately-long-name-${i}.md`;
+    const name = `file-with-a-moderately-long-name-${String(i).padStart(2, '0')}.md`;
     const path = `/test-workspace/${name}`;
     fn(path, name, `# Tab ${i}\n\nSome content.`);
   }, n);
+  return {
+    path,
+    testId: `documents-tab-${path.replace(/[^a-zA-Z0-9_-]+/g, '-')}`,
+  };
 }
 
-test.describe('Tab Bar Horizontal Scroll', () => {
+test.describe('Documents rail vertical scroll', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);
-    // Pin a known viewport size so the min-width per tab reliably overflows.
-    await page.setViewportSize({ width: 1000, height: 800 });
+    // Pin a shorter viewport so the vertical rail reliably overflows.
+    await page.setViewportSize({ width: 1000, height: 520 });
+    await switchToStandaloneEditorSurface(page);
   });
 
-  test('opening many tabs overflows horizontally and shows scroll buttons', async ({ page }) => {
-    // Open 10 tabs in sequence. Each tab is at least 120px wide, so 10 tabs
-    // should push total width past 1000px viewport minus sidebar width.
-    for (let i = 0; i < 10; i++) {
+  test('opening many tabs overflows vertically and scrolls the active tab into view', async ({ page }) => {
+    // Open enough document tabs to exceed the rail height.
+    for (let i = 0; i < 18; i++) {
       await openSyntheticTab(page, i);
     }
 
-    await switchToStandaloneEditorSurface(page);
     const strip = page.getByTestId('documents-tab-strip');
+    const railScroller = strip.locator('[data-testid="tab-bar-scroll"]');
     await expect(strip).toBeVisible();
+    await expect(strip).toHaveAttribute('aria-orientation', 'vertical');
+    await expect(page.getByTestId('documents-files-tab')).toBeVisible();
 
-    // The strip should now overflow horizontally.
-    const overflow = await strip.evaluate((el) => ({
-      scrollWidth: el.scrollWidth,
-      clientWidth: el.clientWidth,
-      scrollLeft: el.scrollLeft,
+    const firstTabText = await strip
+      .locator('[role="tab"]')
+      .first()
+      .evaluate((el) => el.textContent ?? '');
+    expect(firstTabText).toContain('Files');
+
+    // The rail should now overflow vertically, not rely on horizontal buttons.
+    const overflow = await railScroller.evaluate((el) => ({
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      scrollTop: el.scrollTop,
+      overflowY: getComputedStyle(el).overflowY,
+      overflowX: getComputedStyle(el).overflowX,
     }));
-    expect(overflow.scrollWidth).toBeGreaterThan(overflow.clientWidth);
+    expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight);
+    expect(overflow.overflowY).toBe('auto');
+    expect(overflow.overflowX).toBe('hidden');
+    await expect(page.getByTestId('tab-bar-scroll-left')).toHaveCount(0);
+    await expect(page.getByTestId('tab-bar-scroll-right')).toHaveCount(0);
 
-    const before = await strip.evaluate((el) => el.scrollLeft);
-    await strip.evaluate((el) => {
-      el.scrollBy({ left: 240, behavior: 'auto' });
+    await railScroller.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    const before = await railScroller.evaluate((el) => el.scrollTop);
+    await railScroller.evaluate((el) => {
+      el.scrollBy({ top: 160, behavior: 'auto' });
     });
     await expect
-      .poll(async () => strip.evaluate((el) => el.scrollLeft), { timeout: 2_000 })
+      .poll(async () => railScroller.evaluate((el) => el.scrollTop), { timeout: 2_000 })
       .toBeGreaterThan(before);
+
+    // Simulate opening a new document while the rail is scrolled back to the
+    // top. The active tab should be brought into the visible rail area.
+    await railScroller.evaluate((el) => {
+      el.scrollTop = 0;
+    });
+    const activeTab = await openSyntheticTab(page, 99);
+
+    await expect
+      .poll(async () => railScroller.evaluate((el) => el.scrollTop), { timeout: 2_000 })
+      .toBeGreaterThan(0);
+
+    const activePlacement = await railScroller.evaluate((el, testId) => {
+      const tab = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+      if (!tab) return null;
+      const railRect = el.getBoundingClientRect();
+      const tabRect = tab.getBoundingClientRect();
+      return {
+        tabTop: tabRect.top,
+        tabBottom: tabRect.bottom,
+        railTop: railRect.top,
+        railBottom: railRect.bottom,
+      };
+    }, activeTab.testId);
+
+    expect(activePlacement).not.toBeNull();
+    expect(activePlacement!.tabTop).toBeGreaterThanOrEqual(activePlacement!.railTop - 1);
+    expect(activePlacement!.tabBottom).toBeLessThanOrEqual(activePlacement!.railBottom + 1);
   });
 });
