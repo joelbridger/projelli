@@ -9,7 +9,7 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Sparkles, ListChecks,
-  Map as MapIcon, Plus, ChevronDown, ChevronLeft, ChevronRight, Users, type LucideIcon,
+  Map as MapIcon, Plus, ChevronDown, ChevronLeft, ChevronRight, Search, Users, type LucideIcon,
 } from 'lucide-react';
 import { useActiveMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { AccountIdentity } from './AccountIdentity';
@@ -33,6 +33,8 @@ interface SpineProps {
   privacyContent?: React.ReactNode | undefined;
   activeTab?: string | undefined;
   onTabChange?: ((tab: string) => void) | undefined;
+  onAllClientsSelect?: (() => void) | undefined;
+  allClientsSelected?: boolean | undefined;
   collapsed?: boolean | undefined;
   onCollapsedChange?: ((next: boolean) => void) | undefined;
 }
@@ -57,7 +59,7 @@ function AppBrandMark() {
 export function Spine({
   fileTreeContent, searchContent, workflowContent,
   auditContent, mattersContent, emailContent, settingsContent, privacyContent,
-  activeTab = 'matters', onTabChange, collapsed = false, onCollapsedChange,
+  activeTab = 'matters', onTabChange, onAllClientsSelect, allClientsSelected, collapsed = false, onCollapsedChange,
 }: SpineProps) {
   const { t } = useTranslation();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -65,6 +67,7 @@ export function Spine({
   // still be visible without an extra click), but no longer force-stretched
   // to fill the rest of the rail — it sizes to its own content/cap instead.
   const [clientsOpen, setClientsOpen] = useState(true);
+  const [clientSearchQuery, setClientSearchQuery] = useState('');
   // Archived clients stay reachable via the Client Map's archived section
   // (MattersHome) and the Clients management dialog — the rail switcher
   // only ever lists the active roster, so archiving a client actually
@@ -76,6 +79,11 @@ export function Spine({
   const setClientMapHubTab = useMatterStore((s) => s.setClientMapHubTab);
   const entityLabel = useEntityLabel();
   const newClientLabel = t('spine.new-client', { entity: entityLabel.one });
+  const filteredMatters = (() => {
+    const q = clientSearchQuery.trim().toLowerCase();
+    if (!q) return matters;
+    return matters.filter((m) => matterLabel(m).toLowerCase().includes(q) || m.client.toLowerCase().includes(q));
+  })();
 
   // The 3-tab IA. The internal ids are KEPT (matters/search/workflows) so the
   // surface router + testids are unchanged; only the labels and placement move.
@@ -100,7 +108,7 @@ export function Spine({
   };
 
   const active = (activeTab as SpineTab) in content ? (activeTab as SpineTab) : 'matters';
-  const allClientsActive = active === 'matters' && activeMatterId === null;
+  const allClientsActive = allClientsSelected ?? (active === 'matters' && activeMatterId === null);
 
   if (collapsed) {
     return (
@@ -181,15 +189,54 @@ export function Spine({
             </div>
             {clientsOpen && (
               <div style={{ maxHeight: 280, overflowY: 'auto', padding: '0 10px var(--kp-space-xs)' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    height: 30,
+                    padding: '0 8px',
+                    marginBottom: 6,
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--kp-side-border)',
+                    background: 'var(--kp-side-border)',
+                    color: 'var(--kp-side-fg-dim)',
+                  }}
+                >
+                  <Search size={13} strokeWidth={2} style={{ flex: 'none' }} />
+                  <input
+                    data-testid="spine-client-search"
+                    type="search"
+                    value={clientSearchQuery}
+                    onChange={(e) => { setClientSearchQuery(e.currentTarget.value); }}
+                    placeholder="Search clients"
+                    aria-label="Search clients"
+                    style={{
+                      width: '100%',
+                      minWidth: 0,
+                      border: 0,
+                      outline: 'none',
+                      background: 'transparent',
+                      color: 'var(--kp-side-fg)',
+                      fontSize: 'var(--kp-font-sm)',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
                 <button
                   type="button"
                   data-testid="spine-all-clients-row"
                   aria-current={allClientsActive ? 'page' : undefined}
                   onClick={() => {
+                    if (onAllClientsSelect) {
+                      onAllClientsSelect();
+                    }
                     setActiveMatter(null);
                     setClientMapHubId(null);
                     setClientMapHubTab(null);
-                    onTabChange?.('matters');
+                    if (!onAllClientsSelect) {
+                      onTabChange?.('matters');
+                    }
                   }}
                   style={{
                     display: 'flex',
@@ -213,7 +260,7 @@ export function Spine({
                     {t('spine.all-clients')}
                   </span>
                 </button>
-                {matters.map((m) => {
+                {filteredMatters.map((m) => {
                   const on = m.id === activeMatterId;
                   return (
                     <button key={m.id} type="button"

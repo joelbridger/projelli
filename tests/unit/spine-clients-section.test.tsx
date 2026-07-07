@@ -107,6 +107,17 @@ describe('Spine — Clients section', () => {
     expect(screen.getByTestId('spine-new-client')).toBeInTheDocument();
   });
 
+  it('filters the client rail as the advisor types in the client search box', () => {
+    render(<Spine activeTab="matters" />);
+
+    fireEvent.change(screen.getByTestId('spine-client-search'), { target: { value: 'doe' } });
+
+    expect(screen.getByText('Doe Family Trust')).toBeInTheDocument();
+    expect(screen.queryByText('Hendricks Household')).not.toBeInTheDocument();
+    expect(screen.queryByText('Alvarez - Retirement Plan Review')).not.toBeInTheDocument();
+    expect(screen.getByTestId('spine-all-clients-row')).toBeInTheDocument();
+  });
+
   it('does not render the redundant repeated client-name subtext', () => {
     render(<Spine activeTab="matters" />);
     // The matter name renders once (via matterLabel)...

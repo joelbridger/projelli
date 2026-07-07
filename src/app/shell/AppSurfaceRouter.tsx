@@ -27,6 +27,8 @@ import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWor
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { routeSavedAskDocument } from '@/app/shell/routeSavedAskDocument';
+import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
+import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/platform/types/workflow';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
@@ -59,6 +61,9 @@ export interface AppSurfaceRouterProps {
   documentsView: 'browser' | 'editor';
   setDocumentsView: (view: 'browser' | 'editor') => void;
   setSidebarActiveTab: (tab: AppSurface) => void;
+  mattersSurfaceMode: MattersSurfaceMode;
+  setMattersSurfaceMode: (mode: MattersSurfaceMode) => void;
+  pushNavigationSnapshot: () => void;
   currentExecution: WorkflowExecution | null;
   activeWorkflowTemplate: WorkflowTemplate | null;
   showInterviewDialog: boolean;
@@ -124,6 +129,9 @@ export function AppSurfaceRouter({
   documentsView,
   setDocumentsView,
   setSidebarActiveTab,
+  mattersSurfaceMode,
+  setMattersSurfaceMode,
+  pushNavigationSnapshot,
   currentExecution,
   activeWorkflowTemplate,
   showInterviewDialog,
@@ -336,7 +344,13 @@ export function AppSurfaceRouter({
             const tree = await workspaceServiceRef.current.getFileTree();
             setFileTree(tree);
             openFile(path, finalName, docxBytesToDataUrl(bytes));
-            routeSavedAskDocument({ activeMatter, setDocumentsView, setSidebarActiveTab });
+            routeSavedAskDocument({
+              activeMatter,
+              setDocumentsView,
+              setSidebarActiveTab,
+              setMattersSurfaceMode,
+              pushNavigationSnapshot,
+            });
           }}
           onOpenSettings={() => {
             window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'connections' } }));
@@ -398,6 +412,7 @@ export function AppSurfaceRouter({
             buildActivity(activeMatter ? { scopeMatterId: activeMatter.id } : {})
           }
           workspaceService={workspaceServiceRef.current}
+          clientMapMode={mattersSurfaceMode}
         />
       ) : sidebarActiveTab ==='search' ? (
         <Ask
@@ -417,11 +432,18 @@ export function AppSurfaceRouter({
             const tree = await workspaceServiceRef.current.getFileTree();
             setFileTree(tree);
             openFile(path, finalName, docxBytesToDataUrl(bytes));
+            routeSavedAskDocument({
+              activeMatter,
+              setDocumentsView,
+              setSidebarActiveTab,
+              setMattersSurfaceMode,
+              pushNavigationSnapshot,
+            });
           }}
           prefillRequest={askPrefill}
           onPrefillConsumed={() => setAskPrefill(null)}
           onAuditLog={addAuditEntry}
-          onOpenFileAtPath={(p) => {
+          onOpenFileAtPath={(p, _paragraphIndex, snippet) => {
             // Wave 2 — email relocation: an email citation in an Ask answer opens
             // the light EmailViewer reading view (via lantern:open-email, the
             // same path the .aichat chat uses). Without this the Ask surface
@@ -430,6 +452,21 @@ export function AppSurfaceRouter({
             // citation viewer lands in Wave 3.
             if (typeof p === 'string' && p.startsWith('mail:')) {
               window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } }));
+              return;
+            }
+            if (activeMatter && typeof p === 'string') {
+              void openMatterDocumentSource({
+                matterId: activeMatter.id,
+                ref: p,
+                ...(snippet ? { snippet } : {}),
+                service: workspaceServiceRef.current,
+                handlers: {
+                  setDocumentsView,
+                  setSidebarActiveTab,
+                  setMattersSurfaceMode,
+                  pushNavigationSnapshot,
+                },
+              });
             }
           }}
         />

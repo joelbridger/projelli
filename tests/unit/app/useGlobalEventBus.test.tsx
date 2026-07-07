@@ -8,7 +8,7 @@
  * global surface (it's already scoped to the active matter).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useGlobalEventBus, type GlobalEventBusHandlers } from '@/app/lifecycle/useGlobalEventBus';
@@ -105,6 +105,25 @@ describe('useGlobalEventBus — per-client surface routing', () => {
     expect(useMatterStore.getState().activeMatterId).toBe('m2');
     expect(useMatterStore.getState().clientMapHubId).toBe('m2');
     expect(useMatterStore.getState().clientMapHubTab).toBe('overview');
+  });
+
+  it('pushes Back history before a document source click opens the client Documents tab', async () => {
+    const handlers = { ...makeHandlers(), pushNavigationSnapshot: vi.fn() };
+    render(<Harness handlers={handlers} />);
+
+    launch({
+      matterId: 'm1',
+      surface: 'files',
+      source: { kind: 'document', ref: '/workspace/M1/source.docx', snippet: 'important sentence' },
+    });
+
+    expect(handlers.pushNavigationSnapshot).toHaveBeenCalledTimes(1);
+    expect(handlers.setSidebarActiveTab).toHaveBeenCalledWith('matters');
+    expect(useMatterStore.getState().clientMapHubId).toBe('m1');
+    expect(useMatterStore.getState().clientMapHubTab).toBe('documents');
+    await waitFor(() => {
+      expect(handlers.setDocumentsView).toHaveBeenCalledWith('browser');
+    });
   });
 
   it('leaves Ask (search) as a global surface, scoped to the active client', () => {

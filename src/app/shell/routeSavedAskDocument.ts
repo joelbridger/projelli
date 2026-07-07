@@ -1,6 +1,7 @@
-import { useMatterStore } from '@/platform/matter/matterStore';
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { Matter } from '@/platform/types/matter';
+import { showMatterDocuments } from '@/app/shell/matterDocumentNavigation';
+import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 
 /**
  * After Ask's "Save to Document" creates the .docx, actually SHOW it (the file
@@ -14,20 +15,25 @@ export function routeSavedAskDocument({
   activeMatter,
   setDocumentsView,
   setSidebarActiveTab,
+  setMattersSurfaceMode,
+  pushNavigationSnapshot,
 }: {
   activeMatter: Matter | null;
   setDocumentsView: (view: 'browser' | 'editor') => void;
   setSidebarActiveTab: (tab: AppSurface) => void;
+  setMattersSurfaceMode?: (mode: MattersSurfaceMode) => void;
+  pushNavigationSnapshot?: () => void;
 }) {
+  pushNavigationSnapshot?.();
   setDocumentsView('editor');
   if (!activeMatter) {
     setSidebarActiveTab('files');
     return;
   }
 
-  const matterState = useMatterStore.getState();
-  matterState.setActiveMatter(activeMatter.id);
-  matterState.setClientMapHubId(activeMatter.id);
-  matterState.setClientMapHubTab('documents');
-  setSidebarActiveTab('matters');
+  showMatterDocuments({
+    matterId: activeMatter.id,
+    documentOpened: true,
+    handlers: { setDocumentsView, setSidebarActiveTab, setMattersSurfaceMode },
+  });
 }

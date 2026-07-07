@@ -41,7 +41,7 @@ import { LazyBoundary } from '@/ui/LazyBoundary';
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { Button } from '@/ui/button';
-import { Command, Moon, Monitor, Sun } from 'lucide-react';
+import { ArrowLeft, Command, Moon, Monitor, Sun } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay renders the live 4-step OnboardingV2 flow.
@@ -126,6 +126,7 @@ import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
 import { InlineErrorBanner } from '@/app/shell/common/InlineErrorBanner';
 import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBridge';
+import { useAppNavigationStore, type MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 
 // Nine connector citation viewers, none of which render anything until their
 // own window event fires — bundled into one lazy chunk (see
@@ -325,6 +326,7 @@ function AppShell() {
   // launching a matter into Documents => 'browser' (the file list). Opening an
   // email/file into the Documents area => 'editor' (that document).
   const [documentsView, setDocumentsView] = useState<'browser' | 'editor'>('browser');
+  const [mattersSurfaceMode, setMattersSurfaceMode] = useState<MattersSurfaceMode>('client-map');
 
   const handleRequestApiKeySetup = useCallback(() => {
     setApiKeyWizardOpen(true);
@@ -387,6 +389,38 @@ function AppShell() {
     runHistory: s.runHistory,
     completeRun: s.completeRun,
   })));
+  const navigationDepth = useAppNavigationStore((s) => s.stack.length);
+  const pushNavigationEntry = useAppNavigationStore((s) => s.push);
+  const popNavigationEntry = useAppNavigationStore((s) => s.pop);
+  const pushNavigationSnapshot = useCallback(() => {
+    const matterState = useMatterStore.getState();
+    pushNavigationEntry({
+      sidebarActiveTab,
+      activeMatterId: matterState.activeMatterId,
+      clientMapHubId: matterState.clientMapHubId,
+      clientMapHubTab: matterState.clientMapHubTab,
+      documentsView,
+      activeTabPath: activeTabPath ?? null,
+      mattersSurfaceMode,
+    });
+  }, [activeTabPath, documentsView, mattersSurfaceMode, pushNavigationEntry, sidebarActiveTab]);
+  const handleAppBack = useCallback(() => {
+    const snapshot = popNavigationEntry();
+    if (!snapshot) return;
+    const matterState = useMatterStore.getState();
+    matterState.setActiveMatter(snapshot.activeMatterId);
+    matterState.setClientMapHubId(snapshot.clientMapHubId);
+    matterState.setClientMapHubTab(snapshot.clientMapHubTab);
+    setMattersSurfaceMode(snapshot.mattersSurfaceMode);
+    setDocumentsView(snapshot.documentsView);
+    if (
+      snapshot.activeTabPath &&
+      useEditorStore.getState().openTabs.some((tab) => tab.path === snapshot.activeTabPath)
+    ) {
+      useEditorStore.getState().setActiveTab(snapshot.activeTabPath);
+    }
+    setSidebarActiveTab(snapshot.sidebarActiveTab);
+  }, [popNavigationEntry]);
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
   // which workspace is open. Watches `rootPath` and re-arms on switch.
@@ -1081,6 +1115,7 @@ function AppShell() {
     openTab,
     setSidebarActiveTab,
     setDocumentsView,
+    pushNavigationSnapshot,
   });
 
   // Shell-wide `lantern:*` CustomEvent wiring (matter manager, settings,
@@ -1092,6 +1127,8 @@ function AppShell() {
     setSidebarActiveTab,
     setDocumentsView,
     setAskPrefill,
+    setMattersSurfaceMode,
+    pushNavigationSnapshot,
   });
 
   // Per-matter UI memory: as the user works inside a matter, keep its snapshot
@@ -1531,6 +1568,19 @@ function AppShell() {
           />
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            data-testid="app-back-button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            onClick={handleAppBack}
+            disabled={navigationDepth === 0}
+            title="Back"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-3 w-3 mr-1" />
+            Back
+          </Button>
           {/*
             UX-25: 3-state theme toggle. Cycles system → light → dark → system.
             Icon reflects the *preference* (not the effective theme), so a user
@@ -1624,6 +1674,9 @@ function AppShell() {
         <AppShellNav
           activeTab={sidebarActiveTab}
           onTabChange={(tab: string) => {
+            if (tab !== sidebarActiveTab) {
+              pushNavigationSnapshot();
+            }
             // Any click to 'files' in the spine nav lands on the Files browser,
             // even if a document was the last thing open. This is the user
             // clicking the nav (vs a file being opened programmatically), so it
@@ -1631,18 +1684,27 @@ function AppShell() {
             if (tab === 'files') {
               setDocumentsView('browser');
             }
-            // Clicking the "Client Map" nav always lands on the clients LIST,
-            // not whichever client hub happened to be open. Closing the hub
-            // (clientMapHubId -> null) is exactly what the hub's "<- Clients"
-            // back button does. The focused client (activeMatterId / Ask scope)
-            // is left untouched. This is a real nav click (the sidebar client
-            // switcher uses a separate matter-launch event), so it never closes
-            // a hub the user just opened.
             if (tab === 'matters') {
-              useMatterStore.getState().setClientMapHubId(null);
+              const matterState = useMatterStore.getState();
+              setMattersSurfaceMode('client-map');
+              if (matterState.activeMatterId) {
+                matterState.setClientMapHubId(matterState.activeMatterId);
+                matterState.setClientMapHubTab('overview');
+              } else {
+                matterState.setClientMapHubId(null);
+                matterState.setClientMapHubTab(null);
+              }
             }
             setSidebarActiveTab(tab as typeof sidebarActiveTab);
           }}
+          onAllClientsSelect={() => {
+            if (sidebarActiveTab !== 'matters' || mattersSurfaceMode !== 'all-clients') {
+              pushNavigationSnapshot();
+            }
+            setMattersSurfaceMode('all-clients');
+            setSidebarActiveTab('matters');
+          }}
+          allClientsSelected={sidebarActiveTab === 'matters' && mattersSurfaceMode === 'all-clients' && activeMatterId === null}
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
         />
@@ -1655,6 +1717,9 @@ function AppShell() {
           documentsView={documentsView}
           setDocumentsView={setDocumentsView}
           setSidebarActiveTab={setSidebarActiveTab}
+          mattersSurfaceMode={mattersSurfaceMode}
+          setMattersSurfaceMode={setMattersSurfaceMode}
+          pushNavigationSnapshot={pushNavigationSnapshot}
           currentExecution={currentExecution}
           activeWorkflowTemplate={activeWorkflowTemplate}
           showInterviewDialog={showInterviewDialog}

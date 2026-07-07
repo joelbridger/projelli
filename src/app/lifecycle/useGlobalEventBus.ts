@@ -12,7 +12,8 @@ import type { SettingCategory } from '@/platform/settings/schema';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { openSourceDocument } from '@/features/matters/clientMap/openSource';
+import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
+import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import { parseMeetingRef } from '@/features/meetings/meetingSources';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import {
@@ -51,6 +52,8 @@ export interface GlobalEventBusHandlers {
   setSidebarActiveTab: (tab: AppSurface) => void;
   setDocumentsView: (view: 'browser' | 'editor') => void;
   setAskPrefill: (prefill: AskPrefill | null) => void;
+  setMattersSurfaceMode?: (mode: MattersSurfaceMode) => void;
+  pushNavigationSnapshot?: () => void;
 }
 
 // Account-related settings categories live in the Account window, so an
@@ -116,13 +119,22 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       // file can't be opened.
       const source = detail.source;
       if (source && source.kind === 'document' && typeof source.ref === 'string') {
-        useMatterStore.getState().setActiveMatter(matterId);
-        ref.current.setSidebarActiveTab('files');
-        void openSourceDocument(source.ref, matterId, getActiveWorkspaceService(), source.snippet).then((opened) => {
-          ref.current.setDocumentsView(opened ? 'editor' : 'browser');
+        void openMatterDocumentSource({
+          matterId,
+          ref: source.ref,
+          ...(source.snippet ? { snippet: source.snippet } : {}),
+          service: getActiveWorkspaceService(),
+          handlers: {
+            setDocumentsView: ref.current.setDocumentsView,
+            setSidebarActiveTab: ref.current.setSidebarActiveTab,
+            setMattersSurfaceMode: ref.current.setMattersSurfaceMode,
+            pushNavigationSnapshot: ref.current.pushNavigationSnapshot,
+          },
         });
         return;
       }
+
+      ref.current.pushNavigationSnapshot?.();
 
       // Wave 3c meeting source link -> the Meetings sub-tab, that exact
       // meeting open and seeked (parseMeetingRef gives the dir + timestamp;
@@ -133,6 +145,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
           useMatterStore.getState().setActiveMatter(matterId);
           useMatterStore.getState().setClientMapHubId(matterId);
           useMatterStore.getState().setPendingMeetingOpen(parsed);
+          ref.current.setMattersSurfaceMode?.('client-map');
           ref.current.setSidebarActiveTab('matters');
           return;
         }
@@ -165,6 +178,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
           // can clear a hub id that doesn't match the new active matter).
           useMatterStore.getState().setClientMapHubId(matterId);
           useMatterStore.getState().setClientMapHubTab(hubTab);
+          ref.current.setMattersSurfaceMode?.('client-map');
           // Documents must land on the scoped file LIST, not a stale editor pane
           // that could still show another client's open file (matter isolation).
           if (hubTab === 'documents') ref.current.setDocumentsView('browser');
@@ -181,6 +195,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
 
       const snap = useMatterUiStore.getState().getSnapshot(matterId);
       if (!snap) {
+        ref.current.setMattersSurfaceMode?.('client-map');
         ref.current.setSidebarActiveTab('matters');
         return;
       }

@@ -12,6 +12,12 @@
       "replacement": null,
       "reason": "R6 removes the confirmation button because the workflow card Run button now starts the flow.",
       "date": "2026-07-07"
+    },
+    {
+      "removed": "hub-scope-badge",
+      "replacement": null,
+      "reason": "R3 removes the client scope badge because the selected rail client now carries that job.",
+      "date": "2026-07-07"
     }
   ]
 }

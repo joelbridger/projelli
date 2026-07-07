@@ -130,9 +130,24 @@ describe('matterStore — clientMapHubId (ephemeral hub-nav slice)', () => {
 });
 
 describe('Client Map hub navigation', () => {
+  it('shows a blank Client Map canvas when the tab is clicked with no selected client', () => {
+    seedMatter();
+    render(<MattersHome clientMapMode="client-map" />);
+
+    expect(screen.getByText('Click a client on the left')).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-matter-hub')).not.toBeInTheDocument();
+  });
+
+  it('still shows the practice-wide table when the All Clients rail entry chooses it', () => {
+    const id = seedMatter();
+    render(<MattersHome clientMapMode="all-clients" />);
+
+    expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
+  });
+
   it('shows the OVERVIEW table when no hub is open', () => {
     const id = seedMatter();
-    render(<MattersHome />);
+    render(<MattersHome clientMapMode="all-clients" />);
     expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
     expect(screen.queryByTestId('mock-matter-hub')).not.toBeInTheDocument();
   });

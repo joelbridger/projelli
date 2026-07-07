@@ -29,6 +29,7 @@ import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, IconButton } from '@/ui/kp';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
 import { SK_SETUP_CARD_DISMISSED, EV_OPEN_SETTINGS, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
+import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 
 /** localStorage key for dismissing the setup card. */
 const SETUP_CARD_DISMISSED_KEY = SK_SETUP_CARD_DISMISSED;
@@ -53,6 +54,7 @@ export interface MattersHomeProps {
   renderClientActivity?: () => ReactNode;
   /** Forwarded verbatim to MatterHub's Meetings sub-tab (see MatterHubProps). */
   workspaceService?: WorkspaceService | null;
+  clientMapMode?: MattersSurfaceMode;
 }
 
 // ── Sort state ─────────────────────────────────────────────────────────────
@@ -652,7 +654,14 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
 
 // ── Main export ────────────────────────────────────────────────────────────
 
-export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEmail, renderClientActivity, workspaceService }: MattersHomeProps = {}) {
+export function MattersHome({
+  onAuditLog,
+  renderClientDocuments,
+  renderClientEmail,
+  renderClientActivity,
+  workspaceService,
+  clientMapMode = 'all-clients',
+}: MattersHomeProps = {}) {
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
   const archivedMatters = useArchivedMatters();
@@ -750,6 +759,28 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
         {...(renderClientActivity ? { renderActivity: renderClientActivity } : {})}
         workspaceService={workspaceService ?? null}
       />
+    );
+  }
+
+  if (clientMapMode === 'client-map' && activeMatterId === null) {
+    return (
+      <div
+        data-testid="client-map-empty-canvas"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          flex: 1,
+          minWidth: 0,
+          background: 'var(--color-background)',
+          fontFamily: 'Satoshi, sans-serif',
+          color: 'var(--color-muted-foreground)',
+          fontSize: 'var(--kp-font-sm)',
+        }}
+      >
+        Click a client on the left
+      </div>
     );
   }
 
