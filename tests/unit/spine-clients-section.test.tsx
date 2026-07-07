@@ -24,11 +24,29 @@ const storeMocks = vi.hoisted(() => ({
 const matterMocks = vi.hoisted(() => ({
   activeMatterId: 'm1' as string | null,
   matters: [
-    { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
-    { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+    {
+      id: 'm1',
+      name: 'Hendricks Household',
+      client: 'Hendricks Household',
+      folderPaths: [],
+      createdAt: '2026-07-07T00:00:00.000Z',
+    },
+    {
+      id: 'm2',
+      name: 'Doe Family Trust',
+      client: 'Doe Family Trust',
+      folderPaths: [],
+      createdAt: '2026-07-07T00:00:00.000Z',
+    },
     // Internal name deliberately differs from the client — exercises matterLabel's
     // "Client - Name" folding branch instead of the name===client shortcut above.
-    { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+    {
+      id: 'm3',
+      name: 'Retirement Plan Review',
+      client: 'Alvarez',
+      folderPaths: [],
+      createdAt: '2026-07-07T00:00:00.000Z',
+    },
   ] as Matter[],
 }));
 
@@ -40,11 +58,13 @@ vi.mock('@/platform/matter/matterStore', () => ({
   useMatters: () => matterMocks.matters,
   useActiveMatters: () => matterMocks.matters,
   useActiveMatterId: () => matterMocks.activeMatterId,
-  useMatterStore: (selector: (s: {
-    setActiveMatter: (id: string | null) => void;
-    setClientMapHubId: (id: string | null) => void;
-    setClientMapHubTab: (tab: string | null) => void;
-  }) => unknown) =>
+  useMatterStore: (
+    selector: (s: {
+      setActiveMatter: (id: string | null) => void;
+      setClientMapHubId: (id: string | null) => void;
+      setClientMapHubTab: (tab: string | null) => void;
+    }) => unknown
+  ) =>
     selector({
       setActiveMatter: storeMocks.setActiveMatter,
       setClientMapHubId: storeMocks.setClientMapHubId,
@@ -56,9 +76,27 @@ describe('Spine — Clients section', () => {
   beforeEach(() => {
     matterMocks.activeMatterId = 'm1';
     matterMocks.matters = [
-      { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
-      { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
-      { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+      {
+        id: 'm1',
+        name: 'Hendricks Household',
+        client: 'Hendricks Household',
+        folderPaths: [],
+        createdAt: '2026-07-07T00:00:00.000Z',
+      },
+      {
+        id: 'm2',
+        name: 'Doe Family Trust',
+        client: 'Doe Family Trust',
+        folderPaths: [],
+        createdAt: '2026-07-07T00:00:00.000Z',
+      },
+      {
+        id: 'm3',
+        name: 'Retirement Plan Review',
+        client: 'Alvarez',
+        folderPaths: [],
+        createdAt: '2026-07-07T00:00:00.000Z',
+      },
     ];
     storeMocks.setActiveMatter.mockClear();
     storeMocks.setClientMapHubId.mockClear();
@@ -69,7 +107,10 @@ describe('Spine — Clients section', () => {
     render(<Spine activeTab="matters" />);
     const allClients = screen.getByTestId('spine-all-clients-row');
     const firstClient = screen.getByTestId('spine-client-row-m1');
-    expect(allClients.compareDocumentPosition(firstClient) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      allClients.compareDocumentPosition(firstClient) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
   });
 
   it('clicking All Clients clears the selected client and returns to the Client Map surface', () => {
@@ -107,6 +148,34 @@ describe('Spine — Clients section', () => {
     expect(screen.getByTestId('spine-new-client')).toBeInTheDocument();
   });
 
+  it('filters the client rail as the advisor types in the client search box', () => {
+    render(<Spine activeTab="matters" />);
+
+    fireEvent.change(screen.getByTestId('spine-client-search'), {
+      target: { value: 'doe' },
+    });
+
+    expect(screen.getByText('Doe Family Trust')).toBeInTheDocument();
+    expect(screen.queryByText('Hendricks Household')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Alvarez - Retirement Plan Review')
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId('spine-all-clients-row')).toBeInTheDocument();
+  });
+
+  it('shows a small empty row under All Clients when rail search matches no clients', () => {
+    render(<Spine activeTab="matters" />);
+
+    fireEvent.change(screen.getByTestId('spine-client-search'), {
+      target: { value: 'zzzz' },
+    });
+
+    expect(screen.getByTestId('spine-all-clients-row')).toBeInTheDocument();
+    expect(screen.getByTestId('spine-client-search-empty')).toHaveTextContent(
+      'spine.no-clients-found'
+    );
+  });
+
   it('does not render the redundant repeated client-name subtext', () => {
     render(<Spine activeTab="matters" />);
     // The matter name renders once (via matterLabel)...
@@ -120,7 +189,9 @@ describe('Spine — Clients section', () => {
     // matterLabel formats this as "Alvarez - Retirement Plan Review" — the
     // client name is still visible, just folded into the single label line
     // rather than duplicated as its own row underneath.
-    expect(screen.getByText('Alvarez - Retirement Plan Review')).toBeInTheDocument();
+    expect(
+      screen.getByText('Alvarez - Retirement Plan Review')
+    ).toBeInTheDocument();
     expect(screen.getAllByText(/Alvarez/)).toHaveLength(1);
   });
 

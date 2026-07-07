@@ -8,7 +8,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { workspacePath } from '@/platform/fs/appPath';
-import { useGlobalEventBus, type AppSurface } from '@/app/lifecycle/useGlobalEventBus';
+import {
+  useGlobalEventBus,
+  type AppSurface,
+} from '@/app/lifecycle/useGlobalEventBus';
 import { useAutosave } from '@/app/lifecycle/useAutosave';
 import { useFlushOnExit } from '@/app/lifecycle/useFlushOnExit';
 import { useThemeManager } from '@/app/lifecycle/useThemeManager';
@@ -41,7 +44,7 @@ import { LazyBoundary } from '@/ui/LazyBoundary';
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { Button } from '@/ui/button';
-import { Command, Moon, Monitor, Sun } from 'lucide-react';
+import { ArrowLeft, Command, Moon, Monitor, Sun } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay renders the live 4-step OnboardingV2 flow.
@@ -60,13 +63,26 @@ import { ScopeUpdateBanner } from '@/platform/rag/ui/ScopeUpdateBanner';
 import { useMemoryWiring } from '@/platform/hooks/useMemoryWiring';
 import { useGlobalFileDrop } from '@/app/shell/common/GlobalDropOverlay';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
-import { useEditorStore, setBeforeTabClose, setBeforeDocxClose } from '@/platform/state/editorStore';
-import { isDocxRegistered, closeDocxTabSafely } from '@/platform/fs/docxSaveRegistry';
+import {
+  useEditorStore,
+  setBeforeTabClose,
+  setBeforeDocxClose,
+} from '@/platform/state/editorStore';
+import {
+  isDocxRegistered,
+  closeDocxTabSafely,
+} from '@/platform/fs/docxSaveRegistry';
 import { flushTabForClose } from '@/app/fileOps/flushDirtyTabs';
 import { useWorkflowStore } from '@/features/workflows/workflowStore';
 import { useShallow } from 'zustand/react/shallow';
-import { createWorkspaceService, type WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { createFSBackend, isTauriEnvironment } from '@/platform/fs/BackendFactory';
+import {
+  createWorkspaceService,
+  type WorkspaceService,
+} from '@/platform/fs/WorkspaceService';
+import {
+  createFSBackend,
+  isTauriEnvironment,
+} from '@/platform/fs/BackendFactory';
 import { flushAllDirtyTabs } from '@/app/fileOps/flushDirtyTabs';
 import { useTabWriteGuard } from '@/platform/browserGuard/useTabWriteGuard';
 import { TabGateOverlay } from '@/platform/browserGuard/TabGateOverlay';
@@ -75,7 +91,10 @@ import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
 import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
 import { useProfessionStore } from '@/platform/profile/professionStore';
-import type { OnboardingStartMode, OnboardingStartResult } from '@/features/onboarding/onboardingTypes';
+import type {
+  OnboardingStartMode,
+  OnboardingStartResult,
+} from '@/features/onboarding/onboardingTypes';
 import type { TrashedItem } from '@/platform/history/TrashService';
 
 import type { AuditEntry } from '@/platform/types/audit';
@@ -89,25 +108,39 @@ import {
   useActiveMatter,
   useMatters,
 } from '@/platform/matter/matterStore';
-import { useMatterUiStore, isWorkingSurface } from '@/platform/matter/matterUiStore';
+import {
+  useMatterUiStore,
+  isWorkingSurface,
+} from '@/platform/matter/matterUiStore';
 import { usePrivilegedMatterModeActive } from '@/platform/hooks/usePrivilegedMatterMode';
-import { writeDenyAllMcpSessionScopeFile, writeMcpSessionScopeFile } from '@/platform/mcp/mcpSessionScope';
+import {
+  writeDenyAllMcpSessionScopeFile,
+  writeMcpSessionScopeFile,
+} from '@/platform/mcp/mcpSessionScope';
 
 import {
   TemplateMetadataReader,
   type MarketplaceService,
 } from '@/features/workflows/marketplace/svc';
+import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import {
-  isWorkflowFilePath,
-} from '@/features/workflows/engine/workflowFile';
-import { FileSystemWatcher, createFileTreeSnapshot } from '@/platform/fs/FileSystemWatcher';
+  FileSystemWatcher,
+  createFileTreeSnapshot,
+} from '@/platform/fs/FileSystemWatcher';
 
-import { isBinaryFile, arrayBufferToDataUrl, getMimeType } from '@/platform/utils/file-utils';
+import {
+  isBinaryFile,
+  arrayBufferToDataUrl,
+  getMimeType,
+} from '@/platform/utils/file-utils';
 import { useTrash } from '@/platform/hooks/useTrash';
 import { useSourceCards } from '@/app/hooks/useSourceCards';
 import { useAIChatFiles } from '@/platform/hooks/useAIChatFiles';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
-import { useSettingsStore, useSettingsHydrated } from '@/platform/settings/settingsStore';
+import {
+  useSettingsStore,
+  useSettingsHydrated,
+} from '@/platform/settings/settingsStore';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { withTimeout } from '@/lib/withTimeout';
 import { raceDialogWithWatchdog } from '@/platform/fs/dialogWatchdog';
@@ -126,11 +159,17 @@ import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { useUndoToast } from '@/app/shell/common/UndoToast';
 import { InlineErrorBanner } from '@/app/shell/common/InlineErrorBanner';
 import { installEarlyConnectorEventBridge } from '@/app/shell/connectorEventBridge';
+import {
+  sanitizeNavigationSnapshotForCurrentMatters,
+  useAppNavigationStore,
+  type MattersSurfaceMode,
+} from '@/platform/state/appNavigationStore';
 
 // Nine connector citation viewers, none of which render anything until their
 // own window event fires — bundled into one lazy chunk (see
 // ConnectorSourcePanels.tsx) so they don't ride into the startup bundle.
-const loadConnectorSourcePanels = () => import('@/app/shell/ConnectorSourcePanels');
+const loadConnectorSourcePanels = () =>
+  import('@/app/shell/ConnectorSourcePanels');
 
 // Module-level constants so the onboarding/tour effects have stable deps
 // and never need to be listed in exhaustive-deps disable comments.
@@ -184,11 +223,16 @@ function App() {
   // P1, round 6). Losing this tab's own unsaved edits when it was the one
   // that went stale is an honest, bounded loss; clobbering someone else's
   // newer save is not.
-  const tabWriteGuard = useTabWriteGuard(!IS_TEST_MODE && !isTauriEnvironment(), {
-    // flushAllDirtyTabs returns the failed-.docx paths (QA-34); this guard only
-    // needs the completion, so adapt to its Promise<void> signature.
-    onFlushRequested: async () => { await flushAllDirtyTabs(); },
-  });
+  const tabWriteGuard = useTabWriteGuard(
+    !IS_TEST_MODE && !isTauriEnvironment(),
+    {
+      // flushAllDirtyTabs returns the failed-.docx paths (QA-34); this guard only
+      // needs the completion, so adapt to its Promise<void> signature.
+      onFlushRequested: async () => {
+        await flushAllDirtyTabs();
+      },
+    }
+  );
   if (tabWriteGuard.status === 'blocked') {
     return <TabGateOverlay onTakeOver={tabWriteGuard.requestTakeover} />;
   }
@@ -197,29 +241,46 @@ function App() {
 
 function AppShell() {
   const { t } = useTranslation();
-  const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(!IS_TEST_MODE && !IS_DEMO_MODE);
+  const [showWorkspaceSelector, setShowWorkspaceSelector] = useState(
+    !IS_TEST_MODE && !IS_DEMO_MODE
+  );
   const [demoOpenFailed, setDemoOpenFailed] = useState(false);
   const {
-    showCommandPalette, setShowCommandPalette,
-    showShortcutsOverlay, setShowShortcutsOverlay,
-    showQuickOpen, setShowQuickOpen,
-    showAudioRecorder, setShowAudioRecorder,
-    showSettingsModal, setShowSettingsModal,
+    showCommandPalette,
+    setShowCommandPalette,
+    showShortcutsOverlay,
+    setShowShortcutsOverlay,
+    showQuickOpen,
+    setShowQuickOpen,
+    showAudioRecorder,
+    setShowAudioRecorder,
+    showSettingsModal,
+    setShowSettingsModal,
     settingsInitialCategory,
     openSettings,
-    accountWindowOpen, setAccountWindowOpen,
-    matterManagerOpen, setMatterManagerOpen,
-    showWhatsNewModalDirect, setShowWhatsNewModalDirect,
-    apiKeyWizardOpen, setApiKeyWizardOpen,
-    apiKeyManagerOpen, setApiKeyManagerOpen,
+    accountWindowOpen,
+    setAccountWindowOpen,
+    matterManagerOpen,
+    setMatterManagerOpen,
+    showWhatsNewModalDirect,
+    setShowWhatsNewModalDirect,
+    apiKeyWizardOpen,
+    setApiKeyWizardOpen,
+    apiKeyManagerOpen,
+    setApiKeyManagerOpen,
   } = useDialogManager();
   // Tab to pre-select inside the Account window (e.g. 'connections' from the
   // email connect entry points). Cleared when the window closes.
-  const [accountWindowInitialTab, setAccountWindowInitialTab] = useState<string | undefined>(undefined);
+  const [accountWindowInitialTab, setAccountWindowInitialTab] = useState<
+    string | undefined
+  >(undefined);
   // Shared contract — "Ask from the matter hub prefills Search".
   // MatterHub dispatches a lantern:matter-launch event with surface='search'
   // and a question string; App sets this state; Ask consumes it.
-  const [askPrefill, setAskPrefill] = useState<{ question: string; autoSubmit?: boolean } | null>(null);
+  const [askPrefill, setAskPrefill] = useState<{
+    question: string;
+    autoSubmit?: boolean;
+  } | null>(null);
   const [tourOpen, setTourOpen] = useState(false);
   const featureTour = useFeatureTour();
 
@@ -240,7 +301,10 @@ function AppShell() {
   // buffers/replays it once the panels mount.
   const [connectorPanelsNeeded, setConnectorPanelsNeeded] = useState(false);
   useEffect(
-    () => installEarlyConnectorEventBridge(() => { setConnectorPanelsNeeded(true); }),
+    () =>
+      installEarlyConnectorEventBridge(() => {
+        setConnectorPanelsNeeded(true);
+      }),
     []
   );
 
@@ -277,8 +341,9 @@ function AppShell() {
   // in via ?forceTour=true. The dedicated tour spec uses the opt-in, which
   // also bypasses the persistent completed/skipped flags for fast iteration.
   // The tour must not open while the onboarding overlay is still visible.
-  const FORCE_TOUR = typeof window !== 'undefined' &&
-                     window.location.search.includes('forceTour=true');
+  const FORCE_TOUR =
+    typeof window !== 'undefined' &&
+    window.location.search.includes('forceTour=true');
   useEffect(() => {
     if ((IS_TEST_MODE || IS_DEMO_MODE) && !FORCE_TOUR) return;
     if (!FORCE_TOUR && !featureTour.shouldAutoShow) return;
@@ -303,11 +368,16 @@ function AppShell() {
   // `<workspaceRoot>/.lantern/templates`). The metadata reader reads
   // installed entries off disk and adapts them into WorkflowTemplate for the
   // engine. Both refs are nullable until a workspace is loaded.
-  const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
-  const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(null);
+  const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(
+    null
+  );
+  const templatesMetadataReaderRef = useRef<TemplateMetadataReader | null>(
+    null
+  );
 
   // Sidebar state. The shell lands on the Client Map (matter-centric home).
-  const [sidebarActiveTab, setSidebarActiveTab] = useState<AppSurface>('matters');
+  const [sidebarActiveTab, setSidebarActiveTab] =
+    useState<AppSurface>('matters');
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
@@ -324,7 +394,11 @@ function AppShell() {
   // initializer on mount. Clicking the Documents nav, revealing a folder, or
   // launching a matter into Documents => 'browser' (the file list). Opening an
   // email/file into the Documents area => 'editor' (that document).
-  const [documentsView, setDocumentsView] = useState<'browser' | 'editor'>('browser');
+  const [documentsView, setDocumentsView] = useState<'browser' | 'editor'>(
+    'browser'
+  );
+  const [mattersSurfaceMode, setMattersSurfaceMode] =
+    useState<MattersSurfaceMode>('client-map');
 
   const handleRequestApiKeySetup = useCallback(() => {
     setApiKeyWizardOpen(true);
@@ -332,9 +406,13 @@ function AppShell() {
 
   // Audit log state
   const [auditEntries, setAuditEntries] = useState<AuditEntry[]>([]);
-  const [auditIntegrity, setAuditIntegrity] = useState<AuditIntegrityVerdict | undefined>();
+  const [auditIntegrity, setAuditIntegrity] = useState<
+    AuditIntegrityVerdict | undefined
+  >();
 
-  const verifyAuditIntegrity = useCallback(async (): Promise<AuditIntegrityVerdict | undefined> => {
+  const verifyAuditIntegrity = useCallback(async (): Promise<
+    AuditIntegrityVerdict | undefined
+  > => {
     const verdict = await auditServiceRef.current.verifyIntegrity();
     setAuditIntegrity(verdict);
     return verdict;
@@ -359,34 +437,110 @@ function AppShell() {
   // to any of those stores anywhere in the app. useShallow keeps the same
   // destructured shape while only re-rendering when one of these fields
   // itself changes.
-  const { rootPath, setRootPath, setFileTree, recentWorkspaces, recentWorkspacesLoaded, fileTree, expandedPaths, expandAllFolders, loadRecentWorkspaces } = useWorkspaceStore(useShallow((s) => ({
-    rootPath: s.rootPath,
-    setRootPath: s.setRootPath,
-    setFileTree: s.setFileTree,
-    recentWorkspaces: s.recentWorkspaces,
-    recentWorkspacesLoaded: s.recentWorkspacesLoaded,
-    fileTree: s.fileTree,
-    expandedPaths: s.expandedPaths,
-    expandAllFolders: s.expandAllFolders,
-    loadRecentWorkspaces: s.loadRecentWorkspaces,
-  })));
-  const { openFile, openTab, markSaved, openTabs, activeTabPath, closeTab, closeTabsByPath, toggleOutline, splitPane, closeSplit, isSplit } = useEditorStore(useShallow((s) => ({
-    openFile: s.openFile,
-    openTab: s.openTab,
-    markSaved: s.markSaved,
-    openTabs: s.openTabs,
-    activeTabPath: s.activeTabPath,
-    closeTab: s.closeTab,
-    closeTabsByPath: s.closeTabsByPath,
-    toggleOutline: s.toggleOutline,
-    splitPane: s.splitPane,
-    closeSplit: s.closeSplit,
-    isSplit: s.isSplit,
-  })));
-  const { runHistory, completeRun } = useWorkflowStore(useShallow((s) => ({
-    runHistory: s.runHistory,
-    completeRun: s.completeRun,
-  })));
+  const {
+    rootPath,
+    setRootPath,
+    setFileTree,
+    recentWorkspaces,
+    recentWorkspacesLoaded,
+    fileTree,
+    expandedPaths,
+    expandAllFolders,
+    loadRecentWorkspaces,
+  } = useWorkspaceStore(
+    useShallow((s) => ({
+      rootPath: s.rootPath,
+      setRootPath: s.setRootPath,
+      setFileTree: s.setFileTree,
+      recentWorkspaces: s.recentWorkspaces,
+      recentWorkspacesLoaded: s.recentWorkspacesLoaded,
+      fileTree: s.fileTree,
+      expandedPaths: s.expandedPaths,
+      expandAllFolders: s.expandAllFolders,
+      loadRecentWorkspaces: s.loadRecentWorkspaces,
+    }))
+  );
+  const {
+    openFile,
+    openTab,
+    markSaved,
+    openTabs,
+    activeTabPath,
+    closeTab,
+    closeTabsByPath,
+    toggleOutline,
+    splitPane,
+    closeSplit,
+    isSplit,
+  } = useEditorStore(
+    useShallow((s) => ({
+      openFile: s.openFile,
+      openTab: s.openTab,
+      markSaved: s.markSaved,
+      openTabs: s.openTabs,
+      activeTabPath: s.activeTabPath,
+      closeTab: s.closeTab,
+      closeTabsByPath: s.closeTabsByPath,
+      toggleOutline: s.toggleOutline,
+      splitPane: s.splitPane,
+      closeSplit: s.closeSplit,
+      isSplit: s.isSplit,
+    }))
+  );
+  const { runHistory, completeRun } = useWorkflowStore(
+    useShallow((s) => ({
+      runHistory: s.runHistory,
+      completeRun: s.completeRun,
+    }))
+  );
+  const navigationDepth = useAppNavigationStore((s) => s.stack.length);
+  const pushNavigationEntry = useAppNavigationStore((s) => s.push);
+  const popNavigationEntry = useAppNavigationStore((s) => s.pop);
+  const pushNavigationSnapshot = useCallback(() => {
+    const matterState = useMatterStore.getState();
+    pushNavigationEntry({
+      rootPath,
+      sidebarActiveTab,
+      activeMatterId: matterState.activeMatterId,
+      clientMapHubId: matterState.clientMapHubId,
+      clientMapHubTab: matterState.clientMapHubTab,
+      documentsView,
+      activeTabPath: activeTabPath ?? null,
+      mattersSurfaceMode,
+    });
+  }, [
+    activeTabPath,
+    documentsView,
+    mattersSurfaceMode,
+    pushNavigationEntry,
+    rootPath,
+    sidebarActiveTab,
+  ]);
+  const handleAppBack = useCallback(() => {
+    const snapshot = popNavigationEntry();
+    if (!snapshot) return;
+    const safeSnapshot = sanitizeNavigationSnapshotForCurrentMatters(
+      snapshot,
+      matters,
+      rootPath
+    );
+    if (!safeSnapshot) return;
+    const matterState = useMatterStore.getState();
+    matterState.setActiveMatter(safeSnapshot.activeMatterId);
+    matterState.setClientMapHubId(safeSnapshot.clientMapHubId);
+    matterState.setClientMapHubTab(safeSnapshot.clientMapHubTab);
+    setMattersSurfaceMode(safeSnapshot.mattersSurfaceMode);
+    setDocumentsView(safeSnapshot.documentsView);
+    if (
+      safeSnapshot.activeTabPath &&
+      useEditorStore
+        .getState()
+        .openTabs.some((tab) => tab.path === safeSnapshot.activeTabPath)
+    ) {
+      useEditorStore.getState().setActiveTab(safeSnapshot.activeTabPath);
+    }
+    setSidebarActiveTab(safeSnapshot.sidebarActiveTab);
+  }, [matters, popNavigationEntry, rootPath]);
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
   // which workspace is open. Watches `rootPath` and re-arms on switch.
@@ -447,14 +601,17 @@ function AppShell() {
   // Stable identity (useCallback) so useMailSync subscribes once and does not
   // tear down / re-create the listener on every render (which would drop chunks
   // fired during an active sync).
-  const handleMailChunk = useCallback((chunk: MailIndexChunk) => {
-    contentIndex.upsert({
-      id: `mail:${chunk.docId}`,
-      path: `mail:${chunk.docId}`,
-      name: chunk.subject || 'Email',
-      content: chunk.decryptedText,
-    });
-  }, [contentIndex.upsert]);
+  const handleMailChunk = useCallback(
+    (chunk: MailIndexChunk) => {
+      contentIndex.upsert({
+        id: `mail:${chunk.docId}`,
+        path: `mail:${chunk.docId}`,
+        name: chunk.subject || 'Email',
+        content: chunk.decryptedText,
+      });
+    },
+    [contentIndex.upsert]
+  );
   useMailSync({ onMailChunk: handleMailChunk });
   // Single-mount: write a durable audit row for every terminal mail-sync outcome
   // (done / error / cancelled), per provider. Lives at the app root so exactly
@@ -485,14 +642,18 @@ function AppShell() {
   // outage should be shown again even if a PRIOR one was dismissed this
   // session (e.g. the credential service flaps: down, restarts, goes down
   // again).
-  const [credentialBannerDismissed, setCredentialBannerDismissed] = useState(false);
+  const [credentialBannerDismissed, setCredentialBannerDismissed] =
+    useState(false);
   useEffect(() => {
     if (!credentialServiceUnavailable) setCredentialBannerDismissed(false);
   }, [credentialServiceUnavailable]);
 
   // Model list auto-fetching
   const validKeyEntries = useMemo(
-    () => apiKeys.filter(k => k.isValid).map(k => ({ provider: k.provider, key: k.key })),
+    () =>
+      apiKeys
+        .filter((k) => k.isValid)
+        .map((k) => ({ provider: k.provider, key: k.key })),
     [apiKeys]
   );
   const { refreshProvider } = useModelList(validKeyEntries);
@@ -568,7 +729,9 @@ function AppShell() {
   // tuples in the order they happened; popping the tail gives us the
   // last rename to undo. We don't persist this across app reloads —
   // "session" is literally the current tab's lifetime.
-  const renameHistoryRef = useRef<Array<{ fromPath: string; toPath: string }>>([]);
+  const renameHistoryRef = useRef<Array<{ fromPath: string; toPath: string }>>(
+    []
+  );
 
   // UX-29: session-scoped delete history so Ctrl+Z can restore the most
   // recent deletion. We keep just the trash `id` — `handleRestoreFromTrash`
@@ -605,15 +768,22 @@ function AppShell() {
     // on Tauri the watcher subscribes to native events instead of polling.
     const watcher = new FileSystemWatcher({
       onFileTreeChange: async () => {
-        console.log('FileSystemWatcher: External file changes detected, refreshing file tree...');
+        console.log(
+          'FileSystemWatcher: External file changes detected, refreshing file tree...'
+        );
         if (workspaceServiceRef.current) {
           try {
             // P1.1 (Task 6): force a real scan here — this fires when the watcher
             // detected an EXTERNAL change, so a cached tree would be stale.
-            const newFileTree = await workspaceServiceRef.current.getFileTree({ fresh: true });
+            const newFileTree = await workspaceServiceRef.current.getFileTree({
+              fresh: true,
+            });
             setFileTree(newFileTree);
           } catch (error) {
-            console.error('FileSystemWatcher: Failed to refresh file tree:', error);
+            console.error(
+              'FileSystemWatcher: Failed to refresh file tree:',
+              error
+            );
           }
         }
       },
@@ -629,10 +799,15 @@ function AppShell() {
         // P1.1 (Task 6): the browser fallback's change-detection poll MUST see
         // the real current tree (a cached read could never detect an external
         // change), and this fresh scan also keeps the shared cache warm.
-        const currentTree = await workspaceServiceRef.current.getFileTree({ fresh: true });
+        const currentTree = await workspaceServiceRef.current.getFileTree({
+          fresh: true,
+        });
         return createFileTreeSnapshot(currentTree);
       } catch (error) {
-        console.error('FileSystemWatcher: Failed to get file tree snapshot:', error);
+        console.error(
+          'FileSystemWatcher: Failed to get file tree snapshot:',
+          error
+        );
         return '';
       }
     });
@@ -648,7 +823,15 @@ function AppShell() {
     };
   }, [rootPath, setFileTree]);
 
-  useTestModeWorkspace({ isTestMode: IS_TEST_MODE, rootPath, setRootPath, openFile, setFileTree, expandAllFolders, workspaceServiceRef });
+  useTestModeWorkspace({
+    isTestMode: IS_TEST_MODE,
+    rootPath,
+    setRootPath,
+    openFile,
+    setFileTree,
+    expandAllFolders,
+    workspaceServiceRef,
+  });
 
   // Load recent workspaces from localStorage on mount
   useEffect(() => {
@@ -675,25 +858,32 @@ function AppShell() {
           try {
             const updates = await svc.checkForUpdates();
             if (status.cancelled) return;
-            useTemplatesMarketplaceStore.getState().setUpdateCount(updates.length);
+            useTemplatesMarketplaceStore
+              .getState()
+              .setUpdateCount(updates.length);
           } catch (err) {
-            console.warn('[App] checkForUpdates failed; badge remains hidden:', err);
+            console.warn(
+              '[App] checkForUpdates failed; badge remains hidden:',
+              err
+            );
           }
         })();
       }, 2000);
     };
-    const unsubscribe = useTemplatesMarketplaceStore.subscribe((state, prev) => {
-      if (state.service === prev.service) return;
-      if (!state.service) {
-        if (timer !== null) {
-          clearTimeout(timer);
-          timer = null;
+    const unsubscribe = useTemplatesMarketplaceStore.subscribe(
+      (state, prev) => {
+        if (state.service === prev.service) return;
+        if (!state.service) {
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          useTemplatesMarketplaceStore.getState().setUpdateCount(0);
+          return;
         }
-        useTemplatesMarketplaceStore.getState().setUpdateCount(0);
-        return;
+        scheduleCheck(state.service);
       }
-      scheduleCheck(state.service);
-    });
+    );
     // Run once for the current state too (subscribe only fires on change).
     const current = useTemplatesMarketplaceStore.getState().service;
     if (current) scheduleCheck(current);
@@ -750,7 +940,9 @@ function AppShell() {
         }
       } catch (error) {
         console.error('Failed to open file:', error);
-        window.alert("I couldn't open that file. It may have been moved, or it's too large to preview.");
+        window.alert(
+          "I couldn't open that file. It may have been moved, or it's too large to preview."
+        );
         return false;
       }
     },
@@ -758,20 +950,24 @@ function AppShell() {
   );
 
   // Source card management (must be defined before handleWorkspaceSelected)
-  const {
-    setSourceCards,
-    loadSourceCards,
-  } = useSourceCards({ rootPath, workspaceServiceRef, handleFileOpen });
+  const { setSourceCards, loadSourceCards } = useSourceCards({
+    rootPath,
+    workspaceServiceRef,
+    handleFileOpen,
+  });
 
   // Handle delete (moves to trash instead of permanent delete) - must be defined before useAIChatFiles
   const handleDelete = useCallback(
     async (path: string) => {
       const fileName = path.split('/').pop() ?? 'unknown';
-      const confirmed = await confirm(`Are you sure you want to delete "${fileName}"?`, {
-        title: 'Delete File',
-        variant: 'destructive',
-        confirmLabel: 'Delete',
-      });
+      const confirmed = await confirm(
+        `Are you sure you want to delete "${fileName}"?`,
+        {
+          title: 'Delete File',
+          variant: 'destructive',
+          confirmLabel: 'Delete',
+        }
+      );
       if (!confirmed || !workspaceServiceRef.current || !rootPath) return;
 
       try {
@@ -780,7 +976,8 @@ function AppShell() {
 
         // Create trash folder if it doesn't exist
         const trashFolderPath = workspacePath(rootPath, '.trash');
-        const trashExists = await workspaceServiceRef.current.exists(trashFolderPath);
+        const trashExists =
+          await workspaceServiceRef.current.exists(trashFolderPath);
         if (!trashExists) {
           await workspaceServiceRef.current.mkdir(trashFolderPath);
         }
@@ -806,11 +1003,15 @@ function AppShell() {
         setTrashItems(newItems);
 
         // Update stats
-        const totalSize = newItems.reduce((sum, item) => sum + (item.size ?? 0), 0);
+        const totalSize = newItems.reduce(
+          (sum, item) => sum + (item.size ?? 0),
+          0
+        );
         const firstDeletedAt = newItems[0]?.deletedAt;
         const oldestItem = firstDeletedAt
-          ? newItems.reduce((oldest, item) =>
-              item.deletedAt < oldest ? item.deletedAt : oldest,
+          ? newItems.reduce(
+              (oldest, item) =>
+                item.deletedAt < oldest ? item.deletedAt : oldest,
               firstDeletedAt
             )
           : undefined;
@@ -861,17 +1062,33 @@ function AppShell() {
         undoStackRef.current.push('delete');
       } catch (error) {
         console.error('Failed to delete:', error);
-        window.alert("I couldn't move that to Trash. Check that your workspace has space, then try again.");
+        window.alert(
+          "I couldn't move that to Trash. Check that your workspace has space, then try again."
+        );
       }
     },
-    [setFileTree, rootPath, closeTabsByPath, trashItems, saveTrashMetadata, setTrashStats, setTrashItems, confirm, undoToast, handleRestoreFromTrash, contentIndex]
+    [
+      setFileTree,
+      rootPath,
+      closeTabsByPath,
+      trashItems,
+      saveTrashMetadata,
+      setTrashStats,
+      setTrashItems,
+      confirm,
+      undoToast,
+      handleRestoreFromTrash,
+      contentIndex,
+    ]
   );
 
   // AI Chat Files Management (must be defined after handleDelete and handleFileOpen)
-  const {
-    setChatFiles,
-    loadChatFiles,
-  } = useAIChatFiles({ rootPath, workspaceServiceRef, handleFileOpen, handleDelete });
+  const { setChatFiles, loadChatFiles } = useAIChatFiles({
+    rootPath,
+    workspaceServiceRef,
+    handleFileOpen,
+    handleDelete,
+  });
 
   // Handle workspace selection and recent-project opening (extracted to hook)
   const {
@@ -880,10 +1097,22 @@ function AppShell() {
     workspaceOpenError,
     dismissWorkspaceOpenError,
   } = useWorkspaceLifecycle({
-    workspaceServiceRef, auditServiceRef, templatesMarketplaceServiceRef, templatesMetadataReaderRef,
-    setShowWorkspaceSelector, setAuditEntries, setAuditIntegrity, setRootPath,
-    loadTrashMetadata, setTrashItems, setTrashStats,
-    loadSourceCards, setSourceCards, loadChatFiles, setChatFiles, confirm,
+    workspaceServiceRef,
+    auditServiceRef,
+    templatesMarketplaceServiceRef,
+    templatesMetadataReaderRef,
+    setShowWorkspaceSelector,
+    setAuditEntries,
+    setAuditIntegrity,
+    setRootPath,
+    loadTrashMetadata,
+    setTrashItems,
+    setTrashStats,
+    loadSourceCards,
+    setSourceCards,
+    loadChatFiles,
+    setChatFiles,
+    confirm,
   });
 
   // Boot: silently reopen the last workspace when "Reopen last workspace" is
@@ -897,24 +1126,34 @@ function AppShell() {
   // up the llama-server sidecar now instead of waiting for the first
   // post-launch question. See usePreStartLocalAi for the hydration-race note.
   usePreStartLocalAi(settingsHydrated);
-  const startupBehavior = useSettingsStore((s) => s.getSetting<string>('startupBehavior'));
+  const startupBehavior = useSettingsStore((s) =>
+    s.getSetting<string>('startupBehavior')
+  );
   // A locked vault needs WorkspaceSelector's own VaultLockedPrompt UI to
   // unlock, so auto-resume must never silently open one — it preflights with
   // the SAME vaultStatus() check WorkspaceSelector's manual open path uses,
   // bounded by a short timeout (this is a UX preflight, not the security
   // boundary, so it fails OPEN — i.e. "not locked" — on its own error/timeout,
   // same as WorkspaceSelector's non-fatal catch for this call).
-  const isWorkspaceVaultLocked = useCallback(async (path: string): Promise<boolean> => {
-    if (!isTauriEnvironment()) return false;
-    try {
-      const status = await withTimeout(vaultStatus(path), 5_000, 'Checking vault status');
-      return status.enabled && status.locked;
-    } catch {
-      return false;
-    }
-  }, []);
+  const isWorkspaceVaultLocked = useCallback(
+    async (path: string): Promise<boolean> => {
+      if (!isTauriEnvironment()) return false;
+      try {
+        const status = await withTimeout(
+          vaultStatus(path),
+          5_000,
+          'Checking vault status'
+        );
+        return status.enabled && status.locked;
+      } catch {
+        return false;
+      }
+    },
+    []
+  );
   const isAutoResumingWorkspace = useAutoResumeWorkspace({
-    isEligibleEnvironment: !IS_TEST_MODE && !IS_DEMO_MODE && isTauriEnvironment(),
+    isEligibleEnvironment:
+      !IS_TEST_MODE && !IS_DEMO_MODE && isTauriEnvironment(),
     settingsHydrated,
     recentWorkspacesLoaded,
     startupBehavior,
@@ -945,7 +1184,8 @@ function AppShell() {
           let backend;
           let chosen: string;
           if (isTauriEnvironment()) {
-            const { open: openDialog } = await import('@tauri-apps/plugin-dialog');
+            const { open: openDialog } =
+              await import('@tauri-apps/plugin-dialog');
             const raced = await raceDialogWithWatchdog(
               openDialog({
                 directory: true,
@@ -954,7 +1194,7 @@ function AppShell() {
                   mode === 'sample'
                     ? 'Choose a folder for your sample practice'
                     : 'Choose your practice folder',
-              }),
+              })
             );
             // QA-32: the native folder picker can silently never respond on
             // some environments (see dialogWatchdog.ts) — fall back to a
@@ -964,17 +1204,19 @@ function AppShell() {
               selected = raced.value;
             } else {
               console.warn(
-                '[App] Native folder picker did not respond within the watchdog window — falling back to manual path entry.',
+                '[App] Native folder picker did not respond within the watchdog window — falling back to manual path entry.'
               );
               selected = await prompt(
                 mode === 'sample'
                   ? t('onboarding.workspace-picker.picker-unresponsive-sample')
-                  : t('onboarding.workspace-picker.picker-unresponsive-own-data'),
+                  : t(
+                      'onboarding.workspace-picker.picker-unresponsive-own-data'
+                    ),
                 '',
                 {
                   title: t('workspace.selector.manual-path-title'),
                   placeholder: t('workspace.selector.manual-path-placeholder'),
-                },
+                }
               );
             }
             if (!selected) return { ok: false, cancelled: true };
@@ -987,7 +1229,9 @@ function AppShell() {
             chosen = '/' + handle.name;
           }
           const svc = createWorkspaceService();
-          await svc.initialize(backend, chosen, { createDefaultStructure: true });
+          await svc.initialize(backend, chosen, {
+            createDefaultStructure: true,
+          });
           // Wire the workspace into the app (sets rootPath, audit, file tree...).
           // The handler can abort (unsaved-changes guard on an already-open
           // workspace); treat that as the user cancelling this onboarding step.
@@ -995,7 +1239,10 @@ function AppShell() {
           if (!committed) return { ok: false, cancelled: true };
           const opened = svc.getRootPath();
           if (!opened) {
-            return { ok: false, error: "I couldn't open a workspace. Please try again." };
+            return {
+              ok: false,
+              error: "I couldn't open a workspace. Please try again.",
+            };
           }
           service = svc;
           root = opened;
@@ -1059,7 +1306,9 @@ function AppShell() {
     void (async () => {
       try {
         const opfsRoot = await navigator.storage.getDirectory();
-        const demoDir = await opfsRoot.getDirectoryHandle('lantern-demo', { create: true });
+        const demoDir = await opfsRoot.getDirectoryHandle('lantern-demo', {
+          create: true,
+        });
         const backend = createWebFSBackend();
         backend.setRootHandle(demoDir);
         const service = createWorkspaceService();
@@ -1071,9 +1320,10 @@ function AppShell() {
         if (!cancelled.current) setDemoOpenFailed(true);
       }
     })();
-    return () => { cancelled.current = true; };
+    return () => {
+      cancelled.current = true;
+    };
   }, [IS_DEMO_MODE, rootPath, handleWorkspaceSelected]);
-
 
   // Tab opening: browser tabs, AI assistant tab, and email-listener wiring
   // (extracted to useTabOpening)
@@ -1081,17 +1331,23 @@ function AppShell() {
     openTab,
     setSidebarActiveTab,
     setDocumentsView,
+    pushNavigationSnapshot,
   });
 
   // Shell-wide `lantern:*` CustomEvent wiring (matter manager, settings,
   // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
   useGlobalEventBus({
     onOpenMatterManager: () => setMatterManagerOpen(true),
-    onOpenAccount: (tab?: string) => { setAccountWindowInitialTab(tab); setAccountWindowOpen(true); },
+    onOpenAccount: (tab?: string) => {
+      setAccountWindowInitialTab(tab);
+      setAccountWindowOpen(true);
+    },
     openSettings,
     setSidebarActiveTab,
     setDocumentsView,
     setAskPrefill,
+    setMattersSurfaceMode,
+    pushNavigationSnapshot,
   });
 
   // Per-matter UI memory: as the user works inside a matter, keep its snapshot
@@ -1103,7 +1359,8 @@ function AppShell() {
     if (!isWorkingSurface(sidebarActiveTab)) return;
     useMatterUiStore.getState().saveSnapshot(activeMatterId, {
       surface: sidebarActiveTab,
-      activeTabPath: sidebarActiveTab === 'files' ? (activeTabPath ?? null) : null,
+      activeTabPath:
+        sidebarActiveTab === 'files' ? (activeTabPath ?? null) : null,
     });
   }, [activeMatterId, sidebarActiveTab, activeTabPath]);
 
@@ -1137,7 +1394,15 @@ function AppShell() {
     handleCreateDocxAtRoot,
     handleCreateDefaultDocument,
     handleCreateFolderAtRoot,
-  } = useDocumentCreation({ workspaceServiceRef, rootPath, setFileTree, prompt, confirm, handleFileOpen, openFile });
+  } = useDocumentCreation({
+    workspaceServiceRef,
+    rootPath,
+    setFileTree,
+    prompt,
+    confirm,
+    handleFileOpen,
+    openFile,
+  });
 
   // BUG-060 (batch mode): give the end-of-turn batch-review panel the live
   // workspace fs so it can undo applied AI changes, plus a refresh hook so the
@@ -1167,7 +1432,9 @@ function AppShell() {
           return svc.exists(p);
         },
       },
-      () => { void refreshFileTree(); },
+      () => {
+        void refreshFileTree();
+      }
     );
   }, [refreshFileTree]);
 
@@ -1187,24 +1454,49 @@ function AppShell() {
   // state the AuditLog renders. We let the service mint the id/timestamp so the
   // persisted row and the on-screen row describe the same event. Append-only on
   // both sides: we only ever prepend a new entry.
-  const addAuditEntry = useCallback((entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
-    const { entry: newEntry, persisted } = auditServiceRef.current.logDurablePending(entry.action, entry.description, {
-      ...(entry.model !== undefined ? { model: entry.model } : {}),
-      inputs: entry.inputs,
-      outputs: entry.outputs,
-      ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
-      metadata: entry.metadata,
-      ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
-      ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
-      ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
-      ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
-    });
-    setAuditEntries((prev) => [newEntry, ...prev]);
-    void persisted.then((settledEntry) => {
-      setAuditEntries((prev) => prev.map((existing) => existing.id === settledEntry.id ? { ...settledEntry, metadata: { ...settledEntry.metadata } } : existing));
-      return auditServiceRef.current.verifyIntegrity();
-    }).then(setAuditIntegrity).catch(() => undefined);
-  }, []);
+  const addAuditEntry = useCallback(
+    (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
+      const { entry: newEntry, persisted } =
+        auditServiceRef.current.logDurablePending(
+          entry.action,
+          entry.description,
+          {
+            ...(entry.model !== undefined ? { model: entry.model } : {}),
+            inputs: entry.inputs,
+            outputs: entry.outputs,
+            ...(entry.userDecision !== undefined
+              ? { userDecision: entry.userDecision }
+              : {}),
+            metadata: entry.metadata,
+            ...(entry.tokensIn !== undefined
+              ? { tokensIn: entry.tokensIn }
+              : {}),
+            ...(entry.tokensOut !== undefined
+              ? { tokensOut: entry.tokensOut }
+              : {}),
+            ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
+            ...(entry.provider !== undefined
+              ? { provider: entry.provider }
+              : {}),
+          }
+        );
+      setAuditEntries((prev) => [newEntry, ...prev]);
+      void persisted
+        .then((settledEntry) => {
+          setAuditEntries((prev) =>
+            prev.map((existing) =>
+              existing.id === settledEntry.id
+                ? { ...settledEntry, metadata: { ...settledEntry.metadata } }
+                : existing
+            )
+          );
+          return auditServiceRef.current.verifyIntegrity();
+        })
+        .then(setAuditIntegrity)
+        .catch(() => undefined);
+    },
+    []
+  );
 
   useEffect(() => {
     setMatterAuditEmitter(addAuditEntry);
@@ -1224,7 +1516,6 @@ function AppShell() {
     };
   }, [addAuditEntry]);
 
-
   // Handle save audio recording (extracted to useAudioRecording)
   const { handleSaveAudioRecording } = useAudioRecording({
     rootPath,
@@ -1232,7 +1523,6 @@ function AppShell() {
     setFileTree,
     handleFileOpen,
   });
-
 
   // File import handlers: global drag-and-drop + native file picker import
   // (extracted to useFileImport)
@@ -1249,7 +1539,6 @@ function AppShell() {
     onDrop: handleGlobalFileDrop,
     enabled: !!rootPath && !showWorkspaceSelector,
   });
-
 
   // Workflow execution state and handlers (extracted to useWorkflowRunner).
   const {
@@ -1288,7 +1577,6 @@ function AppShell() {
     refreshFileTree,
   });
 
-
   // Autosave dirty tabs every 2 seconds. See src/app/lifecycle/useAutosave.ts.
   // Routes through writeTabContent so binary formats (.docx/.xlsx/.pptx) decode
   // their data-URL content back to bytes before hitting disk.
@@ -1300,8 +1588,12 @@ function AppShell() {
   useEffect(() => {
     // flushTabForClose re-opens the tab + warns if the save fails after the tab
     // was removed (BUG-046 #4), so a failed close-flush can't silently lose work.
-    setBeforeTabClose((path) => { void flushTabForClose(path); });
-    return () => { setBeforeTabClose(null); };
+    setBeforeTabClose((path) => {
+      void flushTabForClose(path);
+    });
+    return () => {
+      setBeforeTabClose(null);
+    };
   }, []);
   // QA-34: airtight .docx close for EVERY close path that calls closeTab directly
   // (Ctrl+W, the command palette, right-click Close / Close-others, grouped-tab
@@ -1324,26 +1616,63 @@ function AppShell() {
               variant: 'destructive',
               confirmLabel: 'Close and lose changes',
               cancelLabel: 'Keep open',
-            },
+            }
           ),
       });
       return true;
     });
-    return () => { setBeforeDocxClose(null); };
+    return () => {
+      setBeforeDocxClose(null);
+    };
   }, [confirm]);
 
-
   // Command-palette commands. See src/app/commands/useAppCommands.ts.
-  const commands = useAppCommands({ openTabs, activeTabPath, handleSaveFile, closeTab, toggleOutline, isSplit, splitPane, closeSplit, handleOpenBrowserTab, handleCreateDefaultDocument, sidebarActiveTab, setSidebarCollapsed, setShowWorkspaceSelector, openAIAssistantTab, setShowSettingsModal, prompt });
+  const commands = useAppCommands({
+    openTabs,
+    activeTabPath,
+    handleSaveFile,
+    closeTab,
+    toggleOutline,
+    isSplit,
+    splitPane,
+    closeSplit,
+    handleOpenBrowserTab,
+    handleCreateDefaultDocument,
+    sidebarActiveTab,
+    setSidebarCollapsed,
+    setShowWorkspaceSelector,
+    openAIAssistantTab,
+    setShowSettingsModal,
+    prompt,
+  });
 
   // Global keyboard shortcuts. See src/app/commands/useKeyboardShortcuts.ts.
   useKeyboardShortcuts({
-    sidebarActiveTab, openTabs, activeTabPath, isSplit,
-    setShowSettingsModal, setShowCommandPalette, setShowQuickOpen,
-    setSidebarCollapsed, setShowShortcutsOverlay, setFileTree, setDocumentsView, setSidebarActiveTab,
-    handleSaveFile, closeTab, toggleOutline, splitPane, closeSplit,
-    openAIAssistantTab, handleRestoreFromTrash, handleFileOpen, handleCreateDefaultDocument,
-    workspaceServiceRef, undoStackRef, deleteHistoryRef, renameHistoryRef,
+    sidebarActiveTab,
+    openTabs,
+    activeTabPath,
+    isSplit,
+    setShowSettingsModal,
+    setShowCommandPalette,
+    setShowQuickOpen,
+    setSidebarCollapsed,
+    setShowShortcutsOverlay,
+    setFileTree,
+    setDocumentsView,
+    setSidebarActiveTab,
+    handleSaveFile,
+    closeTab,
+    toggleOutline,
+    splitPane,
+    closeSplit,
+    openAIAssistantTab,
+    handleRestoreFromTrash,
+    handleFileOpen,
+    handleCreateDefaultDocument,
+    workspaceServiceRef,
+    undoStackRef,
+    deleteHistoryRef,
+    renameHistoryRef,
   });
 
   // Show workspace selector if no workspace is open (unless in test mode).
@@ -1389,7 +1718,10 @@ function AppShell() {
             const sampleMatter = getOrCreateSampleMatter(rootPath);
             useMatterStore.getState().setActiveMatter(sampleMatter.id);
           } catch (err) {
-            console.warn('[App] sample-matter post-onboarding setup failed:', err instanceof Error ? err.message : String(err));
+            console.warn(
+              '[App] sample-matter post-onboarding setup failed:',
+              err instanceof Error ? err.message : String(err)
+            );
           }
         }
         // Land on the matter-centric home (Client Map). The sample's Client Map
@@ -1426,7 +1758,11 @@ function AppShell() {
     );
   }
 
-  if (!IS_TEST_MODE && (showWorkspaceSelector || !rootPath || showFirstRun) && !(IS_DEMO_MODE && !demoOpenFailed)) {
+  if (
+    !IS_TEST_MODE &&
+    (showWorkspaceSelector || !rootPath || showFirstRun) &&
+    !(IS_DEMO_MODE && !demoOpenFailed)
+  ) {
     const canDismiss = Boolean(rootPath);
     return (
       <>
@@ -1453,7 +1789,9 @@ function AppShell() {
         <WorkspaceSelector
           open={true}
           onWorkspaceSelected={handleWorkspaceSelected}
-          onDismiss={canDismiss ? () => setShowWorkspaceSelector(false) : undefined}
+          onDismiss={
+            canDismiss ? () => setShowWorkspaceSelector(false) : undefined
+          }
           externalError={workspaceOpenError}
           onExternalErrorShown={dismissWorkspaceOpenError}
           promptForPath={prompt}
@@ -1480,21 +1818,25 @@ function AppShell() {
 
   // Shared Settings action handlers (extracted to getSettingsActions — plain
   // factory, no hooks, safe after the WorkspaceSelector early return)
-  const { handleSettingsAction, handleSettingsRestartOnboarding } = getSettingsActions({
-    setApiKeyManagerOpen,
-    setApiKeyWizardOpen,
-    handleOpenAIRules,
-    featureTour,
-    setShowWhatsNewModalDirect,
-    setTourOpen,
-    setShowFirstRun,
-  });
+  const { handleSettingsAction, handleSettingsRestartOnboarding } =
+    getSettingsActions({
+      setApiKeyManagerOpen,
+      setApiKeyWizardOpen,
+      handleOpenAIRules,
+      featureTour,
+      setShowWhatsNewModalDirect,
+      setTourOpen,
+      setShowFirstRun,
+    });
 
   // Get current project name from root path
   const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
 
   return (
-    <div className="h-screen flex flex-col bg-background text-foreground" data-testid="app-container">
+    <div
+      className="h-screen flex flex-col bg-background text-foreground"
+      data-testid="app-container"
+    >
       {/* Accessibility: skip link so keyboard users can bypass the nav */}
       <a
         href="#main-content"
@@ -1507,7 +1849,10 @@ function AppShell() {
           workspace's UI, not the picker) must never be silent. The current
           workspace is untouched either way, so this is purely informational. */}
       {workspaceOpenError && (
-        <InlineErrorBanner message={workspaceOpenError} onDismiss={dismissWorkspaceOpenError} />
+        <InlineErrorBanner
+          message={workspaceOpenError}
+          onDismiss={dismissWorkspaceOpenError}
+        />
       )}
       {/* QA-33: useApiKeys already degrades gracefully when the OS credential
           service is unavailable (falls back to the last known-good key, never
@@ -1517,11 +1862,16 @@ function AppShell() {
       {credentialServiceUnavailable && !credentialBannerDismissed && (
         <InlineErrorBanner
           message={t('settings.api-keys.credential-service-unavailable')}
-          onDismiss={() => { setCredentialBannerDismissed(true); }}
+          onDismiss={() => {
+            setCredentialBannerDismissed(true);
+          }}
         />
       )}
       {/* Header bar with project switcher */}
-      <header className="flex items-center justify-between h-10 px-2 border-b bg-muted/30 shrink-0" data-testid="app-header">
+      <header
+        className="flex items-center justify-between h-10 px-2 border-b bg-muted/30 shrink-0"
+        data-testid="app-header"
+      >
         <div className="flex items-center gap-2">
           <ProjectManager
             currentProjectName={currentProjectName}
@@ -1531,6 +1881,19 @@ function AppShell() {
           />
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            data-testid="app-back-button"
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            onClick={handleAppBack}
+            disabled={navigationDepth === 0}
+            title="Back"
+            aria-label="Back"
+          >
+            <ArrowLeft className="h-3 w-3 mr-1" />
+            Back
+          </Button>
           {/*
             UX-25: 3-state theme toggle. Cycles system → light → dark → system.
             Icon reflects the *preference* (not the effective theme), so a user
@@ -1581,7 +1944,9 @@ function AppShell() {
               reachable from the Client Map's per-client quick actions. */}
           <SettingsGearButton
             active={sidebarActiveTab === 'settings'}
-            onOpenSettings={() => { setSidebarActiveTab('settings'); }}
+            onOpenSettings={() => {
+              setSidebarActiveTab('settings');
+            }}
           />
           <Button
             data-testid="command-palette-button"
@@ -1619,11 +1984,18 @@ function AppShell() {
       {/* Main content area — a real <main> landmark and a focus target so the
           "Skip to main content" link moves keyboard focus here, not just scrolls
           (acc-06). tabIndex={-1} makes the non-interactive region focusable. */}
-      <main id="main-content" tabIndex={-1} className="flex-1 flex overflow-hidden">
+      <main
+        id="main-content"
+        tabIndex={-1}
+        className="flex-1 flex overflow-hidden"
+      >
         {/* Sidebar with file tree, workflows, research, and settings */}
         <AppShellNav
           activeTab={sidebarActiveTab}
           onTabChange={(tab: string) => {
+            if (tab !== sidebarActiveTab) {
+              pushNavigationSnapshot();
+            }
             // Any click to 'files' in the spine nav lands on the Files browser,
             // even if a document was the last thing open. This is the user
             // clicking the nav (vs a file being opened programmatically), so it
@@ -1631,18 +2003,34 @@ function AppShell() {
             if (tab === 'files') {
               setDocumentsView('browser');
             }
-            // Clicking the "Client Map" nav always lands on the clients LIST,
-            // not whichever client hub happened to be open. Closing the hub
-            // (clientMapHubId -> null) is exactly what the hub's "<- Clients"
-            // back button does. The focused client (activeMatterId / Ask scope)
-            // is left untouched. This is a real nav click (the sidebar client
-            // switcher uses a separate matter-launch event), so it never closes
-            // a hub the user just opened.
             if (tab === 'matters') {
-              useMatterStore.getState().setClientMapHubId(null);
+              const matterState = useMatterStore.getState();
+              setMattersSurfaceMode('client-map');
+              if (matterState.activeMatterId) {
+                matterState.setClientMapHubId(matterState.activeMatterId);
+                matterState.setClientMapHubTab('overview');
+              } else {
+                matterState.setClientMapHubId(null);
+                matterState.setClientMapHubTab(null);
+              }
             }
             setSidebarActiveTab(tab as typeof sidebarActiveTab);
           }}
+          onAllClientsSelect={() => {
+            if (
+              sidebarActiveTab !== 'matters' ||
+              mattersSurfaceMode !== 'all-clients'
+            ) {
+              pushNavigationSnapshot();
+            }
+            setMattersSurfaceMode('all-clients');
+            setSidebarActiveTab('matters');
+          }}
+          allClientsSelected={
+            sidebarActiveTab === 'matters' &&
+            mattersSurfaceMode === 'all-clients' &&
+            activeMatterId === null
+          }
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}
         />
@@ -1655,6 +2043,9 @@ function AppShell() {
           documentsView={documentsView}
           setDocumentsView={setDocumentsView}
           setSidebarActiveTab={setSidebarActiveTab}
+          mattersSurfaceMode={mattersSurfaceMode}
+          setMattersSurfaceMode={setMattersSurfaceMode}
+          pushNavigationSnapshot={pushNavigationSnapshot}
           currentExecution={currentExecution}
           activeWorkflowTemplate={activeWorkflowTemplate}
           showInterviewDialog={showInterviewDialog}
@@ -1785,7 +2176,11 @@ function AppShell() {
           fallback is safe here. LazyBoundary contains a failed chunk fetch
           behind a Retry card instead of letting it unmount the whole app. */}
       {connectorPanelsNeeded && (
-        <LazyBoundary loader={loadConnectorSourcePanels} fallback={null} label="Connector panel">
+        <LazyBoundary
+          loader={loadConnectorSourcePanels}
+          fallback={null}
+          label="Connector panel"
+        >
           {(ConnectorSourcePanels) => <ConnectorSourcePanels />}
         </LazyBoundary>
       )}

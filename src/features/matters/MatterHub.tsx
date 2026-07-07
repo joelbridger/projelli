@@ -16,7 +16,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, Mail, Clock, Loader2, Map, Users, Mic } from 'lucide-react';
+import { Lock, FileText, Mail, Clock, Loader2, Map, Mic } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { isTauri } from '@tauri-apps/api/core';
@@ -377,18 +377,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   <Badge variant="sample" size="sm">{t('matter.hub.sample-pill')}</Badge>
                 </span>
               )}
-              {/* Client boundary — a persistent reminder that recall here is
-                  scoped to THIS household. Advisor Prep Hero never mixes one client's
-                  files into another client's answers (matter isolation), and
-                  making that visible is the trust story an advisor needs to see. */}
-              <span
-                data-testid="hub-scope-badge"
-                title={t('matter.hub.scope-badge-title')}
-              >
-                <Badge variant="neutral" size="sm" icon={Users}>
-                  {t('matter.hub.scope-badge-suffix', { name: matter.name && matter.name.trim() ? matter.name : label })}
-                </Badge>
-              </span>
               {/* AI-status pill — same dynamic badge as Ask / Workflows. */}
               <EgressIndicator
                 provider={egressProvider}

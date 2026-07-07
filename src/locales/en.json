@@ -1046,6 +1046,9 @@
     "citation": {
       "unverified-warning": "One or more citations could not be verified against the source. Open the source to confirm before relying on it."
     },
+    "empty-canvas": {
+      "select-client": "Click a client on the left"
+    },
     "sidebar": {
       "empty": "No clients yet.",
       "create-first": "Create your first client",
@@ -1729,7 +1732,8 @@
       "primary-nav": "Primary"
     },
     "all-clients": "All Clients",
-    "new-client": "+ New {{entity}}"
+    "new-client": "+ New {{entity}}",
+    "no-clients-found": "No clients found"
   },
   "entity-label": {
     "legal": {

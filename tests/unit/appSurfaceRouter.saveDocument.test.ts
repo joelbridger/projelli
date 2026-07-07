@@ -33,13 +33,16 @@ describe('routeSavedAskDocument', () => {
   it('opens the saved document inside the active client Documents tab', () => {
     const setDocumentsView = vi.fn();
     const setSidebarActiveTab = vi.fn();
+    const pushNavigationSnapshot = vi.fn();
 
     routeSavedAskDocument({
       activeMatter: sampleMatter(),
       setDocumentsView,
       setSidebarActiveTab,
+      pushNavigationSnapshot,
     });
 
+    expect(pushNavigationSnapshot).toHaveBeenCalledTimes(1);
     expect(setDocumentsView).toHaveBeenCalledWith('editor');
     expect(matterState.setActiveMatter).toHaveBeenCalledWith('client-1');
     expect(matterState.setClientMapHubId).toHaveBeenCalledWith('client-1');
@@ -50,13 +53,16 @@ describe('routeSavedAskDocument', () => {
   it('opens the saved document in the main Documents area when no client is active', () => {
     const setDocumentsView = vi.fn();
     const setSidebarActiveTab = vi.fn();
+    const pushNavigationSnapshot = vi.fn();
 
     routeSavedAskDocument({
       activeMatter: null,
       setDocumentsView,
       setSidebarActiveTab,
+      pushNavigationSnapshot,
     });
 
+    expect(pushNavigationSnapshot).toHaveBeenCalledTimes(1);
     expect(setDocumentsView).toHaveBeenCalledWith('editor');
     expect(setSidebarActiveTab).toHaveBeenCalledWith('files');
     expect(matterState.setActiveMatter).not.toHaveBeenCalled();

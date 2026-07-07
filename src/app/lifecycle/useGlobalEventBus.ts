@@ -7,12 +7,13 @@
  * always call the current handlers — preserving the original behavior where
  * each listener effect mounted once for the life of the app.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { SettingCategory } from '@/platform/settings/schema';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { openSourceDocument } from '@/features/matters/clientMap/openSource';
+import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
+import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import { parseMeetingRef } from '@/features/meetings/meetingSources';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import {
@@ -51,6 +52,8 @@ export interface GlobalEventBusHandlers {
   setSidebarActiveTab: (tab: AppSurface) => void;
   setDocumentsView: (view: 'browser' | 'editor') => void;
   setAskPrefill: (prefill: AskPrefill | null) => void;
+  setMattersSurfaceMode?: (mode: MattersSurfaceMode) => void;
+  pushNavigationSnapshot?: () => void;
 }
 
 // Account-related settings categories live in the Account window, so an
@@ -63,13 +66,33 @@ const ACCOUNT_CATEGORIES = new Set<SettingCategory>([
   'integrations',
 ]);
 
-const ALLOWED_SURFACES = new Set(['search', 'files', 'email', 'meetings', 'workflows', 'audit', 'privacy', 'matters'] as const);
-type AllowedSurface = 'search' | 'files' | 'email' | 'meetings' | 'workflows' | 'audit' | 'privacy' | 'matters';
+const ALLOWED_SURFACES = new Set([
+  'search',
+  'files',
+  'email',
+  'meetings',
+  'workflows',
+  'audit',
+  'privacy',
+  'matters',
+] as const);
+type AllowedSurface =
+  | 'search'
+  | 'files'
+  | 'email'
+  | 'meetings'
+  | 'workflows'
+  | 'audit'
+  | 'privacy'
+  | 'matters';
 
 export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
   // Keep the latest handlers in a ref so the listeners below register once.
   const ref = useRef(handlers);
-  ref.current = handlers;
+
+  useLayoutEffect(() => {
+    ref.current = handlers;
+  }, [handlers]);
 
   useEffect(() => {
     // "New matter" buttons → open MatterManagerDialog.
@@ -78,9 +101,8 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
     // GetStartedCard etc. → open Settings (or the Account window for
     // account-related categories).
     const onOpenSettings = (e: Event) => {
-      const category = (
-        e as CustomEvent<{ category?: SettingCategory }>
-      ).detail?.category;
+      const category = (e as CustomEvent<{ category?: SettingCategory }>).detail
+        ?.category;
       if (category && ACCOUNT_CATEGORIES.has(category)) {
         ref.current.onOpenAccount();
         return;
@@ -115,30 +137,50 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       // document sources arrive here.) Falls back to the document browser if the
       // file can't be opened.
       const source = detail.source;
-      if (source && source.kind === 'document' && typeof source.ref === 'string') {
-        useMatterStore.getState().setActiveMatter(matterId);
-        ref.current.setSidebarActiveTab('files');
-        void openSourceDocument(source.ref, matterId, getActiveWorkspaceService(), source.snippet).then((opened) => {
-          ref.current.setDocumentsView(opened ? 'editor' : 'browser');
+      if (
+        source &&
+        source.kind === 'document' &&
+        typeof source.ref === 'string'
+      ) {
+        void openMatterDocumentSource({
+          matterId,
+          ref: source.ref,
+          ...(source.snippet ? { snippet: source.snippet } : {}),
+          service: getActiveWorkspaceService(),
+          handlers: {
+            setDocumentsView: ref.current.setDocumentsView,
+            setSidebarActiveTab: ref.current.setSidebarActiveTab,
+            setMattersSurfaceMode: ref.current.setMattersSurfaceMode,
+            pushNavigationSnapshot: ref.current.pushNavigationSnapshot,
+          },
         });
         return;
       }
 
+      ref.current.pushNavigationSnapshot?.();
+
       // Wave 3c meeting source link -> the Meetings sub-tab, that exact
       // meeting open and seeked (parseMeetingRef gives the dir + timestamp;
       // MatterHub's pendingMeetingOpen one-shot mirrors pendingHubTab above).
-      if (source && source.kind === 'meeting' && typeof source.ref === 'string') {
+      if (
+        source &&
+        source.kind === 'meeting' &&
+        typeof source.ref === 'string'
+      ) {
         const parsed = parseMeetingRef(source.ref);
         if (parsed) {
           useMatterStore.getState().setActiveMatter(matterId);
           useMatterStore.getState().setClientMapHubId(matterId);
           useMatterStore.getState().setPendingMeetingOpen(parsed);
+          ref.current.setMattersSurfaceMode?.('client-map');
           ref.current.setSidebarActiveTab('matters');
           return;
         }
       }
 
-      const hasExplicitSurface = ALLOWED_SURFACES.has(detail.surface as AllowedSurface);
+      const hasExplicitSurface = ALLOWED_SURFACES.has(
+        detail.surface as AllowedSurface
+      );
       useMatterStore.getState().setActiveMatter(matterId);
 
       if (hasExplicitSurface) {
@@ -150,37 +192,48 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
         // hub renders inside the Client Map ('matters') tab; a one-shot
         // `clientMapHubTab` tells MatterHub which sub-tab to open.
         const hubTab =
-          surface === 'files' ? 'documents'
-          : surface === 'email' ? 'email'
-          : surface === 'meetings' ? 'meetings'
-          : surface === 'audit' ? 'activity'
-          // Explicit request to open the hub itself (its default sub-tab,
-          // the Client Map overview) rather than restore a remembered
-          // surface — e.g. whole-practice Ask's "open this client" chip,
-          // which always means the Client Map, not wherever they were last.
-          : surface === 'matters' ? 'overview'
-          : null;
+          surface === 'files'
+            ? 'documents'
+            : surface === 'email'
+              ? 'email'
+              : surface === 'meetings'
+                ? 'meetings'
+                : surface === 'audit'
+                  ? 'activity'
+                  : // Explicit request to open the hub itself (its default sub-tab,
+                    // the Client Map overview) rather than restore a remembered
+                    // surface — e.g. whole-practice Ask's "open this client" chip,
+                    // which always means the Client Map, not wherever they were last.
+                    surface === 'matters'
+                    ? 'overview'
+                    : null;
         if (hubTab) {
           // setActiveMatter ran just above; set the hub id AFTER it (setActiveMatter
           // can clear a hub id that doesn't match the new active matter).
           useMatterStore.getState().setClientMapHubId(matterId);
           useMatterStore.getState().setClientMapHubTab(hubTab);
+          ref.current.setMattersSurfaceMode?.('client-map');
           // Documents must land on the scoped file LIST, not a stale editor pane
           // that could still show another client's open file (matter isolation).
           if (hubTab === 'documents') ref.current.setDocumentsView('browser');
           ref.current.setSidebarActiveTab('matters');
           return;
         }
-        const appSurface: AppSurface = surface === 'meetings' ? 'matters' : surface;
+        const appSurface: AppSurface =
+          surface === 'meetings' ? 'matters' : surface;
         ref.current.setSidebarActiveTab(appSurface);
         if (surface === 'search' && detail.question) {
-          ref.current.setAskPrefill({ question: detail.question, autoSubmit: true });
+          ref.current.setAskPrefill({
+            question: detail.question,
+            autoSubmit: true,
+          });
         }
         return;
       }
 
       const snap = useMatterUiStore.getState().getSnapshot(matterId);
       if (!snap) {
+        ref.current.setMattersSurfaceMode?.('client-map');
         ref.current.setSidebarActiveTab('matters');
         return;
       }
@@ -199,7 +252,8 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
     };
 
     // Privacy Center shortcut: jump straight to the privacy surface.
-    const onOpenPrivacyCenter = () => ref.current.setSidebarActiveTab('privacy');
+    const onOpenPrivacyCenter = () =>
+      ref.current.setSidebarActiveTab('privacy');
 
     window.addEventListener(EV_OPEN_MATTER_MANAGER, onOpenMatterManager);
     window.addEventListener(EV_OPEN_SETTINGS, onOpenSettings);

@@ -19,12 +19,14 @@ export interface UseTabOpeningOptions {
   openTab: OpenTabFn;
   setSidebarActiveTab: (tab: AppSurface) => void;
   setDocumentsView: (view: 'browser' | 'editor') => void;
+  pushNavigationSnapshot?: () => void;
 }
 
 export function useTabOpening({
   openTab,
   setSidebarActiveTab,
   setDocumentsView,
+  pushNavigationSnapshot,
 }: UseTabOpeningOptions) {
   // Handle opening browser tab
   const handleOpenBrowserTab = useCallback(
@@ -84,11 +86,12 @@ export function useTabOpening({
         meta: { mailSourceId: string },
       ) => {
         // Opening an email shows it in the Documents area editor, not the browser.
+        pushNavigationSnapshot?.();
         setDocumentsView('editor');
         setSidebarActiveTab('files');
         openTab(id, label, content, type, meta);
       },
-      [openTab, setDocumentsView, setSidebarActiveTab],
+      [openTab, pushNavigationSnapshot, setDocumentsView, setSidebarActiveTab],
     ),
   );
 

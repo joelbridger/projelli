@@ -26,13 +26,22 @@ vi.mock('@/platform/fs/WorkspaceService', () => ({
   createWorkspaceService: () => ({ initialize: initializeMock }),
 }));
 
-import { useWorkspaceLifecycle, type UseWorkspaceLifecycleOptions } from './useWorkspaceLifecycle';
+import {
+  useWorkspaceLifecycle,
+  type UseWorkspaceLifecycleOptions,
+} from './useWorkspaceLifecycle';
 import { TimeoutError } from '@/lib/withTimeout';
+import {
+  useAppNavigationStore,
+  type AppNavigationSnapshot,
+} from '@/platform/state/appNavigationStore';
 
 function makeOptions(): UseWorkspaceLifecycleOptions {
   return {
     workspaceServiceRef: createRef() as never,
-    auditServiceRef: { current: { hydrate: vi.fn(), getAll: () => [], verifyIntegrity: vi.fn() } } as never,
+    auditServiceRef: {
+      current: { hydrate: vi.fn(), getAll: () => [], verifyIntegrity: vi.fn() },
+    } as never,
     templatesMarketplaceServiceRef: createRef() as never,
     templatesMetadataReaderRef: createRef() as never,
     setShowWorkspaceSelector: vi.fn(),
@@ -54,6 +63,7 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
   beforeEach(() => {
     createFSBackendMock.mockReset();
     initializeMock.mockReset();
+    useAppNavigationStore.getState().clear();
   });
 
   it('surfaces an honest, classified message when the credential service is unavailable', async () => {
@@ -67,7 +77,9 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
       await result.current.handleOpenRecentProject('/some/workspace');
     });
 
-    expect(result.current.workspaceOpenError).toContain("credential storage service isn't running");
+    expect(result.current.workspaceOpenError).toContain(
+      "credential storage service isn't running"
+    );
   });
 
   it('never throws out of handleOpenRecentProject — auto-resume relies on this', async () => {
@@ -77,21 +89,25 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
     await expect(
       act(async () => {
         await result.current.handleOpenRecentProject('/some/workspace');
-      }),
+      })
     ).resolves.not.toThrow();
 
     expect(result.current.workspaceOpenError).toBe('boom');
   });
 
   it('surfaces a TimeoutError message for a genuinely hung native open', async () => {
-    createFSBackendMock.mockRejectedValue(new TimeoutError('Opening the workspace', 30_000));
+    createFSBackendMock.mockRejectedValue(
+      new TimeoutError('Opening the workspace', 30_000)
+    );
 
     const { result } = renderHook(() => useWorkspaceLifecycle(makeOptions()));
     await act(async () => {
       await result.current.handleOpenRecentProject('/some/workspace');
     });
 
-    expect(result.current.workspaceOpenError).toBe('Opening the workspace timed out after 30s');
+    expect(result.current.workspaceOpenError).toBe(
+      'Opening the workspace timed out after 30s'
+    );
   });
 
   it('dismissWorkspaceOpenError clears the message', async () => {
@@ -107,5 +123,37 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
       result.current.dismissWorkspaceOpenError();
     });
     expect(result.current.workspaceOpenError).toBeNull();
+  });
+
+  it('clears Back history when a different workspace is opened', async () => {
+    const oldSnapshot: AppNavigationSnapshot = {
+      rootPath: '/old-workspace',
+      sidebarActiveTab: 'matters',
+      activeMatterId: 'old-client',
+      clientMapHubId: 'old-client',
+      clientMapHubTab: 'overview',
+      documentsView: 'browser',
+      activeTabPath: null,
+      mattersSurfaceMode: 'client-map',
+    };
+    useAppNavigationStore.getState().push(oldSnapshot);
+
+    const options = makeOptions();
+    const service = {
+      getRootPath: () => '/new-workspace',
+      getBackend: () => null,
+      exists: vi.fn().mockResolvedValue(true),
+      mkdir: vi.fn().mockResolvedValue(undefined),
+      getFileTree: vi.fn().mockResolvedValue([]),
+      readFile: vi.fn(),
+      readFileBinary: vi.fn(),
+    };
+
+    const { result } = renderHook(() => useWorkspaceLifecycle(options));
+    await act(async () => {
+      await result.current.handleWorkspaceSelected(service as never);
+    });
+
+    expect(useAppNavigationStore.getState().stack).toHaveLength(0);
   });
 });

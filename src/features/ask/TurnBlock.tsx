@@ -1,4 +1,13 @@
-import { Quote, Loader2, ShieldCheck, Save, AlertTriangle, Info, Clock, Download } from 'lucide-react';
+import {
+  Quote,
+  Loader2,
+  ShieldCheck,
+  Save,
+  AlertTriangle,
+  Info,
+  Clock,
+  Download,
+} from 'lucide-react';
 import { Button, Callout } from '@/ui/kp';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { AskTurn } from './askHelpers';
@@ -6,10 +15,17 @@ import { CitationText } from './CitationText';
 import { NO_EVIDENCE_DECLINE, STILL_IMPORTING_DECLINE } from './askPrompt';
 import { AnswerBlocks } from './AnswerBlocks';
 import { stripBlockMarkers } from './answerBlockMarkers';
-import { stalePlanNotices, formatExportDate } from '@/platform/rag/sourceProvenance';
+import {
+  stalePlanNotices,
+  formatExportDate,
+} from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
-import { ASK_ANSWER_STALL_WARNING, ASK_LOCAL_AI_STARTING_MESSAGE, ASK_LOCAL_AI_EVALUATING_MESSAGE } from './askTimeout';
+import {
+  ASK_ANSWER_STALL_WARNING,
+  ASK_LOCAL_AI_STARTING_MESSAGE,
+  ASK_LOCAL_AI_EVALUATING_MESSAGE,
+} from './askTimeout';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -37,7 +53,9 @@ export function TurnBlock({
   selectedTurnIdx: number | null;
   selected: number | null;
   onCitationSelect: (turnIdx: number, n: number) => void;
-  onSaveToDocument?: ((idx: number, content: string) => Promise<void>) | undefined;
+  onSaveToDocument?:
+    | ((idx: number, content: string) => Promise<void>)
+    | undefined;
   isSaving: boolean;
   isPersisted: boolean;
   isStreaming?: boolean;
@@ -73,7 +91,12 @@ export function TurnBlock({
    * WS3 (Task 2): when provided, citation chip clicks open the file at
    * the cited paragraph in the editor — single-click navigation.
    */
-  onOpenFileAtPath?: (path: string, paragraphIndex: number, snippet?: string) => void;
+  onOpenFileAtPath?: (
+    path: string,
+    paragraphIndex: number,
+    snippet?: string,
+    matterId?: string
+  ) => void;
   /**
    * lp/badge-consistency: forwarded to AnswerBlocks, whose header/labels now
    * trigger the same live citation check the Sources cards use (shared store,
@@ -95,11 +118,13 @@ export function TurnBlock({
   // older than the configured limit, so a stale RightCapital plan is never
   // mistaken for live data. Driven by the turn's citations (populated for both
   // the flat and the block/smart-agent paths), so it fires regardless of render.
-  const staleDays = useSettingsStore((s) => s.getSetting<number>(EXTERNAL_EXPORT_STALE_DAYS_KEY));
+  const staleDays = useSettingsStore((s) =>
+    s.getSetting<number>(EXTERNAL_EXPORT_STALE_DAYS_KEY)
+  );
   const stalePlans = stalePlanNotices(
     turn.citations.map((c) => c.provenance),
     new Date(),
-    staleDays,
+    staleDays
   );
 
   // BUG-016: the "Answered over your own files" attestation must reflect a
@@ -118,10 +143,17 @@ export function TurnBlock({
   // QA-90: same idea, for the "zero hits while an import is active" decline —
   // a calm, reassuring note (data may just not be in yet), never the red
   // uncited-claim warning.
-  const isStillImportingDecline = turn.answer.trim() === STILL_IMPORTING_DECLINE;
+  const isStillImportingDecline =
+    turn.answer.trim() === STILL_IMPORTING_DECLINE;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--kp-space-sm)',
+      }}
+    >
       {/* The question, echoed at the top in grey italic with a quote mark. */}
       <div
         style={{
@@ -158,7 +190,15 @@ export function TurnBlock({
         }}
       >
         {isStreaming && !turn.answer ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--kp-text-dim)', fontSize: '14.5px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              color: 'var(--kp-text-dim)',
+              fontSize: '14.5px',
+            }}
+          >
             <Loader2 size={14} strokeWidth={2} className="animate-spin" />
             <span>
               {localAiStarting
@@ -173,13 +213,23 @@ export function TurnBlock({
           <AnswerBlocks
             blocks={turn.blocks ?? []}
             selected={selectedForThisTurn}
-            onSelect={(n) => { onCitationSelect(turnIdx, n); }}
+            onSelect={(n) => {
+              onCitationSelect(turnIdx, n);
+            }}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
             {...(onAuditLog !== undefined ? { onAuditLog } : {})}
           />
         ) : isPersisted ? (
           // Persisted (loaded history) turns: plain text.
-          <p style={{ fontSize: '15.5px', lineHeight: 1.62, color: 'var(--kp-navy)', margin: 0, whiteSpace: 'pre-wrap' }}>
+          <p
+            style={{
+              fontSize: '15.5px',
+              lineHeight: 1.62,
+              color: 'var(--kp-navy)',
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+            }}
+          >
             {turn.answer}
           </p>
         ) : (
@@ -190,7 +240,9 @@ export function TurnBlock({
             text={isStreaming ? stripBlockMarkers(turn.answer) : turn.answer}
             citations={turn.citations}
             selected={selectedForThisTurn}
-            onSelect={(n) => { onCitationSelect(turnIdx, n); }}
+            onSelect={(n) => {
+              onCitationSelect(turnIdx, n);
+            }}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
           />
         )}
@@ -205,10 +257,21 @@ export function TurnBlock({
         {isStreaming && answerStalled && !localEvaluating && (
           <div data-testid="ask-answer-stalled-warning">
             <Callout variant="warning" icon={AlertTriangle}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  flexWrap: 'wrap',
+                }}
+              >
                 <span>{ASK_ANSWER_STALL_WARNING}</span>
                 {onOpenAiStatus && (
-                  <Button variant="secondary" size="sm" onClick={onOpenAiStatus}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={onOpenAiStatus}
+                  >
                     {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     View AI status
                     {/* eslint-enable lantern-i18n/no-hardcoded-string */}
@@ -240,9 +303,14 @@ export function TurnBlock({
               color: '#16654a',
             }}
           >
-            <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none', color: '#16654a' }} />
+            <ShieldCheck
+              size={14}
+              strokeWidth={2}
+              style={{ flex: 'none', color: '#16654a' }}
+            />
             {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Answered over your own files. Every cited claim has a source you can open and check.
+            Answered over your own files. Every cited claim has a source you can
+            open and check.
             {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </div>
         )}
@@ -268,9 +336,15 @@ export function TurnBlock({
               color: 'var(--kp-text-dim)',
             }}
           >
-            <Info size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-text-dim)' }} />
+            <Info
+              size={14}
+              strokeWidth={2}
+              style={{ flex: 'none', color: 'var(--kp-text-dim)' }}
+            />
             {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            This is on purpose — I only answer from your files, never from general knowledge. Ask about something in this household and I'll cite the source.
+            This is on purpose — I only answer from your files, never from
+            general knowledge. Ask about something in this household and I'll
+            cite the source.
             {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </div>
         )}
@@ -293,9 +367,14 @@ export function TurnBlock({
               color: 'var(--kp-text-dim)',
             }}
           >
-            <Download size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-text-dim)' }} />
+            <Download
+              size={14}
+              strokeWidth={2}
+              style={{ flex: 'none', color: 'var(--kp-text-dim)' }}
+            />
             {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Your files and email are still being imported, so this may just not be indexed yet — try again once that finishes.
+            Your files and email are still being imported, so this may just not
+            be indexed yet — try again once that finishes.
             {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           </div>
         )}
@@ -307,15 +386,20 @@ export function TurnBlock({
             deliberate decline is excluded — it has its own calm note above.
             FLAT path only — a smart-mode answer is self-labelling by block, so
             the blanket "not cited" warning would be wrong over a general/draft. */}
-        {!usingBlocks && !isStreaming && !hasGroundedCitation && turn.answer && !isDecline && !isStillImportingDecline && (
-          <div data-testid="ask-uncited-warning">
-            <Callout variant="warning" icon={AlertTriangle}>
-              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-              Not cited from your files. Verify this before relying on it.
-              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-            </Callout>
-          </div>
-        )}
+        {!usingBlocks &&
+          !isStreaming &&
+          !hasGroundedCitation &&
+          turn.answer &&
+          !isDecline &&
+          !isStillImportingDecline && (
+            <div data-testid="ask-uncited-warning">
+              <Callout variant="warning" icon={AlertTriangle}>
+                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+                Not cited from your files. Verify this before relying on it.
+                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+              </Callout>
+            </div>
+          )}
 
         {/* Connector-access: stale exported-plan warning. Shown when a cited
             source is a plan snapshot older than the limit. Treats a stale plan
@@ -324,15 +408,17 @@ export function TurnBlock({
           <div data-testid="ask-stale-plan-warning">
             <Callout variant="warning" icon={Clock}>
               {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-              This answer relies on exported plan snapshots that may be out of date:{' '}
+              This answer relies on exported plan snapshots that may be out of
+              date:{' '}
               {stalePlans.map((s, i) => (
                 <span key={`${s.toolLabel}-${s.exportedAt}`}>
                   {i > 0 ? ', ' : ''}
-                  {s.toolLabel} plan from {formatExportDate(s.exportedAt)} ({s.ageDays} days ago)
+                  {s.toolLabel} plan from {formatExportDate(s.exportedAt)} (
+                  {s.ageDays} days ago)
                 </span>
               ))}
-              . A plan is a point-in-time snapshot, so figures may be out of date. Re-export the
-              latest to refresh it.
+              . A plan is a point-in-time snapshot, so figures may be out of
+              date. Re-export the latest to refresh it.
               {/* eslint-enable lantern-i18n/no-hardcoded-string */}
             </Callout>
           </div>
