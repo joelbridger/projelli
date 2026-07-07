@@ -150,11 +150,12 @@ describe('SetupChecklist', () => {
     expect(onRestart).toHaveBeenCalledTimes(1);
   });
 
-  it('shows the "data and keys are kept" note', () => {
+  it('shows the "data and keys are kept" note when the info icon is opened', async () => {
     setupMocks();
     render(
       <SetupChecklist onRestartOnboarding={() => {}} onNavigate={() => {}} />,
     );
-    expect(screen.getByText(/your data and keys are kept/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /about restarting guided setup/i }));
+    expect((await screen.findAllByText(/your data and keys are kept/i)).length).toBeGreaterThan(0);
   });
 });

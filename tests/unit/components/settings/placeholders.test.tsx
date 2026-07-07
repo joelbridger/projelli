@@ -11,15 +11,12 @@ describe('Placeholder settings pages', () => {
   });
 
 
-  it('AdvancedSettings renders (shows its description paragraph)', () => {
+  it('AdvancedSettings renders (shows its info help)', () => {
     render(<AdvancedSettings />);
-    // AdvancedSettings renders a description <p> from the i18n key
-    // 'settings.advanced.description'. The element is always present even if
-    // the translation falls back to the key itself.
+    // AdvancedSettings now tucks the description into an InfoHelp tooltip,
+    // keeping the page quieter while still exposing the help text.
     const container = document.querySelector('[class*="space-y"]');
     expect(container).toBeInTheDocument();
-    // Verify the component renders at least one paragraph-level element.
-    const paras = document.querySelectorAll('p');
-    expect(paras.length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /about/i })).toBeInTheDocument();
   });
 });

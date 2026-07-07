@@ -16,6 +16,17 @@ import {
 import type { Matter } from '@/platform/types/matter';
 
 const NOW = '2026-07-07T12:00:00.000Z';
+const END = '2026-07-07T13:00:00.000Z';
+
+function calendarEvent(attendees: Array<{ email: string; name: string }>) {
+  return {
+    id: 'event-1',
+    title: 'Annual review',
+    startUtc: NOW,
+    endUtc: END,
+    attendees,
+  };
+}
 
 function emptyPlan(): MeetingDeliveryPlan {
   return {
@@ -28,13 +39,11 @@ function emptyPlan(): MeetingDeliveryPlan {
 describe('meeting recipient plan', () => {
   it('auto-populates every artifact from calendar attendees when no plan has been saved', () => {
     const plan = resolveMeetingDeliveryPlan({
-      calendarEvent: {
-        attendees: [
-          { email: 'Alex@Example.com', name: 'Alex' },
-          { email: 'alex@example.com', name: 'Duplicate Alex' },
-          { email: 'sam@example.com', name: 'Sam' },
-        ],
-      },
+      calendarEvent: calendarEvent([
+        { email: 'Alex@Example.com', name: 'Alex' },
+        { email: 'alex@example.com', name: 'Duplicate Alex' },
+        { email: 'sam@example.com', name: 'Sam' },
+      ]),
     }, NOW);
 
     for (const artifact of MEETING_ARTIFACTS) {
@@ -47,12 +56,10 @@ describe('meeting recipient plan', () => {
 
   it('persists exclusions by treating a saved plan as explicit', () => {
     const defaultPlan = resolveMeetingDeliveryPlan({
-      calendarEvent: {
-        attendees: [
-          { email: 'alex@example.com', name: 'Alex' },
-          { email: 'sam@example.com', name: 'Sam' },
-        ],
-      },
+      calendarEvent: calendarEvent([
+        { email: 'alex@example.com', name: 'Alex' },
+        { email: 'sam@example.com', name: 'Sam' },
+      ]),
     }, NOW);
     const excludedSam = MEETING_ARTIFACTS.reduce(
       (plan, artifact) => removeRecipientFromArtifact(plan, artifact, 'sam@example.com', NOW),
@@ -60,12 +67,10 @@ describe('meeting recipient plan', () => {
     );
 
     const reloaded = resolveMeetingDeliveryPlan({
-      calendarEvent: {
-        attendees: [
-          { email: 'alex@example.com', name: 'Alex' },
-          { email: 'sam@example.com', name: 'Sam' },
-        ],
-      },
+      calendarEvent: calendarEvent([
+        { email: 'alex@example.com', name: 'Alex' },
+        { email: 'sam@example.com', name: 'Sam' },
+      ]),
       deliveryPlan: excludedSam,
     }, NOW);
 
@@ -100,7 +105,7 @@ describe('meeting recipient plan', () => {
 
   it('keeps the old manual fallback when a meeting has no calendar attendees', () => {
     const plan = resolveMeetingDeliveryPlan({
-      calendarEvent: { attendees: [] },
+      calendarEvent: calendarEvent([]),
     }, NOW);
 
     expect(plan).toEqual(emptyPlan());
@@ -165,12 +170,10 @@ describe('meeting recipient plan', () => {
 
     const suggestions = buildMeetingRecipientSuggestions({
       deliveryPlan: plan,
-      calendarEvent: {
-        attendees: [
-          { email: 'client@example.com', name: 'Client One' },
-          { email: 'CLIENT@example.com', name: 'Duplicate Client' },
-        ],
-      },
+      calendarEvent: calendarEvent([
+        { email: 'client@example.com', name: 'Client One' },
+        { email: 'CLIENT@example.com', name: 'Duplicate Client' },
+      ]),
     }, matter);
 
     expect(suggestions.map((recipient) => recipient.email).sort()).toEqual([

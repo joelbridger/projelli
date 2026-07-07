@@ -154,20 +154,22 @@ describe('meeting artifact delivery', () => {
   });
 
   it('prefills the send preview from calendar attendees when no plan was saved', () => {
+    const inputMeta = meta({
+      calendarEvent: {
+        id: 'event-1',
+        title: 'Annual review',
+        startUtc: NOW,
+        endUtc: '2026-07-07T13:00:00.000Z',
+        attendees: [
+          { email: 'alex@example.com', name: 'Alex' },
+          { email: 'sam@example.com', name: 'Sam' },
+        ],
+      },
+    });
+    delete inputMeta.deliveryPlan;
+
     const preview = buildMeetingSendPreview({
-      meta: meta({
-        deliveryPlan: undefined,
-        calendarEvent: {
-          id: 'event-1',
-          title: 'Annual review',
-          startUtc: NOW,
-          endUtc: '2026-07-07T13:00:00.000Z',
-          attendees: [
-            { email: 'alex@example.com', name: 'Alex' },
-            { email: 'sam@example.com', name: 'Sam' },
-          ],
-        },
-      }),
+      meta: inputMeta,
       availability: buildMeetingArtifactAvailability({
         hasAudio: true,
         hasTranscript: true,

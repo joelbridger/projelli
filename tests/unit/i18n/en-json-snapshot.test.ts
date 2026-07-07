@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 216,
         "media": 92,
-        "meetings": 217,
+        "meetings": 226,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -253,10 +253,13 @@ describe('en.json structure snapshot', () => {
     // +17 = R7 Meetings: detail sub-tabs/export/rename copy (15) + spoken announcement phrases (2).
     // +16 = MF1 meeting recipients: per-artifact recipient picker labels, helper copy,
     //       save/add/remove controls, validation, and saved/saving status text.
+    // +9 = send-defaults feedback: invite-attendee auto-include copy and client-scoped
+    //      recipient groups (auto title/body, add-person, group title/body/name,
+    //      save/saved, use-group).
     // +34 = MF2/MF3 meeting send + auto-join: reviewed send UI, email
     //       delivery status/log copy, and calendar-driven auto-join panel copy.
     // +2 = FB-F client header: History panel title and close label.
-    expect(flat.length).toBe(1429); // 1427 + 2 (FB-F History panel)
+    expect(flat.length).toBe(1438); // 1429 + 9 (send-defaults recipient groups)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
