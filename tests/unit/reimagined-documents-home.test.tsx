@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, createEvent } from '@testing-library/react';
 import { DocumentsHome, type DocumentsHomeProps } from '@/features/documents/DocumentsHome';
 import type { FileNode } from '@/platform/types/workspace';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
@@ -76,7 +76,13 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
 
 // Editor store mock — default: no active tab (no file open)
 let mockActiveTabPath: string | null = null;
-let mockOpenTabs: Array<{ path: string; name: string; type?: string; isDirty?: boolean }> = [];
+let mockOpenTabs: Array<{
+  path: string;
+  name: string;
+  type?: string;
+  isDirty?: boolean;
+  groupId?: string | null;
+}> = [];
 let mockTabGroups: Array<{ id: string; name: string; color?: string; collapsed?: boolean }> = [];
 let mockLastOpenRequest: { path: string; seq: number } | null = null;
 const mockSetActiveTab = vi.fn();
@@ -305,6 +311,56 @@ describe('DocumentsHome — vertical tab rail', () => {
       '/workspace/Evidence.pdf',
     ]);
     expect(mockSetPendingGroupRenameId).toHaveBeenCalledWith('group-1');
+  });
+
+  it('uses the drop position, not stale hover state, when dropping one group on another edge', () => {
+    mockActiveTabPath = '/workspace/Group 1.md';
+    mockTabGroups = [
+      { id: 'group-1', name: 'Group 1', collapsed: false },
+      { id: 'group-2', name: 'Group 2', collapsed: false },
+    ];
+    mockOpenTabs = [
+      { path: '/workspace/Loose A.md', name: 'Loose A.md', type: 'file', groupId: null },
+      { path: '/workspace/Group 1.md', name: 'Group 1.md', type: 'file', groupId: 'group-1' },
+      { path: '/workspace/Loose B.md', name: 'Loose B.md', type: 'file', groupId: null },
+      { path: '/workspace/Group 2.md', name: 'Group 2.md', type: 'file', groupId: 'group-2' },
+    ];
+
+    const { container } = render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    const sourceGroup = container.querySelector<HTMLElement>('[data-group-id="group-2"]');
+    const targetGroup = container.querySelector<HTMLElement>('[data-group-id="group-1"]');
+    expect(sourceGroup).not.toBeNull();
+    expect(targetGroup).not.toBeNull();
+    if (!sourceGroup || !targetGroup) return;
+
+    targetGroup.getBoundingClientRect = vi.fn(() => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 252,
+      bottom: 100,
+      width: 252,
+      height: 100,
+      toJSON: () => ({}),
+    }));
+
+    const dt = makeDataTransfer({ 'text/plain': 'group:group-2' });
+    fireEvent.dragStart(sourceGroup, { dataTransfer: dt });
+    const hoverEvent = createEvent.dragOver(targetGroup, { dataTransfer: dt });
+    Object.defineProperty(hoverEvent, 'clientY', { value: 50 });
+    fireEvent(targetGroup, hoverEvent);
+    const dropEvent = createEvent.drop(targetGroup, { dataTransfer: dt });
+    Object.defineProperty(dropEvent, 'clientY', { value: 5 });
+    fireEvent(targetGroup, dropEvent);
+
+    expect(mockReorderInTabBar).toHaveBeenCalledWith(
+      { type: 'group', id: 'group-2' },
+      { type: 'group', id: 'group-1' },
+      'before',
+    );
+    expect(mockReorderTabGroups).not.toHaveBeenCalled();
+    expect(mockMergeTabGroups).not.toHaveBeenCalled();
   });
 
   it('uses a left-rail width instead of the old horizontal strip height', () => {

@@ -155,6 +155,23 @@ function blankDocWithEmptyRun(): DocumentJson {
   };
 }
 
+function docWithRawInline(): DocumentJson {
+  return {
+    formatVersion: 1,
+    body: [
+      {
+        kind: 'paragraph',
+        inlines: [
+          { kind: 'run', text: 'Editable before ' },
+          { kind: 'raw', xml: '<w:r><w:t>Preserved inline</w:t></w:r>' },
+          { kind: 'run', text: ' editable after' },
+        ],
+      },
+    ],
+    comments: {},
+  };
+}
+
 // The DOM the editor renders comes from the mocked `docx_open`, so renderEditor
 // just mounts the component; callers set up invokeMock to return their DOM.
 function renderEditor(filePath = '/ws/agreement.docx') {
@@ -241,6 +258,54 @@ describe('DocxEditor — rendering', () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(run);
     });
+  });
+
+  it('clicking a preserved raw block does not move the caret into the nearest run', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(docWithRevisions()) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    const run = (await screen.findAllByTestId('docx-run'))[0];
+    const rawBlock = screen.getByTestId('docx-raw-block');
+    fireEvent.click(rawBlock);
+
+    expect(document.activeElement).not.toBe(run);
+  });
+
+  it('clicking a preserved raw inline does not move the caret into the nearest run', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(docWithRawInline()) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    const run = (await screen.findAllByTestId('docx-run'))[0];
+    const rawInline = screen.getByTestId('docx-raw-inline');
+    fireEvent.click(rawInline);
+
+    expect(document.activeElement).not.toBe(run);
+  });
+
+  it('clicking preserved image and table elements does not move the caret into the nearest run', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(blankDocWithEmptyRun()) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    const run = await screen.findByTestId('docx-run');
+    const page = screen.getByTestId('docx-page');
+    const table = document.createElement('table');
+    const img = document.createElement('img');
+    page.append(table, img);
+
+    fireEvent.click(table);
+    expect(document.activeElement).not.toBe(run);
+
+    fireEvent.click(img);
+    expect(document.activeElement).not.toBe(run);
   });
 
   it('a freshly created document focuses its first run once', async () => {

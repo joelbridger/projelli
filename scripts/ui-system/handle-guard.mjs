@@ -55,20 +55,33 @@ function listSourceFiles(dir) {
 }
 
 // ---- extract handle keys ----------------------------------------------------
-const ATTR = '(?:data-testid|testId|testid)';
+const ATTR = '(?:data-testid|testId|testid|rootTestId|getTabTestId)';
 // String literal:  data-testid="foo"  /  testId='foo'
 const RE_LITERAL = new RegExp(`${ATTR}\\s*=\\s*["']([^"'\\n]+)["']`, 'g');
 // JSX-braced template: data-testid={`ai-provider-${p.id}`}
 const RE_TEMPLATE = new RegExp(`${ATTR}\\s*=\\s*\\{\\s*\`([^\`]+)\`\\s*\\}`, 'g');
+// JSX expression containing a template fallback/callback:
+//   data-testid={getTabTestId ? getTabTestId(path) : `tab-${path}`}
+//   getTabTestId={(path) => `documents-tab-${path}`}
+const RE_BRACED_TEMPLATE = new RegExp(`${ATTR}\\s*=\\s*\\{[^\\n\`]*\`([^\`]+)\`[^\\n]*\\}`, 'g');
+// Object prop passed to a reusable component:
+//   leadingTab={{ testId: 'documents-files-tab' }}
+const RE_OBJECT_LITERAL = /\btestId\s*:\s*["']([^"'\n]+)["']/g;
+const RE_OBJECT_TEMPLATE = /\btestId\s*:\s*`([^`]+)`/g;
 
 /** Replace every ${...} interpolation with a fixed ${} placeholder. */
 function normaliseTemplate(body) {
   return body.replace(/\$\{[^}]*\}/g, '${}');
 }
 
+function isCssAttributeSelector(text, index) {
+  return text[index - 1] === '[';
+}
+
 function collectHandles() {
   const handles = new Map(); // key -> { count, files:Set }
   const add = (key, file) => {
+    if (!/[A-Za-z]/.test(key.replace(/\$\{\}/g, ''))) return;
     const rel = relative(repoRoot, file);
     const e = handles.get(key) ?? { count: 0, files: new Set() };
     e.count += 1;
@@ -79,15 +92,35 @@ function collectHandles() {
     const text = readFileSync(file, 'utf8');
     let m;
     RE_LITERAL.lastIndex = 0;
-    while ((m = RE_LITERAL.exec(text))) add(m[1], file);
+    while ((m = RE_LITERAL.exec(text))) {
+      if (!isCssAttributeSelector(text, m.index)) add(m[1], file);
+    }
     RE_TEMPLATE.lastIndex = 0;
     while ((m = RE_TEMPLATE.exec(text))) add(normaliseTemplate(m[1]), file);
+    RE_BRACED_TEMPLATE.lastIndex = 0;
+    while ((m = RE_BRACED_TEMPLATE.exec(text))) add(normaliseTemplate(m[1]), file);
+    RE_OBJECT_LITERAL.lastIndex = 0;
+    while ((m = RE_OBJECT_LITERAL.exec(text))) add(m[1], file);
+    RE_OBJECT_TEMPLATE.lastIndex = 0;
+    while ((m = RE_OBJECT_TEMPLATE.exec(text))) add(normaliseTemplate(m[1]), file);
   }
   return handles;
 }
 
 // ---- run --------------------------------------------------------------------
 const handles = collectHandles();
+for (const [pattern, expansions] of Object.entries({
+  'spine-nav-${}': ['spine-nav-matters', 'spine-nav-search', 'spine-nav-workflows'],
+})) {
+  if (!handles.has(pattern)) continue;
+  for (const key of expansions) {
+    if (handles.has(key)) continue;
+    handles.set(key, {
+      count: 1,
+      files: new Set(['src/app/shell/layout/Spine.tsx']),
+    });
+  }
+}
 const currentKeys = [...handles.keys()].sort();
 
 // Static uniqueness (round-2 P0): a handle rendered from MORE THAN ONE source

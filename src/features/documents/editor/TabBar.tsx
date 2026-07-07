@@ -120,8 +120,8 @@ export function TabBar({
     toggleGroupCollapsed,
     moveTabToGroup,
     ungroupTab,
-    reorderTabGroups,
     mergeTabGroups,
+    reorderInTabBar,
     pendingRenamePath,
     setPendingRenamePath,
     pendingGroupRenameId,
@@ -701,7 +701,6 @@ export function TabBar({
   const handleGroupDrop = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    const zone = dragOverGroupZone;
     setDragOverGroupId(null);
     setDragOverGroupZone(null);
 
@@ -712,8 +711,13 @@ export function TabBar({
     if (payload.startsWith('group:')) {
       const sourceId = payload.slice('group:'.length);
       if (!sourceId || sourceId === groupId) return;
+      const zone = computeGroupDropZone(e, orientation);
       if (zone === 'before' || zone === 'after') {
-        reorderTabGroups(sourceId, groupId, zone);
+        reorderInTabBar(
+          { type: 'group', id: sourceId },
+          { type: 'group', id: groupId },
+          zone,
+        );
       } else {
         mergeTabGroups(sourceId, groupId);
       }
@@ -727,7 +731,13 @@ export function TabBar({
         moveTabToGroup(tab.path, groupId);
       }
     }
-  }, [openTabs, moveTabToGroup, dragOverGroupZone, reorderTabGroups, mergeTabGroups]);
+  }, [
+    openTabs,
+    moveTabToGroup,
+    orientation,
+    reorderInTabBar,
+    mergeTabGroups,
+  ]);
 
   const handleTabDoubleClick = useCallback((tab: typeof openTabs[0]) => {
     setEditingTabPath(tab.path);

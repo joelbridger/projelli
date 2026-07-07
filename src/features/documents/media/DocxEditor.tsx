@@ -658,7 +658,11 @@ export function DocxEditor({
     (event: MouseEvent<HTMLDivElement>) => {
       if (!canEdit) return;
       const target = event.target as HTMLElement | null;
-      if (target?.closest('[contenteditable="true"], button, a, input, textarea, select')) {
+      if (
+        target?.closest(
+          '[contenteditable="true"], [contenteditable="false"], button, a, input, textarea, select, [data-testid="docx-raw-block"], [data-testid="docx-raw-inline"], img, table',
+        )
+      ) {
         return;
       }
       const run = findNearestEditableRun(event.currentTarget, event.clientX, event.clientY);
