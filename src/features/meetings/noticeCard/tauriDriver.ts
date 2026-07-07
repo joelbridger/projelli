@@ -15,6 +15,17 @@ import { buildInjectionScript } from './injectionScript';
 import { parseNoticeCardTitle } from './injectionScript';
 import { rewriteTeamsJoinUrl } from './meetingPlatform';
 import type { NoticeCardDriver } from './supervisor';
+import { BUNDLED_VOICE_ID } from '@/features/dictation/engine/voiceCatalog';
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
 
 /** The subset of the supervisor the poller drives. */
 export interface SupervisorEventSink {
@@ -37,6 +48,19 @@ export function makeTauriDriver(label: string, opts?: { cameraScript?: string })
       // click-through is the safety net if this route ever stops skipping it.
       const joinUrl = rewriteTeamsJoinUrl(config.joinUrl);
       await invoke('notice_card_open', { label, joinUrl, initScript });
+    },
+    async announce(text) {
+      const phrase = text.trim();
+      if (!phrase) return;
+      const wav = await invoke<number[]>('tts_speak', {
+        text: phrase,
+        voiceId: BUNDLED_VOICE_ID,
+        speed: 1,
+      });
+      await invoke('notice_card_announce', {
+        label,
+        wavBase64: bytesToBase64(new Uint8Array(wav)),
+      });
     },
     async close() {
       // Idempotent on the Rust side (an absent window returns Ok), so a

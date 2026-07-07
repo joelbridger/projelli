@@ -119,6 +119,29 @@ pub fn notice_card_status(app: AppHandle, label: String) -> Result<Option<String
     }
 }
 
+/// Play a short WAV announcement through the companion page's fake microphone.
+/// The companion page defines the JS hook inside the initialization script; this
+/// command only passes bytes into that hook and never exposes app capabilities to
+/// the untrusted meeting page.
+#[tauri::command]
+pub fn notice_card_announce(
+    app: AppHandle,
+    label: String,
+    wav_base64: String,
+) -> Result<(), String> {
+    let window = app
+        .get_webview_window(&label)
+        .ok_or_else(|| "notice card window is not open".to_string())?;
+    let arg = serde_json::to_string(&wav_base64)
+        .map_err(|e| format!("encode notice card announcement: {e}"))?;
+    window
+        .eval(&format!(
+            "try {{ window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__ && window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__({arg}); }} catch (e) {{}}"
+        ))
+        .map_err(|e| format!("announce notice card audio: {e}"))?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -9,7 +9,7 @@
  * healthy-recording path; MeetingEntry must show an honest, no-retry
  * "didn't finish saving" state instead — never a silent forever-wait.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
@@ -57,6 +57,7 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-recording-incomplete')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
     expect(screen.getByTestId('meeting-entry-recording-incomplete-transcript')).toBeTruthy();
     expect(screen.queryByTestId('meeting-entry-notes-pending')).toBeNull();
     expect(screen.queryByTestId('meeting-entry-transcript-pending')).toBeNull();
@@ -79,7 +80,9 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
+    fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
     expect(screen.getByTestId('meeting-entry-transcript-pending')).toBeTruthy();
     expect(screen.queryByTestId('meeting-entry-recording-incomplete')).toBeNull();
     expect(screen.queryByTestId('meeting-entry-recording-incomplete-transcript')).toBeNull();
@@ -94,6 +97,7 @@ describe('MeetingEntry — honest recording-incomplete state (QA-35 review round
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
+    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
     expect(screen.queryByTestId('meeting-entry-recording-incomplete')).toBeNull();
   });

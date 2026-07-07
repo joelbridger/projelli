@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 213,
         "media": 92,
-        "meetings": 148,
+        "meetings": 165,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -249,7 +249,9 @@ describe('en.json structure snapshot', () => {
     // +20 = R5 Ask layout: answer-scope popover copy + Book Overview helper +
     //       the review-driven i18n sweep (conversation search, pane labels,
     //       source-preview copy moved from hardcoded English to keys).
-    expect(flat.length).toBe(1356); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 5 (R2/R4 catch-up) + 20 (R5 Ask + i18n sweep)
+    // +17 = R7 Meetings round: meeting detail sub-tabs/export/rename copy
+    //      (15) + Notice Card spoken announcement phrases (2).
+    expect(flat.length).toBe(1373); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 5 (R2/R4 catch-up) + 20 (R5 Ask + i18n sweep) + 17 (R7 Meetings)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

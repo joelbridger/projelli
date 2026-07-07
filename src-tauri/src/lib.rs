@@ -313,6 +313,7 @@ pub fn run() {
             commands::notice_card::notice_card_open,
             commands::notice_card::notice_card_close,
             commands::notice_card::notice_card_status,
+            commands::notice_card::notice_card_announce,
             // Wave 3a SSO — firm-tier OIDC desktop dance (loopback + browser).
             commands::firm::sso::firm_sso_authenticate,
             commands::firm::sso::firm_sso_cancel,

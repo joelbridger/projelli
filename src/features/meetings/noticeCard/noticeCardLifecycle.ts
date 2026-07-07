@@ -25,10 +25,14 @@ export interface StartNoticeCardParams {
   record: (event: NoticeCardLedgerEvent) => void;
   /** Status updates for the record pill. */
   onStatus: (status: NoticeCardStatus) => void;
+  /** Spoken once the card is actually admitted into the meeting. */
+  entryAnnouncement?: string;
+  /** Spoken before the card leaves after the advisor stops recording. */
+  stopAnnouncement?: string;
 }
 
 let counter = 0;
-let active: { supervisor: NoticeCardSupervisor; stopPoller: () => void } | null = null;
+let active: { supervisor: NoticeCardSupervisor; stopPoller: () => void; stopAnnouncement?: string } | null = null;
 
 /** Begin one card for the current recording. Tears down any prior card first. */
 export function startNoticeCard(params: StartNoticeCardParams): void {
@@ -50,9 +54,14 @@ export function startNoticeCard(params: StartNoticeCardParams): void {
     onDiagnostic: (e) => {
       console.info(`[notice-card] ${label}`, e);
     },
+    ...(params.entryAnnouncement ? { entryAnnouncement: params.entryAnnouncement } : {}),
   });
   const stopPoller = startStatusPoller(label, supervisor);
-  active = { supervisor, stopPoller };
+  active = {
+    supervisor,
+    stopPoller,
+    ...(params.stopAnnouncement ? { stopAnnouncement: params.stopAnnouncement } : {}),
+  };
   supervisor.start(params.config);
 }
 
@@ -63,14 +72,14 @@ export function startNoticeCard(params: StartNoticeCardParams): void {
  */
 export async function stopNoticeCard(): Promise<void> {
   if (!active) return;
-  const { supervisor, stopPoller } = active;
+  const { supervisor, stopPoller, stopAnnouncement } = active;
   active = null;
   try {
     stopPoller();
   } catch {
     /* ignore */
   }
-  await supervisor.stop();
+  await supervisor.stop(stopAnnouncement);
 }
 
 /** Test-only: is a card currently active? */

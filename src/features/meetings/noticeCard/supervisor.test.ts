@@ -40,10 +40,12 @@ class FakeClock {
 class FakeDriver implements NoticeCardDriver {
   opens: NoticeCardConfig[] = [];
   closes = 0;
+  announcements: string[] = [];
   private hangNextClose = false;
   private deferNext = false;
   private pendingOpenResolve: (() => void) | null = null;
   private pendingOpenReject: ((e: unknown) => void) | null = null;
+  private rejectNextOpen = false;
   private rejectNextClose = false;
   makeNextCloseHang() {
     this.hangNextClose = true;
@@ -67,8 +69,15 @@ class FakeDriver implements NoticeCardDriver {
     this.pendingOpenReject = null;
     r?.(new Error('open failed'));
   }
+  makeNextOpenReject() {
+    this.rejectNextOpen = true;
+  }
   open(config: NoticeCardConfig): Promise<void> {
     this.opens.push(config);
+    if (this.rejectNextOpen) {
+      this.rejectNextOpen = false;
+      return Promise.reject(new Error('open failed with HRESULT 0x8007139F'));
+    }
     if (this.deferNext) {
       this.deferNext = false;
       return new Promise<void>((res, rej) => {
@@ -90,6 +99,10 @@ class FakeDriver implements NoticeCardDriver {
     }
     return Promise.resolve();
   }
+  announce(text: string): Promise<void> {
+    this.announcements.push(text);
+    return Promise.resolve();
+  }
 }
 
 const CONFIG: NoticeCardConfig = {
@@ -105,13 +118,14 @@ function make() {
   const driver = new FakeDriver();
   const ledger: NoticeEntry[] = [];
   const statuses: string[] = [];
-  const diagnostics: Array<{ kind: string; reason?: string }> = [];
+  const diagnostics: Array<{ kind: string; reason?: string; message?: string; stage?: string; willRetry?: boolean }> = [];
   const sup = new NoticeCardSupervisor({
     driver,
     clock,
     record: (e) => ledger.push(e),
     onStatus: (s) => statuses.push(s.phase),
     onDiagnostic: (d) => diagnostics.push(d),
+    entryAnnouncement: 'This meeting is being recorded',
   });
   return { clock, driver, ledger, statuses, diagnostics, sup };
 }
@@ -144,6 +158,17 @@ describe('NoticeCardSupervisor — happy path', () => {
       'notice-card-left',
       'notice-card-present-for-entire-recording',
     ]);
+    expect(h.sup.status.phase).toBe('left');
+  });
+
+  it('speaks the entry phrase on admission and the stop phrase before leaving', async () => {
+    h.sup.start(CONFIG);
+    h.sup.handleAdmitted();
+    await Promise.resolve();
+    expect(h.driver.announcements).toContain('This meeting is being recorded');
+
+    await h.sup.stop('Recording stopped');
+    expect(h.driver.announcements).toContain('Recording stopped');
     expect(h.sup.status.phase).toBe('left');
   });
 });
@@ -424,6 +449,28 @@ describe('NoticeCardSupervisor — one pre-admission retry (the no-knock fix)', 
     expect(kindsSeen).toContain('terminal');
     // The retry breadcrumb records that a second attempt happened.
     expect(h.diagnostics.filter((d) => d.kind === 'attempt').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('logs the real driver.open error and retries one open failure', async () => {
+    const h = make();
+    h.driver.makeNextOpenReject();
+    h.sup.start(CONFIG);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.driver.opens).toHaveLength(2);
+    const openFailed = h.diagnostics.find((d) => d.kind === 'open-failed');
+    expect(openFailed?.message).toContain('HRESULT');
+    expect(openFailed?.willRetry).toBe(true);
+    expect(h.sup.status.phase).toBe('joining');
+  });
+
+  it('includes the stalled stage in join-timeout telemetry', () => {
+    const h = make();
+    h.sup.start(CONFIG);
+    h.sup.handleLobby();
+    h.clock.advance(200_000);
+    const giveup = h.diagnostics.find((d) => d.kind === 'pre-admit-giveup' && d.reason === 'join-timeout');
+    expect(giveup?.stage).toBe('lobby');
   });
 });
 
