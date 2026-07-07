@@ -102,10 +102,18 @@ function validate(c) {
     if (!c.colors?.[k]) errs.push(`colors.${k} is required`);
     else if (!/^#[0-9a-fA-F]{6}$/.test(c.colors[k])) errs.push(`colors.${k} must be 6-digit hex (#rrggbb), got "${c.colors[k]}"`);
   }
-  for (const [key, p] of Object.entries(c.assets || {})) {
-    if (key.startsWith('_')) continue;
-    const ap = path.join(ROOT, 'brand', p);
-    if (!exists(ap)) errs.push(`assets.${key} points at brand/${p} which does not exist — drop the file there`);
+  const requiredAssets = ['faviconSvg', 'logoSvg', 'logoSvgDark', 'logoSvgWhite', 'ogImage'];
+  if (!c.assets) {
+    errs.push('assets block is required');
+  } else {
+    for (const key of requiredAssets) {
+      if (!c.assets[key]) errs.push(`assets.${key} is required`);
+    }
+    for (const [key, p] of Object.entries(c.assets)) {
+      if (key.startsWith('_')) continue;
+      const ap = path.join(ROOT, 'brand', p);
+      if (!exists(ap)) errs.push(`assets.${key} points at brand/${p} which does not exist — drop the file there`);
+    }
   }
   if (!c.lockedIdentifiers) errs.push('lockedIdentifiers block is required (the safety list)');
   if (errs.length) die(`config invalid:\n   - ${errs.join('\n   - ')}`);
@@ -153,6 +161,8 @@ const ASSET_COPIES = [
   ['faviconSvg', 'public/favicon.svg'],
   ['faviconSvg', 'website/favicon.svg'],
   ['logoSvg', 'public/logo.svg'],
+  ['logoSvgDark', 'public/logo-dark.svg'],
+  ['logoSvgWhite', 'public/logo-white.svg'],
   ['logoSvgWhite', 'website/logo-white.svg'],
   ['ogImage', 'website/og-image.png'],
   ['iconSource', 'src-tauri/icons/icon.png'],
@@ -276,6 +286,12 @@ function brandTs() {
       meta: cfg.descriptions?.meta ?? '',
     },
     colors: { navy: col.navy, pink: col.pink, blue: col.blue, accent: col.accent },
+    assets: {
+      favicon: '/favicon.svg',
+      logo: '/logo.svg',
+      logoDark: '/logo-dark.svg',
+      logoWhite: '/logo-white.svg',
+    },
     messaging: {
       onboardingHeadline: cfg.messaging?.onboardingHeadline ?? '',
       redlineAuthor: cfg.messaging?.redlineAuthor ?? `${cfg.name} AI`,
