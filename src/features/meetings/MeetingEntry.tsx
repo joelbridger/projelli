@@ -126,6 +126,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     setExporting(null);
     setExportNotice(null);
     setNotices([]);
+    setRetryingNotes(false);
+    setRetryingTranscript(false);
     didInitialSeek.current = false;
     // eslint-disable-next-line lantern-async/no-silent-failure -- each meeting-file read below renders a safe empty/pending state on failure
     void (async () => {
@@ -279,26 +281,41 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // manual reload.
   const handleRetryNotes = useCallback(async () => {
     const ws = workspaceService;
+    const token = meetingLoadToken.current;
+    const isCurrentLoad = () => token === meetingLoadToken.current;
     setRetryingNotes(true);
     try {
       await retryMeetingNotes(meetingDir, matterId);
     } finally {
-      setRetryingNotes(false);
+      if (isCurrentLoad()) setRetryingNotes(false);
     }
-    if (!ws) return;
+    if (!ws || !isCurrentLoad()) return;
     try {
-      setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
+      const raw = await ws.readFile(`${meetingDir}/meeting.json`);
+      if (isCurrentLoad()) setMeta(JSON.parse(raw) as MeetingMeta);
     } catch {
-      setMeta(null);
+      if (isCurrentLoad()) setMeta(null);
     }
     try {
       // codex-review (coordinator P2): notes.docx is binary — reading it as
       // text can throw on real docx bytes even though the write succeeded,
       // which would have fallen back to the "still generating" state right
       // after a SUCCESSFUL retry. exists() is a decode-free presence check.
-      setHasNotes(await ws.exists(`${meetingDir}/notes.docx`));
+      const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
+      if (!isCurrentLoad()) return;
+      setHasNotes(notesExists);
+      if (notesExists) {
+        const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
+        const extracted = await extractDocxText(notesBytes);
+        if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+      } else {
+        setSummaryText('');
+      }
     } catch {
-      setHasNotes(false);
+      if (isCurrentLoad()) {
+        setHasNotes(false);
+        setSummaryText('');
+      }
     }
   }, [meetingDir, matterId, workspaceService]);
 
@@ -307,28 +324,32 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // transcript.json so the pane reflects the outcome without a manual reload.
   const handleRetryTranscript = useCallback(async () => {
     const ws = workspaceService;
+    const token = meetingLoadToken.current;
+    const isCurrentLoad = () => token === meetingLoadToken.current;
     setRetryingTranscript(true);
     try {
       await retryMeetingTranscript(meetingDir, workspaceRoot, matterId);
     } finally {
-      setRetryingTranscript(false);
+      if (isCurrentLoad()) setRetryingTranscript(false);
     }
-    if (!ws) return;
+    if (!ws || !isCurrentLoad()) return;
     try {
-      setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
+      const raw = await ws.readFile(`${meetingDir}/meeting.json`);
+      if (isCurrentLoad()) setMeta(JSON.parse(raw) as MeetingMeta);
     } catch {
-      setMeta(null);
+      if (isCurrentLoad()) setMeta(null);
     }
     try {
       const raw = await ws.readFile(`${meetingDir}/transcript.json`);
-      setTranscript(JSON.parse(raw) as TranscriptFile);
+      if (isCurrentLoad()) setTranscript(JSON.parse(raw) as TranscriptFile);
     } catch {
-      setTranscript(null);
+      if (isCurrentLoad()) setTranscript(null);
     }
     try {
-      setHasNotes(await ws.exists(`${meetingDir}/notes.docx`));
+      const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
+      if (isCurrentLoad()) setHasNotes(notesExists);
     } catch {
-      setHasNotes(false);
+      if (isCurrentLoad()) setHasNotes(false);
     }
   }, [meetingDir, matterId, workspaceRoot, workspaceService]);
 

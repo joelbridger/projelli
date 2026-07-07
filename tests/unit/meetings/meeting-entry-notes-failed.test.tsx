@@ -4,7 +4,7 @@
  * the generic "still generating" copy (which would otherwise read as an
  * eternal wait even though the pipeline already gave up).
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 const { retryMeetingNotesMock } = vi.hoisted(() => ({ retryMeetingNotesMock: vi.fn(async () => {}) }));
@@ -12,6 +12,12 @@ vi.mock('@/features/meetings/meetingStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/features/meetings/meetingStore')>();
   return { ...actual, retryMeetingNotes: retryMeetingNotesMock };
 });
+
+vi.mock('@/platform/utils/docx-io', () => ({
+  extractDocxText: vi.fn(async () => ({ html: '<p>Retried summary</p>', plainText: 'Retried summary' })),
+  markdownToDocxBytes: vi.fn(async () => new Uint8Array([1, 2, 3])),
+  applyLetterheadIfConfigured: vi.fn(async (bytes: Uint8Array) => bytes),
+}));
 
 // MeetingEntry mounts DocxEditor via a real dynamic import(), unrelated to
 // this test's actual subject (the pending/failed/notesError copy logic — no
@@ -59,6 +65,7 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-summary').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
     expect(screen.queryByTestId('meeting-entry-notes-pending')).toBeNull();
@@ -80,6 +87,7 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-summary').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
     expect(screen.getByTestId('meeting-entry-notes-failed').textContent).toMatch(/respond in time/i);
@@ -94,6 +102,7 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-summary').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
     const text = screen.getByTestId('meeting-entry-notes-failed').textContent ?? '';
@@ -115,7 +124,7 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
   // docx bytes even though the file is right there on disk — which, before
   // this fix, meant a SUCCESSFUL retry could still fall back to "notes are
   // being written" forever, recreating the exact confusion QA-31 fixed.
-  it('flips to hasNotes after a successful retry even though notes.docx cannot be decoded as text (binary content)', async () => {
+  it('flips to hasNotes and loads the summary text after a successful retry even though notes.docx cannot be decoded as text (binary content)', async () => {
     retryMeetingNotesMock.mockClear();
     let retried = false;
     retryMeetingNotesMock.mockImplementationOnce(async () => { retried = true; });
@@ -133,13 +142,17 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
         if (path.endsWith('notes.docx')) throw new Error('stream did not contain valid UTF-8');
         throw new Error('not present');
       }),
-      readFileBinary: vi.fn(async () => { throw new Error('no audio'); }),
+      readFileBinary: vi.fn(async (path: string) => {
+        if (retried && path.endsWith('notes.docx')) return new Uint8Array([80, 75, 3, 4]).buffer;
+        throw new Error('no audio');
+      }),
       exists: vi.fn(async (path: string) => retried && path.endsWith('notes.docx')),
       writeFile: vi.fn(async () => {}),
       delete: vi.fn(async () => {}),
     };
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-summary').click();
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
 
     screen.getByTestId('meeting-entry-retry-notes').click();
@@ -147,6 +160,66 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     await waitFor(() => {
       expect(screen.queryByTestId('meeting-entry-notes-pending')).toBeNull();
       expect(screen.queryByTestId('meeting-entry-notes-failed')).toBeNull();
+      expect(screen.getByTestId('meeting-summary-text').textContent).toContain('Retried summary');
+    });
+  });
+
+  it('drops a notes retry result when the advisor switches to another meeting before it finishes', async () => {
+    retryMeetingNotesMock.mockClear();
+    let retried = false;
+    let resolveRetry!: () => void;
+    retryMeetingNotesMock.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveRetry = () => {
+        retried = true;
+        resolve();
+      };
+    }));
+
+    const files = new Map<string, Record<string, unknown>>();
+    files.set('/ws/C/Meetings/A/meeting.json', {
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      customTitle: 'Meeting A',
+      notesError: { kind: 'error', at: '2026-07-04T10:05:00Z' },
+    });
+    files.set('/ws/C/Meetings/B/meeting.json', {
+      matterId: 'm-1',
+      startedAt: '2026-07-05T10:00:00Z',
+      customTitle: 'Meeting B',
+    });
+    const ws = {
+      readFile: vi.fn(async (path: string) => {
+        const value = files.get(path);
+        if (!value) throw new Error(`missing ${path}`);
+        return JSON.stringify(value);
+      }),
+      readFileBinary: vi.fn(async (path: string) => {
+        if (retried && path === '/ws/C/Meetings/A/notes.docx') return new Uint8Array([80, 75, 3, 4]).buffer;
+        throw new Error(`missing binary ${path}`);
+      }),
+      exists: vi.fn(async (path: string) => retried && path === '/ws/C/Meetings/A/notes.docx'),
+      writeFile: vi.fn(async () => {}),
+      delete: vi.fn(async () => {}),
+    };
+
+    const { rerender } = render(
+      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/A" folderName="A" workspaceService={ws as never} />,
+    );
+    screen.getByTestId('meeting-subtab-summary').click();
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-failed')).toBeTruthy());
+
+    screen.getByTestId('meeting-entry-retry-notes').click();
+    rerender(
+      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/B" folderName="B" workspaceService={ws as never} />,
+    );
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
+
+    await act(async () => { resolveRetry(); });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy();
+      expect(screen.queryByTestId('meeting-entry-summary-not-ready')).toBeNull();
+      expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
     });
   });
 
@@ -158,6 +231,7 @@ describe('MeetingEntry — honest notes-failed state (QA-31)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-summary').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
     expect(screen.queryByTestId('meeting-entry-notes-failed')).toBeNull();
