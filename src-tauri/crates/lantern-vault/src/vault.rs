@@ -83,12 +83,10 @@ pub fn decrypt_file_to_disk(path: impl AsRef<Path>, vmk: &[u8; 32]) -> Result<()
 /// Returns true if a filename should be excluded from vault walks.
 ///
 /// Excluded:
-/// - `.lantern-vault.json` (and the legacy `.keepance-vault.json`) — vault metadata
+/// - `.lantern-vault.json` — vault metadata
 /// - `.kpv-tmp-*`           — orphan temp files (handled by `sweep_temps`)
 fn should_skip_filename(name: &str) -> bool {
-    name == ".lantern-vault.json"
-        || name == ".keepance-vault.json"
-        || name.starts_with(".kpv-tmp-")
+    name == ".lantern-vault.json" || name.starts_with(".kpv-tmp-")
 }
 
 /// Returns true if a DIRECTORY (by name) must NOT be walked into.
@@ -104,16 +102,10 @@ fn should_skip_filename(name: &str) -> bool {
 /// Other dot-dirs (`.versions/`, `.trash/`, `AI Chats/`) ARE walked: they are accessed
 /// only through `WorkspaceService`, so encrypting them is correct and transparent.
 ///
-/// This also skips the LEGACY `.keepance` data dir and the migration's quarantined
-/// stub dirs (`.lantern.pre-migration-stub*`) so that, in the rare both-exist /
-/// fail-safe / quarantine states of the `.keepance` → `.lantern` data-folder
-/// rename migration, the vault never descends into and KPV1-corrupts those
-/// raw-read internal stores.
+/// This also skips the `.lantern` data dir so the vault never descends into and
+/// KPV1-corrupts raw-read internal stores.
 fn should_skip_dirname(name: &str) -> bool {
     name == ".lantern"
-        || name == ".keepance"
-        || name.starts_with(".lantern.pre-migration-stub")
-        || name.starts_with(".keepance.pre-migration-stub")
 }
 
 /// Recursively encrypt every eligible file under `root` using `vmk`.
@@ -171,7 +163,7 @@ where
             .map_err(|e| VaultError::io(&path, e))?;
 
         if file_type.is_dir() {
-            // Never descend into Keepance-internal store dirs (read raw by other
+            // Never descend into Lantern-internal store dirs (read raw by other
             // subsystems); encrypting their contents would corrupt those stores.
             if should_skip_dirname(&name_str) {
                 continue;
@@ -192,14 +184,9 @@ mod skip_tests {
 
     #[test]
     fn skips_current_and_legacy_data_dirs_and_quarantines() {
-        // Current + legacy internal data dirs must never be descended into and
+        // Current internal data dir must never be descended into and
         // KPV1-encrypted (they hold raw-read SQLCipher/Lance/blob stores).
         assert!(should_skip_dirname(".lantern"));
-        assert!(should_skip_dirname(".keepance"));
-        // Migration quarantine dirs hold preserved internal stores too.
-        assert!(should_skip_dirname(".lantern.pre-migration-stub"));
-        assert!(should_skip_dirname(".lantern.pre-migration-stub-3"));
-        assert!(should_skip_dirname(".keepance.pre-migration-stub"));
         // Ordinary dirs ARE walked (encrypted transparently).
         assert!(!should_skip_dirname("docs"));
         assert!(!should_skip_dirname(".versions"));
@@ -207,9 +194,8 @@ mod skip_tests {
     }
 
     #[test]
-    fn skips_current_and_legacy_vault_metadata_and_temps() {
+    fn skips_current_vault_metadata_and_temps() {
         assert!(should_skip_filename(".lantern-vault.json"));
-        assert!(should_skip_filename(".keepance-vault.json"));
         assert!(should_skip_filename(".kpv-tmp-abc123"));
         assert!(!should_skip_filename("contract.docx"));
         assert!(!should_skip_filename("memory.json"));

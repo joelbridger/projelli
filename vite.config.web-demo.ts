@@ -1,12 +1,12 @@
 /**
  * Stream D-web Group II · Task 2.1
  *
- * Vite build target for the keepance.com/try web demo.
+ * Vite build target for the lantern.com/try web demo.
  *
- * Outputs to `dist-web-demo/`. Sets `__KEEPANCE_DEMO__` so the demo-only
+ * Outputs to `dist-web-demo/`. Sets `__LANTERN_DEMO__` so the demo-only
  * surfaces (`src/web-demo/*`) are tree-shaken into the desktop build only
  * when this flag is true. Base path is `/try/` so the bundle resolves
- * assets correctly when Caddy serves it under `keepance.com/try/`.
+ * assets correctly when Caddy serves it under `lantern.com/try/`.
  *
  * Mounts a separate entry (`src/web-demo/main.tsx`) and a separate
  * `index.demo.html` so the desktop build's index.html stays untouched.
@@ -30,9 +30,9 @@ export default mergeConfig(
   defineConfig({
     base: '/try/',
     define: {
-      __KEEPANCE_DEMO__: 'true',
-      __KEEPANCE_DESKTOP__: 'false',
-      __KEEPANCE_VERSION__: JSON.stringify(packageJson.version),
+      __LANTERN_DEMO__: 'true',
+      __LANTERN_DESKTOP__: 'false',
+      __LANTERN_VERSION__: JSON.stringify(packageJson.version),
     },
     build: {
       outDir: 'dist-web-demo',

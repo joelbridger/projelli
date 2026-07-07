@@ -4,7 +4,7 @@
  * resolveLocalGenerationProvider is the single source of truth used by every
  * surface that runs inference locally (Ask / Chat, Client Map, Matter-at-a-
  * Glance, email "Draft with AI", and the Workflow engine). The rule: prefer the
- * embedded Keepance Local AI when its model is downloaded + READY, else fall
+ * embedded Lantern Local AI when its model is downloaded + READY, else fall
  * back to the user's Ollama daemon. Both stay on-device — this only changes
  * WHICH local engine runs, never whether anything leaves.
  *
@@ -31,11 +31,11 @@ beforeEach(() => {
 });
 
 describe('resolveLocalGenerationProvider', () => {
-  it('embedded model READY → embedded Keepance Local AI', async () => {
+  it('embedded model READY → embedded Lantern Local AI', async () => {
     mocks.status.mockResolvedValue('ready');
     const r = await resolveLocalGenerationProvider();
-    expect(r.providerId).toBe('keepance-local');
-    expect(r.provider.getMetadata().providerId).toBe('keepance-local');
+    expect(r.providerId).toBe('lantern-local');
+    expect(r.provider.getMetadata().providerId).toBe('lantern-local');
   });
 
   it('embedded model ABSENT → the user Ollama daemon', async () => {

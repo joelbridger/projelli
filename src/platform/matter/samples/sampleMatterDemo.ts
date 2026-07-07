@@ -165,7 +165,7 @@ export function getDemoQuestions(profession: Profession): [string, string, strin
 export const DEMO_QUESTIONS: [string, string, string, string] = DEMO_QUESTIONS_BY_PROFESSION.legal;
 
 /**
- * Suggested questions for the WEB demo's advisor pack (keepance.com/try).
+ * Suggested questions for the WEB demo's advisor pack (lantern.com/try).
  *
  * The web demo seeds the Webb household (see src/web-demo/seedWebDemoClientMap),
  * which is a DIFFERENT household from the desktop advisor sample (the

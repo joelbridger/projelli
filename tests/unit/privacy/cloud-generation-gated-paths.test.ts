@@ -143,7 +143,7 @@ vi.mock('@/platform/providers/providerFactory', async () => {
         default: throw new Error(`Unmocked provider: ${opts.provider}`);
       }
     },
-    isLocalProviderId: (provider: string) => provider === 'ollama' || provider === 'keepance-local',
+    isLocalProviderId: (provider: string) => provider === 'ollama' || provider === 'lantern-local',
   };
 });
 

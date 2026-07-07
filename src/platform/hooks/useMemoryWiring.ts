@@ -20,7 +20,7 @@
 import { useEffect, useRef } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { workspacePath, isAbsolutePath, joinWorkspacePath } from '@/platform/fs/appPath';
-import { WORKSPACE_DATA_DIR, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
+import { WORKSPACE_DATA_DIR } from '@/config/identity';
 import {
   isOcrScannedPdfsEnabled,
   isPdfIndexingEnabled,
@@ -215,16 +215,11 @@ function toForwardSlashPath(path: string): string {
  * were re-indexed on every change — keeping LanceDB perpetually busy and
  * starving the on-demand Ask retrieval into an indefinite hang. Matches a
  * `.lantern` path SEGMENT (not a substring) across both separators, so a real
- * user file whose name merely contains ".lantern" is unaffected. Also matches the
- * legacy `.keepance` segment, so the internal dir is skipped in the data-dir
- * migration fail-safe state (where `.keepance` is still the live data dir).
+ * user file whose name merely contains ".lantern" is unaffected.
  */
 export function isInternalWorkspacePath(path: string): boolean {
   const segments = toForwardSlashPath(path).split('/');
-  return (
-    segments.includes(WORKSPACE_DATA_DIR) ||
-    segments.includes(LEGACY_WORKSPACE_DATA_DIR)
-  );
+  return segments.includes(WORKSPACE_DATA_DIR);
 }
 
 /**
@@ -2040,10 +2035,8 @@ export function useMemoryWiring(
     // constant across the async closure below.
     const guard = { cancelled: false };
     const storage = buildFactsStorage(workspaceService, rootPath);
-    // Resolve the LIVE data-dir name (`.lantern`, or the legacy `.keepance` in the
-    // migration fail-safe) so facts read/write the same folder the Rust stores
-    // use. Without this, a first-ever facts write in the fail-safe state would
-    // seed the stub `.lantern` and strand the workspace on the next launch.
+    // Resolve the data-dir name once per workspace open, so facts read/write the
+    // same folder the Rust stores use.
     // Falls back to the default (`.lantern`) in the browser / on any error.
     void (async () => {
       let dataDirName: string | undefined;

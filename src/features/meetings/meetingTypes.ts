@@ -83,7 +83,7 @@ export interface MeetingTypesStorage {
   writeFile(path: string, content: string): Promise<void>;
 }
 
-const STORAGE_PATH = '.keepance/meeting-types.json';
+const STORAGE_PATH = '.lantern/meeting-types.json';
 
 export function makeMeetingTypesStore(ws: MeetingTypesStorage) {
   async function load(): Promise<MeetingTypesFile> {

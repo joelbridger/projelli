@@ -2,7 +2,7 @@
  * FactsService — CRUD through a mocked in-memory storage adapter, with
  * atomic-write semantics verified via write-call ordering.
  *
- * The service is the single source of truth for `<workspace>/.keepance/memory.json`,
+ * The service is the single source of truth for `<workspace>/.lantern/memory.json`,
  * so we pin:
  *   - empty-file on first load (no side effects)
  *   - addFact round-trips through serialize/parse
@@ -18,7 +18,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createFactsService,
   FACTS_FILE_RELATIVE_PATH,
-  LEGACY_FACTS_FILE_RELATIVE_PATH,
   FACTS_SCHEMA_VERSION,
   parseMemoryFactsJson,
   serializeMemoryFacts,
@@ -102,11 +101,11 @@ describe('FactsService — addFact / updateFact / deleteFact', () => {
   it('adds a fact and stamps id + created', async () => {
     const { service } = makeService();
     const added = await service.addFact({
-      text: 'The user ships products using Keepance.',
+      text: 'The user ships products using Lantern.',
       approved_by: 'user',
     });
     expect(added.id).toBe('fact-1');
-    expect(added.text).toBe('The user ships products using Keepance.');
+    expect(added.text).toBe('The user ships products using Lantern.');
     expect(added.created).toBe('2026-04-16T12:00:00.000Z');
     expect(added.approved_by).toBe('user');
     const facts = await service.listFacts();
@@ -240,33 +239,27 @@ describe('FactsService — schema version + corruption handling', () => {
     expect(parsed.facts[0]?.text).toBe('A');
   });
 
-  // Data-dir migration fail-safe: the live data dir is the legacy `.keepance`
-  // (rename could not complete). Keyed on the LIVE dir name, facts read from and
-  // write to `.keepance/memory.json` — never the stub `.lantern`.
-  it('reads existing legacy facts when the live dir is .keepance', async () => {
+  it('ignores stale .keepance data-dir names after the approved dev-data reset', async () => {
     const mock = makeStorageMock();
     mock.files.set(
-      LEGACY_FACTS_FILE_RELATIVE_PATH,
+      '.keepance/memory.json',
       JSON.stringify({ version: FACTS_SCHEMA_VERSION, facts: [{ id: 'a', text: 'legacy', created: 'c', approved_by: 'user' }] }),
     );
     const service = createFactsService({ storage: mock.storage, dataDirName: '.keepance' });
 
     const loaded = await service.loadFacts();
-    expect(loaded.facts[0]?.text).toBe('legacy');
+    expect(loaded.facts).toEqual([]);
   });
 
-  // P1 (Codex round 2): fail-safe live-legacy with NO facts file yet — the FIRST
-  // write must land in `.keepance` (the live folder), NEVER seed the stub
-  // `.lantern`, which the next migration would adopt and strand the workspace.
-  it('first-ever facts write lands in the live legacy dir (never seeds the stub .lantern)', async () => {
+  it('first-ever facts write uses .lantern even if a stale data-dir name is supplied', async () => {
     const mock = makeStorageMock();
     const service = createFactsService({ storage: mock.storage, dataDirName: '.keepance' });
 
     await service.addFact({ text: 'first', approved_by: 'user' });
 
-    expect(mock.files.has(LEGACY_FACTS_FILE_RELATIVE_PATH)).toBe(true);
-    expect(mock.files.has(FACTS_FILE_RELATIVE_PATH)).toBe(false);
-    expect(mock.writes.some((p) => p.startsWith(FACTS_FILE_RELATIVE_PATH))).toBe(false);
+    expect(mock.files.has(FACTS_FILE_RELATIVE_PATH)).toBe(true);
+    expect(mock.files.has('.keepance/memory.json')).toBe(false);
+    expect(mock.writes.some((p) => p.startsWith('.keepance/'))).toBe(false);
   });
 
   it('defaults new facts to the current .lantern path when no dataDirName is given', async () => {
@@ -274,6 +267,6 @@ describe('FactsService — schema version + corruption handling', () => {
     const service = createFactsService({ storage: mock.storage });
     await service.addFact({ text: 'fresh', approved_by: 'user' });
     expect(mock.files.has(FACTS_FILE_RELATIVE_PATH)).toBe(true);
-    expect(mock.files.has(LEGACY_FACTS_FILE_RELATIVE_PATH)).toBe(false);
+    expect(mock.files.has('.keepance/memory.json')).toBe(false);
   });
 });

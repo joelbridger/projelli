@@ -5,7 +5,7 @@
  *   - missing/extra steps
  *   - missing console or billing URLs
  *   - empty title/body
- *   - em dashes (banned in all Keepance copy)
+ *   - em dashes (banned in all Lantern copy)
  *   - banned marketing words
  */
 import { describe, it, expect } from 'vitest';

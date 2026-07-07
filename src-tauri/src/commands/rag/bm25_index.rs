@@ -588,7 +588,7 @@ mod tests {
     fn note_built_for_tags_workspace() {
         let mut idx = build(vec![e("c1", "m1", "x")], 3);
         assert_eq!(idx.built_for(), None, "rebuild_from alone leaves workspace untagged");
-        let dir = std::path::Path::new("/ws/a/.keepance/vectors");
+        let dir = std::path::Path::new("/ws/a/.lantern/vectors");
         idx.note_built_for(dir);
         assert_eq!(idx.built_for(), Some(dir));
     }

@@ -724,32 +724,32 @@ mod tests {
         #[test]
         fn strips_the_plain_verbatim_prefix() {
             assert_eq!(
-                display_path(Path::new(r"\\?\C:\Users\Jane\Keepance\Clients\Acme")),
-                r"C:\Users\Jane\Keepance\Clients\Acme"
+                display_path(Path::new(r"\\?\C:\Users\Jane\Lantern\Clients\Acme")),
+                r"C:\Users\Jane\Lantern\Clients\Acme"
             );
         }
 
         #[test]
         fn strips_the_unc_verbatim_prefix_and_restores_the_plain_unc_form() {
             assert_eq!(
-                display_path(Path::new(r"\\?\UNC\server\share\Keepance\Clients\Acme")),
-                r"\\server\share\Keepance\Clients\Acme"
+                display_path(Path::new(r"\\?\UNC\server\share\Lantern\Clients\Acme")),
+                r"\\server\share\Lantern\Clients\Acme"
             );
         }
 
         #[test]
         fn is_a_no_op_for_an_already_plain_windows_path() {
             assert_eq!(
-                display_path(Path::new(r"C:\Users\Jane\Keepance\Clients\Acme")),
-                r"C:\Users\Jane\Keepance\Clients\Acme"
+                display_path(Path::new(r"C:\Users\Jane\Lantern\Clients\Acme")),
+                r"C:\Users\Jane\Lantern\Clients\Acme"
             );
         }
 
         #[test]
         fn is_a_no_op_for_a_unix_path() {
             assert_eq!(
-                display_path(Path::new("/home/jane/keepance/Clients/Acme")),
-                "/home/jane/keepance/Clients/Acme"
+                display_path(Path::new("/home/jane/lantern/Clients/Acme")),
+                "/home/jane/lantern/Clients/Acme"
             );
         }
     }

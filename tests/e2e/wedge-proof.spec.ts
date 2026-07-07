@@ -279,7 +279,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
     // REFUSED un-skip (fixed on the other 3 tests in this file via
     // BENIGN_RESOURCE_LOAD_FAILURES in tests/campaign/helpers/campaign.ts): the
     // F2.5 file-access-consent gate treated this fixture's `provider: 'mock'` as
-    // cloud (isLocalProviderId only recognizes 'ollama'/'keepance-local') and
+    // cloud (isLocalProviderId only recognizes 'ollama'/'lantern-local') and
     // blocked ambient Ask-my-workspace retrieval pending consent that was never
     // granted, so the send never reached the retrieval-refusal path this test
     // asserts. fix/consent-mock-provider-refusal root-caused and fixed BOTH
@@ -322,7 +322,7 @@ test.describe('VG-1 leg 2 — wedge UI wiring (browser, testMode)', () => {
 
     // The F2.5 file-access consent gate treats ANY non-local provider id —
     // including this fixture's 'mock' — as cloud (isLocalProviderId only
-    // recognizes 'ollama'/'keepance-local'), so the ambient Ask-my-workspace
+    // recognizes 'ollama'/'lantern-local'), so the ambient Ask-my-workspace
     // toggle is paused until file access is granted for this chat. That gate
     // is a separate concern from what THIS test proves (the F-116 honest
     // refusal when retrieval itself fails); grant it here via the real

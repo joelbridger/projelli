@@ -159,7 +159,7 @@ describe('FirmSecurityPack — honest assurance status', () => {
     expect(text).not.toContain('soc 2 compliant');
   });
 
-  it('states that Keepance is not SOC 2 certified', () => {
+  it('states that Lantern is not SOC 2 certified', () => {
     const text = renderAndGetText().toLowerCase();
     expect(text).toContain('not soc 2 certified');
   });

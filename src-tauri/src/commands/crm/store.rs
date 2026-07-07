@@ -29,7 +29,7 @@ const KEY_LEN: usize = 32;
 /// Mirrors `mail::crypto::get_or_create_master_key` exactly — same algorithm,
 /// separate keychain entry so this DB has its own independent key.
 fn crm_master_key() -> Result<[u8; KEY_LEN]> {
-    if let Ok(hex) = std::env::var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX") {
+    if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX") {
         let bytes = hex::decode(hex.trim()).context("decode headless test crm master key hex")?;
         if bytes.len() != KEY_LEN {
             anyhow::bail!(

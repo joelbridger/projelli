@@ -23,11 +23,11 @@ use zeroize::Zeroize;
 
 /// HKDF info string — identifies this key derivation purpose. Versioned so a
 /// future change to the derivation parameters doesn't silently break old wraps.
-const INFO: &[u8] = b"keepance-vault-recovery-kek:v1";
+const INFO: &[u8] = b"lantern-vault-recovery-kek:v1";
 
 /// AAD bound to every recovery-wrap ciphertext. A forged or reused nonce cannot
 /// produce a valid tag without this AAD matching exactly.
-const AAD: &[u8] = b"keepance-vault-recovery:v1";
+const AAD: &[u8] = b"lantern-vault-recovery:v1";
 
 /// Errors that can occur during recovery-phrase operations.
 #[derive(Debug, thiserror::Error)]
@@ -74,7 +74,7 @@ fn derive_kek(entropy: &[u8], salt: &[u8]) -> [u8; 32] {
 ///
 /// Returns `(phrase_string, RecoveryWrap)`. The phrase is the ONLY way to recover
 /// the VMK if the keychain is lost. It must be shown to the user once and never
-/// stored by Keepance.
+/// stored by Lantern.
 ///
 /// Security guarantees:
 /// - The 256-bit entropy and the derived KEK are zeroized after use.

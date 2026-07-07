@@ -19,7 +19,7 @@ import type { ProviderType } from '@/platform/providers/fetchUtils';
 import { skModelsCache } from '@/config/identity';
 
 /** The provider ids the chat can target. Mirrors AIChatFile['provider']. */
-export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
 
 /**
  * Tri-state availability of the embedded Advisor Prep Hero Local AI model, as the chat's
@@ -64,7 +64,7 @@ export function localModelAvailability(
  * "data leaves" and a send could route to the cloud. The fix maps the four cases
  * honestly:
  *   - saved provider set      -> honour it (an explicit choice is never unknown);
- *   - unset + local 'ready'    -> 'keepance-local' (the honest on-device default);
+ *   - unset + local 'ready'    -> 'lantern-local' (the honest on-device default);
  *   - unset + local 'absent'   -> the first provider the user has a VALID key for
  *                                 (key-aware path), else 'none' (NO_AI_PROVIDER):
  *                                 no provider is configured, so the badge reads
@@ -90,7 +90,7 @@ export function effectiveChatProvider(
   availableValidProviders?: ChatProvider[],
 ): ChatProvider | 'none' | null {
   if (saved) return saved;
-  if (local === 'ready') return 'keepance-local';
+  if (local === 'ready') return 'lantern-local';
   if (local === 'unknown') return null; // probe pending; caller shows "Checking" + disables send
   // local === 'absent': we KNOW there is no usable on-device model.
   if (availableValidProviders !== undefined) {
@@ -123,8 +123,8 @@ export const FALLBACK_MODEL: Record<ChatProvider, string> = {
   // Advisor Prep Hero Local AI (embedded llama.cpp) serves whichever GGUF is loaded; the
   // model id is cosmetic, so — like ollama — there's no fallback model and the
   // picker offers it as a selectable "Default model" that lets the provider use
-  // its own default (KEEPANCE_LOCAL_DEFAULT_MODEL).
-  'keepance-local': '',
+  // its own default (LANTERN_LOCAL_DEFAULT_MODEL).
+  'lantern-local': '',
 };
 
 /** Type guard: is this id one of the three cloud providers? */

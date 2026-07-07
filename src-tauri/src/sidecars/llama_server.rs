@@ -200,7 +200,7 @@ impl LlamaServerSidecar {
     /// comes back with no generated text.
     async fn warmup_probe(&self) -> Result<()> {
         let body = serde_json::json!({
-            "model": "keepance-local",
+            "model": "lantern-local",
             "messages": [{ "role": "user", "content": "Hi" }],
             "max_tokens": WARMUP_PROBE_MAX_TOKENS,
             "temperature": 0,

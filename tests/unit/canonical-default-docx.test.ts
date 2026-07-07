@@ -1,6 +1,6 @@
 // WS-A / A5 — canonical default document format is Word (.docx).
 //
-// Keepance 3.0 made `.docx` the canonical document format, so creating a NEW
+// Lantern 3.0 made `.docx` the canonical document format, so creating a NEW
 // document defaults to `.docx` (the user can still pick Markdown / Plain Text
 // for notes). This locks the setting default + option set so the
 // "New Document" action creates a `.docx` opened in the Word editor.

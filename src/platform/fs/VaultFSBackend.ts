@@ -9,7 +9,7 @@
  * Everything else (`list`, `exists`, `delete`, `move`, `copy`, `rename`,
  * `mkdir`, `stat`, `isSymlink`, `resolveSymlink`, `getRootPath`, `setRootPath`)
  * delegates to the wrapped `inner` backend unchanged.  The one exception:
- *   - `list` delegates to `inner` but FILTERS OUT `.keepance-vault.json` and
+ *   - `list` delegates to `inner` but FILTERS OUT `.lantern-vault.json` and
  *     any `.kpv-tmp-*` entries so internal vault files never appear in the UI.
  *
  * ## Bytes over Tauri IPC
@@ -36,19 +36,10 @@ import { invoke } from '@tauri-apps/api/core';
 import type { FSBackend, FileStat, SetRootPathOptions } from './types';
 import type { FileNode } from '@/platform/types/workspace';
 
-import { VAULT_METADATA_FILENAME, LEGACY_WORKSPACE_DATA_DIR } from '@/config/identity';
+import { VAULT_METADATA_FILENAME } from '@/config/identity';
 
 /** Vault metadata filename — never surfaced to callers via list(). */
 const VAULT_METADATA = VAULT_METADATA_FILENAME;
-
-/**
- * Legacy (pre-rename) vault metadata filename. In the rare both-metadata
- * conflict state of the `.keepance` → `.lantern` migration, this file is
- * PRESERVED on disk as the manual recovery copy — so it must also be hidden from
- * the file tree, or the user could delete the only recovery path for files
- * encrypted under the old vault key.
- */
-const LEGACY_VAULT_METADATA = `${LEGACY_WORKSPACE_DATA_DIR}-vault.json`;
 
 /** Prefix for atomic-write temporary files — also hidden from list(). */
 const KPV_TMP_PREFIX = '.kpv-tmp-';
@@ -138,7 +129,7 @@ export class VaultFSBackend implements FSBackend {
    * List directory contents, hiding vault-private entries from callers.
    *
    * Filtered entries:
-   *   - `.keepance-vault.json`  (vault metadata)
+   *   - `.lantern-vault.json`  (vault metadata)
    *   - Any name starting with `.kpv-tmp-` (atomic-write temporary files)
    */
   async list(path: string): Promise<FileNode[]> {
@@ -146,7 +137,6 @@ export class VaultFSBackend implements FSBackend {
     return nodes.filter(
       (n) =>
         n.name !== VAULT_METADATA &&
-        n.name !== LEGACY_VAULT_METADATA &&
         !n.name.startsWith(KPV_TMP_PREFIX),
     );
   }

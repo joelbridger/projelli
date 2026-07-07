@@ -1,7 +1,7 @@
 /**
  * Spine navigation accessibility.
  *
- * Keepance 3.0 replaced the old tablist sidebar with a primary navigation
+ * Lantern 3.0 replaced the old tablist sidebar with a primary navigation
  * spine. The current contract is page-style navigation: each item is a normal
  * button, the selected surface uses aria-current="page", and keyboard users
  * can focus and activate each nav item.

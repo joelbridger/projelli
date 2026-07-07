@@ -71,7 +71,7 @@ describe('resolveNewVersion', () => {
   });
 
   it('promotes a prerelease to its final release on a patch bump, instead of skipping ahead', () => {
-    // Keepance ships RC versions (e.g. 3.3.5-rc.2) before the final release.
+    // Lantern ships RC versions (e.g. 3.3.5-rc.2) before the final release.
     // A "patch" bump on a prerelease should land on the release it's a
     // candidate for, not increment past it to 3.3.6.
     expect(resolveNewVersion('3.3.5-rc.2', 'patch')).toBe('3.3.5');

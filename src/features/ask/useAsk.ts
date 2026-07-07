@@ -477,7 +477,7 @@ export function useAsk({
   //
   // B-PRIV-1: re-resolve whenever the confidentiality mode changes (not just on
   // mount). Without this the badge stayed pinned to the mount-time engine — e.g.
-  // "keepance-local" — so flipping from Local-only to Cloud mid-session left the
+  // "lantern-local" — so flipping from Local-only to Cloud mid-session left the
   // banner falsely claiming "nothing leaves" while the query went to the cloud.
   //
   // HOLE #1 (Codex re-review) — resolution is async, so during the in-flight
@@ -598,7 +598,7 @@ export function useAsk({
 
     let providerAudit:
       | {
-          providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+          providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
           model: string;
         }
       | null = null;

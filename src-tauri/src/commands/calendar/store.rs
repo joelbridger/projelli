@@ -31,7 +31,7 @@ fn calendar_master_key() -> Result<[u8; KEY_LEN]> {
     // keychain read in a sandbox with no Secret Service/D-Bus backend, which
     // blocks indefinitely rather than failing fast — silently making this
     // whole module untestable rather than erroring visibly.
-    if let Ok(hex) = std::env::var("KEEPANCE_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX") {
+    if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX") {
         let bytes =
             hex::decode(hex.trim()).context("decode headless test calendar master key hex")?;
         if bytes.len() != KEY_LEN {

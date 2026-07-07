@@ -1,5 +1,5 @@
 /**
- * LocalAiSettingsControl — the user-facing "Download Keepance Local AI" control.
+ * LocalAiSettingsControl — the user-facing "Download Lantern Local AI" control.
  * Drives the opt-in download: a button when absent, progress while running, a
  * ready confirmation, and a resume affordance on error. Off-desktop it hides.
  */

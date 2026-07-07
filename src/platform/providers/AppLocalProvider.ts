@@ -426,7 +426,7 @@ IMPORTANT: Respond ONLY with the JSON object.`;
   getMetadata(): ProviderMetadata {
     return {
       name: 'Advisor Prep Hero Local AI',
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       model: this.model,
       costPerInputToken: 0,
       costPerOutputToken: 0,

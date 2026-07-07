@@ -188,7 +188,7 @@ pub async fn tts_download_voice(app: AppHandle, voice_id: String) -> Result<Stri
         .await
         .map_err(|e| e.to_string())?;
 
-    let cdn_url = format!("https://keepance.com/voices/{voice_id}.tar.gz");
+    let cdn_url = format!("https://lantern.com/voices/{voice_id}.tar.gz");
     let response = reqwest::get(&cdn_url).await.map_err(|e| e.to_string())?;
 
     if !response.status().is_success() {
@@ -245,7 +245,7 @@ mod tests {
     fn resolve_piper_binary_returns_none_for_nonexistent() {
         // In test context, no Tauri AppHandle is available so we test the
         // path-building logic via the helper function.
-        let fake_root = PathBuf::from("/nonexistent-keepance-test-dir");
+        let fake_root = PathBuf::from("/nonexistent-lantern-test-dir");
         let candidate = fake_root.join("binaries").join(with_platform_ext("piper"));
         assert!(!candidate.exists());
     }

@@ -19,7 +19,7 @@ const OTHER = 'matter_demo_other';
 
 const FILES: DemoFile[] = [
   {
-    path: '/keepance-demo/Webb Household/Financial Plan Summary.md',
+    path: '/lantern-demo/Webb Household/Financial Plan Summary.md',
     content:
       '# Financial Plan Summary: Webb Household\n\n' +
       'Goals: retire at 60, fund both kids college, pay off the house early.\n\n' +
@@ -27,13 +27,13 @@ const FILES: DemoFile[] = [
       'Old employer 401(k) of $96,000 still sitting at the prior custodian, not yet rolled over.',
   },
   {
-    path: '/keepance-demo/Webb Household/Beneficiary Designations.md',
+    path: '/lantern-demo/Webb Household/Beneficiary Designations.md',
     content:
       '# Beneficiary Designations\n\n' +
       'Old 401(k) still lists Jessica Reyes, the ex-wife, as 100% primary beneficiary, dated 2019.',
   },
   {
-    path: '/keepance-demo/Acme Trust/Acme Notes.md',
+    path: '/lantern-demo/Acme Trust/Acme Notes.md',
     content:
       '# Acme Trust\n\nThe Acme Trust portfolio holds municipal bonds and a large cash position.',
   },
@@ -45,8 +45,8 @@ const FILES: DemoFile[] = [
 
 /** Test matter resolver mirroring the demo's folder→matter mapping. */
 function resolveMatter(path: string): string {
-  if (path.startsWith('/keepance-demo/Webb Household/')) return WEBB;
-  if (path.startsWith('/keepance-demo/Acme Trust/')) return OTHER;
+  if (path.startsWith('/lantern-demo/Webb Household/')) return WEBB;
+  if (path.startsWith('/lantern-demo/Acme Trust/')) return OTHER;
   return 'unassigned';
 }
 
@@ -130,14 +130,14 @@ describe('createDemoRetriever', () => {
 
 describe('toWorkspacePath', () => {
   it('prefixes a raw sample path with the workspace root', () => {
-    expect(toWorkspacePath('/Webb Household/Financial Plan Summary.md', '/keepance-demo')).toBe(
-      '/keepance-demo/Webb Household/Financial Plan Summary.md',
+    expect(toWorkspacePath('/Webb Household/Financial Plan Summary.md', '/lantern-demo')).toBe(
+      '/lantern-demo/Webb Household/Financial Plan Summary.md',
     );
-    expect(toWorkspacePath('README.md', '/keepance-demo')).toBe('/keepance-demo/README.md');
+    expect(toWorkspacePath('README.md', '/lantern-demo')).toBe('/lantern-demo/README.md');
   });
   it('is idempotent for an already-rooted path', () => {
-    expect(toWorkspacePath('/keepance-demo/Webb Household/x.md', '/keepance-demo')).toBe(
-      '/keepance-demo/Webb Household/x.md',
+    expect(toWorkspacePath('/lantern-demo/Webb Household/x.md', '/lantern-demo')).toBe(
+      '/lantern-demo/Webb Household/x.md',
     );
   });
 });
@@ -164,7 +164,7 @@ describe('installDemoRetrieval end-to-end (raw sample shape + real Webb mapping)
   ];
 
   // The real Webb folder mapping from seedWebDemoClientMap: matter scoped to
-  // `/keepance-demo/Webb Household`.
+  // `/lantern-demo/Webb Household`.
   const WEBB_DIR = `${DEMO_WORKSPACE_ROOT}/Webb Household`;
   function realResolver(path: string): string {
     return path === WEBB_DIR || path.startsWith(`${WEBB_DIR}/`) ? WEBB : 'unassigned';

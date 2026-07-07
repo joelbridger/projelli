@@ -173,11 +173,11 @@ describe('runExtraction — error-silent-skip', () => {
 describe('buildExtractionPrompt', () => {
   it('includes the User / Assistant role markers', () => {
     const messages: ChatMessage[] = [
-      { role: 'user', content: 'I ship on Keepance', timestamp: 't' },
+      { role: 'user', content: 'I ship on Lantern', timestamp: 't' },
       { role: 'assistant', content: 'Got it!', timestamp: 't' },
     ];
     const prompt = buildExtractionPrompt(messages);
-    expect(prompt).toContain('User: I ship on Keepance');
+    expect(prompt).toContain('User: I ship on Lantern');
     expect(prompt).toContain('Assistant: Got it!');
     expect(prompt).toContain('durable');
   });

@@ -123,7 +123,7 @@ describe('checkMinAppVersion', () => {
     expect(checkMinAppVersion(VALID, '3.0.0')).toBeNull();
   });
 
-  it('returns an error string when manifest needs a future Keepance version', () => {
+  it('returns an error string when manifest needs a future Lantern version', () => {
     const futureManifest = { ...VALID, minAppVersion: '99.0.0' };
     const err = checkMinAppVersion(futureManifest, '2.0.0');
     expect(err).not.toBeNull();

@@ -29,11 +29,8 @@ fn sanitize_for_filename(matter_id: &str) -> String {
 }
 
 pub fn store_path(workspace_root: &Path, matter_id: &str) -> PathBuf {
-    // Migration-aware: an upgraded workspace may still have `.keepance` as
-    // its authoritative data dir. Hardcoding `.lantern` here would create a
-    // real (non-stub) `.lantern/voiceprints` folder that flips the migration
-    // resolver's decision for every OTHER store (mail/audit/RAG), hiding
-    // their still-legacy data. Always go through the shared resolver.
+    // Always ask the data-dir seam so every internal store uses the same
+    // `.lantern` folder.
     crate::commands::data_dir::workspace_data_dir(workspace_root)
         .join("voiceprints")
         .join(format!("{}.kpv", sanitize_for_filename(matter_id)))

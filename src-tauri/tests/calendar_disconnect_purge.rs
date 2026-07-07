@@ -77,7 +77,7 @@ fn seed_indexed_event(ws: &Path, event_id: &str, matter: &str) {
 async fn purge_failure_from_a_bad_master_key_leaves_local_rows_and_index_untouched() {
     let _guard = ENV_GUARD.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(
-        "KEEPANCE_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX",
+        "LANTERN_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX",
         &calendar_test_key_hex(),
     );
     let workspace = tempfile::tempdir().expect("workspace tempdir");
@@ -86,10 +86,10 @@ async fn purge_failure_from_a_bad_master_key_leaves_local_rows_and_index_untouch
 
     // Force rag::crypto::get_or_create_master_key() to fail deterministically:
     // its headless-test override requires exactly 32 bytes of hex.
-    std::env::set_var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX", "00");
+    std::env::set_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX", "00");
     let state = test_state(ws.clone());
-    let result = calendar_disconnect_inner(&state, "outlook", "keepance-calendar-ms-test").await;
-    std::env::remove_var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
+    let result = calendar_disconnect_inner(&state, "outlook", "lantern-calendar-ms-test").await;
+    std::env::remove_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
 
     assert!(
         result.is_err(),
@@ -99,7 +99,7 @@ async fn purge_failure_from_a_bad_master_key_leaves_local_rows_and_index_untouch
     let remaining = store
         .list_indexed_rag_source_ids()
         .expect("list indexed rag source ids");
-    std::env::remove_var("KEEPANCE_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX");
+    std::env::remove_var("LANTERN_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX");
     assert_eq!(
         remaining,
         vec!["calendar:outlook:e1:matter-1".to_string()],
@@ -111,7 +111,7 @@ async fn purge_failure_from_a_bad_master_key_leaves_local_rows_and_index_untouch
 async fn purge_failure_from_an_unavailable_vector_store_leaves_local_rows_untouched() {
     let _guard = ENV_GUARD.lock().unwrap_or_else(|e| e.into_inner());
     std::env::set_var(
-        "KEEPANCE_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX",
+        "LANTERN_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX",
         &calendar_test_key_hex(),
     );
     let workspace = tempfile::tempdir().expect("workspace tempdir");
@@ -126,10 +126,10 @@ async fn purge_failure_from_an_unavailable_vector_store_leaves_local_rows_untouc
         .expect("create parent dir");
     std::fs::write(&dataset_path, b"not a directory").expect("write blocking file");
 
-    std::env::set_var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX", "11".repeat(32));
+    std::env::set_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX", "11".repeat(32));
     let state = test_state(ws.clone());
-    let result = calendar_disconnect_inner(&state, "outlook", "keepance-calendar-ms-test").await;
-    std::env::remove_var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
+    let result = calendar_disconnect_inner(&state, "outlook", "lantern-calendar-ms-test").await;
+    std::env::remove_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX");
 
     assert!(
         result.is_err(),
@@ -139,7 +139,7 @@ async fn purge_failure_from_an_unavailable_vector_store_leaves_local_rows_untouc
     let remaining = store
         .list_indexed_rag_source_ids()
         .expect("list indexed rag source ids");
-    std::env::remove_var("KEEPANCE_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX");
+    std::env::remove_var("LANTERN_HEADLESS_TEST_CALENDAR_MASTER_KEY_HEX");
     assert_eq!(
         remaining,
         vec!["calendar:outlook:e2:matter-2".to_string()],

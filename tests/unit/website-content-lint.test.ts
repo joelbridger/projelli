@@ -299,7 +299,7 @@ describe('/tour/ page stale content', () => {
   it('does not contain stale content or forbidden words', () => {
     const tourHtml = readFileSync(join(WEBSITE_ROOT, 'tour/index.html'), 'utf-8');
     expect(tourHtml, 'tour: "compliant"').not.toContain('compliant');
-    expect(tourHtml, 'tour: "Keepance ensures"').not.toContain('Keepance ensures');
+    expect(tourHtml, 'tour: "Lantern ensures"').not.toContain('Lantern ensures');
     expect(tourHtml, 'tour: dead tax-practice link').not.toContain('href="/tax-practice/');
     expect(tourHtml, 'tour: "two templates"').not.toContain('two templates');
   });

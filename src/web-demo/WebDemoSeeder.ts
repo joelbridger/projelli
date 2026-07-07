@@ -3,7 +3,7 @@
  *
  * One-time seeder that pre-populates the demo workspace with a curated set of
  * notes, chats, source cards, and template descriptions. Runs at most once per
- * browser; the `__keepance_demo_seeded` localStorage key gates re-runs across
+ * browser; the `__lantern_demo_seeded` localStorage key gates re-runs across
  * page reloads.
  *
  * The desktop app never imports this module: the demo entry point in
@@ -37,18 +37,18 @@ const PDF_ASSETS: Record<string, string> = {
   '/Webb Household/Client Intake.pdf': clientIntakePdfUrl,
 };
 
-const SEED_FLAG_KEY = '__keepance_demo_seeded';
-const SEED_VERSION_KEY = '__keepance_demo_seed_version';
+const SEED_FLAG_KEY = '__lantern_demo_seeded';
+const SEED_VERSION_KEY = '__lantern_demo_seed_version';
 
 /**
  * The workspace root the demo files actually live under in the app. The seeder
  * writes the raw sample paths (`/Webb Household/...`) into an OPFS directory
  * mounted at this root, so the app — and the matter folder mappings (e.g. the
- * Webb matter is scoped to `/keepance-demo/Webb Household`) — see them
+ * Webb matter is scoped to `/lantern-demo/Webb Household`) — see them
  * root-prefixed. The browser retriever must index the same root-prefixed paths
  * or matter-scoped retrieval would mark every file `unassigned` and drop it.
  */
-export const DEMO_WORKSPACE_ROOT = '/keepance-demo';
+export const DEMO_WORKSPACE_ROOT = '/lantern-demo';
 
 export type DemoProfession = 'advisor' | 'legal' | 'tax' | 'consulting';
 
@@ -341,7 +341,7 @@ function writeSeedVersion(version: number): void {
   }
 }
 
-const SEED_PROFESSION_KEY = '__keepance_demo_seed_profession';
+const SEED_PROFESSION_KEY = '__lantern_demo_seed_profession';
 
 function readSeedProfession(): DemoProfession | null {
   try {

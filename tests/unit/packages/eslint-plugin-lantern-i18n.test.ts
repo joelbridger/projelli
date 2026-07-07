@@ -47,7 +47,7 @@ ruleTester.run('no-hardcoded-string', rule, {
       errors: [{ messageId: 'hardcoded' }],
     },
     {
-      code: 'const C = () => <h1>Welcome to Keepance, friend</h1>;',
+      code: 'const C = () => <h1>Welcome to Lantern, friend</h1>;',
       errors: [{ messageId: 'hardcoded' }],
     },
   ],

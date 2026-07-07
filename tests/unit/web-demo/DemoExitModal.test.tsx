@@ -21,7 +21,7 @@ vi.mock('@/web-demo/demoSessionToken', async () => {
   );
   return {
     ...actual,
-    resetDemoSessionToken: vi.fn(() => 'keepance-demo-test-2026-05-04'),
+    resetDemoSessionToken: vi.fn(() => 'lantern-demo-test-2026-05-04'),
   };
 });
 

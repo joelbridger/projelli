@@ -259,21 +259,12 @@ export function WorkspaceSelector({
    * VaultLockedPrompt instead of opening normally.
    */
   const openWorkspacePath = async (workspacePath: string, token: number = ++openTokenRef.current) => {
-    // Data-folder rename migration (`.keepance` → `.lantern`) must run BEFORE the
-    // vault check below: a legacy vaulted workspace still stores its metadata at
-    // `.keepance-vault.json`, so without migrating first, vaultStatus would read
-    // the not-yet-renamed `.lantern-vault.json` (absent), report "not enabled",
-    // and skip the graceful vault-locked prompt. Idempotent + fail-safe on the
-    // Rust side (createFSBackend runs it again harmlessly); browser/dev no-op.
+    // Data-folder setup must run BEFORE the vault check below so every store
+    // resolves the same `.lantern` folder. Dev-data reset is approved for the
+    // Lantern rename, so old folders are not migrated. Browser/dev no-op.
     //
-    // Deliberately NOT time-bounded (coordinator review, 2026-07-04): this is
-    // a MUTATING rename on disk, not a read. Racing it against a timeout only
-    // stops the FRONTEND from waiting — the Rust rename keeps running either
-    // way — so abandoning the wait early could let this function move on to
-    // createFSBackend() (which migrates AGAIN) while the first rename is
-    // still in flight: two concurrent migration attempts against the same
-    // directory. Honest-slow beats fast-corrupt; always wait for the real
-    // rename to finish (or genuinely fail) before proceeding.
+    // Deliberately NOT time-bounded (coordinator review, 2026-07-04): always
+    // wait for setup to finish (or genuinely fail) before proceeding.
     if (isTauri) {
       try {
         await migrateWorkspaceDataDir(workspacePath);

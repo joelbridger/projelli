@@ -1080,12 +1080,12 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn gmail_live_smoke() {
-        let cid = std::env::var("KEEPANCE_GMAIL_CLIENT_ID").expect("set KEEPANCE_GMAIL_CLIENT_ID");
+        let cid = std::env::var("LANTERN_GMAIL_CLIENT_ID").expect("set LANTERN_GMAIL_CLIENT_ID");
         let redirect = "http://127.0.0.1:7777";
         if let Ok(code) = std::env::var("GMAIL_CODE") {
             let verifier = std::env::var("GMAIL_VERIFIER").expect("set GMAIL_VERIFIER");
             let secret =
-                std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET").expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
+                std::env::var("LANTERN_GMAIL_CLIENT_SECRET").expect("set LANTERN_GMAIL_CLIENT_SECRET");
             match GoogleOAuth::new(cid, secret).exchange_code(&code, &verifier, redirect).await {
                 Ok(t) => eprintln!("GMAIL_RESULT=OK refresh_present={}", t.refresh.is_some()),
                 Err(e) => eprintln!("GMAIL_RESULT=FAIL err={e}"),
@@ -1100,7 +1100,7 @@ mod tests {
     // Live END-TO-END Gmail import: pulls real Gmail through the real sync pipeline
     // (the same code the desktop app runs) into a TEMP encrypted store, then queries
     // it the way the Email tab does. Ignored; two phases like gmail_live_smoke.
-    // Needs KEEPANCE_GMAIL_CLIENT_ID/_SECRET.
+    // Needs LANTERN_GMAIL_CLIENT_ID/_SECRET.
     //   Phase 1 (no GMAIL_CODE):               prints GMAIL_VERIFIER + GMAIL_AUTH_URL.
     //   Phase 2 (GMAIL_CODE + GMAIL_VERIFIER): exchanges, imports, reports.
     // Optional env: IMPORT_FOLDER_CAP=N, IMPORT_SEARCH=word.
@@ -1113,7 +1113,7 @@ mod tests {
         use crate::commands::mail::sync::sync_folder_provider;
         use crate::commands::rag::store::UNASSIGNED_MATTER;
 
-        let cid = std::env::var("KEEPANCE_GMAIL_CLIENT_ID").expect("set KEEPANCE_GMAIL_CLIENT_ID");
+        let cid = std::env::var("LANTERN_GMAIL_CLIENT_ID").expect("set LANTERN_GMAIL_CLIENT_ID");
         let redirect = "http://127.0.0.1:7777";
 
         let code = match std::env::var("GMAIL_CODE") {
@@ -1126,7 +1126,7 @@ mod tests {
             }
         };
         let verifier = std::env::var("GMAIL_VERIFIER").expect("set GMAIL_VERIFIER");
-        let secret = std::env::var("KEEPANCE_GMAIL_CLIENT_SECRET").expect("set KEEPANCE_GMAIL_CLIENT_SECRET");
+        let secret = std::env::var("LANTERN_GMAIL_CLIENT_SECRET").expect("set LANTERN_GMAIL_CLIENT_SECRET");
 
         // 1. Exchange for a real access token.
         let tokens = GoogleOAuth::new(cid, secret)

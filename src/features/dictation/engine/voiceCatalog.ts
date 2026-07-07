@@ -6,7 +6,7 @@ import { BRAND } from '@/config/brand';
  * Lazy-download voices: es_ES-mls-medium, de_DE-thorsten-medium.
  * Additional voices are downloaded on first use from Advisor Prep Hero's CDN.
  *
- * CDN pattern: https://keepance.com/voices/<voice-id>.tar.gz
+ * CDN pattern: https://lantern.com/voices/<voice-id>.tar.gz
  * Each archive unpacks to <voice-id>.onnx + <voice-id>.onnx.json
  * (the two files Piper requires).
  */

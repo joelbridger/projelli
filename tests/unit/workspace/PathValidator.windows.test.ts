@@ -4,8 +4,8 @@ import { SecurityError } from '@/platform/fs/types';
 
 describe('PathValidator - Windows-style paths on Linux', () => {
   let validator: PathValidator;
-  const rootPath = 'C:\\Users\\Jane\\Keepance';
-  const normalizedRoot = 'C:/Users/Jane/Keepance';
+  const rootPath = 'C:\\Users\\Jane\\Lantern';
+  const normalizedRoot = 'C:/Users/Jane/Lantern';
 
   beforeEach(() => {
     validator = new PathValidator(rootPath);
@@ -28,13 +28,13 @@ describe('PathValidator - Windows-style paths on Linux', () => {
 
     it('accepts absolute child paths with backslashes', () => {
       expect(
-        validator.validatePath('C:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx')
-      ).toBe('C:/Users/Jane/Keepance/Matters/Acme/brief.docx');
+        validator.validatePath('C:\\Users\\Jane\\Lantern\\Matters\\Acme\\brief.docx')
+      ).toBe('C:/Users/Jane/Lantern/Matters/Acme/brief.docx');
     });
 
     it('accepts relative child paths with backslashes and mixed separators', () => {
       expect(validator.validatePath('Matters\\Acme/brief.docx')).toBe(
-        'C:/Users/Jane/Keepance/Matters/Acme/brief.docx'
+        'C:/Users/Jane/Lantern/Matters/Acme/brief.docx'
       );
     });
 
@@ -50,9 +50,9 @@ describe('PathValidator - Windows-style paths on Linux', () => {
     it('blocks backslash traversal attempts', () => {
       const attacks = [
         '..\\..\\..\\Windows\\System32',
-        'C:\\Users\\Jane\\Keepance\\..\\..\\Secret',
+        'C:\\Users\\Jane\\Lantern\\..\\..\\Secret',
         '..\\../..\\Secret',
-        'C:\\Users\\Jane\\Keepance\\Matters\\..\\..\\..\\Secret',
+        'C:\\Users\\Jane\\Lantern\\Matters\\..\\..\\..\\Secret',
       ];
 
       for (const path of attacks) {
@@ -62,10 +62,10 @@ describe('PathValidator - Windows-style paths on Linux', () => {
 
     it('rejects a sibling path that only shares the workspace text prefix', () => {
       expectSecurityReason(
-        'C:\\Users\\Jane\\Keepance-evil\\secret.docx',
+        'C:\\Users\\Jane\\Lantern-evil\\secret.docx',
         'ABSOLUTE_PATH_IN_RELATIVE_CONTEXT'
       );
-      expect(validator.isWithinWorkspace('C:\\Users\\Jane\\Keepance-evil')).toBe(
+      expect(validator.isWithinWorkspace('C:\\Users\\Jane\\Lantern-evil')).toBe(
         false
       );
     });
@@ -74,12 +74,12 @@ describe('PathValidator - Windows-style paths on Linux', () => {
   describe('drive letters', () => {
     it('treats drive letters case-insensitively for Windows paths', () => {
       expect(
-        validator.validatePath('c:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx')
-      ).toBe('c:/Users/Jane/Keepance/Matters/Acme/brief.docx');
+        validator.validatePath('c:\\Users\\Jane\\Lantern\\Matters\\Acme\\brief.docx')
+      ).toBe('c:/Users/Jane/Lantern/Matters/Acme/brief.docx');
       expect(
-        validator.getRelativePath('c:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx')
+        validator.getRelativePath('c:\\Users\\Jane\\Lantern\\Matters\\Acme\\brief.docx')
       ).toBe('Matters/Acme/brief.docx');
-      expect(validator.isWithinWorkspace('c:\\Users\\Jane\\Keepance')).toBe(true);
+      expect(validator.isWithinWorkspace('c:\\Users\\Jane\\Lantern')).toBe(true);
     });
 
     it('rejects a path on a different drive as outside the root', () => {
@@ -130,18 +130,18 @@ describe('PathValidator - Windows-style paths on Linux', () => {
 
   describe('relative and absolute round trips', () => {
     it('round-trips Windows absolute paths to relative paths', () => {
-      const absolutePath = 'C:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx';
+      const absolutePath = 'C:\\Users\\Jane\\Lantern\\Matters\\Acme\\brief.docx';
       const relativePath = validator.getRelativePath(absolutePath);
 
       expect(relativePath).toBe('Matters/Acme/brief.docx');
       expect(validator.toAbsolutePath(relativePath)).toBe(
-        'C:/Users/Jane/Keepance/Matters/Acme/brief.docx'
+        'C:/Users/Jane/Lantern/Matters/Acme/brief.docx'
       );
     });
 
     it('rejects relative conversion for paths outside the Windows root', () => {
       expect(() =>
-        validator.getRelativePath('C:\\Users\\Jane\\Keepance-evil\\brief.docx')
+        validator.getRelativePath('C:\\Users\\Jane\\Lantern-evil\\brief.docx')
       ).toThrow(SecurityError);
     });
   });
@@ -189,7 +189,7 @@ describe('PathValidator - Windows-style paths on Linux', () => {
     it('accepts a path whose total normalized length is exactly 261 characters', () => {
       // Build a relative path inside the workspace so that the final absolute
       // form is root + '/' + segment = exactly 261 chars total.
-      // normalizedRoot = 'C:/Users/Jane/Keepance' (22 chars)
+      // normalizedRoot = 'C:/Users/Jane/Lantern' (22 chars)
       // separator + filename = 1 + n chars  → n = 261 - 22 - 1 = 238
       const segLen = 261 - normalizedRoot.length - 1; // = 238
       const segment = 'z'.repeat(segLen);
@@ -226,9 +226,9 @@ describe('PathValidator - Windows-style paths on Linux', () => {
   describe('Windows verbatim (\\\\?\\) extended-length prefix', () => {
     it('treats a \\\\?\\-prefixed absolute path the same as its plain equivalent', () => {
       const verbatim =
-        '\\\\?\\C:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx';
+        '\\\\?\\C:\\Users\\Jane\\Lantern\\Matters\\Acme\\brief.docx';
       expect(validator.validatePath(verbatim)).toBe(
-        'C:/Users/Jane/Keepance/Matters/Acme/brief.docx'
+        'C:/Users/Jane/Lantern/Matters/Acme/brief.docx'
       );
       expect(validator.isWithinWorkspace(verbatim)).toBe(true);
       expect(validator.getRelativePath(verbatim)).toBe(
@@ -238,19 +238,19 @@ describe('PathValidator - Windows-style paths on Linux', () => {
 
     it('treats a \\\\?\\-prefixed workspace root the same as the plain root', () => {
       const verbatimValidator = new PathValidator(
-        '\\\\?\\C:\\Users\\Jane\\Keepance'
+        '\\\\?\\C:\\Users\\Jane\\Lantern'
       );
       expect(verbatimValidator.getRootPath()).toBe(normalizedRoot);
       expect(
         verbatimValidator.validatePath(
-          'C:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx'
+          'C:\\Users\\Jane\\Lantern\\Matters\\Acme\\brief.docx'
         )
-      ).toBe('C:/Users/Jane/Keepance/Matters/Acme/brief.docx');
+      ).toBe('C:/Users/Jane/Lantern/Matters/Acme/brief.docx');
     });
 
     it('rejects a \\\\?\\-prefixed path that genuinely escapes the workspace', () => {
       expectSecurityReason(
-        '\\\\?\\C:\\Users\\Jane\\Keepance-evil\\secret.docx',
+        '\\\\?\\C:\\Users\\Jane\\Lantern-evil\\secret.docx',
         'ABSOLUTE_PATH_IN_RELATIVE_CONTEXT'
       );
     });
@@ -264,9 +264,9 @@ describe('PathValidator - Windows-style paths on Linux', () => {
       // paths (see pathguard.rs's "no network/OneDrive" framing), so a UNC
       // workspace root isn't the QA-41 trigger — only documented so it isn't
       // mistaken for something this change was meant to fix.
-      const uncValidator = new PathValidator('\\\\server\\share\\Keepance');
+      const uncValidator = new PathValidator('\\\\server\\share\\Lantern');
       const verbatim =
-        '\\\\?\\UNC\\server\\share\\Keepance\\Matters\\Acme\\brief.docx';
+        '\\\\?\\UNC\\server\\share\\Lantern\\Matters\\Acme\\brief.docx';
       expect(uncValidator.isWithinWorkspace(verbatim)).toBe(true);
       expect(uncValidator.getRelativePath(verbatim)).toBe(
         'Matters/Acme/brief.docx'

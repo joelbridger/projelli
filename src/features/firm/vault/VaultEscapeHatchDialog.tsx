@@ -4,7 +4,7 @@
  * Decrypts every file in the workspace back to plaintext, then disables the
  * vault entirely.  The order is strictly:
  *   1. vault_decrypt_all  (returns files to normal unencrypted files on disk)
- *   2. vault_disable      (removes .keepance-vault.json + keychain entry)
+ *   2. vault_disable      (removes .lantern-vault.json + keychain entry)
  *
  * vault_disable is never called if vault_decrypt_all fails; the Rust backend
  * also enforces this independently (`files_still_encrypted` guard).

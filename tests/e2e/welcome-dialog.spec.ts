@@ -70,7 +70,7 @@ test.describe('Welcome screen (first run)', () => {
     // AppLogo.tsx renders a plain <img alt={BRAND.name}>, not an
     // aria-label-wrapped element. The 2026-07-01 rebrand (brand/brand.config.json,
     // "flip identity to LANTERN + apply Advisor Prep Hero brand") changed
-    // BRAND.name from "Keepance" to "Advisor Prep Hero".
+    // BRAND.name from "Lantern" to "Advisor Prep Hero".
     const logo = screen.getByAltText('Advisor Prep Hero');
     await expect(logo).toBeVisible();
   });

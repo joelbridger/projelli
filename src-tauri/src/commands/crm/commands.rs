@@ -1239,7 +1239,7 @@ pub async fn crm_oauth_connect(
     let cancel = state.oauth_cancel.clone();
 
     let client_id = salesforce_client_id()
-        .ok_or_else(|| "KEEPANCE_SALESFORCE_CLIENT_ID is not configured".to_string())?;
+        .ok_or_else(|| "LANTERN_SALESFORCE_CLIENT_ID is not configured".to_string())?;
     let (verifier, challenge) = crate::commands::mail::gmail::oauth::gen_pkce();
     let state_token = crate::commands::mail::gmail::oauth::gen_state();
     let (listener, redirect_uri) =
@@ -3217,7 +3217,7 @@ mod tests {
     /// outcomes of the renamed downgrade helper — every connect path now
     /// calls this BEFORE storing the new token and must refuse the connect
     /// on `false`. Both cases live in ONE test (rather than two) because
-    /// both need `KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX` set to bypass
+    /// both need `LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX` set to bypass
     /// the OS keychain (which can BLOCK indefinitely on a headless box
     /// without a working D-Bus secret service) — that env var is
     /// process-global, and `cargo test` runs tests in parallel THREADS by
@@ -3226,7 +3226,7 @@ mod tests {
     #[tokio::test]
     async fn downgrade_stale_sent_rows_for_workspace_reports_success_and_failure_correctly() {
         const KEY_HEX: &str = "2222222222222222222222222222222222222222222222222222222222222222";
-        std::env::set_var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX", KEY_HEX);
+        std::env::set_var("LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX", KEY_HEX);
 
         // Success: a real, writable workspace with a seeded 'sent' row.
         let workspace = tempfile::TempDir::new().unwrap();
@@ -3276,6 +3276,6 @@ mod tests {
             "must report failure when the underlying store can never be opened, so the caller fails closed"
         );
 
-        std::env::remove_var("KEEPANCE_HEADLESS_TEST_CRM_MASTER_KEY_HEX");
+        std::env::remove_var("LANTERN_HEADLESS_TEST_CRM_MASTER_KEY_HEX");
     }
 }

@@ -78,15 +78,11 @@ export const skClientMapTab = (matterId: string): string =>
   `${APP_NS}:clientmap-tab:${matterId}`;
 
 // ── localStorage / sessionStorage flag keys (underscore family) ───────────────
-// A second, older naming family alongside the colon-style SK_ keys above: single
+// A second naming family alongside the colon-style SK_ keys above: single
 // scalar flags/markers written with `${APP_NS}_snake_case` instead of
-// `${APP_NS}:kebab-case`. Kept as a literal prefix-swap of the legacy
-// `keepance_*` names (not restructured to the colon style) so the L1a rename
-// migration (`src/platform/migrations/legacyStorageKeyMigration.ts`) can do a
-// pure string-prefix rewrite of real user data with minimal risk. New keys in
-// this family should still prefer the colon style above; this section exists to
-// give every renamed legacy key ONE owner instead of the per-file duplicated
-// constants (and, in a few cases, un-constant'd literals) it used to have.
+// `${APP_NS}:kebab-case`. New keys in this family should still prefer the colon
+// style above; this section exists to give every key one owner instead of
+// duplicated string literals.
 
 export const SK_ONBOARDING_COMPLETE        = `${APP_NS}_onboarding_complete`;
 export const SK_PROFESSION                 = `${APP_NS}_profession`;
@@ -164,15 +160,6 @@ export const EV_DEMO_MESSAGE_SENT                = `${APP_NS}:demo-message-sent`
 
 /** Hidden directory inside a workspace root where app-internal stores live. */
 export const WORKSPACE_DATA_DIR = `.${APP_NS}`;
-
-/**
- * Legacy (pre-Lantern) name of the workspace data dir. Kept so UI filters can
- * still hide a leftover/in-place `.keepance` folder during the data-dir rename
- * migration (both-exist leftover, or the fail-safe case where the rename could
- * not complete and the old folder is still the live one). Mirrors the Rust
- * `data_dir::LEGACY_WORKSPACE_DATA_DIR`.
- */
-export const LEGACY_WORKSPACE_DATA_DIR = '.keepance';
 
 /** Vault metadata filename hidden from file-tree listings. */
 export const VAULT_METADATA_FILENAME = `.${APP_NS}-vault.json`;

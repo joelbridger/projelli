@@ -414,11 +414,7 @@ pub struct VaultCreated {
 #[tauri::command]
 pub async fn vault_status(workspace: String) -> Result<VaultStatus, VaultCommandError> {
     let root = Path::new(&workspace);
-    // Resolve the LIVE metadata path (current `.lantern-vault.json`, or a legacy
-    // `.keepance-vault.json` still in place during the data-dir migration
-    // fail-safe). Checking only the current name here would report a still-vaulted
-    // workspace as unvaulted, and later saves would overwrite encrypted files as
-    // plaintext.
+    // Resolve the current `.lantern-vault.json` metadata path.
     let meta_path = lantern_vault::metadata::metadata_path(root);
     let enabled = meta_path.exists();
 
@@ -468,15 +464,7 @@ pub async fn vault_create(
     // metadata and stores a fresh VMK; doing that over an existing vault would
     // overwrite the key and permanently orphan any files already encrypted under
     // the old one (a data-loss path). Callers must disable the existing vault first.
-    // Also guard against a LEGACY (pre-rename) `.keepance-vault.json`: on a legacy
-    // vaulted workspace the data-folder migration renames it to the current name
-    // before any vault check, but if a migration-less interim build ever reaches
-    // here, creating a new vault would orphan the legacy-encrypted files.
-    if root.join(METADATA_FILENAME).exists()
-        || root
-            .join(crate::commands::data_dir::LEGACY_VAULT_META_FILE)
-            .exists()
-    {
+    if root.join(METADATA_FILENAME).exists() {
         return Err(VaultCommandError::AlreadyEnabled(format!(
             "a vault already exists for this workspace ({workspace}); disable it before creating a new one"
         )));
@@ -729,7 +717,7 @@ pub async fn vault_set_escrow_wraps(
 
 /// Encrypt every eligible file in a workspace under the VMK (migration command).
 ///
-/// Walks the workspace root recursively (skipping `.keepance/`, `.lantern-vault.json`,
+/// Walks the workspace root recursively (skipping `.lantern/`, `.lantern-vault.json`,
 /// `.kpv-tmp-*`) and encrypts each plain file atomically. Already-encrypted files
 /// (KPV1 magic) are skipped — the walk is resumable.
 ///
@@ -796,7 +784,7 @@ pub async fn vault_decrypt_all(
 /// Disable the encrypted vault for a workspace.
 ///
 /// SAFETY: this command REFUSES with `files_still_encrypted` if any file in the
-/// workspace (excluding `.keepance/`, `.lantern-vault.json`, `.kpv-tmp-*`) still
+/// workspace (excluding `.lantern/`, `.lantern-vault.json`, `.kpv-tmp-*`) still
 /// has the KPV1 magic header. This ensures we never orphan ciphertext that cannot
 /// be recovered after the VMK is deleted.
 ///
@@ -807,16 +795,9 @@ pub async fn vault_decrypt_all(
 /// The operation is intentionally NOT gated on the vault being unlocked —
 /// delete_vmk is idempotent (no-op if absent). The metadata file check is
 /// the functional gate.
-/// Remove EVERY vault-metadata file in `root` — the current `.lantern-vault.json`
-/// and the legacy `.keepance-vault.json`. Used by `vault_disable` so a
-/// both-metadata conflict (data-dir migration) is fully torn down; leaving the
-/// legacy file behind would let `vault_status` fall back to it and report the
-/// vault still enabled. Idempotent: an absent file is skipped.
+/// Remove the vault metadata file in `root`. Idempotent: an absent file is skipped.
 fn remove_all_vault_metadata(root: &Path) -> Result<(), VaultCommandError> {
-    for name in [
-        lantern_vault::metadata::METADATA_FILENAME,
-        lantern_vault::metadata::LEGACY_METADATA_FILENAME,
-    ] {
+    for name in [lantern_vault::metadata::METADATA_FILENAME] {
         let meta_path = root.join(name);
         if meta_path.exists() {
             std::fs::remove_file(&meta_path)
@@ -844,11 +825,7 @@ pub async fn vault_disable(workspace: String) -> Result<(), VaultCommandError> {
     // If metadata is absent, the vault is already disabled — succeed idempotently.
     let vault_id_result = vault_id_for(&root);
 
-    // Delete BOTH the current and any legacy metadata file (see
-    // `remove_all_vault_metadata`): in the both-metadata conflict state removing
-    // only the current one would leave the preserved `.keepance-vault.json`, and
-    // the next `vault_status` would fall back to it and report the vault still
-    // enabled — so disable could never take effect.
+    // Delete the metadata file. The keychain VMK deletion below is idempotent.
     remove_all_vault_metadata(&root)?;
 
     // Delete the keychain VMK (idempotent — silently ok if already absent).
@@ -883,10 +860,7 @@ fn count_eligible_files(root: &Path) -> usize {
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == crate::identity::VAULT_META_FILE
-                || name_str == crate::commands::data_dir::LEGACY_VAULT_META_FILE
-                || name_str.starts_with(".kpv-tmp-")
-            {
+            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
@@ -914,10 +888,7 @@ fn find_any_encrypted_file(root: &Path) -> Result<Option<PathBuf>, VaultCommandE
         for entry in rd.flatten() {
             let name = entry.file_name();
             let name_str = name.to_string_lossy();
-            if name_str == crate::identity::VAULT_META_FILE
-                || name_str == crate::commands::data_dir::LEGACY_VAULT_META_FILE
-                || name_str.starts_with(".kpv-tmp-")
-            {
+            if name_str == crate::identity::VAULT_META_FILE || name_str.starts_with(".kpv-tmp-") {
                 continue;
             }
             let Ok(ft) = entry.file_type() else { continue; };
@@ -1005,31 +976,17 @@ fn days_to_ymd(days: u64) -> (u64, u64, u64) {
 mod tests {
     use super::*;
 
-    // ── vault metadata teardown (data-dir migration conflict) ─────────────────
+    // ── vault metadata teardown ───────────────────────────────────────────────
 
-    /// P2 (Codex round 2): in the both-metadata conflict state, disabling the
-    /// vault must remove BOTH files — otherwise `vault_status` would fall back to
-    /// the preserved legacy file and report the vault still enabled, so disable
-    /// could never take effect and a new vault could not be created.
     #[test]
-    fn remove_all_vault_metadata_clears_both_current_and_legacy() {
+    fn remove_all_vault_metadata_clears_current_file() {
         let tmp = tempfile::tempdir().unwrap();
         let root = tmp.path();
         std::fs::write(root.join(lantern_vault::metadata::METADATA_FILENAME), b"{}").unwrap();
-        std::fs::write(
-            root.join(lantern_vault::metadata::LEGACY_METADATA_FILENAME),
-            b"{}",
-        )
-        .unwrap();
 
         remove_all_vault_metadata(root).unwrap();
 
-        // Both gone → the resolver reports no live metadata → status would be
-        // disabled, and vault_create is no longer blocked.
         assert!(!root.join(lantern_vault::metadata::METADATA_FILENAME).exists());
-        assert!(!root
-            .join(lantern_vault::metadata::LEGACY_METADATA_FILENAME)
-            .exists());
         assert!(!lantern_vault::metadata::metadata_path(root).exists());
         // Idempotent: a second call on a clean workspace is a no-op.
         remove_all_vault_metadata(root).unwrap();
@@ -1329,12 +1286,12 @@ mod tests {
     }
 
     // ── Live keychain round-trip ──────────────────────────────────────────────
-    // Gated behind KEEPANCE_TEST_KEYCHAIN=1 like commands/keychain.rs, so CI
+    // Gated behind LANTERN_TEST_KEYCHAIN=1 like commands/keychain.rs, so CI
     // (which has no secret service daemon) doesn't fail.
 
     #[test]
     fn live_vmk_roundtrip_set_get_delete() {
-        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("LANTERN_TEST_KEYCHAIN").is_none() {
             return;
         }
         let id = "test-vault-roundtrip-id";
@@ -1352,7 +1309,7 @@ mod tests {
     // ── Task 9: recovery + escrow crate-level unit tests ─────────────────────
     // These tests exercise the underlying crate functions directly rather than
     // calling the async Tauri commands (which require a full Tauri runtime).
-    // The live-keychain path is gated behind KEEPANCE_TEST_KEYCHAIN=1.
+    // The live-keychain path is gated behind LANTERN_TEST_KEYCHAIN=1.
 
     /// Round-trip: create recovery wrap → recover VMK → verifier passes.
     #[test]
@@ -1482,7 +1439,7 @@ mod tests {
     /// `vault_export_vmk_for_escrow` — gated on vault being unlocked.
     /// Exercises the load_vmk path: absent VMK → Locked error.
     ///
-    /// GATED: requires `KEEPANCE_TEST_KEYCHAIN=1` because the test needs the OS
+    /// GATED: requires `LANTERN_TEST_KEYCHAIN=1` because the test needs the OS
     /// keychain API to be accessible (even just to confirm no credential exists).
     /// On Windows CI runners and headless service contexts the Credential Manager
     /// returns `ERROR_NO_SUCH_LOGON_SESSION` rather than `NoEntry`, making the
@@ -1490,7 +1447,7 @@ mod tests {
     /// the Credential Manager is always reachable, so the product path is sound.
     #[test]
     fn export_vmk_requires_unlocked_vault() {
-        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("LANTERN_TEST_KEYCHAIN").is_none() {
             return;
         }
 
@@ -1529,7 +1486,7 @@ mod tests {
 
     // ── Task 10: vault_disable safety + encrypt_all/decrypt_all crate helpers ──
     // These tests drive the crate funcs directly in a temp workspace.
-    // The keychain-dependent code paths are gated behind KEEPANCE_TEST_KEYCHAIN=1;
+    // The keychain-dependent code paths are gated behind LANTERN_TEST_KEYCHAIN=1;
     // the "refuse while encrypted" scan has NO keychain dependency and is ALWAYS run.
 
     /// After encrypt_all, vault_disable must refuse with FilesStillEncrypted.
@@ -1619,9 +1576,9 @@ mod tests {
         assert!(!meta_path.exists(), "metadata must be gone after disable");
     }
 
-    /// count_eligible_files counts files correctly, excluding metadata and .keepance dir.
+    /// count_eligible_files counts files correctly, excluding metadata and .lantern dir.
     #[test]
-    fn count_eligible_files_excludes_metadata_and_keepance_dir() {
+    fn count_eligible_files_excludes_metadata_and_lantern_dir() {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
 
@@ -1681,10 +1638,10 @@ mod tests {
     }
 
     /// Live keychain round-trip for vault_unlock_with_recovery.
-    /// Gated behind KEEPANCE_TEST_KEYCHAIN=1.
+    /// Gated behind LANTERN_TEST_KEYCHAIN=1.
     #[test]
     fn live_vault_unlock_with_recovery_round_trip() {
-        if std::env::var_os("KEEPANCE_TEST_KEYCHAIN").is_none() {
+        if std::env::var_os("LANTERN_TEST_KEYCHAIN").is_none() {
             return;
         }
         use lantern_vault::{

@@ -378,7 +378,7 @@ export function MainPanel({
   const [redlineOllamaModel, setRedlineOllamaModel] = useState<string | undefined>(undefined);
   useEffect(() => {
     // Only discover an Ollama model when the redline actually resolved to Ollama.
-    // For the embedded Advisor Prep Hero Local AI ('keepance-local') the model id is the
+    // For the embedded Advisor Prep Hero Local AI ('lantern-local') the model id is the
     // provider's own default, so we leave redlineOllamaModel undefined.
     if (!redlineLocalOnly || redlineProvider !== 'ollama') {
       setRedlineOllamaModel(undefined);

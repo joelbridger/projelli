@@ -92,7 +92,7 @@ describe('en.json structure snapshot', () => {
     const flat = flatten(en as Record<string, JsonValue>);
     // 903 = 900 (Phase 4 solo-to-firm bridge keys) + 2 BUG-099 ready-with-skips
     // plural keys (memory.ready-with-skips_one + _other) + 1 PDF progress key.
-    // +17 = Keepance Local AI: local-ai-download (9) + local-ai-settings (8).
+    // +17 = Lantern Local AI: local-ai-download (9) + local-ai-settings (8).
     // +2 = privacy.egress.checking.{label,note} (local-status "Checking" badge).
     // +2 = privacy.egress.none.{label,note} (UX-01 "No AI connected" badge).
     // +1 = matter.manager.client-name-helper (UX tidy-up: optional company field helper).

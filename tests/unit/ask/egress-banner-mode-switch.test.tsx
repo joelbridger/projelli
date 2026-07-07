@@ -178,9 +178,9 @@ vi.mock('@/features/ask/askHelpers', async (orig) => {
           h.localSendCalled += 1;
           return { content: 'Local answer.', usage: {}, cost: 0 };
         },
-        getMetadata: () => ({ provider: 'keepance-local', model: 'kp' }),
+        getMetadata: () => ({ provider: 'lantern-local', model: 'kp' }),
       },
-      providerId: 'keepance-local',
+      providerId: 'lantern-local',
       model: 'kp',
     })),
   };
@@ -210,7 +210,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
   });
 
   it('flips from "nothing leaves" (local-only) to a cloud destination when the mode switches', async () => {
-    h.localStatus = 'ready'; // local-only resolves to the embedded Keepance Local AI
+    h.localStatus = 'ready'; // local-only resolves to the embedded Lantern Local AI
     h.keys['openai'] = true; // present for the post-switch cloud resolution
     setMode('local-only');
     render(<Ask />);
@@ -262,7 +262,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
 
   it('ONE-FRAME GUARANTEE: switching Local-only → Direct never renders a local provider under Direct mode, even before the async effect runs', async () => {
     // Start from a fully RESOLVED local badge.
-    h.localStatus = 'ready'; // local-only resolves to keepance-local
+    h.localStatus = 'ready'; // local-only resolves to lantern-local
     h.keys['openai'] = true;
     setMode('local-only');
     render(<Ask />);
@@ -288,7 +288,7 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
       // The load-bearing check: the indicator must NEVER have been asked to render
       // a LOCAL provider while the mode is Direct — not even for the single
       // pre-effect frame. Without the mode-tagged synchronous derivation, the
-      // stale {keepance-local, direct} render fires before the effect blanks it.
+      // stale {lantern-local, direct} render fires before the effect blanks it.
       const lyingCall = vi.mocked(resolveEgress).mock.calls.find(
         ([arg]) => arg.mode === 'direct' && isLocalProvider(arg.provider),
       );

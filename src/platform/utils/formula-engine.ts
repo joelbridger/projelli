@@ -5,7 +5,7 @@
 // Why in-house: the obvious off-the-shelf option, HyperFormula, is dual-
 // licensed GPL-3 / proprietary. GPL-3 would force Advisor Prep Hero's entire JS
 // bundle open under GPL, which conflicts with the commercial launch plan
-// (~/keepance/KEEPANCE_BUSINESS_PLAN.md). Rather than pay for a proprietary
+// (the Lantern business plan). Rather than pay for a proprietary
 // seat up front, we implement a small engine that covers the common cases:
 //
 //   - Arithmetic: +, -, *, /, %, ^ with standard precedence

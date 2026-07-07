@@ -22,9 +22,9 @@ describe('deriveFilenameFromMessage', () => {
   });
 
   it('falls back to the first non-empty line for naked text', () => {
-    const content = '\n\nbuild a go-to-market plan for Keepance\n\ndetails...';
+    const content = '\n\nbuild a go-to-market plan for Lantern\n\ndetails...';
     expect(deriveFilenameFromMessage(content)).toBe(
-      'build-a-go-to-market-plan-for-keepance.md'
+      'build-a-go-to-market-plan-for-lantern.md'
     );
   });
 

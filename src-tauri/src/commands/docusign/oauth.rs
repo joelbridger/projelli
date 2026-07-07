@@ -13,7 +13,7 @@ use crate::commands::docusign::model::{
 pub const DOCUSIGN_SCOPES: &str = "signature extended";
 const KEYCHAIN_SERVICE: &str = crate::identity::DOCUSIGN_SERVICE;
 const KEYCHAIN_CONNECTION_KEY: &str = "connection-v1";
-const DEFAULT_DEMO_CLIENT_ID: &str = "KEEPANCE_DOCUSIGN_CLIENT_ID_REQUIRED";
+const DEFAULT_DEMO_CLIENT_ID: &str = "LANTERN_DOCUSIGN_CLIENT_ID_REQUIRED";
 
 #[derive(Debug, Clone)]
 pub struct DocusignTokens {
@@ -134,7 +134,7 @@ impl DocusignOAuth {
 }
 
 pub fn client_id() -> String {
-    std::env::var("KEEPANCE_DOCUSIGN_CLIENT_ID")
+    std::env::var("LANTERN_DOCUSIGN_CLIENT_ID")
         .ok()
         .filter(|s| !s.trim().is_empty())
         .unwrap_or_else(|| DEFAULT_DEMO_CLIENT_ID.to_string())

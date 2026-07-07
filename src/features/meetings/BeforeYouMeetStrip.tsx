@@ -59,7 +59,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
       const { saveFile } = await import('@/platform/utils/saveFile');
       const firmName = (() => {
         try {
-          return localStorage.getItem('keepance_firm_name') ?? '';
+          return localStorage.getItem('lantern_firm_name') ?? '';
         } catch {
           return '';
         }

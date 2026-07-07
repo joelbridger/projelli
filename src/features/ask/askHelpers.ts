@@ -257,7 +257,7 @@ export interface BoundAnswerCitations {
 
 export interface ResolvedAskProvider {
   provider: Provider;
-  providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+  providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
   model: string;
 }
 
@@ -380,9 +380,9 @@ function resolveAskCloudResolution(availableKeys: CloudProviderKeyPresence) {
  *   - else (no cloud key) -> the local engine (embedded-when-ready, else Ollama).
  */
 export async function resolveActiveAskProviderId(): Promise<ActiveAskProviderId> {
-  const localId = async (): Promise<'keepance-local' | 'ollama'> => {
+  const localId = async (): Promise<'lantern-local' | 'ollama'> => {
     try {
-      if ((await localLlmModelStatus()) === 'ready') return 'keepance-local';
+      if ((await localLlmModelStatus()) === 'ready') return 'lantern-local';
     } catch {
       // Desktop-only command unavailable or probe failed — fall back to Ollama.
     }

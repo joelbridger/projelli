@@ -141,7 +141,7 @@ export async function hasCloudKeyForGlance(): Promise<boolean> {
 
 export interface ResolvedGlanceProvider {
   provider: Provider;
-  providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'keepance-local';
+  providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
   model: string;
 }
 

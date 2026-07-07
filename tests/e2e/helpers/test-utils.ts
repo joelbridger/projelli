@@ -108,7 +108,7 @@ export async function isWorkspaceSelectorVisible(page: Page): Promise<boolean> {
 /**
  * Navigate to the current AI Assistant surface.
  *
- * Keepance 3.0 moved AI chat out of the old sidebar pane and into a main
+ * Lantern 3.0 moved AI chat out of the old sidebar pane and into a main
  * editor tab opened by Ctrl+Shift+A.
  */
 export async function openAIAssistantPane(page: Page) {

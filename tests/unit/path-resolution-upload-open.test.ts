@@ -20,57 +20,57 @@ describe('resolveWorkspacePath', () => {
 
   it('joins a simple relative path to the workspace root (POSIX root)', () => {
     expect(
-      resolveWorkspacePath('/home/user/Keepance', 'docs/contract.docx')
-    ).toBe('/home/user/Keepance/docs/contract.docx');
+      resolveWorkspacePath('/home/user/Lantern', 'docs/contract.docx')
+    ).toBe('/home/user/Lantern/docs/contract.docx');
   });
 
   it('joins a relative path with spaces to the workspace root (Windows)', () => {
     expect(
-      resolveWorkspacePath('C:/Users/j/Keepance 1', 'docs/The Supreme Court.docx')
-    ).toBe('C:/Users/j/Keepance 1/docs/The Supreme Court.docx');
+      resolveWorkspacePath('C:/Users/j/Lantern 1', 'docs/The Supreme Court.docx')
+    ).toBe('C:/Users/j/Lantern 1/docs/The Supreme Court.docx');
   });
 
   it('handles a bare file name with no subfolder', () => {
     expect(
-      resolveWorkspacePath('C:/Users/j/Keepance', 'contract.docx')
-    ).toBe('C:/Users/j/Keepance/contract.docx');
+      resolveWorkspacePath('C:/Users/j/Lantern', 'contract.docx')
+    ).toBe('C:/Users/j/Lantern/contract.docx');
   });
 
   it('avoids double slashes when root has a trailing slash', () => {
     expect(
-      resolveWorkspacePath('/home/user/Keepance/', 'docs/a.docx')
-    ).toBe('/home/user/Keepance/docs/a.docx');
+      resolveWorkspacePath('/home/user/Lantern/', 'docs/a.docx')
+    ).toBe('/home/user/Lantern/docs/a.docx');
   });
 
   it('preserves unicode in paths unchanged', () => {
     expect(
-      resolveWorkspacePath('/home/user/Keepance', 'docs/合同.docx')
-    ).toBe('/home/user/Keepance/docs/合同.docx');
+      resolveWorkspacePath('/home/user/Lantern', 'docs/合同.docx')
+    ).toBe('/home/user/Lantern/docs/合同.docx');
   });
 
   // --- absolute inputs pass through unchanged ---
 
   it('passes through an already-absolute POSIX path', () => {
     expect(
-      resolveWorkspacePath('/home/user/Keepance', '/elsewhere/a.docx')
+      resolveWorkspacePath('/home/user/Lantern', '/elsewhere/a.docx')
     ).toBe('/elsewhere/a.docx');
   });
 
   it('passes through an already-absolute Windows path (forward-slash C:/)', () => {
     expect(
-      resolveWorkspacePath('C:/Users/j/Keepance 1', 'C:/elsewhere/a.docx')
+      resolveWorkspacePath('C:/Users/j/Lantern 1', 'C:/elsewhere/a.docx')
     ).toBe('C:/elsewhere/a.docx');
   });
 
   it('passes through a Windows path with backslash root', () => {
     expect(
-      resolveWorkspacePath('C:/Users/j/Keepance', 'C:\\Users\\j\\other\\a.docx')
+      resolveWorkspacePath('C:/Users/j/Lantern', 'C:\\Users\\j\\other\\a.docx')
     ).toBe('C:\\Users\\j\\other\\a.docx');
   });
 
   it('passes through a POSIX absolute path with spaces', () => {
     expect(
-      resolveWorkspacePath('/home/user/My Keepance', '/opt/docs/The Supreme Court.docx')
+      resolveWorkspacePath('/home/user/My Lantern', '/opt/docs/The Supreme Court.docx')
     ).toBe('/opt/docs/The Supreme Court.docx');
   });
 });

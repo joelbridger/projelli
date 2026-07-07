@@ -28,11 +28,11 @@ const KEY_LEN: usize = 32;
 /// so the token keyspace is cryptographically independent of the AES-GCM
 /// use of the same master key (and of any future derived key, which must
 /// pick its own label).
-const PATH_TOKEN_DOMAIN: &[u8] = b"keepance-path-token-v1";
+const PATH_TOKEN_DOMAIN: &[u8] = b"lantern-path-token-v1";
 
 /// VG-6e — deterministic keyed token for the queryable `path` / `source_id`
 /// columns: `hex(HMAC-SHA256(token_key, path))` where
-/// `token_key = HMAC-SHA256(master_key, "keepance-path-token-v1")`.
+/// `token_key = HMAC-SHA256(master_key, "lantern-path-token-v1")`.
 ///
 /// Determinism is the point: every equality predicate the store runs over
 /// `path` (upsert's stale-row delete, delete_path, the retag UPDATEs) keeps
@@ -67,7 +67,7 @@ pub fn path_token(master_key: &[u8; KEY_LEN], path: &str) -> String {
 /// Get the vector-store master key from the OS keychain, creating and storing it
 /// on first call. Returns the 32-byte key as a fixed-size array.
 pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
-    if let Ok(hex) = std::env::var("KEEPANCE_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX") {
+    if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX") {
         let bytes =
             hex::decode(hex.trim()).context("decode headless test vectors master key hex")?;
         if bytes.len() != KEY_LEN {

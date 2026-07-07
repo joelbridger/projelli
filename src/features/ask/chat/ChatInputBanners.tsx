@@ -132,7 +132,7 @@ export function ChatInputBanners({
             try {
               if (!chatData.provider || !chatData.model) return null;
               // Only cloud providers carry a per-token price; local engines
-              // ('ollama'/'keepance-local') have no cost, so preserve the
+              // ('ollama'/'lantern-local') have no cost, so preserve the
               // original null result for them instead of constructing one just
               // to read metadata. Build the cloud probe through the shared
               // factory (fix F2.2) — apiKey is empty because this reads model

@@ -74,16 +74,16 @@ describe('resolveCitationPath (strict — BUG-065)', () => {
   // return null — separator normalization alone distinguishes the two.
   it('resolves a Windows same-file duplicate that differs only by path separator', () => {
     const winDup: RagHit[] = [
-      { path: 'C:/KeepanceTest\\fee-agreement.md', chunkText: 'x', score: 0.9, paragraphIndex: 0 },
-      { path: 'C:\\KeepanceTest\\fee-agreement.md', chunkText: 'x', score: 0.8, paragraphIndex: 0 },
+      { path: 'C:/LanternTest\\fee-agreement.md', chunkText: 'x', score: 0.9, paragraphIndex: 0 },
+      { path: 'C:\\LanternTest\\fee-agreement.md', chunkText: 'x', score: 0.8, paragraphIndex: 0 },
     ];
     expect(resolveCitationPath(cite('[fee-agreement.md paragraph 0]'), winDup)).not.toBe(null);
   });
 
   it('still treats a genuine cross-folder basename collision as ambiguous (Windows separators)', () => {
     const collide: RagHit[] = [
-      { path: 'C:\\KeepanceTest\\a\\dup.md', chunkText: 'x', score: 0.9, paragraphIndex: 2 },
-      { path: 'C:\\KeepanceTest\\b\\dup.md', chunkText: 'y', score: 0.8, paragraphIndex: 2 },
+      { path: 'C:\\LanternTest\\a\\dup.md', chunkText: 'x', score: 0.9, paragraphIndex: 2 },
+      { path: 'C:\\LanternTest\\b\\dup.md', chunkText: 'y', score: 0.8, paragraphIndex: 2 },
     ];
     expect(resolveCitationPath(cite('[dup.md paragraph 2]'), collide)).toBe(null);
   });

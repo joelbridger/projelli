@@ -402,7 +402,7 @@ pub async fn gmail_connect_cancel(state: State<'_, MailState>) -> Result<(), Str
 
 /// Whether this build's Gmail connector has real Google OAuth client
 /// credentials baked in. The frontend calls this before offering "Connect
-/// Gmail" so a build missing `KEEPANCE_GMAIL_CLIENT_ID`/`_SECRET` (e.g. a
+/// Gmail" so a build missing `LANTERN_GMAIL_CLIENT_ID`/`_SECRET` (e.g. a
 /// local dev build where the secret was never exported before `cargo build`
 /// ran) shows an honest "Gmail isn't set up on this build" note instead of
 /// a raw Google OAuth error.

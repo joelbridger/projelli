@@ -16,8 +16,8 @@
 !macro NSIS_HOOK_POSTINSTALL
   ; Create desktop shortcut if it doesn't already exist
   SetShellVarContext current
-  IfFileExists "$DESKTOP\Keepance.lnk" +2 0
-    CreateShortcut "$DESKTOP\Keepance.lnk" "$INSTDIR\Keepance.exe" "" "$INSTDIR\Keepance.exe" 0
+  IfFileExists "$DESKTOP\Lantern.lnk" +2 0
+    CreateShortcut "$DESKTOP\Lantern.lnk" "$INSTDIR\Lantern.exe" "" "$INSTDIR\Lantern.exe" 0
 
   ; v1.6: when installing silently (double-click UX) auto-launch the
   ; app after install. Skipped in /INTERACTIVE mode because the
@@ -26,7 +26,7 @@
   ; relaunch itself and spawning a second instance would race.
   ${If} $PassiveMode = 1
     ${If} $UpdateMode <> 1
-      nsis_tauri_utils::RunAsUser "$INSTDIR\Keepance.exe" ""
+      nsis_tauri_utils::RunAsUser "$INSTDIR\Lantern.exe" ""
     ${EndIf}
   ${EndIf}
 !macroend
@@ -35,5 +35,5 @@
 ; Clean up the desktop shortcut on uninstall
 !macro NSIS_HOOK_POSTUNINSTALL
   SetShellVarContext current
-  Delete "$DESKTOP\Keepance.lnk"
+  Delete "$DESKTOP\Lantern.lnk"
 !macroend

@@ -6,7 +6,7 @@
  * (handleDraftWithAI) additionally re-checks the mode immediately before the
  * send via assertLocalOnlyAllowsSend (the race guard, tested separately).
  *
- * F-503 — WHICH local engine: the embedded Keepance Local AI when its model is
+ * F-503 — WHICH local engine: the embedded Lantern Local AI when its model is
  * downloaded + ready, else the user's Ollama daemon — the same on-device
  * resolution Ask / Chat / Client Map use, so a machine with the embedded model
  * but no Ollama can still draft privately.
@@ -39,10 +39,10 @@ describe('EmailViewer buildProviderAsync — Local-only', () => {
     expect(provider.getMetadata().providerId).toBe('ollama');
   });
 
-  it('returns the EMBEDDED Keepance Local AI in Local-only when its model is ready (no Ollama needed)', async () => {
+  it('returns the EMBEDDED Lantern Local AI in Local-only when its model is ready (no Ollama needed)', async () => {
     mocks.status.mockResolvedValue('ready');
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
     const provider = await buildProviderAsync();
-    expect(provider.getMetadata().providerId).toBe('keepance-local');
+    expect(provider.getMetadata().providerId).toBe('lantern-local');
   });
 });

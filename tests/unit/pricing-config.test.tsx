@@ -1,5 +1,5 @@
 /**
- * Keepance 3.0 pricing tests.
+ * Lantern 3.0 pricing tests.
  *
  * Covers:
  *   1. The canonical config (src/config/pricing.ts) exposes exactly the three

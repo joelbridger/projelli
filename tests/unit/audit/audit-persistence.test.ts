@@ -1,5 +1,5 @@
 /**
- * Keepance 3.0 — AuditService persistence + append-only + export.
+ * Lantern 3.0 — AuditService persistence + append-only + export.
  *
  * Covers:
  *   1. Desktop (Tauri): every append/log routes to the encrypted store via the

@@ -134,7 +134,7 @@ describe('scopeFileTreeToFolders', () => {
       ]),
       folder('_Firm', [file('_Firm/policy.pdf')]),
     ];
-    const ROOT = 'C:/keepance-demo-northcrest/Northcrest Wealth Partners';
+    const ROOT = 'C:/lantern-demo-northcrest/Northcrest Wealth Partners';
     const absFolder = `${ROOT}/Clients/Caldwell, Jennifer`;
 
     it('scopes a relative tree to an absolute folder when workspaceRoot is given', () => {
@@ -269,7 +269,7 @@ describe('scopeFileTreeToFolders', () => {
     // BOTH the folder-containment check AND the ownership `resolveMatterId` check
     // into the same absolute space. These assert the FIXED behavior.
     describe('BUG R17: RELATIVE matter folderPaths (CRM backfill) must still scope', () => {
-      const R17_ROOT = 'C:/KeepanceWorkspaces/Northcrest Wealth Partners';
+      const R17_ROOT = 'C:/LanternWorkspaces/Northcrest Wealth Partners';
       const relTreeR17: FileNode[] = [
         folder('Clients', [
           folder('Clients/Webb, Marcus & Tanya', [
@@ -385,7 +385,7 @@ describe('scopeFileTreeToFolders', () => {
         // a parent would otherwise make every workspace file "inside" this client
         // and expose the WHOLE workspace under the wrong client. It must be
         // dropped, so the tab shows NO files rather than everyone's.
-        const PARENT = 'C:/KeepanceWorkspaces'; // parent of R17_ROOT
+        const PARENT = 'C:/LanternWorkspaces'; // parent of R17_ROOT
         const matters = [
           matter('bad', [PARENT]),
           matter('webb', ['Clients/Webb, Marcus & Tanya']),
@@ -407,7 +407,7 @@ describe('scopeFileTreeToFolders', () => {
         // Viewing WEBB's tab, a co-existing garbage matter mapped to the
         // parent-of-root must not win ownership of Webb's files (which would drop
         // them from Webb's own tab) nor surface them anywhere it shouldn't.
-        const PARENT = 'C:/KeepanceWorkspaces';
+        const PARENT = 'C:/LanternWorkspaces';
         const matters = [
           matter('bad', [PARENT]),
           matter('webb', ['Clients/Webb, Marcus & Tanya']),
@@ -483,7 +483,7 @@ describe('scopeFileTreeToFolders', () => {
 // tree and returns its raw path, so the lookup can find it regardless of
 // whether that tree happens to use relative or absolute-shaped paths.
 describe('toScopedFolderPath', () => {
-  const ROOT = 'C:/keepance-demo-northcrest/Northcrest Wealth Partners';
+  const ROOT = 'C:/lantern-demo-northcrest/Northcrest Wealth Partners';
   const relTree: FileNode[] = [
     folder('Clients', [
       folder('Clients/Caldwell, Jennifer', [

@@ -451,7 +451,7 @@ FunctionEnd
 {{/each}}
 
 Function .onInit
-  ; Keepance v1.6: silent install is the DEFAULT for double-click UX.
+  ; Lantern v1.6: silent install is the DEFAULT for double-click UX.
   ; Passing /INTERACTIVE on the command line reverts to the full wizard.
   ; Passing /S is equivalent to the default (passive). /P also works.
   ;
@@ -734,7 +734,7 @@ Section Install
 SectionEnd
 
 Function .onInstSuccess
-  ; Keepance v1.6 rc.6: a fresh silent/passive install auto-launches the
+  ; Lantern v1.6 rc.6: a fresh silent/passive install auto-launches the
   ; app so double-clicking the setup.exe doesn't leave the user staring
   ; at an empty desktop wondering if anything happened. Skipped for
   ; updates because the Tauri updater has its own relaunch flow — we

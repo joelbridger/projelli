@@ -6,7 +6,7 @@ import type { FSBackend, FileStat } from '@/platform/fs/types';
 function folderStat(path: string): FileStat {
   return {
     path,
-    name: path.split(/[\\/]/).pop() || 'Keepance',
+    name: path.split(/[\\/]/).pop() || 'Lantern',
     type: 'folder',
     size: 0,
     modifiedAt: new Date(),
@@ -64,16 +64,16 @@ describe('WorkspaceService - Windows-style paths on Linux', () => {
     const service = new WorkspaceService();
     const backend = createWindowsMockBackend();
 
-    await service.initialize(backend, 'C:\\Users\\Jane\\Keepance');
+    await service.initialize(backend, 'C:\\Users\\Jane\\Lantern');
     await service.writeFile(
-      'c:\\Users\\Jane\\Keepance\\Matters\\Acme\\brief.docx',
+      'c:\\Users\\Jane\\Lantern\\Matters\\Acme\\brief.docx',
       'draft'
     );
 
     expect(backend.mkdir).toHaveBeenCalledWith('Matters/Acme');
     expect(backend.write).toHaveBeenCalledWith('Matters/Acme/brief.docx', 'draft');
     await expect(
-      service.writeFile('C:\\Users\\Jane\\Keepance\\..\\Secret\\brief.docx', 'nope')
+      service.writeFile('C:\\Users\\Jane\\Lantern\\..\\Secret\\brief.docx', 'nope')
     ).rejects.toThrow();
     expect(backend.write).not.toHaveBeenCalledWith('../Secret/brief.docx', 'nope');
   });
@@ -100,9 +100,9 @@ describe('WorkspaceService - Windows-style paths on Linux', () => {
   ] as const)('rejects invalid Windows create name via %s: %s', async (operation, name) => {
     const service = new WorkspaceService();
     const backend = createWindowsMockBackend();
-    await service.initialize(backend, 'C:\\Users\\Jane\\Keepance');
+    await service.initialize(backend, 'C:\\Users\\Jane\\Lantern');
 
-    const path = `C:\\Users\\Jane\\Keepance\\Matters\\Acme\\${name}`;
+    const path = `C:\\Users\\Jane\\Lantern\\Matters\\Acme\\${name}`;
     const action =
       operation === 'writeFile'
         ? service.writeFile(path, 'draft')
@@ -122,8 +122,8 @@ describe('WorkspaceService - Windows-style paths on Linux', () => {
     // writeFile/writeFileBinary/mkdir.
     const service = new WorkspaceService();
     const backend = createWindowsMockBackend();
-    await service.initialize(backend, 'C:\\Users\\Jane\\Keepance');
-    const root = 'C:\\Users\\Jane\\Keepance';
+    await service.initialize(backend, 'C:\\Users\\Jane\\Lantern');
+    const root = 'C:\\Users\\Jane\\Lantern';
 
     await expect(
       service.copy(`${root}\\Clients\\Acme\\brief.docx`, `${root}\\Clients\\CON.docx`),
@@ -143,13 +143,13 @@ describe('WorkspaceService - Windows-style paths on Linux', () => {
     // segment anywhere in the path (not just the leaf) must be rejected.
     const service = new WorkspaceService();
     const backend = createWindowsMockBackend();
-    await service.initialize(backend, 'C:\\Users\\Jane\\Keepance');
+    await service.initialize(backend, 'C:\\Users\\Jane\\Lantern');
 
     await expect(
-      service.writeFile('C:\\Users\\Jane\\Keepance\\Clients\\CON\\brief.docx', 'draft'),
+      service.writeFile('C:\\Users\\Jane\\Lantern\\Clients\\CON\\brief.docx', 'draft'),
     ).rejects.toThrow(SecurityError);
     await expect(
-      service.mkdir('C:\\Users\\Jane\\Keepance\\Clients\\NUL\\Sub'),
+      service.mkdir('C:\\Users\\Jane\\Lantern\\Clients\\NUL\\Sub'),
     ).rejects.toThrow(SecurityError);
     expect(backend.write).not.toHaveBeenCalled();
     expect(backend.mkdir).not.toHaveBeenCalled();
@@ -168,9 +168,9 @@ describe('WorkspaceService - Windows-style paths on Linux', () => {
   ] as const)('accepts ordinary Windows-safe create name via %s: %s', async (operation, name) => {
     const service = new WorkspaceService();
     const backend = createWindowsMockBackend();
-    await service.initialize(backend, 'C:\\Users\\Jane\\Keepance');
+    await service.initialize(backend, 'C:\\Users\\Jane\\Lantern');
 
-    const path = `C:\\Users\\Jane\\Keepance\\Matters\\Acme\\${name}`;
+    const path = `C:\\Users\\Jane\\Lantern\\Matters\\Acme\\${name}`;
     if (operation === 'writeFile') {
       await service.writeFile(path, 'draft');
       expect(backend.write).toHaveBeenCalledWith(`Matters/Acme/${name}`, 'draft');

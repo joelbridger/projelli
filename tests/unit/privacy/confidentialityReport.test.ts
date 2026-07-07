@@ -49,7 +49,7 @@ describe('pickAttestation', () => {
     expect(text).toMatch(/no third party saw/i);
   });
 
-  it('all direct: mentions provider received prompts and Keepance not in path', () => {
+  it('all direct: mentions provider received prompts and Lantern not in path', () => {
     const text = pickAttestation({ direct: 2 });
     expect(text).toMatch(/your own API key/i);
     expect(text).toMatch(/Advisor Prep Hero was not in the path/i);

@@ -390,7 +390,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         // zero cost, zero network egress. The model id is the provider's own
         // default; only AI Rules are threaded in.
         provider = createProvider({
-          provider: 'keepance-local',
+          provider: 'lantern-local',
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
         console.log(
@@ -460,7 +460,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           : providerResolution.kind === 'ollama'
             ? 'ollama'
             : providerResolution.kind === 'lantern-local'
-              ? 'keepance-local'
+              ? 'lantern-local'
               : 'mock';
       const getWorkflowAuditScope = (): AuditScope => {
         const scope = getActiveScope();

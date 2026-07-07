@@ -1,5 +1,5 @@
 /**
- * Campaign test helpers — Keepance 3.0 usability campaign.
+ * Campaign test helpers — Lantern 3.0 usability campaign.
  *
  * Exports:
  *   snap(page, testInfo, name)         — full-page screenshot, dual-save

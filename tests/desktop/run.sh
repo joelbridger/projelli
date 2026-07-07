@@ -2,7 +2,7 @@
 #
 # run.sh — run the L2 "real desktop app" test suite headless on Linux.
 #
-# Drives the REAL Tauri (Rust) Keepance app via tauri-driver + WebKitWebDriver +
+# Drives the REAL Tauri (Rust) Lantern app via tauri-driver + WebKitWebDriver +
 # xvfb, with a FRESH isolated profile per spec (temp HOME/XDG/workspace), so the
 # OS keychain fallback, ~/.keepance, and WebKit profile never touch the real home
 # dir and specs can't contaminate each other.
@@ -14,7 +14,7 @@
 # Requires (all already present on this server):
 #   - src-tauri/target/debug/keepance   (build with: npm run tauri build -- --debug, or reuse)
 #   - tauri-driver                       (cargo install tauri-driver --locked)
-#   - /usr/bin/WebKitWebDriver, xvfb-run, node, a Keepance Vite server on :5173
+#   - /usr/bin/WebKitWebDriver, xvfb-run, node, a Lantern Vite server on :5173
 #
 set -euo pipefail
 
@@ -124,11 +124,11 @@ sweep_stale_l2
 
 # --- shared Vite (frontend) ------------------------------------------------
 VITE_PID=""
-if curl -fsS "http://127.0.0.1:$VITE_PORT/" 2>/dev/null | grep -q '<title>Keepance</title>'; then
-  echo "Reusing Keepance Vite on :$VITE_PORT"
+if curl -fsS "http://127.0.0.1:$VITE_PORT/" 2>/dev/null | grep -q '<title>Lantern</title>'; then
+  echo "Reusing Lantern Vite on :$VITE_PORT"
 else
   if curl -fsS "http://127.0.0.1:$VITE_PORT/" >/dev/null 2>&1; then
-    echo "ERROR: :$VITE_PORT in use but not Keepance" >&2; exit 1
+    echo "ERROR: :$VITE_PORT in use but not Lantern" >&2; exit 1
   fi
   echo "Starting Vite on :$VITE_PORT"
   ( cd "$ROOT_DIR" && npm run dev -- --host 127.0.0.1 --port "$VITE_PORT" ) > "$EVIDENCE_DIR/vite.log" 2>&1 &

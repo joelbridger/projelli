@@ -137,15 +137,15 @@ const loadConnectorSourcePanels = () => import('@/app/shell/ConnectorSourcePanel
 const IS_TEST_MODE =
   typeof window !== 'undefined' &&
   window.location.search.includes('testMode=true');
-// `__KEEPANCE_DEMO__` is substituted to `true` at build time by
+// `__LANTERN_DEMO__` is substituted to `true` at build time by
 // vite.config.web-demo.ts. We must read it here (not just the runtime
 // `window.__lanternDemo` flag) because this const is evaluated at module
 // import time — which happens BEFORE web-demo/main.tsx sets the window flag,
 // so the window flag alone is always `false` in the built demo bundle.
-declare const __KEEPANCE_DEMO__: boolean | undefined;
+declare const __LANTERN_DEMO__: boolean | undefined;
 const IS_DEMO_MODE =
   typeof window !== 'undefined' &&
-  ((typeof __KEEPANCE_DEMO__ !== 'undefined' && __KEEPANCE_DEMO__) ||
+  ((typeof __LANTERN_DEMO__ !== 'undefined' && __LANTERN_DEMO__) ||
     (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
 /**
@@ -300,7 +300,7 @@ function AppShell() {
 
   // Stream C1 — Templates Marketplace service. Constructed once when a
   // workspace is selected (each workspace gets its own install root under
-  // `<workspaceRoot>/.keepance/templates`). The metadata reader reads
+  // `<workspaceRoot>/.lantern/templates`). The metadata reader reads
   // installed entries off disk and adapts them into WorkflowTemplate for the
   // engine. Both refs are nullable until a workspace is loaded.
   const templatesMarketplaceServiceRef = useRef<MarketplaceService | null>(null);
@@ -1045,7 +1045,7 @@ function AppShell() {
     [handleWorkspaceSelected, prompt, t]
   );
 
-  // Demo build (keepance.com/try): auto-open the OPFS workspace that
+  // Demo build (lantern.com/try): auto-open the OPFS workspace that
   // WebDemoSeeder pre-populated, so the visitor lands inside the seeded
   // matter instead of the "pick a folder" screen. Mirrors the browser
   // open path in WorkspaceSelector, but sources the directory handle from
@@ -1056,11 +1056,11 @@ function AppShell() {
     void (async () => {
       try {
         const opfsRoot = await navigator.storage.getDirectory();
-        const demoDir = await opfsRoot.getDirectoryHandle('keepance-demo', { create: true });
+        const demoDir = await opfsRoot.getDirectoryHandle('lantern-demo', { create: true });
         const backend = createWebFSBackend();
         backend.setRootHandle(demoDir);
         const service = createWorkspaceService();
-        await service.initialize(backend, '/keepance-demo');
+        await service.initialize(backend, '/lantern-demo');
         if (cancelled.current) return;
         await handleWorkspaceSelected(service);
       } catch (err) {

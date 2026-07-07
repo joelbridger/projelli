@@ -49,14 +49,14 @@ export interface SeedPayload {
 
 declare global {
   interface Window {
-    __keepance_seed?: (payload: SeedPayload) => void;
-    __keepance_signal?: (name: string, data?: unknown) => void;
-    __keepance_signals?: Array<{ name: string; data?: unknown; ts: number }>;
+    __lantern_seed?: (payload: SeedPayload) => void;
+    __lantern_signal?: (name: string, data?: unknown) => void;
+    __lantern_signals?: Array<{ name: string; data?: unknown; ts: number }>;
   }
 }
 
 export function mountMarketingCaptureBridge(): void {
-  window.__keepance_seed = (payload: SeedPayload) => {
+  window.__lantern_seed = (payload: SeedPayload) => {
     if (payload.workspace) useWorkspaceStore.setState(payload.workspace);
     if (payload.editor) useEditorStore.setState(payload.editor);
     if (payload.aiChat) useAIChatStore.setState(payload.aiChat);
@@ -76,10 +76,10 @@ export function mountMarketingCaptureBridge(): void {
     }
   };
 
-  window.__keepance_signals = [];
-  window.__keepance_signal = (name: string, data?: unknown) => {
-    window.__keepance_signals!.push({ name, data, ts: Date.now() });
+  window.__lantern_signals = [];
+  window.__lantern_signal = (name: string, data?: unknown) => {
+    window.__lantern_signals!.push({ name, data, ts: Date.now() });
   };
 
-  console.info('[keepance] marketing-capture bridge mounted');
+  console.info('[lantern] marketing-capture bridge mounted');
 }

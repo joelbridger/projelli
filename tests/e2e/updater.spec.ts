@@ -118,7 +118,7 @@ test.describe('Auto-updater UI', () => {
     const modal = page.getByTestId('update-release-notes-modal');
     await expect(modal).toBeVisible();
     // UpdateReleaseNotesModal.tsx renders "Advisor Prep Hero {version}" —
-    // the 2026-07-01 rebrand changed BRAND.name from "Keepance".
+    // the 2026-07-01 rebrand changed BRAND.name from "Lantern".
     await expect(modal.getByRole('heading', { name: /advisor prep hero 1\.0\.8/i })).toBeVisible();
     // Body shows the release notes verbatim.
     await expect(page.getByTestId('update-release-notes-body')).toContainText(

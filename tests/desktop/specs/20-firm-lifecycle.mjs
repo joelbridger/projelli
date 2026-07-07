@@ -90,7 +90,7 @@ async function provisionUnclaimedOrg() {
       attributes: {
         first_subscription_item: {
           variant_id: `desktop-${RUN_ID}`,
-          variant_name: 'Keepance Firm Annual',
+          variant_name: 'Lantern Firm Annual',
           quantity: 3,
         },
         customer_name: CLAIM_ORG_NAME,

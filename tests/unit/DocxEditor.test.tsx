@@ -1491,7 +1491,7 @@ describe('DocxEditor — AI redline (A4)', () => {
       if (cmd === 'docx_open') return Promise.resolve(plainDoc());
       if (cmd === 'docx_author_revisions') {
         // Drift-safe contract: the editor applies BOTH edits against the
-        // ORIGINAL doc in ONE engine call, attributed to Keepance AI.
+        // ORIGINAL doc in ONE engine call, attributed to Lantern AI.
         expect(args?.['document']).toEqual(plainDoc());
         expect(args?.['edits']).toEqual(TWO_EDITS);
         expect(args?.['author']).toBe('Advisor Prep Hero AI');
@@ -1537,7 +1537,7 @@ describe('DocxEditor — AI redline (A4)', () => {
       const ids = rows.map((r) => r.getAttribute('data-revision-id'));
       expect(ids).toEqual(expect.arrayContaining(['1', '2']));
     });
-    // The AI's insertion + deletions are attributed to Keepance AI.
+    // The AI's insertion + deletions are attributed to Lantern AI.
     expect(screen.getByTestId('docx-insertion')).toHaveAttribute('data-author', 'Advisor Prep Hero AI');
     const dels = screen.getAllByTestId('docx-deletion');
     expect(dels.length).toBeGreaterThanOrEqual(2);

@@ -362,7 +362,7 @@ describe('F-502 — local-only mode', () => {
 });
 
 // ---------------------------------------------------------------------------
-// F-503 — Embedded Keepance Local AI takes priority over Ollama in private mode
+// F-503 — Embedded Lantern Local AI takes priority over Ollama in private mode
 //
 // The class-of-bug fix: in Local-only mode the workflow engine resolved the
 // local provider to OLLAMA only. On a machine that has the embedded on-device
@@ -373,7 +373,7 @@ describe('F-502 — local-only mode', () => {
 // ---------------------------------------------------------------------------
 
 describe('F-503 — embedded local model preferred in private mode', () => {
-  it('local-only + embedded model ready → keepance-local (even with no Ollama and cloud keys present)', () => {
+  it('local-only + embedded model ready → lantern-local (even with no Ollama and cloud keys present)', () => {
     const r = resolveWorkflowProvider(makeInput({
       pickedProvider: 'claude', pickedModel: 'claude-sonnet-4-6',
       anthropicKey: 'sk-real',

@@ -51,7 +51,7 @@ import { wrapMatterKey } from '@/platform/firm/keyWrap';
  * Fields are camelCase because the Rust struct uses `#[serde(rename_all = "camelCase")]`.
  */
 export interface VaultStatus {
-  /** true when `.keepance-vault.json` exists in the workspace. */
+  /** true when `.lantern-vault.json` exists in the workspace. */
   enabled: boolean;
   /** true when enabled and the VMK is absent from the OS keychain. */
   locked: boolean;
@@ -237,7 +237,7 @@ export async function vaultDecryptAll(workspace: string): Promise<void> {
  * SAFETY: refuses with `files_still_encrypted` if any file still has KPV1
  * magic — run `vaultDecryptAll` first.
  *
- * On success: deletes `.keepance-vault.json` and the keychain VMK entry.
+ * On success: deletes `.lantern-vault.json` and the keychain VMK entry.
  *
  * @param workspace Absolute path to the workspace root.
  */

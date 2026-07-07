@@ -1448,7 +1448,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir must succeed");
         let root = dir.path();
 
-        // No .keepance-vault.json — must return None.
+        // No .lantern-vault.json — must return None.
         let result = crate::commands::vault::try_load_vault_vmk(root);
         assert!(
             result.is_none(),

@@ -126,7 +126,7 @@ pub fn acquire_sync_slot(state: &OneDriveState) -> Result<SyncGuard, String> {
 }
 
 fn client_id() -> String {
-    option_env!("KEEPANCE_MS_CLIENT_ID")
+    option_env!("LANTERN_MS_CLIENT_ID")
         .unwrap_or("845ddba0-70ab-4f90-88ba-e3522157e37a")
         .to_string()
 }

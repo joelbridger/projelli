@@ -36,18 +36,18 @@ beforeEach(() => {
 
 describe('recent workspace path cleanup', () => {
   it('normalizes Windows separators and drive casing', () => {
-    expect(normalizeRecentWorkspacePath('c:\\Users\\Jameson\\Keepance\\')).toBe('C:/Users/Jameson/Keepance');
+    expect(normalizeRecentWorkspacePath('c:\\Users\\Jameson\\Lantern\\')).toBe('C:/Users/Jameson/Lantern');
   });
 
   it('dedupes recent workspaces by normalized Windows path', () => {
     const deduped = dedupeRecentWorkspaces([
       {
-        path: 'C:/Users/Jameson/Keepance',
+        path: 'C:/Users/Jameson/Lantern',
         name: 'older',
         lastOpened: new Date('2026-06-23T10:00:00Z'),
       },
       {
-        path: 'c:\\users\\jameson\\keepance\\',
+        path: 'c:\\users\\jameson\\Lantern\\',
         name: 'newer',
         lastOpened: new Date('2026-06-24T10:00:00Z'),
       },
@@ -55,7 +55,7 @@ describe('recent workspace path cleanup', () => {
 
     expect(deduped).toHaveLength(1);
     expect(deduped[0]).toMatchObject({
-      path: 'C:/users/jameson/keepance',
+      path: 'C:/users/jameson/Lantern',
       name: 'newer',
     });
   });
@@ -63,12 +63,12 @@ describe('recent workspace path cleanup', () => {
   it('normalizes and dedupes saved recents when loading old localStorage data', () => {
     localStorage.setItem(RECENT_KEY, JSON.stringify([
       {
-        path: 'C:/Users/Jameson/Keepance',
+        path: 'C:/Users/Jameson/Lantern',
         name: 'older',
         lastOpened: '2026-06-23T10:00:00Z',
       },
       {
-        path: 'c:\\users\\jameson\\keepance\\',
+        path: 'c:\\users\\jameson\\Lantern\\',
         name: 'newer',
         lastOpened: '2026-06-24T10:00:00Z',
       },
@@ -79,25 +79,25 @@ describe('recent workspace path cleanup', () => {
     const recents = useWorkspaceStore.getState().recentWorkspaces;
     expect(recents).toHaveLength(1);
     expect(recents[0]).toMatchObject({
-      path: 'C:/users/jameson/keepance',
+      path: 'C:/users/jameson/Lantern',
       name: 'newer',
     });
 
     const persisted = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]') as Array<{ path: string }>;
     expect(persisted).toHaveLength(1);
-    expect(persisted[0]?.path).toBe('C:/users/jameson/keepance');
+    expect(persisted[0]?.path).toBe('C:/users/jameson/Lantern');
   });
 
   it('removes a recent workspace by normalized path', () => {
     const store = useWorkspaceStore.getState();
 
     store.addRecentWorkspace({
-      path: 'C:/Users/Jameson/Keepance',
-      name: 'Keepance',
+      path: 'C:/Users/Jameson/Lantern',
+      name: 'Lantern',
       lastOpened: new Date('2026-06-24T10:00:00Z'),
     });
 
-    useWorkspaceStore.getState().removeRecentWorkspace('c:\\users\\jameson\\keepance');
+    useWorkspaceStore.getState().removeRecentWorkspace('c:\\users\\jameson\\Lantern');
 
     expect(useWorkspaceStore.getState().recentWorkspaces).toEqual([]);
     expect(JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]')).toEqual([]);

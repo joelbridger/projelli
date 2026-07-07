@@ -1,7 +1,7 @@
 /**
  * WS-C honesty — Ollama wired into the chat + redline send path.
  *
- * This is an HONESTY-CRITICAL suite. Keepance's Local-only confidentiality mode
+ * This is an HONESTY-CRITICAL suite. Lantern's Local-only confidentiality mode
  * and the egress indicator both promise "nothing leaves your machine" when a
  * local model is used. Before this work, an Ollama-configured chat fell through
  * to the Claude/cloud branch — the indicator would OVERCLAIM and a "private"

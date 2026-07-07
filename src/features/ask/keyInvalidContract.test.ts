@@ -38,8 +38,8 @@ describe('the shared "mark key invalid on auth rejection" contract used by both 
   });
 
   it('does not mark a local provider (no verifiable key to invalidate)', () => {
-    maybeMarkKeyInvalid('HTTP 401: Unauthorized', 'keepance-local', { mode: 'cloud', reachedProvider: true });
-    expect(isKeyInvalid('keepance-local')).toBe(false);
+    maybeMarkKeyInvalid('HTTP 401: Unauthorized', 'lantern-local', { mode: 'cloud', reachedProvider: true });
+    expect(isKeyInvalid('lantern-local')).toBe(false);
   });
 
   it('does not mark the key when the failure never reached the provider (e.g. file-search stage)', () => {

@@ -408,7 +408,7 @@ mod tests {
     #[ignore]
     async fn outlook_live_smoke() {
         use crate::commands::mail::gmail::oauth::gen_pkce;
-        let cid = std::env::var("KEEPANCE_MS_CLIENT_ID")
+        let cid = std::env::var("LANTERN_MS_CLIENT_ID")
             .unwrap_or_else(|_| "845ddba0-70ab-4f90-88ba-e3522157e37a".to_string());
         // Personal Microsoft accounts require "localhost" (not "127.0.0.1") for
         // the loopback redirect to match the http://localhost app registration.
@@ -443,7 +443,7 @@ mod tests {
         use crate::commands::mail::sync::sync_folder_provider;
         use crate::commands::rag::store::UNASSIGNED_MATTER;
 
-        let cid = std::env::var("KEEPANCE_MS_CLIENT_ID")
+        let cid = std::env::var("LANTERN_MS_CLIENT_ID")
             .unwrap_or_else(|_| "845ddba0-70ab-4f90-88ba-e3522157e37a".to_string());
         let redirect = "http://localhost:7777";
 

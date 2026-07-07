@@ -37,18 +37,18 @@ export async function detectLibreOffice(): Promise<string | null> {
   return result;
 }
 
-/** Outcome of the per-workspace data-folder migration (`.keepance` → `.lantern`). */
+/** Outcome of the per-workspace data-folder check for the `.lantern` folder. */
 export interface WorkspaceDataDirMigrationReport {
-  /** e.g. "fresh-install" | "already-migrated" | "migrated" | "promoted-over-stub" | "conflict-kept-new" | "leftover-old-kept" | "fail-safe" */
+  /** e.g. "fresh-install" | "already-migrated" */
   data_dir: string;
-  /** e.g. "fresh-install" | "already-migrated" | "migrated" | "conflict" | "fail-safe" */
+  /** e.g. "fresh-install" | "already-migrated" */
   vault_meta: string;
 }
 
 /**
- * First-launch migration of a workspace's internal data folder from the legacy
- * `.keepance` name to `.lantern` (plus the vault-metadata file). Idempotent and
- * fail-safe on the Rust side. Browser/dev: no-op (returns null).
+ * First-launch check for a workspace's internal `.lantern` data folder and
+ * vault-metadata file. Dev-data reset is approved for the Lantern rename, so
+ * old folders are not migrated. Browser/dev: no-op (returns null).
  *
  * MUST be awaited at workspace-open time BEFORE any store (audit/mail/rag/…) is
  * opened, so the data folder is converged before consumers touch it.
@@ -61,11 +61,10 @@ export async function migrateWorkspaceDataDir(
 }
 
 /**
- * Resolve the LIVE internal data-dir name for a workspace (`.lantern`, or the
- * legacy `.keepance` in the migration fail-safe state) — the same decision the
- * Rust stores use. Renderer-side writers into the data dir resolve their path
- * against this so a write never lands in the wrong folder. Returns `null` in the
- * browser/dev (no Tauri); callers default to `.lantern`.
+ * Resolve the internal data-dir name for a workspace (`.lantern`) — the same
+ * decision the Rust stores use. Renderer-side writers into the data dir resolve
+ * their path against this so a write never lands in the wrong folder. Returns
+ * `null` in the browser/dev (no Tauri); callers default to `.lantern`.
  */
 export async function resolveWorkspaceDataDirName(
   workspaceRoot: string,

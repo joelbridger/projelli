@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate the Keepance campaign fixture corpus.
+Generate the Lantern campaign fixture corpus.
 
 Outputs into the parent directory (tests/fixtures/matter-corpus/).
 

@@ -1,6 +1,6 @@
-# L2 desktop tests — driving the REAL Keepance app headless
+# L2 desktop tests — driving the REAL Lantern app headless
 
-These tests drive the **real Tauri (Rust) Keepance app** — actual keychain, encrypted mail
+These tests drive the **real Tauri (Rust) Lantern app** — actual keychain, encrypted mail
 store, RAG, .docx engine, multi-window, real file persistence — headless on Linux, via
 `tauri-driver` + `WebKitWebDriver` + `xvfb`. They catch the class of bug that used to surface
 only after a slow signed build (firm login, mail import showing up, vault, co-editing).
@@ -93,7 +93,7 @@ tests/desktop/
   run.sh                 # orchestrator: shared Vite + per-spec isolated profile + tauri-driver
   harness/
     webdriver.mjs        # zero-dep W3C WebDriver client (Session)
-    app.mjs              # Keepance helpers: bootToWorkspace, gotoSurface, seeding
+    app.mjs              # Lantern helpers: bootToWorkspace, gotoSurface, seeding
     runner.mjs           # runs one spec in a session; screenshots on failure
   specs/                 # the tests (one per user journey)
     00-workspace-shell.smoke.mjs

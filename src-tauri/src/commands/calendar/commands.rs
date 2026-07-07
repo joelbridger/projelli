@@ -61,7 +61,7 @@ fn secret_key_for(provider: &str) -> &'static str {
 fn ms_client_id() -> String {
     // Same public app registration as the OneDrive connector
     // (onedrive/commands.rs:55-59); calendar is a new delegated scope on it.
-    option_env!("KEEPANCE_MS_CLIENT_ID")
+    option_env!("LANTERN_MS_CLIENT_ID")
         .unwrap_or("845ddba0-70ab-4f90-88ba-e3522157e37a")
         .to_string()
 }

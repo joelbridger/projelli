@@ -7,7 +7,7 @@
  * as a trust killer, so there is exactly one place to change a number.
  *
  * Source of truth for the numbers + copy: the ratified recommendation in
- * `docs/strategy/2026-06-09-keepance-3.0-pricing.md`. If that doc and this file
+ * `docs/strategy/2026-06-09-lantern-3.0-pricing.md`. If that doc and this file
  * ever disagree, the doc wins and this file is wrong - fix it here.
  *
  * ── Tier-code reconciliation (READ THIS) ───────────────────────────────────

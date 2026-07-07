@@ -30,7 +30,7 @@ const PROVIDER_FALLBACKS: Record<string, number> = {
   ollama: 8192,
   // Embedded Advisor Prep Hero Local AI engine. The Rust side pins the actual context
   // window via llama.cpp's --ctx-size; this fallback is for UI/metadata only.
-  'keepance-local': 16384,
+  'lantern-local': 16384,
 };
 
 // Exact-match overrides. Match is attempted first; if no exact match, the

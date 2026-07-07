@@ -276,8 +276,8 @@ describe('QA-25 (P2): switching clients mid-Ask never silently discards the ques
     // the post-await abort guard were missing.
     await act(async () => {
       resolveProvider({
-        provider: { getMetadata: () => ({ provider: 'keepance-local', model: 'stub' }) },
-        providerId: 'keepance-local',
+        provider: { getMetadata: () => ({ provider: 'lantern-local', model: 'stub' }) },
+        providerId: 'lantern-local',
         model: 'stub',
       });
       await Promise.resolve();

@@ -1,7 +1,7 @@
 /**
  * Local-model initiative — Ticket 1 (provider identity).
  *
- * Proves the embedded "Keepance Local AI" engine ('keepance-local') is wired
+ * Proves the embedded "Lantern Local AI" engine ('lantern-local') is wired
  * into the provider type system AS A LOCAL PROVIDER, and that the factory
  * constructs the real provider for it (never a silent cloud fallback).
  */
@@ -13,9 +13,9 @@ import {
   LANTERN_LOCAL_DEFAULT_MODEL,
 } from '@/platform/providers/providerFactory';
 
-describe('keepance-local provider identity (Ticket 1)', () => {
+describe('lantern-local provider identity (Ticket 1)', () => {
   it('is recognised as a LOCAL provider', () => {
-    expect(isLocalProviderId('keepance-local')).toBe(true);
+    expect(isLocalProviderId('lantern-local')).toBe(true);
   });
 
   it('does not regress the other local/cloud classifications', () => {
@@ -30,7 +30,7 @@ describe('keepance-local provider identity (Ticket 1)', () => {
   });
 
   it('createProvider constructs the embedded local provider (never a cloud fallback)', () => {
-    const p = createProvider({ provider: 'keepance-local' });
-    expect(p.getMetadata().providerId).toBe('keepance-local');
+    const p = createProvider({ provider: 'lantern-local' });
+    expect(p.getMetadata().providerId).toBe('lantern-local');
   });
 });

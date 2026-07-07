@@ -123,7 +123,7 @@ export const ASK_ANSWER_TIMEOUT_MS = 45_000;
 
 /**
  * lp/localai-patience — assumed FLOOR prompt-eval rate for the embedded local
- * engine (keepance-local, llama.cpp on the CPU), in tokens/second. The Legion
+ * engine (lantern-local, llama.cpp on the CPU), in tokens/second. The Legion
  * autopsy measured a 4,574-token Ask prompt at ~70.5s of prompt-eval — a real
  * rate of ~65 tok/s. We deliberately assume a SLOWER 40 tok/s so the derived
  * budget clears the real eval time with headroom on slower/busier machines,
@@ -309,7 +309,7 @@ export const LOCAL_AI_HEALTH_PROBE_GRACE_MS = 1500;
 /**
  * Fix 1b (demo readiness) — waits for the embedded llama-server sidecar to
  * become healthy BEFORE `createAnswerStallWatchdog` above is armed, for a
- * `keepance-local` send. The sidecar's own health wait can legitimately take
+ * `lantern-local` send. The sidecar's own health wait can legitimately take
  * up to two minutes on a cold model load (`HEALTH_TIMEOUT_SECS` in
  * `llama_server.rs`) — far longer than the watchdog's `ASK_ANSWER_TIMEOUT_MS`
  * ceiling tolerates. Without this, the FIRST Local-only question after
@@ -317,12 +317,12 @@ export const LOCAL_AI_HEALTH_PROBE_GRACE_MS = 1500;
  * pre-start in `localAiPreStart.ts` has finished) could get killed by the
  * watchdog while the engine was still legitimately starting up, not stalled.
  *
- * A no-op for any provider other than `'keepance-local'`, AND a no-op off
+ * A no-op for any provider other than `'lantern-local'`, AND a no-op off
  * desktop (`isDesktop` returns false) — a real llama-server sidecar only ever
  * exists in the desktop app, the exact same "off-Tauri = safe no-op" contract
  * `localLlmSidecarHealth()`/`isEmbeddedLocalModelReady()` already follow. This
  * matters because `providerId` alone is just a string: in the real send path
- * it's only ever `'keepance-local'` when `isEmbeddedLocalModelReady()` already
+ * it's only ever `'lantern-local'` when `isEmbeddedLocalModelReady()` already
  * proved a genuine desktop engine exists, but a test double (or the browser
  * demo, hypothetically) can carry that id without one, and must not reach for
  * a sidecar that was never there.
@@ -347,7 +347,7 @@ export async function waitForLocalAiSidecarReady(opts: {
   /** Defaults to the real desktop check (`isTauri` from `@tauri-apps/api/core`). */
   isDesktop?: () => boolean;
 }): Promise<void> {
-  if (opts.providerId !== 'keepance-local') return;
+  if (opts.providerId !== 'lantern-local') return;
   if (!(opts.isDesktop ?? isTauri)()) return;
 
   // Plain `let`s mutated inside the `probe` closure below would get

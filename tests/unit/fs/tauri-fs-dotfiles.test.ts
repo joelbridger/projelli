@@ -4,7 +4,7 @@
  * The desktop backend used to (a) drop EVERY dot-prefixed entry before the UI
  * saw it, so "Show Hidden Files" could never reveal .gitignore, and (b) recurse
  * internally, which after (a)'s removal would have walked huge dot-directories
- * like .git. It now drops ONLY Keepance's internal `.keepance` folder and is
+ * like .git. It now drops ONLY Lantern's internal `.keepance` folder and is
  * SHALLOW (one level, like WebFSBackend) — real recursion + the .trash / dot-dir
  * / symlink rules are owned by WorkspaceService.listRecursive.
  */
@@ -59,7 +59,7 @@ describe('TauriFSBackend.list — desktop dotfile visibility', () => {
     // dot-directories still appear (unexpanded) and .trash keeps its handling.
     expect(names).toContain('.git');
     expect(names).toContain('.trash');
-    // Keepance's internal config folder is never listed.
+    // Lantern's internal config folder is never listed.
     expect(names).not.toContain('.lantern');
     // Shallow contract: list() reads ONLY the requested directory and never
     // walks into ANY subdirectory (so a huge .git can't slow load, no matter how

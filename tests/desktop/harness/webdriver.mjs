@@ -1,6 +1,6 @@
 /**
  * webdriver.mjs — a tiny, zero-dependency W3C WebDriver client for driving the
- * REAL Keepance Tauri desktop app through `tauri-driver`.
+ * REAL Lantern Tauri desktop app through `tauri-driver`.
  *
  * This is the proven mechanism from the harness probe
  * (docs/quality/2026-06-18-user-test/harness-probe/driver.mjs), generalized into
