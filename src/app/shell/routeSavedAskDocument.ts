@@ -2,6 +2,7 @@ import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { Matter } from '@/platform/types/matter';
 import { showMatterDocuments } from '@/app/shell/matterDocumentNavigation';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
+import { workspacePath } from '@/platform/fs/appPath';
 
 /**
  * After Ask's "Save to Document" creates the .docx, actually SHOW it (the file
@@ -36,4 +37,36 @@ export function routeSavedAskDocument({
     documentOpened: true,
     handlers: { setDocumentsView, setSidebarActiveTab, setMattersSurfaceMode },
   });
+}
+
+export function resolveSavedDocumentDirectory({
+  rootPath,
+  activeMatter,
+}: {
+  rootPath: string;
+  activeMatter: Matter | null;
+}): string {
+  if (!activeMatter) return rootPath;
+  const clientRoot = activeMatter.folderPaths.find(
+    (path) => typeof path === 'string' && path.trim().length > 0
+  );
+  if (!clientRoot) {
+    throw new Error('This client does not have a document folder yet.');
+  }
+  return workspacePath(clientRoot, 'Documents');
+}
+
+export function resolveSavedDocumentPath({
+  rootPath,
+  activeMatter,
+  fileName,
+}: {
+  rootPath: string;
+  activeMatter: Matter | null;
+  fileName: string;
+}): string {
+  return workspacePath(
+    resolveSavedDocumentDirectory({ rootPath, activeMatter }),
+    fileName
+  );
 }

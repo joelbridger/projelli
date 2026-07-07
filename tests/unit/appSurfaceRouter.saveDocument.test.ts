@@ -1,5 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { routeSavedAskDocument } from '@/app/shell/routeSavedAskDocument';
+import {
+  resolveSavedDocumentPath,
+  routeSavedAskDocument,
+} from '@/app/shell/routeSavedAskDocument';
 import type { Matter } from '@/platform/types/matter';
 
 const matterState = {
@@ -19,7 +22,7 @@ function sampleMatter(): Matter {
     id: 'client-1',
     name: 'Morgan Household',
     client: 'Morgan Household',
-    folderPaths: [],
+    folderPaths: ['/workspace/Clients/Morgan Household'],
     createdAt: '2026-07-06T00:00:00.000Z',
     privileged: true,
   };
@@ -68,5 +71,25 @@ describe('routeSavedAskDocument', () => {
     expect(matterState.setActiveMatter).not.toHaveBeenCalled();
     expect(matterState.setClientMapHubId).not.toHaveBeenCalled();
     expect(matterState.setClientMapHubTab).not.toHaveBeenCalled();
+  });
+
+  it('saves a new Ask or email document inside the active client Documents folder', () => {
+    expect(
+      resolveSavedDocumentPath({
+        rootPath: '/workspace',
+        activeMatter: sampleMatter(),
+        fileName: 'Planning notes.docx',
+      })
+    ).toBe('/workspace/Clients/Morgan Household/Documents/Planning notes.docx');
+  });
+
+  it('saves a new Ask or email document at the workspace root only when no client is active', () => {
+    expect(
+      resolveSavedDocumentPath({
+        rootPath: '/workspace',
+        activeMatter: null,
+        fileName: 'Planning notes.docx',
+      })
+    ).toBe('/workspace/Planning notes.docx');
   });
 });

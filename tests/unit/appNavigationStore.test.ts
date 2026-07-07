@@ -92,6 +92,48 @@ describe('app navigation history stack', () => {
     });
   });
 
+  it('moves Back history for a deleted client to All Clients instead of an empty client canvas', () => {
+    const restored = sanitizeNavigationSnapshotForCurrentMatters(
+      snap({
+        sidebarActiveTab: 'matters',
+        activeMatterId: 'deleted-client',
+        clientMapHubId: 'deleted-client',
+        clientMapHubTab: 'overview',
+        mattersSurfaceMode: 'client-map',
+      }),
+      [{ id: 'm1' }],
+      '/workspaces/current'
+    );
+
+    expect(restored).toMatchObject({
+      activeMatterId: null,
+      clientMapHubId: null,
+      clientMapHubTab: null,
+      mattersSurfaceMode: 'all-clients',
+    });
+  });
+
+  it('treats archived clients as dead for Back history restore', () => {
+    const restored = sanitizeNavigationSnapshotForCurrentMatters(
+      snap({
+        sidebarActiveTab: 'matters',
+        activeMatterId: 'archived-client',
+        clientMapHubId: 'archived-client',
+        clientMapHubTab: 'overview',
+        mattersSurfaceMode: 'client-map',
+      }),
+      [{ id: 'archived-client', archived: true }],
+      '/workspaces/current'
+    );
+
+    expect(restored).toMatchObject({
+      activeMatterId: null,
+      clientMapHubId: null,
+      clientMapHubTab: null,
+      mattersSurfaceMode: 'all-clients',
+    });
+  });
+
   it('rejects snapshots from another workspace', () => {
     const restored = sanitizeNavigationSnapshotForCurrentMatters(
       snap({ rootPath: '/workspaces/old', activeMatterId: 'm1' }),

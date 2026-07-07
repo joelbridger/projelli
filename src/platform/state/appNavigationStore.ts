@@ -41,30 +41,43 @@ function sameSnapshot(
 
 function matterExists(
   id: string | null,
-  matters: Array<{ id: string }>
+  matters: Array<{ id: string; archived?: boolean }>
 ): boolean {
-  return id === null || matters.some((matter) => matter.id === id);
+  return (
+    id === null ||
+    matters.some((matter) => matter.id === id && matter.archived !== true)
+  );
 }
 
 export function sanitizeNavigationSnapshotForCurrentMatters(
   snapshot: AppNavigationSnapshot,
-  matters: Array<{ id: string }>,
+  matters: Array<{ id: string; archived?: boolean }>,
   currentRootPath: string | null
 ): AppNavigationSnapshot | null {
   if (snapshot.rootPath !== currentRootPath) return null;
 
+  const hadClientTarget =
+    snapshot.activeMatterId !== null || snapshot.clientMapHubId !== null;
   const activeMatterId = matterExists(snapshot.activeMatterId, matters)
     ? snapshot.activeMatterId
     : null;
   const clientMapHubId = matterExists(snapshot.clientMapHubId, matters)
     ? snapshot.clientMapHubId
     : null;
+  const lostClientMapTarget =
+    hadClientTarget &&
+    activeMatterId === null &&
+    clientMapHubId === null &&
+    snapshot.mattersSurfaceMode === 'client-map';
 
   return {
     ...snapshot,
     activeMatterId,
     clientMapHubId,
     clientMapHubTab: clientMapHubId ? snapshot.clientMapHubTab : null,
+    mattersSurfaceMode: lostClientMapTarget
+      ? 'all-clients'
+      : snapshot.mattersSurfaceMode,
   };
 }
 
