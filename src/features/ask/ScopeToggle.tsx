@@ -12,6 +12,7 @@ import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 interface ScopeOptionDef {
   value: AskScope;
   label: string;
+  helper?: string;
   Icon: IconType;
 }
 
@@ -37,7 +38,7 @@ export function ScopeToggle({
       { value: 'email' as AskScope, label: t('ask.scope-pill.email'), Icon: Mail },
       { value: 'documents' as AskScope, label: t('ask.scope-pill.documents'), Icon: FileText },
     ] : []),
-    { value: 'whole-practice' as AskScope, label: t('ask.book.option-label'), Icon: Users },
+    { value: 'whole-practice' as AskScope, label: t('ask.book.option-label'), helper: t('ask.book.option-helper'), Icon: Users },
   ];
 
   return (
@@ -65,7 +66,12 @@ export function ScopeToggle({
               ...(isActive ? {} : { borderColor: 'var(--kp-divider-strong)' }),
             }}
           >
-            {opt.label}
+            {opt.helper ? (
+              <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.15 }}>
+                <span>{opt.label}</span>
+                <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.72 }}>{opt.helper}</span>
+              </span>
+            ) : opt.label}
           </Chip>
         );
       })}
@@ -87,7 +93,7 @@ function scopePillLabel(scope: AskScope, t: (key: string) => string): string {
     case 'documents':
       return t('ask.scope-pill.documents');
     case 'whole-practice':
-      return t('ask.scope-pill.whole-practice');
+      return t('ask.book.option-label');
   }
 }
 

@@ -15,10 +15,11 @@
  * Light theme, accessible (a labelled <nav>, icon-only buttons carry labels).
  */
 
-import { Fragment } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
-import { Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { Button, IconButton, Eyebrow } from '@/ui/kp';
+import { useTranslation } from 'react-i18next';
+import { Plus, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
+import { Button, IconButton, Eyebrow, SearchField } from '@/ui/kp';
 import type { RecentAskSession } from './askHelpers';
 // Single source of truth for the rail widths (shared with the Ask responsive
 // breakpoints so the two never drift — QA-6).
@@ -109,7 +110,18 @@ export function ConversationsRail({
   collapsed,
   onToggleCollapsed,
 }: ConversationsRailProps) {
+  const { t } = useTranslation();
+  const [query, setQuery] = useState('');
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filteredGroups = useMemo(() => {
+    if (!normalizedQuery) return groups;
+    return groups.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.label.toLocaleLowerCase().includes(normalizedQuery)),
+    }));
+  }, [groups, normalizedQuery]);
   const hasAny = groups.some((g) => g.items.length > 0);
+  const hasFiltered = filteredGroups.some((g) => g.items.length > 0);
 
   if (collapsed) {
     return (
@@ -193,6 +205,16 @@ export function ConversationsRail({
         >
           New question
         </Button>
+        <SearchField
+          icon={Search}
+          value={query}
+          onChange={setQuery}
+          placeholder={t('ask.conversations.search-placeholder')}
+          aria-label={t('ask.conversations.search-placeholder')}
+          data-testid="rail-conversation-search"
+          size="sm"
+          style={{ marginTop: 8, width: '100%' }}
+        />
       </div>
 
       <div
@@ -212,12 +234,22 @@ export function ConversationsRail({
               lineHeight: 1.5,
             }}
           >
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Your conversations will appear here.
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            {t('ask.conversations.empty')}
+          </p>
+        ) : !hasFiltered ? (
+          <p
+            data-testid="rail-conversation-search-empty"
+            style={{
+              margin: 'var(--kp-space-sm) var(--kp-space-2xs)',
+              fontSize: 'var(--kp-font-xs)',
+              color: 'var(--color-muted-foreground)',
+              lineHeight: 1.5,
+            }}
+          >
+            {t('ask.conversations.no-results')}
           </p>
         ) : (
-          groups.map((group) =>
+          filteredGroups.map((group) =>
             group.items.length > 0 ? (
               <Fragment key={group.key}>
                 <div style={{ marginTop: 'var(--kp-space-sm)' }}>

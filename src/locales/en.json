@@ -955,10 +955,11 @@
       "all-matters": "All clients",
       "email": "Email",
       "documents": "Documents",
-      "whole-practice": "Whole practice (summaries only)"
+      "whole-practice": "Book Overview"
     },
     "book": {
-      "option-label": "Whole practice",
+      "option-label": "Book Overview",
+      "option-helper": "from your Client Maps",
       "loading": "Reading your client summaries...",
       "no-facts": "No client summaries are built yet. Open a client and build their Client Map first.",
       "no-matches": "No clients in your book match that question.",
@@ -986,6 +987,33 @@
     },
     "file-access": {
       "all-entity-scope": "all your {{entity}}"
+    },
+    "action": {
+      "ask": "Ask"
+    },
+    "conversations": {
+      "other": "Other conversations",
+      "search-placeholder": "Search conversations",
+      "empty": "Your conversations will appear here.",
+      "no-results": "No conversations found."
+    },
+    "sources": {
+      "title": "Sources",
+      "collapse": "Collapse sources",
+      "show-panel": "Show sources",
+      "show-more": "Show more",
+      "show-less": "Show less",
+      "header-suffix-files-only": "from your files only",
+      "empty-hint": "When an answer uses your files, the cited sources appear here. General-knowledge answers have nothing to cite; that's the point.",
+      "footer-note": "General-knowledge answers have no source card. The Sources panel only ever fills with your files."
+    },
+    "answer-scope": {
+      "title": "Answer scope",
+      "helper": "Choose whether Ask can use general knowledge, and manage file access for this chat.",
+      "files-only": "Files only",
+      "files-general": "Files + general",
+      "files-only-toggle": "Files-only mode",
+      "files-only-title": "Answer only from your files, cited, with no general knowledge or drafts."
     },
     "message-scope": {
       "all-title": "This answer searched across all {{entity}}.",

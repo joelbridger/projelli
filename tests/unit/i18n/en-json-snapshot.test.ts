@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 30,
+        "ask": 50,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -246,7 +246,10 @@ describe('en.json structure snapshot', () => {
     //      exists honestly warns that the only meeting copy will be lost.
     // +5 = R2/R4 branch key inventory catch-up: matter +4 from existing branch
     //      drift, spine.all-clients +1 for the permanent rail entry.
-    expect(flat.length).toBe(1336); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 5 (R2/R4 catch-up)
+    // +20 = R5 Ask layout: answer-scope popover copy + Book Overview helper +
+    //       the review-driven i18n sweep (conversation search, pane labels,
+    //       source-preview copy moved from hardcoded English to keys).
+    expect(flat.length).toBe(1356); // base 1280 + 1 (QA-47) + 17 (Tier B) + 31 (Notice Card) + 2 (QA-71) + 5 (R2/R4 catch-up) + 20 (R5 Ask + i18n sweep)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

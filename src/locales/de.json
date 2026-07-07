@@ -1987,7 +1987,7 @@
       "all-matters": "Alle Mandanten",
       "email": "E-Mail",
       "documents": "Dokumente",
-      "whole-practice": "Gesamte Praxis (nur Zusammenfassungen)",
+      "whole-practice": "Buchübersicht",
       "this-matter__sourceHash": "ce64bb2112ee4c80002d4a98812be29a68d9ee00433980fa9e010809b84c97a0",
       "all-matters__sourceHash": "b695c090980a50ae44cfb20a346e398c61e1e743a11064316614660469042c86",
       "email__sourceHash": "969ccbd3cf6300ecd5c880459d81ae9027df7517563184a1b8b15282db230621",
@@ -1995,7 +1995,8 @@
       "whole-practice__sourceHash": "76b8f03cc3a5c66280521d83c770b32a198270fda621bd16e20504a1860f8bb1"
     },
     "book": {
-      "option-label": "Gesamte Praxis",
+      "option-label": "Buchübersicht",
+      "option-helper": "aus deinen Client Maps",
       "loading": "Zusammenfassungen Ihrer Mandanten werden geladen...",
       "no-facts": "Es sind noch keine Mandanten-Zusammenfassungen erstellt. Öffnen Sie einen Mandanten und erstellen Sie zuerst dessen Client Map.",
       "no-matches": "Keine Mandanten in Ihrem Buch passen zu dieser Frage.",
@@ -2036,6 +2037,33 @@
     "file-access": {
       "all-entity-scope": "alle deine {{entity}}",
       "all-entity-scope__sourceHash": "32edab7b7ca175a62a2ee0930dbd0e64b223458356d2fc56ffa3d1d606036b4a"
+    },
+    "action": {
+      "ask": "Fragen"
+    },
+    "conversations": {
+      "other": "Andere Unterhaltungen",
+      "search-placeholder": "Unterhaltungen suchen",
+      "empty": "Deine Unterhaltungen erscheinen hier.",
+      "no-results": "Keine Unterhaltungen gefunden."
+    },
+    "sources": {
+      "title": "Quellen",
+      "collapse": "Quellen einklappen",
+      "show-panel": "Quellen anzeigen",
+      "show-more": "Mehr anzeigen",
+      "show-less": "Weniger anzeigen",
+      "header-suffix-files-only": "nur aus deinen Dateien",
+      "empty-hint": "Wenn eine Antwort deine Dateien verwendet, erscheinen die zitierten Quellen hier. Antworten aus Allgemeinwissen haben nichts zu zitieren; genau darum geht es.",
+      "footer-note": "Antworten aus Allgemeinwissen haben keine Quellenkarte. Das Quellenfenster füllt sich nur mit deinen Dateien."
+    },
+    "answer-scope": {
+      "title": "Antwortbereich",
+      "helper": "Wähle, ob Ask Allgemeinwissen verwenden darf, und verwalte den Dateizugriff für diesen Chat.",
+      "files-only": "Nur Dateien",
+      "files-general": "Dateien + Allgemein",
+      "files-only-toggle": "Nur-Dateien-Modus",
+      "files-only-title": "Nur aus deinen Dateien antworten, mit Zitaten, ohne Allgemeinwissen oder Entwürfe."
     },
     "message-scope": {
       "all-title": "Diese Antwort hat alle {{entity}} durchsucht.",
