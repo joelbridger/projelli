@@ -18,6 +18,36 @@
       "replacement": null,
       "reason": "R3 removes the client scope badge because the selected rail client now carries that job.",
       "date": "2026-07-07"
+    },
+    {
+      "removed": "clientmap-update-accept",
+      "replacement": null,
+      "reason": "FB-B removes the Client Map updates review tray; safe sourced updates now auto-apply and removals use the existing map confirmation path.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "clientmap-update-dismiss",
+      "replacement": null,
+      "reason": "FB-B removes the Client Map updates review tray; safe sourced updates now auto-apply and removals use the existing map confirmation path.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "clientmap-update-edit",
+      "replacement": null,
+      "reason": "FB-B removes the Client Map updates review tray; safe sourced updates now auto-apply and removals use the existing map confirmation path.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "clientmap-update-row",
+      "replacement": null,
+      "reason": "FB-B removes the Client Map updates review tray; safe sourced updates now auto-apply and removals use the existing map confirmation path.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "clientmap-updates-marker",
+      "replacement": null,
+      "reason": "FB-B removes the Client Map updates review tray; safe sourced updates now auto-apply and removals use the existing map confirmation path.",
+      "date": "2026-07-07"
     }
   ]
 }

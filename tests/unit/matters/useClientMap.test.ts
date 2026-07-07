@@ -57,7 +57,7 @@ describe('useClientMap', () => {
     expect(useClientMapStore.getState().getMap('m1')?.lastSourceFingerprint).toBe('fp-initial');
   });
 
-  it('checkForUpdates with a changed fingerprint sets pendingUpdates and keeps existing items', async () => {
+  it('checkForUpdates with a changed fingerprint auto-applies sourced add updates and keeps existing items', async () => {
     // Seed a built map with a known fingerprint and an existing item
     const initial = { ...emptyClientMap('m2'), lastBuiltAt: '2026-01-01T00:00:00.000Z', lastSourceFingerprint: 'fp-old' };
     initial.sections[0]!.items.push({ id: 'existing-item', text: 'Keep me', origin: 'user', isAssumption: false, sources: [], updatedAt: '2026-01-01T00:00:00.000Z' });
@@ -69,7 +69,14 @@ describe('useClientMap', () => {
     buildMock.mockResolvedValue(freshMap);
     const mockProposals: ProposedUpdate[] = [
       { id: 'proposal-1', sectionKey: 'goals', op: 'add', reason: 'New doc', createdAt: new Date().toISOString(),
-        draft: { id: 'new-item', text: 'New info', origin: 'ai', isAssumption: false, sources: [], updatedAt: new Date().toISOString() } },
+        draft: {
+          id: 'new-item',
+          text: 'New info',
+          origin: 'ai',
+          isAssumption: false,
+          sources: [{ kind: 'document', ref: '/new-plan.pdf', snippet: 'New info' }],
+          updatedAt: new Date().toISOString(),
+        } },
     ];
     proposeUpdatesMock.mockReturnValue(mockProposals);
 
@@ -79,8 +86,16 @@ describe('useClientMap', () => {
 
     const stored = useClientMapStore.getState().getMap('m2');
     expect(syncResult).toBe('updated');
-    // pendingUpdates should be the mocked proposals
-    expect(stored?.pendingUpdates).toEqual(mockProposals);
+    // Sourced add updates should be placed directly on the map, not wait in a tray.
+    expect(stored?.pendingUpdates).toEqual([]);
+    expect(stored?.sections.find((section) => section.key === 'goals')?.items.map((it) => it.text))
+      .toContain('New info');
+    expect(stored?.editHistory?.at(-1)).toMatchObject({
+      action: 'bullet_added',
+      actor: 'Updated automatically',
+      afterText: 'New info',
+      sources: [{ kind: 'document', ref: '/new-plan.pdf', snippet: 'New info' }],
+    });
     // Existing items must NOT be replaced
     expect(stored?.sections[0]?.items.some((it) => it.id === 'existing-item')).toBe(true);
     // Fingerprint updated

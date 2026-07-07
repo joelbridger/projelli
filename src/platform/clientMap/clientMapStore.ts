@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import type { ClientMap, ClientMapSection, ClientMapItem, ClientQuestion, DismissedSignature, ProposedUpdate, GapQuestion, CoreSectionKey, ClientMapEditHistoryEntry, ClientMapEditAction, SourceRef } from './types';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from './types';
-import { proposalSignature } from './updater';
+import { autoApplySafeAddUpdates, proposalSignature } from './updater';
 import { deriveCompleteness } from './completeness';
 import { extractBeneficiaryEvidence } from './estate/estateDocs';
 import { beneficiaryConsistency, beneficiaryGapQuestions } from './estate/beneficiaryConsistency';
@@ -29,6 +29,7 @@ const LEGACY_SECTION_KEY_MAP: Record<string, string> = {
 };
 
 const MAX_EDIT_HISTORY = 500;
+const AUTO_HISTORY_ACTOR = 'Updated automatically';
 function remapSectionKey(k: string): string {
   return LEGACY_SECTION_KEY_MAP[k] ?? k;
 }
@@ -113,6 +114,7 @@ function historyEntry(
     afterText?: string;
     timestamp?: string;
     sources?: SourceRef[];
+    actor?: string;
   },
 ): ClientMapEditHistoryEntry {
   const timestamp = options?.timestamp ?? nowIso();
@@ -120,7 +122,7 @@ function historyEntry(
   return {
     id: makeHistoryId(action),
     action,
-    actor: currentActor(),
+    actor: options?.actor ?? currentActor(),
     timestamp,
     sectionId: section.id,
     sectionKey: section.key,
@@ -197,6 +199,35 @@ function withSections(map: ClientMap, sections: ClientMapSection[]): ClientMap {
   const baseAsk = map.completeness.ask.filter((g) => !g.text.startsWith('Beneficiary check:'));
   const ask = [...benefGaps, ...baseAsk];
   return { ...map, sections, completeness: deriveCompleteness(sections, ask) };
+}
+
+function withAutomaticUpdates(map: ClientMap, matterId: string): ClientMap {
+  if (map.pendingUpdates.length === 0) return withSections(map, map.sections);
+
+  const beforePending = map.pendingUpdates;
+  const applied = autoApplySafeAddUpdates(map);
+  const remainingIds = new Set(applied.pendingUpdates.map((update) => update.id));
+  const appliedUpdates = beforePending.filter((update) => !remainingIds.has(update.id));
+  if (appliedUpdates.length === 0) return withSections(map, map.sections);
+
+  const entries = appliedUpdates.flatMap((update) => {
+    if (update.op !== 'add' || update.draft === undefined) return [];
+    const section = applied.sections.find((sec) => sec.key === update.sectionKey);
+    if (!section) return [];
+    const appliedItem = section.items.find((item) => item.id === update.draft?.id) ?? update.draft;
+    return [
+      historyEntry('bullet_added', section, {
+        item: appliedItem,
+        afterText: appliedItem.text,
+        sources: appliedItem.sources,
+        actor: AUTO_HISTORY_ACTOR,
+      }),
+    ];
+  });
+
+  const nextMap = withHistory(withSections(applied, applied.sections), entries);
+  emitHistory(entries, matterId);
+  return nextMap;
 }
 
 /** Persisted (partialized) shape of this store. */
@@ -401,15 +432,16 @@ export const useClientMapStore = create<ClientMapState>()(
       maps: {},
       clientQuestions: {},
       getMap: (matterId) => get().maps[matterId],
-      // B5 (approve-first): do NOT auto-apply any AI updates — even "safe adds".
-      // Every proposed change stays in pendingUpdates until the user approves it,
-      // honoring the approve-first promise (AI proposes, user decides).
       setMap: (matterId, map) =>
         // Route through withSections so beneficiary consistency gaps (Wave 4
         // Track B) are merged on every store, not just the section-mutating
         // actions — otherwise a freshly-built map's first store would surface
         // no findings until the next edit/merge.
-        set((s) => ({ maps: { ...s.maps, [matterId]: withSections(map, map.sections) } })),
+        //
+        // FB-B: safe source-backed AI additions auto-apply. Destructive updates
+        // remain pending so no existing map content disappears without the R4
+        // confirmation path.
+        set((s) => ({ maps: { ...s.maps, [matterId]: withAutomaticUpdates(map, matterId) } })),
       editItem: (matterId, sectionKey, itemId, text) =>
         set((s) => {
           const map = s.maps[matterId];
@@ -545,8 +577,7 @@ export const useClientMapStore = create<ClientMapState>()(
         set((s) => {
           const map = s.maps[matterId];
           if (!map) return {};
-          // B5 (approve-first): updates are queued for approval, never auto-applied.
-          return { maps: { ...s.maps, [matterId]: { ...map, pendingUpdates: updates } } };
+          return { maps: { ...s.maps, [matterId]: withAutomaticUpdates({ ...map, pendingUpdates: updates }, matterId) } };
         }),
       acceptUpdate: (matterId, updateId, override) =>
         set((s) => {

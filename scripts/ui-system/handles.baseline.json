@@ -1,6 +1,6 @@
 {
   "_comment": "Permanent-handle baseline for the UI Iteration System. Regenerate with `node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a handle removal/rename is intentional and logged in handles.migrations.json. `duplicates` freezes handles rendered from >1 file (frozen debt; the guard blocks NEW cross-file duplicates so a handle can't silently become ambiguous).",
-  "count": 1469,
+  "count": 1464,
   "keys": [
     "account-identity",
     "account-image-input",
@@ -383,11 +383,6 @@
     "clientmap-template-save",
     "clientmap-template-save-prompt",
     "clientmap-template-save-title",
-    "clientmap-update-accept",
-    "clientmap-update-dismiss",
-    "clientmap-update-edit",
-    "clientmap-update-row",
-    "clientmap-updates-marker",
     "clientmap-view",
     "command-palette-button",
     "command-palette-dialog",
@@ -1483,7 +1478,6 @@
     "clientmap-ask-know": 2,
     "clientmap-completeness": 2,
     "clientmap-completeness-level": 2,
-    "clientmap-confirm-dialog": 2,
     "clientmap-item": 2,
     "clientmap-item-assumption": 2,
     "clientmap-item-edit": 2,
