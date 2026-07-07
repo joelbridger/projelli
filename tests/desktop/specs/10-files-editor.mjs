@@ -36,14 +36,14 @@ async function fillPrompt(session, app, value, confirmText = 'OK') {
   await clickButtonText(session, app, confirmText, 10_000);
 }
 
-async function activateFilesTab(session, app) {
-  const filesTab = await session.find(
-    'xpath',
-    `//*[@role="tablist"]//button[normalize-space()=${app.xpathLiteral('Files')}]`,
-    15_000,
-  );
-  await session.click(filesTab);
-  await session.testid('documents-toolbar', 15_000);
+async function activateFilesTab(session) {
+  await session.clickTestid('documents-files-tab', 15_000);
+  await session.testid('documents-files-controls', 15_000);
+}
+
+async function clickFilesCreateMenuItem(session, app, label) {
+  await session.clickTestid('documents-files-create-menu', 15_000);
+  await clickMenuItem(session, app, label);
 }
 
 // Land on the Files browser in tree view and keep it there. Clicking the "Files"
@@ -53,15 +53,10 @@ async function activateFilesTab(session, app) {
 // it. So require the toggle to STAY mounted across a settle window; if it flips,
 // the outer retry re-clicks the chip — and since that auto-open is one-shot, the
 // next click sticks. Then select Tree.
-async function ensureFilesTreeView(session, app) {
+async function ensureFilesTreeView(session) {
   await session.waitFor(
     async () => {
-      const filesTab = await session.find(
-        'xpath',
-        `//*[@role="tablist"]//button[normalize-space()=${app.xpathLiteral('Files')}]`,
-        15_000,
-      );
-      await session.click(filesTab);
+      await session.clickTestid('documents-files-tab', 15_000);
       for (let i = 0; i < 8; i += 1) {
         await sleep(250);
         if (!(await session.hasTestid('docs-view-toggle', 250))) return false;
@@ -177,11 +172,11 @@ export default {
 
     await app.bootToWorkspace(session, { workspacePath: workspace });
     await app.gotoSurface(session, 'Documents');
-    await session.testid('documents-toolbar', 15_000);
+    await session.testid('documents-files-controls', 15_000);
     await session.testid('documents-tab-strip', 15_000);
 
-    // Create the canonical Word document through the real toolbar prompt.
-    await clickButtonText(session, app, 'New document');
+    // Create the canonical Word document through the real Files plus menu.
+    await clickFilesCreateMenuItem(session, app, 'New document');
     await session.waitForBodyText('Create Word Document', { timeoutMs: 15_000 });
     await fillPrompt(session, app, 'Layer 2 Word');
     const docxPath = path.join(workspace, 'docs', 'Layer 2 Word.docx');
@@ -191,9 +186,9 @@ export default {
       throw new Error('Created .docx did not open in the OOXML editor');
     }
 
-    // Create a folder at the workspace root from the Documents toolbar.
-    await activateFilesTab(session, app);
-    await clickButtonText(session, app, 'New folder');
+    // Create a folder at the workspace root from the Files plus menu.
+    await activateFilesTab(session);
+    await clickFilesCreateMenuItem(session, app, 'New folder');
     await session.waitForBodyText('Create Folder', { timeoutMs: 15_000 });
     await fillPrompt(session, app, 'Root L2 Folder');
     const rootFolderPath = path.join(workspace, 'Root L2 Folder');
@@ -204,10 +199,10 @@ export default {
     await session.waitForBodyText('Root L2 Folder', { timeoutMs: 15_000 });
 
     // Create a folder inside docs, then create a markdown file inside it from the tree row menu.
-    // The current Documents toolbar creates inside the active folder context.
+    // The current Files plus menu creates inside the active folder context.
     // Drill into the real `docs` folder so the on-disk target is explicit.
     await openGridFolder(session, app, 'docs');
-    await clickButtonText(session, app, 'New folder');
+    await clickFilesCreateMenuItem(session, app, 'New folder');
     await session.waitForBodyText('Create Folder', { timeoutMs: 15_000 });
     await fillPrompt(session, app, 'L2 Folder');
     const folderPath = path.join(workspace, 'docs', 'L2 Folder');
@@ -243,7 +238,7 @@ export default {
     await session.waitForBodyText('Auto-saved version', { timeoutMs: 15_000 });
 
     // Rename the file through the row overflow and verify the path/content moved on disk.
-    await ensureFilesTreeView(session, app);
+    await ensureFilesTreeView(session);
     await openTreeRowMenu(session, 'notes.md');
     await clickMenuItem(session, app, 'Rename');
     await session.waitForBodyText('Rename', { timeoutMs: 15_000 });
@@ -281,7 +276,7 @@ export default {
     // The renamed-notes.md editor is the active surface here, so the file tree
     // isn't mounted; ensureFilesTreeView re-asserts the Files browser (racing the
     // auto-open) before we open the root-level row's menu.
-    await ensureFilesTreeView(session, app);
+    await ensureFilesTreeView(session);
     await session.waitForBodyText('switch-target.txt', { timeoutMs: 15_000 });
     await openTreeRowMenu(session, 'switch-target.txt');
     await clickMenuItem(session, app, 'Rename');
@@ -290,7 +285,7 @@ export default {
     const txtPath = path.join(workspace, 'switch-target-renamed.txt');
     await waitForDisk(() => fs.existsSync(txtPath), 'renamed switch-target text file on disk');
 
-    await ensureFilesTreeView(session, app);
+    await ensureFilesTreeView(session);
     await clickTreeRow(session, 'switch-target-renamed.txt');
     await session.waitForBodyText('switch-target-renamed.txt', { timeoutMs: 15_000 });
     await session.waitForBodyText('Second tab target', { timeoutMs: 15_000 });

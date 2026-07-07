@@ -136,6 +136,13 @@ function buildProps(overrides: Partial<DocumentsHomeProps> = {}): DocumentsHomeP
   };
 }
 
+async function openFilesCreateMenu() {
+  const trigger = screen.getByTestId('documents-files-create-menu');
+  fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+  fireEvent.click(trigger);
+  await screen.findByTestId('documents-create-document');
+}
+
 describe('DocumentsHome — Grid view with relative tree paths (real bug shape)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -178,7 +185,7 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     expect(screen.getByText('deal.docx')).toBeTruthy();
   });
 
-  it('"Add files" targets the ABSOLUTE folder path, not the tree-relative lookup shape (Codex review)', () => {
+  it('"Add files" targets the ABSOLUTE folder path, not the tree-relative lookup shape (Codex review)', async () => {
     // currentFolderPath is now seeded tree-relative ("Clients/Acme") so the
     // grid lookup can find it. That value must NOT leak into the import
     // target: onImportFiles's explicit index call sends the path straight to
@@ -193,11 +200,12 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
         scopeMatterId="acme"
       />,
     );
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
   });
 
-  it('navigating to an ANCESTOR folder (e.g. "Clients") does not let create/import escape the client scope (Codex review round 3, P1)', () => {
+  it('navigating to an ANCESTOR folder (e.g. "Clients") does not let create/import escape the client scope (Codex review round 3, P1)', async () => {
     // The scoped tree deliberately keeps ancestor folders (here "Clients") so
     // the client's own mapped folder is reachable via breadcrumbs. Fixing the
     // Grid-empty bug made that navigation reachable for the first time — this
@@ -217,6 +225,7 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     // Navigate UP to the "Clients" ancestor breadcrumb (crumb 0 = "All files",
     // crumb 1 = "Clients").
     fireEvent.click(screen.getByTestId('breadcrumb-crumb-1'));
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
     expect(onImportFiles).not.toHaveBeenCalledWith(`${ROOT}/Clients`);
@@ -249,7 +258,8 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     // rather than staying stuck on the deleted folder's path.
     const baselineCreate = vi.fn();
     const { unmount } = render(<DocumentsHome {...buildProps({ onCreateFile: baselineCreate })} />);
-    fireEvent.click(screen.getByText('New document'));
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-document'));
     const rootTarget = baselineCreate.mock.calls[0]?.[0] as unknown;
     unmount();
 
@@ -267,7 +277,8 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
       expect(screen.queryByText('deal.docx')).toBeNull();
     });
 
-    fireEvent.click(screen.getByText('New document'));
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-document'));
     // Without the reset this would still target the deleted "Clients/Acme"
     // path — and since writes create missing parents, it would silently
     // RECREATE the folder the user just deleted.
@@ -717,7 +728,7 @@ describe('DocumentsHome — [object Object] defensive boundary (2026-07-01 re-fi
     mockStoreFileTree = mockFileTree;
   });
 
-  it('an object folderPaths entry with a usable .path behaves exactly like the string path', () => {
+  it('an object folderPaths entry with a usable .path behaves exactly like the string path', async () => {
     const onImportFiles = vi.fn();
     render(
       <DocumentsHome
@@ -731,6 +742,7 @@ describe('DocumentsHome — [object Object] defensive boundary (2026-07-01 re-fi
     // Grid still shows the client's file (coerced path pruned the tree correctly).
     expect(screen.getByText('deal.docx')).toBeTruthy();
     // And the import target is the real STRING path — never the object / "[object Object]".
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
     const arg = onImportFiles.mock.calls[0]?.[0];
@@ -738,7 +750,7 @@ describe('DocumentsHome — [object Object] defensive boundary (2026-07-01 re-fi
     expect(String(arg)).not.toContain('[object Object]');
   });
 
-  it('an unusable object entry never reaches a create handler as "[object Object]"', () => {
+  it('an unusable object entry never reaches a create handler as "[object Object]"', async () => {
     const onCreateDefaultDocument = vi.fn();
     render(
       <DocumentsHome
@@ -749,7 +761,8 @@ describe('DocumentsHome — [object Object] defensive boundary (2026-07-01 re-fi
         scopeMatterId="acme"
       />,
     );
-    fireEvent.click(screen.getByText('New document'));
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-document'));
     expect(onCreateDefaultDocument).toHaveBeenCalledTimes(1);
     const arg = onCreateDefaultDocument.mock.calls[0]?.[0] as unknown;
     // Falls back to undefined (→ the canonical <root>/docs downstream), NEVER the

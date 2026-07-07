@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "mail": 6,
         "marketplace": 14,
         "matter": 216,
-        "media": 92,
+        "media": 100,
         "meetings": 227,
         "memory": 6,
         "model-download": 9,
@@ -83,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 29,
-        "workspace": 20,
+        "workspace": 31,
       }
     `);
   });
@@ -263,7 +263,9 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1442); // 1429 + 9 (send-defaults recipient groups) + 4 (documents rail group menu incl. close-other-tabs)
+    // +19 = WP3 Documents UI feedback: file-rail plus menu / Files-view controls
+    //       (11) and the single clean Word document header menu (8).
+    expect(flat.length).toBe(1461);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

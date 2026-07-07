@@ -43,6 +43,7 @@ interface LeadingTabConfig {
   id: string;
   label: string;
   icon?: ReactNode;
+  actions?: ReactNode;
   isActive: boolean;
   testId?: string;
   onActivate: () => void;
@@ -63,9 +64,9 @@ interface TabBarProps {
 }
 
 // Drop a group payload on another group chip. Zone decides merge vs. reorder:
-//  leading 30 %  -> reorder 'before'
-//  trailing 30 % -> reorder 'after'
-//  middle 40 % -> merge
+//  leading 35 %  -> reorder 'before'
+//  trailing 35 % -> reorder 'after'
+//  middle 30 % -> merge
 function computeGroupDropZone(
   e: React.DragEvent,
   orientation: 'horizontal' | 'vertical',
@@ -75,8 +76,8 @@ function computeGroupDropZone(
   const size = orientation === 'vertical' ? rect.height : rect.width;
   if (size <= 0) return 'merge';
   const offset = orientation === 'vertical' ? e.clientY - rect.top : e.clientX - rect.left;
-  const leadingCut = size * 0.30;
-  const trailingCut = size * 0.70;
+  const leadingCut = size * 0.35;
+  const trailingCut = size * 0.65;
   if (offset < leadingCut) return 'before';
   if (offset > trailingCut) return 'after';
   return 'merge';
@@ -90,8 +91,8 @@ function computeTabDropZone(
   const size = orientation === 'vertical' ? rect.height : rect.width;
   if (size <= 0) return 'combine';
   const offset = orientation === 'vertical' ? e.clientY - rect.top : e.clientX - rect.left;
-  if (offset < size * 0.30) return 'before';
-  if (offset > size * 0.70) return 'after';
+  if (offset < size * 0.35) return 'before';
+  if (offset > size * 0.65) return 'after';
   return 'combine';
 }
 
@@ -310,6 +311,22 @@ export function TabBar({
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
   const reportAsyncError = useCallback((context: string, error: unknown) => {
     console.error(`[TabBar] ${context} failed:`, error);
+  }, []);
+  const clearDragState = useCallback(() => {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setDragOverGroupId(null);
+    setDragOverGroupZone(null);
+    setDraggedGroupId(null);
+    setDragOverTabBar(false);
+    setDragIntent(null);
+    setDropPosition(null);
+    setDragOverDropdownIndex(null);
+    setDropdownDropPosition(null);
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
   }, []);
 
   // Track whether the tab strip can scroll left / right so the arrow buttons
@@ -531,18 +548,8 @@ export function TabBar({
   }, []);
 
   const handleDragEnd = useCallback(() => {
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    setDragOverTabBar(false);
-    setDragIntent(null);
-    setDropPosition(null);
-    setDragOverDropdownIndex(null);
-    // Clear hover timer if drag ends
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-  }, []);
+    clearDragState();
+  }, [clearDragState]);
 
   // R3-P1 unified model: on any tab drop target the drop zone splits
   // into left 30% (reorder before), right 30% (after), middle 40%
@@ -605,10 +612,7 @@ export function TabBar({
     const payload = e.dataTransfer.getData('text/plain');
     const targetTab = openTabs[toIndex];
     if (!targetTab) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      setDragIntent(null);
-      setDropPosition(null);
+      clearDragState();
       return;
     }
 
@@ -629,28 +633,19 @@ export function TabBar({
           );
         }
       }
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      setDragIntent(null);
-      setDropPosition(null);
+      clearDragState();
       return;
     }
 
     // ──── Tab payload ─────────────────────────────────────────────
     const fromIndex = parseInt(payload, 10);
     if (isNaN(fromIndex) || fromIndex === toIndex) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      setDragIntent(null);
-      setDropPosition(null);
+      clearDragState();
       return;
     }
     const draggedTab = openTabs[fromIndex];
     if (!draggedTab) {
-      setDraggedIndex(null);
-      setDragOverIndex(null);
-      setDragIntent(null);
-      setDropPosition(null);
+      clearDragState();
       return;
     }
 
@@ -684,10 +679,7 @@ export function TabBar({
       );
     }
 
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-    setDragIntent(null);
-    setDropPosition(null);
+    clearDragState();
   }, [
     openTabs,
     moveTabToGroup,
@@ -697,6 +689,7 @@ export function TabBar({
     orientation,
     reorderInTabBar,
     setPendingGroupRenameId,
+    clearDragState,
   ]);
 
 
@@ -765,8 +758,6 @@ export function TabBar({
   const handleGroupDrop = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setDragOverGroupId(null);
-    setDragOverGroupZone(null);
 
     const payload = e.dataTransfer.getData('text/plain');
     // Group payload takes the form "group:<sourceId>"; tab payload is a
@@ -774,7 +765,10 @@ export function TabBar({
     // the same drop target without confusion.
     if (payload.startsWith('group:')) {
       const sourceId = payload.slice('group:'.length);
-      if (!sourceId || sourceId === groupId) return;
+      if (!sourceId || sourceId === groupId) {
+        clearDragState();
+        return;
+      }
       const zone = computeGroupDropZone(e, orientation);
       if (zone === 'before' || zone === 'after') {
         reorderInTabBar(
@@ -785,6 +779,7 @@ export function TabBar({
       } else {
         mergeTabGroups(sourceId, groupId);
       }
+      clearDragState();
       return;
     }
     const fromIndex = parseInt(payload, 10);
@@ -795,12 +790,14 @@ export function TabBar({
         moveTabToGroup(tab.path, groupId);
       }
     }
+    clearDragState();
   }, [
     openTabs,
     moveTabToGroup,
     orientation,
     reorderInTabBar,
     mergeTabGroups,
+    clearDragState,
   ]);
 
   const handleTabDoubleClick = useCallback((tab: typeof openTabs[0]) => {
@@ -857,7 +854,6 @@ export function TabBar({
 
   const handleTabBarDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    setDragOverTabBar(false);
 
     const fromIndex = parseInt(e.dataTransfer.getData('text/plain'), 10);
     if (!isNaN(fromIndex)) {
@@ -869,9 +865,8 @@ export function TabBar({
       }
     }
 
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  }, [openTabs, ungroupTab]);
+    clearDragState();
+  }, [openTabs, ungroupTab, clearDragState]);
 
   if (displayedTabs.length === 0 && !leadingTab) {
     return null;
@@ -1398,9 +1393,9 @@ export function TabBar({
   const renderLeadingTab = () => {
     if (!leadingTab) return null;
     return (
-      <button
-        type="button"
+      <div
         role="tab"
+        tabIndex={0}
         data-testid={leadingTab.testId}
         data-leading-tab-id={leadingTab.id}
         aria-selected={leadingTab.isActive}
@@ -1436,8 +1431,17 @@ export function TabBar({
         }}
       >
         {leadingTab.icon}
-        <span className="truncate">{leadingTab.label}</span>
-      </button>
+        <span className="min-w-0 flex-1 truncate">{leadingTab.label}</span>
+        {leadingTab.actions ? (
+          <span
+            className="ml-auto flex flex-none items-center"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            {leadingTab.actions}
+          </span>
+        ) : null}
+      </div>
     );
   };
 

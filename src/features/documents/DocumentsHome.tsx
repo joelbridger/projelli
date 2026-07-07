@@ -22,9 +22,16 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { FolderOpen, FolderTree, FileText, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
-import { Callout, Button, SearchField, SurfaceToolbar } from '@/ui/kp';
+import { Callout, IconButton, SearchField } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -252,6 +259,7 @@ export function DocumentsHome({
   scopeFolderPaths,
   scopeMatterId,
 }: DocumentsHomeProps) {
+  const { t } = useTranslation();
   const activeTabPath = useEditorStore((s) => s.activeTabPath);
   const openTabs = useEditorStore((s) => s.openTabs);
   const lastOpenRequest = useEditorStore((s) => s.lastOpenRequest);
@@ -577,6 +585,143 @@ export function DocumentsHome({
 
   const trashBadgeCount = trashStats.itemCount;
 
+  const filesCreateMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          data-testid="documents-files-create-menu"
+          icon={Plus}
+          label={t('workspace.documents.create-menu')}
+          size="xs"
+          variant="ghost"
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem
+          data-testid="documents-create-document"
+          onSelect={handleCreateDocument}
+          className="gap-2"
+        >
+          <FileText className="h-3.5 w-3.5 text-blue-600" />
+          {t('workspace.documents.new-document')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="documents-create-folder"
+          onSelect={handleCreateFolder}
+          className="gap-2"
+        >
+          <FolderOpen className="h-3.5 w-3.5 text-[var(--kp-navy)]" />
+          {t('workspace.documents.new-folder')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="add-files-btn"
+          onSelect={handleAddFiles}
+          className="gap-2"
+        >
+          <Upload className="h-3.5 w-3.5 text-[var(--kp-navy)]" />
+          {t('workspace.documents.add-files')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const filesViewControls = (
+    <>
+      {!embedded && (
+        <div
+          className="kp-segmented kp-segmented--md"
+          role="group"
+          aria-label={t('workspace.documents.view-files-trash')}
+        >
+          <button
+            type="button"
+            data-testid="docs-files-toggle"
+            className={`kp-segmented__item${activeView === 'files' ? ' is-active' : ''}`}
+            aria-pressed={activeView === 'files'}
+            onClick={() => { setActiveView('files'); }}
+          >
+            {t('workspace.documents.files')}
+          </button>
+          <button
+            type="button"
+            data-testid="docs-trash-toggle"
+            className={`kp-segmented__item${activeView === 'trash' ? ' is-active' : ''}`}
+            aria-pressed={activeView === 'trash'}
+            onClick={() => { setActiveView('trash'); }}
+          >
+            {t('workspace.documents.trash')}
+            {trashBadgeCount > 0 && (
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 18,
+                  height: 18,
+                  borderRadius: 9,
+                  fontSize: 'var(--kp-font-2xs)',
+                  fontWeight: 'var(--kp-weight-bold)',
+                  background:
+                    activeView === 'trash'
+                      ? 'rgba(255,255,255,0.25)'
+                      : 'rgba(10,37,64,0.12)',
+                  color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
+                  padding: '0 4px',
+                  marginLeft: 4,
+                }}
+              >
+                {String(trashBadgeCount)}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
+
+      {activeView === 'files' && (
+        <>
+          <div
+            className="kp-segmented kp-segmented--md"
+            role="group"
+            aria-label={t('workspace.documents.view-mode')}
+            data-testid="docs-view-toggle"
+            style={{ flex: 'none' }}
+          >
+            <button
+              type="button"
+              data-testid="docs-view-tree"
+              className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
+              aria-pressed={docsView === 'tree'}
+              onClick={() => { handleSetDocsView('tree'); }}
+            >
+              <ListTree size={12} strokeWidth={1.75} />
+              {t('workspace.documents.tree')}
+            </button>
+            <button
+              type="button"
+              data-testid="docs-view-grid"
+              className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
+              aria-pressed={docsView === 'grid'}
+              onClick={() => { handleSetDocsView('grid'); }}
+            >
+              <LayoutGrid size={12} strokeWidth={1.75} />
+              {t('workspace.documents.grid')}
+            </button>
+          </div>
+
+          <SearchField
+            data-testid="documents-search-field"
+            value={searchQuery}
+            onChange={setSearchQuery}
+            onClear={() => { setSearchQuery(''); }}
+            placeholder={t('workspace.documents.search-placeholder')}
+            size="md"
+            style={{ flex: 1, minWidth: 220 }}
+          />
+        </>
+      )}
+    </>
+  );
+
   // ── Derived content state ────────────────────────────────────────────────
 
   // Only tabs that MainPanel can render in this Documents surface appear here.
@@ -607,10 +752,11 @@ export function DocumentsHome({
       showGroupManagerButton={!embedded}
       leadingTab={{
         id: FILES_TAB_ID,
-        label: 'Files',
+        label: t('workspace.documents.files'),
         isActive: selectedTab === FILES_TAB_ID,
         testId: 'documents-files-tab',
         onActivate: () => { handleTabActivate(FILES_TAB_ID); },
+        actions: filesCreateMenu,
         icon: (
           <FolderOpen
             style={{
@@ -679,134 +825,6 @@ export function DocumentsHome({
             overflow: 'hidden',
           }}
         >
-      {/* ── Files toolbar — stays visible above the content even while a document is open. */}
-      <SurfaceToolbar data-testid="documents-toolbar">
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-
-          {/* 1. Action buttons — files view only */}
-          {activeView === 'files' && (
-            <>
-              <Button variant="primary" size="md" iconLeft={Plus} onClick={handleCreateDocument}>
-                New document
-              </Button>
-              <Button variant="secondary" size="md" iconLeft={Plus} onClick={handleCreateFolder}>
-                New folder
-              </Button>
-              <Button
-                variant="secondary"
-                size="md"
-                iconLeft={Upload}
-                data-testid="add-files-btn"
-                onClick={handleAddFiles}
-              >
-                Add files
-              </Button>
-            </>
-          )}
-
-          {/* 2. Toggles: Files/Trash + Tree/Grid (files view only). Trash is a
-              GLOBAL, cross-client surface (you could see/restore/permanently-
-              delete other clients' deleted files), so the Files/Trash toggle is
-              hidden in the per-client embedded tab — it shows only this client's
-              live files (matter isolation). */}
-          {!embedded && (
-          <div
-            className="kp-segmented kp-segmented--md"
-            role="group"
-            aria-label="View files or trash"
-          >
-            <button
-              type="button"
-              data-testid="docs-files-toggle"
-              className={`kp-segmented__item${activeView === 'files' ? ' is-active' : ''}`}
-              aria-pressed={activeView === 'files'}
-              onClick={() => { setActiveView('files'); }}
-            >
-              Files
-            </button>
-            <button
-              type="button"
-              data-testid="docs-trash-toggle"
-              className={`kp-segmented__item${activeView === 'trash' ? ' is-active' : ''}`}
-              aria-pressed={activeView === 'trash'}
-              onClick={() => { setActiveView('trash'); }}
-            >
-              Trash
-              {trashBadgeCount > 0 && (
-                <span
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: 18,
-                    height: 18,
-                    borderRadius: 9,
-                    fontSize: 'var(--kp-font-2xs)',
-                    fontWeight: 'var(--kp-weight-bold)',
-                    background:
-                      activeView === 'trash'
-                        ? 'rgba(255,255,255,0.25)'
-                        : 'rgba(10,37,64,0.12)',
-                    color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
-                    padding: '0 4px',
-                    marginLeft: 4,
-                  }}
-                >
-                  {String(trashBadgeCount)}
-                </span>
-              )}
-            </button>
-          </div>
-          )}
-
-          {/* Tree | Grid view toggle — files view only */}
-          {activeView === 'files' && (
-            <div
-              className="kp-segmented kp-segmented--md"
-              role="group"
-              aria-label="View"
-              data-testid="docs-view-toggle"
-              style={{ flex: 'none' }}
-            >
-              <button
-                type="button"
-                data-testid="docs-view-tree"
-                className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
-                aria-pressed={docsView === 'tree'}
-                onClick={() => { handleSetDocsView('tree'); }}
-              >
-                <ListTree size={12} strokeWidth={1.75} />
-                Tree
-              </button>
-              <button
-                type="button"
-                data-testid="docs-view-grid"
-                className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
-                aria-pressed={docsView === 'grid'}
-                onClick={() => { handleSetDocsView('grid'); }}
-              >
-                <LayoutGrid size={12} strokeWidth={1.75} />
-                Grid
-              </button>
-            </div>
-          )}
-
-          {/* 4. Search — last, grows to fill, files view only */}
-          {activeView === 'files' && (
-            <SearchField
-              data-testid="documents-search-field"
-              value={searchQuery}
-              onChange={setSearchQuery}
-              onClear={() => { setSearchQuery(''); }}
-              placeholder="Search files..."
-              size="md"
-              style={{ flex: 1, minWidth: 240 }}
-            />
-          )}
-
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-      </SurfaceToolbar>
-
       {/* Trust banner — one-time, dismissible */}
       {showTrustBanner && (
         <TrustBanner onDismiss={handleDismissTrust} />
@@ -842,6 +860,7 @@ export function DocumentsHome({
             onPermanentDelete={onPermanentDelete}
             onEmptyTrash={onEmptyTrash}
             docsView={docsView}
+            headerControls={filesViewControls}
             currentFolderPath={currentFolderPath}
             onSetCurrentFolderPath={setCurrentFolderPath}
             {...(embeddedCreateFallback ? { createFolderFallback: embeddedCreateFallback } : {})}

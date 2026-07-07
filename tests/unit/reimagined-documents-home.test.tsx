@@ -183,7 +183,21 @@ vi.mock('@/features/documents/workspace/FileTree', () => ({
 
 // react-i18next mock
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => ({
+      'workspace.documents.create-menu': 'Create or add files',
+      'workspace.documents.new-document': 'New document',
+      'workspace.documents.new-folder': 'New folder',
+      'workspace.documents.add-files': 'Add files',
+      'workspace.documents.files': 'Files',
+      'workspace.documents.trash': 'Trash',
+      'workspace.documents.view-files-trash': 'View files or trash',
+      'workspace.documents.view-mode': 'View',
+      'workspace.documents.tree': 'Tree',
+      'workspace.documents.grid': 'Grid',
+      'workspace.documents.search-placeholder': 'Search files...',
+    }[key] ?? key),
+  }),
 }));
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -227,6 +241,13 @@ function buildDefaultProps(overrides: Partial<DocumentsHomeProps> = {}): Documen
 
 function documentsTabTestId(path: string): string {
   return `documents-tab-${path.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+}
+
+async function openFilesCreateMenu() {
+  const trigger = screen.getByTestId('documents-files-create-menu');
+  fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+  fireEvent.click(trigger);
+  await screen.findByTestId('documents-create-document');
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -311,6 +332,72 @@ describe('DocumentsHome — vertical tab rail', () => {
       '/workspace/Evidence.pdf',
     ]);
     expect(mockSetPendingGroupRenameId).toHaveBeenCalledWith('group-1');
+  });
+
+  it('treats the wider top third of a vertical tab as a between-tabs drop', () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file' },
+    ];
+
+    render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+
+    const briefTab = screen.getByTestId(documentsTabTestId('/workspace/Brief.md'));
+    const evidenceTab = screen.getByTestId(documentsTabTestId('/workspace/Evidence.pdf'));
+    evidenceTab.getBoundingClientRect = vi.fn(() => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 252,
+      bottom: 100,
+      width: 252,
+      height: 100,
+      toJSON: () => ({}),
+    }));
+    const dt = makeDataTransfer();
+
+    fireEvent.dragStart(briefTab, { dataTransfer: dt });
+    const hoverEvent = createEvent.dragOver(evidenceTab, { dataTransfer: dt });
+    Object.defineProperty(hoverEvent, 'clientY', { value: 34 });
+    fireEvent(evidenceTab, hoverEvent);
+    const dropEvent = createEvent.drop(evidenceTab, { dataTransfer: dt });
+    Object.defineProperty(dropEvent, 'clientY', { value: 34 });
+    fireEvent(evidenceTab, dropEvent);
+
+    expect(mockCreateTabGroup).not.toHaveBeenCalled();
+    expect(mockReorderInTabBar).toHaveBeenCalledWith(
+      { type: 'tab', id: '/workspace/Brief.md' },
+      { type: 'tab', id: '/workspace/Evidence.pdf' },
+      'before',
+    );
+  });
+
+  it('clears the rail-wide drag hover after dropping a tab into a group', () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockTabGroups = [{ id: 'group-1', name: 'Group 1', collapsed: false }];
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file', groupId: 'group-1' },
+    ];
+
+    const { container } = render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    const briefTab = screen.getByTestId(documentsTabTestId('/workspace/Brief.md'));
+    const targetGroup = container.querySelector<HTMLElement>('[data-group-id="group-1"]');
+    expect(targetGroup).not.toBeNull();
+    if (!targetGroup) return;
+
+    const dt = makeDataTransfer();
+    fireEvent.dragStart(briefTab, { dataTransfer: dt });
+    const stripInner = screen.getByTestId('documents-tab-strip').firstElementChild as HTMLElement;
+    fireEvent.dragOver(stripInner, { dataTransfer: dt });
+    expect(stripInner.className).toContain('bg-primary/10');
+
+    fireEvent.drop(targetGroup, { dataTransfer: dt });
+
+    expect(stripInner.className).not.toContain('bg-primary/10');
+    expect(mockMoveTabToGroup).toHaveBeenCalledWith('/workspace/Brief.md', 'group-1');
   });
 
   it('uses the drop position, not stale hover state, when dropping one group on another edge', () => {
@@ -599,7 +686,7 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(screen.queryByTestId('documents-editor-pane')).toBeNull();
   });
 
-  it('switching clients on the Documents sub-tab remounts the surface — imports target the NEW client folder, not the old (matter isolation)', () => {
+  it('switching clients on the Documents sub-tab remounts the surface — imports target the NEW client folder, not the old (matter isolation)', async () => {
     // Simulates open-Client-A-Documents -> switch-to-Client-B-Documents. The
     // per-client key (applied in AppSurfaceRouter/MattersHome) remounts the
     // surface, so Client A's currentFolderPath does NOT survive into B — without
@@ -617,6 +704,7 @@ describe('DocumentsHome — file open + editor tab', () => {
         scopeMatterId="A"
       />,
     );
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client A');
 
@@ -629,6 +717,7 @@ describe('DocumentsHome — file open + editor tab', () => {
         scopeMatterId="B"
       />,
     );
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client B');
   });
@@ -702,7 +791,7 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(mockOpenTabs).toHaveLength(2);
   });
 
-  it('embedded create/import clamps to the client folder at the scoped root (no global write)', () => {
+  it('embedded create/import clamps to the client folder at the scoped root (no global write)', async () => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
     const onImportFiles = vi.fn();
@@ -716,11 +805,12 @@ describe('DocumentsHome — file open + editor tab', () => {
     // Navigate to the scoped root via the "All files" breadcrumb (sets null).
     fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
     // Add files must still target the client folder, never null/global.
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Contracts');
   });
 
-  it('embedded create routes through the client folder even when only onCreateFile is wired (no global write)', () => {
+  it('embedded create routes through the client folder even when only onCreateFile is wired (no global write)', async () => {
     // Codex P2: the generic create fallback must also use the embedded folder.
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -734,7 +824,8 @@ describe('DocumentsHome — file open + editor tab', () => {
     );
     // At the scoped root, "New document" still targets the client folder, not ''.
     fireEvent.click(screen.getByTestId('breadcrumb-crumb-0'));
-    fireEvent.click(screen.getByText('New document'));
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-document'));
     expect(onCreateFile).toHaveBeenLastCalledWith('/workspace/Contracts');
   });
 
@@ -844,23 +935,26 @@ describe('DocumentsHome — Add files button', () => {
     mockOpenTabs = [];
   });
 
-  it('renders an "Add files" button in the grid toolbar', () => {
+  it('renders an "Add files" item in the Files plus menu', async () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
+    await openFilesCreateMenu();
     const btn = screen.getByTestId('add-files-btn');
     expect(btn).toBeTruthy();
   });
 
-  it('clicking "Add files" calls onCreateDefaultDocument when provided', () => {
+  it('clicking "Add files" calls onCreateDefaultDocument when provided', async () => {
     const onCreateDefaultDocument = vi.fn();
     render(<DocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
+    await openFilesCreateMenu();
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(onCreateDefaultDocument).toHaveBeenCalledOnce();
   });
 
-  it('clicking "Add files" falls back to onCreateFile when no shortcut is provided', () => {
+  it('clicking "Add files" falls back to onCreateFile when no shortcut is provided', async () => {
     const onCreateFile = vi.fn();
     render(<DocumentsHome {...buildDefaultProps({ onCreateFile })} />);
+    await openFilesCreateMenu();
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(onCreateFile).toHaveBeenCalledOnce();
@@ -885,16 +979,18 @@ describe('DocumentsHome — trust banner', () => {
     expect(screen.queryByTestId('trust-banner')).toBeNull();
   });
 
-  it('trust banner shows the first time "Add files" is clicked', () => {
+  it('trust banner shows the first time "Add files" is clicked', async () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
+    await openFilesCreateMenu();
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(screen.getByTestId('trust-banner')).toBeTruthy();
     expect(screen.getByText(/indexed on your machine/i)).toBeTruthy();
   });
 
-  it('trust banner can be dismissed', () => {
+  it('trust banner can be dismissed', async () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(screen.getByTestId('trust-banner')).toBeTruthy();
     const dismissBtn = screen.getByRole('button', { name: /dismiss/i });
@@ -902,17 +998,19 @@ describe('DocumentsHome — trust banner', () => {
     expect(screen.queryByTestId('trust-banner')).toBeNull();
   });
 
-  it('trust banner does not show again once localStorage flag is set', () => {
+  it('trust banner does not show again once localStorage flag is set', async () => {
     localStorage.setItem('lantern:first-file-trust-shown', '1');
     render(<DocumentsHome {...buildDefaultProps()} />);
+    await openFilesCreateMenu();
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(screen.queryByTestId('trust-banner')).toBeNull();
   });
 
-  it('clicking "Add files" sets the localStorage flag', () => {
+  it('clicking "Add files" sets the localStorage flag', async () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     expect(localStorage.getItem('lantern:first-file-trust-shown')).toBeNull();
+    await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('add-files-btn'));
     expect(localStorage.getItem('lantern:first-file-trust-shown')).toBe('1');
   });
@@ -1114,11 +1212,49 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
     localStorage.removeItem('lantern:docs-view');
   });
 
-  it('renders the Tree | Grid toggle with both options', () => {
+  it('renders the Tree | Grid toggle inside the Files view with both options', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
+    const filesView = screen.getByTestId('document-grid-view');
     expect(screen.getByTestId('docs-view-toggle')).toBeTruthy();
     expect(screen.getByTestId('docs-view-tree')).toBeTruthy();
     expect(screen.getByTestId('docs-view-grid')).toBeTruthy();
+    expect(filesView.contains(screen.getByTestId('docs-view-toggle'))).toBe(true);
+  });
+
+  it('moves file creation into the Files rail plus menu and removes the old toolbar row', async () => {
+    const onCreateDefaultDocument = vi.fn();
+    const onCreateFolder = vi.fn();
+    const onImportFiles = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildDefaultProps({
+          onCreateDefaultDocument,
+          onCreateFolder,
+          onImportFiles,
+        })}
+      />,
+    );
+
+    expect(screen.queryByTestId('documents-toolbar')).toBeNull();
+    const filesView = screen.getByTestId('document-grid-view');
+    expect(filesView.contains(screen.getByTestId('documents-search-field'))).toBe(true);
+
+    const trigger = screen.getByTestId('documents-files-create-menu');
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+
+    fireEvent.click(await screen.findByTestId('documents-create-document'));
+    expect(onCreateDefaultDocument).toHaveBeenCalledWith(undefined);
+
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('documents-create-folder'));
+    expect(onCreateFolder).toHaveBeenCalledWith('/workspace');
+
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('add-files-btn'));
+    expect(onImportFiles).toHaveBeenCalledWith(undefined);
   });
 
   it('defaults to the grid view (DocumentGridView visible, tree hidden)', () => {
@@ -1246,46 +1382,45 @@ describe('DocumentsHome — create in current folder (R6-1)', () => {
     localStorage.removeItem('lantern:docs-view');
   });
 
-  it('at root, "New document" calls onCreateDefaultDocument with no parentPath (App falls back to docs/)', () => {
+  it('at root, "New document" calls onCreateDefaultDocument with no parentPath (App falls back to docs/)', async () => {
     const onCreateDefaultDocument = vi.fn();
     render(<DocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
-    // The toolbar "New document" button lives in DocumentGridView.
-    const newDocBtn = screen.getByRole('button', { name: /new document/i });
-    fireEvent.click(newDocBtn);
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-document'));
     expect(onCreateDefaultDocument).toHaveBeenCalledTimes(1);
     // At root, currentFolderPath is null → undefined parentPath.
     expect(onCreateDefaultDocument).toHaveBeenCalledWith(undefined);
   });
 
-  it('at root, "New folder" creates at the workspace root', () => {
+  it('at root, "New folder" creates at the workspace root', async () => {
     const onCreateFolder = vi.fn();
     render(<DocumentsHome {...buildDefaultProps({ onCreateFolder })} />);
 
-    const newFolderBtn = screen.getByRole('button', { name: /new folder/i });
-    fireEvent.click(newFolderBtn);
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-folder'));
     expect(onCreateFolder).toHaveBeenCalledWith('/workspace');
   });
 
-  it('after drilling into a folder, "New document" passes that folder as parentPath', () => {
+  it('after drilling into a folder, "New document" passes that folder as parentPath', async () => {
     const onCreateDefaultDocument = vi.fn();
     render(<DocumentsHome {...buildDefaultProps({ onCreateDefaultDocument })} />);
 
     // Drill into the Contracts folder by clicking its card.
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
 
-    const newDocBtn = screen.getByRole('button', { name: /new document/i });
-    fireEvent.click(newDocBtn);
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-document'));
     expect(onCreateDefaultDocument).toHaveBeenCalledWith('/workspace/Contracts');
   });
 
-  it('after drilling into a folder, "New folder" creates inside that folder', () => {
+  it('after drilling into a folder, "New folder" creates inside that folder', async () => {
     const onCreateFolder = vi.fn();
     render(<DocumentsHome {...buildDefaultProps({ onCreateFolder })} />);
 
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
 
-    const newFolderBtn = screen.getByRole('button', { name: /new folder/i });
-    fireEvent.click(newFolderBtn);
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-folder'));
     expect(onCreateFolder).toHaveBeenCalledWith('/workspace/Contracts');
   });
 });
@@ -1417,15 +1552,14 @@ describe('DocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
     expect(strip.getAttribute('role')).toBe('tablist');
   });
 
-  it('the Files tab has role="tab" and is focusable (rendered as button)', () => {
+  it('the Files tab has role="tab" and is focusable', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     const strip = screen.getByTestId('documents-tab-strip');
     const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
       (el) => el.textContent?.trim().startsWith('Files'),
     );
     expect(filesTab).toBeTruthy();
-    // Must be a button element (natively focusable)
-    expect(filesTab!.tagName).toBe('BUTTON');
+    expect(filesTab).toHaveAttribute('tabindex', '0');
   });
 
   it('pressing Enter on the Files tab activates it (returns to grid)', async () => {

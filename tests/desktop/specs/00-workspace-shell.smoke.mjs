@@ -18,7 +18,7 @@ export default {
     await app.bootToWorkspace(session, { workspacePath: workspace });
 
     // Documents shell + the real file from the Tauri FS.
-    await session.testid('documents-toolbar', 15_000);
+    await session.testid('documents-files-controls', 15_000);
     await session.testid('documents-tab-strip', 15_000);
     await session.waitForBodyText('probe.md', { timeoutMs: 15_000 });
   },

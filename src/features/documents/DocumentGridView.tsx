@@ -3,8 +3,8 @@
  *
  * Replaces the table-list layout with a card grid: folders first (sorted
  * alphabetically), then files, each showing an icon + name. Folder click
- * drills in; breadcrumb navigates back. All file actions (New document,
- * New folder, Add files, Search, Files/Trash toggle) are included.
+ * drills in; breadcrumb navigates back. DocumentsHome owns creation, search,
+ * and view controls, then passes the visible Files controls into this surface.
  *
  * No Tailwind on layout — all inline styles + CSS vars to stay consistent
  * with the rest of the Documents surface.
@@ -505,6 +505,8 @@ export interface DocumentGridViewProps {
    * unscoped global browser, where the whole tree is fair game.
    */
   scopeRootFolderPaths?: string[];
+  /** Files-only controls shown at the top of this browser surface. */
+  headerControls?: React.ReactNode;
 }
 
 // ── Main export ────────────────────────────────────────────────────────────
@@ -534,6 +536,7 @@ export function DocumentGridView({
   scopedFileTree,
   createFolderFallback,
   scopeRootFolderPaths,
+  headerControls,
 }: DocumentGridViewProps) {
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
   // Per-client Documents sub-tab passes a pre-scoped tree; the global browser
@@ -731,7 +734,7 @@ export function DocumentGridView({
     } else {
       void onFileOpen(node.path, node.name);
     }
-  }, [onFileOpen, onSearchQueryChange]);
+  }, [onFileOpen, onSearchQueryChange, onSetCurrentFolderPath]);
 
   function handleCreateDocument() {
     // R6-1: thread the open folder so a new document lands where the user is.
@@ -815,6 +818,24 @@ export function DocumentGridView({
         overflow: 'hidden',
       }}
     >
+      {headerControls ? (
+        <div
+          data-testid="documents-files-controls"
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--kp-space-sm)',
+            padding: 'var(--kp-space-sm) var(--kp-gutter)',
+            borderBottom: '1px solid var(--kp-divider)',
+            background: 'var(--color-background)',
+            minWidth: 0,
+          }}
+        >
+          {headerControls}
+        </div>
+      ) : null}
+
       {/* ── Content area ───────────────────────────────────────────────── */}
       {activeView === 'files' && docsView === 'tree' ? (
         /* Tree view — full height, no padding wrapper */

@@ -143,7 +143,7 @@ try {
 
   await findElement(sessionId, 'css selector', '[data-testid="spine-nav"]', 45_000);
   await findElement(sessionId, 'css selector', '[data-testid="status-bar"]', 15_000);
-  await findElement(sessionId, 'css selector', '[data-testid="documents-toolbar"]', 15_000);
+  await findElement(sessionId, 'css selector', '[data-testid="documents-files-controls"]', 15_000);
   await findElement(sessionId, 'css selector', '[data-testid="documents-tab-strip"]', 15_000);
   await maybeClick(sessionId, 'css selector', '[data-testid="feature-tour-skip"]');
 

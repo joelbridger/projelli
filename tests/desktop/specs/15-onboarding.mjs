@@ -67,7 +67,7 @@ export default {
 
     if (await session.hasTestid('spine-nav', 5_000)) {
       await session.testid('status-bar', 15_000);
-      await session.testid('documents-toolbar', 15_000);
+      await session.testid('documents-files-controls', 15_000);
       return;
     }
 

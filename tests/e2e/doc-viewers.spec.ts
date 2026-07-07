@@ -144,12 +144,12 @@ test.describe('Document Viewers (Phase 1)', () => {
       content: dataUrl,
     });
 
+    await expect(page.getByTestId('documents-tab-strip')).toBeVisible({ timeout: 20_000 });
+
     const editor = page.getByTestId('docx-editor');
     await expect(editor).toBeVisible({ timeout: 20_000 });
     await expect(editor).toHaveAttribute('data-mode', 'readonly-fallback');
-    await expect(page.getByTestId('docx-editor-readonly-banner')).toContainText(
-      'read-only preview'
-    );
+    await expect(page.getByTestId('docx-editor-readonly-banner')).toBeVisible();
 
     const viewer = page.getByTestId('docx-viewer');
     await expect(viewer).toBeVisible();

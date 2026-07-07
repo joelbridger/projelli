@@ -78,6 +78,12 @@
       "replacement": "clientmap-history-panel",
       "reason": "FB-F removes the Activity tab and moves the per-client feed into the header History panel.",
       "date": "2026-07-07"
+    },
+    {
+      "removed": "documents-toolbar",
+      "replacement": "documents-files-controls",
+      "reason": "WP3 moves Documents view controls into the Files panel and file creation into the Files rail plus menu.",
+      "date": "2026-07-07"
     }
   ]
 }
