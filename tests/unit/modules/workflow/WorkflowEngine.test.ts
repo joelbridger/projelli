@@ -370,7 +370,7 @@ describe('WorkflowEngine analyze step — matter-scope guard (Bug 3)', () => {
     const record = await engine.execute(analyzeOnlyTemplate());
 
     expect(record.status).toBe('failed');
-    expect(record.error).toMatch(/active client/i);
+    expect(record.error).toMatch(/pick your client/i);
     // Retrieval must never run — this is the actual confidentiality guard.
     expect(retrieve).not.toHaveBeenCalled();
     expect(fileOps.writeFileBinary).not.toHaveBeenCalled();
