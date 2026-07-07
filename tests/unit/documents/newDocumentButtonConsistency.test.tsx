@@ -40,10 +40,34 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
     selector({ fileTree: [], rootPath: '/workspace' }),
 }));
 
-vi.mock('@/platform/state/editorStore', () => ({
-  useEditorStore: (selector: (s: object) => unknown) =>
-    selector({ activeTabPath: null, openTabs: [], setActiveTab: vi.fn(), closeTab: vi.fn() }),
-}));
+vi.mock('@/platform/state/editorStore', () => {
+  const editorState = {
+    activeTabPath: null,
+    openTabs: [],
+    tabGroups: [],
+    pendingRenamePath: null,
+    pendingGroupRenameId: null,
+    setActiveTab: vi.fn(),
+    closeTab: vi.fn(),
+    reorderTabs: vi.fn(),
+    createTabGroup: vi.fn(() => 'group_1'),
+    renameTabGroup: vi.fn(),
+    deleteTabGroup: vi.fn(),
+    toggleGroupCollapsed: vi.fn(),
+    moveTabToGroup: vi.fn(),
+    ungroupTab: vi.fn(),
+    mergeTabGroups: vi.fn(),
+    reorderInTabBar: vi.fn(),
+    setPendingRenamePath: vi.fn(),
+    setPendingGroupRenameId: vi.fn(),
+  };
+  const useEditorStore = Object.assign(
+    (selector?: (s: typeof editorState) => unknown) =>
+      selector ? selector(editorState) : editorState,
+    { getState: () => editorState },
+  );
+  return { useEditorStore };
+});
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),

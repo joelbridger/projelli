@@ -5,6 +5,7 @@ import { useCallback, useState, useRef, useEffect, useLayoutEffect, useMemo, use
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/ui/button';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { isDocxUnsaved, subscribeDocxSaveRegistry, getDocxSaveVersion, closeDocxTabSafely } from '@/platform/fs/docxSaveRegistry';
@@ -81,6 +82,19 @@ function computeGroupDropZone(
   return 'merge';
 }
 
+function computeTabDropZone(
+  e: React.DragEvent,
+  orientation: 'horizontal' | 'vertical',
+): 'before' | 'combine' | 'after' {
+  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+  const size = orientation === 'vertical' ? rect.height : rect.width;
+  if (size <= 0) return 'combine';
+  const offset = orientation === 'vertical' ? e.clientY - rect.top : e.clientX - rect.left;
+  if (offset < size * 0.30) return 'before';
+  if (offset > size * 0.70) return 'after';
+  return 'combine';
+}
+
 export function TabBar({
   orientation = 'horizontal',
   onRenameFile,
@@ -126,7 +140,26 @@ export function TabBar({
     setPendingRenamePath,
     pendingGroupRenameId,
     setPendingGroupRenameId,
-  } = useEditorStore();
+  } = useEditorStore(useShallow((s) => ({
+    openTabs: s.openTabs,
+    activeTabPath: s.activeTabPath,
+    tabGroups: s.tabGroups,
+    setActiveTab: s.setActiveTab,
+    closeTab: s.closeTab,
+    reorderTabs: s.reorderTabs,
+    createTabGroup: s.createTabGroup,
+    renameTabGroup: s.renameTabGroup,
+    deleteTabGroup: s.deleteTabGroup,
+    toggleGroupCollapsed: s.toggleGroupCollapsed,
+    moveTabToGroup: s.moveTabToGroup,
+    ungroupTab: s.ungroupTab,
+    mergeTabGroups: s.mergeTabGroups,
+    reorderInTabBar: s.reorderInTabBar,
+    pendingRenamePath: s.pendingRenamePath,
+    setPendingRenamePath: s.setPendingRenamePath,
+    pendingGroupRenameId: s.pendingGroupRenameId,
+    setPendingGroupRenameId: s.setPendingGroupRenameId,
+  })));
 
   const displayedTabs = useMemo(
     () => (tabFilter ? openTabs.filter(tabFilter) : openTabs),
@@ -145,12 +178,11 @@ export function TabBar({
     [onActivateTab, setActiveTab],
   );
 
-  // Tab overflow mode: canonical source is settingsStore. Falls back to the
-  // old editorStore value (which itself falls back to 'scroll') so existing
-  // users see no change until they visit Settings.
-  const tabOverflow = useSettingsStore(
-    (s) => s.getSetting<'scroll' | 'wrap'>('tabOverflow')
-  ) ?? 'scroll';
+  // Tab overflow mode: canonical source is settingsStore, whose schema default
+  // keeps existing users on horizontal scroll until they change it.
+  const tabOverflow = useSettingsStore((s) =>
+    s.getSetting<'scroll' | 'wrap'>('tabOverflow')
+  );
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
@@ -276,6 +308,9 @@ export function TabBar({
 
   // Confirmation dialog
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+  const reportAsyncError = useCallback((context: string, error: unknown) => {
+    console.error(`[TabBar] ${context} failed:`, error);
+  }, []);
 
   // Track whether the tab strip can scroll left / right so the arrow buttons
   // only render when there's something to scroll to. Runs on mount, on tab
@@ -349,7 +384,7 @@ export function TabBar({
   );
   const activeTabGroupId = useMemo(
     () => displayedTabs.find((tab) => tab.path === effectiveActiveTabPath)?.groupId ?? null,
-    [displayedTabLayoutKey, displayedTabs, effectiveActiveTabPath],
+    [displayedTabs, effectiveActiveTabPath],
   );
 
   // When the active tab changes (e.g. user clicked the overflow list or
@@ -368,7 +403,10 @@ export function TabBar({
     // scrollIntoView with inline:'nearest' avoids jumpy behavior when the
     // active tab is already visible.
     child.scrollIntoView({ inline: 'nearest', block: 'nearest' });
-    updateScrollButtons();
+    const id = requestAnimationFrame(updateScrollButtons);
+    return () => {
+      cancelAnimationFrame(id);
+    };
   }, [effectiveActiveTabPath, activeTabGroupId, displayedTabLayoutKey, updateScrollButtons]);
 
   const handleTabClick = useCallback((path: string) => {
@@ -427,18 +465,27 @@ export function TabBar({
     [openTabs, closeTab, confirm]
   );
 
+  const runCloseTabSafely = useCallback(
+    (path: string) => {
+      closeTabSafely(path).catch((error: unknown) => {
+        reportAsyncError('close tab', error);
+      });
+    },
+    [closeTabSafely, reportAsyncError],
+  );
+
   const handleTabClose = useCallback(
     (e: React.MouseEvent, path: string) => {
       e.stopPropagation();
-      void closeTabSafely(path);
+      runCloseTabSafely(path);
     },
-    [closeTabSafely],
+    [runCloseTabSafely],
   );
 
   const handleMiddleClick = useCallback(
     (e: React.MouseEvent, path: string) => {
       if (e.button === 1) {
-        void handleTabClose(e, path);
+        handleTabClose(e, path);
       }
     },
     [handleTabClose]
@@ -451,6 +498,15 @@ export function TabBar({
       }
     },
     [closeTabSafely],
+  );
+
+  const runCloseTabsSequentially = useCallback(
+    (tabs: Array<{ path: string }>) => {
+      closeTabsSequentially(tabs).catch((error: unknown) => {
+        reportAsyncError('close tabs', error);
+      });
+    },
+    [closeTabsSequentially, reportAsyncError],
   );
 
   const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
@@ -492,21 +548,11 @@ export function TabBar({
   // into left 30% (reorder before), right 30% (after), middle 40%
   // (combine — create/join/merge depending on source+target type). The
   // same math runs on group chips via handleGroupDragOver.
-  const computeTabZone = (e: React.DragEvent): 'before' | 'combine' | 'after' => {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const size = isVertical ? rect.height : rect.width;
-    if (size <= 0) return 'combine';
-    const offset = isVertical ? e.clientY - rect.top : e.clientX - rect.left;
-    if (offset < size * 0.30) return 'before';
-    if (offset > size * 0.70) return 'after';
-    return 'combine';
-  };
-
   const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
-    const zone = computeTabZone(e);
+    const zone = computeTabDropZone(e, orientation);
     const intent: 'group' | 'reorder' = zone === 'combine' ? 'group' : 'reorder';
     const position: 'before' | 'after' | null =
       zone === 'before' ? 'before' : zone === 'after' ? 'after' : null;
@@ -523,7 +569,7 @@ export function TabBar({
       clearTimeout(hoverTimerRef.current);
       hoverTimerRef.current = null;
     }
-  }, [dragOverIndex, dragIntent, dropPosition]);
+  }, [dragOverIndex, dragIntent, dropPosition, orientation]);
 
   const handleDragLeave = useCallback(() => {
     setDragOverIndex(null);
@@ -555,7 +601,7 @@ export function TabBar({
       hoverTimerRef.current = null;
     }
 
-    const zone = computeTabZone(e);
+    const zone = computeTabDropZone(e, orientation);
     const payload = e.dataTransfer.getData('text/plain');
     const targetTab = openTabs[toIndex];
     if (!targetTab) {
@@ -576,7 +622,7 @@ export function TabBar({
           moveTabToGroup(targetTab.path, sourceGroupId);
         } else {
           const position: 'before' | 'after' = zone === 'before' ? 'before' : 'after';
-          useEditorStore.getState().reorderInTabBar(
+          reorderInTabBar(
             { type: 'group', id: sourceGroupId },
             { type: 'tab', id: targetTab.path },
             position,
@@ -615,12 +661,12 @@ export function TabBar({
       //   dragged grouped, target ungrouped → new group pairing both
       if (!draggedTab.groupId && !targetTab.groupId) {
         const newId = createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
-        useEditorStore.getState().setPendingGroupRenameId(newId);
+        setPendingGroupRenameId(newId);
       } else if (targetTab.groupId) {
         moveTabToGroup(draggedTab.path, targetTab.groupId);
       } else if (draggedTab.groupId && !targetTab.groupId) {
         const newId = createTabGroup(nextGroupName(), [draggedTab.path, targetTab.path]);
-        useEditorStore.getState().setPendingGroupRenameId(newId);
+        setPendingGroupRenameId(newId);
       }
     } else {
       // Tab dropped on edge of another tab → reorder. If the target is inside
@@ -631,7 +677,7 @@ export function TabBar({
       } else if (!targetTab.groupId && draggedTab.groupId) {
         ungroupTab(draggedTab.path);
       }
-      useEditorStore.getState().reorderInTabBar(
+      reorderInTabBar(
         { type: 'tab', id: draggedTab.path },
         { type: 'tab', id: targetTab.path },
         zone === 'before' ? 'before' : 'after',
@@ -642,7 +688,16 @@ export function TabBar({
     setDragOverIndex(null);
     setDragIntent(null);
     setDropPosition(null);
-  }, [openTabs, moveTabToGroup, createTabGroup, nextGroupName, ungroupTab]);
+  }, [
+    openTabs,
+    moveTabToGroup,
+    createTabGroup,
+    nextGroupName,
+    ungroupTab,
+    orientation,
+    reorderInTabBar,
+    setPendingGroupRenameId,
+  ]);
 
 
   const handleGroupDoubleClick = useCallback((groupId: string, currentName: string) => {
@@ -677,6 +732,15 @@ export function TabBar({
       deleteTabGroup(groupId);
     }
   }, [deleteTabGroup, confirm]);
+
+  const runGroupDelete = useCallback(
+    (groupId: string) => {
+      handleGroupDelete(groupId).catch((error: unknown) => {
+        reportAsyncError('delete group', error);
+      });
+    },
+    [handleGroupDelete, reportAsyncError],
+  );
 
   const handleGroupDragOver = useCallback((e: React.DragEvent, groupId: string) => {
     e.preventDefault();
@@ -762,6 +826,12 @@ export function TabBar({
     setEditingTabName('');
   }, [editingTabPath, editingTabName, onRenameFile, openTabs]);
 
+  const runTabRenameSubmit = useCallback(() => {
+    handleTabRenameSubmit().catch((error: unknown) => {
+      reportAsyncError('rename tab', error);
+    });
+  }, [handleTabRenameSubmit, reportAsyncError]);
+
   // Handle dropping on the tab bar container (to ungroup tabs)
   const handleTabBarDragOver = useCallback((e: React.DragEvent) => {
     // Only handle drags that aren't over a specific tab or group
@@ -830,11 +900,17 @@ export function TabBar({
         tabIndex={0}
         aria-selected={isActive}
         draggable
-        onDragStart={(e) => handleDragStart(e, index)}
+        onDragStart={(e) => {
+          handleDragStart(e, index);
+        }}
         onDragEnd={handleDragEnd}
-        onDragOver={(e) => handleDragOver(e, index)}
+        onDragOver={(e) => {
+          handleDragOver(e, index);
+        }}
         onDragLeave={handleDragLeave}
-        onDrop={(e) => handleDrop(e, index)}
+        onDrop={(e) => {
+          handleDrop(e, index);
+        }}
         // `group` enables group-hover:* targeting on descendants (the close X).
         className={cn(
           'group flex items-center cursor-pointer text-sm transition-colors relative flex-shrink-0 snap-start',
@@ -879,10 +955,10 @@ export function TabBar({
             type="text"
             value={editingTabName}
             onChange={(e) => setEditingTabName(e.target.value)}
-            onBlur={() => void handleTabRenameSubmit()}
+            onBlur={runTabRenameSubmit}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                void handleTabRenameSubmit();
+                runTabRenameSubmit();
               } else if (e.key === 'Escape') {
                 setEditingTabPath(null);
                 setEditingTabName('');
@@ -947,9 +1023,13 @@ export function TabBar({
             setDragOverGroupId(null);
             setDragOverGroupZone(null);
           }}
-          onDragOver={(e) => handleGroupDragOver(e, group.id)}
+          onDragOver={(e) => {
+            handleGroupDragOver(e, group.id);
+          }}
           onDragLeave={handleGroupDragLeave}
-          onDrop={(e) => handleGroupDrop(e, group.id)}
+          onDrop={(e) => {
+            handleGroupDrop(e, group.id);
+          }}
         >
           {isGroupDragOver && dragOverGroupZone === 'before' && (
             <span className="absolute left-0 right-0 top-0 h-0.5 bg-primary" aria-hidden />
@@ -1015,7 +1095,9 @@ export function TabBar({
                 {t('editor.tab-bar.ungroup')}
               </DropdownMenuItem>
               <DropdownMenuItem
-                onClick={() => { void closeTabsSequentially(tabs); }}
+                onClick={() => {
+                  runCloseTabsSequentially(tabs);
+                }}
                 className="text-destructive focus:text-destructive"
               >
                 {t('editor.tab-bar.close-group')}
@@ -1056,9 +1138,13 @@ export function TabBar({
           setDragOverGroupId(null);
           setDragOverGroupZone(null);
         }}
-        onDragOver={(e) => handleGroupDragOver(e, group.id)}
+        onDragOver={(e) => {
+          handleGroupDragOver(e, group.id);
+        }}
         onDragLeave={handleGroupDragLeave}
-        onDrop={(e) => handleGroupDrop(e, group.id)}
+        onDrop={(e) => {
+          handleGroupDrop(e, group.id);
+        }}
       >
         {/* Reorder-position indicators for group-on-group drag. */}
         {isGroupDragOver && dragOverGroupZone === 'before' && (
@@ -1236,13 +1322,13 @@ export function TabBar({
                           type="text"
                           value={editingTabName}
                           onChange={(e) => setEditingTabName(e.target.value)}
-                          onBlur={() => void handleTabRenameSubmit()}
+                          onBlur={runTabRenameSubmit}
                           onClick={(e) => e.stopPropagation()}
                           onKeyDown={(e) => {
                             // Stop arrow keys from triggering Radix typeahead.
                             e.stopPropagation();
                             if (e.key === 'Enter') {
-                              void handleTabRenameSubmit();
+                              runTabRenameSubmit();
                             } else if (e.key === 'Escape') {
                               setEditingTabPath(null);
                               setEditingTabName('');
@@ -1269,7 +1355,7 @@ export function TabBar({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            void closeTabSafely(tab.path);
+                            runCloseTabSafely(tab.path);
                           }}
                         >
                           <X className="h-3 w-3" />
@@ -1288,7 +1374,7 @@ export function TabBar({
               className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors text-destructive hover:bg-accent hover:text-destructive focus:bg-accent focus:text-destructive"
               onClick={() => {
                 setOpenDropdownGroupId(null);
-                void handleGroupDelete(group.id);
+                runGroupDelete(group.id);
               }}
             >
               Delete Group
@@ -1402,7 +1488,9 @@ export function TabBar({
             size="sm"
             className="px-1.5 border-r flex-shrink-0"
             style={{ height: TAB_STRIP_HEIGHT }}
-            onClick={() => scrollTabs('left')}
+            onClick={() => {
+              scrollTabs('left');
+            }}
             title="Scroll tabs left"
             aria-label="Scroll tabs left"
           >
@@ -1474,7 +1562,9 @@ export function TabBar({
             size="sm"
             className="px-1.5 border-l flex-shrink-0"
             style={{ height: TAB_STRIP_HEIGHT }}
-            onClick={() => scrollTabs('right')}
+            onClick={() => {
+              scrollTabs('right');
+            }}
             title="Scroll tabs right"
             aria-label="Scroll tabs right"
           >
@@ -1493,7 +1583,9 @@ export function TabBar({
                 : 'px-2 border-l flex-shrink-0',
             )}
             style={isVertical ? undefined : { height: TAB_STRIP_HEIGHT }}
-            onClick={() => setShowGroupManager(true)}
+            onClick={() => {
+              setShowGroupManager(true);
+            }}
             title="Manage Tab Groups"
           >
             <Settings className="h-3.5 w-3.5" />
@@ -1525,7 +1617,9 @@ export function TabBar({
                   return (
                     <DropdownMenuItem
                       key={tab.path}
-                      onClick={() => handleTabClick(tab.path)}
+                      onClick={() => {
+                        handleTabClick(tab.path);
+                      }}
                       className="gap-2"
                     >
                       {getTabIcon(tab)}
@@ -1570,7 +1664,9 @@ export function TabBar({
       {/* Tab Group Manager Modal */}
       <TabGroupManager
         open={showGroupManager}
-        onClose={() => setShowGroupManager(false)}
+        onClose={() => {
+          setShowGroupManager(false);
+        }}
         {...(onRenameFile ? { onRenameTab: onRenameFile } : {})}
       />
 
@@ -1579,7 +1675,9 @@ export function TabBar({
         <>
           <div
             className="fixed inset-0 z-40"
-            onClick={() => setTabContextMenu(null)}
+            onClick={() => {
+              setTabContextMenu(null);
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               setTabContextMenu(null);
@@ -1607,7 +1705,7 @@ export function TabBar({
               role="menuitem"
               className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
-                void closeTabSafely(tabContextMenu.path);
+                runCloseTabSafely(tabContextMenu.path);
                 setTabContextMenu(null);
               }}
             >
@@ -1632,7 +1730,7 @@ export function TabBar({
               role="menuitem"
               className="flex w-full items-center rounded-sm px-2 py-1.5 outline-none hover:bg-accent hover:text-accent-foreground"
               onClick={() => {
-                void closeTabsSequentially(displayedTabs.filter((t) => t.path !== tabContextMenu.path));
+                runCloseTabsSequentially(displayedTabs.filter((t) => t.path !== tabContextMenu.path));
                 setTabContextMenu(null);
               }}
             >

@@ -238,11 +238,17 @@ export const useEditorStore = create<EditorState>()(
   activeTabPath: null,
   lastOpenRequest: null,
   pendingRenamePath: null,
-  setPendingRenamePath: (path) => set({ pendingRenamePath: path }),
+  setPendingRenamePath: (path) => {
+    set({ pendingRenamePath: path });
+  },
   pendingDocxFocusPath: null,
-  setPendingDocxFocusPath: (path) => set({ pendingDocxFocusPath: path }),
+  setPendingDocxFocusPath: (path) => {
+    set({ pendingDocxFocusPath: path });
+  },
   pendingGroupRenameId: null,
-  setPendingGroupRenameId: (id) => set({ pendingGroupRenameId: id }),
+  setPendingGroupRenameId: (id) => {
+    set({ pendingGroupRenameId: id });
+  },
   layout: null,
 
   // Tab groups

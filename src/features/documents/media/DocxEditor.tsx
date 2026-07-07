@@ -276,7 +276,7 @@ function foldLiveRunTextIntoDoc(
 
 function placeCaretAtEnd(element: HTMLElement): void {
   element.focus();
-  const selection = window.getSelection?.();
+  const selection = window.getSelection();
   if (!selection) return;
   const range = document.createRange();
   range.selectNodeContents(element);
@@ -773,7 +773,9 @@ export function DocxEditor({
       if (run) placeCaretAtEnd(run);
       setPendingDocxFocusPath(null);
     });
-    return () => cancelAnimationFrame(id);
+    return () => {
+      cancelAnimationFrame(id);
+    };
   }, [load.status, filePath, pendingDocxFocusPath, setPendingDocxFocusPath]);
 
   // ---- QA-81: steady-state periodic autosave of LIVE (un-blurred) typing ---
