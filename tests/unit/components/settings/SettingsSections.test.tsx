@@ -268,25 +268,25 @@ describe('SettingsModal section sub-headers', () => {
 // ---------------------------------------------------------------------------
 
 describe('SettingsModal controls per section', () => {
-  it('Workspace: theme select is present (after expanding General)', () => {
+  it('Workspace: theme select is not shown in General', () => {
     renderModal('workspace');
     expandSubsection('subheader-general');
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
+    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
   });
 
   it('settings rows keep descriptions inside an info icon instead of visible gray subtext', () => {
     renderModal('workspace');
     expandSubsection('subheader-general');
 
-    expect(screen.getByText('Theme')).toBeInTheDocument();
-    expect(screen.getByLabelText('Theme')).toBeInTheDocument();
-    expect(screen.queryByText('Choose light, dark, or follow your system preference.')).not.toBeInTheDocument();
+    expect(screen.getByText('On Startup')).toBeInTheDocument();
+    expect(screen.getByLabelText('On Startup')).toBeInTheDocument();
+    expect(screen.queryByText('What happens when you launch Advisor Prep Hero.')).not.toBeInTheDocument();
 
-    const info = screen.getByRole('button', { name: 'About Theme' });
+    const info = screen.getByRole('button', { name: 'About On Startup' });
     expect(info).toBeInTheDocument();
 
     fireEvent.mouseEnter(info);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Choose light, dark, or follow your system preference.');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('What happens when you launch Advisor Prep Hero.');
   });
 
   it('Workspace: autoSave toggle is present (from editor, after expanding)', () => {

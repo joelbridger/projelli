@@ -237,14 +237,24 @@ describe('SettingsContent — search auto-selects matching tab', () => {
   it('typing a query matching the first sub-section keeps its panel in the DOM', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
-    // General is active by default; search for "theme" (in General).
+    // General is active by default; search for "startup" (in General).
+    fireEvent.change(screen.getByTestId('settings-search'), {
+      target: { value: 'startup' },
+    });
+
+    // The matching setting should be accessible.
+    expect(screen.getByTestId('setting-startupBehavior')).toBeInTheDocument();
+    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
+  });
+
+  it('theme search no longer exposes a user-facing theme setting', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'theme' },
     });
 
-    // The matching setting should be accessible.
-    expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
-    expect(screen.getByTestId('subsection-general')).toBeInTheDocument();
+    expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
   });
 });
 

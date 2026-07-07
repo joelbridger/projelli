@@ -1,26 +1,35 @@
 /**
- * Theme 3-state cycle (UX-25)
+ * Light-only theme lock.
  *
- * The toggle in the top-right header cycles light → dark → system → light.
- * The default (unset) preference is 'light' (settings schema.ts — no
- * dark-mode-by-default). In 'system' mode the app listens to
- * prefers-color-scheme so OS changes flow through. Persistence lives in
- * localStorage['lantern:settings'].
+ * The old top-header theme toggle is intentionally gone. The app still keeps
+ * the hidden theme engine for future development, but the user-facing app
+ * boots light and does not expose a theme picker.
  */
 
 import { test, expect, type Page } from '@playwright/test';
-import { waitForTestModeLoad, hardClick } from './helpers/test-utils';
+import { waitForTestModeLoad } from './helpers/test-utils';
 
-async function addThemePreferenceInitScript(
+async function addThemeSeedInitScript(
   page: Page,
-  theme: 'light' | 'dark' | 'system'
+  seed: {
+    theme?: 'light' | 'dark' | 'system';
+    themeExplicitlyChosen?: boolean;
+    legacyRawTheme?: 'light' | 'dark' | 'system';
+  }
 ) {
-  await page.addInitScript((nextTheme) => {
+  await page.addInitScript((nextSeed) => {
+    localStorage.removeItem('lantern:settings');
+    localStorage.removeItem('theme');
+    if (nextSeed.legacyRawTheme) {
+      localStorage.setItem('theme', nextSeed.legacyRawTheme);
+    }
+    if (!nextSeed.theme) return;
     localStorage.setItem(
       'lantern:settings',
       JSON.stringify({
         state: {
-          values: { theme: nextTheme, themeExplicitlyChosen: true },
+          values: { theme: nextSeed.theme },
+          themeExplicitlyChosen: nextSeed.themeExplicitlyChosen === true,
           _migrated: true,
           featuresTourCompleted: false,
           language: null,
@@ -28,109 +37,54 @@ async function addThemePreferenceInitScript(
         version: 1,
       })
     );
-  }, theme);
+  }, seed);
 }
 
-test.describe('Theme cycle (UX-25)', () => {
-  test('first run defaults to light theme with correct icon', async ({ page }) => {
-    // Clear any stored theme from previous runs so we hit the default branch.
-    await page.addInitScript(() => {
-      try {
-        localStorage.removeItem('lantern:settings');
-        localStorage.removeItem('theme');
-      } catch {
-        /* no-op */
-      }
-    });
+test.describe('Light-only theme lock', () => {
+  test('first run shows no theme toggle and applies light', async ({ page }) => {
+    await addThemeSeedInitScript(page, {});
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
-    // Settings schema's 'theme' default is 'light' (schema.ts), matching
-    // Jameson's stated no-dark-mode-by-default product preference — not
-    // 'system'.
-    const toggle = page.getByTestId('theme-toggle');
-    await expect(toggle).toHaveAttribute('data-theme', 'light');
-    await expect(page.getByTestId('theme-icon-light')).toBeVisible();
+    await expect(page.getByTestId('theme-toggle')).toHaveCount(0);
+    await expect(page.getByTestId('theme-icon-light')).toHaveCount(0);
+    await expect(page.getByTestId('theme-icon-dark')).toHaveCount(0);
+    await expect(page.getByTestId('theme-icon-system')).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveClass(/dark/);
   });
 
-  test('clicking cycles light → dark → system → light', async ({ page }) => {
-    await page.addInitScript(() => {
-      try {
-        localStorage.removeItem('lantern:settings');
-        localStorage.removeItem('theme');
-      } catch {
-        /* no-op */
-      }
-    });
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-
-    const toggle = page.getByTestId('theme-toggle');
-
-    // Start: light (the default — see App.tsx's cycle: light -> dark -> system -> light)
-    await expect(toggle).toHaveAttribute('data-theme', 'light');
-
-    // Click 1: dark
-    await hardClick(toggle);
-    await expect(toggle).toHaveAttribute('data-theme', 'dark');
-    await expect(page.getByTestId('theme-icon-dark')).toBeVisible();
-
-    // Click 2: system
-    await hardClick(toggle);
-    await expect(toggle).toHaveAttribute('data-theme', 'system');
-    await expect(page.getByTestId('theme-icon-system')).toBeVisible();
-
-    // Click 3: back to light
-    await hardClick(toggle);
-    await expect(toggle).toHaveAttribute('data-theme', 'light');
-    await expect(page.getByTestId('theme-icon-light')).toBeVisible();
-  });
-
-  test('persists the preference across reloads', async ({ page }) => {
-    // Seed the canonical settings store before navigation. The legacy `theme`
-    // key is only a migration fallback now.
-    await addThemePreferenceInitScript(page, 'light');
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-
-    await expect(page.getByTestId('theme-toggle')).toHaveAttribute(
-      'data-theme',
-      'light'
-    );
-
-    await page.reload();
-    await waitForTestModeLoad(page);
-    await expect(page.getByTestId('theme-toggle')).toHaveAttribute(
-      'data-theme',
-      'light'
-    );
-  });
-
-  test('dark theme applies the dark class to <html>', async ({ page }) => {
-    await addThemePreferenceInitScript(page, 'dark');
-    await page.goto('/?testMode=true');
-    await waitForTestModeLoad(page);
-    await expect(page.locator('html')).toHaveClass(/dark/);
-  });
-
-  test('system mode syncs effective theme with prefers-color-scheme', async ({
+  test('an old dark value without the explicit-choice stamp normalizes to light', async ({
     page,
   }) => {
-    await addThemePreferenceInitScript(page, 'system');
-    // Emulate dark OS preference BEFORE navigation so the initial render
-    // picks it up. In Chromium, emulateMedia affects matchMedia immediately.
+    await addThemeSeedInitScript(page, { theme: 'dark' });
+    await page.goto('/?testMode=true');
+    await waitForTestModeLoad(page);
+
+    await expect(page.getByTestId('theme-toggle')).toHaveCount(0);
+    await expect(page.locator('html')).not.toHaveClass(/dark/);
+  });
+
+  test('an old system value without the explicit-choice stamp ignores dark OS mode', async ({
+    page,
+  }) => {
+    await addThemeSeedInitScript(page, { theme: 'system' });
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
-    // HTML should have `dark` class because system prefers dark and the
-    // user hasn't overridden.
-    await expect(page.locator('html')).toHaveClass(/dark/);
-
-    // Swap OS preference to light. The matchMedia listener should flip
-    // the effective theme.
-    await page.emulateMedia({ colorScheme: 'light' });
-    // Give React a tick. toHaveClass polls for up to 5s by default.
+    await expect(page.getByTestId('theme-toggle')).toHaveCount(0);
     await expect(page.locator('html')).not.toHaveClass(/dark/);
+  });
+
+  test('the legacy raw theme key is deleted and never exposes a toggle', async ({
+    page,
+  }) => {
+    await addThemeSeedInitScript(page, { legacyRawTheme: 'dark' });
+    await page.goto('/?testMode=true');
+    await waitForTestModeLoad(page);
+
+    await expect(page.locator('html')).not.toHaveClass(/dark/);
+    await expect(page.getByTestId('theme-toggle')).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('theme'))).toBeNull();
   });
 });

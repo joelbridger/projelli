@@ -50,7 +50,15 @@ function isValidSettingValue(def: SettingDefinition, value: unknown): boolean {
 }
 
 const SETTINGS_PERSIST_VERSION = 1;
+const THEME_SETTING_KEY = 'theme';
 const defByKey = new Map(SETTINGS_SCHEMA.map((d) => [d.key, d]));
+
+const HIDDEN_SETTING_DEFAULTS: Record<string, unknown> = {
+  // The theme picker is no longer user-facing, but the theme engine still
+  // exists for future development. With no schema row, the store must keep a
+  // hard light fallback so startup never depends on browser or OS defaults.
+  [THEME_SETTING_KEY]: 'light',
+};
 
 const PRIVACY_CRITICAL_SAFE_DEFAULTS: Record<string, unknown> = {
   // If this value is stale or corrupt, Advisor Prep Hero must fail closed: local model
@@ -63,6 +71,11 @@ type SanitizedSettingValue =
   | { valid: false };
 
 function sanitizeSettingValue(key: string, value: unknown): SanitizedSettingValue {
+  if (key === THEME_SETTING_KEY) {
+    return value === 'light' || value === 'dark' || value === 'system'
+      ? { valid: true, value }
+      : { valid: false };
+  }
   if (key === TEMPLATE_MODEL_OVERRIDES_KEY) {
     const sanitized = sanitizeTemplateModelOverrides(value);
     return sanitized ? { valid: true, value: sanitized } : { valid: false };
@@ -119,11 +132,11 @@ function migratePersistedSettings(persisted: unknown): PersistedSettingsState {
  * or resurrected by a lost/partial storage flush.
  */
 function enforceStartupThemePolicy(state: PersistedSettingsState): PersistedSettingsState {
-  const theme = state.values['theme'];
+  const theme = state.values[THEME_SETTING_KEY];
   if (theme === undefined || theme === 'light' || state.themeExplicitlyChosen) {
     return state;
   }
-  return { ...state, values: { ...state.values, theme: 'light' } };
+  return { ...state, values: { ...state.values, [THEME_SETTING_KEY]: 'light' } };
 }
 
 // ---------------------------------------------------------------------------
@@ -139,7 +152,7 @@ interface PersistedSettingsState {
   featuresTourCompleted: boolean;
   language: Language;
   /** Theme light-lock: true only once a REAL runtime write set the theme
-   *  (Settings dropdown / toolbar toggle / settings import). A theme value
+   *  (hidden theme writer / settings import). A theme value
    *  that reaches storage any other way (stale state resurrected by a lost
    *  write, a stray/legacy import) has no stamp and is normalized back to
    *  'light' on the next hydration — the app must never come up dark
@@ -210,6 +223,9 @@ export const useSettingsStore = create<SettingsState>()(
           const sanitized = sanitizeSettingValue(key, stored);
           if (sanitized.valid) return sanitized.value as T;
         }
+        if (Object.prototype.hasOwnProperty.call(HIDDEN_SETTING_DEFAULTS, key)) {
+          return HIDDEN_SETTING_DEFAULTS[key] as T;
+        }
         return (DEFAULTS[key] ?? undefined) as T;
       },
 
@@ -217,10 +233,10 @@ export const useSettingsStore = create<SettingsState>()(
         set((state) => ({
           values: { ...state.values, [key]: value },
           // Theme light-lock: every runtime write to 'theme' comes from a
-          // user-facing control (Settings dropdown, toolbar toggle), so it
-          // stamps the choice as explicit. Values that arrive any other way
-          // stay unstamped and are normalized to 'light' at next boot.
-          ...(key === 'theme' && (value === 'light' || value === 'dark' || value === 'system')
+          // deliberate writer, so it stamps the choice as explicit. Values
+          // that arrive any other way stay unstamped and are normalized to
+          // 'light' at next boot.
+          ...(key === THEME_SETTING_KEY && (value === 'light' || value === 'dark' || value === 'system')
             ? { themeExplicitlyChosen: true }
             : {}),
         }));
@@ -268,7 +284,7 @@ export const useSettingsStore = create<SettingsState>()(
             values: { ...get().values, ...cleaned },
             // A settings-file import is a deliberate user action; a theme it
             // carries counts as an explicit choice.
-            ...(cleaned['theme'] !== undefined ? { themeExplicitlyChosen: true } : {}),
+            ...(cleaned[THEME_SETTING_KEY] !== undefined ? { themeExplicitlyChosen: true } : {}),
           });
           return true;
         } catch {

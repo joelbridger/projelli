@@ -9,8 +9,7 @@
  * import, a lost write resurrecting older state, a stray write). The fix:
  *
  *  1. A persisted `themeExplicitlyChosen` stamp, set ONLY by real runtime
- *     writes to the theme setting (Settings dropdown / toggle → setSetting,
- *     or a settings-file import).
+ *     writes to the hidden theme setting, or a settings-file import.
  *  2. On EVERY hydration (zustand persist `merge`, not version-gated
  *     `migrate`), a non-light theme value without the stamp is normalized
  *     back to 'light'.

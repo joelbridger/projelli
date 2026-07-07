@@ -35,8 +35,8 @@ export function useThemeManager(): ThemeManager {
   // `theme` / `setTheme` pair wraps the store so existing callers
   // keep working without refactoring every `setTheme` call.
   // Theme light-lock: anything unexpected resolves to 'light', never to
-  // 'system' — the OS must never decide the theme unless the user explicitly
-  // picked System in Settings (the store normalizes unstamped values at boot).
+  // 'system' — the OS must never decide the theme unless future code
+  // explicitly sets System (the store normalizes unstamped values at boot).
   const settingsTheme = useSettingsStore((s) => s.getSetting<string>('theme')) as ThemePreference;
   const theme = (settingsTheme === 'light' || settingsTheme === 'dark' || settingsTheme === 'system')
     ? settingsTheme

@@ -43,10 +43,9 @@ import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinSch
 import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 
-import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { Button } from '@/ui/button';
-import { ArrowLeft, Command, Moon, Monitor, Sun } from 'lucide-react';
+import { ArrowLeft, Command } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay renders the live 4-step OnboardingV2 flow.
@@ -430,7 +429,7 @@ function AppShell() {
     setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
   }, []);
 
-  const { theme, setTheme, effectiveTheme } = useThemeManager();
+  useThemeManager();
 
   // Perf (P1.2): exact-data-only selectors. These bare store-hook calls used
   // to subscribe to the ENTIRE workspace/editor/workflow state (e.g. every
@@ -1831,9 +1830,6 @@ function AppShell() {
       setShowFirstRun,
     });
 
-  // Get current project name from root path
-  const currentProjectName = rootPath?.split('/').pop() ?? 'Unnamed Project';
-
   return (
     <div
       className="h-screen flex flex-col bg-background text-foreground"
@@ -1869,80 +1865,28 @@ function AppShell() {
           }}
         />
       )}
-      {/* Header bar with project switcher */}
+      {/* Header bar */}
       <header
-        className="flex items-center justify-between h-10 px-2 border-b bg-muted/30 shrink-0"
+        className="flex items-center gap-2 h-10 px-2 border-b bg-background shrink-0"
         data-testid="app-header"
       >
-        <div className="flex items-center gap-2">
-          <ProjectManager
-            currentProjectName={currentProjectName}
-            onSwitchProject={() => setShowWorkspaceSelector(true)}
-            onOpenRecentProject={handleOpenRecentProject}
-            recentProjects={recentWorkspaces}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            data-testid="app-back-button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground"
-            onClick={handleAppBack}
-            disabled={navigationDepth === 0}
-            title="Back"
-            aria-label="Back"
-          >
-            <ArrowLeft className="h-3 w-3 mr-1" />
-            Back
-          </Button>
-          {/*
-            UX-25: 3-state theme toggle. Cycles system → light → dark → system.
-            Icon reflects the *preference* (not the effective theme), so a user
-            in 'system' mode always sees the Monitor icon even if the OS is
-            currently dark. The title gives both the preference and the
-            effective theme when in 'system' mode.
-          */}
-          <Button
-            data-testid="theme-toggle"
-            data-theme={theme}
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2"
-            onClick={() => {
-              // Cycle: system → light → dark → system
-              setTheme((prev) => {
-                if (prev === 'system') return 'light';
-                if (prev === 'light') return 'dark';
-                return 'system';
-              });
-            }}
-            title={
-              theme === 'system'
-                ? `System theme (currently ${effectiveTheme})`
-                : theme === 'light'
-                  ? 'Light theme'
-                  : 'Dark theme'
-            }
-            aria-label={
-              theme === 'system'
-                ? `System theme (currently ${effectiveTheme})`
-                : theme === 'light'
-                  ? 'Light theme'
-                  : 'Dark theme'
-            }
-          >
-            {theme === 'system' ? (
-              <Monitor data-testid="theme-icon-system" className="h-4 w-4" />
-            ) : theme === 'light' ? (
-              <Sun data-testid="theme-icon-light" className="h-4 w-4" />
-            ) : (
-              <Moon data-testid="theme-icon-dark" className="h-4 w-4" />
-            )}
-          </Button>
+        <Button
+          data-testid="app-back-button"
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8 shrink-0 text-muted-foreground"
+          onClick={handleAppBack}
+          disabled={navigationDepth === 0}
+          title="Back"
+          aria-label="Back"
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <TrustBar inline />
+        <div className="flex items-center gap-2 shrink-0">
           {/* The gear opens the full-page Settings screen, which nests Privacy
               Center + Activity Log as sections (see AppSurfaceRouter). The
-              egress badge stays in the TrustBar; Email + Documents stay
+              egress controls stay in the TrustBar; Email + Documents stay
               reachable from the Client Map's per-client quick actions. */}
           <SettingsGearButton
             active={sidebarActiveTab === 'settings'}
@@ -1979,9 +1923,6 @@ function AppShell() {
           the free trial (or once expired) and when no license is active.
           Otherwise null and zero layout. */}
       <TrialBanner onActivate={() => openSettings('license')} />
-
-      {/* The hero Trust Bar (elevated egress + matter scope). */}
-      <TrustBar />
 
       {/* Main content area — a real <main> landmark and a focus target so the
           "Skip to main content" link moves keyboard focus here, not just scrolls

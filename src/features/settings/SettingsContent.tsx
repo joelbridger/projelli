@@ -539,7 +539,7 @@ function renderRows(
 }
 
 function WorkspaceSection(props: SectionProps) {
-  const generalKeys = ['theme', 'startupBehavior', 'showWhatsNew'];
+  const generalKeys = ['startupBehavior', 'showWhatsNew'];
   const editorKeys  = ['tabOverflow', 'fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
   const filesKeys   = ['defaultNewFileType', 'letterheadTemplatePath', 'trashRetention', 'showHiddenFiles'];
 

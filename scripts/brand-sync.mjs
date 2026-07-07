@@ -152,7 +152,6 @@ function stripRustTestModules(src) {
 const ASSET_COPIES = [
   ['faviconSvg', 'public/favicon.svg'],
   ['faviconSvg', 'website/favicon.svg'],
-  ['logoSvg', 'public/onboarding/keepance-logo.svg'],
   ['logoSvg', 'public/logo.svg'],
   ['logoSvgWhite', 'website/logo-white.svg'],
   ['ogImage', 'website/og-image.png'],

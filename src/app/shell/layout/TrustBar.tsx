@@ -28,7 +28,11 @@ import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 
-export function TrustBar() {
+interface TrustBarProps {
+  inline?: boolean;
+}
+
+export function TrustBar({ inline = false }: TrustBarProps) {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
   // Fixed-English escape hatch: this whole component's copy is exempted from
@@ -56,9 +60,15 @@ export function TrustBar() {
       data-testid="trust-bar"
       aria-label="Trust and confidentiality status"
       style={{
-        display: 'flex', alignItems: 'center', gap: 10, height: 36,
-        padding: '0 14px 0 16px', flex: 'none',
-        background: 'var(--color-background)', borderBottom: '1px solid var(--color-border)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        height: inline ? 40 : 36,
+        padding: inline ? '0 2px 0 0' : '0 14px 0 16px',
+        flex: inline ? '1 1 auto' : 'none',
+        minWidth: 0,
+        background: inline ? 'transparent' : 'var(--color-background)',
+        borderBottom: inline ? 'none' : '1px solid var(--color-border)',
       }}
     >
       {/* Matter scope — icon + label only, tight */}

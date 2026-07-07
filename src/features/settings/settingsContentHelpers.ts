@@ -31,7 +31,7 @@ export function settingTestid(key: string): string | undefined {
  * `id`; `section` is the top-level category the group lives in.
  */
 export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; keywords: string[] }> = {
-  'ws-general':     { section: 'workspace',  keywords: ['general', 'language', 'locale', 'translation', 'interface language', 'app language', 'english', 'spanish', 'theme', 'appearance', 'dark mode', 'light mode', 'startup', 'update notification'] },
+  'ws-general':     { section: 'workspace',  keywords: ['general', 'language', 'locale', 'translation', 'interface language', 'app language', 'english', 'spanish', 'startup', 'update notification'] },
   'ws-editor':      { section: 'workspace',  keywords: ['editor', 'font', 'font size', 'text size', 'word wrap', 'line numbers'] },
   'ws-files':       { section: 'workspace',  keywords: ['files', 'workspace', 'auto save', 'autosave', 'file type', 'letterhead', 'trash', 'hidden files', 'folder'] },
   'aip-ai':         { section: 'ai-privacy', keywords: ['model', 'models', 'provider', 'api key', 'anthropic', 'openai', 'claude', 'gpt', 'gemini', 'byok', 'language model'] },
