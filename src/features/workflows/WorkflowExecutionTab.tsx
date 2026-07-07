@@ -373,12 +373,22 @@ export function WorkflowExecutionTab({
               style={{ width: `${progressPercent}%` }}
             />
           </div>
-          <span className="text-xs text-muted-foreground shrink-0">
+          <span
+            data-testid="workflow-status-pill"
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium shrink-0',
+              isCompleted && 'border-green-200 bg-green-50 text-green-700',
+              isFailed && 'border-red-200 bg-red-50 text-red-700',
+              isRunning && 'border-amber-200 bg-amber-50 text-amber-700'
+            )}
+            style={{ pointerEvents: 'none' }}
+          >
+            {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {isCompleted
               ? 'Complete'
               : isFailed
                 ? 'Failed'
-                : `Step ${currentStep + 1} of ${totalSteps}`}
+                : `Running step ${currentStep + 1} of ${totalSteps}`}
           </span>
         </div>
       </div>

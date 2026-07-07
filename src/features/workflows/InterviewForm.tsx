@@ -1,13 +1,15 @@
 // Interview Form Component
 // Collects answers to workflow interview questions
 
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import type { InterviewQuestion } from '@/platform/types/workflow';
 import { cn } from '@/lib/utils';
+import { useActiveMatter } from '@/platform/matter/matterStore';
+import { matterLabel } from '@/platform/rag/matterResolver';
 
 interface InterviewFormProps {
   questions: InterviewQuestion[];
@@ -23,6 +25,13 @@ export function InterviewForm({
   isSubmitting = false,
 }: InterviewFormProps) {
   const { t } = useTranslation();
+  const activeMatter = useActiveMatter();
+  const activeClientName = useMemo(
+    () => activeMatter ? matterLabel(activeMatter) : '',
+    [activeMatter],
+  );
+  const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [highlightedQuestionId, setHighlightedQuestionId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const q of questions) {
@@ -58,16 +67,49 @@ export function InterviewForm({
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      const firstMissingId = questions.find((q) => newErrors[q.id])?.id;
+      if (firstMissingId) {
+        setHighlightedQuestionId(firstMissingId);
+        requestAnimationFrame(() => {
+          fieldRefs.current[firstMissingId]?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        });
+      }
       return;
     }
 
     onSubmit(answers);
   };
 
+  useEffect(() => {
+    if (!activeClientName) return;
+    setAnswers((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const q of questions) {
+        if (shouldAutofillClientName(q) && !next[q.id]?.trim()) {
+          next[q.id] = activeClientName;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [activeClientName, questions]);
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {questions.map((question) => (
-        <Card key={question.id}>
+        <Card
+          key={question.id}
+          ref={(node) => { fieldRefs.current[question.id] = node; }}
+          data-testid={`workflow-question-${question.id}`}
+          className={cn(
+            highlightedQuestionId === question.id &&
+              'ring-2 ring-amber-400 border-amber-400 bg-amber-50 transition-colors'
+          )}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm">
               {question.question}
@@ -85,6 +127,9 @@ export function InterviewForm({
                 type="text"
                 value={answers[question.id] ?? ''}
                 onChange={(e) => handleChange(question.id, e.target.value)}
+                onFocus={() => {
+                  if (highlightedQuestionId === question.id) setHighlightedQuestionId(null);
+                }}
                 placeholder={question.placeholder}
                 className={cn(errors[question.id] && 'border-red-500')}
                 disabled={isSubmitting}
@@ -95,6 +140,9 @@ export function InterviewForm({
               <textarea
                 value={answers[question.id] ?? ''}
                 onChange={(e) => handleChange(question.id, e.target.value)}
+                onFocus={() => {
+                  if (highlightedQuestionId === question.id) setHighlightedQuestionId(null);
+                }}
                 placeholder={question.placeholder}
                 rows={4}
                 className={cn(
@@ -110,6 +158,9 @@ export function InterviewForm({
               <select
                 value={answers[question.id] ?? ''}
                 onChange={(e) => handleChange(question.id, e.target.value)}
+                onFocus={() => {
+                  if (highlightedQuestionId === question.id) setHighlightedQuestionId(null);
+                }}
                 className={cn(
                   'w-full px-3 py-2 text-sm rounded-md border bg-background',
                   'focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
@@ -177,11 +228,27 @@ export function InterviewForm({
           </Button>
         )}
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Processing...' : 'Continue'}
+          {isSubmitting ? 'Running...' : 'Run'}
         </Button>
       </div>
     </form>
   );
+}
+
+function shouldAutofillClientName(question: InterviewQuestion): boolean {
+  const id = question.id.trim();
+  if (['clientName', 'clientOrganizationName', 'matterName', 'householdName'].includes(id)) {
+    return true;
+  }
+  const label = question.question.trim().toLowerCase();
+  return [
+    'client name',
+    'prospective client name',
+    'client organization name',
+    'client name and company',
+    'client file name',
+    'household name',
+  ].includes(label);
 }
 
 export default InterviewForm;

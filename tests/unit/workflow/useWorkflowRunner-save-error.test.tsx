@@ -14,11 +14,13 @@
  * subfolder-preserving path join, also extracted as a pure function).
  */
 import { renderHook, act } from '@testing-library/react';
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 
 import { useWorkflowRunner } from '@/app/workflow/useWorkflowRunner';
 import type { WorkflowTemplate, GenerateStepConfig } from '@/platform/types/workflow';
 import type { FileNode } from '@/platform/types/workspace';
+import { useMatterStore } from '@/platform/matter/matterStore';
+import type { Matter } from '@/platform/types/matter';
 
 function saveErrorTemplate(): WorkflowTemplate {
   return {
@@ -58,6 +60,10 @@ function makeWorkspaceServiceRef(writeFile: (path: string, content: string) => P
 }
 
 describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () => {
+  beforeEach(() => {
+    useMatterStore.setState({ matters: [], activeMatterId: null });
+  });
+
   it(
     'sets workflowSaveError and logs an audit entry when the terminal .workflow write fails on every retry',
     async () => {
@@ -147,5 +153,62 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
           'workflow_save_failed'
       )
     ).toBe(false);
+  });
+
+  it('saves workflow outputs under the active client Documents/Workflows folder and records a clickable result title', async () => {
+    const activeMatter: Matter = {
+      id: 'matter-alice',
+      name: 'Retirement Review',
+      client: 'Alice Smith',
+      folderPaths: ['/workspace/Clients/Alice Smith'],
+      mailFolderPaths: [],
+      privileged: false,
+      createdAt: new Date().toISOString(),
+    };
+    useMatterStore.setState({ matters: [activeMatter], activeMatterId: activeMatter.id });
+
+    const writeFile = vi.fn(async () => {});
+    const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
+    const completeRun = vi.fn();
+
+    const { result } = renderHook(() =>
+      useWorkflowRunner({
+        rootPath: '/workspace',
+        isTestMode: true,
+        apiKeys: [],
+        completeRun,
+        openTab: vi.fn(),
+        setFileTree: vi.fn(),
+        addAuditEntry: vi.fn(),
+        workspaceServiceRef,
+        templatesMetadataReaderRef: { current: null },
+        templatesMarketplaceServiceRef: { current: null },
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleStartWorkflow(saveErrorTemplate());
+    });
+
+    expect(workspaceServiceRef.current.mkdir).toHaveBeenCalledWith(
+      expect.stringContaining('/workspace/Clients/Alice Smith/Documents/Workflows/Save Error Template - '),
+    );
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('/workspace/Clients/Alice Smith/Documents/Workflows/Save Error Template - '),
+      expect.any(String),
+    );
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('/Out.md'),
+      expect.any(String),
+    );
+
+    expect(completeRun).toHaveBeenCalledOnce();
+    const savedRun = completeRun.mock.calls[0]![0] as { outputs: Record<string, unknown> };
+    expect(savedRun.outputs['displayTitle']).toBe('Alice Smith - Retirement Review - Markdown document');
+    expect(savedRun.outputs['documentType']).toBe('Markdown document');
+    expect(savedRun.outputs['primaryArtifactPath']).toEqual(
+      expect.stringContaining('/workspace/Clients/Alice Smith/Documents/Workflows/Save Error Template - '),
+    );
+    expect(savedRun.outputs['primaryArtifactPath']).toEqual(expect.stringContaining('/Out.md'));
   });
 });

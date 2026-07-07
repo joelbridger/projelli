@@ -1,4 +1,17 @@
 {
   "_comment": "Deliberate permanent-handle removals/renames. Adding a handle never needs an entry; REMOVING or RENAMING one does. When you intentionally drop or rename a data-testid, add an entry here, then run `node scripts/ui-system/handle-guard.mjs --update-baseline`. The guard fails on any baseline handle that vanishes without a matching entry.",
-  "migrations": []
+  "migrations": [
+    {
+      "removed": "workflow-run-confirm",
+      "replacement": null,
+      "reason": "R6 removes the run-for-current-client confirmation and starts the workflow questions directly.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "workflow-run-confirm-go",
+      "replacement": null,
+      "reason": "R6 removes the confirmation button because the workflow card Run button now starts the flow.",
+      "date": "2026-07-07"
+    }
+  ]
 }

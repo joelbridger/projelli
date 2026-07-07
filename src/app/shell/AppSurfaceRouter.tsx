@@ -444,6 +444,11 @@ export function AppSurfaceRouter({
           providerError={workflowProviderError}
           saveError={workflowSaveError}
           onOpenSettings={() => openSettings('ai')}
+          onOpenRunArtifact={(path, name) => {
+            void handleFileOpen(path, name).then(() => {
+              setSidebarActiveTab('files');
+            });
+          }}
           onFocusExecutionTab={() => {
             const target =
               activeWorkflowFilePath ??

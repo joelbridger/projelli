@@ -1,10 +1,24 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import type { InterviewQuestion } from '@/platform/types/workflow';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
+}));
+
+let activeMatter: { id: string; name: string; client: string } | null = null;
+vi.mock('@/platform/matter/matterStore', () => ({
+  useActiveMatter: () => activeMatter,
+}));
+
+vi.mock('@/platform/rag/matterResolver', () => ({
+  matterLabel: (matter: { name: string; client: string; id: string }) => {
+    const name = matter.name.trim();
+    const client = matter.client.trim();
+    if (name && client) return `${client} - ${name}`;
+    return name || client || matter.id;
+  },
 }));
 
 const multiselectQuestion: InterviewQuestion = {
@@ -17,6 +31,15 @@ const multiselectQuestion: InterviewQuestion = {
 };
 
 describe('InterviewForm multiselect rendering', () => {
+  beforeEach(() => {
+    activeMatter = null;
+    Element.prototype.scrollIntoView = vi.fn();
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+  });
+
   it('renders a control for every multiselect option (regression: multiselect rendered nothing)', () => {
     render(<InterviewForm questions={[multiselectQuestion]} onSubmit={vi.fn()} />);
     // Each option must be selectable on screen — before the fix, NONE rendered,
@@ -32,14 +55,14 @@ describe('InterviewForm multiselect rendering', () => {
     render(<InterviewForm questions={[multiselectQuestion]} onSubmit={onSubmit} />);
 
     // Submitting with nothing selected must fail validation.
-    fireEvent.click(screen.getByRole('button', { name: /Continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }));
     expect(onSubmit).not.toHaveBeenCalled();
     expect(screen.getByText('This field is required')).toBeTruthy();
 
     // Select two options.
     fireEvent.click(screen.getByText('Attorney-client privilege'));
     fireEvent.click(screen.getByText('Work product doctrine'));
-    fireEvent.click(screen.getByRole('button', { name: /Continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }));
 
     // The answer must reach onSubmit as a non-empty string compatible with the
     // existing string-based template substitution + required check.
@@ -57,8 +80,50 @@ describe('InterviewForm multiselect rendering', () => {
     fireEvent.click(screen.getByText('Both'));
     fireEvent.click(screen.getByText('Both')); // toggle off
     fireEvent.click(screen.getByText('Attorney-client privilege'));
-    fireEvent.click(screen.getByRole('button', { name: /Continue/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }));
     const submitted = onSubmit.mock.calls[0]![0] as Record<string, string>;
     expect(submitted['privilegeTypes']).toBe('Attorney-client privilege');
+  });
+
+  it('autofills the active client name for client-name questions', () => {
+    activeMatter = {
+      id: 'matter-1',
+      client: 'Alice Smith',
+      name: 'Retirement Review',
+    };
+    render(<InterviewForm questions={[{
+      id: 'clientName',
+      question: 'Client name',
+      type: 'text',
+      required: true,
+    }]} onSubmit={vi.fn()} />);
+
+    expect(screen.getByDisplayValue('Alice Smith - Retirement Review')).toBeTruthy();
+  });
+
+  it('scrolls to and highlights the first missing required question on Run', () => {
+    render(<InterviewForm questions={[
+      {
+        id: 'clientName',
+        question: 'Client name',
+        type: 'text',
+        required: true,
+      },
+      {
+        id: 'notes',
+        question: 'Notes',
+        type: 'textarea',
+        required: true,
+      },
+    ]} onSubmit={vi.fn()} />);
+
+    const clientField = screen.getByTestId('workflow-question-clientName').querySelector('input');
+    expect(clientField).toBeTruthy();
+    fireEvent.change(clientField!, { target: { value: 'Alice' } });
+    fireEvent.click(screen.getByRole('button', { name: /Run/i }));
+
+    const missing = screen.getByTestId('workflow-question-notes');
+    expect(missing.className).toContain('ring-2');
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalled();
   });
 });

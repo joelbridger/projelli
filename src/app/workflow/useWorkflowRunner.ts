@@ -11,6 +11,8 @@ import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { saveFile } from '@/platform/utils/saveFile';
 import { workspacePath } from '@/platform/fs/appPath';
+import { resolveActiveMatter, useMatterStore } from '@/platform/matter/matterStore';
+import { matterLabel } from '@/platform/rag/matterResolver';
 import {
   resolveTemplateModel,
   resolveWorkflowProvider,
@@ -63,6 +65,7 @@ import type {
 import type { APIKey } from '@/platform/types/ai';
 import type { RunRecord } from '@/platform/types/workflow';
 import type { FileNode } from '@/platform/types/workspace';
+import type { Matter } from '@/platform/types/matter';
 import type {
   TemplateMetadataReader,
   MarketplaceService,
@@ -95,6 +98,60 @@ export interface UseWorkflowRunnerOptions {
   } | null>;
   templatesMetadataReaderRef: React.MutableRefObject<TemplateMetadataReader | null>;
   templatesMarketplaceServiceRef: React.MutableRefObject<MarketplaceService | null>;
+}
+
+function getActiveWorkflowMatter(): Matter | null {
+  const { matters, activeMatterId } = useMatterStore.getState();
+  return resolveActiveMatter(matters, activeMatterId);
+}
+
+function resolveWorkflowRunFolderPath(
+  rootPath: string,
+  activeMatter: Matter | null,
+  workflowFolderName: string,
+): string {
+  const clientRoot = activeMatter?.folderPaths[0];
+  if (!clientRoot) return workspacePath(rootPath, workflowFolderName);
+  return workspacePath(clientRoot, `Documents/Workflows/${workflowFolderName}`);
+}
+
+function workflowDocumentType(path: string | undefined): string {
+  const lower = path?.toLowerCase() ?? '';
+  if (lower.endsWith('.docx')) return 'Word document';
+  if (lower.endsWith('.pdf')) return 'PDF';
+  if (lower.endsWith('.pptx')) return 'presentation';
+  if (lower.endsWith('.xlsx')) return 'spreadsheet';
+  if (lower.endsWith('.md')) return 'Markdown document';
+  if (lower.endsWith('.txt')) return 'text document';
+  return 'workflow document';
+}
+
+function enrichWorkflowRunRecord(opts: {
+  runRecord: RunRecord;
+  workflowFolderPath: string;
+  artifacts: string[];
+  clientName: string | null;
+  templateName: string;
+}): RunRecord {
+  const firstArtifact = opts.artifacts[0];
+  const primaryArtifactPath = firstArtifact
+    ? resolveWorkflowArtifactPath(opts.workflowFolderPath, firstArtifact)
+    : null;
+  const documentType = workflowDocumentType(firstArtifact);
+  const displayTitle = opts.clientName
+    ? `${opts.clientName} - ${documentType}`
+    : `${opts.templateName} - ${documentType}`;
+  return {
+    ...opts.runRecord,
+    outputs: {
+      ...opts.runRecord.outputs,
+      displayTitle,
+      documentType,
+      ...(opts.clientName ? { clientName: opts.clientName } : {}),
+      ...(firstArtifact ? { primaryArtifactName: firstArtifact } : {}),
+      ...(primaryArtifactPath ? { primaryArtifactPath } : {}),
+    },
+  };
 }
 
 export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
@@ -145,7 +202,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       const startTime = new Date();
       const timestamp = startTime.toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
       const workflowFolderName = `${template.name} - ${timestamp}`;
-      const workflowFolderPath = workspacePath(rootPath, workflowFolderName);
+      const activeMatter = getActiveWorkflowMatter();
+      const clientName = activeMatter ? matterLabel(activeMatter) : null;
+      const workflowFolderPath = resolveWorkflowRunFolderPath(rootPath, activeMatter, workflowFolderName);
 
       // Load AI Rules if available — needed before resolution so it can be
       // threaded into the provider constructor below.
@@ -763,7 +822,15 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           return;
         }
 
-        completeRun(runRecord);
+        completeRun(
+          enrichWorkflowRunRecord({
+            runRecord,
+            workflowFolderPath,
+            artifacts,
+            clientName,
+            templateName: template.name,
+          }),
+        );
 
         // Data-loss fix (Codex audit #9): AWAIT the terminal-state write so the
         // .workflow provenance/audit record is durably on disk (the old

@@ -41,7 +41,6 @@ import {
   Loader2,
   Star,
   Settings,
-  Briefcase,
   ListChecks,
   AlertTriangle,
   AlertCircle,
@@ -54,11 +53,9 @@ import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeBy
 import type { Profession } from '@/features/workflows/engine/prioritizeByProfession';
 import { useProfessionStore, isLawExperience } from '@/platform/profile/professionStore';
 import { useTrialGate } from '@/platform/hooks/useTrial';
-import { useActiveMatter } from '@/platform/matter/matterStore';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
-import { matterLabel } from '@/platform/rag/matterResolver';
 import { SK_WORKFLOWS_FILTER, SK_WORKFLOWS_COLLAPSED } from '@/config/identity';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
@@ -76,6 +73,7 @@ interface AssociateHomeProps {
   saveError?: string | null;
   onOpenSettings?: () => void;
   onFocusExecutionTab?: () => void;
+  onOpenRunArtifact?: (path: string, name: string) => void;
   onRunChain?: (chain: WorkflowChain) => void;
 }
 
@@ -469,9 +467,11 @@ function CategorySection({
 function RunRow({
   run,
   onFocus,
+  onOpenArtifact,
 }: {
   run: RunRecord;
   onFocus?: () => void;
+  onOpenArtifact?: (path: string, name: string) => void;
 }) {
   const statusIcon =
     run.status === 'completed' ? (
@@ -481,12 +481,21 @@ function RunRow({
     ) : (
       <Clock style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
     );
+  const artifact = getRunArtifact(run);
+  const displayTitle = getRunDisplayTitle(run);
 
   return (
     <button
       type="button"
       data-testid={`associate-run-row-${run.run_id}`}
-      onClick={onFocus}
+      onClick={() => {
+        if (artifact && onOpenArtifact) {
+          onOpenArtifact(artifact.path, artifact.name);
+          return;
+        }
+        onFocus?.();
+      }}
+      title={artifact?.path ?? run.workflow}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -497,22 +506,42 @@ function RunRow({
         borderBottom: '1px solid var(--kp-divider)',
         width: '100%',
         textAlign: 'left',
-        cursor: onFocus ? 'pointer' : 'default',
+        cursor: artifact || onFocus ? 'pointer' : 'default',
       }}
     >
       {statusIcon}
       <span
         style={{
           flex: 1,
-          fontSize: 'var(--kp-font-sm)',
-          color: 'var(--kp-navy)',
-          fontWeight: 'var(--kp-weight-medium)',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 2,
+          minWidth: 0,
         }}
       >
-        {run.workflow}
+        <span
+          style={{
+            fontSize: 'var(--kp-font-sm)',
+            color: 'var(--kp-navy)',
+            fontWeight: 'var(--kp-weight-medium)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {displayTitle}
+        </span>
+        <span
+          style={{
+            fontSize: 'var(--kp-font-2xs)',
+            color: 'var(--color-muted-foreground)',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {artifact ? artifact.name : run.workflow}
+        </span>
       </span>
       <span
         style={{
@@ -528,6 +557,62 @@ function RunRow({
   );
 }
 
+function stringOutput(run: RunRecord, key: string): string | null {
+  const value = run.outputs[key];
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function getRunDisplayTitle(run: RunRecord): string {
+  return stringOutput(run, 'displayTitle') ?? run.workflow;
+}
+
+function getRunArtifact(run: RunRecord): { path: string; name: string } | null {
+  const path = stringOutput(run, 'primaryArtifactPath');
+  if (!path) return null;
+  const name = stringOutput(run, 'primaryArtifactName') ?? path.split(/[\\/]/).pop() ?? 'Workflow result';
+  return { path, name };
+}
+
+function RunningPill({ currentExecution }: { currentExecution: WorkflowExecution }) {
+  return (
+    <div
+      data-testid="associate-running-pill"
+      aria-live="polite"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 8,
+        alignSelf: 'flex-start',
+        border: '1px solid var(--kp-divider)',
+        borderRadius: 999,
+        padding: '7px 11px',
+        marginBottom: 'var(--kp-space-sm)',
+        background: 'var(--kp-bg-soft)',
+        color: 'var(--kp-navy)',
+        fontSize: 'var(--kp-font-xs)',
+        fontWeight: 'var(--kp-weight-semibold)',
+        pointerEvents: 'none',
+      }}
+    >
+      <Loader2
+        size={14}
+        strokeWidth={2.2}
+        className="animate-spin"
+        style={{ color: 'var(--kp-accent)', flex: 'none' }}
+      />
+      <span
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Running {currentExecution.template.name}
+      </span>
+    </div>
+  );
+}
+
 // ── Main export ────────────────────────────────────────────────────────────
 
 export function AssociateHome({
@@ -538,16 +623,13 @@ export function AssociateHome({
   saveError,
   onOpenSettings,
   onFocusExecutionTab,
+  onOpenRunArtifact,
 }: AssociateHomeProps) {
   const trialGate = useTrialGate();
   const profession = useProfessionStore((s) => s.profession);
-  const activeMatter = useActiveMatter();
   // Workflows run AI — show the same egress badge as Ask, top-right.
   const confidentialityMode = useConfidentialityMode();
   const egressProvider = useActiveEgressProvider(confidentialityMode);
-  // Run-time household clarity: clicking Run asks for confirmation, making it
-  // explicit which household the workflow will run in (replaces the old pill).
-  const [pendingRun, setPendingRun] = useState<WorkflowTemplate | null>(null);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>(readStoredFilter);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(readStoredCollapsed);
@@ -841,6 +923,10 @@ export function AssociateHome({
         }}
       >
         {/* Recent runs strip */}
+        {currentExecution?.status === 'running' && (
+          <RunningPill currentExecution={currentExecution} />
+        )}
+
         {recentRuns.length > 0 && (
           <div style={{ marginBottom: 'var(--kp-section-gap)' }}>
             <div style={{ marginBottom: 6 }}>
@@ -856,6 +942,7 @@ export function AssociateHome({
                   key={run.run_id}
                   run={run}
                   {...(onFocusExecutionTab !== undefined && { onFocus: onFocusExecutionTab })}
+                  {...(onOpenRunArtifact !== undefined && { onOpenArtifact: onOpenRunArtifact })}
                 />
               ))}
             </Card>
@@ -894,84 +981,11 @@ export function AssociateHome({
               trialLocked={trialGate.isLocked}
               collapsed={collapsedCategories[config.key] === true}
               onCollapse={handleCollapse}
-              onRun={(t) => { setPendingRun(t); }}
+              onRun={onStartWorkflow}
             />
           ))
         )}
       </div>
-
-      {/* Run-time household confirmation — makes the target household explicit
-          at the moment of running (replaces the persistent "Running in" pill). */}
-      {pendingRun && (
-        <div
-          data-testid="workflow-run-confirm"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => { setPendingRun(null); }}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 1000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'rgba(10, 37, 64, 0.34)',
-            backdropFilter: 'blur(2px)',
-          }}
-        >
-          <div
-            onClick={(e) => { e.stopPropagation(); }}
-            style={{
-              width: 460,
-              maxWidth: 'calc(100vw - 64px)',
-              background: 'var(--color-background)',
-              border: '1px solid var(--kp-divider)',
-              borderRadius: 14,
-              boxShadow: '0 12px 48px rgba(10,37,64,0.20), 0 2px 8px rgba(10,37,64,0.10)',
-              padding: '24px 24px 20px',
-              fontFamily: 'Satoshi, sans-serif',
-            }}
-          >
-            <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--kp-accent)', marginBottom: 10 }}>
-              Run workflow
-            </div>
-            <h2 style={{ margin: '0 0 14px', fontSize: 20, fontWeight: 700, color: 'var(--kp-navy)', letterSpacing: '-0.01em' }}>
-              {pendingRun.name}
-            </h2>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                padding: '12px 14px',
-                borderRadius: 10,
-                background: 'var(--kp-bg-soft)',
-                border: '1px solid var(--kp-divider)',
-                marginBottom: 20,
-              }}
-            >
-              <Briefcase size={16} strokeWidth={2} style={{ color: 'var(--kp-accent)', flex: 'none' }} />
-              <span style={{ fontSize: 14, color: 'var(--kp-text-dim)' }}>Run in</span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--kp-navy)' }}>
-                {activeMatter !== null ? matterLabel(activeMatter) : 'your workspace'}
-              </span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <Button variant="secondary" size="md" onClick={() => { setPendingRun(null); }}>
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                size="md"
-                data-testid="workflow-run-confirm-go"
-                onClick={() => { const t = pendingRun; setPendingRun(null); onStartWorkflow(t); }}
-              >
-                Run
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
