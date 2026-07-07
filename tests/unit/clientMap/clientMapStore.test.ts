@@ -258,7 +258,7 @@ describe('clientMapStore', () => {
     expect(targetItem?.origin).toBe('user');
   });
 
-  it('approve-first: setMap NEVER auto-applies updates — even a clean sourced add stays pending (B5)', () => {
+  it('auto-applies source-backed add updates and records automatic history', () => {
     const m = emptyClientMap('m1');
     const sourcedAdd: ProposedUpdate = {
       id: 'safe-add',
@@ -271,26 +271,31 @@ describe('clientMapStore', () => {
       reason: 'Found in source',
       createdAt: '2026-06-22T00:00:00Z',
     };
-    const unsourcedAdd: ProposedUpdate = {
-      id: 'needs-review',
-      sectionKey: 'followups',
-      op: 'add',
-      draft: item('review', 'Likely needs a follow-up'),
-      reason: 'No source',
+    const removeUpdate: ProposedUpdate = {
+      id: 'needs-confirmation',
+      sectionKey: 'money',
+      op: 'remove',
+      itemId: 'existing-money-item',
+      reason: 'Would remove map content',
       createdAt: '2026-06-22T00:00:00Z',
     };
 
     useClientMapStore.getState().setMap('m1', {
       ...m,
-      pendingUpdates: [sourcedAdd, unsourcedAdd],
+      pendingUpdates: [sourcedAdd, removeUpdate],
     });
 
     const map = useClientMapStore.getState().getMap('m1')!;
-    // Approve-first: nothing was applied to the map body — both stay pending until
-    // the user approves them.
     expect(map.sections.find((s) => s.key === 'money')!.items.map((i) => i.text))
-      .not.toContain('Client wants capital preservation');
-    expect(map.pendingUpdates.map((u) => u.id)).toEqual(['safe-add', 'needs-review']);
+      .toContain('Client wants capital preservation');
+    expect(map.pendingUpdates.map((u) => u.id)).toEqual(['needs-confirmation']);
+    expect(map.editHistory?.at(-1)).toMatchObject({
+      action: 'bullet_added',
+      actor: 'Updated automatically',
+      sectionKey: 'money',
+      afterText: 'Client wants capital preservation',
+      sources: [{ kind: 'document', ref: '/plan.pdf', snippet: 'capital preservation' }],
+    });
   });
 });
 

@@ -412,16 +412,34 @@ function HistoryList({ entries }: { entries: ClientMapEditHistoryEntry[] }) {
         <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {visible.map((entry) => {
             const sourceLabel = entry.sources[0] ? sourceChipLabel(entry.sources[0]) : null;
+            const isAutomatic = entry.actor === 'Updated automatically';
             return (
               <li key={entry.id} style={{ ...mutedTextStyle, fontSize: 'var(--kp-font-xs)' }}>
-                <strong style={{ color: 'var(--kp-navy)' }}>{entry.actor}</strong>{' '}
-                {historyActionText(entry)}{' '}
-                {entry.afterText || entry.beforeText ? (
-                  <span style={{ color: 'var(--kp-navy)' }}>
-                    "{entry.afterText ?? entry.beforeText}"
-                  </span>
-                ) : null}{' '}
-                {sourceLabel ? `from ${sourceLabel}` : ''}
+                {isAutomatic ? (
+                  <>
+                    <strong style={{ color: 'var(--kp-navy)' }}>Updated automatically</strong>
+                    {sourceLabel ? ` from ${sourceLabel}` : ''}
+                    {entry.afterText || entry.beforeText ? (
+                      <>
+                        {': '}
+                        <span style={{ color: 'var(--kp-navy)' }}>
+                          "{entry.afterText ?? entry.beforeText}"
+                        </span>
+                      </>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <strong style={{ color: 'var(--kp-navy)' }}>{entry.actor}</strong>{' '}
+                    {historyActionText(entry)}{' '}
+                    {entry.afterText || entry.beforeText ? (
+                      <span style={{ color: 'var(--kp-navy)' }}>
+                        "{entry.afterText ?? entry.beforeText}"
+                      </span>
+                    ) : null}{' '}
+                    {sourceLabel ? `from ${sourceLabel}` : ''}
+                  </>
+                )}
                 {' '} - {formatHistoryTime(entry.timestamp)}
               </li>
             );

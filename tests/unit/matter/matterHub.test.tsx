@@ -192,6 +192,37 @@ describe('MatterHub — list to hub navigation', () => {
     expect(useClientMapStore.getState().getMap(matter.id)?.lastBuiltAt).toBe('2026-07-07T00:00:00.000Z');
   });
 
+  it('does not render the old updates-to-review tray when stored pending updates exist', () => {
+    useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z' };
+    map.sections[2]!.items.push({
+      id: 'existing-money-item',
+      text: 'Existing account detail',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [],
+      updatedAt: '2026-07-07T00:00:00.000Z',
+    });
+    map.pendingUpdates = [
+      {
+        id: 'remove-update',
+        sectionKey: 'money',
+        op: 'remove',
+        itemId: 'existing-money-item',
+        reason: 'Would remove map content',
+        createdAt: '2026-07-07T00:00:00.000Z',
+      },
+    ];
+    useClientMapStore.getState().setMap(matter.id, map);
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    expect(screen.queryByTestId('clientmap-updates-marker')).toBeNull();
+    expect(screen.queryByText(/updates? to review/i)).toBeNull();
+    expect(screen.getByTestId('clientmap-panel')).toBeInTheDocument();
+  });
+
   it('hub does NOT show Isolated badge when matter is not privileged', () => {
     useMatterStore.getState().createMatter({ name: 'Normal Matter', client: 'Client B' });
     const matter = useMatterStore.getState().matters[0]!;
@@ -405,7 +436,7 @@ describe('MatterHub — sub-tab workspace', () => {
   });
 
   // Codex adversarial review catch: CrmWriteReviewCard was originally nested
-  // inside the `clientMap.status === 'ready'` gate alongside ClientMapUpdatesTray.
+  // inside the `clientMap.status === 'ready'` gate.
   // A queued Wealthbox write from the (always-available) shared notes editor
   // must stay reachable for approval/dismiss even when the Client Map itself
   // hasn't finished building yet (or errored, or is empty) — otherwise the

@@ -35,7 +35,6 @@ import { PromptDialog } from '@/ui/PromptDialog';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
 import { GuidedInterview } from '@/features/matters/GuidedInterview';
-import { ClientMapUpdatesTray } from '@/features/matters/ClientMapUpdatesTray';
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { CrmWritePendingBanner } from '@/features/matters/CrmWritePendingBanner';
 import { VoiceprintsCard } from '@/features/matters/VoiceprintsCard';
@@ -229,8 +228,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // map ('ready') AND one that was built empty ('empty') — the latter recovers a
   // map built before its content was indexed (e.g. a client opened before its
   // Wealthbox household synced): when the source fingerprint later changes,
-  // checkForUpdates rebuilds and routes the new facts through the approve-first
-  // tray. checkForUpdates no-ops when the fingerprint is unchanged, so an empty
+  // checkForUpdates rebuilds and lets safe sourced facts auto-apply to the map.
+  // checkForUpdates no-ops when the fingerprint is unchanged, so an empty
   // matter with still no content costs nothing.
   //
   // Guard: the update check calls the desktop-only RAG engine (computeSource-
@@ -649,14 +648,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   </div>
                 )}
 
-                {/* When ready: the approve-first updates tray (null when empty)
-                    and the optional guided-interview panel. The interview BUTTON
-                    now lives in the header (top-right). With no pending updates
-                    and the interview closed this collapses to zero height, so the
-                    section rail meets the tab bar — exactly like Ask. */}
+                {/* When ready: the optional guided-interview panel. The interview BUTTON
+                    now lives in the header (top-right). When the interview is
+                    closed this collapses to zero height, so the section rail
+                    meets the tab bar — exactly like Ask. */}
                 {clientMap.status === 'ready' && clientMap.map !== undefined && (
                   <div style={{ padding: '0 var(--kp-gutter)' }}>
-                    <ClientMapUpdatesTray matterId={matterId} />
                     {showInterview && (
                       <div style={{ margin: 'var(--kp-surface-gap) 0 12px' }}>
                         <GuidedInterview

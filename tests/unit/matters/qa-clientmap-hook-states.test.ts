@@ -61,8 +61,8 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
     ];
     buildMock.mockResolvedValue(aiOnly);
     computeFingerprintMock.mockResolvedValue('fp');
-    // The fresh AI content is proposed as an update. Approve-first (B5): even a
-    // clean source-backed add is queued for the user to approve, NOT auto-applied.
+    // The fresh AI content is proposed as an update. FB-B: a clean source-backed
+    // add is applied directly to the map and attributed in edit history.
     proposeUpdatesMock.mockReturnValue([
       { id: 'p1', sectionKey: 'goals', op: 'add', reason: 'r', createdAt: 't2',
         draft: { id: 'ai1', text: 'Matter is a contract dispute', origin: 'ai', isAssumption: false, sources: [{ kind: 'document', ref: '/a', snippet: 's' }], updatedAt: 't2' } },
@@ -75,9 +75,13 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
     const allTexts = stored?.sections.flatMap((s) => s.items.map((i) => i.text)) ?? [];
     // The user's note survives a regenerate (the core BUG-101 invariant).
     expect(allTexts).toContain('Client insists on settling by year end');
-    // Approve-first: the fresh AI content is PENDING, not auto-applied to the body.
-    expect(allTexts).not.toContain('Matter is a contract dispute');
-    expect(stored?.pendingUpdates.map((u) => u.draft?.text)).toContain('Matter is a contract dispute');
+    expect(allTexts).toContain('Matter is a contract dispute');
+    expect(stored?.pendingUpdates.map((u) => u.draft?.text)).not.toContain('Matter is a contract dispute');
+    expect(stored?.editHistory?.at(-1)).toMatchObject({
+      action: 'bullet_added',
+      actor: 'Updated automatically',
+      afterText: 'Matter is a contract dispute',
+    });
   });
 
   // BUG-103 — a matter with no indexed content shows a blank map, not the honest
@@ -98,10 +102,9 @@ describe('useClientMap — regression tests for fixed bugs (KEEPANCE 5)', () => 
   });
 
   // BUG-104 — un-reviewed pending proposals are discarded on the next update check.
-  // checkForUpdates does setMap(..., pendingUpdates: proposals), replacing the
-  // whole tray. A proposal the user has not yet accepted/dismissed vanishes if the
-  // next fresh build no longer reproduces its exact item. Spec §6 rule 3:
-  // approve-first review (the user decides every AI change).
+  // checkForUpdates used to replace pending proposals wholesale. Pending
+  // destructive or unsafe proposals still should not vanish while a later refresh
+  // adds safe facts automatically.
   it('BUG-104: a still-pending proposal survives the next update check', async () => {
     const pendingU1: ProposedUpdate = {
       id: 'U1', sectionKey: 'money', op: 'add', reason: 'from an earlier pass', createdAt: 't',

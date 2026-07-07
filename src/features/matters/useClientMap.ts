@@ -18,15 +18,13 @@ export type ClientMapSyncResult = 'updated' | 'unchanged' | 'in_flight' | 'faile
 const clientMapBuildsInFlight = new Set<string>();
 
 /** A stored map is "ready" if it holds something to show: a section item, a
- *  pending update, or an open gap question (which the Guided Interview works
- *  through). A truly empty stored object surfaces the honest empty state
- *  (BUG-103); a gap-only map is NOT empty, so the interview can render (Codex
- *  finding 4). */
+ *  open gap question (which the Guided Interview works through). A truly empty
+ *  stored object surfaces the honest empty state (BUG-103); a gap-only map is
+ *  NOT empty, so the interview can render (Codex finding 4). */
 function mapHasContent(map: ClientMap | undefined): boolean {
   if (!map) return false;
   return (
     map.sections.some((s) => s.items.length > 0) ||
-    map.pendingUpdates.length > 0 ||
     map.completeness.ask.length > 0 ||
     map.sections.some((s) => s.kind === 'custom') // a user-added section is real content
   );
@@ -101,8 +99,8 @@ export function useClientMap(
       if (mapHasPreservableState(existing) && existing !== undefined) {
         // A map already exists with the professional's own work (user-origin
         // items, accepted updates, custom sections, resolved gaps, dismissals).
-        // NEVER blindly overwrite it. Route fresh AI content through the
-        // approve-first tray instead, and keep the existing map intact.
+        // NEVER blindly overwrite it. Fresh AI content is merged into pending
+        // updates, then the store auto-applies only safe source-backed additions.
         const dismissed = existing.dismissedSignatures ?? [];
         const proposals = proposeUpdates(matterId, existing, built, dismissed, fp);
         const nextMap = {
@@ -167,8 +165,10 @@ export function useClientMap(
       const dismissed = latest.dismissedSignatures ?? [];
       const proposals = proposeUpdates(matterId, latest, fresh, dismissed);
       // NEVER replace items, and NEVER silently drop a still-pending proposal the
-      // user hasn't reviewed (BUG-104): merge the fresh proposals into the existing
-      // tray by stable signature. Keep current sections; only update the fingerprint.
+      // destructive or unsafe proposal that is still pending (BUG-104): merge
+      // fresh proposals into the existing list by stable signature. The store
+      // auto-applies safe source-backed additions; keep current sections here
+      // and only update the fingerprint.
       useClientMapStore.getState().setMap(matterId, {
         ...latest,
         pendingUpdates: mergePendingUpdates(latest.pendingUpdates, proposals, dismissed),
