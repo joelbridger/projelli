@@ -312,6 +312,21 @@ export async function writeMeetingJson(
   );
 }
 
+export async function updateMeetingJson(
+  meetingDir: string,
+  update: (current: MeetingMeta) => MeetingMeta
+): Promise<MeetingMeta | null> {
+  const ws = activeWorkspaceService;
+  if (!ws) return null;
+  const current = JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta;
+  const next = update(current);
+  await ws.writeFile(
+    `${meetingDir}/meeting.json`,
+    JSON.stringify(next, null, 2)
+  );
+  return next;
+}
+
 function meetingStartCalendarFields(opts: StartOpts): Pick<MeetingMeta, 'calendarTitle' | 'calendarEvent'> {
   if (opts.calendarEvent) {
     return {
@@ -858,13 +873,12 @@ export function needsReview(
 
 /** Task 12b — set `meeting.json.reviewedAt`, marking a meeting reviewed. */
 export async function markMeetingReviewed(
-  meetingDir: string,
-  meta: MeetingMeta
-): Promise<void> {
-  await writeMeetingJson(meetingDir, {
-    ...meta,
+  meetingDir: string
+): Promise<MeetingMeta | null> {
+  return updateMeetingJson(meetingDir, (current) => ({
+    ...current,
     reviewedAt: new Date().toISOString(),
-  });
+  }));
 }
 
 /**

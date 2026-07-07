@@ -1,4 +1,5 @@
 import type { Matter } from '@/platform/types/matter';
+import type { MeetingMeta } from './meetingStore';
 
 export const MEETING_ARTIFACTS = ['audio', 'transcript', 'summary', 'notes'] as const;
 
@@ -18,12 +19,6 @@ export interface MeetingDeliveryPlan {
   version: 1;
   artifacts: MeetingRecipientArtifacts;
   updatedAt: string;
-}
-
-interface MeetingMetaWithDeliveryPlan {
-  matterId: string;
-  deliveryPlan?: MeetingDeliveryPlan;
-  calendarEvent?: MeetingRecipientCalendarEvent;
 }
 
 interface MeetingRecipientCalendarEvent {
@@ -199,20 +194,21 @@ export async function saveMeetingRecipientPlan(
   expectedMatterId: string,
   plan: Partial<MeetingDeliveryPlan>,
   nowIso: string = new Date().toISOString(),
-): Promise<MeetingDeliveryPlan> {
+): Promise<MeetingMeta> {
   const issues = validateMeetingDeliveryPlan(plan);
   if (issues.length > 0) throw new Error(issues[0]?.message ?? 'Check the recipient emails.');
 
   const raw = await ws.readFile(`${meetingDir}/meeting.json`);
-  const base = JSON.parse(raw) as MeetingMetaWithDeliveryPlan;
+  const base = JSON.parse(raw) as MeetingMeta;
   if (base.matterId !== expectedMatterId) {
     throw new Error('This meeting belongs to a different client.');
   }
 
   const deliveryPlan = normalizeMeetingDeliveryPlan({ ...plan, updatedAt: nowIso }, nowIso);
+  const savedMeta: MeetingMeta = { ...base, deliveryPlan };
   await ws.writeFile(
     `${meetingDir}/meeting.json`,
-    JSON.stringify({ ...base, deliveryPlan }, null, 2),
+    JSON.stringify(savedMeta, null, 2),
   );
-  return deliveryPlan;
+  return savedMeta;
 }
