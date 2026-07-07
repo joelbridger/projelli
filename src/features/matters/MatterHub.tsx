@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, Lock, FileText, Mail, Clock, Loader2, Map, Mic, RefreshCw } from 'lucide-react';
+import { Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreHorizontal } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { isTauri } from '@tauri-apps/api/core';
@@ -44,7 +44,6 @@ import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { CrmWritePendingBanner } from '@/features/matters/CrmWritePendingBanner';
 import { VoiceprintsCard } from '@/features/matters/VoiceprintsCard';
-import { isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useCrmStore } from '@/platform/connectors/crm/crmStore';
@@ -103,12 +102,6 @@ const HUB_TABS: { id: HubTab; Icon: typeof FileText }[] = [
   { id: 'email', Icon: Mail },
   { id: 'meetings', Icon: Mic },
 ];
-
-const LABEL_CLIENT_MAP_DOWNLOAD = 'Download client map';
-const LABEL_CLIENT_MAP_SYNC = 'Sync client map';
-const LABEL_CLIENT_MAP_HISTORY = 'Open client history';
-const LABEL_CLIENT_MAP_EXPORT_WORD = 'Export Word';
-const LABEL_CLIENT_MAP_EXPORT_PDF = 'Export PDF';
 
 /** Label for a hub sub-tab (literal keys per branch — the i18n extractor
  *  can't trace a key stored in a config-array variable). */
@@ -461,53 +454,43 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <IconButton
-                    icon={Download}
-                    label={LABEL_CLIENT_MAP_DOWNLOAD}
+                    icon={MoreHorizontal}
+                    label={t('matter.hub.client-map-actions')}
                     variant="ghost"
                     size="md"
-                    data-testid="clientmap-download-button"
+                    data-testid="clientmap-actions-menu-button"
                   />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-40">
+                <DropdownMenuContent align="start" className="w-56">
                   <DropdownMenuItem
                     data-testid="clientmap-export-word"
                     disabled={clientMap.map === undefined || exportingClientMap !== null}
                     onClick={handleExportClientMapWord}
                   >
-                    {LABEL_CLIENT_MAP_EXPORT_WORD}
+                    {t('matter.hub.export-client-map-docx')}
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     data-testid="clientmap-export-pdf"
                     disabled={clientMap.map === undefined || exportingClientMap !== null}
                     onClick={handleExportClientMapPdf}
                   >
-                    {LABEL_CLIENT_MAP_EXPORT_PDF}
+                    {t('matter.hub.export-client-map-pdf')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="clientmap-sync-button"
+                    disabled={isSyncingClientMap}
+                    onClick={handleSyncClientMap}
+                  >
+                    {t('matter.hub.sync-all')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="clientmap-history-button"
+                    onClick={() => { setIsHistoryOpen(true); }}
+                  >
+                    {t('matter.hub.history-title')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <div
-                data-testid="clientmap-sync-group"
-                style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-2xs)', minWidth: 0 }}
-              >
-                <IconButton
-                  icon={isSyncingClientMap ? Loader2 : RefreshCw}
-                  iconClassName={isSyncingClientMap ? 'animate-spin' : undefined}
-                  label={LABEL_CLIENT_MAP_SYNC}
-                  variant="ghost"
-                  size="md"
-                  data-testid="clientmap-sync-button"
-                  disabled={isSyncingClientMap}
-                  onClick={handleSyncClientMap}
-                />
-              </div>
-              <IconButton
-                icon={Clock}
-                label={LABEL_CLIENT_MAP_HISTORY}
-                variant="ghost"
-                size="md"
-                data-testid="clientmap-history-button"
-                onClick={() => { setIsHistoryOpen(true); }}
-              />
               <span
                 data-testid="clientmap-last-updated"
                 aria-live="polite"
@@ -599,7 +582,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             data-testid="hub-subtab-panel-overview"
             style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
           >
-            <div style={{ padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
+            <div style={{ padding: '0 var(--kp-gutter)' }}>
               <BeforeYouMeetStrip matterId={matterId} />
             </div>
             {/* Client Map — flat & full-bleed (no card), matching the Ask
@@ -614,28 +597,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 data-testid="hub-panel-clientmap-body"
                 style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}
               >
-                {/* Build states / local-only notice — only OFF the happy path.
-                    Padded so they breathe under the tab bar. */}
-                {(isLocalOnlyMode() ||
-                  clientMap.status === 'idle' ||
+                {/* Build states only appear off the happy path. */}
+                {(clientMap.status === 'idle' ||
                   clientMap.status === 'generating' ||
                   clientMap.status === 'empty' ||
                   clientMap.status === 'error') && (
                   <div style={{ padding: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
-                    {/* Local-only notice */}
-                    {isLocalOnlyMode() && (
-                      <div
-                        data-testid="hub-clientmap-local-notice"
-                        style={{
-                          fontSize: 'var(--kp-font-xs)',
-                          color: 'var(--color-muted-foreground)',
-                          marginBottom: 6,
-                        }}
-                      >
-                        {t('matter.hub.local-only-notice')}
-                      </div>
-                    )}
-
                     {(clientMap.status === 'idle' || clientMap.status === 'generating') && (
                       <div
                         data-testid="hub-clientmap-loading"
@@ -787,7 +754,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             </div>
           </div>
         }
-        width={460}
+        width={720}
         closeLabel={t('matter.hub.history-close')}
         data-testid="clientmap-history-panel"
       >

@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import type { KeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileText, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
 import type { AuditEntry } from '@/platform/types/audit';
 import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenance';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
 import { EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
+import { getFileIcon } from '@/platform/utils/fileIcons';
 import { useCitationVerification, verifyKey, type RealVerdict } from './citationVerification';
 
 /* -------------------------------------------------------------------------- */
@@ -59,6 +60,38 @@ function problemMessage(v: RealVerdict): string {
     default:
       return 'Could not verify';
   }
+}
+
+function extensionFromCitation(cite: AnswerCitation): string | undefined {
+  const sourceType = cite.sourceType?.toLowerCase();
+  if (
+    sourceType !== undefined &&
+    !['document', 'text', 'mail', 'crm', 'onedrive', 'esign', 'meeting', 'box', 'jotform', 'sharefile', 'zocks', 'addepar'].includes(sourceType)
+  ) {
+    return sourceType;
+  }
+  const raw = cite.path ?? cite.label;
+  const clean = raw.split(/[?#]/)[0] ?? raw;
+  const name = clean.split(/[\\/]/).pop() ?? clean;
+  const dot = name.lastIndexOf('.');
+  if (dot > 0 && dot < name.length - 1) {
+    return name.slice(dot + 1).toLowerCase();
+  }
+  return sourceType;
+}
+
+function SourceFileIcon({ cite }: { cite: AnswerCitation }) {
+  const { Icon, color } = getFileIcon(extensionFromCitation(cite));
+  return (
+    <Icon
+      data-testid="source-card-file-icon"
+      size={14}
+      strokeWidth={1.75}
+      className={color}
+      style={{ flex: 'none' }}
+      aria-hidden
+    />
+  );
 }
 
 /**
@@ -209,7 +242,7 @@ function SourceCard({
         >
           {cite.n}
         </span>
-        <FileText size={14} strokeWidth={1.75} style={{ color: 'var(--kp-accent)', flex: 'none' }} />
+        <SourceFileIcon cite={cite} />
         <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {cite.label}
         </span>

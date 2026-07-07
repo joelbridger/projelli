@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 6,
         "marketplace": 14,
-        "matter": 216,
+        "matter": 220,
         "media": 92,
         "meetings": 227,
         "memory": 6,
@@ -263,7 +263,9 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1442); // 1429 + 9 (send-defaults recipient groups) + 4 (documents rail group menu incl. close-other-tabs)
+    // +4 = WP2 Client Map action menu labels (one menu button plus DOCX/PDF
+    //      export and Sync all).
+    expect(flat.length).toBe(1446); // 1429 + 9 (send-defaults recipient groups) + 4 (documents rail group menu incl. close-other-tabs) + 4 (WP2 Client Map menu)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

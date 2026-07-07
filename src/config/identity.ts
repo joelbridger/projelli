@@ -77,6 +77,10 @@ export const SK_DEMO_BYOK_REPORTED_FLAG      = `${APP_NS}:demo:byokReported`;
 export const skClientMapTab = (matterId: string): string =>
   `${APP_NS}:clientmap-tab:${matterId}`;
 
+/** Build a per-matter client-map sources pane collapsed-state storage key. */
+export const skClientMapSourcesCollapsed = (matterId: string): string =>
+  `${APP_NS}:clientmap-sources-collapsed:${matterId}`;
+
 // ── localStorage / sessionStorage flag keys (underscore family) ───────────────
 // A second naming family alongside the colon-style SK_ keys above: single
 // scalar flags/markers written with `${APP_NS}_snake_case` instead of
