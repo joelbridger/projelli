@@ -640,11 +640,13 @@ export function EmailWorkspace({
 
   return (
     <div
+      data-testid="email-workspace"
       style={{
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         flex: 1,
+        minHeight: 0,
         minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'var(--font-sans)',

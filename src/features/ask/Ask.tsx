@@ -474,6 +474,7 @@ export function Ask(props: UseAskProps) {
           {/* The conversation scroll area. Empty center (no heading, no example
               pills) when there are no turns — matches the demo Ask. */}
           <div
+            data-testid="ask-thread-scroll"
             style={{
               flex: 1,
               minHeight: 0,

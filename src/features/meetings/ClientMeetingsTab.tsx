@@ -379,7 +379,18 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const showEmpty = !loading && !busy && !scanFailed && meetings.length === 0;
 
   return (
-    <div data-testid="client-meetings-tab" style={{ padding: 'var(--kp-gutter)', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-lg)' }}>
+    <div
+      data-testid="client-meetings-tab"
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: 'auto',
+        padding: 'var(--kp-gutter)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 'var(--kp-space-lg)',
+      }}
+    >
       {/* The record affordance leads the surface (prototype: top-left, with
           the local-capture reassurance beside it). On the empty tab the
           EmptyState below carries the same button instead. */}

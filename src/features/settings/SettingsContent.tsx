@@ -1165,7 +1165,7 @@ export function SettingsContent({
           <div
             ref={contentScrollRef}
             data-testid="settings-content-scroll"
-            className="flex-1 overflow-y-auto px-8 py-6"
+            className="flex-1 min-h-0 overflow-y-auto px-8 py-6"
           >
             {activeExtra ? (
               activeExtra.content

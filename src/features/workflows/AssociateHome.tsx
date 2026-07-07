@@ -798,6 +798,7 @@ export function AssociateHome({
         flexDirection: 'column',
         height: '100%',
         flex: 1,
+        minHeight: 0,
         minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
@@ -947,6 +948,7 @@ export function AssociateHome({
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           padding: 'var(--kp-surface-gap) var(--kp-gutter)',
           display: 'flex',
           flexDirection: 'column',
