@@ -21,7 +21,7 @@ export interface UseFileImportOptions {
   rootPath: string | null;
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
   setFileTree: (tree: FileNode[]) => void;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<unknown>;
   undoToast: UndoToastController;
   /**
    * QA-32: the native file picker can silently never respond on some

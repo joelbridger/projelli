@@ -1,12 +1,13 @@
 // Interview Form Component
 // Collects answers to workflow interview questions
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import type { InterviewQuestion } from '@/platform/types/workflow';
+import type { Matter } from '@/platform/types/matter';
 import { cn } from '@/lib/utils';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -26,19 +27,11 @@ export function InterviewForm({
 }: InterviewFormProps) {
   const { t } = useTranslation();
   const activeMatter = useActiveMatter();
-  const activeClientName = useMemo(
-    () => activeMatter ? matterLabel(activeMatter) : '',
-    [activeMatter],
-  );
   const fieldRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [highlightedQuestionId, setHighlightedQuestionId] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {};
-    for (const q of questions) {
-      initial[q.id] = q.defaultValue ?? '';
-    }
-    return initial;
-  });
+  const [answers, setAnswers] = useState<Record<string, string>>(() =>
+    buildInitialAnswers(questions, activeMatter),
+  );
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -82,21 +75,6 @@ export function InterviewForm({
 
     onSubmit(answers);
   };
-
-  useEffect(() => {
-    if (!activeClientName) return;
-    setAnswers((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const q of questions) {
-        if (shouldAutofillClientName(q) && !next[q.id]?.trim()) {
-          next[q.id] = activeClientName;
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-  }, [activeClientName, questions]);
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
@@ -235,20 +213,46 @@ export function InterviewForm({
   );
 }
 
-function shouldAutofillClientName(question: InterviewQuestion): boolean {
+function buildInitialAnswers(
+  questions: InterviewQuestion[],
+  activeMatter: Matter | null,
+): Record<string, string> {
+  const activeClientName = activeMatter ? activeMatter.client.trim() || matterLabel(activeMatter) : '';
+  const activeClientFileName = activeMatter ? activeMatter.name.trim() || matterLabel(activeMatter) : '';
+  const initial: Record<string, string> = {};
+  for (const q of questions) {
+    const defaultValue = q.defaultValue?.trim() ? q.defaultValue : undefined;
+    initial[q.id] = defaultValue ?? getClientAutofillValue(q, activeClientName, activeClientFileName);
+  }
+  return initial;
+}
+
+function getClientAutofillValue(
+  question: InterviewQuestion,
+  activeClientName: string,
+  activeClientFileName: string,
+): string {
   const id = question.id.trim();
-  if (['clientName', 'clientOrganizationName', 'matterName', 'householdName'].includes(id)) {
-    return true;
+  if (id === 'matterName') {
+    return activeClientFileName || activeClientName;
+  }
+  if (['clientName', 'clientOrganizationName', 'householdName'].includes(id)) {
+    return activeClientName;
   }
   const label = question.question.trim().toLowerCase();
-  return [
+  if (label === 'client file name') {
+    return activeClientFileName || activeClientName;
+  }
+  if ([
     'client name',
     'prospective client name',
     'client organization name',
     'client name and company',
-    'client file name',
     'household name',
-  ].includes(label);
+  ].includes(label)) {
+    return activeClientName;
+  }
+  return '';
 }
 
 export default InterviewForm;

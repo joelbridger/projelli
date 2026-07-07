@@ -71,6 +71,8 @@ export interface WorkflowExecutionTabProps {
   /**
    * F-106/F-107 — when set, the run was blocked before it started because no
    * usable AI provider is available. One of:
+   *   'needs-client' — no active client; user must pick a client before the
+   *                    workflow can run.
    *   'needs-provider' — no cloud key AND no reachable local model; user must
    *                      configure a provider before the workflow can run.
    *   'ollama-unreachable' — the template is pinned to Ollama, but Ollama is
@@ -80,7 +82,7 @@ export interface WorkflowExecutionTabProps {
    * When this prop is set the tab renders a blocking UI instead of execution
    * state. It is mutually exclusive with a running execution.
    */
-  providerError?: 'needs-provider' | 'ollama-unreachable';
+  providerError?: 'needs-provider' | 'ollama-unreachable' | 'needs-client';
   /** Optional callback to open Settings (used by the provider-error UI). */
   onOpenSettings?: () => void;
   className?: string;
@@ -284,6 +286,7 @@ export function WorkflowExecutionTab({
   // gets; never show a green "Complete" under this condition.
   if (providerError) {
     const isOllama = providerError === 'ollama-unreachable';
+    const needsClient = providerError === 'needs-client';
     return (
       <div
         data-testid="workflow-provider-error"
@@ -309,17 +312,21 @@ export function WorkflowExecutionTab({
             </div>
             <div>
               <p className="font-semibold text-base">
-                {isOllama
+                {needsClient
+                  ? 'Pick your client first.'
+                  : isOllama
                   ? t('workflow.execution.ollama-unreachable-title')
                   : t('workflow.execution.needs-provider-title')}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {isOllama
+                {needsClient
+                  ? 'Choose a client, then run the workflow again.'
+                  : isOllama
                   ? t('workflow.execution.ollama-unreachable-body')
                   : t('workflow.execution.needs-provider-body')}
               </p>
             </div>
-            {!isOllama && onOpenSettings && (
+            {!isOllama && !needsClient && onOpenSettings && (
               <Button
                 size="sm"
                 onClick={onOpenSettings}

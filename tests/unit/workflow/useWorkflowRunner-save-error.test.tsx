@@ -60,6 +60,21 @@ function makeWorkspaceServiceRef(writeFile: (path: string, content: string) => P
 }
 
 describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () => {
+  function setActiveMatter(overrides: Partial<Matter> = {}) {
+    const activeMatter: Matter = {
+      id: 'matter-alice',
+      name: 'Retirement Review',
+      client: 'Alice Smith',
+      folderPaths: ['/workspace/Clients/Alice Smith'],
+      mailFolderPaths: [],
+      privileged: false,
+      createdAt: new Date().toISOString(),
+      ...overrides,
+    };
+    useMatterStore.setState({ matters: [activeMatter], activeMatterId: activeMatter.id });
+    return activeMatter;
+  }
+
   beforeEach(() => {
     useMatterStore.setState({ matters: [], activeMatterId: null });
   });
@@ -79,6 +94,7 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
       });
       const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
       const addAuditEntry = vi.fn();
+      setActiveMatter();
 
       const { result } = renderHook(() =>
         useWorkflowRunner({
@@ -125,6 +141,7 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
     const writeFile = vi.fn(async () => {});
     const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
     const addAuditEntry = vi.fn();
+    setActiveMatter();
 
     const { result } = renderHook(() =>
       useWorkflowRunner({
@@ -156,16 +173,7 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
   });
 
   it('saves workflow outputs under the active client Documents/Workflows folder and records a clickable result title', async () => {
-    const activeMatter: Matter = {
-      id: 'matter-alice',
-      name: 'Retirement Review',
-      client: 'Alice Smith',
-      folderPaths: ['/workspace/Clients/Alice Smith'],
-      mailFolderPaths: [],
-      privileged: false,
-      createdAt: new Date().toISOString(),
-    };
-    useMatterStore.setState({ matters: [activeMatter], activeMatterId: activeMatter.id });
+    setActiveMatter();
 
     const writeFile = vi.fn(async () => {});
     const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
@@ -210,5 +218,73 @@ describe('useWorkflowRunner — terminal write failure surfacing (Bug F2)', () =
       expect.stringContaining('/workspace/Clients/Alice Smith/Documents/Workflows/Save Error Template - '),
     );
     expect(savedRun.outputs['primaryArtifactPath']).toEqual(expect.stringContaining('/Out.md'));
+  });
+
+  it('blocks a workflow before any disk writes when no client is active', async () => {
+    const writeFile = vi.fn(async () => {});
+    const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
+    const completeRun = vi.fn();
+
+    const { result } = renderHook(() =>
+      useWorkflowRunner({
+        rootPath: '/workspace',
+        isTestMode: true,
+        apiKeys: [],
+        completeRun,
+        openTab: vi.fn(),
+        setFileTree: vi.fn(),
+        addAuditEntry: vi.fn(),
+        workspaceServiceRef,
+        templatesMetadataReaderRef: { current: null },
+        templatesMarketplaceServiceRef: { current: null },
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleStartWorkflow(saveErrorTemplate());
+    });
+
+    expect(result.current.workflowProviderError).toBe('needs-client');
+    expect(workspaceServiceRef.current.mkdir).not.toHaveBeenCalled();
+    expect(writeFile).not.toHaveBeenCalled();
+    expect(completeRun).not.toHaveBeenCalled();
+  });
+
+  it('ignores a second start click while the first workflow start is still in flight', async () => {
+    setActiveMatter();
+    let releaseExists!: () => void;
+    const existsGate = new Promise<boolean>((resolve) => {
+      releaseExists = () => resolve(false);
+    });
+    const writeFile = vi.fn(async () => {});
+    const workspaceServiceRef = makeWorkspaceServiceRef(writeFile);
+    workspaceServiceRef.current.exists = vi.fn(() => existsGate);
+
+    const { result } = renderHook(() =>
+      useWorkflowRunner({
+        rootPath: '/workspace',
+        isTestMode: true,
+        apiKeys: [],
+        completeRun: vi.fn(),
+        openTab: vi.fn(),
+        setFileTree: vi.fn(),
+        addAuditEntry: vi.fn(),
+        workspaceServiceRef,
+        templatesMetadataReaderRef: { current: null },
+        templatesMarketplaceServiceRef: { current: null },
+      })
+    );
+
+    const template = saveErrorTemplate();
+    let firstStart!: Promise<void>;
+    let secondStart!: Promise<void>;
+    await act(async () => {
+      firstStart = result.current.handleStartWorkflow(template);
+      secondStart = result.current.handleStartWorkflow(template);
+      releaseExists();
+      await Promise.all([firstStart, secondStart]);
+    });
+
+    expect(workspaceServiceRef.current.mkdir).toHaveBeenCalledTimes(1);
   });
 });

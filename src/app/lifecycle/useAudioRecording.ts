@@ -14,7 +14,7 @@ export interface UseAudioRecordingOptions {
   rootPath: string | null;
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
   setFileTree: (tree: FileNode[]) => void;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<unknown>;
 }
 
 export function useAudioRecording({

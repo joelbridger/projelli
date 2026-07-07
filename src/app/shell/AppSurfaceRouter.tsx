@@ -23,6 +23,7 @@ import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { workspacePath } from '@/platform/fs/appPath';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { routeSavedAskDocument } from '@/app/shell/routeSavedAskDocument';
@@ -62,7 +63,7 @@ export interface AppSurfaceRouterProps {
   activeWorkflowTemplate: WorkflowTemplate | null;
   showInterviewDialog: boolean;
   interviewQuestions: InterviewQuestion[] | null;
-  workflowProviderError: 'needs-provider' | 'ollama-unreachable' | null;
+  workflowProviderError: 'needs-provider' | 'ollama-unreachable' | 'needs-client' | null;
   /** BUG F2 — non-null when the terminal .workflow run-record write failed to
    *  save after retries. Rendered as a Callout on the workflows home,
    *  mirroring `workflowProviderError`'s plumbing. */
@@ -84,7 +85,7 @@ export interface AppSurfaceRouterProps {
   setFileTree: (tree: FileNode[]) => void;
   openFile: (path: string, name: string, content: string) => void;
   openSettings: (category?: SettingCategory) => void;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<boolean>;
   handleCreateFile: (parentPath: string) => void;
   handleCreateFolder: (parentPath: string) => void;
   handleRename: (path: string) => void;
@@ -444,11 +445,13 @@ export function AppSurfaceRouter({
           providerError={workflowProviderError}
           saveError={workflowSaveError}
           onOpenSettings={() => openSettings('ai')}
-          onOpenRunArtifact={(path, name) => {
-            void handleFileOpen(path, name).then(() => {
-              setSidebarActiveTab('files');
-            });
-          }}
+          onOpenRunArtifact={(path, name) =>
+            openRunArtifactFromWorkflows({
+              path,
+              name,
+              handleFileOpen,
+              setSidebarActiveTab,
+            })}
           onFocusExecutionTab={() => {
             const target =
               activeWorkflowFilePath ??

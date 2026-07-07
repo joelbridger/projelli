@@ -6,7 +6,7 @@
  * changed (they now come from the options object instead of App's local
  * scope, or from the hook's own state directly).
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { saveFile } from '@/platform/utils/saveFile';
@@ -106,12 +106,14 @@ function getActiveWorkflowMatter(): Matter | null {
 }
 
 function resolveWorkflowRunFolderPath(
-  rootPath: string,
-  activeMatter: Matter | null,
+  _rootPath: string,
+  activeMatter: Matter,
   workflowFolderName: string,
 ): string {
-  const clientRoot = activeMatter?.folderPaths[0];
-  if (!clientRoot) return workspacePath(rootPath, workflowFolderName);
+  const clientRoot = activeMatter.folderPaths[0];
+  if (!clientRoot) {
+    throw new Error('Pick your client first.');
+  }
   return workspacePath(clientRoot, `Documents/Workflows/${workflowFolderName}`);
 }
 
@@ -176,16 +178,20 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
   const [interviewRejecter, setInterviewRejecter] = useState<((error: Error) => void) | null>(null);
   const [showInterviewDialog, setShowInterviewDialog] = useState(false);
   const [activeWorkflowFilePath, setActiveWorkflowFilePath] = useState<string | null>(null);
-  const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | null>(null);
+  const [workflowProviderError, setWorkflowProviderError] = useState<'needs-provider' | 'ollama-unreachable' | 'needs-client' | null>(null);
   // BUG F2 — set when the TERMINAL .workflow run-record write (completed/
   // failed/cancelled) could not be durably saved after retries. Mirrors
   // `workflowProviderError`'s plumbing so it surfaces via the same Callout
   // pattern instead of being a silent console.warn.
   const [workflowSaveError, setWorkflowSaveError] = useState<string | null>(null);
+  const workflowStartInFlightRef = useRef(false);
 
   // Handle starting a workflow
   const handleStartWorkflow = useCallback(
     async (template: WorkflowTemplate) => {
+      if (workflowStartInFlightRef.current) return;
+      workflowStartInFlightRef.current = true;
+      try {
       if (!workspaceServiceRef.current || !rootPath) return;
 
       // Fix 4 — clear any error from a previous blocked run so that the
@@ -203,7 +209,11 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       const timestamp = startTime.toISOString().replace(/:/g, '-').replace(/\..+/, '').replace('T', '_');
       const workflowFolderName = `${template.name} - ${timestamp}`;
       const activeMatter = getActiveWorkflowMatter();
-      const clientName = activeMatter ? matterLabel(activeMatter) : null;
+      if (!activeMatter?.folderPaths[0]) {
+        setWorkflowProviderError('needs-client');
+        return;
+      }
+      const clientName = matterLabel(activeMatter);
       const workflowFolderPath = resolveWorkflowRunFolderPath(rootPath, activeMatter, workflowFolderName);
 
       // Load AI Rules if available — needed before resolution so it can be
@@ -880,6 +890,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         }
         setCurrentExecution(null);
         setActiveWorkflowFilePath(null);
+      }
+      } finally {
+        workflowStartInFlightRef.current = false;
       }
     },
     [rootPath, setFileTree, completeRun, apiKeys, openTab, addAuditEntry]

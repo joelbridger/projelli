@@ -711,7 +711,7 @@ export class WorkflowEngine {
     // for missing dependencies rather than degrading silently.
     if (scope.kind !== 'matter') {
       throw new Error(
-        'This workflow needs an active client selected — choose a client before running an analysis workflow.',
+        'Pick your client first.',
       );
     }
     const inputs = this.execution!.inputs;

@@ -240,6 +240,12 @@ describe('AssociateHome (law persona)', () => {
     expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
   });
 
+  it('shows pick-client-first banner without settings button', () => {
+    render(<AssociateHome {...defaultProps({ providerError: 'needs-client' })} />);
+    expect(screen.getByText('Pick your client first.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
+  });
+
   it('renders recent runs strip when runHistory is provided', () => {
     const runHistory: RunRecord[] = [
       {
@@ -314,6 +320,37 @@ describe('AssociateHome (law persona)', () => {
       'Annual Review Packet.docx',
     );
     expect(onFocusExecutionTab).not.toHaveBeenCalled();
+  });
+
+  it('marks a recent run as missing when its produced document cannot be opened', async () => {
+    const onOpenRunArtifact = vi.fn(async () => false);
+    const runHistory: RunRecord[] = [
+      {
+        run_id: 'run-missing-doc',
+        workflow: 'annual-review-packet',
+        model: 'claude-sonnet-4-6',
+        inputs: {},
+        outputs: {
+          displayTitle: 'Alice Smith - Word document',
+          primaryArtifactName: 'Annual Review Packet.docx',
+          primaryArtifactPath: '/workspace/Clients/Alice/Documents/Workflows/Annual/Annual Review Packet.docx',
+        },
+        tool_calls: [],
+        start_time: new Date(Date.now() - 7200000).toISOString(),
+        end_time: new Date(Date.now() - 7100000).toISOString(),
+        status: 'completed',
+        error: undefined,
+      },
+    ];
+    render(<AssociateHome {...defaultProps({ runHistory, onOpenRunArtifact })} />);
+
+    fireEvent.click(screen.getByTestId('associate-run-row-run-missing-doc'));
+
+    expect(await screen.findByText('File missing')).toBeTruthy();
+    expect(screen.getByTestId('associate-run-row-run-missing-doc')).toHaveAttribute(
+      'data-file-missing',
+      'true',
+    );
   });
 
   it('does not show recent runs strip when runHistory is empty', () => {

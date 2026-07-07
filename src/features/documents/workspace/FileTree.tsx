@@ -94,7 +94,7 @@ interface FileTreeProps {
   /** Hide the internal create-file/folder toolbar — used when a parent surface
    *  already provides those actions (e.g. the unified Documents toolbar). */
   hideToolbar?: boolean;
-  onFileOpen: (path: string, name: string) => Promise<void>;
+  onFileOpen: (path: string, name: string) => Promise<unknown>;
   onCreateFile?: (parentPath: string, extension?: string) => void;
   onCreateFolder?: (parentPath: string) => void;
   onRename?: (path: string) => void;
@@ -634,7 +634,7 @@ interface FileTreeItemProps {
   lastSelectedPath: string | null;
   onSelect: (path: string | null) => void;
   onToggle: (path: string) => void;
-  onFileOpen: (path: string, name: string) => Promise<void>;
+  onFileOpen: (path: string, name: string) => Promise<unknown>;
   onCreateFile: ((parentPath: string) => void) | undefined;
   onCreateFolder: ((parentPath: string) => void) | undefined;
   onRename: ((path: string) => void) | undefined;

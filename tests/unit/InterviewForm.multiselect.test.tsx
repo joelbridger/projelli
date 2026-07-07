@@ -98,7 +98,24 @@ describe('InterviewForm multiselect rendering', () => {
       required: true,
     }]} onSubmit={vi.fn()} />);
 
-    expect(screen.getByDisplayValue('Alice Smith - Retirement Review')).toBeTruthy();
+    expect(screen.getByDisplayValue('Alice Smith')).toBeTruthy();
+    expect(screen.queryByDisplayValue('Alice Smith - Retirement Review')).toBeNull();
+  });
+
+  it('autofills client file name fields from the active client file name', () => {
+    activeMatter = {
+      id: 'matter-1',
+      client: 'Alice Smith',
+      name: 'Retirement Review',
+    };
+    render(<InterviewForm questions={[{
+      id: 'matterName',
+      question: 'Client file name',
+      type: 'text',
+      required: true,
+    }]} onSubmit={vi.fn()} />);
+
+    expect(screen.getByDisplayValue('Retirement Review')).toBeTruthy();
   });
 
   it('scrolls to and highlights the first missing required question on Run', () => {

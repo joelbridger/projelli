@@ -29,7 +29,7 @@
  * Prop interface is IDENTICAL to the original so App.tsx is untouched.
  */
 
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import {
   Play,
   CheckCircle2,
@@ -64,7 +64,7 @@ interface AssociateHomeProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;
   currentExecution: WorkflowExecution | null;
   runHistory: RunRecord[];
-  providerError?: 'needs-provider' | 'ollama-unreachable' | null;
+  providerError?: 'needs-provider' | 'ollama-unreachable' | 'needs-client' | null;
   /** BUG F2 — set when a run's terminal .workflow record failed to save to
    *  disk after retries. Non-blocking (unlike `providerError`): the run
    *  itself finished and its deliverable may be fine, only the audit/replay
@@ -73,7 +73,7 @@ interface AssociateHomeProps {
   saveError?: string | null;
   onOpenSettings?: () => void;
   onFocusExecutionTab?: () => void;
-  onOpenRunArtifact?: (path: string, name: string) => void;
+  onOpenRunArtifact?: (path: string, name: string) => boolean | Promise<boolean>;
   onRunChain?: (chain: WorkflowChain) => void;
 }
 
@@ -468,13 +468,17 @@ function RunRow({
   run,
   onFocus,
   onOpenArtifact,
+  fileMissing,
 }: {
   run: RunRecord;
   onFocus?: () => void;
-  onOpenArtifact?: (path: string, name: string) => void;
+  onOpenArtifact?: (path: string, name: string, runId: string) => boolean | Promise<boolean>;
+  fileMissing: boolean;
 }) {
   const statusIcon =
-    run.status === 'completed' ? (
+    fileMissing ? (
+      <AlertTriangle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--kp-warning)', flex: 'none' }} />
+    ) : run.status === 'completed' ? (
       <CheckCircle2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#22c55e', flex: 'none' }} />
     ) : run.status === 'failed' ? (
       <XCircle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: '#ef4444', flex: 'none' }} />
@@ -488,9 +492,10 @@ function RunRow({
     <button
       type="button"
       data-testid={`associate-run-row-${run.run_id}`}
+      data-file-missing={fileMissing ? 'true' : 'false'}
       onClick={() => {
         if (artifact && onOpenArtifact) {
-          onOpenArtifact(artifact.path, artifact.name);
+          void onOpenArtifact(artifact.path, artifact.name, run.run_id);
           return;
         }
         onFocus?.();
@@ -540,7 +545,7 @@ function RunRow({
             whiteSpace: 'nowrap',
           }}
         >
-          {artifact ? artifact.name : run.workflow}
+          {fileMissing ? 'File missing' : artifact ? artifact.name : run.workflow}
         </span>
       </span>
       <span
@@ -633,6 +638,7 @@ export function AssociateHome({
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>(readStoredFilter);
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(readStoredCollapsed);
+  const [missingArtifactRunIds, setMissingArtifactRunIds] = useState<Set<string>>(() => new Set());
 
   // Persist filter to localStorage whenever it changes.
   useEffect(() => {
@@ -739,6 +745,24 @@ export function AssociateHome({
   const featuredId = isLawExperience(profession) ? LAW_FEATURED_ID : null;
 
   const recentRuns = runHistory.slice(0, 4);
+
+  const handleOpenRecentRunArtifact = useCallback(
+    async (path: string, name: string, runId: string): Promise<boolean> => {
+      if (!onOpenRunArtifact) return false;
+      const opened = await onOpenRunArtifact(path, name);
+      setMissingArtifactRunIds((prev) => {
+        const next = new Set(prev);
+        if (opened) {
+          next.delete(runId);
+        } else {
+          next.add(runId);
+        }
+        return next;
+      });
+      return opened;
+    },
+    [onOpenRunArtifact],
+  );
 
   // When the filter chip changes, reset search so the state is consistent.
   function handleFilterChange(key: FilterKey) {
@@ -863,7 +887,14 @@ export function AssociateHome({
           <Callout variant="error" icon={AlertCircle}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ flex: 1 }}>
-                {providerError === 'ollama-unreachable' ? (
+                {providerError === 'needs-client' ? (
+                  <span>
+                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+                    <strong>Pick your client first.</strong>
+                    {' Choose a client, then run the workflow again.'}
+                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                  </span>
+                ) : providerError === 'ollama-unreachable' ? (
                   <span>
                     {/* eslint-disable lantern-i18n/no-hardcoded-string */}
                     <strong>Local AI unreachable.</strong>
@@ -941,8 +972,9 @@ export function AssociateHome({
                 <RunRow
                   key={run.run_id}
                   run={run}
+                  fileMissing={missingArtifactRunIds.has(run.run_id)}
                   {...(onFocusExecutionTab !== undefined && { onFocus: onFocusExecutionTab })}
-                  {...(onOpenRunArtifact !== undefined && { onOpenArtifact: onOpenRunArtifact })}
+                  {...(onOpenRunArtifact !== undefined && { onOpenArtifact: handleOpenRecentRunArtifact })}
                 />
               ))}
             </Card>

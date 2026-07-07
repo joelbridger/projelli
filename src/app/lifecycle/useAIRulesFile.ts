@@ -12,7 +12,7 @@ import { workspacePath } from '@/platform/fs/appPath';
 export interface UseAIRulesFileOptions {
   rootPath: string | null;
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
-  handleFileOpen: (path: string, name: string) => Promise<void>;
+  handleFileOpen: (path: string, name: string) => Promise<unknown>;
   refreshFileTree: () => void;
 }
 
