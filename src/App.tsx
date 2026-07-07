@@ -39,6 +39,7 @@ import { StatusBar } from '@/app/shell/layout/StatusBar';
 import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 import { RecordPill } from '@/features/meetings/RecordPill';
+import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
@@ -2107,6 +2108,7 @@ function AppShell() {
           stays visible while the advisor switches tabs mid-meeting (Documents,
           Email, Ask, etc.), not just while on the Documents/editor surface. */}
       <RecordPill />
+      <MeetingAutoJoinScheduler />
 
       {/* Status bar. showFileContext=true only on the Documents/editor surface
           (files tab) so the breadcrumb never shows stale editor context when

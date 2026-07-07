@@ -33,6 +33,10 @@ import { Button } from '@/ui/kp';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { InfoHelp } from '@/ui/InfoHelp';
+import {
+  setAutoJoinCalendarPref,
+  useAutoJoinCalendarPrefs,
+} from '@/features/meetings/autoJoinSettings';
 
 // Durable, append-only audit trail for connector activity, so a calendar
 // sync (including one that indexed zero meetings or failed) always leaves a
@@ -69,6 +73,7 @@ export function CalendarConnect() {
   const [error, setError] = useState<string | null>(null);
   const [lastReport, setLastReport] = useState<CalendarSyncReport | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const autoJoinPrefs = useAutoJoinCalendarPrefs();
   const { confirm, dialogProps } = useConfirmDialog();
 
   async function refreshConnected() {
@@ -362,6 +367,32 @@ export function CalendarConnect() {
               Briefings prepare in the background while Lantern is open.
               Lantern does not run when closed.
             </p>
+            <div className="space-y-2 rounded-md border border-slate-200 bg-white px-3 py-2">
+              {connectedIds.map((id) => (
+                <label
+                  key={id}
+                  data-testid={`calendar-auto-join-${id}`}
+                  className="flex items-start gap-2 text-xs text-slate-700"
+                >
+                  <input
+                    type="checkbox"
+                    checked={autoJoinPrefs[id] === true}
+                    onChange={(e) => {
+                      setAutoJoinCalendarPref(id, e.target.checked);
+                    }}
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900"
+                  />
+                  <span>
+                    <span className="font-semibold text-slate-900">
+                      Auto-record meetings from {PROVIDER_LABEL[id]}
+                    </span>
+                    <span className="mt-0.5 block text-slate-500">
+                      Only matched Teams or Zoom meetings with a join link. You can turn off any single meeting before it starts.
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
             {lastSyncedAt && (
               <p className="flex items-center gap-2 text-xs text-slate-500">
                 <RefreshCw
