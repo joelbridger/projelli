@@ -111,7 +111,6 @@ export interface AppSurfaceRouterProps {
   openTabs: ReturnType<typeof useEditorStore.getState>['openTabs'];
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
   setFileTree: (tree: FileNode[]) => void;
-  openFile: (path: string, name: string, content: string) => void;
   openSettings: (category?: SettingCategory) => void;
   handleFileOpen: (path: string, name: string) => Promise<boolean>;
   handleCreateFile: (parentPath: string) => void;
@@ -188,7 +187,6 @@ export function AppSurfaceRouter({
   openTabs,
   workspaceServiceRef,
   setFileTree,
-  openFile,
   openSettings,
   handleFileOpen,
   handleCreateFile,
@@ -422,9 +420,13 @@ export function AppSurfaceRouter({
             await workspaceServiceRef.current.writeFileBinary(path, buffer);
             const tree = await workspaceServiceRef.current.getFileTree();
             setFileTree(tree);
-            openFile(path, finalName, docxBytesToDataUrl(bytes));
             routeSavedAskDocument({
               activeMatter,
+              savedDocument: {
+                path,
+                name: finalName,
+                content: docxBytesToDataUrl(bytes),
+              },
               setDocumentsView,
               setSidebarActiveTab,
               setMattersSurfaceMode,
@@ -544,9 +546,13 @@ export function AppSurfaceRouter({
             await workspaceServiceRef.current.writeFileBinary(path, buffer);
             const tree = await workspaceServiceRef.current.getFileTree();
             setFileTree(tree);
-            openFile(path, finalName, docxBytesToDataUrl(bytes));
             routeSavedAskDocument({
               activeMatter,
+              savedDocument: {
+                path,
+                name: finalName,
+                content: docxBytesToDataUrl(bytes),
+              },
               setDocumentsView,
               setSidebarActiveTab,
               setMattersSurfaceMode,

@@ -3,6 +3,7 @@ import type { Matter } from '@/platform/types/matter';
 import { showMatterDocuments } from '@/app/shell/matterDocumentNavigation';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 import { workspacePath } from '@/platform/fs/appPath';
+import { useEditorStore } from '@/platform/state/editorStore';
 
 /**
  * After Ask's "Save to Document" creates the .docx, actually SHOW it (the file
@@ -14,18 +15,29 @@ import { workspacePath } from '@/platform/fs/appPath';
  */
 export function routeSavedAskDocument({
   activeMatter,
+  savedDocument,
   setDocumentsView,
   setSidebarActiveTab,
   setMattersSurfaceMode,
   pushNavigationSnapshot,
 }: {
   activeMatter: Matter | null;
+  savedDocument?: {
+    path: string;
+    name: string;
+    content: string;
+  };
   setDocumentsView: (view: 'browser' | 'editor') => void;
   setSidebarActiveTab: (tab: AppSurface) => void;
   setMattersSurfaceMode?: (mode: MattersSurfaceMode) => void;
   pushNavigationSnapshot?: () => void;
 }) {
   pushNavigationSnapshot?.();
+  if (savedDocument) {
+    useEditorStore
+      .getState()
+      .openFile(savedDocument.path, savedDocument.name, savedDocument.content);
+  }
   setDocumentsView('editor');
   if (!activeMatter) {
     setSidebarActiveTab('files');

@@ -2069,7 +2069,6 @@ function AppShell() {
           openTabs={openTabs}
           workspaceServiceRef={workspaceServiceRef}
           setFileTree={setFileTree}
-          openFile={openFile}
           openSettings={openSettings}
           handleFileOpen={handleFileOpen}
           handleCreateFile={handleCreateFile}

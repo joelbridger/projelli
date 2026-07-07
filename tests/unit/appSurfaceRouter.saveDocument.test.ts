@@ -10,10 +10,16 @@ const matterState = {
   setClientMapHubId: vi.fn(),
   setClientMapHubTab: vi.fn(),
 };
+const openFileMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: {
     getState: () => matterState,
+  },
+}));
+vi.mock('@/platform/state/editorStore', () => ({
+  useEditorStore: {
+    getState: () => ({ openFile: openFileMock }),
   },
 }));
 
@@ -31,6 +37,29 @@ function sampleMatter(): Matter {
 describe('routeSavedAskDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('opens the saved document through the document tab store before routing', () => {
+    const setDocumentsView = vi.fn();
+    const setSidebarActiveTab = vi.fn();
+
+    routeSavedAskDocument({
+      activeMatter: sampleMatter(),
+      savedDocument: {
+        path: '/workspace/Clients/Morgan Household/Documents/Planning notes.docx',
+        name: 'Planning notes.docx',
+        content: 'data:docx',
+      },
+      setDocumentsView,
+      setSidebarActiveTab,
+    });
+
+    expect(openFileMock).toHaveBeenCalledWith(
+      '/workspace/Clients/Morgan Household/Documents/Planning notes.docx',
+      'Planning notes.docx',
+      'data:docx',
+    );
+    expect(setDocumentsView).toHaveBeenCalledWith('editor');
   });
 
   it('opens the saved document inside the active client Documents tab', () => {
