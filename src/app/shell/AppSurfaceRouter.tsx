@@ -23,6 +23,7 @@ import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { workspacePath } from '@/platform/fs/appPath';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/platform/types/workflow';
@@ -55,6 +56,8 @@ export interface AppSurfaceRouterProps {
   askPrefill: { question: string; autoSubmit?: boolean } | null;
   setAskPrefill: React.Dispatch<React.SetStateAction<{ question: string; autoSubmit?: boolean } | null>>;
   documentsView: 'browser' | 'editor';
+  setDocumentsView: (view: 'browser' | 'editor') => void;
+  setSidebarActiveTab: (tab: AppSurface) => void;
   currentExecution: WorkflowExecution | null;
   activeWorkflowTemplate: WorkflowTemplate | null;
   showInterviewDialog: boolean;
@@ -113,11 +116,35 @@ export interface AppSurfaceRouterProps {
   activeMatter: Matter | null;
 }
 
+export function routeSavedAskDocument({
+  activeMatter,
+  setDocumentsView,
+  setSidebarActiveTab,
+}: {
+  activeMatter: Matter | null;
+  setDocumentsView: (view: 'browser' | 'editor') => void;
+  setSidebarActiveTab: (tab: AppSurface) => void;
+}) {
+  setDocumentsView('editor');
+  if (!activeMatter) {
+    setSidebarActiveTab('files');
+    return;
+  }
+
+  const matterState = useMatterStore.getState();
+  matterState.setActiveMatter(activeMatter.id);
+  matterState.setClientMapHubId(activeMatter.id);
+  matterState.setClientMapHubTab('documents');
+  setSidebarActiveTab('matters');
+}
+
 export function AppSurfaceRouter({
   sidebarActiveTab,
   askPrefill,
   setAskPrefill,
   documentsView,
+  setDocumentsView,
+  setSidebarActiveTab,
   currentExecution,
   activeWorkflowTemplate,
   showInterviewDialog,
@@ -330,6 +357,7 @@ export function AppSurfaceRouter({
             const tree = await workspaceServiceRef.current.getFileTree();
             setFileTree(tree);
             openFile(path, finalName, docxBytesToDataUrl(bytes));
+            routeSavedAskDocument({ activeMatter, setDocumentsView, setSidebarActiveTab });
           }}
           onOpenSettings={() => {
             window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'connections' } }));

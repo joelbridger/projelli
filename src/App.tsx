@@ -1650,6 +1650,8 @@ function AppShell() {
           askPrefill={askPrefill}
           setAskPrefill={setAskPrefill}
           documentsView={documentsView}
+          setDocumentsView={setDocumentsView}
+          setSidebarActiveTab={setSidebarActiveTab}
           currentExecution={currentExecution}
           activeWorkflowTemplate={activeWorkflowTemplate}
           showInterviewDialog={showInterviewDialog}
