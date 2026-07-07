@@ -20,11 +20,11 @@ vi.mock('react-i18next', () => ({
 }));
 
 const MATTERS: Matter[] = [
-  { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [] },
-  { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [] },
+  { id: 'm1', name: 'Hendricks Household', client: 'Hendricks Household', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
+  { id: 'm2', name: 'Doe Family Trust', client: 'Doe Family Trust', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
   // Internal name deliberately differs from the client — exercises matterLabel's
   // "Client - Name" folding branch instead of the name===client shortcut above.
-  { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [] },
+  { id: 'm3', name: 'Retirement Plan Review', client: 'Alvarez', folderPaths: [], createdAt: '2026-07-07T00:00:00.000Z' },
 ];
 
 vi.mock('@/platform/matter/matterStore', () => ({

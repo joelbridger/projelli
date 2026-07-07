@@ -65,6 +65,7 @@ function report(overrides: Partial<OneDriveSyncReport> = {}): OneDriveSyncReport
     repaired: 0,
     deltaReset: false,
     cancelled: false,
+    errors: [],
     ...overrides,
   };
 }
