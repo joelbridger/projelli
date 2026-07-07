@@ -168,7 +168,9 @@ export function OneDriveConnect() {
       await oneDriveConnect();
       setConnected(true);
       // Connect = IMPORT: kick off the first sync right after auth.
-      void runSync();
+      void runSync().catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // The user clicked Cancel — this is an intentional exit, not a failure,
@@ -200,7 +202,11 @@ export function OneDriveConnect() {
   // with no way out short of Disconnect + Connect again. Cancel any stuck
   // sync first, then re-run the same OAuth flow connect() already uses.
   async function reconnect() {
-    try { await oneDriveCancel(); } catch { /* best-effort */ }
+    try {
+      await oneDriveCancel();
+    } catch (err) {
+      console.warn('Could not cancel OneDrive sync before reconnect; continuing reconnect:', err);
+    }
     await connect();
   }
 

@@ -21,7 +21,9 @@ describe('useThemeManager light-lock', () => {
   it("never writes the legacy raw localStorage 'theme' key", () => {
     const { result } = renderHook(() => useThemeManager());
     expect(localStorage.getItem('theme')).toBeNull();
-    act(() => result.current.setTheme('dark'));
+    act(() => {
+      result.current.setTheme('dark');
+    });
     expect(localStorage.getItem('theme')).toBeNull();
   });
 
@@ -34,7 +36,9 @@ describe('useThemeManager light-lock', () => {
 
   it('an explicit setTheme("dark") applies dark and stamps the choice', () => {
     const { result } = renderHook(() => useThemeManager());
-    act(() => result.current.setTheme('dark'));
+    act(() => {
+      result.current.setTheme('dark');
+    });
     expect(result.current.effectiveTheme).toBe('dark');
     expect(document.documentElement.classList.contains('dark')).toBe(true);
     expect(useSettingsStore.getState().themeExplicitlyChosen).toBe(true);

@@ -1,4 +1,3 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {

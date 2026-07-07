@@ -108,8 +108,7 @@ function mergeHeldPaths(
   const key = workspaceKey(workspaceRoot);
   const union = new Set(heldByWorkspace[key] ?? []);
   for (const p of paths) union.add(p);
-  if (union.size === 0) delete heldByWorkspace[key];
-  else heldByWorkspace[key] = [...union];
+  if (union.size > 0) heldByWorkspace[key] = [...union];
 }
 
 function equivalentWorkspaceEntries(
@@ -179,7 +178,7 @@ export const usePendingFolderRetagStore = create<PendingFolderRetagState>()(
           get().heldByWorkspace,
           workspaceRoot
         ).flatMap(([, held]) => held);
-        if (!existing || existing.length === 0) return;
+        if (existing.length === 0) return;
         const drop = new Set(paths);
         const remaining = uniquePaths(existing.filter((p) => !drop.has(p)));
         if (remaining.length === existing.length) return; // nothing overlapped

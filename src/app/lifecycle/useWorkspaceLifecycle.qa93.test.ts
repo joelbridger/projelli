@@ -216,9 +216,9 @@ describe('QA-93 stage B — switching the workspace root swaps the visible matte
       state: {
         matters: Array.from({ length: 502 }, (_unused, index) => ({
           ...baseMatter,
-          id: `client-${index}`,
-          name: `Client ${index}`,
-          folderPaths: [`Clients/Legacy ${index}`, `/wsA/Clients/Client ${index}`],
+          id: `client-${String(index)}`,
+          name: `Client ${String(index)}`,
+          folderPaths: [`Clients/Legacy ${String(index)}`, `/wsA/Clients/Client ${String(index)}`],
         })),
         activeMatterId: null,
       },
