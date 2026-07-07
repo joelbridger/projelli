@@ -2338,6 +2338,34 @@
             "help": "El archivo de notas del asesor."
           }
         }
+      },
+      "send": {
+        "title": "Enviar elementos de la reunión",
+        "privacy-note": "Revisar primero. Al enviar, los archivos seleccionados salen de este equipo por tu cuenta de correo conectada. Lantern no los recibe.",
+        "review-button": "Revisar envío",
+        "account-label": "Cuenta de correo",
+        "no-account": "Conecta el correo en Configuración",
+        "needs-review": "Marca la reunión como revisada antes de enviar cualquier cosa.",
+        "no-items": "Elige al menos un destinatario para un elemento disponible de la reunión.",
+        "local-only-blocked": "El modo Solo local está activado, así que el envío por correo está desactivado.",
+        "ready-count": "{{count}} elemento listo para revisar",
+        "ready-count_plural": "{{count}} elementos listos para revisar",
+        "to-line": "Para: {{recipients}}",
+        "attachment-line": "Adjunto: {{attachment}}",
+        "missing": "Estos elementos planificados aún no están listos: {{artifacts}}.",
+        "log-title": "Registro de envío",
+        "log-row": "{{status}} {{artifact}} a {{count}} destinatario el {{date}}",
+        "log-row_plural": "{{status}} {{artifact}} a {{count}} destinatarios el {{date}}",
+        "confirm-title": "Revisar antes de enviar",
+        "confirm-privacy": "Estos archivos se enviarán por {{account}}. Este es el único paso en el que los archivos salen de este equipo.",
+        "confirm-button": "Enviar ahora",
+        "sending": "Enviando...",
+        "sent": "{{count}} elemento de reunión enviado.",
+        "sent_plural": "{{count}} elementos de reunión enviados.",
+        "sent-with-errors": "Se intentó {{total}} elemento; {{failed}} falló. Revisa el registro de envío.",
+        "sent-with-errors_plural": "Se intentaron {{total}} elementos; {{failed}} fallaron. Revisa el registro de envío.",
+        "email-subject": "{{client}} reunión {{artifact}}: {{title}}",
+        "email-body": "Hola,\n\nAdjunto está {{artifact}} de la reunión de {{client}}: {{title}}.\n\nEnviado desde mi cuenta de correo conectada después de revisarlo."
       }
     },
     "types": {

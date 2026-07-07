@@ -14,6 +14,7 @@ import { Button as DialogButton } from '@/ui/button';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { MeetingRecipientsPanel } from './MeetingRecipientsPanel';
+import { MeetingArtifactSendPanel } from './MeetingArtifactSendPanel';
 import { AuditService } from '@/platform/audit/AuditService';
 import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
@@ -629,6 +630,23 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
           matter={matter}
           workspaceService={workspaceService}
           onSaved={setMeta}
+        />
+      )}
+
+      {meta && (
+        <MeetingArtifactSendPanel
+          matterId={matterId}
+          meetingDir={meetingDir}
+          meta={meta}
+          clientName={clientName}
+          workspaceService={workspaceService}
+          hasAudio={hasAudio}
+          hasTranscript={hasTranscript}
+          hasNotes={hasNotes}
+          summaryReady={summaryReady}
+          transcript={transcript}
+          buildSummaryDocxBytes={buildSummaryDocxBytes}
+          onSent={setMeta}
         />
       )}
 
