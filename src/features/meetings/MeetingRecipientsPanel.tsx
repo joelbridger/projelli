@@ -96,9 +96,9 @@ export function MeetingRecipientsPanel({
     setError(null);
     setSavedNotice(null);
     try {
-      const saved = await saveMeetingRecipientPlan(workspaceService, meetingDir, matterId, plan);
-      onSaved({ ...meta, deliveryPlan: saved });
-      setPlan(saved);
+      const savedMeta = await saveMeetingRecipientPlan(workspaceService, meetingDir, matterId, plan);
+      onSaved(savedMeta);
+      setPlan(normalizeMeetingDeliveryPlan(savedMeta.deliveryPlan));
       setSavedNotice(t('meetings.entry.recipients.saved'));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

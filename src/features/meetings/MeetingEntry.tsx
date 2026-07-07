@@ -15,7 +15,7 @@ import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
 import { MeetingRecipientsPanel } from './MeetingRecipientsPanel';
 import { AuditService } from '@/platform/audit/AuditService';
-import { markMeetingReviewed, writeMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
+import { markMeetingReviewed, updateMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
 import { NoticeTrail } from './NoticeTrail';
 import { makeConsentLedger } from './consentLedger';
@@ -278,8 +278,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
 
   const handleMarkReviewed = useCallback(async () => {
     if (!meta) return;
-    await markMeetingReviewed(meetingDir, meta);
-    setMeta({ ...meta, reviewedAt: new Date().toISOString() });
+    const updated = await markMeetingReviewed(meetingDir);
+    if (updated) setMeta(updated);
   }, [meetingDir, meta]);
 
   // QA-31 — "Retry" once notesError is set: re-runs generation, then
@@ -371,24 +371,21 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     // back to its built-in type id; anything else is saved as a custom type.
     const typeId =
       BUILT_IN_TYPES.find((id) => meetingTypeLabel(id, t).toLowerCase() === entered.toLowerCase()) ?? entered;
-    const updated: MeetingMeta = { ...meta, typeId };
-    await writeMeetingJson(meetingDir, updated);
+    const updated = await updateMeetingJson(meetingDir, (current) => ({ ...current, typeId }));
     await makeMeetingTypesStore(workspaceService).learnCorrection(meta.calendarTitle ?? folderName, typeId);
-    setMeta(updated);
+    if (updated) setMeta(updated);
     setEditingType(false);
   }, [typeInput, meta, meetingDir, folderName, workspaceService, t]);
 
   const handleSaveTitle = useCallback(async () => {
     if (!meta || !workspaceService) { setRenaming(false); return; }
     const entered = titleInput.trim();
-    const updated: MeetingMeta = entered
-      ? { ...meta, customTitle: entered }
-      : (() => {
-          const { customTitle: _customTitle, ...rest } = meta;
-          return rest;
-        })();
-    await writeMeetingJson(meetingDir, updated);
-    setMeta(updated);
+    const updated = await updateMeetingJson(meetingDir, (current) => {
+      if (entered) return { ...current, customTitle: entered };
+      const { customTitle: _customTitle, ...rest } = current;
+      return rest;
+    });
+    if (updated) setMeta(updated);
     setRenaming(false);
   }, [meta, titleInput, meetingDir, workspaceService]);
 
