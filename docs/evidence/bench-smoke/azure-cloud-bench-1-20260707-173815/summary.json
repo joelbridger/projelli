@@ -1,0 +1,188 @@
+{
+  "overall": "SETUP-BLOCKED",
+  "counts": {
+    "PASS": 3,
+    "FAIL": 0,
+    "SETUP-BLOCKED": 9,
+    "SKIPPED": 2,
+    "TODO": 5
+  },
+  "generatedAt": "2026-07-07T17:44:34.096Z",
+  "target": "azure-cloud-bench-1",
+  "live": false,
+  "results": [
+    {
+      "id": "workspace-binding",
+      "section": "Phase 1 — setup",
+      "status": "SETUP-BLOCKED",
+      "detail": "No \"Clients\" management entry point found in the current view — is a workspace open on this bench?",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 2362
+    },
+    {
+      "id": "per-client-files-visible",
+      "section": "Phase 1 — setup",
+      "status": "SETUP-BLOCKED",
+      "detail": "No \"Documents\" tab/label appeared within 10s — no client selected, or the app isn't on a client-scoped view yet: node:internal/modules/run_main:123\r\n    triggerUncaughtException(\r\n    ^\r\n\r\nlocator.waitFor: Timeout 10000ms exceeded.\r\nCall log:\r\n\u001b[2m  - waiting for getByText('Documents').first() to be visible\u001b[22m\r\n\r\n    at C:\\lantern-plus\\scripts\\desktop-drive.mjs:135:47 {\r\n  name: 'TimeoutError'\r\n}\r\n\r\nNode.js v22.23.1\r\n",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 43694
+    },
+    {
+      "id": "index-health",
+      "section": "Phase 1 — setup",
+      "status": "PASS",
+      "detail": "Client Map shows cited facts with no index-health error text present.",
+      "screenshots": [
+        "01-index-health-client-map.jpeg"
+      ],
+      "forensics": null,
+      "durationMs": 58311
+    },
+    {
+      "id": "wave0-draft-followup",
+      "section": "Wave 0 — Draft follow-up, Client Map review tray",
+      "status": "SETUP-BLOCKED",
+      "detail": "No [data-testid=\"docx-draft-follow-up\"] button in the current view — no docx note tab is open, or the toolbar has not rendered yet.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 38607
+    },
+    {
+      "id": "wave1-calendar-brief-export",
+      "section": "Wave 1 — Calendar sync, meeting matching, briefs, exports",
+      "status": "SETUP-BLOCKED",
+      "detail": "No [data-testid=\"calendar-sync-button\"] control found — Calendar connector may not be connected on this bench, or its Account/Connections view isn't open.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 13031
+    },
+    {
+      "id": "wave2-wealthbox-queue-review",
+      "section": "Wave 2 — Send to Wealthbox (queue/review only)",
+      "status": "SETUP-BLOCKED",
+      "detail": "No [data-testid=\"docx-send-to-wealthbox\"] button in the current view. This is exactly the smoke-2 P0 #5 symptom when it is a real regression (button silently absent instead of disabled) — but it is equally expected if no docx note tab is open. Treated as SETUP-BLOCKED, not FAIL, because this harness cannot distinguish \"no note open\" from \"matter-resolution broke again\" without a known-good precondition. If a note IS confirmed open when this fires, escalate as a P0 regression of the matter-resolution fix (docs/evidence/windows-smoke-2/RUN-LOG.md, Wave 2).",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 38830
+    },
+    {
+      "id": "wave2-wealthbox-approve-live",
+      "section": "Wave 2 — Send to Wealthbox (queue/review only)",
+      "status": "SKIPPED",
+      "detail": "Skipped: requires --live (this run did not pass it). SANDBOX-ONLY — never point --live at a bench connected to a real/production Wealthbox account.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 1
+    },
+    {
+      "id": "wave4-all-clients-hub",
+      "section": "Wave 4 — Depth (Track B: All Clients hub)",
+      "status": "SETUP-BLOCKED",
+      "detail": "No [data-testid=\"spine-all-clients-row\"] found — the permanent All Clients rail entry is missing or hidden.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 12895
+    },
+    {
+      "id": "wave4-estate-beneficiary-gap",
+      "section": "Wave 4 — Depth (Track B: estate/beneficiary gap detection)",
+      "status": "SETUP-BLOCKED",
+      "detail": "No client rows found in All Clients, so no Client Map gap rows can be checked.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 13062
+    },
+    {
+      "id": "wave4-estate-beneficiary-gap-dismiss-live",
+      "section": "Wave 4 — Depth (Track B: estate/beneficiary gap detection)",
+      "status": "SKIPPED",
+      "detail": "Skipped: requires --live (this run did not pass it). Dismissing a gap here is a real fixture mutation (markGapResolved, audit-logged) — never run against a bench whose demo data other runs still depend on.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 1
+    },
+    {
+      "id": "wave4-whole-practice-ask",
+      "section": "Wave 4 — Depth (Track C: whole-practice Ask + consent gate)",
+      "status": "SETUP-BLOCKED",
+      "detail": "No [data-testid=\"scope-option-whole-practice\"] control found — not on the Ask surface, or the scope toggle is not present.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 13050
+    },
+    {
+      "id": "cross-cutting-light-theme",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "Document root has no dark-theme class/attribute.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 2542
+    },
+    {
+      "id": "cross-cutting-console-errors",
+      "section": "Cross-cutting",
+      "status": "PASS",
+      "detail": "No console errors, window.onerror, or unhandledrejection events captured during navigation.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 14741
+    },
+    {
+      "id": "cross-cutting-egress-indicator",
+      "section": "Cross-cutting",
+      "status": "SETUP-BLOCKED",
+      "detail": "No \"On this computer only\" confidentiality toggle found — not on the Settings > AI & Privacy view.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": 12968
+    },
+    {
+      "id": "wave3-capture-start-stop",
+      "section": "Wave 3 — Local meeting capture (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 1, Task 4). Acceptance to check once this wave has bench-drivable UI: A \"Start recording\" control begins a dual-channel (mic + WASAPI loopback) capture and shows a visible recording indicator; \"Stop\" finalizes the session without dropping audio.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave3-capture-crash-recovery",
+      "section": "Wave 3 — Local meeting capture (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 5). Acceptance to check once this wave has bench-drivable UI: Killing the app mid-recording, then relaunching, surfaces the orphaned session (chunks already on disk) instead of silently losing it.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave3-capture-session-manifest",
+      "section": "Wave 3 — Local meeting capture (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 2). Acceptance to check once this wave has bench-drivable UI: After Stop, the session finalizes chunks into a single stereo audio.wav plus a manifest the rest of the app (transcript, brief) can reference.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave4-diarization",
+      "section": "Wave 4 — Depth (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track A, Task 6+). Acceptance to check once this wave has bench-drivable UI: A recorded meeting transcript shows separate, named (or nameable) speakers rather than one undifferentiated stream. Depends on Wave 3 capture existing first.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    },
+    {
+      "id": "wave4-retention-attestation",
+      "section": "Wave 4 — Depth (STUB)",
+      "status": "TODO",
+      "detail": "Not wired up yet — see docs/plans/lantern-plus/2026-07-02-wave-4-depth.md (Track D, Task 16-17). Acceptance to check once this wave has bench-drivable UI: Settings > Privacy shows a \"Meeting recordings\" retention policy control (keep/delete-after choices) whose current state also appears on the Data Map dialog; an \"Export attestation report\" action produces a .docx summarizing consent, recordings, and deletions.",
+      "screenshots": [],
+      "forensics": null,
+      "durationMs": null
+    }
+  ]
+}

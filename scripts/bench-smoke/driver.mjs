@@ -139,7 +139,8 @@ export class Driver {
   }
 
   async evalJs(js) {
-    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['eval', js]);
+    const encoded = Buffer.from(js, 'utf8').toString('base64');
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['eval', `eval(atob(\`${encoded}\`))`]);
     if (code !== 0) throw new DriverError(`eval failed (exit ${code}): ${stderr || stdout}`);
     return parseEvalResult(stdout);
   }
