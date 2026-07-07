@@ -16,7 +16,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Download, Lock, FileText, Mail, Clock, Loader2, Map, Users, Mic, RefreshCw } from 'lucide-react';
+import { Download, Lock, FileText, Mail, Clock, Loader2, Map, Mic, RefreshCw } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { isTauri } from '@tauri-apps/api/core';
