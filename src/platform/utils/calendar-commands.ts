@@ -20,6 +20,10 @@ export interface CalendarEventDto {
   endUtc: string;
   attendees: CalendarAttendeeDto[];
   organizerEmail: string;
+  /** Future-proof safety flags. Today's backend excludes these before listing,
+   *  but auto-join fails closed if a stale/future DTO includes them. */
+  isCancelled?: boolean;
+  selfDeclined?: boolean;
   /**
    * The event's online-meeting join URL (Teams/Zoom/Meet), when the calendar
    * exposes one. Absent for in-person events and ICS feeds. The Notice Card

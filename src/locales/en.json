@@ -1799,6 +1799,12 @@
       "settings-evidence-label": "What satisfies a Strict recording notice",
       "settings-evidence-either": "Either a spoken notice or full-meeting card presence",
       "settings-evidence-both": "Both a spoken notice and full-meeting card presence"
+    },
+    "auto-join": {
+      "heading": "Will auto-join",
+      "body": "These meetings will start the same recording flow and Notice Card as the Record button.",
+      "error": "Couldn't check upcoming meetings.",
+      "disable": "Don't join"
     }
   },
   "spine": {

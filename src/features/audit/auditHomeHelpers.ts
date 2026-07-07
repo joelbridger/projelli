@@ -33,6 +33,7 @@ import {
   UserX,
   Save,
   Timer,
+  CalendarClock,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { asRecord } from './audit-export';
@@ -140,6 +141,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   retention_swept: Timer,
   meeting_redaction: Scissors,
   meeting_capture_started: FilePlus,
+  meeting_auto_join_started: CalendarClock,
   meeting_recorded: FileText,
   meeting_audio_deleted: FileX,
   audit_integrity_reseal: ShieldAlert,
@@ -218,6 +220,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   retention_swept: 'Retention Sweep Finished',
   meeting_redaction: 'Meeting Content Redacted',
   meeting_capture_started: 'Meeting Recording Started',
+  meeting_auto_join_started: 'Meeting Auto-Join Started',
   meeting_recorded: 'Meeting Recorded',
   meeting_audio_deleted: 'Meeting Audio Deleted',
   audit_integrity_reseal: 'Audit Log Integrity Gap Repaired',
@@ -299,6 +302,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   retention_swept: 'file',
   meeting_redaction: 'file',
   meeting_capture_started: 'system',
+  meeting_auto_join_started: 'system',
   meeting_recorded: 'system',
   meeting_audio_deleted: 'file',
   audit_integrity_reseal: 'privilege',

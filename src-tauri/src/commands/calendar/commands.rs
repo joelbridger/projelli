@@ -498,6 +498,11 @@ pub struct CalendarEventDto {
     pub end_utc: String,
     pub attendees: Vec<CalendarAttendeeDto>,
     pub organizer_email: String,
+    /// Safety flags for fail-closed consumers. Normal sync excludes cancelled
+    /// and self-declined events before storage, but DTO callers should not have
+    /// to assume old/future rows are safe.
+    pub is_cancelled: bool,
+    pub self_declined: bool,
     /// The event's online-meeting join URL, when one is known. Omitted from
     /// the JSON when absent (`skip_serializing_if`) so the DTO stays lean and
     /// the frontend reads `joinUrl` as optional.
@@ -705,6 +710,8 @@ pub async fn calendar_list_events(
                 .map(|a| CalendarAttendeeDto { email: a.email, name: a.name })
                 .collect(),
             organizer_email: e.organizer_email,
+            is_cancelled: e.is_cancelled,
+            self_declined: e.self_declined,
             join_url: e.join_url,
         })
         .collect())

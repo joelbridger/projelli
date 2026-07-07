@@ -44,6 +44,7 @@ import {
   Timer,
   Save,
   Fingerprint,
+  CalendarClock,
 } from 'lucide-react';
 import type { AuditEntry, AuditActionType } from '@/platform/types/audit';
 import { EmptyState } from '@/ui/EmptyState';
@@ -139,6 +140,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   retention_swept: Timer,
   meeting_redaction: Scissors,
   meeting_capture_started: FilePlus,
+  meeting_auto_join_started: CalendarClock,
   meeting_recorded: FileText,
   meeting_audio_deleted: FileX,
   audit_integrity_reseal: ShieldAlert,
@@ -219,6 +221,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   retention_swept: 'Retention Sweep Finished',
   meeting_redaction: 'Meeting Content Redacted',
   meeting_capture_started: 'Meeting Recording Started',
+  meeting_auto_join_started: 'Meeting Auto-Join Started',
   meeting_recorded: 'Meeting Recorded',
   meeting_audio_deleted: 'Meeting Audio Deleted',
   audit_integrity_reseal: 'Audit Log Integrity Gap Repaired',
@@ -299,6 +302,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   retention_swept: 'text-amber-600 dark:text-amber-400',
   meeting_redaction: 'text-amber-600 dark:text-amber-400',
   meeting_capture_started: 'text-sky-600 dark:text-sky-400',
+  meeting_auto_join_started: 'text-sky-600 dark:text-sky-400',
   meeting_recorded: 'text-sky-600 dark:text-sky-400',
   meeting_audio_deleted: 'text-amber-600 dark:text-amber-400',
   audit_integrity_reseal: 'text-rose-600 dark:text-rose-400',

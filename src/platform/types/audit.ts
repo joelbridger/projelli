@@ -116,6 +116,7 @@ export type AuditActionType =
   // merge — DEPENDS-WAVE-3 — so Task 17's attestation report can classify them
   // the moment Wave 3 starts writing them under these exact action strings).
   | 'meeting_capture_started'
+  | 'meeting_auto_join_started'
   | 'meeting_recorded'
   | 'meeting_audio_deleted'
   // Written directly by the Rust audit-store repair path (never through
