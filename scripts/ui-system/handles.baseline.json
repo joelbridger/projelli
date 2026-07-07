@@ -1,6 +1,6 @@
 {
   "_comment": "Permanent-handle baseline for the UI Iteration System. Regenerate with `node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a handle removal/rename is intentional and logged in handles.migrations.json. `duplicates` freezes handles rendered from >1 file (frozen debt; the guard blocks NEW cross-file duplicates so a handle can't silently become ambiguous).",
-  "count": 1468,
+  "count": 1469,
   "keys": [
     "account-identity",
     "account-image-input",
@@ -1061,6 +1061,7 @@
     "pricing-founding-rate",
     "pricing-tier-${}",
     "pricing-tiers",
+    "privacy-center-data-map-section",
     "privacy-center-firm-pack-button",
     "privacy-center-report-button",
     "privacy-design-partner-card",

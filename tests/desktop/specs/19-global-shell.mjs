@@ -181,18 +181,9 @@ export default {
     await session.testid('status-bar-project-name', 15_000);
     await session.waitForBodyText('shell-test-alpha.md', { timeoutMs: 20_000 });
 
-    // Trust bar actions stay global and observable.
-    const dataMapButton = await session.find(
-      'xpath',
-      `//*[@data-testid=${app.xpathLiteral('trust-bar')}]//button[@aria-label=${app.xpathLiteral('Open the Data Map')}]`,
-      10_000,
-    );
-    await session.click(dataMapButton);
-    await session.testid('data-map-dialog', 10_000);
-    await session.testid('data-map-content', 10_000);
-    await closeByAriaLabel(session, 'data-map-dialog', 'Close', app);
-    await waitForGone(session, 'data-map-dialog');
-
+    // Trust bar actions stay global and observable. The old map shortcut was
+    // intentionally consolidated into Privacy Center; the lock is now the one
+    // top-bar entry for the full data story.
     const privacyShortcut = await session.find(
       'xpath',
       `//*[@data-testid=${app.xpathLiteral('trust-bar')}]//button[@aria-label=${app.xpathLiteral('Open Privacy Center')}]`,
@@ -202,6 +193,8 @@ export default {
     // The TrustBar opens the standalone Privacy Center surface (it is no longer a
     // rail tab in the 3-tab IA, so there is no active rail nav to assert).
     await session.testid('privacy-center-report-button', 15_000);
+    await session.testid('privacy-center-data-map-section', 15_000);
+    await session.testid('data-map-content', 15_000);
 
     await openMatterHub(session, app);
 
