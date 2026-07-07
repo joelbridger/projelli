@@ -40,6 +40,7 @@ import { AppDialogs } from '@/app/shell/AppDialogs';
 import { AppSurfaceRouter } from '@/app/shell/AppSurfaceRouter';
 import { RecordPill } from '@/features/meetings/RecordPill';
 import { MeetingAutoJoinScheduler } from '@/features/meetings/MeetingAutoJoinScheduler';
+import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { ProjectManager } from '@/features/documents/workspace/ProjectManager';
@@ -2108,6 +2109,18 @@ function AppShell() {
           stays visible while the advisor switches tabs mid-meeting (Documents,
           Email, Ask, etc.), not just while on the Documents/editor surface. */}
       <RecordPill />
+      <div
+        style={{
+          position: 'fixed',
+          right: 'calc(var(--kp-gutter, 24px) + 8px)',
+          bottom: '72px',
+          width: 'min(520px, calc(100vw - 32px))',
+          zIndex: 45,
+          pointerEvents: 'auto',
+        }}
+      >
+        <AutoJoinMeetingsPanel />
+      </div>
       <MeetingAutoJoinScheduler />
 
       {/* Status bar. showFileContext=true only on the Documents/editor surface

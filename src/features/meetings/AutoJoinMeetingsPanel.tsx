@@ -12,6 +12,7 @@ import {
 } from './meetingAutoJoin';
 import {
   setAutoJoinEventDisabled,
+  markAutoJoinOccurrencesPresented,
   useAutoJoinCalendarPrefs,
   useDisabledAutoJoinEventKeys,
 } from './autoJoinSettings';
@@ -54,6 +55,10 @@ export function AutoJoinMeetingsPanel() {
   }, [disabledKeys, matters, prefs]);
 
   useEffect(() => {
+    markAutoJoinOccurrencesPresented(willJoin.map((candidate) => candidate.key));
+  }, [willJoin]);
+
+  useEffect(() => {
     void refresh().catch(() => {
       setError(true);
     });
@@ -86,7 +91,11 @@ export function AutoJoinMeetingsPanel() {
   if (willJoin.length === 0 && !error) return null;
 
   return (
-    <Card variant="raised" data-testid="meeting-auto-join-panel" style={{ marginTop: 'var(--kp-space-md)' }}>
+    <Card
+      variant="raised"
+      data-testid="meeting-auto-join-panel"
+      style={{ marginTop: 'var(--kp-space-md)' }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)' }}>
         <CalendarClock aria-hidden="true" style={{ width: 18, height: 18, color: 'var(--kp-accent)' }} />
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -140,7 +149,7 @@ export function AutoJoinMeetingsPanel() {
                   iconLeft={XCircle}
                   data-testid="meeting-auto-join-disable"
                   onClick={() => {
-                    setAutoJoinEventDisabled(candidate.key, true);
+                    setAutoJoinEventDisabled(candidate.disabledKey, true);
                   }}
                 >
                   {t('meetings.auto-join.disable')}

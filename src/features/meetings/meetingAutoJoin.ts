@@ -26,7 +26,10 @@ export type AutoJoinSkipReason =
   | 'ended';
 
 export interface AutoJoinCandidate {
+  /** Per-occurrence key. Used for the visible-before-join gate and started-once guard. */
   key: string;
+  /** Stable provider+event key. Used for advisor disables so reschedules stay disabled. */
+  disabledKey: string;
   event: CalendarEventDto;
   matterId: string;
   joinUrl: string;
@@ -37,6 +40,7 @@ export interface AutoJoinCandidate {
 
 export interface AutoJoinSkippedEvent {
   key: string;
+  disabledKey: string;
   event: CalendarEventDto;
   reason: AutoJoinSkipReason;
   platform: NoticeCardPlatform;
@@ -53,6 +57,10 @@ export interface AutoJoinAction {
 }
 
 export function autoJoinEventKey(event: Pick<CalendarEventDto, 'provider' | 'id' | 'startUtc'>): string {
+  return `${event.provider}:${event.id}`;
+}
+
+export function autoJoinOccurrenceKey(event: Pick<CalendarEventDto, 'provider' | 'id' | 'startUtc'>): string {
   return `${event.provider}:${event.id}:${event.startUtc}`;
 }
 
@@ -79,11 +87,18 @@ export function discoverAutoJoinMeetings(
   const skipped: AutoJoinSkippedEvent[] = [];
 
   const skip = (event: CalendarEventDto, reason: AutoJoinSkipReason, platform = detectPlatform(event.joinUrl)): void => {
-    skipped.push({ key: autoJoinEventKey(event), event, reason, platform });
+    skipped.push({
+      key: autoJoinOccurrenceKey(event),
+      disabledKey: autoJoinEventKey(event),
+      event,
+      reason,
+      platform,
+    });
   };
 
   for (const event of events) {
-    const key = autoJoinEventKey(event);
+    const key = autoJoinOccurrenceKey(event);
+    const disabledKey = autoJoinEventKey(event);
     const platform = detectPlatform(event.joinUrl);
     const startMs = Date.parse(event.startUtc);
     const endMs = Date.parse(event.endUtc);
@@ -100,7 +115,7 @@ export function discoverAutoJoinMeetings(
       skip(event, 'calendar-not-opted-in', platform);
       continue;
     }
-    if (disabledKeys.has(key)) {
+    if (disabledKeys.has(disabledKey)) {
       skip(event, 'meeting-disabled', platform);
       continue;
     }
@@ -137,6 +152,7 @@ export function discoverAutoJoinMeetings(
     }
     willJoin.push({
       key,
+      disabledKey,
       event,
       matterId,
       joinUrl: event.joinUrl,
@@ -155,12 +171,14 @@ export function nextAutoJoinAction(
   nowMs: number,
   recording: boolean,
   startedKeys: ReadonlySet<string>,
+  presentedKeys: ReadonlySet<string> = new Set(),
 ): AutoJoinAction | null {
   const due = candidates.find(
     (candidate) =>
       candidate.startMs <= nowMs &&
       nowMs < candidate.endMs &&
-      !startedKeys.has(candidate.key),
+      !startedKeys.has(candidate.key) &&
+      presentedKeys.has(candidate.key),
   );
   if (!due) return null;
   return { type: recording ? 'handoff' : 'start', candidate: due };

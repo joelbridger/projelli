@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { calendarListEvents, CALENDAR_SYNC_EVENT } from '@/platform/utils/calendar-commands';
+import { calendarListEvents, calendarSyncAll, CALENDAR_SYNC_EVENT } from '@/platform/utils/calendar-commands';
 import { useActiveMatters } from '@/platform/matter/matterStore';
+import { buildCalendarMatterMap } from '@/platform/rag/matterResolver';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { AuditService } from '@/platform/audit/AuditService';
@@ -24,6 +25,9 @@ import {
 import {
   readAutoJoinCalendarPrefs,
   readDisabledAutoJoinEventKeys,
+  readPresentedAutoJoinOccurrenceKeys,
+  readStartedAutoJoinOccurrenceKeys,
+  markAutoJoinOccurrenceStarted,
 } from './autoJoinSettings';
 
 const audit = new AuditService('meetings');
@@ -64,7 +68,8 @@ export function MeetingAutoJoinScheduler() {
   const customScriptRef = useRef(customScript);
   const { i18n } = useTranslation();
   const languageRef = useRef(i18n.language);
-  const startedKeysRef = useRef<Set<string>>(new Set());
+  const startedKeysRef = useRef<Set<string>>(readStartedAutoJoinOccurrenceKeys());
+  const freshFailureLoggedRef = useRef<Set<string>>(new Set());
   const runningRef = useRef(false);
 
   useEffect(() => {
@@ -112,6 +117,8 @@ export function MeetingAutoJoinScheduler() {
             advisorName,
           },
         });
+        markAutoJoinOccurrenceStarted(candidate.key);
+        startedKeysRef.current.add(candidate.key);
         await audit.logDurable('meeting_auto_join_started', 'Calendar auto-join started a meeting recording.', {
           metadata: {
             matterId: candidate.matterId,
@@ -123,8 +130,53 @@ export function MeetingAutoJoinScheduler() {
         });
       } catch (err) {
         console.error('[MeetingAutoJoinScheduler] auto-join failed', err);
-        startedKeysRef.current.delete(candidate.key);
+        if (!readStartedAutoJoinOccurrenceKeys().has(candidate.key)) {
+          startedKeysRef.current.delete(candidate.key);
+        }
       }
+    }
+
+    async function logFreshFailure(action: AutoJoinAction, err: unknown): Promise<void> {
+      const key = `${action.candidate.key}:fresh-sync-failed`;
+      if (freshFailureLoggedRef.current.has(key)) return;
+      freshFailureLoggedRef.current.add(key);
+      await audit.logDurable('calendar.sync', 'Calendar auto-join skipped because the calendar could not be verified fresh.', {
+        outputs: {
+          error: err instanceof Error ? err.message : String(err),
+        },
+        metadata: {
+          matterId: action.candidate.matterId,
+          calendarEventId: action.candidate.event.id,
+          provider: action.candidate.event.provider,
+          platform: action.candidate.platform,
+          skippedAutoJoin: true,
+        },
+      });
+    }
+
+    async function verifyFreshAction(nowMs: number): Promise<AutoJoinAction | null> {
+      const report = await calendarSyncAll(buildCalendarMatterMap(mattersRef.current));
+      if (report.cancelled) {
+        throw new Error('Calendar sync was cancelled before auto-join.');
+      }
+      const events = await calendarListEvents(
+        new Date(nowMs - 5 * 60 * 1000).toISOString(),
+        new Date(nowMs + AUTO_JOIN_LOOKAHEAD_MS).toISOString(),
+      );
+      const discovery = discoverAutoJoinMeetings(
+        events,
+        mattersRef.current,
+        readAutoJoinCalendarPrefs(),
+        readDisabledAutoJoinEventKeys(),
+        nowMs,
+      );
+      return nextAutoJoinAction(
+        discovery.willJoin,
+        nowMs,
+        useMeetingStore.getState().status.recording,
+        startedKeysRef.current,
+        readPresentedAutoJoinOccurrenceKeys(),
+      );
     }
 
     async function tick(): Promise<void> {
@@ -148,8 +200,16 @@ export function MeetingAutoJoinScheduler() {
           nowMs,
           useMeetingStore.getState().status.recording,
           startedKeysRef.current,
+          readPresentedAutoJoinOccurrenceKeys(),
         );
-        if (action) await runAction(action);
+        if (action) {
+          try {
+            const freshAction = await verifyFreshAction(Date.now());
+            if (freshAction) await runAction(freshAction);
+          } catch (err) {
+            await logFreshFailure(action, err);
+          }
+        }
       } catch (err) {
         console.debug('[MeetingAutoJoinScheduler] calendar check failed', err);
       } finally {

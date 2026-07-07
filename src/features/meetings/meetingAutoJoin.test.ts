@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
 import type { Matter } from '@/platform/types/matter';
 import {
+  autoJoinOccurrenceKey,
   autoJoinEventKey,
   discoverAutoJoinMeetings,
   nextAutoJoinAction,
@@ -72,7 +73,12 @@ describe('MF3 auto-join discovery', () => {
 
     expect(discovery.willJoin).toEqual([]);
     expect(discovery.skipped).toMatchObject([
-      { key: autoJoinEventKey(meet), reason: 'unsupported-platform', platform: 'meet' },
+      {
+        key: autoJoinOccurrenceKey(meet),
+        disabledKey: autoJoinEventKey(meet),
+        reason: 'unsupported-platform',
+        platform: 'meet',
+      },
     ]);
   });
 
@@ -136,6 +142,52 @@ describe('MF3 auto-join discovery', () => {
       'ambiguous-client',
     ]);
   });
+
+  it('keeps a disabled meeting disabled when its time changes', () => {
+    const original = event({
+      id: 'rescheduled-1',
+      startUtc: '2026-07-07T16:05:00Z',
+      endUtc: '2026-07-07T17:00:00Z',
+    });
+    const rescheduled = event({
+      id: 'rescheduled-1',
+      startUtc: '2026-07-07T18:05:00Z',
+      endUtc: '2026-07-07T19:00:00Z',
+    });
+
+    const discovery = discoverAutoJoinMeetings(
+      [rescheduled],
+      [matter({})],
+      { outlook: true },
+      new Set([autoJoinEventKey(original)]),
+      NOW,
+    );
+
+    expect(discovery.willJoin).toEqual([]);
+    expect(discovery.skipped).toMatchObject([
+      {
+        key: autoJoinOccurrenceKey(rescheduled),
+        disabledKey: autoJoinEventKey(rescheduled),
+        reason: 'meeting-disabled',
+      },
+    ]);
+  });
+
+  it('treats recurring occurrences separately for shown/started gates', () => {
+    const first = event({
+      id: 'weekly-review',
+      startUtc: '2026-07-07T16:00:00Z',
+      endUtc: '2026-07-07T17:00:00Z',
+    });
+    const nextWeek = event({
+      id: 'weekly-review',
+      startUtc: '2026-07-14T16:00:00Z',
+      endUtc: '2026-07-14T17:00:00Z',
+    });
+
+    expect(autoJoinEventKey(first)).toBe(autoJoinEventKey(nextWeek));
+    expect(autoJoinOccurrenceKey(first)).not.toBe(autoJoinOccurrenceKey(nextWeek));
+  });
 });
 
 describe('MF3 auto-join scheduler planning', () => {
@@ -158,9 +210,88 @@ describe('MF3 auto-join scheduler planning', () => {
       NOW,
     );
 
-    const action = nextAutoJoinAction(discovery.willJoin, NOW, true, new Set([autoJoinEventKey(first)]));
+    const action = nextAutoJoinAction(
+      discovery.willJoin,
+      NOW,
+      true,
+      new Set([autoJoinOccurrenceKey(first)]),
+      new Set(discovery.willJoin.map((candidate) => candidate.key)),
+    );
 
     expect(action?.type).toBe('handoff');
     expect(action?.candidate.event.id).toBe('second');
+  });
+
+  it('does not join a due meeting until the global will-join list has shown it', () => {
+    const due = event({
+      id: 'due',
+      startUtc: '2026-07-07T15:59:00Z',
+      endUtc: '2026-07-07T17:00:00Z',
+    });
+    const discovery = discoverAutoJoinMeetings(
+      [due],
+      [matter({})],
+      { outlook: true },
+      new Set(),
+      NOW,
+    );
+
+    expect(nextAutoJoinAction(discovery.willJoin, NOW, false, new Set(), new Set())).toBeNull();
+    expect(
+      nextAutoJoinAction(
+        discovery.willJoin,
+        NOW,
+        false,
+        new Set(),
+        new Set([autoJoinOccurrenceKey(due)]),
+      )?.candidate.event.id,
+    ).toBe('due');
+  });
+
+  it('does not double-join after a restart restores the started occurrence key', () => {
+    const due = event({
+      id: 'already-started',
+      startUtc: '2026-07-07T15:59:00Z',
+      endUtc: '2026-07-07T17:00:00Z',
+    });
+    const discovery = discoverAutoJoinMeetings(
+      [due],
+      [matter({})],
+      { outlook: true },
+      new Set(),
+      NOW,
+    );
+
+    expect(
+      nextAutoJoinAction(
+        discovery.willJoin,
+        NOW,
+        false,
+        new Set([autoJoinOccurrenceKey(due)]),
+        new Set([autoJoinOccurrenceKey(due)]),
+      ),
+    ).toBeNull();
+  });
+
+  it('does not join a cancelled meeting after the fresh calendar check reports cancellation', () => {
+    const cancelled = {
+      ...event({
+        id: 'cancelled-after-local-cache',
+        startUtc: '2026-07-07T15:59:00Z',
+        endUtc: '2026-07-07T17:00:00Z',
+      }),
+      isCancelled: true,
+    } as CalendarEventDto;
+    const discovery = discoverAutoJoinMeetings(
+      [cancelled],
+      [matter({})],
+      { outlook: true },
+      new Set(),
+      NOW,
+    );
+
+    expect(discovery.willJoin).toEqual([]);
+    expect(discovery.skipped[0]?.reason).toBe('cancelled');
+    expect(nextAutoJoinAction(discovery.willJoin, NOW, false, new Set(), new Set())).toBeNull();
   });
 });

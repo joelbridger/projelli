@@ -3,6 +3,8 @@ import type { CalendarProviderId } from '@/platform/utils/calendar-commands';
 
 const PREFS_KEY = 'lantern:meetings:auto-join:calendar-prefs';
 const DISABLED_KEY = 'lantern:meetings:auto-join:disabled-events';
+const PRESENTED_KEY = 'lantern:meetings:auto-join:presented-events';
+const STARTED_KEY = 'lantern:meetings:auto-join:started-events';
 const SETTINGS_EVENT = 'lantern:meetings:auto-join:settings-changed';
 
 export type AutoJoinCalendarPrefs = Partial<Record<CalendarProviderId, boolean>>;
@@ -41,6 +43,33 @@ export function setAutoJoinEventDisabled(eventKey: string, disabled: boolean): v
   if (disabled) next.add(eventKey);
   else next.delete(eventKey);
   writeJson(DISABLED_KEY, [...next].sort());
+}
+
+export function readPresentedAutoJoinOccurrenceKeys(): Set<string> {
+  return new Set(readJson<string[]>(PRESENTED_KEY, []));
+}
+
+export function markAutoJoinOccurrencesPresented(keys: Iterable<string>): void {
+  const next = readPresentedAutoJoinOccurrenceKeys();
+  let changed = false;
+  for (const key of keys) {
+    if (!key || next.has(key)) continue;
+    next.add(key);
+    changed = true;
+  }
+  if (changed) writeJson(PRESENTED_KEY, [...next].sort());
+}
+
+export function readStartedAutoJoinOccurrenceKeys(): Set<string> {
+  return new Set(readJson<string[]>(STARTED_KEY, []));
+}
+
+export function markAutoJoinOccurrenceStarted(key: string): void {
+  if (!key) return;
+  const next = readStartedAutoJoinOccurrenceKeys();
+  if (next.has(key)) return;
+  next.add(key);
+  writeJson(STARTED_KEY, [...next].sort());
 }
 
 export function useAutoJoinCalendarPrefs(): AutoJoinCalendarPrefs {

@@ -387,7 +387,7 @@ export function CalendarConnect() {
                       Auto-record meetings from {PROVIDER_LABEL[id]}
                     </span>
                     <span className="mt-0.5 block text-slate-500">
-                      Only matched Teams or Zoom meetings with a join link. You can turn off any single meeting before it starts.
+                      Teams and Zoom only. Google Meet is shown for prep, but will not auto-record yet. You can turn off any single meeting before it starts.
                     </span>
                   </span>
                 </label>

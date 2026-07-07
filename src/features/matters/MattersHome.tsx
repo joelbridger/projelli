@@ -47,7 +47,6 @@ import {
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
-import { AutoJoinMeetingsPanel } from '@/features/meetings/AutoJoinMeetingsPanel';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import {
   mailIsConnected,
@@ -1018,7 +1017,6 @@ export function MattersHome({
 
       <div style={{ margin: 'var(--kp-surface-gap) var(--kp-gutter) 0' }}>
         <TodaysMeetingsStrip onOpenClient={openHub} />
-        <AutoJoinMeetingsPanel />
       </div>
 
       {/* Toolbar */}

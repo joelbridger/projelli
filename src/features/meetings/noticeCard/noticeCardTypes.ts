@@ -20,12 +20,12 @@
  */
 export type NoticeCardPlatform = 'teams' | 'zoom' | 'meet' | 'other' | 'none';
 
-/** The platforms this build can actually drive a guest join for. */
-export const AUTO_JOIN_PLATFORMS: readonly NoticeCardPlatform[] = ['teams', 'zoom'];
+/** The platforms this build can actually drive as a guest. Google Meet is detected, but deliberately excluded. */
+export const AUTO_JOIN_PLATFORMS: readonly Extract<NoticeCardPlatform, 'teams' | 'zoom'>[] = ['teams', 'zoom'];
 
 /** True when we ship a join adapter for this platform (Teams, Zoom). */
 export function canAutoJoin(platform: NoticeCardPlatform): boolean {
-  return AUTO_JOIN_PLATFORMS.includes(platform);
+  return (AUTO_JOIN_PLATFORMS as readonly NoticeCardPlatform[]).includes(platform);
 }
 
 /**
