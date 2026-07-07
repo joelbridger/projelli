@@ -339,6 +339,7 @@ export function AppSurfaceRouter({
       onCreateFile={handleCreateFile}
       onCreateFolder={handleCreateFolder}
       onRename={handleRename}
+      onRenameFile={handleRenameWithName}
       onDelete={handleDelete}
       onMove={handleMove}
       onDownload={handleDownload}

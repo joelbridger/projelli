@@ -392,7 +392,10 @@
     },
     "tab-bar": {
       "files-in-group": "Files in group",
-      "close-other-tabs": "Close other tabs"
+      "close-other-tabs": "Close other tabs",
+      "rename-group": "Rename group",
+      "ungroup": "Ungroup",
+      "close-group": "Close group"
     },
     "tab-group-manager": {
       "title": "Manage Tab Groups",

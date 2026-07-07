@@ -298,6 +298,7 @@ export function PlainRun({
 }) {
   const fmt = useMemo(() => parseRunFormat(run.propertiesXml), [run.propertiesXml]);
   const { style, underline, strike } = runFormatToStyle(fmt);
+  const isEmptyEditableRun = editable && run.text.length === 0;
   // Combine underline + strike into a single CSS decoration value (inline, so we
   // don't depend on specific Tailwind utility classes being present).
   const decorationLine = [underline && 'underline', strike && 'line-through']
@@ -353,6 +354,14 @@ export function PlainRun({
       style={{
         ...style,
         ...(decorationLine ? { textDecorationLine: decorationLine } : {}),
+        ...(isEmptyEditableRun
+          ? {
+              display: 'inline-block',
+              minWidth: '1ch',
+              minHeight: '1em',
+              verticalAlign: 'baseline',
+            }
+          : {}),
         whiteSpace: 'pre-wrap',
         outline: 'none',
       }}

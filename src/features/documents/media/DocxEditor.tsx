@@ -27,7 +27,7 @@
 // returned DOM through `applyResolvedDocument`. `onDocumentChange` is exposed so
 // a parent (or A4) can observe the live DOM.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
@@ -112,6 +112,7 @@ import {
   updateDocxSaveState,
 } from '@/platform/fs/docxSaveRegistry';
 import { openDocxSession, type DocxSession } from '@/platform/fs/docxSaveSession';
+import { useEditorStore } from '@/platform/state/editorStore';
 
 const SAVE_DEBOUNCE_MS = 1200;
 
@@ -273,6 +274,39 @@ function foldLiveRunTextIntoDoc(
   return next;
 }
 
+function placeCaretAtEnd(element: HTMLElement): void {
+  element.focus();
+  const selection = window.getSelection?.();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function findNearestEditableRun(container: HTMLElement, clientX = 0, clientY = 0): HTMLElement | null {
+  const runs = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-testid="docx-run"][contenteditable="true"]'),
+  );
+  if (runs.length === 0) return null;
+  let best = runs[0] ?? null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (const run of runs) {
+    const rect = run.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const dx = clientX - centerX;
+    const dy = clientY - centerY;
+    const distance = dx * dx + dy * dy;
+    if (distance < bestDistance) {
+      best = run;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
 /**
  * Cleanup batch 4 (task #24) — Codex review catches, 4 rounds: a filePath
  * change (unlike a true unmount) can leave a run FOCUSED and un-blurred (a
@@ -329,6 +363,8 @@ export function DocxEditor({
   outboundBlockedReason,
 }: DocxEditorProps) {
   const { t } = useTranslation();
+  const pendingDocxFocusPath = useEditorStore((s) => s.pendingDocxFocusPath);
+  const setPendingDocxFocusPath = useEditorStore((s) => s.setPendingDocxFocusPath);
   // E3: a meeting note that hasn't cleared review can't leave the app.
   const outboundBlocked = Boolean(outboundBlockedReason);
 
@@ -415,6 +451,7 @@ export function DocxEditor({
   // Latest `attemptSave`, so the registry's flush closure (registered ONCE per
   // path) always calls the current save without re-registering on every render.
   const attemptSaveRef = useRef<((doc: DocumentJson) => Promise<boolean>) | null>(null);
+  const pageRef = useRef<HTMLDivElement | null>(null);
   // False once this editor has unmounted — guards the retry loop so a save that
   // was in flight at unmount can't schedule a NEW retry against a torn-down
   // component (which would setState after unmount and could rewrite a file the
@@ -617,6 +654,23 @@ export function DocxEditor({
 
   const canEdit = Boolean(filePath) && isDocxEngineAvailable();
 
+  const handlePageClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!canEdit) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          '[contenteditable="true"], [contenteditable="false"], button, a, input, textarea, select, [data-testid="docx-raw-block"], [data-testid="docx-raw-inline"], img, table',
+        )
+      ) {
+        return;
+      }
+      const run = findNearestEditableRun(event.currentTarget, event.clientX, event.clientY);
+      if (run) placeCaretAtEnd(run);
+    },
+    [canEdit],
+  );
+
   // ---- Load the DOM from disk via the engine -----------------------------
   useEffect(() => {
     let cancelled = false;
@@ -709,6 +763,18 @@ export function DocxEditor({
       cancelled = true;
     };
   }, [canEdit, filePath, coedit, commitActiveRunEdit]);
+
+  useEffect(() => {
+    if (load.status !== 'ready') return;
+    if (!filePath || pendingDocxFocusPath !== filePath) return;
+    const id = requestAnimationFrame(() => {
+      const page = pageRef.current;
+      const run = page ? findNearestEditableRun(page) : null;
+      if (run) placeCaretAtEnd(run);
+      setPendingDocxFocusPath(null);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [load.status, filePath, pendingDocxFocusPath, setPendingDocxFocusPath]);
 
   // ---- QA-81: steady-state periodic autosave of LIVE (un-blurred) typing ---
   // A focused keystroke lives only in the run's contentEditable DOM until the
@@ -2244,8 +2310,10 @@ export function DocxEditor({
           className="min-w-0 flex-1 overflow-auto bg-[#f3f4f6] px-6 py-8"
         >
           <div
+            ref={pageRef}
             data-testid="docx-page"
             className="mx-auto max-w-[816px] rounded-sm bg-white px-[96px] py-[72px] shadow-sm ring-1 ring-black/5"
+            onClick={handlePageClick}
             style={{
               // Word-like default body type. Page is 8.5in @ 96dpi = 816px,
               // 1in margins = 96px. Keeps letterhead spacing familiar.

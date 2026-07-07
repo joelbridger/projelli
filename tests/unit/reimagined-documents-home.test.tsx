@@ -1,8 +1,8 @@
 /**
- * DocumentsHome — unit tests (R4: "Files" pinned tab + grid model)
+ * DocumentsHome — unit tests (vertical left rail + grid model)
  *
  * Covers:
- *  1. Unified tab strip: pinned "Files" tab renders + is selected by default
+ *  1. Vertical rail: pinned "Files" entry renders + is selected by default
  *  2. DocumentGridView renders when "Files" tab is active (no left column)
  *  3. Opening a file tab adds it to the strip and switches to editor view
  *  4. Clicking "Files" tab returns to the grid
@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, createEvent } from '@testing-library/react';
 import { DocumentsHome, type DocumentsHomeProps } from '@/features/documents/DocumentsHome';
 import type { FileNode } from '@/platform/types/workspace';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
@@ -76,17 +76,69 @@ vi.mock('@/platform/fs/workspaceStore', () => ({
 
 // Editor store mock — default: no active tab (no file open)
 let mockActiveTabPath: string | null = null;
-let mockOpenTabs: Array<{ path: string; name: string; type?: string; isDirty?: boolean }> = [];
+let mockOpenTabs: Array<{
+  path: string;
+  name: string;
+  type?: string;
+  isDirty?: boolean;
+  groupId?: string | null;
+}> = [];
+let mockTabGroups: Array<{ id: string; name: string; color?: string; collapsed?: boolean }> = [];
+let mockLastOpenRequest: { path: string; seq: number } | null = null;
 const mockSetActiveTab = vi.fn();
 const mockCloseTab = vi.fn();
+const mockReorderTabs = vi.fn();
+const mockCreateTabGroup = vi.fn(() => 'group-1');
+const mockRenameTabGroup = vi.fn();
+const mockDeleteTabGroup = vi.fn();
+const mockToggleGroupCollapsed = vi.fn();
+const mockMoveTabToGroup = vi.fn();
+const mockUngroupTab = vi.fn();
+const mockReorderTabGroups = vi.fn();
+const mockMergeTabGroups = vi.fn();
+const mockReorderInTabBar = vi.fn();
+const mockSetPendingRenamePath = vi.fn();
+const mockSetPendingGroupRenameId = vi.fn();
+
+function getMockEditorState() {
+  return {
+    activeTabPath: mockActiveTabPath,
+    openTabs: mockOpenTabs,
+    tabGroups: mockTabGroups,
+    lastOpenRequest: mockLastOpenRequest,
+    setActiveTab: mockSetActiveTab,
+    closeTab: mockCloseTab,
+    reorderTabs: mockReorderTabs,
+    createTabGroup: mockCreateTabGroup,
+    renameTabGroup: mockRenameTabGroup,
+    deleteTabGroup: mockDeleteTabGroup,
+    toggleGroupCollapsed: mockToggleGroupCollapsed,
+    moveTabToGroup: mockMoveTabToGroup,
+    ungroupTab: mockUngroupTab,
+    reorderTabGroups: mockReorderTabGroups,
+    mergeTabGroups: mockMergeTabGroups,
+    reorderInTabBar: mockReorderInTabBar,
+    pendingRenamePath: null,
+    setPendingRenamePath: mockSetPendingRenamePath,
+    pendingGroupRenameId: null,
+    setPendingGroupRenameId: mockSetPendingGroupRenameId,
+  };
+}
 
 vi.mock('@/platform/state/editorStore', () => ({
-  useEditorStore: (selector: (s: object) => unknown) =>
+  useEditorStore: Object.assign(
+    (selector?: (s: object) => unknown) => {
+      const state = getMockEditorState();
+      return typeof selector === 'function' ? selector(state) : state;
+    },
+    { getState: getMockEditorState },
+  ),
+}));
+
+vi.mock('@/platform/settings/settingsStore', () => ({
+  useSettingsStore: (selector: (s: object) => unknown) =>
     selector({
-      activeTabPath: mockActiveTabPath,
-      openTabs: mockOpenTabs,
-      setActiveTab: mockSetActiveTab,
-      closeTab: mockCloseTab,
+      getSetting: () => 'scroll',
     }),
 }));
 
@@ -173,11 +225,21 @@ function buildDefaultProps(overrides: Partial<DocumentsHomeProps> = {}): Documen
   };
 }
 
+function documentsTabTestId(path: string): string {
+  return `documents-tab-${path.replace(/[^a-zA-Z0-9_-]+/g, '-')}`;
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
-// ── Unified tab strip ──────────────────────────────────────────────────────
+beforeEach(() => {
+  mockTabGroups = [];
+  mockLastOpenRequest = null;
+  vi.clearAllMocks();
+});
 
-describe('DocumentsHome — unified tab strip (R4)', () => {
+// ── Vertical tab rail ──────────────────────────────────────────────────────
+
+describe('DocumentsHome — vertical tab rail', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
@@ -190,16 +252,239 @@ describe('DocumentsHome — unified tab strip (R4)', () => {
     expect(screen.getByTestId('documents-split')).toBeTruthy();
   });
 
-  it('renders a unified tab strip', () => {
+  it('renders a vertical tab rail', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('documents-tab-strip')).toBeTruthy();
+    expect(screen.getByTestId('documents-tab-strip')).toHaveAttribute('aria-orientation', 'vertical');
   });
 
-  it('shows a pinned "Files" tab as the first tab', () => {
+  it('shows a pinned "Files" entry as the first rail item', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    // "Files" chip must be present in the tab strip
-    const strip = screen.getByTestId('documents-tab-strip');
-    expect(strip.textContent).toContain('Files');
+    const rail = screen.getByTestId('documents-tab-strip');
+    const tabs = Array.from(rail.querySelectorAll('[role="tab"]'));
+    expect(tabs[0]?.textContent).toContain('Files');
+    expect(screen.getByTestId('documents-files-tab')).toBe(tabs[0]);
+  });
+
+  it('keeps the pinned "Files" tab out of drag and group operations', () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file' },
+    ];
+
+    render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+
+    const filesTab = screen.getByTestId('documents-files-tab');
+    expect(filesTab.getAttribute('draggable')).not.toBe('true');
+
+    const docTab = screen.getByTestId(documentsTabTestId('/workspace/Brief.md'));
+    const dt = makeDataTransfer();
+    fireEvent.dragStart(docTab, { dataTransfer: dt });
+    fireEvent.dragOver(filesTab, { dataTransfer: dt });
+    fireEvent.drop(filesTab, { dataTransfer: dt });
+
+    expect(mockCreateTabGroup).not.toHaveBeenCalled();
+    expect(mockMoveTabToGroup).not.toHaveBeenCalled();
+    expect(mockReorderInTabBar).not.toHaveBeenCalled();
+  });
+
+  it('dragging one document tab onto another creates a real tab group', () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file' },
+    ];
+
+    render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+
+    const briefTab = screen.getByTestId(documentsTabTestId('/workspace/Brief.md'));
+    const evidenceTab = screen.getByTestId(documentsTabTestId('/workspace/Evidence.pdf'));
+    const dt = makeDataTransfer();
+
+    fireEvent.dragStart(briefTab, { dataTransfer: dt });
+    fireEvent.dragOver(evidenceTab, { dataTransfer: dt, clientX: 0 });
+    fireEvent.drop(evidenceTab, { dataTransfer: dt, clientX: 0 });
+
+    expect(mockCreateTabGroup).toHaveBeenCalledWith('Group 1', [
+      '/workspace/Brief.md',
+      '/workspace/Evidence.pdf',
+    ]);
+    expect(mockSetPendingGroupRenameId).toHaveBeenCalledWith('group-1');
+  });
+
+  it('uses the drop position, not stale hover state, when dropping one group on another edge', () => {
+    mockActiveTabPath = '/workspace/Group 1.md';
+    mockTabGroups = [
+      { id: 'group-1', name: 'Group 1', collapsed: false },
+      { id: 'group-2', name: 'Group 2', collapsed: false },
+    ];
+    mockOpenTabs = [
+      { path: '/workspace/Loose A.md', name: 'Loose A.md', type: 'file', groupId: null },
+      { path: '/workspace/Group 1.md', name: 'Group 1.md', type: 'file', groupId: 'group-1' },
+      { path: '/workspace/Loose B.md', name: 'Loose B.md', type: 'file', groupId: null },
+      { path: '/workspace/Group 2.md', name: 'Group 2.md', type: 'file', groupId: 'group-2' },
+    ];
+
+    const { container } = render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    const sourceGroup = container.querySelector<HTMLElement>('[data-group-id="group-2"]');
+    const targetGroup = container.querySelector<HTMLElement>('[data-group-id="group-1"]');
+    expect(sourceGroup).not.toBeNull();
+    expect(targetGroup).not.toBeNull();
+    if (!sourceGroup || !targetGroup) return;
+
+    targetGroup.getBoundingClientRect = vi.fn(() => ({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 252,
+      bottom: 100,
+      width: 252,
+      height: 100,
+      toJSON: () => ({}),
+    }));
+
+    const dt = makeDataTransfer({ 'text/plain': 'group:group-2' });
+    fireEvent.dragStart(sourceGroup, { dataTransfer: dt });
+    const hoverEvent = createEvent.dragOver(targetGroup, { dataTransfer: dt });
+    Object.defineProperty(hoverEvent, 'clientY', { value: 50 });
+    fireEvent(targetGroup, hoverEvent);
+    const dropEvent = createEvent.drop(targetGroup, { dataTransfer: dt });
+    Object.defineProperty(dropEvent, 'clientY', { value: 5 });
+    fireEvent(targetGroup, dropEvent);
+
+    expect(mockReorderInTabBar).toHaveBeenCalledWith(
+      { type: 'group', id: 'group-2' },
+      { type: 'group', id: 'group-1' },
+      'before',
+    );
+    expect(mockReorderTabGroups).not.toHaveBeenCalled();
+    expect(mockMergeTabGroups).not.toHaveBeenCalled();
+  });
+
+  it('uses a left-rail width instead of the old horizontal strip height', () => {
+    render(<DocumentsHome {...buildDefaultProps()} />);
+
+    expect(screen.getByTestId('documents-tab-strip')).toHaveStyle({
+      width: '252px',
+    });
+  });
+
+  it('external editor-store opens mark the document tab active and scroll it into view vertically', async () => {
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    mockActiveTabPath = null;
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file' },
+    ];
+
+    const { rerender } = render(
+      <DocumentsHome {...buildDefaultProps()} documentsView="browser" />,
+    );
+    expect(screen.getByTestId('documents-files-tab')).toHaveAttribute('aria-selected', 'true');
+
+    mockActiveTabPath = '/workspace/Evidence.pdf';
+    rerender(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+
+    const evidenceTab = await screen.findByTestId(documentsTabTestId('/workspace/Evidence.pdf'));
+    await waitFor(() => {
+      expect(evidenceTab).toHaveAttribute('aria-selected', 'true');
+      expect(scrollSpy).toHaveBeenCalled();
+    });
+    scrollSpy.mockRestore();
+  });
+
+  it('reopening the already-active document while Files is showing switches back to the editor', async () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+    mockLastOpenRequest = { path: '/workspace/Brief.md', seq: 1 };
+
+    const { rerender } = render(
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId('documents-files-tab'));
+    await waitFor(() => {
+      expect(screen.getByTestId('document-grid-view')).toBeTruthy();
+    });
+
+    mockLastOpenRequest = { path: '/workspace/Brief.md', seq: 2 };
+    rerender(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
+      expect(screen.getByTestId(documentsTabTestId('/workspace/Brief.md'))).toHaveAttribute(
+        'aria-selected',
+        'true',
+      );
+    });
+  });
+
+  it('does not scroll the rail again when the active tab content changes but the layout did not', async () => {
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
+
+    const { rerender } = render(
+      <DocumentsHome {...buildDefaultProps()} documentsView="editor" />,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId(documentsTabTestId('/workspace/Brief.md'))).toBeTruthy();
+    });
+    scrollSpy.mockClear();
+
+    mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file', isDirty: true }];
+    rerender(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    await Promise.resolve();
+
+    expect(scrollSpy).not.toHaveBeenCalled();
+    scrollSpy.mockRestore();
+  });
+
+  it('"Close other tabs" asks about dirty tabs one at a time', async () => {
+    mockActiveTabPath = '/workspace/Brief.md';
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file', isDirty: true },
+      { path: '/workspace/Notes.md', name: 'Notes.md', type: 'file', isDirty: true },
+    ];
+
+    render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    fireEvent.contextMenu(screen.getByTestId(documentsTabTestId('/workspace/Brief.md')));
+    fireEvent.click(screen.getByText('editor.tab-bar.close-other-tabs'));
+
+    expect(await screen.findByText(/Evidence\.pdf.*unsaved changes/i)).toBeTruthy();
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+    await waitFor(() => {
+      expect(mockCloseTab).toHaveBeenCalledWith('/workspace/Evidence.pdf', { discard: true });
+    });
+
+    expect(await screen.findByText(/Notes\.md.*unsaved changes/i)).toBeTruthy();
+    fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
+    await waitFor(() => {
+      expect(mockCloseTab).toHaveBeenCalledWith('/workspace/Notes.md', { discard: true });
+    });
+  });
+
+  it('focused document tabs scroll into view for keyboard users', async () => {
+    const scrollSpy = vi.spyOn(Element.prototype, 'scrollIntoView');
+    mockActiveTabPath = '/workspace/Evidence.pdf';
+    mockOpenTabs = [
+      { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
+      { path: '/workspace/Evidence.pdf', name: 'Evidence.pdf', type: 'file' },
+    ];
+
+    render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
+    const evidenceTab = await screen.findByTestId(documentsTabTestId('/workspace/Evidence.pdf'));
+    scrollSpy.mockClear();
+    fireEvent.focus(evidenceTab);
+
+    expect(scrollSpy).toHaveBeenCalled();
+    scrollSpy.mockRestore();
   });
 
   it('shows the DocumentGridView by default (no file open)', () => {
@@ -209,9 +494,10 @@ describe('DocumentsHome — unified tab strip (R4)', () => {
     expect(screen.queryByTestId('main-panel')).toBeNull();
   });
 
-  it('does NOT show a left column panel', () => {
+  it('shows a left rail beside the file grid', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    expect(screen.queryByTestId('documents-left-panel')).toBeNull();
+    expect(screen.getByTestId('documents-tab-strip')).toBeTruthy();
+    expect(screen.getByTestId('documents-right-panel')).toBeTruthy();
   });
 });
 
@@ -275,7 +561,7 @@ describe('DocumentsHome — file open + editor tab', () => {
 
     await waitFor(() => {
       const strip = screen.getByTestId('documents-tab-strip');
-      expect(strip.textContent).toContain('Brief.md');
+      expect(strip.textContent).toContain('Brief');
     });
   });
 
@@ -402,12 +688,12 @@ describe('DocumentsHome — file open + editor tab', () => {
     );
 
     const strip = screen.getByTestId('documents-tab-strip');
-    expect(strip.textContent).toContain('NDA.docx');
+    expect(strip.textContent).toContain('NDA');
     expect(strip.textContent).not.toContain('secret.docx');
     expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
 
     const ndaTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
-      (el) => el.textContent?.includes('NDA.docx'),
+      (el) => el.textContent?.includes('NDA'),
     );
     expect(ndaTab).toBeTruthy();
     fireEvent.click(ndaTab!);
@@ -897,6 +1183,7 @@ function makeDataTransfer(initial?: Record<string, string>) {
     setData: (type: string, value: string) => { store[type] = value; },
     getData: (type: string) => store[type] ?? '',
     types: Object.keys(store),
+    setDragImage: vi.fn(),
   };
 }
 

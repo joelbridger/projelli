@@ -69,7 +69,9 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
 
 import { TooltipProvider } from '@/ui/tooltip';
 import { DocxEditor } from '@/features/documents/media/DocxEditor';
+import { DocumentBody } from '@/features/documents/media/DocxDocumentView';
 import type { DocumentJson, DocxAiEdit } from '@/platform/types/docx';
+import { useEditorStore } from '@/platform/state/editorStore';
 import { __resetDocxSaveSessions } from '@/platform/fs/docxSaveSession';
 import {
   __resetDocxSaveRegistry,
@@ -92,6 +94,7 @@ import {
 beforeEach(() => {
   __resetDocxSaveSessions();
   __resetDocxSaveRegistry();
+  useEditorStore.getState().clearTabState();
 });
 
 function docWithRevisions(): DocumentJson {
@@ -136,6 +139,36 @@ function docWithRevisions(): DocumentJson {
         initials: 'CR',
       },
     },
+  };
+}
+
+function blankDocWithEmptyRun(): DocumentJson {
+  return {
+    formatVersion: 1,
+    body: [
+      {
+        kind: 'paragraph',
+        inlines: [{ kind: 'run', text: '' }],
+      },
+    ],
+    comments: {},
+  };
+}
+
+function docWithRawInline(): DocumentJson {
+  return {
+    formatVersion: 1,
+    body: [
+      {
+        kind: 'paragraph',
+        inlines: [
+          { kind: 'run', text: 'Editable before ' },
+          { kind: 'raw', xml: '<w:r><w:t>Preserved inline</w:t></w:r>' },
+          { kind: 'run', text: ' editable after' },
+        ],
+      },
+    ],
+    comments: {},
   };
 }
 
@@ -189,6 +222,105 @@ describe('DocxEditor — rendering', () => {
 
     // No raw/preserved blocks: the "[preserved content]" placeholder must be absent.
     expect(screen.queryByTestId('docx-raw-block')).not.toBeInTheDocument();
+  });
+
+  it('blank docx renders an editable, visible first run target', () => {
+    render(
+      <DocumentBody
+        doc={blankDocWithEmptyRun()}
+        reviewing={false}
+        editable
+        activeCommentId={null}
+        onRunEdit={vi.fn()}
+        onActiveRunChange={vi.fn()}
+        onActiveRunInput={vi.fn()}
+        onCommentAnchorClick={vi.fn()}
+      />,
+    );
+
+    const run = screen.getByTestId('docx-run');
+    expect(run).toHaveAttribute('contenteditable', 'true');
+    expect(run).toHaveStyle({ minWidth: '1ch' });
+    run.focus();
+    expect(document.activeElement).toBe(run);
+  });
+
+  it('clicking the blank page focuses the first editable run', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(blankDocWithEmptyRun()) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    const run = await screen.findByTestId('docx-run');
+    fireEvent.click(screen.getByTestId('docx-page'));
+
+    await waitFor(() => {
+      expect(document.activeElement).toBe(run);
+    });
+  });
+
+  it('clicking a preserved raw block does not move the caret into the nearest run', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(docWithRevisions()) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    const run = (await screen.findAllByTestId('docx-run'))[0];
+    const rawBlock = screen.getByTestId('docx-raw-block');
+    fireEvent.click(rawBlock);
+
+    expect(document.activeElement).not.toBe(run);
+  });
+
+  it('clicking a preserved raw inline does not move the caret into the nearest run', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(docWithRawInline()) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    const run = (await screen.findAllByTestId('docx-run'))[0];
+    const rawInline = screen.getByTestId('docx-raw-inline');
+    fireEvent.click(rawInline);
+
+    expect(document.activeElement).not.toBe(run);
+  });
+
+  it('clicking preserved image and table elements does not move the caret into the nearest run', async () => {
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(blankDocWithEmptyRun()) : Promise.resolve(undefined),
+    );
+
+    renderEditor();
+
+    const run = await screen.findByTestId('docx-run');
+    const page = screen.getByTestId('docx-page');
+    const table = document.createElement('table');
+    const img = document.createElement('img');
+    page.append(table, img);
+
+    fireEvent.click(table);
+    expect(document.activeElement).not.toBe(run);
+
+    fireEvent.click(img);
+    expect(document.activeElement).not.toBe(run);
+  });
+
+  it('a freshly created document focuses its first run once', async () => {
+    useEditorStore.getState().setPendingDocxFocusPath('/ws/new.docx');
+    invokeMock.mockImplementation((cmd: string) =>
+      cmd === 'docx_open' ? Promise.resolve(blankDocWithEmptyRun()) : Promise.resolve(undefined),
+    );
+
+    renderEditor('/ws/new.docx');
+
+    const run = await screen.findByTestId('docx-run');
+    await waitFor(() => {
+      expect(document.activeElement).toBe(run);
+    });
+    expect(useEditorStore.getState().pendingDocxFocusPath).toBeNull();
   });
 
   it('opens via docx_open and renders runs, insertions, deletions, comments', async () => {

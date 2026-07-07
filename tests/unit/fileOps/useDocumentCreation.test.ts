@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import i18n from '@/i18n';
 import { useDocumentCreation } from '@/app/fileOps/useDocumentCreation';
+import { useEditorStore } from '@/platform/state/editorStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
 
@@ -74,7 +75,10 @@ function setup(existingFiles?: Set<string>) {
 }
 
 describe('useDocumentCreation — handleCreateDocxAtRoot', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useEditorStore.getState().clearTabState();
+  });
 
   it('seeds the prompt with a REAL non-empty default value (not just a placeholder)', async () => {
     const { result, getLastCall } = setup();
@@ -94,6 +98,14 @@ describe('useDocumentCreation — handleCreateDocxAtRoot', () => {
     expect(svc.writeFileBinary).toHaveBeenCalledTimes(1);
     const [path] = svc.writeFileBinary.mock.calls[0] as [string, ArrayBuffer];
     expect(path).toBe('/workspace/docs/my-document.docx');
+  });
+
+  it('marks the freshly created Word document for one-time editor autofocus', async () => {
+    const { result } = setup();
+    await act(async () => {
+      await result.current.handleCreateDocxAtRoot();
+    });
+    expect(useEditorStore.getState().pendingDocxFocusPath).toBe('/workspace/docs/my-document.docx');
   });
 
   it('the default value is collision-free when "my-document.docx" already exists', async () => {

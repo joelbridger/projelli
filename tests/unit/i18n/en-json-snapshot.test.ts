@@ -52,7 +52,7 @@ describe('en.json structure snapshot', () => {
         "chat": 12,
         "citation": 3,
         "common": 49,
-        "editor": 14,
+        "editor": 17,
         "entity-label": 50,
         "file-import": 3,
         "firm": 143,
@@ -259,7 +259,8 @@ describe('en.json structure snapshot', () => {
     // +34 = MF2/MF3 meeting send + auto-join: reviewed send UI, email
     //       delivery status/log copy, and calendar-driven auto-join panel copy.
     // +2 = FB-F client header: History panel title and close label.
-    expect(flat.length).toBe(1438); // 1429 + 9 (send-defaults recipient groups)
+    // +3 = Documents vertical rail: group rename, ungroup, and close-group menu labels.
+    expect(flat.length).toBe(1441); // 1429 + 9 (send-defaults recipient groups) + 3 (documents rail group menu)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

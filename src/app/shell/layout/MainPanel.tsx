@@ -161,13 +161,6 @@ interface MainPanelProps {
    * strip. Without this the Documents surface would show two tab bars.
    */
   hideTabBar?: boolean;
-  /**
-   * Lets DocumentsHome place its pinned Files chip + scoped document tabs in
-   * the same header row as MainPanel's save state and file actions.
-   */
-  tabBarSlot?: React.ReactNode;
-  /** Hide the separate file-title strip when the tab row already carries title. */
-  hideTitleHeader?: boolean;
 }
 
 export function MainPanel({
@@ -193,8 +186,6 @@ export function MainPanel({
   workflowProviderError,
   onOpenSettings,
   hideTabBar = false,
-  tabBarSlot,
-  hideTitleHeader = false,
 }: MainPanelProps = {}) {
   const { t } = useTranslation();
   // Perf (P1.2): exact-data-only selector. The old bare `useEditorStore()`
@@ -1026,7 +1017,7 @@ export function MainPanel({
         {/* File title display with the same colored file-type icon shown
             in the file tree + tab bar, so the active file's identity is
             consistent across every surface. */}
-        {!hideTitleHeader && tab.path !== '__grid_view__' && (() => {
+        {tab.path !== '__grid_view__' && (() => {
           const ext = tab.name.split('.').pop()?.toLowerCase();
           const { Icon, color } = getFileIcon(ext);
           const isEditing = titleEditingPath === tab.path;
@@ -1186,18 +1177,14 @@ export function MainPanel({
         data-compact={isToolbarCompact ? 'true' : 'false'}
         className="flex items-center border-b min-w-0 w-full"
       >
-        {tabBarSlot ? (
-          <div className="flex-1 min-w-0 w-0 overflow-hidden">
-            {tabBarSlot}
-          </div>
-        ) : !hideTabBar ? (
+        {!hideTabBar ? (
           <div className="flex-1 min-w-0 w-0 overflow-hidden">
             <TabBar {...(onRename ? { onRenameFile: onRename } : {})} />
           </div>
         ) : (
           <div className="flex-1 min-w-0" />
         )}
-        <div className={cn('flex items-center gap-1 px-2', (tabBarSlot || !hideTabBar) && 'border-l')}>
+        <div className={cn('flex items-center gap-1 px-2', !hideTabBar && 'border-l')}>
           {/*
             UX-17: reactive auto-save indicator. Shows "Saved · Ns ago"
             when clean, "Unsaved changes" when dirty, and updates every

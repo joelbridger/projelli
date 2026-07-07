@@ -109,6 +109,7 @@
   --kp-card-pad: var(--kp-space-lg);                                        /* 24px — padding inside cards / panels */
   --kp-section-gap: var(--kp-space-xl);                                     /* 32px — vertical space between major sections */
   --kp-stack-gap: var(--kp-space-md);                                       /* 16px — vertical space between stacked, related items */
+  --kp-tab-strip-height: 46px;                                               /* document/editor tabs — roomy enough for icons, dirty dots, and drag affordances */
 
   /* ---- Typography (Satoshi). Primitive sizes + weights + line-heights.
      Semantic roles (docs/design/DESIGN-SYSTEM-EXPANSION.md): title=2xl/bold,
