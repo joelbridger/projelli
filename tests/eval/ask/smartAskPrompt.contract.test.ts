@@ -26,7 +26,7 @@ describe('buildSmartAskSystemPrompt', () => {
       hasEvidence: true,
     });
     const order = [
-      'scoped to this client or matter: "Webb Household"',
+      'scoped to this client: "Webb Household"',
       SMART_ASK_INSTRUCTIONS.role,
       SMART_ASK_INSTRUCTIONS.blocks,
       SMART_ASK_INSTRUCTIONS.files,

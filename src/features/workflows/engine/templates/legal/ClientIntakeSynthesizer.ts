@@ -7,15 +7,15 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'clientName',
     question: 'Prospective client name',
-    description: 'Full name of the prospective client. Used for the conflict check memo and matter summary.',
+    description: 'Full name of the prospective client. Used for the conflict check memo and client summary.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Robert Tran',
   },
   {
     id: 'matterType',
-    question: 'Matter type',
-    description: 'The general area of law this matter falls under. Determines the scope and framing of the preliminary work description.',
+    question: 'Client work type',
+    description: 'The general area of law this client work falls under. Determines the scope and framing of the preliminary work description.',
     type: 'select',
     required: true,
     options: [
@@ -50,7 +50,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
   {
     id: 'matterComplexity',
-    question: 'Initial sense of matter complexity',
+    question: 'Initial sense of client work complexity',
     description: 'Your gut read after the intake call. Used to calibrate the preliminary scope of work.',
     type: 'select',
     required: true,
@@ -60,7 +60,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'potentialConflicts',
     question: 'Potential conflicts to flag (optional)',
-    description: 'Any parties, entities, or relationships mentioned by the prospective client that might create a conflict with existing clients or matters. Leave blank if none are obvious — the conflict check memo will prompt a broader search regardless.',
+    description: 'Any parties, entities, or relationships mentioned by the prospective client that might create a conflict with existing clients or client files. Leave blank if none are obvious — the conflict check memo will prompt a broader search regardless.',
     type: 'textarea',
     required: false,
     placeholder: 'e.g., Opposing party David Kowalski — check if we have represented him or his other companies. The LLC name is Kowalski-Tran Ventures LLC. The client mentioned their accountant is Linda Park — check if she is a client.',
@@ -70,7 +70,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
 const intakeSynthesizerPrompt = `You are assisting a licensed attorney in synthesizing notes from a new client intake call into a structured set of working documents. You are not providing legal advice — you are helping the attorney organize the information they gathered so they can make informed decisions about engagement, conflicts, and scope.
 
 Prospective client: {{clientName}}
-Matter type: {{matterType}}
+Client work type: {{matterType}}
 Referral source: {{howTheyFoundYou}}
 Complexity assessment: {{matterComplexity}}
 Potential conflicts noted: {{potentialConflicts}}
@@ -80,20 +80,20 @@ Intake call notes:
 
 Produce a single Markdown file containing three documents, clearly separated. At the top, include the draft notice.
 
-> **Draft document** — Review and edit before use in any matter.
+> **Draft document** — Review and edit before use in any client work.
 
 ---
 
 # Client Intake Summary Package
 **Prospective client:** {{clientName}}
-**Matter type:** {{matterType}}
+**Client work type:** {{matterType}}
 **Referral source:** {{howTheyFoundYou}}
 **Complexity:** {{matterComplexity}}
 **Prepared for attorney review:** [date]
 
 ---
 
-## Document 1: Matter Summary
+## Document 1: Client Summary
 
 Synthesize the intake notes into a clear, organized narrative of the client's situation. Structure it as the attorney would want to read it — not as a transcript of the call, but as a coherent account of the facts, what the client wants, and what the legal issues appear to be.
 
@@ -123,14 +123,14 @@ Synthesize the intake notes into a clear, organized narrative of the client's si
 
 ### Part A: Conflict Check Record
 
-Use this table as your conflict-check record for the matter file. Fill in the "Result" column after running each search in your conflict system.
+Use this table as your conflict-check record for the client file. Fill in the "Result" column after running each search in your conflict system.
 
-| Name to Check | Relationship to Matter | Why to Check | Result (fill in) |
+| Name to Check | Relationship to Client Work | Why to Check | Result (fill in) |
 |---------------|----------------------|--------------|-----------------|
 | {{clientName}} | Prospective client | Direct representation conflict | |
 | [Opposing party from notes] | Adverse party | Adverse party conflict | |
 | [Any related entity (LLC, employer, etc.) from notes] | Related entity | Entity-level conflict; check all members/officers | |
-| [Any other individual named in the matter from notes] | Third party | Witness, co-claimant, or other involvement | |
+| [Any other individual named in the client work from notes] | Third party | Witness, co-claimant, or other involvement | |
 | [Referral source if named] | Referral source | Referral source may itself be a current or former client | |
 
 Populate additional rows for every party, entity, and individual mentioned during the intake call. When in doubt, add the row -- over-checking is always safer than under-checking.
@@ -148,15 +148,15 @@ Copy and adapt these for your conflict system (Clio, Lawmatics, manual index, or
 
 Adjust terms to match how your system indexes names. Run each search separately; don't combine into one query.
 
-### Part C: Related Matter Types to Check
-[Based on the matter description, list practice areas or entity types that may surface related conflicts -- e.g., if the matter involves an LLC, check all matters involving that LLC and its principals]
+### Part C: Related Client Work Types to Check
+[Based on the client work description, list practice areas or entity types that may surface related conflicts -- e.g., if the client work involves an LLC, check all client files involving that LLC and its principals]
 
 ### Part D: Checklist Before Engaging
 - [ ] Searched conflict database for prospective client name and variants
 - [ ] Searched conflict database for all adverse parties named during intake
 - [ ] Searched conflict database for referral source (if named)
 - [ ] Reviewed results and identified no disqualifying conflicts
-- [ ] Completed the conflict-check record table above and placed it in the matter file
+- [ ] Completed the conflict-check record table above and placed it in the client file
 - [ ] [Any specific flags that surfaced during intake -- from potentialConflicts field]
 
 > Conflict checks must be run against your actual conflicts database. This output is a starting point for organizing the check, not a substitute for running it.
@@ -166,12 +166,12 @@ Adjust terms to match how your system indexes names. Run each search separately;
 ## Document 3: Preliminary Scope of Work
 
 ### What This Engagement Would Likely Cover
-Based on the matter description and complexity assessment, a {{matterType}} engagement of {{matterComplexity}} complexity would typically include:
+Based on the client work description and complexity assessment, a {{matterType}} engagement of {{matterComplexity}} complexity would typically include:
 
 [List the primary tasks and phases — e.g., initial case assessment, demand letter, filing, discovery, motion practice, trial prep. Calibrate to the stated complexity level. Flag anything that is speculative given the early stage.]
 
 ### What Is Likely Out of Scope
-[List anything the client mentioned or implied that falls outside typical scope for this matter type, or that would require a separate engagement or referral]
+[List anything the client mentioned or implied that falls outside typical scope for this client work type, or that would require a separate engagement or referral]
 
 ### Questions to Resolve Before Committing to Full Scope
 - [Question 1 — e.g., "Review operating agreement to assess breach of fiduciary duty claim"]
@@ -191,7 +191,7 @@ Based on the matter description and complexity assessment, a {{matterType}} enga
 export const ClientIntakeSynthesizer: WorkflowTemplate = {
   id: 'legal-client-intake-synthesizer',
   name: 'Client Intake Synthesizer',
-  description: 'Synthesizes new client intake call notes into three structured documents in one file: a Matter Summary, a Conflict Check Memo with parties to search, and a Preliminary Scope of Work with next steps.',
+  description: 'Synthesizes new client intake call notes into three structured documents in one file: a Client Summary, a Conflict Check Memo with parties to search, and a Preliminary Scope of Work with next steps.',
   version: '1.0.0',
   category: 'legal',
   requiresVerification: true,
@@ -201,7 +201,7 @@ export const ClientIntakeSynthesizer: WorkflowTemplate = {
       id: 'interview',
       type: 'interview',
       name: 'Intake Call Information',
-      description: 'Paste your intake call notes and provide basic matter information',
+      description: 'Paste your intake call notes and provide basic client information',
       config: {
         questions: interviewQuestions,
       } as InterviewStepConfig,
@@ -210,18 +210,18 @@ export const ClientIntakeSynthesizer: WorkflowTemplate = {
       id: 'generate-intake-package',
       type: 'generate',
       name: 'Generate Intake Package',
-      description: 'Synthesize into Matter Summary, Conflict Check Memo, and Preliminary Scope of Work',
+      description: 'Synthesize into Client Summary, Conflict Check Memo, and Preliminary Scope of Work',
       config: {
         outputFile: 'CLIENT_INTAKE_PACKAGE.docx',
         promptTemplate: intakeSynthesizerPrompt,
-        systemPrompt: 'You are a legal practice management assistant helping a licensed attorney process a new client intake. You synthesize rough notes into clear, organized documents the attorney can act on. You are careful to frame legal issues as "issues to research" rather than conclusions, and you never give legal advice. For the conflict check memo, you produce two things: (1) a structured conflict-check record table with columns for Name to Check, Relationship to Matter, Why to Check, and Result (fill in) -- pre-populated with every party, entity, and individual mentioned in the intake notes, not just the obvious ones; and (2) Boolean search strings the attorney can copy into their conflict system. You err on the side of over-populating the table -- it is better to check one extra name than to miss a real conflict. Your scope of work descriptions are realistic and calibrated to the complexity level provided.',
+        systemPrompt: 'You are a legal practice management assistant helping a licensed attorney process a new client intake. You synthesize rough notes into clear, organized documents the attorney can act on. You are careful to frame legal issues as "issues to research" rather than conclusions, and you never give legal advice. For the conflict check memo, you produce two things: (1) a structured conflict-check record table with columns for Name to Check, Relationship to Client Work, Why to Check, and Result (fill in) -- pre-populated with every party, entity, and individual mentioned in the intake notes, not just the obvious ones; and (2) Boolean search strings the attorney can copy into their conflict system. You err on the side of over-populating the table -- it is better to check one extra name than to miss a real conflict. Your scope of work descriptions are realistic and calibrated to the complexity level provided.',
       } as GenerateStepConfig,
     },
   ],
   requiredInputs: [],
   outputs: ['CLIENT_INTAKE_PACKAGE.docx'],
   namedOutputs: [
-    { id: 'matter_summary', name: 'Matter summary', schema: 'string' },
+    { id: 'matter_summary', name: 'Client summary', schema: 'string' },
     { id: 'conflict_search_terms', name: 'Conflict search parameters', schema: 'array' },
     { id: 'next_steps', name: 'Suggested next steps', schema: 'array' },
   ],

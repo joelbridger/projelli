@@ -62,6 +62,7 @@ export interface EgressIndicatorProps {
   assuredAvailable?: boolean;
   variant?: 'full' | 'compact' | 'status';
   className?: string;
+  onClick?: (() => void) | undefined;
 }
 
 const SEVERITY_STYLES: Record<EgressInfo['severity'], string> = {
@@ -167,6 +168,7 @@ export function EgressIndicator({
   assuredAvailable = false,
   variant = 'full',
   className,
+  onClick,
 }: EgressIndicatorProps) {
   const view = useEgressView(provider, mode, assuredAvailable);
 
@@ -183,6 +185,34 @@ export function EgressIndicator({
       // Short pill (the demo Ask header badge). Full truth stays in the tooltip
       // + the data-* attributes, so this is still the inspectable indicator.
       const shortLabel = disconnected ? 'No AI connected' : 'Checking…';
+      const statusClassName = cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
+        pendingStyles,
+        onClick && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        className,
+      );
+      const content = (
+        <>
+          <NeutralIcon className={cn('h-3.5 w-3.5 shrink-0', pulse)} aria-hidden />
+          <span data-testid="egress-indicator-label">{shortLabel}</span>
+        </>
+      );
+      if (onClick) {
+        return (
+          <button
+            type="button"
+            onClick={onClick}
+            data-testid="egress-indicator"
+            data-destination={destination}
+            data-data-leaves="false"
+            aria-label={`${shortLabel}. Open AI options`}
+            title={`${view.label}. ${view.note}`}
+            className={statusClassName}
+          >
+            {content}
+          </button>
+        );
+      }
       return (
         <div
           data-testid="egress-indicator"
@@ -190,14 +220,9 @@ export function EgressIndicator({
           data-data-leaves="false"
           role="status"
           title={`${view.label}. ${view.note}`}
-          className={cn(
-            'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
-            pendingStyles,
-            className,
-          )}
+          className={statusClassName}
         >
-          <NeutralIcon className={cn('h-3.5 w-3.5 shrink-0', pulse)} aria-hidden />
-          <span data-testid="egress-indicator-label">{shortLabel}</span>
+          {content}
         </div>
       );
     }
@@ -251,6 +276,35 @@ export function EgressIndicator({
     // Short pill: ONLY "Using local AI" / "Using cloud AI" (demo Ask header).
     // The full honest copy stays in the tooltip + the inspectable data-* attrs.
     const shortLabel = info.destination === 'local' ? 'Using local AI' : 'Using cloud AI';
+    const statusClassName = cn(
+      'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
+      SEVERITY_STYLES[info.severity],
+      onClick && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      className,
+    );
+    const content = (
+      <>
+        <EgressIcon info={info} className="h-3.5 w-3.5 shrink-0" />
+        <span data-testid="egress-indicator-label">{shortLabel}</span>
+      </>
+    );
+    if (onClick) {
+      return (
+        <button
+          type="button"
+          onClick={onClick}
+          data-testid="egress-indicator"
+          data-destination={info.destination}
+          data-severity={info.severity}
+          data-data-leaves={info.dataLeaves ? 'true' : 'false'}
+          aria-label={`${shortLabel}. Open AI options`}
+          title={`${label}. ${note}`}
+          className={statusClassName}
+        >
+          {content}
+        </button>
+      );
+    }
     return (
       <div
         data-testid="egress-indicator"
@@ -259,14 +313,9 @@ export function EgressIndicator({
         data-data-leaves={info.dataLeaves ? 'true' : 'false'}
         role="status"
         title={`${label}. ${note}`}
-        className={cn(
-          'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
-          SEVERITY_STYLES[info.severity],
-          className,
-        )}
+        className={statusClassName}
       >
-        <EgressIcon info={info} className="h-3.5 w-3.5 shrink-0" />
-        <span data-testid="egress-indicator-label">{shortLabel}</span>
+        {content}
       </div>
     );
   }

@@ -20,7 +20,7 @@
 import pricingStrategy from './Sample - Pricing Strategy.md?raw';
 import clientIntake from './Sample - Client Intake.md?raw';
 import weeklyReview from './Sample - Weekly Review.md?raw';
-import matterOverview from './Sample - Matter Overview.md?raw';
+import matterOverview from './Sample - Client Overview.md?raw';
 import clientResearchNote from './Sample - Client Research Note.md?raw';
 import engagementSummary from './Sample - Engagement Summary.md?raw';
 import householdOverview from './Sample - Household Overview.md?raw';
@@ -54,7 +54,7 @@ export const SAMPLE_FILES: SampleFile[] = [
  * consultant sees when they open Advisor Prep Hero should look like their own work.
  */
 const LEGAL_PRIMARY: SampleFile = {
-  filename: 'Sample - Matter Overview.md',
+  filename: 'Sample - Client Overview.md',
   content: matterOverview,
 };
 

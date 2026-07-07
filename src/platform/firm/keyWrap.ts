@@ -61,7 +61,7 @@ import { getDevicePrivateKey } from './deviceKeys';
 
 export class TamperedError extends Error {
   override name = 'TamperedError' as string;
-  constructor(message = 'Matter key blob failed authentication — possible tampering.') {
+  constructor(message = 'Client key blob failed authentication — possible tampering.') {
     super(message);
     this.name = 'TamperedError';
     Object.setPrototypeOf(this, TamperedError.prototype);
@@ -80,7 +80,7 @@ export class TamperedError extends Error {
  * epoch" must do so at a higher layer.
  */
 export class WrongEpochError extends TamperedError {
-  constructor(message = 'Matter key was wrapped under a different epoch.') {
+  constructor(message = 'Client key was wrapped under a different epoch.') {
     super(message);
     this.name = 'WrongEpochError';
     Object.setPrototypeOf(this, WrongEpochError.prototype);

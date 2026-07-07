@@ -15,8 +15,8 @@
  *   4. The data map renders the accurate, plain-English claims.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 
 import {
   resolveEgress,
@@ -244,6 +244,18 @@ describe('EgressIndicator', () => {
     setMode('direct');
     render(<EgressIndicator provider="anthropic" mode="local-only" />);
     expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
+  });
+
+  it('lets the status pill open AI options when clicked', () => {
+    setMode('direct');
+    const onClick = vi.fn();
+    render(<EgressIndicator provider="anthropic" variant="status" onClick={onClick} />);
+
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.textContent).toMatch(/Using cloud AI/i);
+    fireEvent.click(el);
+
+    expect(onClick).toHaveBeenCalledOnce();
   });
 });
 

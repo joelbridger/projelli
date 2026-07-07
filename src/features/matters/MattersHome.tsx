@@ -14,7 +14,7 @@
 import { useEffect, useState, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Briefcase, Lock, Plus, FolderOpen, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
+import { Users, Lock, Plus, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore } from 'lucide-react';
 import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
@@ -24,7 +24,7 @@ import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platfo
 import type { Matter } from '@/platform/types/matter';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
-import { useEntityLabel, type EntityLabel } from '@/platform/hooks/useEntityLabel';
+import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, ToolbarSpacer, SegmentedToggle } from '@/ui/kp';
 import { BookView } from './book/BookView';
@@ -57,7 +57,7 @@ export interface MattersHomeProps {
 
 // ── Sort state ─────────────────────────────────────────────────────────────
 
-type SortKey = 'name' | 'privilege' | 'documents' | 'created';
+type SortKey = 'name' | 'privilege' | 'created';
 type SortDir = 'asc' | 'desc';
 
 interface SortState {
@@ -69,8 +69,8 @@ const DEFAULT_SORT: SortState = { key: 'name', dir: 'asc' };
 
 function matterRowGridColumns(showConfidentialityColumn: boolean): string {
   return showConfidentialityColumn
-    ? 'minmax(0, 1fr) 100px 140px 120px'
-    : 'minmax(0, 1fr) 140px 120px';
+    ? 'minmax(0, 1fr) 100px 120px'
+    : 'minmax(0, 1fr) 120px';
 }
 
 // ── Get Started card ───────────────────────────────────────────────────────
@@ -224,22 +224,6 @@ function GetStartedCard() {
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-/** The "N clients open, M folders indexed. Click a row..." header description,
- *  literal-keyed per count case (i18next plural rules for `count` handle the
- *  1/many split; the surrounding sentence still needs one key per shape). */
-function mattersHeaderDescription(
-  openCount: number,
-  totalFolders: number,
-  entityLabel: EntityLabel,
-  t: TFunction,
-): string {
-  if (openCount === 0) return t('matter.home.header-none', { entityOther: entityLabel.other });
-  const folderSuffix = totalFolders > 0 ? t('matter.home.folder-suffix', { count: totalFolders }) : '';
-  return openCount === 1
-    ? t('matter.home.header-one', { entityOne: entityLabel.one, folderSuffix })
-    : t('matter.home.header-many', { count: openCount, entityOther: entityLabel.other, folderSuffix });
-}
-
 function formatDate(iso: string): string {
   try {
     return new Date(iso).toLocaleDateString('en-US', {
@@ -287,7 +271,6 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
   // The search surface is "Ask"; keep this quick-action consistent.
   const askActionLabel = t('spine.nav.ask');
   const label = matterLabel(matter);
-  const folderCount = matter.folderPaths.length;
   const [hovered, setHovered] = useState(false);
 
   const launchSurface = (surface: MatterSurface, e: React.MouseEvent) => {
@@ -378,21 +361,6 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
             {matter.privileged && <PrivilegePill />}
           </div>
         )}
-
-        {/* Documents / scope */}
-        <div
-          style={{
-            fontSize: 'var(--kp-font-sm)',
-            lineHeight: 'var(--kp-leading-normal)',
-            color: 'var(--color-muted-foreground)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 5,
-          }}
-        >
-          <FolderOpen style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 1.75, flex: 'none' }} />
-          {t('matter.home.folder-count', { count: folderCount })}
-        </div>
 
         {/* Created */}
         <div
@@ -499,7 +467,7 @@ function MattersEmptyState({ entityOne, entityOther }: MattersEmptyStateProps) {
         <GetStartedCard />
       </div>
       <EmptyState
-        icon={Briefcase}
+        icon={Users}
         title={t('matter.home.empty-title', { entityOther })}
         body={t('matter.home.empty-body', { entityOne })}
         actions={
@@ -564,7 +532,6 @@ function sortByAria(column: string, active: boolean, dir: SortDir, t: TFunction)
 
 function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfidentialityColumn, sort, onSort }: TableHeaderProps) {
   const { t } = useTranslation();
-  const documentsLabel = t('matter.hub.tab-documents');
   const createdLabel = t('matter.home.col-created');
   const baseColStyle: React.CSSProperties = {
     padding: '10px 20px 10px 0',
@@ -612,17 +579,6 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
           </button>
         </div>
       )}
-      <div style={baseColStyle}>
-        <button
-          type="button"
-          style={colBtnStyle}
-          onClick={() => { onSort('documents'); }}
-          aria-label={sortByAria(documentsLabel, sort.key === 'documents', sort.dir, t)}
-        >
-          <span className={`kp-eyebrow${sort.key === 'documents' ? ' kp-eyebrow--primary' : ''}`}>{documentsLabel}</span>
-          <SortIndicator col="documents" sort={sort} />
-        </button>
-      </div>
       <div style={baseColStyle}>
         <button
           type="button"
@@ -682,8 +638,6 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
     );
   };
 
-  const openCount = activeMatters.length;
-  const totalFolders = activeMatters.reduce((sum, m) => sum + m.folderPaths.length, 0);
   const showConfidentialityColumn = activeMatters.some((m) => m.privileged);
 
   // If the confidentiality column is hidden, never sort by it. Derive the
@@ -714,8 +668,6 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
         const ap = a.privileged ? 1 : 0;
         const bp = b.privileged ? 1 : 0;
         cmp = bp - ap;
-      } else if (sort.key === 'documents') {
-        cmp = b.folderPaths.length - a.folderPaths.length;
       } else {
         // sort.key === 'created'
         cmp = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -749,9 +701,9 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
   const header = (
     <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)' }}>
       <SurfaceHeader
-        Icon={Briefcase}
+        Icon={Users}
+        iconColor="var(--kp-accent)"
         title={entityLabel.Other}
-        description={mattersHeaderDescription(openCount, totalFolders, entityLabel, t)}
       />
     </div>
   );
@@ -759,9 +711,6 @@ export function MattersHome({ onAuditLog, renderClientDocuments, renderClientEma
   const viewToggle = (
     <>
       <ToolbarSpacer />
-      <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)', fontWeight: 600, marginRight: 2 }}>
-        {t('matter.home.view-label')}
-      </span>
       <SegmentedToggle
         ariaLabel={t('matter.book.view-toggle')}
         variant="filled"

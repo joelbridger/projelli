@@ -10,7 +10,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'practiceArea',
     question: 'Practice area',
-    description: 'The area of law governing this matter. Affects which evidence categories and discovery mechanisms are most relevant.',
+    description: 'The area of law governing this client work. Affects which evidence categories and discovery mechanisms are most relevant.',
     type: 'select',
     required: true,
     options: ['Civil litigation', 'Criminal defense', 'Family law', 'Employment', 'IP', 'Other'],
@@ -19,7 +19,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'caseSummary',
     question: 'Brief case summary',
-    description: 'A few sentences describing the facts and posture of the matter — who the parties are, what happened, and where you are in the litigation.',
+    description: 'A few sentences describing the facts and posture of the client work — who the parties are, what happened, and where you are in the litigation.',
     type: 'textarea',
     required: true,
     placeholder: 'e.g., Plaintiff is a former employee alleging wrongful termination in retaliation for an internal safety complaint. Defendant is a mid-size manufacturer. We represent the plaintiff. Case is in early discovery.',
@@ -70,7 +70,7 @@ Jurisdiction: {{jurisdiction}}
 
 Produce a Markdown evidence gap analysis structured as follows:
 
-> **Draft document** — Review and edit before use in any matter.
+> **Draft document** — Review and edit before use in any client work.
 
 # Evidence Gap Analysis
 **Practice area:** {{practiceArea}}
@@ -160,7 +160,7 @@ export const EvidenceGapAnalyzer: WorkflowTemplate = {
       config: {
         outputFile: 'EVIDENCE_GAP_ANALYSIS.docx',
         promptTemplate: evidenceGapPrompt,
-        systemPrompt: 'You are a legal research assistant helping a licensed attorney map the evidentiary landscape of a matter. You think in terms of elements, burdens, and proof — but you never give legal advice and always frame your output as a starting point for the attorney\'s judgment. You are specific about what is missing and practical about where to look. If the practice area affects the analysis meaningfully, acknowledge how.\n\nEVIDENCE GROUNDING DISCIPLINE: Identify gaps and strengths based on the documents, facts, and evidence the attorney has described. Do not assert that a piece of evidence definitively exists or does not exist without a document basis from the information provided. When you reference legal standards, case law, or statutory requirements to frame the analysis, note that these references must be verified against primary authority before relying on them. Clearly distinguish between observations grounded in the provided record versus general legal knowledge from your training data.',
+        systemPrompt: 'You are a legal research assistant helping a licensed attorney map the evidentiary landscape of client work. You think in terms of elements, burdens, and proof — but you never give legal advice and always frame your output as a starting point for the attorney\'s judgment. You are specific about what is missing and practical about where to look. If the practice area affects the analysis meaningfully, acknowledge how.\n\nEVIDENCE GROUNDING DISCIPLINE: Identify gaps and strengths based on the documents, facts, and evidence the attorney has described. Do not assert that a piece of evidence definitively exists or does not exist without a document basis from the information provided. When you reference legal standards, case law, or statutory requirements to frame the analysis, note that these references must be verified against primary authority before relying on them. Clearly distinguish between observations grounded in the provided record versus general legal knowledge from your training data.',
       } as GenerateStepConfig,
     },
   ],

@@ -47,20 +47,20 @@ describe('getEntityLabel — advisor', () => {
 });
 
 describe('getEntityLabel — legal', () => {
-  it('returns matter/matters', () => {
+  it('returns client/clients', () => {
     const label = getEntityLabel();
-    expect(label.one).toBe('matter');
-    expect(label.other).toBe('matters');
-    expect(label.One).toBe('Matter');
-    expect(label.Other).toBe('Matters');
+    expect(label.one).toBe('client');
+    expect(label.other).toBe('clients');
+    expect(label.One).toBe('Client');
+    expect(label.Other).toBe('Clients');
   });
 
   it('household forms mirror one/other for legal', () => {
     const label = getEntityLabel();
-    expect(label.household).toBe('matter');
-    expect(label.households).toBe('matters');
-    expect(label.Household).toBe('Matter');
-    expect(label.Households).toBe('Matters');
+    expect(label.household).toBe('client');
+    expect(label.households).toBe('clients');
+    expect(label.Household).toBe('Client');
+    expect(label.Households).toBe('Clients');
   });
 
   it('keeps legal privilege language for the internal privileged flag', () => {
@@ -115,11 +115,11 @@ describe('getEntityLabel — other', () => {
     useProfessionStore.setState({ profession: 'other' });
   });
 
-  it('returns matter/matters (safe default)', () => {
+  it('returns client/clients (safe default)', () => {
     const label = getEntityLabel();
-    expect(label.one).toBe('matter');
-    expect(label.household).toBe('matter');
-    expect(label.Households).toBe('Matters');
+    expect(label.one).toBe('client');
+    expect(label.household).toBe('client');
+    expect(label.Households).toBe('Clients');
   });
 });
 

@@ -71,7 +71,6 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
         <SurfaceHeader
           Icon={Lock}
           title="Where your data is"
-          description="How Advisor Prep Hero handles your information and your AI requests, in plain language you can share with a client."
           actions={
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               {/* eslint-disable lantern-i18n/no-hardcoded-string -- trust-document button copy, English-canonical */}

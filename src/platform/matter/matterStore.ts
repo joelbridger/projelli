@@ -517,8 +517,8 @@ function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
         matterId: matter.id,
         matterName: matter.name || matter.client || matter.id,
         detail: granted
-          ? 'external AI tools can read this matter through MCP'
-          : 'external AI tools can no longer read this matter through MCP',
+          ? 'external AI tools can read this client through MCP'
+          : 'external AI tools can no longer read this client through MCP',
       },
     })
   );

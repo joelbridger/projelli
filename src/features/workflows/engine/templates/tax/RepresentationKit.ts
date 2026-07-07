@@ -30,8 +30,8 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
   {
     id: 'matterType',
-    question: 'Matter type',
-    description: 'Describe the nature of the tax matter requiring representation.',
+    question: 'Client work type',
+    description: 'Describe the nature of the tax work requiring representation.',
     type: 'textarea',
     required: true,
     placeholder: 'e.g., Audit of Schedule C deductions; Balance due installment agreement negotiation; Collection alternative (OIC)',
@@ -70,12 +70,12 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   },
 ];
 
-const representationKitPrompt = `You are assisting a licensed tax professional in preparing a representation kit for an IRS matter. You are organizing and drafting documents the practitioner will review before sending to the client or IRS — you are not providing independent legal or tax advice.
+const representationKitPrompt = `You are assisting a licensed tax professional in preparing a representation kit for IRS client work. You are organizing and drafting documents the practitioner will review before sending to the client or IRS — you are not providing independent legal or tax advice.
 
 Client name: {{clientName}}
 TIN (last 4 digits): {{tinMasked}}
 Tax years / periods: {{taxYearsPeriods}}
-Matter type: {{matterType}}
+Client work type: {{matterType}}
 Representative information: {{representativeInfo}}
 CAF number status: {{cafStatus}}
 Form 8821 needed: {{form8821Needed}}
@@ -88,7 +88,7 @@ Produce a representation kit in Markdown. Begin with the draft notice.
 ---
 
 # IRS Representation Kit
-**Client:** {{clientName}} | **TIN:** {{tinMasked}} | **Matter:** {{matterType}}
+**Client:** {{clientName}} | **TIN:** {{tinMasked}} | **Client work:** {{matterType}}
 
 ---
 
@@ -105,7 +105,7 @@ Draft a professional cover letter to accompany a signed Form 2848 Power of Attor
 
 ## Document 2 — Form 8821 Cover Letter (if applicable)
 
-[If Form 8821 is needed per the inputs above, draft a cover letter for the Form 8821 Tax Information Authorization. The letter should identify the designee, the scope of information being authorized, and the tax periods. If Form 8821 is not needed, state: "Form 8821 not required for this matter."]
+[If Form 8821 is needed per the inputs above, draft a cover letter for the Form 8821 Tax Information Authorization. The letter should identify the designee, the scope of information being authorized, and the tax periods. If Form 8821 is not needed, state: "Form 8821 not required for this client work."]
 
 ---
 
@@ -120,7 +120,7 @@ Produce a checklist for the representative to confirm CAF registration status an
 - [ ] Note the date submitted and expected CAF processing date
 - [ ] Retain a copy of the signed Form 2848 in the client file
 
-**CAF Status for this matter:** {{cafStatus}}
+**CAF status for this client work:** {{cafStatus}}
 
 ---
 
@@ -128,7 +128,7 @@ Produce a checklist for the representative to confirm CAF registration status an
 
 Draft a representation engagement letter for the client to sign. The letter should cover:
 
-1. **Scope of representation** — Identify the specific tax years, tax type, and IRS matter for which the practitioner is being engaged. Reference that a Form 2848 Power of Attorney will be prepared for the client's signature.
+1. **Scope of representation** — Identify the specific tax years, tax type, and IRS client work for which the practitioner is being engaged. Reference that a Form 2848 Power of Attorney will be prepared for the client's signature.
 
 2. **What the representative will do** — Communicate with the IRS on the client's behalf, review notices and correspondence, prepare and submit responses, and advise the client on resolution options.
 
@@ -174,7 +174,7 @@ export const RepresentationKit: WorkflowTemplate = {
       id: 'interview',
       type: 'interview',
       name: 'Representation Details',
-      description: 'Provide client, representative, and matter information',
+      description: 'Provide client, representative, and client work information',
       config: {
         questions: interviewQuestions,
       } as InterviewStepConfig,

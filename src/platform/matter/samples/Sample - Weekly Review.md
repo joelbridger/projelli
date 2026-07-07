@@ -11,13 +11,13 @@
 
 ## Executive Summary
 
-Solid week. Closed one matter, brought in two new clients, and finally cleared the backlog on correspondence from the Meridian file. Billable hours are tracking where they need to be for the month. The main thing carrying into next week is finishing the reply brief in Vasquez, it's 80% done and the deadline is Thursday.
+Solid week. Closed one client file, brought in two new clients, and finally cleared the backlog on correspondence from the Meridian file. Billable hours are tracking where they need to be for the month. The main thing carrying into next week is finishing the reply brief in Vasquez, it's 80% done and the deadline is Thursday.
 
 ---
 
 ## Wins this week
 
-- Settled the Torres employment matter on favorable terms. Client got 4 months severance and a neutral reference. Call it a win.
+- Settled the Torres employment file on favorable terms. Client got 4 months severance and a neutral reference. Call it a win.
 - Two new client intakes from the Legal Clinic referral network, Vasquez (landlord-tenant, habitability) and Park (employment, wrongful termination). Both look like they move forward.
 - Filed the answer in Chen v. GreenLeaf on time, no drama. Opposition's complaint had three causes of action that don't hold up. Feeling good about a 12(b)(6) motion in 30 days.
 - Hired a part-time paralegal starting June 1. Four months of interviews, worth it. She has five years of litigation support at a mid-size firm and knows how to run a docket.
@@ -45,7 +45,7 @@ Solid week. Closed one matter, brought in two new clients, and finally cleared t
 ## Tasks completed
 
 - [x] Filed answer in Chen v. GreenLeaf
-- [x] Settled Torres employment matter, closed file, final invoice sent
+- [x] Settled Torres employment file, closed file, final invoice sent
 - [x] Completed intake for Vasquez and Park
 - [x] Cleared the Meridian correspondence backlog (three certified mail responses drafted and sent)
 - [x] Finalized paralegal offer letter and start date

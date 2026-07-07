@@ -163,7 +163,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   retrieval_executed: 'Files Searched',
   citation_verified: 'Citation Checked',
   privilege_evaluated: 'Privilege Checked',
-  scope_active: 'Active Matter',
+  scope_active: 'Active Client',
   egress: 'AI Request Sent',
   mcp_blocked: 'External AI Write Blocked',
   mcp_list: 'External AI Listed Files',
@@ -172,11 +172,11 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   mcp_write_requested: 'External AI Write Requested',
   mcp_write_approved: 'External AI Write Approved',
   mcp_write_denied: 'External AI Write Denied',
-  mcp_matter_access_granted: 'External AI Matter Access Granted',
-  mcp_matter_access_revoked: 'External AI Matter Access Revoked',
+  mcp_matter_access_granted: 'External AI Client Access Granted',
+  mcp_matter_access_revoked: 'External AI Client Access Revoked',
   // Firm Phase 1 (Task 3)
-  matter_shared: 'Matter Shared',
-  matter_unshared: 'Matter Unshared',
+  matter_shared: 'Client Shared',
+  matter_unshared: 'Client Unshared',
   member_invited: 'Member Invited',
   member_removed: 'Member Removed',
   wall_set_from_manager: 'Information Barrier Set',
@@ -834,13 +834,13 @@ function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
           <div className="rounded-md border border-border px-3 py-2 space-y-1 text-sm">
             {fmid != null && (
               <div className="flex gap-2">
-                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Firm matter</span>
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Firm client</span>
                 <span className="font-mono text-xs break-all">{String(fmid)}</span>
               </div>
             )}
             {mid != null && mid !== fmid && (
               <div className="flex gap-2">
-                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Local matter</span>
+                <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Local client</span>
                 <span className="font-mono text-xs break-all">{String(mid)}</span>
               </div>
             )}

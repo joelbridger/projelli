@@ -399,7 +399,7 @@ describe('WorkflowEngine analyze step (Office output + scope + RunRecord)', () =
 
     const record = await engine.execute(analyzeTemplate());
     expect(record.status).toBe('failed');
-    expect(record.error).toMatch(/matter-scoped retrieval/i);
+    expect(record.error).toMatch(/client-scoped retrieval/i);
   });
 });
 

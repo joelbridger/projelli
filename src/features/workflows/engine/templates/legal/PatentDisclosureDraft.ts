@@ -98,7 +98,7 @@ Produce a structured Markdown invention disclosure document in standard IDF form
 
 > **DRAFT INVENTION DISCLOSURE -- FOR ATTORNEY REVIEW. Claim language is preliminary and must be refined by a registered patent attorney or agent before filing. Inventorship is a legal determination; verify all inventors listed.**
 
-> **Draft document** -- Review and edit before use in any matter.
+> **Draft document** -- Review and edit before use in any client work.
 
 > **IMPORTANT NOTICE:** This document is a structural starting point to assist your patent attorney in preparing an application. It is not a formal patent application, does not constitute legal advice, and has not been reviewed by the USPTO or any patent authority. No confidential technical information was transmitted to any third party in generating this document -- Advisor Prep Hero processes all AI requests locally using your own API key, and no data leaves your machine except in direct API calls to your chosen AI provider under your own account.
 

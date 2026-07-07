@@ -1,13 +1,13 @@
-# Sample: Matter Overview
+# Sample: Client Overview
 
-> Fictional matter: **Garcia v. Meridian Properties LLC**, commercial lease dispute.
-> This is a sample so you can see what a finished matter overview looks like in Advisor Prep Hero. Delete it whenever you want.
+> Fictional client file: **Garcia v. Meridian Properties LLC**, commercial lease dispute.
+> This is a sample so you can see what a finished client overview looks like in Advisor Prep Hero. Delete it whenever you want.
 
 ---
 
-**Matter:** Garcia v. Meridian Properties LLC
-**Matter number:** 2026-047
-**Matter type:** Commercial lease dispute (breach of quiet enjoyment, failure to repair)
+**Client file:** Garcia v. Meridian Properties LLC
+**Client file number:** 2026-047
+**Client work type:** Commercial lease dispute (breach of quiet enjoyment, failure to repair)
 **Date opened:** April 3, 2026
 **Attorney:** Solo (you)
 **Client:** Roberto Garcia, doing business as Garcia Fine Furniture
@@ -18,7 +18,7 @@
 
 Roberto Garcia has operated a furniture showroom out of 1820 Westlake Commerce Drive, Suite 104, for six years. The lease is a standard triple-net with Meridian Properties LLC as landlord. Monthly base rent is $4,200. The lease runs through August 31, 2028.
 
-Starting in December 2025, the building's HVAC system began failing intermittently. The showroom runs hot in winter because the heating zones for Suite 104 are fed from a shared unit that also serves Suites 101 to 103. Meridian sent a repair crew in January, replaced a fan motor, and the problem recurred in February. As of the matter opening date, the system has been inoperable for 11 consecutive days.
+Starting in December 2025, the building's HVAC system began failing intermittently. The showroom runs hot in winter because the heating zones for Suite 104 are fed from a shared unit that also serves Suites 101 to 103. Meridian sent a repair crew in January, replaced a fan motor, and the problem recurred in February. As of the client file opening date, the system has been inoperable for 11 consecutive days.
 
 Roberto documented every incident. He has temperature logs pulled from a smart thermostat, three letters he sent to Meridian's property manager via certified mail, and two email threads with their maintenance coordinator. Meridian has not responded to either of the last two certified letters.
 
@@ -28,7 +28,7 @@ Roberto documented every incident. He has temperature logs pulled from a smart t
 
 | Date | Event |
 |------|-------|
-| April 3, 2026 | Matter opened, intake call with Roberto |
+| April 3, 2026 | Client file opened, intake call with Roberto |
 | March 12, 2026 | Second certified letter to Meridian, no response |
 | February 18, 2026 | HVAC recurrence, Roberto notified Meridian by email |
 | January 9, 2026 | Meridian repair crew, fan motor replaced |

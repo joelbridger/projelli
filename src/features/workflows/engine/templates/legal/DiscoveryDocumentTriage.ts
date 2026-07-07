@@ -6,8 +6,8 @@ import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'matterName',
-    question: 'Matter name',
-    description: 'The case or matter name as you track it in your files.',
+    question: 'Client file name',
+    description: 'The case or client file name as you track it in your files.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Okafor v. Pinnacle Health Systems',
@@ -57,7 +57,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
 
 const triagePlanPrompt = `You are assisting a licensed attorney in triaging a document production. You are not providing legal advice — you are helping the attorney build a review plan so they can allocate their time effectively and find the most relevant documents first.
 
-Matter: {{matterName}}
+Client file: {{matterName}}
 Case theory: {{caseTheory}}
 Production size: {{productionSize}}
 Organization: {{documentOrganization}}
@@ -68,14 +68,14 @@ Document index / production contents:
 
 Produce a Markdown triage plan structured as follows:
 
-> **Draft document** — Review and edit before use in any matter.
+> **Draft document** — Review and edit before use in any client work.
 
 > **Volume limitation:** This template is designed for document sets under approximately 500 pages (roughly 50-500 documents). For large productions, use this output as a first-pass triage guide — not a replacement for eDiscovery platforms (Relativity, Logikcell, Everlaw). If your production size is in the thousands, this plan identifies where to focus, not how to complete full review.
 >
 > **Privilege flag:** Before analyzing, producing, or acting on any document identified in this review, flag any document that may be privileged for human attorney review. Do not rely on AI to make final privilege determinations. Any document that appears to involve attorney-client communications or attorney work product must be reviewed by the supervising attorney before being included in a production set.
 
 # Discovery Document Triage Plan
-**Matter:** {{matterName}}
+**Client file:** {{matterName}}
 **Production size:** {{productionSize}}
 **Prepared for attorney review:** [date]
 

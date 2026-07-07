@@ -61,7 +61,7 @@ export interface DemoAnswer {
 const PLACEHOLDER_ROOT = '{WORKSPACE_ROOT}';
 
 /** Filename written to the workspace root for the primary legal sample. */
-export const SAMPLE_FILE_MATTER_OVERVIEW = 'Sample - Matter Overview.md';
+export const SAMPLE_FILE_MATTER_OVERVIEW = 'Sample - Client Overview.md';
 /** Filename written to the workspace root for the secondary sample (all professions). */
 export const SAMPLE_FILE_WEEKLY_REVIEW = 'Sample - Weekly Review.md';
 /** Filename written to the workspace root for the primary tax sample. */
@@ -99,7 +99,7 @@ const SAMPLE_MATTER_NAMES: Record<Profession, string> = {
   tax: 'Dwyer - 2025 Form 1040',
   consulting: 'Northwind - Go-to-Market Engagement',
   advisor: 'The Hendricks Household',
-  other: 'Sample Matter',
+  other: 'Sample Client',
 };
 
 /**
@@ -119,8 +119,8 @@ export const SAMPLE_MATTER_NAME = SAMPLE_MATTER_NAMES.legal;
 
 const DEMO_QUESTIONS_BY_PROFESSION: Record<Profession, [string, string, string, string]> = {
   legal: [
-    'What are the open issues in this matter?',
-    'Summarize the Garcia matter for me.',
+    'What are the open issues for this client?',
+    'Summarize the Garcia client file for me.',
     'What is the status of the Meridian correspondence?',
     'What is the fee arrangement?',
   ],
@@ -143,8 +143,8 @@ const DEMO_QUESTIONS_BY_PROFESSION: Record<Profession, [string, string, string, 
     'What is coming up for this household?',
   ],
   other: [
-    'What are the open issues in this matter?',
-    'Summarize this matter for me.',
+    'What are the open issues for this client?',
+    'Summarize the Garcia client file for me.',
     'What is the fee arrangement?',
     'What documents are outstanding?',
   ],
@@ -207,9 +207,9 @@ const WEEKLY_REVIEW_PATH = `${PLACEHOLDER_ROOT}/${SAMPLE_FILE_WEEKLY_REVIEW}`;
 const MATTER_OVERVIEW_LABEL = SAMPLE_FILE_MATTER_OVERVIEW;
 
 const LEGAL_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
-  'What are the open issues in this matter?': {
+  'What are the open issues for this client?': {
     answer:
-      'I found six open issues in the Garcia matter. {1} The checklist covers: pulling a copy of the lease and all amendments (Roberto is sending it by end of week); confirming Meridian\'s registered agent and entity status with the Secretary of State; determining which habitability or repair statute applies to commercial leases in this jurisdiction; assessing whether the 11-day HVAC outage constitutes constructive partial eviction; calculating damages including lost sales, the $1,140 Roberto spent on portable heating units, and any demonstrable customer attrition; and evaluating whether Roberto should continue paying full rent, withhold a portion, or exercise repair-and-deduct. {1}',
+      'I found six open issues in the Garcia client file. {1} The checklist covers: pulling a copy of the lease and all amendments (Roberto is sending it by end of week); confirming Meridian\'s registered agent and entity status with the Secretary of State; determining which habitability or repair statute applies to commercial leases in this jurisdiction; assessing whether the 11-day HVAC outage constitutes constructive partial eviction; calculating damages including lost sales, the $1,140 Roberto spent on portable heating units, and any demonstrable customer attrition; and evaluating whether Roberto should continue paying full rent, withhold a portion, or exercise repair-and-deduct. {1}',
     citations: [
       {
         n: 1,
@@ -222,24 +222,24 @@ const LEGAL_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
           '- [ ] Calculate damages: lost sales, cost of portable heating units Roberto rented ($1,140), and any demonstrable customer attrition\n' +
           '- [ ] Evaluate whether Roberto should continue paying full rent, withhold a portion, or exercise repair-and-deduct',
         path: MATTER_OVERVIEW_PATH,
-        locator: 'Sample - Matter Overview.md §Open Issues',
+        locator: 'Sample - Client Overview.md §Open Issues',
         verified: true,
       },
     ],
   },
 
-  'Summarize the Garcia matter for me.': {
+  'Summarize the Garcia client file for me.': {
     answer:
-      'Garcia v. Meridian Properties LLC (matter 2026-047) is a commercial lease dispute opened April 3, 2026. {1} Roberto Garcia has operated a furniture showroom at 1820 Westlake Commerce Drive, Suite 104, for six years under a triple-net lease at $4,200/month running through August 31, 2028. Beginning in December 2025, the building\'s HVAC system began failing intermittently. Meridian sent a repair crew in January and replaced a fan motor, but the problem recurred in February. As of the matter opening date, the system had been inoperable for 11 consecutive days. {1} Roberto documented every incident: he has temperature logs, three certified mail letters to Meridian\'s property manager, and two email threads with their maintenance coordinator. Meridian has not responded to the last two certified letters. {2} The main unresolved theory is whether the 11-day outage constitutes constructive partial eviction under applicable case law. Damages in play include lost sales, $1,140 in portable heating unit rentals, and customer attrition.',
+      'Garcia v. Meridian Properties LLC (client file 2026-047) is a commercial lease dispute opened April 3, 2026. {1} Roberto Garcia has operated a furniture showroom at 1820 Westlake Commerce Drive, Suite 104, for six years under a triple-net lease at $4,200/month running through August 31, 2028. Beginning in December 2025, the building\'s HVAC system began failing intermittently. Meridian sent a repair crew in January and replaced a fan motor, but the problem recurred in February. As of the client file opening date, the system had been inoperable for 11 consecutive days. {1} Roberto documented every incident: he has temperature logs, three certified mail letters to Meridian\'s property manager, and two email threads with their maintenance coordinator. Meridian has not responded to the last two certified letters. {2} The main unresolved theory is whether the 11-day outage constitutes constructive partial eviction under applicable case law. Damages in play include lost sales, $1,140 in portable heating unit rentals, and customer attrition.',
     citations: [
       {
         n: 1,
         label: MATTER_OVERVIEW_LABEL,
         excerpt:
           'Roberto Garcia has operated a furniture showroom out of 1820 Westlake Commerce Drive, Suite 104, for six years. The lease is a standard triple-net with Meridian Properties LLC as landlord. Monthly base rent is $4,200. The lease runs through August 31, 2028.\n\n' +
-          'Starting in December 2025, the building\'s HVAC system began failing intermittently. The showroom runs hot in winter because the heating zones for Suite 104 are fed from a shared unit that also serves Suites 101 to 103. Meridian sent a repair crew in January, replaced a fan motor, and the problem recurred in February. As of the matter opening date, the system has been inoperable for 11 consecutive days.',
+          'Starting in December 2025, the building\'s HVAC system began failing intermittently. The showroom runs hot in winter because the heating zones for Suite 104 are fed from a shared unit that also serves Suites 101 to 103. Meridian sent a repair crew in January, replaced a fan motor, and the problem recurred in February. As of the client file opening date, the system has been inoperable for 11 consecutive days.',
         path: MATTER_OVERVIEW_PATH,
-        locator: 'Sample - Matter Overview.md §Client',
+        locator: 'Sample - Client Overview.md §Client',
         verified: true,
       },
       {
@@ -248,7 +248,7 @@ const LEGAL_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
         excerpt:
           'Roberto documented every incident. He has temperature logs pulled from a smart thermostat, three letters he sent to Meridian\'s property manager via certified mail, and two email threads with their maintenance coordinator. Meridian has not responded to either of the last two certified letters.',
         path: MATTER_OVERVIEW_PATH,
-        locator: 'Sample - Matter Overview.md §Client (paragraph 2)',
+        locator: 'Sample - Client Overview.md §Client (paragraph 2)',
         verified: true,
       },
     ],
@@ -256,7 +256,7 @@ const LEGAL_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 
   'What is the status of the Meridian correspondence?': {
     answer:
-      'The correspondence backlog with Meridian is now cleared. {1} Three certified mail responses were drafted and sent during the week of May 19 to May 25, 2026. {1} Prior to that, Roberto had already documented the dispute with three certified letters and two email threads to Meridian\'s maintenance coordinator, though Meridian had not responded to the last two certified letters as of the matter opening date. {2}',
+      'The correspondence backlog with Meridian is now cleared. {1} Three certified mail responses were drafted and sent during the week of May 19 to May 25, 2026. {1} Prior to that, Roberto had already documented the dispute with three certified letters and two email threads to Meridian\'s maintenance coordinator, though Meridian had not responded to the last two certified letters as of the client file opening date. {2}',
     citations: [
       {
         n: 1,
@@ -273,7 +273,7 @@ const LEGAL_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
         excerpt:
           'Roberto documented every incident. He has temperature logs pulled from a smart thermostat, three letters he sent to Meridian\'s property manager via certified mail, and two email threads with their maintenance coordinator. Meridian has not responded to either of the last two certified letters.',
         path: MATTER_OVERVIEW_PATH,
-        locator: 'Sample - Matter Overview.md §Client',
+        locator: 'Sample - Client Overview.md §Client',
         verified: true,
       },
     ],
@@ -281,7 +281,7 @@ const LEGAL_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
 
   'What is the fee arrangement?': {
     answer:
-      'The fee arrangement is hourly at $350 per hour with a $3,000 retainer. {1} Roberto deposited the retainer and signed the engagement letter on April 3, 2026, the same day the matter was opened.',
+      'The fee arrangement is hourly at $350 per hour with a $3,000 retainer. {1} Roberto deposited the retainer and signed the engagement letter on April 3, 2026, the same day the client file was opened.',
     citations: [
       {
         n: 1,
@@ -289,7 +289,7 @@ const LEGAL_DEMO_ANSWERS_MAP: Record<string, DemoAnswer> = {
         excerpt:
           'Fee arrangement: hourly at $350/hr with a $3,000 retainer deposited. Engagement letter signed April 3.',
         path: MATTER_OVERVIEW_PATH,
-        locator: 'Sample - Matter Overview.md §Client Notes',
+        locator: 'Sample - Client Overview.md §Client Notes',
         verified: true,
       },
     ],

@@ -15,7 +15,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'jurisdiction',
     question: 'State / jurisdiction',
-    description: 'The state where the family law matter is pending. Financial affidavit formats and required fields vary by state.',
+    description: 'The state where the family law client work is pending. Financial affidavit formats and required fields vary by state.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Florida; Texas; New York',

@@ -377,6 +377,9 @@ export function Ask(props: UseAskProps) {
   // sources would linger next to the new book-wide answer, looking like its
   // citations when they aren't.
   const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
+  const openAiOptions = () => {
+    window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
+  };
 
   const errorBanner = status === 'error' && errorMsg ? (
     <div
@@ -425,19 +428,17 @@ export function Ask(props: UseAskProps) {
           Icon={Sparkles}
           iconColor="var(--kp-accent)"
           title="Ask"
-          description={
-            /* The honest promise (Decision 4): answers from your files are cited
-               and checkable; general help is clearly marked as not-from-files. */
-            filesOnly
-              ? 'Files-only mode — answers come only from your files, every claim cited.'
-              : 'Your private practice assistant. Answers from your files are cited; general help is clearly marked.'
-          }
           actions={
             /* The egress/privacy indicator lives top-right, on the title line.
                The short "status" form shows ONLY "Using local AI" / "Using cloud
                AI" (dynamic); the full honest copy stays in its tooltip + the
                inspectable data-* attributes. */
-            <EgressIndicator provider={displayedProvider} mode={confidentialityMode} variant="status" />
+            <EgressIndicator
+              provider={displayedProvider}
+              mode={confidentialityMode}
+              variant="status"
+              onClick={openAiOptions}
+            />
           }
         />
       </div>

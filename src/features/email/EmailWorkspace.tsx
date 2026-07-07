@@ -658,7 +658,6 @@ export function EmailWorkspace({
           <SurfaceHeader
             Icon={Mail}
             title="Email"
-            description="Search, read, and file your imported email."
           />
         </div>
       )}
@@ -1436,7 +1435,7 @@ export function EmailWorkspace({
                   </span>
                 ) : activeMatter && !scopeAllEmail ? (
                   <span>
-                    No email is filed to this matter yet.{' '}
+                    No email is filed to this client yet.{' '}
                     <button
                       type="button"
                       data-testid="ask-no-results-switch-scope"
@@ -1454,7 +1453,7 @@ export function EmailWorkspace({
                     >
                       Switch to All email
                     </button>
-                    {' '}above, or file emails to this matter with the File button.
+                    {' '}above, or file emails to this client with the File button.
                   </span>
                 ) : (
                   'No matching email found for your question.'

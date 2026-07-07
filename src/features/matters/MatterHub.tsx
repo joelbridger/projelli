@@ -48,6 +48,7 @@ import type { SourceRef } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -133,6 +134,9 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   // egress indicator now lives once per surface header, not in the top bar.
   const confidentialityMode = useConfidentialityMode();
   const egressProvider = useActiveEgressProvider(confidentialityMode);
+  const openAiOptions = () => {
+    window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
+  };
 
   // ── Active sub-tab ─────────────────────────────────────────────────────────
   // Overview (the Client Map) is the default. A client-list quick-action can
@@ -386,7 +390,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 </Badge>
               </span>
               {/* AI-status pill — same dynamic badge as Ask / Workflows. */}
-              <EgressIndicator provider={egressProvider} mode={confidentialityMode} variant="status" />
+              <EgressIndicator
+                provider={egressProvider}
+                mode={confidentialityMode}
+                variant="status"
+                onClick={openAiOptions}
+              />
             </div>
           }
         />

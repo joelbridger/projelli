@@ -6,8 +6,8 @@ import type { WorkflowTemplate, InterviewStepConfig, GenerateStepConfig } from '
 const interviewQuestions: InterviewStepConfig['questions'] = [
   {
     id: 'matterName',
-    question: 'Matter name',
-    description: 'The matter or file name you use to track this contract review.',
+    question: 'Client file name',
+    description: 'The client or file name you use to track this contract review.',
     type: 'text',
     required: true,
     placeholder: 'e.g., Wellbridge Software Services Agreement - Review',
@@ -77,7 +77,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
 
 const contractReviewChecklistPrompt = `You are assisting a licensed attorney in conducting a structured review of an incoming contract. You are not providing legal advice — you are generating a review checklist that organizes the standard risk areas for this contract type so the attorney can work through each one systematically.
 
-Matter: {{matterName}}
+Client file: {{matterName}}
 Contract type: {{contractType}}
 Client's role: {{clientRole}}
 Key commercial terms noted: {{keyCommercialTerms}}
@@ -85,14 +85,14 @@ Specific concerns flagged: {{specificConcerns}}
 
 Produce a single Markdown file formatted as a structured contract review checklist. Begin with the draft notice.
 
-> **Draft document** — Review and edit before use in any matter. This output is a draft for attorney review. It does not constitute legal advice and does not substitute for your professional judgment.
+> **Draft document** — Review and edit before use in any client work. This output is a draft for attorney review. It does not constitute legal advice and does not substitute for your professional judgment.
 >
 > **Compliance note:** This checklist highlights standard risk areas. It does not replace a full attorney review and may not capture jurisdiction-specific requirements.
 
 ---
 
 # Contract Review Checklist
-**Matter:** {{matterName}}
+**Client file:** {{matterName}}
 **Contract type:** {{contractType}}
 **Client role:** {{clientRole}}
 **Prepared for attorney review:** [date]
