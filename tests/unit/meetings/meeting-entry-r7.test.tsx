@@ -82,21 +82,25 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     await waitFor(() => expect(screen.getByTestId('notice-trail')).toBeInTheDocument());
 
-    const tabs = [
-      screen.getByTestId('meeting-subtab-recording'),
-      screen.getByTestId('meeting-subtab-transcript'),
-      screen.getByTestId('meeting-subtab-summary'),
-      screen.getByTestId('meeting-subtab-send-to-team'),
-    ];
+    const recordingTab = screen.getByTestId('meeting-subtab-recording');
+    const transcriptTab = screen.getByTestId('meeting-subtab-transcript');
+    const summaryTab = screen.getByTestId('meeting-subtab-summary');
+    const sendToTeamTab = screen.getByTestId('meeting-subtab-send-to-team');
+    const tabs = [recordingTab, transcriptTab, summaryTab, sendToTeamTab];
     expect(tabs.map((tab) => tab.textContent)).toEqual(['Recording', 'Transcript', 'Summary', 'Send to team']);
-    for (let index = 0; index < tabs.length - 1; index += 1) {
-      expect(tabs[index].compareDocumentPosition(tabs[index + 1]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    for (const [left, right] of [
+      [recordingTab, transcriptTab],
+      [transcriptTab, summaryTab],
+      [summaryTab, sendToTeamTab],
+    ] as const) {
+      expect(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
     expect(
-      tabs[3].compareDocumentPosition(screen.getByTestId('meeting-entry-tab-scroll')) & Node.DOCUMENT_POSITION_FOLLOWING,
+      sendToTeamTab.compareDocumentPosition(screen.getByTestId('meeting-entry-tab-scroll')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(
-      tabs[3].compareDocumentPosition(screen.getByTestId('notice-trail')) & Node.DOCUMENT_POSITION_FOLLOWING,
+      sendToTeamTab.compareDocumentPosition(screen.getByTestId('notice-trail')) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
 
     expect(screen.getByTestId('meeting-recording-tab')).toBeInTheDocument();
