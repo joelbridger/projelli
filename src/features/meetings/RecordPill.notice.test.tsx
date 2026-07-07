@@ -18,6 +18,7 @@ beforeEach(() => {
     processingCount: 0,
     activeMatterId: 'm',
     activeConsent: { consentMode: 'two-party' },
+    noticeCardStatus: null,
   });
 });
 
@@ -30,5 +31,13 @@ describe('RecordPill — chat notice copy', () => {
     await waitFor(() => { expect(copyTextMock).toHaveBeenCalledTimes(1); });
     // It copies the recording-notice line (contains "recording").
     expect((copyTextMock.mock.calls as string[][])[0]?.[0]).toMatch(/recording/i);
+  });
+
+  it('shows the specific fallback when the notice card window could not open', () => {
+    useMeetingStore.setState({
+      noticeCardStatus: { phase: 'failed', reason: 'window-open-failed' },
+    });
+    render(<RecordPill />);
+    expect(screen.getByTestId('record-pill-notice-card').textContent).toMatch(/window couldn't open/i);
   });
 });

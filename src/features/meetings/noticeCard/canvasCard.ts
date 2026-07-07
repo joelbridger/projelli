@@ -106,8 +106,8 @@ export function drawNoticeCard(
  * Build the injected camera script. It creates an offscreen canvas, draws the
  * card on a loop with a live timer, captures the canvas as a video stream, and
  * overrides `navigator.mediaDevices.getUserMedia` so the meeting client uses
- * that stream as the camera. Audio stays muted (we join muted; v3 adds a spoken
- * announcement through the same interception point).
+ * that stream as the camera. Audio is silent by default, but the app can inject
+ * a short WAV announcement into the same fake microphone stream.
  *
  * VERIFY-LIVE: the getUserMedia override behavior against real Teams/Zoom web
  * clients is confirmed on the bench; the render + timer logic is unit-tested.
@@ -155,6 +155,36 @@ export function buildCameraScript(
         paint();
         setInterval(paint, Math.max(200, Math.floor(1000 / FPS)));
         var cardStream = canvas.captureStream ? canvas.captureStream(FPS) : null;
+        var audioCtx = null;
+        var audioDst = null;
+        function ensureAudioDestination() {
+          if (audioDst) return audioDst;
+          var AC = window.AudioContext || window.webkitAudioContext;
+          audioCtx = new AC();
+          audioDst = audioCtx.createMediaStreamDestination();
+          return audioDst;
+        }
+        function base64ToArrayBuffer(b64) {
+          var binary = atob(b64);
+          var bytes = new Uint8Array(binary.length);
+          for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+          return bytes.buffer;
+        }
+	        window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__ = function (b64) {
+	          return new Promise(function (resolve) {
+	            try {
+	              var dst = ensureAudioDestination();
+	              if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(function () {});
+	              audioCtx.decodeAudioData(base64ToArrayBuffer(b64).slice(0)).then(function (buffer) {
+	                var source = audioCtx.createBufferSource();
+	                source.buffer = buffer;
+	                source.connect(dst);
+	                source.onended = function () { resolve(true); };
+	                source.start();
+	              }).catch(function () { resolve(false); });
+	            } catch (e) { resolve(false); }
+	          });
+	        };
         var md = navigator.mediaDevices;
         // Install the override UNCONDITIONALLY (not gated on cardStream). NEVER
         // call the real getUserMedia — the companion window must never touch the
@@ -173,9 +203,7 @@ export function buildCameraScript(
               }
               if (constraints && constraints.audio) {
                 try {
-                  var AC = window.AudioContext || window.webkitAudioContext;
-                  var ctx = new AC();
-                  var dst = ctx.createMediaStreamDestination();
+                  var dst = ensureAudioDestination();
                   dst.stream.getAudioTracks().forEach(function (t) { s.addTrack(t); });
                 } catch (e) {}
               }

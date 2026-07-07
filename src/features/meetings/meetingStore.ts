@@ -104,6 +104,8 @@ export interface MeetingMeta {
   /** The matched calendar event's title at record time, if any — the key
    *  Task 12c's learned-correction map corrects against (see meetingTypes.ts). */
   calendarTitle?: string;
+  /** Advisor-edited display title. Kept separate from calendarTitle/typeId. */
+  customTitle?: string;
   dictation?: boolean;
   /** QA-31 — set when the notes-generation step (tryGenerateNotes) fails or
    *  times out, so the UI can show an honest "couldn't write notes" state
@@ -1077,6 +1079,8 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
           onStatus: (noticeCardStatus) => {
             set({ noticeCardStatus });
           },
+          entryAnnouncement: i18n.t('meetings.notice-card.announce-recording-started'),
+          stopAnnouncement: i18n.t('meetings.notice-card.announce-recording-stopped'),
         });
         if (nc.zoomNativeRecordAttested) {
           void ledger
@@ -1120,7 +1124,7 @@ export const useMeetingStore = create<MeetingState>((set, get) => ({
       // can never linger in the call even if capture_stop rejects
       // (supervisor.stop() always closes the window, with a watchdog). Its
       // departure is the honest "recording has ended" signal.
-      void stopNoticeCard();
+      await stopNoticeCard();
       let r: { meetingDir: string; audioPath: string; durationMs: number };
       try {
         r = await invoke<{

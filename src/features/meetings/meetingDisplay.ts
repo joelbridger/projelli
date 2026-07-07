@@ -36,6 +36,7 @@ export function meetingDisplayTitle(
   meta: MeetingMeta | null,
   t: (k: string) => string
 ): string {
+  if (meta?.customTitle?.trim()) return meta.customTitle.trim();
   if (meta?.typeId) return meetingTypeLabel(meta.typeId, t);
   if (meta?.calendarTitle) return meta.calendarTitle;
   if (meta?.dictation) return t('meetings.entry.dictated-title');

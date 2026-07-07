@@ -6,7 +6,7 @@
  * docs/evidence/meetings-verify3-20260704/RUN-LOG.md). Mirrors
  * meeting-entry-notes-failed.test.tsx (QA-31)'s pattern.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 const { retryMeetingTranscriptMock } = vi.hoisted(() => ({ retryMeetingTranscriptMock: vi.fn(async () => {}) }));
@@ -55,6 +55,7 @@ describe('MeetingEntry — honest transcript-failed state (QA-40)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-transcript').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-transcript-failed')).toBeTruthy());
     expect(screen.queryByTestId('meeting-entry-transcript-pending')).toBeNull();
@@ -75,6 +76,7 @@ describe('MeetingEntry — honest transcript-failed state (QA-40)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-transcript').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-transcript-failed')).toBeTruthy());
     expect(screen.getByTestId('meeting-entry-transcript-failed').textContent).toMatch(/respond in time/i);
@@ -89,6 +91,7 @@ describe('MeetingEntry — honest transcript-failed state (QA-40)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-transcript').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-transcript-failed')).toBeTruthy());
     expect(screen.getByTestId('meeting-entry-transcript-failed').textContent).not.toMatch(/respond in time/i);
@@ -103,8 +106,69 @@ describe('MeetingEntry — honest transcript-failed state (QA-40)', () => {
     });
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
+    screen.getByTestId('meeting-subtab-transcript').click();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-transcript-pending')).toBeTruthy());
     expect(screen.queryByTestId('meeting-entry-transcript-failed')).toBeNull();
+  });
+
+  it('drops a transcript retry result when the advisor switches to another meeting before it finishes', async () => {
+    retryMeetingTranscriptMock.mockClear();
+    let retried = false;
+    let resolveRetry!: () => void;
+    retryMeetingTranscriptMock.mockImplementationOnce(() => new Promise<void>((resolve) => {
+      resolveRetry = () => {
+        retried = true;
+        resolve();
+      };
+    }));
+
+    const meta = new Map<string, Record<string, unknown>>();
+    meta.set('/ws/C/Meetings/A/meeting.json', {
+      matterId: 'm-1',
+      startedAt: '2026-07-04T10:00:00Z',
+      customTitle: 'Meeting A',
+      transcriptError: { kind: 'error', at: '2026-07-04T10:05:00Z' },
+    });
+    meta.set('/ws/C/Meetings/B/meeting.json', {
+      matterId: 'm-1',
+      startedAt: '2026-07-05T10:00:00Z',
+      customTitle: 'Meeting B',
+    });
+    const ws = {
+      readFile: vi.fn(async (path: string) => {
+        const value = meta.get(path);
+        if (value) return JSON.stringify(value);
+        if (retried && path === '/ws/C/Meetings/A/transcript.json') {
+          return JSON.stringify({
+            segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'Advisor', text: 'A transcript.' }],
+          });
+        }
+        throw new Error(`missing ${path}`);
+      }),
+      readFileBinary: vi.fn(async () => { throw new Error('no audio'); }),
+      exists: vi.fn(async () => false),
+      writeFile: vi.fn(async () => {}),
+      delete: vi.fn(async () => {}),
+    };
+
+    const { rerender } = render(
+      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/A" folderName="A" workspaceService={ws as never} />,
+    );
+    screen.getByTestId('meeting-subtab-transcript').click();
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-transcript-failed')).toBeTruthy());
+
+    screen.getByTestId('meeting-entry-retry-transcript').click();
+    rerender(
+      <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/B" folderName="B" workspaceService={ws as never} />,
+    );
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-transcript-pending')).toBeTruthy());
+
+    await act(async () => { resolveRetry(); });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('meeting-entry-transcript-pending')).toBeTruthy();
+      expect(screen.queryByTestId('transcript-viewer')).toBeNull();
+    });
   });
 });

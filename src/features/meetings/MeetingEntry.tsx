@@ -1,13 +1,11 @@
 /**
  * MeetingEntry — the meeting page: date/duration/consent, a retention
- * action, an audio scrubber, and a split view (notes.docx left,
- * TranscriptViewer right, with audio seek). Opened from both the client's
- * Meetings tab and its Activity timeline entry (both just mount this same
- * component with the meeting's dir).
+ * action, and three review tabs: Recording, Transcript, Summary. Opened from
+ * both the client's Meetings tab and its Activity timeline entry.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, Trash2, Check } from 'lucide-react';
+import { ChevronLeft, Trash2, Check, Pencil, Copy, Download, FileText } from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import { AudioPlayer, type AudioPlayerHandle } from '@/features/dictation/audio/AudioPlayer';
@@ -23,20 +21,12 @@ import { makeConsentLedger } from './consentLedger';
 import type { NoticeEntry } from './noticeLedger';
 import { useNoticeSettings } from './noticeSettings';
 import { meetingDisplayTitle, meetingTypeLabel, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
+import { mmss } from './meetingSources';
 import { makeMeetingTypesStore, BUILT_IN_TYPES } from './meetingTypes';
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { TFunction } from 'i18next';
-import { LazyBoundary } from '@/ui/LazyBoundary';
-
-// QA-47: module-level (stable identity across renders, like MainPanel's
-// loadDocxEditor) so LazyBoundary's `loader` dependency doesn't change every
-// render. Routing the notes.docx editor through LazyBoundary — instead of a
-// bare `import().then(setState)` with no `.catch` — means a chunk-load
-// failure (flaky network mid-fetch) surfaces a real error+retry state
-// instead of silently leaving DocxEditorComp null forever, which used to
-// fall through to a false "notes pending" even when notes.docx exists.
-const loadDocxEditor = () =>
-  import('@/features/documents/media/DocxEditor').then((m) => ({ default: m.DocxEditor }));
+import { markdownToDocxBytes, applyLetterheadIfConfigured, extractDocxText } from '@/platform/utils/docx-io';
+import { docxConvertToPdf } from '@/platform/utils/docx-commands';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -70,55 +60,126 @@ function dateDurationLine(meta: MeetingMeta | null, t: TFunction): string | null
   return parts.length ? parts.join(' · ') : null;
 }
 
+type MeetingEntryTab = 'recording' | 'transcript' | 'summary';
+
+function sanitizeFileStem(value: string): string {
+  return value
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 80)
+    .replace(/[.\s-]+$/g, '') || 'meeting';
+}
+
+function toExactArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+}
+
+function transcriptToText(transcript: TranscriptFile | null): string {
+  if (!transcript) return '';
+  return transcript.segments
+    .map((seg) => `${mmss(seg.startMs)} ${seg.speaker}: ${seg.text}`)
+    .join('\n');
+}
+
+function transcriptLooksSilent(transcript: TranscriptFile | null): boolean {
+  return !!transcript && transcript.segments.every((seg) => !seg.text.trim());
+}
+
 export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService }: MeetingEntryProps) {
   const { t } = useTranslation();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
   const [hasNotes, setHasNotes] = useState(false);
+  const [summaryText, setSummaryText] = useState('');
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [hasAudio, setHasAudio] = useState(false);
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
+  const [activeTab, setActiveTab] = useState<MeetingEntryTab>('recording');
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [titleInput, setTitleInput] = useState('');
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportNotice, setExportNotice] = useState<string | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [retryingNotes, setRetryingNotes] = useState(false);
   const [retryingTranscript, setRetryingTranscript] = useState(false);
   const [notices, setNotices] = useState<NoticeEntry[]>([]);
   const audioRef = useRef<AudioPlayerHandle>(null);
+  const didInitialSeek = useRef(false);
+  const meetingLoadToken = useRef(0);
   const { policy: noticePolicy } = useNoticeSettings();
   const hasTranscript = transcript !== null;
+  const summaryReady = hasNotes && summaryText.trim().length > 0;
 
   useEffect(() => {
-    let cancelled = false;
+    const token = ++meetingLoadToken.current;
+    const isCurrentLoad = () => token === meetingLoadToken.current;
+    setMeta(null);
+    setTranscript(null);
+    setHasNotes(false);
+    setSummaryText('');
+    setAudioSrc(null);
+    setHasAudio(false);
+    setSeekMs(initialSeekMs);
+    setExporting(null);
+    setExportNotice(null);
+    setNotices([]);
+    setRetryingNotes(false);
+    setRetryingTranscript(false);
+    didInitialSeek.current = false;
+    // eslint-disable-next-line lantern-async/no-silent-failure -- each meeting-file read below renders a safe empty/pending state on failure
     void (async () => {
       const ws = workspaceService;
       if (!ws) return;
       try {
         const raw = await ws.readFile(`${meetingDir}/meeting.json`);
-        if (!cancelled) setMeta(JSON.parse(raw) as MeetingMeta);
-      } catch { /* pre-Task-8 meeting, or not yet written */ }
+        if (isCurrentLoad()) setMeta(JSON.parse(raw) as MeetingMeta);
+      } catch {
+        if (isCurrentLoad()) setMeta(null);
+      }
       try {
         const raw = await ws.readFile(`${meetingDir}/transcript.json`);
-        if (!cancelled) setTranscript(JSON.parse(raw) as TranscriptFile);
-      } catch { /* transcription still queued */ }
+        if (isCurrentLoad()) setTranscript(JSON.parse(raw) as TranscriptFile);
+      } catch {
+        if (isCurrentLoad()) setTranscript(null);
+      }
       try {
         // codex-review (coordinator P2): notes.docx is binary — readFile is
         // the TEXT reader (readTextFile on Tauri) and can throw decoding real
         // docx bytes even though the file exists. exists() is the correct,
         // decode-free presence check.
         const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
-        if (!cancelled) setHasNotes(notesExists);
-      } catch { /* couldn't check — treat as not-yet-generated */ }
+        if (isCurrentLoad()) setHasNotes(notesExists);
+        if (notesExists) {
+          const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
+          const extracted = await extractDocxText(notesBytes);
+          if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+        } else if (isCurrentLoad()) {
+          setSummaryText('');
+        }
+      } catch {
+        if (isCurrentLoad()) {
+          setHasNotes(false);
+          setSummaryText('');
+        }
+      }
       try {
         const buffer = await ws.readFileBinary(`${meetingDir}/audio.wav`);
-        if (!cancelled) {
+        if (isCurrentLoad()) {
           setAudioSrc(arrayBufferToDataUrl(buffer, 'audio/wav'));
           setHasAudio(true);
         }
-      } catch { /* audio deleted (retention) or not yet finalized */ }
+      } catch {
+        if (isCurrentLoad()) {
+          setAudioSrc(null);
+          setHasAudio(false);
+        }
+      }
     })();
-    return () => { cancelled = true; };
-  }, [meetingDir, workspaceService]);
+    return () => { meetingLoadToken.current += 1; };
+  }, [meetingDir, workspaceService, initialSeekMs]);
 
   // Recording Notice Kit — the per-client ledger for this meeting's notices.
   // matterFolder is derived from matterId (falls back to stripping the meeting
@@ -130,6 +191,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       return meetingDir.replace(/\/Meetings\/[^/]+$/, '');
     }
   })();
+  const documentsDir = `${matterFolder}/Documents`;
 
   // A monotonically-increasing token, bumped whenever the displayed meeting
   // changes. A notices read for a PRIOR meeting that finishes late must NOT set
@@ -146,6 +208,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     try {
       loaded = await makeConsentLedger(ws, () => matterFolder).noticesForMeeting(meetingDir);
     } catch {
+      if (token === noticeLoadToken.current) setNotices([]);
       return; // failed read — leave the cleared state; never show a stale trail.
     }
     if (token === noticeLoadToken.current) setNotices(loaded);
@@ -161,7 +224,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     void (async () => {
       await ensureMeetingNoticeVerified(meetingDir, matterId);
       await loadNotices(token);
-    })();
+    })().catch(() => {
+      if (token === noticeLoadToken.current) setNotices([]);
+    });
   }, [meetingDir, matterId, transcript, loadNotices]);
 
   const handleRecordNotice = useCallback(async (entry: NoticeEntry) => {
@@ -170,7 +235,9 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     try {
       await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
       await loadNotices(noticeLoadToken.current);
-    } catch { /* best-effort */ }
+    } catch {
+      setNotices([]);
+    }
   }, [workspaceService, matterFolder, loadNotices]);
 
   const handleSeek = useCallback((ms: number) => {
@@ -183,7 +250,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // audioRef.current === null most of the time. Fire once hasAudio becomes
   // true instead, guarded so it only runs the one time (not on every
   // subsequent hasAudio-true render).
-  const didInitialSeek = useRef(false);
   useEffect(() => {
     if (initialSeekMs === undefined || didInitialSeek.current || !hasAudio) return;
     didInitialSeek.current = true;
@@ -198,6 +264,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     setHasAudio(false);
     void audit.logDurable('meeting_audio_deleted', 'Meeting audio deleted (transcript kept)', {
       metadata: { matterId, meetingDir },
+    }).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
     });
   }, [matterId, meetingDir, workspaceService]);
 
@@ -213,24 +281,41 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // manual reload.
   const handleRetryNotes = useCallback(async () => {
     const ws = workspaceService;
+    const token = meetingLoadToken.current;
+    const isCurrentLoad = () => token === meetingLoadToken.current;
     setRetryingNotes(true);
     try {
       await retryMeetingNotes(meetingDir, matterId);
     } finally {
-      setRetryingNotes(false);
+      if (isCurrentLoad()) setRetryingNotes(false);
     }
-    if (!ws) return;
+    if (!ws || !isCurrentLoad()) return;
     try {
-      setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
-    } catch { /* unreadable */ }
+      const raw = await ws.readFile(`${meetingDir}/meeting.json`);
+      if (isCurrentLoad()) setMeta(JSON.parse(raw) as MeetingMeta);
+    } catch {
+      if (isCurrentLoad()) setMeta(null);
+    }
     try {
       // codex-review (coordinator P2): notes.docx is binary — reading it as
       // text can throw on real docx bytes even though the write succeeded,
       // which would have fallen back to the "still generating" state right
       // after a SUCCESSFUL retry. exists() is a decode-free presence check.
-      setHasNotes(await ws.exists(`${meetingDir}/notes.docx`));
+      const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
+      if (!isCurrentLoad()) return;
+      setHasNotes(notesExists);
+      if (notesExists) {
+        const notesBytes = await ws.readFileBinary(`${meetingDir}/notes.docx`);
+        const extracted = await extractDocxText(notesBytes);
+        if (isCurrentLoad()) setSummaryText(extracted.plainText.trim());
+      } else {
+        setSummaryText('');
+      }
     } catch {
-      setHasNotes(false);
+      if (isCurrentLoad()) {
+        setHasNotes(false);
+        setSummaryText('');
+      }
     }
   }, [meetingDir, matterId, workspaceService]);
 
@@ -239,24 +324,32 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   // transcript.json so the pane reflects the outcome without a manual reload.
   const handleRetryTranscript = useCallback(async () => {
     const ws = workspaceService;
+    const token = meetingLoadToken.current;
+    const isCurrentLoad = () => token === meetingLoadToken.current;
     setRetryingTranscript(true);
     try {
       await retryMeetingTranscript(meetingDir, workspaceRoot, matterId);
     } finally {
-      setRetryingTranscript(false);
+      if (isCurrentLoad()) setRetryingTranscript(false);
     }
-    if (!ws) return;
+    if (!ws || !isCurrentLoad()) return;
     try {
-      setMeta(JSON.parse(await ws.readFile(`${meetingDir}/meeting.json`)) as MeetingMeta);
-    } catch { /* unreadable */ }
+      const raw = await ws.readFile(`${meetingDir}/meeting.json`);
+      if (isCurrentLoad()) setMeta(JSON.parse(raw) as MeetingMeta);
+    } catch {
+      if (isCurrentLoad()) setMeta(null);
+    }
     try {
       const raw = await ws.readFile(`${meetingDir}/transcript.json`);
-      setTranscript(JSON.parse(raw) as TranscriptFile);
-    } catch { /* still not there */ }
-    try {
-      setHasNotes(await ws.exists(`${meetingDir}/notes.docx`));
+      if (isCurrentLoad()) setTranscript(JSON.parse(raw) as TranscriptFile);
     } catch {
-      setHasNotes(false);
+      if (isCurrentLoad()) setTranscript(null);
+    }
+    try {
+      const notesExists = await ws.exists(`${meetingDir}/notes.docx`);
+      if (isCurrentLoad()) setHasNotes(notesExists);
+    } catch {
+      if (isCurrentLoad()) setHasNotes(false);
     }
   }, [meetingDir, matterId, workspaceRoot, workspaceService]);
 
@@ -274,6 +367,112 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     setEditingType(false);
   }, [typeInput, meta, meetingDir, folderName, workspaceService, t]);
 
+  const handleSaveTitle = useCallback(async () => {
+    if (!meta || !workspaceService) { setRenaming(false); return; }
+    const entered = titleInput.trim();
+    const updated: MeetingMeta = entered
+      ? { ...meta, customTitle: entered }
+      : (() => {
+          const { customTitle: _customTitle, ...rest } = meta;
+          return rest;
+        })();
+    await writeMeetingJson(meetingDir, updated);
+    setMeta(updated);
+    setRenaming(false);
+  }, [meta, titleInput, meetingDir, workspaceService]);
+
+  const copyText = useCallback(async (text: string, notice: string) => {
+    await navigator.clipboard.writeText(text);
+    setExportNotice(notice);
+  }, []);
+
+  const summaryMarkdown = useCallback(() => {
+    if (!summaryReady) throw new Error(t('meetings.entry.summary-not-ready'));
+    const title = meetingDisplayTitle(meta, t);
+    return `# ${title}\n\n${summaryText.trim()}`;
+  }, [meta, summaryReady, summaryText, t]);
+
+  const uniqueExportPath = useCallback(async (stem: string, ext: 'docx' | 'pdf'): Promise<string> => {
+    const ws = workspaceService;
+    if (!ws) return `${documentsDir}/${stem}.${ext}`;
+    let candidate = `${documentsDir}/${stem}.${ext}`;
+    let suffix = 2;
+    while (await ws.exists(candidate)) {
+      candidate = `${documentsDir}/${stem} ${String(suffix)}.${ext}`;
+      suffix += 1;
+    }
+    return candidate;
+  }, [workspaceService, documentsDir]);
+
+  const exportSummaryDocx = useCallback(async (): Promise<string | null> => {
+    const ws = workspaceService;
+    if (!ws) return null;
+    if (!summaryReady) throw new Error(t('meetings.entry.summary-not-ready'));
+    const stem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
+    const path = await uniqueExportPath(stem, 'docx');
+    const bytes = await markdownToDocxBytes(summaryMarkdown(), `${stem}.docx`);
+    const finalBytes = await applyLetterheadIfConfigured(bytes);
+    await ws.writeFileBinary(path, toExactArrayBuffer(finalBytes));
+    return path;
+  }, [workspaceService, summaryReady, meta, t, uniqueExportPath, summaryMarkdown]);
+
+  const runExport = useCallback(async (kind: string, work: () => Promise<string | null>) => {
+    setExporting(kind);
+    setExportNotice(null);
+    try {
+      const path = await work();
+      if (path) setExportNotice(t('meetings.entry.export-saved', { path }));
+    } catch (err) {
+      setExportNotice(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExporting(null);
+    }
+  }, [t]);
+
+  const handleExportSummaryDocx = useCallback(() => {
+    void runExport('summary-docx', exportSummaryDocx).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
+    });
+  }, [runExport, exportSummaryDocx]);
+
+  const handleExportSummaryPdf = useCallback(() => {
+    void runExport('summary-pdf', async () => {
+      const ws = workspaceService;
+      if (!ws) return null;
+      const docxPath = await exportSummaryDocx();
+      if (!docxPath) return null;
+      const pdfSource = await docxConvertToPdf(docxPath);
+      const { readFile } = await import('@tauri-apps/plugin-fs');
+      const pdfBytes = await readFile(pdfSource);
+      const stem = sanitizeFileStem(`${meetingDisplayTitle(meta, t)} summary`);
+      const pdfPath = await uniqueExportPath(stem, 'pdf');
+      await ws.writeFileBinary(pdfPath, toExactArrayBuffer(pdfBytes));
+      return pdfPath;
+    }).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
+    });
+  }, [workspaceService, exportSummaryDocx, runExport, meta, t, uniqueExportPath]);
+
+  const handleExportTranscript = useCallback(() => {
+    void runExport('transcript', async () => {
+      const ws = workspaceService;
+      if (!ws || !transcript) return null;
+      const path = `${meetingDir}/transcript.txt`;
+      await ws.writeFile(path, transcriptToText(transcript));
+      return path;
+    }).catch((err: unknown) => {
+      setExportNotice(err instanceof Error ? err.message : String(err));
+    });
+  }, [workspaceService, transcript, meetingDir, runExport]);
+
+  const handleDownloadAudio = useCallback(() => {
+    if (!audioSrc) return;
+    const a = document.createElement('a');
+    a.href = audioSrc;
+    a.download = `${sanitizeFileStem(meetingDisplayTitle(meta, t))}.wav`;
+    a.click();
+  }, [audioSrc, meta, t]);
+
   return (
     <div data-testid="meeting-entry" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
@@ -281,8 +480,40 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
           <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
             <ChevronLeft style={{ width: 18, height: 18 }} />
           </button>
-          <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
-            {clientName} / {t('meetings.entry.breadcrumb-meetings')} / <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)' }}>{meetingDisplayTitle(meta, t)}</span>
+          <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span>{clientName} / {t('meetings.entry.breadcrumb-meetings')} /</span>
+            {renaming ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <input
+                  data-testid="meeting-title-input"
+                  value={titleInput}
+                  onChange={(e) => { setTitleInput(e.target.value); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSaveTitle().catch((err: unknown) => {
+                      setExportNotice(err instanceof Error ? err.message : String(err));
+                    });
+                    if (e.key === 'Escape') setRenaming(false);
+                  }}
+                  style={{ fontSize: 'var(--kp-font-sm)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '3px 6px' }}
+                />
+                <button type="button" data-testid="meeting-title-save" onClick={() => { void handleSaveTitle().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', display: 'inline-flex' }}>
+                  <Check style={{ width: 13, height: 13 }} />
+                </button>
+              </span>
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)' }}>{meetingDisplayTitle(meta, t)}</span>
+                <button
+                  type="button"
+                  data-testid="meeting-title-rename"
+                  aria-label={t('meetings.entry.rename')}
+                  onClick={() => { setTitleInput(meetingDisplayTitle(meta, t)); setRenaming(true); }}
+                  style={{ border: 'none', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'inline-flex', padding: 2 }}
+                >
+                  <Pencil style={{ width: 12, height: 12 }} />
+                </button>
+              </span>
+            )}
             {dateDurationLine(meta, t) && (
               <span> · {dateDurationLine(meta, t)}</span>
             )}
@@ -293,7 +524,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             <button
               type="button"
               data-testid="meeting-entry-mark-reviewed"
-              onClick={() => { void handleMarkReviewed(); }}
+	              onClick={() => { void handleMarkReviewed().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }}
               style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Check style={{ width: 12, height: 12 }} />
@@ -367,102 +598,198 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         />
       )}
 
-      {hasAudio && audioSrc && (
-        <div style={{ padding: '8px var(--kp-gutter)', borderBottom: '1px solid var(--kp-divider)' }}>
-          {/* compact: a slim scrub row — the meeting page's stars are the
-              notes + transcript below, never the player (UX review B4). */}
-          <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={meetingDisplayTitle(meta, t)} compact />
+      <div style={{ borderBottom: '1px solid var(--kp-divider)', padding: '10px var(--kp-gutter) 0', display: 'flex', gap: 6 }}>
+        <button
+          type="button"
+          data-testid="meeting-subtab-recording"
+          onClick={() => { setActiveTab('recording'); }}
+          style={{
+            border: 'none',
+            borderBottom: activeTab === 'recording' ? '2px solid var(--kp-accent)' : '2px solid transparent',
+            background: 'transparent',
+            color: activeTab === 'recording' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            fontFamily: 'inherit',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: activeTab === 'recording' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
+            padding: '8px 10px',
+            cursor: 'pointer',
+          }}
+        >
+          {t('meetings.entry.tab-recording')}
+        </button>
+        <button
+          type="button"
+          data-testid="meeting-subtab-transcript"
+          onClick={() => { setActiveTab('transcript'); }}
+          style={{
+            border: 'none',
+            borderBottom: activeTab === 'transcript' ? '2px solid var(--kp-accent)' : '2px solid transparent',
+            background: 'transparent',
+            color: activeTab === 'transcript' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            fontFamily: 'inherit',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: activeTab === 'transcript' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
+            padding: '8px 10px',
+            cursor: 'pointer',
+          }}
+        >
+          {t('meetings.entry.tab-transcript')}
+        </button>
+        <button
+          type="button"
+          data-testid="meeting-subtab-summary"
+          onClick={() => { setActiveTab('summary'); }}
+          style={{
+            border: 'none',
+            borderBottom: activeTab === 'summary' ? '2px solid var(--kp-accent)' : '2px solid transparent',
+            background: 'transparent',
+            color: activeTab === 'summary' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
+            fontFamily: 'inherit',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: activeTab === 'summary' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
+            padding: '8px 10px',
+            cursor: 'pointer',
+          }}
+        >
+          {t('meetings.entry.tab-summary')}
+        </button>
+      </div>
+
+      {exportNotice && (
+        <div data-testid="meeting-entry-export-notice" style={{ padding: '8px var(--kp-gutter) 0', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+          {exportNotice}
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
-        <div style={{ flex: 1, minWidth: 0, borderRight: '1px solid var(--kp-divider)', overflow: 'auto' }}>
-          {hasNotes ? (
-            <LazyBoundary
-              loader={loadDocxEditor}
-              resetKey={meetingDir}
-              label={t('meetings.entry.docx-editor-label')}
-            >
-              {(DocxEditor) => <DocxEditor filePath={`${meetingDir}/notes.docx`} fileName="notes.docx" />}
-            </LazyBoundary>
-          ) : meta?.notesError ? (
-            <div
-              data-testid="meeting-entry-notes-failed"
-              style={{ padding: 'var(--kp-gutter)', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}
-            >
-              <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-                {meta.notesError.kind === 'gate-blocked' && t('meetings.entry.notes-failed-blocked')}
-                {meta.notesError.kind === 'timeout' && t('meetings.entry.notes-failed-timeout')}
-                {meta.notesError.kind === 'error' && t('meetings.entry.notes-failed-error')}
+      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 'var(--kp-gutter)' }}>
+        {activeTab === 'recording' && (
+          <div data-testid="meeting-recording-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
+            {hasAudio && audioSrc ? (
+              <>
+                <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={meetingDisplayTitle(meta, t)} compact />
+                <button
+                  type="button"
+                  data-testid="meeting-audio-download"
+                  onClick={handleDownloadAudio}
+                  style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  <Download style={{ width: 13, height: 13 }} />
+                  {t('meetings.entry.download-audio')}
+                </button>
+              </>
+            ) : meta?.recordingError && !hasAudio ? (
+              <div data-testid="meeting-entry-recording-incomplete" style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.recording-incomplete')}
               </div>
+            ) : (
+              <div data-testid="meeting-entry-no-audio" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.no-audio')}
+              </div>
+            )}
+            {transcriptLooksSilent(transcript) && (
+              <div data-testid="meeting-entry-no-one-spoke" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.no-one-spoke')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'transcript' && (
+          <div data-testid="meeting-transcript-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
                 type="button"
-                data-testid="meeting-entry-retry-notes"
-                onClick={() => { void handleRetryNotes(); }}
-                disabled={retryingNotes}
-                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
+                data-testid="meeting-transcript-copy"
+                onClick={() => { void copyText(transcriptToText(transcript), t('meetings.entry.transcript-copied')); }}
+                disabled={!transcript}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: transcript ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
               >
-                {retryingNotes ? t('meetings.entry.retrying-notes') : t('meetings.tab.retry-button')}
+                <Copy style={{ width: 13, height: 13 }} />
+                {t('meetings.entry.copy')}
               </button>
-            </div>
-          ) : meta?.recordingError && !hasAudio ? (
-            // QA-35 review round 2: no audio ever got salvaged (most commonly
-            // the disk was still full when finalize_session tried to write
-            // it) — there's nothing here that will ever transcribe/generate
-            // notes on its own. Showing "pending" would be an eternal,
-            // no-recourse wait indistinguishable from a genuine hang; this is
-            // a dead end with no retry (re-recording the meeting is the only
-            // way forward), so it says so honestly instead.
-            <div data-testid="meeting-entry-recording-incomplete" style={{ padding: 'var(--kp-gutter)', color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-              {t('meetings.entry.recording-incomplete')}
-            </div>
-          ) : (
-            <div data-testid="meeting-entry-notes-pending" style={{ padding: 'var(--kp-gutter)', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
-              {t('meetings.entry.notes-pending')}
-            </div>
-          )}
-        </div>
-        <div style={{ flex: 1, minWidth: 0, overflow: 'auto', padding: 'var(--kp-gutter)' }}>
-          {transcript ? (
-            <TranscriptViewer transcript={transcript} onSeek={handleSeek} {...(seekMs !== undefined ? { activeMs: seekMs } : {})} />
-          ) : meta?.transcriptError ? (
-            <div
-              data-testid="meeting-entry-transcript-failed"
-              style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}
-            >
-              <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-                {meta.transcriptError.kind === 'not-installed' && t('meetings.entry.transcript-failed-not-installed')}
-                {meta.transcriptError.kind === 'timeout' && t('meetings.entry.transcript-failed-timeout')}
-                {meta.transcriptError.kind === 'error' && t('meetings.entry.transcript-failed-error')}
-              </div>
               <button
                 type="button"
-                data-testid="meeting-entry-retry-transcript"
-                onClick={() => { void handleRetryTranscript(); }}
-                disabled={retryingTranscript}
-                style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
+                data-testid="meeting-transcript-export"
+                onClick={handleExportTranscript}
+                disabled={!transcript || exporting === 'transcript'}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: transcript ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
               >
-                {retryingTranscript ? t('meetings.entry.retrying-transcript') : t('meetings.tab.retry-button')}
+                <Download style={{ width: 13, height: 13 }} />
+                {t('meetings.entry.export')}
               </button>
             </div>
-          ) : meta?.recordingError && !hasAudio ? (
-            // See the mirrored notes-pane check above for why this isn't
-            // "pending" — no audio was ever salvaged, so no transcript will
-            // ever generate here on its own.
-            <div data-testid="meeting-entry-recording-incomplete-transcript" style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
-              {t('meetings.entry.recording-incomplete')}
+            {transcript ? (
+              <>
+                <TranscriptViewer transcript={transcript} onSeek={handleSeek} {...(seekMs !== undefined ? { activeMs: seekMs } : {})} />
+                <div style={{ marginTop: 'var(--kp-space-lg)' }}>
+                  <SpeakerNamesPanel meetingDir={meetingDir} matterId={matterId} workspaceRoot={workspaceRoot} />
+                </div>
+              </>
+            ) : meta?.transcriptError ? (
+              <div data-testid="meeting-entry-transcript-failed" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
+                <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+                  {meta.transcriptError.kind === 'not-installed' && t('meetings.entry.transcript-failed-not-installed')}
+                  {meta.transcriptError.kind === 'timeout' && t('meetings.entry.transcript-failed-timeout')}
+                  {meta.transcriptError.kind === 'error' && t('meetings.entry.transcript-failed-error')}
+                </div>
+                <button type="button" data-testid="meeting-entry-retry-transcript" onClick={() => { void handleRetryTranscript(); }} disabled={retryingTranscript} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {retryingTranscript ? t('meetings.entry.retrying-transcript') : t('meetings.tab.retry-button')}
+                </button>
+              </div>
+            ) : meta?.recordingError && !hasAudio ? (
+              <div data-testid="meeting-entry-recording-incomplete-transcript" style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.recording-incomplete')}
+              </div>
+            ) : (
+              <div data-testid="meeting-entry-transcript-pending" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.transcript-pending')}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'summary' && (
+          <div data-testid="meeting-summary-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" data-testid="meeting-summary-copy" onClick={() => { void copyText(summaryText.trim(), t('meetings.entry.summary-copied')); }} disabled={!summaryReady} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                <Copy style={{ width: 13, height: 13 }} />
+                {t('meetings.entry.copy')}
+              </button>
+              <button type="button" data-testid="meeting-summary-export-docx" onClick={handleExportSummaryDocx} disabled={!summaryReady || exporting === 'summary-docx'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                <FileText style={{ width: 13, height: 13 }} />
+                {t('meetings.entry.export-word')}
+              </button>
+              <button type="button" data-testid="meeting-summary-export-pdf" onClick={handleExportSummaryPdf} disabled={!summaryReady || exporting === 'summary-pdf'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
+                <Download style={{ width: 13, height: 13 }} />
+                {t('meetings.entry.export-pdf')}
+              </button>
             </div>
-          ) : (
-            <div data-testid="meeting-entry-transcript-pending" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
-              {t('meetings.entry.transcript-pending')}
-            </div>
-          )}
-          {transcript && (
-            <div style={{ marginTop: 'var(--kp-space-lg)' }}>
-              <SpeakerNamesPanel meetingDir={meetingDir} matterId={matterId} workspaceRoot={workspaceRoot} />
-            </div>
-          )}
-        </div>
+            {summaryReady ? (
+              <pre data-testid="meeting-summary-text" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)', lineHeight: 1.6 }}>
+                {summaryText.trim()}
+              </pre>
+            ) : hasNotes ? (
+              <div data-testid="meeting-entry-summary-not-ready" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.summary-not-ready')}
+              </div>
+            ) : meta?.notesError ? (
+              <div data-testid="meeting-entry-notes-failed" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
+                <div style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
+                  {meta.notesError.kind === 'gate-blocked' && t('meetings.entry.notes-failed-blocked')}
+                  {meta.notesError.kind === 'timeout' && t('meetings.entry.notes-failed-timeout')}
+                  {meta.notesError.kind === 'error' && t('meetings.entry.notes-failed-error')}
+                </div>
+                <button type="button" data-testid="meeting-entry-retry-notes" onClick={() => { void handleRetryNotes(); }} disabled={retryingNotes} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                  {retryingNotes ? t('meetings.entry.retrying-notes') : t('meetings.tab.retry-button')}
+                </button>
+              </div>
+            ) : (
+              <div data-testid="meeting-entry-notes-pending" style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+                {t('meetings.entry.notes-pending')}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Deleting the only recording of a client meeting is irreversible —

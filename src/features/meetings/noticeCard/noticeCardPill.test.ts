@@ -11,6 +11,10 @@ describe('noticeCardPillView', () => {
     expect(v?.tone).toBe('warn');
     expect(v?.kind).toBe('failed');
   });
+  it('uses a specific message when the card window could not open', () => {
+    const v = noticeCardPillView({ phase: 'failed', reason: 'window-open-failed' });
+    expect(v).toEqual({ kind: 'window-open-failed', tone: 'warn' });
+  });
   it('shows a pending message while joining or in the lobby', () => {
     expect(noticeCardPillView({ phase: 'joining', platform: 'zoom' })?.tone).toBe('pending');
     expect(noticeCardPillView({ phase: 'lobby', platform: 'zoom' })?.tone).toBe('pending');

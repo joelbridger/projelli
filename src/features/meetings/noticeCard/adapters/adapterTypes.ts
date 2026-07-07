@@ -40,6 +40,8 @@ export interface JoinAdapter {
   fillGuestName(doc: Document, name: string): boolean;
   /** Ensure the mic is muted before joining. Returns true if muted/already. */
   ensureMuted(doc: Document): boolean;
+  /** Set the meeting client's mic mute state. Returns true if the control was found. */
+  setMuted(doc: Document, muted: boolean): boolean;
   /** Click the join / continue control. Returns true if it clicked one. */
   clickJoin(doc: Document): boolean;
 }

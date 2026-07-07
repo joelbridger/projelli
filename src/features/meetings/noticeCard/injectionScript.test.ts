@@ -218,6 +218,50 @@ describe('buildInjectionScript', () => {
     expect(() => new Function(src)).not.toThrow();
   });
 
+  it('unmutes only while an announcement plays, then re-mutes and blocks overlap', async () => {
+    const src = buildInjectionScript(cfg(), {
+      cameraScript: `
+        window.__events = [];
+        window.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__ = function () {
+          window.__events.push('speak');
+          return new Promise(function (resolve) { window.__finishAnnouncement = resolve; });
+        };
+      `,
+    });
+    const doc = new DOMParser().parseFromString(
+      '<html><body><button data-tid="toggle-mute" data-cid="toggle-mute-true" aria-checked="false"></button></body></html>',
+      'text/html',
+    );
+    const toggle = doc.querySelector('[data-tid="toggle-mute"]');
+    if (!(toggle instanceof HTMLElement)) throw new Error('missing Teams mic toggle');
+    toggle.addEventListener('click', () => {
+      const muted = toggle.getAttribute('data-cid') === 'toggle-mute-true';
+      toggle.setAttribute('data-cid', muted ? 'toggle-mute-false' : 'toggle-mute-true');
+    });
+    const w: {
+      __NOTICE_CARD_ANNOUNCE_WAV_BASE64__?: (b64: string) => Promise<unknown>;
+      __finishAnnouncement?: (value: boolean) => void;
+      __events?: string[];
+    } = {};
+    // eslint-disable-next-line @typescript-eslint/no-implied-eval -- runs our own generated runner
+    const runRunner = new Function('document', 'window', 'setInterval', src) as (
+      d: Document,
+      w: object,
+      si: (fn: () => void) => number,
+    ) => void;
+    runRunner(doc, w, () => 1);
+
+    const first = w.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__?.('a');
+    expect(toggle.getAttribute('data-cid')).toBe('toggle-mute-false');
+    const second = await w.__NOTICE_CARD_ANNOUNCE_WAV_BASE64__?.('b');
+    expect(second).toBe(false);
+    expect(w.__events).toEqual(['speak']);
+
+    w.__finishAnnouncement?.(true);
+    await first;
+    expect(toggle.getAttribute('data-cid')).toBe('toggle-mute-true');
+  });
+
   it('throws for a platform with no adapter (defensive; supervisor guards too)', () => {
     expect(() => buildInjectionScript(cfg({ platform: 'meet', joinUrl: 'https://meet.google.com/x' }))).toThrow();
     expect(() => buildInjectionScript(cfg({ platform: 'none', joinUrl: '' }))).toThrow();

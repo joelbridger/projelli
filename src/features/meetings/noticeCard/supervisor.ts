@@ -40,6 +40,8 @@ export type NoticeCardLedgerEvent = Extract<
 export interface NoticeCardDriver {
   /** Create the isolated companion window and begin the guest join. */
   open(config: NoticeCardConfig): Promise<void>;
+  /** Speak a short phrase through the card's fake microphone stream. */
+  announce?(text: string): Promise<void>;
   /** Tear down the window. Idempotent; a hard kill, not a polite request. */
   close(): Promise<void>;
 }
@@ -52,7 +54,8 @@ export interface NoticeCardDriver {
  */
 export type NoticeCardDiagnostic =
   | { kind: 'attempt'; attempt: number; reason: 'initial' | 'pre-admit-retry' }
-  | { kind: 'pre-admit-giveup'; reason: NoticeCardFailureReason; willRetry: boolean }
+  | { kind: 'open-failed'; attempt: number; message: string; willRetry: boolean }
+  | { kind: 'pre-admit-giveup'; reason: NoticeCardFailureReason; willRetry: boolean; stage: string }
   | { kind: 'admitted'; attempt: number }
   | { kind: 'terminal'; reason: NoticeCardFailureReason };
 
@@ -92,6 +95,8 @@ export interface SupervisorDeps {
   onStatus?: (status: NoticeCardStatus) => void;
   /** Attempt-trail breadcrumbs for the no-knock investigation (see NoticeCardDiagnostic). */
   onDiagnostic?: (event: NoticeCardDiagnostic) => void;
+  /** Spoken by the card once it is admitted into the meeting. */
+  entryAnnouncement?: string;
   /** Max time from first open until "admitted" before we give up. */
   joinTimeoutMs?: number;
   /** If a close() hasn't confirmed within this, force another close. */
@@ -112,6 +117,7 @@ export class NoticeCardSupervisor {
   private readonly clock: SupervisorClock;
   private readonly onStatus?: ((status: NoticeCardStatus) => void) | undefined;
   private readonly onDiagnostic?: ((event: NoticeCardDiagnostic) => void) | undefined;
+  private readonly entryAnnouncement?: string | undefined;
   private readonly joinTimeoutMs: number;
   private readonly watchdogMs: number;
   private readonly fullPresenceToleranceMs: number;
@@ -130,6 +136,7 @@ export class NoticeCardSupervisor {
   private watchdogTimer: number | null = null;
   private startedAtMs: number | null = null;
   private admittedAtMs: number | null = null;
+  private lastStage: 'not-started' | 'opening' | 'joining' | 'lobby' | 'present' | 'present-unknown' = 'not-started';
 
   constructor(deps: SupervisorDeps) {
     this.driver = deps.driver;
@@ -137,6 +144,7 @@ export class NoticeCardSupervisor {
     this.clock = deps.clock ?? realClock;
     this.onStatus = deps.onStatus;
     this.onDiagnostic = deps.onDiagnostic;
+    this.entryAnnouncement = deps.entryAnnouncement;
     this.joinTimeoutMs = deps.joinTimeoutMs ?? DEFAULT_JOIN_TIMEOUT_MS;
     this.watchdogMs = deps.watchdogMs ?? DEFAULT_WATCHDOG_MS;
     this.fullPresenceToleranceMs = deps.fullPresenceToleranceMs ?? DEFAULT_FULL_PRESENCE_TOLERANCE_MS;
@@ -148,6 +156,22 @@ export class NoticeCardSupervisor {
 
   private setStatus(status: NoticeCardStatus): void {
     this._status = status;
+    switch (status.phase) {
+      case 'joining':
+        this.lastStage = 'joining';
+        break;
+      case 'lobby':
+        this.lastStage = 'lobby';
+        break;
+      case 'present':
+        this.lastStage = 'present';
+        break;
+      case 'present-unknown':
+        this.lastStage = 'present-unknown';
+        break;
+      default:
+        break;
+    }
     this.onStatus?.(status);
   }
 
@@ -189,6 +213,7 @@ export class NoticeCardSupervisor {
     this.terminal = false;
     this.startedAtMs = this.clock.now();
     this.admittedAtMs = null;
+    this.lastStage = 'not-started';
     this.clearJoinTimer();
 
     if (!config.joinUrl.trim()) {
@@ -209,6 +234,7 @@ export class NoticeCardSupervisor {
 
   private async openWindow(): Promise<void> {
     if (!this.config) return;
+    this.lastStage = 'opening';
     try {
       await this.driver.open(this.config);
       // Race guard: if the recording was stopped (or the card failed) while this
@@ -217,11 +243,12 @@ export class NoticeCardSupervisor {
       if (this.terminal) {
         void this.driver.close();
       }
-    } catch {
+    } catch (err) {
       // A late open rejection AFTER we've already stopped/failed must not append
       // a second failure or overwrite the final left/stopped state — no-op.
       if (this.terminal) return;
-      this.fail('internal');
+      const message = err instanceof Error ? err.message : String(err);
+      this.failOrRetryOpenFailure(message);
     }
   }
 
@@ -260,6 +287,10 @@ export class NoticeCardSupervisor {
       this.everAdmitted = true;
       this.admittedAtMs = this.clock.now();
       this.onDiagnostic?.({ kind: 'admitted', attempt: this.preAdmitRetryUsed ? 2 : 1 });
+      if (this.entryAnnouncement) {
+        // eslint-disable-next-line lantern-async/no-silent-failure -- announce catches and emits diagnostic breadcrumbs on failure
+        void this.announce(this.entryAnnouncement);
+      }
       this.record({
         kind: 'notice-card-joined',
         meetingDir: this.meetingDir(),
@@ -346,7 +377,7 @@ export class NoticeCardSupervisor {
       !this.everReachedLobby &&
       !this.preAdmitRetryUsed &&
       (reason === 'page-unrecognized' || reason === 'join-timeout');
-    this.onDiagnostic?.({ kind: 'pre-admit-giveup', reason, willRetry: eligible });
+    this.onDiagnostic?.({ kind: 'pre-admit-giveup', reason, willRetry: eligible, stage: this.lastStage });
     if (!eligible) {
       this.fail(reason);
       return;
@@ -366,6 +397,32 @@ export class NoticeCardSupervisor {
     this.startJoinTimer();
   }
 
+  private failOrRetryOpenFailure(message: string): void {
+    if (this.terminal) return;
+    const eligible = !this.everAdmitted && !this.everReachedLobby && !this.preAdmitRetryUsed;
+    this.onDiagnostic?.({
+      kind: 'open-failed',
+      attempt: this.preAdmitRetryUsed ? 2 : 1,
+      message,
+      willRetry: eligible,
+    });
+    if (!eligible) {
+      this.fail('window-open-failed');
+      return;
+    }
+    this.preAdmitRetryUsed = true;
+    this.clearJoinTimer();
+    this.setStatus({
+      phase: 'joining',
+      platform: this.config?.platform ?? 'none',
+      meetingTitle: this.config?.meetingTitle,
+    });
+    this.onDiagnostic?.({ kind: 'attempt', attempt: 2, reason: 'pre-admit-retry' });
+    // eslint-disable-next-line lantern-async/no-silent-failure -- openWindow catches and converts open failures into a ledgered failure reason
+    void this.openWindow();
+    this.startJoinTimer();
+  }
+
   // ── Stop (the hard leave guarantee) ────────────────────────────────────────
 
   /**
@@ -374,7 +431,7 @@ export class NoticeCardSupervisor {
    * recording) if the card had joined; otherwise files an honest failure that
    * the card never made it in. Idempotent.
    */
-  stop(): Promise<void> {
+  async stop(stopAnnouncement?: string): Promise<void> {
     if (this.terminal) return Promise.resolve();
     this.terminal = true;
     this.clearJoinTimer();
@@ -389,6 +446,9 @@ export class NoticeCardSupervisor {
         : this.config?.platform ?? 'none';
 
     if (wasPresent) {
+      if (stopAnnouncement) {
+        await this.announce(stopAnnouncement);
+      }
       const meetingDir = this.meetingDir();
       this.record({ kind: 'notice-card-left', meetingDir, at: this.nowIso() });
       // Only claim the card covered the WHOLE recording when: it was admitted
@@ -419,6 +479,9 @@ export class NoticeCardSupervisor {
     } else if (this.everAdmitted) {
       // Joined earlier but dropped / mid-rejoin at stop: honest left, but NOT
       // full-duration presence (there was a gap).
+      if (stopAnnouncement) {
+        await this.announce(stopAnnouncement);
+      }
       this.record({ kind: 'notice-card-left', meetingDir: this.meetingDir(), at: this.nowIso() });
       this.setStatus({ phase: 'left' });
     } else {
@@ -433,6 +496,19 @@ export class NoticeCardSupervisor {
     }
     this.closeWithWatchdog();
     return Promise.resolve();
+  }
+
+  private async announce(text: string): Promise<void> {
+    try {
+      await this.driver.announce?.(text);
+    } catch (err) {
+      this.onDiagnostic?.({
+        kind: 'open-failed',
+        attempt: this.preAdmitRetryUsed ? 2 : 1,
+        message: `announce failed: ${err instanceof Error ? err.message : String(err)}`,
+        willRetry: false,
+      });
+    }
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────────
