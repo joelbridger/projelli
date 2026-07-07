@@ -5,6 +5,8 @@ import {
   buildRecentAskSessions,
   sessionBelongsToWorkspace,
   filterHitsByScope,
+  defaultAskScope,
+  normalizeVisibleAskScope,
   askConsentScope,
   composerIsBusy,
   isAuthRejectionError,
@@ -59,6 +61,22 @@ describe('filterHitsByScope', () => {
   it('whole-practice scope passes hits through unchanged (scope never reaches retrieval anyway)', () => {
     const hits = [hit()];
     expect(filterHitsByScope(hits, 'whole-practice')).toEqual(hits);
+  });
+});
+
+describe('normalizeVisibleAskScope', () => {
+  it('moves a hidden whole-practice scope back to the default visible scope', () => {
+    expect(defaultAskScope(true)).toBe('this-matter');
+    expect(defaultAskScope(false)).toBe('all-matters');
+    expect(normalizeVisibleAskScope('whole-practice', true)).toBe('this-matter');
+    expect(normalizeVisibleAskScope('whole-practice', false)).toBe('all-matters');
+  });
+
+  it('leaves every visible scope unchanged', () => {
+    expect(normalizeVisibleAskScope('this-matter', true)).toBe('this-matter');
+    expect(normalizeVisibleAskScope('all-matters', false)).toBe('all-matters');
+    expect(normalizeVisibleAskScope('email', false)).toBe('email');
+    expect(normalizeVisibleAskScope('documents', false)).toBe('documents');
   });
 });
 

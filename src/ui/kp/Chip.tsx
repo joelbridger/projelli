@@ -4,7 +4,7 @@ import type { IconType } from './types';
 
 export interface ChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> {
   active?: boolean;
-  size?: 'sm' | 'md';
+  size?: 'sm' | 'md' | 'pill';
   icon?: IconType;
   className?: string;
 }

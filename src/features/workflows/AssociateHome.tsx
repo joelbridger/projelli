@@ -194,7 +194,7 @@ function PracticeFilterChip({
   return (
     <Chip
       active={active}
-      size="md"
+      size="pill"
       data-testid={testId}
       onClick={onClick}
     >

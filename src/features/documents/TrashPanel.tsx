@@ -111,7 +111,7 @@ export function TrashPanel({
     } else if (days === 1) {
       return 'Yesterday';
     } else if (days < 7) {
-      return `${days} days ago`;
+      return `${String(days)} days ago`;
     } else {
       return date.toLocaleDateString();
     }
@@ -181,8 +181,8 @@ export function TrashPanel({
               retentionPeriod === 'never'
                 ? 'Deleted files live here until you empty the trash. Restore any file from here back to its original folder.'
                 : retentionPeriod === 'custom'
-                  ? `Deleted files live here for ${customRetentionDays} day${customRetentionDays === 1 ? '' : 's'} before being removed permanently. Restore any file from here back to its original folder.`
-                  : `Deleted files live here for ${retentionPeriod} days before being removed permanently. Restore any file from here back to its original folder.`
+                  ? `Deleted files live here for ${String(customRetentionDays)} day${customRetentionDays === 1 ? '' : 's'} before being removed permanently. Restore any file from here back to its original folder.`
+                  : `Deleted files live here for ${String(retentionPeriod)} days before being removed permanently. Restore any file from here back to its original folder.`
             }
           />
         ) : (

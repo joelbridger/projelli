@@ -1,8 +1,9 @@
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileText, FolderOpen, Mail, Users } from 'lucide-react';
+import { FileText, FolderOpen, Mail } from 'lucide-react';
 import { Chip } from '@/ui/kp';
 import type { IconType } from '@/ui/kp';
-import type { AskScope } from './askHelpers';
+import { normalizeVisibleAskScope, type AskScope } from './askHelpers';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 
 /* -------------------------------------------------------------------------- */
@@ -29,6 +30,14 @@ export function ScopeToggle({
 }) {
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
+  const visibleScope = normalizeVisibleAskScope(scope, hasMatter);
+
+  useEffect(() => {
+    if (visibleScope !== scope) {
+      onChange(visibleScope);
+    }
+  }, [onChange, scope, visibleScope]);
+
   // Build the available options based on context.
   // Email/Documents hidden on the sample matter so demo chips stay prominent.
   const options: ScopeOptionDef[] = [
@@ -38,7 +47,6 @@ export function ScopeToggle({
       { value: 'email' as AskScope, label: t('ask.scope-pill.email'), Icon: Mail },
       { value: 'documents' as AskScope, label: t('ask.scope-pill.documents'), Icon: FileText },
     ] : []),
-    { value: 'whole-practice' as AskScope, label: t('ask.book.option-label'), helper: t('ask.book.option-helper'), Icon: Users },
   ];
 
   return (
@@ -49,22 +57,14 @@ export function ScopeToggle({
       style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
     >
       {options.map((opt) => {
-        const isActive = scope === opt.value;
+        const isActive = visibleScope === opt.value;
         return (
           <Chip
             key={opt.value}
-            size="md"
+            size="pill"
             active={isActive}
             data-testid={`scope-option-${opt.value}`}
             onClick={() => { onChange(opt.value); }}
-            // Demo-Ask pill sizing: larger + more spaced (brand.css .kpd-pill).
-            style={{
-              padding: '8px 16px',
-              fontSize: '13.5px',
-              fontWeight: 600,
-              borderWidth: '1.5px',
-              ...(isActive ? {} : { borderColor: 'var(--kp-divider-strong)' }),
-            }}
           >
             {opt.helper ? (
               <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.15 }}>

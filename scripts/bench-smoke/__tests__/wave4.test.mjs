@@ -187,64 +187,93 @@ describe('checkEstateBeneficiaryGapDismissLive', () => {
 });
 
 describe('checkWholePracticeAsk', () => {
-  it('is SETUP-BLOCKED when no scope-option-whole-practice control is found', async () => {
-    const driver = makeDriver({ snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [] }) });
+  it('FAILs when the hidden whole-practice scope control still renders', async () => {
+    const driver = makeDriver({
+      snapshot: vi.fn().mockResolvedValue({
+        ok: true,
+        elements: [
+          { testid: 'scope-option-whole-practice', tag: 'button' },
+          { testid: 'scope-option-all-matters', tag: 'button' },
+          { testid: 'scope-option-email', tag: 'button' },
+          { testid: 'scope-option-documents', tag: 'button' },
+        ],
+      }),
+      evalJs: vi.fn().mockResolvedValue(true),
+    });
+    const result = await checkWholePracticeAsk({ driver });
+    expect(result.status).toBe(STATUS.FAIL);
+    expect(result.detail).toMatch(/still renders/);
+  });
+
+  it('is SETUP-BLOCKED when no visible Ask scope controls are found', async () => {
+    const driver = makeDriver({
+      snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [] }),
+      evalJs: vi.fn().mockResolvedValue(false),
+    });
     const result = await checkWholePracticeAsk({ driver });
     expect(result.status).toBe(STATUS.SETUP_BLOCKED);
+    expect(result.detail).toMatch(/No visible Ask scope controls/);
   });
 
-  it('FAILs when the scope pill text never appears after selecting the option', async () => {
-    const driver = makeDriver({
-      snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [{ testid: 'scope-option-whole-practice', tag: 'button' }] }),
-      waitFor: vi.fn().mockResolvedValue({ found: false }),
-    });
-    const result = await checkWholePracticeAsk({ driver });
-    expect(result.status).toBe(STATUS.FAIL);
-  });
-
-  it('FAILs when the pill text appears (waitFor found) but no ask-scope-pill testid is in the snapshot', async () => {
-    // Regression guard for a Codex-review finding: waitFor('Whole practice
-    // (summaries only)') alone is not proof the scope actually switched if
-    // the snapshot never shows the pill control — a stale/mocked waitFor
-    // (or a copy collision) must not be enough on its own for a PASS.
-    const driver = makeDriver({
-      snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [{ testid: 'scope-option-whole-practice', tag: 'button' }] }),
-      waitFor: vi.fn().mockResolvedValue({ found: true }),
-    });
-    const result = await checkWholePracticeAsk({ driver });
-    expect(result.status).toBe(STATUS.FAIL);
-    expect(result.detail).toMatch(/no \[data-testid="ask-scope-pill"\]/);
-  });
-
-  it('PASSes and notes the consent gate when it is present', async () => {
+  it('FAILs when any remaining visible scope control is missing', async () => {
     const driver = makeDriver({
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
         elements: [
-          { testid: 'scope-option-whole-practice', tag: 'button' },
-          { testid: 'ask-scope-pill', tag: 'div' },
-          { testid: 'chat-file-access-consent', tag: 'div' },
+          { testid: 'scope-option-all-matters', tag: 'button' },
+          { testid: 'scope-option-email', tag: 'button' },
         ],
       }),
+      evalJs: vi.fn().mockResolvedValue(false),
     });
     const result = await checkWholePracticeAsk({ driver });
-    expect(result.status).toBe(STATUS.PASS);
-    expect(result.detail).toMatch(/consent gate/);
-    expect(result.detail).toMatch(/appears as required/);
+    expect(result.status).toBe(STATUS.FAIL);
+    expect(result.detail).toMatch(/scope-option-documents/);
   });
 
-  it('PASSes without treating an absent consent gate as a failure', async () => {
+  it('FAILs when a visible scope click does not update the scope pill', async () => {
+    const evalJs = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce('Wrong label');
     const driver = makeDriver({
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
         elements: [
-          { testid: 'scope-option-whole-practice', tag: 'button' },
-          { testid: 'ask-scope-pill', tag: 'div' },
+          { testid: 'scope-option-all-matters', tag: 'button' },
+          { testid: 'scope-option-email', tag: 'button' },
+          { testid: 'scope-option-documents', tag: 'button' },
         ],
       }),
+      evalJs,
+    });
+    const result = await checkWholePracticeAsk({ driver });
+    expect(result.status).toBe(STATUS.FAIL);
+    expect(driver.click).toHaveBeenCalledWith('scope-option-all-matters');
+    expect(result.detail).toMatch(/instead of "All clients"/);
+  });
+
+  it('PASSes when whole-practice is hidden and the remaining scopes switch', async () => {
+    const evalJs = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce('All clients')
+      .mockResolvedValueOnce('Email')
+      .mockResolvedValueOnce('Documents');
+    const driver = makeDriver({
+      snapshot: vi.fn().mockResolvedValue({
+        ok: true,
+        elements: [
+          { testid: 'scope-option-all-matters', tag: 'button' },
+          { testid: 'scope-option-email', tag: 'button' },
+          { testid: 'scope-option-documents', tag: 'button' },
+        ],
+      }),
+      evalJs,
     });
     const result = await checkWholePracticeAsk({ driver });
     expect(result.status).toBe(STATUS.PASS);
-    expect(result.detail).toMatch(/No consent gate was present/);
+    expect(driver.click).toHaveBeenCalledWith('scope-option-all-matters');
+    expect(driver.click).toHaveBeenCalledWith('scope-option-email');
+    expect(driver.click).toHaveBeenCalledWith('scope-option-documents');
+    expect(result.detail).toMatch(/Whole-practice Ask scope option is absent/);
   });
 });

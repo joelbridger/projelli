@@ -104,6 +104,8 @@ import {
   resolveLocalOnlyAskProvider,
   resolveActiveAskProviderId,
   askConsentScope,
+  defaultAskScope,
+  normalizeVisibleAskScope,
   resolveEmailCitationLabels,
   friendlyErrorMessage,
   isAuthRejectionError,
@@ -202,6 +204,7 @@ export function useAsk({
   onAuditLog,
 }: UseAskProps) {
   const activeMatter = useActiveMatter();
+  const hasActiveMatter = Boolean(activeMatter);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
   const profession = useProfessionStore((s) => s.profession);
   // B-PRIV-1: subscribe to the confidentiality mode so the egress banner is
@@ -258,15 +261,19 @@ export function useAsk({
   // Scope toggle — default to 'this-matter' when a matter is active, else 'all-matters'.
   // Reset to appropriate default when the active matter changes.
   const defaultScope = (): AskScope =>
-    activeMatter ? 'this-matter' : 'all-matters';
-  const [askScope, setAskScope] = useState<AskScope>(defaultScope);
+    defaultAskScope(hasActiveMatter);
+  const [storedAskScope, setStoredAskScope] = useState<AskScope>(defaultScope);
+  const askScope = normalizeVisibleAskScope(storedAskScope, hasActiveMatter);
+  const setAskScope = useCallback((nextScope: AskScope) => {
+    setStoredAskScope(normalizeVisibleAskScope(nextScope, hasActiveMatter));
+  }, [hasActiveMatter]);
 
   // Reset the manual selection + scope when the active matter OR workspace root
   // changes (chatId itself is derived above, so it's already consistent).
   useEffect(() => {
     setSessionOverride(null);
-    setAskScope(activeMatter ? 'this-matter' : 'all-matters');
-  }, [activeMatter?.id, rootPath]); // eslint-disable-line react-hooks/exhaustive-deps
+    setStoredAskScope(defaultAskScope(hasActiveMatter));
+  }, [activeMatter?.id, hasActiveMatter, rootPath]);
 
   // Store selectors
   const initSession = useAIChatStore((s) => s.initSession);
