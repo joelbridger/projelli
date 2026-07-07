@@ -12,7 +12,7 @@ import { Info, Mic, AlertTriangle } from 'lucide-react';
 import { Badge, Button, Callout, EmptyState } from '@/ui/kp';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMeetingStore, needsReview, checkLowDiskSpaceWarning } from './meetingStore';
-import type { MeetingMeta } from './meetingStore';
+import type { MeetingCalendarEventMeta, MeetingMeta } from './meetingStore';
 import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
@@ -20,6 +20,7 @@ import { makeConsentLedger, type ConsentEntry } from './consentLedger';
 import { deriveNoticeState, meetingDirKey, type NoticeEntry, type NoticeState } from './noticeLedger';
 import { useNoticeSettings } from './noticeSettings';
 import { calendarListEvents } from '@/platform/utils/calendar-commands';
+import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { useActiveMatters } from '@/platform/matter/matterStore';
@@ -76,6 +77,17 @@ export interface MeetingsScanResult {
  *  gap regardless of the failure's exact cause. */
 const SCAN_RETRY_ATTEMPTS = 3;
 const SCAN_RETRY_DELAY_MS = 200;
+
+function calendarEventSnapshot(event: CalendarEventDto): MeetingCalendarEventMeta {
+  return {
+    id: event.id,
+    title: event.title,
+    startUtc: event.startUtc,
+    endUtc: event.endUtc,
+    ...(event.joinUrl ? { joinUrl: event.joinUrl } : {}),
+    attendees: event.attendees.map((a) => ({ email: a.email, name: a.name })),
+  };
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -188,7 +200,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const soloName = useProfileStore((s) => s.soloName);
   const getSetting = useSettingsStore((s) => s.getSetting);
   const activeMatters = useActiveMatters();
-  const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer | null>(null);
+  const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer<CalendarEventDto> | null>(null);
   const [noticeCardChecked, setNoticeCardChecked] = useState(false);
   const [noticeCardZoomAttest, setNoticeCardZoomAttest] = useState(false);
   // Manual paste fallback when calendar sync found no online meeting: lets the
@@ -255,7 +267,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       // so we can never pre-check/launch the card into a different client's
       // concurrent meeting (Codex R7 P1). No current-client match => no auto
       // offer; the advisor explicitly pastes a link instead.
-      let offer: NoticeCardOffer | null = null;
+      let offer: NoticeCardOffer<CalendarEventDto> | null = null;
       try {
         const now = Date.now();
         const grace = 5 * 60 * 1000;
@@ -312,9 +324,11 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
           };
         };
         const card = buildCard();
+        const calendarEvent = noticeCardOffer ? calendarEventSnapshot(noticeCardOffer.event) : undefined;
         await startRecording(matterId, {
           consentMode,
           ...(opts.note ? { consentNote: opts.note } : {}),
+          ...(calendarEvent ? { calendarEvent } : {}),
           // Capture the script/locale shown for this recording (codex-review R6).
           noticeCustomScript: custom,
           noticeLanguage: i18n.language,
