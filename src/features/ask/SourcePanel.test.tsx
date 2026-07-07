@@ -77,7 +77,7 @@ beforeEach(() => {
 });
 
 describe('SourcePanel — negative verdicts during an active import (QA-92 round 2)', () => {
-  it('starts long source previews collapsed and expands them without opening the source', async () => {
+  it('starts long source previews collapsed and expands them without opening the source', () => {
     ragVerifyCitationsBatchMock.mockResolvedValueOnce([
       { verdict: 'verified' } satisfies CitationVerdict,
     ]);
