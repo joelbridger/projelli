@@ -8,10 +8,9 @@ import type { ClientMap } from '@/platform/clientMap/types';
 import { skClientMapTab } from '@/config/identity';
 
 /**
- * Regression for the Wave-4 bench finding: when a client has an
- * estate/beneficiary gap, opening that client's Client Map sub-tab must show
- * the resolvable gap control (clientmap-ask-flag) without an extra,
- * undiscoverable click into the "What I'm missing" tab.
+ * Client Map opening behavior: the owner wants every fresh open to land on the
+ * first core section, even when the map has open gaps. The "What I'm missing"
+ * tab stays reachable in the rail, but it no longer steals first focus.
  */
 function gapMap(): ClientMap {
   const map = emptyClientMap('matter_caldwell_jennifer');
@@ -42,23 +41,21 @@ describe('Client detail gap surfacing', () => {
     localStorage.clear();
   });
 
-  it('the client\'s Client Map panel immediately surfaces a resolvable gap control (no extra tab click)', () => {
+  it('lands on Household on a fresh open even when the client has unresolved gaps', () => {
     const map = gapMap();
     render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
-    // No click into "What I'm missing" — this must be visible on first render,
-    // matching what the book view already promised via its gap chip.
-    expect(screen.queryByTestId('clientmap-ask-flag')).toBeTruthy();
+
+    expect(screen.getByTestId('clientmap-tab-household')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Client: Jennifer Caldwell, 58.')).toBeInTheDocument();
+    expect(screen.queryByTestId('clientmap-ask-flag')).toBeNull();
   });
 
-  it('still surfaces the gap even for a client with a remembered tab preference from a prior visit', () => {
-    // Codex review finding: the gap-first fallback only ran when there was no
-    // stored tab preference. A client visited before (e.g. an earlier session,
-    // or before this gap appeared) has a remembered tab in localStorage that
-    // used to take precedence forever, re-burying the gap control on every
-    // reopen until resolved.
+  it('honors a remembered tab preference on revisit', () => {
     const map = gapMap();
-    localStorage.setItem(skClientMapTab(map.matterId), 'household');
+    localStorage.setItem(skClientMapTab(map.matterId), 'money');
     render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
-    expect(screen.queryByTestId('clientmap-ask-flag')).toBeTruthy();
+
+    expect(screen.getByTestId('clientmap-tab-money')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('clientmap-tab-household')).toHaveAttribute('aria-selected', 'false');
   });
 });

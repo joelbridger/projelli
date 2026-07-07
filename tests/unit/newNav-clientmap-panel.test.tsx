@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { emptyClientMap, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
@@ -19,6 +19,10 @@ function demoMap(): ClientMap {
 }
 
 describe('ClientMapPanel (newNav hero view)', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   it('renders the redesigned panel without crashing on a seeded map', () => {
     const { container } = render(
       <ClientMapPanel map={demoMap()} onOpenSource={vi.fn()} onEditItem={vi.fn()} />,
@@ -56,7 +60,57 @@ describe('ClientMapPanel (newNav hero view)', () => {
     ];
     render(<ClientMapPanel map={map} onOpenSource={onOpenSource} onEditItem={vi.fn()} />);
 
+    fireEvent.click(screen.getByTestId('clientmap-tab-money'));
     fireEvent.click(screen.getByTestId('source-card'));
     expect(onOpenSource).toHaveBeenCalledWith(crmSource);
+  });
+
+  it('puts compact icon-only rail actions before the section tabs', () => {
+    const onStartInterview = vi.fn();
+    render(
+      <ClientMapPanel
+        map={demoMap()}
+        onOpenSource={vi.fn()}
+        onEditItem={vi.fn()}
+        onStartInterview={onStartInterview}
+      />,
+    );
+
+    const addButton = screen.getByTestId('clientmap-tab-add');
+    const interviewButton = screen.getByTestId('clientmap-start-interview');
+    const householdTab = screen.getByTestId('clientmap-tab-household');
+
+    expect(addButton).toHaveAccessibleName('New section');
+    expect(interviewButton).toHaveAccessibleName('Start guided interview');
+    expect(addButton).toHaveTextContent('');
+    expect(interviewButton).toHaveTextContent('');
+    expect(addButton.compareDocumentPosition(householdTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(interviewButton.compareDocumentPosition(householdTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(addButton);
+    expect(screen.getByTestId('custom-section-title')).toBeInTheDocument();
+
+    fireEvent.click(interviewButton);
+    expect(onStartInterview).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows instant hover tooltips for the compact rail actions', () => {
+    render(
+      <ClientMapPanel
+        map={demoMap()}
+        onOpenSource={vi.fn()}
+        onEditItem={vi.fn()}
+        onStartInterview={vi.fn()}
+      />,
+    );
+
+    const addButton = screen.getByTestId('clientmap-tab-add');
+    fireEvent.mouseEnter(addButton);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('New section');
+    fireEvent.mouseLeave(addButton);
+
+    const interviewButton = screen.getByTestId('clientmap-start-interview');
+    fireEvent.mouseEnter(interviewButton);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Start guided interview');
   });
 });
