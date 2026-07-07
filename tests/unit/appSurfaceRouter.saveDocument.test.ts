@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { routeSavedAskDocument } from '@/app/shell/AppSurfaceRouter';
+import { routeSavedAskDocument } from '@/app/shell/routeSavedAskDocument';
 import type { Matter } from '@/platform/types/matter';
 
 const matterState = {

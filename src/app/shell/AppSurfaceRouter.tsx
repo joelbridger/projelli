@@ -23,9 +23,9 @@ import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { workspacePath } from '@/platform/fs/appPath';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
-import { useMatterStore } from '@/platform/matter/matterStore';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
+import { routeSavedAskDocument } from '@/app/shell/routeSavedAskDocument';
 import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/platform/types/workflow';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
@@ -114,28 +114,6 @@ export interface AppSurfaceRouterProps {
   handleSettingsAction: (actionId: string) => void;
   handleSettingsRestartOnboarding: () => void;
   activeMatter: Matter | null;
-}
-
-export function routeSavedAskDocument({
-  activeMatter,
-  setDocumentsView,
-  setSidebarActiveTab,
-}: {
-  activeMatter: Matter | null;
-  setDocumentsView: (view: 'browser' | 'editor') => void;
-  setSidebarActiveTab: (tab: AppSurface) => void;
-}) {
-  setDocumentsView('editor');
-  if (!activeMatter) {
-    setSidebarActiveTab('files');
-    return;
-  }
-
-  const matterState = useMatterStore.getState();
-  matterState.setActiveMatter(activeMatter.id);
-  matterState.setClientMapHubId(activeMatter.id);
-  matterState.setClientMapHubTab('documents');
-  setSidebarActiveTab('matters');
 }
 
 export function AppSurfaceRouter({
