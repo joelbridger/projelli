@@ -19,6 +19,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { Download, CheckCircle2, AlertCircle, ExternalLink, ShieldOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mcpBundlePath } from '@/platform/utils/tauri-commands';
@@ -59,7 +60,7 @@ export function McpSettingsSection({
   }, [onResolveBundlePath]);
 
   useEffect(() => {
-    void resolve();
+    void Promise.resolve().then(resolve);
   }, [resolve]);
 
   const handleDownload = useCallback(async () => {
@@ -82,7 +83,7 @@ export function McpSettingsSection({
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }, [bundlePath, onDownload]);
+  }, [bundlePath, onDownload, t]);
 
   const loading = bundlePath === undefined;
   const hasBundle = !!bundlePath;
@@ -94,10 +95,13 @@ export function McpSettingsSection({
       className="space-y-4"
     >
       <div>
-        <h3 className="text-base font-semibold">{t('settings.mcp.title')}</h3>
-        <p className="text-xs text-muted-foreground mt-1">
-          {t('settings.mcp.description')}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-base font-semibold">{t('settings.mcp.title')}</h3>
+          <InfoHelp
+            content={t('settings.mcp.description')}
+            label={`About ${t('settings.mcp.title')}`}
+          />
+        </div>
       </div>
 
       {privileged && (
@@ -169,6 +173,31 @@ export function McpSettingsSection({
           <Download className="h-3.5 w-3.5" />
           {t('settings.mcp.download-cta')}
         </Button>
+        <InfoHelp
+          label={t('settings.mcp.install.heading')}
+          content={
+            <div className="space-y-2">
+              <p className="font-medium">{t('settings.mcp.install.heading')}</p>
+              <ol className="ml-4 list-decimal space-y-1">
+                <li>
+                  <Trans
+                    i18nKey="settings.mcp.install.step-download"
+                    components={{ b: <strong /> }}
+                  />
+                </li>
+                <li>{t('settings.mcp.install.step-open-claude')}</li>
+                <li>
+                  <Trans
+                    i18nKey="settings.mcp.install.step-config"
+                    components={{ b: <strong />, c: <code /> }}
+                  />
+                </li>
+                <li>{t('settings.mcp.install.step-pick-folder')}</li>
+              </ol>
+              <p>{t('settings.mcp.install.after-install')}</p>
+            </div>
+          }
+        />
         <a
           href="https://modelcontextprotocol.io/quickstart/user"
           target="_blank"
@@ -196,30 +225,6 @@ export function McpSettingsSection({
         </div>
       )}
 
-      <div className="rounded-md border border-border/60 p-3 text-xs leading-relaxed text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground">{t('settings.mcp.install.heading')}</p>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>
-            <Trans
-              i18nKey="settings.mcp.install.step-download"
-              components={{ b: <strong /> }}
-            />
-          </li>
-          <li>{t('settings.mcp.install.step-open-claude')}</li>
-          <li>
-            <Trans
-              i18nKey="settings.mcp.install.step-config"
-              components={{ b: <strong />, c: <code /> }}
-            />
-          </li>
-          <li>
-            {t('settings.mcp.install.step-pick-folder')}
-          </li>
-        </ol>
-        <p className="pt-1">
-          {t('settings.mcp.install.after-install')}
-        </p>
-      </div>
       </div>
     </div>
   );

@@ -25,6 +25,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Trash2, Plus } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { getFactsService } from '@/platform/rag/factsSingleton';
 import type { Fact } from '@/platform/rag/FactsService';
 
@@ -120,15 +121,21 @@ export function MemoryFactsSettings({
       data-testid="settings-facts-section"
       className="mt-6 pt-4 border-t border-border/50"
     >
-      <div className="mb-3">
-        <p className="text-xs text-muted-foreground">
-          <Trans
-            i18nKey="settings.memory-facts.description"
-            components={{
-              c: <code className="mx-1 px-1 py-0.5 rounded bg-muted font-mono text-[11px]" />,
-            }}
-          />
-        </p>
+      <div className="mb-3 flex items-center gap-1.5">
+        <h3 className="text-sm font-medium">
+          {t('settings.memory-facts.title')}
+        </h3>
+        <InfoHelp
+          label={`About ${t('settings.memory-facts.title')}`}
+          content={
+            <Trans
+              i18nKey="settings.memory-facts.description"
+              components={{
+                c: <code className="mx-1 px-1 py-0.5 rounded bg-muted font-mono text-[11px]" />,
+              }}
+            />
+          }
+        />
       </div>
 
       {loadError && (

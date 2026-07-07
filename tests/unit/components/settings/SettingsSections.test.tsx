@@ -274,6 +274,21 @@ describe('SettingsModal controls per section', () => {
     expect(screen.getByTestId('setting-theme')).toBeInTheDocument();
   });
 
+  it('settings rows keep descriptions inside an info icon instead of visible gray subtext', () => {
+    renderModal('workspace');
+    expandSubsection('subheader-general');
+
+    expect(screen.getByText('Theme')).toBeInTheDocument();
+    expect(screen.getByLabelText('Theme')).toBeInTheDocument();
+    expect(screen.queryByText('Choose light, dark, or follow your system preference.')).not.toBeInTheDocument();
+
+    const info = screen.getByRole('button', { name: 'About Theme' });
+    expect(info).toBeInTheDocument();
+
+    fireEvent.mouseEnter(info);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Choose light, dark, or follow your system preference.');
+  });
+
   it('Workspace: autoSave toggle is present (from editor, after expanding)', () => {
     renderModal('workspace');
     expandSubsection('subheader-editor');

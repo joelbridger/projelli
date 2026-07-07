@@ -6,7 +6,8 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
+import { InfoHelp } from '@/ui/InfoHelp';
 import {
   Key,
   Eye,
@@ -78,10 +79,13 @@ export function ApiKeySettings({
   return (
     <div className={cn('space-y-6', className)}>
       <div>
-        <h3 className="text-lg font-medium">{t('settings.api-keys.title')}</h3>
-        <p className="text-sm text-muted-foreground">
-          {t('settings.api-keys.description')}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-lg font-medium">{t('settings.api-keys.title')}</h3>
+          <InfoHelp
+            content={t('settings.api-keys.description')}
+            label={`About ${t('settings.api-keys.title')}`}
+          />
+        </div>
       </div>
 
       {/* Plain-English explainer — collapsible in settings since returning
@@ -212,6 +216,10 @@ function ProviderKeyCard({
           <div className="flex items-center gap-2">
             <Key className="h-4 w-4" />
             <CardTitle className="text-base">{provider.name}</CardTitle>
+            <InfoHelp
+              content={provider.description}
+              label={`About ${provider.name}`}
+            />
             {hasKey && (
               <span className={cn(
                 'text-xs px-1.5 py-0.5 rounded',
@@ -233,7 +241,6 @@ function ProviderKeyCard({
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
-        <CardDescription>{provider.description}</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (

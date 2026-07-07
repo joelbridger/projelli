@@ -15,6 +15,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { ExternalLink } from 'lucide-react';
 import { BRAND } from '@/config/brand';
 
@@ -116,9 +117,13 @@ export function MobileSettingsPage() {
 
   return (
     <div className="space-y-6" data-testid="mobile-settings-page">
-      <p className="text-sm text-muted-foreground">
-        {t('settings.mobile-page.description')}
-      </p>
+      <div className="flex items-center gap-1.5">
+        <h3 className="text-sm font-medium">{t('settings.mobile-page.title')}</h3>
+        <InfoHelp
+          content={t('settings.mobile-page.description')}
+          label={`About ${t('settings.mobile-page.title')}`}
+        />
+      </div>
 
       <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm">
         <strong className="text-foreground">{t('settings.mobile-page.heads-up-label')}</strong>{' '}
@@ -150,10 +155,11 @@ export function MobileSettingsPage() {
             data-testid={`mobile-panel-${p.id}`}
             className="space-y-5 pt-4"
           >
-            <p className="text-sm text-muted-foreground">{p.tagline}</p>
-
             <section>
-              <h3 className="text-sm font-semibold mb-2">{t('settings.mobile-page.setup-steps')}</h3>
+              <div className="mb-2 flex items-center gap-1.5">
+                <h3 className="text-sm font-semibold">{t('settings.mobile-page.setup-steps')}</h3>
+                <InfoHelp content={p.tagline} label={`About ${p.label}`} />
+              </div>
               <ol className="list-decimal list-inside space-y-2 text-sm text-foreground/90">
                 {p.steps.map((step, i) => (
                   <li key={i}>{step}</li>
@@ -162,12 +168,19 @@ export function MobileSettingsPage() {
             </section>
 
             <section>
-              <h3 className="text-sm font-semibold mb-2">{t('settings.mobile-page.things-to-know')}</h3>
-              <ul className="list-disc list-inside space-y-1.5 text-sm text-muted-foreground">
-                {p.tips.map((tip, i) => (
-                  <li key={i}>{tip}</li>
-                ))}
-              </ul>
+              <div className="mb-2 flex items-center gap-1.5">
+                <h3 className="text-sm font-semibold">{t('settings.mobile-page.things-to-know')}</h3>
+                <InfoHelp
+                  label={`About ${t('settings.mobile-page.things-to-know')}`}
+                  content={
+                    <ul className="ml-4 list-disc space-y-1">
+                      {p.tips.map((tip, i) => (
+                        <li key={i}>{tip}</li>
+                      ))}
+                    </ul>
+                  }
+                />
+              </div>
             </section>
 
             <div className="flex flex-wrap gap-2 pt-1">

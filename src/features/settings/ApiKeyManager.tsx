@@ -29,6 +29,7 @@ import {
   DialogDescription,
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { Key, Plus, Trash2, CheckCircle, XCircle, Loader2, ShieldQuestion, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { withTimeout } from '@/lib/withTimeout';
@@ -84,6 +85,10 @@ const PROVIDER_NAMES: Record<KeyProvider, string> = {
 // the i18n lint rule (which can't target a JSX text node split from its
 // element) sees it on a statement instead of inline button text.
 const ADD_KEY_LABEL = 'Add a provider key';
+const MANAGE_KEYS_TITLE = 'Manage AI Account Keys';
+const MANAGE_KEYS_HELP = 'The provider keys saved on this computer. Remove one any time, or add another.';
+const EMPTY_KEYS_TITLE = 'No provider keys saved yet';
+const EMPTY_KEYS_HELP = 'Add an Anthropic, OpenAI, or Google AI key to start using the assistant.';
 
 type RowStatus = 'unverified' | 'checking' | 'working' | 'invalid' | 'rate_limited';
 
@@ -295,11 +300,14 @@ export function ApiKeyManager({
         data-testid="api-key-manager"
       >
         <DialogHeader className="shrink-0">
-          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
-          <DialogTitle>Manage AI Account Keys</DialogTitle>
-          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
-          <DialogDescription>
-            The provider keys saved on this computer. Remove one any time, or add another.
+          <DialogTitle>
+            <span className="inline-flex items-center gap-1.5">
+              <span>{MANAGE_KEYS_TITLE}</span>
+              <InfoHelp content={MANAGE_KEYS_HELP} />
+            </span>
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {MANAGE_KEYS_HELP}
           </DialogDescription>
         </DialogHeader>
 
@@ -329,11 +337,9 @@ export function ApiKeyManager({
               className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-8 text-center"
             >
               <Key className="h-5 w-5 mx-auto text-muted-foreground" />
-              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
-              <p className="mt-2 text-sm font-medium">No provider keys saved yet</p>
-              {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- matches the wizard's plain-literal copy; no locale key exists yet */}
-              <p className="mt-1 text-xs text-muted-foreground">
-                Add an Anthropic, OpenAI, or Google AI key to start using the assistant.
+              <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium">
+                <span>{EMPTY_KEYS_TITLE}</span>
+                <InfoHelp content={EMPTY_KEYS_HELP} />
               </p>
             </div>
           ) : (

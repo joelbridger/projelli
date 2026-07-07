@@ -29,33 +29,75 @@ function stopEventPropagation(e: React.SyntheticEvent) {
 }
 
 export function InfoHelp({ content, label = 'More info', className, as = 'button', side }: InfoHelpProps) {
+  const contentId = React.useId();
+  const [open, setOpen] = React.useState(false);
+  const [pinned, setPinned] = React.useState(false);
+
   const triggerClassName = cn(
     'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground/70',
     'hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
     className,
   );
 
+  const show = () => {
+    setOpen(true);
+  };
+
+  const hideIfUnpinned = () => {
+    if (!pinned) setOpen(false);
+  };
+
+  const close = () => {
+    setPinned(false);
+    setOpen(false);
+  };
+
+  const togglePinned = (e: React.SyntheticEvent) => {
+    stopEventPropagation(e);
+    setPinned((wasPinned) => {
+      const nextPinned = !wasPinned;
+      setOpen(nextPinned);
+      return nextPinned;
+    });
+  };
+
+  const sharedTriggerProps = {
+    'aria-label': label,
+    'aria-describedby': open ? contentId : undefined,
+    className: triggerClassName,
+    onMouseEnter: show,
+    onMouseLeave: hideIfUnpinned,
+    onFocus: show,
+    onBlur: hideIfUnpinned,
+    onClick: togglePinned,
+    onPointerDown: stopEventPropagation,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        stopEventPropagation(e);
+        close();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        togglePinned(e);
+      }
+    },
+  };
+
   const trigger =
     as === 'span' ? (
       <span
         role="button"
         tabIndex={0}
-        aria-label={label}
-        className={triggerClassName}
-        onClick={stopEventPropagation}
-        onPointerDown={stopEventPropagation}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') e.stopPropagation();
-        }}
+        {...sharedTriggerProps}
       >
         <Info className="h-3.5 w-3.5" aria-hidden />
       </span>
     ) : (
       <button
         type="button"
-        aria-label={label}
-        className={triggerClassName}
-        onClick={stopEventPropagation}
+        {...sharedTriggerProps}
       >
         <Info className="h-3.5 w-3.5" aria-hidden />
       </button>
@@ -66,10 +108,28 @@ export function InfoHelp({ content, label = 'More info', className, as = 'button
     // (and their tests) that shouldn't each need to know Radix's Tooltip.Root
     // requires a TooltipProvider ancestor. The app root (main.tsx) also mounts
     // one with these same values, so this nested provider is a no-op there.
-    <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-      <Tooltip>
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+      <Tooltip
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            setOpen(true);
+          } else if (!pinned) {
+            setOpen(false);
+          }
+        }}
+      >
         <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-        <TooltipContent {...(side ? { side } : {})} className="max-w-xs text-left font-normal">
+        <TooltipContent
+          id={contentId}
+          {...(side ? { side } : {})}
+          className="max-w-xs text-left font-normal"
+          onEscapeKeyDown={(e) => {
+            e.preventDefault();
+            close();
+          }}
+          onPointerDownOutside={close}
+        >
           {content}
         </TooltipContent>
       </Tooltip>

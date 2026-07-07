@@ -12,6 +12,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { Cpu, Check, Download, Loader2 } from 'lucide-react';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 
 export interface LocalAiSettingsControlProps {
@@ -46,12 +47,13 @@ export function LocalAiSettingsControl({ status }: LocalAiSettingsControlProps) 
       <div className="flex items-start gap-3">
         <Cpu className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
         <div className="min-w-0 flex-1">
-          <div className="font-medium text-foreground">
-            {t('local-ai-settings.title')}
+          <div className="flex items-center gap-1.5 font-medium text-foreground">
+            <span>{t('local-ai-settings.title')}</span>
+            <InfoHelp
+              content={t('local-ai-settings.description')}
+              label={`About ${t('local-ai-settings.title')}`}
+            />
           </div>
-          <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-            {t('local-ai-settings.description')}
-          </p>
 
           {snap.state === 'absent' && (
             <button

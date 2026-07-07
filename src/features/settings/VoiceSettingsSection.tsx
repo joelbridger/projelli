@@ -8,8 +8,9 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Trans } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { CheckCircle2, AlertCircle, Mic, MicOff } from 'lucide-react';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { isVoiceSidecarAvailable } from '@/platform/voice/voiceStatus';
 import { VoiceOutputSettingsSection } from '@/features/dictation/tts/VoiceOutputSettingsSection';
 
@@ -56,6 +57,7 @@ export function VoiceSettingsSection({
   ttsEnabled = false,
   onProbeTts,
 }: VoiceSettingsSectionProps = {}): React.ReactElement {
+  const { t } = useTranslation();
   const [sidecar, setSidecar] = useState<SidecarStatus>('checking');
   const [mic, setMic] = useState<MicStatus>('unknown');
 
@@ -98,12 +100,18 @@ export function VoiceSettingsSection({
   return (
     <>
       <div className="mb-6">
-        <p className="text-xs text-muted-foreground mb-3">
-          <Trans
-            i18nKey="settings.voice.description"
-            components={{ c: <code className="px-1 mx-0.5 rounded bg-muted font-mono text-[11px]" /> }}
+        <div className="mb-3 flex items-center gap-1.5">
+          <span className="text-sm font-medium">{t('settings.voice.title')}</span>
+          <InfoHelp
+            label={`About ${t('settings.voice.title')}`}
+            content={
+              <Trans
+                i18nKey="settings.voice.description"
+                components={{ c: <code className="px-1 mx-0.5 rounded bg-muted font-mono text-[11px]" /> }}
+              />
+            }
           />
-        </p>
+        </div>
         <div
           data-testid="voice-status"
           data-status={testidStatus}

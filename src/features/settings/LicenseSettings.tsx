@@ -18,6 +18,7 @@ import { entitlementMessage } from '@/platform/licensing';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { CostDashboard } from '@/features/ask/CostDashboard';
 import { PricingTiers } from '@/features/settings/PricingTiers';
 import { displayName } from '@/config/pricing';
@@ -69,22 +70,27 @@ export function LicenseSettings() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">{t('settings.license.title')}</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          <Trans
-            i18nKey="settings.license.description"
-            components={{
-              pricingLink: (
-                <a
-                  href={BRAND.urls.pricing}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary underline"
-                />
-              ),
-            }}
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-2xl font-semibold tracking-tight">{t('settings.license.title')}</h2>
+          <InfoHelp
+            label={`About ${t('settings.license.title')}`}
+            content={
+              <Trans
+                i18nKey="settings.license.description"
+                components={{
+                  pricingLink: (
+                    <a
+                      href={BRAND.urls.pricing}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline"
+                    />
+                  ),
+                }}
+              />
+            }
           />
-        </p>
+        </div>
       </div>
 
       {/* Degraded notice: a lapsed subscription or an offline-grace state. AI
@@ -126,6 +132,12 @@ export function LicenseSettings() {
                   {/* 3.0 display name; the wire/license code is unchanged. */}
                   {displayName(tier)}
                 </span>
+                <span data-testid="license-ownership-guarantee">
+                  <InfoHelp
+                    content={t('settings.license.ownership-tagline')}
+                    label="About your data ownership"
+                  />
+                </span>
               </div>
               {/* Profession pack(s): Practice gets all packs; Professional shows its one pack. */}
               {tier === 'practice' ? (
@@ -162,9 +174,6 @@ export function LicenseSettings() {
                   {entMsg.body}
                 </p>
               )}
-              <p className="text-sm text-muted-foreground mt-1" data-testid="license-ownership-guarantee">
-                {t('settings.license.ownership-tagline')}
-              </p>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={refresh} disabled={isLoading}>
@@ -205,17 +214,20 @@ export function LicenseSettings() {
                     {t('settings.license.badge.trial-ended')}
                   </span>
                   <span className="text-base font-medium">{t('settings.license.activate-to-continue')}</span>
-                </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  <Trans
-                    i18nKey="settings.license.trial-expired-detail"
-                    values={{
-                      days: trial.trialDays,
-                      endDate: new Date(trial.firstLaunchAt.getTime() + trial.trialDays * 86400000).toLocaleDateString(),
-                    }}
-                    components={{ endDateBold: <strong /> }}
+                  <InfoHelp
+                    label={`About ${t('settings.license.activate-to-continue')}`}
+                    content={
+                      <Trans
+                        i18nKey="settings.license.trial-expired-detail"
+                        values={{
+                          days: trial.trialDays,
+                          endDate: new Date(trial.firstLaunchAt.getTime() + trial.trialDays * 86400000).toLocaleDateString(),
+                        }}
+                        components={{ endDateBold: <strong /> }}
+                      />
+                    }
                   />
-                </p>
+                </div>
               </>
             ) : (
               <>
@@ -226,10 +238,11 @@ export function LicenseSettings() {
                   <span className="text-base font-medium">
                     {t('settings.license.days-left', { count: trial.daysRemaining })}
                   </span>
+                  <InfoHelp
+                    content={t('settings.license.trial-active-detail', { days: trial.trialDays })}
+                    label="About your trial"
+                  />
                 </div>
-                <p className="text-sm text-muted-foreground mt-1">
-                  {t('settings.license.trial-active-detail', { days: trial.trialDays })}
-                </p>
               </>
             )}
           </div>
@@ -262,9 +275,10 @@ export function LicenseSettings() {
               <Label htmlFor="license-key" className="text-sm font-medium">
                 {t('settings.license.recovery-heading')}
               </Label>
-              <p className="text-xs text-muted-foreground mt-1">
-                {t('settings.license.recovery-detail')}
-              </p>
+              <InfoHelp
+                content={t('settings.license.recovery-detail')}
+                label={`About ${t('settings.license.recovery-heading')}`}
+              />
               <div className="flex gap-2 mt-3">
                 <Input
                   id="license-key"

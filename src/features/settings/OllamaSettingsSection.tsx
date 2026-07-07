@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
+import { InfoHelp } from '@/ui/InfoHelp';
 import { CheckCircle2, AlertCircle, RefreshCw, ExternalLink } from 'lucide-react';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
 
@@ -48,19 +49,40 @@ export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps =
   }, [onDetect]);
 
   useEffect(() => {
-    void doDetect();
+    void Promise.resolve().then(doDetect);
   }, [doDetect]);
 
   return (
     <div data-testid="ollama-settings-section" className="space-y-4 pt-6 mt-6 border-t border-border">
       <div>
-        <h3 className="text-base font-semibold">{t('settings.ollama.title')}</h3>
-        <p className="text-xs text-muted-foreground mt-1">
-          <Trans
-            i18nKey="settings.ollama.description"
-            components={{ c: <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]" /> }}
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-base font-semibold">{t('settings.ollama.title')}</h3>
+          <InfoHelp
+            label={`About ${t('settings.ollama.title')}`}
+            content={
+              <div className="space-y-2">
+                <p>
+                  <Trans
+                    i18nKey="settings.ollama.description"
+                    components={{ c: <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]" /> }}
+                  />
+                </p>
+                <p className="font-medium">{t('settings.ollama.why.heading')}</p>
+                <ul className="ml-4 list-disc space-y-1">
+                  <li>{t('settings.ollama.why.zero-cost')}</li>
+                  <li>{t('settings.ollama.why.zero-network')}</li>
+                  <li>{t('settings.ollama.why.zero-data')}</li>
+                </ul>
+                <p>
+                  <Trans
+                    i18nKey="settings.ollama.recommended-model"
+                    components={{ c: <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]" /> }}
+                  />
+                </p>
+              </div>
+            }
           />
-        </p>
+        </div>
       </div>
 
       <div
@@ -131,20 +153,6 @@ export function OllamaSettingsSection({ onDetect }: OllamaSettingsSectionProps =
         </div>
       )}
 
-      <div className="rounded-md border border-border/60 p-3 text-xs leading-relaxed text-muted-foreground space-y-2">
-        <p className="font-medium text-foreground">{t('settings.ollama.why.heading')}</p>
-        <ul className="list-disc list-inside space-y-1">
-          <li>{t('settings.ollama.why.zero-cost')}</li>
-          <li>{t('settings.ollama.why.zero-network')}</li>
-          <li>{t('settings.ollama.why.zero-data')}</li>
-        </ul>
-        <p className="pt-1">
-          <Trans
-            i18nKey="settings.ollama.recommended-model"
-            components={{ c: <code className="px-1 mx-1 rounded bg-muted font-mono text-[11px]" /> }}
-          />
-        </p>
-      </div>
     </div>
   );
 }

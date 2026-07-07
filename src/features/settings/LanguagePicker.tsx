@@ -19,6 +19,7 @@
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/ui/label';
+import { InfoHelp } from '@/ui/InfoHelp';
 import i18n from '@/i18n';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { AuditService } from '@/platform/audit/AuditService';
@@ -74,12 +75,15 @@ export function LanguagePicker({ auditService }: LanguagePickerProps) {
       className="flex items-center justify-between py-3 border-b border-border/50 last:border-b-0"
     >
       <div className="flex-1 min-w-0 mr-4">
-        <Label htmlFor={controlId} className="text-sm font-medium cursor-pointer">
-          {t('settings.language.label')}
-        </Label>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          {t('settings.language.description')}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <Label htmlFor={controlId} className="text-sm font-medium cursor-pointer">
+            {t('settings.language.label')}
+          </Label>
+          <InfoHelp
+            content={t('settings.language.description')}
+            label={`About ${t('settings.language.label')}`}
+          />
+        </div>
       </div>
       <div className="shrink-0">
         <select
