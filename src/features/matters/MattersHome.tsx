@@ -11,24 +11,77 @@
  * anything that requires a CSS variable directly. Light theme; no dark mode.
  */
 
-import { useEffect, useState, useMemo, type ReactNode, type MouseEvent } from 'react';
+import {
+  useEffect,
+  useState,
+  useMemo,
+  type ReactNode,
+  type MouseEvent,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { Users, Lock, Plus, CheckCircle2, Circle, MessageSquare, FileText, Mail, ChevronUp, ChevronDown, Archive, ArchiveRestore, MoreHorizontal, Mic, Clock } from 'lucide-react';
-import { useMatters, useActiveMatters, useArchivedMatters, useActiveMatterId, useMatterStore } from '@/platform/matter/matterStore';
+import {
+  Users,
+  Lock,
+  Plus,
+  CheckCircle2,
+  Circle,
+  MessageSquare,
+  FileText,
+  Mail,
+  ChevronUp,
+  ChevronDown,
+  Archive,
+  ArchiveRestore,
+  MoreHorizontal,
+  Mic,
+  Clock,
+} from 'lucide-react';
+import {
+  useMatters,
+  useActiveMatters,
+  useArchivedMatters,
+  useActiveMatterId,
+  useMatterStore,
+} from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
-import { mailIsConnected, gmailIsConnected, mailImapIsConnected } from '@/platform/utils/mail-commands';
+import {
+  mailIsConnected,
+  gmailIsConnected,
+  mailImapIsConnected,
+} from '@/platform/utils/mail-commands';
 import type { Matter } from '@/platform/types/matter';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button, SearchField, Badge, Eyebrow, Card, EmptyState, Callout, SurfaceToolbar, IconButton } from '@/ui/kp';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/ui/dropdown-menu';
-import { SK_SETUP_CARD_DISMISSED, EV_OPEN_SETTINGS, EV_OPEN_MATTER_MANAGER, EV_MATTER_LAUNCH } from '@/config/identity';
+import {
+  Button,
+  SearchField,
+  Badge,
+  Eyebrow,
+  Card,
+  EmptyState,
+  Callout,
+  SurfaceToolbar,
+  IconButton,
+} from '@/ui/kp';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
+import {
+  SK_SETUP_CARD_DISMISSED,
+  EV_OPEN_SETTINGS,
+  EV_OPEN_MATTER_MANAGER,
+  EV_MATTER_LAUNCH,
+} from '@/config/identity';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
 
 /** localStorage key for dismissing the setup card. */
@@ -126,10 +179,13 @@ function GetStartedCard() {
   const hasMatter = matters.length > 0;
 
   // Hide once dismissed or all three steps are complete
-  if (dismissed || (hasMatter && aiConnected && emailConnected === true)) return null;
+  if (dismissed || (hasMatter && aiConnected && emailConnected === true))
+    return null;
 
   const navigateTo = (category: 'ai' | 'integrations') => {
-    window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category } }));
+    window.dispatchEvent(
+      new CustomEvent(EV_OPEN_SETTINGS, { detail: { category } })
+    );
   };
 
   const stepStyle: React.CSSProperties = {
@@ -138,8 +194,18 @@ function GetStartedCard() {
     gap: 10,
     padding: '8px 0',
   };
-  const iconDone: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: 'var(--kp-success)', flex: 'none' };
-  const iconTodo: React.CSSProperties = { width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', color: 'var(--color-muted-foreground)', flex: 'none' };
+  const iconDone: React.CSSProperties = {
+    width: 'var(--kp-icon-md)',
+    height: 'var(--kp-icon-md)',
+    color: 'var(--kp-success)',
+    flex: 'none',
+  };
+  const iconTodo: React.CSSProperties = {
+    width: 'var(--kp-icon-md)',
+    height: 'var(--kp-icon-md)',
+    color: 'var(--color-muted-foreground)',
+    flex: 'none',
+  };
   const stepLabel: React.CSSProperties = {
     flex: 1,
     fontSize: 'var(--kp-font-sm)',
@@ -150,76 +216,88 @@ function GetStartedCard() {
 
   return (
     <div data-testid="get-started-card">
-    <Callout
-      variant="info"
-      onDismiss={dismiss}
-    >
-      <div>
-        <Eyebrow style={{ marginBottom: 8 }}>{t('matter.home.get-started.eyebrow')}</Eyebrow>
+      <Callout variant="info" onDismiss={dismiss}>
+        <div>
+          <Eyebrow style={{ marginBottom: 8 }}>
+            {t('matter.home.get-started.eyebrow')}
+          </Eyebrow>
 
-        {/* Step 1: Create first matter */}
-        <div style={stepStyle}>
-          {hasMatter
-            ? <CheckCircle2 style={iconDone} />
-            : <Circle style={iconTodo} />
-          }
-          <span style={stepLabel}>{t('matter.home.get-started.step1', { entity: entityLabel.one })}</span>
-          {!hasMatter && (
-            <Button
-              variant="secondary"
-              size="sm"
-              data-testid="get-started-create-matter"
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
+          {/* Step 1: Create first matter */}
+          <div style={stepStyle}>
+            {hasMatter ? (
+              <CheckCircle2 style={iconDone} />
+            ) : (
+              <Circle style={iconTodo} />
+            )}
+            <span style={stepLabel}>
+              {t('matter.home.get-started.step1', { entity: entityLabel.one })}
+            </span>
+            {!hasMatter && (
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="get-started-create-matter"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
+                }}
+              >
+                {t('matter.home.get-started.create-action')}
+              </Button>
+            )}
+          </div>
+
+          {/* Step 2: Connect AI */}
+          <div style={stepStyle}>
+            {aiConnected ? (
+              <CheckCircle2 style={iconDone} />
+            ) : (
+              <Circle style={iconTodo} />
+            )}
+            <span style={stepLabel}>{t('matter.home.get-started.step2')}</span>
+            {!aiConnected && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  navigateTo('ai');
+                }}
+              >
+                {t('matter.home.get-started.setup-action')}
+              </Button>
+            )}
+          </div>
+
+          {/* Step 3: Connect email */}
+          <div style={stepStyle}>
+            {emailConnected === null ? (
+              <Circle style={{ ...iconTodo, opacity: 0.4 }} />
+            ) : emailConnected ? (
+              <CheckCircle2 style={iconDone} />
+            ) : (
+              <Circle style={iconTodo} />
+            )}
+            <span
+              style={{
+                ...stepLabel,
+                opacity: emailConnected === null ? 0.5 : 1,
               }}
             >
-              {t('matter.home.get-started.create-action')}
-            </Button>
-          )}
+              {t('matter.home.get-started.step3')}
+            </span>
+            {emailConnected === false && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  navigateTo('integrations');
+                }}
+              >
+                {t('matter.home.get-started.setup-action')}
+              </Button>
+            )}
+          </div>
         </div>
-
-        {/* Step 2: Connect AI */}
-        <div style={stepStyle}>
-          {aiConnected
-            ? <CheckCircle2 style={iconDone} />
-            : <Circle style={iconTodo} />
-          }
-          <span style={stepLabel}>{t('matter.home.get-started.step2')}</span>
-          {!aiConnected && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => { navigateTo('ai'); }}
-            >
-              {t('matter.home.get-started.setup-action')}
-            </Button>
-          )}
-        </div>
-
-        {/* Step 3: Connect email */}
-        <div style={stepStyle}>
-          {emailConnected === null ? (
-            <Circle style={{ ...iconTodo, opacity: 0.4 }} />
-          ) : emailConnected ? (
-            <CheckCircle2 style={iconDone} />
-          ) : (
-            <Circle style={iconTodo} />
-          )}
-          <span style={{ ...stepLabel, opacity: emailConnected === null ? 0.5 : 1 }}>
-            {t('matter.home.get-started.step3')}
-          </span>
-          {emailConnected === false && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => { navigateTo('integrations'); }}
-            >
-              {t('matter.home.get-started.setup-action')}
-            </Button>
-          )}
-        </div>
-      </div>
-    </Callout>
+      </Callout>
     </div>
   );
 }
@@ -245,14 +323,21 @@ function PrivilegePill() {
   // Non-color cue: the Lock icon + text label provide a redundant
   // indicator beyond color alone, satisfying the a11y requirement.
   return (
-    <Badge variant="privilege" size="sm" icon={Lock}>{entityLabel.confidentialityBadge}</Badge>
+    <Badge variant="privilege" size="sm" icon={Lock}>
+      {entityLabel.confidentialityBadge}
+    </Badge>
   );
 }
 
 function SamplePill() {
   return (
-    <span data-testid="sample-matter-pill" style={{ marginLeft: 6, display: 'inline-flex' }}>
-      <Badge variant="sample" size="sm">Sample</Badge>
+    <span
+      data-testid="sample-matter-pill"
+      style={{ marginLeft: 6, display: 'inline-flex' }}
+    >
+      <Badge variant="sample" size="sm">
+        Sample
+      </Badge>
     </span>
   );
 }
@@ -268,7 +353,13 @@ interface MatterRowProps {
 /** Allowed surfaces for matter-launch quick-actions. */
 type MatterSurface = 'search' | 'files' | 'email' | 'meetings' | 'audit';
 
-function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onArchive }: MatterRowProps) {
+function MatterRow({
+  matter,
+  isActive,
+  showConfidentialityColumn,
+  onSelect,
+  onArchive,
+}: MatterRowProps) {
   const { t } = useTranslation();
   // The search surface is "Ask"; keep this quick-action consistent.
   const askActionLabel = t('spine.nav.ask');
@@ -282,16 +373,15 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
     window.dispatchEvent(
       new CustomEvent(EV_MATTER_LAUNCH, {
         detail: { matterId: matter.id, surface },
-      }),
+      })
     );
   };
-
 
   const rowBackground = isActive
     ? 'var(--kp-action-bg)'
     : hovered
-    ? 'var(--color-muted)'
-    : 'transparent';
+      ? 'var(--color-muted)'
+      : 'transparent';
   return (
     <div
       data-testid={`matter-row-shell-${matter.id}`}
@@ -303,18 +393,27 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
         width: '100%',
         padding: '14px 20px',
         background: rowBackground,
-        borderLeft: isActive ? '3px solid var(--kp-accent)' : '3px solid transparent',
+        borderLeft: isActive
+          ? '3px solid var(--kp-accent)'
+          : '3px solid transparent',
         borderBottom: '1px solid var(--kp-divider)',
-        transition: 'background var(--kp-duration-fast) var(--kp-ease-standard)',
+        transition:
+          'background var(--kp-duration-fast) var(--kp-ease-standard)',
       }}
-      onMouseEnter={() => { setHovered(true); }}
-      onMouseLeave={() => { setHovered(false); }}
+      onMouseEnter={() => {
+        setHovered(true);
+      }}
+      onMouseLeave={() => {
+        setHovered(false);
+      }}
     >
       {/* Client name — click to open this client's hub. */}
       <button
         type="button"
         data-testid={`matter-row-${matter.id}`}
-        onClick={() => { onSelect(matter.id); }}
+        onClick={() => {
+          onSelect(matter.id);
+        }}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -386,7 +485,9 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           data-testid={`matter-launch-ask-${matter.id}`}
           aria-label={t('matter.home.ask-aria', { name: label })}
           iconLeft={MessageSquare}
-          onClick={(e) => { launchSurface('search', e); }}
+          onClick={(e) => {
+            launchSurface('search', e);
+          }}
         >
           {askActionLabel}
         </Button>
@@ -396,7 +497,9 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           data-testid={`matter-launch-documents-${matter.id}`}
           aria-label={t('matter.home.open-documents-aria', { name: label })}
           iconLeft={FileText}
-          onClick={(e) => { launchSurface('files', e); }}
+          onClick={(e) => {
+            launchSurface('files', e);
+          }}
         >
           {t('matter.hub.tab-documents')}
         </Button>
@@ -406,7 +509,9 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           data-testid={`matter-launch-email-${matter.id}`}
           aria-label={t('matter.home.open-email-aria', { name: label })}
           iconLeft={Mail}
-          onClick={(e) => { launchSurface('email', e); }}
+          onClick={(e) => {
+            launchSurface('email', e);
+          }}
         >
           {t('matter.hub.tab-email')}
         </Button>
@@ -416,7 +521,9 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           data-testid={`matter-launch-meetings-${matter.id}`}
           aria-label={t('matter.home.open-meetings-aria', { name: label })}
           iconLeft={Mic}
-          onClick={(e) => { launchSurface('meetings', e); }}
+          onClick={(e) => {
+            launchSurface('meetings', e);
+          }}
         >
           {t('matter.hub.tab-meetings')}
         </Button>
@@ -426,7 +533,9 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
           data-testid={`matter-launch-activity-${matter.id}`}
           aria-label={t('matter.home.open-activity-aria', { name: label })}
           iconLeft={Clock}
-          onClick={(e) => { launchSurface('audit', e); }}
+          onClick={(e) => {
+            launchSurface('audit', e);
+          }}
         >
           {t('matter.hub.tab-activity')}
         </Button>
@@ -457,25 +566,33 @@ function MatterRow({ matter, isActive, showConfidentialityColumn, onSelect, onAr
             variant="ghost"
             size="sm"
             data-testid={`matter-actions-menu-${matter.id}`}
-            onClick={(e) => { e.stopPropagation(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
           />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem
             data-testid={`matter-menu-open-client-${matter.id}`}
-            onClick={() => { onSelect(matter.id); }}
+            onClick={() => {
+              onSelect(matter.id);
+            }}
           >
             {t('matter.home.open-client')}
           </DropdownMenuItem>
           <DropdownMenuItem
             data-testid={`matter-menu-ask-${matter.id}`}
-            onClick={(e) => { launchSurface('search', e); }}
+            onClick={(e) => {
+              launchSurface('search', e);
+            }}
           >
             {askActionLabel}
           </DropdownMenuItem>
           <DropdownMenuItem
             data-testid={`matter-menu-documents-${matter.id}`}
-            onClick={(e) => { launchSurface('files', e); }}
+            onClick={(e) => {
+              launchSurface('files', e);
+            }}
           >
             {t('matter.hub.tab-documents')}
           </DropdownMenuItem>
@@ -557,16 +674,29 @@ function SortIndicator({ col, sort }: SortIndicatorProps) {
     return (
       <span
         aria-hidden="true"
-        style={{ display: 'inline-flex', flexDirection: 'column', opacity: 0.3, marginLeft: 3 }}
+        style={{
+          display: 'inline-flex',
+          flexDirection: 'column',
+          opacity: 0.3,
+          marginLeft: 3,
+        }}
       >
         <ChevronUp style={{ width: 9, height: 9, marginBottom: -3 }} />
         <ChevronDown style={{ width: 9, height: 9 }} />
       </span>
     );
   }
-  return sort.dir === 'asc'
-    ? <ChevronUp aria-hidden="true" style={{ width: 11, height: 11, marginLeft: 3, flex: 'none' }} />
-    : <ChevronDown aria-hidden="true" style={{ width: 11, height: 11, marginLeft: 3, flex: 'none' }} />;
+  return sort.dir === 'asc' ? (
+    <ChevronUp
+      aria-hidden="true"
+      style={{ width: 11, height: 11, marginLeft: 3, flex: 'none' }}
+    />
+  ) : (
+    <ChevronDown
+      aria-hidden="true"
+      style={{ width: 11, height: 11, marginLeft: 3, flex: 'none' }}
+    />
+  );
 }
 
 interface TableHeaderProps {
@@ -579,12 +709,27 @@ interface TableHeaderProps {
 
 /** aria-label for a sortable column header, appending the current sort
  *  direction only when this column is the active sort key. */
-function sortByAria(column: string, active: boolean, dir: SortDir, t: TFunction): string {
-  const direction = !active ? '' : dir === 'asc' ? t('matter.home.sort-asc-suffix') : t('matter.home.sort-desc-suffix');
+function sortByAria(
+  column: string,
+  active: boolean,
+  dir: SortDir,
+  t: TFunction
+): string {
+  const direction = !active
+    ? ''
+    : dir === 'asc'
+      ? t('matter.home.sort-asc-suffix')
+      : t('matter.home.sort-desc-suffix');
   return t('matter.home.sort-by-aria', { column, direction });
 }
 
-function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfidentialityColumn, sort, onSort }: TableHeaderProps) {
+function TableHeader({
+  entityOneLabel,
+  confidentialityColumnLabel,
+  showConfidentialityColumn,
+  sort,
+  onSort,
+}: TableHeaderProps) {
   const { t } = useTranslation();
   const createdLabel = t('matter.home.col-created');
   const baseColStyle: React.CSSProperties = {
@@ -615,10 +760,21 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
         <button
           type="button"
           style={colBtnStyle}
-          onClick={() => { onSort('name'); }}
-          aria-label={sortByAria(entityOneLabel, sort.key === 'name', sort.dir, t)}
+          onClick={() => {
+            onSort('name');
+          }}
+          aria-label={sortByAria(
+            entityOneLabel,
+            sort.key === 'name',
+            sort.dir,
+            t
+          )}
         >
-          <span className={`kp-eyebrow${sort.key === 'name' ? ' kp-eyebrow--primary' : ''}`}>{entityOneLabel}</span>
+          <span
+            className={`kp-eyebrow${sort.key === 'name' ? ' kp-eyebrow--primary' : ''}`}
+          >
+            {entityOneLabel}
+          </span>
           <SortIndicator col="name" sort={sort} />
         </button>
       </div>
@@ -628,10 +784,21 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
           <button
             type="button"
             style={colBtnStyle}
-            onClick={() => { onSort('privilege'); }}
-            aria-label={sortByAria(confidentialityColumnLabel, sort.key === 'privilege', sort.dir, t)}
+            onClick={() => {
+              onSort('privilege');
+            }}
+            aria-label={sortByAria(
+              confidentialityColumnLabel,
+              sort.key === 'privilege',
+              sort.dir,
+              t
+            )}
           >
-            <span className={`kp-eyebrow${sort.key === 'privilege' ? ' kp-eyebrow--primary' : ''}`}>{confidentialityColumnLabel}</span>
+            <span
+              className={`kp-eyebrow${sort.key === 'privilege' ? ' kp-eyebrow--primary' : ''}`}
+            >
+              {confidentialityColumnLabel}
+            </span>
             <SortIndicator col="privilege" sort={sort} />
           </button>
         </div>
@@ -640,10 +807,21 @@ function TableHeader({ entityOneLabel, confidentialityColumnLabel, showConfident
         <button
           type="button"
           style={colBtnStyle}
-          onClick={() => { onSort('created'); }}
-          aria-label={sortByAria(createdLabel, sort.key === 'created', sort.dir, t)}
+          onClick={() => {
+            onSort('created');
+          }}
+          aria-label={sortByAria(
+            createdLabel,
+            sort.key === 'created',
+            sort.dir,
+            t
+          )}
         >
-          <span className={`kp-eyebrow${sort.key === 'created' ? ' kp-eyebrow--primary' : ''}`}>{createdLabel}</span>
+          <span
+            className={`kp-eyebrow${sort.key === 'created' ? ' kp-eyebrow--primary' : ''}`}
+          >
+            {createdLabel}
+          </span>
           <SortIndicator col="created" sort={sort} />
         </button>
       </div>
@@ -677,7 +855,10 @@ export function MattersHome({
   // The hub is shown for the active client only: a stale clientMapHubId left
   // over from a client switch (clientMapHubId !== activeMatterId) falls back to
   // the overview rather than showing the wrong client's hub.
-  const hubMatterId = clientMapHubId !== null && clientMapHubId === activeMatterId ? clientMapHubId : null;
+  const hubMatterId =
+    clientMapHubId !== null && clientMapHubId === activeMatterId
+      ? clientMapHubId
+      : null;
   const openHub = (id: string) => {
     setActiveMatter(id);
     setClientMapHubId(id);
@@ -698,7 +879,7 @@ export function MattersHome({
     setSort((prev) =>
       prev.key === key
         ? { key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { key, dir: 'asc' },
+        : { key, dir: 'asc' }
     );
   };
 
@@ -708,7 +889,9 @@ export function MattersHome({
   // effective sort instead of resetting it in an effect (which would trigger
   // cascading renders).
   const sort =
-    !showConfidentialityColumn && sortState.key === 'privilege' ? DEFAULT_SORT : sortState;
+    !showConfidentialityColumn && sortState.key === 'privilege'
+      ? DEFAULT_SORT
+      : sortState;
 
   // Filter by search query (active matters only)
   const filteredMatters = useMemo(() => {
@@ -754,9 +937,13 @@ export function MattersHome({
         matterId={hubMatterId}
         onBack={closeHub}
         {...(onAuditLog ? { onAuditLog } : {})}
-        {...(renderClientDocuments ? { renderDocuments: renderClientDocuments } : {})}
+        {...(renderClientDocuments
+          ? { renderDocuments: renderClientDocuments }
+          : {})}
         {...(renderClientEmail ? { renderEmail: renderClientEmail } : {})}
-        {...(renderClientActivity ? { renderActivity: renderClientActivity } : {})}
+        {...(renderClientActivity
+          ? { renderActivity: renderClientActivity }
+          : {})}
         workspaceService={workspaceService ?? null}
       />
     );
@@ -779,13 +966,18 @@ export function MattersHome({
           fontSize: 'var(--kp-font-sm)',
         }}
       >
-        Click a client on the left
+        {t('matter.empty-canvas.select-client')}
       </div>
     );
   }
 
   const header = (
-    <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)' }}>
+    <div
+      style={{
+        padding: 'var(--kp-surface-header-pad)',
+        borderBottom: '1px solid var(--color-border)',
+      }}
+    >
       <SurfaceHeader
         Icon={Users}
         iconColor="var(--kp-accent)"
@@ -834,10 +1026,18 @@ export function MattersHome({
           <SearchField
             data-testid="matters-search-input"
             value={searchQuery}
-            onChange={(v) => { setSearchQuery(v); }}
-            onClear={() => { setSearchQuery(''); }}
-            placeholder={t('matter.home.search-placeholder', { entity: entityLabel.other })}
-            aria-label={t('matter.home.search-aria', { entity: entityLabel.other })}
+            onChange={(v) => {
+              setSearchQuery(v);
+            }}
+            onClear={() => {
+              setSearchQuery('');
+            }}
+            placeholder={t('matter.home.search-placeholder', {
+              entity: entityLabel.other,
+            })}
+            aria-label={t('matter.home.search-aria', {
+              entity: entityLabel.other,
+            })}
             size="md"
             style={{ flex: 1, minWidth: 240, marginLeft: 'auto' }}
           />
@@ -854,7 +1054,10 @@ export function MattersHome({
         }}
       >
         {activeMatters.length === 0 && archivedMatters.length === 0 ? (
-          <MattersEmptyState entityOne={entityLabel.one} entityOther={entityLabel.other} />
+          <MattersEmptyState
+            entityOne={entityLabel.one}
+            entityOther={entityLabel.other}
+          />
         ) : (
           <>
             {activeMatters.length > 0 && (
@@ -886,8 +1089,12 @@ export function MattersHome({
                         matter={m}
                         isActive={m.id === activeMatterId}
                         showConfidentialityColumn={showConfidentialityColumn}
-                        onSelect={(id) => { openHub(id); }}
-                        onArchive={(id) => { setMatterArchived(id, true); }}
+                        onSelect={(id) => {
+                          openHub(id);
+                        }}
+                        onArchive={(id) => {
+                          setMatterArchived(id, true);
+                        }}
                       />
                     ))
                   )}
@@ -900,13 +1107,18 @@ export function MattersHome({
               <div
                 data-testid="archived-matters-section"
                 style={{
-                  borderTop: activeMatters.length > 0 ? '1px solid var(--color-border)' : undefined,
+                  borderTop:
+                    activeMatters.length > 0
+                      ? '1px solid var(--color-border)'
+                      : undefined,
                 }}
               >
                 <button
                   type="button"
                   data-testid="archived-matters-toggle"
-                  onClick={() => { setArchivedExpanded((v) => !v); }}
+                  onClick={() => {
+                    setArchivedExpanded((v) => !v);
+                  }}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
@@ -921,13 +1133,39 @@ export function MattersHome({
                     fontWeight: 500,
                   }}
                 >
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Archive style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', flex: 'none' }} aria-hidden />
-                    {t('matter.home.archived-section-label')} ({archivedMatters.length})
+                  <span
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Archive
+                      style={{
+                        width: 'var(--kp-icon-sm)',
+                        height: 'var(--kp-icon-sm)',
+                        flex: 'none',
+                      }}
+                      aria-hidden
+                    />
+                    {t('matter.home.archived-section-label')} (
+                    {archivedMatters.length})
                   </span>
-                  {archivedExpanded
-                    ? <ChevronUp style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', flex: 'none' }} aria-hidden />
-                    : <ChevronDown style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', flex: 'none' }} aria-hidden />}
+                  {archivedExpanded ? (
+                    <ChevronUp
+                      style={{
+                        width: 'var(--kp-icon-sm)',
+                        height: 'var(--kp-icon-sm)',
+                        flex: 'none',
+                      }}
+                      aria-hidden
+                    />
+                  ) : (
+                    <ChevronDown
+                      style={{
+                        width: 'var(--kp-icon-sm)',
+                        height: 'var(--kp-icon-sm)',
+                        flex: 'none',
+                      }}
+                      aria-hidden
+                    />
+                  )}
                 </button>
 
                 {archivedExpanded && (
@@ -944,22 +1182,26 @@ export function MattersHome({
                         }}
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{
-                            fontSize: 'var(--kp-font-sm)',
-                            fontWeight: 500,
-                            color: 'var(--color-muted-foreground)',
-                            overflow: 'hidden',
-                            whiteSpace: 'nowrap',
-                            textOverflow: 'ellipsis',
-                          }}>
+                          <div
+                            style={{
+                              fontSize: 'var(--kp-font-sm)',
+                              fontWeight: 500,
+                              color: 'var(--color-muted-foreground)',
+                              overflow: 'hidden',
+                              whiteSpace: 'nowrap',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
                             {m.name || m.id}
                           </div>
                           {m.client && m.client !== m.name && (
-                            <div style={{
-                              fontSize: 'var(--kp-font-xs)',
-                              color: 'var(--color-muted-foreground)',
-                              opacity: 0.7,
-                            }}>
+                            <div
+                              style={{
+                                fontSize: 'var(--kp-font-xs)',
+                                color: 'var(--color-muted-foreground)',
+                                opacity: 0.7,
+                              }}
+                            >
                               {m.client}
                             </div>
                           )}
@@ -969,7 +1211,9 @@ export function MattersHome({
                           size="sm"
                           data-testid={`matter-restore-${m.id}`}
                           iconLeft={ArchiveRestore}
-                          onClick={() => { setMatterArchived(m.id, false); }}
+                          onClick={() => {
+                            setMatterArchived(m.id, false);
+                          }}
                           aria-label={t('matter.home.restore')}
                         >
                           {t('matter.home.restore')}

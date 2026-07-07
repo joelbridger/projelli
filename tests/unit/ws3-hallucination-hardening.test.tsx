@@ -21,21 +21,27 @@ vi.mock('@/platform/providers/ClaudeProvider', () => ({
   ClaudeProvider: class {
     setTools() {}
     sendMessage = vi.fn();
-    getMetadata() { return { model: 'stub' }; }
+    getMetadata() {
+      return { model: 'stub' };
+    }
   },
 }));
 vi.mock('@/platform/providers/OpenAIProvider', () => ({
   OpenAIProvider: class {
     setTools() {}
     sendMessage = vi.fn();
-    getMetadata() { return { model: 'stub' }; }
+    getMetadata() {
+      return { model: 'stub' };
+    }
   },
 }));
 vi.mock('@/platform/providers/GeminiProvider', () => ({
   GeminiProvider: class {
     setTools() {}
     sendMessage = vi.fn();
-    getMetadata() { return { model: 'stub' }; }
+    getMetadata() {
+      return { model: 'stub' };
+    }
   },
 }));
 
@@ -49,7 +55,8 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
 const mockRagVerifyCitation = vi.fn();
 const mockRagVerifyCitationsBatch = vi.fn();
 vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
+  const actual =
+    await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
   return {
     ...actual,
     ragVerifyCitation: mockRagVerifyCitation,
@@ -59,7 +66,7 @@ vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
 const setVerdict = (v: unknown) => {
   mockRagVerifyCitation.mockResolvedValue(v);
   mockRagVerifyCitationsBatch.mockImplementation((cites?: { id: string }[]) =>
-    Promise.resolve((cites ?? []).map(() => v)),
+    Promise.resolve((cites ?? []).map(() => v))
   );
 };
 
@@ -131,7 +138,7 @@ describe('Task 2 — CitationText chip fires onOpenFileAtPath on click', () => {
         selected={null}
         onSelect={vi.fn()}
         onOpenFileAtPath={onOpenFile}
-      />,
+      />
     );
     const chip = screen.getByTestId('ask-citation-chip-1');
     fireEvent.click(chip);
@@ -140,6 +147,7 @@ describe('Task 2 — CitationText chip fires onOpenFileAtPath on click', () => {
       '/ws/contracts/contract.docx',
       4,
       'The penalty clause is at section 8.',
+      'matter-acme'
     );
   });
 
@@ -163,7 +171,7 @@ describe('Task 2 — CitationText chip fires onOpenFileAtPath on click', () => {
         selected={null}
         onSelect={vi.fn()}
         onOpenFileAtPath={onOpenFile}
-      />,
+      />
     );
     const chip = screen.getByTestId('ask-citation-chip-1');
     fireEvent.click(chip);
@@ -193,7 +201,7 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
         onSaveToDocument={undefined}
         isSaving={false}
         isPersisted={false}
-      />,
+      />
     );
     expect(screen.getByTestId('ask-uncited-warning')).toBeInTheDocument();
     // Must contain honest wording
@@ -206,14 +214,16 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
     const turn = {
       question: 'What is the fee?',
       answer: 'The fee is $500 {1}.',
-      citations: [{
-        n: 1,
-        label: 'fee-agreement.docx',
-        excerpt: 'The fee is $500.',
-        path: '/ws/fee-agreement.docx',
-        locator: 'fee-agreement.docx §2',
-        verified: true,
-      }],
+      citations: [
+        {
+          n: 1,
+          label: 'fee-agreement.docx',
+          excerpt: 'The fee is $500.',
+          path: '/ws/fee-agreement.docx',
+          locator: 'fee-agreement.docx §2',
+          verified: true,
+        },
+      ],
       sources: [],
     };
     render(
@@ -226,7 +236,7 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
         onSaveToDocument={undefined}
         isSaving={false}
         isPersisted={false}
-      />,
+      />
     );
     expect(screen.queryByTestId('ask-uncited-warning')).not.toBeInTheDocument();
     // Green attestation should still appear
@@ -237,21 +247,23 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
 describe('Task 3b — CitationText data-verified attribute', () => {
   it('chip has data-verified="true" when verified=true', async () => {
     const { CitationText } = await import('@/features/ask/CitationText');
-    const citations = [{
-      n: 1,
-      label: 'doc.md',
-      excerpt: 'text',
-      path: '/ws/doc.md',
-      locator: 'doc.md §1',
-      verified: true,
-    }];
+    const citations = [
+      {
+        n: 1,
+        label: 'doc.md',
+        excerpt: 'text',
+        path: '/ws/doc.md',
+        locator: 'doc.md §1',
+        verified: true,
+      },
+    ];
     render(
       <CitationText
         text="Answer {1}."
         citations={citations}
         selected={null}
         onSelect={vi.fn()}
-      />,
+      />
     );
     const chip = screen.getByTestId('ask-citation-chip-1');
     expect(chip).toHaveAttribute('data-verified', 'true');
@@ -259,21 +271,23 @@ describe('Task 3b — CitationText data-verified attribute', () => {
 
   it('chip has data-verified="false" when verified=false (unresolved path)', async () => {
     const { CitationText } = await import('@/features/ask/CitationText');
-    const citations = [{
-      n: 1,
-      label: 'missing.md',
-      excerpt: '',
-      path: null,
-      locator: 'missing.md §0',
-      verified: false,
-    }];
+    const citations = [
+      {
+        n: 1,
+        label: 'missing.md',
+        excerpt: '',
+        path: null,
+        locator: 'missing.md §0',
+        verified: false,
+      },
+    ];
     render(
       <CitationText
         text="Answer {1}."
         citations={citations}
         selected={null}
         onSelect={vi.fn()}
-      />,
+      />
     );
     const chip = screen.getByTestId('ask-citation-chip-1');
     expect(chip).toHaveAttribute('data-verified', 'false');
@@ -294,7 +308,8 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     // The verdict store is app-global and content-addressed (shared with the
     // answer header, lp/badge-consistency) - clear it so a citation checked
     // in one test is re-fetched (and re-audited) in the next.
-    const { resetCitationVerificationForTests } = await import('@/features/ask/citationVerification');
+    const { resetCitationVerificationForTests } =
+      await import('@/features/ask/citationVerification');
     resetCitationVerificationForTests();
     mockRagVerifyCitation.mockReset();
     mockRagVerifyCitationsBatch.mockReset();
@@ -312,7 +327,9 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       verified: false,
       // no id / matterId
     };
-    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+    render(
+      <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
+    );
     const status = screen.getByTestId('verify-status');
     expect(status.textContent).toMatch(/source found/i);
     expect(status.textContent).not.toMatch(/verified against source/i);
@@ -332,16 +349,26 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       id: 'chunk-c1',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+    render(
+      <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
+    );
     // Before the real check resolves the card must NOT claim "Verified" —
     // this is the exact overstatement QA-85 fixed (it used to trust the
     // grounding flag `cite.verified` and show "Verified against source" here).
-    expect(screen.getByTestId('verify-status').textContent).toMatch(/source found/i);
+    expect(screen.getByTestId('verify-status').textContent).toMatch(
+      /source found/i
+    );
     expect(mockRagVerifyCitationsBatch).toHaveBeenCalledWith([
-      { id: 'chunk-c1', claimedMatterId: 'matter-acme', quotedText: 'The penalty clause is at section 8.' },
+      {
+        id: 'chunk-c1',
+        claimedMatterId: 'matter-acme',
+        quotedText: 'The penalty clause is at section 8.',
+      },
     ]);
     await waitFor(() =>
-      expect(screen.getByTestId('verify-status').textContent).toMatch(/verified against source/i),
+      expect(screen.getByTestId('verify-status').textContent).toMatch(
+        /verified against source/i
+      )
     );
     expect(screen.queryByTestId('verify-verdict')).toBeNull();
   });
@@ -360,11 +387,21 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       matterId: 'matter-acme',
     };
     render(
-      <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} onAuditLog={mockAuditLog} />,
+      <SourcePanel
+        citations={[cite]}
+        selectedN={null}
+        onSelect={() => {}}
+        onAuditLog={mockAuditLog}
+      />
     );
     await waitFor(() => expect(mockAuditLog).toHaveBeenCalledTimes(1));
-    const call = mockAuditLog.mock.calls[0] as [{ metadata?: Record<string, unknown> }] | undefined;
-    expect(call?.[0].metadata).toMatchObject({ citationId: 'chunk-c1', verdict: 'verified' });
+    const call = mockAuditLog.mock.calls[0] as
+      | [{ metadata?: Record<string, unknown> }]
+      | undefined;
+    expect(call?.[0].metadata).toMatchObject({
+      citationId: 'chunk-c1',
+      verdict: 'verified',
+    });
   });
 
   it('shows red problem text for notFound verdict, automatically', async () => {
@@ -380,9 +417,11 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       id: 'chunk-c2',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+    render(
+      <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
+    );
     await waitFor(() =>
-      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
+      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument()
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'notFound');
@@ -403,9 +442,11 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       id: 'chunk-c3',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+    render(
+      <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
+    );
     await waitFor(() =>
-      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
+      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument()
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'textMismatch');
@@ -425,9 +466,11 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       id: 'chunk-c4',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+    render(
+      <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
+    );
     await waitFor(() =>
-      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument(),
+      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument()
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'matterMismatch');
@@ -436,7 +479,7 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
 
   it('falls back to neutral "Source found" — never fakes "Verified" — when the verifier is unavailable (browser/dev mode)', async () => {
     mockRagVerifyCitationsBatch.mockRejectedValue(
-      new Error('RAG is only available in the desktop app.'),
+      new Error('RAG is only available in the desktop app.')
     );
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
@@ -449,14 +492,22 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       id: 'chunk-c1',
       matterId: 'matter-acme',
     };
-    render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
-    await waitFor(() => expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(1));
+    render(
+      <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
+    );
+    await waitFor(() =>
+      expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(1)
+    );
     // Give the rejected promise's catch handler a tick to settle state.
     await waitFor(() => {
-      expect(screen.getByTestId('verify-status').textContent).toMatch(/source found/i);
+      expect(screen.getByTestId('verify-status').textContent).toMatch(
+        /source found/i
+      );
     });
     expect(screen.queryByTestId('verify-verdict')).toBeNull();
-    expect(screen.getByTestId('verify-status').textContent).not.toMatch(/verified against source/i);
+    expect(screen.getByTestId('verify-status').textContent).not.toMatch(
+      /verified against source/i
+    );
   });
 
   it('does NOT carry a verify verdict across a citation swap that reuses the same number', async () => {
@@ -470,26 +521,50 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     setVerdict({ verdict: 'notFound' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const citeA = {
-      n: 1, label: 'a.docx', excerpt: 'A passage.', path: '/ws/a.docx',
-      locator: 'a.docx §1', verified: false, id: 'chunk-A', matterId: 'matter-1',
+      n: 1,
+      label: 'a.docx',
+      excerpt: 'A passage.',
+      path: '/ws/a.docx',
+      locator: 'a.docx §1',
+      verified: false,
+      id: 'chunk-A',
+      matterId: 'matter-1',
     };
     const { rerender } = render(
-      <SourcePanel citations={[citeA]} selectedN={null} onSelect={() => {}} />,
+      <SourcePanel citations={[citeA]} selectedN={null} onSelect={() => {}} />
     );
-    await waitFor(() => expect(screen.getByTestId('verify-verdict')).toBeInTheDocument());
-    expect(screen.getByTestId('verify-verdict')).toHaveAttribute('data-verdict', 'notFound');
+    await waitFor(() =>
+      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('verify-verdict')).toHaveAttribute(
+      'data-verdict',
+      'notFound'
+    );
 
     // A DIFFERENT source that is also citation #1 in the next view.
     const citeB = {
-      n: 1, label: 'b.docx', excerpt: 'B passage.', path: '/ws/b.docx',
-      locator: 'b.docx §1', verified: false, id: 'chunk-B', matterId: 'matter-1',
+      n: 1,
+      label: 'b.docx',
+      excerpt: 'B passage.',
+      path: '/ws/b.docx',
+      locator: 'b.docx §1',
+      verified: false,
+      id: 'chunk-B',
+      matterId: 'matter-1',
     };
-    rerender(<SourcePanel citations={[citeB]} selectedN={null} onSelect={() => {}} />);
+    rerender(
+      <SourcePanel citations={[citeB]} selectedN={null} onSelect={() => {}} />
+    );
 
     // The swapped-in source starts neutral: no carried verdict, fresh check.
     expect(screen.queryByTestId('verify-verdict')).toBeNull();
     expect(screen.getByTestId('verify-status')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByTestId('verify-verdict')).toBeInTheDocument());
-    expect(screen.getByTestId('verify-verdict')).toHaveAttribute('data-verdict', 'notFound');
+    await waitFor(() =>
+      expect(screen.getByTestId('verify-verdict')).toBeInTheDocument()
+    );
+    expect(screen.getByTestId('verify-verdict')).toHaveAttribute(
+      'data-verdict',
+      'notFound'
+    );
   });
 });

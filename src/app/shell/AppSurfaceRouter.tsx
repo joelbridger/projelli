@@ -29,7 +29,12 @@ import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import { routeSavedAskDocument } from '@/app/shell/routeSavedAskDocument';
 import { openMatterDocumentSource } from '@/app/shell/matterDocumentNavigation';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
-import type { WorkflowExecution, WorkflowTemplate, InterviewQuestion, RunRecord } from '@/platform/types/workflow';
+import type {
+  WorkflowExecution,
+  WorkflowTemplate,
+  InterviewQuestion,
+  RunRecord,
+} from '@/platform/types/workflow';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import type { APIKey } from '@/platform/types';
@@ -39,7 +44,11 @@ import type { SettingCategory } from '@/platform/settings/schema';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
-import { EV_OPEN_ACCOUNT, EV_OPEN_EMAIL, SK_FIRM_NAME } from '@/config/identity';
+import {
+  EV_OPEN_ACCOUNT,
+  EV_OPEN_EMAIL,
+  SK_FIRM_NAME,
+} from '@/config/identity';
 
 // Email, Activity Log, Privacy Center, and the full-page Settings surface are
 // lazy-loaded: each is a large, self-contained screen (Settings alone pulls
@@ -47,17 +56,23 @@ import { EV_OPEN_ACCOUNT, EV_OPEN_EMAIL, SK_FIRM_NAME } from '@/config/identity'
 // Client Map (matters), Ask, and Documents stay eager — those are the primary
 // demo path and must open instantly with no Suspense flash.
 const loadEmailWorkspace = () =>
-  import('@/features/email/EmailWorkspace').then((m) => ({ default: m.EmailWorkspace }));
+  import('@/features/email/EmailWorkspace').then((m) => ({
+    default: m.EmailWorkspace,
+  }));
 const loadAuditHome = () =>
   import('@/features/audit/AuditHome').then((m) => ({ default: m.AuditHome }));
 const loadPrivacyCenterHome = () =>
-  import('@/features/privacy/PrivacyCenterHome').then((m) => ({ default: m.PrivacyCenterHome }));
+  import('@/features/privacy/PrivacyCenterHome').then((m) => ({
+    default: m.PrivacyCenterHome,
+  }));
 const loadSettingsContent = () => import('@/features/settings/SettingsContent');
 
 export interface AppSurfaceRouterProps {
   sidebarActiveTab: AppSurface;
   askPrefill: { question: string; autoSubmit?: boolean } | null;
-  setAskPrefill: React.Dispatch<React.SetStateAction<{ question: string; autoSubmit?: boolean } | null>>;
+  setAskPrefill: React.Dispatch<
+    React.SetStateAction<{ question: string; autoSubmit?: boolean } | null>
+  >;
   documentsView: 'browser' | 'editor';
   setDocumentsView: (view: 'browser' | 'editor') => void;
   setSidebarActiveTab: (tab: AppSurface) => void;
@@ -68,7 +83,11 @@ export interface AppSurfaceRouterProps {
   activeWorkflowTemplate: WorkflowTemplate | null;
   showInterviewDialog: boolean;
   interviewQuestions: InterviewQuestion[] | null;
-  workflowProviderError: 'needs-provider' | 'ollama-unreachable' | 'needs-client' | null;
+  workflowProviderError:
+    | 'needs-provider'
+    | 'ollama-unreachable'
+    | 'needs-client'
+    | null;
   /** BUG F2 — non-null when the terminal .workflow run-record write failed to
    *  save after retries. Rendered as a Callout on the workflows home,
    *  mirroring `workflowProviderError`'s plumbing. */
@@ -107,15 +126,27 @@ export interface AppSurfaceRouterProps {
   handleRestoreFromTrash: (id: string) => Promise<void>;
   handlePermanentDelete: (id: string) => Promise<void>;
   handleEmptyTrash: () => Promise<void>;
-  handleTrashRetentionChange: (period: TrashRetentionPeriod, customDays?: number) => void;
+  handleTrashRetentionChange: (
+    period: TrashRetentionPeriod,
+    customDays?: number
+  ) => void;
   refreshFileTree: () => void;
   addAuditEntry: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
   handleRequestApiKeySetup: () => void;
   handleInterviewSubmit: (answers: Record<string, string>) => void;
   handleInterviewCancel: () => void;
-  handleWorkflowSaveAsFile: (content: string, suggestedName: string) => Promise<void>;
-  handleWorkflowExportDocx: (content: string, suggestedName: string) => Promise<void>;
-  handleWorkflowExportPptx: (content: string, suggestedName: string) => Promise<void>;
+  handleWorkflowSaveAsFile: (
+    content: string,
+    suggestedName: string
+  ) => Promise<void>;
+  handleWorkflowExportDocx: (
+    content: string,
+    suggestedName: string
+  ) => Promise<void>;
+  handleWorkflowExportPptx: (
+    content: string,
+    suggestedName: string
+  ) => Promise<void>;
   handleStartWorkflow: (template: WorkflowTemplate) => Promise<void>;
   handleSettingsAction: (actionId: string) => void;
   handleSettingsRestartOnboarding: () => void;
@@ -195,9 +226,16 @@ export function AppSurfaceRouter({
       label: 'Privacy Center',
       testid: 'settings-category-privacy-center',
       content: (
-        <LazyBoundary loader={loadPrivacyCenterHome} fallback={<SurfaceLoadingFallback />} label="Privacy Center">
+        <LazyBoundary
+          loader={loadPrivacyCenterHome}
+          fallback={<SurfaceLoadingFallback />}
+          label="Privacy Center"
+        >
           {(PrivacyCenterHome) => (
-            <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
+            <PrivacyCenterHome
+              auditEntries={auditEntries}
+              activeMatter={activeMatter}
+            />
           )}
         </LazyBoundary>
       ),
@@ -210,7 +248,11 @@ export function AppSurfaceRouter({
       // AND a malformed audit row thrown later — a bad row must never
       // white-screen the Settings page.
       content: (
-        <LazyBoundary loader={loadAuditHome} fallback={<SurfaceLoadingFallback />} label="Activity Log">
+        <LazyBoundary
+          loader={loadAuditHome}
+          fallback={<SurfaceLoadingFallback />}
+          label="Activity Log"
+        >
           {(AuditHome) => (
             <AuditHome
               entries={auditEntries}
@@ -260,7 +302,9 @@ export function AppSurfaceRouter({
       onRequestApiKeySetup={handleRequestApiKeySetup}
       workflowExecution={currentExecution}
       workflowTemplate={activeWorkflowTemplate}
-      workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
+      workflowInterviewQuestions={
+        showInterviewDialog ? null : interviewQuestions
+      }
       onWorkflowInterviewSubmit={handleInterviewSubmit}
       onWorkflowCancel={handleInterviewCancel}
       onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
@@ -272,7 +316,11 @@ export function AppSurfaceRouter({
     />
   );
 
-  const buildDocumentsHome = (opts: { embedded?: boolean; scopeFolderPaths?: string[]; scopeMatterId?: string }) => (
+  const buildDocumentsHome = (opts: {
+    embedded?: boolean;
+    scopeFolderPaths?: string[];
+    scopeMatterId?: string;
+  }) => (
     <DocumentsHome
       // Per-client key so switching clients on the same sub-tab REMOUNTS this
       // surface (fresh currentFolderPath etc.) instead of reusing the prior
@@ -307,13 +355,18 @@ export function AppSurfaceRouter({
       customRetentionDays={trashCustomRetentionDays}
       onRetentionChange={handleTrashRetentionChange}
       {...(opts.embedded ? { embedded: true } : {})}
-      {...(opts.scopeFolderPaths ? { scopeFolderPaths: opts.scopeFolderPaths } : {})}
+      {...(opts.scopeFolderPaths
+        ? { scopeFolderPaths: opts.scopeFolderPaths }
+        : {})}
       {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
       mainPanelContent={documentsMainPanel()}
     />
   );
 
-  const buildEmailWorkspace = (opts: { embedded?: boolean; scopeMatterId?: string }) => (
+  const buildEmailWorkspace = (opts: {
+    embedded?: boolean;
+    scopeMatterId?: string;
+  }) => (
     <LazyBoundary
       loader={loadEmailWorkspace}
       // A render error on one client's Email must not stay stuck when the
@@ -331,13 +384,27 @@ export function AppSurfaceRouter({
           onSaveToWorkspace={async (content, suggestedName) => {
             if (!workspaceServiceRef.current || !rootPath) return;
             // Word-first: saved email content becomes a real .docx.
-            const { resolveUniqueName } = await import('@/platform/utils/fileDrop');
-            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
-            const firmName = (() => { try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; } })();
+            const { resolveUniqueName } =
+              await import('@/platform/utils/fileDrop');
+            const { markdownToDocxBytes, docxBytesToDataUrl } =
+              await import('@/platform/utils/docx-io');
+            const firmName = (() => {
+              try {
+                return localStorage.getItem(SK_FIRM_NAME) ?? '';
+              } catch {
+                return '';
+              }
+            })();
             const base = suggestedName.replace(/\.(md|markdown|txt)$/i, '');
-            const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
+            const finalName = await resolveUniqueName(
+              workspaceServiceRef.current,
+              rootPath,
+              `${base}.docx`
+            );
             const path = workspacePath(rootPath, finalName);
-            const bytes = await markdownToDocxBytes(content, finalName, { firmName });
+            const bytes = await markdownToDocxBytes(content, finalName, {
+              firmName,
+            });
             const buffer = new ArrayBuffer(bytes.byteLength);
             new Uint8Array(buffer).set(bytes);
             await workspaceServiceRef.current.writeFileBinary(path, buffer);
@@ -353,7 +420,11 @@ export function AppSurfaceRouter({
             });
           }}
           onOpenSettings={() => {
-            window.dispatchEvent(new CustomEvent(EV_OPEN_ACCOUNT, { detail: { tab: 'connections' } }));
+            window.dispatchEvent(
+              new CustomEvent(EV_OPEN_ACCOUNT, {
+                detail: { tab: 'connections' },
+              })
+            );
           }}
           {...(opts.embedded ? { embedded: true } : {})}
         />
@@ -391,7 +462,7 @@ export function AppSurfaceRouter({
 
   return (
     <>
-      {sidebarActiveTab ==='matters' ? (
+      {sidebarActiveTab === 'matters' ? (
         <MattersHome
           onAuditLog={addAuditEntry}
           renderClientDocuments={(hubMatter) =>
@@ -406,26 +477,48 @@ export function AppSurfaceRouter({
             })
           }
           renderClientEmail={() =>
-            buildEmailWorkspace({ embedded: true, ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}) })
+            buildEmailWorkspace({
+              embedded: true,
+              ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
+            })
           }
           renderClientActivity={() =>
-            buildActivity(activeMatter ? { scopeMatterId: activeMatter.id } : {})
+            buildActivity(
+              activeMatter ? { scopeMatterId: activeMatter.id } : {}
+            )
           }
           workspaceService={workspaceServiceRef.current}
           clientMapMode={mattersSurfaceMode}
         />
-      ) : sidebarActiveTab ==='search' ? (
+      ) : sidebarActiveTab === 'search' ? (
         <Ask
           onSaveToDocument={async (content) => {
             if (!workspaceServiceRef.current || !rootPath) return;
             // Word-first: AI answers save as a real .docx (not markdown).
-            const { deriveFilenameFromMessage, resolveUniqueName } = await import('@/platform/utils/fileDrop');
-            const { markdownToDocxBytes, docxBytesToDataUrl } = await import('@/platform/utils/docx-io');
-            const firmName = (() => { try { return localStorage.getItem(SK_FIRM_NAME) ?? ''; } catch { return ''; } })();
-            const base = deriveFilenameFromMessage(content).replace(/\.(md|markdown|txt)$/i, '');
-            const finalName = await resolveUniqueName(workspaceServiceRef.current, rootPath, `${base}.docx`);
+            const { deriveFilenameFromMessage, resolveUniqueName } =
+              await import('@/platform/utils/fileDrop');
+            const { markdownToDocxBytes, docxBytesToDataUrl } =
+              await import('@/platform/utils/docx-io');
+            const firmName = (() => {
+              try {
+                return localStorage.getItem(SK_FIRM_NAME) ?? '';
+              } catch {
+                return '';
+              }
+            })();
+            const base = deriveFilenameFromMessage(content).replace(
+              /\.(md|markdown|txt)$/i,
+              ''
+            );
+            const finalName = await resolveUniqueName(
+              workspaceServiceRef.current,
+              rootPath,
+              `${base}.docx`
+            );
             const path = workspacePath(rootPath, finalName);
-            const bytes = await markdownToDocxBytes(content, finalName, { firmName });
+            const bytes = await markdownToDocxBytes(content, finalName, {
+              firmName,
+            });
             const buffer = new ArrayBuffer(bytes.byteLength);
             new Uint8Array(buffer).set(bytes);
             await workspaceServiceRef.current.writeFileBinary(path, buffer);
@@ -443,7 +536,7 @@ export function AppSurfaceRouter({
           prefillRequest={askPrefill}
           onPrefillConsumed={() => setAskPrefill(null)}
           onAuditLog={addAuditEntry}
-          onOpenFileAtPath={(p, _paragraphIndex, snippet) => {
+          onOpenFileAtPath={(p, _paragraphIndex, snippet, matterId) => {
             // Wave 2 — email relocation: an email citation in an Ask answer opens
             // the light EmailViewer reading view (via lantern:open-email, the
             // same path the .aichat chat uses). Without this the Ask surface
@@ -451,12 +544,15 @@ export function AppSurfaceRouter({
             // citations keep their in-place SourcePanel passage; their dedicated
             // citation viewer lands in Wave 3.
             if (typeof p === 'string' && p.startsWith('mail:')) {
-              window.dispatchEvent(new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } }));
+              window.dispatchEvent(
+                new CustomEvent(EV_OPEN_EMAIL, { detail: { sourceId: p } })
+              );
               return;
             }
-            if (activeMatter && typeof p === 'string') {
+            const citationMatterId = matterId ?? activeMatter?.id;
+            if (citationMatterId && typeof p === 'string') {
               void openMatterDocumentSource({
-                matterId: activeMatter.id,
+                matterId: citationMatterId,
                 ref: p,
                 ...(snippet ? { snippet } : {}),
                 service: workspaceServiceRef.current,
@@ -470,11 +566,11 @@ export function AppSurfaceRouter({
             }
           }}
         />
-      ) : sidebarActiveTab ==='email' ? (
+      ) : sidebarActiveTab === 'email' ? (
         buildEmailWorkspace({})
-      ) : sidebarActiveTab ==='files' ? (
+      ) : sidebarActiveTab === 'files' ? (
         buildDocumentsHome({})
-      ) : sidebarActiveTab ==='workflows' ? (
+      ) : sidebarActiveTab === 'workflows' ? (
         <AssociateHome
           onStartWorkflow={handleStartWorkflow}
           currentExecution={currentExecution}
@@ -488,7 +584,8 @@ export function AppSurfaceRouter({
               name,
               handleFileOpen,
               setSidebarActiveTab,
-            })}
+            })
+          }
           onFocusExecutionTab={() => {
             const target =
               activeWorkflowFilePath ??
@@ -499,21 +596,35 @@ export function AppSurfaceRouter({
             }
           }}
         />
-      ) : sidebarActiveTab ==='audit' ? (
+      ) : sidebarActiveTab === 'audit' ? (
         buildActivity({})
-      ) : sidebarActiveTab ==='privacy' ? (
-        <LazyBoundary loader={loadPrivacyCenterHome} fallback={<SurfaceLoadingFallback />} label="Privacy Center">
+      ) : sidebarActiveTab === 'privacy' ? (
+        <LazyBoundary
+          loader={loadPrivacyCenterHome}
+          fallback={<SurfaceLoadingFallback />}
+          label="Privacy Center"
+        >
           {(PrivacyCenterHome) => (
-            <PrivacyCenterHome auditEntries={auditEntries} activeMatter={activeMatter} />
+            <PrivacyCenterHome
+              auditEntries={auditEntries}
+              activeMatter={activeMatter}
+            />
           )}
         </LazyBoundary>
-      ) : sidebarActiveTab ==='settings' ? (
+      ) : sidebarActiveTab === 'settings' ? (
         // Full-page Settings surface — the SAME content as the quick modal
         // (5-section nav, search, accordion sub-sections, Export/Import/Reset),
         // rendered in the main window instead of a dialog. The gear / Ctrl+,
         // modal still works for quick, deep-linked access.
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col" data-testid="settings-page">
-          <LazyBoundary loader={loadSettingsContent} fallback={<SurfaceLoadingFallback />} label="Settings">
+        <div
+          className="flex-1 min-w-0 min-h-0 flex flex-col"
+          data-testid="settings-page"
+        >
+          <LazyBoundary
+            loader={loadSettingsContent}
+            fallback={<SurfaceLoadingFallback />}
+            label="Settings"
+          >
             {(SettingsContent) => (
               <SettingsContent
                 variant="page"
@@ -527,56 +638,58 @@ export function AppSurfaceRouter({
           </LazyBoundary>
         </div>
       ) : (
-      <MainPanel
-        onFileOpen={handleFileOpen}
-        onMove={handleMove}
-        onRename={handleRenameWithName}
-        onDownload={handleDownload}
-        apiKeys={apiKeys}
-        workspaceServiceRef={workspaceServiceRef}
-        {...(rootPath ? { rootPath } : {})}
-        onFileTreeChange={refreshFileTree}
-        onAuditLog={addAuditEntry}
-        // M2 — Citations in AI responses navigate through here. We
-        // resolve the retrieval path (workspace-relative) to the full
-        // workspace path, then reuse the existing file-open pipeline.
-        // F-504: the cited chunk's text (`snippet`) is carried through
-        // so the editor can bring the exact passage on screen by search
-        // (the paragraph index is a CHUNK index, only good for an
-        // approximate fallback).
-        onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
-          if (!rootPath) return;
-          // `workspacePath` recognizes an already-absolute `p` via
-          // `isAbsolutePath` (not a naive `startsWith(rootPath)`, which fails
-          // closed/open incorrectly when `p`'s drive-letter case or separator
-          // style differs from `rootPath`) and passes it through unchanged
-          // instead of doubling it.
-          const absPath = workspacePath(rootPath, p);
-          const name = absPath.split('/').pop() ?? absPath;
-          await handleFileOpen(absPath, name);
-          // F-504 — editor scroll request. requestScrollToParagraph both
-          // dispatches the event (already-mounted editors) and stashes a
-          // pending slot the freshly-mounted editor consumes (mount race).
-          if (typeof paragraphIndex === 'number') {
-            requestScrollToParagraph({
-              path: absPath,
-              paragraphIndex,
-              ...(snippet ? { snippet } : {}),
-            });
+        <MainPanel
+          onFileOpen={handleFileOpen}
+          onMove={handleMove}
+          onRename={handleRenameWithName}
+          onDownload={handleDownload}
+          apiKeys={apiKeys}
+          workspaceServiceRef={workspaceServiceRef}
+          {...(rootPath ? { rootPath } : {})}
+          onFileTreeChange={refreshFileTree}
+          onAuditLog={addAuditEntry}
+          // M2 — Citations in AI responses navigate through here. We
+          // resolve the retrieval path (workspace-relative) to the full
+          // workspace path, then reuse the existing file-open pipeline.
+          // F-504: the cited chunk's text (`snippet`) is carried through
+          // so the editor can bring the exact passage on screen by search
+          // (the paragraph index is a CHUNK index, only good for an
+          // approximate fallback).
+          onOpenFileAtPath={async (p, paragraphIndex, snippet) => {
+            if (!rootPath) return;
+            // `workspacePath` recognizes an already-absolute `p` via
+            // `isAbsolutePath` (not a naive `startsWith(rootPath)`, which fails
+            // closed/open incorrectly when `p`'s drive-letter case or separator
+            // style differs from `rootPath`) and passes it through unchanged
+            // instead of doubling it.
+            const absPath = workspacePath(rootPath, p);
+            const name = absPath.split('/').pop() ?? absPath;
+            await handleFileOpen(absPath, name);
+            // F-504 — editor scroll request. requestScrollToParagraph both
+            // dispatches the event (already-mounted editors) and stashes a
+            // pending slot the freshly-mounted editor consumes (mount race).
+            if (typeof paragraphIndex === 'number') {
+              requestScrollToParagraph({
+                path: absPath,
+                paragraphIndex,
+                ...(snippet ? { snippet } : {}),
+              });
+            }
+          }}
+          onRequestApiKeySetup={handleRequestApiKeySetup}
+          workflowExecution={currentExecution}
+          workflowTemplate={activeWorkflowTemplate}
+          workflowInterviewQuestions={
+            showInterviewDialog ? null : interviewQuestions
           }
-        }}
-        onRequestApiKeySetup={handleRequestApiKeySetup}
-        workflowExecution={currentExecution}
-        workflowTemplate={activeWorkflowTemplate}
-        workflowInterviewQuestions={showInterviewDialog ? null : interviewQuestions}
-        onWorkflowInterviewSubmit={handleInterviewSubmit}
-        onWorkflowCancel={handleInterviewCancel}
-        onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
-        onWorkflowExportDocx={handleWorkflowExportDocx}
-        onWorkflowExportPptx={handleWorkflowExportPptx}
-        workflowProviderError={workflowProviderError}
-        onOpenSettings={() => openSettings('ai')}
-      />
+          onWorkflowInterviewSubmit={handleInterviewSubmit}
+          onWorkflowCancel={handleInterviewCancel}
+          onWorkflowSaveAsFile={handleWorkflowSaveAsFile}
+          onWorkflowExportDocx={handleWorkflowExportDocx}
+          onWorkflowExportPptx={handleWorkflowExportPptx}
+          workflowProviderError={workflowProviderError}
+          onOpenSettings={() => openSettings('ai')}
+        />
       )}
     </>
   );

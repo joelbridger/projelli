@@ -15,15 +15,29 @@
  */
 
 import type { CSSProperties } from 'react';
-import { ShieldCheck, ShieldAlert, Info, PencilLine, Search, Loader2 } from 'lucide-react';
-import type { AnswerBlock, AnswerBlockKind, AnswerCitation } from './askHelpers';
+import {
+  ShieldCheck,
+  ShieldAlert,
+  Info,
+  PencilLine,
+  Search,
+  Loader2,
+} from 'lucide-react';
+import type {
+  AnswerBlock,
+  AnswerBlockKind,
+  AnswerCitation,
+} from './askHelpers';
 import {
   tallyBlocks,
   tallyCitationTrust,
   filesBlockTrustState,
   type CitationTrustState,
 } from './answerBlockHelpers';
-import { useCitationVerification, citationTrustState } from './citationVerification';
+import {
+  useCitationVerification,
+  citationTrustState,
+} from './citationVerification';
 import type { AuditEntry } from '@/platform/types/audit';
 import { CitationText } from './CitationText';
 
@@ -35,8 +49,16 @@ const FILES = { fg: '#16654a', bg: '#e6f5ee', border: '#8fc9b0' };
 // the green FILES tone — the block-level trust badge must be earned, not given
 // for merely landing in a files block.
 const AMBER = { fg: '#8a5a00', bg: '#fef6e6', border: '#e3b878' };
-const GREY = { fg: 'var(--kp-text-dim)', bg: 'var(--kp-bg-soft)', border: 'var(--kp-divider-strong)' };
-const BLUE = { fg: 'var(--kp-accent)', bg: 'var(--kp-accent-soft)', border: 'var(--kp-action-border)' };
+const GREY = {
+  fg: 'var(--kp-text-dim)',
+  bg: 'var(--kp-bg-soft)',
+  border: 'var(--kp-divider-strong)',
+};
+const BLUE = {
+  fg: 'var(--kp-accent)',
+  bg: 'var(--kp-accent-soft)',
+  border: 'var(--kp-action-border)',
+};
 
 interface LabelDef {
   text: string;
@@ -46,12 +68,22 @@ interface LabelDef {
 
 const LABELS: Record<AnswerBlockKind, LabelDef> = {
   files: { text: 'From your files', Icon: ShieldCheck, tone: FILES },
-  'nothing-found': { text: 'From your files — nothing found', Icon: Search, tone: GREY },
+  'nothing-found': {
+    text: 'From your files — nothing found',
+    Icon: Search,
+    tone: GREY,
+  },
   general: { text: 'General guidance', Icon: Info, tone: GREY },
   draft: { text: 'Draft', Icon: PencilLine, tone: BLUE },
 };
 
-function BlockLabel({ kind, trust = 'verified' }: { kind: AnswerBlockKind; trust?: CitationTrustState }) {
+function BlockLabel({
+  kind,
+  trust = 'verified',
+}: {
+  kind: AnswerBlockKind;
+  trust?: CitationTrustState;
+}) {
   // B1, rewired to the LIVE verifier (lp/badge-consistency): a files block
   // whose citations the real check has not confirmed must NOT wear the green
   // "From your files" badge — amber once any citation is settled unverified,
@@ -66,7 +98,11 @@ function BlockLabel({ kind, trust = 'verified' }: { kind: AnswerBlockKind; trust
     : filesChecking
       ? 'From your files — checking…'
       : base.text;
-  const Icon = filesUnverified ? ShieldAlert : filesChecking ? Loader2 : base.Icon;
+  const Icon = filesUnverified
+    ? ShieldAlert
+    : filesChecking
+      ? Loader2
+      : base.Icon;
   const tone = filesUnverified ? AMBER : filesChecking ? GREY : base.tone;
   const testId = filesUnverified
     ? 'ask-block-label-files-unverified'
@@ -103,7 +139,11 @@ function BlockLabel({ kind, trust = 'verified' }: { kind: AnswerBlockKind; trust
   );
 }
 
-const footerBoxStyle = (tone: { fg: string; bg: string; border: string }): CSSProperties => ({
+const footerBoxStyle = (tone: {
+  fg: string;
+  bg: string;
+  border: string;
+}): CSSProperties => ({
   display: 'flex',
   gap: 8,
   alignItems: 'flex-start',
@@ -116,7 +156,11 @@ const footerBoxStyle = (tone: { fg: string; bg: string; border: string }): CSSPr
   color: tone.fg,
 });
 
-const tallyPillStyle = (tone: { fg: string; bg: string; border: string }): CSSProperties => ({
+const tallyPillStyle = (tone: {
+  fg: string;
+  bg: string;
+  border: string;
+}): CSSProperties => ({
   display: 'inline-flex',
   alignItems: 'center',
   gap: 7,
@@ -139,7 +183,12 @@ export function AnswerBlocks({
   blocks: AnswerBlock[];
   selected: number | null;
   onSelect: (n: number) => void;
-  onOpenFileAtPath?: (path: string, paragraphIndex: number, snippet?: string) => void;
+  onOpenFileAtPath?: (
+    path: string,
+    paragraphIndex: number,
+    snippet?: string,
+    matterId?: string
+  ) => void;
   /** When provided, each automatic real-verification result this surface
    *  triggers emits a `citation_verified` audit entry (same as SourcePanel —
    *  the shared store guarantees each citation is checked and audited once). */
@@ -152,9 +201,12 @@ export function AnswerBlocks({
   // so this surface triggers the check itself — deduped globally). It updates
   // the moment verification completes, so the header can never sit on amber
   // while the cards read green (dry-run Run-2 finding, evidence run2-06).
-  const allCitations = blocks.flatMap((b) => (b.kind === 'files' ? b.citations : []));
+  const allCitations = blocks.flatMap((b) =>
+    b.kind === 'files' ? b.citations : []
+  );
   const verdicts = useCitationVerification(allCitations, onAuditLog);
-  const stateOf = (c: AnswerCitation): CitationTrustState => citationTrustState(c, verdicts);
+  const stateOf = (c: AnswerCitation): CitationTrustState =>
+    citationTrustState(c, verdicts);
   const trust = tallyCitationTrust(blocks, stateOf);
   // Pure-files answer (cited, no general/draft/nothing-found): show the original
   // green attestation box so a cited-only answer reads exactly as before.
@@ -164,13 +216,22 @@ export function AnswerBlocks({
   const pureFiles =
     tally.citedClaims > 0 &&
     trust.verified === tally.citedClaims &&
-    !tally.hasGeneral && !tally.hasDraft && !tally.hasNothingFound;
+    !tally.hasGeneral &&
+    !tally.hasDraft &&
+    !tally.hasNothingFound;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       {blocks.map((block, i) => (
-        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 9 }} data-testid={`ask-block-${block.kind}`}>
-          <BlockLabel kind={block.kind} trust={filesBlockTrustState(block, stateOf)} />
+        <div
+          key={i}
+          style={{ display: 'flex', flexDirection: 'column', gap: 9 }}
+          data-testid={`ask-block-${block.kind}`}
+        >
+          <BlockLabel
+            kind={block.kind}
+            trust={filesBlockTrustState(block, stateOf)}
+          />
           {block.text && (
             <CitationText
               text={block.text}
@@ -183,15 +244,39 @@ export function AnswerBlocks({
 
           {/* Per-block footers — the quiet trust lines that live with each block. */}
           {block.kind === 'general' && (
-            <div data-testid="ask-general-verifyline" style={{ ...footerBoxStyle(GREY), background: 'transparent', border: 'none', padding: '0 0 0 2px', color: 'var(--kp-text-faint)', fontStyle: 'normal' }}>
-              <Info size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
-              <span>General knowledge, not from your files — rules and limits change; confirm current figures before you advise.</span>
+            <div
+              data-testid="ask-general-verifyline"
+              style={{
+                ...footerBoxStyle(GREY),
+                background: 'transparent',
+                border: 'none',
+                padding: '0 0 0 2px',
+                color: 'var(--kp-text-faint)',
+                fontStyle: 'normal',
+              }}
+            >
+              <Info
+                size={13}
+                strokeWidth={2}
+                style={{ flex: 'none', marginTop: 1 }}
+              />
+              <span>
+                General knowledge, not from your files — rules and limits
+                change; confirm current figures before you advise.
+              </span>
             </div>
           )}
           {block.kind === 'draft' && (
             <div data-testid="ask-draft-note" style={footerBoxStyle(BLUE)}>
-              <PencilLine size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
-              <span>Draft for you to review before sending. Nothing is sent automatically.</span>
+              <PencilLine
+                size={13}
+                strokeWidth={2}
+                style={{ flex: 'none', marginTop: 1 }}
+              />
+              <span>
+                Draft for you to review before sending. Nothing is sent
+                automatically.
+              </span>
             </div>
           )}
         </div>
@@ -199,16 +284,39 @@ export function AnswerBlocks({
 
       {/* Per-answer footer — the honest tally of what the whole answer is built from. */}
       {pureFiles ? (
-        <div data-testid="ask-cited-attestation" style={{ ...footerBoxStyle(FILES), fontWeight: 600 }}>
-          <ShieldCheck size={14} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
-          <span>Answered over your own files. Every cited claim has a source you can open and check.</span>
+        <div
+          data-testid="ask-cited-attestation"
+          style={{ ...footerBoxStyle(FILES), fontWeight: 600 }}
+        >
+          <ShieldCheck
+            size={14}
+            strokeWidth={2}
+            style={{ flex: 'none', marginTop: 1 }}
+          />
+          <span>
+            Answered over your own files. Every cited claim has a source you can
+            open and check.
+          </span>
         </div>
       ) : (
-        (tally.citedClaims > 0 || tally.hasGeneral || tally.hasNothingFound) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 9, alignItems: 'center' }}>
+        (tally.citedClaims > 0 ||
+          tally.hasGeneral ||
+          tally.hasNothingFound) && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 9,
+              alignItems: 'center',
+            }}
+          >
             {trust.verified > 0 && (
               <span data-testid="ask-tally-cited" style={tallyPillStyle(FILES)}>
-                <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
+                <ShieldCheck
+                  size={13}
+                  strokeWidth={2}
+                  style={{ flex: 'none' }}
+                />
                 {trust.verified === 1
                   ? '1 claim cited from your files'
                   : `${String(trust.verified)} claims cited from your files`}
@@ -217,8 +325,16 @@ export function AnswerBlocks({
             {/* Live check still in flight — say so instead of a premature
                 verdict (mirrors the card's spinner), then settle green/amber. */}
             {trust.checking > 0 && (
-              <span data-testid="ask-tally-checking" style={tallyPillStyle(GREY)}>
-                <Loader2 size={13} strokeWidth={2} className="animate-spin" style={{ flex: 'none' }} />
+              <span
+                data-testid="ask-tally-checking"
+                style={tallyPillStyle(GREY)}
+              >
+                <Loader2
+                  size={13}
+                  strokeWidth={2}
+                  className="animate-spin"
+                  style={{ flex: 'none' }}
+                />
                 {trust.checking === 1
                   ? 'Checking 1 source…'
                   : `Checking ${String(trust.checking)} sources…`}
@@ -228,15 +344,25 @@ export function AnswerBlocks({
                 as "found, not verified" — never folded into the green "cited
                 from your files" count. */}
             {trust.unverified > 0 && (
-              <span data-testid="ask-tally-unverified" style={tallyPillStyle(AMBER)}>
-                <ShieldAlert size={13} strokeWidth={2} style={{ flex: 'none' }} />
+              <span
+                data-testid="ask-tally-unverified"
+                style={tallyPillStyle(AMBER)}
+              >
+                <ShieldAlert
+                  size={13}
+                  strokeWidth={2}
+                  style={{ flex: 'none' }}
+                />
                 {trust.unverified === 1
                   ? '1 source found · not verified'
                   : `${String(trust.unverified)} sources found · not verified`}
               </span>
             )}
             {tally.hasGeneral && (
-              <span data-testid="ask-tally-general" style={tallyPillStyle(GREY)}>
+              <span
+                data-testid="ask-tally-general"
+                style={tallyPillStyle(GREY)}
+              >
                 <Info size={13} strokeWidth={2} style={{ flex: 'none' }} />
                 General guidance · verify current rules
               </span>
@@ -249,8 +375,15 @@ export function AnswerBlocks({
           the guidance below the gap is general knowledge, not the client's records. */}
       {tally.hasNothingFound && tally.hasGeneral && (
         <div data-testid="ask-nothingfound-note" style={footerBoxStyle(GREY)}>
-          <Info size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
-          <span>Nothing found in your files. The guidance above is general knowledge, clearly marked — not from this client&apos;s records.</span>
+          <Info
+            size={13}
+            strokeWidth={2}
+            style={{ flex: 'none', marginTop: 1 }}
+          />
+          <span>
+            Nothing found in your files. The guidance above is general
+            knowledge, clearly marked — not from this client&apos;s records.
+          </span>
         </div>
       )}
     </div>

@@ -21,7 +21,10 @@ const answerParaStyle: CSSProperties = {
 };
 
 const boldStyle: CSSProperties = { fontWeight: 700, color: 'var(--kp-navy)' };
-const warnStyle: CSSProperties = { color: 'var(--kp-warning, #b45309)', fontWeight: 600 };
+const warnStyle: CSSProperties = {
+  color: 'var(--kp-warning, #b45309)',
+  fontWeight: 600,
+};
 
 export function CitationText({
   text,
@@ -38,7 +41,12 @@ export function CitationText({
    * WS3 (Task 2): when provided, chip click also opens the file at the
    * cited paragraph — single-click navigation matching the Chat surface.
    */
-  onOpenFileAtPath?: (path: string, paragraphIndex: number, snippet?: string) => void;
+  onOpenFileAtPath?: (
+    path: string,
+    paragraphIndex: number,
+    snippet?: string,
+    matterId?: string
+  ) => void;
 }) {
   /** A single citation chip (verify state + click-to-open preserved). */
   function renderChip(n: number, key: string): ReactNode {
@@ -69,7 +77,17 @@ export function CitationText({
         onClick={() => {
           onSelect(n);
           if (onOpenFileAtPath && cite?.path) {
-            onOpenFileAtPath(cite.path, cite.paragraphIndex ?? 0, cite.excerpt || undefined);
+            const snippet = cite.excerpt || undefined;
+            if (cite.matterId !== undefined) {
+              onOpenFileAtPath(
+                cite.path,
+                cite.paragraphIndex ?? 0,
+                snippet,
+                cite.matterId
+              );
+            } else {
+              onOpenFileAtPath(cite.path, cite.paragraphIndex ?? 0, snippet);
+            }
           }
         }}
         aria-label={`Citation ${String(n)}: ${cite?.label ?? 'unknown'}. ${proven ? 'Source found.' : sourceFound ? 'Source found, not verified.' : 'Unverified.'}`}
@@ -82,14 +100,18 @@ export function CitationText({
                 ? 'Unverified: the cited source could not be found in what was retrieved. Do not rely on this without checking.'
                 : 'Unverified: could not confirm this exact passage against the source. Do not rely on this without checking.'
         }
-        style={isSel ? { outline: '2px solid var(--kp-navy)', outlineOffset: 1 } : undefined}
+        style={
+          isSel
+            ? { outline: '2px solid var(--kp-navy)', outlineOffset: 1 }
+            : undefined
+        }
         className={cn(
           'inline-flex items-center gap-1 px-1.5 py-0.5 mx-0.5 rounded-md border text-xs font-mono font-semibold align-baseline cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
           proven
             ? 'border-green-400/60 bg-green-50 text-green-800 hover:bg-green-100'
             : sourceFound
               ? 'border-amber-400/70 bg-amber-50 text-amber-800 hover:bg-amber-100'
-              : 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100',
+              : 'border-red-400/60 bg-red-50 text-red-700 hover:bg-red-100'
         )}
       >
         {proven ? (
@@ -128,7 +150,9 @@ export function CitationText({
   }
 
   // Split the answer into blocks: email-draft cards (```email …```) and prose.
-  const blocks = text.split(/(```email\n[\s\S]*?```)/g).filter((b) => b.trim() !== '');
+  const blocks = text
+    .split(/(```email\n[\s\S]*?```)/g)
+    .filter((b) => b.trim() !== '');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -138,10 +162,16 @@ export function CitationText({
           return <EmailCard key={`b-${String(bi)}`} raw={email[1] ?? ''} />;
         }
         // Prose block → spaced paragraphs (sections).
-        const paras = block.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+        const paras = block
+          .split(/\n{2,}/)
+          .map((p) => p.trim())
+          .filter(Boolean);
         return paras.map((para, pi) => (
           <p key={`b-${String(bi)}-p-${String(pi)}`} style={answerParaStyle}>
-            {renderInline(para.replace(/\n/g, ' '), `b-${String(bi)}-p-${String(pi)}`)}
+            {renderInline(
+              para.replace(/\n/g, ' '),
+              `b-${String(bi)}-p-${String(pi)}`
+            )}
           </p>
         ));
       })}
@@ -180,7 +210,8 @@ function EmailCard({ raw }: { raw: string }) {
         border: '1px solid var(--kp-divider)',
         borderRadius: 12,
         overflow: 'hidden',
-        boxShadow: '0 1px 2px rgba(10,37,64,0.06), 0 8px 24px rgba(10,37,64,0.10)',
+        boxShadow:
+          '0 1px 2px rgba(10,37,64,0.06), 0 8px 24px rgba(10,37,64,0.10)',
         background: 'var(--color-background)',
       }}
     >
@@ -198,12 +229,34 @@ function EmailCard({ raw }: { raw: string }) {
             color: 'var(--kp-text-dim)',
           }}
         >
-          <Mail size={14} strokeWidth={2} style={{ color: 'var(--kp-accent)', flex: 'none' }} />
+          <Mail
+            size={14}
+            strokeWidth={2}
+            style={{ color: 'var(--kp-accent)', flex: 'none' }}
+          />
           <span>To: {to}</span>
         </div>
       )}
-      <div style={{ padding: '14px 16px', fontSize: 14, lineHeight: 1.6, color: 'var(--kp-navy)', whiteSpace: 'pre-wrap' }}>
-        {subject && <div style={{ fontWeight: 700, color: 'var(--kp-navy)', marginBottom: 8 }}>{subject}</div>}
+      <div
+        style={{
+          padding: '14px 16px',
+          fontSize: 14,
+          lineHeight: 1.6,
+          color: 'var(--kp-navy)',
+          whiteSpace: 'pre-wrap',
+        }}
+      >
+        {subject && (
+          <div
+            style={{
+              fontWeight: 700,
+              color: 'var(--kp-navy)',
+              marginBottom: 8,
+            }}
+          >
+            {subject}
+          </div>
+        )}
         {body}
       </div>
     </div>

@@ -19,20 +19,36 @@ import { SourcePanel } from '@/features/ask/SourcePanel';
 import { CitationText } from '@/features/ask/CitationText';
 import type { AnswerCitation } from '@/features/ask/askHelpers';
 
-afterEach(() => { cleanup(); });
+afterEach(() => {
+  cleanup();
+});
 
 const emailCite: AnswerCitation = {
-  n: 1, label: 'Re: Trust funding', excerpt: 'As discussed, the trust...',
-  path: 'mail:abc123', locator: '', verified: true,
+  n: 1,
+  label: 'Re: Trust funding',
+  excerpt: 'As discussed, the trust...',
+  path: 'mail:abc123',
+  locator: '',
+  verified: true,
 };
 const docCite: AnswerCitation = {
-  n: 1, label: 'lease.docx', excerpt: 'The tenant shall...',
-  path: 'Contracts/lease.docx', locator: 'p.2', verified: true, paragraphIndex: 1,
+  n: 1,
+  label: 'lease.docx',
+  excerpt: 'The tenant shall...',
+  path: 'Contracts/lease.docx',
+  locator: 'p.2',
+  verified: true,
+  paragraphIndex: 1,
 };
-const docCiteWithMatter: AnswerCitation = { ...docCite, matterId: 'matter_demo_brennan' };
+const docCiteWithMatter: AnswerCitation = {
+  ...docCite,
+  matterId: 'matter_demo_brennan',
+};
 
 function renderPanel(cite: AnswerCitation) {
-  return render(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
+  return render(
+    <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
+  );
 }
 
 describe('SourcePanel — email reading view', () => {
@@ -64,7 +80,10 @@ describe('SourcePanel — email reading view', () => {
     expect(card).not.toHaveAttribute('role', 'button');
     fireEvent.click(card);
     expect(onLaunch).not.toHaveBeenCalled();
-    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
+    window.removeEventListener(
+      'lantern:matter-launch',
+      onLaunch as EventListener
+    );
   });
 
   it('opens a document citation via keepance:matter-launch (matter-scoped, scrolls to passage)', () => {
@@ -77,9 +96,16 @@ describe('SourcePanel — email reading view', () => {
     expect(detail).toEqual({
       matterId: 'matter_demo_brennan',
       surface: 'files',
-      source: { kind: 'document', ref: 'Contracts/lease.docx', snippet: 'The tenant shall...' },
+      source: {
+        kind: 'document',
+        ref: 'Contracts/lease.docx',
+        snippet: 'The tenant shall...',
+      },
     });
-    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
+    window.removeEventListener(
+      'lantern:matter-launch',
+      onLaunch as EventListener
+    );
   });
 
   it('clicking an email citation card does NOT dispatch keepance:matter-launch', () => {
@@ -88,13 +114,21 @@ describe('SourcePanel — email reading view', () => {
     renderPanel(emailCite);
     fireEvent.click(screen.getByTestId('source-card'));
     expect(onLaunch).not.toHaveBeenCalled();
-    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
+    window.removeEventListener(
+      'lantern:matter-launch',
+      onLaunch as EventListener
+    );
   });
 
   it('a CRM citation is not openable as a document (crm: has its own route)', () => {
     const crmCite: AnswerCitation = {
-      n: 1, label: 'Household', excerpt: 'AUM $2.1M', path: 'crm:household:abc123',
-      locator: '', verified: true, matterId: 'matter_demo_brennan',
+      n: 1,
+      label: 'Household',
+      excerpt: 'AUM $2.1M',
+      path: 'crm:household:abc123',
+      locator: '',
+      verified: true,
+      matterId: 'matter_demo_brennan',
     };
     const onLaunch = vi.fn();
     window.addEventListener('lantern:matter-launch', onLaunch as EventListener);
@@ -103,7 +137,10 @@ describe('SourcePanel — email reading view', () => {
     expect(card).not.toHaveAttribute('role', 'button');
     fireEvent.click(card);
     expect(onLaunch).not.toHaveBeenCalled();
-    window.removeEventListener('lantern:matter-launch', onLaunch as EventListener);
+    window.removeEventListener(
+      'lantern:matter-launch',
+      onLaunch as EventListener
+    );
   });
 });
 
@@ -117,9 +154,35 @@ describe('CitationText — email chip opens the reading view', () => {
         selected={null}
         onSelect={vi.fn()}
         onOpenFileAtPath={onOpenFileAtPath}
-      />,
+      />
     );
     fireEvent.click(screen.getByTestId('ask-citation-chip-1'));
-    expect(onOpenFileAtPath).toHaveBeenCalledWith('mail:abc123', 0, expect.anything());
+    expect(onOpenFileAtPath).toHaveBeenCalledWith(
+      'mail:abc123',
+      0,
+      expect.anything()
+    );
+  });
+
+  it('passes matterId through an inline document citation click', () => {
+    const onOpenFileAtPath = vi.fn();
+    render(
+      <CitationText
+        text="The lease says so {1}."
+        citations={[docCiteWithMatter]}
+        selected={null}
+        onSelect={vi.fn()}
+        onOpenFileAtPath={onOpenFileAtPath}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('ask-citation-chip-1'));
+
+    expect(onOpenFileAtPath).toHaveBeenCalledWith(
+      'Contracts/lease.docx',
+      1,
+      'The tenant shall...',
+      'matter_demo_brennan'
+    );
   });
 });

@@ -1,9 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { useAppNavigationStore, type AppNavigationSnapshot } from '@/platform/state/appNavigationStore';
+import {
+  sanitizeNavigationSnapshotForCurrentMatters,
+  useAppNavigationStore,
+  type AppNavigationSnapshot,
+} from '@/platform/state/appNavigationStore';
 
-function snap(overrides: Partial<AppNavigationSnapshot> = {}): AppNavigationSnapshot {
+function snap(
+  overrides: Partial<AppNavigationSnapshot> = {}
+): AppNavigationSnapshot {
   return {
     sidebarActiveTab: 'search',
+    rootPath: '/workspaces/current',
     activeMatterId: 'm1',
     clientMapHubId: null,
     clientMapHubTab: null,
@@ -25,7 +32,10 @@ describe('app navigation history stack', () => {
   });
 
   it('pushes and restores the last app snapshot', () => {
-    const previous = snap({ sidebarActiveTab: 'search', activeTabPath: 'ask-thread-1' });
+    const previous = snap({
+      sidebarActiveTab: 'search',
+      activeTabPath: 'ask-thread-1',
+    });
     useAppNavigationStore.getState().push(previous);
 
     expect(useAppNavigationStore.getState().stack).toHaveLength(1);
@@ -34,12 +44,61 @@ describe('app navigation history stack', () => {
   });
 
   it('does not add the same snapshot twice in a row', () => {
-    const previous = snap({ sidebarActiveTab: 'files', documentsView: 'editor', activeTabPath: '/ws/doc.docx' });
+    const previous = snap({
+      sidebarActiveTab: 'files',
+      documentsView: 'editor',
+      activeTabPath: '/ws/doc.docx',
+    });
 
     useAppNavigationStore.getState().push(previous);
     useAppNavigationStore.getState().push(previous);
 
     expect(useAppNavigationStore.getState().stack).toHaveLength(1);
   });
-});
 
+  it('caps Back history to the last 50 places', () => {
+    for (let i = 0; i < 55; i += 1) {
+      useAppNavigationStore
+        .getState()
+        .push(
+          snap({ activeTabPath: `/workspaces/current/doc-${String(i)}.docx` })
+        );
+    }
+
+    expect(useAppNavigationStore.getState().stack).toHaveLength(50);
+    expect(useAppNavigationStore.getState().stack[0]?.activeTabPath).toBe(
+      '/workspaces/current/doc-5.docx'
+    );
+    expect(useAppNavigationStore.getState().stack[49]?.activeTabPath).toBe(
+      '/workspaces/current/doc-54.docx'
+    );
+  });
+
+  it('rejects stale client hub ids before restoring a popped snapshot', () => {
+    const restored = sanitizeNavigationSnapshotForCurrentMatters(
+      snap({
+        activeMatterId: 'm1',
+        clientMapHubId: 'deleted-client',
+        clientMapHubTab: 'documents',
+      }),
+      [{ id: 'm1' }],
+      '/workspaces/current'
+    );
+
+    expect(restored).toMatchObject({
+      activeMatterId: 'm1',
+      clientMapHubId: null,
+      clientMapHubTab: null,
+    });
+  });
+
+  it('rejects snapshots from another workspace', () => {
+    const restored = sanitizeNavigationSnapshotForCurrentMatters(
+      snap({ rootPath: '/workspaces/old', activeMatterId: 'm1' }),
+      [{ id: 'm1' }],
+      '/workspaces/current'
+    );
+
+    expect(restored).toBeNull();
+  });
+});

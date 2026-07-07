@@ -1515,6 +1515,10 @@
     "citation": {
       "unverified-warning": "Ein oder mehrere Zitate konnten nicht anhand der Quelle verifiziert werden. Öffne die Quelle, um sie zu bestätigen, bevor du dich darauf verlässt.",
       "unverified-warning__sourceHash": "630afe396fac5d39bfa37eff2f656e6af646cd9046dc63a6334fcddeb409decd"
+    },
+    "empty-canvas": {
+      "select-client": "Klicke links auf einen Mandanten",
+      "select-client__sourceHash": "cee7419b85443e257939e57bfaf0285a98bde68b0ded2ce1bd449cc5d7ce9853"
     }
   },
   "firm": {
@@ -2405,7 +2409,9 @@
     "all-clients": "Alle Mandanten",
     "all-clients__sourceHash": "af74a947145158a6b52fa8c4803dda8ec620c47a1d0df9cebb3ec544b6c5eefc",
     "new-client": "+ Neu: {{entity}}",
-    "new-client__sourceHash": "a9fe3fa8d9a5a54befcbdb8828c382f353f09681dabb688a40f72f49f1a82a2c"
+    "new-client__sourceHash": "a9fe3fa8d9a5a54befcbdb8828c382f353f09681dabb688a40f72f49f1a82a2c",
+    "no-clients-found": "Keine Mandanten gefunden",
+    "no-clients-found__sourceHash": "808a93f5312ba2033e94ba66a5f0194b028b0ffa8e7c84e67a5e258849b9cb6c"
   },
   "entity-label": {
     "legal": {
