@@ -60,6 +60,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
         flexDirection: 'column',
         height: '100%',
         flex: 1,
+        minHeight: 0,
         minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
@@ -123,7 +124,10 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
       </div>
 
       {/* Data Map content */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--kp-space-md) var(--kp-gutter)' }}>
+      <div
+        data-testid="privacy-center-scroll"
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-space-md) var(--kp-gutter)' }}
+      >
         <VaultControlCard />
         <section
           data-testid="privacy-center-data-map-section"

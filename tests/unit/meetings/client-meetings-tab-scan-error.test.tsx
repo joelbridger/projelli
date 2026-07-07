@@ -21,6 +21,27 @@ function makeWorkspace(overrides: {
 }
 
 describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
+  it('owns a vertical scroll region so a long meetings list cannot get clipped by the hub', async () => {
+    const ws = makeWorkspace({
+      exists: async () => false,
+      list: async () => [],
+    });
+
+    render(
+      <ClientMeetingsTab
+        matterId="m1"
+        matterFolder="C:/WS/Clients/Acme"
+        onOpenMeeting={() => {}}
+        workspaceService={ws}
+      />,
+    );
+
+    const tab = await screen.findByTestId('client-meetings-tab');
+    expect(tab.style.flex).toBe('1 1 0%');
+    expect(tab.style.minHeight).toBe('0');
+    expect(tab.style.overflowY).toBe('auto');
+  });
+
   it('shows the real "No meetings yet" empty state when the Meetings folder genuinely has none', async () => {
     const ws = makeWorkspace({
       exists: async () => false,

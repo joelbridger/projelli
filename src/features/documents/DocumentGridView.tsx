@@ -825,7 +825,10 @@ export function DocumentGridView({
           {treeView}
         </div>
       ) : (
-      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-surface-gap) var(--kp-gutter)' }}>
+      <div
+        data-testid="document-grid-scroll"
+        style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-surface-gap) var(--kp-gutter)' }}
+      >
         {activeView === 'files' ? (
           <>
             {/* Breadcrumb row */}

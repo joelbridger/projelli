@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 // @ts-expect-error — plain .mjs pure-logic module, no d.ts
 import { evaluateHandleFacts } from '../../../scripts/ui-system/lib/handle-eval.mjs';
+// @ts-expect-error — plain .mjs pure-logic module, no d.ts
+import { evaluateScrollabilityFacts } from '../../../scripts/ui-system/lib/scroll-eval.mjs';
 
 const base = { id: 'x', count: 1, visible: true, pointerNone: false, selfControl: true, selfInput: false, disabled: false };
 
@@ -118,5 +120,47 @@ describe('handle integrity: input + region kinds', () => {
   });
   it('region only needs to be visible (no control requirement)', () => {
     expect(evaluateHandleFacts({ ...base, selfControl: false }, 'region').ok).toBe(true);
+  });
+});
+
+describe('scrollability guard decision', () => {
+  it('passes when tall content has a scroll container that reaches bottom', () => {
+    const result = evaluateScrollabilityFacts({
+      rootPresent: true,
+      contentPresent: true,
+      contentTallerThanViewport: true,
+      rootOverflowed: true,
+      scrollContainerCount: 1,
+      bestCanScroll: true,
+      reachedBottom: true,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('fails when tall content has no scrollable region', () => {
+    const result = evaluateScrollabilityFacts({
+      rootPresent: true,
+      contentPresent: true,
+      contentTallerThanViewport: true,
+      rootOverflowed: true,
+      scrollContainerCount: 0,
+      bestCanScroll: false,
+      reachedBottom: false,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.issues.join(' ')).toMatch(/no scroll container/i);
+  });
+
+  it('does not require a scrollbar when content is not taller than the viewport', () => {
+    const result = evaluateScrollabilityFacts({
+      rootPresent: true,
+      contentPresent: true,
+      contentTallerThanViewport: false,
+      rootOverflowed: false,
+      scrollContainerCount: 0,
+      bestCanScroll: false,
+      reachedBottom: false,
+    });
+    expect(result.ok).toBe(true);
   });
 });

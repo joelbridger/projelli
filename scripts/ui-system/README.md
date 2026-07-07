@@ -34,7 +34,8 @@ node scripts/ui-system/handle-guard.mjs --list
 
 The **robot** (part 4) adds the deeper checks the review demanded: a handle must
 be **unique, visible, enabled, and attached to the real control** — not just a
-string that still exists somewhere.
+string that still exists somewhere. It also proves the main screens can scroll
+when their content is taller than the window.
 
 ### 2. Paint file — `token-guard.mjs`
 All colours/spacing/type live in one place: the design tokens in
@@ -80,6 +81,8 @@ without a written exception.**
 Walks the **DEMO-V1 six-step path** against the app running **locally in a real
 browser** (the `build:web-demo` bundle), gripping handles — never copy or layout.
 It gives a green/amber/red verdict **plus a screenshot per step**, in minutes.
+It also drops a temporary tall invisible spacer into each main screen and proves
+there is a real vertical scroll region that reaches the bottom.
 
 ```bash
 node scripts/ui-system/rehearsal.mjs                    # build + serve + drive (headless)
@@ -97,6 +100,7 @@ live import progress, Teams recording, transcription). So the local robot:
 | Step | Local verdict | Why |
 |---|---|---|
 | Boot + Client Map | 🟢 real | app mounts, handles resolve, no overflow |
+| Main screen scrollability | 🟢 real | Client Map, All Clients, Ask, Workflows, Documents, Email, Settings, Privacy Center, and Meetings list are checked; meeting detail tabs are checked when a saved meeting exists |
 | 1 Connect AI | 🟡 reduced | cloud AI pre-set; BYOK present; on-device AI is desktop-only |
 | 2 Connect Data | 🟡 reduced | data surfaces reachable; live sign-in is desktop-only |
 | 3 Import progress | ⚪ needs bench | no live import exists in a browser |

@@ -1006,11 +1006,13 @@ export function MattersHome({
         flexDirection: 'column',
         height: '100%',
         flex: 1,
+        minHeight: 0,
         minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
         overflowY: 'auto',
       }}
+      data-testid="matters-home-scroll"
     >
       {/* Page header */}
       {header}

@@ -159,12 +159,14 @@ const shellStyle: CSSProperties = {
 const railStyle: CSSProperties = {
   width: 264,
   flex: 'none',
+  minHeight: 0,
   borderRight: '1px solid var(--kp-divider)',
   background: 'var(--color-background)',
   padding: '14px 12px',
   display: 'flex',
   flexDirection: 'column',
   gap: 2,
+  overflowY: 'auto',
 };
 
 // Content matches Ask's conversation column: full surface gutter (32px) on the
@@ -173,6 +175,7 @@ const railStyle: CSSProperties = {
 const contentStyle: CSSProperties = {
   flex: 1,
   minWidth: 0,
+  minHeight: 0,
   padding: 'var(--kp-space-xl) var(--kp-gutter) var(--kp-space-3xl)',
   overflowY: 'auto',
 };
@@ -1225,7 +1228,7 @@ export function ClientMapPanel({
       </div>
 
       {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}
-      <div style={contentStyle}>
+      <div data-testid="clientmap-panel-scroll" style={contentStyle}>
         <div style={contentInnerStyle}>
           {activeKey === NEW_KEY ? (
             <AddSectionPanel

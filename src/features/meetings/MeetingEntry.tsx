@@ -495,7 +495,10 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   }, [audioSrc, meta, t]);
 
   return (
-    <div data-testid="meeting-entry" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div
+      data-testid="meeting-entry"
+      style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0, overflowY: 'auto' }}
+    >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
@@ -710,7 +713,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 'var(--kp-gutter)' }}>
+      <div data-testid="meeting-entry-tab-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: 'var(--kp-gutter)' }}>
         {activeTab === 'recording' && (
           <div data-testid="meeting-recording-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
             {hasAudio && audioSrc ? (

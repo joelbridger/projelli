@@ -43,19 +43,24 @@ import { dirname, resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { evaluateHandleFacts, ALLOWED_WRAPPERS } from './lib/handle-eval.mjs';
+import { evaluateScrollabilityFacts } from './lib/scroll-eval.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
 const ARTIFACTS = resolve(repoRoot, '.rehearsal');
 const PORT = Number(process.env.REHEARSAL_PORT || 4173);
 const BASE_URL = process.env.REHEARSAL_URL || `http://localhost:${PORT}/try/`;
+function ensureQueryParam(url, key, value) {
+  if (new RegExp(`(?:[?&])${key}=`).test(url)) return url;
+  return url + (url.includes('?') ? '&' : '?') + `${key}=${value}`;
+}
 // testMode disables the browser build's single-writer tab guard (App.tsx reads
 // `?testMode=true` at load). Without it, the guard's StrictMode double-mount can
 // ping-pong a "workspace open in another tab" overlay and the shell never
-// settles. It's read once at module load, so it persists across in-app nav.
-const URL = BASE_URL.includes('testMode=true')
-  ? BASE_URL
-  : BASE_URL + (BASE_URL.includes('?') ? '&' : '?') + 'testMode=true';
+// settles. `seedDemo=1` makes the robot start with the same seeded clients as
+// the browser e2e mirror tests, instead of an empty "click a client" shell.
+// Both flags are read once at module load, so they persist across in-app nav.
+const URL = ensureQueryParam(ensureQueryParam(BASE_URL, 'testMode', 'true'), 'seedDemo', '1');
 // The URL the local preview root responds to (for the server-up health check).
 const HEALTH_URL = `http://localhost:${PORT}/try/`;
 const HEADED = !!process.env.REHEARSAL_HEADED;
@@ -150,6 +155,29 @@ async function bootStable(page) {
 const ev = (page, fn, arg) => page.evaluate(fn, arg).catch(() => null);
 const hasHandle = (page, id) =>
   page.$(`[data-testid="${id}"]`).then((h) => !!h).catch(() => false);
+async function openFirstClientHub(page, preferredClientRowId = null) {
+  await page.locator('[data-testid="spine-nav-matters"]').click({ timeout: 8000 }).catch(() => {});
+  await sleep(500);
+  if (await hasHandle(page, 'clientmap-panel')) return true;
+
+  const selectors = [
+    preferredClientRowId ? `[data-testid="${preferredClientRowId}"]` : null,
+    '[data-testid^="spine-client-row-"]',
+    '[data-testid^="matter-row-"]',
+  ].filter(Boolean);
+
+  for (const selector of selectors) {
+    const first = page.locator(selector).first();
+    const count = await first.count().catch(() => 0);
+    if (count < 1) continue;
+    await first.click({ timeout: 8000 }).catch(() => {});
+    const opened = await page.waitForSelector('[data-testid="clientmap-panel"], [data-testid="hub-subtab-bar"]', { timeout: 10000 })
+      .then(() => true)
+      .catch(() => false);
+    if (opened) return true;
+  }
+  return false;
+}
 async function shot(page, name) {
   const file = join(ARTIFACTS, `${name}.png`);
   await page.screenshot({ path: file }).catch(() => {});
@@ -234,11 +262,123 @@ async function visualChecks(page, keyControlIds) {
   return res || { hOverflow: 0, offscreen: [], vw: 0, vh: 0 };
 }
 
+// ---- P1: per-surface vertical scrollability -------------------------------
+// A common app-shell failure is a tall surface getting clipped because one
+// parent in the flex chain forgot `min-height: 0`, or because the tall content
+// has no `overflow-y: auto` owner. The live robot proves the fix by injecting a
+// temporary tall probe into each main surface and checking that a scroll
+// container inside that surface can reach the bottom.
+async function scrollabilityProbe(page, { rootSelector, contentSelector = rootSelector }) {
+  const facts = await ev(page, async ({ rootSelector, contentSelector }) => {
+    const root = document.querySelector(rootSelector);
+    if (!root) return { rootPresent: false, contentPresent: false };
+    const target = document.querySelector(contentSelector);
+    if (!target) return { rootPresent: true, contentPresent: false };
+
+    const probe = document.createElement('div');
+    probe.setAttribute('data-rehearsal-scroll-probe', 'true');
+    Object.assign(probe.style, {
+      flex: '0 0 auto',
+      height: `${Math.max(window.innerHeight * 1.5, 720)}px`,
+      width: '1px',
+      opacity: '0',
+      pointerEvents: 'none',
+    });
+    target.appendChild(probe);
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+    const visible = (el) => {
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      return s.display !== 'none' && s.visibility !== 'hidden' && r.width > 0 && r.height > 40;
+    };
+    const labelFor = (el) => {
+      const testId = el.getAttribute('data-testid');
+      return testId ? `[data-testid="${testId}"]` : el.tagName.toLowerCase();
+    };
+
+    const candidates = [];
+    for (const el of [root, ...root.querySelectorAll('*')]) {
+      const s = getComputedStyle(el);
+      if (!['auto', 'scroll'].includes(s.overflowY)) continue;
+      if (!visible(el)) continue;
+      const maxScrollTop = el.scrollHeight - el.clientHeight;
+      if (maxScrollTop > 4) {
+        candidates.push({
+          el,
+          label: labelFor(el),
+          overflowY: s.overflowY,
+          clientHeight: el.clientHeight,
+          scrollHeight: el.scrollHeight,
+          maxScrollTop,
+        });
+      }
+    }
+    candidates.sort((a, b) => b.maxScrollTop - a.maxScrollTop);
+    const best = candidates[0] ?? null;
+
+    let bestCanScroll = false;
+    let reachedBottom = false;
+    if (best) {
+      const before = best.el.scrollTop;
+      best.el.scrollTop = best.el.scrollHeight;
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      const max = best.el.scrollHeight - best.el.clientHeight;
+      bestCanScroll = max > 4;
+      reachedBottom = best.el.scrollTop >= max - 4;
+      best.el.scrollTop = before;
+    }
+
+    const rootOverflowed = root.scrollHeight > root.clientHeight + 4;
+    const targetOverflowed = target.scrollHeight > target.clientHeight + 4;
+    const contentTallerThanViewport =
+      rootOverflowed ||
+      targetOverflowed ||
+      probe.getBoundingClientRect().bottom > window.innerHeight + 4;
+
+    const out = {
+      rootPresent: true,
+      contentPresent: true,
+      contentTallerThanViewport,
+      rootOverflowed,
+      scrollContainerCount: candidates.length,
+      bestCanScroll,
+      reachedBottom,
+      best: best
+        ? {
+            label: best.label,
+            overflowY: best.overflowY,
+            clientHeight: best.clientHeight,
+            scrollHeight: best.scrollHeight,
+            maxScrollTop: best.maxScrollTop,
+          }
+        : null,
+    };
+    probe.remove();
+    return out;
+  }, { rootSelector, contentSelector });
+  const decision = evaluateScrollabilityFacts(facts);
+  return { ok: decision.ok, facts, issues: decision.issues };
+}
+
+function scrollNote(result) {
+  if (result.ok) {
+    return result.facts?.best
+      ? `${result.facts.best.label} reaches bottom (${result.facts.best.scrollHeight}px / ${result.facts.best.clientHeight}px)`
+      : 'content did not need a scrollbar';
+  }
+  return `issues: ${result.issues.join(', ')}`;
+}
+
 // ---- Step 4: Ask → cited answer (the real local check) ----------------------
 const ATT = '[data-testid="ask-cited-attestation"]';
 const CHIP = '[data-testid^="ask-citation-chip-"]';
 async function reachAsk(page) {
   if (await hasHandle(page, 'ask-composer-input')) return true;
+  await page.locator('[data-testid="spine-nav-search"]').click({ timeout: 8000 }).catch(() => {});
+  if (await page.waitForSelector('[data-testid="ask-composer-input"]', { timeout: 10000 }).then(() => true).catch(() => false)) {
+    return true;
+  }
   await page.locator('[data-testid="spine-nav-matters"]').click().catch(() => {});
   await page
     .waitForSelector('[data-testid^="matter-launch-ask-"], [data-testid="ask-composer-input"]', { timeout: 20000 })
@@ -265,6 +405,7 @@ async function main() {
   let bootOk = false;
   try {
     bootOk = await bootStable(page);
+    if (bootOk) await openFirstClientHub(page);
   } catch (e) {
     console.error('[rehearsal] boot error:', e.message);
   }
@@ -330,11 +471,60 @@ async function main() {
     await shot(page, 'integrity-clientmap'),
   );
 
+  let scrollOk = true;
+  async function recordScroll(title, spec, shotName) {
+    const result = await scrollabilityProbe(page, spec);
+    scrollOk = scrollOk && result.ok;
+    record(title, result.ok ? GREEN : FAIL, scrollNote(result), await shot(page, shotName));
+    return result.ok;
+  }
+
   // Visual-only mode (the P-safe gate): boot + handle integrity + visual smoke
   // are exactly the re-checks a token/asset/copy swap needs. Stop here.
   if (process.env.REHEARSAL_VISUAL_ONLY) {
     return finish(browser, results[0].verdict === GREEN && integrityOk);
   }
+
+  // --- Scrollability sweep: every main surface must own tall content --------
+  await recordScroll(
+    'Scrollability — Client Map detail',
+    { rootSelector: '[data-testid="clientmap-panel"]', contentSelector: '[data-testid="clientmap-panel-scroll"]' },
+    'scroll-clientmap',
+  );
+
+  await page.locator('[data-testid="spine-all-clients-row"]').click({ timeout: 8000 }).catch(() => {});
+  await page.waitForSelector('[data-testid="matters-home-scroll"]', { timeout: 10000 }).catch(() => {});
+  await recordScroll(
+    'Scrollability — All Clients table',
+    { rootSelector: '[data-testid="matters-home-scroll"]' },
+    'scroll-all-clients',
+  );
+
+  await page.locator('[data-testid="spine-nav-workflows"]').click({ timeout: 8000 }).catch(() => {});
+  await page.waitForSelector('[data-testid="associate-home"]', { timeout: 10000 }).catch(() => {});
+  await recordScroll(
+    'Scrollability — Workflows',
+    { rootSelector: '[data-testid="associate-home"]' },
+    'scroll-workflows',
+  );
+
+  await page.locator('[data-testid="settings-gear"]').click({ timeout: 8000 }).catch(() => {});
+  await page.waitForSelector('[data-testid="settings-content-scroll"]', { timeout: 10000 }).catch(() => {});
+  await recordScroll(
+    'Scrollability — Settings',
+    { rootSelector: '[data-testid="settings-page"]', contentSelector: '[data-testid="settings-content-scroll"]' },
+    'scroll-settings',
+  );
+
+  await page.locator('[data-testid="settings-category-privacy-center"]').click({ timeout: 8000 }).catch(() => {});
+  await page.waitForSelector('[data-testid="privacy-center-scroll"]', { timeout: 10000 }).catch(() => {});
+  await recordScroll(
+    'Scrollability — Privacy Center',
+    { rootSelector: '[data-testid="settings-page"]', contentSelector: '[data-testid="privacy-center-scroll"]' },
+    'scroll-privacy-center',
+  );
+
+  await openFirstClientHub(page, clientRowId);
 
   // --- Step 1: Connect AI ---------------------------------------------------
   // Demo pre-configures cloud AI (Direct mode) and offers BYOK ("use my own
@@ -361,6 +551,19 @@ async function main() {
     dataReachable ? REDUCED : SKIP,
     'live connector OAuth+sync are desktop-only; demo ships seeded client data; data surfaces reachable=' + dataReachable,
     await shot(page, 'step2-data'),
+  );
+  await page.waitForSelector('[data-testid="document-grid-scroll"]', { timeout: 10000 }).catch(() => {});
+  await recordScroll(
+    'Scrollability — Documents',
+    { rootSelector: '[data-testid="documents-split"]', contentSelector: '[data-testid="document-grid-scroll"]' },
+    'scroll-documents',
+  );
+  await page.locator('[data-testid="hub-subtab-email"]').click({ timeout: 8000 }).catch(() => {});
+  await page.waitForSelector('[data-testid="email-workspace"]', { timeout: 10000 }).catch(() => {});
+  await recordScroll(
+    'Scrollability — Email',
+    { rootSelector: '[data-testid="email-workspace"]' },
+    'scroll-email',
   );
 
   // --- Step 3: Import progress ----------------------------------------------
@@ -399,6 +602,11 @@ async function main() {
       askNote = 'Ask composer (ask-composer-input) unreachable';
       askIntegrityOk = false;
     } else {
+      await recordScroll(
+        'Scrollability — Ask',
+        { rootSelector: '[data-testid="ask-thread-scroll"]' },
+        'scroll-ask',
+      );
       // P0-3 on the Ask surface. The composer input must be a unique, visible,
       // enabled real input BEFORE typing. The submit button is (correctly)
       // disabled while the field is empty, so we assert IT after filling — when
@@ -460,6 +668,40 @@ async function main() {
     'Teams capture + the notice card are Tauri sidecar/native; meetings surface reachable=' + meetingReachable + ' (record action is desktop-only)',
     await shot(page, 'step5-meeting'),
   );
+  await recordScroll(
+    'Scrollability — Meetings list',
+    { rootSelector: '[data-testid="client-meetings-tab"]' },
+    'scroll-meetings-list',
+  );
+  const meetingRows = await page.locator('[data-testid="meeting-row"]').count().catch(() => 0);
+  if (meetingRows > 0) {
+    await page.locator('[data-testid="meeting-row"]').first().click({ timeout: 8000 }).catch(() => {});
+    const detailOpen = await page.waitForSelector('[data-testid="meeting-entry"]', { timeout: 10000 }).then(() => true).catch(() => false);
+    if (detailOpen) {
+      for (const [label, tabId, shotName] of [
+        ['Recording', 'meeting-subtab-recording', 'scroll-meeting-recording'],
+        ['Transcript', 'meeting-subtab-transcript', 'scroll-meeting-transcript'],
+        ['Summary', 'meeting-subtab-summary', 'scroll-meeting-summary'],
+      ]) {
+        await page.locator(`[data-testid="${tabId}"]`).click({ timeout: 8000 }).catch(() => {});
+        await recordScroll(
+          `Scrollability — Meeting detail ${label} tab`,
+          { rootSelector: '[data-testid="meeting-entry"]', contentSelector: '[data-testid="meeting-entry-tab-scroll"]' },
+          shotName,
+        );
+      }
+    } else {
+      scrollOk = false;
+      record('Scrollability — Meeting detail sub-tabs', FAIL, 'meeting row existed, but the detail view did not open', await shot(page, 'scroll-meeting-detail-missing'));
+    }
+  } else {
+    record(
+      'Scrollability — Meeting detail sub-tabs',
+      SKIP,
+      'web-demo data has no saved meeting row; this guard runs when a meeting row exists',
+      await shot(page, 'scroll-meeting-detail-skip'),
+    );
+  }
 
   // --- Step 6: Search transcript --------------------------------------------
   record(
@@ -471,12 +713,13 @@ async function main() {
 
   // Overall pass: the locally-verifiable core must be healthy —
   //  • boot GREEN, • Client Map handle-integrity + visual clean,
+  //  • every reachable main surface owns tall vertical content,
   //  • Ask reachable+interactive with clean handle-integrity (askIntegrityOk),
   //  • Ask verdict GREEN or REDUCED (not FAIL).
   // SKIP steps never fail the run; a FAIL on boot / integrity / Ask does.
   const bootGreen = results[0].verdict === GREEN;
   const askOk = askVerdict === GREEN || askVerdict === REDUCED;
-  const pass = bootGreen && integrityOk && askOk && askIntegrityOk;
+  const pass = bootGreen && integrityOk && scrollOk && askOk && askIntegrityOk;
   return finish(browser, pass);
 
   async function finish(br, ok) {
