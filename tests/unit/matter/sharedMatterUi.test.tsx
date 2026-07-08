@@ -185,7 +185,13 @@ describe('MatterManagerDialog — solo mode (no firm session)', () => {
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const [matter] = useMatterStore.getState().matters;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     // The dialog renders
     expect(screen.getByTestId('matter-manager-dialog')).toBeInTheDocument();
@@ -199,29 +205,36 @@ describe('MatterManagerDialog — solo mode (no firm session)', () => {
     expect(screen.queryByTestId('firm-refresh-mine')).not.toBeInTheDocument();
   });
 
-  it('renders the create form and folder/mail sections but no firm content', () => {
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
-    expect(screen.getByTestId('matter-new-name')).toBeInTheDocument();
-    expect(screen.getByTestId('matter-create-button')).toBeInTheDocument();
-    // Firm mine section absent
+  it('is a settings dialog: no create form (creating a client lives in NewClientDialog)', () => {
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
+    // The heavy create form was moved out of the manager (feedback line 14):
+    // the manager is now the per-client settings surface only.
+    expect(screen.queryByTestId('matter-new-name')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('matter-create-button')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('matter-new-client-helper')).not.toBeInTheDocument();
+    // Firm mine section absent (no firm session).
     expect(screen.queryByTestId('firm-shared-mine-section')).not.toBeInTheDocument();
   });
 
-  it('labels the second field as an optional company/organization with helper text', () => {
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
-
-    // The field itself is unchanged (same internal binding / testid).
-    expect(screen.getByTestId('matter-new-client')).toBeInTheDocument();
-
-    // The rendered label now reads as a clearly optional company/org field
-    // (no longer the ambiguous "Client").
-    expect(screen.getByText('Company / Organization (optional)')).toBeInTheDocument();
-    expect(screen.queryByText('Client')).not.toBeInTheDocument();
-
-    // A short helper line explains it's optional.
-    const helper = screen.getByTestId('matter-new-client-helper');
-    expect(helper).toBeInTheDocument();
-    expect(helper.textContent ?? '').toMatch(/optional/i);
+  it('shows folder + email mapping when a client is expanded', () => {
+    useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
+    const matter = useMatterStore.getState().matters[0]!;
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={matter.id}
+      />,
+    );
+    // The client's own name field is still editable inside its settings panel.
+    expect(screen.getByTestId(`matter-name-${matter.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`matter-client-${matter.id}`)).toBeInTheDocument();
   });
 
   it('pressing Escape closes only the matter manager dialog', async () => {
@@ -288,9 +301,15 @@ describe('MatterManagerDialog — share flow', () => {
       return { published: 1, skippedWalled: 0 };
     });
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={matter!.id}
+      />,
+    );
 
-    // Wait for the firm section to appear
+    // Wait for the firm section to appear (client row is expanded via focus)
     await waitFor(() => {
       expect(screen.getByTestId(`firm-section-${matter!.id}`)).toBeInTheDocument();
     });
@@ -352,7 +371,13 @@ describe('MatterManagerDialog — open-shared fail-closed', () => {
     // obtainMatterKey returns null (walled or no key published)
     mockObtainMatterKey.mockResolvedValueOnce(null);
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     // Wait for the remote matter to appear
     await waitFor(() => {
@@ -415,7 +440,13 @@ describe('MatterManagerDialog — invite flow', () => {
       }),
     );
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     // Expand the firm section (it shows "Shared with my firm")
     await waitFor(() => {
@@ -503,7 +534,13 @@ describe('MatterManagerDialog — invite flow', () => {
       jsonResponse(200, { matter_id: 'firm-matter-2', key_epoch: 1, members: [], walls: [] }),
     );
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId(`firm-section-${matter!.id}`)).toBeInTheDocument();

@@ -32,6 +32,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Add-client overhaul + client groups (FB2 clientux lane).**
+  - **Calm one-field create.** Adding a client is now a small modal with just a
+    display name (`NewClientDialog`); on create you land inside the new client's
+    Client Map. The old create form (company field, privilege toggle, helper
+    paragraphs, and the wall of every client's details) is gone from the create
+    flow. Files: `src/features/matters/NewClientDialog.tsx`.
+  - **Per-client settings, folded not deleted.** `MatterManagerDialog` is now a
+    per-client settings surface (folders, email, network lockdown, external-AI
+    access, firm sharing, rename, archive, delete) reached from a client row's
+    menu → "Client settings". Its client list is a clean scannable accordion —
+    one client expands at a time, nothing auto-expands. Files:
+    `MatterManagerDialog.tsx`, `MattersHome.tsx`.
+  - **Client groups (local-first).** The CLIENTS rail plus is now a menu
+    (New client / New group). Groups are named and filled with a searchable
+    multi-select (`NewClientGroupDialog`), render as collapsible sections under
+    "All clients", support a client in multiple groups, and are deletable even
+    when empty. Membership is stored locally alongside the client store (ids
+    only, no wire-schema change, nothing leaves the machine). Files:
+    `src/platform/matter/clientGroupStore.ts`, `NewClientGroupDialog.tsx`,
+    `Spine.tsx`. New events: `lantern:open-client-settings`, `lantern:open-new-group`.
 - **UI Iteration System — a foundation so UI can be re-skinned fast and safely,
   round after round, without a full manual re-test each time.** Four machine
   checks (`scripts/ui-system/`, documented in `scripts/ui-system/README.md`):

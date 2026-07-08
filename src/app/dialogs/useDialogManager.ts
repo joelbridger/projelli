@@ -41,6 +41,18 @@ export interface DialogManager {
   matterManagerOpen: boolean;
   setMatterManagerOpen: React.Dispatch<React.SetStateAction<boolean>>;
 
+  /** NewClientDialog (the small "add a client" modal). */
+  newClientOpen: boolean;
+  setNewClientOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
+  /** NewClientGroupDialog (the "add a group of clients" modal). */
+  newGroupOpen: boolean;
+  setNewGroupOpen: React.Dispatch<React.SetStateAction<boolean>>;
+
+  /** When set, MatterManagerDialog opens focused on (expanded to) this client. */
+  clientSettingsMatterId: string | null;
+  setClientSettingsMatterId: React.Dispatch<React.SetStateAction<string | null>>;
+
   showWhatsNewModalDirect: boolean;
   setShowWhatsNewModalDirect: React.Dispatch<React.SetStateAction<boolean>>;
 
@@ -70,6 +82,14 @@ export function useDialogManager(): DialogManager {
   // Bug 1: MatterManagerDialog open state — driven by the
   // 'lantern:open-matter-manager' custom event from MattersHome.
   const [matterManagerOpen, setMatterManagerOpen] = useState(false);
+  // The calm one-field "add a client" modal (feedback line 14). Opened by the
+  // same 'lantern:open-matter-manager' event the "+ New client" affordances
+  // dispatch; the heavy manager dialog is now reached only via "Client settings".
+  const [newClientOpen, setNewClientOpen] = useState(false);
+  // The "add a group of clients" modal (feedback line 13).
+  const [newGroupOpen, setNewGroupOpen] = useState(false);
+  // When set, MatterManagerDialog opens focused on this client (expanded).
+  const [clientSettingsMatterId, setClientSettingsMatterId] = useState<string | null>(null);
   // Direct trigger for the WhatsNew changelog modal from outside the
   // WhatsNewLayer (e.g. the Settings → About → "What's new" action).
   const [showWhatsNewModalDirect, setShowWhatsNewModalDirect] = useState(false);
@@ -96,6 +116,12 @@ export function useDialogManager(): DialogManager {
     setAccountWindowOpen,
     matterManagerOpen,
     setMatterManagerOpen,
+    newClientOpen,
+    setNewClientOpen,
+    newGroupOpen,
+    setNewGroupOpen,
+    clientSettingsMatterId,
+    setClientSettingsMatterId,
     showWhatsNewModalDirect,
     setShowWhatsNewModalDirect,
     apiKeyWizardOpen,

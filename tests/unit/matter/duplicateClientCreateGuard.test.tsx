@@ -95,7 +95,7 @@ vi.mock('@/platform/fs/activeWorkspaceService', () => ({
   getActiveWorkspaceService: () => null,
 }));
 
-import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
+import { NewClientDialog } from '@/features/matters/NewClientDialog';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
@@ -103,21 +103,22 @@ function resetStore() {
   setMatterAuditEmitter(auditMocks.append);
 }
 
-describe('MatterManagerDialog — QA-24: Create client button is idempotent under rapid re-clicks', () => {
+// Creating a client now lives in the small NewClientDialog (feedback line 14),
+// so the idempotency guarantee moved with it.
+describe('NewClientDialog — QA-24: Create is idempotent under rapid re-clicks', () => {
   beforeEach(resetStore);
 
   it('firing the create handler 3 times in the SAME commit (no re-render between them) creates only ONE matter', () => {
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(<NewClientDialog open={true} onOpenChange={() => undefined} />);
 
-    const nameInput = screen.getByTestId('matter-new-client');
+    const nameInput = screen.getByTestId('new-client-name');
     fireEvent.change(nameInput, { target: { value: 'Klutz Test Client' } });
 
-    const createButton = screen.getByTestId('matter-create-button');
-    // A real fast triple-click (or a scripted/CDP-driven multi-click) can
-    // dispatch all three click events before React gets a chance to commit a
-    // re-render — reproduced here by batching all three fireEvent.click calls
-    // inside ONE act() so React defers flushing until after all three onClick
-    // invocations have run against the SAME stale closure/state.
+    const createButton = screen.getByTestId('new-client-create');
+    // A real fast triple-click can dispatch all three click events before React
+    // commits a re-render — reproduced here by batching all three clicks inside
+    // ONE act() so React defers flushing until after all three onClick calls
+    // have run against the SAME stale closure/state.
     act(() => {
       fireEvent.click(createButton);
       fireEvent.click(createButton);
@@ -127,25 +128,16 @@ describe('MatterManagerDialog — QA-24: Create client button is idempotent unde
     expect(useMatterStore.getState().matters).toHaveLength(1);
   });
 
-  it('keeps the Create button disabled while a submission is in flight, even once the fields are refilled', () => {
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+  it('creating with Enter also creates exactly one matter', () => {
+    render(<NewClientDialog open={true} onOpenChange={() => undefined} />);
 
-    const nameInput = screen.getByTestId('matter-new-client');
-    fireEvent.change(nameInput, { target: { value: 'Another Client' } });
+    const nameInput = screen.getByTestId('new-client-name');
+    fireEvent.change(nameInput, { target: { value: 'Enter Client' } });
+    act(() => {
+      fireEvent.keyDown(nameInput, { key: 'Enter' });
+      fireEvent.keyDown(nameInput, { key: 'Enter' });
+    });
 
-    const createButton = screen.getByTestId('matter-create-button');
-    fireEvent.click(createButton);
-    expect(useMatterStore.getState().matters).toHaveLength(1);
-
-    // The dialog clears the fields after a successful create — refill them
-    // immediately (before the submitting flag's timer resets) to prove the
-    // button is disabled because a submission is STILL in flight, not merely
-    // because the fields happen to be empty right after a create.
-    fireEvent.change(nameInput, { target: { value: 'Yet Another Client' } });
-    expect(createButton).toBeDisabled();
-
-    // And a click while still "in flight" must not create a second matter.
-    fireEvent.click(createButton);
     expect(useMatterStore.getState().matters).toHaveLength(1);
   });
 });

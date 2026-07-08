@@ -18,6 +18,8 @@ import { McpApprovalGate } from '@/features/settings/McpApprovalGate';
 import { AiWriteApprovalModal } from '@/features/ask/AiWriteApprovalModal';
 import { AiBatchReviewPanel } from '@/features/ask/AiBatchReviewPanel';
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
+import { NewClientDialog } from '@/features/matters/NewClientDialog';
+import { NewClientGroupDialog } from '@/features/matters/NewClientGroupDialog';
 import { InterviewForm } from '@/features/workflows/InterviewForm';
 import { CommandPalette, type PaletteCommand } from '@/app/shell/common/CommandPalette';
 import { SettingsModal } from '@/features/settings/SettingsModal';
@@ -60,9 +62,16 @@ export interface AppDialogsProps {
   // MCP gate
   addAuditEntry: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 
-  // Matter manager
+  // Matter manager (per-client settings) + focused client
   matterManagerOpen: boolean;
   setMatterManagerOpen: (open: boolean) => void;
+  clientSettingsMatterId: string | null;
+
+  // NewClientDialog (calm add-a-client) + NewClientGroupDialog (add a group)
+  newClientOpen: boolean;
+  setNewClientOpen: (open: boolean) => void;
+  newGroupOpen: boolean;
+  setNewGroupOpen: (open: boolean) => void;
 
   // Interview dialog
   showInterviewDialog: boolean;
@@ -154,6 +163,11 @@ export function AppDialogs({
   addAuditEntry,
   matterManagerOpen,
   setMatterManagerOpen,
+  clientSettingsMatterId,
+  newClientOpen,
+  setNewClientOpen,
+  newGroupOpen,
+  setNewGroupOpen,
   showInterviewDialog,
   setShowInterviewDialog,
   interviewQuestions,
@@ -235,9 +249,21 @@ export function AppDialogs({
           batch mode collected changes and the turn opened the review. */}
       <AiBatchReviewPanel />
 
-      {/* Bug 1: MatterManagerDialog — opened by 'lantern:open-matter-manager'
-          events from the "New matter" buttons in MattersHome. */}
-      <MatterManagerDialog open={matterManagerOpen} onOpenChange={setMatterManagerOpen} />
+      {/* Calm one-field "add a client" modal — opened by the '+ New client'
+          affordances via 'lantern:open-matter-manager'. */}
+      <NewClientDialog open={newClientOpen} onOpenChange={setNewClientOpen} />
+
+      {/* "Add a group of clients" modal — opened from the CLIENTS rail plus menu. */}
+      <NewClientGroupDialog open={newGroupOpen} onOpenChange={setNewGroupOpen} />
+
+      {/* Per-client settings (folders, email, isolation, sharing, archive,
+          delete) — reached from a client's row menu -> "Client settings", which
+          fires 'lantern:open-client-settings' with the focused client id. */}
+      <MatterManagerDialog
+        open={matterManagerOpen}
+        onOpenChange={setMatterManagerOpen}
+        focusMatterId={clientSettingsMatterId}
+      />
 
       {/* Interview Dialog */}
       <Dialog open={showInterviewDialog} onOpenChange={setShowInterviewDialog}>

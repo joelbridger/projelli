@@ -18,14 +18,13 @@
  *   - All firm UI is invisible when no firm session is active.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Briefcase,
   FileText,
   FolderOpen,
   Mail,
-  Plus,
   Trash2,
   Check,
   ShieldAlert,
@@ -48,12 +47,12 @@ import {
 } from '@/ui/dialog';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import { Label } from '@/ui/label';
 import { cn } from '@/lib/utils';
 import { useMatters, useActiveMatters, useArchivedMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
+import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/platform/utils/mail-commands';
-import { mailFolderKey } from '@/platform/rag/matterResolver';
+import { mailFolderKey, matterLabel } from '@/platform/rag/matterResolver';
 import { useFirm } from '@/platform/hooks/useFirm';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { obtainMatterKey } from '@/platform/firm/matterKeyService';
@@ -70,14 +69,18 @@ import {
   relLabel,
   audit,
   folderPathsMatch,
-  deriveNewClientFolderPath,
 } from './matterManagerDialogHelpers';
-import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
 import { MemberRoster } from './MemberRoster';
 
 export interface MatterManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /**
+   * When set, the dialog opens with this client expanded (the "Client settings"
+   * row-menu entry passes the client's id). Other clients stay collapsed so the
+   * dialog is a clean scannable list, never a wall of every client's details.
+   */
+  focusMatterId?: string | null;
 }
 
 /** Label for a firm matter-share role badge (literal keys per branch — the
@@ -93,29 +96,11 @@ function firmRoleBadgeLabel(role: 'owner' | 'editor' | 'viewer', t: (key: string
   }
 }
 
-/**
- * QA-5 — create a new client's scoped folder on disk (best-effort) and refresh
- * the workspace tree so it's visible immediately. A no-op when the workspace
- * service isn't ready; the client is already scoped to the folder via
- * folderPaths, and the folder is created lazily on the first write regardless.
- */
-async function ensureClientFolderOnDisk(absFolderPath: string): Promise<void> {
-  const svc = getActiveWorkspaceService();
-  if (!svc) return;
-  try {
-    await svc.mkdir(absFolderPath);
-    const tree = await svc.getFileTree();
-    useWorkspaceStore.getState().setFileTree(tree);
-  } catch (err) {
-    console.warn('[MatterManager] could not create client folder on disk:', err);
-  }
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Main dialog
 // ────────────────────────────────────────────────────────────────────────────
 
-export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogProps) {
+export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: MatterManagerDialogProps) {
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
   const matters = useMatters();
@@ -197,62 +182,24 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
     }
   }, [open, firmSession, loadMineMatters]);
 
-  const [newName, setNewName] = useState('');
-  const [newClient, setNewClient] = useState('');
-  const [newPrivileged, setNewPrivileged] = useState(false);
-  // QA-24 (P1): a double/triple-clicked Create button must be idempotent.
-  // `isCreating` disables the button visually; `submittingRef` is the actual
-  // re-entrancy guard — it's a plain ref (not state) so it takes effect
-  // IMMEDIATELY, even for clicks that land in the same commit as the first
-  // one (before React has had a chance to re-render `disabled`). It's
-  // released on the next tick rather than synchronously, so it also catches
-  // clicks dispatched in the same synchronous burst as the first.
-  const [isCreating, setIsCreating] = useState(false);
-  const submittingRef = useRef(false);
+  // Accordion: which client's settings are expanded. Only one at a time keeps
+  // the dialog a calm, scannable list instead of a wall of every client's
+  // details. Seeded from `focusMatterId` when the dialog is opened focused on a
+  // specific client (the row-menu "Client settings" path).
+  const [expandedMatterId, setExpandedMatterId] = useState<string | null>(
+    focusMatterId ?? null,
+  );
+  // Re-seed the expanded client each time the dialog opens (or the focus
+  // target changes), so re-opening "Client settings" for a different client
+  // lands on that client.
+  useEffect(() => {
+    if (open) setExpandedMatterId(focusMatterId ?? null);
+  }, [open, focusMatterId]);
 
   // Isolation UX: pending confirmation for a specific matter, and set of
   // matters that have just been isolated (show affirmation briefly).
   const [isolateConfirmId, setIsolateConfirmId] = useState<string | null>(null);
   const [isolatedAffirmationIds, setIsolatedAffirmationIds] = useState<Set<string>>(new Set());
-
-  const handleCreate = () => {
-    if (submittingRef.current) return;
-    if (!newName.trim() && !newClient.trim()) return;
-    submittingRef.current = true;
-    setIsCreating(true);
-    // QA-5: give the new client its OWN workspace subfolder by default, so its
-    // documents/imports are scoped and isolated from the very first action (the
-    // seeded clients are all structured this way). Uniquify against every other
-    // client's folders so two clients never share a folder (matter isolation).
-    // The store's createMatter re-verifies this against LIVE state too (see
-    // matterStore.ts's ensureUniqueFolderPaths) — this check + submittingRef
-    // together are the first line of defense; the store is the backstop.
-    const takenFolderPaths = matters.flatMap((m) => m.folderPaths);
-    const clientFolder = deriveNewClientFolderPath(
-      newClient,
-      newName,
-      rootPath,
-      takenFolderPaths,
-    );
-    createMatter({
-      name: newName,
-      client: newClient,
-      privileged: newPrivileged,
-      ...(clientFolder ? { folderPaths: [clientFolder] } : {}),
-    });
-    // Best-effort: create the folder on disk now so it's visible in the file
-    // tree immediately and imports have a real target. If the workspace service
-    // isn't ready this is a no-op — the folder is created lazily on first write
-    // regardless, and the client is already scoped to it via folderPaths.
-    if (clientFolder) void ensureClientFolderOnDisk(clientFolder);
-    setNewName('');
-    setNewClient('');
-    setNewPrivileged(false);
-    setTimeout(() => {
-      submittingRef.current = false;
-      setIsCreating(false);
-    }, 0);
-  };
 
   /** Called when the user confirms isolation for a specific matter. */
   const confirmIsolate = (matterId: string) => {
@@ -374,84 +321,12 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Briefcase className="h-5 w-5 text-primary" />
-            {entityLabel.Other}
+            {t('matter.manager.settings-title')}
           </DialogTitle>
           <DialogDescription>
-            {t('matter.manager.description-entity', { entity: entityLabel.one })}
+            {t('matter.manager.settings-description-entity', { entity: entityLabel.one })}
           </DialogDescription>
         </DialogHeader>
-
-        {/* Create */}
-        <div className="rounded-md border p-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="matter-new-name" className="text-xs">
-                {t('matter.manager.name-label-entity', { entity: entityLabel.One })}
-              </Label>
-              <Input
-                id="matter-new-name"
-                data-testid="matter-new-name"
-                value={newName}
-                onChange={(e) => {
-                  setNewName(e.target.value);
-                }}
-                placeholder={t('matter.manager.matter-name-placeholder')}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="matter-new-client" className="text-xs">
-                {t('matter.manager.client-name')}
-              </Label>
-              <Input
-                id="matter-new-client"
-                data-testid="matter-new-client"
-                value={newClient}
-                onChange={(e) => {
-                  setNewClient(e.target.value);
-                }}
-                placeholder={t('matter.manager.client-name-placeholder')}
-              />
-              <p
-                className="text-xs text-muted-foreground"
-                data-testid="matter-new-client-helper"
-              >
-                {t('matter.manager.client-name-helper')}
-              </p>
-            </div>
-          </div>
-          <label
-            className="mt-3 flex items-start gap-2 text-xs cursor-pointer select-none"
-            data-testid="matter-new-privileged"
-          >
-            <input
-              type="checkbox"
-              checked={newPrivileged}
-              onChange={(e) => {
-                setNewPrivileged(e.target.checked);
-              }}
-              className="mt-0.5 h-3.5 w-3.5 accent-rose-600"
-            />
-            <span>
-              <span className="inline-flex items-center gap-1 font-medium">
-                <ShieldAlert className="h-3.5 w-3.5 text-rose-600" aria-hidden />
-                {t('matter.manager.privileged-label')}
-              </span>
-              <span className="block text-muted-foreground">
-                {t('matter.manager.privileged-hint')}
-              </span>
-            </span>
-          </label>
-          <Button
-            data-testid="matter-create-button"
-            size="sm"
-            className="mt-3 gap-2"
-            onClick={handleCreate}
-            disabled={isCreating || (!newName.trim() && !newClient.trim())}
-          >
-            <Plus className="h-4 w-4" />
-            {t('matter.manager.create-entity', { entity: entityLabel.one })}
-          </Button>
-        </div>
 
         {/* ── Firm: "Shared matters I can access" (remote, not yet linked) ── */}
         {/* Only shown when there is an active firm session */}
@@ -530,13 +405,53 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
               {t('matter.manager.empty-entity', { entityOther: entityLabel.other, entityOne: entityLabel.one })}
             </p>
           ) : (
-            activeMatters.map((m) => (
+            activeMatters.map((m) => {
+              const expanded = expandedMatterId === m.id;
+              return (
               <div
                 key={m.id}
                 data-testid={`matter-row-${m.id}`}
-                className="rounded-md border p-3 space-y-3"
+                className="rounded-md border overflow-hidden"
               >
-                {/* Sample badge shown at the top of the sample matter row */}
+                {/* Collapsed row: name + created date. Click to expand this
+                    client's settings. Only one client is open at a time, so the
+                    dialog stays a clean scannable list. */}
+                <button
+                  type="button"
+                  data-testid={`matter-settings-toggle-${m.id}`}
+                  aria-expanded={expanded}
+                  onClick={() => {
+                    setExpandedMatterId((prev) => (prev === m.id ? null : m.id));
+                  }}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-accent/40"
+                >
+                  <span className="min-w-0 flex items-center gap-2">
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {matterLabel(m)}
+                    </span>
+                    {m.isSample && (
+                      <span className="text-[11px] text-muted-foreground">
+                        {t('matter.manager.sample-tag')}
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0 text-xs text-muted-foreground">
+                    <span className="tabular-nums">
+                      {new Date(m.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
+                    </span>
+                    {expanded
+                      ? <ChevronUp className="h-4 w-4" aria-hidden />
+                      : <ChevronDown className="h-4 w-4" aria-hidden />}
+                  </span>
+                </button>
+
+                {expanded && (
+                <div className="border-t p-3 space-y-3">
+                {/* Sample hint shown at the top of the sample matter panel */}
                 {m.isSample && (
                   <div className="flex items-center gap-2 pb-1">
                     <span
@@ -622,6 +537,10 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                           });
                           if (!confirmed) return;
                           deleteMatter(m.id);
+                          // Prune the deleted client from any rail groups so no
+                          // stale id lingers (groups also filter at render, but
+                          // this keeps the persisted data clean).
+                          useClientGroupStore.getState().removeMatterFromAllGroups(m.id);
                         })();
                       }}
                       aria-label={t('matter.manager.delete-entity', { entity: entityLabel.one })}
@@ -988,8 +907,11 @@ export function MatterManagerDialog({ open, onOpenChange }: MatterManagerDialogP
                     </p>
                   )}
                 </div>
+                </div>
+                )}
               </div>
-            ))
+              );
+            })
           )}
         </div>
 

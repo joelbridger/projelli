@@ -263,6 +263,12 @@ function AppShell() {
     setAccountWindowOpen,
     matterManagerOpen,
     setMatterManagerOpen,
+    newClientOpen,
+    setNewClientOpen,
+    newGroupOpen,
+    setNewGroupOpen,
+    clientSettingsMatterId,
+    setClientSettingsMatterId,
     showWhatsNewModalDirect,
     setShowWhatsNewModalDirect,
     apiKeyWizardOpen,
@@ -1343,7 +1349,12 @@ function AppShell() {
   // Shell-wide `lantern:*` CustomEvent wiring (matter manager, settings,
   // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
   useGlobalEventBus({
-    onOpenMatterManager: () => setMatterManagerOpen(true),
+    onOpenMatterManager: () => setNewClientOpen(true),
+    onOpenClientSettings: (matterId: string | null) => {
+      setClientSettingsMatterId(matterId);
+      setMatterManagerOpen(true);
+    },
+    onOpenNewGroup: () => setNewGroupOpen(true),
     onOpenAccount: (tab?: string) => {
       setAccountWindowInitialTab(tab);
       setAccountWindowOpen(true);
@@ -2069,6 +2080,11 @@ function AppShell() {
         addAuditEntry={addAuditEntry}
         matterManagerOpen={matterManagerOpen}
         setMatterManagerOpen={setMatterManagerOpen}
+        clientSettingsMatterId={clientSettingsMatterId}
+        newClientOpen={newClientOpen}
+        setNewClientOpen={setNewClientOpen}
+        newGroupOpen={newGroupOpen}
+        setNewGroupOpen={setNewGroupOpen}
         showInterviewDialog={showInterviewDialog}
         setShowInterviewDialog={setShowInterviewDialog}
         interviewQuestions={interviewQuestions}

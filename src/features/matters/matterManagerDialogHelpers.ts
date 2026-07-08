@@ -4,6 +4,27 @@ import type { FileNode } from '@/platform/types/workspace';
 import { AuditService } from '@/platform/audit/AuditService';
 import { isPathInFolder, normalize as normalizeMatterPath } from '@/platform/rag/matterResolver';
 import { workspacePath } from '@/platform/fs/appPath';
+import { getActiveWorkspaceService } from '@/platform/fs/activeWorkspaceService';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+
+/**
+ * QA-5 — create a new client's scoped folder on disk (best-effort) and refresh
+ * the workspace tree so it's visible immediately. A no-op when the workspace
+ * service isn't ready; the client is already scoped to the folder via
+ * folderPaths, and the folder is created lazily on the first write regardless.
+ * Shared by NewClientDialog (create flow) and MatterManagerDialog.
+ */
+export async function ensureClientFolderOnDisk(absFolderPath: string): Promise<void> {
+  const svc = getActiveWorkspaceService();
+  if (!svc) return;
+  try {
+    await svc.mkdir(absFolderPath);
+    const tree = await svc.getFileTree();
+    useWorkspaceStore.getState().setFileTree(tree);
+  } catch (err) {
+    console.warn('[MatterManager] could not create client folder on disk:', err);
+  }
+}
 
 /**
  * QA-5 — sanitize a client/matter name into a safe SINGLE path segment. Strips

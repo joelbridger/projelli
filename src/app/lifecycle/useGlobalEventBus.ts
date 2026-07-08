@@ -18,6 +18,8 @@ import { parseMeetingRef } from '@/features/meetings/meetingSources';
 import { getActiveWorkspaceService } from '@/app/fileOps/flushDirtyTabs';
 import {
   EV_OPEN_MATTER_MANAGER,
+  EV_OPEN_CLIENT_SETTINGS,
+  EV_OPEN_NEW_GROUP,
   EV_OPEN_SETTINGS,
   EV_OPEN_ACCOUNT,
   EV_MATTER_LAUNCH,
@@ -32,8 +34,13 @@ export interface AskPrefill {
 }
 
 export interface GlobalEventBusHandlers {
-  /** Open the canonical matter-create dialog (MatterManagerDialog). */
+  /** Open the calm one-field "add a client" modal (NewClientDialog). */
   onOpenMatterManager: () => void;
+  /** Open the per-client settings dialog (MatterManagerDialog), optionally
+   *  focused on (expanded to) a specific client. */
+  onOpenClientSettings: (matterId: string | null) => void;
+  /** Open the "add a group of clients" modal (NewClientGroupDialog). */
+  onOpenNewGroup: () => void;
   /** Open the dedicated Account window, optionally jumping to a specific tab. */
   onOpenAccount: (tab?: string) => void;
   /** Open Settings deep-linked to a category. */
@@ -84,8 +91,21 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
   }, [handlers]);
 
   useEffect(() => {
-    // "New matter" buttons → open MatterManagerDialog.
+    // "+ New client" buttons → open the calm NewClientDialog.
     const onOpenMatterManager = () => ref.current.onOpenMatterManager();
+
+    // Row-menu "Client settings" → open the per-client management dialog,
+    // focused on the requested client.
+    const onOpenClientSettings = (e: Event) => {
+      const matterId = (e as CustomEvent<{ matterId?: string } | null>).detail
+        ?.matterId;
+      ref.current.onOpenClientSettings(matterId ?? null);
+    };
+
+    // CLIENTS rail plus menu -> "New group" → open the group modal.
+    const onOpenNewGroup = () => {
+      ref.current.onOpenNewGroup();
+    };
 
     // GetStartedCard etc. → open Settings (or the Account window for
     // account-related categories).
@@ -245,12 +265,16 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       ref.current.setSidebarActiveTab('privacy');
 
     window.addEventListener(EV_OPEN_MATTER_MANAGER, onOpenMatterManager);
+    window.addEventListener(EV_OPEN_CLIENT_SETTINGS, onOpenClientSettings);
+    window.addEventListener(EV_OPEN_NEW_GROUP, onOpenNewGroup);
     window.addEventListener(EV_OPEN_SETTINGS, onOpenSettings);
     window.addEventListener(EV_OPEN_ACCOUNT, onOpenAccount);
     window.addEventListener(EV_MATTER_LAUNCH, onMatterLaunch);
     window.addEventListener(EV_OPEN_PRIVACY_CENTER, onOpenPrivacyCenter);
     return () => {
       window.removeEventListener(EV_OPEN_MATTER_MANAGER, onOpenMatterManager);
+      window.removeEventListener(EV_OPEN_CLIENT_SETTINGS, onOpenClientSettings);
+      window.removeEventListener(EV_OPEN_NEW_GROUP, onOpenNewGroup);
       window.removeEventListener(EV_OPEN_SETTINGS, onOpenSettings);
       window.removeEventListener(EV_OPEN_ACCOUNT, onOpenAccount);
       window.removeEventListener(EV_MATTER_LAUNCH, onMatterLaunch);

@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 153,
         "marketplace": 14,
-        "matter": 289,
+        "matter": 316,
         "media": 100,
         "meetings": 249,
         "memory": 6,
@@ -74,7 +74,7 @@ describe('en.json structure snapshot', () => {
         "search": 6,
         "settings": 188,
         "shortcuts-overlay": 2,
-        "spine": 8,
+        "spine": 10,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,
@@ -268,7 +268,11 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    expect(flat.length).toBe(1967); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
+    // +29 = FB2 clientux lane: NewClientDialog (matter.new-client.*), client
+    //       groups (matter.group.*), the repurposed manager settings copy
+    //       (matter.manager.settings-*, sample-tag), matter.home.client-settings,
+    //       and the CLIENTS rail add-menu/new-group labels.
+    expect(flat.length).toBe(1996); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415; +29 FB2 clientux
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

@@ -59,6 +59,7 @@ export const SK_RETENTION_POLICIES           = `${APP_NS}:retention-policies`;
 export const SK_WORKFLOW_CHAINS              = `${APP_NS}:workflowChains`;
 export const SK_USER_WORKFLOW_TEMPLATES      = `${APP_NS}:userWorkflowTemplates`;
 export const SK_SETUP_CARD_DISMISSED         = `${APP_NS}:setup-card-dismissed`;
+export const SK_CLIENT_GROUPS                = `${APP_NS}:client-groups`;
 export const SK_WORKFLOWS_FILTER             = `${APP_NS}:workflows-filter`;
 export const SK_WORKFLOWS_COLLAPSED          = `${APP_NS}:workflows-collapsed`;
 export const SK_API_KEY_CARD_DISMISSED       = `${APP_NS}:apiKeyCardDismissed`;
@@ -137,6 +138,8 @@ export const KC_FALLBACK_PREFIX = `${APP_NS}_kc_fallback::`;
 // ── CustomEvent names ─────────────────────────────────────────────────────────
 
 export const EV_OPEN_MATTER_MANAGER              = `${APP_NS}:open-matter-manager`;
+export const EV_OPEN_CLIENT_SETTINGS             = `${APP_NS}:open-client-settings`;
+export const EV_OPEN_NEW_GROUP                   = `${APP_NS}:open-new-group`;
 export const EV_OPEN_SETTINGS                    = `${APP_NS}:open-settings`;
 export const EV_OPEN_ACCOUNT                     = `${APP_NS}:open-account`;
 export const EV_OPEN_PRIVACY_CENTER              = `${APP_NS}:open-privacy-center`;
