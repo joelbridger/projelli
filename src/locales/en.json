@@ -202,13 +202,19 @@
     },
     "privacy": {
       "title": "Privacy",
-      "description": "Advisor Prep Hero is local-first. Your files, your AI prompts, and your account keys never leave your machine. Any opt-ins below are the only data Advisor Prep Hero ever collects, and all default to off.",
+      "description": "Lantern keeps your work on this computer. Optional sharing is off unless you turn it on.",
+      "optional-sharing": {
+        "title": "Optional sharing",
+        "description": "Lantern keeps your work on this computer. Optional sharing is off unless you turn it on.",
+        "details-label": "What is shared?"
+      },
       "design-partner": {
-        "title": "Optional error reporting",
-        "description": "You are among the first advisors using Advisor Prep Hero in practice. With this on, Advisor Prep Hero sends structured usage counts only: which features you use and where you get stuck. Never your content, file names, client names, or prompts. Off by default; turn it off any time.",
+        "title": "Error reporting",
+        "description": "Sends structure-only counts when the app gets stuck.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
+        "not-sent": "Never your content, file names, client names, or prompts.",
         "field-features": "Which features you used: ask, workflow, search, email import. A count only, not what you asked.",
         "field-workflow-id": "Which workflow template you ran (the template id, not the output).",
         "field-search-count": "How many searches you ran. No query text.",
@@ -216,8 +222,8 @@
         "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/lantern/design-partner-event. Used only to improve the product for your practice."
       },
       "telemetry": {
-        "title": "Anonymous usage stats",
-        "description": "Help improve Advisor Prep Hero by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
+        "title": "Usage stats",
+        "description": "Sends basic app events like launch, trial start, and license activation. No content, files, AI prompts, or email.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
