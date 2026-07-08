@@ -72,6 +72,45 @@ describe('NewClientGroupDialog', () => {
     expect(screen.queryByTestId('new-group-client-m1')).not.toBeInTheDocument();
   });
 
+  it('keeps selected members visible + removable even when the search hides their row', () => {
+    render(<NewClientGroupDialog open={true} onOpenChange={() => undefined} />);
+
+    // Select Hendricks (m1), then search for a term that does NOT match it.
+    fireEvent.click(screen.getByTestId('new-group-client-m1'));
+    fireEvent.change(screen.getByTestId('new-group-client-search'), {
+      target: { value: 'alvarez' },
+    });
+
+    // m1's ROW is filtered out of the list...
+    expect(screen.queryByTestId('new-group-client-m1')).not.toBeInTheDocument();
+    // ...but its selected chip is still visible, so membership stays clear.
+    expect(screen.getByTestId('new-group-chip-m1')).toBeInTheDocument();
+
+    // The chip removes the member.
+    fireEvent.click(screen.getByTestId('new-group-chip-remove-m1'));
+    expect(screen.queryByTestId('new-group-chip-m1')).not.toBeInTheDocument();
+
+    // Clear the search: m1 is back in the list and no longer checked.
+    fireEvent.change(screen.getByTestId('new-group-client-search'), {
+      target: { value: '' },
+    });
+    expect(screen.getByTestId('new-group-client-m1').getAttribute('data-checked')).toBe('false');
+  });
+
+  it('a selected member stays in the created group after being hidden by search', () => {
+    render(<NewClientGroupDialog open={true} onOpenChange={() => undefined} />);
+    fireEvent.change(screen.getByTestId('new-group-name'), { target: { value: 'Mixed' } });
+    fireEvent.click(screen.getByTestId('new-group-client-m1'));
+    // Filter so m1's row is hidden, then add m3 (still visible).
+    fireEvent.change(screen.getByTestId('new-group-client-search'), { target: { value: 'alvarez' } });
+    fireEvent.click(screen.getByTestId('new-group-client-m3'));
+    fireEvent.click(screen.getByTestId('new-group-create'));
+
+    const g = useClientGroupStore.getState().groups[0]!;
+    // Both the hidden-but-selected m1 and the visible m3 are saved.
+    expect(g.matterIds.sort()).toEqual(['m1', 'm3']);
+  });
+
   it('can create an empty group (no members selected)', () => {
     render(<NewClientGroupDialog open={true} onOpenChange={() => undefined} />);
     fireEvent.change(screen.getByTestId('new-group-name'), {

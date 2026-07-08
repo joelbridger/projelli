@@ -1383,6 +1383,7 @@
       "name-label": "Group name",
       "name-placeholder": "e.g. Retirement plans",
       "add-clients-label": "Add clients",
+      "remove-client": "Remove {{name}}",
       "search-placeholder": "Search clients",
       "no-clients": "No clients yet.",
       "no-match": "No clients match.",

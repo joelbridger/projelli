@@ -52,6 +52,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     only, no wire-schema change, nothing leaves the machine). Files:
     `src/platform/matter/clientGroupStore.ts`, `NewClientGroupDialog.tsx`,
     `Spine.tsx`. New events: `lantern:open-client-settings`, `lantern:open-new-group`.
+    The New Group dialog shows already-selected clients as persistent removable
+    chips, so the search filter never hides what's already in the group.
 - **UI Iteration System — a foundation so UI can be re-skinned fast and safely,
   round after round, without a full manual re-test each time.** Four machine
   checks (`scripts/ui-system/`, documented in `scripts/ui-system/README.md`):

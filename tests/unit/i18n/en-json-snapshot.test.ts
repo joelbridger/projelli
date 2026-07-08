@@ -61,7 +61,7 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 153,
         "marketplace": 14,
-        "matter": 316,
+        "matter": 317,
         "media": 100,
         "meetings": 249,
         "memory": 6,
@@ -272,7 +272,9 @@ describe('en.json structure snapshot', () => {
     //       groups (matter.group.*), the repurposed manager settings copy
     //       (matter.manager.settings-*, sample-tag), matter.home.client-settings,
     //       and the CLIENTS rail add-menu/new-group labels.
-    expect(flat.length).toBe(1996); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415; +29 FB2 clientux
+    // +1 = FB2 clientux polish round: matter.group.remove-client (removable
+    //      selected-member chip aria-label in NewClientGroupDialog).
+    expect(flat.length).toBe(1997); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415; +30 FB2 clientux
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

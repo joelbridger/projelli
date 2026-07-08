@@ -1,6 +1,6 @@
 {
   "_comment": "Permanent-handle baseline for the UI Iteration System. Regenerate with `node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a handle removal/rename is intentional and logged in handles.migrations.json. `duplicates` freezes handles rendered from >1 file (frozen debt; the guard blocks NEW cross-file duplicates so a handle can't silently become ambiguous).",
-  "count": 1586,
+  "count": 1589,
   "keys": [
     "account-identity",
     "account-image-input",
@@ -1051,12 +1051,15 @@
     "new-file-type-xlsx",
     "new-folder-button",
     "new-group-cancel",
+    "new-group-chip-${}",
+    "new-group-chip-remove-${}",
     "new-group-client-${}",
     "new-group-client-list",
     "new-group-client-search",
     "new-group-create",
     "new-group-dialog",
     "new-group-name",
+    "new-group-selected-chips",
     "new-workspace",
     "new-workspace-structure-preview",
     "no-accounts-state",

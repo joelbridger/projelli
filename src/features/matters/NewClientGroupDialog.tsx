@@ -12,7 +12,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, Search } from 'lucide-react';
+import { Check, Search, X } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -67,6 +67,14 @@ export function NewClientGroupDialog({ open, onOpenChange }: NewClientGroupDialo
     return matters.filter((m) => matterLabel(m).toLowerCase().includes(q));
   }, [matters, query]);
 
+  // The currently-selected members, always shown as removable chips so the
+  // group's membership stays visible even while the search filter hides the
+  // matching rows below.
+  const selectedMatters = useMemo(
+    () => matters.filter((m) => selected.has(m.id)),
+    [matters, selected],
+  );
+
   const toggle = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -113,6 +121,37 @@ export function NewClientGroupDialog({ open, onOpenChange }: NewClientGroupDialo
 
         <div className="space-y-1.5">
           <Label>{t('matter.group.add-clients-label')}</Label>
+
+          {/* Selected members — always visible + removable, so the search
+              filter can never hide what's already in the group. */}
+          {selectedMatters.length > 0 && (
+            <div
+              data-testid="new-group-selected-chips"
+              className="flex flex-wrap gap-1.5 pb-0.5"
+            >
+              {selectedMatters.map((m) => (
+                <span
+                  key={m.id}
+                  data-testid={`new-group-chip-${m.id}`}
+                  className="inline-flex items-center gap-1 rounded-full border bg-primary/5 py-0.5 pl-2 pr-1 text-xs"
+                >
+                  <span className="max-w-[12rem] truncate">{matterLabel(m)}</span>
+                  <button
+                    type="button"
+                    data-testid={`new-group-chip-remove-${m.id}`}
+                    aria-label={t('matter.group.remove-client', { name: matterLabel(m) })}
+                    onClick={() => {
+                      toggle(m.id);
+                    }}
+                    className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+
           <div className="flex items-center gap-2 rounded-md border px-2">
             <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
             <input
