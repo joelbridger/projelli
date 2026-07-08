@@ -2,7 +2,7 @@
  * Document Creation E2E Tests
  *
  * Covers Phase 4 of the document-support feature — users can create a new
- * blank `.docx` file from the redesigned Documents toolbar.
+ * blank `.docx` file from the redesigned Documents plus menu.
  *
  * Strategy:
  *  - The app exposes `window.__openTestFile`, `window.__editorStore`, and
@@ -17,7 +17,13 @@
 import { test, expect, type Page } from '@playwright/test';
 import mammoth from 'mammoth';
 
-import { hardClick, waitForTestModeLoad, gotoDocuments, switchToStandaloneEditorSurface } from './helpers/test-utils';
+import {
+  hardClick,
+  waitForTestModeLoad,
+  gotoDocuments,
+  switchToStandaloneEditorSurface,
+  clickDocumentsCreateAction,
+} from './helpers/test-utils';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -59,7 +65,7 @@ async function listMockFs(page: Page): Promise<string[]> {
  */
 async function runCreateDocxFlow(page: Page, filename: string): Promise<void> {
   await gotoDocuments(page);
-  await hardClick(page.getByTestId('documents-toolbar').getByRole('button', { name: 'New document' }));
+  await clickDocumentsCreateAction(page, 'document');
 
   // PromptDialog renders a single Input textbox inside a Radix dialog.
   const dialog = page.getByRole('dialog');
@@ -78,7 +84,7 @@ async function runCreateDocxFlow(page: Page, filename: string): Promise<void> {
 // Tests
 // ---------------------------------------------------------------------------
 
-test.describe('Document Creation (Phase 4) — Documents toolbar', () => {
+test.describe('Document Creation (Phase 4) - Documents plus menu', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/?testMode=true&seedDemo=1');
     await waitForTestModeLoad(page);

@@ -80,21 +80,9 @@
       "date": "2026-07-07"
     },
     {
-      "removed": "clientmap-download-button",
-      "replacement": "clientmap-actions-menu-button",
-      "reason": "WP2 consolidates the Client Map export, sync, and history controls into one three-dot actions menu.",
-      "date": "2026-07-07"
-    },
-    {
-      "removed": "clientmap-sync-group",
-      "replacement": "clientmap-actions-menu-button",
-      "reason": "WP2 removes the separate Client Map sync icon group because Sync all now lives inside the three-dot actions menu.",
-      "date": "2026-07-07"
-    },
-    {
-      "removed": "hub-clientmap-local-notice",
-      "replacement": null,
-      "reason": "WP2 removes the repeated local-AI Client Map note because the status pill already says the map is local.",
+      "removed": "documents-toolbar",
+      "replacement": "documents-files-controls",
+      "reason": "WP3 moves Documents view controls into the Files panel and file creation into the Files rail plus menu.",
       "date": "2026-07-07"
     }
   ]

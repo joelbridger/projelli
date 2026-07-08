@@ -32,13 +32,19 @@ import { useTranslation } from 'react-i18next';
 import {
   AlertTriangle,
   Check,
+  Columns,
   Download,
   FileText,
   FileType,
+  History,
+  List,
   Loader2,
   Mail,
+  MoreHorizontal,
   PanelRightClose,
   PanelRightOpen,
+  Pencil,
+  Rows,
   Send,
   ShieldCheck,
   Wand2,
@@ -235,6 +241,15 @@ interface DocxEditorProps {
    * for ordinary documents and for cleared notes.
    */
   outboundBlockedReason?: string | undefined;
+  /** Rename the active file from the clean document header. */
+  onRenameFile?: ((newName: string) => Promise<void> | void) | undefined;
+  /** Existing MainPanel actions folded into the same document menu. */
+  onDownload?: (() => void) | undefined;
+  versionHistoryLabel?: string | undefined;
+  onToggleHistory?: (() => void) | undefined;
+  onSplitHorizontal?: (() => void) | undefined;
+  onSplitVertical?: (() => void) | undefined;
+  onToggleOutline?: (() => void) | undefined;
 }
 
 type LoadState =
@@ -361,6 +376,13 @@ export function DocxEditor({
   onSendToWealthbox,
   onReviewWealthboxQueue,
   outboundBlockedReason,
+  onRenameFile,
+  onDownload,
+  versionHistoryLabel,
+  onToggleHistory,
+  onSplitHorizontal,
+  onSplitVertical,
+  onToggleOutline,
 }: DocxEditorProps) {
   const { t } = useTranslation();
   const pendingDocxFocusPath = useEditorStore((s) => s.pendingDocxFocusPath);
@@ -374,6 +396,11 @@ export function DocxEditor({
   // hides deletions. The Review pane only shows while reviewing.
   const [reviewing, setReviewing] = useState(true);
   const [showReviewPane, setShowReviewPane] = useState(true);
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameDraft, setRenameDraft] = useState(() => {
+    const dot = fileName.lastIndexOf('.');
+    return dot > 0 ? fileName.slice(0, dot) : fileName;
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [lastSavedAt, setLastSavedAt] = useState<number | undefined>(undefined);
@@ -402,6 +429,42 @@ export function DocxEditor({
       .catch(() => { if (!cancelled) setWealthboxConnected(false); });
     return () => { cancelled = true; };
   }, [onSendToWealthbox]);
+
+  useEffect(() => {
+    if (isRenaming) return;
+    const dot = fileName.lastIndexOf('.');
+    setRenameDraft(dot > 0 ? fileName.slice(0, dot) : fileName);
+  }, [fileName, isRenaming]);
+
+  useEffect(() => {
+    if (!isRenaming) return;
+    const input = renameInputRef.current;
+    if (!input) return;
+    input.focus();
+    input.select();
+  }, [isRenaming]);
+
+  const submitRename = useCallback(async () => {
+    if (!onRenameFile) {
+      setIsRenaming(false);
+      return;
+    }
+    const trimmed = renameDraft.trim();
+    if (!trimmed) {
+      setIsRenaming(false);
+      return;
+    }
+    const dot = fileName.lastIndexOf('.');
+    const ext = dot > 0 ? fileName.slice(dot) : '';
+    const nextName =
+      ext && !trimmed.toLowerCase().endsWith(ext.toLowerCase())
+        ? `${trimmed}${ext}`
+        : trimmed;
+    if (nextName !== fileName) {
+      await onRenameFile(nextName);
+    }
+    setIsRenaming(false);
+  }, [fileName, onRenameFile, renameDraft]);
 
   // ---- A4: AI redline state ----------------------------------------------
   // Entitlement gate: AI redline is an AI feature, so it is gated off for a
@@ -452,6 +515,7 @@ export function DocxEditor({
   // path) always calls the current save without re-registering on every render.
   const attemptSaveRef = useRef<((doc: DocumentJson) => Promise<boolean>) | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
+  const renameInputRef = useRef<HTMLInputElement | null>(null);
   // False once this editor has unmounted — guards the retry loop so a save that
   // was in flight at unmount can't schedule a NEW retry against a torn-down
   // component (which would setState after unmount and could rewrite a file the
@@ -1435,6 +1499,41 @@ export function DocxEditor({
     [runExport, pickSavePath, exportStem, t],
   );
 
+  const runDraftFollowUp = useCallback(() => {
+    if (!onDraftFollowUp || outboundBlocked) return;
+    void (async () => {
+      await commitActiveRunEdit();
+      await docOpQueueRef.current;
+      const doc = currentDocRef.current;
+      if (!doc) return;
+      const text = extractIndexedParagraphs(doc)
+        .map(p => p.text)
+        .join('\n');
+      onDraftFollowUp(text);
+    })().catch((err: unknown) => {
+      console.error('[DocxEditor] draft follow-up failed:', err);
+    });
+  }, [commitActiveRunEdit, onDraftFollowUp, outboundBlocked]);
+
+  const runSendToWealthbox = useCallback(() => {
+    if (!onSendToWealthbox || !wealthboxConnected || outboundBlocked) return;
+    void (async () => {
+      await commitActiveRunEdit();
+      await docOpQueueRef.current;
+      const doc = currentDocRef.current;
+      if (!doc) return;
+      const text = extractIndexedParagraphs(doc)
+        .map(p => p.text)
+        .join('\n');
+      if (onSendToWealthbox(text)) {
+        setWealthboxQueued(true);
+        setTimeout(() => { setWealthboxQueued(false); }, 2500);
+      }
+    })().catch((err: unknown) => {
+      console.error('[DocxEditor] send to Wealthbox failed:', err);
+    });
+  }, [commitActiveRunEdit, onSendToWealthbox, outboundBlocked, wealthboxConnected]);
+
   // ---- Accept / reject ---------------------------------------------------
   const handleResolveOne = useCallback(
     async (revisionId: string, action: DocxResolveAction) => {
@@ -1934,18 +2033,212 @@ export function DocxEditor({
       data-reviewing={reviewing ? 'true' : 'false'}
       className={cn('flex h-full flex-col bg-background', className)}
     >
-      {/* Slim top bar: file name · Reviewing toggle · save status */}
+      {/* Clean document header: identity, actions menu, save state, review controls. */}
       <div
         data-testid="docx-editor-topbar"
-        className="flex items-center gap-3 border-b bg-background px-3 py-1.5"
+        className="flex min-h-[44px] items-center gap-3 border-b bg-background px-3 py-2"
       >
-        <span className="flex items-center gap-1.5 truncate text-sm font-medium text-foreground/80">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <FileType className="h-4 w-4 shrink-0 text-blue-600" />
-          <span className="truncate">{fileName}</span>
-        </span>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              type="text"
+              value={renameDraft}
+              onChange={(e) => { setRenameDraft(e.target.value); }}
+              onBlur={() => { void submitRename(); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  void submitRename();
+                } else if (e.key === 'Escape') {
+                  setIsRenaming(false);
+                  const dot = fileName.lastIndexOf('.');
+                  setRenameDraft(dot > 0 ? fileName.slice(0, dot) : fileName);
+                }
+              }}
+              className="min-w-0 max-w-[360px] rounded border bg-background px-1.5 py-0.5 text-sm font-medium"
+              size={Math.max(renameDraft.length + 1, 8)}
+            />
+          ) : (
+            <h2 className="min-w-0 truncate text-sm font-medium text-foreground/85">
+              {fileName}
+            </h2>
+          )}
+
+          {onRenameFile ? (
+            <Button
+              type="button"
+              data-testid="docx-rename-file"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 shrink-0 p-0"
+              title={t('media.docx-editor.rename-file')}
+              aria-label={t('media.docx-editor.rename-file')}
+              onClick={() => { setIsRenaming(true); }}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </Button>
+          ) : null}
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                data-testid="docx-export"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 shrink-0 p-0"
+                title={t('media.docx-editor.document-actions')}
+                aria-label={t('media.docx-editor.document-actions')}
+              >
+                <span data-testid="docx-document-actions-menu" className="flex h-full w-full items-center justify-center">
+                  <MoreHorizontal className="h-4 w-4" />
+                </span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {onDownload && (
+                <DropdownMenuItem data-testid="toolbar-download" onSelect={onDownload}>
+                  <Download className="mr-2 h-4 w-4" />
+                  {t('media.docx-editor.download')}
+                </DropdownMenuItem>
+              )}
+              {onToggleHistory && (
+                <DropdownMenuItem data-testid="toolbar-history" onSelect={onToggleHistory}>
+                  <History className="mr-2 h-4 w-4" />
+                  {versionHistoryLabel ?? t('media.docx-editor.history')}
+                </DropdownMenuItem>
+              )}
+              {onSplitHorizontal && (
+                <DropdownMenuItem data-testid="toolbar-overflow-split-h" onSelect={onSplitHorizontal}>
+                  <Columns className="mr-2 h-4 w-4" />
+                  {t('media.docx-editor.split-horizontally')}
+                </DropdownMenuItem>
+              )}
+              {onSplitVertical && (
+                <DropdownMenuItem data-testid="toolbar-overflow-split-v" onSelect={onSplitVertical}>
+                  <Rows className="mr-2 h-4 w-4" />
+                  {t('media.docx-editor.split-vertically')}
+                </DropdownMenuItem>
+              )}
+              {onToggleOutline && (
+                <DropdownMenuItem data-testid="toolbar-overflow-outline" onSelect={onToggleOutline}>
+                  <List className="mr-2 h-4 w-4" />
+                  {t('media.docx-editor.toggle-outline')}
+                </DropdownMenuItem>
+              )}
+              {(onDownload || onToggleHistory || onSplitHorizontal || onSplitVertical || onToggleOutline) && (
+                <DropdownMenuSeparator />
+              )}
+              {onDraftFollowUp && (
+                <DropdownMenuItem
+                  data-testid="docx-draft-follow-up"
+                  disabled={outboundBlocked}
+                  title={outboundBlockedReason ?? t('media.docx-editor.draft-follow-up-title')}
+                  onSelect={runDraftFollowUp}
+                >
+                  <Mail className="mr-2 h-4 w-4" />
+                  {t('media.docx-editor.draft-follow-up')}
+                </DropdownMenuItem>
+              )}
+              {onSendToWealthbox && (
+                <DropdownMenuItem
+                  data-testid="docx-send-to-wealthbox"
+                  disabled={!wealthboxConnected || outboundBlocked}
+                  title={
+                    outboundBlockedReason ??
+                    (wealthboxConnected
+                      ? t('matter.notes.send-to-wealthbox')
+                      : t('media.docx-editor.send-to-wealthbox-disconnected'))
+                  }
+                  onSelect={runSendToWealthbox}
+                >
+                  <Send className="mr-2 h-4 w-4" />
+                  {t('matter.notes.send-to-wealthbox')}
+                </DropdownMenuItem>
+              )}
+              {(onDraftFollowUp || onSendToWealthbox) && (
+                <DropdownMenuSeparator />
+              )}
+              <DropdownMenuLabel>
+                {t('media.docx-editor.export-as')}
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                data-testid="docx-export-word"
+                onSelect={handleExportWord}
+                disabled={exportBusy || !canEdit}
+              >
+                {exportBusy ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <FileType className="mr-2 h-4 w-4 text-blue-600" />
+                )}
+                {t('media.docx-editor.export-word')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="docx-export-pdf"
+                onSelect={handleExportPdf}
+                disabled={exportBusy || !canEdit}
+              >
+                <FileText className="mr-2 h-4 w-4 text-red-600" />
+                {t('media.docx-editor.export-pdf')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-[var(--kp-navy)]">
+                {t('media.docx-editor.export-clean-section')}
+              </DropdownMenuLabel>
+              <DropdownMenuItem
+                data-testid="docx-export-clean"
+                onSelect={() => { handleExportCleanCopy(false); }}
+                disabled={exportBusy || !canEdit}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" />
+                <span className="flex flex-col">
+                  <span>{t('media.docx-editor.export-clean')}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {t('media.docx-editor.export-clean-hint')}
+                  </span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="docx-export-clean-final"
+                onSelect={() => { handleExportCleanCopy(true); }}
+                disabled={exportBusy || !canEdit}
+              >
+                <ShieldCheck className="mr-2 h-4 w-4 text-emerald-700" />
+                <span className="flex flex-col">
+                  <span>{t('media.docx-editor.export-clean-final')}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {t('media.docx-editor.export-clean-final-hint')}
+                  </span>
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                data-testid="docx-revise-with-ai"
+                disabled={redlineBusy}
+                title={
+                  redlineReady
+                    ? t('media.docx-editor.revise-with-ai')
+                    : t('media.docx-editor.redline-need-key')
+                }
+                onSelect={() => {
+                  setRedlineOpen((v) => !v);
+                  setRedlineError(null);
+                }}
+              >
+                {redlineBusy ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Wand2 className="mr-2 h-4 w-4" />
+                )}
+                {t('media.docx-editor.revise-with-ai')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
 
         <div className="ml-auto flex items-center gap-2">
-          {/* T11: ephemeral presence indicator — shown only in co-edit mode */}
+          {/* T11: ephemeral presence indicator, shown only in co-edit mode. */}
           {coedit && otherEditors > 0 && (
             <span
               data-testid="docx-presence-pill"
@@ -1962,103 +2255,24 @@ export function DocxEditor({
             </span>
           )}
 
-          {onDraftFollowUp && (
-            <Button
-              data-testid="docx-draft-follow-up"
-              variant="outline"
-              size="sm"
-              disabled={outboundBlocked}
-              className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
-              onClick={() => {
-                // E3: never send an unreviewed/errored/quarantined meeting note.
-                if (outboundBlocked) return;
-                // Coordinator review catch: commit any in-progress (focused,
-                // un-blurred) edit and drain any already-queued op before
-                // reading the doc, or the draft is built from a snapshot
-                // missing the user's latest keystrokes — the same flush
-                // pattern Export uses (see flushSaveBeforeExport above).
-                void (async () => {
-                  await commitActiveRunEdit();
-                  await docOpQueueRef.current;
-                  const doc = currentDocRef.current;
-                  if (!doc) return;
-                  const text = extractIndexedParagraphs(doc)
-                    .map(p => p.text)
-                    .join('\n');
-                  onDraftFollowUp(text);
-                })();
-              }}
-              title={outboundBlockedReason ?? t('media.docx-editor.draft-follow-up-title')}
-            >
-              <Mail className="h-3.5 w-3.5" />
-              {t('media.docx-editor.draft-follow-up')}
-            </Button>
-          )}
-
-          {onSendToWealthbox && (
-            <>
-              {wealthboxQueued && (
-                <span className="flex items-center gap-1.5 text-xs text-emerald-700">
-                  <span data-testid="docx-send-to-wealthbox-confirmation">
-                    {t('matter.notes.sent-to-wealthbox')}
-                  </span>
-                  {onReviewWealthboxQueue && (
-                    <button
-                      type="button"
-                      data-testid="docx-send-to-wealthbox-review-now"
-                      onClick={onReviewWealthboxQueue}
-                      className="font-medium underline underline-offset-2 hover:text-emerald-800"
-                    >
-                      {t('matter.notes.review-now')}
-                    </button>
-                  )}
-                </span>
+          {wealthboxQueued && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-700">
+              <span data-testid="docx-send-to-wealthbox-confirmation">
+                {t('matter.notes.sent-to-wealthbox')}
+              </span>
+              {onReviewWealthboxQueue && (
+                <button
+                  type="button"
+                  data-testid="docx-send-to-wealthbox-review-now"
+                  onClick={onReviewWealthboxQueue}
+                  className="font-medium underline underline-offset-2 hover:text-emerald-800"
+                >
+                  {t('matter.notes.review-now')}
+                </button>
               )}
-              <Button
-                data-testid="docx-send-to-wealthbox"
-                variant="outline"
-                size="sm"
-                disabled={!wealthboxConnected || outboundBlocked}
-                className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
-                onClick={() => {
-                  // E3: never queue an unreviewed/errored/quarantined meeting note.
-                  if (outboundBlocked) return;
-                  // Same flush pattern as Draft follow-up above — the note
-                  // sent to Wealthbox must include the advisor's latest
-                  // in-progress edit, not a stale snapshot.
-                  void (async () => {
-                    await commitActiveRunEdit();
-                    await docOpQueueRef.current;
-                    const doc = currentDocRef.current;
-                    if (!doc) return;
-                    const text = extractIndexedParagraphs(doc)
-                      .map(p => p.text)
-                      .join('\n');
-                    // codex-review: only show the confirmation when the
-                    // callback actually queued something — a blank or
-                    // table-only document has no extractable title and must
-                    // not claim success for a no-op enqueue.
-                    if (onSendToWealthbox(text)) {
-                      setWealthboxQueued(true);
-                      setTimeout(() => { setWealthboxQueued(false); }, 2500);
-                    }
-                  })();
-                }}
-                title={
-                  outboundBlockedReason ??
-                  (wealthboxConnected
-                    ? t('matter.notes.send-to-wealthbox')
-                    : t('media.docx-editor.send-to-wealthbox-disconnected'))
-                }
-              >
-                <Send className="h-3.5 w-3.5" />
-                {t('matter.notes.send-to-wealthbox')}
-              </Button>
-            </>
+            </span>
           )}
 
-          {/* E3: the honest, visible explanation for why this note can't leave
-              yet — shown whenever an outbound action exists but is blocked. */}
           {outboundBlocked && (onDraftFollowUp || onSendToWealthbox) && (
             <span
               data-testid="docx-outbound-blocked"
@@ -2067,101 +2281,6 @@ export function DocxEditor({
               {outboundBlockedReason}
             </span>
           )}
-
-          {/* A6: discoverable Export — a clearly-labeled menu (not a bare icon)
-              offering Word, PDF, and a privilege-safe clean copy. */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                data-testid="docx-export"
-                variant="outline"
-                size="sm"
-                className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
-                disabled={exportBusy || !canEdit}
-                title={t('media.docx-editor.export')}
-              >
-                {exportBusy ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" />
-                )}
-                {t('media.docx-editor.export')}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
-              <DropdownMenuLabel>
-                {t('media.docx-editor.export-as')}
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                data-testid="docx-export-word"
-                onSelect={handleExportWord}
-              >
-                <FileType className="mr-2 h-4 w-4 text-blue-600" />
-                {t('media.docx-editor.export-word')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                data-testid="docx-export-pdf"
-                onSelect={handleExportPdf}
-              >
-                <FileText className="mr-2 h-4 w-4 text-red-600" />
-                {t('media.docx-editor.export-pdf')}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-[var(--kp-navy)]">
-                {t('media.docx-editor.export-clean-section')}
-              </DropdownMenuLabel>
-              <DropdownMenuItem
-                data-testid="docx-export-clean"
-                onSelect={() => { handleExportCleanCopy(false); }}
-              >
-                <ShieldCheck className="mr-2 h-4 w-4 text-emerald-600" />
-                <span className="flex flex-col">
-                  <span>{t('media.docx-editor.export-clean')}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {t('media.docx-editor.export-clean-hint')}
-                  </span>
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                data-testid="docx-export-clean-final"
-                onSelect={() => { handleExportCleanCopy(true); }}
-              >
-                <ShieldCheck className="mr-2 h-4 w-4 text-emerald-700" />
-                <span className="flex flex-col">
-                  <span>{t('media.docx-editor.export-clean-final')}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {t('media.docx-editor.export-clean-final-hint')}
-                  </span>
-                </span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* A4: AI redline entry point. */}
-          <Button
-            data-testid="docx-revise-with-ai"
-            variant="outline"
-            size="sm"
-            className="h-7 gap-1.5 border-[rgba(var(--kp-navy-rgb),0.30)] text-[var(--kp-navy)] hover:bg-[rgba(var(--kp-navy-rgb),0.05)]"
-            onClick={() => {
-              setRedlineOpen((v) => !v);
-              setRedlineError(null);
-            }}
-            disabled={redlineBusy}
-            aria-expanded={redlineOpen}
-            title={
-              redlineReady
-                ? t('media.docx-editor.revise-with-ai')
-                : t('media.docx-editor.redline-need-key')
-            }
-          >
-            {redlineBusy ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Wand2 className="h-3.5 w-3.5" />
-            )}
-            {t('media.docx-editor.revise-with-ai')}
-          </Button>
 
           <AutoSaveIndicator
             isDirty={isDirty}

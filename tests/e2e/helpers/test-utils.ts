@@ -94,7 +94,26 @@ export async function gotoDocuments(page: Page, matterId = 'matter_demo_brennan'
   }
 
   await hardClick(documentsTab);
-  await expect(page.getByTestId('documents-toolbar')).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId('documents-files-controls')).toBeVisible({ timeout: 10_000 });
+}
+
+export async function openDocumentsCreateMenu(page: Page) {
+  await hardClick(page.getByTestId('documents-files-create-menu'));
+  await expect(page.getByTestId('documents-create-document')).toBeVisible({ timeout: 10_000 });
+}
+
+export async function clickDocumentsCreateAction(
+  page: Page,
+  action: 'document' | 'folder' | 'files',
+) {
+  await openDocumentsCreateMenu(page);
+  const testId =
+    action === 'document'
+      ? 'documents-create-document'
+      : action === 'folder'
+        ? 'documents-create-folder'
+        : 'add-files-btn';
+  await hardClick(page.getByTestId(testId));
 }
 
 /**
@@ -178,8 +197,8 @@ export async function openStandaloneFile(
  */
 export async function switchToStandaloneFilesGrid(page: Page) {
   await switchToStandaloneEditorSurface(page);
-  await hardClick(page.getByRole('tab', { name: 'Files' }));
-  await expect(page.getByTestId('documents-toolbar')).toBeVisible({ timeout: 10_000 });
+  await hardClick(page.getByTestId('documents-files-tab'));
+  await expect(page.getByTestId('documents-files-controls')).toBeVisible({ timeout: 10_000 });
 }
 
 /**

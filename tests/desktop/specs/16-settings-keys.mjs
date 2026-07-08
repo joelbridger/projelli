@@ -120,7 +120,7 @@ async function openSeededRecentWorkspace(session, workspace, app) {
 
   const body = await session.bodyText();
   if (!body.includes(WORKSPACE_NAME) && !body.includes(workspace)) {
-    await session.testid('documents-toolbar', 15_000);
+    await session.testid('documents-files-controls', 15_000);
   }
 }
 

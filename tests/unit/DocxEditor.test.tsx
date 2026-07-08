@@ -182,6 +182,16 @@ function renderEditor(filePath = '/ws/agreement.docx') {
   );
 }
 
+async function openDocxActionsMenu() {
+  const trigger = await screen.findByTestId('docx-document-actions-menu');
+  fireEvent.pointerDown(
+    trigger,
+    new MouseEvent('pointerdown', { bubbles: true }),
+  );
+  fireEvent.click(trigger);
+  await screen.findByTestId('docx-export-word');
+}
+
 describe('DocxEditor — rendering', () => {
   beforeEach(() => {
     invokeMock.mockReset();
@@ -258,6 +268,102 @@ describe('DocxEditor — rendering', () => {
     await waitFor(() => {
       expect(document.activeElement).toBe(run);
     });
+  });
+
+  it('puts document actions in one clean header menu instead of separate header buttons', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(blankDocWithEmptyRun());
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      if (cmd === 'crm_is_connected') return Promise.resolve(true);
+      return Promise.resolve(undefined);
+    });
+
+    const onDraftFollowUp = vi.fn();
+    const onSendToWealthbox = vi.fn().mockReturnValue(true);
+    const onDownload = vi.fn();
+    const onToggleHistory = vi.fn();
+    const onSplitHorizontal = vi.fn();
+    const onToggleOutline = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <DocxEditor
+          filePath="/ws/agreement.docx"
+          fileName="agreement.docx"
+          onDraftFollowUp={onDraftFollowUp}
+          onSendToWealthbox={onSendToWealthbox}
+          onDownload={onDownload}
+          onToggleHistory={onToggleHistory}
+          onSplitHorizontal={onSplitHorizontal}
+          onToggleOutline={onToggleOutline}
+          versionHistoryLabel="History (2)"
+        />
+      </TooltipProvider>,
+    );
+
+    const header = await screen.findByTestId('docx-editor-topbar');
+    expect(header.textContent).toContain('agreement.docx');
+    expect(screen.queryByTestId('docx-draft-follow-up')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('docx-send-to-wealthbox')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('docx-revise-with-ai')).not.toBeInTheDocument();
+
+    const trigger = screen.getByTestId('docx-document-actions-menu');
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+
+    fireEvent.click(await screen.findByTestId('toolbar-download'));
+    expect(onDownload).toHaveBeenCalledTimes(1);
+
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('toolbar-history'));
+    expect(onToggleHistory).toHaveBeenCalledTimes(1);
+
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('toolbar-overflow-split-h'));
+    expect(onSplitHorizontal).toHaveBeenCalledTimes(1);
+
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('toolbar-overflow-outline'));
+    expect(onToggleOutline).toHaveBeenCalledTimes(1);
+
+    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId('docx-draft-follow-up'));
+    await waitFor(() => expect(onDraftFollowUp).toHaveBeenCalledTimes(1));
+  });
+
+  it('keeps the .docx extension when renaming a dotted file name', async () => {
+    invokeMock.mockImplementation((cmd: string) => {
+      if (cmd === 'docx_open') return Promise.resolve(blankDocWithEmptyRun());
+      if (cmd === 'docx_save') return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+    const onRenameFile = vi.fn();
+
+    render(
+      <TooltipProvider>
+        <DocxEditor
+          filePath="/ws/client.v2.docx"
+          fileName="client.v2.docx"
+          onRenameFile={onRenameFile}
+        />
+      </TooltipProvider>,
+    );
+
+    await screen.findByTestId('docx-editor-topbar');
+    fireEvent.click(screen.getByTestId('docx-rename-file'));
+    const input = screen.getByDisplayValue('client.v2');
+    fireEvent.blur(input);
+    await waitFor(() => expect(onRenameFile).not.toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId('docx-rename-file'));
+    const nextInput = screen.getByDisplayValue('client.v2');
+    fireEvent.change(nextInput, { target: { value: 'client.v3' } });
+    fireEvent.keyDown(nextInput, { key: 'Enter' });
+    await waitFor(() => expect(onRenameFile).toHaveBeenCalledWith('client.v3.docx'));
   });
 
   it('clicking a preserved raw block does not move the caret into the nearest run', async () => {
@@ -628,9 +734,7 @@ describe('DocxEditor — accept / reject flow', () => {
     run.textContent = 'original text EDITED';
     // No blur — go straight to Export.
 
-    const trigger = await screen.findByTestId('docx-export');
-    fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
-    fireEvent.click(trigger);
+    await openDocxActionsMenu();
     fireEvent.click(await screen.findByTestId('docx-export-word'));
 
     // The save that precedes export must carry the in-progress edit, not the
@@ -683,6 +787,7 @@ describe('DocxEditor — accept / reject flow', () => {
     fireEvent.focus(run);
     run.textContent = 'original text EDITED';
     // No blur — go straight to Draft follow-up.
+    await openDocxActionsMenu();
     fireEvent.click(await screen.findByTestId('docx-draft-follow-up'));
 
     await waitFor(() => expect(onDraftFollowUp).toHaveBeenCalled());
@@ -731,8 +836,9 @@ describe('DocxEditor — accept / reject flow', () => {
         </TooltipProvider>,
       );
       await screen.findByTestId('docx-run');
+      await openDocxActionsMenu();
       const button = await screen.findByTestId('docx-send-to-wealthbox');
-      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      await waitFor(() => expect(button).not.toHaveAttribute('data-disabled'));
       fireEvent.click(button);
       await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
       expect(onSendToWealthbox.mock.calls[0]![0] as string).toContain('Client wants a Roth conversion review.');
@@ -757,10 +863,11 @@ describe('DocxEditor — accept / reject flow', () => {
         </TooltipProvider>,
       );
       await screen.findByTestId('docx-run');
+      await openDocxActionsMenu();
       const send = await screen.findByTestId('docx-send-to-wealthbox');
       const draft = await screen.findByTestId('docx-draft-follow-up');
-      expect((send as HTMLButtonElement).disabled).toBe(true);
-      expect((draft as HTMLButtonElement).disabled).toBe(true);
+      expect(send).toHaveAttribute('data-disabled');
+      expect(draft).toHaveAttribute('data-disabled');
       // The honest explanation is visible, not just a tooltip.
       expect(screen.getByTestId('docx-outbound-blocked').textContent).toContain('Review this note first');
       // Forcing a click does nothing — the note cannot leave.
@@ -784,8 +891,9 @@ describe('DocxEditor — accept / reject flow', () => {
         </TooltipProvider>,
       );
       await screen.findByTestId('docx-run');
+      await openDocxActionsMenu();
       const button = await screen.findByTestId('docx-send-to-wealthbox');
-      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      await waitFor(() => expect(button).not.toHaveAttribute('data-disabled'));
       expect(screen.queryByTestId('docx-outbound-blocked')).not.toBeInTheDocument();
     });
 
@@ -804,8 +912,9 @@ describe('DocxEditor — accept / reject flow', () => {
         </TooltipProvider>,
       );
       await screen.findByTestId('docx-run');
+      await openDocxActionsMenu();
       const button = await screen.findByTestId('docx-send-to-wealthbox');
-      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      await waitFor(() => expect(button).not.toHaveAttribute('data-disabled'));
       fireEvent.click(button);
       await waitFor(() => expect(onSendToWealthbox).toHaveBeenCalled());
       expect(screen.queryByTestId('docx-send-to-wealthbox-confirmation')).not.toBeInTheDocument();
@@ -827,8 +936,9 @@ describe('DocxEditor — accept / reject flow', () => {
         </TooltipProvider>,
       );
       await screen.findByTestId('docx-run');
+      await openDocxActionsMenu();
       const button = await screen.findByTestId('docx-send-to-wealthbox');
-      await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+      await waitFor(() => expect(button).not.toHaveAttribute('data-disabled'));
       fireEvent.click(button);
       await screen.findByTestId('docx-send-to-wealthbox-confirmation');
 
@@ -853,8 +963,9 @@ describe('DocxEditor — accept / reject flow', () => {
         </TooltipProvider>,
       );
       await screen.findByTestId('docx-run');
-      const button = await screen.findByTestId('docx-send-to-wealthbox') as HTMLButtonElement;
-      await waitFor(() => expect(button.disabled).toBe(true));
+      await openDocxActionsMenu();
+      const button = await screen.findByTestId('docx-send-to-wealthbox');
+      await waitFor(() => expect(button).toHaveAttribute('data-disabled'));
       expect(button.title.toLowerCase()).toContain('connect');
       fireEvent.click(button);
       expect(onSendToWealthbox).not.toHaveBeenCalled();
@@ -1643,6 +1754,7 @@ describe('DocxEditor — AI redline (A4)', () => {
     await screen.findByTestId('docx-document-body');
 
     // Open the composer and submit an instruction.
+    await openDocxActionsMenu();
     fireEvent.click(screen.getByTestId('docx-revise-with-ai'));
     const input = await screen.findByTestId('docx-redline-input');
     fireEvent.change(input, { target: { value: 'tighten the indemnity clause' } });
@@ -1701,6 +1813,7 @@ describe('DocxEditor — AI redline (A4)', () => {
 
     renderWithKeys();
     await screen.findByTestId('docx-document-body');
+    await openDocxActionsMenu();
     fireEvent.click(screen.getByTestId('docx-revise-with-ai'));
     fireEvent.change(await screen.findByTestId('docx-redline-input'), {
       target: { value: 'no change needed' },
@@ -1726,6 +1839,7 @@ describe('DocxEditor — AI redline (A4)', () => {
       </TooltipProvider>,
     );
     await screen.findByTestId('docx-document-body');
+    await openDocxActionsMenu();
     fireEvent.click(screen.getByTestId('docx-revise-with-ai'));
     fireEvent.change(await screen.findByTestId('docx-redline-input'), {
       target: { value: 'do something' },
@@ -1879,12 +1993,7 @@ describe('DocxEditor — Export (A6)', () => {
   }
 
   async function openExportMenu() {
-    const trigger = await screen.findByTestId('docx-export');
-    fireEvent.pointerDown(
-      trigger,
-      new MouseEvent('pointerdown', { bubbles: true }),
-    );
-    fireEvent.click(trigger);
+    await openDocxActionsMenu();
     // Both format options + the privilege-safe clean copies are present.
     await screen.findByTestId('docx-export-word');
   }

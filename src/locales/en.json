@@ -373,6 +373,19 @@
     "grid": {
       "empty-folder-hint": "This folder contains no files or subfolders"
     },
+    "documents": {
+      "create-menu": "Create or add files",
+      "new-document": "New document",
+      "new-folder": "New folder",
+      "add-files": "Add files",
+      "files": "Files",
+      "trash": "Trash",
+      "view-files-trash": "View files or trash",
+      "view-mode": "View",
+      "tree": "Tree",
+      "grid": "Grid",
+      "search-placeholder": "Search files..."
+    },
     "project-manager": {
       "reselect-hint": "Re-select folder to reopen",
       "rename-description": "Enter a new name for your project. This will rename the workspace folder."
@@ -767,6 +780,14 @@
       "preserved-block": "[preserved content - table, section, or other element kept as-is]",
       "final-view-note": "Showing the final document. Turn on Reviewing to accept or reject individual changes inline.",
       "orphan-comment": "no anchor",
+      "rename-file": "Rename file",
+      "document-actions": "Document actions",
+      "download": "Download",
+      "history": "History",
+      "history-with-count": "History ({{count}})",
+      "split-horizontally": "Split horizontally",
+      "split-vertically": "Split vertically",
+      "toggle-outline": "Toggle outline",
       "revise-with-ai": "Revise with AI",
       "draft-follow-up": "Draft follow-up",
       "draft-follow-up-title": "Draft a follow-up email from this document",

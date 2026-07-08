@@ -33,6 +33,15 @@ const MIME = {
   doc: 'application/msword',
 } as const;
 
+const DOCX_READONLY_WARNING =
+  /read-only preview|vista previa de solo lectura|schreibgeschützte Vorschau/i;
+const DOCX_ERROR_TEXT =
+  /Couldn't open broken\.docx|No se pudo abrir broken\.docx|broken\.docx konnte nicht geöffnet werden/i;
+const DOC_LEGACY_BROWSER_MESSAGE =
+  /Open it in Word|Ábrelo en Word|Öffnen Sie es in Word/i;
+const DOWNLOAD_FILE_BUTTON =
+  /Download File|Descargar archivo|Datei herunterladen/i;
+
 function readFixtureAsDataUrl(name: string, mime: string): string {
   const bytes = readFileSync(join(fixturesDir, name));
   const base64 = Buffer.from(bytes).toString('base64');
@@ -144,12 +153,12 @@ test.describe('Document Viewers (Phase 1)', () => {
       content: dataUrl,
     });
 
+    await expect(page.getByTestId('documents-tab-strip')).toBeVisible({ timeout: 20_000 });
+
     const editor = page.getByTestId('docx-editor');
     await expect(editor).toBeVisible({ timeout: 20_000 });
     await expect(editor).toHaveAttribute('data-mode', 'readonly-fallback');
-    await expect(page.getByTestId('docx-editor-readonly-banner')).toContainText(
-      'read-only preview'
-    );
+    await expect(page.getByTestId('docx-editor-readonly-banner')).toContainText(DOCX_READONLY_WARNING);
 
     const viewer = page.getByTestId('docx-viewer');
     await expect(viewer).toBeVisible();
@@ -167,7 +176,7 @@ test.describe('Document Viewers (Phase 1)', () => {
     });
 
     await expect(page.getByTestId('docx-error')).toBeVisible({ timeout: 20_000 });
-    await expect(page.getByText("Couldn't open broken.docx")).toBeVisible();
+    await expect(page.getByText(DOCX_ERROR_TEXT)).toBeVisible();
   });
 
   test('legacy .doc files show a friendly fallback with download button', async ({ page }) => {
@@ -186,10 +195,10 @@ test.describe('Document Viewers (Phase 1)', () => {
     // inline <code> split.
     const fallback = page.getByTestId('doc-legacy-fallback');
     await expect(fallback).toBeVisible({ timeout: 20_000 });
-    await expect(fallback).toContainText('Open it in Word');
+    await expect(fallback).toContainText(DOC_LEGACY_BROWSER_MESSAGE);
 
     // The Download button should be present and enabled
-    const download = page.getByRole('button', { name: 'Download File' });
+    const download = page.getByRole('button', { name: DOWNLOAD_FILE_BUTTON });
     await expect(download).toBeVisible();
     await expect(download).toBeEnabled();
   });

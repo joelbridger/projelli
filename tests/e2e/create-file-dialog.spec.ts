@@ -5,13 +5,18 @@
  *   - a "Creating in [destinationPath]" line above the input
  *   - a live filename preview ("Preview: my-document.md") below the input
  *
- * Opening the dialog from the redesigned Documents toolbar's New document flow
+ * Opening the dialog from the redesigned Documents plus menu's New document flow
  * should render both pieces, and typing into the input should update the
  * preview.
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick, safeFill, gotoDocuments } from './helpers/test-utils';
+import {
+  waitForTestModeLoad,
+  clickDocumentsCreateAction,
+  safeFill,
+  gotoDocuments,
+} from './helpers/test-utils';
 
 test.describe('Create file dialog (UX-15)', () => {
   test.beforeEach(async ({ page }) => {
@@ -21,7 +26,7 @@ test.describe('Create file dialog (UX-15)', () => {
   });
 
   test('shows destination and live preview when creating a Word document', async ({ page }) => {
-    await hardClick(page.getByTestId('documents-toolbar').getByRole('button', { name: 'New document' }));
+    await clickDocumentsCreateAction(page, 'document');
 
     // Destination label is visible. gotoDocuments() lands in the embedded
     // per-client Documents tab for matter_demo_brennan, so new files land in
@@ -48,11 +53,11 @@ test.describe('Create file dialog (UX-15)', () => {
   });
 
   test('shows destination when creating a folder', async ({ page }) => {
-    await hardClick(page.getByTestId('documents-toolbar').getByRole('button', { name: 'New folder' }));
+    await clickDocumentsCreateAction(page, 'folder');
 
     const destination = page.getByTestId('prompt-dialog-destination');
     await expect(destination).toBeVisible();
     await expect(destination).toContainText('Creating in');
-    await expect(destination).toContainText('/test-workspace/');
+    await expect(destination).toContainText('/Brennan Household/');
   });
 });

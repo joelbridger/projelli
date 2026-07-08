@@ -31,7 +31,7 @@ The harness uses:
 The driver creates a W3C WebDriver session through `tauri-driver`, launches the real debug binary, verifies `window.__TAURI__ === true`, seeds a temp recent workspace, clicks that workspace through the real UI, and asserts:
 
 - primary navigation is visible (`data-testid="spine-nav"`)
-- the Documents shell is visible (`data-testid="documents-toolbar"` and `data-testid="documents-tab-strip"`)
+- the Documents shell is visible (`data-testid="documents-files-controls"` and `data-testid="documents-tab-strip"`)
 - the status bar is visible (`data-testid="status-bar"`)
 - a real file from the temp filesystem workspace, `probe.md`, is visible in the app
 

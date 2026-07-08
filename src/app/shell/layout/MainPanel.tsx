@@ -845,6 +845,19 @@ export function MainPanel({
                       fileName={tab.name}
                       onFirstEdit={() => writeBackupIfNeeded(tab.path)}
                       onAfterSave={handleDocxAfterSave}
+                      {...(onRename ? { onRenameFile: (newName: string) => { void onRename(tab.path, newName); } } : {})}
+                      {...(onDownload ? { onDownload: () => { onDownload(tab.path, tab.name); } } : {})}
+                      {...(shouldVersionFile(getFileExtension(tab.path)) ? {
+                        versionHistoryLabel: t('media.docx-editor.history-with-count', {
+                          count: versionService.getVersionCount(tab.path),
+                        }),
+                        onToggleHistory: () => { setShowVersionHistory((value) => !value); },
+                      } : {})}
+                      {...(!isSplit ? {
+                        onSplitHorizontal: handleSplitHorizontal,
+                        onSplitVertical: handleSplitVertical,
+                      } : {})}
+                      onToggleOutline={toggleOutline}
                       apiKeys={apiKeys}
                       aiProvider={redlineProvider}
                       {...(redlineLocalOnly && redlineOllamaModel ? { aiModel: redlineOllamaModel } : {})}
@@ -1017,7 +1030,7 @@ export function MainPanel({
         {/* File title display with the same colored file-type icon shown
             in the file tree + tab bar, so the active file's identity is
             consistent across every surface. */}
-        {tab.path !== '__grid_view__' && (() => {
+        {tab.path !== '__grid_view__' && toolbarFileType !== 'docx' && (() => {
           const ext = tab.name.split('.').pop()?.toLowerCase();
           const { Icon, color } = getFileIcon(ext);
           const isEditing = titleEditingPath === tab.path;
@@ -1155,6 +1168,8 @@ export function MainPanel({
   }, [activeTab]);
 
   const ext = activeTab ? getFileExtension(activeTab.path)?.toLowerCase() : undefined;
+  const activeIsDocx = ext === 'docx';
+  const showMainPanelToolbar = !activeIsDocx || !hideTabBar;
   const isMarkdownLike = !!activeTab && (ext === 'md' || ext === 'markdown' || ext === 'txt' || !ext);
   const isVersionable = !!activeTab && shouldVersionFile(getFileExtension(activeTab.path));
   const canSplit = !!activeTab && !isSplit;
@@ -1171,6 +1186,7 @@ export function MainPanel({
           `min-w-0` lets the panel shrink to the available width instead, so
           the sidebar keeps its place. (Closing the tab used to "restore" the
           layout precisely because it removed the overflow source.) */}
+      {showMainPanelToolbar && (
       <div
         ref={toolbarContainerRef}
         data-testid="main-panel-toolbar"
@@ -1184,6 +1200,7 @@ export function MainPanel({
         ) : (
           <div className="flex-1 min-w-0" />
         )}
+        {!activeIsDocx && (
         <div className={cn('flex items-center gap-1 px-2', !hideTabBar && 'border-l')}>
           {/*
             UX-17: reactive auto-save indicator. Shows "Saved · Ns ago"
@@ -1308,7 +1325,9 @@ export function MainPanel({
             </DropdownMenu>
           )}
         </div>
+        )}
       </div>
+      )}
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">

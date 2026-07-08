@@ -62,7 +62,7 @@ describe('en.json structure snapshot', () => {
         "mail": 6,
         "marketplace": 14,
         "matter": 220,
-        "media": 92,
+        "media": 100,
         "meetings": 227,
         "memory": 6,
         "model-download": 9,
@@ -83,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 29,
-        "workspace": 20,
+        "workspace": 31,
       }
     `);
   });
@@ -263,9 +263,9 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    // +4 = WP2 Client Map action menu labels (one menu button plus DOCX/PDF
-    //      export and Sync all).
-    expect(flat.length).toBe(1446); // 1429 + 9 (send-defaults recipient groups) + 4 (documents rail group menu incl. close-other-tabs) + 4 (WP2 Client Map menu)
+    // +19 = WP3 Documents UI feedback: file-rail plus menu / Files-view controls
+    //       (11) and the single clean Word document header menu (8).
+    expect(flat.length).toBe(1465); // true combined count after the 7-lane master-plan merge (each lane counted only its own keys)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

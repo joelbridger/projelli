@@ -60,15 +60,10 @@ async function fillPrompt(session, app, value, confirmText = 'OK') {
 // editor (DocumentsHome navigates back to the editor a beat later), so require the
 // Files/Trash toggle — which renders only on the browser surface — to STAY mounted
 // across a settle window; if it flips, the outer retry re-clicks the chip.
-async function activateFilesView(session, app) {
+async function activateFilesView(session) {
   await session.waitFor(
     async () => {
-      const filesTab = await session.find(
-        'xpath',
-        `//*[@role="tablist"]//button[normalize-space()=${app.xpathLiteral('Files')}]`,
-        15_000,
-      );
-      await session.click(filesTab);
+      await session.clickTestid('documents-files-tab', 15_000);
       for (let i = 0; i < 6; i += 1) {
         await sleep(200);
         if (!(await session.hasTestid('docs-files-toggle', 200))) return false;
@@ -81,8 +76,8 @@ async function activateFilesView(session, app) {
   await session.clickTestid('docs-view-tree', 10_000);    // ensure tree view
 }
 
-async function activateTrashView(session, app) {
-  await activateFilesView(session, app);
+async function activateTrashView(session) {
+  await activateFilesView(session);
   // Switch to trash; confirm by the files-only Tree/Grid toggle disappearing while
   // the Files/Trash toggle stays — i.e. we are in trash mode on the browser surface.
   await session.waitFor(
@@ -149,7 +144,7 @@ async function clickMenuItem(session, app, label) {
 }
 
 async function deleteFileToTrash(session, app, workspace, fileName) {
-  await activateFilesView(session, app);
+  await activateFilesView(session);
   await session.waitForBodyText(fileName, { timeoutMs: 15_000 });
   await openTreeRowMenu(session, fileName);
   await clickMenuItem(session, app, 'Delete');
@@ -216,11 +211,11 @@ export default {
 
     await app.bootToWorkspace(session, { workspacePath: workspace });
     await app.gotoSurface(session, 'Documents');
-    await session.testid('documents-toolbar', 15_000);
+    await session.testid('documents-files-controls', 15_000);
 
     // Delete to Trash, then restore through the Trash panel.
     const restoreEntry = await deleteFileToTrash(session, app, workspace, 'restore-me.txt');
-    await activateTrashView(session, app);
+    await activateTrashView(session);
     await session.waitForBodyText('restore-me.txt', { timeoutMs: 15_000 });
     await clickTrashRowAction(session, 'restore-me.txt', 'Restore');
     // The payload move and the metadata.json update are separate writes; wait for
@@ -236,7 +231,7 @@ export default {
 
     // Permanently delete a single trashed item.
     const permanentEntry = await deleteFileToTrash(session, app, workspace, 'permanent.txt');
-    await activateTrashView(session, app);
+    await activateTrashView(session);
     await session.waitForBodyText('permanent.txt', { timeoutMs: 15_000 });
     await clickTrashRowAction(session, 'permanent.txt', 'Delete permanently');
     await session.waitForBodyText('Permanently Delete?', { timeoutMs: 15_000 });
@@ -252,7 +247,7 @@ export default {
     // Empty Trash should permanently remove every remaining trashed payload.
     const emptyAEntry = await deleteFileToTrash(session, app, workspace, 'empty-a.txt');
     const emptyBEntry = await deleteFileToTrash(session, app, workspace, 'empty-b.txt');
-    await activateTrashView(session, app);
+    await activateTrashView(session);
     await session.waitForBodyText('empty-a.txt', { timeoutMs: 15_000 });
     await session.waitForBodyText('empty-b.txt', { timeoutMs: 15_000 });
     await clickButtonText(session, app, 'Empty Trash');
@@ -269,7 +264,7 @@ export default {
 
     // Restore collision: recreate the original path before restore and confirm a renamed copy appears.
     const collisionEntry = await deleteFileToTrash(session, app, workspace, 'collision.txt');
-    await activateFilesView(session, app);
+    await activateFilesView(session);
     await openTreeRowMenu(session, 'collision-replacement.txt');
     await clickMenuItem(session, app, 'Rename');
     await session.waitForBodyText('Rename', { timeoutMs: 15_000 });
@@ -281,7 +276,7 @@ export default {
       'replacement collision file renamed through the app before restore',
       20_000,
     );
-    await activateTrashView(session, app);
+    await activateTrashView(session);
     await session.waitForBodyText('collision.txt', { timeoutMs: 15_000 });
     await clickTrashRowAction(session, 'collision.txt', 'Restore');
     const restoredCollision = await waitForDisk(() => {

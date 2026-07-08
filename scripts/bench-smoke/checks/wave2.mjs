@@ -46,15 +46,30 @@ export const checkWealthboxQueueAndReview = withGuard(ID, SECTION, async ({ driv
   }
 
   const elements = await requireSnapshot(driver);
-  const sendButton = findByTestId(elements, 'docx-send-to-wealthbox');
+  const documentActionsMenu = findByTestId(elements, 'docx-document-actions-menu');
+  if (!documentActionsMenu) {
+    return makeResult({
+      id: ID,
+      section: SECTION,
+      status: STATUS.SETUP_BLOCKED,
+      detail:
+        'No [data-testid="docx-document-actions-menu"] button in the current view. Expected the docx editor header actions menu to be visible before sending to Wealthbox. ' +
+        'This is equally expected if no docx note tab is open, so this harness treats it as SETUP-BLOCKED rather than FAIL.',
+    });
+  }
+
+  await driver.click('docx-document-actions-menu');
+
+  const menuElements = await requireSnapshot(driver);
+  const sendButton = findByTestId(menuElements, 'docx-send-to-wealthbox');
   if (!sendButton) {
     return makeResult({
       id: ID,
       section: SECTION,
       status: STATUS.SETUP_BLOCKED,
       detail:
-        'No [data-testid="docx-send-to-wealthbox"] button in the current view. This is exactly the smoke-2 P0 #5 symptom when it is a real regression ' +
-        '(button silently absent instead of disabled) — but it is equally expected if no docx note tab is open. Treated as SETUP-BLOCKED, not FAIL, ' +
+        'Opened [data-testid="docx-document-actions-menu"], but no [data-testid="docx-send-to-wealthbox"] item appeared in it. This is exactly the smoke-2 P0 #5 symptom when it is a real regression ' +
+        '(menu item silently absent instead of disabled) — but it is equally expected if no docx note tab is open. Treated as SETUP-BLOCKED, not FAIL, ' +
         'because this harness cannot distinguish "no note open" from "matter-resolution broke again" without a known-good precondition. ' +
         'If a note IS confirmed open when this fires, escalate as a P0 regression of the matter-resolution fix (docs/evidence/windows-smoke-2/RUN-LOG.md, Wave 2).',
     });

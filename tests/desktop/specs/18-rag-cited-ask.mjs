@@ -60,7 +60,7 @@ export default {
     );
 
     await bootWithOptionalProviderKey(session, app, workspace, provider);
-    await session.testid('documents-toolbar', 20_000);
+    await session.testid('documents-files-controls', 20_000);
     await session.waitForBodyText(SOURCE_NAME, { timeoutMs: 20_000 });
 
     log('Preparing real desktop RAG index for the seeded source.');

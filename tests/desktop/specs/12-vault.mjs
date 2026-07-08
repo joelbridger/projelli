@@ -194,7 +194,7 @@ export default {
       workspacePath: workspace,
       workspaceName: WORKSPACE_NAME,
     });
-    await session.testid('documents-toolbar', 15_000);
+    await session.testid('documents-files-controls', 15_000);
     await session.testid('documents-tab-strip', 15_000);
     await session.waitForBodyText('client-intake.txt', { timeoutMs: 15_000 });
     await session.waitForBodyText('matter-notes', { timeoutMs: 15_000 });
@@ -209,7 +209,7 @@ export default {
     await session.testid('vault-enable-explain', 15_000);
     await session.clickTestid('vault-enable-cancel', 10_000);
     await app.gotoSurface(session, 'Documents');
-    await session.testid('documents-toolbar', 15_000);
+    await session.testid('documents-files-controls', 15_000);
 
     const created = await invokeOrBlockOnKeychain(
       session,
@@ -253,7 +253,7 @@ export default {
 
     await session.typeTestid('recovery-phrase-input', recoveryPhrase, 10_000);
     await clickButtonByText(session, app, 'Unlock');
-    await session.testid('documents-toolbar', 45_000);
+    await session.testid('documents-files-controls', 45_000);
     await session.waitForBodyText('client-intake.txt', { timeoutMs: 20_000 });
     await session.waitForBodyText('matter-notes', { timeoutMs: 20_000 });
 

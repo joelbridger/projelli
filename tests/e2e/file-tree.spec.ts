@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { waitForTestModeLoad, hardClick, gotoDocuments } from './helpers/test-utils';
+import { waitForTestModeLoad, hardClick, gotoDocuments, openDocumentsCreateMenu } from './helpers/test-utils';
 
 async function openDocumentsFiles(page: import('@playwright/test').Page) {
   await gotoDocuments(page);
@@ -93,22 +93,23 @@ test.describe('File Tree', () => {
     });
   });
 
-  test.describe('File Tree Toolbar', () => {
-    test('Documents toolbar buttons are present', async ({ page }) => {
+  test.describe('File Tree Controls', () => {
+    test('Documents file controls and create menu are present', async ({ page }) => {
       const fileTree = page.getByTestId('file-tree');
       await expect(fileTree).toBeVisible();
 
-      const toolbar = page.getByTestId('documents-toolbar');
-      await expect(toolbar.getByRole('button', { name: 'New document' })).toBeVisible();
-      await expect(toolbar.getByRole('button', { name: 'New folder' })).toBeVisible();
-      await expect(toolbar.getByTestId('add-files-btn')).toBeVisible();
-      await expect(toolbar.getByTestId('docs-view-toggle')).toBeVisible();
+      await expect(page.getByTestId('documents-files-controls')).toBeVisible();
+      await expect(page.getByTestId('docs-view-toggle')).toBeVisible();
+      await openDocumentsCreateMenu(page);
+      await expect(page.getByTestId('documents-create-document')).toBeVisible();
+      await expect(page.getByTestId('documents-create-folder')).toBeVisible();
+      await expect(page.getByTestId('add-files-btn')).toBeVisible();
     });
 
     test('visual snapshot: Documents tree view', async ({ page }) => {
       const fileTree = page.getByTestId('file-tree');
       await expect(fileTree).toBeVisible();
-      await expect(page.getByTestId('documents-toolbar')).toBeVisible();
+      await expect(page.getByTestId('documents-files-controls')).toBeVisible();
       await expect(page.getByTestId('documents-tree-view')).toBeVisible();
     });
   });
