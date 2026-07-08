@@ -4,24 +4,19 @@
  * Replaces the old "wrap WorkflowPanel" shim with a purpose-built,
  * grouped workflow library. The surface is self-contained: it loads
  * templates via loadAllTemplates(), groups them by category, and renders
- * a scannable grid with collapse/expand, a search bar, practice-area filter
- * chips, and a "recent runs" strip. The only external seams are the five
+ * a scannable rail with a search bar, one practice-area filter dropdown,
+ * and recent runs. The only external seams are the five
  * props forwarded from App.tsx (unchanged interface so App.tsx needs no edits).
  *
  * Design:
  *  - Header: eyebrow "WORKFLOWS" + title "Workflows" + search box.
- *  - Practice-area filter chips (horizontal pill row) derived from the actual
- *    categories present after profession scoping. "All" shows everything;
- *    a specific chip narrows the list to that category. Search further narrows
+ *  - Practice-area filter dropdown derived from the actual categories present
+ *    after profession scoping. "All workflows" shows everything; a specific
+ *    category narrows the list. Search further narrows
  *    within the selected category (or across all when "All" is active).
- *  - Groups by category in professional order: Legal first (for law ICP),
- *    then Tax / Consulting / Advisors / General / Custom.
- *  - Each group renders as a labeled section with a count badge and a
- *    collapse toggle. Default: top 6 cards visible with a "Show all (N)"
- *    expander so the first screen is calm.
  *  - "Start here" highlight on the primary first task for the legal profession
- *    (Deposition Contradiction Finder) — a subtle accent ring + label.
- *  - Recent Runs strip using runHistory (last 4), each row clickable
+ *    (Deposition Contradiction Finder) — a subtle star cue.
+ *  - Recent Runs strip using runHistory (last 4 for the selected workflow), each row clickable
  *    (onFocusExecutionTab) and showing status + relative time.
  *  - providerError banner with onOpenSettings action.
  *  - trial-locked state: Run buttons disabled with tooltip.
@@ -43,7 +38,7 @@ import {
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import { Button, Chip, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader, Badge } from '@/ui/kp';
+import { Button, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
@@ -52,7 +47,13 @@ import { useProfessionStore, isLawExperience } from '@/platform/profile/professi
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import {
+  NO_AI_PROVIDER,
+  providerDisplayName,
+  resolveEgress,
+  type ConfidentialityMode,
+  type EgressProvider,
+} from '@/platform/privacy/egress';
 import { SK_WORKFLOWS_FILTER } from '@/config/identity';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
@@ -81,20 +82,18 @@ type FilterKey = TemplateCategory | 'all';
 
 interface CategoryConfig {
   key: TemplateCategory;
-  label: string;
-  description: string;
 }
 
 const CATEGORY_ORDER: CategoryConfig[] = [
-  { key: 'legal', label: 'Legal Practice', description: 'Litigation, discovery, client intake, and transactional work' },
-  { key: 'tax', label: 'Tax', description: 'Tax research, planning, and compliance workflows' },
-  { key: 'consulting', label: 'Consulting', description: 'Client engagements, strategy, and deliverables' },
-  { key: 'advisors', label: 'Advisors', description: 'Advisory practice workflows and client management' },
-  { key: 'research', label: 'Research', description: 'General research and analysis' },
-  { key: 'analysis', label: 'Analysis', description: 'Document and data analysis' },
-  { key: 'planning', label: 'Planning', description: 'Business and project planning' },
-  { key: 'kickoff', label: 'Kickoff', description: 'New project and client onboarding' },
-  { key: 'custom', label: 'Custom', description: 'Your own saved templates' },
+  { key: 'legal' },
+  { key: 'tax' },
+  { key: 'consulting' },
+  { key: 'advisors' },
+  { key: 'research' },
+  { key: 'analysis' },
+  { key: 'planning' },
+  { key: 'kickoff' },
+  { key: 'custom' },
 ];
 
 /**
@@ -153,36 +152,35 @@ function formatRelativeTime(isoString: string): string {
 
 // ── Sub-components ─────────────────────────────────────────────────────────
 
-/** Practice-area filter chip. */
-function PracticeFilterChip({
-  label,
-  active,
-  testId,
-  onClick,
-}: {
-  label: string;
-  active: boolean;
-  testId?: string;
-  onClick: () => void;
-}) {
-  return (
-    <Chip
-      active={active}
-      size="pill"
-      data-testid={testId}
-      onClick={onClick}
-    >
-      {label}
-    </Chip>
-  );
-}
-
 function categoryConfigFor(key: TemplateCategory): CategoryConfig {
   return CATEGORY_ORDER.find((cfg) => cfg.key === key) ?? {
     key,
-    label: key,
-    description: '',
   };
+}
+
+function categoryLabel(t: ReturnType<typeof useTranslation>['t'], key: TemplateCategory): string {
+  return t(`workflow.associate.categories.${key}.label`);
+}
+
+function categoryDescription(t: ReturnType<typeof useTranslation>['t'], key: TemplateCategory): string {
+  return t(`workflow.associate.categories.${key}.description`);
+}
+
+const SHORT_TEMPLATE_DESCRIPTIONS: Record<string, string> = {
+  'advisors-meeting-prep-suitability-notes':
+    'Build a pre-meeting brief with client snapshot, recap, suitability prompts, and talking points.',
+  'advisors-annual-review-packet':
+    'Draft an annual review packet: cover letter, checklist, and plan-change summary.',
+  'legal-deposition-contradiction-finder':
+    'Find cited candidate contradictions in a deposition and client record for attorney review.',
+};
+
+function templateShortDescription(template: WorkflowTemplate): string {
+  return SHORT_TEMPLATE_DESCRIPTIONS[template.id] ?? template.description;
+}
+
+function runMatchesTemplate(run: RunRecord, template: WorkflowTemplate): boolean {
+  return run.workflow === template.id || run.workflow === template.name;
 }
 
 function WorkflowRailHeader({
@@ -215,43 +213,49 @@ function WorkflowRailHeader({
           borderBottom: '1px solid var(--kp-divider)',
         }}
       >
-        <SearchField
-          data-testid="associate-search"
-          value={query}
-          onChange={onQueryChange}
-          onClear={onQueryClear}
-          placeholder={t('workflow.associate.search-placeholder')}
-          size="sm"
-          style={{ width: '100%' }}
-        />
-        {presentCategories.length > 1 && (
-          <div
-            data-testid="associate-practice-filter"
-            aria-label={t('workflow.associate.filter-label')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              flexWrap: 'wrap',
-            }}
-          >
-            <PracticeFilterChip
-              label={t('workflow.associate.filter-all')}
-              active={activeFilter === 'all'}
-              testId="associate-filter-all"
-              onClick={() => { onFilterChange('all'); }}
-            />
-            {presentCategories.map((cfg) => (
-              <PracticeFilterChip
-                key={cfg.key}
-                label={cfg.label}
-                active={activeFilter === cfg.key}
-                testId={`associate-filter-${cfg.key}`}
-                onClick={() => { onFilterChange(cfg.key); }}
-              />
-            ))}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <SearchField
+            data-testid="associate-search"
+            value={query}
+            onChange={onQueryChange}
+            onClear={onQueryClear}
+            placeholder={t('workflow.associate.search-placeholder')}
+            size="sm"
+            style={{ minWidth: 0, flex: 1 }}
+          />
+          {presentCategories.length > 1 && (
+            <select
+              data-testid="associate-practice-filter"
+              aria-label={t('workflow.associate.filter-label')}
+              value={activeFilter}
+              onChange={(event) => { onFilterChange(event.target.value as FilterKey); }}
+              style={{
+                width: 118,
+                height: 32,
+                border: '1px solid var(--kp-divider)',
+                borderRadius: 8,
+                background: 'var(--color-background)',
+                color: 'var(--kp-navy)',
+                fontSize: 'var(--kp-font-xs)',
+                fontWeight: 'var(--kp-weight-medium)',
+                padding: '0 8px',
+              }}
+            >
+              <option data-testid="associate-filter-all" value="all">
+                {t('workflow.associate.filter-all')}
+              </option>
+              {presentCategories.map((cfg) => (
+                <option
+                  key={cfg.key}
+                  data-testid={`associate-filter-${cfg.key}`}
+                  value={cfg.key}
+                >
+                  {categoryLabel(t, cfg.key)}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -267,7 +271,6 @@ function WorkflowRailRow({
   isRunning: boolean;
 }) {
   const { t } = useTranslation();
-  const config = categoryConfigFor(template.category);
 
   return (
     <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 4 }}>
@@ -275,17 +278,16 @@ function WorkflowRailRow({
         <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 650 }}>
           {template.name}
         </span>
-        {isRunning ? <Loader2 size={13} strokeWidth={2} className="animate-spin" style={{ flex: 'none', color: 'var(--kp-accent)' }} /> : null}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-        <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-side-fg-dim)' }}>
-          {config.label}
-        </span>
         {isFeatured ? (
-          <Badge variant="featured" size="sm" icon={Star} uppercase>
-            {t('workflow.associate.start-here')}
-          </Badge>
+          <Star
+            aria-label={t('workflow.associate.start-here')}
+            size={13}
+            fill="currentColor"
+            strokeWidth={2}
+            style={{ flex: 'none', color: 'var(--kp-accent)' }}
+          />
         ) : null}
+        {isRunning ? <Loader2 size={13} strokeWidth={2} className="animate-spin" style={{ flex: 'none', color: 'var(--kp-accent)' }} /> : null}
       </div>
     </div>
   );
@@ -303,16 +305,12 @@ function WorkflowProgress({ currentExecution }: { currentExecution: WorkflowExec
       style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 8,
-        padding: '12px 14px',
-        border: '1px solid var(--kp-divider)',
-        borderRadius: 8,
-        background: 'var(--kp-bg-soft)',
+        gap: 6,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Loader2 size={16} strokeWidth={2} className="animate-spin" style={{ color: 'var(--kp-accent)' }} />
-        <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)' }}>
+        <Loader2 size={14} strokeWidth={2} className="animate-spin" style={{ color: 'var(--kp-accent)' }} />
+        <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
           {t('workflow.associate.live-run')}
         </span>
         <span style={{ marginLeft: 'auto', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', fontVariantNumeric: 'tabular-nums' }}>
@@ -346,7 +344,7 @@ function WorkflowRunButton({
 
   return (
     <Button
-      variant={isFeatured ? 'primary' : 'secondary'}
+      variant="primary"
       size="md"
       iconLeft={isRunning ? Loader2 : Play}
       loading={isRunning}
@@ -357,6 +355,67 @@ function WorkflowRunButton({
     >
       {isRunning ? t('workflow.associate.running') : t('workflow.associate.run')}
     </Button>
+  );
+}
+
+function WorkflowTrustLine({
+  provider,
+  mode,
+  onClick,
+}: {
+  provider: EgressProvider;
+  mode: ConfidentialityMode;
+  onClick?: () => void;
+}) {
+  const { t } = useTranslation();
+  const isDisconnected = provider === NO_AI_PROVIDER;
+  const info = isDisconnected ? null : resolveEgress({ provider, mode });
+  const label = isDisconnected
+    ? t('workflow.associate.trust-no-ai')
+    : info?.destination === 'local'
+      ? t('workflow.associate.trust-local')
+      : info?.destination === 'assured-proxy'
+        ? t('workflow.associate.trust-assured')
+        : t('workflow.associate.trust-direct', { provider: providerDisplayName(provider) });
+  const className =
+    'inline-flex max-w-[260px] items-center gap-1.5 rounded px-0 py-0 text-left text-xs font-medium text-muted-foreground';
+  const content = (
+    <>
+      <span aria-hidden="true" style={{ color: info?.dataLeaves === false ? 'var(--kp-success)' : 'var(--kp-warning)' }}>
+        •
+      </span>
+      <span data-testid="egress-indicator-label">{label}</span>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        data-testid="egress-indicator"
+        data-destination={isDisconnected ? 'none' : info?.destination}
+        data-data-leaves={info?.dataLeaves ? 'true' : 'false'}
+        aria-label={label}
+        title={isDisconnected ? label : `${info?.label}. ${info?.note}`}
+        className={className}
+        onClick={onClick}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div
+      data-testid="egress-indicator"
+      data-destination={isDisconnected ? 'none' : info?.destination}
+      data-data-leaves={info?.dataLeaves ? 'true' : 'false'}
+      role="status"
+      title={isDisconnected ? label : `${info?.label}. ${info?.note}`}
+      className={className}
+    >
+      {content}
+    </div>
   );
 }
 
@@ -395,6 +454,14 @@ function WorkflowDetail({
   const stepCount = template.steps.length;
   const requiredInputCount = template.requiredInputs.length;
   const outputCount = template.outputs.length;
+  const metadata = [
+    t('workflow.associate.steps-count', { count: stepCount }),
+    t('workflow.associate.inputs-count', { count: requiredInputCount }),
+    t('workflow.associate.outputs-count', { count: outputCount }),
+  ].join(' · ');
+  const shortDescription = templateShortDescription(template);
+  const showLongDescription = template.description !== shortDescription;
+  const categoryDetails = categoryDescription(t, config.key);
 
   return (
     <div
@@ -410,19 +477,30 @@ function WorkflowDetail({
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', padding: '22px 28px 18px', borderBottom: '1px solid var(--kp-divider)' }}>
         <div style={{ minWidth: 0, maxWidth: 780 }}>
-          <Eyebrow primary>{config.label}</Eyebrow>
+          <Eyebrow primary>{categoryLabel(t, config.key)}</Eyebrow>
           <h1 style={{ margin: '6px 0 8px', fontSize: 'var(--kp-font-2xl)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)' }}>
             {template.name}
           </h1>
-          <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-muted-foreground)' }}>
-            {template.description}
+          <p style={{ margin: '0 0 8px', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', fontVariantNumeric: 'tabular-nums' }}>
+            {metadata}
           </p>
+          <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-muted-foreground)' }}>
+            {shortDescription}
+          </p>
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ cursor: 'pointer', color: 'var(--kp-accent)', fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)' }}>
+              {t('workflow.associate.details')}
+            </summary>
+            <div style={{ display: 'grid', gap: 6, marginTop: 8, color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', lineHeight: 'var(--kp-leading-relaxed)' }}>
+              {showLongDescription ? <p style={{ margin: 0 }}>{template.description}</p> : null}
+              <p style={{ margin: 0 }}>{categoryDetails}</p>
+            </div>
+          </details>
         </div>
         <div style={{ display: 'flex', flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
-          <EgressIndicator
+          <WorkflowTrustLine
             provider={egressProvider}
             mode={confidentialityMode}
-            variant="status"
             onClick={onOpenSettings}
           />
           <WorkflowRunButton
@@ -443,7 +521,6 @@ function WorkflowDetail({
           {isAnotherWorkflowRunning ? (
             <div data-testid="associate-other-workflow-running">
               <Callout variant="info" icon={Clock}>
-                <strong>{t('workflow.associate.other-running-title')}</strong>{' '}
                 {t('workflow.associate.other-running-body')}
               </Callout>
             </div>
@@ -457,24 +534,32 @@ function WorkflowDetail({
                   <div
                     key={step.id}
                     style={{
-                      display: 'grid',
-                      gridTemplateColumns: '28px minmax(0, 1fr)',
-                      gap: 10,
                       padding: '10px 0',
-                      borderBottom: '1px solid var(--kp-divider)',
+                      borderBottom: template.steps.length > 5 ? '1px solid var(--kp-divider)' : 'none',
                     }}
                   >
-                    <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', fontVariantNumeric: 'tabular-nums' }}>
-                      {String(index + 1)}
-                    </span>
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ display: 'block', color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-sm)' }}>
-                        {step.name}
-                      </span>
-                      <span style={{ display: 'block', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', lineHeight: 'var(--kp-leading-relaxed)', marginTop: 2 }}>
-                        {step.description}
-                      </span>
-                    </span>
+                    {step.description ? (
+                      <details>
+                        <summary style={{ display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr)', gap: 10, cursor: 'pointer', color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-sm)' }}>
+                          <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', fontVariantNumeric: 'tabular-nums' }}>
+                            {String(index + 1)}
+                          </span>
+                          <span>{step.name}</span>
+                        </summary>
+                        <p style={{ margin: '6px 0 0 38px', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', lineHeight: 'var(--kp-leading-relaxed)' }}>
+                          {step.description}
+                        </p>
+                      </details>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr)', gap: 10 }}>
+                        <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', fontVariantNumeric: 'tabular-nums' }}>
+                          {String(index + 1)}
+                        </span>
+                        <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-sm)' }}>
+                          {step.name}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -508,26 +593,6 @@ function WorkflowDetail({
             </section>
           )}
         </div>
-
-        <aside style={{ display: 'flex', minWidth: 220, flex: '1 1 260px', maxWidth: 320, flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-            <Badge variant="neutral" size="md">
-              {t('workflow.associate.steps-count', { count: stepCount })}
-            </Badge>
-            <Badge variant="neutral" size="md">
-              {t('workflow.associate.required-inputs-count', { count: requiredInputCount })}
-            </Badge>
-            <Badge variant="neutral" size="md">
-              {t('workflow.associate.outputs-count', { count: outputCount })}
-            </Badge>
-          </div>
-          <div style={{ borderTop: '1px solid var(--kp-divider)', paddingTop: 12 }}>
-            <Eyebrow>{t('workflow.associate.category')}</Eyebrow>
-            <p style={{ margin: '6px 0 0', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', lineHeight: 'var(--kp-leading-relaxed)' }}>
-              {config.description}
-            </p>
-          </div>
-        </aside>
       </div>
     </div>
   );
@@ -687,7 +752,7 @@ export function AssociateHome({
   }, [profession]);
 
   // Derive the ordered set of categories that are actually present.
-  // The active profession's category is floated to the top so the filter chips
+  // The active profession's category is floated to the top so the filter dropdown
   // mirror the same ordering as the section list below.
   const presentCategories = useMemo((): CategoryConfig[] => {
     const present = new Set(templates.map((t) => t.category));
@@ -704,7 +769,7 @@ export function AssociateHome({
     return ordered;
   }, [templates, profession]);
 
-  // Apply practice-area filter chip first to get the pre-search scope.
+  // Apply practice-area filter first to get the pre-search scope.
   const categoryFiltered = useMemo(() => {
     return activeFilter === 'all'
       ? templates
@@ -724,11 +789,16 @@ export function AssociateHome({
   // Featured template: first task in the legal profession (starts-here hint).
   const featuredId = isLawExperience(profession) ? LAW_FEATURED_ID : null;
 
-  const recentRuns = runHistory.slice(0, 4);
-
   const selectedWorkflow = useMemo(
     () => filtered.find((template) => template.id === selectedWorkflowId) ?? filtered[0] ?? null,
     [filtered, selectedWorkflowId],
+  );
+
+  const selectedWorkflowRuns = useMemo(
+    () => selectedWorkflow
+      ? runHistory.filter((run) => runMatchesTemplate(run, selectedWorkflow)).slice(0, 4)
+      : [],
+    [runHistory, selectedWorkflow],
   );
 
   const railItems = useMemo(
@@ -767,7 +837,7 @@ export function AssociateHome({
     [onOpenRunArtifact],
   );
 
-  // When the filter chip changes, reset search so the state is consistent.
+  // When the filter changes, reset search so the state is consistent.
   function handleFilterChange(key: FilterKey) {
     setActiveFilter(key);
     setQuery('');
@@ -809,11 +879,6 @@ export function AssociateHome({
         activeId={selectedWorkflow?.id ?? null}
         onSelect={setSelectedWorkflowId}
         railWidth={284}
-        emptyState={
-          <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
-            {t('workflow.associate.empty-title')}
-          </span>
-        }
         className="min-h-0 flex-1"
         contentClassName="bg-[var(--color-background)]"
       >
@@ -892,7 +957,7 @@ export function AssociateHome({
               currentExecution={currentExecution}
               trialLocked={trialGate.isLocked}
               featuredId={featuredId}
-              recentRuns={recentRuns}
+              recentRuns={selectedWorkflowRuns}
               missingArtifactRunIds={missingArtifactRunIds}
               onRun={onStartWorkflow}
               {...(onFocusExecutionTab !== undefined && { onFocusExecutionTab })}
