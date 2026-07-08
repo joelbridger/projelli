@@ -3,6 +3,7 @@
 // toggle, the AI redline instruction composer, and the redline results
 // summary. Pure presentational; every input arrives via props.
 
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, Check, Loader2, Sparkles, Wand2, X } from 'lucide-react';
 import { Button } from '@/ui/button';
@@ -82,6 +83,7 @@ export function RedlineComposer({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(() => instruction.trim().length > 0);
   return (
     <div
       data-testid="docx-redline-composer"
@@ -103,7 +105,13 @@ export function RedlineComposer({
         <Textarea
           data-testid="docx-redline-input"
           value={instruction}
-          onChange={(e) => { onInstructionChange(e.target.value); }}
+          onFocus={() => {
+            setExpanded(true);
+          }}
+          onChange={(e) => {
+            if (e.target.value.trim().length > 0) setExpanded(true);
+            onInstructionChange(e.target.value);
+          }}
           onKeyDown={(e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
               e.preventDefault();
@@ -112,7 +120,10 @@ export function RedlineComposer({
           }}
           placeholder={t('media.docx-editor.redline-placeholder')}
           disabled={busy || aiPaused}
-          className="min-h-[60px] resize-y bg-background text-sm"
+          className={cn(
+            'resize-y bg-background text-sm transition-[min-height]',
+            expanded ? 'min-h-[72px]' : 'min-h-9',
+          )}
         />
         {aiPaused && (
           <p

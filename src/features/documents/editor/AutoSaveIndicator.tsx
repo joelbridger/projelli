@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, Save } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { cn } from '@/lib/utils';
@@ -68,6 +69,7 @@ export function AutoSaveIndicator({
   onRetry,
   className,
 }: AutoSaveIndicatorProps) {
+  const { t } = useTranslation();
   // Self-updating "now" so the "Ns ago" label refreshes each second.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -95,14 +97,14 @@ export function AutoSaveIndicator({
       )}
       title={
         state === 'saved-recent' && lastSavedAt
-          ? `Last saved ${formatRelative(lastSavedAt, now)}`
+          ? t('editor.autosave.last-saved', { time: formatRelative(lastSavedAt, now) })
           : state === 'saving'
-            ? 'Saving…'
+            ? t('editor.autosave.saving')
             : state === 'dirty'
-              ? 'Unsaved changes — auto-save will run shortly'
+              ? t('editor.autosave.unsaved-tooltip')
               : state === 'error'
-                ? `Save failed: ${error ?? 'unknown error'}`
-                : 'No file open'
+                ? t('editor.autosave.save-failed-tooltip', { error: error ?? t('editor.autosave.unknown-error') })
+                : t('editor.autosave.no-file-open')
       }
     >
       {state === 'saving' ? (
@@ -114,11 +116,11 @@ export function AutoSaveIndicator({
         <Save data-testid="auto-save-indicator-icon" className="h-3 w-3" />
       )}
       <span data-testid="auto-save-indicator-label">
-        {state === 'idle' && 'Saved'}
-        {state === 'dirty' && 'Unsaved changes'}
-        {state === 'saving' && 'Saving…'}
-        {state === 'saved-recent' && lastSavedAt && `Saved · ${formatRelative(lastSavedAt, now)}`}
-        {state === 'error' && 'Save failed'}
+        {state === 'idle' && t('editor.autosave.saved')}
+        {state === 'dirty' && t('editor.autosave.unsaved')}
+        {state === 'saving' && t('editor.autosave.saving')}
+        {state === 'saved-recent' && lastSavedAt && t('editor.autosave.saved')}
+        {state === 'error' && t('editor.autosave.save-failed')}
       </span>
       {state === 'error' && onRetry && (
         <Button
@@ -128,7 +130,7 @@ export function AutoSaveIndicator({
           className="h-5 px-1.5 text-[11px] text-destructive hover:text-destructive"
           onClick={onRetry}
         >
-          Retry
+          {t('editor.autosave.retry')}
         </Button>
       )}
     </span>

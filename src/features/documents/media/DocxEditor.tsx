@@ -2065,21 +2065,6 @@ export function DocxEditor({
             </h2>
           )}
 
-          {onRenameFile ? (
-            <Button
-              type="button"
-              data-testid="docx-rename-file"
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 shrink-0 p-0"
-              title={t('media.docx-editor.rename-file')}
-              aria-label={t('media.docx-editor.rename-file')}
-              onClick={() => { setIsRenaming(true); }}
-            >
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-          ) : null}
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -2096,6 +2081,18 @@ export function DocxEditor({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
+              {onRenameFile && (
+                <DropdownMenuItem
+                  data-testid="docx-rename-file"
+                  onSelect={() => { setIsRenaming(true); }}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  {t('media.docx-editor.rename-file')}
+                </DropdownMenuItem>
+              )}
+              {onRenameFile && (
+                <DropdownMenuSeparator />
+              )}
               {onDownload && (
                 <DropdownMenuItem data-testid="toolbar-download" onSelect={onDownload}>
                   <Download className="mr-2 h-4 w-4" />

@@ -100,14 +100,14 @@ describe('High-risk files coverage', () => {
 
     render(<BatchDeleteHarness />);
 
-    expect(screen.getByText('2 items selected')).toBeInTheDocument();
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
     expect(screen.getByText('alpha.txt')).toBeInTheDocument();
     expect(screen.getByText('beta.txt')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('batch-delete'));
 
     await waitFor(() => {
-      expect(screen.queryByText('2 items selected')).not.toBeInTheDocument();
+      expect(screen.queryByText('2 selected')).not.toBeInTheDocument();
     });
 
     expect(screen.queryByTestId('batch-delete')).not.toBeInTheDocument();
@@ -141,6 +141,6 @@ describe('High-risk files coverage', () => {
     await waitFor(() => {
       expect(screen.getByLabelText('File content')).toHaveValue('Original client-safe language');
     });
-    expect(screen.queryByText('Version History')).not.toBeInTheDocument();
+    expect(screen.queryByText('History')).not.toBeInTheDocument();
   });
 });

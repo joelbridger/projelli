@@ -80,7 +80,6 @@ function decodeUtf8(buf: ArrayBuffer): string {
 
 export function BinaryVersionHistoryPanel({
   filePath,
-  fileName,
   fs,
   onRestored,
   onClose,
@@ -195,7 +194,6 @@ export function BinaryVersionHistoryPanel({
             <h2 className="text-lg font-semibold">
               {t('version.history.title')}
             </h2>
-            <p className="text-sm text-muted-foreground">{fileName}</p>
           </div>
         </div>
         <Button variant="ghost" size="sm" onClick={onClose}>
