@@ -239,12 +239,12 @@ export function RailShell({
         aria-label={rowAriaLabel}
         data-testid={item.testId}
         className={cn(
-          'group flex min-h-10 w-full items-center gap-2 rounded-md border border-transparent px-2.5 py-2 text-left text-sm transition-colors',
+          'group flex min-h-[42px] w-full items-center gap-2 rounded-md border border-transparent px-3 py-2.5 text-left text-[var(--kp-font-sm)] transition-colors',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kp-navy)] focus-visible:ring-offset-2',
           item.disabled && 'cursor-not-allowed opacity-[var(--kp-opacity-disabled)]',
           isActive
-            ? 'border-[var(--kp-divider-strong)] bg-[var(--kp-side-active-bg)] text-[var(--kp-navy)]'
-            : 'text-[var(--kp-side-fg)] hover:bg-[var(--kp-accent-softer)] hover:text-[var(--kp-navy)]',
+            ? 'border-[rgba(var(--kp-navy-rgb),0.10)] bg-[var(--kp-accent-soft)] text-[var(--kp-navy)]'
+            : 'text-[var(--color-foreground)] hover:bg-[var(--kp-accent-softer)] hover:text-[var(--kp-navy)]',
         )}
         onClick={(event) => {
           handleRowClick(event, item.id, item.disabled);
@@ -278,7 +278,7 @@ export function RailShell({
     <section className={cn('flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--color-background)]', className)}>
       <aside
         className={cn(
-          'flex h-full min-h-0 flex-col border-r border-[var(--kp-divider)] bg-[var(--kp-side-bg)] text-[var(--kp-side-fg)]',
+          'flex h-full min-h-0 flex-col border-r border-[var(--kp-divider)] bg-[var(--color-background)] text-[var(--color-foreground)]',
           railClassName,
         )}
         style={getRailWidthStyle(railWidth)}
@@ -288,7 +288,7 @@ export function RailShell({
           ref={scrollRef}
           role="listbox"
           aria-label={listAriaLabel}
-          className={cn('flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden p-3 [scrollbar-width:thin]', listClassName)}
+          className={cn('flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden p-3 [scrollbar-width:thin]', listClassName)}
         >
           {items.length === 0 && emptyState ? <div className="p-2">{emptyState}</div> : null}
           {virtualEnabled ? (
@@ -305,7 +305,7 @@ export function RailShell({
                     style={{
                       boxSizing: 'border-box',
                       left: 0,
-                      paddingBottom: 4,
+                      paddingBottom: 6,
                       position: 'absolute',
                       top: 0,
                       transform: `translateY(${String(virtualRow.start)}px)`,
@@ -333,7 +333,7 @@ export function RailShellHeader({ title, actions, className }: RailShellHeaderPr
   return (
     <div
       className={cn(
-        'flex min-h-[52px] shrink-0 items-center justify-between gap-2 border-b border-[var(--kp-divider)] px-3 py-2',
+        'flex min-h-[54px] shrink-0 items-center justify-between gap-2 border-b border-[var(--kp-divider)] bg-[var(--color-background)] px-3 py-2.5',
         className,
       )}
     >
