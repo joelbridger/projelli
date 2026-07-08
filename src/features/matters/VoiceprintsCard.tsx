@@ -42,7 +42,7 @@ export function VoiceprintsCard({ matterId, workspaceRoot }: { matterId: string;
         <span className="kp-eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flex: 1 }}>
           <Fingerprint size={13} aria-hidden /> {t('matter.voiceprints.title')}
         </span>
-        <span style={{ fontSize: 12, color: 'var(--kp-text-muted, #6b7280)' }}>
+        <span style={{ fontSize: 12, color: 'var(--kp-text-dim)' }}>
           {t('matter.voiceprints.count', { count: items.length })}
         </span>
         <Button
@@ -56,11 +56,11 @@ export function VoiceprintsCard({ matterId, workspaceRoot }: { matterId: string;
       </div>
       {expanded && (
         <div style={{ marginTop: 8 }}>
-          <p style={{ fontSize: 12, color: 'var(--kp-text-muted, #6b7280)', margin: '0 0 8px' }}>{t('matter.voiceprints.subtitle')}</p>
+          <p style={{ fontSize: 12, color: 'var(--kp-text-dim)', margin: '0 0 8px' }}>{t('matter.voiceprints.subtitle')}</p>
           {items.map((vp) => (
             <div key={vp.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0' }}>
               <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>{vp.name}</span>
-              <span style={{ fontSize: 11.5, color: 'var(--kp-text-muted, #6b7280)' }}>{t('matter.voiceprints.samples', { count: vp.sampleCount })}</span>
+              <span style={{ fontSize: 11.5, color: 'var(--kp-text-dim)' }}>{t('matter.voiceprints.samples', { count: vp.sampleCount })}</span>
               <button type="button" data-testid={`voiceprint-delete-${vp.id}`} aria-label={t('matter.voiceprints.delete')}
                 onClick={() => { setConfirming(vp); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--kp-danger, #b91c1c)' }}>
