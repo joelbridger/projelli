@@ -23,8 +23,8 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, FolderOpen, FolderTree, FileText, LayoutGrid, ListTree, MoreHorizontal, Plus, Trash2, Upload } from 'lucide-react';
-import { Callout, IconButton, SearchField } from '@/ui/kp';
+import { ExternalLink, FileText, FolderOpen, FolderTree, LayoutGrid, ListTree, MoreHorizontal, Plus, Trash2, Upload, X } from 'lucide-react';
+import { IconButton, SearchField, TrustNote } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   DropdownMenu,
@@ -218,12 +218,32 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
       style={{
         padding: 'var(--kp-space-xs) var(--kp-gutter)',
         borderBottom: '1px solid var(--kp-divider)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 'var(--kp-space-sm)',
         flexShrink: 0,
       }}
     >
-      <Callout variant="info" icon={FileText} onDismiss={onDismiss}>
+      <TrustNote icon={FileText}>
         {t('workspace.documents.trust-banner')}
-      </Callout>
+      </TrustNote>
+      <button
+        type="button"
+        onClick={onDismiss}
+        aria-label={t('workspace.documents.trust-dismiss')}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 24,
+          height: 24,
+          borderRadius: 'var(--kp-radius-sm)',
+          color: 'var(--kp-muted)',
+        }}
+      >
+        <X size={14} aria-hidden />
+      </button>
     </div>
   );
 }
@@ -402,13 +422,13 @@ export function DocumentsHome({
     if (documentsView === prevDocumentsViewRef.current) return;
     prevDocumentsViewRef.current = documentsView;
     const wantBrowser = documentsView === 'browser' || (embedded && !hasVisibleActiveTab);
-      userOnFilesRef.current = wantBrowser;
-      // queueMicrotask to stay consistent with the external-tab-change effect
-      // above (same rule: no synchronous setState inside the effect body).
-      queueMicrotask(() => {
-        if (!wantBrowser) setActiveView('files');
-        setUserOnFiles(wantBrowser);
-      });
+    userOnFilesRef.current = wantBrowser;
+    // queueMicrotask to stay consistent with the external-tab-change effect
+    // above (same rule: no synchronous setState inside the effect body).
+    queueMicrotask(() => {
+      if (!wantBrowser) setActiveView('files');
+      setUserOnFiles(wantBrowser);
+    });
   }, [documentsView, embedded, hasVisibleActiveTab]);
 
   // ── Tab handlers ─────────────────────────────────────────────────────────

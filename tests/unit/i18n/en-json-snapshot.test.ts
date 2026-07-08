@@ -83,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 62,
-        "workspace": 50,
+        "workspace": 51,
       }
     `);
   });
@@ -263,11 +263,11 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    // +49 = L4 Documents UX simplification: Trash/menu/settings copy (+20),
-    //      autosave copy (+10), and Documents/FileTree browser copy (+19)
+    // +50 = L4 Documents UX simplification: Trash/menu/settings copy (+20),
+    //      autosave copy (+10), and Documents/FileTree browser copy (+20)
     //      for rail Trash, toolbar create, quiet counts, empty states, and
     //      show-on-computer labels.
-    expect(flat.length).toBe(1596);
+    expect(flat.length).toBe(1597);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

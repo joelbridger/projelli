@@ -1,3 +1,4 @@
+/* eslint-disable lantern-i18n/no-hardcoded-string -- test fixture strings for a presentational primitive */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { QuietStatus } from './QuietStatus';

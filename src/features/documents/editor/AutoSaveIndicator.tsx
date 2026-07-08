@@ -20,8 +20,9 @@
 
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, Save } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { QuietStatus, type QuietStatusState } from '@/ui/kp';
 import { cn } from '@/lib/utils';
 
 export type AutoSaveState = 'idle' | 'dirty' | 'saving' | 'saved-recent' | 'error';
@@ -86,14 +87,27 @@ export function AutoSaveIndicator({
   else if (isDirty) state = 'dirty';
   else if (lastSavedAt) state = 'saved-recent';
 
+  const quietState: QuietStatusState =
+    state === 'error' ? 'failure' : state === 'saving' || state === 'dirty' ? 'pending' : 'ok';
+  const label =
+    state === 'dirty'
+      ? t('editor.autosave.unsaved')
+      : state === 'saving'
+        ? t('editor.autosave.saving')
+        : state === 'error'
+          ? t('editor.autosave.save-failed')
+          : t('editor.autosave.saved');
+
   return (
-    <span
+    <QuietStatus
       data-testid="auto-save-indicator"
       data-state={state}
+      state={quietState}
+      {...(state === 'saving' ? { icon: Loader2 } : {})}
       className={cn(
-        'text-xs flex items-center gap-1 mr-2',
-        state === 'error' ? 'text-destructive' : 'text-muted-foreground',
-        className
+        'mr-2',
+        state === 'saving' && '[&_.kp-quietstatus__icon_svg]:animate-spin',
+        className,
       )}
       title={
         state === 'saved-recent' && lastSavedAt
@@ -108,31 +122,22 @@ export function AutoSaveIndicator({
       }
     >
       {state === 'saving' ? (
-        <Loader2
-          data-testid="auto-save-indicator-icon"
-          className="h-3 w-3 animate-spin"
-        />
-      ) : (
-        <Save data-testid="auto-save-indicator-icon" className="h-3 w-3" />
-      )}
+        <span data-testid="auto-save-indicator-icon" className="sr-only" />
+      ) : null}
       <span data-testid="auto-save-indicator-label">
-        {state === 'idle' && t('editor.autosave.saved')}
-        {state === 'dirty' && t('editor.autosave.unsaved')}
-        {state === 'saving' && t('editor.autosave.saving')}
-        {state === 'saved-recent' && lastSavedAt && t('editor.autosave.saved')}
-        {state === 'error' && t('editor.autosave.save-failed')}
+        {label}
       </span>
       {state === 'error' && onRetry && (
         <Button
           data-testid="auto-save-indicator-retry"
           variant="ghost"
           size="sm"
-          className="h-5 px-1.5 text-[11px] text-destructive hover:text-destructive"
+          className="ml-1 h-5 px-1.5 text-[11px] text-destructive hover:text-destructive"
           onClick={onRetry}
         >
           {t('editor.autosave.retry')}
         </Button>
       )}
-    </span>
+    </QuietStatus>
   );
 }
