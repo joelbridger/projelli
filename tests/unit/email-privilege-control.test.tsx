@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 
 const mockMailGetMessage = vi.fn();
 
@@ -54,6 +54,16 @@ function spyOnSetPrivilege() {
   return vi.spyOn(usePrivilegeStore.getState(), 'setPrivilege');
 }
 
+async function openPrivilegeMenu() {
+  const trigger = screen.getByTestId('email-privilege-control').querySelector('button');
+  expect(trigger).not.toBeNull();
+  fireEvent.pointerDown(trigger!, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger!);
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
 describe('EmailViewer per-message privilege control (VG-5c)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -72,6 +82,7 @@ describe('EmailViewer per-message privilege control (VG-5c)', () => {
 
     const control = await screen.findByTestId('email-privilege-control');
     expect(control).toBeInTheDocument();
+    await openPrivilegeMenu();
     // Default state: not privileged.
     expect(screen.getByTestId('email-privilege-option-none')).toHaveAttribute(
       'aria-checked',
@@ -93,6 +104,7 @@ describe('EmailViewer per-message privilege control (VG-5c)', () => {
     render(<EmailViewer sourceId="mail:AAMk-xyz" />);
 
     await screen.findByTestId('email-privilege-control');
+    await openPrivilegeMenu();
     fireEvent.click(screen.getByTestId('email-privilege-option-work-product'));
 
     expect(setPrivilege).toHaveBeenCalledWith('mail:AAMk-xyz', 'work-product');
@@ -107,7 +119,9 @@ describe('EmailViewer per-message privilege control (VG-5c)', () => {
     const setPrivilege = spyOnSetPrivilege();
     render(<EmailViewer sourceId="mail:AAMk-xyz" />);
 
-    const wpOption = await screen.findByTestId('email-privilege-option-work-product');
+    await screen.findByTestId('email-privilege-control');
+    await openPrivilegeMenu();
+    const wpOption = screen.getByTestId('email-privilege-option-work-product');
     expect(wpOption).toHaveAttribute('aria-checked', 'true');
 
     fireEvent.click(screen.getByTestId('email-privilege-option-none'));
@@ -124,11 +138,12 @@ describe('EmailViewer per-message privilege control (VG-5c)', () => {
     await screen.findByTestId('email-privilege-control');
     expect(screen.queryByTestId('email-privilege-note')).toBeNull();
 
+    await openPrivilegeMenu();
     fireEvent.click(screen.getByTestId('email-privilege-option-attorney-client'));
     const note = screen.getByTestId('email-privilege-note');
-    expect(note).toHaveTextContent('Excluded from AI retrieval by default.');
-    expect(note).toHaveTextContent('Include sensitive content');
+    expect(note).toHaveTextContent('Excluded from AI unless you turn on Include sensitive content.');
 
+    await openPrivilegeMenu();
     fireEvent.click(screen.getByTestId('email-privilege-option-none'));
     expect(screen.queryByTestId('email-privilege-note')).toBeNull();
   });

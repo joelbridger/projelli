@@ -86,7 +86,7 @@ describe('first-connect TTV callout', () => {
     render(<EmailWorkspace />);
     await act(async () => { await vi.runAllTimersAsync(); });
     expect(screen.getByTestId('first-connect-callout')).toBeInTheDocument();
-    expect(screen.getByText(/Try a search your inbox never could/i)).toBeInTheDocument();
+    expect(screen.getByText(/Email connected. Try searching by name, topic, or deadline./i)).toBeInTheDocument();
     expect(screen.queryByText(/inbox search never could/i)).not.toBeInTheDocument();
   });
 

@@ -66,6 +66,17 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
   }),
 }));
 
+vi.mock('@/platform/providers/resolveLocalProvider', () => ({
+  resolveLocalGenerationProvider: vi.fn(async () => ({
+    provider: {
+      sendMessage: vi.fn(async () => ({ content: 'Draft reply here.' })),
+      getMetadata: vi.fn(() => ({ model: 'llama3.1:8b' })),
+    },
+    providerId: 'ollama',
+    model: 'llama3.1:8b',
+  })),
+}));
+
 // EmailViewer builds every cloud provider through the shared front-door
 // factory (fix F2.2) — createProvider({ provider, apiKey, model?, assured? }).
 // This mock captures the opts (esp. `provider`/`assured`) so tests can prove
@@ -97,6 +108,11 @@ import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
 
 const emitterSpy = vi.fn((_entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {});
+
+async function openReplyComposer() {
+  fireEvent.click(screen.getByTestId('reply-open-btn'));
+  await screen.findByTestId('reply-to-input');
+}
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {
   return {
@@ -381,6 +397,7 @@ describe('EmailViewer — outbound send audit', () => {
 
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-reply-area');
+    await openReplyComposer();
 
     fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
     fireEvent.change(screen.getByTestId('reply-subject-input'), { target: { value: 'Re: Closing date' } });
@@ -413,6 +430,7 @@ describe('EmailViewer — outbound send audit', () => {
 
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-reply-area');
+    await openReplyComposer();
     fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
     fireEvent.change(screen.getByTestId('reply-draft-textarea'), { target: { value: 'Thanks.' } });
 
@@ -431,6 +449,7 @@ describe('EmailViewer — outbound send audit', () => {
 
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-reply-area');
+    await openReplyComposer();
     fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
     fireEvent.change(screen.getByTestId('reply-draft-textarea'), { target: { value: 'Hi.' } });
 
