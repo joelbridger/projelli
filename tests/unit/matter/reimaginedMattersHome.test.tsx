@@ -234,6 +234,22 @@ describe('MattersHome — row actions menu', () => {
     }
   });
 
+  it('opens per-client settings from the row menu', async () => {
+    useMatterStore.getState().createMatter({ name: 'Settings Test', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const events: CustomEvent[] = [];
+    const handler = (e: Event) => { events.push(e as CustomEvent); };
+    window.addEventListener('lantern:open-client-settings', handler);
+
+    render(<MattersHome />);
+    await openRowMenu(matter.id);
+    fireEvent.click(await screen.findByTestId(`matter-settings-${matter.id}`));
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail.matterId).toBe(matter.id);
+    window.removeEventListener('lantern:open-client-settings', handler);
+  });
+
   it('archives from the three-dot row menu, not from a visible row button', async () => {
     useMatterStore.getState().createMatter({ name: 'Archive Menu Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
