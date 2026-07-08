@@ -350,9 +350,6 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
               <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)' }}>
                 Update Wealthbox
               </span>
-              <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-                Nothing sends until you approve
-              </span>
             </div>
             <button
               type="button"
@@ -454,7 +451,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                 Approve {pluralize(selectedIds.length, 'change')}
               </Button>
               <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-                Nothing is written to Wealthbox until you approve.
+                {t('matter.crmWrite.approve-to-send')}
               </span>
             </div>
           )}

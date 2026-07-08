@@ -26,7 +26,9 @@ beforeEach(() => {
 describe('VoiceprintsCard', () => {
   it('lists profiles and deletes with confirmation', async () => {
     render(<VoiceprintsCard matterId="m1" workspaceRoot="/w" />);
-    await waitFor(() => { expect(screen.getByText('Sarah Henderson')).toBeTruthy(); });
+    await waitFor(() => { expect(screen.getByText('1 profile')).toBeTruthy(); });
+    fireEvent.click(screen.getByTestId('voiceprints-manage'));
+    expect(screen.getByText('Sarah Henderson')).toBeTruthy();
     fireEvent.click(screen.getByTestId('voiceprint-delete-vp1'));
     fireEvent.click(screen.getByTestId('voiceprint-delete-confirm'));
     await waitFor(() => {
