@@ -155,8 +155,9 @@ describe('Spine — Clients section', () => {
 
   it('stays an icon regardless of how many clients exist (C2: no threshold UI — regression, caught by Jameson on the bench)', () => {
     matterMocks.matters = Array.from({ length: 26 }, (_, i) => ({
-      ...matterMocks.matters[0],
+      ...matterMocks.matters[0]!,
       id: `m${i}`,
+      name: `Client ${i}`,
       label: `Client ${i}`,
       client: `Client ${i}`,
     }));
