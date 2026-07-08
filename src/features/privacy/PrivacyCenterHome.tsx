@@ -9,7 +9,7 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, Download, MapPin, MoreVertical } from 'lucide-react';
+import { Lock, Download, MapPin, MoreVertical } from 'lucide-react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';

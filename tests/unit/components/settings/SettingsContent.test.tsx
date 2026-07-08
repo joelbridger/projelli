@@ -139,6 +139,7 @@ describe('SettingsContent', () => {
   it('search can find startup by the visible reopen wording', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
+    fireEvent.click(screen.getByTestId('settings-search-toggle'));
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'reopen where you left off' },
     });
@@ -149,6 +150,7 @@ describe('SettingsContent', () => {
   it('search does not expose the retired tab overflow setting', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
+    fireEvent.click(screen.getByTestId('settings-search-toggle'));
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'wrap to multiple rows' },
     });
