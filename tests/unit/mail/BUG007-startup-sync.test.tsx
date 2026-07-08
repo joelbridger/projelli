@@ -305,7 +305,7 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       });
     });
 
-    expect(await getSyncMenuItem()).toHaveTextContent('Importing... 42 messages');
+    expect(await getSyncMenuItem()).toHaveTextContent('Importing 42 messages');
   });
 
   it('(h) keeps Sync now disabled until the whole all-provider sync finishes', async () => {

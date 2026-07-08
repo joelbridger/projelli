@@ -278,11 +278,11 @@ describe('SettingsModal controls per section', () => {
     renderModal('workspace');
     expandSubsection('subheader-general');
 
-    expect(screen.getByText('On Startup')).toBeInTheDocument();
-    expect(screen.getByLabelText('On Startup')).toBeInTheDocument();
+    expect(screen.getByText('Startup')).toBeInTheDocument();
+    expect(screen.getByLabelText('Startup')).toBeInTheDocument();
     expect(screen.queryByText('What happens when you launch Lantern.')).not.toBeInTheDocument();
 
-    const info = screen.getByRole('button', { name: 'About On Startup' });
+    const info = screen.getByRole('button', { name: 'About Startup' });
     expect(info).toBeInTheDocument();
 
     fireEvent.mouseEnter(info);
@@ -447,7 +447,7 @@ describe('SettingsModal search selects matching tab', () => {
     // Editor is not the active tab by default (General is first).
     expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
     fireEvent.change(screen.getByTestId('settings-search'), {
-      target: { value: 'auto save' },
+      target: { value: 'autosave' },
     });
     // The Editor tab is now auto-selected and its panel is in the DOM.
     expect(screen.getByTestId('subsection-editor')).toBeInTheDocument();
@@ -457,7 +457,7 @@ describe('SettingsModal search selects matching tab', () => {
   it('clearing the search restores the default first-tab selection', () => {
     renderModal('workspace');
     fireEvent.change(screen.getByTestId('settings-search'), {
-      target: { value: 'auto save' },
+      target: { value: 'autosave' },
     });
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('settings-search'), {

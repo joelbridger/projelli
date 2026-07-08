@@ -224,9 +224,9 @@ describe('SettingsContent — search auto-selects matching tab', () => {
     // Editor is not the active tab by default (General is first).
     expect(screen.queryByTestId('subsection-editor')).not.toBeInTheDocument();
 
-    // Search for "auto save" — it lives in the Editor sub-section (non-first).
+    // Search for "autosave": it lives in the Editor sub-section (non-first).
     fireEvent.change(screen.getByTestId('settings-search'), {
-      target: { value: 'auto save' },
+      target: { value: 'autosave' },
     });
 
     // The Editor tab's content panel should now be in the DOM (auto-selected by search).
