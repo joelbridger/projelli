@@ -5,10 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
+import type { AuditEntry } from '@/platform/types/audit';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
@@ -95,6 +96,7 @@ vi.mock('@/platform/state/aiChatStore', () => ({
 // ── Import components after mocks ──────────────────────────────────────────────
 import { MattersHome } from '@/features/matters/MattersHome';
 import { MatterHub } from '@/features/matters/MatterHub';
+import { AuditHome } from '@/features/audit/AuditHome';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 
 function resetStore() {
@@ -399,12 +401,23 @@ describe('MatterHub — sub-tab workspace', () => {
   it('opens the per-client activity feed from the History menu item', async () => {
     useMatterStore.getState().createMatter({ name: 'History Co', client: 'History Co' });
     const matter = useMatterStore.getState().matters[0]!;
+    const drawerEntry: AuditEntry = {
+      id: 'drawer-fit-entry',
+      timestamp: '2026-07-08T14:22:00.000Z',
+      action: 'egress',
+      description: 'Reviewed a very long client activity item that needs to wrap instead of disappearing beyond the right edge of the drawer.',
+      model: 'claude-sonnet-4-with-a-long-provider-label',
+      inputs: {},
+      outputs: {},
+      userDecision: 'approved',
+      metadata: { mode: 'direct' },
+    };
 
     render(
       <MatterHub
         matterId={matter.id}
         onBack={() => undefined}
-        renderActivity={() => <div data-testid="stub-activity">client activity feed</div>}
+        renderActivity={() => <AuditHome entries={[drawerEntry]} />}
       />,
     );
 
@@ -415,9 +428,25 @@ describe('MatterHub — sub-tab workspace', () => {
     expect(historyButton).toHaveTextContent('History');
     fireEvent.click(historyButton);
 
-    expect(screen.getByTestId('clientmap-history-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('clientmap-history-panel')).toHaveStyle({ width: '720px' });
-    expect(screen.getByTestId('stub-activity')).toHaveTextContent('client activity feed');
+    const panel = screen.getByTestId('clientmap-history-panel');
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveStyle({ width: '720px' });
+
+    const row = await within(panel).findByTestId('audit-table-row');
+    const actionLine = within(row).getByTestId('audit-row-action-line');
+    const description = within(row).getByTestId('audit-row-description');
+    const meta = within(row).getByTestId('audit-row-meta');
+    const modelBadge = within(row).getByText('claude-sonnet-4-with-a-long-provider-label');
+
+    expect(row.style.gridTemplateColumns).not.toBe('160px 1fr 120px 100px');
+    expect(row.style.gridTemplateColumns).toMatch(/minmax\(0(px)?, 1fr\)/);
+    expect(actionLine.style.flexWrap).toBe('wrap');
+    expect(description.style.whiteSpace).toBe('normal');
+    expect(description.style.overflowWrap).toBe('anywhere');
+    expect(modelBadge).toHaveStyle({ whiteSpace: 'normal', overflowWrap: 'anywhere' });
+    expect(meta.style.flexWrap).toBe('wrap');
+    expect(meta).toHaveTextContent('Approved');
+    expect(meta).toHaveTextContent('Direct');
   });
 
   it('a sub-tab with no supplied surface shows a graceful placeholder', () => {

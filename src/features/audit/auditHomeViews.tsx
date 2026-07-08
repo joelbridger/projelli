@@ -283,9 +283,11 @@ export function AuditRow({ entry, onSelect }: AuditRowProps) {
       onMouseLeave={() => { setHovered(false); }}
       style={{
         display: 'grid',
-        gridTemplateColumns: '160px 1fr 120px 100px',
-        alignItems: 'center',
-        gap: 0,
+        gridTemplateColumns: 'minmax(92px, max-content) minmax(0, 1fr)',
+        gridTemplateAreas: '"time activity" "time meta"',
+        alignItems: 'start',
+        columnGap: 12,
+        rowGap: 6,
         width: '100%',
         padding: 'var(--kp-space-xs) var(--kp-space-md)',
         background: hovered ? 'rgba(10,37,64,0.02)' : 'transparent',
@@ -300,21 +302,35 @@ export function AuditRow({ entry, onSelect }: AuditRowProps) {
     >
       {/* Timestamp */}
       <div
+        data-testid="audit-row-timestamp"
         style={{
+          gridArea: 'time',
+          maxWidth: 116,
           fontSize: 'var(--kp-font-xs)',
           color: 'var(--color-muted-foreground)',
           fontVariantNumeric: 'tabular-nums',
           fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-          paddingRight: 12,
-          flexShrink: 0,
+          lineHeight: 'var(--kp-leading-snug)',
+          overflowWrap: 'anywhere',
+          whiteSpace: 'normal',
         }}
       >
         {formatTimestamp(entry.timestamp)}
       </div>
 
       {/* Action + description */}
-      <div style={{ paddingRight: 16, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 2 }}>
+      <div data-testid="audit-row-activity" style={{ gridArea: 'activity', minWidth: 0 }}>
+        <div
+          data-testid="audit-row-action-line"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '4px 7px',
+            marginBottom: 2,
+            minWidth: 0,
+          }}
+        >
           <span
             style={{
               display: 'inline-flex',
@@ -334,38 +350,54 @@ export function AuditRow({ entry, onSelect }: AuditRowProps) {
               fontSize: 'var(--kp-font-xs)',
               fontWeight: 'var(--kp-weight-semibold)',
               color: iconColor,
-              whiteSpace: 'nowrap',
+              overflowWrap: 'anywhere',
+              whiteSpace: 'normal',
             }}
           >
             {lookupLabel(ACTION_LABELS, entry.action)}
           </span>
           {entry.model !== undefined && entry.model !== '' && (
-            <Badge variant="neutral" size="sm" mono>{displayModelLabel(entry.model)}</Badge>
+            <Badge
+              variant="neutral"
+              size="sm"
+              mono
+              style={{
+                maxWidth: '100%',
+                minWidth: 0,
+                overflowWrap: 'anywhere',
+                whiteSpace: 'normal',
+              }}
+            >
+              {displayModelLabel(entry.model)}
+            </Badge>
           )}
         </div>
         <div
+          data-testid="audit-row-description"
           style={{
             fontSize: 'var(--kp-font-sm)',
             color: '#1e293b',
             lineHeight: 'var(--kp-leading-snug)',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
+            overflowWrap: 'anywhere',
+            whiteSpace: 'normal',
           }}
         >
           {entry.description}
         </div>
       </div>
 
-      {/* Actor / user decision */}
+      {/* User decision + scope */}
       <div
+        data-testid="audit-row-meta"
         style={{
+          gridArea: 'meta',
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 6,
           fontSize: 'var(--kp-font-xs)',
           color: 'var(--color-muted-foreground)',
-          paddingRight: 12,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
         }}
       >
         {entry.userDecision === 'approved' && (
@@ -380,10 +412,7 @@ export function AuditRow({ entry, onSelect }: AuditRowProps) {
         {entry.userDecision === undefined && (
           <span style={{ color: 'var(--color-muted-foreground)' }}></span>
         )}
-      </div>
 
-      {/* Scope pill */}
-      <div>
         {scopeLabel !== null && (
           <span data-testid="audit-scope-pill">
             <Badge
@@ -416,16 +445,18 @@ export function TableHeader() {
     <div
       style={{
         display: 'grid',
-        gridTemplateColumns: '160px 1fr 120px 100px',
+        gridTemplateColumns: 'minmax(92px, max-content) minmax(0, 1fr)',
+        columnGap: 12,
         padding: '0 var(--kp-space-md)',
         borderBottom: '2px solid var(--color-border)',
         background: 'rgba(10,37,64,0.025)',
       }}
     >
       <Eyebrow style={{ padding: '9px 0' }}>Timestamp</Eyebrow>
-      <Eyebrow style={{ padding: '9px 0' }}>Action / Description</Eyebrow>
-      <Eyebrow style={{ padding: '9px 0' }}>Actor</Eyebrow>
-      <Eyebrow style={{ padding: '9px 0' }}>Scope</Eyebrow>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '4px 12px', minWidth: 0, padding: '9px 0' }}>
+        <Eyebrow>Action / Description</Eyebrow>
+        <Eyebrow>Decision / Scope</Eyebrow>
+      </div>
     </div>
   );
 }
