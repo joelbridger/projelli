@@ -17,8 +17,8 @@
  * in the Tauri WebView.
  */
 
-/** Conversations rail width when expanded (mirrors ConversationsRail). */
-export const RAIL_WIDTH = 264;
+/** Conversations rail width when expanded; mirrors --kp-rail-width for JS breakpoint math. */
+export const RAIL_WIDTH = 252;
 /** Conversations rail width when collapsed to its thin strip. */
 export const RAIL_COLLAPSED_WIDTH = 52;
 /** Sources column width (mirrors Ask.tsx). */

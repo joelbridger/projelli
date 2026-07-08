@@ -212,7 +212,9 @@ const shellStyle: CSSProperties = {
 // The section rail mirrors the demo Ask rail: a WHITE column with one light
 // right hairline and roomy rows — no gray tint, minimal chrome.
 const railStyle: CSSProperties = {
-  width: 264,
+  width: 'var(--kp-rail-width)',
+  minWidth: 'var(--kp-rail-width)',
+  maxWidth: 'var(--kp-rail-width)',
   flex: 'none',
   minHeight: 0,
   borderRight: '1px solid var(--kp-divider)',

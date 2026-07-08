@@ -38,7 +38,7 @@ const VOICE_NOTE_PATH_RE = /^Inbox\/note-.*\.md$/;
 type EditorTab = ReturnType<typeof useEditorStore.getState>['openTabs'][number];
 
 const TAB_STRIP_HEIGHT = 'var(--kp-tab-strip-height)';
-const VERTICAL_TAB_RAIL_WIDTH = 252;
+const VERTICAL_TAB_RAIL_WIDTH = 'var(--kp-rail-width)';
 
 interface LeadingTabConfig {
   id: string;
@@ -900,10 +900,10 @@ export function TabBar({
         role="presentation"
         // `group` enables group-hover:* targeting on descendants.
         className={cn(
-          'group flex items-center text-sm transition-colors relative flex-shrink-0 snap-start',
+          'group flex items-center transition-colors relative flex-shrink-0 snap-start',
           isVertical
-            ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left'
-            : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px]',
+            ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left text-[length:var(--kp-rail-row-title-font-size)]'
+            : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px] text-sm',
           isVertical && opts.insideGroup && 'ml-5 w-[calc(100%-1.25rem)]',
           isActive
             ? isVertical
@@ -1018,7 +1018,7 @@ export function TabBar({
           data-group-id={group.id}
           draggable
           className={cn(
-            'relative flex w-full items-center gap-1 rounded-md border border-transparent px-2 py-1.5 text-sm transition-colors',
+            'relative flex w-full items-center gap-1 rounded-md border border-transparent px-2 py-1.5 text-[length:var(--kp-rail-row-title-font-size)] transition-colors',
             isActiveGroup ? 'bg-[var(--kp-accent-softer)] text-[var(--kp-navy)]' : 'text-muted-foreground hover:bg-[var(--kp-accent-softer)]',
             isGroupDragOver && dragOverGroupZone === 'merge' && 'bg-primary/20 border-primary',
             isGroupDragOver && !draggedGroupId && 'bg-primary/20 border-primary',
@@ -1080,7 +1080,7 @@ export function TabBar({
           >
             {group.name}
           </button>
-          <span className="flex-none text-xs font-medium text-muted-foreground">
+          <span className="flex-none text-[length:var(--kp-rail-row-meta-font-size)] font-medium text-muted-foreground">
             {tabs.length}
           </span>
           <DropdownMenu>
@@ -1411,7 +1411,7 @@ export function TabBar({
           className={cn(
             'relative flex items-center gap-1.5 font-medium transition-colors flex-shrink-0',
             isVertical
-              ? 'w-full rounded-md border border-transparent px-3 py-2 text-left text-[var(--kp-rail-row-title-font-size)]'
+              ? 'w-full rounded-md border border-transparent px-3 py-2 text-left text-[length:var(--kp-rail-row-title-font-size)]'
               : 'px-3 border-r',
             item.isActive
               ? isVertical

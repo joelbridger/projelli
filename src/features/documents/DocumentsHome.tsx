@@ -893,9 +893,9 @@ export function DocumentsHome({
     <div
       data-testid="documents-rail"
       style={{
-        width: railCollapsed ? 44 : 252,
-        minWidth: railCollapsed ? 44 : 252,
-        maxWidth: railCollapsed ? 44 : 252,
+        width: railCollapsed ? 44 : 'var(--kp-rail-width)',
+        minWidth: railCollapsed ? 44 : 'var(--kp-rail-width)',
+        maxWidth: railCollapsed ? 44 : 'var(--kp-rail-width)',
         minHeight: 0,
         display: 'flex',
         flexDirection: 'column',

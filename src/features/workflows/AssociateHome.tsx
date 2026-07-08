@@ -924,7 +924,6 @@ export function AssociateHome({
         items={railItems}
         activeId={selectedWorkflow?.id ?? null}
         onSelect={setSelectedWorkflowId}
-        railWidth={284}
         collapsed={railCollapsed}
         collapsedRail={(
           <IconButton

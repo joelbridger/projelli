@@ -1259,8 +1259,17 @@ export function SettingsContent({
           <aside
             className={cn(
               'flex shrink-0 flex-col border-r border-[var(--kp-divider)] bg-[var(--color-background)]',
-              railCollapsed ? 'w-11 items-center py-2' : 'w-[252px]',
+              railCollapsed ? 'w-11 items-center py-2' : '',
             )}
+            style={
+              railCollapsed
+                ? undefined
+                : {
+                    width: 'var(--kp-rail-width)',
+                    minWidth: 'var(--kp-rail-width)',
+                    maxWidth: 'var(--kp-rail-width)',
+                  }
+            }
           >
             {railCollapsed ? (
               <IconButton
@@ -1315,7 +1324,7 @@ export function SettingsContent({
                   data-testid={`settings-category-${sec.id}`}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'relative mx-2 w-[calc(100%-1rem)] rounded-md flex items-center gap-2 text-left px-4 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
+                    'relative mx-2 w-[calc(100%-1rem)] rounded-md flex items-center gap-2 text-left px-4 py-2.5 text-[length:var(--kp-rail-row-title-font-size)] transition-colors',
                     isActive
                       ? 'bg-primary/10 font-semibold text-primary shadow-sm'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -1350,7 +1359,7 @@ export function SettingsContent({
                       data-testid={sec.testid}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'relative mx-2 w-[calc(100%-1rem)] rounded-md flex items-center gap-2 text-left px-4 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
+                        'relative mx-2 w-[calc(100%-1rem)] rounded-md flex items-center gap-2 text-left px-4 py-2.5 text-[length:var(--kp-rail-row-title-font-size)] transition-colors',
                         isActive
                           ? 'bg-primary/10 font-semibold text-primary shadow-sm'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'

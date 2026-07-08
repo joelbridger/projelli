@@ -707,7 +707,6 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
         activeId={selectedMeeting?.dir ?? null}
         onSelect={handleSelectMeeting}
         emptyState={railEmptyState}
-        railWidth={268}
         collapsed={railCollapsed}
         collapsedRail={(
           <div className="flex flex-col items-center gap-2">

@@ -22,9 +22,7 @@ import { MoreVertical, Pencil, Plus, PanelLeftClose, PanelLeftOpen } from 'lucid
 import { Button, IconButton, Eyebrow, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
 import { DropdownMenuItem } from '@/ui/dropdown-menu';
 import type { RecentAskSession } from './askHelpers';
-// Single source of truth for the rail widths (shared with the Ask responsive
-// breakpoints so the two never drift — QA-6).
-import { RAIL_WIDTH, RAIL_COLLAPSED_WIDTH } from './askResponsive';
+import { RAIL_COLLAPSED_WIDTH } from './askResponsive';
 
 export interface RailGroup {
   /** Stable key for React. */
@@ -247,7 +245,7 @@ export function ConversationsRail({
       data-testid="conversations-rail"
       data-collapsed="false"
       aria-label={t('ask.conversations.title')}
-      style={{ ...railBase, width: RAIL_WIDTH }}
+      style={{ ...railBase, width: 'var(--kp-rail-width)' }}
     >
       <RailShellHeader
         title={t('ask.conversations.title')}

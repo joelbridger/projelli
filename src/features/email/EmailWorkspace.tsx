@@ -146,15 +146,15 @@ function EmailRailRow({
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">
-            <span className="min-w-0 flex-1 truncate text-[var(--kp-rail-row-title-font-size)] font-semibold leading-snug text-[var(--kp-navy)]">
+            <span className="min-w-0 flex-1 truncate text-[length:var(--kp-rail-row-title-font-size)] font-semibold leading-snug text-[var(--kp-navy)]">
               {subjectLabel}
             </span>
-            <span className="shrink-0 text-[var(--kp-rail-row-meta-font-size)] leading-snug text-[var(--color-muted-foreground)]">
+            <span className="shrink-0 text-[length:var(--kp-rail-row-meta-font-size)] leading-snug text-[var(--color-muted-foreground)]">
               {formatRelativeDate(item.receivedDateTime)}
             </span>
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate text-[var(--kp-rail-row-meta-font-size)] text-[var(--color-muted-foreground)]">
+            <span className="min-w-0 flex-1 truncate text-[length:var(--kp-rail-row-meta-font-size)] text-[var(--color-muted-foreground)]">
               {fromLabel}
             </span>
             {item.hasAttachments ? (
@@ -199,7 +199,7 @@ function EmailRailRow({
         </DropdownMenu>
       </div>
       {item.snippet ? (
-        <div className="line-clamp-1 pl-7 text-[var(--kp-rail-row-meta-font-size)] leading-snug text-[var(--kp-side-fg-dim)] group-hover:line-clamp-2 group-focus:line-clamp-2 group-focus-within:line-clamp-2">
+        <div className="line-clamp-1 pl-7 text-[length:var(--kp-rail-row-meta-font-size)] leading-snug text-[var(--kp-side-fg-dim)] group-hover:line-clamp-2 group-focus:line-clamp-2 group-focus-within:line-clamp-2">
           {item.snippet}
         </div>
       ) : null}
@@ -1134,7 +1134,6 @@ export function EmailWorkspace({
       <div data-testid="mail-list-scroll" className="flex min-h-0 flex-1">
         <RailShell
           className="min-h-0 flex-1"
-          railWidth={276}
           collapsed={railCollapsed}
           collapsedRail={(
             <div className="flex flex-col items-center gap-2">

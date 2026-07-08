@@ -294,6 +294,9 @@ describe('DocumentsHome — vertical tab rail', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('documents-tab-strip')).toBeTruthy();
     expect(screen.getByTestId('documents-tab-strip')).toHaveAttribute('aria-orientation', 'vertical');
+    expect(screen.getByTestId('documents-tab-strip')).toHaveStyle({
+      width: 'var(--kp-rail-width)',
+    });
   });
 
   it('shows a pinned "All files" entry as the first rail item', () => {
@@ -318,6 +321,8 @@ describe('DocumentsHome — vertical tab rail', () => {
     expect(filesTab.getAttribute('draggable')).not.toBe('true');
 
     const docTab = screen.getByTestId(documentsTabTestId('/workspace/Brief.md'));
+    expect(docTab.parentElement?.className).toContain('text-[length:var(--kp-rail-row-title-font-size)]');
+    expect(docTab.parentElement?.className).not.toContain('text-sm');
     const dt = makeDataTransfer();
     fireEvent.dragStart(docTab, { dataTransfer: dt });
     fireEvent.dragOver(filesTab, { dataTransfer: dt });
@@ -472,7 +477,7 @@ describe('DocumentsHome — vertical tab rail', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
 
     expect(screen.getByTestId('documents-tab-strip')).toHaveStyle({
-      width: '252px',
+      width: 'var(--kp-rail-width)',
     });
   });
 

@@ -24,6 +24,8 @@ describe('ConversationsRail', () => {
       />,
     );
 
+    expect(screen.getByTestId('conversations-rail').style.width).toBe('var(--kp-rail-width)');
+
     fireEvent.click(screen.getByTestId('rail-conversation-rename'));
     fireEvent.change(screen.getByTestId('rail-conversation-rename-input'), { target: { value: 'ILIT planning' } });
     fireEvent.keyDown(screen.getByTestId('rail-conversation-rename-input'), { key: 'Enter' });

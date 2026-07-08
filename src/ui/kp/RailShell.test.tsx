@@ -71,6 +71,9 @@ describe('RailShell', () => {
     expect(rail?.className).toContain('bg-[var(--color-background)]');
     expect(rail?.className).not.toContain('bg-[var(--kp-side-bg)]');
     expect(rail?.className).toContain('border-[var(--kp-divider)]');
+    expect(rail?.style.width).toBe('var(--kp-rail-width)');
+    expect(rail?.style.minWidth).toBe('var(--kp-rail-width)');
+    expect(rail?.style.maxWidth).toBe('var(--kp-rail-width)');
     expect(list.className).toContain('gap-1.5');
     expect(list.className).toContain('p-3');
     const activeRow = getRailRow('Meeting notes');
