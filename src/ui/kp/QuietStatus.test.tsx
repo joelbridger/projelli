@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { QuietStatus } from './QuietStatus';
 
+/* eslint-disable lantern-i18n/no-hardcoded-string -- test fixtures use fixed sample copy. */
+
 describe('QuietStatus', () => {
   it('shows a quiet muted tick + text in the normal-good state', () => {
     render(<QuietStatus data-testid="qs">Saved</QuietStatus>);
