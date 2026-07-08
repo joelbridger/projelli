@@ -1,3 +1,4 @@
+/* eslint-disable lantern-i18n/no-hardcoded-string -- test fixtures: literal trust copy is the input under test */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { TrustNote } from './TrustNote';

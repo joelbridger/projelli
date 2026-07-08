@@ -7,8 +7,23 @@
  * OS keychain, not localStorage, so a localStorage-only check would show
  * "No AI connected" while Ask happily sends with the keychain key.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
+
+// F1: with no cloud key the resolver now falls back to the on-device engine when
+// one is actually reachable (single-sourced with what Ask sends). Pin the local
+// probes to "unavailable" so the "no provider configured" cases below are
+// deterministic (they assert the none-sentinel, not a machine-dependent Ollama).
+// The positive local-fallback path is proven in single-source-egress.test.ts.
+vi.mock('@/platform/providers/OllamaProvider', async (orig) => {
+  const actual = await orig<typeof import('@/platform/providers/OllamaProvider')>();
+  return { ...actual, detectOllama: vi.fn(async () => ({ reachable: false, models: [] })) };
+});
+vi.mock('@/platform/utils/tauri-commands', async (orig) => {
+  const actual = await orig<typeof import('@/platform/utils/tauri-commands')>();
+  return { ...actual, localLlmModelStatus: vi.fn(async () => 'absent') };
+});
+
 import {
   resolveActiveEgressProvider,
   resolveActiveEgressProviderSync,

@@ -28,11 +28,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { act, render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import {
-  CONFIDENTIALITY_MODE_SETTING_KEY,
-  resolveEgress,
-  isLocalProvider,
-} from '@/platform/privacy/egress';
+import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
 
 // Control object for the REAL resolver's dependencies + the send spy. Driven
@@ -93,10 +89,10 @@ vi.mock('@/platform/rag/MemoryService', () => ({
   MemoryService: { retrieve: vi.fn(async () => h.hits) },
   isMemoryEnabled: () => h.memoryEnabled,
 }));
-vi.mock('@/platform/rag/workspaceCommand', () => ({
-  DEFAULT_WORKSPACE_TOP_K: 5,
-  buildWorkspaceContextBlock: () => '',
-}));
+vi.mock('@/platform/rag/workspaceCommand', async (orig) => {
+  const actual = await orig<typeof import('@/platform/rag/workspaceCommand')>();
+  return { ...actual, DEFAULT_WORKSPACE_TOP_K: 5, buildWorkspaceContextBlock: () => '' };
+});
 vi.mock('@/platform/state/aiChatStore', () => {
   const state = {
     initSession: vi.fn(),
@@ -209,145 +205,18 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     vi.clearAllMocks();
   });
 
-  it('flips from "nothing leaves" (local-only) to a cloud destination when the mode switches', async () => {
-    h.localStatus = 'ready'; // local-only resolves to the embedded Lantern Local AI
-    h.keys['openai'] = true; // present for the post-switch cloud resolution
-    setMode('local-only');
-    render(<Ask />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
-    });
-    expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
-    // The header pill (status variant) is short ("Using local AI"); the full
-    // honest note now lives in its title tooltip, not a visible note span.
-    expect(screen.getByTestId('egress-indicator').getAttribute('title')).toMatch(
-      /no AI prompt or file is sent to a cloud AI/i,
-    );
-
-    // User switches to Cloud (direct) mode in Settings — same search session.
-    setMode('direct');
-
-    await waitFor(() => {
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
-        'provider-direct',
-      );
-    });
-    const cloudEl = screen.getByTestId('egress-indicator');
-    expect(cloudEl.getAttribute('data-data-leaves')).toBe('true');
-    const cloudNote = cloudEl.getAttribute('title') ?? '';
-    expect(cloudNote).not.toMatch(/no AI prompt or file is sent to a cloud AI/i);
-    expect(cloudNote).toMatch(/receives the prompt/i);
-  });
-
-  it('flips back to "nothing leaves" when the user returns to local-only mode', async () => {
-    h.keys['openai'] = true;
-    h.localStatus = 'ready';
-    setMode('direct');
-    render(<Ask />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
-        'provider-direct',
-      );
-    });
-
-    setMode('local-only');
-
-    await waitFor(() => {
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
-    });
-    expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
-  });
-
-  it('ONE-FRAME GUARANTEE: switching Local-only → Direct never renders a local provider under Direct mode, even before the async effect runs', async () => {
-    // Start from a fully RESOLVED local badge.
-    h.localStatus = 'ready'; // local-only resolves to lantern-local
-    h.keys['openai'] = true;
-    setMode('local-only');
-    render(<Ask />);
-    await waitFor(() => {
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
-    });
-
-    // Hold the re-resolution so the badge can ONLY move off "local" via the
-    // synchronous, mode-tagged render derivation — not via the async effect.
-    let release: (v: unknown) => void = () => undefined;
-    h.resolverHold = new Promise((r) => { release = r; });
-    vi.mocked(resolveEgress).mockClear();
-
-    try {
-      // Flip to Direct. act() flushes the render AND the (now-held) effect.
-      setMode('direct');
-
-      // The user-visible banner must no longer claim a local destination.
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).not.toBe(
-        'local',
-      );
-
-      // The load-bearing check: the indicator must NEVER have been asked to render
-      // a LOCAL provider while the mode is Direct — not even for the single
-      // pre-effect frame. Without the mode-tagged synchronous derivation, the
-      // stale {lantern-local, direct} render fires before the effect blanks it.
-      const lyingCall = vi.mocked(resolveEgress).mock.calls.find(
-        ([arg]) => arg.mode === 'direct' && isLocalProvider(arg.provider),
-      );
-      expect(lyingCall).toBeUndefined();
-    } finally {
-      release('done');
-    }
-  });
-
-  it('SEND-TIME GUARANTEE: the banner shows the real cloud destination before the network call — even when the badge was still "checking" at click time', async () => {
-    // Direct mode + a cloud key => the send goes to OpenAI. Memory is on with a
-    // hit so the query reaches the provider (no decline).
-    h.keys['openai'] = true;
-    h.memoryEnabled = true;
-    h.hits = [{ path: '/workspace/doc.pdf', chunkText: 'text', score: 0.9, paragraphIndex: 0 }];
-    setMode('direct');
-
-    // HOLD the real resolver mid-flight: the badge cannot resolve, so at click
-    // time it is the neutral "checking" (pending) state — NOT a stale "local"
-    // banner and NOT yet the cloud banner. This is the worst case for honesty.
-    let release: (v: unknown) => void = () => undefined;
-    h.resolverHold = new Promise((r) => { release = r; });
-
-    try {
-      render(<Ask />);
-
-      // HOLE #1 proof: while resolving, the banner is neutral "pending" — it never
-      // shows a concrete (and possibly stale) destination.
-      await waitFor(() => {
-        expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
-          'pending',
-        );
-      });
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-data-leaves')).toBe('false');
-
-      // Send anyway, while the badge is still "checking".
-      const input = screen.getByTestId('ask-composer-input');
-      fireEvent.change(input, { target: { value: 'What is the portfolio value?' } });
-      fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
-
-      // HOLE #2 proof: at the instant sendMessageStreaming runs, the banner DOM
-      // already reflects the REAL destination (provider-direct / data leaves) —
-      // not "pending" and never "local". flushSync guarantees the repaint before
-      // the network call.
-      await waitFor(() => {
-        expect(h.sendCalled).toBe(1);
-      });
-      expect(h.bannerAtSend).toBe('provider-direct');
-    } finally {
-      release('done'); // let the held resolver settle so no promise dangles
-    }
-
-    // And after everything settles the badge stays on the real destination.
-    await waitFor(() => {
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe(
-        'provider-direct',
-      );
-    });
-  });
+  // NOTE (F1 — single-source egress): the Ask/Search HEADER egress PILL was
+  // removed. Egress status is now single-sourced in the top-bar TrustBar, and the
+  // badge-DOM honesty these four cases used to assert on that pill moved with it:
+  //   - the badge flips honestly local <-> cloud when the mode switches, and the
+  //     pending ("checking") + data-leaves states — now covered against the ONE
+  //     source in tests/unit/privacy/active-egress-provider.test.tsx and
+  //     tests/unit/privacy/single-source-egress.test.ts;
+  //   - the provider the badge names across every mode — covered against the real
+  //     resolver in tests/unit/privacy/local-only-egress-guard.test.ts.
+  // What remains UNIQUE and load-bearing here is the SEND-SIDE privacy race
+  // below: it exercises the REAL <Ask> send path, which no resolver-level test
+  // does. So this file keeps that one case.
 
   it('SEND-SIDE PRIVACY GUARANTEE: flipping to Local-only DURING the resolve await never sends to the cloud provider', async () => {
     // The deeper hole: buildResolvedAskProvider checks the mode only at its START,
@@ -379,10 +248,5 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     // load-bearing privacy assertion: local-only never leaks to the cloud, even
     // when the mode flips mid-resolve.
     expect(h.sendCalled).toBe(0);
-
-    // The banner reflects the local destination at the (local) send too.
-    await waitFor(() => {
-      expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('local');
-    });
   });
 });

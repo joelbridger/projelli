@@ -93,10 +93,15 @@ export function TrustBar({ inline = false }: TrustBarProps) {
         </TooltipContent>
       </Tooltip>
 
+      {/* F1: the ONE always-visible egress pill for the whole app. The short
+          status form ("Using local AI" / "Using cloud AI" / "No AI connected");
+          the full provider detail stays in its tooltip + the inspectable data-*
+          attributes. The per-surface duplicate pills (Ask, Client Map, Workflow
+          template) were removed so this can never be contradicted on one screen. */}
       <EgressIndicator
         provider={egressProvider}
         mode={confidentialityMode}
-        variant="compact"
+        variant="status"
         {...(inline
           ? { className: 'min-w-0 shrink overflow-hidden' }
           : {})}
