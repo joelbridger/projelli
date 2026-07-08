@@ -1,7 +1,7 @@
 /**
  * appPath — the SINGLE source of truth for cross-platform path comparison.
  *
- * Advisor Prep Hero's confidentiality promise (one top-level folder = one client,
+ * Lantern's confidentiality promise (one top-level folder = one client,
  * matter-scoped retrieval, scope guards) depends on deciding correctly whether
  * one path is the same as, or lives inside, another. On POSIX that is a simple
  * case-sensitive `startsWith`; on Windows it is NOT:

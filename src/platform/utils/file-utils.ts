@@ -15,7 +15,7 @@ export function isBinaryFile(name: string): boolean {
 
 /**
  * Extensions that are ALWAYS binary. This set is the single source of truth that
- * decides whether Advisor Prep Hero handles a file as raw bytes (data-URL / binary read &
+ * decides whether Lantern handles a file as raw bytes (data-URL / binary read &
  * write) instead of UTF-8 text. Treating a real binary file as text corrupts it
  * on import, on save/autosave, and (before BUG-034) on download — so this list
  * must err on the side of "binary". Every entry here is a format that is never

@@ -1,6 +1,6 @@
 // Matter / Client model (WS-B/C app)
 //
-// A "matter" is the confidentiality boundary in Advisor Prep Hero 3.0. It groups one
+// A "matter" is the confidentiality boundary in Lantern 3.0. It groups one
 // client's work under one or more workspace folders. Every file or email
 // indexed under a matter is tagged with that matter's id; retrieval is then
 // scoped to a single matter so one client's data can never surface inside a
@@ -112,9 +112,9 @@ export interface Matter {
    */
   privileged?: boolean;
   /**
-   * Explicit opt-in for external AI tools that connect through Advisor Prep Hero's MCP
+   * Explicit opt-in for external AI tools that connect through Lantern's MCP
    * server. Default is false. This is intentionally separate from the active
-   * matter: focusing a matter inside Advisor Prep Hero must never grant an outside AI
+   * matter: focusing a matter inside Lantern must never grant an outside AI
    * client access to it.
    */
   mcpAccessGranted?: boolean;

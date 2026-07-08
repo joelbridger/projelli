@@ -45,7 +45,7 @@ describe('clientMap export', () => {
 
     const markdown = clientMapToMarkdown(map, 'Hendricks Household', new Date('2026-07-07T02:00:00.000Z'));
 
-    expect(markdown).toContain('# Advisor Prep Hero Client Map: Hendricks Household');
+    expect(markdown).toContain('# Lantern Client Map: Hendricks Household');
     expect(markdown).toContain('Prepared for Northcrest Wealth');
     expect(markdown).toContain('- Robert and Susan are retired. Source: document: Plan.docx, p. 2.');
     expect(markdown).toContain('Casey Advisor - bullet edited - Household.');

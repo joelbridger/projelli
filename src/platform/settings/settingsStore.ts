@@ -61,7 +61,7 @@ const HIDDEN_SETTING_DEFAULTS: Record<string, unknown> = {
 };
 
 const PRIVACY_CRITICAL_SAFE_DEFAULTS: Record<string, unknown> = {
-  // If this value is stale or corrupt, Advisor Prep Hero must fail closed: local model
+  // If this value is stale or corrupt, Lantern must fail closed: local model
   // only, so confidential legal data does not silently route to a cloud model.
   [CONFIDENTIALITY_MODE_SETTING_KEY]: 'local-only',
 };

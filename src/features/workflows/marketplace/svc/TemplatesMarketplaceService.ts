@@ -22,7 +22,7 @@ export interface CreateTemplatesMarketplaceOptions {
  * Build a `MarketplaceService` configured for the community templates repo.
  *
  * Cache lives at `<workspaceRoot>/.lantern/cache/templates.json` so multiple
- * Advisor Prep Hero windows pointed at the same workspace see the same cached catalog.
+ * Lantern windows pointed at the same workspace see the same cached catalog.
  * Installs land under `<workspaceRoot>/.lantern/templates/<id>/`.
  */
 export function createTemplatesMarketplaceService(

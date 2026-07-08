@@ -35,7 +35,7 @@
     },
     "bug-report": {
       "title": "Report a bug",
-      "description": "Tell us what went wrong. Reports go straight to the Advisor Prep Hero team.",
+      "description": "Tell us what went wrong. Reports go straight to the Lantern team.",
       "success": "Thanks, your report landed. If you left an email I'll reply when there's something to share.",
       "email-label": "Your email",
       "email-optional": "(optional, so we can reply)",
@@ -83,6 +83,10 @@
       "summary-with-oldest": "{{size}} in trash. {{oldest}}",
       "empty-confirm_one": "This will permanently delete 1 item in the trash. This action cannot be undone.",
       "empty-confirm_other": "This will permanently delete all {{count}} items in the trash. This action cannot be undone."
+    },
+    "web-demo": {
+      "banner": "You are using the Lantern demo. Files live in your browser only and are not synced anywhere.",
+      "byok-confirm-description": "Your key is stored only in your browser. The Lantern demo never sees it. AI requests go straight from this tab to Anthropic."
     }
   },
   "file-import": {
@@ -117,7 +121,7 @@
       "modified": "Modified",
       "tabs-open_one": "{{count}} file open",
       "tabs-open_other": "{{count}} files open",
-      "bug-report-title": "Report a bug, sends directly to the Advisor Prep Hero team",
+      "bug-report-title": "Report a bug, sends directly to the Lantern team",
       "bug-report-cta": "Something broken? Let us know!"
     },
     "main-panel": {
@@ -126,17 +130,17 @@
       "workflow-load-failed": "Failed to load workflow file.",
       "chat-load-failed": "Failed to load chat file: {{message}}",
       "unknown-error": "Unknown error",
-      "opening-file": "Opening {{fileName}}...",
+      "opening-file": "Opening {{fileName}}",
       "export": {
         "save-as-docx": "Save as Word (.docx)",
         "save-as-pptx": "Save as PowerPoint (.pptx)"
       },
       "doc-legacy": {
         "browser-message": "This is the older <docCode>.doc</docCode> format. Open it in Word and save as <docxCode>.docx</docxCode> to preview it here.",
-        "checking-libreoffice": "Checking for LibreOffice...",
+        "checking-libreoffice": "Checking for LibreOffice",
         "install-libreoffice": "<docCode>.doc</docCode> (legacy Word format) files need LibreOffice or Microsoft Word to preview. Install LibreOffice for free at <libreLink>libreoffice.org</libreLink>, then reopen this file.",
         "convert-prompt": "Preview this legacy <docCode>.doc</docCode> file? We'll convert it to <docxCode>.docx</docxCode> using LibreOffice and save a copy next to the original.",
-        "converting": "Converting to .docx...",
+        "converting": "Converting to .docx",
         "conversion-failed": "Conversion failed: {{error}}",
         "try-again": "Try again",
         "convert-button": "Convert to .docx",
@@ -147,8 +151,8 @@
   "settings": {
     "modal": {
       "title": "Settings",
-      "description": "Configure Advisor Prep Hero preferences",
-      "search-placeholder": "Search settings...",
+      "description": "Configure Lantern preferences",
+      "search-placeholder": "Search settings",
       "clear-search-aria": "Clear search",
       "close-aria": "Close settings",
       "marketplace-badge-aria": "{{count}} marketplace updates available",
@@ -168,7 +172,7 @@
     },
     "license": {
       "title": "License",
-      "description": "A license keeps AI chat, workflows, and all Advisor Prep Hero features running after your trial. Keys are available at <pricingLink>lantern.com</pricingLink>.",
+      "description": "A license keeps AI chat, workflows, and all Lantern features running after your trial. Keys are available at <pricingLink>lantern.com</pricingLink>.",
       "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
       "badge": {
         "activated": "ACTIVATED",
@@ -194,19 +198,19 @@
       "refresh": "Refresh",
       "deactivate": "Deactivate",
       "activate": "Activate",
-      "activating": "Activating...",
+      "activating": "Activating",
       "activate-success": "License activated successfully.",
       "activate-to-continue": "Activate to continue",
       "trial-expired-detail": "Your {{days}}-day free trial ended on <endDateBold>{{endDate}}</endDateBold>. AI chat and workflows are paused. Your existing files are still here, fully readable. Activate a license to keep building.",
-      "trial-active-detail": "You're on the free trial. Every Advisor Prep Hero feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
+      "trial-active-detail": "You're on the free trial. Every Lantern feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
       "days-left_one": "1 day left",
       "days-left_other": "{{count}} days left",
       "get-license-cta": "Get a license at lantern.com",
       "already-have-key": "Already have a license key?",
-      "recovery-heading": "Already bought Advisor Prep Hero?",
+      "recovery-heading": "Already bought Lantern?",
       "recovery-detail": "Enter your license code to restore it on this computer. No account needed.",
       "recovery-restore": "Restore",
-      "recovery-restoring": "Restoring...",
+      "recovery-restoring": "Restoring",
       "unlocks-heading": "What your license unlocks:",
       "unlocks": {
         "ai-chat": "AI chat with your own keys (Claude, OpenAI, Gemini)",
@@ -248,29 +252,29 @@
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
         "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
-        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Advisor Prep Hero, and macOS / Windows / Linux.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Lantern, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, practice.",
-        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL stored on Advisor Prep Hero's server. Used only for funnel metrics and roadmap decisions.",
+        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL stored on Lantern's server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
       "email": {
         "title": "Email updates",
         "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
-        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Advisor Prep Hero email. All replies go straight to support."
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Lantern email. All replies go straight to support."
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Advisor Prep Hero’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Lantern’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open Data Map"
       }
     },
     "mcp": {
       "title": "MCP server",
-      "description": "Expose your Advisor Prep Hero workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
+      "description": "Expose your Lantern workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
       "copied-status": "Copied bundle path to clipboard: {{path}}",
       "status": {
-        "loading": "Looking up bundle path...",
+        "loading": "Looking up bundle path",
         "ready": "Ready to install in Claude Desktop",
         "unavailable": "MCP server is not available in this build. Install the desktop app to use MCP."
       },
@@ -283,8 +287,8 @@
         "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
         "step-open-claude": "Open Claude Desktop.",
         "step-config": "Open <b>Settings, Developer, Edit Config</b>, or drag the <c>.mcpb</c> file into the Claude Desktop window.",
-        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Advisor Prep Hero.",
-        "after-install": "After install, ask Claude \"search my Advisor Prep Hero workspace for X\" or \"read notes/plan.md\" and watch it work."
+        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Lantern.",
+        "after-install": "After install, ask Claude \"search my Lantern workspace for X\" or \"read notes/plan.md\" and watch it work."
       }
     },
     "mcp-approval": {
@@ -304,9 +308,9 @@
     },
     "ollama": {
       "title": "Ollama (local models)",
-      "description": "Run AI models directly on your machine: free, offline, private. Advisor Prep Hero talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
+      "description": "Run AI models directly on your machine: free, offline, private. Lantern talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
       "status": {
-        "checking": "Checking Ollama...",
+        "checking": "Checking Ollama",
         "ready_one": "Ollama ready, {{count}} model installed",
         "ready_other": "Ollama ready, {{count}} models installed",
         "more-suffix": ", +{{count}} more",
@@ -371,7 +375,7 @@
       "description": "Configure account keys for AI model providers. Keys are stored securely and never logged.",
       "get-key-link": "Get account key",
       "add-key": "Add account key",
-      "credential-service-unavailable": "Windows' credential storage service isn't running, so Advisor Prep Hero can't reach your saved AI keys right now. This does not affect your documents. Restart the \"Credential Manager\" service (services.msc), or try again shortly."
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so Lantern can't reach your saved AI keys right now. This does not affect your documents. Restart the \"Credential Manager\" service (services.msc), or try again shortly."
     },
     "plugins": {
       "title": "Plugins",
@@ -464,7 +468,7 @@
       "rename-description": "Enter a new name for your project. This will rename the workspace folder."
     },
     "open-error": {
-      "credential-service-unavailable": "Windows' credential storage service isn't running, so Advisor Prep Hero couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so Lantern couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
       "generic": "Could not open this workspace. Please try again.",
       "dismiss": "Dismiss"
     }
@@ -487,13 +491,13 @@
       "title": "Tab groups",
       "description": "Create and organize tab groups to better manage your open files.",
       "create-new": "Create New Group",
-      "group-name-placeholder": "Group name...",
+      "group-name-placeholder": "Group name",
       "existing-groups": "Existing Groups ({{count}})",
       "no-groups": "No groups yet. Create one above to get started.",
       "drop-to-add": "Drop tabs here to add them to this group",
       "ungrouped-label": "Ungrouped Tabs ({{count}})",
       "drag-to-ungroup": "Drag tabs here to ungroup them",
-      "add-to-group": "Add to group..."
+      "add-to-group": "Add to group"
     },
     "autosave": {
       "saved": "Saved",
@@ -610,7 +614,9 @@
       "outputs-count_other": "{{count}} outputs",
       "outputs-count_one": "1 output",
       "inputs-count_one": "1 input",
-      "trust-direct": "Sends directly to {{provider}}"
+      "trust-direct": "Sends directly to {{provider}}",
+      "required-inputs-count_other": "{{count}} inputs",
+      "required-inputs-count_one": "{{count}} input"
     },
     "execution": {
       "waiting-for-answers": "Answer these questions",
@@ -850,9 +856,9 @@
       "skip-for-now": "Skip for now",
       "back": "Back",
       "welcome": {
-        "title": "Welcome to Advisor Prep Hero",
+        "title": "Welcome to Lantern",
         "subtitle": "The private place your practice lives, that answers you back.",
-        "body-1": "Advisor Prep Hero keeps your clients' files, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
+        "body-1": "Lantern keeps your clients' files, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
         "body-2": "Setup takes about 2 minutes. I'll help you pick a folder for your work, connect your AI provider account (optional), and run your first workflow.",
         "step-1": "Step 1. Pick a folder for your work",
         "step-2": "Step 2. Connect your AI provider account (optional)",
@@ -865,14 +871,14 @@
         "body-1": "This is where your client work will live: real Word documents, PDFs, and notes in a normal folder on your hard drive. Nothing is uploaded anywhere. Pick a location that's easy to find and easy to back up.",
         "body-2": "Pro tip: a folder inside Dropbox, iCloud, or OneDrive syncs across devices, but that also means your files sit with that provider. For client-confidential work, keep the folder local.",
         "common-choices": "Common choices:",
-        "icloud-path": "~/iCloud Drive/Advisor Prep Hero",
+        "icloud-path": "~/iCloud Drive/Lantern",
         "body-3": "The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.",
         "cta": "Got it"
       },
       "apikey": {
         "title": "Add an AI provider key",
         "subtitle": "Optional, but you'll need one to use the AI features.",
-        "body-1": "Advisor Prep Hero is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
+        "body-1": "Lantern is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
         "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
         "step-go-to": "Go to <a>console.anthropic.com</a>",
         "step-signup": "Sign up (free, $5 in credits to start)",
@@ -884,7 +890,7 @@
       "demo": {
         "title": "Run your first workflow",
         "subtitle": "See a real deliverable come together in seconds.",
-        "body-1": "The fastest way to see what Advisor Prep Hero does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
+        "body-1": "The fastest way to see what Lantern does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
         "step-1": "Click <s>Workflows</s> in the sidebar",
         "step-2": "Pick any template that fits your practice",
         "step-3": "Answer the questions and click <s>Generate</s>",
@@ -892,20 +898,20 @@
         "populate-toggle": "Add {{count}} sample client files to get started",
         "populate-help": "Adds finished examples so you can see what a completed workflow looks like before running your first real project. You can delete them any time.",
         "copy-error": "Could not copy samples: {{error}}. Don't worry, you're still in.",
-        "setting-up": "Setting up...",
+        "setting-up": "Setting up",
         "open-cta": "Open my workspace"
       }
     },
     "disk-encryption": {
       "title": "One thing to check: your disk encryption",
-      "body": "Advisor Prep Hero keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
+      "body": "Lantern keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
       "check-windows": "Windows: Settings, then Privacy & security, then Device encryption (or search for BitLocker). It should say On.",
       "check-macos": "Mac: System Settings, then Privacy & Security, then FileVault. It should say FileVault is turned on.",
       "check-linux": "Linux: most installers offer LUKS full-disk encryption. Check your distribution's disk settings, or run lsblk and look for a crypt entry."
     },
     "api-key-card": {
       "title": "Next step: add your AI account key",
-      "description": "Advisor Prep Hero uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Advisor Prep Hero plan covers the software.",
+      "description": "Lantern uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Lantern plan covers the software.",
       "walk-me-through": "Walk me through it",
       "add-key": "Add account key",
       "keys-local": "Account keys are stored locally on your computer. Never sent to us."
@@ -915,7 +921,7 @@
         "body": "Click the button below to open <s>{{dashboard}}</s> in your browser. You'll need to sign in (or sign up) to get to the keys page."
       },
       "step-2-ollama": {
-        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Advisor Prep Hero auto-detects Ollama on the next step."
+        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Lantern auto-detects Ollama on the next step."
       },
       "ollama-running": "Ollama is running",
       "ollama-models-ready_one": "1 model ready",
@@ -928,12 +934,15 @@
       "direct-urls": "Direct URLs (click to open in your browser):"
     },
     "welcome": {
-      "title": "Welcome to Advisor Prep Hero",
+      "title": "Welcome to Lantern",
       "description": "A couple of optional things, both off by default. Skip if you'd rather not.",
       "email-optin-label": "Email me launch updates, tips, and discount codes",
-      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the Advisor Prep Hero team.",
-      "telemetry-label": "Help improve Advisor Prep Hero with anonymous usage stats",
+      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the Lantern team.",
+      "telemetry-label": "Help improve Lantern with anonymous usage stats",
       "telemetry-help": "Sends a random install ID, the app version, your platform, and lifecycle events (trial started, license activated, etc.). No content, no files, no AI prompts, no email. You can turn this off in Settings, Privacy."
+    },
+    "api-key-explainer": {
+      "privacy-body": "That direct connection is what makes Lantern private: your prompts go straight from your machine to the provider you chose. Lantern's servers never see your work, your files, or your conversations."
     }
   },
   "search": {
@@ -960,8 +969,8 @@
       "no-slides": "No slides found.",
       "slide-label": "Slide {{number}}",
       "no-text-content": "(no text content)",
-      "checking-libreoffice": "Checking for LibreOffice...",
-      "rendering-slides": "Rendering slides...",
+      "checking-libreoffice": "Checking for LibreOffice",
+      "rendering-slides": "Rendering slides",
       "first-open-converts": "First open converts the deck; later opens are instant.",
       "cannot-preview": "Could not preview this file. Download it to view in PowerPoint.",
       "download-file": "Download File",
@@ -972,8 +981,8 @@
       "could-not-open": "Couldn't open {{fileName}}",
       "concurrent-edit-conflict": "This text changed elsewhere while you were editing it, so your last change wasn't applied. Please make the edit again.",
       "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit.",
-      "opening": "Opening {{fileName}}...",
-      "desktop-only": "Editing Word documents with tracked changes is only available in the Advisor Prep Hero desktop app. Showing a read-only preview here.",
+      "opening": "Opening {{fileName}}",
+      "desktop-only": "Editing Word documents with tracked changes is only available in the Lantern desktop app. Showing a read-only preview here.",
       "reviewing": "Review",
       "reviewing-hint": "Show changes. Turn off for final view.",
       "review": "Review",
@@ -1004,7 +1013,7 @@
       "draft-follow-up": "Draft follow-up",
       "draft-follow-up-title": "Draft a follow-up email from this document",
       "send-to-wealthbox-disconnected": "Connect Wealthbox from Your account → Connections to send notes.",
-      "outbound-blocked-checking": "Checking this note before it can leave...",
+      "outbound-blocked-checking": "Checking this note before it can leave",
       "outbound-blocked-needs-review": "Review this note first. It hasn't been checked yet.",
       "outbound-blocked-errored": "This note couldn't be generated cleanly. Review it before it leaves.",
       "outbound-blocked-notice-quarantined": "This meeting's recording notice needs review before this note can leave.",
@@ -1017,9 +1026,9 @@
       "redline-close": "Close",
       "redline-dismiss": "Dismiss",
       "redline-egress-note": "Sends this document to your AI provider with your key.",
-      "redline-summary-headline": "Advisor Prep Hero AI proposed {{applied}} tracked change(s).",
+      "redline-summary-headline": "Lantern AI proposed {{applied}} tracked change(s).",
       "redline-skipped": "· {{skipped}} could not be placed",
-      "redline-no-changes": "Advisor Prep Hero AI suggested no changes.",
+      "redline-no-changes": "Lantern AI suggested no changes.",
       "redline-op-insert": "Inserted text",
       "redline-op-delete": "Deleted text",
       "redline-op-replace": "Replaced text",
@@ -1041,12 +1050,12 @@
       "save-blocked-title": "This document can't be saved right now",
       "save-blocked-body": "Another program (often antivirus, backup, or cloud sync) may be blocking the file. Your changes are safe here and I'll keep trying automatically. If it doesn't clear, save a copy somewhere else so nothing is lost.",
       "save-retry-now": "Try again now",
-      "save-copy-elsewhere": "Save a copy elsewhere…",
-      "save-copy-saving": "Saving copy…",
+      "save-copy-elsewhere": "Save a copy elsewhere",
+      "save-copy-saving": "Saving copy",
       "save-copy-success": "Saved a rescue copy to {{path}}.",
       "save-copy-failed": "Couldn't save the copy: {{message}}",
       "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
-      "pdf-needs-libreoffice-body": "Advisor Prep Hero converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
+      "pdf-needs-libreoffice-body": "Lantern converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
       "pdf-libreoffice-copy": "Copy link",
       "pdf-libreoffice-copied": "Copied"
     },
@@ -1085,32 +1094,32 @@
   },
   "model-download": {
     "title": "Setting up your private AI (1 of 2: search)",
-    "body": "Advisor Prep Hero is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
+    "body": "Lantern is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
     "verifying": "Checking the downloaded files",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
-    "stalled": "The download looks stuck. Restarting Advisor Prep Hero resumes it where it stopped.",
+    "stalled": "The download looks stuck. Restarting Lantern resumes it where it stopped.",
     "error-title": "The search engine download was interrupted",
     "error-body": "Nothing is lost. The download resumes where it stopped.",
     "retry": "Resume download"
   },
   "local-ai-download": {
     "title": "Setting up your private AI (2 of 2: the AI that writes answers)",
-    "body": "Advisor Prep Hero is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
+    "body": "Lantern is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
     "verifying": "Checking the downloaded model",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
-    "stalled": "The download looks stuck. Restarting Advisor Prep Hero resumes it where it stopped.",
-    "error-title": "The Advisor Prep Hero Local AI download was interrupted",
+    "stalled": "The download looks stuck. Restarting Lantern resumes it where it stopped.",
+    "error-title": "The Lantern Local AI download was interrupted",
     "error-body": "Nothing is lost. The download resumes where it stopped.",
     "retry": "Resume download"
   },
   "local-ai-settings": {
-    "title": "Advisor Prep Hero Local AI",
+    "title": "Lantern Local AI",
     "description": "A private AI that runs entirely on this computer. Your files and questions never leave the machine. It's slightly less sharp than the cloud models, but nothing you ask ever goes online. One-time download, about 2.4 GB.",
-    "download": "Download Advisor Prep Hero Local AI",
-    "downloading": "Downloading… {{pct}}%",
-    "verifying": "Checking the download…",
+    "download": "Download Lantern Local AI",
+    "downloading": "Downloading {{pct}}%",
+    "verifying": "Checking the download",
     "ready": "Local AI installed.",
     "error": "The download was interrupted. Nothing is lost.",
     "retry": "Resume download"
@@ -1124,7 +1133,7 @@
       "version": "Version",
       "versions": "versions",
       "author-user": "You",
-      "author-ai": "Advisor Prep Hero AI",
+      "author-ai": "Lantern AI",
       "preview": "Preview",
       "this-version": "This version",
       "current": "Current",
@@ -1133,7 +1142,7 @@
       "restore-confirm": "Restore the file to the version from {{date}}? Your current version is saved first, so nothing is lost.",
       "diff-loading": "Building diff",
       "docx-text-diff-note": "Showing a text comparison. Word formatting and tracked-change detail are compared as plain text here.",
-      "docx-diff-desktop-only": "Comparing Word documents needs the Advisor Prep Hero desktop app."
+      "docx-diff-desktop-only": "Comparing Word documents needs the Lantern desktop app."
     }
   },
   "updater": {
@@ -1163,7 +1172,7 @@
       "see-whats-new": "See what's new"
     },
     "modal": {
-      "title": "What's new in Advisor Prep Hero",
+      "title": "What's new in Lantern",
       "description": "Highlights from the most recent releases."
     }
   },
@@ -1354,6 +1363,9 @@
       "body": "Sample data. Add your first {{entity}} to search your files.",
       "add-button": "Add {{entity}}",
       "dismiss": "Dismiss"
+    },
+    "cost-dashboard": {
+      "provider-note": "Costs are billed directly by {{provider}}, not by Lantern."
     }
   },
   "matter": {
@@ -1363,7 +1375,7 @@
       "active-title": "Active client: {{name}}. Questions are scoped to this client only.",
       "menu-label": "Scope questions to",
       "no-matters": "No clients yet. Create one to scope your work to a single client.",
-      "manage": "Manage clients...",
+      "manage": "Manage clients",
       "answer-scoped": "Scoped to {{name}}",
       "answer-all-matters": "Scoped to all clients",
       "this-matter": "this client",
@@ -1372,7 +1384,7 @@
       "all-matters-title-entity": "Searching across all {{entityOther}}. Answers may include data from any {{entityOne}}.",
       "active-title-entity": "Active {{entity}}: {{name}}. Questions are scoped to this {{entity}} only.",
       "no-matters-entity": "No {{entityOther}} yet. Create one to scope your work to a single {{entityOne}}.",
-      "manage-entity": "Manage {{entity}}..."
+      "manage-entity": "Manage {{entity}}"
     },
     "citation": {
       "unverified-warning": "One or more citations could not be verified against the source. Open the source to confirm before relying on it."
@@ -1406,12 +1418,12 @@
       "privileged-label": "Network lockdown for this client",
       "privileged-hint": "When this client is active, network plugins and MCP servers are turned off so nothing can leave your machine through an extension. Unrelated to email sensitivity tagging.",
       "mcp-access-label": "Allow connected external AI tools to access this client's files",
-      "mcp-access-hint": "Off by default. Turning this on lets external AI tools connected to Advisor Prep Hero (via the MCP protocol) read this client's files, even when another client is active.",
+      "mcp-access-hint": "Off by default. Turning this on lets external AI tools connected to Lantern (via the MCP protocol) read this client's files, even when another client is active.",
       "mcp-access-badge": "External AI access allowed",
       "firm-share-section": "Share with my firm",
       "firm-shared-section": "Shared with my firm",
       "firm-share-action": "Share this client with my firm",
-      "firm-sharing": "Sharing...",
+      "firm-sharing": "Sharing",
       "firm-shared-badge": "Shared",
       "firm-owner-badge": "owner",
       "firm-editor-badge": "editor",
@@ -1421,12 +1433,12 @@
       "firm-leave-confirm": "Stop sharing this client with my firm? My local files stay on my machine.",
       "firm-leave-confirm-action": "Stop sharing",
       "firm-members-label": "Members",
-      "firm-members-loading": "Loading members...",
+      "firm-members-loading": "Loading members",
       "firm-members-empty": "No members yet.",
       "firm-invite-label": "Invite by email",
       "firm-invite-placeholder": "colleague@lawfirm.com",
       "firm-invite-action": "Invite",
-      "firm-inviting": "Inviting...",
+      "firm-inviting": "Inviting",
       "firm-invite-new-user-hint": "This email is not in your org yet. I'll create their account and show you a temporary password to share with them.",
       "firm-temp-password-label": "Temporary password (share this once with {{email}})",
       "firm-temp-password-hint": "This is the only time this password is shown. Copy it now.",
@@ -1434,10 +1446,10 @@
       "firm-remove-member-confirm": "Remove {{email}} from this client? Their key access will be rotated.",
       "firm-walled-badge": "Walled",
       "firm-open-shared-section": "Shared clients I can access",
-      "firm-open-shared-loading": "Checking for shared clients...",
+      "firm-open-shared-loading": "Checking for shared clients",
       "firm-open-shared-empty": "No shared clients available.",
       "firm-open-action": "Open",
-      "firm-opening": "Opening...",
+      "firm-opening": "Opening",
       "firm-key-blocked": "Waiting for your firm admin to grant this device access to this client. I'll open it automatically once they do.",
       "firm-share-error": "I couldn't share this client. {{error}}",
       "firm-open-error": "I couldn't open this client. {{error}}",
@@ -1478,8 +1490,8 @@
       "live-tooltip": "Synced with firm",
       "offline-tooltip": "Offline, changes saved locally",
       "error-tooltip": "Sync error",
-      "connecting-tooltip": "Connecting to firm...",
-      "catching-up-tooltip": "Catching up..."
+      "connecting-tooltip": "Connecting to firm",
+      "catching-up-tooltip": "Catching up"
     },
     "notes": {
       "title": "Shared notes",
@@ -1487,7 +1499,7 @@
       "subtitle": "Everyone on this client sees these notes. They sync live.",
       "no-access": "Waiting for your firm admin to grant this device access.",
       "no-access-hint": "I'll open these notes automatically once your admin publishes the key to this device.",
-      "loading": "Loading shared notes...",
+      "loading": "Loading shared notes",
       "not-found": "Client not found.",
       "status-live": "Live",
       "status-connecting": "Connecting",
@@ -1524,7 +1536,7 @@
       "folder-count_one": "{{count}} folder",
       "folder-count_other": "{{count}} folders",
       "new-client": "New {{entity}}",
-      "search-placeholder": "Search {{entity}}...",
+      "search-placeholder": "Search {{entity}}",
       "search-aria": "Search {{entity}}",
       "no-match": "No {{entity}} match your search.",
       "empty-title": "No {{entityOther}} yet",
@@ -1670,7 +1682,7 @@
       "back-to": "Back to {{entityOther}}",
       "isolated-pill": "Isolated",
       "sample-pill": "Sample",
-      "scope-badge-title": "Recall is scoped to this household. Advisor Prep Hero never mixes one client's files into another client's answers.",
+      "scope-badge-title": "Recall is scoped to this household. Lantern never mixes one client's files into another client's answers.",
       "scope-badge-suffix": "{{name}} only",
       "answer-prompt": "Your answer to:",
       "answer-title": "Your answer",
@@ -1691,13 +1703,13 @@
       "email-placeholder": "you@firm.com",
       "password-label": "Password",
       "submit": "Sign in",
-      "submitting": "Signing in...",
+      "submitting": "Signing in",
       "signed-in-as": "Signed in as",
       "firm-label": "Firm",
       "role-label": "Role",
       "seat-label": "Seat",
       "signout": "Sign out",
-      "just-bought-link": "I just bought Advisor Prep Hero Firm",
+      "just-bought-link": "I just bought Lantern Firm",
       "back-to-signin": "Back to sign in"
     },
     "claim": {
@@ -1714,7 +1726,7 @@
       "org-name-label": "Firm name (optional)",
       "org-name-placeholder": "Acme Law LLC",
       "submit": "Claim and sign in",
-      "submitting": "Claiming...",
+      "submitting": "Claiming",
       "error-password-mismatch": "Passwords do not match.",
       "error-already-claimed": "This license key has already been claimed. Sign in with your existing account.",
       "error-not-found": "I don't recognize that license key. Check the email from LemonSqueezy and try again.",
@@ -1736,7 +1748,7 @@
       "invite-label": "Invite by email",
       "invite-placeholder": "member@lawfirm.com",
       "invite-action": "Invite",
-      "inviting": "Inviting...",
+      "inviting": "Inviting",
       "invite-ok": "Invitation sent.",
       "invite-new-user-hint": "This email is not in your org yet. I'll create their account and show you a temporary password to share.",
       "temp-password-label": "Temporary password for {{email}}",
@@ -1811,8 +1823,8 @@
       "share-action": "Share with firm",
       "skip-action": "Skip for now",
       "submit-action": "Bring clients over",
-      "submitting": "Working...",
-      "progress": "Sharing client {{done}} of {{total}}...",
+      "submitting": "Working",
+      "progress": "Sharing client {{done}} of {{total}}",
       "done-heading": "Here is what happened",
       "continue-action": "Continue",
       "outcome-shared": "Shared with firm",
@@ -1824,7 +1836,7 @@
       "privileged-confirm-accept": "Share it"
     },
     "bridge": {
-      "heading": "Use Advisor Prep Hero with your firm",
+      "heading": "Use Lantern with your firm",
       "intro": "Pick how you want to get into a firm. Then you can bring your existing clients over, choosing for each one whether to keep it private or share it with colleagues.",
       "door-create-title": "Start a firm",
       "door-create-body": "You become the admin and the first seat. Invite colleagues, share clients, set up single sign-on and the firm security.",
@@ -1836,8 +1848,8 @@
       "cancel": "Not now"
     },
     "prompt": {
-      "title": "Use Advisor Prep Hero with your firm",
-      "body": "Bring colleagues in and share clients, or join a firm that already uses Advisor Prep Hero. Your private clients stay private.",
+      "title": "Use Lantern with your firm",
+      "body": "Bring colleagues in and share clients, or join a firm that already uses Lantern. Your private clients stay private.",
       "action": "Use this with my firm",
       "dismiss": "Dismiss"
     }
@@ -1850,15 +1862,15 @@
       },
       "direct": {
         "label": "Sent to your {{provider}} account",
-        "note": "Sent straight from your machine to {{provider}} with your own account key. Advisor Prep Hero is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+        "note": "Sent straight from your machine to {{provider}} with your own account key. Lantern is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
       },
       "demo": {
         "label": "Browser demo. Do not use with client data",
-        "note": "In this online demo, messages pass through a shared Advisor Prep Hero relay. The desktop app never does this. Do not enter confidential or client information here."
+        "note": "In this online demo, messages pass through a shared Lantern relay. The desktop app never does this. Do not enter confidential or client information here."
       },
       "checking": {
         "label": "Checking AI destination",
-        "note": "Advisor Prep Hero is confirming where this request will go before sending."
+        "note": "Lantern is confirming where this request will go before sending."
       },
       "none": {
         "label": "No AI connected",
@@ -1899,7 +1911,8 @@
   },
   "mail": {
     "connect": {
-      "error-prefix": "Something went wrong:"
+      "error-prefix": "Something went wrong:",
+      "fde-warning": "Full-disk encryption is off on this machine. Lantern encrypts your mail, but enabling FileVault (macOS) or BitLocker (Windows) adds a second layer of protection if your device is stolen."
     },
     "workspace": {
       "title": "Email",
@@ -2069,11 +2082,11 @@
     "control": {
       "checking": "Checking vault status",
       "on-title": "Vault is on",
-      "on-body": "This workspace's files are encrypted at rest. Advisor Prep Hero decrypts them transparently, so your work is unchanged.",
+      "on-body": "This workspace's files are encrypted at rest. Lantern decrypts them transparently, so your work is unchanged.",
       "locked-note": "This vault is locked. Reopen the workspace to unlock it with your recovery phrase."
     },
     "ceremony": {
-      "cannot-recover-warning": "Advisor Prep Hero cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
+      "cannot-recover-warning": "Lantern cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
       "phrase-label": "Your 24-word recovery phrase",
       "copy-phrase": "Copy phrase",
       "copied": "Copied",
@@ -2084,21 +2097,21 @@
     },
     "enable": {
       "title": "Encrypt this workspace",
-      "subtitle": "AES-256 at rest, transparent in Advisor Prep Hero",
-      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. Advisor Prep Hero decrypts them transparently so your workflow is unchanged.",
+      "subtitle": "AES-256 at rest, transparent in Lantern",
+      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. Lantern decrypts them transparently so your workflow is unchanged.",
       "bullet-names-visible": "File names and folder structure remain visible",
       "bullet-phrase-once": "A 24-word recovery phrase is generated once. You must save it.",
       "bullet-no-recovery": "If you lose the phrase and the keychain, files cannot be recovered",
       "bullet-firm-escrow": "A firm admin can recover this vault via escrow",
       "cancel": "Cancel",
       "enable-button": "Enable vault",
-      "setting-up": "Setting up...",
-      "loading-phrase": "Loading phrase...",
+      "setting-up": "Setting up",
+      "loading-phrase": "Loading phrase",
       "ceremony-heading": "Save your recovery phrase",
       "ceremony-subheading": "Write it down somewhere safe. Shown once only.",
       "escrow-notice": "A firm admin will be able to recover this vault on your behalf using the firm's escrow key. This is in addition to your personal recovery phrase.",
       "confirm-continue": "Confirm and continue",
-      "encrypting-title": "Encrypting workspace files...",
+      "encrypting-title": "Encrypting workspace files",
       "encrypting-subtitle": "This may take a moment for large workspaces.",
       "done-title": "Workspace encrypted",
       "done-subtitle": "All files are now protected at rest.",
@@ -2107,10 +2120,10 @@
     "locked": {
       "title": "Vault locked",
       "subtitle": "This workspace is encrypted and the key is not on this machine.",
-      "explanation": "Enter your 24-word recovery phrase to unlock this vault. Advisor Prep Hero will restore the key to your keychain so you can open this workspace normally from now on.",
+      "explanation": "Enter your 24-word recovery phrase to unlock this vault. Lantern will restore the key to your keychain so you can open this workspace normally from now on.",
       "phrase-hint": "Recovery phrases are 24 words separated by spaces.",
       "phrase-label": "Recovery phrase",
-      "phrase-placeholder": "word1 word2 word3 ...",
+      "phrase-placeholder": "word1 word2 word3 ",
       "escape-hatch": "Turn off vault and decrypt files",
       "unlock": "Unlock",
       "error-invalid-phrase": "That phrase has an invalid format. Check each word and try again.",
@@ -2121,12 +2134,12 @@
       "description": "This will convert every encrypted file back to a normal, unencrypted file on this disk. The vault will be disabled and removed from this workspace.",
       "warning-title": "After this, at-rest protection reverts to OS disk encryption only.",
       "warning-body": "Your files will be readable by any process that has access to this folder. Make sure your operating system's full-disk encryption is enabled if you handle sensitive documents.",
-      "working": "Decrypting files... this may take a moment for large workspaces.",
+      "working": "Decrypting files this may take a moment for large workspaces.",
       "done-message": "All files have been decrypted and the vault has been removed. Your files are normal unencrypted files on disk.",
       "cancel": "Cancel",
       "confirm-button": "Decrypt and turn off vault",
       "try-again": "Try again",
-      "working-button": "Working...",
+      "working-button": "Working",
       "done-button": "Done"
     }
   },
@@ -2149,7 +2162,7 @@
     "speakers": {
       "title": "Who is speaking?",
       "run": "Separate speakers",
-      "running": "Listening for different voices...",
+      "running": "Listening for different voices",
       "suggested": "Looks like {{name}} ({{pct}}% match)",
       "name-placeholder": "Type a name for this voice",
       "apply": "Apply names",
@@ -2165,20 +2178,20 @@
       "recording-label": "Recording",
       "local": "Local",
       "local-tooltip": "Nothing has left this machine. The audio is written straight to your disk.",
-      "processing": "Writing your meeting notes… you can keep working",
+      "processing": "Writing your meeting notes you can keep working",
       "write-error": "Recording can't continue. Disk is full.",
       "write-error-dismiss": "Dismiss"
     },
     "tab": {
       "record-button": "Record a meeting",
-      "recording": "Recording…",
+      "recording": "Recording",
       "empty-title": "No meetings yet",
       "empty-body": "Recordings, notes, and transcripts stay with this client.",
       "notes-pending": "notes pending",
       "notes-failed": "notes couldn't be written",
       "recording-incomplete": "recording didn't finish saving",
       "record-note": "Recorded on this computer. Nothing is uploaded.",
-      "loading": "Loading meetings…",
+      "loading": "Loading meetings",
       "needs-review-badge": "Needs review",
       "duration": "{{minutes}} min",
       "scan-error-title": "Meetings did not load",
@@ -2198,12 +2211,12 @@
       "notes-failed-error": "Notes couldn't be written. The AI provider returned an error. Your recording and transcript are safe.",
       "notes-failed-blocked": "Notes need your AI provider, but Local-only mode is blocking it. Connect a local model to write this meeting's notes, or, if you'd rather, turn off Local-only mode in Settings → Privacy.",
       "docx-editor-label": "Meeting notes",
-      "retrying-notes": "Retrying…",
+      "retrying-notes": "Retrying",
       "transcript-pending": "Transcribing now.",
       "transcript-failed-not-installed": "Transcription couldn't run. The voice engine isn't installed on this computer yet. Your recording is safe.",
       "transcript-failed-timeout": "Transcription couldn't finish. The voice engine didn't respond in time. Your recording is safe.",
       "transcript-failed-error": "Transcription couldn't finish. The voice engine returned an error. Your recording is safe.",
-      "retrying-transcript": "Retrying…",
+      "retrying-transcript": "Retrying",
       "mark-reviewed": "Mark reviewed",
       "reviewed": "Reviewed",
       "rename": "Rename meeting",
@@ -2229,7 +2242,7 @@
         "title": "Recipients",
         "description": "Pick who gets what. Nothing sends until review.",
         "add-person": "Add person",
-        "saving": "Saving...",
+        "saving": "Saving",
         "saved": "Saved locally. Nothing has been sent.",
         "invalid-email": "Enter a real email address.",
         "email-placeholder": "person@example.com",
@@ -2282,7 +2295,7 @@
         "confirm-privacy": "Sends through {{account}}. This is when files leave this computer.",
         "send-again-warning": "{{artifact}} was already sent. Confirm you want to send it again.",
         "confirm-button": "Send now",
-        "sending": "Sending...",
+        "sending": "Sending",
         "failed-without-message": "Send failed.",
         "sent_one": "Sent {{count}} meeting item.",
         "sent_other": "Sent {{count}} meeting items.",
@@ -2326,7 +2339,7 @@
       "rules-details": "Recording rules"
     },
     "dictation": {
-      "file-as-meeting-note": "File as meeting note…",
+      "file-as-meeting-note": "File as meeting note",
       "dialog-title": "File as a meeting note",
       "search-placeholder": "Search clients",
       "cancel": "Cancel"
@@ -2394,7 +2407,7 @@
       "announce-recording-stopped": "Recording stopped",
       "save-bg-heading": "Recording background image",
       "save-bg-help": "Save a virtual background image that says the meeting is being recorded. Upload it as your Teams or Zoom background for meetings where the notice card can't join.",
-      "save-bg-button": "Save recording background image…",
+      "save-bg-button": "Save recording background image",
       "bg-label": "RECORDING in progress",
       "unsupported-fallback": "This meeting link isn't one the notice card can join, so say the recording notice aloud instead.",
       "settings-heading": "Notice Card",

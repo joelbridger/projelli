@@ -551,7 +551,7 @@ export function useAsk({
 
   // Fix #8: resolve the active provider NAME for the pre-send EgressIndicator.
   // It must name the SAME engine the send will actually use — the embedded
-  // Advisor Prep Hero Local AI when it is ready (not a generic "Ollama"), and the local
+  // Lantern Local AI when it is ready (not a generic "Ollama"), and the local
   // engine in Local-only mode regardless of any cloud key. resolveActiveAskProviderId
   // mirrors buildResolvedAskProvider's destination decision so the two can't drift.
   //
@@ -1008,7 +1008,7 @@ export function useAsk({
           if (!alreadyConsented) {
             const toolsLabel = formatToolList(recognizedTools);
             const consented = await confirmExportConsent(
-              `Advisor Prep Hero found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Advisor Prep Hero reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Advisor Prep Hero and use your chosen AI on it.`,
+              `Lantern found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Lantern reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Lantern and use your chosen AI on it.`,
               {
                 title: `Use exported reports from ${toolsLabel}?`,
                 confirmLabel: 'Yes, my firm permits this',

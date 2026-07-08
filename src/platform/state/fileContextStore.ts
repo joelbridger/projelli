@@ -1,7 +1,7 @@
 // File Context Store
 //
 // Tracks the AI-visible "ambient" context derived from each open tab. This is
-// the backbone of Advisor Prep Hero's "like Cursor but for docs" moment: open a file
+// the backbone of Lantern's "like Cursor but for docs" moment: open a file
 // and it's automatically in the AI's system prompt unless the user opts out.
 //
 // Why a separate store (not `aiChatStore` or `editorStore`)?

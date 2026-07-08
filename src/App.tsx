@@ -1,5 +1,5 @@
 /**
- * Advisor Prep Hero — Local-first AI workspace for confidential client work.
+ * Lantern — Local-first AI workspace for confidential client work.
  *
  * Core Thesis: This is NOT a chat UI. It is an artifact-driven workspace
  * where AI proposes and the user approves all destructive actions.
@@ -356,7 +356,7 @@ function AppShell() {
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);
 
-  // Advisor Prep Hero 3.0 — the audit "defense file" persistence layer. On the desktop
+  // Lantern 3.0 — the audit "defense file" persistence layer. On the desktop
   // this writes every AI-action audit entry to a SQLCipher-ENCRYPTED store at
   // rest; in the browser it falls back to (unencrypted) localStorage. Created
   // once and pointed at the active workspace in `handleWorkspaceSelected`. The
@@ -1682,7 +1682,7 @@ function AppShell() {
   });
 
   // Show workspace selector if no workspace is open (unless in test mode).
-  // Advisor Prep Hero 3.0: the rebuilt first-run wizard is the live first-run surface.
+  // Lantern 3.0: the rebuilt first-run wizard is the live first-run surface.
   // It renders as a full-screen overlay (fixed inset-0 z-50) layered OVER
   // whatever is behind it — most often the WorkspaceSelector, since first run
   // happens before a workspace is chosen — so the existing path-input vs

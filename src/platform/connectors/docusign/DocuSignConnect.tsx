@@ -134,7 +134,7 @@ export function DocuSignConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               DocuSign
-              <InfoHelp content="Import completed envelopes, recipients, document names, and signing history. Advisor Prep Hero only reads DocuSign data." />
+              <InfoHelp content="Import completed envelopes, recipients, document names, and signing history. Lantern only reads DocuSign data." />
             </h3>
           </div>
         </div>

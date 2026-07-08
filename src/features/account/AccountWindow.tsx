@@ -275,7 +275,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                     <Building2 size={20} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 600, fontSize: 'var(--kp-font-sm)' }}>
-                        Use Advisor Prep Hero with your firm
+                        Use Lantern with your firm
                       </p>
                       <p style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', margin: '4px 0 8px' }}>
                         Start a firm or join one, then bring your clients over. You choose for each client whether it stays private or is shared with colleagues.
@@ -325,7 +325,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                 <SalesforceConnect />
                 <RedtailConnect />
                 <OllamaSettingsSection />
-                {/* Developer tools — connecting Advisor Prep Hero to outside AI clients
+                {/* Developer tools — connecting Lantern to outside AI clients
                     (Claude Desktop, Cursor) via MCP. This is power-user
                     plumbing, not something a typical advisor needs, so it's
                     tucked behind a closed disclosure by default and stays one

@@ -34,7 +34,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'The name and nature of the third party receiving the disclosure. Be specific — "cloud software" and "AI tool" are different third parties requiring separate consents.',
     type: 'text',
     required: true,
-    placeholder: 'e.g., TaxSlayer Pro (cloud-based tax preparation software) or Advisor Prep Hero (AI workspace software)',
+    placeholder: 'e.g., TaxSlayer Pro (cloud-based tax preparation software) or Lantern (AI workspace software)',
   },
   {
     id: 'purposeOfDisclosure',

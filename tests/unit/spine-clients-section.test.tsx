@@ -3,12 +3,9 @@
  * repeated light-gray client name is gone, and the list is now a collapsible
  * section instead of an always-expanded block that force-fills the rail.
  *
- * Rule (round 2): there is never a separate subtext line for the client
- * name — matterLabel() itself folds the client into the one-line label
- * ("Client - Name" when the matter's internal name differs from the client,
- * or just the shared name/client when they match), so the client's name
- * stays visible in the row either way. This suite uses the REAL matterLabel
- * (not a mock) so that folding behavior is actually exercised.
+ * Rule (UX simplification): the rail shows only the display client name.
+ * When the internal matter name differs, the full "Client - Name" label stays
+ * available in the row title instead of taking visible rail space.
  */
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -166,9 +163,7 @@ describe('Spine — Clients section', () => {
 
     expect(screen.getByText('Doe Family Trust')).toBeInTheDocument();
     expect(screen.queryByText('Hendricks Household')).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('Alvarez - Retirement Plan Review')
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Alvarez')).not.toBeInTheDocument();
     expect(screen.getByTestId('spine-all-clients-row')).toBeInTheDocument();
   });
 
@@ -194,14 +189,14 @@ describe('Spine — Clients section', () => {
     expect(screen.getAllByText('Hendricks Household')).toHaveLength(1);
   });
 
-  it('folds the client name into the one-line label when the internal name differs, with no separate subtext', () => {
+  it('shows the display client name and keeps the full label in the row title', () => {
     render(<Spine activeTab="matters" />);
-    // matterLabel formats this as "Alvarez - Retirement Plan Review" — the
-    // client name is still visible, just folded into the single label line
-    // rather than duplicated as its own row underneath.
+    const row = screen.getByTestId('spine-client-row-m3');
+    expect(screen.getByText('Alvarez')).toBeInTheDocument();
+    expect(row).toHaveAttribute('title', 'Alvarez - Retirement Plan Review');
     expect(
-      screen.getByText('Alvarez - Retirement Plan Review')
-    ).toBeInTheDocument();
+      screen.queryByText('Alvarez - Retirement Plan Review')
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText(/Alvarez/)).toHaveLength(1);
   });
 

@@ -97,7 +97,7 @@ describe('ConfidentialityReportDialog', () => {
     );
     const attestationText = screen.getByTestId('confidentiality-attestation').textContent ?? '';
     expect(attestationText).toMatch(/your own API key/i);
-    expect(attestationText).toMatch(/Advisor Prep Hero was not in the path/i);
+    expect(attestationText).toMatch(/Lantern was not in the path/i);
     // Honesty: must not claim nothing left
     expect(attestationText).not.toMatch(/nothing left this machine/i);
   });

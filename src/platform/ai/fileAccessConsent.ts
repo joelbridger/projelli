@@ -6,7 +6,7 @@
  * searches. Without a consent gate, a poisoned client document could steer the
  * cloud AI into silently pulling MORE client files and shipping them to the
  * vendor. So for CLOUD providers, the AI's file tools are OFF until the advisor
- * grants access for the conversation. Local engines (Ollama / Advisor Prep Hero
+ * grants access for the conversation. Local engines (Ollama / Lantern
  * Local AI) run on the user's own machine and don't register tools at all, so
  * they're unaffected.
  *

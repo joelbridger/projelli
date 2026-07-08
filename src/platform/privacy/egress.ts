@@ -11,10 +11,10 @@
  *
  *   - Desktop app, cloud provider (Anthropic / OpenAI / Google): the request
  *     goes DIRECTLY from the user's machine to that provider's API using the
- *     user's own key (BYOK). Advisor Prep Hero has no server in this path. The provider
+ *     user's own key (BYOK). Lantern has no server in this path. The provider
  *     receives the prompt and may retain it for a limited window for abuse
  *     monitoring, and training opt-out (where offered) is configured in the
- *     user's own provider console — not in Advisor Prep Hero. See
+ *     user's own provider console — not in Lantern. See
  *     `src/platform/providers/fetchUtils.ts` (production base URLs point straight
  *     at api.anthropic.com / api.openai.com / generativelanguage.googleapis.com)
  *     and `src/platform/providers/providerFactory.ts`.
@@ -23,7 +23,7 @@
  *     machine. Nothing leaves the device. See `src/platform/providers/OllamaProvider.ts`.
  *
  *   - Browser demo build ONLY (never the desktop app): when no personal key is
- *     pasted, requests are relayed through a shared Advisor Prep Hero proxy
+ *     pasted, requests are relayed through a shared Lantern proxy
  *     (`/api/demo-chat`). This path must NOT be used with confidential client
  *     data. With a personal key pasted into the demo, it instead goes direct to
  *     the provider, same as the desktop BYOK path. See
@@ -68,7 +68,7 @@ export const LOCAL_PENDING_PROVIDER = 'local-pending';
  *   - 'direct'      Default. The user's own key talks directly to their chosen
  *                   provider. The provider sees the prompt.
  *   - 'assured'     The FIRM zero-retention path: cloud inference routed through
- *                   the Advisor Prep Hero proxy, which attaches the firm's MANAGED key
+ *                   the Lantern proxy, which attaches the firm's MANAGED key
  *                   server-side and retains nothing (a DPA + provider ZDR back
  *                   it). Selectable only when the firm has a managed key
  *                   configured for the active provider; otherwise it falls back
@@ -93,7 +93,7 @@ export const CONFIDENTIALITY_MODE_SETTING_KEY = 'confidentialityMode';
  *   - 'safe'   nothing leaves the machine (local model).
  *   - 'direct' leaves to the chosen provider, with the user's key (expected,
  *              honest — not an error, but the user must understand it).
- *   - 'assured' leaves via the Advisor Prep Hero zero-retention proxy to the provider
+ *   - 'assured' leaves via the Lantern zero-retention proxy to the provider
  *              under the firm's managed key + DPA (honest, contractually
  *              no-logging on our side; the provider still sees the prompt).
  *   - 'warn'   a shared/relayed path that is NOT for confidential data
@@ -106,7 +106,7 @@ export type EgressDestination =
   | 'local' // on-machine (Ollama)
   | 'provider-direct' // direct to Anthropic/OpenAI/Google with the user's key
   | 'assured-proxy' // firm zero-retention proxy -> provider (managed key + DPA)
-  | 'demo-proxy'; // shared Advisor Prep Hero demo relay (web demo, no personal key)
+  | 'demo-proxy'; // shared Lantern demo relay (web demo, no personal key)
 
 export interface EgressInfo {
   destination: EgressDestination;
@@ -133,7 +133,7 @@ export function providerDisplayName(provider: EgressProvider): string {
     case 'ollama':
       return 'Ollama';
     case 'lantern-local':
-      return 'Advisor Prep Hero Local AI';
+      return 'Lantern Local AI';
     default:
       return provider;
   }
@@ -141,7 +141,7 @@ export function providerDisplayName(provider: EgressProvider): string {
 
 /**
  * True when a provider id denotes a local (on-machine) model: the embedded
- * Advisor Prep Hero Local AI engine ('lantern-local') or a user-run Ollama daemon
+ * Lantern Local AI engine ('lantern-local') or a user-run Ollama daemon
  * ('ollama'). Both keep all inference on the device.
  */
 export function isLocalProvider(provider: EgressProvider): boolean {
@@ -197,37 +197,37 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
       severity: 'safe',
       label: 'On your machine. No cloud AI',
       // Always-visible trust badge: name the engine in plain language
-      // ("Advisor Prep Hero Local AI"), never the developer tool ("Ollama") — the brand
+      // ("Lantern Local AI"), never the developer tool ("Ollama") — the brand
       // name only belongs in the advanced bring-your-own-runtime panel.
-      note: 'This runs on Advisor Prep Hero Local AI, a private model on your own computer. No AI prompt or file is sent to a cloud AI.',
+      note: 'This runs on Lantern Local AI, a private model on your own computer. No AI prompt or file is sent to a cloud AI.',
       dataLeaves: false,
       provider: localProvider,
     };
   }
 
   // Assured mode with a managed key configured for this provider: route through
-  // the Advisor Prep Hero zero-retention proxy. We retain nothing (DPA + provider ZDR);
+  // the Lantern zero-retention proxy. We retain nothing (DPA + provider ZDR);
   // the provider still receives the prompt, which the note states honestly.
   if (mode === 'assured' && assuredAvailable && !isDemo) {
     const name = providerDisplayName(provider);
     return {
       destination: 'assured-proxy',
       severity: 'assured',
-      label: `Assured: via Advisor Prep Hero zero-retention proxy to ${name}`,
-      note: `Sent through the Advisor Prep Hero proxy using your firm's managed ${name} key. Advisor Prep Hero retains nothing (no prompt, no completion) and stamps each response no-retention. ${name} still receives the prompt under your firm's DPA and zero-retention settings.`,
+      label: `Assured: via Lantern zero-retention proxy to ${name}`,
+      note: `Sent through the Lantern proxy using your firm's managed ${name} key. Lantern retains nothing (no prompt, no completion) and stamps each response no-retention. ${name} still receives the prompt under your firm's DPA and zero-retention settings.`,
       dataLeaves: true,
       provider,
     };
   }
 
   // Browser-demo build with NO personal key: requests are relayed through a
-  // shared Advisor Prep Hero proxy. This is the one path that must never carry client data.
+  // shared Lantern proxy. This is the one path that must never carry client data.
   if (isDemo && !hasDemoByokKey) {
     return {
       destination: 'demo-proxy',
       severity: 'warn',
       label: 'Browser demo. Do not use with client data',
-      note: 'In this online demo, messages pass through a shared Advisor Prep Hero relay. The desktop app never does this. Do not enter confidential or client information here.',
+      note: 'In this online demo, messages pass through a shared Lantern relay. The desktop app never does this. Do not enter confidential or client information here.',
       dataLeaves: true,
       provider,
     };
@@ -239,7 +239,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
     destination: 'provider-direct',
     severity: 'direct',
     label: `Sent to your ${name} account`,
-    note: `Sent straight from your machine to ${name} with your own API key. Advisor Prep Hero is not in between. ${name} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your ${name} account.`,
+    note: `Sent straight from your machine to ${name} with your own API key. Lantern is not in between. ${name} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your ${name} account.`,
     dataLeaves: true,
     provider,
   };

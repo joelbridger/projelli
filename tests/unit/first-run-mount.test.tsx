@@ -1,5 +1,5 @@
 /**
- * Advisor Prep Hero — OnboardingV2 mounted as the live first-run surface in App.
+ * Lantern — OnboardingV2 mounted as the live first-run surface in App.
  *
  * These pin the App-level wiring that makes the 4-step OnboardingV2 the real
  * first-run experience (the old 9-step GuidedOnboarding was retired 2026-06-30

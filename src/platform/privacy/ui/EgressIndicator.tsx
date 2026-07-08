@@ -162,7 +162,7 @@ function useEgressView(
   switch (info.destination) {
     case 'local':
       label = t('privacy.egress.local.label');
-      // Name the actual local engine (Advisor Prep Hero Local AI vs a user-run Ollama)
+      // Name the actual local engine (Lantern Local AI vs a user-run Ollama)
       // so the privacy copy never mislabels which model is running.
       note = t('privacy.egress.local.note', { provider: name });
       break;

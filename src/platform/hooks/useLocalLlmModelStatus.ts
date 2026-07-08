@@ -1,10 +1,10 @@
 /**
- * useLocalLlmModelStatus — drive the OPT-IN Advisor Prep Hero Local AI model download.
+ * useLocalLlmModelStatus — drive the OPT-IN Lantern Local AI model download.
  *
  * Unlike useModelStatus (the e5 search model, which is required and downloads
  * automatically), the local AI's GGUF is a ~2.4 GB optional engine. This hook
  * therefore NEVER auto-downloads: on mount it only probes status, and the
- * transfer starts solely when the user calls `start()` (the "Download Advisor Prep Hero
+ * transfer starts solely when the user calls `start()` (the "Download Lantern
  * Local AI" control). Once running it streams `local-llm-model-download-progress`
  * events into a snapshot the download banner + settings control render.
  *

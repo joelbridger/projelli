@@ -1,7 +1,7 @@
 /**
  * deviceKeys — per-device ECDH P-256 keypair management.
  *
- * Each Advisor Prep Hero installation generates ONE ECDH P-256 keypair. The PUBLIC key
+ * Each Lantern installation generates ONE ECDH P-256 keypair. The PUBLIC key
  * is registered with the firm backend (POST /device/register) so other members
  * can wrap matter keys to this device. The PRIVATE key never leaves this
  * machine.
@@ -244,7 +244,7 @@ export async function registerDevice(client: FirmApiClient): Promise<void> {
 
   // machine_id and label are best-effort; they help the admin identify devices.
   const machineId = deviceId; // Use deviceId as stable machine_id (no Tauri machine API needed)
-  const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'Advisor Prep Hero Desktop';
+  const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'Lantern Desktop';
 
   await client.registerDevice(deviceId, machineId, label, publicJwk);
 }

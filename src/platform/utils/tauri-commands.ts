@@ -680,7 +680,7 @@ export async function modelEnsure(): Promise<string> {
 }
 
 // --------------------------------------------------------------------
-// Advisor Prep Hero Local AI (embedded llama.cpp engine) — first-run GGUF download
+// Lantern Local AI (embedded llama.cpp engine) — first-run GGUF download
 // and lazy llama-server sidecar lifecycle. Mirrors the e5-small model
 // download pattern above. Rust side: src-tauri/src/commands/local_llm/.
 // --------------------------------------------------------------------
@@ -714,7 +714,7 @@ export async function localLlmModelEnsure(): Promise<string> {
  *  @throws if we're in the browser — the sidecar only exists in the desktop app. */
 export async function localLlmSidecarStart(): Promise<string> {
   if (!isTauri()) {
-    throw new Error('Advisor Prep Hero Local AI is only available in the desktop app.');
+    throw new Error('Lantern Local AI is only available in the desktop app.');
   }
   return invoke<string>('local_llm_sidecar_start');
 }
@@ -904,7 +904,7 @@ export async function voiceprintDelete(workspaceRoot: string, matterId: string, 
 }
 
 // ---------------------------------------------------------------------------
-// Advisor Prep Hero 3.0 — encrypted, append-only audit store (the "defense file").
+// Lantern 3.0 — encrypted, append-only audit store (the "defense file").
 //
 // On the desktop the AuditService persists to a SQLCipher-encrypted store
 // (`src-tauri/src/commands/audit/`). In the browser these wrappers short-circuit

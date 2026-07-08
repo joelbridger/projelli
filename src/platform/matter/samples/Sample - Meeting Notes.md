@@ -1,7 +1,7 @@
 # Sample: Meeting Notes
 
 > Fictional household: **The Hendricks Household**, annual review meeting.
-> This is a sample so you can see what a finished set of meeting notes looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what a finished set of meeting notes looks like in Lantern. Delete it whenever you want.
 
 ---
 

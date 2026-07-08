@@ -13,7 +13,7 @@
  *     default; the vault is opt-in (see VaultControlCard / vaultStore), so the
  *     pill must say so.
  *   - SOC 2 certification belongs to the cloud AI provider, never to
- *     Advisor Prep Hero itself, and only applies when cloud AI is used at all
+ *     Lantern itself, and only applies when cloud AI is used at all
  *     (Local AI has no third-party provider in the picture).
  */
 import { describe, it, expect } from 'vitest';
@@ -22,8 +22,8 @@ import { ONB_COPY } from '@/features/onboarding/v2/copy';
 describe('ONB_COPY.intro.pills — honest trust pills (P4)', () => {
   const pills = ONB_COPY.intro.pills.join(' | ').toLowerCase();
 
-  it('never attributes SOC 2 certification to Advisor Prep Hero itself', () => {
-    expect(pills).not.toMatch(/advisor prep hero.{0,20}soc 2 certified/);
+  it('never attributes SOC 2 certification to Lantern itself', () => {
+    expect(pills).not.toMatch(/lantern.{0,20}soc 2 certified/);
   });
 
   it('scopes the SOC 2 claim to cloud AI providers, not the app', () => {

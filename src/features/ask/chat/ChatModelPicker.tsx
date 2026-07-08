@@ -82,7 +82,7 @@ export function ChatModelPicker({
     };
   }, []);
 
-  // Advisor Prep Hero Local AI (the embedded llama.cpp engine) is selectable only once
+  // Lantern Local AI (the embedded llama.cpp engine) is selectable only once
   // its GGUF model has been downloaded. Reuse the live status hook (which probes
   // on mount AND subscribes to the download-progress event) so the picker reacts
   // when the model becomes ready mid-session — e.g. the user finishes the
@@ -90,7 +90,7 @@ export function ChatModelPicker({
   // one-shot probe. Fails closed (not ready) off the desktop.
   const localAiReady = useLocalLlmModelStatus().state === 'ready';
 
-  // Providers the user can use, filtered by confidentiality mode. Advisor Prep Hero Local
+  // Providers the user can use, filtered by confidentiality mode. Lantern Local
   // AI is listed FIRST (the primary local option) once its model is ready;
   // Ollama is added after when its daemon is reachable. Both are local, so both
   // are allowed in local-only and cloud modes; de-duplicated against apiKeys.
@@ -120,7 +120,7 @@ export function ChatModelPicker({
     [ollama.models],
   );
 
-  // Fix 1 (demo readiness): explicitly picking Advisor Prep Hero Local AI here is as
+  // Fix 1 (demo readiness): explicitly picking Lantern Local AI here is as
   // clear a signal as selecting Local-only mode — kick off the sidecar now
   // instead of waiting for the first message to discover it isn't running yet.
   const handleSelect = (p: ChatProvider, modelId: string): void => {

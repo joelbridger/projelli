@@ -19,10 +19,8 @@ describe('Spine sidebar client list', () => {
 
   it('lists active clients but excludes archived ones', () => {
     render(<Spine />);
-    // Rule: the client name is never repeated as a separate subtext line —
-    // matterLabel() folds it into the one-line label ("Client - Name" when
-    // the internal name differs from the client, or just the name/client
-    // when they match), so the client's name is still visible right here.
+    // Rule: the rail shows the display client name only, with fuller labels
+    // available in the row title when needed.
     expect(screen.getByText(/Alvarez/)).toBeTruthy();
     expect(screen.getByText(/Bishop/)).toBeTruthy();
     expect(screen.queryByText(/Carver/)).toBeNull();

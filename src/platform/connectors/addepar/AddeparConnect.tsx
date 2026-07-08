@@ -226,7 +226,7 @@ export function AddeparConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               Addepar
-              <InfoHelp content="Import household holdings, asset allocation, accounts, and performance summaries. Advisor Prep Hero only reads Addepar data." />
+              <InfoHelp content="Import household holdings, asset allocation, accounts, and performance summaries. Lantern only reads Addepar data." />
             </h3>
           </div>
         </div>

@@ -344,7 +344,7 @@ export function TodaysMeetingsStrip({
                         Whose meeting is this?
                       </div>
                       <div className="mt-0.5 text-[11.5px] leading-snug text-slate-400">
-                        Pick a client and Advisor Prep Hero will file this one,
+                        Pick a client and Lantern will file this one,
                         and remember it for next time.
                       </div>
                     </div>

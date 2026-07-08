@@ -131,7 +131,7 @@ Note any pre-suit notice or claims act requirements that may apply based on the 
 
 ---
 
-*This calendar was structured by Advisor Prep Hero AI and requires attorney verification before any date is docketed. AI does not calculate deadlines.*`;
+*This calendar was structured by Lantern AI and requires attorney verification before any date is docketed. AI does not calculate deadlines.*`;
 
 export const DeadlineCalendar: WorkflowTemplate = {
   id: 'deadline-calendar',

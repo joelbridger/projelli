@@ -124,8 +124,8 @@ const DEFAULT_SORT: SortState = { key: 'name', dir: 'asc' };
 
 function matterRowGridColumns(showConfidentialityColumn: boolean): string {
   return showConfidentialityColumn
-    ? 'minmax(180px, 1fr) auto 112px 96px 36px'
-    : 'minmax(180px, 1fr) auto 96px 36px';
+    ? 'minmax(180px, 1fr) 112px 96px 36px'
+    : 'minmax(180px, 1fr) 96px 36px';
 }
 
 // ── Get Started card ───────────────────────────────────────────────────────
@@ -367,7 +367,7 @@ function MatterRow({
   const [hovered, setHovered] = useState(false);
 
   const launchSurface = (surface: MatterSurface, e: MouseEvent) => {
-    // Prevent the button click from also firing onSelect twice
+    // Prevent menu clicks from also opening the default Client Map row target.
     e.stopPropagation();
     onSelect(matter.id);
     window.dispatchEvent(
@@ -406,12 +406,16 @@ function MatterRow({
       onMouseLeave={() => {
         setHovered(false);
       }}
+      onClick={() => {
+        onSelect(matter.id);
+      }}
     >
       {/* Client name — click to open this client's hub. */}
       <button
         type="button"
         data-testid={`matter-row-${matter.id}`}
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           onSelect(matter.id);
         }}
         style={{
@@ -471,143 +475,115 @@ function MatterRow({
       <div
         data-testid={`matter-quick-actions-${matter.id}`}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          gap: 'var(--kp-space-xs)',
-          minWidth: 0,
-          whiteSpace: 'nowrap',
+          display: 'contents',
         }}
       >
-        <Button
-          variant="secondary"
-          size="sm"
-          data-testid={`matter-launch-ask-${matter.id}`}
-          aria-label={t('matter.home.ask-aria', { name: label })}
-          iconLeft={MessageSquare}
-          onClick={(e) => {
-            launchSurface('search', e);
-          }}
-        >
-          {askActionLabel}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          data-testid={`matter-launch-documents-${matter.id}`}
-          aria-label={t('matter.home.open-documents-aria', { name: label })}
-          iconLeft={FileText}
-          onClick={(e) => {
-            launchSurface('files', e);
-          }}
-        >
-          {t('matter.hub.tab-documents')}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          data-testid={`matter-launch-email-${matter.id}`}
-          aria-label={t('matter.home.open-email-aria', { name: label })}
-          iconLeft={Mail}
-          onClick={(e) => {
-            launchSurface('email', e);
-          }}
-        >
-          {t('matter.hub.tab-email')}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          data-testid={`matter-launch-meetings-${matter.id}`}
-          aria-label={t('matter.home.open-meetings-aria', { name: label })}
-          iconLeft={Mic}
-          onClick={(e) => {
-            launchSurface('meetings', e);
-          }}
-        >
-          {t('matter.hub.tab-meetings')}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          data-testid={`matter-launch-activity-${matter.id}`}
-          aria-label={t('matter.home.open-activity-aria', { name: label })}
-          iconLeft={Clock}
-          onClick={(e) => {
-            launchSurface('audit', e);
-          }}
-        >
-          {t('matter.hub.tab-activity')}
-        </Button>
-      </div>
+        {showConfidentialityColumn && (
+          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+            {matter.privileged && <PrivilegePill />}
+          </div>
+        )}
 
-      {showConfidentialityColumn && (
-        <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-          {matter.privileged && <PrivilegePill />}
+        <div
+          style={{
+            fontSize: 'var(--kp-font-xs)',
+            color: 'var(--color-muted-foreground)',
+            fontVariantNumeric: 'tabular-nums',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {formatDate(matter.createdAt)}
         </div>
-      )}
 
-      <div
-        style={{
-          fontSize: 'var(--kp-font-xs)',
-          color: 'var(--color-muted-foreground)',
-          fontVariantNumeric: 'tabular-nums',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {formatDate(matter.createdAt)}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <IconButton
+              icon={MoreHorizontal}
+              label={t('matter.home.row-menu-aria', { name: label })}
+              variant="ghost"
+              size="sm"
+              data-testid={`matter-actions-menu-${matter.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+            />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              data-testid={`matter-menu-open-client-${matter.id}`}
+              onClick={() => {
+                onSelect(matter.id);
+              }}
+            >
+              {t('matter.home.open-client')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`matter-launch-ask-${matter.id}`}
+              aria-label={t('matter.home.ask-aria', { name: label })}
+              onClick={(e) => {
+                launchSurface('search', e);
+              }}
+            >
+              <MessageSquare size={14} aria-hidden="true" />
+              <span data-testid={`matter-menu-ask-${matter.id}`}>
+                {askActionLabel}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`matter-launch-documents-${matter.id}`}
+              aria-label={t('matter.home.open-documents-aria', { name: label })}
+              onClick={(e) => {
+                launchSurface('files', e);
+              }}
+            >
+              <FileText size={14} aria-hidden="true" />
+              <span data-testid={`matter-menu-documents-${matter.id}`}>
+                {t('matter.hub.tab-documents')}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`matter-launch-email-${matter.id}`}
+              aria-label={t('matter.home.open-email-aria', { name: label })}
+              onClick={(e) => {
+                launchSurface('email', e);
+              }}
+            >
+              <Mail size={14} aria-hidden="true" />
+              {t('matter.hub.tab-email')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`matter-launch-meetings-${matter.id}`}
+              aria-label={t('matter.home.open-meetings-aria', { name: label })}
+              onClick={(e) => {
+                launchSurface('meetings', e);
+              }}
+            >
+              <Mic size={14} aria-hidden="true" />
+              {t('matter.hub.tab-meetings')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid={`matter-launch-activity-${matter.id}`}
+              aria-label={t('matter.home.open-activity-aria', { name: label })}
+              onClick={(e) => {
+                launchSurface('audit', e);
+              }}
+            >
+              <Clock size={14} aria-hidden="true" />
+              {t('matter.hub.tab-activity')}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid={`matter-archive-${matter.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onArchive(matter.id);
+              }}
+            >
+              {t('matter.home.archive')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton
-            icon={MoreHorizontal}
-            label={t('matter.home.row-menu-aria', { name: label })}
-            variant="ghost"
-            size="sm"
-            data-testid={`matter-actions-menu-${matter.id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem
-            data-testid={`matter-menu-open-client-${matter.id}`}
-            onClick={() => {
-              onSelect(matter.id);
-            }}
-          >
-            {t('matter.home.open-client')}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid={`matter-menu-ask-${matter.id}`}
-            onClick={(e) => {
-              launchSurface('search', e);
-            }}
-          >
-            {askActionLabel}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            data-testid={`matter-menu-documents-${matter.id}`}
-            onClick={(e) => {
-              launchSurface('files', e);
-            }}
-          >
-            {t('matter.hub.tab-documents')}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            data-testid={`matter-archive-${matter.id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onArchive(matter.id);
-            }}
-          >
-            {t('matter.home.archive')}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
     </div>
   );
 }
@@ -838,7 +814,6 @@ export function MattersHome({
   renderClientEmail,
   renderClientActivity,
   workspaceService,
-  clientMapMode = 'all-clients',
 }: MattersHomeProps = {}) {
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
@@ -946,28 +921,6 @@ export function MattersHome({
           : {})}
         workspaceService={workspaceService ?? null}
       />
-    );
-  }
-
-  if (clientMapMode === 'client-map' && activeMatterId === null) {
-    return (
-      <div
-        data-testid="client-map-empty-canvas"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          flex: 1,
-          minWidth: 0,
-          background: 'var(--color-background)',
-          fontFamily: 'Satoshi, sans-serif',
-          color: 'var(--color-muted-foreground)',
-          fontSize: 'var(--kp-font-sm)',
-        }}
-      >
-        {t('matter.empty-canvas.select-client')}
-      </div>
     );
   }
 

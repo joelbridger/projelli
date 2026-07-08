@@ -27,9 +27,9 @@ function firmName(): string {
   const fromProfile = profile.firmName.trim() || profile.soloName.trim();
   if (fromProfile) return fromProfile;
   try {
-    return localStorage.getItem(SK_FIRM_NAME)?.trim() || 'Advisor Prep Hero';
+    return localStorage.getItem(SK_FIRM_NAME)?.trim() || 'Lantern';
   } catch {
-    return 'Advisor Prep Hero';
+    return 'Lantern';
   }
 }
 
@@ -60,12 +60,12 @@ export function suggestClientMapPdfExportName(clientName: string): string {
 export function clientMapToMarkdown(map: ClientMap, clientName: string, generatedAt = new Date()): string {
   const generated = generatedAt.toLocaleString();
   const lines: string[] = [
-    `# Advisor Prep Hero Client Map: ${clientName}`,
+    `# Lantern Client Map: ${clientName}`,
     '',
     `Prepared for ${firmName()}`,
     `Updated ${generated}`,
     '',
-    'This map is built from the client files Advisor Prep Hero can read. Review the sources before using it with a client.',
+    'This map is built from the client files Lantern can read. Review the sources before using it with a client.',
     '',
   ];
 

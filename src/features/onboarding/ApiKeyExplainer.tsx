@@ -8,13 +8,14 @@
  *   - Shows by default in onboarding (where users need it most).
  *   - Collapsible in Settings (where returning users may not need it every time).
  *   - No em dashes, no jargon, honest framing: prompts go to the provider,
- *     not through Advisor Prep Hero's servers. We do NOT claim "never leaves your machine"
- *     (the AI call does leave), only that Advisor Prep Hero never sees your work.
+ *     not through Lantern's servers. We do NOT claim "never leaves your machine"
+ *     (the AI call does leave), only that Lantern never sees your work.
  */
 
 import { useState } from 'react';
 import { Info, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 
 interface ApiKeyExplainerProps {
   /**
@@ -29,6 +30,7 @@ export function ApiKeyExplainer({
   defaultOpen = true,
   className,
 }: ApiKeyExplainerProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(defaultOpen);
   const collapsible = !defaultOpen;
 
@@ -67,13 +69,11 @@ export function ApiKeyExplainer({
           <p>
             An API key is like a password that lets your computer talk directly
             to an AI company (Anthropic, OpenAI, or Google). You create it on
-            their site, paste it here once, and Advisor Prep Hero stores it in your
+            their site, paste it here once, and Lantern stores it in your
             operating system's secure keychain.
           </p>
           <p>
-            That direct connection is what makes Advisor Prep Hero private: your prompts
-            go straight from your machine to the provider you chose. Advisor Prep Hero's
-            servers never see your work, your files, or your conversations.
+            {t('onboarding.api-key-explainer.privacy-body')}
           </p>
           <p>
             You pay the provider directly for what you use. Most professional

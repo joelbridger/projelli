@@ -1,9 +1,9 @@
 // Formula Engine
 // ---------------------------------------------------------------------------
-// Lightweight Excel-formula engine for the Advisor Prep Hero spreadsheet viewer.
+// Lightweight Excel-formula engine for the Lantern spreadsheet viewer.
 //
 // Why in-house: the obvious off-the-shelf option, HyperFormula, is dual-
-// licensed GPL-3 / proprietary. GPL-3 would force Advisor Prep Hero's entire JS
+// licensed GPL-3 / proprietary. GPL-3 would force Lantern's entire JS
 // bundle open under GPL, which conflicts with the commercial launch plan
 // (the Lantern business plan). Rather than pay for a proprietary
 // seat up front, we implement a small engine that covers the common cases:

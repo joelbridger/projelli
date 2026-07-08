@@ -53,7 +53,7 @@ export function isDocxEngineAvailable(): boolean {
 }
 
 const BROWSER_ERROR =
-  'The Word document editor is only available in the Advisor Prep Hero desktop app.';
+  'The Word document editor is only available in the Lantern desktop app.';
 
 /**
  * Open a `.docx` at `path` and return its JSON DOM for the editor.
@@ -118,7 +118,7 @@ export async function docxResolveAll(
  * @param kind `"insertion"` | `"deletion"` | `"insertParagraph"`
  * @param paragraphIndex which paragraph (counting only paragraphs) to edit
  * @param opts `text` for insertions, `needle` for deletions; `author`/`date`
- *   default to "Advisor Prep Hero AI" / now (UTC) when omitted.
+ *   default to "Lantern AI" / now (UTC) when omitted.
  */
 export async function docxAuthorRevision(
   document: DocumentJson,
@@ -154,7 +154,7 @@ export async function docxAuthorRevision(
  * Anchors that can't be found are skipped and reported in `results[].applied`
  * (not fatal) — a single mis-quoted anchor never discards the whole proposal.
  *
- * @param author defaults to "Advisor Prep Hero AI" when omitted/empty.
+ * @param author defaults to "Lantern AI" when omitted/empty.
  * @param date ISO-8601; defaults to now (UTC) when omitted.
  */
 export async function docxAuthorRevisions(

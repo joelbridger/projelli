@@ -2,7 +2,7 @@
  * DataMapDialog — "Where your data lives and who can see it".
  *
  * A plain-English, client-shareable map of exactly what happens to a user's
- * information in Advisor Prep Hero. It is reachable from Settings → Privacy and is built
+ * information in Lantern. It is reachable from Settings → Privacy and is built
  * to be PRINTED or saved to PDF so a lawyer can hand it to a worried client.
  *
  * ACCURACY IS THE WHOLE POINT. Every claim below mirrors the real architecture
@@ -77,26 +77,26 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your files and notes stay on your machine',
-    body: 'Your workspace is a normal folder on your own hard drive, in a location you chose. Advisor Prep Hero opens and edits those files in place. There is no Advisor Prep Hero cloud holding copies of your documents, and nothing is uploaded for sync.',
+    body: 'Your workspace is a normal folder on your own hard drive, in a location you chose. Lantern opens and edits those files in place. There is no Lantern cloud holding copies of your documents, and nothing is uploaded for sync.',
   },
   {
     icon: KeyRound,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your AI keys live in your operating system keychain',
-    body: "When you add an API key for Anthropic, OpenAI, or Google, it is stored in your computer's own secure keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux). Advisor Prep Hero never holds your keys on a server and never charges you for the AI itself.",
+    body: "When you add an API key for Anthropic, OpenAI, or Google, it is stored in your computer's own secure keychain (Keychain on macOS, Credential Manager on Windows, the Secret Service on Linux). Lantern never holds your keys on a server and never charges you for the AI itself.",
   },
   {
     icon: Cloud,
     tone: 'text-sky-700 bg-sky-50 dark:text-sky-300 dark:bg-sky-950/40',
     title: 'When you use a cloud model, your prompt goes straight to that provider',
-    body: "If your chat uses Anthropic, OpenAI, or Google, your message (and any file content you include) is sent directly from your machine to that provider's API using your own key. Advisor Prep Hero is not a middleman in that request. It does not pass through, store, or see it.",
-    caveat: "The honest asterisk: that provider does receive your prompt. They commonly retain it for a limited window (often around 30 days for abuse monitoring; Google's window differs), and whether it is used to train their models is governed by your account settings in their console, not by Advisor Prep Hero. Read your provider's data policy and set your training opt-out there.",
+    body: "If your chat uses Anthropic, OpenAI, or Google, your message (and any file content you include) is sent directly from your machine to that provider's API using your own key. Lantern is not a middleman in that request. It does not pass through, store, or see it.",
+    caveat: "The honest asterisk: that provider does receive your prompt. They commonly retain it for a limited window (often around 30 days for abuse monitoring; Google's window differs), and whether it is used to train their models is governed by your account settings in their console, not by Lantern. Read your provider's data policy and set your training opt-out there.",
   },
   {
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'For your most sensitive work, use a local model',
-    body: 'Run a local model with Ollama and switch Advisor Prep Hero to Local-only mode (Settings → AI → Confidentiality mode). In that mode the prompt and your files are processed by a model on your own machine, so no AI prompt or file is ever sent to a cloud AI: not to a provider, not to Advisor Prep Hero. (Connectors you set up, like Wealthbox or email, still sync if you use them.)',
+    body: 'Run a local model with Ollama and switch Lantern to Local-only mode (Settings → AI → Confidentiality mode). In that mode the prompt and your files are processed by a model on your own machine, so no AI prompt or file is ever sent to a cloud AI: not to a provider, not to Lantern. (Connectors you set up, like Wealthbox or email, still sync if you use them.)',
   },
   {
     icon: Mail,
@@ -108,40 +108,40 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: Users,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Your Wealthbox connection runs from your machine to Wealthbox',
-    body: "When you connect Wealthbox, your API key is stored in your computer's own keychain, never on a Advisor Prep Hero server. Advisor Prep Hero reads your Wealthbox data by calling Wealthbox directly from your machine with that key, so those requests never pass through Advisor Prep Hero's servers and Advisor Prep Hero never sees your CRM data. A sync imports the households and client records your Wealthbox login can see, and stores them in a local, encrypted database on your device, searched the same way your files are.",
-    caveat: "Reading is automatic; writing is not. Advisor Prep Hero can write a note, task, or field update into Wealthbox, but only from a review card that lists exactly what will be sent, which you approve before anything goes out. Nothing is written back on its own. Disconnecting deletes the imported Wealthbox data from this device.",
+    body: "When you connect Wealthbox, your API key is stored in your computer's own keychain, never on a Lantern server. Lantern reads your Wealthbox data by calling Wealthbox directly from your machine with that key, so those requests never pass through Lantern's servers and Lantern never sees your CRM data. A sync imports the households and client records your Wealthbox login can see, and stores them in a local, encrypted database on your device, searched the same way your files are.",
+    caveat: "Reading is automatic; writing is not. Lantern can write a note, task, or field update into Wealthbox, but only from a review card that lists exactly what will be sent, which you approve before anything goes out. Nothing is written back on its own. Disconnecting deletes the imported Wealthbox data from this device.",
   },
   {
     icon: ScanText,
     tone: 'text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40',
     title: 'Scanned documents are read on your machine',
-    body: 'When a PDF in your workspace is a scan with no text layer, Advisor Prep Hero reads it with an OCR engine that runs inside the app, on your computer. The page images and the recognized text never leave the device, and no cloud OCR service is ever used. Where the engine was less sure of a page, passages from it are labeled "low-confidence scan" in citations so you know to check the original.',
+    body: 'When a PDF in your workspace is a scan with no text layer, Lantern reads it with an OCR engine that runs inside the app, on your computer. The page images and the recognized text never leave the device, and no cloud OCR service is ever used. Where the engine was less sure of a page, passages from it are labeled "low-confidence scan" in citations so you know to check the original.',
   },
   {
     icon: Server,
     tone: 'text-slate-700 bg-slate-100 dark:text-slate-300 dark:bg-slate-800/60',
-    title: "What Advisor Prep Hero's own servers see",
-    body: "The only automatic contact with Advisor Prep Hero's servers is a periodic license check. That request carries nothing about your documents, your prompts, or your clients. It sends only what is needed to confirm your purchase is active. If you opt into anonymous analytics in Settings, small lifecycle events (an anonymous install id plus an event name like 'app launched', with no file content and no prompts) are sent when you enable that option. If you use the bug-report form, the message you type in it is posted to Advisor Prep Hero support. Neither analytics nor bug reports are on by default.",
+    title: "What Lantern's own servers see",
+    body: "The only automatic contact with Lantern's servers is a periodic license check. That request carries nothing about your documents, your prompts, or your clients. It sends only what is needed to confirm your purchase is active. If you opt into anonymous analytics in Settings, small lifecycle events (an anonymous install id plus an event name like 'app launched', with no file content and no prompts) are sent when you enable that option. If you use the bug-report form, the message you type in it is posted to Lantern support. Neither analytics nor bug reports are on by default.",
   },
   {
     icon: Server,
     tone: 'text-indigo-700 bg-indigo-50 dark:text-indigo-300 dark:bg-indigo-950/40',
-    title: 'For firm Assured mode: AI requests go through a Advisor Prep Hero relay',
-    body: "Firms that use Assured mode have a firm admin configure a managed provider key on the Advisor Prep Hero backend. In that mode, AI requests from your machine go through the Advisor Prep Hero relay, which attaches the firm's key server-side and forwards the request to your AI provider. Advisor Prep Hero retains nothing from those requests (no prompt, no completion) under its Data Processing Agreement. The AI provider still receives your prompt under your firm's agreement with them. This path is visible in the egress indicator when it is active and applies only to firm members whose admin has enabled it. Solo users on direct BYOK are never routed this way.",
+    title: 'For firm Assured mode: AI requests go through a Lantern relay',
+    body: "Firms that use Assured mode have a firm admin configure a managed provider key on the Lantern backend. In that mode, AI requests from your machine go through the Lantern relay, which attaches the firm's key server-side and forwards the request to your AI provider. Lantern retains nothing from those requests (no prompt, no completion) under its Data Processing Agreement. The AI provider still receives your prompt under your firm's agreement with them. This path is visible in the egress indicator when it is active and applies only to firm members whose admin has enabled it. Solo users on direct BYOK are never routed this way.",
     caveat: "Assured mode is a firm-tier feature. If you are a solo user, the relay is not in the picture for you at all.",
   },
   {
     icon: KeyRound,
     tone: "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/40",
-    title: "Advisor Prep Hero can encrypt this workspace's files with AES-256",
-    body: "When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). Advisor Prep Hero decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by Advisor Prep Hero. If you lose that phrase and your device's keychain, Advisor Prep Hero cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.",
+    title: "Lantern can encrypt this workspace's files with AES-256",
+    body: "When you enable the vault, every document file is stored as ciphertext on disk (AES-256-GCM). Lantern decrypts files transparently as you work, so your day-to-day experience is unchanged. A 24-word recovery phrase is generated once and never stored by Lantern. If you lose that phrase and your device's keychain, Lantern cannot recover your files. For firm workspaces, a firm admin holds an escrow copy and can recover the vault on your behalf.",
     caveat: "File names and folder structure remain visible on disk regardless of vault status. Only the contents of individual files are encrypted. The recovery phrase is the sole backstop for solo users.",
   },
   {
     icon: BarChart2,
     tone: 'text-violet-700 bg-violet-50 dark:text-violet-300 dark:bg-violet-950/40',
     title: 'Optional error reporting (opt-in, off by default)',
-    body: 'If you turn on Optional error reporting in Settings, Advisor Prep Hero sends structured usage counts to help improve the product: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, client names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.',
+    body: 'If you turn on Optional error reporting in Settings, Lantern sends structured usage counts to help improve the product: which features you use, how many searches you run, which workflow template you ran, and whether you connected a provider. It never sends your content, file names, client names, prompts, or search queries. Only counts and internal ids. This is a separate opt-in from anonymous analytics, also off by default.',
     caveat: `To confirm what is collected: Settings > Privacy > Optional error reporting lists every field sent. Endpoint: ${BRAND.urls.formsDiagnostics}.`,
   },
   {
@@ -155,7 +155,7 @@ export const DATA_MAP_ROWS: MapRow[] = [
     icon: Database,
     tone: 'text-amber-700 bg-amber-50 dark:text-amber-300 dark:bg-amber-950/40',
     title: 'What the search index itself stores',
-    body: 'To answer questions across your files, Advisor Prep Hero keeps a local search index inside your workspace folder. The passage text in it is encrypted at rest, and so are the file paths, so the index on its own does not reveal which clients or projects you have files for. Two things in it stay readable on disk, on purpose: the workspace item label and the confidentiality tag on each passage, because search isolation has to filter on them before anything is searched.',
+    body: 'To answer questions across your files, Lantern keeps a local search index inside your workspace folder. The passage text in it is encrypted at rest, and so are the file paths, so the index on its own does not reveal which clients or projects you have files for. Two things in it stay readable on disk, on purpose: the workspace item label and the confidentiality tag on each passage, because search isolation has to filter on them before anything is searched.',
     caveat: 'The index stores numeric summaries of your documents (not your actual words) that help the AI find relevant passages. These numeric summaries are kept on your device and are not sent anywhere on their own. One detail to be aware of: they sit on disk unencrypted, and this row exists so you know that.',
   },
 ];
@@ -191,7 +191,7 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
       return;
     }
 
-    doc.title = 'Where your data lives and who can see it (Advisor Prep Hero)';
+    doc.title = 'Where your data lives and who can see it (Lantern)';
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -326,7 +326,7 @@ export function DataMapContent({
         Where your data lives and who can see it
       </h1>
       <p className="sub text-sm text-muted-foreground mb-4">
-        How Advisor Prep Hero handles your information, in plain language. The short
+        How Lantern handles your information, in plain language. The short
         version: your work stays on your computer, your AI requests go straight
         to the provider you chose (not through us), and you can run entirely on
         your own machine when you need to.
@@ -464,14 +464,14 @@ export function DataMapContent({
       {IS_DEMO ? (
         <p className="foot mt-4 text-xs text-muted-foreground">
           You are using the online browser demo. The demo routes AI messages
-          through a shared Advisor Prep Hero relay and should never be used with
+          through a shared Lantern relay and should never be used with
           confidential or client information. Download the desktop app for the
           full private, local-first experience described above.
         </p>
       ) : (
         <p className="foot mt-4 text-xs text-muted-foreground">
-          You are using the Advisor Prep Hero desktop app. Everything described above
-          applies to you. Advisor Prep Hero is a tool you control, not a custodian of
+          You are using the Lantern desktop app. Everything described above
+          applies to you. Lantern is a tool you control, not a custodian of
           your data. You decide what is sent and to whom.
         </p>
       )}

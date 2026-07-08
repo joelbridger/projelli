@@ -7,7 +7,7 @@
  *   - This calendar month
  *
  * Also surfaces a plain-English note clarifying that these costs come
- * directly from the user's API provider, not from Advisor Prep Hero.
+ * directly from the user's API provider, not from Lantern.
  *
  * Intentionally self-contained: no audit-log dependency, no props needed
  * beyond an optional `now` override for deterministic tests.
@@ -16,6 +16,7 @@
 import { useTodayCost, useLast7DaysCost, useThisMonthCost } from '@/platform/state/aiChatStore';
 import { formatCostLong } from '@/features/ask/ChatCostChip';
 import { cn } from '@/lib/utils';
+import { useTranslation } from 'react-i18next';
 
 export interface CostDashboardProps {
   /** Override the current date for tests. Passed through to hooks. */
@@ -42,6 +43,7 @@ function StatRow({ label, value, testid }: StatRowProps) {
 }
 
 export function CostDashboard({ now, className }: CostDashboardProps) {
+  const { t } = useTranslation();
   const today = useTodayCost();
   const week = useLast7DaysCost(now);
   const month = useThisMonthCost(now);
@@ -74,7 +76,7 @@ export function CostDashboard({ now, className }: CostDashboardProps) {
       <div className="mb-3">
         <h3 className="text-sm font-semibold">AI Usage</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Costs are billed directly by {providerPhrase}, not by Advisor Prep Hero.
+          {t('ask.cost-dashboard.provider-note', { provider: providerPhrase })}
         </p>
       </div>
 

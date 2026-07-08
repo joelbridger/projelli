@@ -31,7 +31,7 @@ export interface GuidedOnboardingProps {
    */
   onSaveKey: (provider: KeyProvider, key: string) => void | Promise<void>;
   /**
-   * Called when the user clicks "Open Advisor Prep Hero" on the Done step, or when they
+   * Called when the user clicks "Open Lantern" on the Done step, or when they
    * skip the entire flow.  opts.writeSamples signals whether sample files
    * should be written (the caller owns the workspace handle).
    */

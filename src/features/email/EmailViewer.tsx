@@ -1,5 +1,5 @@
 /**
- * EmailViewer (Advisor Prep Hero 3.0) — read-only viewer for ONE stored email.
+ * EmailViewer (Lantern 3.0) — read-only viewer for ONE stored email.
  *
  * Given a message id (or a `mail:<id>` citation source id), it calls the
  * `mail_get_message` Tauri command, which reads the encrypted blob, decrypts it,
@@ -19,7 +19,7 @@
  * TEXT content (never `dangerouslySetInnerHTML`), which React escapes.
  * `stripResidualTags` is a defensive second layer.
  *
- * Light theme, navy accent, lean — matches the rest of Advisor Prep Hero.
+ * Light theme, navy accent, lean — matches the rest of Lantern.
  */
 
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';

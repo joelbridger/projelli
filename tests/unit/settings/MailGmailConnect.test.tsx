@@ -85,7 +85,7 @@ describe('MailGmailConnect', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /connect gmail/i }));
 
-    expect(await screen.findByText(/email connects in the Advisor Prep Hero desktop app/i)).toBeInTheDocument();
+    expect(await screen.findByText(/email connects in the Lantern desktop app/i)).toBeInTheDocument();
     // The alarm framing must NOT be used for an expected limitation.
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
   });

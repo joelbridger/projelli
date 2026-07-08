@@ -1,7 +1,7 @@
 # Sample: Household Overview
 
 > Fictional household: **The Hendricks Household**, a couple nearing retirement.
-> This is a sample so you can see what a finished household overview looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what a finished household overview looks like in Lantern. Delete it whenever you want.
 
 ---
 

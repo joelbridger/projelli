@@ -27,7 +27,7 @@ const interviewQuestions: InterviewStepConfig['questions'] = [
     description: 'What systems does your firm use to store, process, or transmit client data? Include CRM, portfolio management, financial planning software, email, cloud storage, and anything else that handles client information.',
     type: 'textarea',
     required: true,
-    placeholder: 'e.g., Orion (portfolio management), Salesforce (CRM), MoneyGuide Pro (financial planning), Microsoft 365 (email + SharePoint), Advisor Prep Hero (AI-assisted client workflows), Dropbox (file sharing)',
+    placeholder: 'e.g., Orion (portfolio management), Salesforce (CRM), MoneyGuide Pro (financial planning), Microsoft 365 (email + SharePoint), Lantern (AI-assisted client workflows), Dropbox (file sharing)',
   },
   {
     id: 'dataCategories',

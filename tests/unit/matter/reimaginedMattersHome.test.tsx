@@ -1,15 +1,14 @@
 /**
  * mattersHome.test.tsx
  *
- * Acceptance tests for B1 (sample-matter badge) and B4 (visible quick-actions).
+ * Acceptance tests for B1 (sample-matter badge) and row action access.
  *
  * B1: When a matter has isSample===true, a "Sample" pill is visible on its row
  *     in MattersHome and in MatterManagerDialog. The delete button in
  *     MatterManagerDialog shows a confirm dialog before deleting the sample matter.
  *
- * B4: The Ask / Documents / Email quick-action buttons are present in the DOM
- *     at rest (not hidden via height:0 or display:none), keyboard-focusable,
- *     and have correct aria-labels.
+ * Row actions: Ask / Documents / Email / Meetings / Activity live in the
+ *     standard row menu, while row click opens the client map.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -137,19 +136,27 @@ describe('MattersHome — B1 sample badge', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// B4 — Quick-actions visible at rest in MattersHome
+// Row actions live in the row menu
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('MattersHome — B4 quick-actions visible at rest', () => {
+describe('MattersHome — row actions menu', () => {
   beforeEach(resetStore);
 
-  it('renders Ask / Documents / Email / Meetings / Activity buttons in the DOM (not hidden) for each matter', () => {
+  async function openRowMenu(matterId: string) {
+    fireEvent.pointerDown(screen.getByTestId(`matter-actions-menu-${matterId}`));
+    return screen.findByTestId(`matter-launch-ask-${matterId}`);
+  }
+
+  it('keeps Ask / Documents / Email / Meetings / Activity in the row menu, not visible at rest', async () => {
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
     render(<MattersHome />);
 
-    const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
+    expect(screen.queryByTestId(`matter-launch-ask-${matter.id}`)).not.toBeInTheDocument();
+    expect(screen.getByTestId(`matter-actions-menu-${matter.id}`)).toBeInTheDocument();
+
+    const askBtn = await openRowMenu(matter.id);
     const docsBtn = screen.getByTestId(`matter-launch-documents-${matter.id}`);
     const emailBtn = screen.getByTestId(`matter-launch-email-${matter.id}`);
     const meetingsBtn = screen.getByTestId(`matter-launch-meetings-${matter.id}`);
@@ -169,13 +176,13 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     expect(activityBtn.closest('[aria-hidden="true"]')).toBeNull();
   });
 
-  it('quick-action buttons have correct aria-labels', () => {
+  it('menu actions have correct aria-labels', async () => {
     useMatterStore.getState().createMatter({ name: 'Smith v. Jones', client: 'Smith' });
     const matter = useMatterStore.getState().matters[0]!;
 
     render(<MattersHome />);
 
-    const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
+    const askBtn = await openRowMenu(matter.id);
     const docsBtn = screen.getByTestId(`matter-launch-documents-${matter.id}`);
     const emailBtn = screen.getByTestId(`matter-launch-email-${matter.id}`);
     const meetingsBtn = screen.getByTestId(`matter-launch-meetings-${matter.id}`);
@@ -188,20 +195,17 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
     expect(activityBtn.getAttribute('aria-label')).toContain('Open activity for');
   });
 
-  it('quick-action buttons are real <button> elements (keyboard-focusable)', () => {
+  it('menu actions are keyboard-reachable menu items', async () => {
     useMatterStore.getState().createMatter({ name: 'Focus Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
     render(<MattersHome />);
 
-    const askBtn = screen.getByTestId(`matter-launch-ask-${matter.id}`);
-    expect(askBtn.tagName).toBe('BUTTON');
-    expect(askBtn.getAttribute('type')).toBe('button');
-    // Should not have tabindex=-1 which would exclude from tab order
-    expect(askBtn.getAttribute('tabindex')).not.toBe('-1');
+    const askItem = await openRowMenu(matter.id);
+    expect(askItem).toHaveAttribute('role', 'menuitem');
   });
 
-  it('quick-action clicks dispatch keepance:matter-launch with the correct surfaces', () => {
+  it('menu action clicks dispatch lantern:matter-launch with the correct surfaces', async () => {
     const cases = [
       ['ask', 'search'],
       ['documents', 'files'],
@@ -220,6 +224,7 @@ describe('MattersHome — B4 quick-actions visible at rest', () => {
       window.addEventListener('lantern:matter-launch', handler);
 
       render(<MattersHome />);
+      await openRowMenu(matter.id);
       fireEvent.click(screen.getByTestId(`matter-launch-${handle}-${matter.id}`));
 
       expect(events).toHaveLength(1);

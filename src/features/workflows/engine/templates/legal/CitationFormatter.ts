@@ -157,7 +157,7 @@ Produce a complete Table of Authorities in standard court format. Organize citat
 
 ---
 
-*Citation formatting produced by Advisor Prep Hero AI. Verify every citation against the current Bluebook edition before filing. AI formatting is a starting point — do not rely on it without independent verification.*`;
+*Citation formatting produced by Lantern AI. Verify every citation against the current Bluebook edition before filing. AI formatting is a starting point — do not rely on it without independent verification.*`;
 
 export const CitationFormatter: WorkflowTemplate = {
   id: 'citation-formatter',

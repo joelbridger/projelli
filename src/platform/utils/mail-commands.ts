@@ -141,7 +141,7 @@ export async function mailBackfillRag(matterMap: MailMatterMapEntry[] = []): Pro
  *   (same-process inter-thread communication, NOT a network hop). The decrypted
  *   body lives only in renderer-process memory for the duration of the viewer's
  *   lifetime; it is never written back to disk in plaintext and never sent to
- *   any Advisor Prep Hero server or AI inference endpoint. The `EmailViewer` component
+ *   any Lantern server or AI inference endpoint. The `EmailViewer` component
  *   renders `message.body` as React text content (never `dangerouslySetInnerHTML`)
  *   and runs `stripResidualTags()` as a second defensive layer.
  *
@@ -277,7 +277,7 @@ function mailFixtureEnabled(): boolean {
 // Dev fixture data — exercisable in browser dev server when ?mailFixture=1.
 // Realistic financial-advisor inbox: client reviews, custodian notices,
 // beneficiary updates, RMD reminders, and a CRM integration note. No law-era
-// content (Advisor Prep Hero's audience is RIAs and wealth managers, not litigators).
+// content (Lantern's audience is RIAs and wealth managers, not litigators).
 const DEV_FIXTURES: MailListItem[] = [
   { id: 'fix-1', subject: 'Re: Annual review meeting', fromAddr: 'marcus.webb@gmail.com', fromName: 'Marcus Webb', snippet: 'Thursday at 2pm works for us. We want to talk through the 401(k) rollover and Caleb\'s 529.', receivedDateTime: '2026-06-12T14:30:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: false },
   { id: 'fix-2', subject: 'Q2 statement ready - Webb household', fromAddr: 'no-reply@schwab.com', fromName: 'Schwab Advisor Services', snippet: 'The Q2 2026 statement for account ending 4471 is now available to download.', receivedDateTime: '2026-06-11T09:15:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: true },

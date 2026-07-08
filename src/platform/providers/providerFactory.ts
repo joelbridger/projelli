@@ -4,7 +4,7 @@
 // instantiate the right Provider from a `(provider, model, apiKey)` triple.
 // This centralizes that switch so the two surfaces can't drift on construction.
 // BYOK is honored exactly as the rest of the app does it: the key is the user's
-// own, and each provider talks DIRECTLY to its vendor API (no Advisor Prep Hero server).
+// own, and each provider talks DIRECTLY to its vendor API (no Lantern server).
 
 import type { Provider } from './Provider';
 import { ClaudeProvider } from './ClaudeProvider';
@@ -31,14 +31,14 @@ import type { AssuredRoute } from '@/platform/firm/assuredInference';
  */
 export type ChatProviderId = CloudProviderId | 'ollama' | 'lantern-local'; // 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local'
 
-/** Default model for the embedded Advisor Prep Hero Local AI engine — defined in
+/** Default model for the embedded Lantern Local AI engine — defined in
  *  AppLocalProvider and re-exported here so factory callers/tests can
  *  import it from one place (mirrors OLLAMA_DEFAULT_MODEL). */
 export { LANTERN_LOCAL_DEFAULT_MODEL };
 
 /**
  * True when a provider id denotes a LOCAL (on-machine) model — either the
- * embedded Advisor Prep Hero Local AI engine (`'lantern-local'`) or a user-run Ollama
+ * embedded Lantern Local AI engine (`'lantern-local'`) or a user-run Ollama
  * daemon (`'ollama'`). Both run inference on the user's machine; nothing leaves.
  */
 export function isLocalProviderId(provider: ChatProviderId): boolean {
@@ -86,7 +86,7 @@ export function createProvider(opts: CreateProviderOptions): Provider {
       return new OllamaProvider({ model, ...rulesOpt });
     }
     case 'lantern-local': {
-      // Embedded llama.cpp engine ("Advisor Prep Hero Local AI"). Local, keyless, $0,
+      // Embedded llama.cpp engine ("Lantern Local AI"). Local, keyless, $0,
       // never assured-routed. The Rust side owns the model download + sidecar
       // lifecycle; the provider streams from the local sidecar endpoint.
       const model = opts.model ?? LANTERN_LOCAL_DEFAULT_MODEL;

@@ -22,7 +22,7 @@ import { skModelsCache } from '@/config/identity';
 export type ChatProvider = 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
 
 /**
- * Tri-state availability of the embedded Advisor Prep Hero Local AI model, as the chat's
+ * Tri-state availability of the embedded Lantern Local AI model, as the chat's
  * provider resolver sees it:
  *   - 'ready'   : the on-device model is downloaded and usable right now.
  *   - 'absent'  : we KNOW there is no usable local model — the status probe
@@ -54,7 +54,7 @@ export function localModelAvailability(
 
 /**
  * The provider a chat will ACTUALLY use right now, given its (optional) saved
- * provider and the tri-state availability of the embedded Advisor Prep Hero Local AI.
+ * provider and the tri-state availability of the embedded Lantern Local AI.
  *
  * Why this exists (privacy BLOCKER + its initial-load race): a chat with no
  * saved provider must NEVER silently fall back to a cloud provider ('anthropic')
@@ -120,7 +120,7 @@ export const FALLBACK_MODEL: Record<ChatProvider, string> = {
   // current model, matching DEFAULT_GOOGLE_FREE in defaultModel.ts.
   google: 'gemini-2.5-flash',
   ollama: '',
-  // Advisor Prep Hero Local AI (embedded llama.cpp) serves whichever GGUF is loaded; the
+  // Lantern Local AI (embedded llama.cpp) serves whichever GGUF is loaded; the
   // model id is cosmetic, so — like ollama — there's no fallback model and the
   // picker offers it as a selectable "Default model" that lets the provider use
   // its own default (LANTERN_LOCAL_DEFAULT_MODEL).

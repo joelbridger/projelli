@@ -1689,18 +1689,18 @@ describe('DocxEditor — AI redline (A4)', () => {
             { kind: 'run', text: 'The ' },
             {
               kind: 'insertion',
-              meta: { id: '1', author: 'Advisor Prep Hero AI', date: '2026-06-09T00:00:00Z' },
+              meta: { id: '1', author: 'Lantern AI', date: '2026-06-09T00:00:00Z' },
               runs: [{ text: 'Vendor' }],
             },
             {
               kind: 'deletion',
-              meta: { id: '1', author: 'Advisor Prep Hero AI', date: '2026-06-09T00:00:00Z' },
+              meta: { id: '1', author: 'Lantern AI', date: '2026-06-09T00:00:00Z' },
               runs: [{ text: 'Company' }],
             },
             { kind: 'run', text: ' shall indemnify the Client ' },
             {
               kind: 'deletion',
-              meta: { id: '2', author: 'Advisor Prep Hero AI', date: '2026-06-09T00:00:00Z' },
+              meta: { id: '2', author: 'Lantern AI', date: '2026-06-09T00:00:00Z' },
               runs: [{ text: 'for all losses' }],
             },
             { kind: 'run', text: '.' },
@@ -1744,7 +1744,7 @@ describe('DocxEditor — AI redline (A4)', () => {
         // ORIGINAL doc in ONE engine call, attributed to Lantern AI.
         expect(args?.['document']).toEqual(plainDoc());
         expect(args?.['edits']).toEqual(TWO_EDITS);
-        expect(args?.['author']).toBe('Advisor Prep Hero AI');
+        expect(args?.['author']).toBe('Lantern AI');
         return Promise.resolve({
           document: redlinedDoc(),
           results: [
@@ -1775,7 +1775,7 @@ describe('DocxEditor — AI redline (A4)', () => {
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith(
         'docx_author_revisions',
-        expect.objectContaining({ author: 'Advisor Prep Hero AI' }),
+        expect.objectContaining({ author: 'Lantern AI' }),
       ),
     );
 
@@ -1789,7 +1789,7 @@ describe('DocxEditor — AI redline (A4)', () => {
       expect(ids).toEqual(expect.arrayContaining(['1', '2']));
     });
     // The AI's insertion + deletions are attributed to Lantern AI.
-    expect(screen.getByTestId('docx-insertion')).toHaveAttribute('data-author', 'Advisor Prep Hero AI');
+    expect(screen.getByTestId('docx-insertion')).toHaveAttribute('data-author', 'Lantern AI');
     const dels = screen.getAllByTestId('docx-deletion');
     expect(dels.length).toBeGreaterThanOrEqual(2);
 

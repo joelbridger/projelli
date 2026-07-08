@@ -52,7 +52,7 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create Key"',
-        body: 'A dialog opens. Give it a label like "Advisor Prep Hero" so you remember where it goes. Leave the Anthropic "Workspace" dropdown on its default (this is Anthropic\'s billing workspace, not your Advisor Prep Hero workspace).',
+        body: 'A dialog opens. Give it a label like "Lantern" so you remember where it goes. Leave the Anthropic "Workspace" dropdown on its default (this is Anthropic\'s billing workspace, not your Lantern workspace).',
       },
       {
         title: 'Copy the key and paste it here',
@@ -82,7 +82,7 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create new secret key"',
-        body: 'Name it "Advisor Prep Hero". Permissions: "All" is fine. Click Create.',
+        body: 'Name it "Lantern". Permissions: "All" is fine. Click Create.',
       },
       {
         title: 'Copy the key and paste it here',

@@ -27,7 +27,7 @@ describe('LibreOfficeHelpNotice (VG-4a)', () => {
     const notice = screen.getByTestId('libreoffice-help-notice');
     expect(notice).toHaveTextContent('PDF export needs LibreOffice');
     expect(notice).toHaveTextContent(
-      'Advisor Prep Hero converts Word to PDF locally using LibreOffice, a free program. ' +
+      'Lantern converts Word to PDF locally using LibreOffice, a free program. ' +
         'Nothing leaves your machine. Install it, then run the export again.',
     );
     expect(notice).toHaveTextContent(DOWNLOAD_URL);

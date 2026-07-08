@@ -1,7 +1,7 @@
 # Sample: Plan Summary
 
 > Fictional household: **The Hendricks Household**, RightCapital financial plan summary.
-> This is a sample so you can see what a finished plan summary looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what a finished plan summary looks like in Lantern. Delete it whenever you want.
 
 ---
 

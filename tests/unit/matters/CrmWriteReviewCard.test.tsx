@@ -253,7 +253,7 @@ describe('CrmWriteReviewCard', () => {
     await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
     const arg = vi.mocked(crmCreateNote).mock.calls[0]![0] as { provenance?: string };
     expect(arg.provenance).toBeTruthy();
-    expect(arg.provenance).toContain('Advisor Prep Hero AI');
+    expect(arg.provenance).toContain('Lantern AI');
     expect(arg.provenance?.toLowerCase()).toContain('meeting');
   });
 

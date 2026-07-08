@@ -233,7 +233,7 @@ export function CalendarConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Calendar
-          <InfoHelp content="Requires the Advisor Prep Hero desktop app." />
+          <InfoHelp content="Requires the Lantern desktop app." />
         </h3>
       </section>
     );
@@ -255,7 +255,7 @@ export function CalendarConnect() {
       >
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Calendar
-          <InfoHelp content="Connect your calendar so Advisor Prep Hero can match today’s meetings to the right client and prep you before each one. It reads meetings only, never writes to your calendar." />
+          <InfoHelp content="Connect your calendar so Lantern can match today’s meetings to the right client and prep you before each one. It reads meetings only, never writes to your calendar." />
         </h3>
 
         {!anyConnected && (
@@ -344,7 +344,7 @@ export function CalendarConnect() {
             </div>
 
             <p className="mt-3 text-xs text-slate-500">
-              Read-only. Advisor Prep Hero only reads your calendar to match
+              Read-only. Lantern only reads your calendar to match
               meetings to clients. It never creates, edits, moves, or deletes
               events.
             </p>

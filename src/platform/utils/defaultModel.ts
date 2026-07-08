@@ -1,10 +1,10 @@
 /**
  * Default-model resolution helper (Q9 — Wave 1.5).
  *
- * Advisor Prep Hero ships as "bring your own key" + free tier. Free-tier users
+ * Lantern ships as "bring your own key" + free tier. Free-tier users
  * almost always want the cheapest capable model on Anthropic, which is Claude
  * Haiku 4.5. Paid users (personal / professional / practice) have made a
- * deliberate commercial decision to pay for Advisor Prep Hero and they're allowed to
+ * deliberate commercial decision to pay for Lantern and they're allowed to
  * pick whichever model they want on a per-provider basis.
  *
  * This helper centralizes the decision so any surface that needs to

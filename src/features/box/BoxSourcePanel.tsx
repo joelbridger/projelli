@@ -53,7 +53,7 @@ export function BoxSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Advisor Prep Hero imported this citation from Box as read-only text. Full cloud-document opening is a fast-follow.
+          Lantern imported this citation from Box as read-only text. Full cloud-document opening is a fast-follow.
         </p>
       </div>
     </div>

@@ -130,11 +130,11 @@ describe('matterStore — clientMapHubId (ephemeral hub-nav slice)', () => {
 });
 
 describe('Client Map hub navigation', () => {
-  it('shows a blank Client Map canvas when the tab is clicked with no selected client', () => {
-    seedMatter();
+  it('shows the All Clients table when the tab is clicked with no selected client', () => {
+    const id = seedMatter();
     render(<MattersHome clientMapMode="client-map" />);
 
-    expect(screen.getByText('Click a client on the left')).toBeInTheDocument();
+    expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
     expect(screen.queryByTestId('mock-matter-hub')).not.toBeInTheDocument();
   });
 

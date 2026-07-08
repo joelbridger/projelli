@@ -2,7 +2,7 @@
 // Drafting aid: every generated output carries a banner requiring professional review before use.
 //
 // ─────────────────────────────────────────────────────────────────────────
-// WS-D — Litigation-associate pattern (Advisor Prep Hero 3.0)
+// WS-D — Litigation-associate pattern (Lantern 3.0)
 // ─────────────────────────────────────────────────────────────────────────
 //
 // The Deposition Contradiction Finder is the PROVEN flagship for the 3.0

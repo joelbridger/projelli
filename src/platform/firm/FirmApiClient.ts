@@ -466,7 +466,7 @@ export class FirmApiClient {
   /**
    * POST /org/claim — claim a provisioned-but-unclaimed org.
    *
-   * Called from the "I just bought Advisor Prep Hero Firm" path in FirmSignIn. No auth
+   * Called from the "I just bought Lantern Firm" path in FirmSignIn. No auth
    * required: the license key IS the credential that proves purchase.
    * Returns full auth tokens + org + user on success.
    * Throws FirmApiError with status 409 (code 'already_claimed') or 404 (code

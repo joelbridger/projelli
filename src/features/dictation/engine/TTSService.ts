@@ -111,7 +111,7 @@ export const TTSService = {
   },
 
   /**
-   * Download a lazy-loaded voice from Advisor Prep Hero CDN.
+   * Download a lazy-loaded voice from Lantern CDN.
    * Used for Spanish and German voices on first selection.
    *
    * @param voiceId  Piper voice ID to download.

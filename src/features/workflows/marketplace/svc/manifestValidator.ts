@@ -70,7 +70,7 @@ export function validateTemplateManifest(
 /**
  * Compare two semver strings. Returns -1, 0, 1. Pre-release / build metadata
  * are ignored for the comparison (good enough for the "manifest needs newer
- * Advisor Prep Hero" check; full semver would be overkill here).
+ * Lantern" check; full semver would be overkill here).
  */
 export function compareSemver(a: string, b: string): number {
   const norm = (v: string) => {
@@ -98,7 +98,7 @@ export function checkMinAppVersion(
   currentAppVersion: string,
 ): string | null {
   if (compareSemver(manifest.minAppVersion, currentAppVersion) > 0) {
-    return `Template requires Advisor Prep Hero ${manifest.minAppVersion} or newer (you have ${currentAppVersion}).`;
+    return `Template requires Lantern ${manifest.minAppVersion} or newer (you have ${currentAppVersion}).`;
   }
   return null;
 }

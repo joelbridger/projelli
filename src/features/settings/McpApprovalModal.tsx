@@ -13,7 +13,7 @@
  *     Deny
  *
  * "Approve all for the session" is a per-React-tree flag stored in React
- * state (NOT persisted). Restarting Advisor Prep Hero clears it — a deliberate
+ * state (NOT persisted). Restarting Lantern clears it — a deliberate
  * safety default.
  *
  * This component does NOT own the polling loop; callers pass in the
@@ -51,7 +51,7 @@ export interface McpApprovalModalProps {
    * every pending write is AUTO-DENIED (never prompted, never approved, even if
    * `sessionApproveAll` is on), and the modal shows a "disabled" banner instead
    * of the approve/deny actions. This is the enforceable MCP choke point:
-   * Advisor Prep Hero owns the write-approval channel, so denying every write is how an
+   * Lantern owns the write-approval channel, so denying every write is how an
    * MCP server is made non-invocable from the app's side.
    */
   privilegedMatterMode?: boolean;

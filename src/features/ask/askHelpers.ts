@@ -328,7 +328,7 @@ async function resolveAvailableLocalAskProvider(): Promise<ResolvedAskProvider |
  * exact string through unchanged (same pattern as NO_ASK_PROVIDER_CONNECTED_MESSAGE).
  */
 export const LOCAL_AI_NOT_READY_MESSAGE =
-  "Advisor Prep Hero Local AI is still downloading or setting up. Check its progress in Settings, then try again.";
+  "Lantern Local AI is still downloading or setting up. Check its progress in Settings, then try again.";
 
 /**
  * The local engine Local-only mode actually sends to: the embedded Advisor Prep
@@ -415,7 +415,7 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
   }
   // No usable cloud provider (no key, or no explicit choice yet). In Direct /
   // Assured mode, only claim a local route after proving one exists: embedded
-  // Advisor Prep Hero Local AI ready, else a reachable Ollama daemon.
+  // Lantern Local AI ready, else a reachable Ollama daemon.
   const localProvider = await resolveAvailableLocalAskProvider();
   if (localProvider) return localProvider;
   throw new Error(NO_ASK_PROVIDER_CONNECTED_MESSAGE);

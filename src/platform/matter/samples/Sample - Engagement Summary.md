@@ -1,7 +1,7 @@
 # Sample: Engagement Summary
 
 > Fictional client: **Hartwell Distribution Co.**, mid-market regional distributor.
-> This is a sample so you can see what a finished engagement summary looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what a finished engagement summary looks like in Lantern. Delete it whenever you want.
 
 ---
 
@@ -47,10 +47,10 @@ Our scope: assess current-state operations across the two facilities, identify t
 
 Hartwell's NDA prohibits uploading operational data, customer lists, or financial projections to any third-party cloud service without prior written approval. This means:
 
-- Work files in this workspace stay local. That is why Advisor Prep Hero is the right tool here.
+- Work files in this workspace stay local. That is why Lantern is the right tool here.
 - Do not paste Hartwell data into any public AI tool, browser-based chatbot, or cloud document without confirming approval first.
-- AI queries using the data in this workspace go directly from your machine to your API provider. No data touches Advisor Prep Hero's servers. Keep it that way.
+- AI queries using the data in this workspace go directly from your machine to your API provider. No data touches Lantern's servers. Keep it that way.
 
 ---
 
-*Prepared in Advisor Prep Hero. Review and edit before sharing with any client or stakeholder.*
+*Prepared in Lantern. Review and edit before sharing with any client or stakeholder.*

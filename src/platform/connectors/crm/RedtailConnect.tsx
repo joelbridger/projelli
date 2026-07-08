@@ -125,7 +125,7 @@ export function RedtailConnect() {
 
       const count = households.length;
       const confirmed = await confirm(
-        `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? Advisor Prep Hero imports only the contacts, notes, and activities this login can read.`,
+        `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? Lantern imports only the contacts, notes, and activities this login can read.`,
         {
           title: `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'}`,
           confirmLabel: 'Import',
@@ -228,7 +228,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Redtail CRM
-          <InfoHelp content="Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Advisor Prep Hero desktop app." />
+          <InfoHelp content="Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Lantern desktop app." />
         </h3>
       </section>
     );
@@ -239,7 +239,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Redtail CRM
-          <InfoHelp content="Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Advisor Prep Hero stores the UserKey, not the password." />
+          <InfoHelp content="Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Lantern stores the UserKey, not the password." />
         </h3>
 
         {!connected && (
@@ -265,7 +265,7 @@ export function RedtailConnect() {
               />
             </div>
             <p className="text-xs text-slate-500">
-              The vendor API key comes from Advisor Prep Hero configuration. If it is missing, Redtail will not connect yet.
+              The vendor API key comes from Lantern configuration. If it is missing, Redtail will not connect yet.
             </p>
             <button
               type="button"
