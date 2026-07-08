@@ -22,6 +22,8 @@ const h = vi.hoisted(() => ({
   // When set, KeychainService.hasKey awaits this so the async resolution can be
   // held mid-flight (proves the mode-tag never shows a stale local destination).
   hold: null as Promise<unknown> | null,
+  // Local-readiness subscribers captured from the egress hook (item 3).
+  readinessCallbacks: [] as Array<() => void>,
 }));
 
 vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
@@ -70,6 +72,17 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 // Web-demo flag off for these desktop-path tests.
 vi.mock('@/web-demo/demoModeFlag', () => ({ IS_DEMO: false }));
 
+// Capture the egress hook's local-readiness subscription so a test can fire it
+// (item 3): the real one bridges a Tauri event we can't drive in jsdom.
+vi.mock('@/platform/privacy/localAiReadiness', () => ({
+  onLocalAiReadinessChange: (cb: () => void) => {
+    h.readinessCallbacks.push(cb);
+    return () => {
+      h.readinessCallbacks = h.readinessCallbacks.filter((c) => c !== cb);
+    };
+  },
+}));
+
 import { useActiveEgressDestination } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
@@ -97,6 +110,7 @@ beforeEach(() => {
   h.assuredProviders = [];
   h.keys = { anthropic: null, openai: null, google: null };
   h.hold = null;
+  h.readinessCallbacks = [];
   localStorage.clear();
 });
 
@@ -128,11 +142,16 @@ describe('top-bar badge destination agrees with the send path across modes', () 
     expect(screen.getByTestId('egress-indicator').textContent).not.toMatch(/Using local AI/i);
   });
 
-  it('assured with a firm managed route → assured-proxy (even with no personal key)', async () => {
+  // COORDINATOR RULING (fix round 2): the GLOBAL top-bar badge mirrors
+  // Ask/Workflows (BYOK-preferred), so it does NOT show assured. A personal key
+  // in assured mode → provider-direct (what Ask actually sends). Email's own
+  // action-time note stays assured (see resolveEmailProvider).
+  it('assured mode + a personal key → global badge is provider-direct (BYOK), NOT assured-proxy', async () => {
     h.mode = 'assured';
     h.assuredProviders = ['openai'];
+    h.keys.anthropic = 'sk-ant';
     render(<TopBarBadge mode="assured" />);
-    await waitFor(() => expect(destination()).toBe('assured-proxy'));
+    await waitFor(() => expect(destination()).toBe('provider-direct'));
   });
 });
 
@@ -162,5 +181,25 @@ describe('one-frame guarantee: Local-only → Direct never paints local under Di
     // Let it settle: it resolves to the real cloud destination.
     release('done');
     await waitFor(() => expect(destination()).toBe('provider-direct'));
+  });
+});
+
+describe('item 3: the badge flips off "Local AI setting up" when the model becomes ready', () => {
+  it('re-resolves on the local-readiness signal — no reload needed', async () => {
+    h.mode = 'local-only';
+    h.localStatus = 'absent';
+    h.ollamaReachable = false;
+    render(<TopBarBadge mode="local-only" />);
+    await waitFor(() => expect(destination()).toBe('local-pending'));
+
+    // The embedded model finishes downloading: readiness flips to ready and the
+    // Tauri event fires. The egress hook subscribed to it, so firing the captured
+    // callback must re-resolve the badge to the on-device engine.
+    expect(h.readinessCallbacks.length).toBeGreaterThan(0);
+    h.localStatus = 'ready';
+    await act(async () => {
+      h.readinessCallbacks.forEach((cb) => cb());
+    });
+    await waitFor(() => expect(destination()).toBe('local'));
   });
 });

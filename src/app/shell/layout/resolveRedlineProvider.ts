@@ -27,8 +27,13 @@ import type { ChatProviderId } from '@/platform/providers/providerFactory';
 export interface RedlineProviderInput {
   /** True when the confidentiality mode restricts AI to on-machine models. */
   localOnly: boolean;
-  /** The provider the trust bar / egress display resolved to. */
-  egressProvider: ChatProviderId;
+  /**
+   * The REAL provider the trust bar / egress display resolved to, or `null` when
+   * the badge is a status sentinel ('none' / 'local-pending' / "checking"). It is
+   * `ChatProviderId | null` — never a sentinel — because a sentinel must not be
+   * treated as a provider id (fix round 2, item 2).
+   */
+  egressProvider: ChatProviderId | null;
   /** The user's BYOK keys (same shape DocxEditor receives). */
   apiKeys: { provider: string; key: string; isValid: boolean }[];
   /**
@@ -47,12 +52,13 @@ export function resolveRedlineProvider({
   localModelReady = false,
 }: RedlineProviderInput): ChatProviderId {
   // Local-only: on-machine model, no key needed. Prefer the embedded Advisor Prep Hero
-  // Local AI when ready (F-503); else the egress-resolved local provider, which
-  // is 'ollama' here.
-  if (localOnly) return localModelReady ? 'lantern-local' : egressProvider;
+  // Local AI when ready (F-503); else Ollama — the two local engines. Resolved
+  // directly here, NOT from `egressProvider`, so the badge sentinel can never
+  // become the redline provider id.
+  if (localOnly) return localModelReady ? 'lantern-local' : 'ollama';
 
-  // Prefer the trust-bar provider when it actually has a usable key.
-  if (apiKeys.some((k) => k.provider === egressProvider && k.isValid)) {
+  // Prefer the trust-bar provider when it is a real provider with a usable key.
+  if (egressProvider && apiKeys.some((k) => k.provider === egressProvider && k.isValid)) {
     return egressProvider;
   }
 
@@ -60,5 +66,7 @@ export function resolveRedlineProvider({
   const firstValid = apiKeys.find((k) => k.isValid)?.provider as
     | ChatProviderId
     | undefined;
-  return firstValid ?? egressProvider;
+  // No trust-bar provider and no valid key: fall back to a real default so the
+  // button stays correctly disabled with the "add a key" hint (never a sentinel).
+  return firstValid ?? egressProvider ?? 'anthropic';
 }

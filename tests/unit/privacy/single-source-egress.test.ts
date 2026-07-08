@@ -85,6 +85,7 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 import {
   pickEgressDestination,
   resolveActiveEgressProviderId,
+  toRealProviderId,
 } from '@/platform/privacy/activeEgressProvider';
 import { resolveActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { resolveActiveAskProviderId } from '@/features/ask/askHelpers';
@@ -187,19 +188,24 @@ describe('the two render paths resolve identically (single source)', () => {
     expect(await resolveActiveAskProviderId()).toBe('lantern-local');
   });
 
-  it('assured: a firm managed route names that provider even with NO personal key, on both paths', async () => {
+  // COORDINATOR RULING (fix round 2): the GLOBAL badge mirrors Ask/Workflows,
+  // which prefer personal BYOK over the firm assured route. So the global resolver
+  // does NOT prefer assured. (Email's OWN action-time note stays assured — proven
+  // in resolveEmailProvider.test.ts.)
+  it('assured mode + a personal key → global badge = the BYOK provider (matches what Ask sends), NOT assured', async () => {
+    h.mode = 'assured';
+    h.assuredProviders = ['openai'];
+    h.keys = { anthropic: 'sk-ant', openai: null, google: null };
+    expect(await resolveActiveEgressProvider('assured')).toBe('anthropic');
+    expect(await resolveActiveAskProviderId()).toBe('anthropic');
+  });
+
+  it('assured mode + NO personal key → global badge falls back like Ask (none here), never names an assured provider', async () => {
     h.mode = 'assured';
     h.assuredProviders = ['openai'];
     h.keys = { anthropic: null, openai: null, google: null };
-    expect(await resolveActiveEgressProvider('assured')).toBe('openai');
-    expect(await resolveActiveAskProviderId()).toBe('openai');
-  });
-
-  it('assured route wins over a leftover personal key for a different provider', async () => {
-    h.mode = 'assured';
-    h.assuredProviders = ['openai'];
-    h.keys = { anthropic: 'sk-ant-leftover', openai: null, google: null };
-    expect(await resolveActiveEgressProvider('assured')).toBe('openai');
+    expect(await resolveActiveEgressProvider('assured')).toBe('none');
+    expect(await resolveActiveAskProviderId()).toBe('none');
   });
 });
 
@@ -209,5 +215,20 @@ describe('the destination carries assuredAvailable for the badge', () => {
     expect(await resolveActiveEgressProviderId('direct')).toBe('anthropic');
     expect(await resolveActiveEgressProvider('direct')).toBe('anthropic');
     expect(await resolveActiveAskProviderId()).toBe('anthropic');
+  });
+});
+
+describe('toRealProviderId — badge sentinels never leak into provider code (item 2)', () => {
+  it('passes real provider ids through unchanged', () => {
+    expect(toRealProviderId('anthropic')).toBe('anthropic');
+    expect(toRealProviderId('ollama')).toBe('ollama');
+    expect(toRealProviderId('lantern-local')).toBe('lantern-local');
+  });
+
+  it('maps every badge sentinel (and null) to null', () => {
+    expect(toRealProviderId('none')).toBeNull();
+    expect(toRealProviderId('local-pending')).toBeNull();
+    expect(toRealProviderId(null)).toBeNull();
+    expect(toRealProviderId(undefined)).toBeNull();
   });
 });

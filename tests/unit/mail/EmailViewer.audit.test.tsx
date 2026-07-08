@@ -55,7 +55,7 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 
 vi.mock('@/platform/providers/OllamaProvider', () => ({
   // A real `function` (not an arrow) so `new OllamaProvider()` — how
-  // resolveLocalGenerationProvider actually constructs it — works; arrow
+  // resolveAvailableLocalGenerationProvider actually constructs it — works; arrow
   // functions aren't constructible and silently threw "not a constructor"
   // here since no prior test ever exercised the real Draft-with-AI path.
   OllamaProvider: vi.fn().mockImplementation(function OllamaProvider() {
@@ -64,6 +64,11 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
       getMetadata: vi.fn(() => ({ model: 'llama3.1:8b' })), // no providerId — matches the real OllamaProvider/Claude/OpenAI/Gemini metadata shape
     };
   }),
+  // Fix round 2, item 4: the email local fallback now uses the STRICT reachability
+  // probe (resolveAvailableLocalGenerationProvider), which returns null unless
+  // Ollama is provably reachable. Report it reachable so the no-cloud-key tests
+  // still resolve to the local engine (as they intend).
+  detectOllama: vi.fn(async () => ({ reachable: true, models: ['llama3.1:8b'] })),
 }));
 
 // EmailViewer builds every cloud provider through the shared front-door

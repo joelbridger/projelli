@@ -36,10 +36,8 @@ import {
   getVerifiedProviders,
 } from '@/platform/providers/keyVerification';
 import {
-  getDefaultModelForCloudProvider,
   resolveCloudSettingsDefaults,
   resolvePreferredCloudProvider,
-  CLOUD_PROVIDER_ORDER,
   type CloudProviderKeyPresence,
   type PreferredCloudProviderResolution,
 } from '@/platform/providers/resolvePreferredCloudProvider';
@@ -48,7 +46,6 @@ import {
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/platform/profile/professionModel';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
-import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 
 /** The concrete engine ids the badge can name, plus the two sentinels. */
 export type ActiveEgressProviderId =
@@ -59,6 +56,34 @@ export type ActiveEgressProviderId =
   | 'lantern-local'
   | 'none'
   | 'local-pending';
+
+/**
+ * The badge STATUS sentinels — not real providers. Kept as a typed set so
+ * `toRealProviderId` and any narrowing stays honest if the union grows.
+ */
+export const EGRESS_BADGE_SENTINELS = ['none', 'local-pending'] as const;
+export type EgressBadgeSentinel = (typeof EGRESS_BADGE_SENTINELS)[number];
+
+/**
+ * The REAL engine ids only (no badge sentinels). Structurally identical to
+ * `ChatProviderId`, so a value of this type is safe to hand to provider
+ * resolution — unlike `ActiveEgressProviderId`, which includes sentinels.
+ */
+export type RealEgressProviderId = Exclude<ActiveEgressProviderId, EgressBadgeSentinel>;
+
+const SENTINEL_SET: ReadonlySet<string> = new Set(EGRESS_BADGE_SENTINELS);
+
+/**
+ * Narrow a badge status to a REAL provider id, or null for the sentinels
+ * ('none', 'local-pending') and for a null "checking" state. Provider-resolution
+ * code (Word redline, inline edit) MUST route the egress-hook result through this
+ * so a badge sentinel can NEVER be treated as a provider id (fix round 2, item 2).
+ */
+export function toRealProviderId(
+  status: ActiveEgressProviderId | null | undefined,
+): RealEgressProviderId | null {
+  return status && !SENTINEL_SET.has(status) ? (status as RealEgressProviderId) : null;
+}
 
 /** What the badge needs: the provider id AND whether the firm assured proxy is live. */
 export interface ActiveEgressDestination {
@@ -121,23 +146,6 @@ export function pickEgressDestination(
 }
 
 /**
- * The provider that has a LIVE firm assured route right now, in the same
- * priority order the sends use (anthropic → openai → google). Synchronous —
- * `resolveAssuredRoute` reads the firm session + confidentiality mode from
- * stores. Only meaningful when the active mode is 'assured'.
- */
-function resolveActiveAssuredProvider(): ActiveEgressProviderId | null {
-  for (const p of CLOUD_PROVIDER_ORDER) {
-    // The model does not affect whether a route EXISTS; pass the provider default
-    // so the call is well-formed. `stream: false` — display-only, no send.
-    if (resolveAssuredRoute(p, getDefaultModelForCloudProvider(p), false)) {
-      return p;
-    }
-  }
-  return null;
-}
-
-/**
  * The settings-aware cloud pick, shared by the badge AND the real send
  * (buildResolvedAskProvider) so the two can never disagree on WHICH cloud
  * provider is chosen. Honours the user's saved default (settings store, then the
@@ -187,27 +195,33 @@ export async function resolveActiveEgressDestination(
   }
   if (IS_DEMO) return { providerId: 'anthropic', assuredAvailable: false };
 
-  const assuredProvider = mode === 'assured' ? resolveActiveAssuredProvider() : null;
-  let cloudProvider: ActiveEgressProviderId | null = null;
+  // COORDINATOR SCOPE RULING (fix round 2): the GLOBAL top-bar badge mirrors
+  // TODAY'S Ask + Workflows reality, where personal BYOK wins over the firm
+  // Assured route (Ask/Workflows do not route through the assured proxy — only
+  // email/chat/redline do). So the global resolver does NOT prefer assured:
+  // `assuredProvider` is always null here. The underlying send-side
+  // inconsistency (email prefers Assured; Ask/Workflows prefer BYOK) is a
+  // PRE-EXISTING product bug filed for a dedicated lane — not rewired here.
+  // Email's OWN action-time indicators stay assured-honest by resolving through
+  // resolveEmailProvider() (assured-preferred) and feeding its assuredAvailable
+  // into resolveEgress() — independent of this global hook.
+  const kc = new KeychainService();
+  const availableKeys: CloudProviderKeyPresence = {
+    anthropic: await kc.hasKey('anthropic'),
+    openai: await kc.hasKey('openai'),
+    google: await kc.hasKey('google'),
+  };
+  const cloud = resolveActiveCloudResolution(availableKeys);
+  const cloudProvider = (cloud?.provider ?? null) as ActiveEgressProviderId | null;
   let availableLocalEngineId: 'lantern-local' | 'ollama' | null = null;
-  if (!assuredProvider) {
-    const kc = new KeychainService();
-    const availableKeys: CloudProviderKeyPresence = {
-      anthropic: await kc.hasKey('anthropic'),
-      openai: await kc.hasKey('openai'),
-      google: await kc.hasKey('google'),
-    };
-    const cloud = resolveActiveCloudResolution(availableKeys);
-    cloudProvider = (cloud?.provider ?? null) as ActiveEgressProviderId | null;
-    if (!cloud) {
-      const local = await resolveAvailableLocalGenerationProvider();
-      availableLocalEngineId = local?.providerId ?? null;
-    }
+  if (!cloud) {
+    const local = await resolveAvailableLocalGenerationProvider();
+    availableLocalEngineId = local?.providerId ?? null;
   }
   return pickEgressDestination({
     localOnly: false,
     isDemo: false,
-    assuredProvider,
+    assuredProvider: null,
     cloudProvider,
     localOnlyEngineId: null,
     availableLocalEngineId,
@@ -232,7 +246,8 @@ export function resolveActiveEgressDestinationSync(mode: string): ActiveEgressDe
   }
   if (IS_DEMO) return { providerId: 'anthropic', assuredAvailable: false };
 
-  const assuredProvider = mode === 'assured' ? resolveActiveAssuredProvider() : null;
+  // Global badge mirrors Ask/Workflows (BYOK-preferred) — see the ruling comment
+  // in resolveActiveEgressDestination above. No global assured preference.
   let present = new Set<string>();
   try {
     present = new Set(new KeychainService().getStoredKeys().map((k) => k.provider));
@@ -240,17 +255,15 @@ export function resolveActiveEgressDestinationSync(mode: string): ActiveEgressDe
   } catch {
     // KeychainService unavailable — fall through to "no provider".
   }
-  const cloud = assuredProvider
-    ? null
-    : resolveActiveCloudResolution({
-        anthropic: present.has('anthropic'),
-        openai: present.has('openai'),
-        google: present.has('google'),
-      });
+  const cloud = resolveActiveCloudResolution({
+    anthropic: present.has('anthropic'),
+    openai: present.has('openai'),
+    google: present.has('google'),
+  });
   return pickEgressDestination({
     localOnly: false,
     isDemo: false,
-    assuredProvider,
+    assuredProvider: null,
     cloudProvider: (cloud?.provider ?? null) as ActiveEgressProviderId | null,
     localOnlyEngineId: null,
     availableLocalEngineId: null,

@@ -1,10 +1,23 @@
 import { createKeychainService } from '@/platform/providers/KeychainService';
 import { createProvider } from '@/platform/providers/providerFactory';
 import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
-import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
+import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
+
+/**
+ * Honest, actionable failures shown when no usable local engine is available
+ * (fix round 2, item 4). "Draft with AI" now uses the SAME strict reachability
+ * probe as Ask / the egress badge (`resolveAvailableLocalGenerationProvider`),
+ * so it fails fast with a real message instead of building a guaranteed-broken
+ * Ollama provider that would error deep inside the send. Email's catch surfaces
+ * `error.message` to the user, so these are the exact strings they see.
+ */
+export const EMAIL_LOCAL_AI_NOT_READY_MESSAGE =
+  'Advisor Prep Hero Local AI is still downloading or setting up. Check its progress in Settings, then try again.';
+export const EMAIL_NO_PROVIDER_MESSAGE =
+  'No AI provider is connected. Add an API key in Settings, or set up Advisor Prep Hero Local AI to draft on your computer.';
 
 // ── buildProviderAsync — mirrors Ask.tsx pattern ─────────────────
 
@@ -37,7 +50,8 @@ export async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   // F-503 — the local engine is the embedded Advisor Prep Hero Local AI when ready, else
   // Ollama (the same on-device resolution Ask / Chat / Client Map use).
   if (isLocalOnlyMode()) {
-    const resolved = await resolveLocalGenerationProvider();
+    const resolved = await resolveAvailableLocalGenerationProvider();
+    if (!resolved) throw new Error(EMAIL_LOCAL_AI_NOT_READY_MESSAGE);
     return { provider: resolved.provider, providerId: resolved.providerId, assuredAvailable: false };
   }
   // Personal-install choice gate (Task 1.3): email draft generation is cloud generation,
@@ -140,9 +154,12 @@ export async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
       assuredAvailable: false,
     };
   }
-  // No cloud key — fall back to the on-device engine (embedded model when ready,
-  // else Ollama). No egress, nothing to gate.
-  const resolved = await resolveLocalGenerationProvider();
+  // No cloud key — fall back to the on-device engine, but ONLY when one is
+  // provably usable (strict probe, same as Ask / the badge). Otherwise fail fast
+  // with an honest message instead of building a guaranteed-broken Ollama
+  // provider that would error deep inside the send. No egress, nothing to gate.
+  const resolved = await resolveAvailableLocalGenerationProvider();
+  if (!resolved) throw new Error(EMAIL_NO_PROVIDER_MESSAGE);
   return { provider: resolved.provider, providerId: resolved.providerId, assuredAvailable: false };
 }
 

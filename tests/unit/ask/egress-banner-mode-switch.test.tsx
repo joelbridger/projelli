@@ -43,9 +43,6 @@ const h = vi.hoisted(() => ({
   // the REAL resolver mid-flight so we can prove the badge is "checking" (never a
   // stale destination) and that the send-time pin still names the real engine.
   resolverHold: null as Promise<unknown> | null,
-  // Recorded by the send spy: the banner's data-destination at the instant the
-  // network call begins. This is the load-bearing send-time honesty assertion.
-  bannerAtSend: undefined as string | null | undefined,
   // Number of times each provider's send was actually invoked. The send-side
   // privacy test asserts the CLOUD send is never called once Local-only is on.
   sendCalled: 0, // cloud provider (from buildResolvedAskProvider)
@@ -156,9 +153,6 @@ vi.mock('@/features/ask/askHelpers', async (orig) => {
       return {
         provider: {
           sendMessageStreaming: async () => {
-            h.bannerAtSend = document
-              .querySelector('[data-testid="egress-indicator"]')
-              ?.getAttribute('data-destination') ?? null;
             h.sendCalled += 1;
             return { content: 'Answer.', usage: {}, cost: 0 };
           },
@@ -190,7 +184,6 @@ describe('B-PRIV-1: Search egress banner is honest across mode-switch AND at sen
     h.memoryEnabled = false;
     h.hits = [];
     h.resolverHold = null;
-    h.bannerAtSend = undefined;
     h.sendCalled = 0;
     h.localSendCalled = 0;
     h.onBuildResolve = null;

@@ -28,7 +28,9 @@ import {
   resolveActiveEgressProviderId,
   resolveActiveEgressProviderIdSync,
   type ActiveEgressDestination,
+  type ActiveEgressProviderId,
 } from '@/platform/privacy/activeEgressProvider';
+import { onLocalAiReadinessChange } from '@/platform/privacy/localAiReadiness';
 
 // Re-export so existing importers keep working; the canonical home is
 // egressConfigEvents (KeychainService imports it there to avoid a cycle).
@@ -81,10 +83,15 @@ export function useActiveEgressDestination(
     update();
     window.addEventListener(EGRESS_CONFIG_CHANGE_EVENT, update);
     window.addEventListener('storage', update);
+    // item 3: local-model READINESS signals through a separate Tauri event, not
+    // the config/storage events above. Re-resolve on it so a "Local AI setting
+    // up" badge flips to "Using local AI" when the download finishes — no reload.
+    const stopLocalReadiness = onLocalAiReadinessChange(update);
     return () => {
       cancelled = true;
       window.removeEventListener(EGRESS_CONFIG_CHANGE_EVENT, update);
       window.removeEventListener('storage', update);
+      stopLocalReadiness();
     };
   }, [mode]);
 
@@ -96,10 +103,14 @@ export function useActiveEgressDestination(
 }
 
 /**
- * Provider-id-only view of {@link useActiveEgressDestination}. `null` means
- * "checking" (mode just changed, or the resolver has not settled).
+ * Provider-id-only view of {@link useActiveEgressDestination}. The value MAY be a
+ * badge sentinel ('none', 'local-pending') or `null` ("checking"), so any
+ * PROVIDER-RESOLUTION consumer must narrow it through `toRealProviderId` before
+ * treating it as a real provider id (fix round 2, item 2). The precise return
+ * type makes that a compile-time requirement — a plain `as ChatProviderId` no
+ * longer type-checks.
  */
-export function useActiveEgressProvider(mode: string): EgressProvider | null {
+export function useActiveEgressProvider(mode: string): ActiveEgressProviderId | null {
   const dest = useActiveEgressDestination(mode);
   return dest ? dest.providerId : null;
 }
