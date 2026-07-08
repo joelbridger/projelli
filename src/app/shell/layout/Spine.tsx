@@ -16,6 +16,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
+  MoreVertical,
+  Trash2,
+  Pencil,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -23,13 +26,24 @@ import {
   useActiveMatterId,
   useMatterStore,
 } from '@/platform/matter/matterStore';
+import {
+  useClientGroups,
+  useClientGroupStore,
+} from '@/platform/matter/clientGroupStore';
 import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
+import {
   EV_OPEN_ACCOUNT,
   EV_OPEN_MATTER_MANAGER,
+  EV_OPEN_NEW_GROUP,
   EV_MATTER_LAUNCH,
 } from '@/config/identity';
 
@@ -96,6 +110,16 @@ export function Spine({
   const setActiveMatter = useMatterStore((s) => s.setActiveMatter);
   const setClientMapHubId = useMatterStore((s) => s.setClientMapHubId);
   const setClientMapHubTab = useMatterStore((s) => s.setClientMapHubTab);
+  // Client groups (feedback line 13). Rendered as collapsible sections under
+  // "All clients"; membership is local-first (ids only).
+  const groups = useClientGroups();
+  const deleteGroup = useClientGroupStore((s) => s.deleteGroup);
+  const renameGroup = useClientGroupStore((s) => s.renameGroup);
+  // Which groups are collapsed in the rail (default expanded). Keyed by id.
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<Set<string>>(new Set());
+  // Inline rename: the group id being renamed and its working text.
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
   const entityLabel = useEntityLabel();
   const newClientLabel = t('spine.new-client', { entity: entityLabel.one });
   const filteredMatters = (() => {
@@ -146,6 +170,85 @@ export function Spine({
   const allClientsActive =
     allClientsSelected ?? (active === 'matters' && activeMatterId === null);
 
+  // A single client row, reused by the flat list and by each group section.
+  // When rendered inside a group, `groupId` is set so the handle differs from
+  // the flat-list row — a client that lives in a group AND the flat list never
+  // produces a duplicate handle. The data-testid is written as two inline
+  // template literals so the static handle-guard scanner sees both.
+  const renderClientRow = (m: (typeof matters)[number], groupId?: string) => {
+    const on = m.id === activeMatterId;
+    const fullLabel = matterLabel(m);
+    const displayLabel = m.client.trim() || fullLabel;
+    return (
+      <button
+        key={groupId ? `g-${groupId}-${m.id}` : m.id}
+        type="button"
+        data-testid={!groupId ? `spine-client-row-${m.id}` : `spine-group-client-row-${groupId}-${m.id}`}
+        title={fullLabel}
+        onClick={() => {
+          window.dispatchEvent(
+            new CustomEvent(EV_MATTER_LAUNCH, {
+              detail: { matterId: m.id, surface: 'matters' },
+            })
+          );
+        }}
+        style={{
+          display: 'block',
+          width: '100%',
+          textAlign: 'left',
+          border: 0,
+          cursor: 'pointer',
+          background: on ? 'var(--kp-side-active-bg)' : 'transparent',
+          color: 'var(--kp-side-fg)',
+          padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+          borderRadius: 'var(--radius-md)',
+          position: 'relative',
+        }}
+      >
+        {on && (
+          <span
+            style={{
+              position: 'absolute',
+              left: 3,
+              top: 8,
+              bottom: 8,
+              width: 3,
+              borderRadius: 3,
+              background: 'var(--kp-side-accent)',
+            }}
+          />
+        )}
+        <div
+          style={{
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-semibold)',
+            color: 'var(--kp-side-fg)',
+            lineHeight: 1.3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {displayLabel}
+        </div>
+      </button>
+    );
+  };
+
+  // Resolve a group's live members (drops stale ids — e.g. a since-deleted
+  // client, or a matter from another workspace) and apply the active search
+  // filter so a searching user sees matching group members too.
+  const membersOf = (matterIds: string[]) =>
+    matterIds
+      .map((id) => filteredMatters.find((m) => m.id === id))
+      .filter((m): m is (typeof matters)[number] => m !== undefined);
+
+  const commitRename = (groupId: string) => {
+    if (renameDraft.trim()) renameGroup(groupId, renameDraft);
+    setRenamingGroupId(null);
+    setRenameDraft('');
+  };
+
   if (collapsed) {
     return (
       <nav
@@ -188,7 +291,7 @@ export function Spine({
             key={id}
             type="button"
             title={label}
-            aria-current={active === id && !(id === 'matters' && allClientsActive) ? 'page' : undefined}
+            aria-current={active === id ? 'page' : undefined}
             data-testid={`spine-nav-collapsed-${id}`}
             onClick={() => onTabChange?.(id)}
             style={{
@@ -198,13 +301,9 @@ export function Spine({
               border: 0,
               cursor: 'pointer',
               color:
-                active === id && !(id === 'matters' && allClientsActive)
-                  ? 'var(--kp-side-fg)'
-                  : 'var(--kp-side-fg-dim)',
+                active === id ? 'var(--kp-side-fg)' : 'var(--kp-side-fg-dim)',
               background:
-                active === id && !(id === 'matters' && allClientsActive)
-                  ? 'var(--kp-side-active-bg)'
-                  : 'transparent',
+                active === id ? 'var(--kp-side-active-bg)' : 'transparent',
             }}
           >
             <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
@@ -263,7 +362,7 @@ export function Spine({
           }}
         >
           {nav.map(({ id, label, Icon }) => {
-            const on = active === id && !(id === 'matters' && allClientsActive);
+            const on = active === id;
             return (
               <button
                 key={id}
@@ -317,11 +416,9 @@ export function Spine({
         </div>
         <div
           style={{
-            flex: '1 1 auto',
+            flex: 'none',
             minHeight: 0,
             borderTop: '1px solid var(--kp-side-border)',
-            display: 'flex',
-            flexDirection: 'column',
           }}
         >
           {/* Header row toggles the section and carries the "+ New client" affordance. */}
@@ -399,37 +496,54 @@ export function Spine({
                 <Search size={14} strokeWidth={2} />
               </button>
             )}
-            <button
-              type="button"
-              data-testid="spine-new-client"
-              title={newClientLabel}
-              aria-label={newClientLabel}
-              onClick={() => {
-                window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
-              }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 22,
-                height: 22,
-                borderRadius: 'var(--radius-md)',
-                border: 0,
-                background: 'transparent',
-                color: 'var(--kp-side-fg-dim)',
-                cursor: 'pointer',
-                flex: 'none',
-              }}
-            >
-              <Plus size={15} strokeWidth={2} />
-            </button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  data-testid="spine-new-client"
+                  title={t('spine.add-menu')}
+                  aria-label={t('spine.add-menu')}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 22,
+                    height: 22,
+                    borderRadius: 'var(--radius-md)',
+                    border: 0,
+                    background: 'transparent',
+                    color: 'var(--kp-side-fg-dim)',
+                    cursor: 'pointer',
+                    flex: 'none',
+                  }}
+                >
+                  <Plus size={15} strokeWidth={2} />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  data-testid="spine-new-client-item"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
+                  }}
+                >
+                  {newClientLabel}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  data-testid="spine-new-group-item"
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent(EV_OPEN_NEW_GROUP));
+                  }}
+                >
+                  {t('spine.new-group')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           {clientsOpen && (
             <div
-              data-testid="spine-client-list"
               style={{
-                flex: '1 1 auto',
-                minHeight: 0,
+                maxHeight: 280,
                 overflowY: 'auto',
                 padding: '0 10px var(--kp-space-xs)',
               }}
@@ -536,69 +650,181 @@ export function Spine({
                   {t('spine.all-clients')}
                 </span>
               </button>
-              {filteredMatters.map((m) => {
-                const on = m.id === activeMatterId && !allClientsActive;
-                const fullLabel = matterLabel(m);
-                const displayLabel = m.client.trim() || fullLabel;
+
+              {/* Client groups (feedback line 13): collapsible sections at the
+                  top of the list, under "All clients". A client can appear in a
+                  group AND the flat list below. */}
+              {groups.map((g) => {
+                const gCollapsed = collapsedGroupIds.has(g.id);
+                const gMembers = membersOf(g.matterIds);
+                // Hide a group during a search that matches none of its members
+                // (keeps the search result focused), but always show it otherwise
+                // — including when empty (it stays deletable).
+                if (clientSearchQuery.trim() && gMembers.length === 0) return null;
+                const renaming = renamingGroupId === g.id;
                 return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    data-testid={`spine-client-row-${m.id}`}
-                    title={fullLabel}
-                    onClick={() => {
-                      // Rail client clicks always mean "open this client's map",
-                      // never "restore wherever this client was last".
-                      window.dispatchEvent(
-                        new CustomEvent(EV_MATTER_LAUNCH, {
-                          detail: { matterId: m.id, surface: 'matters' },
-                        })
-                      );
-                    }}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      textAlign: 'left',
-                      border: 0,
-                      cursor: 'pointer',
-                      background: on
-                        ? 'var(--kp-side-active-bg)'
-                        : 'transparent',
-                      color: 'var(--kp-side-fg)',
-                      padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-                      borderRadius: 'var(--radius-md)',
-                      position: 'relative',
-                    }}
-                  >
-                    {on && (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          left: 3,
-                          top: 8,
-                          bottom: 8,
-                          width: 3,
-                          borderRadius: 3,
-                          background: 'var(--kp-side-accent)',
-                        }}
-                      />
-                    )}
+                  <div key={g.id} data-testid={`spine-group-${g.id}`} style={{ marginBottom: 4 }}>
                     <div
                       style={{
-                        fontSize: 'var(--kp-font-sm)',
-                        fontWeight: 'var(--kp-weight-semibold)',
-                        color: 'var(--kp-side-fg)',
-                        lineHeight: 1.3,
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '2px var(--kp-space-xs) 2px var(--kp-space-sm)',
                       }}
                     >
-                      {displayLabel}
+                      <button
+                        type="button"
+                        data-testid={`spine-group-toggle-${g.id}`}
+                        aria-expanded={!gCollapsed}
+                        onClick={() => {
+                          setCollapsedGroupIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(g.id)) next.delete(g.id);
+                            else next.add(g.id);
+                            return next;
+                          });
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          flex: 1,
+                          minWidth: 0,
+                          border: 0,
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          padding: 0,
+                          color: 'var(--kp-side-fg-dim)',
+                        }}
+                      >
+                        <ChevronDown
+                          size={11}
+                          strokeWidth={2.5}
+                          style={{
+                            transform: gCollapsed ? 'rotate(-90deg)' : undefined,
+                            transition: 'transform 0.15s',
+                            flex: 'none',
+                          }}
+                        />
+                        {renaming ? (
+                          <input
+                            data-testid={`spine-group-rename-input-${g.id}`}
+                            autoFocus
+                            value={renameDraft}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                            onChange={(e) => {
+                              setRenameDraft(e.currentTarget.value);
+                            }}
+                            onBlur={() => {
+                              commitRename(g.id);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') commitRename(g.id);
+                              if (e.key === 'Escape') {
+                                setRenamingGroupId(null);
+                                setRenameDraft('');
+                              }
+                            }}
+                            style={{
+                              flex: 1,
+                              minWidth: 0,
+                              border: '1px solid var(--kp-side-border)',
+                              borderRadius: 'var(--radius-sm)',
+                              background: 'var(--kp-side-border)',
+                              color: 'var(--kp-side-fg)',
+                              fontSize: 10,
+                              fontFamily: 'inherit',
+                              padding: '1px 4px',
+                            }}
+                          />
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 'var(--kp-weight-bold)',
+                              letterSpacing: '0.1em',
+                              textTransform: 'uppercase',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {g.name}
+                          </span>
+                        )}
+                      </button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            data-testid={`spine-group-menu-${g.id}`}
+                            title={t('matter.group.section-menu')}
+                            aria-label={t('matter.group.section-menu')}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              width: 18,
+                              height: 18,
+                              borderRadius: 'var(--radius-sm)',
+                              border: 0,
+                              background: 'transparent',
+                              color: 'var(--kp-side-fg-faint)',
+                              cursor: 'pointer',
+                              flex: 'none',
+                            }}
+                          >
+                            <MoreVertical size={13} strokeWidth={2} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-40">
+                          <DropdownMenuItem
+                            data-testid={`spine-group-rename-${g.id}`}
+                            onClick={() => {
+                              setRenamingGroupId(g.id);
+                              setRenameDraft(g.name);
+                            }}
+                          >
+                            <Pencil size={13} aria-hidden="true" />
+                            {t('matter.group.rename')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            data-testid={`spine-group-delete-${g.id}`}
+                            onClick={() => {
+                              deleteGroup(g.id);
+                            }}
+                          >
+                            <Trash2 size={13} aria-hidden="true" />
+                            {t('matter.group.delete')}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
-                  </button>
+                    {!gCollapsed && (
+                      <div style={{ paddingLeft: 8 }}>
+                        {gMembers.length === 0 ? (
+                          <div
+                            data-testid={`spine-group-empty-${g.id}`}
+                            style={{
+                              padding: 'var(--kp-space-xs) var(--kp-space-sm)',
+                              color: 'var(--kp-side-fg-faint)',
+                              fontSize: 'var(--kp-font-xs)',
+                            }}
+                          >
+                            {t('matter.group.empty')}
+                          </div>
+                        ) : (
+                          gMembers.map((m) => renderClientRow(m, g.id))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
+
+              {filteredMatters.map((m) => renderClientRow(m))}
               {clientSearchQuery.trim() && filteredMatters.length === 0 && (
                 <div
                   data-testid="spine-client-search-empty"
@@ -615,7 +841,7 @@ export function Spine({
             </div>
           )}
         </div>
-        <div style={{ flex: 'none', minHeight: 0 }} />
+        <div style={{ flex: 1, minHeight: 0 }} />
         <div
           style={{
             display: 'flex',

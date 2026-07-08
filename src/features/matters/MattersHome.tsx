@@ -80,6 +80,7 @@ import {
   SK_SETUP_CARD_DISMISSED,
   EV_OPEN_SETTINGS,
   EV_OPEN_MATTER_MANAGER,
+  EV_OPEN_CLIENT_SETTINGS,
   EV_MATTER_LAUNCH,
 } from '@/config/identity';
 import type { MattersSurfaceMode } from '@/platform/state/appNavigationStore';
@@ -573,6 +574,19 @@ function MatterRow({
               {t('matter.hub.tab-activity')}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid={`matter-settings-${matter.id}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(
+                  new CustomEvent(EV_OPEN_CLIENT_SETTINGS, {
+                    detail: { matterId: matter.id },
+                  })
+                );
+              }}
+            >
+              {t('matter.home.client-settings')}
+            </DropdownMenuItem>
             <DropdownMenuItem
               data-testid={`matter-archive-${matter.id}`}
               onClick={(e) => {

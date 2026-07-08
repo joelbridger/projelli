@@ -252,6 +252,36 @@
       "replacement": null,
       "reason": "Duplicate active-file chip removed; breadcrumb + Modified chip remain. UX simplification preview (9-lane redesign, reviewed per-lane).",
       "date": "2026-07-08"
+    },
+    {
+      "removed": "matter-new-name",
+      "replacement": "new-client-create",
+      "reason": "FB2 clientux (line 14): the create form moved out of MatterManagerDialog into the calm one-field NewClientDialog; the display-name field is now `new-client-name` and its create button `new-client-create`.",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "matter-create-button",
+      "replacement": "new-client-create",
+      "reason": "FB2 clientux (line 14): create moved to NewClientDialog; the create button handle is now `new-client-create`.",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "matter-new-client",
+      "replacement": null,
+      "reason": "FB2 clientux (line 14): the optional company/organization field was removed from the create flow — creating a client is display-name only; company/org enrichment happens inside the client.",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "matter-new-client-helper",
+      "replacement": null,
+      "reason": "FB2 clientux (line 14): the create-form helper paragraph was removed for calm (ruthless removal of helper text).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "matter-new-privileged",
+      "replacement": null,
+      "reason": "FB2 clientux (line 14): the privilege toggle was removed from the create flow; per-client network-lockdown stays available in Client settings (matter-privileged-<id>).",
+      "date": "2026-07-08"
     }
   ]
 }

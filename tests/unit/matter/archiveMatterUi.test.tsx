@@ -123,7 +123,13 @@ function seedAndRender() {
   const archivedMatter = matters[1]!;
   // Archive the second matter
   useMatterStore.getState().setMatterArchived(archivedMatter.id, true);
-  render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+  render(
+    <MatterManagerDialog
+      open={true}
+      onOpenChange={() => undefined}
+      focusMatterId={activeMatter.id}
+    />,
+  );
   return { activeMatter, archivedMatter };
 }
 
@@ -162,7 +168,13 @@ describe('MatterManagerDialog — archive: archived section shown', () => {
   it('does NOT show the archived section when no matters are archived', () => {
     useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     expect(screen.queryByTestId('archived-matters-section')).not.toBeInTheDocument();
   });
@@ -190,7 +202,13 @@ describe('MatterManagerDialog — archive: clicking Archive archives the matter'
     useMatterStore.getState().createMatter({ name: 'To Archive', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     // Active row should be present
     expect(screen.getByTestId(`matter-row-${matter.id}`)).toBeInTheDocument();
@@ -217,7 +235,13 @@ describe('MatterManagerDialog — archive: clicking Archive archives the matter'
 
     expect(useMatterStore.getState().activeMatterId).toBe(matter.id);
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
     const archiveBtn = screen.getByTestId(`matter-archive-${matter.id}`);
     fireEvent.click(archiveBtn);
 
@@ -263,7 +287,13 @@ describe('MatterManagerDialog — external AI tool access grant', () => {
     useMatterStore.getState().createMatter({ name: 'Acme', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     const grantToggle = screen.getByTestId(`matter-mcp-access-${matter.id}`);
     expect(grantToggle).toHaveAttribute('data-checked', 'false');

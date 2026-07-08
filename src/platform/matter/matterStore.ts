@@ -67,6 +67,7 @@ import { mailClearMatterFilings } from '@/platform/utils/mail-commands';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { getProfession } from '@/platform/profile/professionStore';
 import { getSampleMatterName } from '@/platform/matter/samples/sampleMatterDemo';
+import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
 import type { MatterUiSnapshot } from '@/platform/matter/matterUiStore';
 import type { MatterAtAGlanceEntry } from '@/platform/matter/matterAtAGlanceStore';
 import type { MatterSyncStatus } from '@/platform/matter/matterSyncStore';
@@ -1097,6 +1098,12 @@ export const useMatterStore = create<MatterState>()(
             statusByMatterId,
           };
         });
+        // Prune the now-deleted client from every rail group. This lives HERE
+        // (not at the dialog call site) so EVERY delete path — the manager
+        // dialog, connector disconnects, Wealthbox cleanup — prunes, and only
+        // AFTER the delete actually happened (the early return above on a failed
+        // safety-record hold never reaches this point).
+        useClientGroupStore.getState().removeMatterFromAllGroups(id);
         // Matter-delete semantics (BUG-042, product decision 2026-06-21):
         // delete REMOVES the matter and its grouping + wipes the AI's memory of
         // it, but KEEPS the user's actual files on disk. (Archive is the

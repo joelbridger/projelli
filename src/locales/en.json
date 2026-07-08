@@ -1382,6 +1382,34 @@
     }
   },
   "matter": {
+    "new-client": {
+      "title": "New {{entity}}",
+      "description": "Name the {{entity}}. You can add folders, email, and details inside the {{entity}} afterward.",
+      "name-label": "Display name",
+      "name-placeholder": "e.g. The Hendricks Household",
+      "cancel": "Cancel",
+      "create": "Create {{entity}}"
+    },
+    "group": {
+      "new-title": "New group",
+      "new-description": "Name the group, then add clients to it. Groups stay on this computer.",
+      "name-label": "Group name",
+      "name-placeholder": "e.g. Retirement plans",
+      "add-clients-label": "Add clients",
+      "remove-client": "Remove {{name}}",
+      "search-placeholder": "Search clients",
+      "no-clients": "No clients yet.",
+      "no-match": "No clients match.",
+      "cancel": "Cancel",
+      "create": "Create group",
+      "section-menu": "Group actions",
+      "rename": "Rename group",
+      "rename-title": "Rename group",
+      "delete": "Delete group",
+      "empty": "No clients in this group yet.",
+      "count_one": "{{count}} client",
+      "count_other": "{{count}} clients"
+    },
     "scope": {
       "all-matters": "All clients",
       "all-matters-title": "Searching across all clients. This is the deliberate cross-client mode; other clients' data can appear.",
@@ -1414,6 +1442,9 @@
     },
     "manager": {
       "title": "Clients",
+      "settings-title": "Client settings",
+      "settings-description-entity": "Open a {{entity}} to set its folders, email, sharing, and privacy.",
+      "sample-tag": "Sample",
       "description": "A client groups one client's work under one or more workspace folders. Files in a client's folders are scoped to that client so other clients' data never appears.",
       "matter-name": "Client name",
       "matter-name-placeholder": "e.g. The Hendricks Household",
@@ -1537,6 +1568,7 @@
     },
     "home": {
       "archive": "Archive",
+      "client-settings": "Client settings",
       "row-menu-aria": "More actions for {{name}}",
       "open-client": "Open client",
       "restore": "Restore",
@@ -2469,7 +2501,9 @@
     "all-clients": "All clients",
     "find-client": "Find client",
     "new-client": "+ New {{entity}}",
-    "no-clients-found": "No clients found"
+    "no-clients-found": "No clients found",
+    "add-menu": "Add",
+    "new-group": "New group"
   },
   "entity-label": {
     "legal": {

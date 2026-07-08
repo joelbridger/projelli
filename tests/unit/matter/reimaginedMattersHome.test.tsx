@@ -234,6 +234,22 @@ describe('MattersHome — row actions menu', () => {
     }
   });
 
+  it('opens per-client settings from the row menu', async () => {
+    useMatterStore.getState().createMatter({ name: 'Settings Test', client: 'Client' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const events: CustomEvent[] = [];
+    const handler = (e: Event) => { events.push(e as CustomEvent); };
+    window.addEventListener('lantern:open-client-settings', handler);
+
+    render(<MattersHome />);
+    await openRowMenu(matter.id);
+    fireEvent.click(await screen.findByTestId(`matter-settings-${matter.id}`));
+
+    expect(events).toHaveLength(1);
+    expect(events[0]!.detail.matterId).toBe(matter.id);
+    window.removeEventListener('lantern:open-client-settings', handler);
+  });
+
   it('archives from the three-dot row menu, not from a visible row button', async () => {
     useMatterStore.getState().createMatter({ name: 'Archive Menu Test', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
@@ -316,7 +332,15 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
       activeMatterId: null,
     });
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     expect(screen.getByTestId('matter-manager-sample-badge')).toBeInTheDocument();
     expect(screen.getByTestId('matter-manager-sample-badge').textContent).toBe('Sample');
@@ -325,7 +349,15 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
   it('does not show sample badge on a normal matter', () => {
     useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     expect(screen.queryByTestId('matter-manager-sample-badge')).not.toBeInTheDocument();
   });
@@ -349,7 +381,15 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
     // uses the in-app ConfirmDialog. Guard we never call the native one.
     const nativeConfirm = vi.spyOn(window, 'confirm');
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     fireEvent.click(screen.getByTestId(`matter-delete-${SAMPLE_MATTER_ID}`));
 
@@ -379,7 +419,15 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
       activeMatterId: null,
     });
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     fireEvent.click(screen.getByTestId(`matter-delete-${SAMPLE_MATTER_ID}`));
 
@@ -393,12 +441,20 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
     useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     fireEvent.click(screen.getByTestId(`matter-delete-${matter.id}`));
 
     // A real matter now requires confirmation (accidental-deletion guard).
-    expect(await screen.findByText(/Normal|can't be undone/i)).toBeInTheDocument();
+    expect(await screen.findByText(/can't be undone/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
     await waitFor(() => expect(useMatterStore.getState().matters).toHaveLength(0));
@@ -408,7 +464,15 @@ describe('MatterManagerDialog — B1 sample badge + guarded delete', () => {
     useMatterStore.getState().createMatter({ name: 'Normal', client: 'Client' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     fireEvent.click(screen.getByTestId(`matter-delete-${matter.id}`));
 
@@ -431,7 +495,15 @@ describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', 
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     // Find the checkbox inside the privileged toggle for this matter
     const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
@@ -449,7 +521,15 @@ describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', 
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
     const checkbox = toggleLabel.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -468,7 +548,15 @@ describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', 
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme' });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
     const checkbox = toggleLabel.querySelector('input[type="checkbox"]') as HTMLInputElement;
@@ -491,7 +579,15 @@ describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', 
     useMatterStore.getState().createMatter({ name: 'Protected', client: 'Client', privileged: true });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     // Badge visible immediately
     expect(screen.getByTestId(`matter-isolated-badge-${matter.id}`)).toBeInTheDocument();
@@ -503,7 +599,15 @@ describe('MatterManagerDialog — B5 isolation affirmation + persistent badge', 
     useMatterStore.getState().createMatter({ name: 'Protected', client: 'Client', privileged: true });
     const matter = useMatterStore.getState().matters[0]!;
 
-    render(<MatterManagerDialog open={true} onOpenChange={() => undefined} />);
+    // Client rows are collapsed by default (calm scannable list); open the one
+    // under test so its per-client controls are visible.
+    render(
+      <MatterManagerDialog
+        open={true}
+        onOpenChange={() => undefined}
+        focusMatterId={useMatterStore.getState().matters[0]?.id ?? null}
+      />,
+    );
 
     const toggleLabel = screen.getByTestId(`matter-privileged-${matter.id}`);
     const checkbox = toggleLabel.querySelector('input[type="checkbox"]') as HTMLInputElement;

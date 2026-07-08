@@ -16,6 +16,7 @@
 import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
+import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
 
 /**
  * Point the matter + client-map stores at `root` and reload their in-memory
@@ -36,6 +37,9 @@ export function reloadWorkspaceScopedStores(root: string | null): void {
   setActiveWorkspaceScopeRoot(root);
   void useMatterStore.persist.rehydrate();
   void useClientMapStore.persist.rehydrate();
+  // Client groups are per-workspace too (ids-only rail grouping); reload them to
+  // the new workspace's scope so a group never bleeds across workspaces.
+  void useClientGroupStore.persist.rehydrate();
   useMatterStore.setState({
     statusByMatterId: {},
     clientMapHubId: null,
