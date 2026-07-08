@@ -176,7 +176,9 @@ export default {
     await session.testid('app-header', 15_000);
     await session.testid('spine-nav', 15_000);
     await session.testid('trust-bar', 15_000);
-    await session.testid('egress-indicator-compact', 15_000);
+    // F1: the top-bar egress pill is the single always-visible egress indicator
+    // (short "status" form). Per-surface duplicates were removed.
+    await session.testid('egress-indicator', 15_000);
     await session.testid('status-bar', 15_000);
     await session.testid('status-bar-project-name', 15_000);
     await session.waitForBodyText('shell-test-alpha.md', { timeoutMs: 20_000 });

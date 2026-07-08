@@ -31,9 +31,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useClientMap, type ClientMapSyncResult } from '@/features/matters/useClientMap';
 import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { PromptDialog } from '@/ui/PromptDialog';
@@ -58,7 +55,6 @@ import type { SourceRef } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -161,12 +157,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const entityLabel = useEntityLabel();
   // The per-tab AI-status pill (same as Ask / Workflows) — the single, deduped
   // egress indicator now lives once per surface header, not in the top bar.
-  const confidentialityMode = useConfidentialityMode();
-  const egressProvider = useActiveEgressProvider(confidentialityMode);
-  const openAiOptions = () => {
-    window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
-  };
-
   // ── Active sub-tab ─────────────────────────────────────────────────────────
   // Overview (the Client Map) is the default. A client-list quick-action can
   // request a specific sub-tab (the Documents/Email row shortcuts) via the
@@ -558,13 +548,9 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   <Badge variant="sample" size="sm">{t('matter.hub.sample-pill')}</Badge>
                 </span>
               )}
-              {/* AI-status pill — same dynamic badge as Ask / Workflows. */}
-              <EgressIndicator
-                provider={egressProvider}
-                mode={confidentialityMode}
-                variant="status"
-                onClick={openAiOptions}
-              />
+              {/* F1: the AI-status pill was a passive duplicate of the top-bar
+                  egress indicator and could contradict it on one screen. Egress
+                  status now lives ONCE, in the top bar. */}
             </div>
           }
         />

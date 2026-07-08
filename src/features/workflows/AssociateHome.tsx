@@ -43,7 +43,7 @@ import {
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import { Button, Chip, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader, Badge } from '@/ui/kp';
+import { Button, Chip, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader, Badge, TrustNote } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
@@ -52,7 +52,7 @@ import { useProfessionStore, isLawExperience } from '@/platform/profile/professi
 import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import { NO_AI_PROVIDER } from '@/platform/privacy/egress';
 import { SK_WORKFLOWS_FILTER } from '@/config/identity';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
@@ -370,7 +370,6 @@ function WorkflowDetail({
   onRun,
   onFocusExecutionTab,
   onOpenArtifact,
-  onOpenSettings,
   confidentialityMode,
   egressProvider,
 }: {
@@ -383,7 +382,6 @@ function WorkflowDetail({
   onRun: (t: WorkflowTemplate) => void;
   onFocusExecutionTab?: () => void;
   onOpenArtifact?: (path: string, name: string, runId: string) => boolean | Promise<boolean>;
-  onOpenSettings?: () => void;
   confidentialityMode: ReturnType<typeof useConfidentialityMode>;
   egressProvider: ReturnType<typeof useActiveEgressProvider>;
 }) {
@@ -419,12 +417,26 @@ function WorkflowDetail({
           </p>
         </div>
         <div style={{ display: 'flex', flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
-          <EgressIndicator
-            provider={egressProvider}
-            mode={confidentialityMode}
-            variant="status"
-            onClick={onOpenSettings}
-          />
+          {/* F1: trust AT ACTION TIME. The always-visible egress STATUS lives once
+              in the top bar; here, next to Run, a quiet one-line TrustNote says
+              where this run will send data — not a third copy of the status pill. */}
+          {(() => {
+            const noProvider = !egressProvider || egressProvider === NO_AI_PROVIDER;
+            const isLocalDest =
+              confidentialityMode === 'local-only' ||
+              egressProvider === 'ollama' ||
+              egressProvider === 'lantern-local';
+            if (noProvider) {
+              return <TrustNote variant="warning">{t('workflow.associate.egress-none')}</TrustNote>;
+            }
+            return (
+              <TrustNote>
+                {isLocalDest
+                  ? t('workflow.associate.egress-local')
+                  : t('workflow.associate.egress-cloud')}
+              </TrustNote>
+            );
+          })()}
           <WorkflowRunButton
             template={template}
             isFeatured={template.id === featuredId}
@@ -897,7 +909,6 @@ export function AssociateHome({
               onRun={onStartWorkflow}
               {...(onFocusExecutionTab !== undefined && { onFocusExecutionTab })}
               {...(onOpenRunArtifact !== undefined && { onOpenArtifact: handleOpenRecentRunArtifact })}
-              {...(onOpenSettings !== undefined && { onOpenSettings })}
               confidentialityMode={confidentialityMode}
               egressProvider={egressProvider}
             />

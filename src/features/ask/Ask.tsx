@@ -49,7 +49,6 @@ import { SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import { useAsk, type UseAskProps } from './useAsk';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useTranslation } from 'react-i18next';
@@ -392,10 +391,6 @@ export function Ask(props: UseAskProps) {
   // citations when they aren't.
   const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
   const sourceSelectedN = sourceTurnIdx !== null && selectedTurnIdx === sourceTurnIdx ? selected : null;
-  const openAiOptions = () => {
-    window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
-  };
-
   const errorBanner = status === 'error' && errorMsg ? (
     <div
       role="status"
@@ -439,22 +434,14 @@ export function Ask(props: UseAskProps) {
           flexShrink: 0,
         }}
       >
+        {/* F1: the egress/privacy status lives ONCE, in the top bar. The
+            per-surface pill here was a passive duplicate that could contradict
+            the top bar on one screen, so it was removed. The pre-send banner in
+            the composer still carries the trust signal AT ACTION TIME. */}
         <SurfaceHeader
           Icon={Sparkles}
           iconColor="var(--kp-accent)"
           title="Ask"
-          actions={
-            /* The egress/privacy indicator lives top-right, on the title line.
-               The short "status" form shows ONLY "Using local AI" / "Using cloud
-               AI" (dynamic); the full honest copy stays in its tooltip + the
-               inspectable data-* attributes. */
-            <EgressIndicator
-              provider={displayedProvider}
-              mode={confidentialityMode}
-              variant="status"
-              onClick={openAiOptions}
-            />
-          }
         />
       </div>
 

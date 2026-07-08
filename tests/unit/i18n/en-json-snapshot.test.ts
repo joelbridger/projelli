@@ -82,7 +82,7 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 62,
+        "workflow": 65,
         "workspace": 31,
       }
     `);
@@ -265,7 +265,10 @@ describe('en.json structure snapshot', () => {
     //      combined total is both).
     // +6 = UX chrome simplification: command-palette tooltip (1), optional
     //      sharing disclosure copy (4), and rail "Find client" label (1).
-    expect(flat.length).toBe(1553); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +3 = F1 single-source egress (UX lane L0): workflow.associate.egress-{local,
+    //      cloud,none} — the quiet TrustNote line above Run that replaced the
+    //      duplicate egress status pill in the workflow template detail.
+    expect(flat.length).toBe(1556); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

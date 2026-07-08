@@ -458,6 +458,32 @@
   .kp-callout--warning { background: var(--kp-warning-bg); border-color: var(--kp-warning-line); }
   .kp-callout--error { background: var(--kp-danger-bg); border-color: rgba(176, 42, 31, 0.3); }
 
+  /* ---- TrustNote (trust ladder rung 2: one short line at action time) ----
+     Quiet by default (muted, no border, no card); warning/blocker add colour
+     only, never a box. The louder framed banner is Callout's job. */
+  .kp-trustnote {
+    display: inline-flex; align-items: flex-start; gap: var(--kp-space-2xs);
+    font-size: var(--kp-font-sm); line-height: var(--kp-leading-normal);
+    color: var(--color-muted-foreground);
+  }
+  .kp-trustnote__icon { flex: none; display: inline-flex; margin-top: 1px; }
+  .kp-trustnote__text { min-width: 0; }
+  .kp-trustnote__more { flex: none; margin-top: 2px; opacity: 0.65; }
+  .kp-trustnote--default { color: var(--color-muted-foreground); }
+  .kp-trustnote--warning { color: var(--kp-warning); }
+  .kp-trustnote--blocker { color: var(--kp-danger); font-weight: var(--kp-weight-medium); }
+
+  /* ---- QuietStatus (theme 6: quiet normal-good, loud only on failure) ---- */
+  .kp-quietstatus {
+    display: inline-flex; align-items: center; gap: var(--kp-space-2xs);
+    font-size: var(--kp-font-sm); line-height: var(--kp-leading-normal);
+    color: var(--color-muted-foreground);
+  }
+  .kp-quietstatus__icon { flex: none; display: inline-flex; }
+  .kp-quietstatus--ok { color: var(--color-muted-foreground); }
+  .kp-quietstatus--pending { color: var(--color-muted-foreground); }
+  .kp-quietstatus--failure { color: var(--kp-danger); font-weight: var(--kp-weight-medium); }
+
   /* ---- Overlay / scrim — modals + slide-in panels (one scrim everywhere) ---- */
   .kp-overlay {
     position: fixed; inset: 0; z-index: var(--kp-z-overlay);
