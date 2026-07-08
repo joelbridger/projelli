@@ -37,10 +37,13 @@ describe('NoticeTrail', () => {
     expect(screen.getByTestId('notice-trail').textContent).toContain('recording this for my notes');
   });
 
-  it('Standard: shows the honest needs-review block with three resolutions', () => {
+  it('Standard: shows a quiet needs-review notice with resolutions in a menu', () => {
     renderTrail([notDetected], { policy: 'standard' });
     expect(screen.getByTestId('notice-unverified')).toBeTruthy();
     expect(screen.queryByTestId('notice-quarantine')).toBeNull();
+    expect(screen.getByTestId('notice-resolve-menu')).toBeTruthy();
+    expect(screen.queryByTestId('notice-resolve-disclosed')).toBeNull();
+    fireEvent.pointerDown(screen.getByTestId('notice-resolve-menu'));
     expect(screen.getByTestId('notice-resolve-disclosed')).toBeTruthy();
     expect(screen.getByTestId('notice-resolve-missed')).toBeTruthy();
     expect(screen.getByTestId('notice-resolve-ack')).toBeTruthy();
@@ -54,6 +57,7 @@ describe('NoticeTrail', () => {
 
   it('records a resolution when a resolution button is clicked', async () => {
     const { onRecordNotice } = renderTrail([notDetected], { policy: 'standard' });
+    fireEvent.pointerDown(screen.getByTestId('notice-resolve-menu'));
     fireEvent.click(screen.getByTestId('notice-resolve-disclosed'));
     await waitFor(() => { expect(onRecordNotice).toHaveBeenCalledTimes(1); });
     const entry = (onRecordNotice as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as NoticeEntry;

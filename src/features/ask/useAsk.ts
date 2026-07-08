@@ -281,6 +281,7 @@ export function useAsk({
     (s) => s.setSessionWorkspaceRoot
   );
   const addMessage = useAIChatStore((s) => s.addMessage);
+  const renameSession = useAIChatStore((s) => s.renameSession);
   const sessions = useAIChatStore((s) => s.sessions);
   // F2.5 — per-conversation file-access consent for the PRIMARY Ask surface.
   // Reactive read drives the composer banner; the setter records grant/deny.
@@ -635,6 +636,10 @@ export function useAsk({
     },
     [rootPath]
   );
+
+  const handleRenameSession = useCallback((sid: string, title: string) => {
+    renameSession(sid, title);
+  }, [renameSession]);
 
   const buildAuditScope = useCallback(
     (retrievalScope: RetrievalScope): AuditScope => {
@@ -1798,6 +1803,7 @@ export function useAsk({
     handleCitationSelect,
     handleNewAsk,
     handleLoadSession,
+    handleRenameSession,
     handleAsk,
     handleKeyDown,
     handleSaveToDocument,

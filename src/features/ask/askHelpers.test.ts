@@ -301,4 +301,16 @@ describe('recent Ask sessions', () => {
 
     expect(buildRecentAskSessions(sessions, null).map((s) => s.label)).toEqual(['Existing question']);
   });
+
+  it('uses a custom conversation title when one has been saved', () => {
+    const sessions = {
+      'ask-hollings': {
+        title: 'ILIT planning',
+        messages: [{ role: 'user' as const, content: 'What is the ILIT issue?', timestamp: '2026-06-24T10:00:00.000Z' }],
+        workspaceRoot: 'C:/Northcrest',
+      },
+    };
+
+    expect(buildRecentAskSessions(sessions, 'C:/Northcrest').map((s) => s.label)).toEqual(['ILIT planning']);
+  });
 });

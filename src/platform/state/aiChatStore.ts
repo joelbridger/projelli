@@ -49,6 +49,8 @@ export interface ChatSession {
    * from one client demo or test workspace from appearing in another one.
    */
   workspaceRoot?: string;
+  /** Advisor-edited conversation title shown in the Ask rail. */
+  title?: string;
   draftInput?: string; // Unsent message draft
   /** Q3 — rolling total for this chat session. */
   cost?: number;
@@ -92,6 +94,7 @@ interface AIChatStore {
   updateMessages: (chatId: string, messages: ChatMessage[]) => void;
   setLoading: (chatId: string, isLoading: boolean) => void;
   setError: (chatId: string, error?: string) => void;
+  renameSession: (chatId: string, title: string) => void;
   removeSession: (chatId: string) => void;
   clearAllSessions: () => void;
   updateLastMessage: (chatId: string, content: string) => void;
@@ -278,18 +281,46 @@ export const useAIChatStore = create<AIChatStore>()(
                 error,
                 isLoading: false,
               }
-            : {
-                chatId: session.chatId,
-                messages: session.messages,
-                isLoading: false,
-                lastUpdated: session.lastUpdated,
-                // Explicitly omit error field when clearing
-              };
+            : (() => {
+                const { error: _error, ...sessionWithoutError } = session;
+                return {
+                  ...sessionWithoutError,
+                  isLoading: false,
+                };
+              })();
 
           return {
             sessions: {
               ...state.sessions,
               [chatId]: updatedSession,
+            },
+          };
+        });
+      },
+
+      renameSession: (chatId, title) => {
+        set((state) => {
+          const session = state.sessions[chatId];
+          if (!session) return state;
+          const trimmed = title.trim();
+          const nextSession: ChatSession = trimmed
+            ? {
+                ...session,
+                title: trimmed,
+                lastUpdated: new Date().toISOString(),
+              }
+            : (() => {
+                const { title: _title, ...rest } = session;
+                return {
+                  ...rest,
+                  lastUpdated: new Date().toISOString(),
+                };
+              })();
+
+          return {
+            sessions: {
+              ...state.sessions,
+              [chatId]: nextSession,
             },
           };
         });

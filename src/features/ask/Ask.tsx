@@ -112,6 +112,7 @@ export function Ask(props: UseAskProps) {
     handleCitationSelect,
     handleNewAsk,
     handleLoadSession,
+    handleRenameSession,
     handleAsk,
     handleKeyDown,
     handleSaveToDocument,
@@ -455,6 +456,7 @@ export function Ask(props: UseAskProps) {
           activeChatId={chatId}
           onSelect={handleLoadSession}
           onNewQuestion={handleNewAsk}
+          onRename={handleRenameSession}
           collapsed={railEffectivelyCollapsed}
           onToggleCollapsed={toggleRailCollapsed}
         />

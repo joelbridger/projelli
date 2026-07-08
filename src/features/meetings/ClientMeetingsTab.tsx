@@ -5,9 +5,9 @@
  * `MeetingEntry` beside the list. A mic affordance in the rail starts a new
  * recording; the consent-gated start flow stays here.
  */
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus, AlertTriangle } from 'lucide-react';
+import { Mic, MoreVertical, PanelLeftClose, PanelLeftOpen, Pencil, Plus, AlertTriangle } from 'lucide-react';
 import { Badge, Button, Callout, EmptyState, IconButton, RailShell, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
 import type { RailShellItem } from '@/ui/kp';
 import { DropdownMenuItem } from '@/ui/dropdown-menu';
@@ -214,6 +214,10 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
   const [matchedCalendarEvent, setMatchedCalendarEvent] = useState<MeetingCalendarEventMeta | null>(null);
   const [noticeCardChecked, setNoticeCardChecked] = useState(false);
   const [noticeCardZoomAttest, setNoticeCardZoomAttest] = useState(false);
+  const [renamingMeetingDir, setRenamingMeetingDir] = useState<string | null>(null);
+  const [meetingTitleDraft, setMeetingTitleDraft] = useState('');
+  const [selectedMeetingRevision, setSelectedMeetingRevision] = useState(0);
+  const skipMeetingRenameBlurRef = useRef(false);
   // Manual paste fallback when calendar sync found no online meeting: lets the
   // advisor add the card to a non-calendar (or not-yet-synced) Teams/Zoom call.
   const [noticeCardManualUrl, setNoticeCardManualUrl] = useState('');
@@ -274,6 +278,32 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
   const handleMeetingChanged = runRefresh;
 
   useEffect(() => { runRefresh(); }, [runRefresh]);
+
+  const handleSaveMeetingTitle = useCallback(async (meeting: MeetingSummary, title: string) => {
+    const ws = workspaceService;
+    if (!ws) return;
+    const trimmed = title.trim();
+    const raw = await ws.readFile(`${meeting.dir}/meeting.json`);
+    const current = JSON.parse(raw) as MeetingMeta;
+    const next: MeetingMeta = trimmed
+      ? { ...current, customTitle: trimmed }
+      : (() => {
+          const { customTitle: _customTitle, ...rest } = current;
+          return rest;
+        })();
+    await ws.writeFile(`${meeting.dir}/meeting.json`, JSON.stringify(next, null, 2));
+    setMeetings((currentMeetings) =>
+      currentMeetings.map((candidate) =>
+        candidate.dir === meeting.dir ? { ...candidate, meta: next } : candidate,
+      ),
+    );
+    setRenamingMeetingDir(null);
+    setMeetingTitleDraft('');
+    if (selectedMeetingDir === meeting.dir) setSelectedMeetingRevision((revision) => revision + 1);
+  }, [selectedMeetingDir, workspaceService]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
   useEffect(() => {
     if (!initialSelectedMeeting) return;
     setDirectOpenMeeting(initialSelectedMeeting);
@@ -462,49 +492,93 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
         : undefined,
     );
     const quarantined = reviewItems.some((i) => i.kind === 'notice-quarantined');
+    const title = meetingDisplayTitle(m.meta, t);
     const duration = formatMeetingDuration(m.meta?.durationMs, t);
-    const subtitle = (
-      <>
-        {formatMeetingDate(m.meta?.startedAt)}
-        {duration && ` · ${duration}`}
-        {!m.hasNotes &&
-          ` · ${
-            m.meta?.notesError
-              ? t('meetings.tab.notes-failed')
-              : m.meta?.recordingError && !m.hasAudio
-                ? t('meetings.tab.recording-incomplete')
-                : t('meetings.tab.notes-pending')
-          }`}
-      </>
-    );
+    const metaText = [formatMeetingDate(m.meta?.startedAt), duration].filter(Boolean).join(' · ');
+    const pendingText = !m.hasNotes
+      ? m.meta?.notesError
+        ? t('meetings.tab.notes-failed')
+        : m.meta?.recordingError && !m.hasAudio
+          ? t('meetings.tab.recording-incomplete')
+          : t('meetings.tab.notes-pending')
+      : '';
+    const status = quarantined
+      ? <Badge variant="warning" size="sm" data-testid="meeting-quarantine-badge">{t('meetings.notice.quarantine-badge')}</Badge>
+      : pendingText
+        ? (
+            <span style={{ flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 86, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+              {pendingText}
+            </span>
+          )
+        : reviewItems.length > 0
+          ? <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
+          : null;
+    const isRenaming = renamingMeetingDir === m.dir;
+    const saveTitle = () => {
+      void handleSaveMeetingTitle(m, meetingTitleDraft).catch(() => {
+        setRenamingMeetingDir(null);
+        setMeetingTitleDraft('');
+      });
+    };
 
     return {
       id: m.dir,
-      label: meetingDisplayTitle(m.meta, t),
+      label: title,
       testId: 'meeting-row',
-      ariaLabel: `${meetingDisplayTitle(m.meta, t)} ${formatMeetingDate(m.meta?.startedAt)}`,
+      ariaLabel: `${title} ${formatMeetingDate(m.meta?.startedAt)}`,
       content: (
-        // Title-first, no per-row mic tile (item 16): every row here is already
-        // a meeting, so the repeated icon only ate the 268px rail.
-        <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 5 }}>
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-rail-row-title-font-size)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-            {meetingDisplayTitle(m.meta, t)}
-          </span>
-          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-rail-row-meta-font-size)', color: 'var(--color-muted-foreground)' }}>
-            {subtitle}
-          </div>
-          {/* Only status that changes behaviour stays in the rail (item 17):
-              quarantine and needs-review. A plain Reviewed state is quiet — it
-              shows as a chip in the meeting header instead. */}
-          {(quarantined || reviewItems.length > 0) && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {quarantined && (
-                <Badge variant="warning" size="sm" data-testid="meeting-quarantine-badge">{t('meetings.notice.quarantine-badge')}</Badge>
+        <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 6 }}>
+          {isRenaming ? (
+            <input
+              data-testid="meeting-rail-rename-input"
+              aria-label={t('meetings.entry.rename')}
+              autoFocus
+              value={meetingTitleDraft}
+              onChange={(event) => { setMeetingTitleDraft(event.target.value); }}
+              onBlur={() => {
+                if (skipMeetingRenameBlurRef.current) {
+                  skipMeetingRenameBlurRef.current = false;
+                  return;
+                }
+                saveTitle();
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') saveTitle();
+                if (event.key === 'Escape') {
+                  skipMeetingRenameBlurRef.current = true;
+                  setRenamingMeetingDir(null);
+                  setMeetingTitleDraft('');
+                }
+              }}
+              style={{ minWidth: 0, flex: 1, height: 26, border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '2px 6px', fontSize: 'var(--kp-font-xs)' }}
+            />
+          ) : (
+            <>
+              <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+                {title}
+              </span>
+              {metaText && (
+                <span style={{ flex: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 86, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+                  {metaText}
+                </span>
+
               )}
-              {!quarantined && reviewItems.length > 0 && (
-                <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
-              )}
-            </div>
+              {status}
+              <button
+                type="button"
+                data-testid="meeting-rail-rename"
+                aria-label={t('meetings.entry.rename')}
+                title={t('meetings.entry.rename')}
+                onClick={() => {
+                  skipMeetingRenameBlurRef.current = false;
+                  setRenamingMeetingDir(m.dir);
+                  setMeetingTitleDraft(title);
+                }}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, border: 'none', borderRadius: 'var(--radius-sm)', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', flex: 'none' }}
+              >
+                <Pencil aria-hidden="true" style={{ width: 12, height: 12 }} />
+              </button>
+            </>
           )}
         </div>
       ),
@@ -516,6 +590,9 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
     matterQueue,
     noticePolicy,
     getSetting,
+    renamingMeetingDir,
+    meetingTitleDraft,
+    handleSaveMeetingTitle,
     t,
   ]);
 
@@ -656,7 +733,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
       >
         {selectedMeeting ? (
           <MeetingEntry
-            key={selectedMeeting.dir}
+            key={`${selectedMeeting.dir}:${String(selectedMeetingRevision)}`}
             matterId={matterId}
             meetingDir={selectedMeeting.dir}
             folderName={selectedMeeting.folderName}

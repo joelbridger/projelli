@@ -15,8 +15,14 @@
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ShieldCheck, AlertTriangle, Copy, Check, Info, ChevronDown, ChevronRight } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Copy, Check, Info, ChevronDown, ChevronRight, MoreVertical } from 'lucide-react';
 import { Badge, Callout } from '@/ui/kp';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { deriveNoticeState, type NoticeEntry, type NoticeResolution } from './noticeLedger';
 import type { NoticePolicy } from './noticeSettings';
 import { copyText as defaultCopyText } from './noticeClipboard';
@@ -99,6 +105,33 @@ export function NoticeTrail({ meetingDir, notices, policy, inviteDisclosure, cha
         {t('meetings.notice.resolve-ack')}
       </button>
     </div>
+  );
+
+  const resolutionMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-testid="notice-resolve-menu"
+          aria-label={t('meetings.notice.resolve-menu')}
+          title={t('meetings.notice.resolve-menu')}
+          style={menuBtnStyle}
+        >
+          <MoreVertical aria-hidden="true" style={{ width: 14, height: 14 }} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuItem data-testid="notice-resolve-disclosed" onClick={() => { resolve('disclosed-in-advance'); }}>
+          {t('meetings.notice.resolve-disclosed')}
+        </DropdownMenuItem>
+        <DropdownMenuItem data-testid="notice-resolve-missed" onClick={() => { resolve('transcription-missed'); }}>
+          {t('meetings.notice.resolve-missed')}
+        </DropdownMenuItem>
+        <DropdownMenuItem data-testid="notice-resolve-ack" onClick={() => { resolve('acknowledged-gap'); }}>
+          {t('meetings.notice.resolve-ack')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 
   // Copy actions + local note — the notice tools that matter most before/during
@@ -191,11 +224,12 @@ export function NoticeTrail({ meetingDir, notices, policy, inviteDisclosure, cha
       </div>
 
       {state.status === 'unverified' && policy === 'standard' && (
-        <div data-testid="notice-unverified">
-          <Callout variant="warning" icon={AlertTriangle}>
-            <div style={{ fontWeight: 'var(--kp-weight-semibold)' }}>{t('meetings.notice.unverified-title')}</div>
-            {resolutionButtons}
-          </Callout>
+        <div data-testid="notice-unverified" style={quietNoticeStyle}>
+          <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, color: 'var(--kp-warning)', flex: 'none' }} />
+          <span style={{ minWidth: 0, flex: 1, color: 'var(--kp-navy)', fontSize: 'var(--kp-font-xs)', lineHeight: 1.35 }}>
+            {t('meetings.notice.unverified-title')}
+          </span>
+          {resolutionMenu}
         </div>
       )}
 
@@ -225,6 +259,28 @@ const copyBtnStyle: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)',
   background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px',
   fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--kp-navy)',
+};
+const quietNoticeStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 8,
+  border: '1px solid var(--kp-divider)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--color-background)',
+  padding: '7px 8px',
+};
+const menuBtnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 26,
+  height: 26,
+  border: '1px solid var(--kp-divider)',
+  borderRadius: 'var(--radius-md)',
+  background: 'transparent',
+  color: 'var(--color-muted-foreground)',
+  cursor: 'pointer',
+  flex: 'none',
 };
 const iconStyle: React.CSSProperties = { width: 12, height: 12 };
 

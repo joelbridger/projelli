@@ -252,6 +252,7 @@ export interface RecentAskSession {
 interface AskSessionLike {
   messages: ChatMessage[];
   workspaceRoot?: string;
+  title?: string;
 }
 
 export interface BoundAnswerCitations {
@@ -681,7 +682,7 @@ export function buildRecentAskSessions(
       const firstUserMsg = session.messages.find((m) => m.role === 'user');
       return {
         chatId: key,
-        label: firstUserMsg?.content ?? key,
+        label: session.title?.trim() || firstUserMsg?.content || key,
         dateLabel: dateLabelFromTimestamp(firstUserMsg?.timestamp),
       };
     })
