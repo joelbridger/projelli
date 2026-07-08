@@ -46,6 +46,7 @@
       "open-email-client": "Open email client instead"
     },
     "command-palette": {
+      "open": "Command palette (Ctrl+K)",
       "search-description": "Type a command or search across the app",
       "no-commands": "No commands found"
     },
