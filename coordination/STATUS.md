@@ -1,5 +1,11 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-08 ~16:20 — COORDINATOR-12 TOOK OVER (coordinator-11 process died after its 05:30 wrap; no work lost)
+
+- Coordinator-11 ended CLEAN: tip 75202fb4 pushed+verified, Legion live, rails unified, UX-minimalism report published. Nothing was mid-flight.
+- New coordinator session (Fable 5, tmux cc-lantern-coordinator-11 window, cwd ~/) reconstructed full context from the 029c72cf transcript + RELAY-10-TO-11 + this file.
+- Housekeeping: pruned 35 stale merged worktrees (lp-fb*, lp-mp-*, lp-mf*, lp-round*, etc.) — all verified merged into HEAD before removal.
+- WAITING ON JAMESON: pick waves / items from the UX Simplification report (coordination/reports/ux-simplification-2026-07-08/SYNTHESIS.md) — nothing gets built until he says go.
 ## UPDATE 2026-07-08 ~05:30 — rails unified + UX-minimalism audit delivered (coordinator-11, zero-token mode)
 
 - Rail consistency SHIPPED (tip c2d7e462, gate green, pushed+verified, Legion live): Email/Meetings/Workflows left rails restyled at the RailShell level to the airy white Ask/ClientMap/Documents template. Codex-built, adversarially reviewed MERGE-READY first pass.
