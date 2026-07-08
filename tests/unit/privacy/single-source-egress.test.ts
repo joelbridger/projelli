@@ -6,7 +6,7 @@
  * through THE SAME source of truth (activeEgressProvider.ts).
  *
  * Fix round 1 widened the matrix to the columns the badge must never get wrong:
- * assured (firm proxy wins over BYOK) and local-pending ("setting up", never a
+ * assured (fix round 2 ruling: the GLOBAL badge is BYOK-first, mirroring what Ask/Workflows actually send; email stays assured-honest at action time) and local-pending ("setting up", never a
  * false "Using local AI").
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';

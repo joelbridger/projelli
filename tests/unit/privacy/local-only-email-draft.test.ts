@@ -21,6 +21,13 @@ vi.mock('@/platform/utils/tauri-commands', async (orig) => {
   return { ...real, localLlmModelStatus: mocks.status };
 });
 
+// The resolver now requires the STRICT reachability probe before choosing
+// Ollama (fix round 2) — pin it reachable so this test is machine-independent.
+vi.mock('@/platform/providers/OllamaProvider', async (orig) => {
+  const actual = await orig<typeof import('@/platform/providers/OllamaProvider')>();
+  return { ...actual, detectOllama: vi.fn(async () => ({ reachable: true, models: ['llama3.1:8b'] })) };
+});
+
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { buildProviderAsync } from '@/features/email/EmailViewer';
@@ -33,7 +40,7 @@ beforeEach(() => {
 });
 
 describe('EmailViewer buildProviderAsync — Local-only', () => {
-  it('returns the local Ollama provider in Local-only when no embedded model is ready, never a cloud provider', async () => {
+  it('returns Ollama in Local-only when no embedded model is ready and Ollama is reachable, never a cloud provider', async () => {
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
     const provider = await buildProviderAsync();
     expect(provider.getMetadata().providerId).toBe('ollama');

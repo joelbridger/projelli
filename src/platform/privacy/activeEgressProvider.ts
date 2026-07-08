@@ -8,7 +8,7 @@
  * through the functions here.
  *
  * Fix round 1 hardened three real defects the badge must never have:
- *   - ASSURED (item 2): in 'assured' mode a firm managed route can send through
+ *   - ASSURED (item 2, revised by the fix-round-2 ruling): the GLOBAL badge is BYOK-first (it mirrors Ask/Workflows' real send preference); assured shows globally only when a firm route can send through
  *     the zero-retention proxy for a provider the user has NO personal key for.
  *     The resolver checks `resolveAssuredRoute` FIRST (assured wins over personal
  *     BYOK, exactly like the email send path), and returns `assuredAvailable` so
