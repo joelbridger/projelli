@@ -22,9 +22,11 @@
  */
 
 import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
+import { persist } from 'zustand/middleware';
+import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { SK_CLIENT_GROUPS } from '@/config/identity';
+import { workspaceScopeSuffix } from '@/platform/state/workspaceScope';
 
 export interface ClientGroup {
   id: string;
@@ -65,17 +67,21 @@ function dedupeIds(ids: unknown): string[] {
 /**
  * Coerce persisted/unknown data into a valid `ClientGroup[]`. Drops entries
  * with no id or a blank name; defaults a missing `matterIds` to `[]` and a
- * missing `createdAt` to the empty string. Never throws.
+ * missing `createdAt` to the empty string. Keeps only the FIRST group per id so
+ * a corrupt blob with duplicate ids can never render duplicate rail
+ * handles/keys or make a rename/delete hit two groups at once. Never throws.
  */
 export function sanitizeClientGroups(input: unknown): ClientGroup[] {
   if (!Array.isArray(input)) return [];
   const out: ClientGroup[] = [];
+  const seenIds = new Set<string>();
   for (const raw of input) {
     if (!raw || typeof raw !== 'object') continue;
     const rec = raw as Partial<ClientGroup>;
     const id = typeof rec.id === 'string' ? rec.id.trim() : '';
     const name = typeof rec.name === 'string' ? rec.name.trim() : '';
-    if (!id || !name) continue;
+    if (!id || !name || seenIds.has(id)) continue;
+    seenIds.add(id);
     out.push({
       id,
       name,
@@ -85,6 +91,46 @@ export function sanitizeClientGroups(input: unknown): ClientGroup[] {
   }
   return out;
 }
+
+/** The per-workspace localStorage key for client groups (QA-93 scoping): the
+ *  base key when no workspace scope is active, else `…::ws:<id>`. Mirrors the
+ *  matter + client-map stores so groups never leak across workspaces. */
+function scopedGroupsKey(): string {
+  return SK_CLIENT_GROUPS + workspaceScopeSuffix();
+}
+
+/** Per-workspace persistence for client groups. Sanitizes on read so a corrupt
+ *  or duplicate-id blob can never crash hydration or produce duplicate handles. */
+const scopedGroupStorage: PersistStorage<{ groups: ClientGroup[] }> = {
+  getItem: (): StorageValue<{ groups: ClientGroup[] }> => {
+    // ALWAYS return a concrete state (never null): on a workspace switch to a
+    // scope with no saved groups, a null return would leave zustand keeping the
+    // PREVIOUS workspace's in-memory groups (same gotcha the matter store
+    // guards). Returning `{ groups: [] }` makes rehydrate replace them.
+    try {
+      const raw = localStorage.getItem(scopedGroupsKey());
+      const parsed = raw ? (JSON.parse(raw) as { state?: { groups?: unknown } } | null) : null;
+      return { state: { groups: sanitizeClientGroups(parsed?.state?.groups) }, version: 0 };
+    } catch {
+      // Unreadable/corrupt payload → start clean rather than throw.
+      return { state: { groups: [] }, version: 0 };
+    }
+  },
+  setItem: (_name, value): void => {
+    try {
+      localStorage.setItem(scopedGroupsKey(), JSON.stringify({ state: value.state, version: 0 }));
+    } catch (err) {
+      console.warn('[clientGroups] per-workspace persistence write failed:', err);
+    }
+  },
+  removeItem: (): void => {
+    try {
+      localStorage.removeItem(scopedGroupsKey());
+    } catch (err) {
+      console.warn('[clientGroups] per-workspace persistence remove failed:', err);
+    }
+  },
+};
 
 interface ClientGroupState {
   groups: ClientGroup[];
@@ -112,8 +158,14 @@ export const useClientGroupStore = create<ClientGroupState>()(
       createGroup: (name) => {
         const trimmed = name.trim();
         if (!trimmed) return null;
+        // Regenerate on the astronomically-unlikely id collision so two groups
+        // can never share an id (which would collide their rail handles/keys
+        // and make rename/delete hit both).
+        const existing = new Set(get().groups.map((g) => g.id));
+        let id = newGroupId();
+        while (existing.has(id)) id = newGroupId();
         const group: ClientGroup = {
-          id: newGroupId(),
+          id,
           name: trimmed,
           matterIds: [],
           createdAt: new Date().toISOString(),
@@ -179,15 +231,10 @@ export const useClientGroupStore = create<ClientGroupState>()(
     }),
     {
       name: SK_CLIENT_GROUPS,
-      storage: createJSONStorage(() => localStorage),
-      // Sanitize on the way IN from storage, so a corrupt blob can never make
-      // the store throw or hold malformed groups.
-      merge: (persisted, current) => ({
-        ...current,
-        groups: sanitizeClientGroups(
-          (persisted as { groups?: unknown } | undefined)?.groups,
-        ),
-      }),
+      // Per-workspace storage (QA-93): the key carries the active workspace's
+      // suffix so a group created in one workspace never appears in — or is
+      // deleted from — another. The adapter also sanitizes on read.
+      storage: scopedGroupStorage,
       partialize: (s) => ({ groups: s.groups }),
     },
   ),

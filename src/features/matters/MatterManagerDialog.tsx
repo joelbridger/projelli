@@ -49,7 +49,6 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { cn } from '@/lib/utils';
 import { useMatters, useActiveMatters, useArchivedMatters, useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
-import { useClientGroupStore } from '@/platform/matter/clientGroupStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/platform/utils/mail-commands';
 import { mailFolderKey, matterLabel } from '@/platform/rag/matterResolver';
@@ -536,11 +535,10 @@ export function MatterManagerDialog({ open, onOpenChange, focusMatterId }: Matte
                             variant: 'destructive',
                           });
                           if (!confirmed) return;
+                          // deleteMatter also prunes this client from every rail
+                          // group (in the store, only after the delete actually
+                          // succeeds) — see matterStore.deleteMatter.
                           deleteMatter(m.id);
-                          // Prune the deleted client from any rail groups so no
-                          // stale id lingers (groups also filter at render, but
-                          // this keeps the persisted data clean).
-                          useClientGroupStore.getState().removeMatterFromAllGroups(m.id);
                         })();
                       }}
                       aria-label={t('matter.manager.delete-entity', { entity: entityLabel.one })}

@@ -8,14 +8,17 @@
  * These tests pin the store contract before the UI is wired to it.
  */
 
-import { beforeEach, describe, it, expect } from 'vitest';
+import { beforeEach, afterAll, describe, it, expect } from 'vitest';
 import {
   useClientGroupStore,
   sanitizeClientGroups,
   type ClientGroup,
 } from '@/platform/matter/clientGroupStore';
+import { setActiveWorkspaceScopeRoot } from '@/platform/state/workspaceScope';
 
 function reset() {
+  setActiveWorkspaceScopeRoot(null);
+  localStorage.clear();
   useClientGroupStore.setState({ groups: [] });
 }
 
@@ -103,12 +106,53 @@ describe('clientGroupStore — membership', () => {
   });
 });
 
+describe('clientGroupStore — per-workspace persistence (never bleeds across workspaces)', () => {
+  beforeEach(reset);
+  afterAll(() => {
+    setActiveWorkspaceScopeRoot(null);
+  });
+
+  it('a group created in workspace A does not appear in workspace B, and is not deleted by B', () => {
+    // Workspace A: create a group.
+    setActiveWorkspaceScopeRoot('/practice/A');
+    void useClientGroupStore.persist.rehydrate();
+    const g = useClientGroupStore.getState().createGroup('VIP clients')!;
+    expect(useClientGroupStore.getState().groups).toHaveLength(1);
+
+    // Switch to workspace B: A's group must NOT be visible.
+    setActiveWorkspaceScopeRoot('/practice/B');
+    void useClientGroupStore.persist.rehydrate();
+    expect(useClientGroupStore.getState().groups).toHaveLength(0);
+
+    // Deleting "everything" in B cannot touch A's group.
+    useClientGroupStore.getState().deleteGroup(g.id);
+
+    // Back to A: the group is still there.
+    setActiveWorkspaceScopeRoot('/practice/A');
+    void useClientGroupStore.persist.rehydrate();
+    expect(useClientGroupStore.getState().groups.map((x) => x.id)).toEqual([g.id]);
+  });
+});
+
 describe('sanitizeClientGroups — corrupt/legacy persisted data never throws', () => {
   it('coerces junk to an empty list', () => {
     expect(sanitizeClientGroups(undefined)).toEqual([]);
     expect(sanitizeClientGroups(null)).toEqual([]);
     expect(sanitizeClientGroups('nope')).toEqual([]);
     expect(sanitizeClientGroups({})).toEqual([]);
+  });
+
+  it('keeps only the first group per id (no duplicate ids)', () => {
+    const raw = [
+      { id: 'cgroup_dup', name: 'First', matterIds: ['matter_a'] },
+      { id: 'cgroup_dup', name: 'Second', matterIds: ['matter_b'] },
+      { id: 'cgroup_ok', name: 'Other', matterIds: [] },
+    ];
+    const out = sanitizeClientGroups(raw);
+    expect(out).toHaveLength(2);
+    expect(out[0]!.id).toBe('cgroup_dup');
+    expect(out[0]!.name).toBe('First');
+    expect(out[1]!.id).toBe('cgroup_ok');
   });
 
   it('drops malformed entries and coerces member ids to unique strings', () => {
