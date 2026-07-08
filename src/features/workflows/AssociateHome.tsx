@@ -97,6 +97,30 @@ const CATEGORY_ORDER: CategoryConfig[] = [
   { key: 'custom' },
 ];
 
+const CATEGORY_LABEL_KEY: Record<TemplateCategory, string> = {
+  kickoff: 'workflow.associate.categories.kickoff.label',
+  research: 'workflow.associate.categories.research.label',
+  analysis: 'workflow.associate.categories.analysis.label',
+  planning: 'workflow.associate.categories.planning.label',
+  custom: 'workflow.associate.categories.custom.label',
+  legal: 'workflow.associate.categories.legal.label',
+  tax: 'workflow.associate.categories.tax.label',
+  consulting: 'workflow.associate.categories.consulting.label',
+  advisors: 'workflow.associate.categories.advisors.label',
+};
+
+const CATEGORY_DESCRIPTION_KEY: Record<TemplateCategory, string> = {
+  kickoff: 'workflow.associate.categories.kickoff.description',
+  research: 'workflow.associate.categories.research.description',
+  analysis: 'workflow.associate.categories.analysis.description',
+  planning: 'workflow.associate.categories.planning.description',
+  custom: 'workflow.associate.categories.custom.description',
+  legal: 'workflow.associate.categories.legal.description',
+  tax: 'workflow.associate.categories.tax.description',
+  consulting: 'workflow.associate.categories.consulting.description',
+  advisors: 'workflow.associate.categories.advisors.description',
+};
+
 /**
  * Maps each onboarding profession key to the template category that should
  * render FIRST in the "All" view.  Mirrors the category→profession mapping
@@ -160,11 +184,11 @@ function categoryConfigFor(key: TemplateCategory): CategoryConfig {
 }
 
 function categoryLabel(t: ReturnType<typeof useTranslation>['t'], key: TemplateCategory): string {
-  return t(`workflow.associate.categories.${key}.label`);
+  return t(CATEGORY_LABEL_KEY[key]);
 }
 
 function categoryDescription(t: ReturnType<typeof useTranslation>['t'], key: TemplateCategory): string {
-  return t(`workflow.associate.categories.${key}.description`);
+  return t(CATEGORY_DESCRIPTION_KEY[key]);
 }
 
 function runMatchesTemplate(run: RunRecord, template: WorkflowTemplate): boolean {
@@ -368,7 +392,7 @@ function WorkflowTrustLine({
   );
   const destination = isDisconnected ? 'none' : info?.destination ?? 'provider-direct';
   const dataLeaves = info?.dataLeaves ? 'true' : 'false';
-  const details = isDisconnected ? label : `${info?.label}. ${info?.note}`;
+  const details = info ? `${info.label}. ${info.note}` : label;
   const sharedProps = {
     'data-testid': 'egress-indicator',
     'data-destination': destination,

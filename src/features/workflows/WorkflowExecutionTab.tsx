@@ -300,6 +300,7 @@ export function WorkflowExecutionTab({
     : totalSteps > 0
       ? Math.round((currentStep / totalSteps) * 100)
       : 0;
+  const currentWorkflowStep = template.steps[currentStep];
   const primaryFileLink = fileLinks[0] ?? null;
   const suggestedFileBase = template.name.replace(/\s+/g, '-');
 
@@ -433,7 +434,7 @@ export function WorkflowExecutionTab({
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {/* Step list */}
         <div className="space-y-2">
-          {template.steps[currentStep] && (
+          {currentWorkflowStep && (
             <div
               data-testid="workflow-current-step"
               className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
@@ -445,7 +446,7 @@ export function WorkflowExecutionTab({
               ) : (
                 <Clock className="h-4 w-4 text-muted-foreground/70 shrink-0" />
               )}
-              <span className="truncate min-w-0">{template.steps[currentStep]?.name}</span>
+              <span className="truncate min-w-0">{currentWorkflowStep.name}</span>
             </div>
           )}
           {template.steps.length > 1 && (
@@ -453,7 +454,9 @@ export function WorkflowExecutionTab({
               type="button"
               data-testid="workflow-show-all-steps"
               className="text-xs font-medium text-muted-foreground hover:text-foreground"
-              onClick={() => setShowAllSteps((value) => !value)}
+              onClick={() => {
+                setShowAllSteps((value) => !value);
+              }}
             >
               {showAllSteps ? t('workflow.execution.hide-all-steps') : t('workflow.execution.show-all-steps')}
             </button>
@@ -533,8 +536,8 @@ export function WorkflowExecutionTab({
           <div className="rounded-md border border-border py-8 flex flex-col items-center gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
               <p className="text-sm font-medium">
-                {template.steps[currentStep]?.name
-                  ? t('workflow.execution.generating-step', { step: template.steps[currentStep]?.name })
+                {currentWorkflowStep
+                  ? t('workflow.execution.generating-step', { step: currentWorkflowStep.name })
                   : t('workflow.execution.generating')}
               </p>
               <p className="text-xs">{t('workflow.execution.may-take-moment')}</p>
@@ -616,7 +619,9 @@ export function WorkflowExecutionTab({
                   <Button
                     data-testid="workflow-open-draft"
                     size="sm"
-                    onClick={() => onFileOpen?.(primaryFileLink.path, primaryFileLink.name)}
+                    onClick={() => {
+                      onFileOpen?.(primaryFileLink.path, primaryFileLink.name);
+                    }}
                   >
                     <FileText className="h-3.5 w-3.5 mr-1.5" />
                     {t('workflow.execution.open')}
@@ -637,7 +642,9 @@ export function WorkflowExecutionTab({
                     {onSaveAsFile && (
                       <DropdownMenuItem
                         data-testid="workflow-save-output"
-                        onSelect={() => onSaveAsFile(finalOutput, `${suggestedFileBase}.md`)}
+                        onSelect={() => {
+                          onSaveAsFile(finalOutput, `${suggestedFileBase}.md`);
+                        }}
                       >
                         <Download className="h-3.5 w-3.5 mr-2" />
                         {t('workflow.execution.save-as-file')}
@@ -646,7 +653,9 @@ export function WorkflowExecutionTab({
                     {onExportDocx && (
                       <DropdownMenuItem
                         data-testid="workflow-export-docx-trigger"
-                        onSelect={() => setDocxExportOpen(true)}
+                        onSelect={() => {
+                          setDocxExportOpen(true);
+                        }}
                       >
                         <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
                         {t('workflow.execution.export-docx')}
@@ -655,7 +664,9 @@ export function WorkflowExecutionTab({
                     {onExportPptx && (
                       <DropdownMenuItem
                         data-testid="workflow-export-pptx"
-                        onSelect={() => onExportPptx(finalOutput, `${suggestedFileBase}.pptx`)}
+                        onSelect={() => {
+                          onExportPptx(finalOutput, `${suggestedFileBase}.pptx`);
+                        }}
                       >
                         <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
                         {t('workflow.execution.export-pptx')}
@@ -697,7 +708,13 @@ export function WorkflowExecutionTab({
                   />
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" size="sm" onClick={() => setDocxExportOpen(false)}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setDocxExportOpen(false);
+                    }}
+                  >
                     {t('workflow.execution.cancel')}
                   </Button>
                   <Button
@@ -740,7 +757,9 @@ export function WorkflowExecutionTab({
                   key={link.path}
                   data-testid={`workflow-file-link-${link.name}`}
                   className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted/50 transition-colors text-primary underline-offset-2 hover:underline"
-                  onClick={() => onFileOpen?.(link.path, link.name)}
+                  onClick={() => {
+                    onFileOpen?.(link.path, link.name);
+                  }}
                 >
                   <FileText className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{link.name}</span>
@@ -798,7 +817,9 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
           size="sm"
           variant="outline"
           className="gap-2"
-          onClick={() => setPickerOpen((value) => !value)}
+          onClick={() => {
+            setPickerOpen((value) => !value);
+          }}
         >
           <LinkIcon className="h-4 w-4 text-amber-500" />
           {t('workflow.execution.use-as-input')}
@@ -814,7 +835,9 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
-                  onClick={() => onPick(t)}
+                  onClick={() => {
+                    onPick(t);
+                  }}
                   title={t.description}
                 >
                   {t.name}
@@ -836,7 +859,9 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
                   size="sm"
                   variant="ghost"
                   className="h-6 text-[11px]"
-                  onClick={() => onPick(t)}
+                  onClick={() => {
+                    onPick(t);
+                  }}
                 >
                   {t.name}
                 </Button>

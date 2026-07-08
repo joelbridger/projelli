@@ -82,7 +82,7 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 62,
+        "workflow": 129,
         "workspace": 31,
       }
     `);
@@ -263,7 +263,9 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +67 = Lantern UX simplification workflows lane: compact library filters,
+    //      calmer run state, folded details, output menu, and template copy.
+    expect(flat.length).toBe(1614);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

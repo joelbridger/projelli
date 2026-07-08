@@ -302,14 +302,18 @@ export function WorkflowPanel({
             <DropdownMenuContent align="end">
               <DropdownMenuItem
                 data-testid="workflows-chain-templates"
-                onSelect={() => setShowChainBuilder(true)}
+                onSelect={() => {
+                  setShowChainBuilder(true);
+                }}
               >
                 <LinkIcon className="h-3.5 w-3.5 mr-2" />
                 {t('workflow.chain-builder.title')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 data-testid="workflows-open-full-view"
-                onSelect={() => setShowFullView(true)}
+                onSelect={() => {
+                  setShowFullView(true);
+                }}
               >
                 <Maximize2 className="h-3.5 w-3.5 mr-2" />
                 {t('workflow.panel.modal-title')}
@@ -627,7 +631,9 @@ function WorkflowsFullViewModal({
                     <Button
                       size="sm"
                       className="h-8"
-                      onClick={() => onStartWorkflow(workflow)}
+                      onClick={() => {
+                        onStartWorkflow(workflow);
+                      }}
                       disabled={currentExecution !== null}
                     >
                       {currentExecution?.template.id === workflow.id ? (
@@ -651,7 +657,9 @@ function WorkflowsFullViewModal({
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem
                           data-testid={`workflow-modal-duplicate-${workflow.id}`}
-                          onSelect={() => onDuplicate(workflow)}
+                          onSelect={() => {
+                            onDuplicate(workflow);
+                          }}
                         >
                           <Copy className="h-3.5 w-3.5 mr-2" />
                           {t('workflow.fork.title')}
@@ -660,7 +668,9 @@ function WorkflowsFullViewModal({
                           <DropdownMenuItem
                             data-testid={`workflow-modal-delete-${workflow.id}`}
                             className="text-destructive focus:text-destructive"
-                            onSelect={() => onDelete(workflow)}
+                            onSelect={() => {
+                              onDelete(workflow);
+                            }}
                           >
                             <Trash2 className="h-3.5 w-3.5 mr-2" />
                             {t('workflow.panel.delete-template')}
@@ -866,9 +876,9 @@ function GroupedWorkflowList({
             <button
               type="button"
               data-testid={`workflows-group-toggle-${p}`}
-              onClick={() =>
-                setCollapsed((prev) => ({ ...prev, [p]: !prev[p] }))
-              }
+              onClick={() => {
+                setCollapsed((prev) => ({ ...prev, [p]: !prev[p] }));
+              }}
               className="flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground w-full text-left"
               aria-expanded={!isCollapsed}
             >
@@ -927,7 +937,9 @@ function GroupedWorkflowList({
                               size="sm"
                               variant="outline"
                               className="h-7 px-2 text-xs"
-                              onClick={() => onStart(workflow)}
+                              onClick={() => {
+                                onStart(workflow);
+                              }}
                               disabled={
                                 currentExecution !== null || trialLocked
                               }
@@ -959,7 +971,9 @@ function GroupedWorkflowList({
                               <DropdownMenuContent align="end">
                                 <DropdownMenuItem
                                   data-testid={`template-picker-duplicate-${workflow.id}`}
-                                  onSelect={() => onDuplicate(workflow)}
+                                  onSelect={() => {
+                                    onDuplicate(workflow);
+                                  }}
                                 >
                                   <Copy className="h-3.5 w-3.5 mr-2" />
                                   {t('workflow.fork.title')}
@@ -968,7 +982,9 @@ function GroupedWorkflowList({
                                   <DropdownMenuItem
                                     data-testid={`template-picker-delete-${workflow.id}`}
                                     className="text-destructive focus:text-destructive"
-                                    onSelect={() => onDelete(workflow)}
+                                    onSelect={() => {
+                                      onDelete(workflow);
+                                    }}
                                   >
                                     <Trash2 className="h-3.5 w-3.5 mr-2" />
                                     {t('workflow.panel.delete-template')}

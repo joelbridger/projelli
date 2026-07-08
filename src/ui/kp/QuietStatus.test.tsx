@@ -16,9 +16,10 @@ describe('QuietStatus', () => {
   });
 
   it('gets loud only when the caller passes failure, as an alert', () => {
+    const copy = "Couldn't save";
     render(
       <QuietStatus data-testid="qs" state="failure">
-        Couldn&apos;t save
+        {copy}
       </QuietStatus>,
     );
     const el = screen.getByTestId('qs');
