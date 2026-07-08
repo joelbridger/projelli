@@ -69,6 +69,8 @@
       "open-email-client__sourceHash": "490052d3c7f6f799a94604738094ec43f160ef6a490256e93faeacf050f1fc6f"
     },
     "command-palette": {
+      "open": "Befehlspalette (Ctrl+K)",
+      "open__sourceHash": "05e4d6f352bfeb2b2be59d2d62612f005cd34cba4dcd9b7337aa95330516a74f",
       "search-description": "Befehl eingeben oder in der App suchen",
       "search-description__sourceHash": "061e961c73cf12d28c27ac022c5dd9ccd3405c7c8a35ebfc1c2a3faf25171248",
       "no-commands": "Keine Befehle gefunden",
@@ -93,6 +95,46 @@
       "retention-never__sourceHash": "4d427ff5a4adebb0346bc305eb19638aa025dbdb60540598cadeabff7e224833",
       "retention-help": "Elemente, die älter als dieser Zeitraum sind, werden automatisch aus dem Papierkorb gelöscht. Auf \"Nie\" setzen, um Elemente unbegrenzt aufzubewahren.",
       "retention-help__sourceHash": "2216eb7e540065f3f9d3434576a4cafecd2321cc141a345dda8cef9f5ecb4f7f",
+      "retention-days_one": "{{count}} Tag",
+      "retention-days_one__sourceHash": "02b4fc598525057abd522bb7fb34807d9b537508448292bb1112f7fe692ce64b",
+      "retention-days_other": "{{count}} Tage",
+      "retention-days_other__sourceHash": "ca4c4a68ebc951cc38bffb8522bc8a7a57554127b153533cbf380fa0c524d220",
+      "retention-custom": "Benutzerdefiniert",
+      "retention-custom__sourceHash": "494ca78f7374e46fb2de9ad9f2dbd4aaae89b50b2ca044177a1566a59e06627e",
+      "custom-days-label": "Benutzerdefinierte Tage",
+      "custom-days-label__sourceHash": "e7918302c606aabf6e4eda2e761e57004a247c8c718e3a866d5a6f1560a4bee9",
+      "empty-title": "Papierkorb ist leer",
+      "empty-title__sourceHash": "52a78027bdd9684ee7bfac0342232756ca77548163b267fd9565417cce022818",
+      "empty-description-never": "Gelöschte Dateien erscheinen hier.",
+      "empty-description-never__sourceHash": "ddc5b66c7dc8cfb34b5fb2135953326bef827d6ba227a60cdf2d5d407fe8080c",
+      "empty-description-days_one": "Gelöschte Dateien bleiben hier {{count}} Tag.",
+      "empty-description-days_one__sourceHash": "7b1d129580f306627a8a0132309b9e78e909ccdbddd3b3ebcf313f11a4272a8f",
+      "empty-description-days_other": "Gelöschte Dateien bleiben hier {{count}} Tage.",
+      "empty-description-days_other__sourceHash": "04b98e31ed53b787b19959da3a953b9d4cc61f638fa2b1e416d92e6a1b5f7221",
+      "settings-menu": "Einstellungen",
+      "settings-menu__sourceHash": "74a883a037bc227f91891ab654a753d3a99f31ab06ae5b5d2b6e594a692b41f8",
+      "empty-menu": "Papierkorb leeren",
+      "empty-menu__sourceHash": "7ac1710277d0286c93889001d7343c98feda531ceb16591db9b9c74b52ab4b58",
+      "more-actions": "Papierkorb-Aktionen",
+      "more-actions__sourceHash": "c7b9a85754317381e488836afe90d3b7f5075c3e058619fbbee9ad7f86b320fc",
+      "item-count_one": "({{count}} Element)",
+      "item-count_one__sourceHash": "00f886e8dcb67a9e86362da048e260cd291f3ba87becd938459fab4aba63696c",
+      "item-count_other": "({{count}} Elemente)",
+      "item-count_other__sourceHash": "0ad0ea6871c8c31693003533382d531223934149a0f1acc99eb82b8af676b68d",
+      "today": "Heute",
+      "today__sourceHash": "2b065c7c9ce466e5ebcad757987d5d660ee4c9ea708bc62c43444b53334738ba",
+      "yesterday": "Gestern",
+      "yesterday__sourceHash": "566181254b293aa66653e43313be9e39c12d44f9ac4fcd3236ef1e9c50a2903f",
+      "days-ago_one": "Vor {{count}} Tag",
+      "days-ago_one__sourceHash": "47c2a06f6d2f744ecd7a30b31cac04657899918d4395d3d7ba6c06cc6bf7dc94",
+      "days-ago_other": "Vor {{count}} Tagen",
+      "days-ago_other__sourceHash": "0d0d0a848ddf761192c49ddfd37a427c4230e2354b957e6998256e9c6ed4389f",
+      "oldest": "Ältestes {{date}}",
+      "oldest__sourceHash": "e6bc1dddd73d0b0826d5eb56587328c185e411668917b665375b962c8292fcb3",
+      "summary": "{{size}} im Papierkorb",
+      "summary__sourceHash": "0f9f8c6523690fe2410446cc8d7cfd07b5567147d0edf54289ed729cf486b1e5",
+      "summary-with-oldest": "{{size}} im Papierkorb. {{oldest}}",
+      "summary-with-oldest__sourceHash": "19c790c47beaee335199ce30ce4c69d65adde959f50d9c11e2a7fb6963ed7b80",
       "empty-confirm_one": "Dadurch wird 1 Element im Papierkorb dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
       "empty-confirm_one__sourceHash": "1f484b881c5cb75a6a86be8959c8ab4a3e6103843f9debb1c368223e7513ed08",
       "empty-confirm_other": "Dadurch werden alle {{count}} Elemente im Papierkorb dauerhaft gelöscht. Diese Aktion kann nicht rückgängig gemacht werden.",
@@ -329,6 +371,14 @@
       "title__sourceHash": "54a57c3147c49f33de5898b87084ad2b14c4ab308f762454bf92aca907478ad5",
       "description": "Lantern ist local-first. Ihre Dateien, KI-Eingaben und API-Schlüssel verlassen Ihren Computer niemals. Alle unten aufgeführten Opt-ins sind die einzigen Daten, die Lantern jemals erfasst, und alle sind standardmäßig deaktiviert.",
       "description__sourceHash": "034249738804df65d5105bac50add4d9fbfcc51a2958ee5dac9278e773d9af5f",
+      "optional-sharing": {
+        "title": "Optionales Teilen",
+        "title__sourceHash": "dc3d1c57efff2b2c42ac21084ad13afc8f55e750450599e926fa633f25e38a2f",
+        "description": "Lantern behält deine Arbeit auf diesem Computer. Optionales Teilen ist aus, bis du es einschaltest.",
+        "description__sourceHash": "d5298c8a0d6ff2046b64b7253415fe5a853ce32aa76259ee3152dabea1454d79",
+        "details-label": "Was wird geteilt?",
+        "details-label__sourceHash": "eaf88324289db8abfe287369def985a0bac9b227b3271300096e4586c7658ba9"
+      },
       "design-partner": {
         "title": "Design-Partner-Diagnose",
         "title__sourceHash": "2413b6a8cdc3e679665dd6734bce73fbcf7828dc82267f2aa59352d5fe1259cc",
@@ -340,6 +390,8 @@
         "disabled__sourceHash": "75081b593d15cf6e631971bc6768723f593b88b172477e40ae7d363e4829816d",
         "what-is-sent": "Was genau gesendet wird:",
         "what-is-sent__sourceHash": "f9af9adf841a24b702b4a51f959f4e23065a87a0aa2e46f02155022db2d04044",
+        "not-sent": "Nie deine Inhalte, Dateinamen, Mandantennamen oder Prompts.",
+        "not-sent__sourceHash": "acce6543b13dc8f605a878a1a31d4daa9b05808efb123f32d7852d2091836582",
         "field-features": "Welche Funktionen Sie genutzt haben: Fragen, Workflows, Suche, E-Mail-Import. Nur eine Zahl, nicht was Sie gefragt haben.",
         "field-features__sourceHash": "b2c350808fc4e70cc533a0b935f8dcde7a2fa93601f38581a72fba55eda819b0",
         "field-workflow-id": "Welche Workflow-Vorlage Sie ausgeführt haben (die Vorlagen-ID, nicht das Ergebnis).",
@@ -497,6 +549,8 @@
       "empty__sourceHash": "f13ac8850008a507b4326c0b1b0c6398bdd6ca0a11608b54ecadb9b9864096ed",
       "delete-aria": "Fakt löschen",
       "delete-aria__sourceHash": "2f155b1656a11e835a51fbb8342f8832cc56a2c02b89f5a5da2e4ce9e4f5b711",
+      "add-toggle": "Fakt hinzufügen",
+      "add-toggle__sourceHash": "0382594bf9148ae6c7166d39c4c3367f95a44f60d0d20936e40bca43e688e557",
       "add-placeholder": "Einen Fakt über sich selbst hinzufügen...",
       "add-placeholder__sourceHash": "77f51b7251b5450e6bc8aa7964e6400965f7a695661bbca6e849a376ca60cc96"
     },
@@ -520,7 +574,39 @@
       "setup-steps": "Einrichtungsschritte",
       "setup-steps__sourceHash": "1eba90226b10f3859421bb5448aca456602e34f3a4d9c1b9890b295d25ff2a6d",
       "things-to-know": "Wichtige Hinweise",
-      "things-to-know__sourceHash": "82cd8a1b364b32b53d3fac118c3868e7a8d270036777f95e143b15c28afe9667"
+      "things-to-know__sourceHash": "82cd8a1b364b32b53d3fac118c3868e7a8d270036777f95e143b15c28afe9667",
+      "full-guide": "Vollständige Anleitung",
+      "full-guide__sourceHash": "800c497de8bad6b39233c293e3996a8575941989cddb9533952bd311b1ece3a8",
+      "providers": {
+        "icloud": {
+          "label": "iCloud Drive",
+          "label__sourceHash": "416264f60d1fddd5c6c1f8421b2a3a7fcc1fa69fb381f9368683e0b4b3fec795",
+          "guidance": "Am besten, wenn du Apple-Geräte verwendest.",
+          "guidance__sourceHash": "d799a717cfafcd60773547bd689d1ab54378934e80ad9d6832f061003fdd55c0",
+          "open-app": "Dateien auf dem iPhone öffnen",
+          "open-app__sourceHash": "ce8e1add55f15a99fbaedb3264c9915c1578cc1a8501cdb02ad70ba3456da09b"
+        },
+        "dropbox": {
+          "label": "Dropbox",
+          "label__sourceHash": "4750d0a12e03a1be0f78518ae2f73538e8b2748c4284244504ff3bc3fd31c3a9",
+          "guidance": "Funktioniert mit Mac, Windows, iPhone und Android.",
+          "guidance__sourceHash": "3bf7c4909f00796078437f2795b8157d66682b6e412ec20add681b3c8beb0cef",
+          "open-app": "Dropbox auf dem iPhone öffnen",
+          "open-app__sourceHash": "db3a5a0231ee50baace7008a57c7f0c15d1cfd31ef631aee972711bd9acac441"
+        },
+        "syncthing": {
+          "label": "Syncthing",
+          "label__sourceHash": "9744de5953a8e5fd0365d2a58e7664ef2571bc494ad178212684bec91408e084",
+          "guidance": "Hält Daten zwischen deinen eigenen Geräten synchron, ohne Cloud-Konto.",
+          "guidance__sourceHash": "9ed3d938130ad7322c1cb3f1c52c8b7397b7c4622fe5d60b49441e3d1c61ef2f"
+        },
+        "gdrive": {
+          "label": "Google Drive",
+          "label__sourceHash": "915ef4bad59a1329e2b742f2dc86cb9ee60a906fb8bde81ceeb9d16f63ea4cbd",
+          "guidance": "Am besten, wenn du Google Drive bereits nutzt, besonders auf Android.",
+          "guidance__sourceHash": "c8212822da689e85ccd32f0ebf11e9bf97b7c3c7e9d5a823e034560b4a8eff11"
+        }
+      }
     },
     "api-keys": {
       "title": "API-Schlüssel",
@@ -550,7 +636,15 @@
       "title": "Spracheingabe",
       "title__sourceHash": "8748f23993a862456b9399c319f5a524ea4540343e0050c241721bf02c38057d",
       "description": "Freihändige Eingabe über ein integriertes Offline-Spracherkennungsmodell. Audio verlässt Ihren Rechner nie. Drücken zum Sprechen fügt Text in das aktive Eingabefeld ein; Sprache-zu-Notiz speichert eine neue Markdown-Datei in <c>Inbox/</c>.",
-      "description__sourceHash": "810f2fb07e1a03c5cfdf2b1049ee462d86097a122fd7cebef8d072704320815c"
+      "description__sourceHash": "810f2fb07e1a03c5cfdf2b1049ee462d86097a122fd7cebef8d072704320815c",
+      "status-checking": "Sprachverfügbarkeit wird geprüft",
+      "status-checking__sourceHash": "7937fd45ea2a0d78a65e57aa5371532ebe9a79ac1f856ff303504f37efa54342",
+      "status-missing": "Sprache in diesem Build nicht verfügbar",
+      "status-missing__sourceHash": "b29ef87d90b5da3bcf4161dc9f48fe977e20203331eaed7c493a8cf0660e41b1",
+      "status-denied": "Mikrofonberechtigung verweigert. Erlaube den Mikrofonzugriff, um Sprache zu verwenden.",
+      "status-denied__sourceHash": "e88717d219c5ad5e3f896f74aa569474302a96586fc553d6d2ed1b081fbe0f00",
+      "status-ready": "Bereit",
+      "status-ready__sourceHash": "5fa7aac5375c5815787fba3f49559f9b45b14023147ce0652803387974144e5f"
     },
     "advanced": {
       "title": "Erweitert",
@@ -589,7 +683,25 @@
       "drop-to-root": "Hier ablegen, um in den Stammordner zu verschieben",
       "drop-to-root__sourceHash": "f3d86678284b6ca98d9483eefbe45d8794632efdc2eec5ed59d25202e2e9ce62",
       "open-on-desktop": "Auf dem Desktop öffnen",
-      "open-on-desktop__sourceHash": "7ced9995a0f69b1577e9947b6192f6e30ae667256ee30abb901809a580f38d04"
+      "open-on-desktop__sourceHash": "7ced9995a0f69b1577e9947b6192f6e30ae667256ee30abb901809a580f38d04",
+      "open-on-desktop-browser-only": "Nur in der Desktop-App verfügbar.",
+      "open-on-desktop-browser-only__sourceHash": "45cafb9d743ab5ca61f67e2a055b9974a5e97f0af5e04e92fd7e69855eab60dc",
+      "open-on-desktop-failed": "Ordner konnte nicht geöffnet werden: {{error}}",
+      "open-on-desktop-failed__sourceHash": "220020d38affa4aa2c708325503fc9646cc984c746d3129442ee2dddb1008daa",
+      "empty-title": "Noch keine Dateien",
+      "empty-title__sourceHash": "cb922b5840ae9d83350316ffd846eaed4999e04cce337164b658c7b3546da3d2",
+      "empty-description": "Erstelle oder füge eine Datei hinzu, um zu starten.",
+      "empty-description__sourceHash": "a0c8b08592a2301fc18b63c58b5e952c4013d0e997bcc2b8372973e6e427e67d",
+      "selected-count_one": "{{count}} ausgewählt",
+      "selected-count_one__sourceHash": "c7f761b38b197daa6b822be7397d8e2701c3dbb12b79b4a90eb1c37969bed5a6",
+      "selected-count_other": "{{count}} ausgewählt",
+      "selected-count_other__sourceHash": "c7f761b38b197daa6b822be7397d8e2701c3dbb12b79b4a90eb1c37969bed5a6",
+      "clear-selection": "Auswahl löschen",
+      "clear-selection__sourceHash": "cea4d2e010b8fd52bc28a66eca24ff0d616b2c7d982545757780c196c5cc04c7",
+      "download-selected": "Ausgewählte Dateien herunterladen",
+      "download-selected__sourceHash": "4b0d344c0c4238d9ba2a9a9f61594fafea4425ba9f023978c1979f0b2b751e66",
+      "delete-selected": "Ausgewählte Elemente löschen",
+      "delete-selected__sourceHash": "f052d9cf76a73dec6408029004dfebefddb98bb956b1bd400c2c640ff40b4fd0"
     },
     "selector": {
       "browser-reselect-note": "Zuletzt verwendete Arbeitsbereiche müssen aus Sicherheitsgründen des Browsers erneut ausgewählt werden.",
@@ -612,6 +724,8 @@
       "empty-folder-hint__sourceHash": "eb407d9a23427e67bd70e7b8175e18c0ba2d804daaa6b11e256c78dc600c4c0e"
     },
     "documents": {
+      "title": "Dokumente",
+      "title__sourceHash": "b4e929d8bcfe04189801a8ed61496d177d9e30d1b2826f4c9c4d00b3e705fa8b",
       "create-menu": "Dateien erstellen oder hinzufügen",
       "new-document": "Neues Dokument",
       "new-folder": "Neuer Ordner",
@@ -622,7 +736,27 @@
       "view-mode": "Ansicht",
       "tree": "Baum",
       "grid": "Raster",
-      "search-placeholder": "Dateien suchen..."
+      "search-placeholder": "Dateien suchen...",
+      "more-actions": "Weitere Dateiaktionen",
+      "more-actions__sourceHash": "31e8b97c915e89c22e39e237e061264502415b4ac4fe0f9aec8d620a4519f655",
+      "trust-banner": "Lokal indexiert. Nichts hochgeladen.",
+      "trust-banner__sourceHash": "92162d1bbe5c797f35c70a8a286e26d09cc21c32d4a466461de906e7c9c07617",
+      "trust-dismiss": "Vertrauenshinweis schließen",
+      "trust-dismiss__sourceHash": "8939b96dbec83691da7a7f14db62eb71dfdffdde2a1634b4c44b5bf5bc009680",
+      "empty-title": "Noch keine Dateien",
+      "empty-title__sourceHash": "cb922b5840ae9d83350316ffd846eaed4999e04cce337164b658c7b3546da3d2",
+      "empty-body": "Erstelle oder füge eine Datei hinzu, um zu starten.",
+      "empty-body__sourceHash": "a0c8b08592a2301fc18b63c58b5e952c4013d0e997bcc2b8372973e6e427e67d",
+      "all-files": "Alle Dateien",
+      "all-files__sourceHash": "866956901fd1536273ad6dd922ba6ae8f46bf4cc51a14b5f21353cdd56d7570d",
+      "search-results_one": "{{count}} Ergebnis",
+      "search-results_one__sourceHash": "be0c64afb19116c40e78ea593f4a731a3cba12361449dee031f96d5207e37507",
+      "search-results_other": "{{count}} Ergebnisse",
+      "search-results_other__sourceHash": "b6c504e026b5ce26d311387d0885b0333745e48ae5a4dde038fac2dd23aaf218",
+      "no-results-title": "Keine Ergebnisse",
+      "no-results-title__sourceHash": "a43619f321175f57a27f2a38da381fd367f6806093031b1f82960bcbf542729d",
+      "no-results-body": "Keine Dateien passen zu deiner Suche. Versuche einen anderen Namen.",
+      "no-results-body__sourceHash": "cb1d099d82ce6efc8e50a65b2ce391d63a33e53190da1a07cc59523d2056330d"
     },
     "project-manager": {
       "reselect-hint": "Ordner erneut auswählen, um ihn wieder zu öffnen",
@@ -681,6 +815,28 @@
       "drag-to-ungroup__sourceHash": "79a73625d48360db352f11417d2c3d86fd4f2abdfdfdc3d48c0469bad5e40b4c",
       "add-to-group": "Zur Gruppe hinzufügen...",
       "add-to-group__sourceHash": "5b628798ea20f5a5896b1fd2b7f903e91a4e076868f0a7f7bd05f3b807aa2b6a"
+    },
+    "autosave": {
+      "saved": "Gespeichert",
+      "saved__sourceHash": "b5c120b316c237a0deab3140267aebedba61947d3ae268d708a53d5be119e9fb",
+      "unsaved": "Ungespeicherte Änderungen",
+      "unsaved__sourceHash": "a710c2b90913b5375ca6ac865341e49dd6daa42f6d95182e6ed1a7b1b650ff4c",
+      "saving": "Speichern",
+      "saving__sourceHash": "096b73624b092bdc6c7377ec5e6e989e2ce826b9f294de8368fb8f3ec1341f30",
+      "save-failed": "Speichern fehlgeschlagen",
+      "save-failed__sourceHash": "53ad6f999b1f062fb8fc100ddac854c3b96a36c1e03c6c8c61ce892d068b33c9",
+      "retry": "Erneut versuchen",
+      "retry__sourceHash": "942087cc2d41e01304b7195558d093d10c72af8e838c7556d6a02d471ee71852",
+      "last-saved": "Zuletzt gespeichert {{time}}",
+      "last-saved__sourceHash": "50c7a16991483c1e9a1b0bdbe4ba64fc6639aed0b8dab910175d26f8a3457402",
+      "unsaved-tooltip": "Ungespeicherte Änderungen. Automatisches Speichern läuft in Kürze.",
+      "unsaved-tooltip__sourceHash": "836ed770fb2e3ffb4005a7748f4b6838e42d11f14fda4ec2ea73ccb71b4d193f",
+      "save-failed-tooltip": "Speichern fehlgeschlagen: {{error}}",
+      "save-failed-tooltip__sourceHash": "d911657c797649963fb56402dae5dce3053f664af920ab52bb7d0d26f1c26ef5",
+      "unknown-error": "unbekannter Fehler",
+      "unknown-error__sourceHash": "3e4443e52275a9a092994d93853ea05b985abc67238b4b482c7b90b3a76e6098",
+      "no-file-open": "Keine Datei geöffnet",
+      "no-file-open__sourceHash": "4465355fccbfb8d540b9e76056eb959472c9d11a94105016bda7ba556e7d3c30"
     }
   },
   "workflow": {
@@ -690,7 +846,9 @@
       "iframe-blocked-hint": "Einige Websites (wie Google, GitHub usw.) blockieren die Einbettung in iFrames aus Sicherheitsgründen. Klicke auf die Schaltfläche unten, um diese URL in deinem Standardbrowser zu öffnen.",
       "iframe-blocked-hint__sourceHash": "83afaab24fd98ce8a6f42224b9f5bd6cd8f848c2a9f8d40dadf7bb9d2acdcb78",
       "open-external": "Im externen Browser öffnen",
-      "open-external__sourceHash": "ca4c6ffb4e985dff14a9b5b79eea9de6a065bc56449a8a70343cca2c23a6087c"
+      "open-external__sourceHash": "ca4c6ffb4e985dff14a9b5b79eea9de6a065bc56449a8a70343cca2c23a6087c",
+      "search-placeholder": "Suchen oder URL eingeben",
+      "search-placeholder__sourceHash": "9ca6aa1c69f53b59b70853d9d21c85d22af6a9b107968457525881ad258f9cfd"
     },
     "chain-builder": {
       "title": "Vorlagen verketten",
@@ -704,7 +862,15 @@
     },
     "interview": {
       "select-option": "Option auswählen",
-      "select-option__sourceHash": "fb1cbc38fb4060f4a648fbe213f1910915d66229d9f2b7753b7e68be1a17689f"
+      "select-option__sourceHash": "fb1cbc38fb4060f4a648fbe213f1910915d66229d9f2b7753b7e68be1a17689f",
+      "running": "Läuft",
+      "running__sourceHash": "f4ccae29e1bb0c20a124570a1b43f4347ea94bba9f84ffdfddd9c7445b126128",
+      "cancel": "Abbrechen",
+      "cancel__sourceHash": "19766ed6ccb2f4a32778eed80d1928d2c87a18d7c275ccb163ec6709d3eb2e27",
+      "required": "Dieses Feld ist erforderlich",
+      "required__sourceHash": "6876f12ea673f6b1e07fadbe778bd5fa77e3e6014e23cc34d56d5579d071b5d9",
+      "run": "Ausführen",
+      "run__sourceHash": "00d60e31a4e6b8344d4201f25a6a7dee770713107f6d097abb01559d32b17f26"
     },
     "associate": {
       "rail-list-label": "Workflow-Vorlagen",
@@ -719,17 +885,17 @@
       "trial-ended-title": "Testphase beendet. Aktiviere eine Lizenz, um Workflows auszuführen.",
       "trial-ended-description": "Aktiviere eine Lizenz, um Workflows auszuführen. Deine Arbeit bleibt hier und ist vollständig zugänglich.",
       "run-workflow": "{{name}} ausführen",
+      "egress-local": "Läuft auf deinem Computer. Nichts verlässt ihn.",
+      "egress-local__sourceHash": "ac723392ad61f1ea4e5e057d25b15de39920fbd6121a98829e4c3af12e391ce0",
+      "egress-cloud": "Läuft bei deinem KI-Anbieter mit deinem eigenen Schlüssel.",
+      "egress-cloud__sourceHash": "d89e41921f6fb6f29291be96b4ea277d09838c6caf4465e2d2670c7dfada2ea4",
+      "egress-none": "Verbinde einen KI-Anbieter, um dies auszuführen.",
+      "egress-none__sourceHash": "5ac58235aeb86250a195fc09bd2d3423edfb9fa4fadc831b8cc118a5f22d47d3",
       "other-running-title": "Ein anderer Workflow läuft.",
       "other-running-body": "Beende oder stoppe diesen Lauf, bevor du einen anderen Workflow startest.",
       "steps": "Schritte",
       "no-steps": "Keine Einrichtungsschritte",
       "recent-runs": "Letzte Läufe",
-      "steps-count_one": "1 Schritt",
-      "steps-count_other": "{{count}} Schritte",
-      "inputs-count_one": "1 Eingabe",
-      "inputs-count_other": "{{count}} Eingaben",
-      "outputs-count_one": "1 Ausgabe",
-      "outputs-count_other": "{{count}} Ausgaben",
       "file-missing": "Datei fehlt",
       "workflow-result": "Workflow-Ergebnis",
       "empty-title": "Keine passenden Workflows",
@@ -742,6 +908,80 @@
       "needs-provider-title": "Kein KI-Anbieter eingerichtet.",
       "needs-provider-body": "Füge einen API-Schlüssel hinzu oder richte Lantern Local AI ein, um Workflows auszuführen.",
       "save-error-title": "Der Laufdatensatz wurde möglicherweise nicht gespeichert.",
+      "inputs-count_other": "{{count}} Eingaben",
+      "steps-count_other": "{{count}} Schritte",
+      "categories": {
+        "legal": {
+          "label": "Recht",
+          "label__sourceHash": "4787eaf7c938045fd5285fe6a2cd72558caf7bd5faeb93fd1ad490a502e0e37b",
+          "description": "Prozesse, Discovery, Mandantenaufnahme und Transaktionsarbeit",
+          "description__sourceHash": "3764c3ea758e93879bbe298e7b377cc29b8b58a06d5cca96bf1cdbee5d44fc10"
+        },
+        "tax": {
+          "label": "Steuern",
+          "label__sourceHash": "47e2886ee5d3fcab799efae44644488b428a7cb7d3bf24752b46e93d5c3eb6b8",
+          "description": "Steuerrecherche, Planung und Compliance-Workflows",
+          "description__sourceHash": "81abdc0121e4875f698999ecc3971875bcb5303192a7beba0b94dc501977c512"
+        },
+        "consulting": {
+          "label": "Beratung",
+          "label__sourceHash": "9e8c09481c179d53eeee1cbc43afc0a13cf02c2e0eb47342338efb75e54f6ecc",
+          "description": "Kundenprojekte, Strategie und Ergebnisse",
+          "description__sourceHash": "472deeb957a4d99adceea5a580f09b62e46decb095eea34c2800b325f7e747bc"
+        },
+        "advisors": {
+          "label": "Berater",
+          "label__sourceHash": "10b24db652db194b2154d5bdcfb475086843328945a361467eb43f0a94b3890d",
+          "description": "Workflows für Beratungspraxen und Mandantenverwaltung",
+          "description__sourceHash": "d977aba92da9642858c3b6e549899e2cc5acf1f4371c6743a87061411a31ebc4"
+        },
+        "research": {
+          "label": "Recherche",
+          "label__sourceHash": "979d6300fd9884ff8d8e03391d524fed8e88cd5560788f065ba2444db3b7b20c",
+          "description": "Allgemeine Recherche und Analyse",
+          "description__sourceHash": "0e640a86b5ae67e013c57286d9e045ed3e82ecb2582b54612f7a13161c163040"
+        },
+        "analysis": {
+          "label": "Analyse",
+          "label__sourceHash": "e70d8eb9050021ad51462409f6024d4133e0d9706eb1d0d29100984370ae3d70",
+          "description": "Dokumenten- und Datenanalyse",
+          "description__sourceHash": "539828d0da2d7cb9595fb83485962c75f3cd4bbd947e70cfbac98c910e8e9d7e"
+        },
+        "planning": {
+          "label": "Planung",
+          "label__sourceHash": "21cc305095786cd35cdd0e43b4ab2d5b032f95b8e692ab97dcfda3bae2c12d24",
+          "description": "Geschäfts- und Projektplanung",
+          "description__sourceHash": "b32414484a792f4d90bc3b6c732a068cd516e26c9750c61c13a59b5674cbe553"
+        },
+        "kickoff": {
+          "label": "Start",
+          "label__sourceHash": "878563707b647ae0de7b337b5f9f73f39ca72cd0548ed6a6dd4d08f6561c51b9",
+          "description": "Onboarding neuer Projekte und Mandanten",
+          "description__sourceHash": "be458635f09e2dd6273fc5273b7f95dff1a201ac4013a2d221c3f5b94fede853"
+        },
+        "custom": {
+          "label": "Benutzerdefiniert",
+          "label__sourceHash": "494ca78f7374e46fb2de9ad9f2dbd4aaae89b50b2ca044177a1566a59e06627e",
+          "description": "Deine eigenen gespeicherten Vorlagen",
+          "description__sourceHash": "1cf8fc1534600a2bc964ff7886a0680a8a29e6b42fa032c5bd7f98ef4a681acd"
+        }
+      },
+      "trust-no-ai": "Keine KI verbunden",
+      "trust-no-ai__sourceHash": "6b5fff4cf033eded872eff66089df78f7ec1efd252ca8545172e242a9b3c9a67",
+      "trust-assured": "Assured-KI-Route",
+      "trust-assured__sourceHash": "2a4f66595e3864f703c5935aa8e160c3056515ee64b886f9ea6825474f9d58eb",
+      "trust-local": "Nur lokale KI",
+      "trust-local__sourceHash": "58e87860c4c93b845ac9c5d2e58a7d9382bd5620913ec1937fdcbe93ef597241",
+      "details": "Details",
+      "details__sourceHash": "45989de49fb7f66dfe17a8fc26f3a02c7abcd74f7e8e6cf9f39fa0e3775780df",
+      "trust-open-settings": "KI-Einstellungen öffnen",
+      "trust-open-settings__sourceHash": "edcc53bc204e4dd79abb7cb1137a6f4d54d585a7e9a9e1ec041af9c024b31a8c",
+      "steps-count_one": "1 Schritt",
+      "outputs-count_other": "{{count}} Ausgaben",
+      "outputs-count_one": "1 Ausgabe",
+      "inputs-count_one": "1 Eingabe",
+      "trust-direct": "Sendet direkt an {{provider}}",
+      "trust-direct__sourceHash": "ff9c964deca8813111e8a2a0455b9adbcbc8c125a8ef34ddd7f93f622e0e9106",
       "required-inputs-count_other": "{{count}} Eingaben",
       "required-inputs-count_one": "{{count}} Eingabe"
     },
@@ -762,7 +1002,53 @@
       "needs-provider-action": "KI-Einstellungen offnen",
       "ollama-unreachable-title": "Ollama lauft nicht",
       "ollama-unreachable-body": "Diese Vorlage ist an Ihr lokales Modell geknupft und wird nicht in die Cloud gesendet. Starten Sie Ollama und versuchen Sie es erneut.",
-      "ollama-unreachable-action": "Erneut versuchen"
+      "ollama-unreachable-action": "Erneut versuchen",
+      "generating": "Wird erstellt",
+      "generating__sourceHash": "3607d4f487c6bde66fbc466461b13c0a5f3030dc347c70b974fa7f92a8f57c8a",
+      "no-steps": "Keine Schritte",
+      "no-steps__sourceHash": "5c35860fd6ec0b12928db52c96ee327f28f2eac4abb2f22f3cf0f0d8989dc348",
+      "export-docx-description": "Füge den Firmennamen für diesen Export hinzu.",
+      "export-docx-description__sourceHash": "be8d65fc04ab86e30208572f172488a148a0402dfb5a6a83a3f3842e4b279726",
+      "complete": "Abgeschlossen",
+      "complete__sourceHash": "143b270a32602d412babf2724ec0640dda0d5a43485e5a7520b05b53fa94b303",
+      "export-docx": ".docx exportieren",
+      "export-docx__sourceHash": "6429771dd7f3b4e0dabbc22cf21cdf2f47abdb89e20919064e51ce4dbc0378ff",
+      "created-file": "Datei erstellt",
+      "created-file__sourceHash": "bfcf3c6de52d59d307f16f302735a60cc699a1e57c6c24d67dfd94a68d44b02b",
+      "preview-text": "Textvorschau",
+      "preview-text__sourceHash": "ee2bce6f7606a65e45b60e6c1410550543b843326895401bd559b84307404ef7",
+      "draft-ready": "Entwurf bereit",
+      "draft-ready__sourceHash": "aa51dbeb056dbcd9c2dae7093242ba854ae72df0ff5e3642e44c2a9c9082809d",
+      "show-all-steps": "Alle Schritte anzeigen",
+      "show-all-steps__sourceHash": "26b36f1d83aa655cf24e4e31daf81b621f6feb08aeb44db424e2401b32d35620",
+      "step-short": "Schritt {{current}}/{{total}}",
+      "step-short__sourceHash": "c8953dfd7bfaafca4b6aed678f7ad60f842fb62d82a136dbb7e2623dccb79e93",
+      "cancel": "Abbrechen",
+      "cancel__sourceHash": "19766ed6ccb2f4a32778eed80d1928d2c87a18d7c275ccb163ec6709d3eb2e27",
+      "failed": "Fehlgeschlagen",
+      "failed__sourceHash": "031a8f0f659df890dfd53c92e45295b0f14c997185bae46e168831e403b273f7",
+      "export": "Exportieren",
+      "export__sourceHash": "3664895579f0a7e68c4aa09c91316e20239bc74499010e6423ece40cad7c28f7",
+      "export-pptx": ".pptx exportieren",
+      "export-pptx__sourceHash": "4d2a892706f5b1947af536f2d667eb2ceb3b4a85ee40b961f9daf69f653d5694",
+      "more-actions": "Weitere Aktionen",
+      "more-actions__sourceHash": "f8d46c2570e70736d62beb6e2e8df321d7cb4842a2b894f2025c47b31871d9f1",
+      "open": "Öffnen",
+      "open__sourceHash": "ed077f3d8125d60dca1979c7133601bd187d47c73ed9975028f677e49e709942",
+      "generating-step": "{{step}} wird erstellt",
+      "generating-step__sourceHash": "1e1e01c9194b9d91796ea22ee401d3b479e2c18fd8d63b09030fedc2c28308b7",
+      "firm-name-placeholder": "z. B. Acme Law PLLC",
+      "firm-name-placeholder__sourceHash": "5752693c05a7f75312c4c2884b73ffd19a2138dcf7f9b5ae98863dee27e53253",
+      "needs-client-title": "Wähle zuerst deinen Mandanten.",
+      "needs-client-title__sourceHash": "fb3a948df387ad32ab56dfec7f3212c59b0b8142fc1ed892224b01b8c77e5998",
+      "workflow-failed": "Workflow fehlgeschlagen",
+      "workflow-failed__sourceHash": "329a9d04726ea3d59249d3b00445693e01e520fc4dbd9cea8781e886c029b5cf",
+      "hide-all-steps": "Alle Schritte ausblenden",
+      "hide-all-steps__sourceHash": "4e49a939524eb766d116fa3708c70f1ca9645b74ec4d179f25fb518358aa97e5",
+      "firm-name": "Firmenname",
+      "firm-name__sourceHash": "5c48dcbb6b29407c41dd1d8f0d268b8771e317f4234dbfad508e4cb75a7bab3e",
+      "needs-client-body": "Wähle einen Mandanten und starte den Workflow dann erneut.",
+      "needs-client-body__sourceHash": "f237e7afa958af7f815a264ed99307acd6edf08c8721eca3859605fbe9b2194e"
     },
     "panel": {
       "trial-ended-label": "Testphase beendet.",
@@ -776,7 +1062,29 @@
       "modal-description": "Vorgefertigte KI-Workflows für Ihre Praxis. Wähle einen aus, um ein geführtes Gespräch zu starten.",
       "modal-description__sourceHash": "f3e93e556fdd34ec019f2062af91b5bf73858e9a85a4ef00c8e5a826d08ba603",
       "no-matches": "Keine Workflows entsprechen \"{{query}}\".",
-      "no-matches__sourceHash": "f293b9a3a1f4de403724dfe6ef0fa3c40280cc489b1a96aaa7a4d5e807646d9b"
+      "no-matches__sourceHash": "f293b9a3a1f4de403724dfe6ef0fa3c40280cc489b1a96aaa7a4d5e807646d9b",
+      "template-actions": "Aktionen für {{name}}",
+      "template-actions__sourceHash": "ccf738b32309b3f0b5503a282fd1cceb7d2a5a678f0ca40a7779b327c484a24d",
+      "ai-calls-count_other": "{{count}} KI-Aufrufe",
+      "ai-calls-count_other__sourceHash": "60b3397058555599b2c3dc24f4186ddc9bcc8504ec18f9bf6d1a3ec4255b79d7",
+      "local-estimate-note": "Dieser Workflow läuft mit lokaler KI. Keine Anbietergebühr.",
+      "local-estimate-note__sourceHash": "24c0241f535e5af5eb4f7ec1b5127519ffa1a5a54077daf0278a053e8cc12333",
+      "delete-template": "Löschen",
+      "delete-template__sourceHash": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8",
+      "current-execution": "Aktueller Lauf",
+      "current-execution__sourceHash": "34a04b78fca4e4d0fb35115190a94e59b4aed1b6d68711139f0c7748a3ac7a83",
+      "actions": "Workflow-Aktionen",
+      "actions__sourceHash": "17916cf6b3c8096afa2b45ef9186b7c843be62452acfee046e5495e62cb87600",
+      "estimate-line": "{{steps}} · {{calls}} · ca. {{cost}}",
+      "estimate-line__sourceHash": "3444dfb914bc3dc956bcfcf86be4b569da27dae54606935a7e33e3e9d0018aba",
+      "run-history": "Laufhistorie",
+      "run-history__sourceHash": "addf321bfa5b8346b1699c837e7658a4c646025227efada351113b4cbd649181",
+      "estimate-note": "Nur Schätzung. Dein KI-Anbieter berechnet die tatsächlichen Kosten.",
+      "estimate-note__sourceHash": "9cc88295683f6caced4609947cfa8dcb8be03a756fb1ffd602ff23cb57fda110",
+      "ai-calls-count_one": "1 KI-Aufruf",
+      "ai-calls-count_one__sourceHash": "a2f382189b70c9302f9fda196c3fbcdf8fe9b6ebe7357902f37e7fa779a9dad0",
+      "start-workflow": "Workflow starten",
+      "start-workflow__sourceHash": "4a190708eafb367d8cbe9c79e82473a71a18f2bba0e2ba9a4ac40a45fc636163"
     },
     "fork": {
       "title": "Vorlage duplizieren",
@@ -784,7 +1092,13 @@
       "description": "Erstelle deine eigene Kopie dieser Vorlage. Du kannst den System-Prompt bearbeiten, der die KI während des Workflows steuert.",
       "description__sourceHash": "a1a45e518651cf690608e092baa1a9b306adbd9c64ca8304a96ac2502b0c6dc9",
       "persona-hint": "Dies ist die Persona, die die KI im ersten Generierungsschritt verwendet. Lass das Feld leer, um auf die Standardpersona des Modells zurückzufallen.",
-      "persona-hint__sourceHash": "36bc1415fe5399e2b5a3c0f6ed19d27fe63028be6a283b7531377e40d96228d4"
+      "persona-hint__sourceHash": "36bc1415fe5399e2b5a3c0f6ed19d27fe63028be6a283b7531377e40d96228d4",
+      "ai-instructions": "KI-Anweisungen",
+      "ai-instructions__sourceHash": "fa5eee84394366228286406d8fb0980c688e590694bb0524d6e424e5551e990c"
+    },
+    "marketplace": {
+      "search-templates": "Vorlagen suchen",
+      "search-templates__sourceHash": "04b9835b977e1fc3c11bc69552b0c9fc12cae36d5e5f0ac8f3094b923b4f5b5c"
     }
   },
   "marketplace": {
@@ -1211,6 +1525,594 @@
       "no-panels__sourceHash": "ed82a2cb98b9af566c82cec9ebc2f8db16f61d0f40729209ca379ffd00f6dcb1",
       "no-html": "Dieses Plugin-Panel hat kein HTML gerendert.",
       "no-html__sourceHash": "407001c06145d57a6dd7143fd0e3e8e7554be541a3cedb5e1295006dd0a5da72"
+    }
+  },
+  "media": {
+    "presentation": {
+      "basic-preview": "Einfache Vorschau, installieren Sie <a>LibreOffice</a> für volle Qualität.",
+      "basic-preview__sourceHash": "9cdf87d0482e5173ff529c0d7339b6203e3c9ea775cb13e6e72eab745d5a2002",
+      "no-slides": "Keine Folien gefunden.",
+      "no-slides__sourceHash": "25aec4a0d1ab665d3d32f3e678917be6fd4c2942c0610747a05e8b0e490732f6",
+      "slide-label": "Folie {{number}}",
+      "slide-label__sourceHash": "17247fd7e939e7c058a832e02567a8437dae1435c013b78a82cb9898274e7302",
+      "no-text-content": "(kein Textinhalt)",
+      "no-text-content__sourceHash": "a853edd1963ec3f1a07b007ae36055ce3f0bda01f9231720b3598ed18f2b8ec9",
+      "checking-libreoffice": "Suche nach LibreOffice...",
+      "checking-libreoffice__sourceHash": "dab2ec2056da7b3661f55457b41cb707d4a603c61364ab1cbf44345c0984bb8f",
+      "rendering-slides": "Folien werden gerendert...",
+      "rendering-slides__sourceHash": "a4fe2604753bdf79f9a46173f6da46f02ac6c7c0e21cc0188ae6c56c188fefe4",
+      "first-open-converts": "Beim ersten Öffnen wird die Präsentation konvertiert; spätere Öffnungen sind sofort.",
+      "first-open-converts__sourceHash": "d53c616709bc53c24b2de672a75c159e73e3761bfade093a6bea3c465667a147",
+      "cannot-preview": "Diese Datei konnte nicht vorschaut werden. Laden Sie sie herunter, um sie in PowerPoint anzuzeigen.",
+      "cannot-preview__sourceHash": "d7cac8c7d739070195d333bc8dc0c7b0bf5f3bae74e4266d3fe81bf7c177bb8e",
+      "download-file": "Datei herunterladen",
+      "download-file__sourceHash": "d5501e84dd2baf5ac47ba1a1b4fd2170030a6450b6573afb2a5947c4f69bbfc7",
+      "could-not-render": "{{fileName}} konnte nicht gerendert werden",
+      "could-not-render__sourceHash": "e5697b1cbeb1ef7387c00071c4df91263009bffe30c73fa132b52436f0ccf134",
+      "try-again": "Erneut versuchen",
+      "try-again__sourceHash": "d8b8392e2c542950ca64867168e4ef87d4ad606882d5898f826b51c6d553988f"
+    },
+    "docx-editor": {
+      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
+      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
+      "concurrent-edit-conflict": "Dieser Text hat sich an anderer Stelle geändert, während Sie ihn bearbeitet haben, daher wurde Ihre letzte Änderung nicht übernommen. Bitte nehmen Sie die Änderung erneut vor.",
+      "formatting-warning": "Einige erweiterte Formatierungen (Tabellen, Bilder, Seitenkopfzeilen) werden beim Speichern möglicherweise nicht beibehalten. Vor Ihrer ersten Bearbeitung wird eine Sicherungskopie der Originaldatei erstellt.",
+      "formatting-warning__sourceHash": "f0e45b821ef3a571aa17837d4dcb060d8518a8d42f5f392481250a24ad4cad99",
+      "opening": "{{fileName}} wird geöffnet...",
+      "opening__sourceHash": "a0a0e302918f3bf04d5efa972e7242a0b4002147531a76e8827a19f4ce94bfc7",
+      "desktop-only": "Das Bearbeiten von Word-Dokumenten mit Änderungsverfolgung ist nur in der Lantern-Desktop-App verfügbar. Hier wird eine schreibgeschützte Vorschau angezeigt.",
+      "desktop-only__sourceHash": "78a37300d3c83d5aaeca156c515259adfefe180f8085d3b1e95833d955f4e0d6",
+      "reviewing": "Überprüfung",
+      "reviewing__sourceHash": "f25c17d74655c783136292958c75620c2918ee4fc0b9a3c011e6f4a16e1ed153",
+      "reviewing-hint": "Änderungsverfolgung anzeigen (Einfügungen, Löschungen). Zum Anzeigen des sauberen Enddokuments ausschalten.",
+      "reviewing-hint__sourceHash": "416c0e188bdd49ef296e0b881fc161ee76376f718372f04d7b9c928c8e29005e",
+      "review": "Überprüfung",
+      "review__sourceHash": "aff0766a5290e117b8433c351bae7b7b23bed682b2369bd822d88a647cc58512",
+      "show-review": "Überprüfungsbereich anzeigen",
+      "show-review__sourceHash": "afdd8a1b4925b6f353c68028597e5d1844d2602ced562903a7014f99c04cbc2d",
+      "hide-review": "Überprüfungsbereich ausblenden",
+      "hide-review__sourceHash": "16f1a87572c8fca4d059c0e4a4b6a348112f2a136ab68860e4814e48d890d717",
+      "accept-all": "Alle annehmen",
+      "accept-all__sourceHash": "f55ee862340875799744c9ca641ae6ad89272112cf6d8d6c135f5b816e994245",
+      "reject-all": "Alle ablehnen",
+      "reject-all__sourceHash": "adba252304031dda2de56b5b50dd5d12fd42715264be9360ab79f2662edc4e5c",
+      "accept": "Änderung annehmen",
+      "accept__sourceHash": "c6789b1febb9307100f8cc485dfba47138b857b792afabf70d5b647517eb4a6f",
+      "reject": "Änderung ablehnen",
+      "reject__sourceHash": "b4a5f3ed8b95a424849cb1ad12772ffec5f0ab35fb1dedeae2f16244a4b872df",
+      "changes": "Änderungen",
+      "changes__sourceHash": "bbd4b6a86bc65b6ac8e79e97afc61499158edb40f7bb404c70637b46d80a7ad2",
+      "no-changes": "Keine nachverfolgten Änderungen in diesem Dokument.",
+      "no-changes__sourceHash": "b3f38c7b22b8aba1d3995b0de3bea60817586812bc4b07e641facf1c80c19d27",
+      "comments": "Kommentare",
+      "comments__sourceHash": "355f79f29d7d3c2df917ad07f7441e3ce4b0ac48892b778076dbdca401851712",
+      "insertion": "Einfügen",
+      "insertion__sourceHash": "8aa318eb7eaa233aada0d332bec14cb6a631c8fda25deb2c7d4f402888f1b1e2",
+      "deletion": "Löschen",
+      "deletion__sourceHash": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8",
+      "empty-change": "(kein Text)",
+      "empty-change__sourceHash": "8b98634a7b2bfbd243cbe7f42e7184af91d7ee8131e512cff8e3e44ec3432eeb",
+      "preserved-block": "[erhaltener Inhalt - Tabelle, Abschnitt oder anderes unverändert beibehaltenes Element]",
+      "preserved-block__sourceHash": "5267bd2f3439447f7d48d20874b9d3f405a97841a7c3d6bff1c5474dec54b1d2",
+      "final-view-note": "Das Enddokument wird angezeigt. Aktivieren Sie die Überprüfung, um einzelne Änderungen inline anzunehmen oder abzulehnen.",
+      "final-view-note__sourceHash": "3f13f29b1b8f15364b104d4ac44f744bbbc7a2fc55ce32fe05a0ac8dd3378eb9",
+      "orphan-comment": "kein Anker",
+      "orphan-comment__sourceHash": "b657fa592b57d50a5470e8989a09df01f65d3ae2a63b8cbe94ed2e90677a6a73",
+      "rename-file": "Datei umbenennen",
+      "document-actions": "Dokumentaktionen",
+      "download": "Herunterladen",
+      "history": "Verlauf",
+      "history-with-count": "Verlauf ({{count}})",
+      "split-horizontally": "Horizontal teilen",
+      "split-vertically": "Vertikal teilen",
+      "toggle-outline": "Gliederung umschalten",
+      "revise-with-ai": "Mit KI überarbeiten",
+      "draft-follow-up": "Follow-up entwerfen",
+      "draft-follow-up-title": "Eine Follow-up-E-Mail aus diesem Dokument entwerfen",
+      "send-to-wealthbox-disconnected": "Verbinden Sie Wealthbox über Ihr Konto → Verbindungen, um Notizen zu senden.",
+      "outbound-blocked-checking": "Diese Notiz wird geprüft, bevor sie das Gerät verlassen kann...",
+      "outbound-blocked-needs-review": "Prüfe diese Notiz zuerst. Sie wurde noch nicht kontrolliert.",
+      "outbound-blocked-errored": "Diese Notiz konnte nicht sauber erstellt werden. Prüfe sie, bevor sie das Gerät verlässt.",
+      "outbound-blocked-notice-quarantined": "Der Aufnahmehinweis dieses Meetings muss geprüft werden, bevor diese Notiz das Gerät verlassen kann.",
+      "send-to-wealthbox-disconnected__sourceHash": "b84fd206166782a42864aa280391e288bbe935490b4bc5abfa2a90eb071dd4c0",
+      "redline-placeholder": "Sagen Sie der KI, wie dieses Dokument überarbeitet werden soll. Zum Beispiel: „Haftungsklausel straffen\", „förmlicher machen\", „um 20 % kürzen\".",
+      "redline-submit": "Änderungen vorschlagen",
+      "redline-working": "Denkt nach…",
+      "redline-need-key": "Fügen Sie einen API-Schlüssel für Ihren KI-Anbieter hinzu (KI-Assistent → Schlüssel), um die KI-Überarbeitung zu nutzen.",
+      "redline-ai-paused": "Die KI-Überarbeitung ist pausiert, solange Ihr Abonnement inaktiv ist. Sie können dieses Dokument weiterhin öffnen, bearbeiten und exportieren. Abonnieren Sie erneut, um die KI-Funktionen wieder zu aktivieren.",
+      "redline-error": "KI-Überarbeitung fehlgeschlagen",
+      "redline-close": "Schließen",
+      "redline-dismiss": "Verwerfen",
+      "redline-egress-note": "Sendet den Dokumenttext direkt mit Ihrem eigenen Schlüssel an Ihren KI-Anbieter.",
+      "redline-summary-headline": "Lantern AI hat {{applied}} nachverfolgte Änderung(en) vorgeschlagen.",
+      "redline-skipped": "· {{skipped}} konnten nicht platziert werden",
+      "redline-no-changes": "Lantern AI hat keine Änderungen vorgeschlagen.",
+      "redline-op-insert": "Eingefügter Text",
+      "redline-op-delete": "Gelöschter Text",
+      "redline-op-replace": "Ersetzter Text",
+      "redline-op-edit": "Bearbeiteter Text",
+      "export": "Exportieren",
+      "export-as": "Exportieren als",
+      "export-word": "Word (.docx)",
+      "export-pdf": "PDF",
+      "export-clean-section": "Datenschutzsicher",
+      "export-clean": "Bereinigte Kopie (versteckte Daten entfernen)",
+      "export-clean-hint": "Entfernt Autor, Firma und Bearbeitungsverlauf. Behält Änderungsverfolgung und Kommentare.",
+      "export-clean-final": "Bereinigte Kopie, alle Änderungen annehmen",
+      "export-clean-final-hint": "Nimmt zusätzlich alle nachverfolgten Änderungen an und entfernt Kommentare. Sendet ein endgültiges Dokument.",
+      "export-saved-word": "Word-Kopie gespeichert.",
+      "export-saved-pdf": "PDF-Kopie gespeichert.",
+      "export-saved-clean": "Bereinigte Kopie ohne versteckte Metadaten gespeichert.",
+      "export-saved-clean-final": "Bereinigte endgültige Kopie gespeichert: Änderungen angenommen, Kommentare und versteckte Metadaten entfernt.",
+      "export-dismiss": "Schließen",
+      "save-blocked-title": "Dieses Dokument kann gerade nicht gespeichert werden",
+      "save-blocked-body": "Ein anderes Programm (oft Antivirus, Backup oder Cloud-Synchronisierung) blockiert möglicherweise die Datei. Ihre Änderungen sind hier sicher, und ich versuche es automatisch weiter. Falls es nicht behoben wird, speichern Sie eine Kopie an einem anderen Ort, damit nichts verloren geht.",
+      "save-retry-now": "Jetzt erneut versuchen",
+      "save-copy-elsewhere": "Kopie woanders speichern…",
+      "save-copy-saving": "Kopie wird gespeichert…",
+      "save-copy-success": "Rettungskopie gespeichert unter {{path}}.",
+      "save-copy-failed": "Kopie konnte nicht gespeichert werden: {{message}}",
+      "pdf-needs-libreoffice-title": "Der PDF-Export benötigt LibreOffice",
+      "pdf-needs-libreoffice-body": "Lantern wandelt Word lokal mit LibreOffice in PDF um, einem kostenlosen Programm. Nichts verlässt Ihren Computer. Installieren Sie es und führen Sie den Export danach erneut aus.",
+      "pdf-libreoffice-copy": "Link kopieren",
+      "pdf-libreoffice-copied": "Kopiert",
+      "pdf-needs-libreoffice-title__locked": true,
+      "pdf-needs-libreoffice-body__locked": true,
+      "pdf-libreoffice-copy__locked": true,
+      "pdf-libreoffice-copied__locked": true
+    },
+    "docx-viewer": {
+      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
+      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
+      "open-native": "In nativer App öffnen",
+      "open-native__sourceHash": "163c2b9afcdfae969a076444430674255bdb758c804c3a6d5af15bf1a23f82ab"
+    },
+    "pdf-viewer": {
+      "no-inline-support": "Ihr Browser unterstützt möglicherweise keine eingebettete PDF-Anzeige.",
+      "no-inline-support__sourceHash": "c719c3124eb136a7fb3399cc5c92799ee651a905b598b531022ec55b190ee9b1",
+      "open-new-tab": "In neuem Tab öffnen",
+      "open-new-tab__sourceHash": "35e74c3a943dcaf90a91c99a242ea7dbfb3ead16a012ba5a7d6a747a96e01d64"
+    },
+    "rtf-editor": {
+      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
+      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
+      "formatting-warning": "RTF ist ein einfacheres Format als Word. Komplexe Formatierungen (Tabellen, Bilder, benutzerdefinierte Schriftarten) können beim Speichern vereinfacht werden. Vor Ihrer ersten Bearbeitung wird eine Sicherungskopie der Originaldatei erstellt.",
+      "formatting-warning__sourceHash": "161bb3f4a201e437a82c97a2d1a3069abcb54707237e70f47666cf9ea40c3112"
+    },
+    "spreadsheet": {
+      "empty-sheet": "Dieses Tabellenblatt ist leer.",
+      "empty-sheet__sourceHash": "f9913eeaf766ebbabdef92417e370f5e95513864262223d73f605a857dacd975",
+      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
+      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
+      "open-native": "In nativer App öffnen",
+      "open-native__sourceHash": "163c2b9afcdfae969a076444430674255bdb758c804c3a6d5af15bf1a23f82ab"
+    }
+  },
+  "memory": {
+    "rag-banner": {
+      "ready_one": "Speicher bereit, 1 Datei indiziert.",
+      "ready_one__sourceHash": "129aeae9dc906c9d34dc5a39b350746ac2fa10cd9262f3ee87ab381a84921254",
+      "ready_other": "Speicher bereit, {{count}} Dateien indiziert.",
+      "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943",
+      "ready-with-skips_one": "Speicher bereit, 1 Datei indiziert ({{skipped}} übersprungen).",
+      "ready-with-skips_other": "Speicher bereit, {{count}} Dateien indiziert ({{skipped}} übersprungen).",
+      "ready-with-skips_one__sourceHash": "64893f61af6c39b0a5751ed5513030105334424122e7c4ce43339c2f5bf08427",
+      "ready-with-skips_other__sourceHash": "be570977191e5f08205ad17ec733feae85b1c6426e3034e009bb80d95b465ab3"
+    },
+    "ocr-progress": "Gescannte Seiten werden mit lokaler OCR gelesen: Seite {{page}} von {{total}}. Nichts verlässt deinen Rechner.",
+    "ocr-progress__locked": true,
+    "pdf-progress": "Indexing PDFs: {{processed}} / {{total}}. Nothing leaves your machine.",
+    "pdf-progress__locked": true
+  },
+  "citation": {
+    "scanned": "gescannt",
+    "scanned-low": "Scan mit geringer Zuverlässigkeit",
+    "scanned-low-title": "Diese Passage wurde mit lokaler OCR von einer gescannten Seite gelesen, mit geringer Zuverlässigkeit. Öffne die Quelle und prüfe die Stelle, bevor du dich darauf verlässt.",
+    "scanned__locked": true,
+    "scanned-low__locked": true,
+    "scanned-low-title__locked": true
+  },
+  "model-download": {
+    "title": "Private Suche wird eingerichtet",
+    "body": "Lantern lädt seine private Suchmaschine (etwa 465 MB) einmalig von Hugging Face herunter. Sie können weiterarbeiten. Suche und KI-Antworten aus Ihren Dateien werden aktiviert, sobald der Download abgeschlossen ist.",
+    "verifying": "Die heruntergeladenen Dateien werden geprüft",
+    "progress": "{{done}} MB von {{total}} MB",
+    "progress-unknown": "Bisher {{done}} MB",
+    "stalled": "Der Download scheint festzuhängen. Ein Neustart von Lantern setzt ihn dort fort, wo er angehalten hat.",
+    "error-title": "Der Download der Suchmaschine wurde unterbrochen",
+    "error-body": "Es ist nichts verloren gegangen. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
+    "retry": "Download fortsetzen",
+    "title__locked": true,
+    "body__locked": true,
+    "verifying__locked": true,
+    "progress__locked": true,
+    "progress-unknown__locked": true,
+    "stalled__locked": true,
+    "error-title__locked": true,
+    "error-body__locked": true,
+    "retry__locked": true
+  },
+  "local-ai-download": {
+    "title": "Lantern Local AI wird heruntergeladen",
+    "body": "Lantern lädt seine private KI für dieses Gerät (etwa 2,4 GB) einmalig herunter. Sie können weiterarbeiten. Sie läuft vollständig offline, sobald sie bereit ist.",
+    "verifying": "Das heruntergeladene Modell wird geprüft",
+    "progress": "{{done}} MB von {{total}} MB",
+    "progress-unknown": "{{done}} MB bisher",
+    "stalled": "Der Download scheint zu hängen. Ein Neustart von Lantern setzt ihn dort fort, wo er gestoppt wurde.",
+    "error-title": "Der Download von Lantern Local AI wurde unterbrochen",
+    "error-body": "Es ist nichts verloren. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
+    "retry": "Download fortsetzen"
+  },
+  "local-ai-settings": {
+    "title": "Lantern Local AI",
+    "description": "Eine private KI, die vollständig auf diesem Computer läuft. Ihre Dateien und Fragen verlassen das Gerät nie. Sie ist etwas weniger präzise als die Cloud-Modelle, aber nichts, was Sie fragen, geht ins Internet. Einmaliger Download, etwa 2,4 GB.",
+    "download": "Lantern Local AI herunterladen",
+    "downloading": "Wird heruntergeladen… {{pct}} %",
+    "verifying": "Download wird geprüft…",
+    "ready": "Installiert und bereit. Wählen Sie „Lantern Local AI“ als Modell in einem beliebigen Chat.",
+    "error": "Der Download wurde unterbrochen. Es ist nichts verloren.",
+    "retry": "Download fortsetzen"
+  },
+  "version": {
+    "history": {
+      "title": "Versionsverlauf",
+      "empty-title": "Noch kein Versionsverlauf",
+      "empty-title__sourceHash": "6f605e52117cec1241ad8748dc31659f46554bda410742c04122f709a212f519",
+      "empty-description": "Versionen werden automatisch gespeichert, wenn Sie die Datei bearbeiten und speichern",
+      "empty-description__sourceHash": "0e85f5c77cb7cf9373bf39d0e1840c8e7de27a546c38a9f660e97031d59a9c1c",
+      "latest": "Neueste",
+      "version": "Version",
+      "versions": "Versionen",
+      "author-user": "Sie",
+      "author-ai": "Lantern AI",
+      "preview": "Vorschau",
+      "this-version": "Diese Version",
+      "current": "Aktuell",
+      "restore-action": "Wiederherstellen",
+      "restore-title": "Version wiederherstellen",
+      "restore-confirm": "Die Datei auf die Version vom {{date}} wiederherstellen? Ihre aktuelle Version wird zuerst gespeichert, es geht also nichts verloren.",
+      "diff-loading": "Vergleich wird erstellt...",
+      "docx-text-diff-note": "Es wird ein Textvergleich angezeigt. Word-Formatierung und Details zu nachverfolgten Änderungen werden hier als reiner Text verglichen.",
+      "docx-diff-desktop-only": "Der Vergleich von Word-Dokumenten erfordert die Lantern-Desktop-App."
+    }
+  },
+  "updater": {
+    "banner": {
+      "ready-to-restart": "<s>Update bereit</s>, neu starten zum Anwenden",
+      "ready-to-restart__sourceHash": "f2c4c697317b1f01fea69f984769524fdd11ee0239d2f96d09800644ed982e84",
+      "see-whats-changed": "Neuigkeiten ansehen",
+      "see-whats-changed__sourceHash": "ab6a8c57ab990699d056ca56d4143c679fbb6507f4be1c43f9ae5b2a0b63a22c"
+    }
+  },
+  "whiteboard": {
+    "manager": {
+      "info": "Whiteboards werden als vollständige Tabs im Editor geöffnet.",
+      "info__sourceHash": "a8a6f7711da843ff7b5d5ce12214c155ecf7739cdfe834a7af36a1fe4493bbf3"
+    }
+  },
+  "audio": {
+    "recorder": {
+      "extension-note": ".webm-Erweiterung wird hinzugefügt",
+      "extension-note__sourceHash": "a335ee32ea2f1891c8dd977586797e17bc5802de9c67d3b20c2cf2470e4c6f0b"
+    }
+  },
+  "tts": {
+    "output": {
+      "description": "KI-Antworten können mit einer integrierten Text-zu-Sprache-Engine laut vorgelesen werden. Kein API-Schlüssel erforderlich; Audio verlässt niemals Ihren Computer.",
+      "description__sourceHash": "d0059c9fff4c7539fcb231ad6616b8f934a5aa5d0f73f42246d4ec1c84d2701d"
+    }
+  },
+  "whats-new": {
+    "toast": {
+      "updated-to": "Auf v{{version}} aktualisiert",
+      "updated-to__sourceHash": "bf36f939c0efc58cd3226a200752ffa9127ac029bd151a033037cd318e3305ed",
+      "see-whats-new": "Neuigkeiten ansehen",
+      "see-whats-new__sourceHash": "4145a3ef06190f8fd23ac446110bae8668ab5e09ff7d62983c426fee311096cf"
+    },
+    "modal": {
+      "title": "Neuigkeiten in Lantern",
+      "title__sourceHash": "b5a5412c72af53ae4a3b5d7d5e1f22811b7aee82bd066fc58c38947d6867aa55",
+      "description": "Highlights aus den neuesten Versionen.",
+      "description__sourceHash": "b90373285d0fce2163c2d8db4b04c9cd3d61d97db75cc4aa86ada4eecc3293d8"
+    }
+  },
+  "quick-open": {
+    "description": "Datei durch unscharfe Suche nach dem Namen finden",
+    "description__sourceHash": "47254ba9b262465badc7ec6a5b83b92f3531006ff4717160c5635de50863fed2"
+  },
+  "shortcuts-overlay": {
+    "description": "Drücken Sie <k>?</k> an beliebiger Stelle, um diese Liste erneut zu öffnen.",
+    "description__sourceHash": "4918599bd40d4b46f6d1c9b3b381a718f50499ef72396434bb3bb828ee0df667",
+    "no-match": "Keine Shortcuts entsprechen \"{{query}}\"",
+    "no-match__sourceHash": "cad3756f196865c5ef12de70e0459394cd82a5ebaded3a12d1b12ca42bf88736"
+  },
+  "app": {
+    "interview": {
+      "title": "Workflow-Fragen",
+      "title__sourceHash": "81d74c4e98306e2430a44386962674ae6740188decf4e7ec3e6906079a3cfeeb",
+      "description": "Bitte beantworten Sie die folgenden Fragen, um den Workflow fortzusetzen.",
+      "description__sourceHash": "56d8e688d4d66c3398e32e089f17f37d934a8c0c8d179a83becd173733e3972a"
+    }
+  },
+  "tab-guard": {
+    "title": "Dieser Arbeitsbereich ist in einem anderen Tab geöffnet",
+    "description": "Um Datenverlust zu vermeiden, kann jeweils nur ein Browser-Tab Änderungen speichern. Wechseln Sie zu Ihrem anderen Tab, um dort weiterzuarbeiten, oder verwenden Sie stattdessen diesen Tab.",
+    "take-over": "Stattdessen diesen Tab verwenden"
+  },
+  "ask": {
+    "scope-pill": {
+      "this-matter": "Dieser Mandant",
+      "all-matters": "Alle Mandanten",
+      "email": "E-Mail",
+      "documents": "Dokumente",
+      "whole-practice": "Buchübersicht",
+      "this-matter__sourceHash": "ce64bb2112ee4c80002d4a98812be29a68d9ee00433980fa9e010809b84c97a0",
+      "all-matters__sourceHash": "b695c090980a50ae44cfb20a346e398c61e1e743a11064316614660469042c86",
+      "email__sourceHash": "969ccbd3cf6300ecd5c880459d81ae9027df7517563184a1b8b15282db230621",
+      "documents__sourceHash": "b4e929d8bcfe04189801a8ed61496d177d9e30d1b2826f4c9c4d00b3e705fa8b",
+      "whole-practice__sourceHash": "76b8f03cc3a5c66280521d83c770b32a198270fda621bd16e20504a1860f8bb1"
+    },
+    "book": {
+      "option-label": "Buchübersicht",
+      "option-label__sourceHash": "7afbd1c37349eeb52240fb960aebebd394be25e06ca518e61d08382f12e6cfde",
+      "option-helper": "aus deinen Client Maps",
+      "loading": "Zusammenfassungen Ihrer Mandanten werden geladen...",
+      "loading__sourceHash": "4f0f38be8554e45c4b86c7ad24f09a5c31b19469016c12c44edeea2046be6c98",
+      "no-facts": "Es sind noch keine Mandanten-Zusammenfassungen erstellt. Öffnen Sie einen Mandanten und erstellen Sie zuerst dessen Client Map.",
+      "no-facts__sourceHash": "64656123dc46fde4841b3630561d35eb14d66003a0e8d78f776dfe053497733e",
+      "no-matches": "Keine Mandanten in Ihrem Buch passen zu dieser Frage.",
+      "no-matches__sourceHash": "d266ee6a73820abbf2eaa2147bfce38e84a6460f14f6d9f1773809147c115085",
+      "matches-heading": "Passende Mandanten",
+      "matches-heading__sourceHash": "ff956f9a89752b93c866222fa85dcfc5889a7949b2487b5fe9d78b78396dd04a",
+      "open-client": "Mandant öffnen",
+      "open-client__sourceHash": "6f59ad8c61ccc5a010b7360609618bc5884ccc1c72f2c1b2f91ae6a14d115527",
+      "summaries-note": "Beantwortet aus der gespeicherten Zusammenfassung jedes Mandanten. Dokumente wurden nicht mandantenübergreifend durchsucht.",
+      "summaries-note__sourceHash": "e3e0e92fdc977f1bc9f870659c6ca1f4bcf8ee9b30eef0a8b409cfc8870400bd",
+      "summaries-note-title": "Beantwortet aus gespeicherten Client Maps. Dokumente wurden nicht mandantenübergreifend durchsucht.",
+      "summaries-note-title__sourceHash": "29e9465c63c35bec766b41128aad66f946b8ae5bb8f506e20f4b4cc3d638cb76"
+    },
+    "whole-practice-confirm": {
+      "title": "Zusammenfassungen deiner gesamten Praxis senden?",
+      "body_one": "Dabei wird eine kurze Zusammenfassung von {{count}} Mandanten an {{provider}} gesendet. Fortfahren?",
+      "body_other": "Dabei werden kurze Zusammenfassungen von {{count}} Mandanten an {{provider}} gesendet. Fortfahren?",
+      "provider-fallback": "deinen KI-Anbieter",
+      "remember": "Vor praxisweiten Fragen nicht erneut fragen",
+      "cancel": "Abbrechen",
+      "continue": "Fortfahren"
+    },
+    "scope-menu": {
+      "this-client": "Dieser Mandant",
+      "this-client__sourceHash": "ce64bb2112ee4c80002d4a98812be29a68d9ee00433980fa9e010809b84c97a0",
+      "all-clients": "Alle Mandanten",
+      "all-clients__sourceHash": "b695c090980a50ae44cfb20a346e398c61e1e743a11064316614660469042c86",
+      "all-selected": "Alle",
+      "all-selected__sourceHash": "a52ace420f2175d08b1577a1bea5445e36801229c074ef9ed6c55a73401fd9c2",
+      "email": "E-Mail",
+      "email__sourceHash": "969ccbd3cf6300ecd5c880459d81ae9027df7517563184a1b8b15282db230621",
+      "documents": "Dokumente",
+      "documents__sourceHash": "b4e929d8bcfe04189801a8ed61496d177d9e30d1b2826f4c9c4d00b3e705fa8b",
+      "documents-selected": "Dok.",
+      "documents-selected__sourceHash": "7af023c43013b9a53fbff7dd4b5821588bba3319308878229740489152c43f6d",
+      "book-overview": "Buchübersicht",
+      "book-overview__sourceHash": "e50737e7a8ff07bb815ad15f79eb9b67a0f3f998f6f0c3b046c3f7e1ec9d1070",
+      "book-selected": "Buch",
+      "book-selected__sourceHash": "909cb81127c5e1944b16dc5944ade59facb822c7a3f250d1f0256293bfd3c055"
+    },
+    "scope-toggle": {
+      "this-entity": "Dieser {{entity}}",
+      "this-entity__sourceHash": "28844791e4974a5aef4e2316ce8b47cce1ce12e5b634b3a5f1c1839fdefda48c",
+      "all-entity": "Alle {{entity}}",
+      "all-entity__sourceHash": "04e69e384c954bb2d65168ec84802c70fb818fdf1e7569c9e780cf84be1cf292",
+      "aria-label": "Fragebereich",
+      "aria-label__sourceHash": "73524050d293328389d3fdc334b7f2d697071a2bcea1149638f6dc3e6cb24576"
+    },
+    "composer": {
+      "placeholder-all-entity": "Fragen zu allen {{entity}}…",
+      "placeholder-all-entity__sourceHash": "cbe4b2269ed12ee1198123c96422692c86d061761b2bcadc4b71c4d176f10b17",
+      "placeholder-client": "{{name}} fragen",
+      "placeholder-client__sourceHash": "455b68b6c48c49c595629ba5bd782aab6b610554adc5ddd579eaa960eb3acabe",
+      "placeholder-email": "Zu importierten E-Mails fragen",
+      "placeholder-email__sourceHash": "9986b13a88ae99278180daaf313b466fc1bce0e75a4923b2a12bae878fef7786",
+      "placeholder-documents": "In deinen Dokumenten fragen",
+      "placeholder-documents__sourceHash": "7a3cbb5f8a23bd325d8ba3b7701e6da12738af9fd1c0f9062fae52a4e7cd19b8",
+      "placeholder-book": "In gespeicherten Client Maps fragen",
+      "placeholder-book__sourceHash": "0ee2650890c7592c560e778d990879ea83dbe0f819ee70eb6a22dcbaa0a926ce",
+      "aria-label": "Fragen zu diesem {{entity}}",
+      "aria-label__sourceHash": "6ae3bc4e80f82920218ed9209cabb062388b61677113e87c2b41ee0dc45f83de"
+    },
+    "demo-intro": {
+      "body": "Antworten zitieren diese Dateien. Klicke auf ein Zitat, um die Quelle zu öffnen.",
+      "body__sourceHash": "785f3f107560567e01090c9f9d2b9199d76399c748a5d3765343d296b1f2435e"
+    },
+    "indexing": {
+      "notice": "Dokumente für zitierte Antworten indexieren.",
+      "notice__sourceHash": "2854cce608493867b719b0366995ed1fbae84174b532b6954e558d2d0d8efbd0",
+      "enable": "Aktivieren",
+      "enable__sourceHash": "5342e09f2729fbc6514528e727aeb9857afb31719d43568e6b18661ace7d1014"
+    },
+    "file-access": {
+      "all-entity-scope": "alle deine {{entity}}",
+      "all-entity-scope__sourceHash": "32edab7b7ca175a62a2ee0930dbd0e64b223458356d2fc56ffa3d1d606036b4a",
+      "prompt-title": "KI-Dateizugriff für {{scopeLabel}} erlauben?",
+      "prompt-title__sourceHash": "91508614addeb8d2296af03010f6582c554196877afdec91e1afe904f11e0615",
+      "prompt-body": "Sie kann Dateien suchen und lesen. Dateitext kann an {{provider}} gehen. Jede Bearbeitung fragt weiterhin zuerst.",
+      "prompt-body__sourceHash": "11b365138af9563e6e8b12e6e8bb51d891eac3193b38f934997213bc41fc2782",
+      "reconfirm": "Dieser Chat deckt jetzt {{scopeLabel}} ab und braucht deshalb erneut dein OK.",
+      "reconfirm__sourceHash": "a7b43b3a786bca95fd68bb9741647f4a17324b64ef268b48380289a844c9fa51",
+      "details-link": "Details",
+      "details-link__sourceHash": "45989de49fb7f66dfe17a8fc26f3a02c7abcd74f7e8e6cf9f39fa0e3775780df",
+      "details": "Bis du es erlaubst, nutzt die KI nur das, was du eingibst, und Dateien, die du selbst öffnest oder anhängst.",
+      "details__sourceHash": "f08098c57aeaa74bb6b724b83d038d8c3cc56913b034a862f02ef47fe8f33ef9",
+      "allow": "Erlauben",
+      "allow__sourceHash": "e213c161d5cefa520c8dd4155c9569076d9a40406111465136a6f1b207045761",
+      "allow-all": "Alle erlauben",
+      "allow-all__sourceHash": "56ac845a2003260fda64c67cecbf04478b648d382bf33c62dbb3a79af2a170f3",
+      "not-now": "Nicht jetzt",
+      "not-now__sourceHash": "a0e63d7c7125d29af84d6919af5550529be77c327324940c98c4b2cb13a99c8c",
+      "turn-off": "Ausschalten",
+      "turn-off__sourceHash": "06f0e210b27d4d6215fba1ac31899dd4e95c6281888e2f107cfd19ed1dfda23f",
+      "granted": "Dateizugriff an. Bearbeitungen fragen weiterhin zuerst.",
+      "granted__sourceHash": "560988477cecf3645be7d393082e3a97c80ea10617b522c1bbdbcacda1fb2310",
+      "denied": "Dateizugriff aus.",
+      "denied__sourceHash": "a722798a319933dfb95159b11b4615e7bb6275c13110d8943e3daa46ff3fd28b"
+    },
+    "action": {
+      "ask": "Fragen",
+      "searching": "Suchen",
+      "searching__sourceHash": "03bd6fca9cf5c1fbb8ac32b7def4942459f0883a9adb4a210b81562cffab233d",
+      "answering": "Antworten",
+      "answering__sourceHash": "ac82a4270dabec4a09ee402a4c10921f96529032681e05db09a4874f3d7e4d7a",
+      "searching-documents": "Deine Dokumente werden durchsucht",
+      "searching-documents__sourceHash": "c7c3d4f01b52b3b365e5aa2012e376a02abd1c3f99b67631e6e3e24e274982df"
+    },
+    "conversations": {
+      "title": "Unterhaltungen",
+      "title__sourceHash": "1d432f58690c2b4a9737b0a97f04b70bb4f0d9950d5177619039afe139f3b31e",
+      "show": "Unterhaltungen anzeigen",
+      "show__sourceHash": "a50e7d6fd1d79071d849e592aede5c9ea855f5bb85b7a0efe55af27bc40fb126",
+      "hide": "Unterhaltungen ausblenden",
+      "hide__sourceHash": "6124c83b03c79bd5257ade437bf894e06ac688fe955dda254e98b7e7d71178b5",
+      "new-question": "Neue Frage",
+      "new-question__sourceHash": "bef59364265130602c037ab092a48a0cf6c79ee9a0994719b1be3cf864a7f0e2",
+      "new": "Neu",
+      "new__sourceHash": "18fdd549b2ed367ac0c74cbec1214644728515b30edbcb78e7d322757a7c8359",
+      "other": "Andere Unterhaltungen",
+      "search-placeholder": "Unterhaltungen suchen",
+      "empty": "Deine Unterhaltungen erscheinen hier.",
+      "no-results": "Keine Unterhaltungen gefunden."
+    },
+    "sources": {
+      "title": "Quellen",
+      "collapse": "Quellen einklappen",
+      "show-panel": "Quellen anzeigen",
+      "show-more": "Mehr anzeigen",
+      "show-less": "Weniger anzeigen",
+      "header-suffix-files-only": "nur aus deinen Dateien",
+      "empty-hint": "Wenn eine Antwort deine Dateien verwendet, erscheinen die zitierten Quellen hier. Antworten aus Allgemeinwissen haben nichts zu zitieren; genau darum geht es.",
+      "footer-note": "Antworten aus Allgemeinwissen haben keine Quellenkarte. Das Quellenfenster füllt sich nur mit deinen Dateien.",
+      "provenance-title": "Dies ist ein exportierter Schnappschuss, keine Live-Verbindung.",
+      "provenance-title__sourceHash": "9dedc7152c733741eba4b0a7df5dadd0742c2e47c15be4d661787561f63b3df5",
+      "provenance-stale-title": "Dieser exportierte Schnappschuss kann veraltet sein. Exportiere aus dem Tool erneut, um den neuesten Stand zu erhalten.",
+      "provenance-stale-title__sourceHash": "24c6d91e9c2dfa8a5da8f8a8d5d10f39d51c4e97c929b91bfc4765f5ee4eb27d",
+      "provenance-stale-suffix": "kann veraltet sein",
+      "provenance-stale-suffix__sourceHash": "610836cc2fc049c6ef30f171b4745a7119b15a3ca83ae54924cd79d2c98c4e8d",
+      "status": {
+        "verified": "Verifiziert",
+        "verified__sourceHash": "4f7838402f37674e8ebedb6cf048c0aea66bacdb25607aa3eee4b53093d83f5c",
+        "found": "Gefunden",
+        "found__sourceHash": "b0ee315f4ac6af09d05f9e6f23ffb606f3b4fec1ba897bd4315592d2a2979876",
+        "quote-not-found": "Zitat nicht gefunden",
+        "quote-not-found__sourceHash": "e22a200e09fc64deb4d44723d1ce7c2b592a27692b35537f93072a7b4d26cf0e",
+        "quote-mismatch": "Zitat stimmt nicht überein",
+        "quote-mismatch__sourceHash": "9b2f3d516518e8837d54684ddeec5bbf9ef4abc52040742bb59e4016515deb26",
+        "wrong-client": "Falscher Mandant",
+        "wrong-client__sourceHash": "e4761071ba7de74b96bfbff422adee9dd9f5e52e48bd319679b3d7e0dbf2e35a",
+        "could-not-verify": "Konnte nicht verifiziert werden",
+        "could-not-verify__sourceHash": "236f6cf769120523d8d8b426dac543126252e53d18a1001f1e722ed6f2ba1af3",
+        "verified-title": "Die gespeicherte Quelle wurde geprüft und enthält dieses genaue Zitat.",
+        "verified-title__sourceHash": "a29d06c8919367683028dd82c2dcdd71b5350e9e1a34b81936996103747f92c7",
+        "checking-title": "Dieses Zitat wird mit der gespeicherten Quelle geprüft.",
+        "checking-title__sourceHash": "07801fb4fc628f56aa87a5693a6e8dd9ff64048c518585e0f470e245dae2d068",
+        "found-title": "Diese Quelle wurde gefunden. Die automatische Prüfung konnte das genaue Zitat nicht bestätigen.",
+        "found-title__sourceHash": "6c579705c4af4117f7d4f8b78e581e1eb71154159fa3c1de075cc0f88af97ef6"
+      }
+    },
+    "answer-scope": {
+      "title": "Antwortbereich",
+      "settings-label": "Antworteinstellungen",
+      "settings-label__sourceHash": "89f1664e12aa014780ca888fc24ee82621672b0779ec4850915d2ec29dc99460",
+      "helper": "Wähle, ob Ask Allgemeinwissen verwenden darf, und verwalte den Dateizugriff für diesen Chat.",
+      "files-only": "Nur Dateien",
+      "files-general": "Dateien + Allgemein",
+      "files-only-toggle": "Nur-Dateien-Modus",
+      "files-only-title": "Nur aus deinen Dateien antworten, mit Zitaten, ohne Allgemeinwissen oder Entwürfe."
+    },
+    "answer-blocks": {
+      "label": {
+        "files": "Dateien",
+        "files__sourceHash": "abc7e9892806b047b4d4786b3685285543f76ca314c4c76246d5f6544c7856c9",
+        "nothing-found": "Keine Dateitreffer",
+        "nothing-found__sourceHash": "6b9da81ee633385a6f7af5206f35ed53b505fbdad8d3b0231832fbaf9468357b",
+        "files-unverified": "Gefunden, nicht verifiziert",
+        "files-unverified__sourceHash": "bbde6a19bdba889dfbe0de315948a39bb33b3af8289ad9a33d54bf7bebb40e00",
+        "files-checking": "Prüfung läuft",
+        "files-checking__sourceHash": "0dfe1d63c9d868967e5de8777847eeb8e53b08533f1736ddf596d37e9df1737c",
+        "general": "Allgemein",
+        "general__sourceHash": "c910d474dcd724bff83ddedeb06bf1eceaf9fb3af7c76bb282be057f36e6dffa",
+        "draft": "Entwurf",
+        "draft__sourceHash": "ebf12ef47cf575b3ba9a3cc019c5310146fdac88f6d1be6618d6e91158c2f174"
+      },
+      "general-verifyline": "Allgemeinwissen. Prüfe aktuelle Regeln.",
+      "general-verifyline__sourceHash": "3f752177562463c335a739a6b0a575df1a7f74853a972fffa773e0dd46f3731f",
+      "draft-note": "Entwurf zur Prüfung vor dem Senden. Nichts wird automatisch gesendet.",
+      "draft-note__sourceHash": "1c4030c60f01f0dd871ce45088e9253203462f245368dd86b12bb28ad32ecc5c",
+      "cited-attestation": "Aus deinen Dateien zitiert. Öffne eine beliebige Nummer zur Prüfung.",
+      "cited-attestation__sourceHash": "2b1841814721bb61788e2d225ae355583422f880b771428bb3df69670010f8c8",
+      "show-cited-files": "Zitierte Dateien anzeigen",
+      "show-cited-files__sourceHash": "1f626fc7c6f19bf66ec8103bba031fbbe70e8a5f4a4e4558d9d5568ad9245845",
+      "nothing-found-note": "Keine Dateitreffer. Allgemeine Hinweise sind markiert.",
+      "nothing-found-note__sourceHash": "a3c8f664c5e0dcef6dd72e7705986275954be79baea5e2ab306f11c36d16db91",
+      "tally": {
+        "cited-claims_one": "1 Behauptung aus deinen Dateien zitiert",
+        "cited-claims_one__sourceHash": "b015d76d472f5cc1638a6c6b046a6f8c7ba59da06a8f8e3c73795518bff54da3",
+        "cited-claims_other": "{{count}} Behauptungen aus deinen Dateien zitiert",
+        "cited-claims_other__sourceHash": "93761eeee2817d7f238655f4a3e3d1c7d989372d6a91e6428691068af07165ee",
+        "checking-sources_one": "1 Quelle wird geprüft",
+        "checking-sources_one__sourceHash": "a31fe12d837203b06b6c62414214caf274b33a77cbae5202288c76fa991eee74",
+        "checking-sources_other": "{{count}} Quellen werden geprüft",
+        "checking-sources_other__sourceHash": "c403b56affb9bd8d7537e8c590d0dc699e7db91c3aeff1eafcebf28009cf9358",
+        "sources-unverified_one": "1 Quelle gefunden, nicht verifiziert",
+        "sources-unverified_one__sourceHash": "32cb48f05adebc8df4bc6088ea60b22ce0c9ff55d30082ac1742ad8ddcb8499a",
+        "sources-unverified_other": "{{count}} Quellen gefunden, nicht verifiziert",
+        "sources-unverified_other__sourceHash": "bfedcf65faf45f3523b8fb1cccb35c07f3b1941088e0fc9c742ad87458baab60",
+        "general": "Allgemein",
+        "general__sourceHash": "c910d474dcd724bff83ddedeb06bf1eceaf9fb3af7c76bb282be057f36e6dffa"
+      }
+    },
+    "turn": {
+      "view-ai-status": "KI-Status anzeigen",
+      "view-ai-status__sourceHash": "f6f34c7f947932f2901f835fd2028ca7dc59d64e45dfb4e06b45cc17ceeb649c",
+      "decline-note-client": "In deinen Dateien wurde nichts gefunden. Versuche eine Frage zu diesem Mandanten.",
+      "decline-note-client__sourceHash": "b3e85143d1f786e0957b1613ed0b47d2e9b47c71da57ae415475b0dc74abf980",
+      "decline-note-all": "In deinen Dateien wurde nichts gefunden. Versuche eine Frage zu deinen Mandanten.",
+      "decline-note-all__sourceHash": "8e9df680fbb42a49fdac32570c1b2db625f67a7e5560e74c946601f1e1bcb86d",
+      "still-importing-decline": "Import läuft noch. Versuche es nach Abschluss erneut.",
+      "still-importing-decline__sourceHash": "d4009ceb83de93e0e4188a87ee43642fffb915fcfec848efe5b6771fb7abbf6f",
+      "uncited-warning": "Nicht aus deinen Dateien zitiert. Prüfe dies, bevor du dich darauf verlässt.",
+      "uncited-warning__sourceHash": "f2105e19bb695401225f29857e295db32a1c113517ac989895db243e40bfc944",
+      "stale-plan-warning": "Verwendet alte Planexporte: {{exports}}. Exportiere erneut, um zu aktualisieren.",
+      "stale-plan-warning__sourceHash": "958b3568fa7741719f627e1da69928cca8898e4097bb724832b0e03988dc13b1",
+      "stale-plan-age_one": "1 Tag alt",
+      "stale-plan-age_one__sourceHash": "c57c7d97b79352061c1671eacddbfcc5e2f99568bf495f5d045e1632bfdb808f",
+      "stale-plan-age_other": "{{count}} Tage alt",
+      "stale-plan-age_other__sourceHash": "9ba4eca7a4f58a60c6b8ca89bdfb1ae520abdb05fa2278b85221c38432956ade",
+      "answer-actions": "Antwortaktionen",
+      "answer-actions__sourceHash": "8ea58676e6259660f8189a26955dd47589b7a8e2e9454922be21c9812c8d5b96",
+      "saving": "Speichern",
+      "saving__sourceHash": "096b73624b092bdc6c7377ec5e6e989e2ce826b9f294de8368fb8f3ec1341f30",
+      "save-to-doc": "In Dokument speichern",
+      "save-to-doc__sourceHash": "2dc95f0fff6f69928b93d94ac57eef0e98c67cb43961993834a5e5eda1e37df3",
+      "importing-banner": "Dateien und E-Mails werden importiert. Antworten können unvollständig sein.",
+      "importing-banner__sourceHash": "b7fab4dcf547915d39c7c9f9ba437f824251cdfb0faa00fad7a6dfd3878fa587"
+    },
+    "message-scope": {
+      "all-title": "Diese Antwort hat alle {{entity}} durchsucht.",
+      "all-title__sourceHash": "69650b906ff4b52446ad36b82a3abd4d16b640ab8c7e1319dc6fbe407533fe38",
+      "matter-title": "Diese Antwort war auf den aktuellen {{entity}} beschränkt. Daten anderer Kunden wurden nicht durchsucht.",
+      "matter-title__sourceHash": "af8a6558fdb1a7da30da97b8762a86aca22595b6d44ef4f4f162015b13166afd",
+      "this-entity-fallback": "diesen {{entity}}",
+      "this-entity-fallback__sourceHash": "0063421c930a731941f9c2b5cc809c64a009a359710899a6fee3e7e84dcc2db0"
+    },
+    "sample-bridge": {
+      "body": "Dies sind Beispieldaten. Füge deinen ersten echten {{entity}} hinzu, sobald du bereit bist, um in deinen eigenen Dateien zu suchen.",
+      "body__sourceHash": "18f0c1a2039c0b85192f24561f341fc8c0f77e924a4a979347bdad2e518088df",
+      "add-button": "{{entity}} hinzufügen",
+      "add-button__sourceHash": "c08d5b19cc06093d6961bdb33c5b96279bb3ae742c054fc67ce7e3da57a7bb8b",
+      "dismiss": "Schließen",
+      "dismiss__sourceHash": "48845bff334a50a59aaecf499f28a7a24c3b4b891b8b18a9f1169ad8e8a6b261"
+    },
+    "cost-dashboard": {
+      "provider-note": "Kosten werden direkt von {{provider}} abgerechnet, nicht von Lantern."
     }
   },
   "matter": {
@@ -1829,420 +2731,6 @@
       "dismiss": "Schliessen"
     }
   },
-  "media": {
-    "presentation": {
-      "basic-preview": "Einfache Vorschau, installieren Sie <a>LibreOffice</a> für volle Qualität.",
-      "basic-preview__sourceHash": "9cdf87d0482e5173ff529c0d7339b6203e3c9ea775cb13e6e72eab745d5a2002",
-      "no-slides": "Keine Folien gefunden.",
-      "no-slides__sourceHash": "25aec4a0d1ab665d3d32f3e678917be6fd4c2942c0610747a05e8b0e490732f6",
-      "slide-label": "Folie {{number}}",
-      "slide-label__sourceHash": "17247fd7e939e7c058a832e02567a8437dae1435c013b78a82cb9898274e7302",
-      "no-text-content": "(kein Textinhalt)",
-      "no-text-content__sourceHash": "a853edd1963ec3f1a07b007ae36055ce3f0bda01f9231720b3598ed18f2b8ec9",
-      "checking-libreoffice": "Suche nach LibreOffice...",
-      "checking-libreoffice__sourceHash": "dab2ec2056da7b3661f55457b41cb707d4a603c61364ab1cbf44345c0984bb8f",
-      "rendering-slides": "Folien werden gerendert...",
-      "rendering-slides__sourceHash": "a4fe2604753bdf79f9a46173f6da46f02ac6c7c0e21cc0188ae6c56c188fefe4",
-      "first-open-converts": "Beim ersten Öffnen wird die Präsentation konvertiert; spätere Öffnungen sind sofort.",
-      "first-open-converts__sourceHash": "d53c616709bc53c24b2de672a75c159e73e3761bfade093a6bea3c465667a147",
-      "cannot-preview": "Diese Datei konnte nicht vorschaut werden. Laden Sie sie herunter, um sie in PowerPoint anzuzeigen.",
-      "cannot-preview__sourceHash": "d7cac8c7d739070195d333bc8dc0c7b0bf5f3bae74e4266d3fe81bf7c177bb8e",
-      "download-file": "Datei herunterladen",
-      "download-file__sourceHash": "d5501e84dd2baf5ac47ba1a1b4fd2170030a6450b6573afb2a5947c4f69bbfc7",
-      "could-not-render": "{{fileName}} konnte nicht gerendert werden",
-      "could-not-render__sourceHash": "e5697b1cbeb1ef7387c00071c4df91263009bffe30c73fa132b52436f0ccf134",
-      "try-again": "Erneut versuchen",
-      "try-again__sourceHash": "d8b8392e2c542950ca64867168e4ef87d4ad606882d5898f826b51c6d553988f"
-    },
-    "docx-editor": {
-      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
-      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
-      "concurrent-edit-conflict": "Dieser Text hat sich an anderer Stelle geändert, während Sie ihn bearbeitet haben, daher wurde Ihre letzte Änderung nicht übernommen. Bitte nehmen Sie die Änderung erneut vor.",
-      "formatting-warning": "Einige erweiterte Formatierungen (Tabellen, Bilder, Seitenkopfzeilen) werden beim Speichern möglicherweise nicht beibehalten. Vor Ihrer ersten Bearbeitung wird eine Sicherungskopie der Originaldatei erstellt.",
-      "formatting-warning__sourceHash": "f0e45b821ef3a571aa17837d4dcb060d8518a8d42f5f392481250a24ad4cad99",
-      "opening": "{{fileName}} wird geöffnet...",
-      "opening__sourceHash": "a0a0e302918f3bf04d5efa972e7242a0b4002147531a76e8827a19f4ce94bfc7",
-      "desktop-only": "Das Bearbeiten von Word-Dokumenten mit Änderungsverfolgung ist nur in der Lantern-Desktop-App verfügbar. Hier wird eine schreibgeschützte Vorschau angezeigt.",
-      "desktop-only__sourceHash": "78a37300d3c83d5aaeca156c515259adfefe180f8085d3b1e95833d955f4e0d6",
-      "reviewing": "Überprüfung",
-      "reviewing__sourceHash": "f25c17d74655c783136292958c75620c2918ee4fc0b9a3c011e6f4a16e1ed153",
-      "reviewing-hint": "Änderungsverfolgung anzeigen (Einfügungen, Löschungen). Zum Anzeigen des sauberen Enddokuments ausschalten.",
-      "reviewing-hint__sourceHash": "416c0e188bdd49ef296e0b881fc161ee76376f718372f04d7b9c928c8e29005e",
-      "review": "Überprüfung",
-      "review__sourceHash": "aff0766a5290e117b8433c351bae7b7b23bed682b2369bd822d88a647cc58512",
-      "show-review": "Überprüfungsbereich anzeigen",
-      "show-review__sourceHash": "afdd8a1b4925b6f353c68028597e5d1844d2602ced562903a7014f99c04cbc2d",
-      "hide-review": "Überprüfungsbereich ausblenden",
-      "hide-review__sourceHash": "16f1a87572c8fca4d059c0e4a4b6a348112f2a136ab68860e4814e48d890d717",
-      "accept-all": "Alle annehmen",
-      "accept-all__sourceHash": "f55ee862340875799744c9ca641ae6ad89272112cf6d8d6c135f5b816e994245",
-      "reject-all": "Alle ablehnen",
-      "reject-all__sourceHash": "adba252304031dda2de56b5b50dd5d12fd42715264be9360ab79f2662edc4e5c",
-      "accept": "Änderung annehmen",
-      "accept__sourceHash": "c6789b1febb9307100f8cc485dfba47138b857b792afabf70d5b647517eb4a6f",
-      "reject": "Änderung ablehnen",
-      "reject__sourceHash": "b4a5f3ed8b95a424849cb1ad12772ffec5f0ab35fb1dedeae2f16244a4b872df",
-      "changes": "Änderungen",
-      "changes__sourceHash": "bbd4b6a86bc65b6ac8e79e97afc61499158edb40f7bb404c70637b46d80a7ad2",
-      "no-changes": "Keine nachverfolgten Änderungen in diesem Dokument.",
-      "no-changes__sourceHash": "b3f38c7b22b8aba1d3995b0de3bea60817586812bc4b07e641facf1c80c19d27",
-      "comments": "Kommentare",
-      "comments__sourceHash": "355f79f29d7d3c2df917ad07f7441e3ce4b0ac48892b778076dbdca401851712",
-      "insertion": "Einfügen",
-      "insertion__sourceHash": "8aa318eb7eaa233aada0d332bec14cb6a631c8fda25deb2c7d4f402888f1b1e2",
-      "deletion": "Löschen",
-      "deletion__sourceHash": "e2d0a54968ead24efc0dffa6ac78fc606dceec34a0f586177a74a54cc2272cf8",
-      "empty-change": "(kein Text)",
-      "empty-change__sourceHash": "8b98634a7b2bfbd243cbe7f42e7184af91d7ee8131e512cff8e3e44ec3432eeb",
-      "preserved-block": "[erhaltener Inhalt - Tabelle, Abschnitt oder anderes unverändert beibehaltenes Element]",
-      "preserved-block__sourceHash": "5267bd2f3439447f7d48d20874b9d3f405a97841a7c3d6bff1c5474dec54b1d2",
-      "final-view-note": "Das Enddokument wird angezeigt. Aktivieren Sie die Überprüfung, um einzelne Änderungen inline anzunehmen oder abzulehnen.",
-      "final-view-note__sourceHash": "3f13f29b1b8f15364b104d4ac44f744bbbc7a2fc55ce32fe05a0ac8dd3378eb9",
-      "orphan-comment": "kein Anker",
-      "orphan-comment__sourceHash": "b657fa592b57d50a5470e8989a09df01f65d3ae2a63b8cbe94ed2e90677a6a73",
-      "rename-file": "Datei umbenennen",
-      "document-actions": "Dokumentaktionen",
-      "download": "Herunterladen",
-      "history": "Verlauf",
-      "history-with-count": "Verlauf ({{count}})",
-      "split-horizontally": "Horizontal teilen",
-      "split-vertically": "Vertikal teilen",
-      "toggle-outline": "Gliederung umschalten",
-      "revise-with-ai": "Mit KI überarbeiten",
-      "draft-follow-up": "Follow-up entwerfen",
-      "draft-follow-up-title": "Eine Follow-up-E-Mail aus diesem Dokument entwerfen",
-      "send-to-wealthbox-disconnected": "Verbinden Sie Wealthbox über Ihr Konto → Verbindungen, um Notizen zu senden.",
-      "outbound-blocked-checking": "Diese Notiz wird geprüft, bevor sie das Gerät verlassen kann...",
-      "outbound-blocked-needs-review": "Prüfe diese Notiz zuerst. Sie wurde noch nicht kontrolliert.",
-      "outbound-blocked-errored": "Diese Notiz konnte nicht sauber erstellt werden. Prüfe sie, bevor sie das Gerät verlässt.",
-      "outbound-blocked-notice-quarantined": "Der Aufnahmehinweis dieses Meetings muss geprüft werden, bevor diese Notiz das Gerät verlassen kann.",
-      "send-to-wealthbox-disconnected__sourceHash": "b84fd206166782a42864aa280391e288bbe935490b4bc5abfa2a90eb071dd4c0",
-      "redline-placeholder": "Sagen Sie der KI, wie dieses Dokument überarbeitet werden soll. Zum Beispiel: „Haftungsklausel straffen\", „förmlicher machen\", „um 20 % kürzen\".",
-      "redline-submit": "Änderungen vorschlagen",
-      "redline-working": "Denkt nach…",
-      "redline-need-key": "Fügen Sie einen API-Schlüssel für Ihren KI-Anbieter hinzu (KI-Assistent → Schlüssel), um die KI-Überarbeitung zu nutzen.",
-      "redline-ai-paused": "Die KI-Überarbeitung ist pausiert, solange Ihr Abonnement inaktiv ist. Sie können dieses Dokument weiterhin öffnen, bearbeiten und exportieren. Abonnieren Sie erneut, um die KI-Funktionen wieder zu aktivieren.",
-      "redline-error": "KI-Überarbeitung fehlgeschlagen",
-      "redline-close": "Schließen",
-      "redline-dismiss": "Verwerfen",
-      "redline-egress-note": "Sendet den Dokumenttext direkt mit Ihrem eigenen Schlüssel an Ihren KI-Anbieter.",
-      "redline-summary-headline": "Lantern AI hat {{applied}} nachverfolgte Änderung(en) vorgeschlagen.",
-      "redline-skipped": "· {{skipped}} konnten nicht platziert werden",
-      "redline-no-changes": "Lantern AI hat keine Änderungen vorgeschlagen.",
-      "redline-op-insert": "Eingefügter Text",
-      "redline-op-delete": "Gelöschter Text",
-      "redline-op-replace": "Ersetzter Text",
-      "redline-op-edit": "Bearbeiteter Text",
-      "export": "Exportieren",
-      "export-as": "Exportieren als",
-      "export-word": "Word (.docx)",
-      "export-pdf": "PDF",
-      "export-clean-section": "Datenschutzsicher",
-      "export-clean": "Bereinigte Kopie (versteckte Daten entfernen)",
-      "export-clean-hint": "Entfernt Autor, Firma und Bearbeitungsverlauf. Behält Änderungsverfolgung und Kommentare.",
-      "export-clean-final": "Bereinigte Kopie, alle Änderungen annehmen",
-      "export-clean-final-hint": "Nimmt zusätzlich alle nachverfolgten Änderungen an und entfernt Kommentare. Sendet ein endgültiges Dokument.",
-      "export-saved-word": "Word-Kopie gespeichert.",
-      "export-saved-pdf": "PDF-Kopie gespeichert.",
-      "export-saved-clean": "Bereinigte Kopie ohne versteckte Metadaten gespeichert.",
-      "export-saved-clean-final": "Bereinigte endgültige Kopie gespeichert: Änderungen angenommen, Kommentare und versteckte Metadaten entfernt.",
-      "export-dismiss": "Schließen",
-      "save-blocked-title": "Dieses Dokument kann gerade nicht gespeichert werden",
-      "save-blocked-body": "Ein anderes Programm (oft Antivirus, Backup oder Cloud-Synchronisierung) blockiert möglicherweise die Datei. Ihre Änderungen sind hier sicher, und ich versuche es automatisch weiter. Falls es nicht behoben wird, speichern Sie eine Kopie an einem anderen Ort, damit nichts verloren geht.",
-      "save-retry-now": "Jetzt erneut versuchen",
-      "save-copy-elsewhere": "Kopie woanders speichern…",
-      "save-copy-saving": "Kopie wird gespeichert…",
-      "save-copy-success": "Rettungskopie gespeichert unter {{path}}.",
-      "save-copy-failed": "Kopie konnte nicht gespeichert werden: {{message}}",
-      "pdf-needs-libreoffice-title": "Der PDF-Export benötigt LibreOffice",
-      "pdf-needs-libreoffice-body": "Lantern wandelt Word lokal mit LibreOffice in PDF um, einem kostenlosen Programm. Nichts verlässt Ihren Computer. Installieren Sie es und führen Sie den Export danach erneut aus.",
-      "pdf-libreoffice-copy": "Link kopieren",
-      "pdf-libreoffice-copied": "Kopiert",
-      "pdf-needs-libreoffice-title__locked": true,
-      "pdf-needs-libreoffice-body__locked": true,
-      "pdf-libreoffice-copy__locked": true,
-      "pdf-libreoffice-copied__locked": true
-    },
-    "docx-viewer": {
-      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
-      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
-      "open-native": "In nativer App öffnen",
-      "open-native__sourceHash": "163c2b9afcdfae969a076444430674255bdb758c804c3a6d5af15bf1a23f82ab"
-    },
-    "pdf-viewer": {
-      "no-inline-support": "Ihr Browser unterstützt möglicherweise keine eingebettete PDF-Anzeige.",
-      "no-inline-support__sourceHash": "c719c3124eb136a7fb3399cc5c92799ee651a905b598b531022ec55b190ee9b1",
-      "open-new-tab": "In neuem Tab öffnen",
-      "open-new-tab__sourceHash": "35e74c3a943dcaf90a91c99a242ea7dbfb3ead16a012ba5a7d6a747a96e01d64"
-    },
-    "rtf-editor": {
-      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
-      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
-      "formatting-warning": "RTF ist ein einfacheres Format als Word. Komplexe Formatierungen (Tabellen, Bilder, benutzerdefinierte Schriftarten) können beim Speichern vereinfacht werden. Vor Ihrer ersten Bearbeitung wird eine Sicherungskopie der Originaldatei erstellt.",
-      "formatting-warning__sourceHash": "161bb3f4a201e437a82c97a2d1a3069abcb54707237e70f47666cf9ea40c3112"
-    },
-    "spreadsheet": {
-      "empty-sheet": "Dieses Tabellenblatt ist leer.",
-      "empty-sheet__sourceHash": "f9913eeaf766ebbabdef92417e370f5e95513864262223d73f605a857dacd975",
-      "could-not-open": "{{fileName}} konnte nicht geöffnet werden",
-      "could-not-open__sourceHash": "212d690a6580de50e54be9f6f285cdf596fb6889c44d4741230ecd8e45e6bf55",
-      "open-native": "In nativer App öffnen",
-      "open-native__sourceHash": "163c2b9afcdfae969a076444430674255bdb758c804c3a6d5af15bf1a23f82ab"
-    }
-  },
-  "memory": {
-    "rag-banner": {
-      "ready_one": "Speicher bereit, 1 Datei indiziert.",
-      "ready_one__sourceHash": "129aeae9dc906c9d34dc5a39b350746ac2fa10cd9262f3ee87ab381a84921254",
-      "ready_other": "Speicher bereit, {{count}} Dateien indiziert.",
-      "ready_other__sourceHash": "1b1eb7b9a151180c039d3ff711db127563701f4536795b705925988f6721a943",
-      "ready-with-skips_one": "Speicher bereit, 1 Datei indiziert ({{skipped}} übersprungen).",
-      "ready-with-skips_other": "Speicher bereit, {{count}} Dateien indiziert ({{skipped}} übersprungen).",
-      "ready-with-skips_one__sourceHash": "64893f61af6c39b0a5751ed5513030105334424122e7c4ce43339c2f5bf08427",
-      "ready-with-skips_other__sourceHash": "be570977191e5f08205ad17ec733feae85b1c6426e3034e009bb80d95b465ab3"
-    },
-    "ocr-progress": "Gescannte Seiten werden mit lokaler OCR gelesen: Seite {{page}} von {{total}}. Nichts verlässt deinen Rechner.",
-    "ocr-progress__locked": true,
-    "pdf-progress": "Indexing PDFs: {{processed}} / {{total}}. Nothing leaves your machine.",
-    "pdf-progress__locked": true
-  },
-  "citation": {
-    "scanned": "gescannt",
-    "scanned-low": "Scan mit geringer Zuverlässigkeit",
-    "scanned-low-title": "Diese Passage wurde mit lokaler OCR von einer gescannten Seite gelesen, mit geringer Zuverlässigkeit. Öffne die Quelle und prüfe die Stelle, bevor du dich darauf verlässt.",
-    "scanned__locked": true,
-    "scanned-low__locked": true,
-    "scanned-low-title__locked": true
-  },
-  "model-download": {
-    "title": "Private Suche wird eingerichtet",
-    "body": "Lantern lädt seine private Suchmaschine (etwa 465 MB) einmalig von Hugging Face herunter. Sie können weiterarbeiten. Suche und KI-Antworten aus Ihren Dateien werden aktiviert, sobald der Download abgeschlossen ist.",
-    "verifying": "Die heruntergeladenen Dateien werden geprüft",
-    "progress": "{{done}} MB von {{total}} MB",
-    "progress-unknown": "Bisher {{done}} MB",
-    "stalled": "Der Download scheint festzuhängen. Ein Neustart von Lantern setzt ihn dort fort, wo er angehalten hat.",
-    "error-title": "Der Download der Suchmaschine wurde unterbrochen",
-    "error-body": "Es ist nichts verloren gegangen. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
-    "retry": "Download fortsetzen",
-    "title__locked": true,
-    "body__locked": true,
-    "verifying__locked": true,
-    "progress__locked": true,
-    "progress-unknown__locked": true,
-    "stalled__locked": true,
-    "error-title__locked": true,
-    "error-body__locked": true,
-    "retry__locked": true
-  },
-  "local-ai-download": {
-    "title": "Lantern Local AI wird heruntergeladen",
-    "body": "Lantern lädt seine private KI für dieses Gerät (etwa 2,4 GB) einmalig herunter. Sie können weiterarbeiten. Sie läuft vollständig offline, sobald sie bereit ist.",
-    "verifying": "Das heruntergeladene Modell wird geprüft",
-    "progress": "{{done}} MB von {{total}} MB",
-    "progress-unknown": "{{done}} MB bisher",
-    "stalled": "Der Download scheint zu hängen. Ein Neustart von Lantern setzt ihn dort fort, wo er gestoppt wurde.",
-    "error-title": "Der Download von Lantern Local AI wurde unterbrochen",
-    "error-body": "Es ist nichts verloren. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
-    "retry": "Download fortsetzen"
-  },
-  "local-ai-settings": {
-    "title": "Lantern Local AI",
-    "description": "Eine private KI, die vollständig auf diesem Computer läuft. Ihre Dateien und Fragen verlassen das Gerät nie. Sie ist etwas weniger präzise als die Cloud-Modelle, aber nichts, was Sie fragen, geht ins Internet. Einmaliger Download, etwa 2,4 GB.",
-    "download": "Lantern Local AI herunterladen",
-    "downloading": "Wird heruntergeladen… {{pct}} %",
-    "verifying": "Download wird geprüft…",
-    "ready": "Installiert und bereit. Wählen Sie „Lantern Local AI“ als Modell in einem beliebigen Chat.",
-    "error": "Der Download wurde unterbrochen. Es ist nichts verloren.",
-    "retry": "Download fortsetzen"
-  },
-  "version": {
-    "history": {
-      "title": "Versionsverlauf",
-      "empty-title": "Noch kein Versionsverlauf",
-      "empty-title__sourceHash": "6f605e52117cec1241ad8748dc31659f46554bda410742c04122f709a212f519",
-      "empty-description": "Versionen werden automatisch gespeichert, wenn Sie die Datei bearbeiten und speichern",
-      "empty-description__sourceHash": "0e85f5c77cb7cf9373bf39d0e1840c8e7de27a546c38a9f660e97031d59a9c1c",
-      "latest": "Neueste",
-      "version": "Version",
-      "versions": "Versionen",
-      "author-user": "Sie",
-      "author-ai": "Lantern AI",
-      "preview": "Vorschau",
-      "this-version": "Diese Version",
-      "current": "Aktuell",
-      "restore-action": "Wiederherstellen",
-      "restore-title": "Version wiederherstellen",
-      "restore-confirm": "Die Datei auf die Version vom {{date}} wiederherstellen? Ihre aktuelle Version wird zuerst gespeichert, es geht also nichts verloren.",
-      "diff-loading": "Vergleich wird erstellt...",
-      "docx-text-diff-note": "Es wird ein Textvergleich angezeigt. Word-Formatierung und Details zu nachverfolgten Änderungen werden hier als reiner Text verglichen.",
-      "docx-diff-desktop-only": "Der Vergleich von Word-Dokumenten erfordert die Lantern-Desktop-App."
-    }
-  },
-  "updater": {
-    "banner": {
-      "ready-to-restart": "<s>Update bereit</s>, neu starten zum Anwenden",
-      "ready-to-restart__sourceHash": "f2c4c697317b1f01fea69f984769524fdd11ee0239d2f96d09800644ed982e84",
-      "see-whats-changed": "Neuigkeiten ansehen",
-      "see-whats-changed__sourceHash": "ab6a8c57ab990699d056ca56d4143c679fbb6507f4be1c43f9ae5b2a0b63a22c"
-    }
-  },
-  "whiteboard": {
-    "manager": {
-      "info": "Whiteboards werden als vollständige Tabs im Editor geöffnet.",
-      "info__sourceHash": "a8a6f7711da843ff7b5d5ce12214c155ecf7739cdfe834a7af36a1fe4493bbf3"
-    }
-  },
-  "audio": {
-    "recorder": {
-      "extension-note": ".webm-Erweiterung wird hinzugefügt",
-      "extension-note__sourceHash": "a335ee32ea2f1891c8dd977586797e17bc5802de9c67d3b20c2cf2470e4c6f0b"
-    }
-  },
-  "tts": {
-    "output": {
-      "description": "KI-Antworten können mit einer integrierten Text-zu-Sprache-Engine laut vorgelesen werden. Kein API-Schlüssel erforderlich; Audio verlässt niemals Ihren Computer.",
-      "description__sourceHash": "d0059c9fff4c7539fcb231ad6616b8f934a5aa5d0f73f42246d4ec1c84d2701d"
-    }
-  },
-  "whats-new": {
-    "toast": {
-      "updated-to": "Auf v{{version}} aktualisiert",
-      "updated-to__sourceHash": "bf36f939c0efc58cd3226a200752ffa9127ac029bd151a033037cd318e3305ed",
-      "see-whats-new": "Neuigkeiten ansehen",
-      "see-whats-new__sourceHash": "4145a3ef06190f8fd23ac446110bae8668ab5e09ff7d62983c426fee311096cf"
-    },
-    "modal": {
-      "title": "Neuigkeiten in Lantern",
-      "title__sourceHash": "b5a5412c72af53ae4a3b5d7d5e1f22811b7aee82bd066fc58c38947d6867aa55",
-      "description": "Highlights aus den neuesten Versionen.",
-      "description__sourceHash": "b90373285d0fce2163c2d8db4b04c9cd3d61d97db75cc4aa86ada4eecc3293d8"
-    }
-  },
-  "quick-open": {
-    "description": "Datei durch unscharfe Suche nach dem Namen finden",
-    "description__sourceHash": "47254ba9b262465badc7ec6a5b83b92f3531006ff4717160c5635de50863fed2"
-  },
-  "shortcuts-overlay": {
-    "description": "Drücken Sie <k>?</k> an beliebiger Stelle, um diese Liste erneut zu öffnen.",
-    "description__sourceHash": "4918599bd40d4b46f6d1c9b3b381a718f50499ef72396434bb3bb828ee0df667",
-    "no-match": "Keine Shortcuts entsprechen \"{{query}}\"",
-    "no-match__sourceHash": "cad3756f196865c5ef12de70e0459394cd82a5ebaded3a12d1b12ca42bf88736"
-  },
-  "app": {
-    "interview": {
-      "title": "Workflow-Fragen",
-      "title__sourceHash": "81d74c4e98306e2430a44386962674ae6740188decf4e7ec3e6906079a3cfeeb",
-      "description": "Bitte beantworten Sie die folgenden Fragen, um den Workflow fortzusetzen.",
-      "description__sourceHash": "56d8e688d4d66c3398e32e089f17f37d934a8c0c8d179a83becd173733e3972a"
-    }
-  },
-  "tab-guard": {
-    "title": "Dieser Arbeitsbereich ist in einem anderen Tab geöffnet",
-    "description": "Um Datenverlust zu vermeiden, kann jeweils nur ein Browser-Tab Änderungen speichern. Wechseln Sie zu Ihrem anderen Tab, um dort weiterzuarbeiten, oder verwenden Sie stattdessen diesen Tab.",
-    "take-over": "Stattdessen diesen Tab verwenden"
-  },
-  "ask": {
-    "scope-pill": {
-      "this-matter": "Dieser Mandant",
-      "all-matters": "Alle Mandanten",
-      "email": "E-Mail",
-      "documents": "Dokumente",
-      "whole-practice": "Buchübersicht",
-      "this-matter__sourceHash": "ce64bb2112ee4c80002d4a98812be29a68d9ee00433980fa9e010809b84c97a0",
-      "all-matters__sourceHash": "b695c090980a50ae44cfb20a346e398c61e1e743a11064316614660469042c86",
-      "email__sourceHash": "969ccbd3cf6300ecd5c880459d81ae9027df7517563184a1b8b15282db230621",
-      "documents__sourceHash": "b4e929d8bcfe04189801a8ed61496d177d9e30d1b2826f4c9c4d00b3e705fa8b",
-      "whole-practice__sourceHash": "76b8f03cc3a5c66280521d83c770b32a198270fda621bd16e20504a1860f8bb1"
-    },
-    "book": {
-      "option-label": "Buchübersicht",
-      "option-helper": "aus deinen Client Maps",
-      "loading": "Zusammenfassungen Ihrer Mandanten werden geladen...",
-      "no-facts": "Es sind noch keine Mandanten-Zusammenfassungen erstellt. Öffnen Sie einen Mandanten und erstellen Sie zuerst dessen Client Map.",
-      "no-matches": "Keine Mandanten in Ihrem Buch passen zu dieser Frage.",
-      "matches-heading": "Passende Mandanten",
-      "open-client": "Mandant öffnen",
-      "summaries-note": "Beantwortet aus der gespeicherten Zusammenfassung jedes Mandanten. Dokumente wurden nicht mandantenübergreifend durchsucht.",
-      "option-label__sourceHash": "7afbd1c37349eeb52240fb960aebebd394be25e06ca518e61d08382f12e6cfde",
-      "loading__sourceHash": "4f0f38be8554e45c4b86c7ad24f09a5c31b19469016c12c44edeea2046be6c98",
-      "no-facts__sourceHash": "64656123dc46fde4841b3630561d35eb14d66003a0e8d78f776dfe053497733e",
-      "no-matches__sourceHash": "d266ee6a73820abbf2eaa2147bfce38e84a6460f14f6d9f1773809147c115085",
-      "matches-heading__sourceHash": "ff956f9a89752b93c866222fa85dcfc5889a7949b2487b5fe9d78b78396dd04a",
-      "open-client__sourceHash": "6f59ad8c61ccc5a010b7360609618bc5884ccc1c72f2c1b2f91ae6a14d115527",
-      "summaries-note__sourceHash": "e3e0e92fdc977f1bc9f870659c6ca1f4bcf8ee9b30eef0a8b409cfc8870400bd"
-    },
-    "whole-practice-confirm": {
-      "title": "Zusammenfassungen deiner gesamten Praxis senden?",
-      "body_one": "Dabei wird eine kurze Zusammenfassung von {{count}} Mandanten an {{provider}} gesendet. Fortfahren?",
-      "body_other": "Dabei werden kurze Zusammenfassungen von {{count}} Mandanten an {{provider}} gesendet. Fortfahren?",
-      "provider-fallback": "deinen KI-Anbieter",
-      "remember": "Vor praxisweiten Fragen nicht erneut fragen",
-      "cancel": "Abbrechen",
-      "continue": "Fortfahren"
-    },
-    "scope-toggle": {
-      "this-entity": "Dieser {{entity}}",
-      "this-entity__sourceHash": "28844791e4974a5aef4e2316ce8b47cce1ce12e5b634b3a5f1c1839fdefda48c",
-      "all-entity": "Alle {{entity}}",
-      "all-entity__sourceHash": "04e69e384c954bb2d65168ec84802c70fb818fdf1e7569c9e780cf84be1cf292",
-      "aria-label": "Fragebereich",
-      "aria-label__sourceHash": "73524050d293328389d3fdc334b7f2d697071a2bcea1149638f6dc3e6cb24576"
-    },
-    "composer": {
-      "placeholder-all-entity": "Fragen zu allen {{entity}}…",
-      "placeholder-all-entity__sourceHash": "cbe4b2269ed12ee1198123c96422692c86d061761b2bcadc4b71c4d176f10b17",
-      "aria-label": "Fragen zu diesem {{entity}}",
-      "aria-label__sourceHash": "6ae3bc4e80f82920218ed9209cabb062388b61677113e87c2b41ee0dc45f83de"
-    },
-    "file-access": {
-      "all-entity-scope": "alle deine {{entity}}",
-      "all-entity-scope__sourceHash": "32edab7b7ca175a62a2ee0930dbd0e64b223458356d2fc56ffa3d1d606036b4a"
-    },
-    "action": {
-      "ask": "Fragen"
-    },
-    "conversations": {
-      "other": "Andere Unterhaltungen",
-      "search-placeholder": "Unterhaltungen suchen",
-      "empty": "Deine Unterhaltungen erscheinen hier.",
-      "no-results": "Keine Unterhaltungen gefunden."
-    },
-    "sources": {
-      "title": "Quellen",
-      "collapse": "Quellen einklappen",
-      "show-panel": "Quellen anzeigen",
-      "show-more": "Mehr anzeigen",
-      "show-less": "Weniger anzeigen",
-      "header-suffix-files-only": "nur aus deinen Dateien",
-      "empty-hint": "Wenn eine Antwort deine Dateien verwendet, erscheinen die zitierten Quellen hier. Antworten aus Allgemeinwissen haben nichts zu zitieren; genau darum geht es.",
-      "footer-note": "Antworten aus Allgemeinwissen haben keine Quellenkarte. Das Quellenfenster füllt sich nur mit deinen Dateien."
-    },
-    "answer-scope": {
-      "title": "Antwortbereich",
-      "helper": "Wähle, ob Ask Allgemeinwissen verwenden darf, und verwalte den Dateizugriff für diesen Chat.",
-      "files-only": "Nur Dateien",
-      "files-general": "Dateien + Allgemein",
-      "files-only-toggle": "Nur-Dateien-Modus",
-      "files-only-title": "Nur aus deinen Dateien antworten, mit Zitaten, ohne Allgemeinwissen oder Entwürfe."
-    },
-    "message-scope": {
-      "all-title": "Diese Antwort hat alle {{entity}} durchsucht.",
-      "all-title__sourceHash": "69650b906ff4b52446ad36b82a3abd4d16b640ab8c7e1319dc6fbe407533fe38",
-      "matter-title": "Diese Antwort war auf den aktuellen {{entity}} beschränkt. Daten anderer Kunden wurden nicht durchsucht.",
-      "matter-title__sourceHash": "af8a6558fdb1a7da30da97b8762a86aca22595b6d44ef4f4f162015b13166afd",
-      "this-entity-fallback": "diesen {{entity}}",
-      "this-entity-fallback__sourceHash": "0063421c930a731941f9c2b5cc809c64a009a359710899a6fee3e7e84dcc2db0"
-    },
-    "sample-bridge": {
-      "body": "Dies sind Beispieldaten. Füge deinen ersten echten {{entity}} hinzu, sobald du bereit bist, um in deinen eigenen Dateien zu suchen.",
-      "body__sourceHash": "18f0c1a2039c0b85192f24561f341fc8c0f77e924a4a979347bdad2e518088df",
-      "add-button": "{{entity}} hinzufügen",
-      "add-button__sourceHash": "c08d5b19cc06093d6961bdb33c5b96279bb3ae742c054fc67ce7e3da57a7bb8b"
-    },
-    "cost-dashboard": {
-      "provider-note": "Kosten werden direkt von {{provider}} abgerechnet, nicht von Lantern."
-    }
-  },
   "privacy": {
     "egress": {
       "local": {
@@ -2257,8 +2745,6 @@
         "label": "Browser demo. Do not use with client data",
         "note": "In this online demo, messages pass through a shared Lantern relay. The desktop app never does this. Do not enter confidential or client information here."
       },
-      "sending": "Wird an Ihren KI-Anbieter gesendet",
-      "sending__locked": true,
       "checking": {
         "label": "KI-Ziel wird geprüft",
         "note": "Lantern bestätigt, wohin diese Anfrage gesendet wird, bevor sie abgeschickt wird.",
@@ -2270,7 +2756,15 @@
         "note": "Verbinden Sie einen KI-Anbieter, um Antworten zu erhalten.",
         "label__sourceHash": "6b5fff4cf033eded872eff66089df78f7ec1efd252ca8545172e242a9b3c9a67",
         "note__sourceHash": "2eabd3bbc144e51028417a87d82ba3135907fa5ae5ad6905b18035d858682ff9"
-      }
+      },
+      "local-pending": {
+        "label": "Lokale KI wird eingerichtet",
+        "label__sourceHash": "d27363c33900bf0323e06af383513548cbdfcaf38a83f21bbc490f13d22cc775",
+        "note": "Deine KI auf dem Gerät wird noch heruntergeladen oder gestartet. Es wurde nichts irgendwohin gesendet. Prüfe den Fortschritt in den Einstellungen und versuche es dann erneut.",
+        "note__sourceHash": "db83bc8e00888ce7b6ee59104bea846b4d67442743d33325fc7362e791c3155e"
+      },
+      "sending": "Wird an Ihren KI-Anbieter gesendet",
+      "sending__locked": true
     },
     "privileged-matter": {
       "badge": "Privilegierter Mandant: externe Verbindungen sind gesperrt, damit nichts diesen Mandanten verlassen kann",
@@ -2288,6 +2782,10 @@
       "mode-summary": "Nur Zusammenfassung",
       "mode-summary-hint": "Audio und Transkript werden entfernt, sobald Notizen vorhanden sind. Nur die Notizen bleiben.",
       "days-label": "Tage, die Audio aufbewahrt wird",
+      "change": "Ändern",
+      "change__sourceHash": "c0bf75bd78bf9572596720d596bd5a20a5b9145cde0fe50dec1e783cb184d69b",
+      "more-actions": "Weitere Aktionen für gelöschte Dateien",
+      "more-actions__sourceHash": "47184fdb9687045650cc03e0eda9c97a3cf738a3ead28b2471d185475ec77723",
       "run-now": "Bereinigung jetzt ausführen",
       "last-sweep": "Letzte Bereinigung: {{when}}, {{count}} Elemente entfernt",
       "never-swept": "Die Bereinigung wurde noch nicht ausgeführt.",
@@ -2542,6 +3040,21 @@
     }
   },
   "meetings": {
+    "before-you-meet": {
+      "title": "Before you meet",
+      "count_one": "{{count}} meeting",
+      "count_other": "{{count}} meetings",
+      "toggle": "Toggle briefing",
+      "actions": "Brief actions",
+      "brief": "Brief",
+      "agenda": "Agenda",
+      "refresh": "Refresh",
+      "new-files": "New files added",
+      "saved": "Saved",
+      "preparing": "Preparing your briefing",
+      "failed": "Could not prepare this briefing: {{error}}",
+      "unknown-error": "unknown error"
+    },
     "speakers": {
       "title": "Wer spricht hier?",
       "run": "Sprecher trennen",
@@ -2764,14 +3277,6 @@
       "pill-copy-chat": "Chat-Hinweis kopieren",
       "details": "Details"
     },
-    "auto-join": {
-      "heading": "Wird automatisch beitreten",
-      "body": "Diese Besprechungen starten denselben Aufnahmeablauf und dieselbe Notice Card wie die Aufnahmetaste.",
-      "error": "Anstehende Besprechungen konnten nicht geprüft werden.",
-      "disable": "Nicht beitreten",
-      "summary_one": "Nimmt automatisch an {{count}} Meeting teil",
-      "summary_other": "Nimmt automatisch an {{count}} Meetings teil"
-    },
     "notice-card": {
       "offer-label": "Die Hinweiskarte zu diesem Meeting hinzufügen?",
       "offer-explain": "Ein Teilnehmer auf Ihrem Computer zeigt allen, dass das Meeting aufgezeichnet wird. Er zeichnet nichts auf und verlässt das Meeting, sobald die Aufzeichnung endet.",
@@ -2802,28 +3307,25 @@
       "bg-label": "AUFZEICHNUNG läuft",
       "unsupported-fallback": "Dieser Meeting-Link ist keiner, dem die Hinweiskarte beitreten kann. Sagen Sie den Aufzeichnungshinweis stattdessen laut an.",
       "settings-heading": "Hinweiskarte",
+      "settings-advanced-summary": "Erweiterter Aufnahmehinweis",
+      "settings-advanced-summary__sourceHash": "8b3c93eed0df92b7ce488b7a65b961dec7793f21f3c1052ecac35d7f0bcf767c",
       "settings-enabled-label": "Die Hinweiskarte für Online-Meetings anbieten",
       "settings-name-label": "Name der Hinweiskarte ({advisor} für Ihren Vornamen verwenden)",
+      "settings-name-placeholder": "Aufnahmehinweis - {advisor}",
+      "settings-name-placeholder__sourceHash": "95debad86ed47c4832df8ce5b55d1cac0a6640907c83203e8e2baa29a712077d",
       "settings-evidence-label": "Was einen strengen Aufzeichnungshinweis erfüllt",
       "settings-evidence-either": "Entweder ein gesprochener Hinweis oder die Karte während des gesamten Meetings",
       "settings-evidence-both": "Sowohl ein gesprochener Hinweis als auch die Karte während des gesamten Meetings",
       "offer-explain-summary": "Was ist das?",
       "pill-present-short": "Im Meeting"
     },
-    "before-you-meet": {
-      "title": "Before you meet",
-      "count_one": "{{count}} meeting",
-      "count_other": "{{count}} meetings",
-      "toggle": "Toggle briefing",
-      "actions": "Brief actions",
-      "brief": "Brief",
-      "agenda": "Agenda",
-      "refresh": "Refresh",
-      "new-files": "New files added",
-      "saved": "Saved",
-      "preparing": "Preparing your briefing",
-      "failed": "Could not prepare this briefing: {{error}}",
-      "unknown-error": "unknown error"
+    "auto-join": {
+      "heading": "Wird automatisch beitreten",
+      "body": "Diese Besprechungen starten denselben Aufnahmeablauf und dieselbe Notice Card wie die Aufnahmetaste.",
+      "error": "Anstehende Besprechungen konnten nicht geprüft werden.",
+      "disable": "Nicht beitreten",
+      "summary_one": "Nimmt automatisch an {{count}} Meeting teil",
+      "summary_other": "Nimmt automatisch an {{count}} Meetings teil"
     }
   },
   "spine": {
