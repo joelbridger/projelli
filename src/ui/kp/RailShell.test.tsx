@@ -66,11 +66,22 @@ describe('RailShell', () => {
     );
 
     expect(screen.getByRole('listbox', { name: 'Client work' })).toBeTruthy();
+    const list = screen.getByRole('listbox', { name: 'Client work' });
+    const rail = list.parentElement;
+    expect(rail?.className).toContain('bg-[var(--color-background)]');
+    expect(rail?.className).not.toContain('bg-[var(--kp-side-bg)]');
+    expect(rail?.className).toContain('border-[var(--kp-divider)]');
+    expect(list.className).toContain('gap-1.5');
+    expect(list.className).toContain('p-3');
     const activeRow = getRailRow('Meeting notes');
     expect(activeRow.getAttribute('aria-selected')).toBe('true');
     expect(activeRow.getAttribute('tabindex')).toBe('0');
     expect(getRailRow('Prep brief').getAttribute('tabindex')).toBe('-1');
-    expect(activeRow.className).toContain('bg-[var(--kp-side-active-bg)]');
+    expect(activeRow.className).toContain('px-3');
+    expect(activeRow.className).toContain('py-2.5');
+    expect(activeRow.className).toContain('bg-[var(--kp-accent-soft)]');
+    expect(activeRow.className).toContain('border-[rgba(var(--kp-navy-rgb),0.10)]');
+    expect(activeRow.className).not.toContain('bg-[var(--kp-side-active-bg)]');
     expect(document.body.contains(screen.getByText('Selected detail'))).toBe(true);
 
     fireEvent.click(getRailRow('Client email'));
