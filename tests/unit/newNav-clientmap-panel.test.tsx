@@ -99,7 +99,7 @@ describe('ClientMapPanel (newNav hero view)', () => {
     expect(onOpenSource).toHaveBeenCalledWith(crmSource);
   });
 
-  it('puts the compact add action before the section tabs', () => {
+  it('puts the compact add action below the content tabs and above Missing', () => {
     render(
       <ClientMapPanel
         map={demoMap()}
@@ -109,11 +109,13 @@ describe('ClientMapPanel (newNav hero view)', () => {
     );
 
     const addButton = screen.getByTestId('clientmap-tab-add');
-    const householdTab = screen.getByTestId('clientmap-tab-household');
+    const followupsTab = screen.getByTestId('clientmap-tab-followups');
+    const missingTab = screen.getByTestId('clientmap-tab-__missing');
 
     expect(addButton).toHaveAccessibleName('New section');
     expect(addButton).toHaveTextContent('');
-    expect(addButton.compareDocumentPosition(householdTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(followupsTab.compareDocumentPosition(addButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(addButton.compareDocumentPosition(missingTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.queryByTestId('clientmap-start-interview')).toBeNull();
 
     fireEvent.click(addButton);

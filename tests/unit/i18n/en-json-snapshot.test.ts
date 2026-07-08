@@ -51,7 +51,7 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 72,
+        "common": 75,
         "editor": 27,
         "entity-label": 50,
         "file-import": 3,
@@ -268,7 +268,8 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    expect(flat.length).toBe(1967); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
+    // +3 = FB2 Client Map history: common.audit-log.{before-after-title,before,after}.
+    expect(flat.length).toBe(1970); // UX-simplification integration plus FB2 Client Map history labels.
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

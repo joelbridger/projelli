@@ -516,6 +516,7 @@ export function AppSurfaceRouter({
           }
           workspaceService={workspaceServiceRef.current}
           clientMapMode={mattersSurfaceMode}
+          onClientMapModeChange={setMattersSurfaceMode}
         />
       ) : sidebarActiveTab === 'search' ? (
         <Ask

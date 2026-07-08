@@ -188,7 +188,7 @@ export function Spine({
             key={id}
             type="button"
             title={label}
-            aria-current={active === id ? 'page' : undefined}
+            aria-current={active === id && !(id === 'matters' && allClientsActive) ? 'page' : undefined}
             data-testid={`spine-nav-collapsed-${id}`}
             onClick={() => onTabChange?.(id)}
             style={{
@@ -198,9 +198,13 @@ export function Spine({
               border: 0,
               cursor: 'pointer',
               color:
-                active === id ? 'var(--kp-side-fg)' : 'var(--kp-side-fg-dim)',
+                active === id && !(id === 'matters' && allClientsActive)
+                  ? 'var(--kp-side-fg)'
+                  : 'var(--kp-side-fg-dim)',
               background:
-                active === id ? 'var(--kp-side-active-bg)' : 'transparent',
+                active === id && !(id === 'matters' && allClientsActive)
+                  ? 'var(--kp-side-active-bg)'
+                  : 'transparent',
             }}
           >
             <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
@@ -259,7 +263,7 @@ export function Spine({
           }}
         >
           {nav.map(({ id, label, Icon }) => {
-            const on = active === id;
+            const on = active === id && !(id === 'matters' && allClientsActive);
             return (
               <button
                 key={id}
@@ -529,7 +533,7 @@ export function Spine({
                 </span>
               </button>
               {filteredMatters.map((m) => {
-                const on = m.id === activeMatterId;
+                const on = m.id === activeMatterId && !allClientsActive;
                 const fullLabel = matterLabel(m);
                 const displayLabel = m.client.trim() || fullLabel;
                 return (

@@ -510,25 +510,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <span
-                data-testid="clientmap-last-updated"
-                aria-live="polite"
-                style={{
-                  whiteSpace: 'nowrap',
-                  display: clientMapHeaderStatus === '' ? 'none' : 'inline',
-                }}
-              >
-                {clientMapHeaderStatus !== '' ? (
-                  <QuietStatus state={clientMapHeaderStatusState}>{clientMapHeaderStatus}</QuietStatus>
-                ) : null}
-              </span>
-            </div>
-          }
-          actions={
-            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
-              {/* Sub-tabs, inline to the right of the client name. Minimal
-                  selected style: a soft demo-blue tint pill (no dark fill). */}
-              <div role="tablist" aria-label={t('matter.hub.sections-aria')} data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <div role="tablist" aria-label={t('matter.hub.sections-aria')} data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flexWrap: 'wrap' }}>
                 {HUB_TABS.map(({ id }) => {
                   const active = subTab === id;
                   return (
@@ -565,9 +547,23 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   );
                 })}
               </div>
-
-              {/* The guided-interview button moved to the BOTTOM of the Client
-                  Map section rail (below "+ New section"). */}
+              <span
+                data-testid="clientmap-last-updated"
+                aria-live="polite"
+                style={{
+                  whiteSpace: 'nowrap',
+                  display: clientMapHeaderStatus === '' ? 'none' : 'inline',
+                }}
+              >
+                {clientMapHeaderStatus !== '' ? (
+                  <QuietStatus state={clientMapHeaderStatusState}>{clientMapHeaderStatus}</QuietStatus>
+                ) : null}
+              </span>
+            </div>
+          }
+          actions={
+            (isPrivileged || matter.privileged || matter.isSample) ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-md)' }}>
               {(isPrivileged || matter.privileged) && (
                 <span data-testid="hub-isolated-badge">
                   <Badge variant="privilege" size="sm" icon={Lock}>{t('matter.hub.isolated-pill')}</Badge>
@@ -582,6 +578,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   egress indicator and could contradict it on one screen. Egress
                   status now lives ONCE, in the top bar. */}
             </div>
+            ) : undefined
           }
         />
       </div>

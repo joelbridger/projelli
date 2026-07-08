@@ -356,6 +356,7 @@ export function SourcePanel({
   onSelect,
   onAuditLog,
   onOpenCitation,
+  hideHeader = false,
   headerSuffix,
   emptyHint,
   footerNote,
@@ -378,6 +379,8 @@ export function SourcePanel({
    * OneDrive / e-sign / meeting sources, which the path opener can't route).
    */
   onOpenCitation?: (cite: AnswerCitation) => void;
+  /** Hide the built-in Sources heading when the host renders it in its own chrome. */
+  hideHeader?: boolean;
   /**
    * Ask-smart (opt-in; Client Map does not pass these): a short suffix after the
    * SOURCES header ("· from your files only"), an empty-state node shown when an
@@ -397,25 +400,41 @@ export function SourcePanel({
 
   return (
     <div data-testid="source-panel">
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 7,
-          marginBottom: 14,
-          fontSize: 11,
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: 'var(--kp-text-faint)',
-        }}
-      >
-        <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
-        {t('ask.sources.title')}
-        {headerSuffix != null && headerSuffix !== '' && (
-          <span style={{ fontWeight: 600, letterSpacing: '0.06em' }}>· {headerSuffix}</span>
-        )}
-      </div>
+      {!hideHeader && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            marginBottom: 14,
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: 'var(--kp-text-faint)',
+          }}
+        >
+          <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
+          {t('ask.sources.title')}
+          {headerSuffix != null && headerSuffix !== '' && (
+            <span style={{ fontWeight: 600, letterSpacing: '0.06em' }}>· {headerSuffix}</span>
+          )}
+        </div>
+      )}
+      {hideHeader && headerSuffix != null && headerSuffix !== '' && (
+        <div
+          style={{
+            marginBottom: 14,
+            fontSize: 11,
+            fontWeight: 600,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: 'var(--kp-text-faint)',
+          }}
+        >
+          {headerSuffix}
+        </div>
+      )}
 
       {citations.length === 0 && emptyHint != null && (
         <div

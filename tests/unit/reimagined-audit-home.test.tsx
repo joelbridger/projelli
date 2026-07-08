@@ -311,6 +311,33 @@ describe('AuditHome', () => {
     expect(screen.getByTestId('audit-home-export-menu')).toBeDisabled();
   });
 
+  it('shows a readable before and after block for Client Map edits', () => {
+    render(
+      <AuditHome
+        entries={[
+          makeEntry({
+            id: 'client-map-edit',
+            action: 'client_map_bullet_edited',
+            description: 'Edited a Client Map fact',
+            metadata: {
+              beforeText: 'Robert retired.',
+              afterText: 'Robert and Susan are retired.',
+            },
+          }),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Edited a Client Map fact'));
+
+    const block = screen.getByTestId('audit-before-after-block');
+    expect(block).toHaveTextContent('Before and after');
+    expect(block).toHaveTextContent('Before');
+    expect(block).toHaveTextContent('Robert retired.');
+    expect(block).toHaveTextContent('After');
+    expect(block).toHaveTextContent('Robert and Susan are retired.');
+  });
+
   it('shows empty state when entries array is empty', () => {
     render(<AuditHome entries={[]} />);
     expect(screen.getByTestId('audit-empty-state')).toBeInTheDocument();

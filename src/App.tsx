@@ -1942,11 +1942,12 @@ function AppShell() {
             }
             if (tab === 'matters') {
               const matterState = useMatterStore.getState();
-              setMattersSurfaceMode('client-map');
               if (matterState.activeMatterId) {
+                setMattersSurfaceMode('client-map');
                 matterState.setClientMapHubId(matterState.activeMatterId);
                 matterState.setClientMapHubTab('overview');
               } else {
+                setMattersSurfaceMode('all-clients');
                 matterState.setClientMapHubId(null);
                 matterState.setClientMapHubTab(null);
               }
@@ -1965,8 +1966,7 @@ function AppShell() {
           }}
           allClientsSelected={
             sidebarActiveTab === 'matters' &&
-            mattersSurfaceMode === 'all-clients' &&
-            activeMatterId === null
+            mattersSurfaceMode === 'all-clients'
           }
           collapsed={sidebarCollapsed}
           onCollapsedChange={setSidebarCollapsed}

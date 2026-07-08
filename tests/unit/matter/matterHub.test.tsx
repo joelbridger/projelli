@@ -222,8 +222,8 @@ describe('MatterHub — list to hub navigation', () => {
     expect(menuButton).toHaveAccessibleName('Actions');
     fireEvent.pointerDown(menuButton);
 
-    expect(await screen.findByTestId('clientmap-export-word')).toHaveTextContent('Export Word');
-    expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export PDF');
+    expect(await screen.findByTestId('clientmap-export-word')).toHaveTextContent('Export client map (DOCX)');
+    expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export client map (PDF)');
     expect(screen.getByTestId('clientmap-sync-button')).toHaveTextContent('Update map');
     expect(screen.getByTestId('clientmap-history-button')).toHaveTextContent('History');
   });
@@ -454,6 +454,8 @@ describe('MatterHub — sub-tab workspace', () => {
         renderActivity={() => <div data-testid="stub-activity">activity</div>}
       />,
     );
+
+    expect(within(screen.getByTestId('clientmap-header-icon-group')).getByTestId('hub-subtab-bar')).toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('hub-subtab-documents'));
     expect(screen.getByTestId('hub-subtab-panel-documents')).toBeInTheDocument();
