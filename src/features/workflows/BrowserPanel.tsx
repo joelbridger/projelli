@@ -468,7 +468,7 @@ export function BrowserPanel({ className, initialUrl }: BrowserPanelProps) {
           <Input
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="Enter URL or search term..."
+            placeholder={t('workflow.browser.search-placeholder')}
             className="h-7 text-xs"
           />
         </form>

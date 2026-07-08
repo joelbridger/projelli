@@ -427,7 +427,8 @@
     "browser": {
       "error-title": "Unable to load page",
       "iframe-blocked-hint": "Some websites (like Google, GitHub, etc.) block iframe embedding for security. Click the button below to open this URL in your default browser.",
-      "open-external": "Open in browser"
+      "open-external": "Open in browser",
+      "search-placeholder": "Search or enter URL"
     },
     "chain-builder": {
       "title": "New chain",
@@ -435,8 +436,15 @@
       "no-steps": "No steps yet. Add one to start composing a chain.",
       "map-outputs": "Map upstream outputs:"
     },
+    "marketplace": {
+      "search-templates": "Search templates"
+    },
     "interview": {
-      "select-option": "Select an option"
+      "select-option": "Select an option",
+      "required": "This field is required",
+      "cancel": "Cancel",
+      "run": "Run",
+      "running": "Running"
     },
     "associate": {
       "rail-list-label": "Workflow templates",
@@ -526,6 +534,29 @@
       "use-as-input": "Use output in another workflow",
       "recommended-next": "Recommended next steps",
       "other-templates": "More workflows",
+      "step-short": "Step {{current}}/{{total}}",
+      "no-steps": "No steps",
+      "show-all-steps": "Show all steps",
+      "hide-all-steps": "Hide all steps",
+      "complete": "Complete",
+      "failed": "Failed",
+      "cancel": "Cancel",
+      "generating": "Generating",
+      "generating-step": "Generating {{step}}",
+      "workflow-failed": "Workflow failed",
+      "draft-ready": "Draft ready",
+      "open": "Open",
+      "more-actions": "More actions",
+      "preview-text": "Preview text",
+      "export-docx": "Export .docx",
+      "export-pptx": "Export .pptx",
+      "export": "Export",
+      "export-docx-description": "Add the firm name for this export.",
+      "firm-name": "Firm name",
+      "firm-name-placeholder": "e.g. Acme Law PLLC",
+      "created-file": "Created file",
+      "needs-client-title": "Pick your client first.",
+      "needs-client-body": "Choose a client, then run the workflow again.",
       "needs-provider-title": "Add an AI provider",
       "needs-provider-body": "Add an API key or choose Local AI.",
       "needs-provider-action": "Open AI settings",
@@ -534,16 +565,28 @@
       "ollama-unreachable-action": "Try again"
     },
     "panel": {
+      "actions": "Workflow actions",
       "trial-ended-label": "Trial ended.",
       "trial-ended-description": "Activate a license in Settings, License to run workflows.",
       "step-of-click": "Step {{current}} of {{total}}, click to view",
       "modal-title": "Browse workflows",
       "modal-description": "Pick a workflow to run.",
-      "no-matches": "No workflows match \"{{query}}\"."
+      "no-matches": "No workflows match \"{{query}}\".",
+      "current-execution": "Current run",
+      "run-history": "Run history",
+      "start-workflow": "Start workflow",
+      "estimate-line": "{{steps}} · {{calls}} · est. {{cost}}",
+      "ai-calls-count_one": "1 AI call",
+      "ai-calls-count_other": "{{count}} AI calls",
+      "estimate-note": "Estimate only. Your AI provider bills the actual cost.",
+      "local-estimate-note": "This workflow runs on Local AI. No provider charge.",
+      "template-actions": "Actions for {{name}}",
+      "delete-template": "Delete"
     },
     "fork": {
       "title": "Copy template",
       "description": "Make an editable copy of this template.",
+      "ai-instructions": "AI instructions",
       "persona-hint": "Optional instructions for how the AI should write."
     }
   },

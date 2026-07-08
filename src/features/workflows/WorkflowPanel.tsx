@@ -24,6 +24,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { Input } from '@/ui/input';
 import {
   Play,
@@ -36,6 +42,7 @@ import {
   Copy,
   Trash2,
   Link as LinkIcon,
+  MoreHorizontal,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -60,6 +67,7 @@ import {
   TEMPLATE_PROVENANCE_LABELS,
   type TemplateProvenance,
 } from '@/features/workflows/marketplace/svc';
+import { getWorkflowShortDescription } from '@/features/workflows/workflowPresentation';
 
 interface WorkflowPanelProps {
   onStartWorkflow: (template: WorkflowTemplate) => void;
@@ -253,14 +261,14 @@ export function WorkflowPanel({
         >
           <p className="font-medium">
             {providerError === 'needs-client'
-              ? 'Pick your client first.'
+              ? t('workflow.execution.needs-client-title')
               : providerError === 'ollama-unreachable'
                 ? t('workflow.execution.ollama-unreachable-title')
                 : t('workflow.execution.needs-provider-title')}
           </p>
           <p className="mt-1 text-muted-foreground">
             {providerError === 'needs-client'
-              ? 'Choose a client, then run the workflow again.'
+              ? t('workflow.execution.needs-client-body')
               : providerError === 'ollama-unreachable'
                 ? t('workflow.execution.ollama-unreachable-body')
                 : t('workflow.execution.needs-provider-body')}
@@ -278,28 +286,36 @@ export function WorkflowPanel({
       <div className="flex items-center justify-between gap-2 px-3 pt-3 pb-2 shrink-0">
         <h3 className="text-sm font-semibold min-w-0 truncate">{heading ?? 'Workflows'}</h3>
         <div className="flex items-center gap-0.5 shrink-0">
-          <Button
-            data-testid="workflows-chain-templates"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => setShowChainBuilder(true)}
-            title="Chain templates into a multi-step pipeline"
-            aria-label="Chain templates"
-          >
-            <LinkIcon className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            data-testid="workflows-open-full-view"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={() => setShowFullView(true)}
-            title="Open full view"
-            aria-label="Open full view"
-          >
-            <Maximize2 className="h-3.5 w-3.5" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                data-testid="workflows-actions-menu"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                aria-label={t('workflow.panel.actions')}
+                title={t('workflow.panel.actions')}
+              >
+                <MoreHorizontal className="h-3.5 w-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                data-testid="workflows-chain-templates"
+                onSelect={() => setShowChainBuilder(true)}
+              >
+                <LinkIcon className="h-3.5 w-3.5 mr-2" />
+                {t('workflow.chain-builder.title')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="workflows-open-full-view"
+                onSelect={() => setShowFullView(true)}
+              >
+                <Maximize2 className="h-3.5 w-3.5 mr-2" />
+                {t('workflow.panel.modal-title')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -316,7 +332,7 @@ export function WorkflowPanel({
 
         {currentExecution && (
           <div>
-            <h3 className="text-sm font-semibold mb-3">Current Execution</h3>
+            <h3 className="text-sm font-semibold mb-3">{t('workflow.panel.current-execution')}</h3>
             <Card
               className="cursor-pointer hover:bg-muted/50 transition-colors"
               onClick={onFocusExecutionTab}
@@ -343,7 +359,7 @@ export function WorkflowPanel({
 
         {runHistory.length > 0 && (
           <div>
-            <h3 className="text-sm font-semibold mb-3">Run History</h3>
+            <h3 className="text-sm font-semibold mb-3">{t('workflow.panel.run-history')}</h3>
             <div className="space-y-2">
               {runHistory.slice(0, 5).map((run) => (
                 <Card key={run.run_id}>
@@ -429,7 +445,7 @@ function describeStepCost(stepCount: number): string {
   const high = stepCount + 1;
   const lowCost = (low * ESTIMATE_COST_PER_STEP_USD).toFixed(3);
   const highCost = (high * ESTIMATE_COST_PER_STEP_USD).toFixed(3);
-  return `$${lowCost} - $${highCost}`;
+  return `$${lowCost}-$${highCost}`;
 }
 
 interface WorkflowEstimateModalProps {
@@ -439,6 +455,7 @@ interface WorkflowEstimateModalProps {
 }
 
 function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstimateModalProps) {
+  const { t } = useTranslation();
   const confidentialityMode = useSettingsStore((s) => s.getSetting<string>('confidentialityMode'));
   const templateProvider = template?.defaultProvider;
   // Local runs have no provider charge: local-only mode, or template pinned to ollama.
@@ -452,6 +469,11 @@ function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstima
   const costRange = describeStepCost(stepCount);
   // Count generate steps specifically since interview steps cost nothing.
   const generateSteps = template.steps.filter((s) => s.type === 'generate' || s.type === 'review').length;
+  const estimateLine = t('workflow.panel.estimate-line', {
+    steps: t('workflow.associate.steps-count', { count: stepCount }),
+    calls: t('workflow.panel.ai-calls-count', { count: generateSteps }),
+    cost: isLocalRun ? '$0' : costRange,
+  });
 
   return (
     <Dialog open={template !== null} onOpenChange={(o) => { if (!o) onCancel(); }}>
@@ -460,42 +482,27 @@ function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstima
         className="max-w-sm"
       >
         <DialogHeader>
-          <DialogTitle>Start workflow</DialogTitle>
+          <DialogTitle>{t('workflow.panel.start-workflow')}</DialogTitle>
           <DialogDescription>
             {template.name}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-1">
-          <div className="rounded-md border border-border bg-muted/30 p-3 text-sm space-y-1.5">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Total steps</span>
-              <span className="font-medium tabular-nums">{stepCount}</span>
-            </div>
-            {generateSteps > 0 && (
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-muted-foreground">AI calls</span>
-                <span className="font-medium tabular-nums">{generateSteps}</span>
-              </div>
-            )}
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted-foreground">Estimated cost</span>
-              <span className="font-medium tabular-nums font-mono" data-testid="workflow-estimate-cost">
-                {isLocalRun ? '$0' : costRange}
-              </span>
-            </div>
-          </div>
-          {isLocalRun ? (
-            <p className="text-xs text-muted-foreground">
-              This workflow runs on your local AI model. No provider charge.
+          <p
+            data-testid="workflow-estimate-cost"
+            className="rounded-md border border-border bg-muted/30 p-3 text-sm font-medium"
+          >
+            {estimateLine}
+          </p>
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">
+              {t('workflow.associate.details')}
+            </summary>
+            <p className="mt-2">
+              {isLocalRun ? t('workflow.panel.local-estimate-note') : t('workflow.panel.estimate-note')}
             </p>
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              This is a rough estimate based on typical step sizes. Your actual cost
-              depends on the length of your inputs and the model you have selected.
-              Billed directly by your AI provider.
-            </p>
-          )}
+          </details>
         </div>
 
         <DialogFooter>
@@ -505,7 +512,7 @@ function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstima
             size="sm"
             onClick={onCancel}
           >
-            Cancel
+            {t('workflow.interview.cancel')}
           </Button>
           <Button
             data-testid="workflow-estimate-confirm"
@@ -513,7 +520,7 @@ function WorkflowEstimateModal({ template, onConfirm, onCancel }: WorkflowEstima
             onClick={onConfirm}
           >
             <Play className="h-3.5 w-3.5 mr-1.5" />
-            Run workflow
+            {t('workflow.associate.run')}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -572,7 +579,7 @@ function WorkflowsFullViewModal({
               data-testid="workflows-modal-search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search workflows..."
+              placeholder={t('workflow.associate.search-placeholder')}
               className="border-0 h-6 px-0 focus-visible:ring-0 text-sm"
             />
           </div>
@@ -587,18 +594,18 @@ function WorkflowsFullViewModal({
               {t('workflow.panel.no-matches', { query })}
             </p>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="space-y-1">
               {filtered.map((workflow) => (
-                <Card
+                <div
                   key={workflow.id}
                   data-testid={`workflow-modal-card-${workflow.id}`}
-                  className="flex flex-col"
+                  className="flex items-center gap-3 rounded-md border border-border px-3 py-2"
                 >
-                  <CardHeader className="p-4 pb-3 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-sm leading-snug flex-1">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="truncate text-sm font-medium">
                         {workflow.name}
-                      </CardTitle>
+                      </h3>
                       <ProvenanceCardBadge
                         provenance={resolveProvenance(workflow)}
                         templateId={`modal-${workflow.id}`}
@@ -612,14 +619,14 @@ function WorkflowsFullViewModal({
                         </span>
                       )}
                     </div>
-                    <CardDescription className="text-xs mt-2 line-clamp-4">
-                      {workflow.description}
-                    </CardDescription>
-                  </CardHeader>
-                  <div className="px-4 pb-4 flex items-center gap-1.5">
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                      {getWorkflowShortDescription(workflow)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
                     <Button
                       size="sm"
-                      className="flex-1 h-8"
+                      className="h-8"
                       onClick={() => onStartWorkflow(workflow)}
                       disabled={currentExecution !== null}
                     >
@@ -628,34 +635,41 @@ function WorkflowsFullViewModal({
                       ) : (
                         <Play className="h-3.5 w-3.5 mr-1.5" />
                       )}
-                      Start
+                      {t('workflow.associate.run')}
                     </Button>
-                    <Button
-                      data-testid={`workflow-modal-duplicate-${workflow.id}`}
-                      size="sm"
-                      variant="outline"
-                      className="h-8 w-8 p-0"
-                      onClick={() => onDuplicate(workflow)}
-                      aria-label={`Duplicate ${workflow.name}`}
-                      title="Duplicate this template"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                    </Button>
-                    {workflow.isUser && (
-                      <Button
-                        data-testid={`workflow-modal-delete-${workflow.id}`}
-                        size="sm"
-                        variant="outline"
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        onClick={() => onDelete(workflow)}
-                        aria-label={`Delete ${workflow.name}`}
-                        title="Delete this user template"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 w-8 p-0"
+                          aria-label={t('workflow.panel.template-actions', { name: workflow.name })}
+                        >
+                          <MoreHorizontal className="h-3.5 w-3.5" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          data-testid={`workflow-modal-duplicate-${workflow.id}`}
+                          onSelect={() => onDuplicate(workflow)}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-2" />
+                          {t('workflow.fork.title')}
+                        </DropdownMenuItem>
+                        {workflow.isUser && (
+                          <DropdownMenuItem
+                            data-testid={`workflow-modal-delete-${workflow.id}`}
+                            className="text-destructive focus:text-destructive"
+                            onSelect={() => onDelete(workflow)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            {t('workflow.panel.delete-template')}
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                </Card>
+                </div>
               ))}
             </div>
           )}
@@ -745,7 +759,7 @@ function TemplateForkModalFields({
               className="text-xs font-medium block mb-1"
               htmlFor="template-fork-system-prompt"
             >
-              System prompt
+              {t('workflow.fork.ai-instructions')}
             </label>
             <textarea
               id="template-fork-system-prompt"
@@ -817,6 +831,7 @@ function GroupedWorkflowList({
   onDuplicate,
   onDelete,
 }: GroupedWorkflowListProps) {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState<Record<TemplateProvenance, boolean>>({
     'built-in': false,
     community: false,
@@ -892,7 +907,7 @@ function GroupedWorkflowList({
                               className="text-xs mt-1 line-clamp-2"
                               title={workflow.description}
                             >
-                              {workflow.description}
+                              {getWorkflowShortDescription(workflow)}
                             </CardDescription>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
@@ -909,56 +924,58 @@ function GroupedWorkflowList({
                               </span>
                             )}
                             <Button
-                              data-testid={`template-picker-duplicate-${workflow.id}`}
                               size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDuplicate(workflow);
-                              }}
-                              aria-label={`Duplicate workflow: ${workflow.name}`}
-                              title="Duplicate this template"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </Button>
-                            {workflow.isUser && (
-                              <Button
-                                data-testid={`template-picker-delete-${workflow.id}`}
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDelete(workflow);
-                                }}
-                                aria-label={`Delete workflow: ${workflow.name}`}
-                                title="Delete this user template"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 w-7 p-0"
+                              variant="outline"
+                              className="h-7 px-2 text-xs"
                               onClick={() => onStart(workflow)}
                               disabled={
                                 currentExecution !== null || trialLocked
                               }
-                              aria-label={`Start workflow: ${workflow.name}`}
+                              aria-label={t('workflow.associate.run-workflow', { name: workflow.name })}
                               title={
                                 trialLocked
-                                  ? `Trial ended, activate a license to run workflows`
-                                  : `Start workflow: ${workflow.name}`
+                                  ? t('workflow.associate.trial-ended-title')
+                                  : t('workflow.associate.run-workflow', { name: workflow.name })
                               }
                             >
                               {currentExecution?.template.id === workflow.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
+                                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
                               ) : (
-                                <Play className="h-4 w-4" />
+                                <Play className="h-3.5 w-3.5 mr-1.5" />
                               )}
+                              {t('workflow.associate.run')}
                             </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 w-7 p-0"
+                                  aria-label={t('workflow.panel.template-actions', { name: workflow.name })}
+                                >
+                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem
+                                  data-testid={`template-picker-duplicate-${workflow.id}`}
+                                  onSelect={() => onDuplicate(workflow)}
+                                >
+                                  <Copy className="h-3.5 w-3.5 mr-2" />
+                                  {t('workflow.fork.title')}
+                                </DropdownMenuItem>
+                                {workflow.isUser && (
+                                  <DropdownMenuItem
+                                    data-testid={`template-picker-delete-${workflow.id}`}
+                                    className="text-destructive focus:text-destructive"
+                                    onSelect={() => onDelete(workflow)}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                                    {t('workflow.panel.delete-template')}
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       </CardHeader>

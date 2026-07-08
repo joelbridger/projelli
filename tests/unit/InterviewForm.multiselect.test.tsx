@@ -4,7 +4,15 @@ import { InterviewForm } from '@/features/workflows/InterviewForm';
 import type { InterviewQuestion } from '@/platform/types/workflow';
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => ({
+      'workflow.interview.required': 'This field is required',
+      'workflow.interview.cancel': 'Cancel',
+      'workflow.interview.run': 'Run',
+      'workflow.interview.running': 'Running',
+      'workflow.interview.select-option': 'Select an option',
+    })[key] ?? key,
+  }),
 }));
 
 let activeMatter: { id: string; name: string; client: string } | null = null;

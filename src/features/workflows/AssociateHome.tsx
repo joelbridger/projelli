@@ -55,6 +55,7 @@ import {
   type EgressProvider,
 } from '@/platform/privacy/egress';
 import { SK_WORKFLOWS_FILTER } from '@/config/identity';
+import { getWorkflowLongDescription, getWorkflowShortDescription } from '@/features/workflows/workflowPresentation';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
 
@@ -164,19 +165,6 @@ function categoryLabel(t: ReturnType<typeof useTranslation>['t'], key: TemplateC
 
 function categoryDescription(t: ReturnType<typeof useTranslation>['t'], key: TemplateCategory): string {
   return t(`workflow.associate.categories.${key}.description`);
-}
-
-const SHORT_TEMPLATE_DESCRIPTIONS: Record<string, string> = {
-  'advisors-meeting-prep-suitability-notes':
-    'Build a pre-meeting brief with client snapshot, recap, suitability prompts, and talking points.',
-  'advisors-annual-review-packet':
-    'Draft an annual review packet: cover letter, checklist, and plan-change summary.',
-  'legal-deposition-contradiction-finder':
-    'Find cited candidate contradictions in a deposition and client record for attorney review.',
-};
-
-function templateShortDescription(template: WorkflowTemplate): string {
-  return SHORT_TEMPLATE_DESCRIPTIONS[template.id] ?? template.description;
 }
 
 function runMatchesTemplate(run: RunRecord, template: WorkflowTemplate): boolean {
@@ -326,14 +314,12 @@ function WorkflowProgress({ currentExecution }: { currentExecution: WorkflowExec
 
 function WorkflowRunButton({
   template,
-  isFeatured,
   isRunning,
   trialLocked,
   executionActive,
   onRun,
 }: {
   template: WorkflowTemplate;
-  isFeatured: boolean;
   isRunning: boolean;
   trialLocked: boolean;
   executionActive: boolean;
@@ -423,7 +409,6 @@ function WorkflowDetail({
   template,
   currentExecution,
   trialLocked,
-  featuredId,
   recentRuns,
   missingArtifactRunIds,
   onRun,
@@ -436,7 +421,6 @@ function WorkflowDetail({
   template: WorkflowTemplate;
   currentExecution: WorkflowExecution | null;
   trialLocked: boolean;
-  featuredId: string | null;
   recentRuns: RunRecord[];
   missingArtifactRunIds: Set<string>;
   onRun: (t: WorkflowTemplate) => void;
@@ -459,8 +443,9 @@ function WorkflowDetail({
     t('workflow.associate.inputs-count', { count: requiredInputCount }),
     t('workflow.associate.outputs-count', { count: outputCount }),
   ].join(' · ');
-  const shortDescription = templateShortDescription(template);
-  const showLongDescription = template.description !== shortDescription;
+  const shortDescription = getWorkflowShortDescription(template);
+  const longDescription = getWorkflowLongDescription(template);
+  const detailsDescription = longDescription ?? (template.description !== shortDescription ? template.description : null);
   const categoryDetails = categoryDescription(t, config.key);
 
   return (
@@ -492,7 +477,7 @@ function WorkflowDetail({
               {t('workflow.associate.details')}
             </summary>
             <div style={{ display: 'grid', gap: 6, marginTop: 8, color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', lineHeight: 'var(--kp-leading-relaxed)' }}>
-              {showLongDescription ? <p style={{ margin: 0 }}>{template.description}</p> : null}
+              {detailsDescription ? <p style={{ margin: 0 }}>{detailsDescription}</p> : null}
               <p style={{ margin: 0 }}>{categoryDetails}</p>
             </div>
           </details>
@@ -501,11 +486,10 @@ function WorkflowDetail({
           <WorkflowTrustLine
             provider={egressProvider}
             mode={confidentialityMode}
-            onClick={onOpenSettings}
+            {...(onOpenSettings !== undefined && { onClick: onOpenSettings })}
           />
           <WorkflowRunButton
             template={template}
-            isFeatured={template.id === featuredId}
             isRunning={isRunning}
             trialLocked={trialLocked}
             executionActive={currentExecution !== null}
@@ -956,7 +940,6 @@ export function AssociateHome({
               template={selectedWorkflow}
               currentExecution={currentExecution}
               trialLocked={trialGate.isLocked}
-              featuredId={featuredId}
               recentRuns={selectedWorkflowRuns}
               missingArtifactRunIds={missingArtifactRunIds}
               onRun={onStartWorkflow}

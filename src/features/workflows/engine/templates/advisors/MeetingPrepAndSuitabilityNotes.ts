@@ -145,7 +145,7 @@ Produce a structured pre-meeting prep document in Markdown. At the top, include 
 export const MeetingPrepAndSuitabilityNotes: WorkflowTemplate = {
   id: 'advisors-meeting-prep-suitability-notes',
   name: 'Meeting Prep & Suitability Notes',
-  description: 'Generates a complete pre-meeting briefing package: a client snapshot, last-meeting recap, current concerns summary, suitability checklist stub, and suggested talking points, all in one advisor working document.',
+  description: 'Build a pre-meeting brief with client snapshot, recap, suitability prompts, and talking points.',
   version: '1.0.0',
   category: 'advisors',
   requiresVerification: true,
