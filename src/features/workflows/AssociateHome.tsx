@@ -388,13 +388,13 @@ function WorkflowTrustLine({
         ? t('workflow.associate.trust-assured')
         : t('workflow.associate.trust-direct', { provider: providerDisplayName(provider) });
   const content = (
-    <span data-testid="egress-indicator-label">{label}</span>
+    <span data-testid="egress-indicator-workflow-label">{label}</span>
   );
   const destination = isDisconnected ? 'none' : info?.destination ?? 'provider-direct';
   const dataLeaves = info?.dataLeaves ? 'true' : 'false';
   const details = info ? `${info.label}. ${info.note}` : label;
   const sharedProps = {
-    'data-testid': 'egress-indicator',
+    'data-testid': 'egress-indicator-workflow',
     'data-destination': destination,
     'data-data-leaves': dataLeaves,
     details,
@@ -507,11 +507,13 @@ function WorkflowDetail({
           </details>
         </div>
         <div style={{ display: 'flex', flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
-          <WorkflowTrustLine
-            provider={egressProvider}
-            mode={confidentialityMode}
-            {...(onOpenSettings !== undefined && { onClick: onOpenSettings })}
-          />
+          {egressProvider !== null && (
+            <WorkflowTrustLine
+              provider={egressProvider}
+              mode={confidentialityMode}
+              {...(onOpenSettings !== undefined && { onClick: onOpenSettings })}
+            />
+          )}
           <WorkflowRunButton
             template={template}
             isRunning={isRunning}

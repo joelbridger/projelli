@@ -126,6 +126,132 @@
       "replacement": null,
       "reason": "WP6 removes per-section show-all expansion because the rail list scrolls all matching workflows.",
       "date": "2026-07-07"
+    },
+    {
+      "removed": "ask-scope-pill",
+      "replacement": "scope-toggle",
+      "reason": "Read-only scope pill folded into the scope dropdown trigger. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "client-map-empty-canvas",
+      "replacement": null,
+      "reason": "Dead 'click a client' pane removed; All Clients is the landing surface. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "clientmap-edit-history",
+      "replacement": "clientmap-section-history",
+      "reason": "Per-section history folded into the History slide panel (menu entry). UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "documents-files-tab",
+      "replacement": "docs-files-toggle",
+      "reason": "Files/Trash segmented control replaced by pinned rail items (alias kept on rail). UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "email-filed-matter",
+      "replacement": "email-filed-row",
+      "reason": "Filing chip wall replaced by one searchable filed-to row. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-artifact-send-panel",
+      "replacement": "meeting-send-panel",
+      "reason": "Two send boxes merged into one MeetingSendPanel drawer. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-add-${}",
+      "replacement": "meeting-recipient-add-person",
+      "reason": "Per-artifact add fields replaced by one person-first matrix. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-artifact-${}",
+      "replacement": "meeting-recipient-person-${}",
+      "reason": "Artifact-first sections replaced by person rows with artifact chips. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-auto-list",
+      "replacement": "meeting-send-panel",
+      "reason": "Auto list folded into the unified matrix. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-input-${}",
+      "replacement": "meeting-recipient-input-person",
+      "reason": "One add-person input replaces four per-artifact inputs. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-manual-picker",
+      "replacement": "meeting-recipient-input-person",
+      "reason": "Manual picker path unified with the calendar matrix. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-remove-${}-${}",
+      "replacement": "meeting-recipient-remove-person-${}",
+      "reason": "Per-artifact removal replaced by per-person removal. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-selected-${}-${}",
+      "replacement": "meeting-recipient-person-${}",
+      "reason": "Selection chips folded into person rows. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipient-suggestion-${}-${}",
+      "replacement": "meeting-recipient-suggestion-${}",
+      "reason": "Suggestions are person-level now (restored in fix round 1). UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipients-panel",
+      "replacement": "meeting-send-panel",
+      "reason": "Recipients panel merged into MeetingSendPanel. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-recipients-save",
+      "replacement": null,
+      "reason": "Save button replaced by serialized autosave with unmount flush. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-send-preview-list",
+      "replacement": "meeting-send-ready-count",
+      "reason": "Inline preview folded into the confirm dialog; panel shows ready count. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "meeting-subtab-send-to-team",
+      "replacement": "meeting-entry-send",
+      "reason": "Send left the tab row; header action opens the send drawer. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "open-data-map",
+      "replacement": "privacy-center-open-data-map",
+      "reason": "Duplicate Data Map doors deduped into Privacy Center. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "section-ai-privacy",
+      "replacement": "section-ai",
+      "reason": "AI & Privacy split into AI and Privacy rail items (settings nav flattened). UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
+    },
+    {
+      "removed": "status-bar-active-file",
+      "replacement": null,
+      "reason": "Duplicate active-file chip removed; breadcrumb + Modified chip remain. UX simplification preview (9-lane redesign, reviewed per-lane).",
+      "date": "2026-07-08"
     }
   ]
 }
