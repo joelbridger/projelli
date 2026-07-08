@@ -145,12 +145,34 @@ describe('Spine — Clients section', () => {
     expect(screen.getByTestId('spine-new-client')).toBeInTheDocument();
   });
 
-  it('shows client search as an icon until a short list needs it', () => {
+  it('shows client search as an icon that expands on click', () => {
     render(<Spine activeTab="matters" />);
 
     expect(screen.queryByTestId('spine-client-search')).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId('spine-client-search-toggle'));
     expect(screen.getByTestId('spine-client-search')).toBeInTheDocument();
+  });
+
+  it('stays an icon regardless of how many clients exist (C2: no threshold UI — regression, caught by Jameson on the bench)', () => {
+    matterMocks.matters = Array.from({ length: 26 }, (_, i) => ({
+      ...matterMocks.matters[0],
+      id: `m${i}`,
+      label: `Client ${i}`,
+      client: `Client ${i}`,
+    }));
+    render(<Spine activeTab="matters" />);
+
+    expect(screen.queryByTestId('spine-client-search')).not.toBeInTheDocument();
+    expect(screen.getByTestId('spine-client-search-toggle')).toBeInTheDocument();
+  });
+
+  it('collapses back to the icon when the empty search field loses focus', () => {
+    render(<Spine activeTab="matters" />);
+
+    fireEvent.click(screen.getByTestId('spine-client-search-toggle'));
+    const input = screen.getByTestId('spine-client-search');
+    fireEvent.blur(input);
+    expect(screen.queryByTestId('spine-client-search')).not.toBeInTheDocument();
   });
 
   it('filters the client rail as the advisor types in the client search box', () => {

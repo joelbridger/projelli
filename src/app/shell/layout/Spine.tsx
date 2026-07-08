@@ -107,10 +107,11 @@ export function Spine({
         m.client.toLowerCase().includes(q)
     );
   })();
+  // C2: search is ALWAYS an icon that expands on demand — never an always-open
+  // bar, and never dependent on how many clients exist (threshold UI changes
+  // shape as data grows, so users can't build habits).
   const clientSearchVisible =
-    clientSearchExpanded ||
-    matters.length > 7 ||
-    clientSearchQuery.trim().length > 0;
+    clientSearchExpanded || clientSearchQuery.trim().length > 0;
 
   useEffect(() => {
     if (clientSearchExpanded && clientsOpen) {
@@ -448,6 +449,10 @@ export function Spine({
                     value={clientSearchQuery}
                     onChange={(e) => {
                       setClientSearchQuery(e.currentTarget.value);
+                    }}
+                    onBlur={() => {
+                      // Collapse back to the icon when the field is left empty.
+                      if (clientSearchQuery.trim().length === 0) setClientSearchExpanded(false);
                     }}
                     placeholder={t('spine.find-client')}
                     aria-label={t('spine.find-client')}
