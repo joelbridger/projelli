@@ -80,7 +80,7 @@ import { saveFile } from '@/platform/utils/saveFile';
 import { withShortcut } from '@/platform/utils/shortcuts';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
-import type { ChatProviderId } from '@/platform/providers/providerFactory';
+import { toRealProviderId } from '@/platform/privacy/activeEgressProvider';
 import { resolveRedlineProvider } from './resolveRedlineProvider';
 import { resolveInlineEditProvider } from './resolveInlineEditProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
@@ -354,7 +354,10 @@ export function MainPanel({
   // resolved cloud provider otherwise, so all surfaces agree.
   const confidentialityMode = useConfidentialityMode();
   const redlineLocalOnly = modeRestrictsToLocal(confidentialityMode);
-  const activeEgressProvider = useActiveEgressProvider(confidentialityMode) as ChatProviderId;
+  // Narrow the badge status to a REAL provider id (null for 'none' /
+  // 'local-pending' / "checking"): a badge sentinel must never enter redline /
+  // inline-edit provider resolution (fix round 2, item 2).
+  const activeEgressProvider = toRealProviderId(useActiveEgressProvider(confidentialityMode));
   // F-503 — in Local-only mode prefer the embedded Advisor Prep Hero Local AI for the
   // redline / inline edit when its model is downloaded + ready (it needs no
   // separate Ollama daemon), the same on-device default Ask / Chat / Client Map

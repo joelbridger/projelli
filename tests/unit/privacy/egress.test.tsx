@@ -257,6 +257,49 @@ describe('EgressIndicator', () => {
 
     expect(onClick).toHaveBeenCalledOnce();
   });
+
+  it('the clickable status pill is a real button with an AI-options aria-label (keyboard reachable)', () => {
+    setMode('direct');
+    render(<EgressIndicator provider="anthropic" variant="status" onClick={() => {}} />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.tagName).toBe('BUTTON');
+    expect(el.getAttribute('aria-label')).toMatch(/open AI options/i);
+  });
+
+  it('local-pending renders "Local AI setting up", never "Using local AI" (item 3)', () => {
+    setMode('local-only');
+    render(<EgressIndicator provider="local-pending" variant="status" />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('local-pending');
+    expect(el.getAttribute('data-data-leaves')).toBe('false');
+    expect(el.textContent).toMatch(/setting up/i);
+    expect(el.textContent).not.toMatch(/Using local AI/i);
+  });
+
+  it('assured mode + a live managed route renders the assured-proxy destination (item 2)', () => {
+    setMode('assured');
+    render(<EgressIndicator provider="openai" mode="assured" assuredAvailable variant="full" />);
+    const el = screen.getByTestId('egress-indicator');
+    expect(el.getAttribute('data-destination')).toBe('assured-proxy');
+    expect(el.getAttribute('data-severity')).toBe('assured');
+  });
+
+  it('assured mode with NO managed route falls back to the honest BYOK-direct story', () => {
+    setMode('assured');
+    render(<EgressIndicator provider="openai" mode="assured" assuredAvailable={false} variant="full" />);
+    expect(screen.getByTestId('egress-indicator').getAttribute('data-destination')).toBe('provider-direct');
+  });
+
+  it('a testId override gives the composer indicator DISTINCT handles (item 4)', () => {
+    setMode('direct');
+    render(
+      <EgressIndicator provider="anthropic" variant="full" testId="egress-indicator-composer" />,
+    );
+    expect(screen.getByTestId('egress-indicator-composer')).toBeTruthy();
+    expect(screen.getByTestId('egress-indicator-composer-label')).toBeTruthy();
+    // The default top-bar handle must NOT be emitted by the overridden instance.
+    expect(screen.queryByTestId('egress-indicator')).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

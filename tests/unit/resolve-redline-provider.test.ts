@@ -66,7 +66,7 @@ describe('resolveRedlineProvider (BUG-009)', () => {
     ).toBe('anthropic');
   });
 
-  it('always uses the egress provider (ollama) in Local-only mode, ignoring cloud keys', () => {
+  it('resolves the local engine directly in Local-only mode, ignoring cloud keys', () => {
     expect(
       resolveRedlineProvider({
         localOnly: true,
@@ -74,6 +74,30 @@ describe('resolveRedlineProvider (BUG-009)', () => {
         apiKeys: [key('openai', true)],
       }),
     ).toBe('ollama');
+  });
+
+  it('never leaks a badge sentinel: a null egressProvider in Local-only still resolves a real local engine (item 2)', () => {
+    // MainPanel narrows the badge status through toRealProviderId, so 'none' /
+    // 'local-pending' arrive here as null. Local-only must still return a real
+    // on-device engine, never null/sentinel.
+    expect(
+      resolveRedlineProvider({ localOnly: true, egressProvider: null, apiKeys: [], localModelReady: false }),
+    ).toBe('ollama');
+    expect(
+      resolveRedlineProvider({ localOnly: true, egressProvider: null, apiKeys: [], localModelReady: true }),
+    ).toBe('lantern-local');
+  });
+
+  it('a null egressProvider (badge sentinel) still picks any valid key in cloud mode', () => {
+    expect(
+      resolveRedlineProvider({ localOnly: false, egressProvider: null, apiKeys: [key('openai', true)] }),
+    ).toBe('openai');
+  });
+
+  it('a null egressProvider with no valid key falls back to a REAL default, never a sentinel', () => {
+    expect(
+      resolveRedlineProvider({ localOnly: false, egressProvider: null, apiKeys: [] }),
+    ).toBe('anthropic');
   });
 
   it('F-503: prefers the embedded Lantern Local AI in Local-only when its model is ready', () => {

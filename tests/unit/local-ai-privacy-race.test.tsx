@@ -7,6 +7,10 @@
  * ready, there is a brief window after mount before the async Tauri status probe
  * resolves. The old code returned 'anthropic' in that window, so the badge
  * claimed "data leaves" and a send could route to the cloud. These tests pin the
+ * (F1 fix round 1, item 4: this asserts the chat COMPOSER's action-time egress
+ * indicator, whose handle is now `egress-indicator-chat` — distinct from the
+ * always-visible top-bar pill's `egress-indicator`.)
+ *
  * fix end-to-end through AIChatViewer:
  *   - status UNKNOWN (probe pending) -> badge shows a neutral "Checking local AI"
  *     (data-data-leaves=false) and the send button is DISABLED;
@@ -79,10 +83,10 @@ describe('Privacy initial-load race: local-model status UNKNOWN (probe pending)'
     localStatus.current = makeSnap({ state: 'idle', probed: false });
     render(<AIChatViewer chatData={unsetChat()} apiKeys={[]} />);
 
-    const badge = screen.getByTestId('egress-indicator');
+    const badge = screen.getByTestId('egress-indicator-chat');
     expect(badge.getAttribute('data-destination')).toBe('pending');
     expect(badge.getAttribute('data-data-leaves')).toBe('false');
-    expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/Checking AI destination/i);
+    expect(screen.getByTestId('egress-indicator-chat-label').textContent).toMatch(/Checking AI destination/i);
 
     // Even with text typed, send stays disabled until the status resolves —
     // there is no honest destination to send to yet.
@@ -96,7 +100,7 @@ describe('Privacy initial-load race: local-model READY', () => {
     localStatus.current = makeSnap({ state: 'ready', probed: true });
     render(<AIChatViewer chatData={unsetChat()} apiKeys={[]} />);
 
-    const badge = screen.getByTestId('egress-indicator');
+    const badge = screen.getByTestId('egress-indicator-chat');
     expect(badge.getAttribute('data-destination')).toBe('local');
     expect(badge.getAttribute('data-data-leaves')).toBe('false');
 
@@ -115,7 +119,7 @@ describe('Privacy initial-load race: local-model ABSENT (probe resolved)', () =>
     localStatus.current = makeSnap({ state: 'absent', probed: true });
     render(<AIChatViewer chatData={unsetChat()} apiKeys={[]} />);
 
-    const badge = screen.getByTestId('egress-indicator');
+    const badge = screen.getByTestId('egress-indicator-chat');
     expect(badge.getAttribute('data-destination')).toBe('none');
     expect(badge.getAttribute('data-data-leaves')).toBe('false');
 
@@ -134,7 +138,7 @@ describe('Privacy initial-load race: local-model ABSENT (probe resolved)', () =>
       />,
     );
 
-    const badge = screen.getByTestId('egress-indicator');
+    const badge = screen.getByTestId('egress-indicator-chat');
     expect(badge.getAttribute('data-destination')).toBe('provider-direct');
     expect(badge.getAttribute('data-data-leaves')).toBe('true');
   });

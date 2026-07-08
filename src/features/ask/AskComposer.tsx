@@ -278,7 +278,15 @@ export function AskComposer({
           <AnswerScopePopover filesOnly={filesOnly} onFilesOnlyChange={onFilesOnlyChange} banner={banner} />
         </div>
         {inputRow}
-        <EgressIndicator provider={egressProvider} mode={egressMode} variant="full" />
+        {/* Action-time egress signal. Its testid is distinct from the
+            always-visible top-bar pill so a test gripping the top-bar handle
+            never also matches this one on the Ask page. */}
+        <EgressIndicator
+          provider={egressProvider}
+          mode={egressMode}
+          variant="full"
+          testId="egress-indicator-composer"
+        />
       </div>
     );
   }

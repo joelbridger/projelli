@@ -68,7 +68,7 @@ describe('en.json structure snapshot', () => {
         "model-download": 9,
         "onboarding": 67,
         "plugins": 4,
-        "privacy": 31,
+        "privacy": 33,
         "quick-open": 1,
         "research": 11,
         "search": 6,
@@ -82,7 +82,7 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 62,
+        "workflow": 65,
         "workspace": 31,
       }
     `);
@@ -263,7 +263,12 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +3 = F1 single-source egress (UX lane L0): workflow.associate.egress-{local,
+    //      cloud,none} — the quiet TrustNote line above Run that replaced the
+    //      duplicate egress status pill in the workflow template detail.
+    // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
+    //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
+    expect(flat.length).toBe(1552); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

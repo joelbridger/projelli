@@ -51,6 +51,16 @@ export type EgressProvider = string;
 export const NO_AI_PROVIDER = 'none';
 
 /**
+ * Sentinel for "Local-only mode is on, but no on-device engine is usable YET"
+ * (the embedded model is still downloading AND no reachable Ollama). The send
+ * path throws an honest "still setting up" error in this state, so the badge must
+ * NOT claim "Using local AI" — it renders a neutral "Local AI setting up" badge
+ * instead. Like NO_AI_PROVIDER, this is a badge sentinel, never a real provider
+ * id, and it never reaches `resolveEgress`'s routing.
+ */
+export const LOCAL_PENDING_PROVIDER = 'local-pending';
+
+/**
  * Confidentiality mode (the visible "spectrum" the user can choose).
  *
  *   - 'local-only'  Only local models (Ollama) are usable; cloud providers are

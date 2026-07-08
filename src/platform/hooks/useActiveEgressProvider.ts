@@ -1,116 +1,69 @@
 /**
- * useActiveEgressProvider — derive the HONEST active AI provider for any egress
- * surface (the trust bar, Privacy Center, and any other display that lives
- * outside a specific chat, so there is no "active chat provider" to read).
+ * useActiveEgressProvider / useActiveEgressDestination — the top-bar trust
+ * badge's destination, resolved from THE single source of truth in
+ * `activeEgressProvider.ts`.
  *
  * The egress badge is the product's #1 trust signal, so it must never name a
- * provider the user can't actually send to, and it must agree with what Ask
- * actually does. Ask resolves the active provider from KEY PRESENCE via
- * `KeychainService.hasKey()` (askHelpers.ts) — on desktop the real keys live in
- * the OS keychain, and the legacy `apiKey_*` localStorage keys are migrated away.
- * So this hook reads key presence from the SAME source (KeychainService), NOT
- * from localStorage, or the badge would show "No AI connected" on desktop while
- * Ask happily sends with the keychain key. Resolution, in priority order:
+ * destination the user can't actually send to, and it must agree with what the
+ * real sends do. This file keeps only the React reactivity.
  *
- *   1. local-only mode => always 'ollama' (nothing leaves regardless of config).
- *   2. The user's saved default provider — but ONLY if a key for it exists.
- *   3. Otherwise, the first cloud provider that has a key, in the same order the
- *      settings UI presents them: anthropic > openai > google.
- *   4. Otherwise the 'none' sentinel — rendered as a neutral "No AI connected"
- *      badge, never a guessed provider.
- *
- * Reactivity: keys change through KeychainService.setKey/deleteKey (which call
- * `notifyEgressConfigChange()`), and the cross-tab `storage` event covers other
- * tabs, so the badge updates the moment a key is added or removed mid-session.
+ * Fix round 1, item 1 — the mode-switch DISPLAY RACE (recreated the old B-PRIV-1
+ * bug): the confidentiality mode and the resolved provider come from TWO
+ * independent hooks, so on a Local-only → Direct switch the component re-renders
+ * with the NEW mode while this hook still holds the OLD provider (a local engine)
+ * for one frame — painting "Using local AI" under Direct. Fix: tag the resolved
+ * value with the mode it was resolved UNDER and return `null` ("checking") until
+ * the tag matches the requested mode, exactly like useAsk's pre-send banner.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { NO_AI_PROVIDER, type EgressProvider } from '@/platform/privacy/egress';
-import { IS_DEMO } from '@/web-demo/demoModeFlag';
-import { KeychainService } from '@/platform/providers/KeychainService';
+import { type EgressProvider } from '@/platform/privacy/egress';
 import {
   EGRESS_CONFIG_CHANGE_EVENT,
   notifyEgressConfigChange,
 } from '@/platform/privacy/egressConfigEvents';
-import { SK_DEFAULT_PROVIDER } from '@/config/identity';
+import {
+  resolveActiveEgressDestination,
+  resolveActiveEgressDestinationSync,
+  resolveActiveEgressProviderId,
+  resolveActiveEgressProviderIdSync,
+  type ActiveEgressDestination,
+  type ActiveEgressProviderId,
+} from '@/platform/privacy/activeEgressProvider';
+import { onLocalAiReadinessChange } from '@/platform/privacy/localAiReadiness';
 
 // Re-export so existing importers keep working; the canonical home is
 // egressConfigEvents (KeychainService imports it there to avoid a cycle).
 export { EGRESS_CONFIG_CHANGE_EVENT, notifyEgressConfigChange };
 
-const CLOUD_ORDER = ['anthropic', 'openai', 'google'] as const;
-
-function readDefaultProvider(): string | null {
-  try {
-    return localStorage.getItem(SK_DEFAULT_PROVIDER);
-  } catch {
-    return null;
-  }
-}
-
-/** Shared resolution given a key-presence predicate. */
-function resolveFrom(mode: string, hasKey: (p: string) => boolean): EgressProvider {
-  if (mode === 'local-only') return 'ollama';
-  const def = readDefaultProvider();
-  // Honor the saved default only when it actually has a key behind it.
-  if ((def === 'anthropic' || def === 'openai' || def === 'google') && hasKey(def)) {
-    return def;
-  }
-  for (const p of CLOUD_ORDER) {
-    if (hasKey(p)) return p;
-  }
-  return NO_AI_PROVIDER;
-}
-
 /**
- * Synchronous best-effort resolution from the key METADATA mirror
- * (`getStoredKeys`), which is kept in localStorage on every platform — including
- * desktop, where the secret itself lives in the OS keychain. Used as the hook's
- * initial value so the badge does not flash "No AI connected" before the
- * authoritative async check resolves. Exported for non-React reads/tests.
+ * Synchronous best-effort resolution from the key metadata mirror. Exported for
+ * non-React reads/tests. Delegates to the single source of truth.
  */
 export function resolveActiveEgressProviderSync(mode: string): EgressProvider {
-  if (mode === 'local-only') return 'ollama';
-  // Web demo: Ask sends through the demo provider (BYOK-direct or shared proxy),
-  // both forwarding to Claude. Report 'anthropic' so the trust badge matches what
-  // Ask actually does instead of falsely reading "No AI connected"; the demo
-  // egress copy is selected by the indicator's isDemo handling.
-  if (IS_DEMO) return 'anthropic';
-  let present = new Set<string>();
-  try {
-    present = new Set(new KeychainService().getStoredKeys().map((k) => k.provider));
-  } catch {
-    // KeychainService unavailable — fall through to "no provider".
-  }
-  return resolveFrom(mode, (p) => present.has(p));
+  return resolveActiveEgressProviderIdSync(mode);
 }
 
 /**
- * Authoritative resolution using the EXACT key source Ask sends with
- * (`KeychainService.hasKey`: backend — OS keychain on desktop — plus env keys),
- * so the badge and the actual send can never disagree.
+ * Authoritative resolution using the same sources the real send uses.
+ * Delegates to the single source of truth so the badge and the send agree.
  */
-export async function resolveActiveEgressProvider(mode: string): Promise<EgressProvider> {
-  if (mode === 'local-only') return 'ollama';
-  // Web demo: see resolveActiveEgressProviderSync — the demo provider forwards to
-  // Claude, so the honest active provider is 'anthropic'.
-  if (IS_DEMO) return 'anthropic';
-  const kc = new KeychainService();
-  const present = new Set<string>();
-  for (const p of CLOUD_ORDER) {
-    try {
-      if (await kc.hasKey(p)) present.add(p);
-    } catch {
-      // Probe failed for this provider — treat as absent.
-    }
-  }
-  return resolveFrom(mode, (p) => present.has(p));
+export function resolveActiveEgressProvider(mode: string): Promise<EgressProvider> {
+  return resolveActiveEgressProviderId(mode);
 }
 
-export function useActiveEgressProvider(mode: string): EgressProvider {
+/**
+ * The full destination (provider id + whether the firm assured proxy is live),
+ * MODE-TAGGED. Returns `null` for the frames where the resolved value belongs to
+ * a different mode than the one requested — the badge renders "checking" then,
+ * never a stale destination under a new mode.
+ */
+export function useActiveEgressDestination(
+  mode: string,
+): (ActiveEgressDestination & { mode: string }) | null {
   const requestIdRef = useRef(0);
-  const [provider, setProvider] = useState<EgressProvider>(() =>
-    resolveActiveEgressProviderSync(mode),
+  const [resolved, setResolved] = useState<ActiveEgressDestination & { mode: string }>(
+    () => ({ ...resolveActiveEgressDestinationSync(mode), mode }),
   );
 
   useEffect(() => {
@@ -120,22 +73,44 @@ export function useActiveEgressProvider(mode: string): EgressProvider {
       // badge with stale state after a newer change (e.g. rapid key add/remove).
       const requestId = ++requestIdRef.current;
       // Instant, flicker-free best-effort from the metadata mirror...
-      setProvider(resolveActiveEgressProviderSync(mode));
-      // ...then correct it with the authoritative key-presence check (keychain
-      // on desktop), so the badge matches exactly what Ask would send with.
-      void resolveActiveEgressProvider(mode).then((p) => {
-        if (!cancelled && requestId === requestIdRef.current) setProvider(p);
+      setResolved({ ...resolveActiveEgressDestinationSync(mode), mode });
+      // ...then correct it with the authoritative check, so the badge matches
+      // exactly what the real send would do.
+      void resolveActiveEgressDestination(mode).then((d) => {
+        if (!cancelled && requestId === requestIdRef.current) setResolved({ ...d, mode });
       });
     };
     update();
     window.addEventListener(EGRESS_CONFIG_CHANGE_EVENT, update);
     window.addEventListener('storage', update);
+    // item 3: local-model READINESS signals through a separate Tauri event, not
+    // the config/storage events above. Re-resolve on it so a "Local AI setting
+    // up" badge flips to "Using local AI" when the download finishes — no reload.
+    const stopLocalReadiness = onLocalAiReadinessChange(update);
     return () => {
       cancelled = true;
       window.removeEventListener(EGRESS_CONFIG_CHANGE_EVENT, update);
       window.removeEventListener('storage', update);
+      stopLocalReadiness();
     };
   }, [mode]);
 
-  return provider;
+  // Mode-tagged: never return a destination resolved under a DIFFERENT mode. On a
+  // mode switch the component re-renders with the new mode BEFORE this effect
+  // re-resolves, so returning the stale value here would paint e.g. a local
+  // engine under Direct for one frame. Return null ("checking") until they match.
+  return resolved.mode === mode ? resolved : null;
+}
+
+/**
+ * Provider-id-only view of {@link useActiveEgressDestination}. The value MAY be a
+ * badge sentinel ('none', 'local-pending') or `null` ("checking"), so any
+ * PROVIDER-RESOLUTION consumer must narrow it through `toRealProviderId` before
+ * treating it as a real provider id (fix round 2, item 2). The precise return
+ * type makes that a compile-time requirement — a plain `as ChatProviderId` no
+ * longer type-checks.
+ */
+export function useActiveEgressProvider(mode: string): ActiveEgressProviderId | null {
+  const dest = useActiveEgressDestination(mode);
+  return dest ? dest.providerId : null;
 }

@@ -232,6 +232,7 @@ export function ChatInputBanners({
           assuredAvailable={assuredAvailableForChat}
           variant="full"
           className="mb-2"
+          testId="egress-indicator-chat"
         />
     </>
   );

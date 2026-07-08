@@ -18,11 +18,9 @@ import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import { createProvider } from '@/platform/providers/providerFactory';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
-import { localLlmModelStatus } from '@/platform/utils/tauri-commands';
 import { mailGetMessage } from '@/platform/utils/mail-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
-import { NO_AI_PROVIDER } from '@/platform/privacy/egress';
 import {
   fileToolsAllowed,
   broadestConsentScope,
@@ -33,19 +31,16 @@ import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/platform/types/ai';
-import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   cloudKeyPresenceFromValues,
-  resolveCloudSettingsDefaults,
-  resolvePreferredCloudProvider,
   type CloudProviderKeyValues,
-  type CloudProviderKeyPresence,
 } from '@/platform/providers/resolvePreferredCloudProvider';
-import { getInvalidProviders, getVerifiedProviders } from '@/platform/providers/keyVerification';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
-  PROFESSION_MODEL_STORAGE_KEY,
-  PROFESSION_PROVIDER_STORAGE_KEY,
-} from '@/platform/profile/professionModel';
+  resolveActiveCloudResolution,
+  resolveActiveEgressProviderId,
+  type ActiveEgressProviderId,
+} from '@/platform/privacy/activeEgressProvider';
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -352,71 +347,19 @@ export async function resolveLocalOnlyAskProvider(): Promise<ResolvedAskProvider
 }
 
 /**
- * The cloud provider (+ model) the Ask send would prefer for the given key
- * PRESENCE, honouring the user's SELECTED default provider/model and the
- * verified/invalid sets. Shared by buildResolvedAskProvider (the real send) and
- * resolveActiveAskProviderId (the pre-send display badge) so the two can never
- * disagree on WHICH cloud provider is chosen — e.g. keys for Anthropic+OpenAI
- * with default=OpenAI must resolve to OpenAI in BOTH.
- */
-function resolveAskCloudResolution(availableKeys: CloudProviderKeyPresence) {
-  const settings = useSettingsStore.getState();
-  return resolvePreferredCloudProvider({
-    availableKeys,
-    settings: resolveCloudSettingsDefaults(
-      settings.getSetting('defaultProvider'),
-      settings.getSetting('defaultModel'),
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(PROFESSION_PROVIDER_STORAGE_KEY)
-        : null,
-      typeof localStorage !== 'undefined'
-        ? localStorage.getItem(PROFESSION_MODEL_STORAGE_KEY)
-        : null,
-    ),
-    verifiedProviders: getVerifiedProviders(),
-    invalidProviders: getInvalidProviders(),
-  });
-}
-
-/**
  * The providerId the NEXT Ask / Search send will use — for DISPLAY only (the
  * pre-send egress badge). No provider construction and no confidentiality-gate
- * side effects, so it is safe to call from a render effect. Mirrors
- * buildResolvedAskProvider's destination decision so the badge never names a
- * different engine than the send will actually use:
- *   - Local-only mode     -> the local engine (embedded-when-ready, else Ollama);
- *   - else the cloud provider the send would pick (via resolveAskCloudResolution,
- *     honouring the user's selected default), when a key for it is present;
- *   - else (no cloud key) -> the local engine (embedded-when-ready, else Ollama).
+ * side effects, so it is safe to call from a render effect.
+ *
+ * F1: this now delegates to THE single source of truth
+ * (`resolveActiveEgressProviderId` in activeEgressProvider.ts) — the SAME
+ * function the top-bar TrustBar resolves through — so the pre-send badge and the
+ * top bar can never disagree on one screen. That resolver mirrors
+ * buildResolvedAskProvider's destination decision, so the badge never names a
+ * different engine than the send will actually use.
  */
-export async function resolveActiveAskProviderId(): Promise<ActiveAskProviderId> {
-  const localId = async (): Promise<'lantern-local' | 'ollama'> => {
-    try {
-      if ((await localLlmModelStatus()) === 'ready') return 'lantern-local';
-    } catch {
-      // Desktop-only command unavailable or probe failed — fall back to Ollama.
-    }
-    return 'ollama';
-  };
-  if (isLocalOnlyMode()) return await localId();
-  // Web demo: Ask routes through the demo provider (BYOK-direct or the shared
-  // demo proxy), both of which forward to Claude — so the honest egress provider
-  // is 'anthropic'. Without this, the demo has no OS-keychain key and the badge
-  // would falsely read "No AI connected". The EgressIndicator's isDemo handling
-  // turns 'anthropic' into the correct demo-proxy / BYOK-direct destination copy.
-  if (IS_DEMO) return 'anthropic';
-  // Read key PRESENCE read-only (hasKey, NOT getKey) — getKey stamps the key's
-  // 'last used' metadata, an unwanted mutation from a display-only badge effect.
-  const kc = new KeychainService();
-  const availableKeys: CloudProviderKeyPresence = {
-    anthropic: await kc.hasKey('anthropic'),
-    openai: await kc.hasKey('openai'),
-    google: await kc.hasKey('google'),
-  };
-  const resolved = resolveAskCloudResolution(availableKeys);
-  if (resolved) return resolved.provider;
-  const localProvider = await resolveAvailableLocalAskProvider();
-  return localProvider?.providerId ?? NO_AI_PROVIDER;
+export async function resolveActiveAskProviderId(): Promise<ActiveEgressProviderId> {
+  return resolveActiveEgressProviderId(getConfidentialityMode());
 }
 
 export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
@@ -453,9 +396,10 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
     openai: (await kc.getKey('openai'))?.trim(),
     google: (await kc.getKey('google'))?.trim(),
   };
-  // Same cloud-selection path the pre-send badge uses (resolveAskCloudResolution),
-  // so the badge name and the actual send can never disagree.
-  const resolved = resolveAskCloudResolution(cloudKeyPresenceFromValues(cloudKeys));
+  // Same cloud-selection path the pre-send badge uses (resolveActiveCloudResolution
+  // in activeEgressProvider.ts), so the badge name and the actual send can never
+  // disagree.
+  const resolved = resolveActiveCloudResolution(cloudKeyPresenceFromValues(cloudKeys));
 
   if (resolved) {
     const apiKey = cloudKeys[resolved.provider];
