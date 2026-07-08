@@ -48,10 +48,13 @@ beforeEach(() => {
 });
 
 describe('resolveActiveEgressProvider — honest, keychain-backed resolution', () => {
-  it('local-only mode is always on-machine, regardless of saved keys', async () => {
+  it('local-only mode never picks a cloud key: with no usable on-device engine it is "local-pending", not the saved provider', async () => {
+    // The local probes are pinned unavailable at the top of this file, so the
+    // strict local-only resolution (item 3) is "setting up" — crucially NOT the
+    // saved Anthropic key. Nothing leaves in local-only, ever.
     await setKey('anthropic');
     localStorage.setItem('lantern_default_provider', 'anthropic');
-    expect(await resolveActiveEgressProvider('local-only')).toBe('ollama');
+    expect(await resolveActiveEgressProvider('local-only')).toBe('local-pending');
   });
 
   it('honors the saved default ONLY when that provider actually has a key', async () => {

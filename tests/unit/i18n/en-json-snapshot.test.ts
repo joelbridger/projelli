@@ -68,7 +68,7 @@ describe('en.json structure snapshot', () => {
         "model-download": 9,
         "onboarding": 67,
         "plugins": 4,
-        "privacy": 31,
+        "privacy": 33,
         "quick-open": 1,
         "research": 11,
         "search": 6,
@@ -266,7 +266,9 @@ describe('en.json structure snapshot', () => {
     // +3 = F1 single-source egress (UX lane L0): workflow.associate.egress-{local,
     //      cloud,none} — the quiet TrustNote line above Run that replaced the
     //      duplicate egress status pill in the workflow template detail.
-    expect(flat.length).toBe(1550); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
+    //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
+    expect(flat.length).toBe(1552); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

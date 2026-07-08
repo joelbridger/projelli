@@ -283,10 +283,18 @@ describe('resolveActiveAskProviderId names the real send engine (pre-send badge)
     expect(await resolveActiveAskProviderId()).toBe('lantern-local');
   });
 
-  it('names Ollama in local-only mode only when the embedded model is absent', async () => {
+  it('names Ollama in local-only mode when the embedded model is absent but Ollama is reachable', async () => {
     h.mode = 'local-only';
     h.localStatus = 'absent';
+    h.ollamaReachable = true;
     expect(await resolveActiveAskProviderId()).toBe('ollama');
+  });
+
+  it('is "local-pending" (setting up) in local-only mode when NEITHER the embedded model nor Ollama is usable — never a false "ollama"', async () => {
+    h.mode = 'local-only';
+    h.localStatus = 'absent';
+    h.ollamaReachable = false;
+    expect(await resolveActiveAskProviderId()).toBe('local-pending');
   });
 
   it('names the cloud provider when a key exists and not local-only', async () => {

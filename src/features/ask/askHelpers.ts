@@ -39,6 +39,7 @@ import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import {
   resolveActiveCloudResolution,
   resolveActiveEgressProviderId,
+  type ActiveEgressProviderId,
 } from '@/platform/privacy/activeEgressProvider';
 
 /* -------------------------------------------------------------------------- */
@@ -357,7 +358,7 @@ export async function resolveLocalOnlyAskProvider(): Promise<ResolvedAskProvider
  * buildResolvedAskProvider's destination decision, so the badge never names a
  * different engine than the send will actually use.
  */
-export async function resolveActiveAskProviderId(): Promise<ActiveAskProviderId> {
+export async function resolveActiveAskProviderId(): Promise<ActiveEgressProviderId> {
   return resolveActiveEgressProviderId(getConfidentialityMode());
 }
 

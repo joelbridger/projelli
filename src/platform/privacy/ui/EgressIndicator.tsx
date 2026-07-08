@@ -21,6 +21,7 @@ import {
   resolveEgress,
   providerDisplayName,
   NO_AI_PROVIDER,
+  LOCAL_PENDING_PROVIDER,
   type EgressProvider,
   type ConfidentialityMode,
   type EgressInfo,
@@ -63,6 +64,13 @@ export interface EgressIndicatorProps {
   variant?: 'full' | 'compact' | 'status';
   className?: string;
   onClick?: (() => void) | undefined;
+  /**
+   * Override the base `data-testid` (defaults to `egress-indicator`). The label
+   * handle becomes `${testId}-label`. Used to give the composer's action-time
+   * indicator a DISTINCT id from the always-visible top-bar pill, so a test that
+   * grips one never matches both on the same page.
+   */
+  testId?: string;
 }
 
 const SEVERITY_STYLES: Record<EgressInfo['severity'], string> = {
@@ -109,6 +117,7 @@ function useEgressView(
     return {
       pending: true as const,
       disconnected: false as const,
+      localPending: false as const,
       label: t('privacy.egress.checking.label'),
       note: t('privacy.egress.checking.note'),
     };
@@ -120,8 +129,22 @@ function useEgressView(
     return {
       pending: true as const,
       disconnected: true as const,
+      localPending: false as const,
       label: t('privacy.egress.none.label'),
       note: t('privacy.egress.none.note'),
+    };
+  }
+  // Local-only mode with no usable on-device engine yet: the send would throw
+  // "still setting up", so the badge must say exactly that — never "Using local
+  // AI". Nothing has left the machine, so this is a neutral (local, no-egress)
+  // pending state.
+  if (provider === LOCAL_PENDING_PROVIDER) {
+    return {
+      pending: true as const,
+      disconnected: false as const,
+      localPending: true as const,
+      label: t('privacy.egress.local-pending.label'),
+      note: t('privacy.egress.local-pending.note'),
     };
   }
   const mode = modeOverride ?? hookMode;
@@ -169,26 +192,40 @@ export function EgressIndicator({
   variant = 'full',
   className,
   onClick,
+  testId,
 }: EgressIndicatorProps) {
   const view = useEgressView(provider, mode, assuredAvailable);
+  // Default handles stay the literal `egress-indicator` / `egress-indicator-label`
+  // (the status + compact variants keep those literals so the handle guard still
+  // tracks them); an explicit testId yields a distinct, parallel set for the
+  // composer's action-time indicator.
+  const rootTestId = testId ?? 'egress-indicator';
+  const labelTestId = testId ? `${testId}-label` : 'egress-indicator-label';
 
   // Neutral "checking" badge while the local-model status probe is unresolved.
   // data-data-leaves is hard "false" — nothing can leave during this window.
   if (view.pending) {
     const disconnected = view.disconnected;
-    const destination = disconnected ? 'none' : 'pending';
+    const localPending = view.localPending;
+    const destination = disconnected ? 'none' : localPending ? 'local-pending' : 'pending';
     const NeutralIcon = disconnected ? CloudOff : Laptop;
+    // Disconnected is a stable state (no pulse); "checking" and "setting up" are
+    // in-progress, so they pulse.
     const pulse = disconnected ? '' : 'animate-pulse';
     const pendingStyles =
       'border-slate-300 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300';
     if (variant === 'status') {
       // Short pill (the demo Ask header badge). Full truth stays in the tooltip
       // + the data-* attributes, so this is still the inspectable indicator.
-      const shortLabel = disconnected ? 'No AI connected' : 'Checking…';
+      const shortLabel = disconnected
+        ? 'No AI connected'
+        : localPending
+          ? 'Local AI setting up'
+          : 'Checking…';
       const statusClassName = cn(
         'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
         pendingStyles,
-        onClick && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        onClick && 'cursor-pointer transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
         className,
       );
       const content = (
@@ -246,7 +283,7 @@ export function EgressIndicator({
     }
     return (
       <div
-        data-testid="egress-indicator"
+        data-testid={rootTestId}
         data-destination={destination}
         data-data-leaves="false"
         role="status"
@@ -259,7 +296,7 @@ export function EgressIndicator({
       >
         <NeutralIcon className={cn('h-4 w-4 mt-0.5 shrink-0', pulse)} aria-hidden />
         <div className="min-w-0">
-          <span data-testid="egress-indicator-label" className="font-semibold">
+          <span data-testid={labelTestId} className="font-semibold">
             {view.label}
           </span>
           <span data-testid="egress-indicator-note" className="ml-1.5 font-normal opacity-90">
@@ -279,7 +316,7 @@ export function EgressIndicator({
     const statusClassName = cn(
       'inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold',
       SEVERITY_STYLES[info.severity],
-      onClick && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      onClick && 'cursor-pointer transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
       className,
     );
     const content = (
@@ -342,7 +379,7 @@ export function EgressIndicator({
 
   return (
     <div
-      data-testid="egress-indicator"
+      data-testid={rootTestId}
       data-destination={info.destination}
       data-severity={info.severity}
       data-data-leaves={info.dataLeaves ? 'true' : 'false'}
@@ -356,7 +393,7 @@ export function EgressIndicator({
     >
       <EgressIcon info={info} className="h-4 w-4 mt-0.5 shrink-0" />
       <div className="min-w-0">
-        <span data-testid="egress-indicator-label" className="font-semibold">
+        <span data-testid={labelTestId} className="font-semibold">
           {label}
         </span>
         {note && (

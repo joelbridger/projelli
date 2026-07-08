@@ -1518,6 +1518,10 @@
         "label": "No AI connected",
         "note": "Connect an AI provider to start getting answers."
       },
+      "local-pending": {
+        "label": "Local AI setting up",
+        "note": "Your on device AI is still downloading or starting up. Nothing has been sent anywhere. Check its progress in Settings, then try again."
+      },
       "sending": "Sending to your AI provider"
     },
     "privileged-matter": {

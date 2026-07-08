@@ -1,30 +1,33 @@
 /**
- * activeEgressProvider — THE single source of truth for "which AI engine will the
- * next request use", as the providerId the egress badge names.
+ * activeEgressProvider — THE single source of truth for "where the next AI
+ * request will actually go", as the DESTINATION the egress badge renders.
  *
  * F1 (the worst UX finding): the top-bar TrustBar and Ask computed this
- * INDEPENDENTLY and could disagree on ONE screen — the top bar said
- * "No AI connected" while Ask's header said "Using local AI" at the same time.
- * Two bugs caused the drift:
- *   1. only Ask fell back to the on-device engine when no cloud key was present
- *      (the trust bar hard-returned "none"); and
- *   2. the two paths even read the user's default provider from different code.
- * A trust indicator that disagrees with itself is worse than none, so BOTH the
- * top bar (via useActiveEgressProvider) and Ask (via resolveActiveAskProviderId)
- * now resolve through the functions here. The pure `pickEgressProviderId` core is
- * unit-tested across the whole matrix, and it mirrors what the real send
- * (buildResolvedAskProvider) actually does, so the badge can never name an
- * engine the send would not use.
+ * INDEPENDENTLY and could disagree on ONE screen. A trust indicator that
+ * disagrees with itself is worse than none, so every egress consumer now resolves
+ * through the functions here.
  *
- * The resolution, in priority order (matching the real send):
- *   1. local-only mode  -> the on-device engine (embedded when ready, else Ollama);
- *   2. web demo         -> 'anthropic' (the demo proxy / BYOK both forward to Claude);
- *   3. a usable cloud key -> the cloud provider the send would pick (settings-aware);
- *   4. no cloud key but a reachable on-device engine -> that local engine;
- *   5. otherwise         -> the 'none' sentinel ("No AI connected").
+ * Fix round 1 hardened three real defects the badge must never have:
+ *   - ASSURED (item 2): in 'assured' mode a firm managed route can send through
+ *     the zero-retention proxy for a provider the user has NO personal key for.
+ *     The resolver checks `resolveAssuredRoute` FIRST (assured wins over personal
+ *     BYOK, exactly like the email send path), and returns `assuredAvailable` so
+ *     the badge renders the assured-proxy destination instead of falsely saying
+ *     "No AI connected" or naming a personal provider.
+ *   - STRICT LOCAL (item 3): in 'local-only' mode we use the SAME strict probe
+ *     the send uses (`resolveAvailableLocalGenerationProvider`) — embedded model
+ *     ready, else a PROVABLY-REACHABLE Ollama. When nothing is usable the badge
+ *     shows "Local AI setting up" (LOCAL_PENDING), never a false "Using local AI".
+ *   - (item 1 lives in useActiveEgressProvider: mode-tagging the resolved value.)
+ *
+ * Priority (matches the real sends): local-only → demo → assured route → cloud
+ * BYOK → on-device fallback → none.
  */
 
-import { NO_AI_PROVIDER } from '@/platform/privacy/egress';
+import {
+  NO_AI_PROVIDER,
+  LOCAL_PENDING_PROVIDER,
+} from '@/platform/privacy/egress';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
@@ -33,8 +36,10 @@ import {
   getVerifiedProviders,
 } from '@/platform/providers/keyVerification';
 import {
+  getDefaultModelForCloudProvider,
   resolveCloudSettingsDefaults,
   resolvePreferredCloudProvider,
+  CLOUD_PROVIDER_ORDER,
   type CloudProviderKeyPresence,
   type PreferredCloudProviderResolution,
 } from '@/platform/providers/resolvePreferredCloudProvider';
@@ -42,52 +47,94 @@ import {
   PROFESSION_MODEL_STORAGE_KEY,
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/platform/profile/professionModel';
-import {
-  isEmbeddedLocalModelReady,
-  resolveAvailableLocalGenerationProvider,
-} from '@/platform/providers/resolveLocalProvider';
+import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
+import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 
-/** The concrete engine ids the badge can name, plus the 'none' sentinel. */
+/** The concrete engine ids the badge can name, plus the two sentinels. */
 export type ActiveEgressProviderId =
   | 'anthropic'
   | 'openai'
   | 'google'
   | 'ollama'
   | 'lantern-local'
-  | 'none';
+  | 'none'
+  | 'local-pending';
 
-export interface EgressProviderSelection {
+/** What the badge needs: the provider id AND whether the firm assured proxy is live. */
+export interface ActiveEgressDestination {
+  providerId: ActiveEgressProviderId;
+  /** True only when the next send routes through the firm zero-retention proxy. */
+  assuredAvailable: boolean;
+}
+
+export interface EgressDestinationSelection {
   /** Local-only confidentiality mode: nothing ever leaves the machine. */
   localOnly: boolean;
   /** Browser web-demo build. */
   isDemo: boolean;
   /**
-   * The cloud provider the send would pick from the user's keys + settings, or
-   * null when no usable cloud key is present.
+   * In 'assured' mode, the cloud provider that has a LIVE firm managed route
+   * (priority-ordered), or null when no assured route is available.
+   */
+  assuredProvider: ActiveEgressProviderId | null;
+  /**
+   * The cloud provider a BYOK send would pick from the user's keys + settings,
+   * or null when no usable cloud key is present.
    */
   cloudProvider: ActiveEgressProviderId | null;
   /**
-   * The on-device engine to name in LOCAL-ONLY mode (always a local engine:
-   * 'lantern-local' when the embedded model is ready, else 'ollama').
+   * The on-device engine ACTUALLY available in LOCAL-ONLY mode (strict probe:
+   * embedded-ready, else reachable Ollama), or null when none is usable yet
+   * (→ "Local AI setting up").
    */
-  localOnlyEngineId: 'lantern-local' | 'ollama';
+  localOnlyEngineId: 'lantern-local' | 'ollama' | null;
   /**
-   * The on-device engine ACTUALLY available right now for the no-cloud-key
-   * fallback in cloud modes, or null when none is reachable.
+   * The on-device engine available as the no-cloud-key fallback in cloud modes,
+   * or null when none is reachable.
    */
   availableLocalEngineId: 'lantern-local' | 'ollama' | null;
 }
 
 /**
- * The pure decision. Given fully-resolved inputs it returns the providerId the
- * badge should name. Deterministic and dependency-free, so it is exhaustively
- * unit-tested — the async wrappers below only gather these inputs.
+ * The pure decision. Given fully-resolved inputs it returns the destination the
+ * badge should render. Deterministic and dependency-free, so it is exhaustively
+ * unit-tested — the async/sync wrappers below only gather these inputs.
  */
-export function pickEgressProviderId(sel: EgressProviderSelection): ActiveEgressProviderId {
-  if (sel.localOnly) return sel.localOnlyEngineId;
-  if (sel.isDemo) return 'anthropic';
-  if (sel.cloudProvider) return sel.cloudProvider;
-  return sel.availableLocalEngineId ?? (NO_AI_PROVIDER as ActiveEgressProviderId);
+export function pickEgressDestination(
+  sel: EgressDestinationSelection,
+): ActiveEgressDestination {
+  if (sel.localOnly) {
+    return sel.localOnlyEngineId
+      ? { providerId: sel.localOnlyEngineId, assuredAvailable: false }
+      : { providerId: LOCAL_PENDING_PROVIDER, assuredAvailable: false };
+  }
+  if (sel.isDemo) return { providerId: 'anthropic', assuredAvailable: false };
+  // Assured wins over personal BYOK (mirrors resolveEmailProvider): selecting
+  // Assured means the firm's zero-retention guarantee, so a leftover personal key
+  // must not silently bypass a managed route the firm configured.
+  if (sel.assuredProvider) return { providerId: sel.assuredProvider, assuredAvailable: true };
+  if (sel.cloudProvider) return { providerId: sel.cloudProvider, assuredAvailable: false };
+  if (sel.availableLocalEngineId) {
+    return { providerId: sel.availableLocalEngineId, assuredAvailable: false };
+  }
+  return { providerId: NO_AI_PROVIDER, assuredAvailable: false };
+}
+
+/**
+ * The provider that has a LIVE firm assured route right now, in the same
+ * priority order the sends use (anthropic → openai → google). Synchronous —
+ * `resolveAssuredRoute` reads the firm session + confidentiality mode from
+ * stores. Only meaningful when the active mode is 'assured'.
+ */
+function resolveActiveAssuredProvider(): ActiveEgressProviderId | null {
+  for (const p of CLOUD_PROVIDER_ORDER) {
+    // The model does not affect whether a route EXISTS; pass the provider default
+    // so the call is well-formed. `stream: false` — display-only, no send.
+    if (resolveAssuredRoute(p, getDefaultModelForCloudProvider(p), false)) {
+      return p;
+    }
+  }
+  return null;
 }
 
 /**
@@ -118,70 +165,74 @@ export function resolveActiveCloudResolution(
 }
 
 /**
- * Authoritative resolution using the EXACT key source the send uses
- * (`KeychainService.hasKey`: OS keychain on desktop + env keys), so the badge and
- * the actual send can never disagree. `mode` is the active confidentiality mode.
+ * Authoritative resolution using the EXACT sources the send uses, so the badge
+ * and the actual send can never disagree. `mode` is the active confidentiality
+ * mode. Returns the full destination (provider id + whether assured is live).
  */
-export async function resolveActiveEgressProviderId(
+export async function resolveActiveEgressDestination(
   mode: string,
-): Promise<ActiveEgressProviderId> {
+): Promise<ActiveEgressDestination> {
   if (mode === 'local-only') {
-    return pickEgressProviderId({
+    // STRICT probe — same as resolveLocalOnlyAskProvider: an engine only when one
+    // is genuinely usable, else LOCAL_PENDING ("setting up").
+    const local = await resolveAvailableLocalGenerationProvider();
+    return pickEgressDestination({
       localOnly: true,
       isDemo: false,
+      assuredProvider: null,
       cloudProvider: null,
-      localOnlyEngineId: (await isEmbeddedLocalModelReady()) ? 'lantern-local' : 'ollama',
+      localOnlyEngineId: local?.providerId ?? null,
       availableLocalEngineId: null,
     });
   }
-  // Web demo: Ask routes through the demo proxy / BYOK, both forwarding to Claude,
-  // so the honest provider is 'anthropic'. There is no OS keychain in the demo.
-  if (IS_DEMO) return 'anthropic';
+  if (IS_DEMO) return { providerId: 'anthropic', assuredAvailable: false };
 
-  const kc = new KeychainService();
-  const availableKeys: CloudProviderKeyPresence = {
-    anthropic: await kc.hasKey('anthropic'),
-    openai: await kc.hasKey('openai'),
-    google: await kc.hasKey('google'),
-  };
-  const cloud = resolveActiveCloudResolution(availableKeys);
+  const assuredProvider = mode === 'assured' ? resolveActiveAssuredProvider() : null;
+  let cloudProvider: ActiveEgressProviderId | null = null;
   let availableLocalEngineId: 'lantern-local' | 'ollama' | null = null;
-  if (!cloud) {
-    const local = await resolveAvailableLocalGenerationProvider();
-    availableLocalEngineId = local?.providerId ?? null;
+  if (!assuredProvider) {
+    const kc = new KeychainService();
+    const availableKeys: CloudProviderKeyPresence = {
+      anthropic: await kc.hasKey('anthropic'),
+      openai: await kc.hasKey('openai'),
+      google: await kc.hasKey('google'),
+    };
+    const cloud = resolveActiveCloudResolution(availableKeys);
+    cloudProvider = (cloud?.provider ?? null) as ActiveEgressProviderId | null;
+    if (!cloud) {
+      const local = await resolveAvailableLocalGenerationProvider();
+      availableLocalEngineId = local?.providerId ?? null;
+    }
   }
-  return pickEgressProviderId({
+  return pickEgressDestination({
     localOnly: false,
     isDemo: false,
-    cloudProvider: (cloud?.provider ?? null) as ActiveEgressProviderId | null,
-    localOnlyEngineId: 'ollama',
+    assuredProvider,
+    cloudProvider,
+    localOnlyEngineId: null,
     availableLocalEngineId,
   });
 }
 
 /**
  * Synchronous best-effort resolution from the key-metadata mirror
- * (`getStoredKeys`, present on every platform — including desktop, where the
- * secret itself is in the OS keychain). Used as the hook's initial value so the
- * badge does not flash before the authoritative async check resolves.
+ * (`getStoredKeys`) plus the sync assured/firm-session getters. Used as the
+ * hook's initial value so the badge does not flash before the authoritative
+ * async check resolves.
  *
- * The sync path CANNOT probe the on-device engine (that is async), so it never
- * claims a local fallback: with no cloud key it returns 'none' and the async
- * resolution fills in a local engine when one is ready. This matches the
- * existing flicker-free contract.
+ * The sync path CANNOT probe the on-device engine (async), so in local-only mode
+ * it returns LOCAL_PENDING ("setting up") — never a false "Using local AI" —
+ * and the async resolution fills in the real engine once confirmed. In cloud
+ * modes with no key it returns 'none' and the async check may fill in a local
+ * fallback.
  */
-export function resolveActiveEgressProviderIdSync(mode: string): ActiveEgressProviderId {
+export function resolveActiveEgressDestinationSync(mode: string): ActiveEgressDestination {
   if (mode === 'local-only') {
-    return pickEgressProviderId({
-      localOnly: true,
-      isDemo: false,
-      cloudProvider: null,
-      localOnlyEngineId: 'ollama',
-      availableLocalEngineId: null,
-    });
+    return { providerId: LOCAL_PENDING_PROVIDER, assuredAvailable: false };
   }
-  if (IS_DEMO) return 'anthropic';
+  if (IS_DEMO) return { providerId: 'anthropic', assuredAvailable: false };
 
+  const assuredProvider = mode === 'assured' ? resolveActiveAssuredProvider() : null;
   let present = new Set<string>();
   try {
     present = new Set(new KeychainService().getStoredKeys().map((k) => k.provider));
@@ -189,16 +240,33 @@ export function resolveActiveEgressProviderIdSync(mode: string): ActiveEgressPro
   } catch {
     // KeychainService unavailable — fall through to "no provider".
   }
-  const cloud = resolveActiveCloudResolution({
-    anthropic: present.has('anthropic'),
-    openai: present.has('openai'),
-    google: present.has('google'),
-  });
-  return pickEgressProviderId({
+  const cloud = assuredProvider
+    ? null
+    : resolveActiveCloudResolution({
+        anthropic: present.has('anthropic'),
+        openai: present.has('openai'),
+        google: present.has('google'),
+      });
+  return pickEgressDestination({
     localOnly: false,
     isDemo: false,
+    assuredProvider,
     cloudProvider: (cloud?.provider ?? null) as ActiveEgressProviderId | null,
-    localOnlyEngineId: 'ollama',
+    localOnlyEngineId: null,
     availableLocalEngineId: null,
   });
+}
+
+/**
+ * Provider-id-only wrappers, for callers/tests that just need the engine name
+ * (Ask's pre-send badge, the two-path-agreement tests). Same single source.
+ */
+export async function resolveActiveEgressProviderId(
+  mode: string,
+): Promise<ActiveEgressProviderId> {
+  return (await resolveActiveEgressDestination(mode)).providerId;
+}
+
+export function resolveActiveEgressProviderIdSync(mode: string): ActiveEgressProviderId {
+  return resolveActiveEgressDestinationSync(mode).providerId;
 }
