@@ -80,9 +80,51 @@
       "date": "2026-07-07"
     },
     {
-      "removed": "documents-toolbar",
-      "replacement": "documents-files-controls",
-      "reason": "WP3 moves Documents view controls into the Files panel and file creation into the Files rail plus menu.",
+      "removed": "associate-card-${}",
+      "replacement": "associate-workflow-row-${}",
+      "reason": "WP6 converts Workflows from cards to a RailShell workflow list with detail content on the right.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "associate-running-pill",
+      "replacement": "associate-live-progress",
+      "reason": "WP6 moves live workflow status from the old card-grid body into the selected workflow detail pane.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "associate-search-hidden-${}",
+      "replacement": null,
+      "reason": "WP6 removes collapsible category sections, so there is no per-section hidden-by-search hint.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "associate-search-hidden-clear-${}",
+      "replacement": null,
+      "reason": "WP6 removes the section-level hidden-by-search hint; the rail search field keeps its built-in clear action.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "associate-section-${}",
+      "replacement": "associate-workflow-row-${}",
+      "reason": "WP6 replaces grouped workflow sections with a single vertical workflow rail.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "associate-section-count-${}",
+      "replacement": null,
+      "reason": "WP6 removes section count badges because workflows now appear as individual rail rows.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "associate-section-toggle-${}",
+      "replacement": null,
+      "reason": "WP6 removes collapsible workflow sections because the rail list is the navigation model.",
+      "date": "2026-07-07"
+    },
+    {
+      "removed": "associate-show-all-${}",
+      "replacement": null,
+      "reason": "WP6 removes per-section show-all expansion because the rail list scrolls all matching workflows.",
       "date": "2026-07-07"
     }
   ]

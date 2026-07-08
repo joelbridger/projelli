@@ -82,7 +82,7 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 29,
+        "workflow": 62,
         "workspace": 31,
       }
     `);
@@ -263,9 +263,7 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    // +19 = WP3 Documents UI feedback: file-rail plus menu / Files-view controls
-    //       (11) and the single clean Word document header menu (8).
-    expect(flat.length).toBe(1465); // true combined count after the 7-lane master-plan merge (each lane counted only its own keys)
+    expect(flat.length).toBe(1498); // true combined count after all 7 master-plan lanes merged
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

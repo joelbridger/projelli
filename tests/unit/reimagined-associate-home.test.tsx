@@ -145,9 +145,9 @@ describe('AssociateHome (law persona)', () => {
     mockUseActiveMatter.mockReturnValue(null);
   });
 
-  it('renders the surface header title', () => {
+  it('renders the rail title', () => {
     render(<AssociateHome {...defaultProps()} />);
-    expect(screen.getByRole('heading', { level: 1, name: 'Workflows' })).toBeTruthy();
+    expect(screen.getByTestId('associate-workflows-rail')).toHaveTextContent('Workflows');
   });
 
   it('renders the search box', () => {
@@ -156,18 +156,29 @@ describe('AssociateHome (law persona)', () => {
     expect(searchInput).toBeTruthy();
   });
 
-  it('groups legal templates into a Legal Practice section', () => {
+  it('renders workflows as a left rail list with selected details on the right', () => {
     render(<AssociateHome {...defaultProps()} />);
-    const legalSection = screen.getByTestId('associate-section-legal');
-    expect(legalSection).toBeTruthy();
-    // Tax templates are filtered out for law profession.
-    expect(screen.queryByTestId('associate-section-tax')).toBeNull();
+
+    expect(screen.getByTestId('associate-workflows-rail')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-detail')).toHaveTextContent(
+      'Deposition Contradiction Finder',
+    );
+    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
   });
 
-  it('renders template cards inside their section', () => {
+  it('shows legal workflows in the rail for a law persona', () => {
     render(<AssociateHome {...defaultProps()} />);
-    expect(screen.getByTestId('associate-card-deposition-contradiction-finder')).toBeTruthy();
-    expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-case-timeline-builder')).toBeTruthy();
+    // Tax templates are filtered out for law profession.
+    expect(screen.queryByTestId('associate-workflow-row-tax-review-workflow')).toBeNull();
+  });
+
+  it('selects a workflow row and shows its details', () => {
+    render(<AssociateHome {...defaultProps()} />);
+    fireEvent.click(screen.getByTestId('associate-workflow-row-case-timeline-builder'));
+    expect(screen.getByTestId('associate-workflow-detail')).toHaveTextContent('Case Timeline Builder');
   });
 
   it('calls onStartWorkflow as soon as Run is clicked', () => {
@@ -206,8 +217,9 @@ describe('AssociateHome (law persona)', () => {
     const searchInput = screen.getByTestId('associate-search');
     fireEvent.change(searchInput, { target: { value: 'timeline' } });
 
-    expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
-    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
+    expect(screen.getByTestId('associate-workflow-row-case-timeline-builder')).toBeTruthy();
+    expect(screen.queryByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeNull();
+    expect(screen.getByTestId('associate-workflow-detail')).toHaveTextContent('Case Timeline Builder');
   });
 
   it('shows empty state when search matches nothing', () => {
@@ -222,14 +234,14 @@ describe('AssociateHome (law persona)', () => {
     render(<AssociateHome {...defaultProps({ providerError: 'needs-provider' })} />);
     const banner = screen.getByTestId('associate-provider-error');
     expect(banner).toBeTruthy();
-    const settingsBtn = screen.getByRole('button', { name: /open settings/i });
+    const settingsBtn = screen.getByRole('button', { name: /open ai settings/i });
     expect(settingsBtn).toBeTruthy();
   });
 
   it('calls onOpenSettings when Open settings is clicked', () => {
     const onOpenSettings = vi.fn();
     render(<AssociateHome {...defaultProps({ providerError: 'needs-provider', onOpenSettings })} />);
-    const settingsBtn = screen.getByRole('button', { name: /open settings/i });
+    const settingsBtn = screen.getByRole('button', { name: /open ai settings/i });
     fireEvent.click(settingsBtn);
     expect(onOpenSettings).toHaveBeenCalledOnce();
   });
@@ -237,13 +249,13 @@ describe('AssociateHome (law persona)', () => {
   it('shows ollama-unreachable banner (no settings button)', () => {
     render(<AssociateHome {...defaultProps({ providerError: 'ollama-unreachable' })} />);
     expect(screen.getByTestId('associate-provider-error')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /open ai settings/i })).toBeNull();
   });
 
   it('shows pick-client-first banner without settings button', () => {
     render(<AssociateHome {...defaultProps({ providerError: 'needs-client' })} />);
     expect(screen.getByText('Pick your client first.')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /open settings/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /open ai settings/i })).toBeNull();
   });
 
   it('renders recent runs strip when runHistory is provided', () => {
@@ -358,7 +370,7 @@ describe('AssociateHome (law persona)', () => {
     expect(screen.queryByTestId('associate-recent-runs')).toBeNull();
   });
 
-  it('shows a non-clickable animated running pill while a workflow is running', () => {
+  it('shows live progress while the selected workflow is running', () => {
     const template = mockTemplates[0]!;
     render(<AssociateHome {...defaultProps({
       currentExecution: {
@@ -372,10 +384,33 @@ describe('AssociateHome (law persona)', () => {
       },
     })} />);
 
-    const pill = screen.getByTestId('associate-running-pill');
-    expect(pill.textContent).toContain('Running Deposition Contradiction Finder');
-    expect(pill.querySelector('.animate-spin')).toBeTruthy();
-    expect((pill as HTMLElement).style.pointerEvents).toBe('none');
+    const progress = screen.getByTestId('associate-live-progress');
+    expect(progress.textContent).toContain('Live run');
+    expect(progress.textContent).toContain('Step 1 of 1');
+    expect(progress.querySelector('.animate-spin')).toBeTruthy();
+  });
+
+  it('does not start a second run when the selected workflow is already running', () => {
+    const template = mockTemplates[0]!;
+    const onStartWorkflow = vi.fn();
+    render(<AssociateHome {...defaultProps({
+      onStartWorkflow,
+      currentExecution: {
+        runId: 'run-active',
+        template,
+        currentStepIndex: 0,
+        status: 'running',
+        inputs: {},
+        stepOutputs: [],
+        startTime: new Date(),
+      },
+    })} />);
+
+    const runBtn = screen.getByTestId('associate-run-deposition-contradiction-finder');
+    expect((runBtn as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.click(runBtn);
+    expect(onStartWorkflow).not.toHaveBeenCalled();
   });
 
   // ── Practice-area filter chips ────────────────────────────────────────────
@@ -449,19 +484,19 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     render(<AssociateHome {...multiProps()} />);
     fireEvent.click(screen.getByTestId('associate-filter-tax'));
 
-    expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
-    expect(screen.queryByTestId('associate-section-legal')).toBeNull();
+    expect(screen.getByTestId('associate-workflow-row-tax-review-workflow')).toBeTruthy();
+    expect(screen.queryByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeNull();
   });
 
-  it('clicking "All" after a category filter restores all sections', () => {
+  it('clicking "All" after a category filter restores all workflow rows', () => {
     render(<AssociateHome {...multiProps()} />);
 
     fireEvent.click(screen.getByTestId('associate-filter-tax'));
-    expect(screen.queryByTestId('associate-section-legal')).toBeNull();
+    expect(screen.queryByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeNull();
 
     fireEvent.click(screen.getByTestId('associate-filter-all'));
-    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
-    expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-tax-review-workflow')).toBeTruthy();
   });
 
   it('search narrows within the selected category filter', () => {
@@ -473,9 +508,9 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     // Search for 'timeline' — matches Case Timeline Builder (legal).
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'timeline' } });
 
-    expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-case-timeline-builder')).toBeTruthy();
     // Tax template must not appear even though 'timeline' doesn't match it.
-    expect(screen.queryByTestId('associate-card-tax-review-workflow')).toBeNull();
+    expect(screen.queryByTestId('associate-workflow-row-tax-review-workflow')).toBeNull();
   });
 
   it('search across "All" chip still works correctly', () => {
@@ -484,8 +519,8 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     // "All" is active; search for 'tax'.
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'tax' } });
 
-    expect(screen.getByTestId('associate-card-tax-review-workflow')).toBeTruthy();
-    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
+    expect(screen.getByTestId('associate-workflow-row-tax-review-workflow')).toBeTruthy();
+    expect(screen.queryByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeNull();
   });
 
   it('empty-state clear button resets both search and category filter', () => {
@@ -502,40 +537,34 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     expect(clearBtn).toBeTruthy();
     fireEvent.click(clearBtn!);
 
-    // Both legal and tax sections should be visible again.
-    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
-    expect(screen.getByTestId('associate-section-tax')).toBeTruthy();
+    // Both legal and tax rows should be visible again.
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-tax-review-workflow')).toBeTruthy();
   });
 
-  // ── Search-narrowed category affordance ───────────────────────────────────
-
-  it('shows "N of M" count badge when search has narrowed a category', () => {
+  it('search narrows the rail list and selects the remaining match', () => {
     render(<AssociateHome {...multiProps()} />);
 
     // Search for 'deposition' — matches only one of the two legal templates.
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
 
-    // The legal section should show "1 of 2" in its count badge.
-    const badge = screen.getByTestId('associate-section-count-legal');
-    expect(badge.textContent).toBe('(1 of 2)');
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.queryByTestId('associate-workflow-row-case-timeline-builder')).toBeNull();
+    expect(screen.getByTestId('associate-workflow-detail')).toHaveTextContent('Deposition Contradiction Finder');
   });
 
-  it('shows the search-hidden hint with a working Clear search link', () => {
+  it('clear search restores hidden workflow rows', () => {
     render(<AssociateHome {...multiProps()} />);
 
     // Search for 'deposition' — narrows legal from 2 to 1.
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
 
-    const hint = screen.getByTestId('associate-search-hidden-legal');
-    expect(hint.textContent).toContain('1 more hidden by search');
-
-    // Clicking the Clear search link inside the hint clears the query.
-    const clearLink = screen.getByTestId('associate-search-hidden-clear-legal');
-    fireEvent.click(clearLink);
+    const clearButton = screen.getByRole('button', { name: /clear search/i });
+    fireEvent.click(clearButton);
 
     // Both legal templates should now be visible again.
-    expect(screen.getByTestId('associate-card-deposition-contradiction-finder')).toBeTruthy();
-    expect(screen.getByTestId('associate-card-case-timeline-builder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-row-case-timeline-builder')).toBeTruthy();
   });
 });
 
@@ -576,37 +605,32 @@ describe('AssociateHome — localStorage persistence', () => {
 
     // Select the "Legal Practice" filter chip.
     fireEvent.click(screen.getByTestId('associate-filter-legal'));
-    // Confirm only legal section is visible.
-    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
-    expect(screen.queryByTestId('associate-section-tax')).toBeNull();
+    // Confirm only legal rows are visible.
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.queryByTestId('associate-workflow-row-tax-review-workflow')).toBeNull();
 
     // Simulate a tab switch: unmount + remount (no localStorage.clear between).
     unmount();
     render(<AssociateHome {...persistProps()} />);
 
     // After remount the legal filter should be restored from localStorage.
-    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
-    expect(screen.queryByTestId('associate-section-tax')).toBeNull();
+    expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
+    expect(screen.queryByTestId('associate-workflow-row-tax-review-workflow')).toBeNull();
     // The Legal Practice chip should be active (aria role alone isn't enough; check
     // that the tax section is absent and legal is present, which proves the filter held).
   });
 
-  it('restores collapsed state after a simulated remount', () => {
+  it('keeps the selected workflow detail after choosing a rail row', () => {
     const { unmount } = render(<AssociateHome {...persistProps()} />);
 
-    // Collapse the "Legal Practice" category.
-    fireEvent.click(screen.getByTestId('associate-section-toggle-legal'));
-    // The section exists but its cards should be gone (collapsed).
-    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
+    fireEvent.click(screen.getByTestId('associate-workflow-row-case-timeline-builder'));
+    expect(screen.getByTestId('associate-workflow-detail')).toHaveTextContent('Case Timeline Builder');
 
-    // Remount — no localStorage.clear, so state should persist.
+    // Remount resets selection to the first visible row; selection is screen-local, not persisted.
     unmount();
     render(<AssociateHome {...persistProps()} />);
 
-    // Cards should still be hidden (collapsed restored from localStorage).
-    expect(screen.queryByTestId('associate-card-deposition-contradiction-finder')).toBeNull();
-    // The section header itself should still be present.
-    expect(screen.getByTestId('associate-section-legal')).toBeTruthy();
+    expect(screen.getByTestId('associate-workflow-detail')).toHaveTextContent('Deposition Contradiction Finder');
   });
 
   it('writes the filter to localStorage when changed', () => {
@@ -616,11 +640,9 @@ describe('AssociateHome — localStorage persistence', () => {
     expect(localStorage.getItem('lantern:workflows-filter')).toBe('tax');
   });
 
-  it('writes collapsed state to localStorage when a section is toggled', () => {
+  it('does not write the old collapsed-section storage key', () => {
     render(<AssociateHome {...persistProps()} />);
-    fireEvent.click(screen.getByTestId('associate-section-toggle-legal'));
 
-    const stored = JSON.parse(localStorage.getItem('lantern:workflows-collapsed') ?? '{}') as Record<string, boolean>;
-    expect(stored['legal']).toBe(true);
+    expect(localStorage.getItem('lantern:workflows-collapsed')).toBeNull();
   });
 });
