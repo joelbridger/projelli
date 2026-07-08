@@ -18,17 +18,23 @@ test.describe('Bench mirror: Wave 4 Track C — hidden whole-practice Ask scope'
 
     await hardClick(page.getByTestId('spine-nav-search'));
 
+    // Scope is a dropdown menu now: options render only while open, and the
+    // trigger shows the selected scope's short label.
+    const scopeToggle = page.getByTestId('scope-toggle');
+    await expect(scopeToggle).toBeVisible({ timeout: 10_000 });
+
+    await hardClick(scopeToggle);
     await expect(page.getByTestId('scope-option-whole-practice')).toHaveCount(0);
-    const scopePill = page.getByTestId('ask-scope-pill');
-    await expect(scopePill).toBeVisible({ timeout: 10_000 });
 
     await hardClick(page.getByTestId('scope-option-email'));
-    await expect(scopePill).toHaveText('Email');
+    await expect(scopeToggle).toHaveText('Email');
 
+    await hardClick(scopeToggle);
     await hardClick(page.getByTestId('scope-option-documents'));
-    await expect(scopePill).toHaveText('Documents');
+    await expect(scopeToggle).toHaveText('Docs');
 
+    await hardClick(scopeToggle);
     await hardClick(page.getByTestId('scope-option-all-matters'));
-    await expect(scopePill).toHaveText('All clients');
+    await expect(scopeToggle).toHaveText('All');
   });
 });

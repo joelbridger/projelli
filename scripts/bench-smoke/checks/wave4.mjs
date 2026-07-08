@@ -206,10 +206,12 @@ export const checkEstateBeneficiaryGapDismissLive = withGuard(GAP_DISMISS_LIVE_I
 
 const ASK_ID = 'wave4-whole-practice-ask';
 const ASK_SECTION = 'Wave 4 — Depth (Track C: hidden whole-practice Ask scope)';
+// The scope control is a dropdown menu: options render only while it is open,
+// and the trigger button (scope-toggle) shows the selected scope's short label.
 const VISIBLE_ASK_SCOPES = [
-  { testid: 'scope-option-all-matters', expectedPill: 'All clients' },
+  { testid: 'scope-option-all-matters', expectedPill: 'All' },
   { testid: 'scope-option-email', expectedPill: 'Email' },
-  { testid: 'scope-option-documents', expectedPill: 'Documents' },
+  { testid: 'scope-option-documents', expectedPill: 'Docs' },
 ];
 
 export const checkWholePracticeAsk = withGuard(ASK_ID, ASK_SECTION, async ({ driver }) => {
@@ -220,6 +222,15 @@ export const checkWholePracticeAsk = withGuard(ASK_ID, ASK_SECTION, async ({ dri
   }
 
   const elements = await requireSnapshot(driver);
+  if (!findByTestId(elements, 'scope-toggle')) {
+    return makeResult({
+      id: ASK_ID,
+      section: ASK_SECTION,
+      status: STATUS.SETUP_BLOCKED,
+      detail: 'No Ask scope toggle found — not on the Ask surface.',
+    });
+  }
+  await driver.click('scope-toggle'); // open the scope menu so its options render
   const hiddenWholePracticePresent = await driver.evalJs(
     '!!document.querySelector(\'[data-testid="scope-option-whole-practice"]\')',
   );
@@ -232,15 +243,11 @@ export const checkWholePracticeAsk = withGuard(ASK_ID, ASK_SECTION, async ({ dri
     });
   }
 
-  const missingScopes = VISIBLE_ASK_SCOPES.filter((scope) => !findByTestId(elements, scope.testid));
-  if (missingScopes.length === VISIBLE_ASK_SCOPES.length) {
-    return makeResult({
-      id: ASK_ID,
-      section: ASK_SECTION,
-      status: STATUS.SETUP_BLOCKED,
-      detail: 'No visible Ask scope controls found — not on the Ask surface, or the scope toggle is not present.',
-    });
-  }
+  const openMenuScopeIds = await driver.evalJs(
+    'JSON.stringify([...document.querySelectorAll(\'[data-testid^="scope-option-"]\')].map((n) => n.getAttribute(\'data-testid\')))',
+  );
+  const openMenuScopes = JSON.parse(openMenuScopeIds ?? '[]');
+  const missingScopes = VISIBLE_ASK_SCOPES.filter((scope) => !openMenuScopes.includes(scope.testid));
   if (missingScopes.length > 0) {
     return makeResult({
       id: ASK_ID,
@@ -250,17 +257,20 @@ export const checkWholePracticeAsk = withGuard(ASK_ID, ASK_SECTION, async ({ dri
     });
   }
 
+  let menuOpen = true; // opened above for the presence checks
   for (const scope of VISIBLE_ASK_SCOPES) {
-    await driver.click(scope.testid);
+    if (!menuOpen) await driver.click('scope-toggle');
+    await driver.click(scope.testid); // selecting closes the menu
+    menuOpen = false;
     const pillText = await driver.evalJs(
-      'document.querySelector(\'[data-testid="ask-scope-pill"]\')?.textContent?.trim() ?? null',
+      'document.querySelector(\'[data-testid="scope-toggle"]\')?.textContent?.trim() ?? null',
     );
     if (pillText !== scope.expectedPill) {
       return makeResult({
         id: ASK_ID,
         section: ASK_SECTION,
         status: STATUS.FAIL,
-        detail: `Clicked [data-testid="${scope.testid}"], but the Ask scope pill read ${JSON.stringify(pillText)} instead of ${JSON.stringify(scope.expectedPill)}.`,
+        detail: `Clicked [data-testid="${scope.testid}"], but the Ask scope toggle read ${JSON.stringify(pillText)} instead of ${JSON.stringify(scope.expectedPill)}.`,
       });
     }
   }
@@ -271,7 +281,7 @@ export const checkWholePracticeAsk = withGuard(ASK_ID, ASK_SECTION, async ({ dri
     id: ASK_ID,
     section: ASK_SECTION,
     status: STATUS.PASS,
-    detail: 'Whole-practice Ask scope option is absent, and All clients, Email, and Documents each switch the Ask scope pill.',
+    detail: 'Whole-practice Ask scope option is absent, and All clients, Email, and Documents each switch the Ask scope toggle.',
     screenshots: [scopeShot],
   });
 });
