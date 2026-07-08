@@ -1553,7 +1553,7 @@
       "more-actions": "Email actions",
       "keyword-search": "Keyword search",
       "ai-search": "AI search",
-      "current-prefix": "",
+      "current-prefix": "Current",
       "this-client": "This client",
       "all-email": "All email",
       "show-filters": "Filters",
@@ -1586,7 +1586,7 @@
       "looking": "Looking",
       "keep-looking": "More",
       "showing-client": "Showing {{count}} for this client",
-      "all-loaded": "",
+      "all-loaded": "All email loaded",
       "showing-count": "{{shown}} of {{total}}",
       "loading-more": "Loading",
       "load-more": "More",
@@ -1598,7 +1598,7 @@
       "export-failed": "Could not save",
       "demo-preview": "Preview",
       "demo-preview-note": "Open the desktop app to read the full message.",
-      "snippet": "",
+      "snippet": "Snippet",
       "select-email-empty": "Select an email from the list to read it here.",
       "select-email-after-error": "Fix the problem, then choose an email.",
       "ask-hint": "Answers use imported email and openable citations.",
@@ -1684,11 +1684,6 @@
       "file": "File",
       "clear-selection": "Clear selection"
     },
-    "noAccounts": {
-      "title": "Connect email",
-      "body": "Search, file, and cite email. Imported to this device, not our servers.",
-      "action": "Connect email"
-    },
     "compose": {
       "title": "New email",
       "send": "Send",
@@ -1708,6 +1703,11 @@
       "sent": "Email sent",
       "scope-upgrade": "Sending needs a one-time reconnect for the send permission. Go to Settings to reconnect your email.",
       "go-to-settings": "Go to Settings"
+    },
+    "no-accounts": {
+      "title": "Connect email",
+      "body": "Search, file, and cite email. Imported to this device, not our servers.",
+      "action": "Connect email"
     }
   },
   "vault": {

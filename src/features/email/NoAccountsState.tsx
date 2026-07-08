@@ -14,12 +14,12 @@ export function NoAccountsState({ onOpenSettings }: NoAccountsStateProps) {
     <div data-testid="no-accounts-state">
       <EmptyState
         icon={Mail}
-        title={t('mail.noAccounts.title')}
-        body={t('mail.noAccounts.body')}
+        title={t('mail.no-accounts.title')}
+        body={t('mail.no-accounts.body')}
         actions={
           onOpenSettings ? (
             <Button variant="primary" size="md" onClick={onOpenSettings}>
-              {t('mail.noAccounts.action')}
+              {t('mail.no-accounts.action')}
             </Button>
           ) : undefined
         }
