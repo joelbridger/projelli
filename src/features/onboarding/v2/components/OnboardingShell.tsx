@@ -1,10 +1,9 @@
 /**
  * OnboardingShell — the chrome around every OnboardingV2 scene.
  *
- * Owns: the full-screen light overlay, the decorative background (drifting
- * orbs + grain), the corner logo (revealed after the intro), the scrolling
- * content area, and the bottom navigation bar (Back · progress dots ·
- * Continue). Scenes render as `children`.
+ * Owns: the full-screen light overlay, the corner logo, the scrolling content
+ * area, and the bottom navigation bar (Back · progress dots · Continue).
+ * Scenes render as `children`.
  *
  * Responsive (no fixed 1920x1080 stage like the standalone prototype): content
  * centers and scrolls so it works at any window size inside the desktop app.
@@ -136,14 +135,9 @@ export function OnboardingShell({
       data-testid="onboarding-v2"
       role="dialog"
       aria-modal="true"
-      aria-label="Set up Advisor Prep Hero"
+      aria-label="Set up Lantern"
     >
-      {/* Decorative background */}
-      <div className="kp-onbv2-bg" aria-hidden="true">
-        <div className="kp-onbv2-orb kp-onbv2-orb--pink" />
-        <div className="kp-onbv2-orb kp-onbv2-orb--blue" />
-        <div className="kp-onbv2-grain" />
-      </div>
+      <div className="kp-onbv2-bg" aria-hidden="true" />
 
       {/* Corner logo (after intro) */}
       <div

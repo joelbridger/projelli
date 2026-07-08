@@ -2,11 +2,10 @@
  * OnboardingV2 — the prototype-matched first-run onboarding, wired to real
  * functionality. Five scenes:
  *
- *   0  Intro       — the hook + flowchart
- *   1  ChooseStart — workspace-first: sample practice (default) vs own data
- *   2  Connect AI  — real key setup / local AI (AiScene)
- *   3  Connect     — real data connectors (ConnectScene)
- *   4  Firm setup  — live setup-progress bars (FirmSetupScene)
+ *   0  ChooseStart — workspace-first: sample practice (default) vs own data
+ *   1  Connect AI  — real key setup / local AI (AiScene)
+ *   2  Connect     — real data connectors (ConnectScene)
+ *   3  Firm setup  — live setup-progress bars (FirmSetupScene)
  *
  * The ChooseStart step is the workspace-first gate: connectors, email/Wealthbox
  * import and the Client Map all need a workspace, so one is established (and, for
@@ -33,24 +32,23 @@ import { markAiSetupDeferred } from '../aiSetupState';
 import { useOAuthPending } from '@/platform/connectors/oauthPending';
 
 import { OnboardingShell } from './components/OnboardingShell';
-import { IntroScene } from './scenes/IntroScene';
 import { ChooseStartScene } from './scenes/ChooseStartScene';
 import { AiScene } from './scenes/AiScene';
 import { ConnectScene } from './scenes/ConnectScene';
 import { FirmSetupScene } from './scenes/FirmSetupScene';
 import { ONB_COPY } from './copy';
 
-/** Scene order. Index 0 is the intro; 1..4 are the four numbered steps. */
-const SCENE_COUNT = 5;
-const ACTION_SCENES = SCENE_COUNT - 1; // dots only for the 4 numbered steps
+/** Scene order. Index 0 is the workspace-first choice screen. */
+const SCENE_COUNT = 4;
+const ACTION_SCENES = SCENE_COUNT;
 /** Scene index of the workspace-first step; nothing past it may run without a
  *  workspace. */
-const CHOOSE_START_SCENE = 1;
+const CHOOSE_START_SCENE = 0;
 /** Scene index of the AI step (used for the "AI setup deferred" reminder). */
-const AI_SCENE = 2;
+const AI_SCENE = 1;
 /** Scene index of the Connect step (where interactive OAuth sign-ins happen);
  *  nothing past it may run while a sign-in is still pending. */
-const CONNECT_SCENE = 3;
+const CONNECT_SCENE = 2;
 
 export type OnboardingV2Props = GuidedOnboardingProps & {
   /** QA-9 — see OnboardingShell's `topBanner` doc. */
@@ -59,13 +57,8 @@ export type OnboardingV2Props = GuidedOnboardingProps & {
 
 export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspace, topBanner }: OnboardingV2Props) {
   // Loop-proofing: if a workspace ALREADY exists when this component mounts, the
-  // user has necessarily passed the intro + ChooseStart steps, so start on the
-  // AI step instead of the intro. This makes the "sample practice → back to
-  // intro forever" loop impossible even if the overlay is remounted after the
-  // workspace loads (the branch-stability guard in App.tsx is the primary
-  // defence; this is belt-and-suspenders against ANY remount cause). On a true
-  // first run there is no workspace yet, so this starts at the intro (0) as
-  // before.
+  // user has necessarily passed the choice screen, so start on the AI step.
+  // On a true first run there is no workspace yet, so this starts at the choice.
   const [scene, setScene] = useState(hasWorkspace ? AI_SCENE : 0);
   // Workspace-first gate: the user may not advance past ChooseStart until a
   // workspace exists (seeded sample or chosen folder). Pre-satisfied when a
@@ -118,7 +111,6 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
   };
 
   // Per-scene shell configuration.
-  const isIntro = scene === 0;
   const isChooseStart = scene === CHOOSE_START_SCENE;
   const isConnect = scene === CONNECT_SCENE;
   const isLast = scene === SCENE_COUNT - 1;
@@ -132,26 +124,25 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
   return (
     <OnboardingShell
       topBanner={topBanner}
-      showLogo={!isIntro}
-      showBack={!isIntro}
+      showLogo={!isChooseStart}
+      showBack={!isChooseStart}
       onBack={goBack}
       // ChooseStart advances via its own cards (which open the workspace), so the
       // global Continue is hidden there — it has nothing to advance until a
       // workspace is chosen.
-      showContinue={!isIntro && !isChooseStart}
+      showContinue={!isChooseStart}
       continueLabel={continueLabel}
       continueDisabled={continueDisabled}
       onContinue={isLast ? finish : goNext}
-      dotCount={isIntro ? 0 : ACTION_SCENES}
-      activeDot={isIntro ? -1 : scene - 1}
+      dotCount={ACTION_SCENES}
+      activeDot={scene}
       // goTo enforces the OAuth-pending forward lock for all of these.
-      onDotClick={(i) => { goTo(i + 1); }}
+      onDotClick={(i) => { goTo(i); }}
       onArrowNav={(dir) => {
         if (dir === 1 && isLast) finish();
         else goTo(scene + dir);
       }}
     >
-      {scene === 0 ? <IntroScene onGo={goNext} /> : null}
       {scene === CHOOSE_START_SCENE ? (
         <ChooseStartScene onChooseStart={onChooseStart} onReady={onWorkspaceReady} />
       ) : null}
@@ -164,8 +155,8 @@ export function OnboardingV2({ onSaveKey, onComplete, onChooseStart, hasWorkspac
           }}
         />
       ) : null}
-      {scene === 3 ? <ConnectScene /> : null}
-      {scene === 4 ? <FirmSetupScene /> : null}
+      {scene === CONNECT_SCENE ? <ConnectScene /> : null}
+      {scene === 3 ? <FirmSetupScene /> : null}
     </OnboardingShell>
   );
 }
