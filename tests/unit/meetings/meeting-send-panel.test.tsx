@@ -43,6 +43,15 @@ function meta(overrides: Partial<MeetingMeta> = {}): MeetingMeta {
   };
 }
 
+function unreviewedMeta(): MeetingMeta {
+  // exactOptionalPropertyTypes forbids an explicit `reviewedAt: undefined`
+  // override; an unreviewed meeting simply OMITS the field.
+  const { reviewedAt: _reviewed, ...rest } = meta();
+  void _reviewed;
+  return rest as MeetingMeta;
+}
+
+
 function makeWorkspace(files = new Map<string, string>()) {
   files.set('/client/Meetings/one/meeting.json', JSON.stringify(meta()));
   return {
@@ -100,7 +109,7 @@ describe('MeetingSendPanel (merged send surface)', () => {
   });
 
   it('(a) blocks Review send until there is a reviewed meeting', async () => {
-    renderPanel({ inputMeta: meta({ reviewedAt: undefined }) });
+    renderPanel({ inputMeta: unreviewedMeta() });
     const review = await screen.findByTestId('meeting-send-review');
     expect(review).toBeDisabled();
   });

@@ -82,6 +82,15 @@ function meta(overrides: Partial<MeetingMeta> = {}): MeetingMeta {
   };
 }
 
+function unreviewedMeta(): MeetingMeta {
+  // exactOptionalPropertyTypes forbids an explicit `reviewedAt: undefined`
+  // override; an unreviewed meeting simply OMITS the field.
+  const { reviewedAt: _reviewed, ...rest } = meta();
+  void _reviewed;
+  return rest as MeetingMeta;
+}
+
+
 function makeWs(initial: MeetingMeta) {
   const files = new Map<string, string | ArrayBuffer>();
   files.set('/client/Meetings/one/meeting.json', JSON.stringify(initial));
@@ -436,7 +445,7 @@ describe('meeting artifact delivery', () => {
   });
 
   it('refuses to send an unreviewed meeting even if the UI gate is bypassed (finding 5)', async () => {
-    const unreviewed = meta({ reviewedAt: undefined });
+    const unreviewed = unreviewedMeta();
     const { ws } = makeWs(unreviewed);
     const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
 
