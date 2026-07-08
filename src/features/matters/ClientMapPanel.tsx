@@ -9,14 +9,13 @@
 // It intentionally keeps ClientMapView's data contract while adding a few host
 // callbacks for the simplified hub shell.
 
-import { useId, useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { Check, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Sparkles, type LucideIcon } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus, Sparkles } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { Button, Chip, Eyebrow, CountBadge, TrustNote } from '@/ui/kp';
-import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
+import { Button, Chip, Eyebrow, CountBadge, IconButton, RailShellActionMenu, RailShellHeader, TrustNote } from '@/ui/kp';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,24 +94,12 @@ function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitati
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
 
-const railTopActionsStyle: CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 4,
-  padding: '0 2px var(--kp-space-sm)',
-};
-
 const railTabsStyle: CSSProperties = {
   display: 'flex',
   flexDirection: 'column',
   gap: 2,
 };
 
-const railIconButtonStyle: CSSProperties = {
-  width: 22,
-  height: 22,
-  border: 0,
-};
 // Sentinel keys for the non-section right panels.
 const MISSING_KEY = '__missing';
 const NEW_KEY = '__new';
@@ -190,7 +177,7 @@ const panelTitleStyle: CSSProperties = {
 };
 
 const mutedCountStyle: CSSProperties = {
-  fontSize: 'var(--kp-font-2xs)',
+  fontSize: 'var(--kp-rail-row-meta-font-size)',
   fontWeight: 'var(--kp-weight-bold)',
   color: 'var(--color-muted-foreground)',
   flex: 'none',
@@ -349,7 +336,7 @@ function ItemRow({
               className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
               style={{ flex: 'none', marginTop: 1 }}
             >
-              <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
+              <MoreVertical size={14} strokeWidth={1.75} aria-hidden />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-36">
@@ -432,7 +419,7 @@ function TabButton({
         style={{
           flex: 1,
           minWidth: 0,
-          fontSize: 'var(--kp-font-sm)',
+          fontSize: 'var(--kp-rail-row-title-font-size)',
           fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
           color: muted && !active ? 'var(--color-muted-foreground)' : 'var(--kp-navy)',
           overflow: 'hidden',
@@ -449,64 +436,6 @@ function TabButton({
           <span style={mutedCountStyle}>{count}</span>
         ))}
     </button>
-  );
-}
-
-function RailIconActionButton({
-  icon: Icon,
-  label,
-  testid,
-  onClick,
-}: {
-  icon: LucideIcon;
-  label: string;
-  testid: string;
-  onClick: () => void;
-}) {
-  const contentId = useId();
-  const [open, setOpen] = useState(false);
-
-  const show = () => {
-    setOpen(true);
-  };
-
-  const hide = () => {
-    setOpen(false);
-  };
-
-  return (
-    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-      <Tooltip open={open} onOpenChange={setOpen}>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            aria-label={label}
-            aria-describedby={open ? contentId : undefined}
-            data-testid={testid}
-            className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
-            style={railIconButtonStyle}
-            onMouseEnter={show}
-            onMouseLeave={hide}
-            onFocus={show}
-            onBlur={hide}
-            onKeyDown={(e) => {
-              if (e.key === 'Escape') {
-                hide();
-              }
-            }}
-            onClick={() => {
-              hide();
-              onClick();
-            }}
-          >
-            <Icon size={15} strokeWidth={2} aria-hidden />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent id={contentId} side="bottom">
-          {label}
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
   );
 }
 
@@ -593,7 +522,7 @@ function SectionPanel({
               aria-label={t('matter.client-map.section-actions')}
               className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--sm"
             >
-              <MoreHorizontal size={15} strokeWidth={1.75} aria-hidden />
+              <MoreVertical size={15} strokeWidth={1.75} aria-hidden />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
@@ -788,7 +717,7 @@ function MissingPanel({
                     aria-label={t('matter.client-map.question-actions')}
                     className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
                   >
-                    <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
+                    <MoreVertical size={14} strokeWidth={1.75} aria-hidden />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-36">
@@ -1124,6 +1053,8 @@ export function ClientMapPanel({
   const { confirm, dialogProps } = useConfirmDialog();
   const sourcesPaneRef = useRef<HTMLDivElement | null>(null);
   const [selectedSourceN, setSelectedSourceN] = useState<number | null>(null);
+  const [sectionSearchQuery, setSectionSearchQuery] = useState('');
+  const [sectionRailCollapsed, setSectionRailCollapsed] = useState(false);
 
   // Build the ordered section list: core sections first (in spec order, with
   // empty shells for any that have not been filled yet), then custom sections.
@@ -1139,6 +1070,13 @@ export function ClientMapPanel({
   );
   const customSections = map.sections.filter((s) => s.kind === 'custom');
   const sectionList = [...coreSections, ...customSections];
+  const normalizedSectionSearch = sectionSearchQuery.trim().toLowerCase();
+  const visibleSectionList = normalizedSectionSearch
+    ? sectionList.filter((s) => {
+        const title = s.key === 'money' ? t('matter.client-map.rail-money') : s.title;
+        return title.toLowerCase().includes(normalizedSectionSearch);
+      })
+    : sectionList;
   const missingCount = unresolvedAskGaps(map).length;
 
   // Fresh opens now land on Household, the first core section. A remembered tab
@@ -1247,20 +1185,70 @@ export function ClientMapPanel({
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
       {/* Left rail: compact action icons, then sections, then "What I'm missing". */}
-      <div style={railStyle}>
-        <div style={railTopActionsStyle}>
-          <RailIconActionButton
-            icon={Plus}
-            label={t('matter.client-map.new-section')}
-            testid="clientmap-tab-add"
-            onClick={() => {
-              select(NEW_KEY);
-            }}
-          />
-        </div>
+      <div style={sectionRailCollapsed ? { ...railStyle, width: 44, padding: '8px 0', alignItems: 'center' } : railStyle}>
+        {sectionRailCollapsed ? (
+          <>
+            <IconButton
+              icon={PanelLeftOpen}
+              label={t('matter.client-map.show-sections')}
+              size="sm"
+              variant="ghost"
+              data-testid="clientmap-rail-show"
+              onClick={() => { setSectionRailCollapsed(false); }}
+            />
+            <IconButton
+              icon={Plus}
+              label={t('matter.client-map.new-section')}
+              data-testid="clientmap-tab-add"
+              onClick={() => {
+                select(NEW_KEY);
+              }}
+            />
+          </>
+        ) : (
+          <>
+        <RailShellHeader
+          title={t('spine.nav.client-map')}
+          search={{
+            value: sectionSearchQuery,
+            onChange: setSectionSearchQuery,
+            onClear: () => { setSectionSearchQuery(''); },
+            placeholder: t('matter.client-map.search-sections'),
+            label: t('matter.client-map.search-sections'),
+            testId: 'clientmap-section-search',
+          }}
+          createAction={(
+            <IconButton
+              icon={Plus}
+              label={t('matter.client-map.new-section')}
+              data-testid="clientmap-tab-add"
+              onClick={() => {
+                select(NEW_KEY);
+              }}
+            />
+          )}
+          menuAction={(
+            <RailShellActionMenu icon={MoreVertical} label={t('matter.client-map.rail-actions')}>
+              <DropdownMenuItem onSelect={() => { select(NEW_KEY); }}>
+                {t('matter.client-map.new-section')}
+              </DropdownMenuItem>
+            </RailShellActionMenu>
+          )}
+          collapseAction={(
+            <IconButton
+              icon={PanelLeftClose}
+              label={t('matter.client-map.hide-sections')}
+              size="sm"
+              variant="ghost"
+              data-testid="clientmap-rail-hide"
+              onClick={() => { setSectionRailCollapsed(true); }}
+            />
+          )}
+          className="mb-2 -mx-3 -mt-3"
+        />
 
         <div style={railTabsStyle} role="tablist" aria-label="Client map sections">
-          {sectionList.map((s) => (
+          {visibleSectionList.map((s) => (
             <TabButton
               key={s.key}
               testid={`clientmap-tab-${s.key}`}
@@ -1274,6 +1262,11 @@ export function ClientMapPanel({
               }}
             />
           ))}
+          {visibleSectionList.length === 0 && (
+            <div data-testid="clientmap-section-search-empty" style={{ padding: '8px 4px', fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
+              {t('matter.client-map.no-section-results')}
+            </div>
+          )}
 
           {/* "What I'm missing" — accent badge when there are open gaps */}
           <TabButton
@@ -1289,6 +1282,8 @@ export function ClientMapPanel({
             }}
           />
         </div>
+          </>
+        )}
       </div>
 
       {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}

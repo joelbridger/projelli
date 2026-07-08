@@ -34,7 +34,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
-import { Button, IconButton, SearchField, Badge, Eyebrow, SurfaceToolbar } from '@/ui/kp';
+import { Button, IconButton, SearchField, Badge, Eyebrow, RailShellHeader } from '@/ui/kp';
 import { cn } from '@/lib/utils';
 import {
   SETTINGS_SCHEMA,
@@ -79,7 +79,9 @@ import {
   RotateCcw,
   ExternalLink,
   Settings,
-  MoreHorizontal,
+  MoreVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { InfoHelp } from '@/ui/InfoHelp';
@@ -860,7 +862,7 @@ function SettingsActionsMenu({
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <IconButton
-          icon={MoreHorizontal}
+          icon={MoreVertical}
           label="More settings actions"
           variant="secondary"
           size="md"
@@ -920,6 +922,7 @@ export function SettingsContent({
     cat ? resolveSection(cat) : 'workspace';
 
   const [activeSection, setActiveSection] = useState<SectionCategory>(resolveInitial(initialCategory));
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // In-app confirm dialog (native window.confirm is dead in the Tauri WebView2
   // build, so the "reset settings" confirmation renders in the DOM instead).
@@ -1132,32 +1135,13 @@ export function SettingsContent({
             so the Settings title sits at the same height as every other tab and
             the horizontal rhythm matches --kp-gutter (32px). */}
         {variant === 'page' && (
-          <>
-            <div className="shrink-0 border-b px-8 pt-6 pb-4">
-              <SurfaceHeader
-                Icon={Settings}
-                title="Settings"
-                testId="settings-surface-header"
-              />
-            </div>
-            <SurfaceToolbar>
-              <SearchField
-                ref={searchRef}
-                data-testid="settings-search"
-                placeholder={t('settings.modal.search-placeholder')}
-                value={searchQuery}
-                onChange={(v) => { setSearchQuery(v); }}
-                onClear={() => { setSearchQuery(''); }}
-                size="md"
-                style={{ flex: 1, minWidth: 240 }}
-              />
-              <SettingsActionsMenu
-                onExport={handleExport}
-                onImport={handleImport}
-                onReset={handleReset}
-              />
-            </SurfaceToolbar>
-          </>
+          <div className="shrink-0 border-b px-8 pt-6 pb-4">
+            <SurfaceHeader
+              Icon={Settings}
+              title={t('settings.modal.title')}
+              testId="settings-surface-header"
+            />
+          </div>
         )}
         {variant === 'modal' && (
           <div className="shrink-0 border-b px-8 py-4 flex items-center gap-3">
@@ -1189,8 +1173,55 @@ export function SettingsContent({
         {/* Body: sidebar + content */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Section sidebar — 5 sections */}
-          <nav aria-label="Settings sections" className="w-48 shrink-0 border-r py-3 overflow-y-auto bg-muted/20">
-            {SETTING_CATEGORIES.map((sec) => {
+          <aside
+            className={cn(
+              'flex shrink-0 flex-col border-r border-[var(--kp-divider)] bg-[var(--color-background)]',
+              railCollapsed ? 'w-11 items-center py-2' : 'w-[252px]',
+            )}
+          >
+            {railCollapsed ? (
+              <IconButton
+                icon={PanelLeftOpen}
+                label={t('settings.modal.show-sections')}
+                size="sm"
+                variant="ghost"
+                data-testid="settings-rail-show"
+                onClick={() => { setRailCollapsed(false); }}
+              />
+            ) : variant === 'page' ? (
+              <RailShellHeader
+                title={t('settings.modal.title')}
+                search={{
+                  value: searchQuery,
+                  onChange: (v) => { setSearchQuery(v); },
+                  onClear: () => { setSearchQuery(''); },
+                  placeholder: t('settings.modal.search-placeholder'),
+                  label: t('settings.modal.search-placeholder'),
+                  testId: 'settings-search',
+                  inputRef: searchRef,
+                }}
+                menuAction={(
+                  <SettingsActionsMenu
+                    onExport={handleExport}
+                    onImport={handleImport}
+                    onReset={handleReset}
+                  />
+                )}
+                collapseAction={(
+                  <IconButton
+                    icon={PanelLeftClose}
+                    label={t('settings.modal.hide-sections')}
+                    size="sm"
+                    variant="ghost"
+                    data-testid="settings-rail-hide"
+                    onClick={() => { setRailCollapsed(true); }}
+                  />
+                )}
+              />
+            ) : null}
+            {!railCollapsed && (
+            <nav aria-label="Settings sections" className="min-h-0 flex-1 overflow-y-auto py-3">
+              {SETTING_CATEGORIES.map((sec) => {
               const visible = visibleSections.has(sec.id);
               if (!visible) return null;
               const isActive = !viewingExtra && activeSection === sec.id;
@@ -1201,15 +1232,15 @@ export function SettingsContent({
                   data-testid={`settings-category-${sec.id}`}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'w-full flex items-center gap-2 text-left px-6 py-2.5 text-sm transition-colors',
+                    'w-full flex items-center gap-2 text-left px-6 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
                     isActive
                       ? 'bg-background font-medium text-foreground'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                   onClick={(e) => { e.stopPropagation(); setActiveExtraId(null); setActiveSection(sec.id); }}
-                >
-                  <span className="flex-1 truncate">{sec.label}</span>
-                  {showUpdateBadge && (
+                  >
+                    <span className="flex-1 truncate">{sec.label}</span>
+                    {showUpdateBadge && (
                     <Badge
                       variant="neutral"
                       size="sm"
@@ -1223,12 +1254,12 @@ export function SettingsContent({
                   )}
                 </button>
               );
-            })}
+              })}
 
-            {/* Extra surfaces (Privacy Center / Activity Log) use the same left rail. */}
-            {extraSections && extraSections.length > 0 && (
-              <>
-                {extraSections.map((sec) => {
+              {/* Extra surfaces (Privacy Center / Activity Log) use the same left rail. */}
+              {extraSections && extraSections.length > 0 && (
+                <>
+                  {extraSections.map((sec) => {
                   const isActive = viewingExtra && activeExtraId === sec.id;
                   return (
                     <button
@@ -1236,7 +1267,7 @@ export function SettingsContent({
                       data-testid={sec.testid}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'w-full flex items-center gap-2 text-left px-6 py-2.5 text-sm transition-colors',
+                        'w-full flex items-center gap-2 text-left px-6 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
                         isActive
                           ? 'bg-background font-medium text-foreground'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -1246,10 +1277,12 @@ export function SettingsContent({
                       <span className="flex-1 truncate">{sec.label}</span>
                     </button>
                   );
-                })}
-              </>
+                  })}
+                </>
+              )}
+            </nav>
             )}
-          </nav>
+          </aside>
 
           {/* Content area */}
           <div

@@ -5,7 +5,7 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, Trash2, Check, Pencil, Copy, Download, FileText, MoreHorizontal, Send } from 'lucide-react';
+import { ChevronLeft, Trash2, Check, Pencil, Copy, Download, FileText, MoreVertical, Send } from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import { AudioPlayer, type AudioPlayerHandle } from '@/features/dictation/audio/AudioPlayer';
@@ -649,7 +649,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                 title={t('meetings.entry.actions-menu')}
                 style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 8px', cursor: 'pointer', color: 'var(--kp-navy)' }}
               >
-                <MoreHorizontal style={{ width: 15, height: 15 }} />
+                <MoreVertical style={{ width: 15, height: 15 }} />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

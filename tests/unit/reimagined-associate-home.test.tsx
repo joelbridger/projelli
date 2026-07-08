@@ -122,6 +122,13 @@ function defaultProps(overrides = {}) {
   };
 }
 
+function openAssociateSearch(): HTMLElement {
+  const existing = screen.queryByTestId('associate-search');
+  if (existing) return existing;
+  fireEvent.click(screen.getByTestId('associate-search-toggle'));
+  return screen.getByTestId('associate-search');
+}
+
 // ── Law-persona tests (single category — filter bar hidden) ─────────────────
 
 describe('AssociateHome (law persona)', () => {
@@ -152,7 +159,7 @@ describe('AssociateHome (law persona)', () => {
 
   it('renders the search box', () => {
     render(<AssociateHome {...defaultProps()} />);
-    const searchInput = screen.getByTestId('associate-search');
+    const searchInput = openAssociateSearch();
     expect(searchInput).toBeTruthy();
   });
 
@@ -214,7 +221,7 @@ describe('AssociateHome (law persona)', () => {
 
   it('filters templates by search query (name match)', () => {
     render(<AssociateHome {...defaultProps()} />);
-    const searchInput = screen.getByTestId('associate-search');
+    const searchInput = openAssociateSearch();
     fireEvent.change(searchInput, { target: { value: 'timeline' } });
 
     expect(screen.getByTestId('associate-workflow-row-case-timeline-builder')).toBeTruthy();
@@ -224,7 +231,7 @@ describe('AssociateHome (law persona)', () => {
 
   it('shows empty state when search matches nothing', () => {
     render(<AssociateHome {...defaultProps()} />);
-    const searchInput = screen.getByTestId('associate-search');
+    const searchInput = openAssociateSearch();
     fireEvent.change(searchInput, { target: { value: 'xyznotfound' } });
 
     expect(screen.getByTestId('associate-empty')).toBeTruthy();
@@ -512,7 +519,7 @@ describe('AssociateHome — practice-area filter dropdown (multi-category)', () 
     chooseFilter('legal');
 
     // Search for 'timeline' — matches Case Timeline Builder (legal).
-    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'timeline' } });
+    fireEvent.change(openAssociateSearch(), { target: { value: 'timeline' } });
 
     expect(screen.getByTestId('associate-workflow-row-case-timeline-builder')).toBeTruthy();
     // Tax template must not appear even though 'timeline' doesn't match it.
@@ -523,7 +530,7 @@ describe('AssociateHome — practice-area filter dropdown (multi-category)', () 
     render(<AssociateHome {...multiProps()} />);
 
     // "All" is active; search for 'tax'.
-    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'tax' } });
+    fireEvent.change(openAssociateSearch(), { target: { value: 'tax' } });
 
     expect(screen.getByTestId('associate-workflow-row-tax-review-workflow')).toBeTruthy();
     expect(screen.queryByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeNull();
@@ -534,7 +541,7 @@ describe('AssociateHome — practice-area filter dropdown (multi-category)', () 
 
     // Apply a category filter then search for something that matches nothing.
     chooseFilter('legal');
-    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'xyznotfound' } });
+    fireEvent.change(openAssociateSearch(), { target: { value: 'xyznotfound' } });
     expect(screen.getByTestId('associate-empty')).toBeTruthy();
 
     // The empty-state "Clear search" button has no aria-label — find by testid parent.
@@ -552,7 +559,7 @@ describe('AssociateHome — practice-area filter dropdown (multi-category)', () 
     render(<AssociateHome {...multiProps()} />);
 
     // Search for 'deposition' — matches only one of the two legal templates.
-    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
+    fireEvent.change(openAssociateSearch(), { target: { value: 'deposition' } });
 
     expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
     expect(screen.queryByTestId('associate-workflow-row-case-timeline-builder')).toBeNull();
@@ -563,7 +570,7 @@ describe('AssociateHome — practice-area filter dropdown (multi-category)', () 
     render(<AssociateHome {...multiProps()} />);
 
     // Search for 'deposition' — narrows legal from 2 to 1.
-    fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'deposition' } });
+    fireEvent.change(openAssociateSearch(), { target: { value: 'deposition' } });
 
     const clearButton = screen.getByRole('button', { name: /clear search/i });
     fireEvent.click(clearButton);

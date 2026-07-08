@@ -4,7 +4,7 @@
 import { Fragment, useCallback, useState, useRef, useEffect, useLayoutEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { X, GripVertical, MoreVertical, Settings, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/ui/button';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
@@ -898,10 +898,10 @@ export function TabBar({
         role="presentation"
         // `group` enables group-hover:* targeting on descendants.
         className={cn(
-          'group flex items-center text-sm transition-colors relative flex-shrink-0 snap-start',
+          'group flex items-center transition-colors relative flex-shrink-0 snap-start',
           isVertical
-            ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left'
-            : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px]',
+            ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left text-[var(--kp-rail-row-title-font-size)]'
+            : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px] text-sm',
           isVertical && opts.insideGroup && 'ml-5 w-[calc(100%-1.25rem)]',
           isActive
             ? isVertical
@@ -1091,7 +1091,7 @@ export function TabBar({
                 aria-label="Group actions"
                 onClick={(e) => e.stopPropagation()}
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[160px]">
@@ -1406,10 +1406,10 @@ export function TabBar({
         data-leading-tab-id={item.id}
         aria-selected={item.isActive}
         className={cn(
-          'relative flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0',
+          'relative flex items-center gap-1.5 font-medium transition-colors flex-shrink-0',
           isVertical
-            ? 'w-full rounded-md border border-transparent px-3 py-2 text-left'
-            : 'px-3 border-r',
+            ? 'w-full rounded-md border border-transparent px-3 py-2 text-left text-[var(--kp-rail-row-title-font-size)]'
+            : 'px-3 border-r text-sm',
           item.isActive
             ? isVertical
               ? 'bg-[var(--kp-accent-soft)] text-[var(--kp-navy)] border-[rgba(var(--kp-navy-rgb),0.10)]'
@@ -1484,15 +1484,16 @@ export function TabBar({
     <div
       className={cn(
         isVertical
-          ? 'bg-background min-w-0 h-full border-r'
+          ? 'bg-background min-w-0 h-full'
           : 'bg-muted/30 min-w-0 w-full',
+        showBorder && isVertical && 'border-r',
         showBorder && !isVertical && 'border-b',
       )}
       data-testid={rootTestId}
       role="tablist"
       aria-label={ariaLabel}
       aria-orientation={orientation}
-      style={isVertical ? { width: 220, minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
+      style={isVertical ? { width: '100%', minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
     >
       <div
         className={cn(
@@ -1636,7 +1637,7 @@ export function TabBar({
                 title="All open tabs"
                 aria-label="All open tabs"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">

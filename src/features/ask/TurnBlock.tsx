@@ -6,7 +6,7 @@ import {
   Info,
   Clock,
   Download,
-  MoreHorizontal,
+  MoreVertical,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button, Callout, IconButton, TrustNote } from '@/ui/kp';
@@ -385,7 +385,7 @@ export function TurnBlock({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <IconButton
-                  icon={MoreHorizontal}
+                  icon={MoreVertical}
                   label={t('ask.turn.answer-actions')}
                   size="sm"
                   variant="ghost"

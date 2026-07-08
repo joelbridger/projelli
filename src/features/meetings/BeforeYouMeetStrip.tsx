@@ -20,7 +20,7 @@ import {
   FileType,
   RefreshCw,
   CheckCircle2,
-  MoreHorizontal,
+  MoreVertical,
 } from 'lucide-react';
 import { localDay, useBriefStore, type MeetingBrief } from './briefStore';
 import { enqueueBriefs } from './briefQueue';
@@ -195,7 +195,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                         aria-label={t('meetings.before-you-meet.actions')}
                         className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
                       >
-                        <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
+                        <MoreVertical size={14} strokeWidth={1.75} aria-hidden />
                       </button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="w-36">

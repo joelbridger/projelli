@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MoreHorizontal, Plus } from 'lucide-react';
+import { MoreVertical, Plus } from 'lucide-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RailShell, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
 
@@ -278,20 +278,55 @@ describe('RailShell', () => {
     render(
       <RailShellHeader
         title="Emails"
-        actions={
-          <>
-            <RailShellActionMenu icon={Plus} label="Add email">
-              <button type="button">New email</button>
-            </RailShellActionMenu>
-            <RailShellActionMenu icon={MoreHorizontal} label="More email actions">
-              <button type="button">Filters</button>
-            </RailShellActionMenu>
-          </>
-        }
+        createAction={(
+          <RailShellActionMenu icon={Plus} label="Add email">
+            <button type="button">New email</button>
+          </RailShellActionMenu>
+        )}
+        menuAction={(
+          <RailShellActionMenu icon={MoreVertical} label="More email actions">
+            <button type="button">Filters</button>
+          </RailShellActionMenu>
+        )}
       />,
     );
 
     expect(screen.getByRole('button', { name: 'Add email' }).className).toContain('kp-icon-btn');
     expect(screen.getByRole('button', { name: 'More email actions' }).className).toContain('kp-icon-btn');
+  });
+
+  it('expands header search from an icon and collapses empty search on blur', () => {
+    function HeaderHarness() {
+      const [query, setQuery] = useState('');
+      return (
+        <>
+          <RailShellHeader
+            title="Emails"
+            search={{
+              value: query,
+              onChange: setQuery,
+              onClear: () => { setQuery(''); },
+              placeholder: 'Search email',
+              label: 'Search email',
+              testId: 'rail-search',
+            }}
+          />
+          <button type="button">Outside</button>
+        </>
+      );
+    }
+
+    render(<HeaderHarness />);
+
+    expect(screen.queryByTestId('rail-search')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Search email' }));
+
+    const field = screen.getByTestId('rail-search');
+    expect(field).toBeTruthy();
+
+    fireEvent.blur(field, { relatedTarget: screen.getByRole('button', { name: 'Outside' }) });
+
+    expect(screen.queryByTestId('rail-search')).toBeNull();
   });
 });

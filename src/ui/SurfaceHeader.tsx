@@ -43,7 +43,7 @@ export function SurfaceHeader({ Icon, title, titleActions, description, leading,
       }}
     >
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', marginBottom: 'var(--kp-space-2xs)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', minHeight: 'var(--kp-surface-header-row-height)', marginBottom: 'var(--kp-space-2xs)' }}>
           {leading}
           <Icon
             style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: iconColor, strokeWidth: 'var(--kp-icon-stroke)', flex: 'none' }}

@@ -74,7 +74,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/ui/dropdown-menu';
-import { FileText, List, PanelRightClose, FileType, X, History, Download, ChevronDown, MoreHorizontal, Columns, Rows, Pencil } from 'lucide-react';
+import { FileText, List, PanelRightClose, FileType, X, History, Download, ChevronDown, MoreVertical, Columns, Rows, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/platform/utils/saveFile';
 import { withShortcut } from '@/platform/utils/shortcuts';
@@ -1271,7 +1271,7 @@ export function MainPanel({
                   title="More actions"
                   aria-label="More actions"
                 >
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent

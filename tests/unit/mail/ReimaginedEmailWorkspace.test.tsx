@@ -201,6 +201,13 @@ async function flushEmailDetail() {
   });
 }
 
+function openEmailSearch(): HTMLElement {
+  const existing = screen.queryByTestId('email-search-input');
+  if (existing) return existing;
+  fireEvent.click(screen.getByTestId('email-search-input-toggle'));
+  return screen.getByTestId('email-search-input');
+}
+
 async function openEmailActionsMenu() {
   fireEvent.pointerDown(screen.getByTestId('email-more-actions'), { button: 0 });
   await act(async () => {
@@ -282,7 +289,7 @@ describe('EmailWorkspace', () => {
     const callsBefore = mockMailListMessages.mock.calls.length;
 
     // Type a keyword
-    const input = screen.getByTestId('email-search-input');
+    const input = openEmailSearch();
     fireEvent.change(input, { target: { value: 'deposition' } });
 
     // Advance only a little — debounce not yet elapsed
@@ -575,7 +582,7 @@ describe('EmailWorkspace', () => {
     expect(chips[0]).toBeDefined();
     fireEvent.click(chips[0]!);
 
-    const input = screen.getByTestId('email-search-input') as HTMLInputElement;
+    const input = openEmailSearch() as HTMLInputElement;
     expect(input.value).toBe('Beneficiary change');
     // Empty state should be hidden once there is a query
     expect(screen.queryByTestId('ask-empty-state')).not.toBeInTheDocument();
@@ -697,7 +704,7 @@ describe('EmailWorkspace', () => {
     await waitForInitialLoad();
 
     // Type a query
-    const input = screen.getByTestId('email-search-input');
+    const input = openEmailSearch();
     fireEvent.change(input, { target: { value: 'deposition' } });
     await flushDebounce();
 

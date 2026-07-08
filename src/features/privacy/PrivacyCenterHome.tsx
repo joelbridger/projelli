@@ -10,7 +10,7 @@
  */
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, MapPin, MoreHorizontal } from 'lucide-react';
+import { Lock, FileText, MapPin, MoreVertical } from 'lucide-react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -110,7 +110,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <IconButton
-                    icon={MoreHorizontal}
+                    icon={MoreVertical}
                     label="More privacy actions"
                     variant="secondary"
                     size="sm"

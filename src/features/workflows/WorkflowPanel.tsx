@@ -42,7 +42,7 @@ import {
   Copy,
   Trash2,
   Link as LinkIcon,
-  MoreHorizontal,
+  MoreVertical,
   ChevronDown,
   ChevronRight,
 } from 'lucide-react';
@@ -296,7 +296,7 @@ export function WorkflowPanel({
                 aria-label={t('workflow.panel.actions')}
                 title={t('workflow.panel.actions')}
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -651,7 +651,7 @@ function WorkflowsFullViewModal({
                           className="h-8 w-8 p-0"
                           aria-label={t('workflow.panel.template-actions', { name: workflow.name })}
                         >
-                          <MoreHorizontal className="h-3.5 w-3.5" />
+                          <MoreVertical className="h-3.5 w-3.5" />
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
@@ -965,7 +965,7 @@ function GroupedWorkflowList({
                                   className="h-7 w-7 p-0"
                                   aria-label={t('workflow.panel.template-actions', { name: workflow.name })}
                                 >
-                                  <MoreHorizontal className="h-3.5 w-3.5" />
+                                  <MoreVertical className="h-3.5 w-3.5" />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">

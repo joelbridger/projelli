@@ -210,6 +210,7 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
     // Switch to AI search mode and type a query.
     await openEmailActionsMenu();
     fireEvent.click(screen.getByTestId('mode-ask'));
+    fireEvent.click(screen.getByTestId('email-search-input-toggle'));
     fireEvent.change(screen.getByTestId('email-search-input'), { target: { value: 'beneficiary' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(300); });
 
@@ -227,6 +228,7 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
 
     await openEmailActionsMenu();
     fireEvent.click(screen.getByTestId('mode-ask'));
+    fireEvent.click(screen.getByTestId('email-search-input-toggle'));
     fireEvent.change(screen.getByTestId('email-search-input'), { target: { value: 'beneficiary' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(300); });
 

@@ -29,12 +29,13 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Mail,
-  Search,
   Loader2,
   AlertTriangle,
   Sparkles,
   RefreshCw,
-  MoreHorizontal,
+  MoreVertical,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plus,
   ExternalLink,
   Paperclip,
@@ -45,7 +46,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { isTauri } from '@tauri-apps/api/core';
-import { Button, SearchField, FilterPanel, Callout, RailShell, IconButton, Badge } from '@/ui/kp';
+import { Button, FilterPanel, Callout, RailShell, RailShellHeader, IconButton, Badge } from '@/ui/kp';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -145,15 +146,15 @@ function EmailRailRow({
         </button>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-snug text-[var(--kp-navy)]">
+            <span className="min-w-0 flex-1 truncate text-[var(--kp-rail-row-title-font-size)] font-semibold leading-snug text-[var(--kp-navy)]">
               {subjectLabel}
             </span>
-            <span className="shrink-0 text-[11px] leading-snug text-[var(--color-muted-foreground)]">
+            <span className="shrink-0 text-[var(--kp-rail-row-meta-font-size)] leading-snug text-[var(--color-muted-foreground)]">
               {formatRelativeDate(item.receivedDateTime)}
             </span>
           </div>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-muted-foreground)]">
+            <span className="min-w-0 flex-1 truncate text-[var(--kp-rail-row-meta-font-size)] text-[var(--color-muted-foreground)]">
               {fromLabel}
             </span>
             {item.hasAttachments ? (
@@ -175,7 +176,7 @@ function EmailRailRow({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <IconButton
-              icon={MoreHorizontal}
+              icon={MoreVertical}
               label={openLabel}
               size="xs"
               variant="ghost"
@@ -198,7 +199,7 @@ function EmailRailRow({
         </DropdownMenu>
       </div>
       {item.snippet ? (
-        <div className="line-clamp-1 pl-7 text-xs leading-snug text-[var(--kp-side-fg-dim)] group-hover:line-clamp-2 group-focus:line-clamp-2 group-focus-within:line-clamp-2">
+        <div className="line-clamp-1 pl-7 text-[var(--kp-rail-row-meta-font-size)] leading-snug text-[var(--kp-side-fg-dim)] group-hover:line-clamp-2 group-focus:line-clamp-2 group-focus-within:line-clamp-2">
           {item.snippet}
         </div>
       ) : null}
@@ -386,6 +387,7 @@ export function EmailWorkspace({
   // Compose open state — compose state/effects live in ComposeModal
   const [composeOpen, setComposeOpen] = useState(false);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // Ref for focusing the search field from the first-connect callout CTA.
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -859,144 +861,152 @@ export function EmailWorkspace({
     </FilterPanel>
   );
 
-  const railHeader = (
-    <div className="shrink-0 border-b border-[var(--kp-divider)] px-3 py-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="min-w-0 truncate text-sm font-semibold leading-tight text-[var(--kp-navy)]">
-          {t('mail.workspace.title')}
-        </div>
-        {hasConnectedMail ? (
-          <div className="flex shrink-0 items-center gap-1">
-            <IconButton
-              icon={Plus}
-              label={t('mail.workspace.new-email')}
-              size="sm"
-              variant="ghost"
-              data-testid="compose-btn"
-              onClick={() => { setComposeOpen(true); }}
-            />
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <IconButton
-                  icon={MoreHorizontal}
-                  label={t('mail.workspace.more-actions')}
-                  size="sm"
-                  variant="ghost"
-                  data-testid="email-more-actions"
-                />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                {(['keyword', 'ask'] as const).map((nextMode) => (
-                  <DropdownMenuItem
-                    key={nextMode}
-                    data-testid={`mode-${nextMode}`}
-                    onSelect={() => {
-                      setMode(nextMode);
-                      setQuery('');
-                      setOffset(0);
-                      setSelectedIds(new Set());
-                    }}
-                  >
-                    <Check
-                      className={`mr-2 h-3.5 w-3.5 ${mode === nextMode ? 'opacity-100' : 'opacity-0'}`}
-                      strokeWidth={2}
-                    />
-                    {nextMode === 'keyword' ? t('mail.workspace.keyword-search') : t('mail.workspace.ai-search')}
-                  </DropdownMenuItem>
-                ))}
-                {activeMatter && mode !== 'keyword' && !embedded ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      data-testid="email-scope-matter"
-                      onSelect={() => {
-                        setScopeAllEmail(false);
-                        setOffset(0);
-                    }}
-                  >
-                      <Check
-                        className={`mr-2 h-3.5 w-3.5 ${!scopeAllEmail ? 'opacity-100' : 'opacity-0'}`}
-                        strokeWidth={2}
-                      />
-                      {t('mail.workspace.this-client')}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      data-testid="email-scope-all"
-                      onSelect={() => {
-                        setScopeAllEmail(true);
-                        setOffset(0);
-                      }}
-                    >
-                      <Check
-                        className={`mr-2 h-3.5 w-3.5 ${scopeAllEmail ? 'opacity-100' : 'opacity-0'}`}
-                        strokeWidth={2}
-                      />
-                      {t('mail.workspace.all-email')}
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-                {mode === 'keyword' ? (
-                  <>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      data-testid="filters-toggle"
-                      onSelect={() => { setFiltersVisible((v) => !v); }}
-                    >
-                      {filtersVisible ? t('mail.workspace.hide-filters') : t('mail.workspace.show-filters')}
-                      {activeFilterCount > 0 ? ` (${String(activeFilterCount)})` : ''}
-                    </DropdownMenuItem>
-                  </>
-                ) : null}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  data-testid="email-sync-now"
-                  disabled={syncing}
-                  onSelect={() => {
-                    if (syncing) return;
-                    handleSyncNow();
-                  }}
-                >
-                  {syncing ? (
-                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" strokeWidth={2} />
-                  ) : (
-                    <RefreshCw className="mr-2 h-3.5 w-3.5" strokeWidth={1.75} />
-                  )}
-                  {syncing
-                    ? syncImportedMessages != null
-                      ? t('mail.workspace.syncing-count', { count: syncImportedMessages })
-                      : t('mail.workspace.syncing')
-                    : t('mail.workspace.sync-now')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        ) : null}
-      </div>
-      {hasConnectedMail ? (
-        <>
-          <SearchField
-            ref={searchInputRef}
-            size="md"
-            icon={Search}
-            value={query}
-            onChange={(v) => {
-              setQuery(v);
+  const emailMoreMenu = hasConnectedMail ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          icon={MoreVertical}
+          label={t('mail.workspace.more-actions')}
+          size="sm"
+          variant="ghost"
+          data-testid="email-more-actions"
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        {(['keyword', 'ask'] as const).map((nextMode) => (
+          <DropdownMenuItem
+            key={nextMode}
+            data-testid={`mode-${nextMode}`}
+            onSelect={() => {
+              setMode(nextMode);
+              setQuery('');
               setOffset(0);
               setSelectedIds(new Set());
             }}
-            onClear={handleClearQuery}
-            placeholder={mode === 'keyword' ? t('mail.workspace.search-keyword-placeholder') : t('mail.workspace.search-ai-placeholder')}
-            aria-label={t('mail.workspace.search-aria')}
-            data-testid="email-search-input"
-            style={{ marginTop: 10, width: '100%' }}
+          >
+            <Check
+              className={`mr-2 h-3.5 w-3.5 ${mode === nextMode ? 'opacity-100' : 'opacity-0'}`}
+              strokeWidth={2}
+            />
+            {nextMode === 'keyword' ? t('mail.workspace.keyword-search') : t('mail.workspace.ai-search')}
+          </DropdownMenuItem>
+        ))}
+        {activeMatter && mode !== 'keyword' && !embedded ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid="email-scope-matter"
+              onSelect={() => {
+                setScopeAllEmail(false);
+                setOffset(0);
+              }}
+            >
+              <Check
+                className={`mr-2 h-3.5 w-3.5 ${!scopeAllEmail ? 'opacity-100' : 'opacity-0'}`}
+                strokeWidth={2}
+              />
+              {t('mail.workspace.this-client')}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="email-scope-all"
+              onSelect={() => {
+                setScopeAllEmail(true);
+                setOffset(0);
+              }}
+            >
+              <Check
+                className={`mr-2 h-3.5 w-3.5 ${scopeAllEmail ? 'opacity-100' : 'opacity-0'}`}
+                strokeWidth={2}
+              />
+              {t('mail.workspace.all-email')}
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        {mode === 'keyword' ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              data-testid="filters-toggle"
+              onSelect={() => { setFiltersVisible((v) => !v); }}
+            >
+              {filtersVisible ? t('mail.workspace.hide-filters') : t('mail.workspace.show-filters')}
+              {activeFilterCount > 0 ? ` (${String(activeFilterCount)})` : ''}
+            </DropdownMenuItem>
+          </>
+        ) : null}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="email-sync-now"
+          disabled={syncing}
+          onSelect={() => {
+            if (syncing) return;
+            handleSyncNow();
+          }}
+        >
+          {syncing ? (
+            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+          ) : (
+            <RefreshCw className="mr-2 h-3.5 w-3.5" strokeWidth={1.75} />
+          )}
+          {syncing
+            ? syncImportedMessages != null
+              ? t('mail.workspace.syncing-count', { count: syncImportedMessages })
+              : t('mail.workspace.syncing')
+            : t('mail.workspace.sync-now')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+
+  const railHeader = (
+    <div className="shrink-0 border-b border-[var(--kp-divider)]">
+      <RailShellHeader
+        title={t('mail.workspace.title')}
+        search={hasConnectedMail ? {
+          value: query,
+          onChange: (v) => {
+            setQuery(v);
+            setOffset(0);
+            setSelectedIds(new Set());
+          },
+          onClear: handleClearQuery,
+          placeholder: mode === 'keyword' ? t('mail.workspace.search-keyword-placeholder') : t('mail.workspace.search-ai-placeholder'),
+          label: t('mail.workspace.search-aria'),
+          testId: 'email-search-input',
+          inputRef: searchInputRef,
+        } : undefined}
+        createAction={hasConnectedMail ? (
+          <IconButton
+            icon={Plus}
+            label={t('mail.workspace.new-email')}
+            size="sm"
+            variant="ghost"
+            data-testid="compose-btn"
+            onClick={() => { setComposeOpen(true); }}
           />
+        ) : null}
+        menuAction={emailMoreMenu}
+        collapseAction={(
+          <IconButton
+            icon={PanelLeftClose}
+            label={t('mail.workspace.hide-list')}
+            size="sm"
+            variant="ghost"
+            data-testid="email-rail-hide"
+            onClick={() => { setRailCollapsed(true); }}
+          />
+        )}
+        className="border-b-0"
+      />
+      {hasConnectedMail ? (
+        <>
           {mode === 'ask' ? (
-            <p className="m-0 mt-2 text-[11px] leading-snug text-[var(--color-muted-foreground)]">
+            <p className="m-0 px-3 pb-2 text-[11px] leading-snug text-[var(--color-muted-foreground)]">
               {t('mail.workspace.ask-hint')}
             </p>
           ) : null}
           {mode === 'keyword' && activeFilterChips.length > 0 ? (
-            <div data-testid="active-filter-row" className="mt-2 flex flex-wrap gap-1.5">
+            <div data-testid="active-filter-row" className="flex flex-wrap gap-1.5 px-3 pb-2">
               {activeFilterChips.map((chip) => (
                 <span
                   key={chip}
@@ -1007,9 +1017,9 @@ export function EmailWorkspace({
               ))}
             </div>
           ) : null}
-          {mode === 'keyword' && filtersVisible ? renderFilterPanel() : null}
+          {mode === 'keyword' && filtersVisible ? <div className="px-3 pb-2">{renderFilterPanel()}</div> : null}
           {mode === 'keyword' && !loading && !error && scopedItems.length > 0 && (searchOrFilterActive || (scopeMatches && items.length < total)) ? (
-            <div data-testid="result-count" className="mt-2 flex items-center justify-between gap-2 text-[11px] text-[var(--color-muted-foreground)]">
+            <div data-testid="result-count" className="flex items-center justify-between gap-2 px-3 pb-2 text-[11px] text-[var(--color-muted-foreground)]">
               {searchOrFilterActive ? (
                 <span>
                   {embedded
@@ -1126,6 +1136,29 @@ export function EmailWorkspace({
         <RailShell
           className="min-h-0 flex-1"
           railWidth={276}
+          collapsed={railCollapsed}
+          collapsedRail={(
+            <div className="flex flex-col items-center gap-2">
+              <IconButton
+                icon={PanelLeftOpen}
+                label={t('mail.workspace.show-list')}
+                size="sm"
+                variant="ghost"
+                data-testid="email-rail-show"
+                onClick={() => { setRailCollapsed(false); }}
+              />
+              {hasConnectedMail ? (
+                <IconButton
+                  icon={Plus}
+                  label={t('mail.workspace.new-email')}
+                  size="sm"
+                  variant="ghost"
+                  data-testid="compose-btn"
+                  onClick={() => { setComposeOpen(true); }}
+                />
+              ) : null}
+            </div>
+          )}
           header={railHeader}
           listAriaLabel={t('mail.workspace.rail-list-label')}
           items={mode === 'keyword' ? railItems : []}

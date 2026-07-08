@@ -19,7 +19,7 @@ import {
   FileText,
   Folder,
   AlertTriangle,
-  MoreHorizontal,
+  MoreVertical,
   Settings,
 } from 'lucide-react';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
@@ -156,7 +156,7 @@ export function TrashPanel({
                 title={items.length > 0 ? trashSummary : t('common.trash.more-actions')}
                 aria-label={t('common.trash.more-actions')}
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-44">

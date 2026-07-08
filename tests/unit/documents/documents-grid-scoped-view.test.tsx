@@ -166,6 +166,13 @@ async function openFilesCreateMenu() {
   await screen.findByTestId('documents-create-document');
 }
 
+function openDocumentsSearch(): HTMLElement {
+  const existing = screen.queryByTestId('documents-search-field');
+  if (existing) return existing;
+  fireEvent.click(screen.getByTestId('documents-search-field-toggle'));
+  return screen.getByTestId('documents-search-field');
+}
+
 describe('DocumentsHome — Grid view with relative tree paths (real bug shape)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -203,7 +210,7 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
         scopeMatterId="acme"
       />,
     );
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
     fireEvent.change(search, { target: { value: 'deal' } });
     expect(screen.getByText('deal.docx')).toBeTruthy();
   });
@@ -435,7 +442,7 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
     // searching). Search for a file nested inside the sibling "Contracts"
     // subfolder — a DIFFERENT folder than the one currently open.
     expect(screen.getByText('deal.docx')).toBeTruthy();
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
     fireEvent.change(search, { target: { value: 'nda' } });
     expect(screen.getByText('nda.docx')).toBeTruthy();
   });
@@ -449,7 +456,7 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
         scopeMatterId="acme"
       />,
     );
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
     // "beta-secret.docx" belongs to a different client (Beta) — it must
     // never surface in Acme's scoped search results. Matter isolation holds
     // because `scopeFileTreeToFolders` already pruned Beta's branch out of
@@ -524,7 +531,7 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
         scopeFolderPaths={[`${ROOT}/Clients/Beta/Acme`]}
       />,
     );
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
     fireEvent.change(search, { target: { value: 'nda' } });
     const context = screen.getByTestId('grid-card-context-Clients/Beta/Acme/Contracts/nda.docx');
     // Correct: "Contracts" (relative to the client's own folder). Must NEVER
@@ -587,7 +594,7 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
         scopeFolderPaths={[`${ROOT}/Clients/Beta/Acme`]}
       />,
     );
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
 
     // Note: the breadcrumb trail (a pre-existing, unrelated navigational
     // affordance) already shows "Beta" as an ancestor crumb regardless of
@@ -663,7 +670,7 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
         ]}
       />,
     );
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
 
     // The wrapper leak must still be closed even with the stale extra entry.
     fireEvent.change(search, { target: { value: 'Beta' } });
@@ -715,7 +722,7 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
         scopeFolderPaths={[`${ROOT}/Clients/Acme`, `${ROOT}/Clients/Acme/Contracts`]}
       />,
     );
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
     fireEvent.change(search, { target: { value: 'nda' } });
     expect(screen.getAllByText('nda.docx')).toHaveLength(1);
     expect(screen.getByTestId('grid-card-context-Clients/Acme/Contracts/nda.docx').textContent).toBe(
@@ -732,7 +739,7 @@ describe('DocumentsHome — B4b: whole-client search scope + matter isolation', 
         scopeMatterId="acme"
       />,
     );
-    const search = screen.getByTestId('documents-search-field');
+    const search = openDocumentsSearch();
     fireEvent.change(search, { target: { value: 'zzznomatch' } });
     expect(screen.getByText(/no files match your search/i)).toBeTruthy();
     expect(screen.queryByText('deal.docx')).toBeNull();
