@@ -1,3 +1,4 @@
+import '@/i18n';
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
@@ -36,6 +37,17 @@ import {
   useBriefStore,
 } from '@/features/meetings/briefStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
+
+function openBrief(): void {
+  fireEvent.click(screen.getByTestId('brief-collapse-toggle'));
+}
+
+function openBriefActions(): void {
+  fireEvent.pointerDown(screen.getByTestId('brief-actions-menu'), {
+    button: 0,
+    ctrlKey: false,
+  });
+}
 
 describe('BeforeYouMeetStrip', () => {
   beforeEach(() => {
@@ -81,11 +93,13 @@ describe('BeforeYouMeetStrip', () => {
       },
     });
     render(<BeforeYouMeetStrip matterId="m-1" />);
+    openBrief();
     expect(screen.getByTestId('before-you-meet').textContent).toContain(
       'Cash position'
     );
     expect(screen.getByText('estate-plan.pdf')).toBeTruthy();
 
+    openBriefActions();
     fireEvent.click(screen.getByTestId('brief-export-docx'));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(toDocx).toHaveBeenCalledWith(
@@ -122,6 +136,7 @@ describe('BeforeYouMeetStrip', () => {
       },
     });
     render(<BeforeYouMeetStrip matterId="m-1" />);
+    openBrief();
     const bullets = screen.getByTestId('brief-bullets');
     expect(bullets.textContent).toContain('Robert turns 73 in November');
     expect(bullets.textContent).toContain('2024-ira-statement.pdf');
@@ -152,6 +167,7 @@ describe('BeforeYouMeetStrip', () => {
       },
     });
     render(<BeforeYouMeetStrip matterId="m-1" />);
+    openBrief();
     expect(screen.queryByTestId('brief-bullets')).toBeNull();
     expect(screen.getByTestId('before-you-meet').textContent).toContain('Cash position');
     expect(screen.getByText('estate-plan.pdf')).toBeTruthy();
@@ -176,6 +192,7 @@ describe('BeforeYouMeetStrip', () => {
       },
     });
     render(<BeforeYouMeetStrip matterId="m-1" />);
+    openBrief();
     expect(screen.getByTestId('brief-stale-chip')).toBeTruthy();
     fireEvent.click(screen.getByTestId('brief-collapse-toggle'));
     expect(screen.queryByText('# B')).toBeNull();
@@ -200,6 +217,8 @@ describe('BeforeYouMeetStrip', () => {
       },
     });
     render(<BeforeYouMeetStrip matterId="m-1" />);
+    openBrief();
+    openBriefActions();
     fireEvent.click(screen.getByTestId('agenda-export-docx'));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
     expect(agendaFromBrief).toHaveBeenCalledTimes(1);
@@ -253,6 +272,8 @@ describe('BeforeYouMeetStrip', () => {
     });
 
     render(<BeforeYouMeetStrip matterId="m-1" />);
+    openBrief();
+    openBriefActions();
     fireEvent.click(screen.getByTestId('brief-refresh'));
 
     await waitFor(() => expect(generateBrief).toHaveBeenCalledTimes(1));

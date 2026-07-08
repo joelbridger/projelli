@@ -64,7 +64,7 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
       <input
         data-testid="clientmap-interview-answer"
         type="text"
-        placeholder={t('matter.clientmap.interview-answer-placeholder')}
+        placeholder={t('matter.client-map.interview-answer-placeholder')}
         value={answer}
         onChange={(e) => { setAnswer(e.target.value); }}
         style={{
@@ -82,7 +82,7 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
           size="sm"
           onClick={handleSubmit}
         >
-          {t('matter.clientmap.interview-save')}
+          {t('matter.client-map.interview-save')}
         </Button>
         <Button
           data-testid="clientmap-interview-flag"
@@ -90,14 +90,14 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
           size="sm"
           onClick={handleFlag}
         >
-          {t('matter.clientmap.interview-flag')}
+          {t('matter.client-map.interview-flag')}
         </Button>
         <Button
           variant="ghost"
           size="sm"
           onClick={onClose}
         >
-          {t('matter.clientmap.close')}
+          {t('matter.client-map.close')}
         </Button>
       </div>
     </div>

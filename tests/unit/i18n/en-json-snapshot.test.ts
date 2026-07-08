@@ -61,9 +61,9 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 55,
         "marketplace": 14,
-        "matter": 220,
+        "matter": 289,
         "media": 100,
-        "meetings": 227,
+        "meetings": 240,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -263,7 +263,9 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +82 = Client Map simplification lane: plainer Client Map, question,
+    //       CRM write, and Before You Meet wording.
+    expect(flat.length).toBe(1629); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

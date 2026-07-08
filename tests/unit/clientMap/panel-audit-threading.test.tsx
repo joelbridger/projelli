@@ -5,15 +5,12 @@
 // This verifies the "+ New section" flow (ClientMapPanel -> AddSectionPanel)
 // passes the caller-supplied onAuditLog all the way down to buildCustomSection.
 
+import '@/i18n';
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-
-vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
-}));
 
 const buildCustomSectionMock = vi.hoisted(() => vi.fn());
 vi.mock('@/features/matters/clientMap/customSection', () => ({
@@ -73,6 +70,7 @@ describe('ClientMapPanel — onAuditLog threading into buildCustomSection', () =
     useClientMapStore.getState().setMap(map.matterId, map);
     render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
 
+    fireEvent.click(screen.getByTestId('clientmap-add-fact-row'));
     fireEvent.change(screen.getByTestId('clientmap-add-bullet-input'), {
       target: { value: 'Client wants to retire in 2028' },
     });
@@ -100,7 +98,8 @@ describe('ClientMapPanel — onAuditLog threading into buildCustomSection', () =
     useClientMapStore.getState().setMap(map.matterId, map);
     render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
 
-    fireEvent.click(screen.getByTestId('clientmap-item-remove'));
+    fireEvent.pointerDown(screen.getByTestId('clientmap-item-menu'), { button: 0, ctrlKey: false });
+    fireEvent.click(await screen.findByTestId('clientmap-item-remove'));
     expect(screen.getByTestId('clientmap-confirm-dialog')).toBeTruthy();
     fireEvent.click(screen.getByTestId('confirm-dialog-confirm'));
 

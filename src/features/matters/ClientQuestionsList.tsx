@@ -46,12 +46,12 @@ export function ClientQuestionsList({ matterId }: ClientQuestionsListProps) {
   return (
     <div data-testid="clientmap-client-questions" style={{ marginTop: 'var(--kp-space-xl)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <Eyebrow>{t('matter.clientQuestions.heading')}</Eyebrow>
+        <Eyebrow>{t('matter.client-questions.heading')}</Eyebrow>
         <button
           type="button"
           data-testid="clientmap-questions-copy"
-          aria-label={copied ? t('matter.clientQuestions.copied') : t('matter.clientQuestions.copy')}
-          title={copied ? t('matter.clientQuestions.copied') : t('matter.clientQuestions.copy')}
+          aria-label={copied ? t('matter.client-questions.copied') : t('matter.client-questions.copy')}
+          title={copied ? t('matter.client-questions.copied') : t('matter.client-questions.copy')}
           onClick={handleCopy}
           className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
         >
@@ -68,8 +68,8 @@ export function ClientQuestionsList({ matterId }: ClientQuestionsListProps) {
             <button
               type="button"
               data-testid="clientmap-question-remove"
-              aria-label={t('matter.clientQuestions.remove-one', { question: q.text })}
-              title={t('matter.clientQuestions.remove')}
+              aria-label={t('matter.client-questions.remove-one', { question: q.text })}
+              title={t('matter.client-questions.remove')}
               onClick={() => { removeClientQuestion(matterId, q.id); }}
               className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
               style={{ flexShrink: 0 }}

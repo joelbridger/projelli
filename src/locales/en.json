@@ -1235,7 +1235,7 @@
       "provenance-drafted": "Drafted by {{ai}}; approved by {{advisor}} on {{approved}}.",
       "provenance-advisor-fallback": "the advisor"
     },
-    "crmWrite": {
+    "crm-write": {
       "approve-to-send": "Approve to send to Wealthbox."
     },
     "home": {
@@ -1298,7 +1298,7 @@
       "chip-title": "Beneficiary check",
       "review-note": "Flagged for your review. Not legal advice."
     },
-    "clientmap": {
+    "client-map": {
       "new-section": "New section",
       "rail-money": "Money",
       "rail-missing": "Missing",
@@ -1354,7 +1354,7 @@
       "interview-flag": "Flag",
       "close": "Close"
     },
-    "clientQuestions": {
+    "client-questions": {
       "heading": "Questions for the client",
       "copy": "Copy questions",
       "copied": "Copied",
@@ -1406,7 +1406,7 @@
       "edit-item-prompt": "Edit item:",
       "edit-item-title": "Edit item",
       "local-only-notice": "Running on-device only. Generation uses your local model.",
-      "building": "Building map...",
+      "building": "Building map",
       "empty-notice": "Add documents or email to build this map.",
       "error-notice": "Could not build client map. Check your AI connection and try again."
     }
@@ -1748,7 +1748,7 @@
     }
   },
   "meetings": {
-    "beforeYouMeet": {
+    "before-you-meet": {
       "title": "Before you meet",
       "count_one": "{{count}} meeting",
       "count_other": "{{count}} meetings",

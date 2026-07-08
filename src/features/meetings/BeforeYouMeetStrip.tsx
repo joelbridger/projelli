@@ -62,7 +62,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
   const firstBrief = todays[0];
   const summary = todays.length === 1 && firstBrief
     ? firstBrief.eventTitle
-    : t('meetings.beforeYouMeet.count', { count: todays.length });
+    : t('meetings.before-you-meet.count', { count: todays.length });
 
   async function exportDocx(brief: MeetingBrief) {
     setBusy(true);
@@ -168,10 +168,10 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
         }}
         className="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent p-0 text-left"
         aria-expanded={!collapsed}
-        aria-label={t('meetings.beforeYouMeet.toggle')}
+        aria-label={t('meetings.before-you-meet.toggle')}
       >
         <span className="text-sm font-bold text-[var(--kp-navy)]">
-          {t('meetings.beforeYouMeet.title')}
+          {t('meetings.before-you-meet.title')}
         </span>
         <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
           {summary}
@@ -192,7 +192,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                       <button
                         type="button"
                         data-testid="brief-actions-menu"
-                        aria-label={t('meetings.beforeYouMeet.actions')}
+                        aria-label={t('meetings.before-you-meet.actions')}
                         className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
                       >
                         <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
@@ -207,7 +207,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                         }}
                       >
                         <FileType size={13} aria-hidden />
-                        {t('meetings.beforeYouMeet.brief')}
+                        {t('meetings.before-you-meet.brief')}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         data-testid="agenda-export-docx"
@@ -217,7 +217,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                         }}
                       >
                         <FileType size={13} aria-hidden />
-                        {t('meetings.beforeYouMeet.agenda')}
+                        {t('meetings.before-you-meet.agenda')}
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         data-testid="brief-refresh"
@@ -226,7 +226,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                         }}
                       >
                         <RefreshCw size={13} aria-hidden />
-                        {t('meetings.beforeYouMeet.refresh')}
+                        {t('meetings.before-you-meet.refresh')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -236,7 +236,7 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                     data-testid="brief-stale-chip"
                     className="mb-1.5 inline-block rounded-full bg-amber-100 px-2 py-px text-[11px] text-amber-800"
                   >
-                    {t('meetings.beforeYouMeet.new-files')}
+                    {t('meetings.before-you-meet.new-files')}
                   </span>
                 )}
                 {brief.bullets != null && brief.bullets.length > 0 ? (
@@ -287,18 +287,18 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                   {(savedKey === brief.key || savedAgendaKey === brief.key) && (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--kp-success)]">
                       <CheckCircle2 size={14} />
-                      {t('meetings.beforeYouMeet.saved')}
+                      {t('meetings.before-you-meet.saved')}
                     </span>
                   )}
                 </div>
               </>
             )}
             {(brief.status === 'pending' || brief.status === 'generating') && (
-              <p className="text-xs text-slate-500">{t('meetings.beforeYouMeet.preparing')}</p>
+              <p className="text-xs text-slate-500">{t('meetings.before-you-meet.preparing')}</p>
             )}
             {brief.status === 'failed' && (
               <p className="text-xs text-red-700">
-                {t('meetings.beforeYouMeet.failed', { error: brief.error ?? t('meetings.beforeYouMeet.unknown-error') })}
+                {t('meetings.before-you-meet.failed', { error: brief.error ?? t('meetings.before-you-meet.unknown-error') })}
               </p>
             )}
           </div>

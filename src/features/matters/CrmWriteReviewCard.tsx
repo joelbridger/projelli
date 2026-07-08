@@ -451,7 +451,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                 Approve {pluralize(selectedIds.length, 'change')}
               </Button>
               <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-                {t('matter.crmWrite.approve-to-send')}
+                {t('matter.crm-write.approve-to-send')}
               </span>
             </div>
           )}

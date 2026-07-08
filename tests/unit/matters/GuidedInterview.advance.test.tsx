@@ -25,7 +25,7 @@ describe('GuidedInterview advance does not skip', () => {
     expect(screen.queryByText('Q1 trial date?')).not.toBeInTheDocument();
   });
 
-  it('flagging the last question reaches all caught up', () => {
+  it('flagging the last question closes the empty interview panel', () => {
     render(<GuidedInterview matterId="m1" onClose={vi.fn()} />);
     // answer Q1, Q2, then flag Q3
     fireEvent.change(screen.getByTestId('clientmap-interview-answer'), { target: { value: 'a' } });
@@ -33,6 +33,6 @@ describe('GuidedInterview advance does not skip', () => {
     fireEvent.change(screen.getByTestId('clientmap-interview-answer'), { target: { value: 'b' } });
     fireEvent.click(screen.getByTestId('clientmap-interview-submit'));
     fireEvent.click(screen.getByTestId('clientmap-interview-flag'));
-    expect(screen.getByText('No open questions right now.')).toBeInTheDocument();
+    expect(screen.queryByTestId('clientmap-guided-interview')).toBeNull();
   });
 });

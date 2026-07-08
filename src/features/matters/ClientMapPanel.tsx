@@ -262,7 +262,7 @@ function SourceChip({
       data-testid="clientmap-source-link"
       size="sm"
       style={sourceChipStyle}
-      aria-label={t('matter.clientmap.source-chip-label', { label })}
+      aria-label={t('matter.client-map.source-chip-label', { label })}
       onClick={() => {
         onOpenSource(source);
       }}
@@ -275,11 +275,11 @@ function SourceChip({
 function completenessLevelLabel(level: ClientMap['completeness']['level'], t: (key: string) => string): string {
   switch (level) {
     case 'thin':
-      return t('matter.clientmap.level.thin');
+      return t('matter.client-map.level.thin');
     case 'getting-there':
-      return t('matter.clientmap.level.getting-there');
+      return t('matter.client-map.level.getting-there');
     case 'solid':
-      return t('matter.clientmap.level.solid');
+      return t('matter.client-map.level.solid');
   }
 }
 
@@ -330,7 +330,7 @@ function ItemRow({
                 data-testid="clientmap-item-assumption"
                 style={{ ...mutedTextStyle, fontSize: 'var(--kp-font-xs)' }}
               >
-                {t('matter.clientmap.assuming')}
+                {t('matter.client-map.assuming')}
               </span>
             )}
             {item.sources.map((s, i) => (
@@ -345,7 +345,7 @@ function ItemRow({
             <button
               type="button"
               data-testid="clientmap-item-menu"
-              aria-label={t('matter.clientmap.row-actions')}
+              aria-label={t('matter.client-map.row-actions')}
               className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
               style={{ flex: 'none', marginTop: 1 }}
             >
@@ -358,7 +358,7 @@ function ItemRow({
                 data-testid="clientmap-item-edit"
                 onSelect={onEdit}
               >
-                {t('matter.clientmap.edit')}
+                {t('matter.client-map.edit')}
               </DropdownMenuItem>
             )}
             {onRemove != null && (
@@ -367,7 +367,7 @@ function ItemRow({
                 className="text-destructive focus:text-destructive"
                 onSelect={onRemove}
               >
-                {t('matter.clientmap.remove')}
+                {t('matter.client-map.remove')}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -582,7 +582,7 @@ function SectionPanel({
             active={meetingNotesOnly}
             onClick={() => { setMeetingNotesOnly((v) => !v); }}
           >
-            {t('matter.clientmap.meetings-filter', { count: meetingNoteCount })}
+            {t('matter.client-map.meetings-filter', { count: meetingNoteCount })}
           </Chip>
         )}
         <DropdownMenu>
@@ -590,7 +590,7 @@ function SectionPanel({
             <button
               type="button"
               data-testid="clientmap-section-menu"
-              aria-label={t('matter.clientmap.section-actions')}
+              aria-label={t('matter.client-map.section-actions')}
               className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--sm"
             >
               <MoreHorizontal size={15} strokeWidth={1.75} aria-hidden />
@@ -601,14 +601,14 @@ function SectionPanel({
               data-testid="clientmap-section-history"
               onSelect={onViewHistory}
             >
-              {t('matter.clientmap.view-section-history')}
+              {t('matter.client-map.view-section-history')}
             </DropdownMenuItem>
             {isCustom && onSaveTemplate != null && (
               <DropdownMenuItem
                 data-testid="clientmap-section-save-template"
                 onSelect={onSaveTemplate}
               >
-                {t('matter.clientmap.save-as-template')}
+                {t('matter.client-map.save-as-template')}
               </DropdownMenuItem>
             )}
             {isCustom && onDelete != null && (
@@ -617,7 +617,7 @@ function SectionPanel({
                 className="text-destructive focus:text-destructive"
                 onSelect={onDelete}
               >
-                {t('matter.clientmap.remove-section')}
+                {t('matter.client-map.remove-section')}
               </DropdownMenuItem>
             )}
           </DropdownMenuContent>
@@ -640,7 +640,7 @@ function SectionPanel({
           ))}
         </div>
       ) : (
-        <div style={mutedTextStyle}>{t('matter.clientmap.section-empty')}</div>
+        <div style={mutedTextStyle}>{t('matter.client-map.section-empty')}</div>
       )}
       {addingFact ? (
         <form
@@ -665,7 +665,7 @@ function SectionPanel({
             type="text"
             value={newBullet}
             onChange={(e) => { setNewBullet(e.target.value); }}
-            placeholder={t('matter.clientmap.add-fact')}
+            placeholder={t('matter.client-map.add-fact')}
             style={{ ...inputStyle, height: 36, flex: 1 }}
             autoFocus
           />
@@ -676,7 +676,7 @@ function SectionPanel({
             size="sm"
             disabled={!newBullet.trim()}
           >
-            {t('matter.clientmap.add')}
+            {t('matter.client-map.add')}
           </Button>
         </form>
       ) : (
@@ -701,7 +701,7 @@ function SectionPanel({
           }}
         >
           <Plus size={14} strokeWidth={1.75} aria-hidden />
-          {t('matter.clientmap.add-fact-row')}
+          {t('matter.client-map.add-fact-row')}
         </button>
       )}
     </div>
@@ -732,7 +732,7 @@ function MissingPanel({
   const hasAssumptions = c.assuming.length > 0;
   return (
     <div data-testid="clientmap-completeness">
-      <PanelHeader title={t('matter.clientmap.missing-title')}>
+      <PanelHeader title={t('matter.client-map.missing-title')}>
         <Chip data-testid="clientmap-completeness-level" size="sm">
           {completenessLevelLabel(c.level, t)}
         </Chip>
@@ -742,20 +742,20 @@ function MissingPanel({
         data-testid="clientmap-coverage-caveat"
         style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-md)', display: 'flex', alignItems: 'center', gap: 6 }}
       >
-        {t('matter.clientmap.coverage-caveat-short')}
+        {t('matter.client-map.coverage-caveat-short')}
         <TooltipProvider delayDuration={0} skipDelayDuration={0}>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 type="button"
-                aria-label={t('matter.clientmap.coverage-caveat-label')}
+                aria-label={t('matter.client-map.coverage-caveat-label')}
                 className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
               >
                 <Info size={13} strokeWidth={1.75} aria-hidden />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
-              {t('matter.clientmap.coverage-caveat-full')}
+              {t('matter.client-map.coverage-caveat-full')}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
@@ -771,7 +771,7 @@ function MissingPanel({
             style={{ marginBottom: 'var(--kp-space-sm)' }}
             onClick={() => { setInterviewOpen(true); }}
           >
-            {t('matter.clientmap.answer-one-by-one')}
+            {t('matter.client-map.answer-one-by-one')}
           </Button>
           {interviewOpen && (
             <div style={{ marginBottom: 'var(--kp-space-md)' }}>
@@ -793,14 +793,14 @@ function MissingPanel({
                   onAnswerQuestion?.(q);
                 }}
               >
-                {t('matter.clientmap.answer')}
+                {t('matter.client-map.answer')}
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
                     data-testid="clientmap-ask-menu"
-                    aria-label={t('matter.clientmap.question-actions')}
+                    aria-label={t('matter.client-map.question-actions')}
                     className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
                   >
                     <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
@@ -817,7 +817,7 @@ function MissingPanel({
                       }
                     }}
                   >
-                    {t('matter.clientmap.ask-client')}
+                    {t('matter.client-map.ask-client')}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -828,7 +828,7 @@ function MissingPanel({
 
       {hasAssumptions && (
         <div style={{ marginBottom: 'var(--kp-space-lg)' }}>
-          <Eyebrow>{t('matter.clientmap.assumptions-title')}</Eyebrow>
+          <Eyebrow>{t('matter.client-map.assumptions-title')}</Eyebrow>
           <div>
             {c.assuming.map((it) => (
               <ItemRow key={it.id} item={it} onOpenSource={onOpenSource} showAssumptionLabel={false} />
@@ -839,7 +839,7 @@ function MissingPanel({
 
       {!hasGaps && !hasAssumptions && (
         <div style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-lg)' }}>
-          {t('matter.clientmap.map-complete')}
+          {t('matter.client-map.map-complete')}
         </div>
       )}
 
@@ -904,7 +904,7 @@ function AddSectionPanel({
           items: [
             {
               id: uuidv4(),
-              text: t('matter.clientmap.preview-tracking', { prompt: p }),
+              text: t('matter.client-map.preview-tracking', { prompt: p }),
               origin: 'ai',
               isAssumption: false,
               sources: [],
@@ -912,7 +912,7 @@ function AddSectionPanel({
             },
             {
               id: uuidv4(),
-              text: t('matter.clientmap.preview-updated'),
+              text: t('matter.client-map.preview-updated'),
               origin: 'ai',
               isAssumption: false,
               sources: [],
@@ -933,7 +933,7 @@ function AddSectionPanel({
       onCreated(sectionId);
     } catch {
       removeSectionSilently(matterId, sectionId);
-      setError(t('matter.clientmap.section-error'));
+      setError(t('matter.client-map.section-error'));
     } finally {
       setBusy(false);
     }
@@ -951,7 +951,7 @@ function AddSectionPanel({
 
   return (
     <div data-testid="clientmap-new-section">
-      <PanelHeader title={t('matter.clientmap.add-section-heading')} />
+      <PanelHeader title={t('matter.client-map.add-section-heading')} />
       <p
         style={{
           ...mutedTextStyle,
@@ -960,7 +960,7 @@ function AddSectionPanel({
           maxWidth: 520,
         }}
       >
-        {t('matter.clientmap.add-section-body')}
+        {t('matter.client-map.add-section-body')}
       </p>
 
       <form
@@ -977,7 +977,7 @@ function AddSectionPanel({
       >
         <div>
           <label htmlFor="cmp-section-title" style={fieldLabelStyle}>
-            {t('matter.clientmap.section-name')}
+            {t('matter.client-map.section-name')}
           </label>
           <input
             id="cmp-section-title"
@@ -987,13 +987,13 @@ function AddSectionPanel({
             onChange={(e) => {
               setTitle(e.target.value);
             }}
-            placeholder={t('matter.clientmap.section-name-placeholder')}
+            placeholder={t('matter.client-map.section-name-placeholder')}
             style={inputStyle}
           />
         </div>
         <div>
           <label htmlFor="cmp-section-description" style={fieldLabelStyle}>
-            {t('matter.clientmap.track-label')}
+            {t('matter.client-map.track-label')}
           </label>
           <input
             id="cmp-section-description"
@@ -1003,7 +1003,7 @@ function AddSectionPanel({
             onChange={(e) => {
               setPrompt(e.target.value);
             }}
-            placeholder={t('matter.clientmap.track-placeholder')}
+            placeholder={t('matter.client-map.track-placeholder')}
             style={inputStyle}
           />
         </div>
@@ -1026,7 +1026,7 @@ function AddSectionPanel({
             disabled={!title.trim() || busy}
             loading={busy}
           >
-            {t('matter.clientmap.add-section-submit')}
+            {t('matter.client-map.add-section-submit')}
           </Button>
         </div>
       </form>
@@ -1040,7 +1040,7 @@ function AddSectionPanel({
             maxWidth: 520,
           }}
         >
-          <Eyebrow>{t('matter.clientmap.saved-templates')}</Eyebrow>
+          <Eyebrow>{t('matter.client-map.saved-templates')}</Eyebrow>
           <ul
             style={{
               listStyle: 'none',
@@ -1089,7 +1089,7 @@ function AddSectionPanel({
                     void applyTemplate(tpl.id);
                   }}
                 >
-                  {t('matter.clientmap.apply-template')}
+                  {t('matter.client-map.apply-template')}
                 </Button>
               </li>
             ))}
@@ -1266,7 +1266,7 @@ export function ClientMapPanel({
         <div style={railTopActionsStyle}>
           <RailIconActionButton
             icon={Plus}
-            label={t('matter.clientmap.new-section')}
+            label={t('matter.client-map.new-section')}
             testid="clientmap-tab-add"
             onClick={() => {
               select(NEW_KEY);
@@ -1279,7 +1279,7 @@ export function ClientMapPanel({
             <TabButton
               key={s.key}
               testid={`clientmap-tab-${s.key}`}
-              title={s.key === 'money' ? t('matter.clientmap.rail-money') : s.title}
+              title={s.key === 'money' ? t('matter.client-map.rail-money') : s.title}
               count={null}
               active={activeKey === s.key}
               accent={false}
@@ -1293,7 +1293,7 @@ export function ClientMapPanel({
           {/* "What I'm missing" — accent badge when there are open gaps */}
           <TabButton
             testid={`clientmap-tab-${MISSING_KEY}`}
-            title={t('matter.clientmap.rail-missing')}
+            title={t('matter.client-map.rail-missing')}
             count={missingCount > 0 ? missingCount : null}
             active={activeKey === MISSING_KEY}
             accent={missingCount > 0}
@@ -1333,10 +1333,10 @@ export function ClientMapPanel({
               }}
               onRemoveItem={(itemId) => {
                 void (async () => {
-                  const ok = await confirm(t('matter.clientmap.remove-bullet-desc'), {
-                    title: t('matter.clientmap.remove-bullet-title'),
-                    confirmLabel: t('matter.clientmap.remove'),
-                    cancelLabel: t('matter.clientmap.keep-it'),
+                  const ok = await confirm(t('matter.client-map.remove-bullet-desc'), {
+                    title: t('matter.client-map.remove-bullet-title'),
+                    confirmLabel: t('matter.client-map.remove'),
+                    cancelLabel: t('matter.client-map.keep-it'),
                     variant: 'destructive',
                   });
                   if (ok) removeItem(map.matterId, activeSection.key, itemId);
@@ -1361,10 +1361,10 @@ export function ClientMapPanel({
                 activeSection.kind === 'custom'
                   ? () => {
                       void (async () => {
-                        const ok = await confirm(t('matter.clientmap.remove-section-desc'), {
-                          title: t('matter.clientmap.remove-section-title'),
-                          confirmLabel: t('matter.clientmap.remove-section'),
-                          cancelLabel: t('matter.clientmap.keep-section'),
+                        const ok = await confirm(t('matter.client-map.remove-section-desc'), {
+                          title: t('matter.client-map.remove-section-title'),
+                          confirmLabel: t('matter.client-map.remove-section'),
+                          cancelLabel: t('matter.client-map.keep-section'),
                           variant: 'destructive',
                         });
                         if (ok) {
