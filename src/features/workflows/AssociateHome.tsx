@@ -38,7 +38,7 @@ import {
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import { Button, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader } from '@/ui/kp';
+import { Button, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader, TrustNote } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
@@ -363,45 +363,45 @@ function WorkflowTrustLine({
       : info?.destination === 'assured-proxy'
         ? t('workflow.associate.trust-assured')
         : t('workflow.associate.trust-direct', { provider: providerDisplayName(provider) });
-  const className =
-    'inline-flex max-w-[260px] items-center gap-1.5 rounded px-0 py-0 text-left text-xs font-medium text-muted-foreground';
   const content = (
-    <>
-      <span aria-hidden="true" style={{ color: info?.dataLeaves === false ? 'var(--kp-success)' : 'var(--kp-warning)' }}>
-        •
-      </span>
-      <span data-testid="egress-indicator-label">{label}</span>
-    </>
+    <span data-testid="egress-indicator-label">{label}</span>
   );
+  const destination = isDisconnected ? 'none' : info?.destination ?? 'provider-direct';
+  const dataLeaves = info?.dataLeaves ? 'true' : 'false';
+  const details = isDisconnected ? label : `${info?.label}. ${info?.note}`;
+  const sharedProps = {
+    'data-testid': 'egress-indicator',
+    'data-destination': destination,
+    'data-data-leaves': dataLeaves,
+    details,
+    variant: isDisconnected ? 'warning' as const : 'default' as const,
+  };
 
   if (onClick) {
     return (
-      <button
-        type="button"
-        data-testid="egress-indicator"
-        data-destination={isDisconnected ? 'none' : info?.destination}
-        data-data-leaves={info?.dataLeaves ? 'true' : 'false'}
+      <TrustNote
+        {...sharedProps}
+        role="button"
+        tabIndex={0}
         aria-label={label}
-        title={isDisconnected ? label : `${info?.label}. ${info?.note}`}
-        className={className}
+        className="cursor-pointer"
         onClick={onClick}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onClick();
+          }
+        }}
       >
         {content}
-      </button>
+      </TrustNote>
     );
   }
 
   return (
-    <div
-      data-testid="egress-indicator"
-      data-destination={isDisconnected ? 'none' : info?.destination}
-      data-data-leaves={info?.dataLeaves ? 'true' : 'false'}
-      role="status"
-      title={isDisconnected ? label : `${info?.label}. ${info?.note}`}
-      className={className}
-    >
+    <TrustNote {...sharedProps}>
       {content}
-    </div>
+    </TrustNote>
   );
 }
 
