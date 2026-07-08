@@ -59,7 +59,7 @@ describe('en.json structure snapshot', () => {
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
-        "mail": 6,
+        "mail": 55,
         "marketplace": 14,
         "matter": 220,
         "media": 100,
@@ -263,7 +263,7 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1498); // true combined count after all 7 master-plan lanes merged
+    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

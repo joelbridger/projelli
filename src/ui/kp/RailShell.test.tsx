@@ -24,9 +24,8 @@ function installVirtualRailLayout() {
     configurable: true,
     value(this: HTMLElement, options?: ScrollToOptions | number, y?: number) {
       this.scrollTop = typeof options === 'number' ? y ?? 0 : options?.top ?? this.scrollTop;
-      const element = this;
       queueMicrotask(() => {
-        element.dispatchEvent(new Event('scroll'));
+        this.dispatchEvent(new Event('scroll'));
       });
     },
   });
@@ -215,7 +214,7 @@ describe('RailShell', () => {
       firstRow.focus();
 
       fireEvent.keyDown(firstRow, { key: 'End' });
-      const list = screen.getByRole('listbox', { name: 'Client work' }) as HTMLElement;
+      const list = screen.getByRole('listbox', { name: 'Client work' });
       const virtualCanvas = list.firstElementChild as HTMLElement | null;
       list.scrollTop = Number.parseFloat(virtualCanvas?.style.height ?? '') || 1_000_000;
       fireEvent.scroll(list);
