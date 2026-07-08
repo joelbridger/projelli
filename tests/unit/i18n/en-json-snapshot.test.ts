@@ -82,7 +82,7 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 29,
+        "workflow": 62,
         "workspace": 20,
       }
     `);
@@ -263,7 +263,7 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1442); // 1429 + 9 (send-defaults recipient groups) + 4 (documents rail group menu incl. close-other-tabs)
+    expect(flat.length).toBe(1475); // 1442 + 33 (workflows rail/detail labels)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

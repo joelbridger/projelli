@@ -30,7 +30,7 @@ test.describe('Workflows surface', () => {
     expect(box!.height).toBeGreaterThanOrEqual(600);
   });
 
-  test('shows category filters and workflow cards', async ({ page }) => {
+  test('shows category filters and workflow rows', async ({ page }) => {
     await expect(page.getByTestId('associate-toolbar')).toBeVisible();
     await expect(page.getByTestId('associate-search')).toBeVisible();
 
@@ -39,31 +39,29 @@ test.describe('Workflows surface', () => {
     // legal pack entirely for advisors ("no deposition/contradiction
     // pipeline, no legal-specific templates"), floating 'advisors' to the
     // top instead. Assert against the category that's actually shown.
-    await expect(page.getByTestId('associate-section-advisors')).toBeVisible();
-    await expect(page.getByTestId('associate-card-advisors-annual-review-packet')).toBeVisible();
+    await expect(page.getByTestId('associate-filter-advisors')).toBeVisible();
+    await expect(page.getByTestId('associate-workflow-row-advisors-annual-review-packet')).toBeVisible();
+    await expect(page.getByTestId('associate-workflow-detail')).toContainText('Annual Review Packet');
   });
 
-  test('search filters the workflow grid', async ({ page }) => {
+  test('search filters the workflow rail', async ({ page }) => {
     const search = page.getByTestId('associate-search');
     await expect(search).toBeVisible();
 
-    await expect(page.getByTestId('associate-card-advisors-annual-review-packet')).toBeVisible();
+    await expect(page.getByTestId('associate-workflow-row-advisors-annual-review-packet')).toBeVisible();
 
     await safeFill(search, '___nomatchterm___');
     await expect(page.getByTestId('associate-empty')).toBeVisible();
   });
 
-  test('category sections can collapse and expand', async ({ page }) => {
-    const toggle = page.getByTestId('associate-section-toggle-advisors');
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    await hardClick(toggle);
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await hardClick(toggle);
-    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  test('clicking a workflow row updates the detail pane', async ({ page }) => {
+    const row = page.getByTestId('associate-workflow-row-advisors-client-financial-plan-summary');
+    await hardClick(row);
+    await expect(page.getByTestId('associate-workflow-detail')).toContainText('Client Financial Plan Summary');
   });
 
-  test('workflow cards expose stable run buttons', async ({ page }) => {
-    await expect(page.getByTestId('associate-card-advisors-annual-review-packet')).toBeVisible();
+  test('workflow details expose stable run buttons', async ({ page }) => {
+    await expect(page.getByTestId('associate-workflow-row-advisors-annual-review-packet')).toBeVisible();
     await expect(page.getByTestId('associate-run-advisors-annual-review-packet')).toBeVisible();
   });
 });

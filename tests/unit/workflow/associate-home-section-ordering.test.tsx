@@ -1,12 +1,11 @@
 /**
- * Section-ordering tests for AssociateHome — profession-aware ordering.
+ * Rail-ordering tests for AssociateHome — profession-aware ordering.
  *
- * Bug: The "All" view renders sections via a fixed CATEGORY_ORDER array
- * (legal → tax → consulting → advisors → …), so an advisor user sees the
- * Tax section first instead of their own Advisor Practice Pack.
+ * Bug: The "All" view used to render a fixed category order, so an advisor
+ * user saw tax workflows before their own Advisor Practice Pack.
  *
- * Fix: The active profession's primary category should be the FIRST section
- * in the "All" view; all other sections follow in their existing relative order.
+ * Fix: The active profession's primary category should provide the first rail
+ * rows in the "All" view; all other rows follow in their existing relative order.
  *
  * Profession → primary category mapping (mirrors prioritizeByProfession.ts):
  *   'advisor'    → 'advisors'  (plural — that's the template category key)
@@ -108,18 +107,18 @@ function defaultProps() {
   };
 }
 
-/** Return the rendered section keys in DOM order. */
-function getSectionOrder(): string[] {
+/** Return the rendered workflow ids in rail order. */
+function getWorkflowRowOrder(): string[] {
   return Array.from(
-    document.querySelectorAll('[data-testid^="associate-section-"]'),
+    document.querySelectorAll('[data-testid^="associate-workflow-row-"]'),
   ).map((el) =>
-    (el.getAttribute('data-testid') ?? '').replace('associate-section-', ''),
+    (el.getAttribute('data-testid') ?? '').replace('associate-workflow-row-', ''),
   );
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('AssociateHome — profession-aware section ordering', () => {
+describe('AssociateHome — profession-aware rail ordering', () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
@@ -127,7 +126,7 @@ describe('AssociateHome — profession-aware section ordering', () => {
 
   // ── advisor profession ──────────────────────────────────────────────────────
 
-  it('advisor: advisors section renders FIRST (before tax)', () => {
+  it('advisor: advisor workflows render first (before tax)', () => {
     mockProfession.mockReturnValue('advisor');
     mockIsLaw.mockReturnValue(false);
     // Feed templates in the order prioritizeByProfession would produce for
@@ -136,13 +135,13 @@ describe('AssociateHome — profession-aware section ordering', () => {
 
     render(<AssociateHome {...defaultProps()} />);
 
-    const sections = getSectionOrder();
-    expect(sections).toContain('advisors');
-    expect(sections).toContain('tax');
-    expect(sections.indexOf('advisors')).toBeLessThan(sections.indexOf('tax'));
+    const rows = getWorkflowRowOrder();
+    expect(rows).toContain('annual-review-packet');
+    expect(rows).toContain('tax-review');
+    expect(rows.indexOf('annual-review-packet')).toBeLessThan(rows.indexOf('tax-review'));
   });
 
-  it('advisor: advisors section is first among three categories', () => {
+  it('advisor: advisor workflow is first among three categories', () => {
     mockProfession.mockReturnValue('advisor');
     mockIsLaw.mockReturnValue(false);
     mockLoadAllTemplates.mockReturnValue([
@@ -153,11 +152,11 @@ describe('AssociateHome — profession-aware section ordering', () => {
 
     render(<AssociateHome {...defaultProps()} />);
 
-    const sections = getSectionOrder();
-    expect(sections[0]).toBe('advisors');
+    const rows = getWorkflowRowOrder();
+    expect(rows[0]).toBe('annual-review-packet');
   });
 
-  it('advisor: no legal section appears (legal pack excluded for advisors)', () => {
+  it('advisor: no legal workflow appears (legal pack excluded for advisors)', () => {
     mockProfession.mockReturnValue('advisor');
     mockIsLaw.mockReturnValue(false);
     // Do NOT include legal templates — mirroring advisor exclusion.
@@ -165,13 +164,13 @@ describe('AssociateHome — profession-aware section ordering', () => {
 
     render(<AssociateHome {...defaultProps()} />);
 
-    expect(screen.queryByTestId('associate-section-legal')).toBeNull();
-    expect(screen.queryByTestId('associate-section-advisors')).not.toBeNull();
+    expect(screen.queryByTestId('associate-workflow-row-depo-finder')).toBeNull();
+    expect(screen.queryByTestId('associate-workflow-row-annual-review-packet')).not.toBeNull();
   });
 
   // ── legal profession (regression — legal was already first in fixed order) ──
 
-  it('legal: legal section is first when multiple categories are present', () => {
+  it('legal: legal workflow is first when multiple categories are present', () => {
     mockProfession.mockReturnValue('legal');
     // isLawExperience = true → AssociateHome scopes to legal-only, so only one
     // section exists. Test with isLawExperience false to exercise multi-section ordering.
@@ -180,13 +179,13 @@ describe('AssociateHome — profession-aware section ordering', () => {
 
     render(<AssociateHome {...defaultProps()} />);
 
-    const sections = getSectionOrder();
-    expect(sections[0]).toBe('legal');
+    const rows = getWorkflowRowOrder();
+    expect(rows[0]).toBe('depo-finder');
   });
 
   // ── tax profession ──────────────────────────────────────────────────────────
 
-  it('tax: tax section renders first when profession is tax', () => {
+  it('tax: tax workflow renders first when profession is tax', () => {
     mockProfession.mockReturnValue('tax');
     mockIsLaw.mockReturnValue(false);
     // tax first in flat list (as prioritizeByProfession would produce).
@@ -194,28 +193,28 @@ describe('AssociateHome — profession-aware section ordering', () => {
 
     render(<AssociateHome {...defaultProps()} />);
 
-    const sections = getSectionOrder();
-    expect(sections[0]).toBe('tax');
-    expect(sections).toContain('advisors');
-    expect(sections.indexOf('tax')).toBeLessThan(sections.indexOf('advisors'));
+    const rows = getWorkflowRowOrder();
+    expect(rows[0]).toBe('tax-review');
+    expect(rows).toContain('annual-review-packet');
+    expect(rows.indexOf('tax-review')).toBeLessThan(rows.indexOf('annual-review-packet'));
   });
 
   // ── consulting profession ───────────────────────────────────────────────────
 
-  it('consulting: consulting section renders first when profession is consulting', () => {
+  it('consulting: consulting workflow renders first when profession is consulting', () => {
     mockProfession.mockReturnValue('consulting');
     mockIsLaw.mockReturnValue(false);
     mockLoadAllTemplates.mockReturnValue([...consultingTemplates, ...taxTemplates]);
 
     render(<AssociateHome {...defaultProps()} />);
 
-    const sections = getSectionOrder();
-    expect(sections[0]).toBe('consulting');
+    const rows = getWorkflowRowOrder();
+    expect(rows[0]).toBe('client-discovery');
   });
 
   // ── 'other' profession — no priority change ─────────────────────────────────
 
-  it('other: section order is unchanged (existing CATEGORY_ORDER) when profession is other', () => {
+  it('other: row order is unchanged when profession is other', () => {
     mockProfession.mockReturnValue('other');
     mockIsLaw.mockReturnValue(false);
     // tax + advisors — in fixed CATEGORY_ORDER tax comes before advisors.
@@ -223,7 +222,7 @@ describe('AssociateHome — profession-aware section ordering', () => {
 
     render(<AssociateHome {...defaultProps()} />);
 
-    const sections = getSectionOrder();
-    expect(sections[0]).toBe('tax');
+    const rows = getWorkflowRowOrder();
+    expect(rows[0]).toBe('tax-review');
   });
 });

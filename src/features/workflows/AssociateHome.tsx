@@ -30,23 +30,20 @@
  */
 
 import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Play,
   CheckCircle2,
   XCircle,
   Clock,
-  ChevronDown,
-  ChevronRight,
   Search,
   Loader2,
   Star,
   Settings,
-  ListChecks,
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button, Chip, Eyebrow, Card, EmptyState, Callout, SearchField, SurfaceToolbar } from '@/ui/kp';
+import { Button, Chip, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader, Badge } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
@@ -56,7 +53,7 @@ import { useTrialGate } from '@/platform/hooks/useTrial';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
-import { SK_WORKFLOWS_FILTER, SK_WORKFLOWS_COLLAPSED } from '@/config/identity';
+import { SK_WORKFLOWS_FILTER } from '@/config/identity';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
 
@@ -120,7 +117,6 @@ const LAW_FEATURED_ID = 'deposition-contradiction-finder';
 // ── localStorage persistence ───────────────────────────────────────────────
 
 const LS_FILTER_KEY = SK_WORKFLOWS_FILTER;
-const LS_COLLAPSED_KEY = SK_WORKFLOWS_COLLAPSED;
 
 function readStoredFilter(): FilterKey {
   try {
@@ -137,28 +133,6 @@ function readStoredFilter(): FilterKey {
 function writeStoredFilter(key: FilterKey): void {
   try {
     localStorage.setItem(LS_FILTER_KEY, key);
-  } catch {
-    // ignore
-  }
-}
-
-function readStoredCollapsed(): Record<string, boolean> {
-  try {
-    const raw = localStorage.getItem(LS_COLLAPSED_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as Record<string, boolean>;
-    }
-    return {};
-  } catch {
-    return {};
-  }
-}
-
-function writeStoredCollapsed(state: Record<string, boolean>): void {
-  try {
-    localStorage.setItem(LS_COLLAPSED_KEY, JSON.stringify(state));
   } catch {
     // ignore
   }
@@ -203,8 +177,156 @@ function PracticeFilterChip({
   );
 }
 
-/** Template card: name, description, "featured" highlight, Run button. */
-function TemplateCard({
+function categoryConfigFor(key: TemplateCategory): CategoryConfig {
+  return CATEGORY_ORDER.find((cfg) => cfg.key === key) ?? {
+    key,
+    label: key,
+    description: '',
+  };
+}
+
+function WorkflowRailHeader({
+  presentCategories,
+  activeFilter,
+  query,
+  onFilterChange,
+  onQueryChange,
+  onQueryClear,
+}: {
+  presentCategories: CategoryConfig[];
+  activeFilter: FilterKey;
+  query: string;
+  onFilterChange: (key: FilterKey) => void;
+  onQueryChange: (query: string) => void;
+  onQueryClear: () => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <div data-testid="associate-workflows-rail" style={{ flex: 'none' }}>
+      <RailShellHeader title={t('spine.nav.workflows')} />
+      <div
+        data-testid="associate-toolbar"
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          padding: '10px 12px 12px',
+          borderBottom: '1px solid var(--kp-divider)',
+        }}
+      >
+        <SearchField
+          data-testid="associate-search"
+          value={query}
+          onChange={onQueryChange}
+          onClear={onQueryClear}
+          placeholder={t('workflow.associate.search-placeholder')}
+          size="sm"
+          style={{ width: '100%' }}
+        />
+        {presentCategories.length > 1 && (
+          <div
+            data-testid="associate-practice-filter"
+            aria-label={t('workflow.associate.filter-label')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              flexWrap: 'wrap',
+            }}
+          >
+            <PracticeFilterChip
+              label={t('workflow.associate.filter-all')}
+              active={activeFilter === 'all'}
+              testId="associate-filter-all"
+              onClick={() => { onFilterChange('all'); }}
+            />
+            {presentCategories.map((cfg) => (
+              <PracticeFilterChip
+                key={cfg.key}
+                label={cfg.label}
+                active={activeFilter === cfg.key}
+                testId={`associate-filter-${cfg.key}`}
+                onClick={() => { onFilterChange(cfg.key); }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function WorkflowRailRow({
+  template,
+  isFeatured,
+  isRunning,
+}: {
+  template: WorkflowTemplate;
+  isFeatured: boolean;
+  isRunning: boolean;
+}) {
+  const { t } = useTranslation();
+  const config = categoryConfigFor(template.category);
+
+  return (
+    <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 650 }}>
+          {template.name}
+        </span>
+        {isRunning ? <Loader2 size={13} strokeWidth={2} className="animate-spin" style={{ flex: 'none', color: 'var(--kp-accent)' }} /> : null}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-side-fg-dim)' }}>
+          {config.label}
+        </span>
+        {isFeatured ? (
+          <Badge variant="featured" size="sm" icon={Star} uppercase>
+            {t('workflow.associate.start-here')}
+          </Badge>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function WorkflowProgress({ currentExecution }: { currentExecution: WorkflowExecution }) {
+  const { t } = useTranslation();
+  const total = Math.max(currentExecution.template.steps.length, 1);
+  const current = Math.min(currentExecution.currentStepIndex + 1, total);
+  const width = `${String(Math.round((current / total) * 100))}%`;
+
+  return (
+    <div
+      data-testid="associate-live-progress"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 8,
+        padding: '12px 14px',
+        border: '1px solid var(--kp-divider)',
+        borderRadius: 8,
+        background: 'var(--kp-bg-soft)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Loader2 size={16} strokeWidth={2} className="animate-spin" style={{ color: 'var(--kp-accent)' }} />
+        <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)' }}>
+          {t('workflow.associate.live-run')}
+        </span>
+        <span style={{ marginLeft: 'auto', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', fontVariantNumeric: 'tabular-nums' }}>
+          {t('workflow.associate.step-progress', { current, total })}
+        </span>
+      </div>
+      <div style={{ height: 6, borderRadius: 999, background: 'var(--kp-divider)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width, borderRadius: 999, background: 'var(--kp-accent)' }} />
+      </div>
+    </div>
+  );
+}
+
+function WorkflowRunButton({
   template,
   isFeatured,
   isRunning,
@@ -219,247 +341,195 @@ function TemplateCard({
   executionActive: boolean;
   onRun: (t: WorkflowTemplate) => void;
 }) {
-  const disabled = trialLocked || (executionActive && !isRunning);
+  const { t } = useTranslation();
+  const disabled = trialLocked || executionActive;
 
   return (
-    <Card
-      variant="raised"
-      featured={isFeatured}
-      data-testid={`associate-card-${template.id}`}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--kp-space-sm)',
-        position: 'relative',
-      }}
+    <Button
+      variant={isFeatured ? 'primary' : 'secondary'}
+      size="md"
+      iconLeft={isRunning ? Loader2 : Play}
+      loading={isRunning}
+      data-testid={`associate-run-${template.id}`}
+      disabled={disabled}
+      onClick={() => { if (!disabled) onRun(template); }}
+      title={trialLocked ? t('workflow.associate.trial-ended-title') : t('workflow.associate.run-workflow', { name: template.name })}
     >
-      {/* Featured badge — drooping tab below card top edge */}
-      {isFeatured && (
-        <div
-          style={{
-            position: 'absolute',
-            top: -1,
-            right: 12,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 4,
-            padding: '2px 8px',
-            background: 'var(--kp-action-bg)',
-            color: 'var(--kp-action-fg)',
-            fontSize: 'var(--kp-font-2xs)',
-            fontWeight: 'var(--kp-weight-bold)',
-            letterSpacing: '0.07em',
-            textTransform: 'uppercase',
-            borderRadius: '0 0 4px 4px',
-          }}
-        >
-          <Star style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', fill: '#fff', strokeWidth: 0 }} />
-          Start here
-        </div>
-      )}
-
-      {/* Card body */}
-      <div style={{ flex: 1 }}>
-        <div
-          style={{
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: 'var(--kp-weight-bold)',
-            color: 'var(--kp-navy)',
-            lineHeight: 'var(--kp-leading-snug)',
-            marginBottom: 'var(--kp-space-2xs)',
-            paddingRight: isFeatured ? 80 : 0,
-          }}
-        >
-          {template.name}
-        </div>
-        <div
-          style={{
-            fontSize: 'var(--kp-font-xs)',
-            color: 'var(--color-muted-foreground)',
-            lineHeight: 'var(--kp-leading-relaxed)',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
-            overflow: 'hidden',
-          }}
-        >
-          {template.description}
-        </div>
-      </div>
-
-      {/* Run button */}
-      <Button
-        variant={isFeatured ? 'primary' : 'secondary'}
-        size="sm"
-        iconLeft={isRunning ? Loader2 : Play}
-        data-testid={`associate-run-${template.id}`}
-        disabled={disabled}
-        onClick={() => { if (!disabled) onRun(template); }}
-        title={trialLocked ? 'Trial ended - activate a license to run workflows' : `Run ${template.name}`}
-        style={{ alignSelf: 'flex-start' }}
-      >
-        {isRunning ? 'Running' : 'Run'}
-      </Button>
-    </Card>
+      {isRunning ? t('workflow.associate.running') : t('workflow.associate.run')}
+    </Button>
   );
 }
 
-/** Collapsible category section with top-N expander. */
-function CategorySection({
-  config,
-  templates,
-  totalCount,
-  searchActive,
-  featuredId,
-  initialCount = 6,
+function WorkflowDetail({
+  template,
   currentExecution,
   trialLocked,
-  collapsed,
-  onCollapse,
+  featuredId,
+  recentRuns,
+  missingArtifactRunIds,
   onRun,
+  onFocusExecutionTab,
+  onOpenArtifact,
+  onOpenSettings,
+  confidentialityMode,
+  egressProvider,
 }: {
-  config: CategoryConfig;
-  templates: WorkflowTemplate[];
-  /** Pre-search total for this category. Used to show "N of M" when a search has narrowed the list. */
-  totalCount: number;
-  /** Whether the user has an active search query (used to decide whether to show "hidden by search" hint). */
-  searchActive: boolean;
-  featuredId: string | null;
-  initialCount?: number;
+  template: WorkflowTemplate;
   currentExecution: WorkflowExecution | null;
   trialLocked: boolean;
-  collapsed: boolean;
-  onCollapse: (key: string, collapsed: boolean) => void;
+  featuredId: string | null;
+  recentRuns: RunRecord[];
+  missingArtifactRunIds: Set<string>;
   onRun: (t: WorkflowTemplate) => void;
+  onFocusExecutionTab?: () => void;
+  onOpenArtifact?: (path: string, name: string, runId: string) => boolean | Promise<boolean>;
+  onOpenSettings?: () => void;
+  confidentialityMode: ReturnType<typeof useConfidentialityMode>;
+  egressProvider: ReturnType<typeof useActiveEgressProvider>;
 }) {
-  const [showAll, setShowAll] = useState(false);
-
-  const visible = collapsed
-    ? []
-    : showAll
-    ? templates
-    : templates.slice(0, initialCount);
-
-  const hiddenCount = templates.length - initialCount;
-  // When a search is active and has narrowed this category, compute how many are hidden by search.
-  const hiddenBySearch = searchActive ? totalCount - templates.length : 0;
+  const { t } = useTranslation();
+  const config = categoryConfigFor(template.category);
+  const runningExecution = currentExecution?.template.id === template.id ? currentExecution : null;
+  const isRunning = runningExecution !== null;
+  const isAnotherWorkflowRunning = currentExecution !== null && runningExecution === null;
+  const stepCount = template.steps.length;
+  const requiredInputCount = template.requiredInputs.length;
+  const outputCount = template.outputs.length;
 
   return (
-    <section
-      data-testid={`associate-section-${config.key}`}
-      style={{ marginBottom: 'var(--kp-section-gap)' }}
+    <div
+      data-testid="associate-workflow-detail"
+      style={{
+        display: 'flex',
+        minHeight: 0,
+        flex: 1,
+        flexDirection: 'column',
+        overflowY: 'auto',
+        background: 'var(--color-background)',
+      }}
     >
-      {/* Section header */}
-      <button
-        type="button"
-        data-testid={`associate-section-toggle-${config.key}`}
-        onClick={() => { onCollapse(config.key, !collapsed); }}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '0 0 var(--kp-space-sm)',
-          width: '100%',
-          textAlign: 'left',
-        }}
-        aria-expanded={!collapsed}
-      >
-        {collapsed ? (
-          <ChevronRight style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
-        ) : (
-          <ChevronDown style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
-        )}
-        <Eyebrow primary>{config.label}</Eyebrow>
-        <span
-          data-testid={`associate-section-count-${config.key}`}
-          style={{
-            fontSize: 'var(--kp-font-2xs)',
-            color: 'var(--color-muted-foreground)',
-            fontVariantNumeric: 'tabular-nums',
-          }}
-        >
-          {hiddenBySearch > 0
-            ? `(${String(templates.length)} of ${String(totalCount)})`
-            : `(${String(templates.length)})`}
-        </span>
-      </button>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', padding: '22px 28px 18px', borderBottom: '1px solid var(--kp-divider)' }}>
+        <div style={{ minWidth: 0, maxWidth: 780 }}>
+          <Eyebrow primary>{config.label}</Eyebrow>
+          <h1 style={{ margin: '6px 0 8px', fontSize: 'var(--kp-font-2xl)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)' }}>
+            {template.name}
+          </h1>
+          <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-relaxed)', color: 'var(--color-muted-foreground)' }}>
+            {template.description}
+          </p>
+        </div>
+        <div style={{ display: 'flex', flexShrink: 0, flexDirection: 'column', alignItems: 'flex-end', gap: 10 }}>
+          <EgressIndicator
+            provider={egressProvider}
+            mode={confidentialityMode}
+            variant="status"
+            onClick={onOpenSettings}
+          />
+          <WorkflowRunButton
+            template={template}
+            isFeatured={template.id === featuredId}
+            isRunning={isRunning}
+            trialLocked={trialLocked}
+            executionActive={currentExecution !== null}
+            onRun={onRun}
+          />
+        </div>
+      </div>
 
-      {/* Cards grid */}
-      {!collapsed && (
-        <>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-              gap: 'var(--kp-space-md)',
-            }}
-          >
-            {visible.map((t) => (
-              <TemplateCard
-                key={t.id}
-                template={t}
-                isFeatured={t.id === featuredId}
-                isRunning={currentExecution?.template.id === t.id}
-                trialLocked={trialLocked}
-                executionActive={currentExecution !== null}
-                onRun={onRun}
-              />
-            ))}
-          </div>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 24, flexWrap: 'wrap', padding: '22px 28px 28px', minHeight: 0 }}>
+        <div style={{ display: 'flex', minWidth: 280, flex: '1 1 480px', flexDirection: 'column', gap: 18 }}>
+          {runningExecution ? <WorkflowProgress currentExecution={runningExecution} /> : null}
 
-          {/* Expander */}
-          {!showAll && hiddenCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              iconLeft={ChevronDown}
-              data-testid={`associate-show-all-${config.key}`}
-              onClick={() => { setShowAll(true); }}
-              style={{ marginTop: 'var(--kp-space-sm)' }}
-            >
-              Show all ({String(templates.length)})
-            </Button>
-          )}
-
-          {/* Search-hidden hint — shown when search has narrowed this category */}
-          {hiddenBySearch > 0 && (
-            <div
-              data-testid={`associate-search-hidden-${config.key}`}
-              style={{
-                marginTop: 'var(--kp-space-sm)',
-                fontSize: 'var(--kp-font-2xs)',
-                color: 'var(--color-muted-foreground)',
-                lineHeight: 'var(--kp-leading-normal)',
-              }}
-            >
-              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-              {String(hiddenBySearch)} more hidden by search.{' '}
-              <button
-                type="button"
-                data-testid={`associate-search-hidden-clear-${config.key}`}
-                onClick={() => { onCollapse('__clear-search__', false); }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  fontSize: 'var(--kp-font-2xs)',
-                  fontWeight: 'var(--kp-weight-semibold)',
-                  color: 'var(--kp-navy)',
-                  textDecoration: 'underline',
-                }}
-              >
-                Clear search
-              </button>
-              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+          {isAnotherWorkflowRunning ? (
+            <div data-testid="associate-other-workflow-running">
+              <Callout variant="info" icon={Clock}>
+                <strong>{t('workflow.associate.other-running-title')}</strong>{' '}
+                {t('workflow.associate.other-running-body')}
+              </Callout>
             </div>
+          ) : null}
+
+          <section>
+            <Eyebrow primary>{t('workflow.associate.steps')}</Eyebrow>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+              {template.steps.length > 0 ? (
+                template.steps.map((step, index) => (
+                  <div
+                    key={step.id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '28px minmax(0, 1fr)',
+                      gap: 10,
+                      padding: '10px 0',
+                      borderBottom: '1px solid var(--kp-divider)',
+                    }}
+                  >
+                    <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', fontVariantNumeric: 'tabular-nums' }}>
+                      {String(index + 1)}
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-sm)' }}>
+                        {step.name}
+                      </span>
+                      <span style={{ display: 'block', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', lineHeight: 'var(--kp-leading-relaxed)', marginTop: 2 }}>
+                        {step.description}
+                      </span>
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p style={{ margin: '8px 0 0', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-sm)' }}>
+                  {t('workflow.associate.no-steps')}
+                </p>
+              )}
+            </div>
+          </section>
+
+          {recentRuns.length > 0 && (
+            <section>
+              <div style={{ marginBottom: 6 }}>
+                <Eyebrow primary>{t('workflow.associate.recent-runs')}</Eyebrow>
+              </div>
+              <Card
+                variant="flat"
+                data-testid="associate-recent-runs"
+                style={{ overflow: 'hidden' }}
+              >
+                {recentRuns.map((run) => (
+                  <RunRow
+                    key={run.run_id}
+                    run={run}
+                    fileMissing={missingArtifactRunIds.has(run.run_id)}
+                    {...(onFocusExecutionTab !== undefined && { onFocus: onFocusExecutionTab })}
+                    {...(onOpenArtifact !== undefined && { onOpenArtifact })}
+                  />
+                ))}
+              </Card>
+            </section>
           )}
-        </>
-      )}
-    </section>
+        </div>
+
+        <aside style={{ display: 'flex', minWidth: 220, flex: '1 1 260px', maxWidth: 320, flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+            <Badge variant="neutral" size="md">
+              {t('workflow.associate.steps-count', { count: stepCount })}
+            </Badge>
+            <Badge variant="neutral" size="md">
+              {t('workflow.associate.required-inputs-count', { count: requiredInputCount })}
+            </Badge>
+            <Badge variant="neutral" size="md">
+              {t('workflow.associate.outputs-count', { count: outputCount })}
+            </Badge>
+          </div>
+          <div style={{ borderTop: '1px solid var(--kp-divider)', paddingTop: 12 }}>
+            <Eyebrow>{t('workflow.associate.category')}</Eyebrow>
+            <p style={{ margin: '6px 0 0', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', lineHeight: 'var(--kp-leading-relaxed)' }}>
+              {config.description}
+            </p>
+          </div>
+        </aside>
+      </div>
+    </div>
   );
 }
 
@@ -475,6 +545,7 @@ function RunRow({
   onOpenArtifact?: (path: string, name: string, runId: string) => boolean | Promise<boolean>;
   fileMissing: boolean;
 }) {
+  const { t } = useTranslation();
   const statusIcon =
     fileMissing ? (
       <AlertTriangle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--kp-warning)', flex: 'none' }} />
@@ -485,7 +556,7 @@ function RunRow({
     ) : (
       <Clock style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', color: 'var(--color-muted-foreground)', flex: 'none' }} />
     );
-  const artifact = getRunArtifact(run);
+  const artifact = getRunArtifact(run, t('workflow.associate.workflow-result'));
   const displayTitle = getRunDisplayTitle(run);
 
   return (
@@ -545,7 +616,7 @@ function RunRow({
             whiteSpace: 'nowrap',
           }}
         >
-          {fileMissing ? 'File missing' : artifact ? artifact.name : run.workflow}
+          {fileMissing ? t('workflow.associate.file-missing') : artifact ? artifact.name : run.workflow}
         </span>
       </span>
       <span
@@ -571,51 +642,11 @@ function getRunDisplayTitle(run: RunRecord): string {
   return stringOutput(run, 'displayTitle') ?? run.workflow;
 }
 
-function getRunArtifact(run: RunRecord): { path: string; name: string } | null {
+function getRunArtifact(run: RunRecord, fallbackName: string): { path: string; name: string } | null {
   const path = stringOutput(run, 'primaryArtifactPath');
   if (!path) return null;
-  const name = stringOutput(run, 'primaryArtifactName') ?? path.split(/[\\/]/).pop() ?? 'Workflow result';
+  const name = stringOutput(run, 'primaryArtifactName') ?? path.split(/[\\/]/).pop() ?? fallbackName;
   return { path, name };
-}
-
-function RunningPill({ currentExecution }: { currentExecution: WorkflowExecution }) {
-  return (
-    <div
-      data-testid="associate-running-pill"
-      aria-live="polite"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 8,
-        alignSelf: 'flex-start',
-        border: '1px solid var(--kp-divider)',
-        borderRadius: 999,
-        padding: '7px 11px',
-        marginBottom: 'var(--kp-space-sm)',
-        background: 'var(--kp-bg-soft)',
-        color: 'var(--kp-navy)',
-        fontSize: 'var(--kp-font-xs)',
-        fontWeight: 'var(--kp-weight-semibold)',
-        pointerEvents: 'none',
-      }}
-    >
-      <Loader2
-        size={14}
-        strokeWidth={2.2}
-        className="animate-spin"
-        style={{ color: 'var(--kp-accent)', flex: 'none' }}
-      />
-      <span
-        style={{
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        Running {currentExecution.template.name}
-      </span>
-    </div>
-  );
 }
 
 // ── Main export ────────────────────────────────────────────────────────────
@@ -630,6 +661,7 @@ export function AssociateHome({
   onFocusExecutionTab,
   onOpenRunArtifact,
 }: AssociateHomeProps) {
+  const { t } = useTranslation();
   const trialGate = useTrialGate();
   const profession = useProfessionStore((s) => s.profession);
   // Workflows run AI — show the same egress badge as Ask, top-right.
@@ -637,18 +669,13 @@ export function AssociateHome({
   const egressProvider = useActiveEgressProvider(confidentialityMode);
   const [query, setQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<FilterKey>(readStoredFilter);
-  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>(readStoredCollapsed);
   const [missingArtifactRunIds, setMissingArtifactRunIds] = useState<Set<string>>(() => new Set());
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
 
   // Persist filter to localStorage whenever it changes.
   useEffect(() => {
     writeStoredFilter(activeFilter);
   }, [activeFilter]);
-
-  // Persist collapsed state to localStorage whenever it changes.
-  useEffect(() => {
-    writeStoredCollapsed(collapsedCategories);
-  }, [collapsedCategories]);
 
   // Load + scope templates exactly as WorkflowPanel does.
   const templates = useMemo(() => {
@@ -684,17 +711,6 @@ export function AssociateHome({
       : templates.filter((t) => t.category === activeFilter);
   }, [templates, activeFilter]);
 
-  // Pre-search totals per category (used by CategorySection to show "N of M").
-  const preSearchTotals = useMemo(() => {
-    const totals = new Map<TemplateCategory, number>();
-    for (const t of categoryFiltered) {
-      totals.set(t.category, (totals.get(t.category) ?? 0) + 1);
-    }
-    return totals;
-  }, [categoryFiltered]);
-
-  const searchActive = query.trim().length > 0;
-
   // Apply search query within the category-filtered scope.
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -705,46 +721,33 @@ export function AssociateHome({
     });
   }, [categoryFiltered, query]);
 
-  // Group filtered templates by category in the defined order, including pre-search totals.
-  // The active profession's category is floated to the top so the advisor (or tax, etc.)
-  // user always sees their own pack first in the "All" view.
-  const groups = useMemo(() => {
-    const byCategory = new Map<TemplateCategory, WorkflowTemplate[]>();
-    for (const t of filtered) {
-      const bucket = byCategory.get(t.category) ?? [];
-      bucket.push(t);
-      byCategory.set(t.category, bucket);
-    }
-    // Include categories that have templates pre-search even if they're now empty post-search,
-    // so the hidden-by-search hint can appear. However, if a category has 0 filtered results,
-    // we still only show it when searching so we can display the hint.
-    const configsToShow = CATEGORY_ORDER.filter((cfg) => {
-      const filtered_count = (byCategory.get(cfg.key) ?? []).length;
-      const total = preSearchTotals.get(cfg.key) ?? 0;
-      // Show if has filtered results, OR has pre-search templates and search is active (for hint).
-      return filtered_count > 0 || (searchActive && total > 0);
-    });
-    // Float the active profession's category to the front so the user's own pack leads.
-    const primaryCategory = PROFESSION_PRIMARY_CATEGORY[profession as Profession];
-    if (primaryCategory) {
-      const idx = configsToShow.findIndex((cfg) => cfg.key === primaryCategory);
-      const primary = configsToShow[idx];
-      if (idx > 0 && primary !== undefined) {
-        configsToShow.splice(idx, 1);
-        configsToShow.unshift(primary);
-      }
-    }
-    return configsToShow.map((cfg) => ({
-      config: cfg,
-      templates: byCategory.get(cfg.key) ?? [],
-      totalCount: preSearchTotals.get(cfg.key) ?? 0,
-    }));
-  }, [filtered, preSearchTotals, searchActive, profession]);
-
   // Featured template: first task in the legal profession (starts-here hint).
   const featuredId = isLawExperience(profession) ? LAW_FEATURED_ID : null;
 
   const recentRuns = runHistory.slice(0, 4);
+
+  const selectedWorkflow = useMemo(
+    () => filtered.find((template) => template.id === selectedWorkflowId) ?? filtered[0] ?? null,
+    [filtered, selectedWorkflowId],
+  );
+
+  const railItems = useMemo(
+    () =>
+      filtered.map((template) => ({
+        id: template.id,
+        label: template.name,
+        content: (
+          <WorkflowRailRow
+            template={template}
+            isFeatured={template.id === featuredId}
+            isRunning={currentExecution?.template.id === template.id}
+          />
+        ),
+        testId: `associate-workflow-row-${template.id}`,
+        ariaLabel: template.name,
+      })),
+    [currentExecution, featuredId, filtered],
+  );
 
   const handleOpenRecentRunArtifact = useCallback(
     async (path: string, name: string, runId: string): Promise<boolean> => {
@@ -776,250 +779,145 @@ export function AssociateHome({
     setActiveFilter('all');
   }
 
-  // Collapse callback forwarded to CategorySection.
-  // The sentinel key '__clear-search__' means: clear the search query (triggered
-  // by the "Clear search" link inside the search-hidden hint).
-  function handleCollapse(key: string, isCollapsed: boolean) {
-    if (key === '__clear-search__') {
-      setQuery('');
-      return;
-    }
-    setCollapsedCategories((prev) => {
-      const next = { ...prev, [key]: isCollapsed };
-      return next;
-    });
-  }
-
   return (
     <div
       data-testid="associate-home"
       style={{
         display: 'flex',
-        flexDirection: 'column',
         height: '100%',
         flex: 1,
         minHeight: 0,
         minWidth: 0,
         background: 'var(--color-background)',
         fontFamily: 'Satoshi, sans-serif',
-        overflowY: 'auto',
+        overflow: 'hidden',
       }}
     >
-      {/* ── Page header ─────────────────────────────────────────────── */}
-      <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
-        <SurfaceHeader
-          Icon={ListChecks}
-          iconColor="var(--kp-accent)"
-          title="Workflows"
-          actions={
-            <EgressIndicator
-              provider={egressProvider}
-              mode={confidentialityMode}
-              variant="status"
-              onClick={onOpenSettings}
-            />
-          }
-        />
-      </div>
-
-      {/* ── Toolbar: filters (practice chips) then search last ──── */}
-      <SurfaceToolbar data-testid="associate-toolbar" style={{ borderBottom: 'none' }}>
-        {presentCategories.length > 1 && (
-          <div
-            data-testid="associate-practice-filter"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              flexWrap: 'wrap',
-            }}
-          >
-            <PracticeFilterChip
-              label="All"
-              active={activeFilter === 'all'}
-              testId="associate-filter-all"
-              onClick={() => { handleFilterChange('all'); }}
-            />
-            {presentCategories.map((cfg) => (
-              <PracticeFilterChip
-                key={cfg.key}
-                label={cfg.label}
-                active={activeFilter === cfg.key}
-                testId={`associate-filter-${cfg.key}`}
-                onClick={() => { handleFilterChange(cfg.key); }}
-              />
-            ))}
-          </div>
-        )}
-        <SearchField
-          data-testid="associate-search"
-          value={query}
-          onChange={(v) => { setQuery(v); }}
-          onClear={() => { setQuery(''); }}
-          placeholder="Search workflows..."
-          size="md"
-          style={{ flex: 1, minWidth: 240 }}
-        />
-      </SurfaceToolbar>
-
-      {/* ── Banners ──────────────────────────────────────────────────── */}
-
-      {/* Trial-expired banner */}
-      {trialGate.isLocked && (
-        <div
-          data-testid="associate-trial-banner"
-          style={{ margin: 'var(--kp-space-sm) var(--kp-gutter) 0' }}
-        >
-          <Callout variant="warning" icon={AlertTriangle}>
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            <strong>Trial ended.</strong> Activate a license to run workflows. Your work is still here and fully accessible.
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-          </Callout>
-        </div>
-      )}
-
-      {/* Provider-error banner */}
-      {providerError && (
-        <div
-          data-testid="associate-provider-error"
-          role="alert"
-          style={{ margin: 'var(--kp-space-sm) var(--kp-gutter) 0' }}
-        >
-          <Callout variant="error" icon={AlertCircle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={{ flex: 1 }}>
-                {providerError === 'needs-client' ? (
-                  <span>
-                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                    <strong>Pick your client first.</strong>
-                    {' Choose a client, then run the workflow again.'}
-                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-                  </span>
-                ) : providerError === 'ollama-unreachable' ? (
-                  <span>
-                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                    <strong>Local AI unreachable.</strong>
-                    {' Advisor Prep Hero Local AI is not responding. Make sure it has finished setting up, then try again.'}
-                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-                  </span>
-                ) : (
-                  <span>
-                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                    <strong>No AI provider configured.</strong>
-                    {' Add an API key or set up Advisor Prep Hero Local AI to run workflows.'}
-                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-                  </span>
-                )}
-              </span>
-              {onOpenSettings && providerError === 'needs-provider' && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  iconLeft={Settings}
-                  onClick={onOpenSettings}
-                >
-                  Open settings
-                </Button>
-              )}
-            </div>
-          </Callout>
-        </div>
-      )}
-
-      {/* BUG F2 — run-record save-error banner. Non-blocking: the run itself
-          already finished (or failed) and its deliverable may be fine; this
-          only warns that the .workflow audit/replay record could not be
-          durably saved after retries. */}
-      {saveError && (
-        <div
-          data-testid="associate-save-error"
-          role="alert"
-          style={{ margin: 'var(--kp-space-sm) var(--kp-gutter) 0' }}
-        >
-          <Callout variant="warning" icon={AlertTriangle}>
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            <strong>Run record may not have saved.</strong> {saveError}
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-          </Callout>
-        </div>
-      )}
-
-      {/* ── Body ─────────────────────────────────────────────────────── */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          padding: 'var(--kp-surface-gap) var(--kp-gutter)',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 0,
-        }}
-      >
-        {/* Recent runs strip */}
-        {currentExecution?.status === 'running' && (
-          <RunningPill currentExecution={currentExecution} />
-        )}
-
-        {recentRuns.length > 0 && (
-          <div style={{ marginBottom: 'var(--kp-section-gap)' }}>
-            <div style={{ marginBottom: 6 }}>
-              <Eyebrow primary>Recent runs</Eyebrow>
-            </div>
-            <Card
-              variant="flat"
-              data-testid="associate-recent-runs"
-              style={{ overflow: 'hidden' }}
-            >
-              {recentRuns.map((run) => (
-                <RunRow
-                  key={run.run_id}
-                  run={run}
-                  fileMissing={missingArtifactRunIds.has(run.run_id)}
-                  {...(onFocusExecutionTab !== undefined && { onFocus: onFocusExecutionTab })}
-                  {...(onOpenRunArtifact !== undefined && { onOpenArtifact: handleOpenRecentRunArtifact })}
-                />
-              ))}
-            </Card>
-          </div>
-        )}
-
-        {/* The household is surfaced at RUN TIME (the run-confirmation modal),
-            not as a persistent "Running in" pill here. */}
-
-        {/* Template groups */}
-        {groups.every((g) => g.templates.length === 0) ? (
-          // eslint-disable lantern-i18n/no-hardcoded-string
-          <EmptyState
-            data-testid="associate-empty"
-            icon={Search}
-            title="No workflows match"
-            body="Try a different search term, or clear the filter to see all workflows."
-            actions={
-              <Button variant="secondary" size="sm" onClick={handleClearAll}>
-                Clear search
-              </Button>
-            }
+      <RailShell
+        header={
+          <WorkflowRailHeader
+            presentCategories={presentCategories}
+            activeFilter={activeFilter}
+            query={query}
+            onFilterChange={handleFilterChange}
+            onQueryChange={setQuery}
+            onQueryClear={() => { setQuery(''); }}
           />
-          // eslint-enable lantern-i18n/no-hardcoded-string
-        ) : (
-          groups.map(({ config, templates: groupTemplates, totalCount }) => (
-            <CategorySection
-              key={config.key}
-              config={config}
-              templates={groupTemplates}
-              totalCount={totalCount}
-              searchActive={searchActive}
-              featuredId={featuredId}
-              {...(profession === 'advisor' && config.key === 'advisors' ? { initialCount: 3 } : {})}
+        }
+        listAriaLabel={t('workflow.associate.rail-list-label')}
+        items={railItems}
+        activeId={selectedWorkflow?.id ?? null}
+        onSelect={setSelectedWorkflowId}
+        railWidth={284}
+        emptyState={
+          <span style={{ color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)' }}>
+            {t('workflow.associate.empty-title')}
+          </span>
+        }
+        className="min-h-0 flex-1"
+        contentClassName="bg-[var(--color-background)]"
+      >
+        <div style={{ display: 'flex', minHeight: 0, flex: 1, flexDirection: 'column' }}>
+          {trialGate.isLocked && (
+            <div
+              data-testid="associate-trial-banner"
+              style={{ padding: '14px 28px 0' }}
+            >
+              <Callout variant="warning" icon={AlertTriangle}>
+                <strong>{t('workflow.panel.trial-ended-label')}</strong>{' '}
+                {t('workflow.associate.trial-ended-description')}
+              </Callout>
+            </div>
+          )}
+
+          {providerError && (
+            <div
+              data-testid="associate-provider-error"
+              role="alert"
+              style={{ padding: '14px 28px 0' }}
+            >
+              <Callout variant="error" icon={AlertCircle}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ flex: 1 }}>
+                    {providerError === 'needs-client' ? (
+                      <span>
+                        <strong>{t('workflow.associate.needs-client-title')}</strong>
+                        {' '}
+                        {t('workflow.associate.needs-client-body')}
+                      </span>
+                    ) : providerError === 'ollama-unreachable' ? (
+                      <span>
+                        <strong>{t('workflow.associate.ollama-unreachable-title')}</strong>
+                        {' '}
+                        {t('workflow.associate.ollama-unreachable-body')}
+                      </span>
+                    ) : (
+                      <span>
+                        <strong>{t('workflow.associate.needs-provider-title')}</strong>
+                        {' '}
+                        {t('workflow.associate.needs-provider-body')}
+                      </span>
+                    )}
+                  </span>
+                  {onOpenSettings && providerError === 'needs-provider' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      iconLeft={Settings}
+                      onClick={onOpenSettings}
+                    >
+                      {t('workflow.execution.needs-provider-action')}
+                    </Button>
+                  )}
+                </div>
+              </Callout>
+            </div>
+          )}
+
+          {saveError && (
+            <div
+              data-testid="associate-save-error"
+              role="alert"
+              style={{ padding: '14px 28px 0' }}
+            >
+              <Callout variant="warning" icon={AlertTriangle}>
+                <strong>{t('workflow.associate.save-error-title')}</strong> {saveError}
+              </Callout>
+            </div>
+          )}
+
+          {selectedWorkflow ? (
+            <WorkflowDetail
+              template={selectedWorkflow}
               currentExecution={currentExecution}
               trialLocked={trialGate.isLocked}
-              collapsed={collapsedCategories[config.key] === true}
-              onCollapse={handleCollapse}
+              featuredId={featuredId}
+              recentRuns={recentRuns}
+              missingArtifactRunIds={missingArtifactRunIds}
               onRun={onStartWorkflow}
+              {...(onFocusExecutionTab !== undefined && { onFocusExecutionTab })}
+              {...(onOpenRunArtifact !== undefined && { onOpenArtifact: handleOpenRecentRunArtifact })}
+              {...(onOpenSettings !== undefined && { onOpenSettings })}
+              confidentialityMode={confidentialityMode}
+              egressProvider={egressProvider}
             />
-          ))
-        )}
-      </div>
+          ) : (
+            <div style={{ display: 'grid', minHeight: 0, flex: 1, placeItems: 'center', padding: 28 }}>
+              <EmptyState
+                data-testid="associate-empty"
+                icon={Search}
+                title={t('workflow.associate.empty-title')}
+                body={t('workflow.associate.empty-body')}
+                actions={
+                  <Button variant="secondary" size="sm" onClick={handleClearAll}>
+                    {t('workflow.associate.clear-search')}
+                  </Button>
+                }
+              />
+            </div>
+          )}
+        </div>
+      </RailShell>
     </div>
   );
 }
