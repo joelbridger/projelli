@@ -12,7 +12,6 @@
  * keeps the right-side trust controls together so desktop harnesses still grip
  * data-testid="trust-bar".
  */
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -35,9 +34,8 @@ export function TrustBar({ inline = false }: TrustBarProps) {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
   const egressProvider = useActiveEgressProvider(confidentialityMode);
-  // Fixed-English escape hatch: this whole component's copy is exempted from
-  // i18n (see the file-level eslint-disable above; KNOWN-I18N-01), so the
-  // noun stays English too rather than mixing languages.
+  // Fixed-English escape hatch: this component's copy is still English-only, so
+  // the noun stays English too rather than mixing languages.
   const entityLabel = useEntityLabelEnglish();
 
   // BUG-023: this describes SCOPE (which clients' data the answer can draw on),

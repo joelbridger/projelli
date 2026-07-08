@@ -55,7 +55,7 @@ export function PrivacySettings() {
             setDataMapOpen(true);
           }}
         >
-          Open Data Map
+          {t('settings.privacy.data-map.cta')}
         </Button>
       </div>
 

@@ -9,6 +9,7 @@
  * opens the FirmSecurityPack — the printable trust document for IT / GC.
  */
 import { useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Lock, FileText, MapPin, MoreHorizontal } from 'lucide-react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
@@ -37,6 +38,7 @@ export interface PrivacyCenterHomeProps {
 }
 
 export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterHomeProps) {
+  const { t } = useTranslation();
   const [reportOpen, setReportOpen] = useState(false);
   const [firmPackOpen, setFirmPackOpen] = useState(false);
   const dataMapSectionRef = useRef<HTMLElement | null>(null);
@@ -102,7 +104,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
                   onClick={handleOpenDataMap}
                 >
                   <MapPin className="h-3.5 w-3.5 mr-1.5" />
-                  Open Data Map
+                  {t('settings.privacy.data-map.cta')}
                 </Button>
               )}
               <DropdownMenu>

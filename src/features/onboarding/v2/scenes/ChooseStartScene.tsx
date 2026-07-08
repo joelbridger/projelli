@@ -1,4 +1,3 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * ChooseStartScene — "Pick how you want to start".
  *

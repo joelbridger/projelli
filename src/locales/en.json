@@ -235,7 +235,7 @@
       "data-map": {
         "title": "Where your data lives and who can see it",
         "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Advisor Prep Hero’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
-        "cta": "Open the data map"
+        "cta": "Open Data Map"
       }
     },
     "mcp": {
