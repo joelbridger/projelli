@@ -1,5 +1,13 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-08 ~17:15 — UX-SIMPLIFICATION BUILD LAUNCHED (coordinator-12, Fable pass)
+
+- Fable re-audit of the Codex UX report DONE: all 7 audits read + spot-checked (accurate); app visually inspected via fresh browser-mode screenshots (testMode=true&seedDemo=true, capture set in coordinator scratchpad current-ui/).
+- New findings F1-F9 + corrections C1-C4 in reports/ux-simplification-2026-07-08/FABLE-ENHANCED.md. Headline: F1 contradictory egress pills (top bar "No AI connected" vs Ask "Using local AI" simultaneously) → single-source egress mandated.
+- Enhanced report published for Jameson: jameworld.com/claudereports (2026-07-08 enhanced audit).
+- BUILD: integration branch lp/ux-simplify-v1 @ e3b91b52 (pushed). 9 lanes, 9 worktrees ~/lp-ux-*, briefs in coordination/briefs/ux-*.md (common rules in ux-common.md). Fleet: tmux cc-lantern-ux-{found,meetings}=Opus4.8, {chrome,ask,clientmap,documents,email,workflows,copy}=Sonnet5, all effort high.
+- Merge protocol: per-lane Codex adversarial review in worktree → coordinator merges serially into lp/ux-simplify-v1 (found first, copy last) → ONE full gate in tmux → AFTER screenshots (same capture method) → before/after gallery artifact → Legion preview sync ONLY after gate green. NO merge to lantern-plus until Jameson approves the visuals.
+- Dev server tmux lp-dev running (:5173) — reused for after-captures; kill when program ends.
 ## UPDATE 2026-07-08 ~16:20 — COORDINATOR-12 TOOK OVER (coordinator-11 process died after its 05:30 wrap; no work lost)
 
 - Coordinator-11 ended CLEAN: tip 75202fb4 pushed+verified, Legion live, rails unified, UX-minimalism report published. Nothing was mid-flight.
