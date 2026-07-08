@@ -61,7 +61,9 @@ describe('ClientMeetingsTab — master-detail rail', () => {
     expect(screen.getByTestId('meeting-subtab-recording')).toBeVisible();
     expect(screen.getByTestId('meeting-subtab-transcript')).toBeVisible();
     expect(screen.getByTestId('meeting-subtab-summary')).toBeVisible();
-    expect(screen.getByTestId('meeting-subtab-send-to-team')).toBeVisible();
+    // Send moved out of the tab row into a header action (meetings audit item 1).
+    expect(screen.queryByTestId('meeting-subtab-send-to-team')).toBeNull();
+    expect(screen.getByTestId('meeting-entry-send')).toBeVisible();
 
     await waitFor(() => expect(within(screen.getByTestId('meeting-entry')).getByText('Roth planning')).toBeVisible());
     const rows = screen.getAllByTestId('meeting-row');

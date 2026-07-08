@@ -5,7 +5,7 @@
 // LANTERN-PLUS.md) — the component itself is self-contained and testable now.
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Users } from 'lucide-react';
+import { Info, Users } from 'lucide-react';
 import { Button, Callout } from '@/ui/kp';
 import { AuditService } from '@/platform/audit/AuditService';
 import {
@@ -113,6 +113,17 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
     <div data-testid="speaker-names-panel" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <span className="kp-eyebrow" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
         <Users size={13} aria-hidden /> {t('meetings.speakers.title')}
+        {/* Privacy note moves to an on-demand tooltip (item 15) — the full
+            biometric-consent copy still shows inline when a new voice profile
+            would be created (willEnroll). */}
+        <span
+          data-testid="speakers-privacy-info"
+          title={t('meetings.speakers.privacy-note')}
+          aria-label={t('meetings.speakers.privacy-note')}
+          style={{ display: 'inline-flex', color: 'var(--kp-text-muted, #6b7280)', cursor: 'help' }}
+        >
+          <Info size={12} aria-hidden />
+        </span>
       </span>
       {rows === null ? (
         // secondary + hugging width: a helper utility, never the loudest
@@ -169,7 +180,6 @@ export function SpeakerNamesPanel({ meetingDir, matterId, workspaceRoot, onAppli
       )}
       {done && <Callout>{t('meetings.speakers.applied')}</Callout>}
       {error && <Callout variant="warning">{error}</Callout>}
-      <p style={{ fontSize: 11.5, color: 'var(--kp-text-muted, #6b7280)', margin: 0 }}>{t('meetings.speakers.privacy-note')}</p>
     </div>
   );
 }

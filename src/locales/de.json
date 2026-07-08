@@ -2376,11 +2376,9 @@
       "notes-pending": "Notizen ausstehend",
       "notes-failed": "Notizen konnten nicht erstellt werden",
       "recording-incomplete": "Aufnahme wurde nicht vollständig gespeichert",
-      "activity-hint": "Jede Besprechung erscheint außerdem als Eintrag im Aktivitätsverlauf dieses Mandanten.",
       "record-note": "Auf diesem Computer aufgenommen. Nichts wird hochgeladen.",
       "loading": "Gespräche werden geladen…",
       "needs-review-badge": "Prüfung nötig",
-      "reviewed-badge": "Geprüft",
       "duration": "{{minutes}} Min.",
       "scan-error-title": "Besprechungen konnten nicht geladen werden",
       "scan-error-body": "Der Abgleich wurde gerade unterbrochen. Ihre Aufnahmen sind sicher auf diesem Computer gespeichert.",
@@ -2415,16 +2413,11 @@
       "download-audio": "Audio herunterladen",
       "no-audio": "Für dieses Gespräch ist kein Audio gespeichert.",
       "no-one-spoke": "Im gespeicherten Transkript hat niemand gesprochen.",
-      "copy": "Kopieren",
-      "export": "Exportieren",
-      "export-word": "Word exportieren",
-      "export-pdf": "PDF exportieren",
       "transcript-copied": "Transkript kopiert",
       "summary-copied": "Zusammenfassung kopiert",
       "summary-empty": "Noch kein Zusammenfassungstext verfügbar.",
       "summary-not-ready": "Die Zusammenfassung ist noch nicht bereit. Der Export wird aktiviert, sobald echter Notiztext verfügbar ist.",
       "export-saved": "Gespeichert unter {{path}}",
-      "type-chip-change": "ändern",
       "generic-title": "Gespräch",
       "dictated-title": "Diktierte Notiz",
       "delete-audio-confirm-title": "Audio dieses Gesprächs löschen?",
@@ -2434,10 +2427,7 @@
       "recipients": {
         "title": "Empfänger",
         "description": "Wählen Sie aus, wer jeden Gesprächsinhalt später erhalten soll. Dies speichert nur den Plan.",
-        "auto-title": "Aus der Einladung übernommen",
-        "auto-description": "Alle Personen in der Kalendereinladung sind zuerst für jeden Gesprächsinhalt ausgewählt. Entfernen Sie eine Person oder einen Inhalt, wenn er nicht gesendet werden soll.",
         "add-person": "Person hinzufügen",
-        "save": "Plan speichern",
         "saving": "Wird gespeichert...",
         "saved": "Lokal gespeichert. Es wurde nichts gesendet.",
         "invalid-email": "Geben Sie eine gültige E-Mail-Adresse ein.",
@@ -2447,7 +2437,6 @@
         "groups-description": "Gruppen werden im Ordner dieses Kunden gespeichert, damit Empfängerlisten beim jeweiligen Kunden bleiben.",
         "group-name-placeholder": "Gruppenname",
         "save-group": "Aktuelle Personen als Gruppe speichern",
-        "group-saved": "Gruppe für diesen Kunden gespeichert.",
         "use-group": "{{name}} hinzufügen ({{count}})",
         "artifacts": {
           "audio": {
@@ -2499,7 +2488,16 @@
         "sent-with-errors_other": "{{total}} Elemente versucht; {{failed}} fehlgeschlagen. Prüfen Sie das Sendeprotokoll.",
         "email-subject": "{{client}} Besprechung {{artifact}}: {{title}}",
         "email-body": "Hallo,\n\nangehängt ist {{artifact}} aus der Besprechung von {{client}}: {{title}}.\n\nNach Prüfung über mein verbundenes E-Mail-Konto gesendet."
-      }
+      },
+      "type-change": "Typ ändern",
+      "send-action": "Senden",
+      "send-review-first": "Zuerst prüfen",
+      "actions-menu": "Weitere Aktionen",
+      "copy-transcript": "Transkript kopieren",
+      "export-transcript": "Transkript exportieren",
+      "copy-summary": "Zusammenfassung kopieren",
+      "export-summary-word": "Zusammenfassung als Word exportieren",
+      "export-summary-pdf": "Zusammenfassung als PDF exportieren"
     },
     "types": {
       "annual-review": "Jahresgespräch",
@@ -2519,7 +2517,11 @@
       "mac-permission-button": "Systemeinstellungen öffnen",
       "two-party-note-unknown": "Falls Ihr Bundesstaat die Zustimmung aller verlangt, fragen Sie vor der Aufnahme. Vorschlag: „Ich würde das Gespräch gern für meine Notizen aufnehmen. Ist das für alle in Ordnung?“",
       "start-failed": "Aufnahme konnte nicht starten: {{message}}",
-      "low-disk-warning": "Wenig Speicherplatz. Lange Aufnahmen passen möglicherweise nicht."
+      "low-disk-warning": "Wenig Speicherplatz. Lange Aufnahmen passen möglicherweise nicht.",
+      "step-ask": "1. Zustimmung einholen",
+      "step-say": "2. Hinweis sagen",
+      "step-start": "3. Aufnahme starten",
+      "rules-details": "Aufnahmeregeln"
     },
     "dictation": {
       "file-as-meeting-note": "Als Besprechungsnotiz ablegen…",
@@ -2535,7 +2537,6 @@
       "verified-chip": "Gesprochener Hinweis erkannt um {{time}}",
       "verified-detail": "In der Aufnahme erkannt: „{{snippet}}“",
       "unverified-title": "In den ersten 5 Minuten dieser Besprechung wurde kein gesprochener Aufnahmehinweis erkannt.",
-      "unverified-body": "Wenn Sie es allen auf anderem Weg mitgeteilt haben oder das Transkript es nur übersehen hat, sagen Sie uns, wie Sie das festhalten möchten.",
       "resolve-disclosed": "Vorab mitgeteilt (Einladung oder Chat)",
       "resolve-missed": "Hinweis wurde gegeben, Transkription hat ihn übersehen",
       "resolve-ack": "Lücke bestätigen",
@@ -2562,13 +2563,16 @@
       "settings-script-label": "Was Sie laut sagen",
       "settings-script-placeholder": "Leer lassen, um die integrierte Formulierung zu verwenden.",
       "settings-script-default-label": "Integrierte Formulierung:",
-      "pill-copy-chat": "Chat-Hinweis kopieren"
+      "pill-copy-chat": "Chat-Hinweis kopieren",
+      "details": "Details"
     },
     "auto-join": {
       "heading": "Wird automatisch beitreten",
       "body": "Diese Besprechungen starten denselben Aufnahmeablauf und dieselbe Notice Card wie die Aufnahmetaste.",
       "error": "Anstehende Besprechungen konnten nicht geprüft werden.",
-      "disable": "Nicht beitreten"
+      "disable": "Nicht beitreten",
+      "summary_one": "Nimmt automatisch an {{count}} Meeting teil",
+      "summary_other": "Nimmt automatisch an {{count}} Meetings teil"
     },
     "notice-card": {
       "offer-label": "Die Hinweiskarte zu diesem Meeting hinzufügen?",
@@ -2604,7 +2608,9 @@
       "settings-name-label": "Name der Hinweiskarte ({advisor} für Ihren Vornamen verwenden)",
       "settings-evidence-label": "Was einen strengen Aufzeichnungshinweis erfüllt",
       "settings-evidence-either": "Entweder ein gesprochener Hinweis oder die Karte während des gesamten Meetings",
-      "settings-evidence-both": "Sowohl ein gesprochener Hinweis als auch die Karte während des gesamten Meetings"
+      "settings-evidence-both": "Sowohl ein gesprochener Hinweis als auch die Karte während des gesamten Meetings",
+      "offer-explain-summary": "Was ist das?",
+      "pill-present-short": "Im Meeting"
     }
   },
   "spine": {

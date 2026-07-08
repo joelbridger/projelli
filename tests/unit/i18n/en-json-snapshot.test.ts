@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 220,
         "media": 100,
-        "meetings": 227,
+        "meetings": 233,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -263,7 +263,15 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +6 net from the Meetings UX simplification lane (send-merge + notice/
+    //   consent/record-pill/rail/auto-join restyle). Two batches of net-neutral
+    //   key churn: cluster 1 (send merge + header ... menu) removed 9 tab-row
+    //   labels and added 9 self-describing menu/header labels (net 0); cluster 2
+    //   (notice trail, consent checklist, notice card, record pill, rail, auto-
+    //   join) added 9 keys (details/step-*/rules-details/offer-explain-summary/
+    //   pill-present-short/auto-join.summary_one+_other) and removed 3 orphans
+    //   (notice.unverified-body, tab.activity-hint, tab.reviewed-badge) = +6.
+    expect(flat.length).toBe(1553);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

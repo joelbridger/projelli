@@ -49,6 +49,8 @@ describe('MeetingEntry — Summary tab replaces the live DocxEditor pane (R7)', 
     });
     expect(screen.queryByTestId('lazy-boundary-fallback')).toBeNull();
     expect(screen.queryByTestId('meeting-entry-notes-pending')).toBeNull();
-    expect(screen.getByTestId('meeting-summary-export-docx')).toBeInTheDocument();
+    // notes.docx exists but its bytes couldn't be read, so the Summary tab
+    // shows the static not-ready message, never the lazy Word editor pane.
+    expect(screen.getByTestId('meeting-entry-summary-not-ready')).toBeInTheDocument();
   });
 });

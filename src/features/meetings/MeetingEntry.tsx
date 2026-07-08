@@ -5,16 +5,23 @@
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronLeft, Trash2, Check, Pencil, Copy, Download, FileText } from 'lucide-react';
+import { ChevronLeft, Trash2, Check, Pencil, Copy, Download, FileText, MoreHorizontal, Send } from 'lucide-react';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { arrayBufferToDataUrl } from '@/platform/utils/file-utils';
 import { AudioPlayer, type AudioPlayerHandle } from '@/features/dictation/audio/AudioPlayer';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/ui/dialog';
 import { Button as DialogButton } from '@/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
+import { Badge, SlidePanel } from '@/ui/kp';
 import { TranscriptViewer } from './TranscriptViewer';
 import { SpeakerNamesPanel } from './SpeakerNamesPanel';
-import { MeetingRecipientsPanel } from './MeetingRecipientsPanel';
-import { MeetingArtifactSendPanel } from './MeetingArtifactSendPanel';
+import { MeetingSendPanel } from './MeetingSendPanel';
 import { AuditService } from '@/platform/audit/AuditService';
 import { markMeetingReviewed, updateMeetingJson, retryMeetingNotes, retryMeetingTranscript, ensureMeetingNoticeVerified, resolveMatterFolder } from './meetingStore';
 import type { MeetingMeta } from './meetingStore';
@@ -57,7 +64,7 @@ const audit = new AuditService('meetings');
 function consentLabel(meta: MeetingMeta | null, t: (k: string) => string): string | null {
   if (!meta?.consent) return null;
   const modeLabel = meta.consent.mode === 'one-party' ? t('meetings.entry.consent-one-party') : t('meetings.entry.consent-two-party');
-  return `${t('meetings.entry.consent-noted')} · ${modeLabel}`;
+  return `${t('meetings.entry.consent-noted')}: ${modeLabel}`;
 }
 
 /** "Jun 30, 2026 · 41 min" — the meta the advisor scans for, kept apart from
@@ -68,7 +75,7 @@ function dateDurationLine(meta: MeetingMeta | null, t: TFunction): string | null
   return parts.length ? parts.join(' · ') : null;
 }
 
-type MeetingEntryTab = 'recording' | 'transcript' | 'summary' | 'send';
+type MeetingEntryTab = 'recording' | 'transcript' | 'summary';
 
 function sanitizeFileStem(value: string): string {
   return value
@@ -104,6 +111,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
   const [hasAudio, setHasAudio] = useState(false);
   const [seekMs, setSeekMs] = useState<number | undefined>(initialSeekMs);
   const [activeTab, setActiveTab] = useState<MeetingEntryTab>('recording');
+  const [sendOpen, setSendOpen] = useState(false);
   const [editingType, setEditingType] = useState(false);
   const [typeInput, setTypeInput] = useState('');
   const [renaming, setRenaming] = useState(false);
@@ -507,12 +515,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     a.click();
   }, [audioSrc, meta, t]);
 
-  const handleRecipientsSaved = useCallback((updated: MeetingMeta) => {
-    setMeta(updated);
-    onChanged?.();
-  }, [onChanged]);
-
-  const handleArtifactSent = useCallback((updated: MeetingMeta) => {
+  const handleSendChanged = useCallback((updated: MeetingMeta) => {
     setMeta(updated);
     onChanged?.();
   }, [onChanged]);
@@ -522,15 +525,16 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
       data-testid="meeting-entry"
       style={{ display: 'flex', flexDirection: 'column', height: '100%', flex: 1, minHeight: 0, overflow: 'hidden' }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
           {showBackButton && (
-            <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
+            <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', marginTop: 2 }}>
               <ChevronLeft style={{ width: 18, height: 18 }} />
             </button>
           )}
-          <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span>{clientName} / {t('meetings.entry.breadcrumb-meetings')} /</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+            {/* First line: meeting title only (item 8) — the client + Meetings
+                breadcrumb is dropped; the rail already says where you are. */}
             {renaming ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                 <input
@@ -543,95 +547,175 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                     });
                     if (e.key === 'Escape') setRenaming(false);
                   }}
-                  style={{ fontSize: 'var(--kp-font-sm)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '3px 6px' }}
+                  style={{ fontSize: 'var(--kp-font-md)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '3px 6px' }}
                 />
                 <button type="button" data-testid="meeting-title-save" onClick={() => { void handleSaveTitle().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', display: 'inline-flex' }}>
-                  <Check style={{ width: 13, height: 13 }} />
+                  <Check style={{ width: 14, height: 14 }} />
                 </button>
               </span>
             ) : (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)' }}>{meetingDisplayTitle(meta, t)}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-md)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meetingDisplayTitle(meta, t)}</span>
                 <button
                   type="button"
                   data-testid="meeting-title-rename"
                   aria-label={t('meetings.entry.rename')}
+                  title={t('meetings.entry.rename')}
                   onClick={() => { setTitleInput(meetingDisplayTitle(meta, t)); setRenaming(true); }}
-                  style={{ border: 'none', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'inline-flex', padding: 2 }}
+                  style={{ border: 'none', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'inline-flex', padding: 2, flex: 'none' }}
                 >
-                  <Pencil style={{ width: 12, height: 12 }} />
+                  <Pencil style={{ width: 13, height: 13 }} />
                 </button>
               </span>
             )}
-            {dateDurationLine(meta, t) && (
-              <span> · {dateDurationLine(meta, t)}</span>
-            )}
+            {/* Second line: date + duration + compact status chips (item 8). */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+              {dateDurationLine(meta, t) && <span>{dateDurationLine(meta, t)}</span>}
+              {consentLabel(meta, t) && (
+                <Badge variant="neutral" size="sm">{consentLabel(meta, t)}</Badge>
+              )}
+              {meta?.typeId && !editingType && (
+                <span data-testid="meeting-type-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <Badge variant="neutral" size="sm">{meetingTypeLabel(meta.typeId, t)}</Badge>
+                  <button
+                    type="button"
+                    data-testid="meeting-type-change"
+                    aria-label={t('meetings.entry.type-change')}
+                    title={t('meetings.entry.type-change')}
+                    onClick={() => { setTypeInput(meta.typeId ? meetingTypeLabel(meta.typeId, t) : ''); setEditingType(true); }}
+                    style={{ border: 'none', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', display: 'inline-flex', padding: 0 }}
+                  >
+                    <Pencil style={{ width: 11, height: 11 }} />
+                  </button>
+                </span>
+              )}
+              {editingType && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    data-testid="meeting-type-input"
+                    value={typeInput}
+                    onChange={(e) => { setTypeInput(e.target.value); }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void handleSaveType();
+                      if (e.key === 'Escape') setEditingType(false);
+                    }}
+                    style={{ fontSize: 'var(--kp-font-xs)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '2px 6px' }}
+                  />
+                  <button type="button" data-testid="meeting-type-save" onClick={() => { void handleSaveType(); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}>
+                    <Check style={{ width: 12, height: 12 }} />
+                  </button>
+                </span>
+              )}
+              {meta?.reviewedAt && (
+                <Badge variant="neutral" size="sm" data-testid="meeting-reviewed-chip">{t('meetings.entry.reviewed')}</Badge>
+              )}
+            </div>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 'none' }}>
+          {/* Send (item 1): primary output action, disabled until reviewed. */}
+          {meta && (
+            <button
+              type="button"
+              data-testid="meeting-entry-send"
+              onClick={() => { setSendOpen(true); }}
+              disabled={!meta.reviewedAt}
+              title={!meta.reviewedAt ? t('meetings.entry.send-review-first') : undefined}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: meta.reviewedAt ? 'var(--kp-accent)' : 'transparent', color: meta.reviewedAt ? 'var(--color-primary-foreground)' : 'var(--color-muted-foreground)', borderRadius: 'var(--radius-md)', padding: '6px 12px', fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', cursor: meta.reviewedAt ? 'pointer' : 'not-allowed', opacity: meta.reviewedAt ? 1 : 0.6, fontFamily: 'inherit' }}
+            >
+              <Send style={{ width: 13, height: 13 }} />
+              {t('meetings.entry.send-action')}
+            </button>
+          )}
+          {/* Mark reviewed — the only other visible header button (item 7). */}
           {meta && !meta.reviewedAt && (
             <button
               type="button"
               data-testid="meeting-entry-mark-reviewed"
-	              onClick={() => { void handleMarkReviewed().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }}
+              onClick={() => { void handleMarkReviewed().catch((err: unknown) => { setExportNotice(err instanceof Error ? err.message : String(err)); }); }}
               style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
             >
               <Check style={{ width: 12, height: 12 }} />
               {t('meetings.entry.mark-reviewed')}
             </button>
           )}
-          {meta?.reviewedAt && (
-            <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>{t('meetings.entry.reviewed')}</span>
-          )}
-          {hasAudio && (
-            <button
-              type="button"
-              data-testid="meeting-entry-delete-audio"
-              onClick={() => { setConfirmingDelete(true); }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              <Trash2 style={{ width: 12, height: 12 }} />
-              {hasTranscript ? t('meetings.entry.delete-audio') : t('meetings.entry.delete-audio-no-transcript')}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {(consentLabel(meta, t) ?? meta?.typeId) && (
-        <div style={{ padding: '8px var(--kp-gutter) 0', display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-          {consentLabel(meta, t) && <span>{consentLabel(meta, t)}</span>}
-          {meta?.typeId && !editingType && (
-            <span data-testid="meeting-type-chip" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              · {meetingTypeLabel(meta.typeId, t)}
+          {/* Utilities + destructive delete audio fold into a ... menu (items 7, 13). */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
               <button
                 type="button"
-                data-testid="meeting-type-change"
-                onClick={() => { setTypeInput(meta.typeId ? meetingTypeLabel(meta.typeId, t) : ''); setEditingType(true); }}
-                style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}
+                data-testid="meeting-entry-actions-menu"
+                aria-label={t('meetings.entry.actions-menu')}
+                title={t('meetings.entry.actions-menu')}
+                style={{ display: 'flex', alignItems: 'center', border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 8px', cursor: 'pointer', color: 'var(--kp-navy)' }}
               >
-                {t('meetings.entry.type-chip-change')}
+                <MoreHorizontal style={{ width: 15, height: 15 }} />
               </button>
-            </span>
-          )}
-          {editingType && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <input
-                data-testid="meeting-type-input"
-                value={typeInput}
-                onChange={(e) => { setTypeInput(e.target.value); }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') void handleSaveType();
-                  if (e.key === 'Escape') setEditingType(false);
-                }}
-                style={{ fontSize: 'var(--kp-font-xs)', border: '1px solid var(--kp-divider)', borderRadius: 'var(--radius-sm)', padding: '2px 6px' }}
-              />
-              <button type="button" data-testid="meeting-type-save" onClick={() => { void handleSaveType(); }} style={{ border: 'none', background: 'transparent', color: 'var(--kp-accent)', cursor: 'pointer', fontSize: 'inherit', fontFamily: 'inherit', padding: 0 }}>
-                <Check style={{ width: 12, height: 12 }} />
-              </button>
-            </span>
-          )}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {hasAudio && (
+                <DropdownMenuItem data-testid="meeting-audio-download" onClick={handleDownloadAudio}>
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  {t('meetings.entry.download-audio')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                data-testid="meeting-transcript-copy"
+                disabled={!transcript}
+                onClick={() => { void copyText(transcriptToText(transcript), t('meetings.entry.transcript-copied')); }}
+              >
+                <Copy className="h-3.5 w-3.5 mr-2" />
+                {t('meetings.entry.copy-transcript')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="meeting-transcript-export"
+                disabled={!transcript || exporting === 'transcript'}
+                onClick={handleExportTranscript}
+              >
+                <Download className="h-3.5 w-3.5 mr-2" />
+                {t('meetings.entry.export-transcript')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="meeting-summary-copy"
+                disabled={!summaryReady}
+                onClick={() => { void copyText(summaryText.trim(), t('meetings.entry.summary-copied')); }}
+              >
+                <Copy className="h-3.5 w-3.5 mr-2" />
+                {t('meetings.entry.copy-summary')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="meeting-summary-export-docx"
+                disabled={!summaryReady || exporting === 'summary-docx'}
+                onClick={handleExportSummaryDocx}
+              >
+                <FileText className="h-3.5 w-3.5 mr-2" />
+                {t('meetings.entry.export-summary-word')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                data-testid="meeting-summary-export-pdf"
+                disabled={!summaryReady || exporting === 'summary-pdf'}
+                onClick={handleExportSummaryPdf}
+              >
+                <Download className="h-3.5 w-3.5 mr-2" />
+                {t('meetings.entry.export-summary-pdf')}
+              </DropdownMenuItem>
+              {hasAudio && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    data-testid="meeting-entry-delete-audio"
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => { setConfirmingDelete(true); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-2" />
+                    {hasTranscript ? t('meetings.entry.delete-audio') : t('meetings.entry.delete-audio-no-transcript')}
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      )}
+      </div>
 
       <div style={{ borderBottom: '1px solid var(--kp-divider)', padding: '10px var(--kp-gutter) 0', display: 'flex', gap: 6 }}>
         <button
@@ -688,24 +772,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         >
           {t('meetings.entry.tab-summary')}
         </button>
-        <button
-          type="button"
-          data-testid="meeting-subtab-send-to-team"
-          onClick={() => { setActiveTab('send'); }}
-          style={{
-            border: 'none',
-            borderBottom: activeTab === 'send' ? '2px solid var(--kp-accent)' : '2px solid transparent',
-            background: 'transparent',
-            color: activeTab === 'send' ? 'var(--kp-navy)' : 'var(--color-muted-foreground)',
-            fontFamily: 'inherit',
-            fontSize: 'var(--kp-font-sm)',
-            fontWeight: activeTab === 'send' ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-regular)',
-            padding: '8px 10px',
-            cursor: 'pointer',
-          }}
-        >
-          {t('meetings.entry.tab-send-to-team')}
-        </button>
       </div>
 
       <div data-testid="meeting-entry-tab-scroll" style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
@@ -730,22 +796,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
           />
         )}
 
-        <div style={{ padding: activeTab === 'send' ? '0 0 var(--kp-gutter)' : 'var(--kp-gutter)' }}>
+        <div style={{ padding: 'var(--kp-gutter)' }}>
           {activeTab === 'recording' && (
             <div data-testid="meeting-recording-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
             {hasAudio && audioSrc ? (
-              <>
-                <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={meetingDisplayTitle(meta, t)} compact />
-                <button
-                  type="button"
-                  data-testid="meeting-audio-download"
-                  onClick={handleDownloadAudio}
-                  style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: 'pointer', fontFamily: 'inherit' }}
-                >
-                  <Download style={{ width: 13, height: 13 }} />
-                  {t('meetings.entry.download-audio')}
-                </button>
-              </>
+              <AudioPlayer ref={audioRef} audioSrc={audioSrc} filename={meetingDisplayTitle(meta, t)} compact />
             ) : meta?.recordingError && !hasAudio ? (
               <div data-testid="meeting-entry-recording-incomplete" style={{ color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)' }}>
                 {t('meetings.entry.recording-incomplete')}
@@ -765,28 +820,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
 
           {activeTab === 'transcript' && (
             <div data-testid="meeting-transcript-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                data-testid="meeting-transcript-copy"
-                onClick={() => { void copyText(transcriptToText(transcript), t('meetings.entry.transcript-copied')); }}
-                disabled={!transcript}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: transcript ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
-              >
-                <Copy style={{ width: 13, height: 13 }} />
-                {t('meetings.entry.copy')}
-              </button>
-              <button
-                type="button"
-                data-testid="meeting-transcript-export"
-                onClick={handleExportTranscript}
-                disabled={!transcript || exporting === 'transcript'}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: transcript ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
-              >
-                <Download style={{ width: 13, height: 13 }} />
-                {t('meetings.entry.export')}
-              </button>
-            </div>
             {transcript ? (
               <>
                 <TranscriptViewer transcript={transcript} onSeek={handleSeek} {...(seekMs !== undefined ? { activeMs: seekMs } : {})} />
@@ -819,20 +852,6 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
 
           {activeTab === 'summary' && (
             <div data-testid="meeting-summary-tab" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" data-testid="meeting-summary-copy" onClick={() => { void copyText(summaryText.trim(), t('meetings.entry.summary-copied')); }} disabled={!summaryReady} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-                <Copy style={{ width: 13, height: 13 }} />
-                {t('meetings.entry.copy')}
-              </button>
-              <button type="button" data-testid="meeting-summary-export-docx" onClick={handleExportSummaryDocx} disabled={!summaryReady || exporting === 'summary-docx'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-                <FileText style={{ width: 13, height: 13 }} />
-                {t('meetings.entry.export-word')}
-              </button>
-              <button type="button" data-testid="meeting-summary-export-pdf" onClick={handleExportSummaryPdf} disabled={!summaryReady || exporting === 'summary-pdf'} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid var(--kp-divider)', background: 'transparent', borderRadius: 'var(--radius-md)', padding: '6px 10px', fontSize: 'var(--kp-font-xs)', cursor: summaryReady ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}>
-                <Download style={{ width: 13, height: 13 }} />
-                {t('meetings.entry.export-pdf')}
-              </button>
-            </div>
             {summaryReady ? (
               <pre data-testid="meeting-summary-text" style={{ whiteSpace: 'pre-wrap', margin: 0, fontFamily: 'inherit', color: 'var(--kp-navy)', fontSize: 'var(--kp-font-sm)', lineHeight: 1.6 }}>
                 {summaryText.trim()}
@@ -860,39 +879,37 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
             </div>
           )}
 
-          {activeTab === 'send' && (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {meta && (
-                <MeetingRecipientsPanel
-                  matterId={matterId}
-                  meetingDir={meetingDir}
-                  meta={meta}
-                  matter={matter}
-                  workspaceService={workspaceService}
-                  onSaved={handleRecipientsSaved}
-                />
-              )}
-
-              {meta && (
-                <MeetingArtifactSendPanel
-                  matterId={matterId}
-                  meetingDir={meetingDir}
-                  meta={meta}
-                  clientName={clientName}
-                  workspaceService={workspaceService}
-                  hasAudio={hasAudio}
-                  hasTranscript={hasTranscript}
-                  hasNotes={hasNotes}
-                  summaryReady={summaryReady}
-                  transcript={transcript}
-                  buildSummaryDocxBytes={buildSummaryDocxBytes}
-                  onSent={handleArtifactSent}
-                />
-              )}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Send (item 1) — the merged send surface opens in a right drawer from
+          the header Send action, so sending never crowds the review tabs. */}
+      <SlidePanel
+        open={sendOpen && !!meta}
+        onClose={() => { setSendOpen(false); }}
+        width={520}
+        closeLabel={t('common.actions.cancel')}
+        data-testid="meeting-send-drawer"
+        title={<span style={{ color: 'var(--kp-navy)', fontWeight: 'var(--kp-weight-semibold)', fontSize: 'var(--kp-font-md)' }}>{t('meetings.entry.tab-send-to-team')}</span>}
+      >
+        {meta && (
+          <MeetingSendPanel
+            matterId={matterId}
+            meetingDir={meetingDir}
+            meta={meta}
+            matter={matter}
+            clientName={clientName}
+            workspaceService={workspaceService}
+            hasAudio={hasAudio}
+            hasTranscript={hasTranscript}
+            hasNotes={hasNotes}
+            summaryReady={summaryReady}
+            transcript={transcript}
+            buildSummaryDocxBytes={buildSummaryDocxBytes}
+            onChanged={handleSendChanged}
+          />
+        )}
+      </SlidePanel>
 
       {/* Deleting the only recording of a client meeting is irreversible —
           destructive ops always confirm (core app rule; UX review B7). */}

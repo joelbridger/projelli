@@ -98,9 +98,14 @@ export function NoticeCardConsentSection({
             </span>
           </span>
         </label>
-        <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-          {t('meetings.notice-card.offer-explain')}
-        </span>
+        <details>
+          <summary data-testid="notice-card-explain-toggle" style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', cursor: 'pointer' }}>
+            {t('meetings.notice-card.offer-explain-summary')}
+          </summary>
+          <span style={{ display: 'block', marginTop: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+            {t('meetings.notice-card.offer-explain')}
+          </span>
+        </details>
         {offer.platform === 'zoom' && zoomNativeRecord && (
           <label
             data-testid="notice-card-zoom-native"
