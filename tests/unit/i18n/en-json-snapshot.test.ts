@@ -47,11 +47,11 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 131,
+        "ask": 132,
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 72,
+        "common": 75,
         "editor": 27,
         "entity-label": 50,
         "file-import": 3,
@@ -61,20 +61,20 @@ describe('en.json structure snapshot', () => {
         "local-ai-settings": 8,
         "mail": 155,
         "marketplace": 14,
-        "matter": 294,
+        "matter": 322,
         "media": 100,
-        "meetings": 255,
+        "meetings": 256,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 68,
+        "onboarding": 69,
         "plugins": 4,
         "privacy": 35,
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 190,
+        "settings": 191,
         "shortcuts-overlay": 2,
-        "spine": 8,
+        "spine": 10,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,
@@ -83,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 136,
-        "workspace": 53,
+        "workspace": 54,
       }
     `);
   });
@@ -271,7 +271,7 @@ describe('en.json structure snapshot', () => {
     // +20 = FB2 railchrome: shared rail headers, search toggles, collapse labels,
     //       and rail action menu labels across Ask, Mail, Client Map, Meetings,
     //       Settings, Workflows, and Documents.
-    expect(flat.length).toBe(1987); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
+    expect(flat.length).toBe(2025); // FB2 batch: groups, rename affordances, rail chrome labels, brand routing (+38)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
