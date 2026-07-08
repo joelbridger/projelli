@@ -14,7 +14,7 @@ const GROUPS: RailGroup[] = [
   },
   {
     key: 'other',
-    title: 'Other conversations',
+    title: 'Other',
     items: [{ chatId: 'ask-global-500', label: 'Cross-matter question', dateLabel: 'Dec 31 5:00 PM' }],
   },
 ];
@@ -38,7 +38,7 @@ describe('ConversationsRail', () => {
     renderRail();
     expect(screen.getByTestId('conversations-rail')).toBeInTheDocument();
     expect(screen.getByText('This client')).toBeInTheDocument();
-    expect(screen.getByText('Other conversations')).toBeInTheDocument();
+    expect(screen.getByText('Other')).toBeInTheDocument();
     expect(screen.getAllByTestId('rail-conversation-item').length).toBe(3);
     expect(screen.getByText(/discovery deadline/i)).toBeInTheDocument();
     expect(screen.getByText(/cross-matter question/i)).toBeInTheDocument();
@@ -67,6 +67,7 @@ describe('ConversationsRail', () => {
 
   it('searches conversation titles from the field under New question', () => {
     renderRail();
+    fireEvent.click(screen.getByTestId('rail-search-toggle'));
     fireEvent.change(screen.getByTestId('rail-conversation-search'), {
       target: { value: 'deposition' },
     });
@@ -78,6 +79,7 @@ describe('ConversationsRail', () => {
 
   it('shows an empty search state when no conversation title matches', () => {
     renderRail();
+    fireEvent.click(screen.getByTestId('rail-search-toggle'));
     fireEvent.change(screen.getByTestId('rail-conversation-search'), {
       target: { value: 'nothing here' },
     });

@@ -3,6 +3,8 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { TrustNote } from './TrustNote';
 
+/* eslint-disable lantern-i18n/no-hardcoded-string -- test fixtures use fixed sample copy. */
+
 describe('TrustNote', () => {
   it('renders the one-line trust copy, quiet (default variant) by default', () => {
     render(<TrustNote data-testid="tn">Review first. Sends by your email.</TrustNote>);

@@ -24,8 +24,6 @@ import { useCitationVerification, verifyKey, type RealVerdict } from './citation
 /* run. Clicking a card opens the cited source.                               */
 /* -------------------------------------------------------------------------- */
 
-const LABEL_VERIFIED = 'Verified against source';
-const LABEL_SOURCE_FOUND = 'Source found';
 const PREVIEW_CHAR_LIMIT = 220;
 
 // The QA-85/QA-92 verification hook (and its verdict store) moved to
@@ -49,16 +47,16 @@ function openCitation(cite: AnswerCitation): void {
   }
 }
 
-function problemMessage(v: RealVerdict): string {
+function problemMessage(v: RealVerdict, t: (key: string) => string): string {
   switch (v) {
     case 'notFound':
-      return 'Quote not found in the source';
+      return t('ask.sources.status.quote-not-found');
     case 'textMismatch':
-      return 'Quote does not match the source';
+      return t('ask.sources.status.quote-mismatch');
     case 'matterMismatch':
-      return 'Belongs to a different client';
+      return t('ask.sources.status.wrong-client');
     default:
-      return 'Could not verify';
+      return t('ask.sources.status.could-not-verify');
   }
 }
 
@@ -102,6 +100,7 @@ function SourceFileIcon({ cite }: { cite: AnswerCitation }) {
  * live data.
  */
 function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
+  const { t } = useTranslation();
   const staleDays = useSettingsStore(
     (s) => s.getSetting<number>(EXTERNAL_EXPORT_STALE_DAYS_KEY),
   );
@@ -116,8 +115,8 @@ function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
       data-stale={stale ? 'true' : 'false'}
       title={
         stale
-          ? 'This plan is an exported snapshot and may be out of date. Re-export from the tool for the latest.'
-          : 'Advisor Prep Hero reads the file you exported or saved from this tool. It is a point-in-time snapshot, not a live connection.'
+          ? t('ask.sources.provenance-stale-title')
+          : t('ask.sources.provenance-title')
       }
       style={{
         display: 'inline-flex',
@@ -138,7 +137,7 @@ function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
       <Icon size={11} strokeWidth={2} style={{ flex: 'none' }} />
       <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {provenanceBadgeLabel(prov)}
-        {stale ? ' · may be out of date' : ''}
+        {stale ? ` · ${t('ask.sources.provenance-stale-suffix')}` : ''}
       </span>
     </div>
   );
@@ -179,6 +178,12 @@ function SourceCard({
     verifyState !== 'pending' && verifyState !== 'unavailable' && verifyState !== 'verified';
   const isVerified = verifyState === 'verified';
   const hasExpandableExcerpt = cite.excerpt.length > PREVIEW_CHAR_LIMIT || cite.excerpt.split('\n').length > 3;
+  const statusText = isVerified ? t('ask.sources.status.verified') : t('ask.sources.status.found');
+  const statusTitle = isVerified
+    ? t('ask.sources.status.verified-title')
+    : verifyState === 'pending'
+      ? t('ask.sources.status.checking-title')
+      : t('ask.sources.status.found-title');
 
   function handleOpen(): void {
     onSelect(cite.n);
@@ -202,12 +207,14 @@ function SourceCard({
         }
       }}
       style={{
-        background: 'var(--color-background)',
-        border: selected ? '1px solid var(--kp-accent)' : '1px solid var(--kp-divider)',
-        borderRadius: 12,
-        padding: '14px 15px',
-        marginBottom: 12,
-        boxShadow: '0 1px 2px rgba(10,37,64,0.06), 0 8px 24px rgba(10,37,64,0.10)',
+        background: selected ? 'var(--kp-accent-softer)' : 'transparent',
+        border: 0,
+        borderLeft: selected ? '2px solid var(--kp-accent)' : '2px solid transparent',
+        borderBottom: '1px solid var(--kp-divider)',
+        borderRadius: 0,
+        padding: '10px 2px 12px 10px',
+        marginBottom: 0,
+        boxShadow: 'none',
         cursor: openable ? 'pointer' : 'default',
       }}
     >
@@ -227,10 +234,10 @@ function SourceCard({
           style={{
             width: 18,
             height: 18,
-            borderRadius: 5,
-            background: '#f0fdf4',
-            border: '1px solid rgba(74,222,128,0.6)',
-            color: '#166534',
+            borderRadius: 999,
+            background: 'var(--kp-bg-soft)',
+            border: '1px solid var(--kp-divider-strong)',
+            color: 'var(--kp-navy)',
             fontSize: 11,
             fontWeight: 700,
             fontFamily: 'var(--font-mono)',
@@ -260,15 +267,13 @@ function SourceCard({
         data-expanded={expanded ? 'true' : 'false'}
         style={{
           fontSize: 12.5,
-          lineHeight: 1.5,
+          lineHeight: 1.45,
           color: 'var(--kp-text-dim)',
-          borderLeft: '2px solid var(--kp-divider-strong)',
-          paddingLeft: 10,
           ...(expanded
             ? {}
             : {
                 display: '-webkit-box',
-                WebkitLineClamp: 3,
+                WebkitLineClamp: 2,
                 WebkitBoxOrient: 'vertical',
                 overflow: 'hidden',
               }),
@@ -308,22 +313,18 @@ function SourceCard({
           <span
             data-testid="verify-verdict"
             data-verdict={verifyState}
-            title={problemMessage(verifyState as RealVerdict)}
+            title={problemMessage(verifyState as RealVerdict, t)}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 600, color: 'var(--kp-danger, #b02a1f)' }}
           >
             <AlertTriangle size={12} strokeWidth={2} style={{ flex: 'none' }} />
-            {problemMessage(verifyState as RealVerdict)}
+            {problemMessage(verifyState as RealVerdict, t)}
           </span>
         ) : (
           <span
             data-testid="verify-status"
             data-state={isVerified ? 'verified' : verifyState === 'pending' ? 'pending' : 'source-found'}
             title={
-              isVerified
-                ? 'The stored source was checked and contains this exact quote.'
-                : verifyState === 'pending'
-                  ? 'Checking this quote against the stored source…'
-                  : 'This source was found; the automatic check could not confirm the exact quote (pre-3.0 citation or browser/dev mode).'
+              statusTitle
             }
             style={{
               display: 'inline-flex',
@@ -341,7 +342,7 @@ function SourceCard({
             ) : (
               <ShieldCheck size={12} strokeWidth={2} style={{ flex: 'none' }} />
             )}
-            {isVerified ? LABEL_VERIFIED : LABEL_SOURCE_FOUND}
+            {statusText}
           </span>
         )}
       </div>

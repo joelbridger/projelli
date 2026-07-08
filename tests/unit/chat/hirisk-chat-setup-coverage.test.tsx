@@ -230,7 +230,7 @@ describe('High-risk chat/setup coverage from the current UI', () => {
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
   });
 
-  it('CHAT-34 changes the Ask retrieval scope chip safely between matter, all matters, email, and documents', () => {
+  it('CHAT-34 changes the Ask retrieval scope menu safely between matter, all matters, email, and documents', () => {
     function ScopeHarness() {
       const [scope, setScope] = useState<AskScope>('this-matter');
       return (
@@ -245,19 +245,28 @@ describe('High-risk chat/setup coverage from the current UI', () => {
 
     render(<ScopeHarness />);
 
-    expect(screen.getByTestId('scope-option-this-matter')).toHaveAttribute('aria-pressed', 'true');
+    const openScopeMenu = () => {
+      fireEvent.pointerDown(screen.getByTestId('scope-toggle'), { button: 0, ctrlKey: false });
+    };
 
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('This client');
+    openScopeMenu();
+    expect(screen.getByTestId('scope-option-this-matter')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('scope-option-all-matters'));
-    expect(screen.getByTestId('scope-option-all-matters')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('scope-option-this-matter')).toHaveAttribute('aria-pressed', 'false');
 
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('All');
+    openScopeMenu();
+    expect(screen.getByTestId('scope-option-all-matters')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('scope-option-email'));
-    expect(screen.getByTestId('scope-option-email')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('scope-option-all-matters')).toHaveAttribute('aria-pressed', 'false');
 
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Email');
+    openScopeMenu();
+    expect(screen.getByTestId('scope-option-email')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('scope-option-documents'));
-    expect(screen.getByTestId('scope-option-documents')).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByTestId('scope-option-email')).toHaveAttribute('aria-pressed', 'false');
+
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Docs');
+    openScopeMenu();
+    expect(screen.getByTestId('scope-option-documents')).toHaveAttribute('aria-checked', 'true');
   });
 
   it('CHAT-16 scopes chat context to one client folder and excludes the other folder from the AI prompt', async () => {

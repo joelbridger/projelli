@@ -28,7 +28,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import {
-  Sparkles, AlertTriangle, PanelRightClose, PanelRightOpen, ShieldCheck,
+  Sparkles, AlertTriangle, PanelRightClose, ShieldCheck,
 } from 'lucide-react';
 import { Button, IconButton } from '@/ui/kp';
 import { SourcePanel } from './SourcePanel';
@@ -56,7 +56,6 @@ import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH } from '@/config/identity';
 import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
-import { ScopeStatusPill } from './ScopeToggle';
 import { BookAnswerPanel } from './book/BookAnswerPanel';
 import { runWholePracticeAsk } from './book/wholePracticeAsk';
 import { buildBookFactsDigest } from './book/bookFacts';
@@ -274,11 +273,13 @@ export function Ask(props: UseAskProps) {
 
   const composerPlaceholder =
     askScope === 'email'
-      ? 'Ask about your imported email…'
+      ? t('ask.composer.placeholder-email')
       : askScope === 'documents'
-        ? 'Ask across your documents…'
+        ? t('ask.composer.placeholder-documents')
+        : askScope === 'whole-practice'
+          ? t('ask.composer.placeholder-book')
         : activeMatter
-          ? `${askVerb} ${matterLabel(activeMatter)}…`
+          ? t('ask.composer.placeholder-client', { name: matterLabel(activeMatter) })
           : t('ask.composer.placeholder-all-entity', { entity: entityLabel.other });
   const composerAriaLabel = t('ask.composer.aria-label', { entity: entityLabel.one });
 
@@ -391,6 +392,8 @@ export function Ask(props: UseAskProps) {
   // citations when they aren't.
   const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
   const sourceSelectedN = sourceTurnIdx !== null && selectedTurnIdx === sourceTurnIdx ? selected : null;
+  const hasSourceCitations = sourceCitations.length > 0;
+
   const errorBanner = status === 'error' && errorMsg ? (
     <div
       role="status"
@@ -441,7 +444,7 @@ export function Ask(props: UseAskProps) {
         <SurfaceHeader
           Icon={Sparkles}
           iconColor="var(--kp-accent)"
-          title="Ask"
+          title={askVerb}
         />
       </div>
 
@@ -505,14 +508,7 @@ export function Ask(props: UseAskProps) {
                   maxWidth: 680,
                 }}
               >
-                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                <span>
-                  Answers here are cited to your files — Ask only answers from these documents, never the open internet, and you can click any citation to open the source. For drafting documents, use Workflows, and check current-year figures before you send.
-                </span>
-                <span>
-                  Advisor Prep Hero isn't a CRM or a note-taker. It sits beside your tools and reads across your files.
-                </span>
-                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                <span>{t('ask.demo-intro.body')}</span>
                 {/* Suggested questions — one click each. The last one is about
                     something the files don't cover, so it shows Ask declining
                     ("I couldn't find anything…") instead of guessing. */}
@@ -547,11 +543,7 @@ export function Ask(props: UseAskProps) {
                 }}
               >
                 <AlertTriangle size={14} strokeWidth={2} style={{ flex: 'none', color: 'var(--kp-direct, #b45309)' }} />
-                <span>
-                  {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                  Cited answers need your documents indexed on your machine.
-                  {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-                </span>
+                <span>{t('ask.indexing.notice')}</span>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -560,16 +552,10 @@ export function Ask(props: UseAskProps) {
                   }}
                   style={{ flexShrink: 0 }}
                 >
-                  Enable indexing
+                  {t('ask.indexing.enable')}
                 </Button>
               </div>
             )}
-
-            {/* The scope pill: Ask always displays its current scope, one click
-                (on the composer's ScopeToggle) to switch. */}
-            <div style={{ padding: '0 var(--kp-space-md)' }}>
-              <ScopeStatusPill scope={askScope} />
-            </div>
 
             {askScope === 'whole-practice' ? (
               <BookAnswerPanel
@@ -601,6 +587,7 @@ export function Ask(props: UseAskProps) {
                       onSaveToDocument={onSaveToDocument ? handleSaveToDocument : undefined}
                       isSaving={savingIdx === idx}
                       isPersisted={false}
+                      askScope={askScope}
                       {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
                       {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
                     />
@@ -618,6 +605,7 @@ export function Ask(props: UseAskProps) {
                       onSaveToDocument={undefined}
                       isSaving={false}
                       isPersisted={false}
+                      askScope={askScope}
                       isStreaming
                       answerStalled={answerStalled}
                       localAiStarting={localAiStarting}
@@ -654,11 +642,8 @@ export function Ask(props: UseAskProps) {
           <AskComposer variant="bottom" {...composerCommon} />
         </div>
 
-        {/* SOURCES column — full height, shown when there's room (QA-6: hidden at
-            narrow widths so the composer keeps a usable width instead of the
-            row clipping). Shows the SOURCES header over an empty soft panel
-            until an answer has citations, then fills with numbered cards. */}
-        {autoLayout.showSources && (
+        {/* SOURCES column — hidden until the current answer has citations. */}
+        {autoLayout.showSources && hasSourceCitations && (
           sourcesExpanded ? (
             <div
               data-testid="ask-sources-pane"
@@ -691,10 +676,7 @@ export function Ask(props: UseAskProps) {
                   ? {}
                   : {
                       headerSuffix: t('ask.sources.header-suffix-files-only'),
-                      emptyHint:
-                        t('ask.sources.empty-hint'),
-                      footerNote:
-                        t('ask.sources.footer-note'),
+                      emptyHint: t('ask.sources.empty-hint'),
                     })}
               />
             </div>
@@ -715,31 +697,13 @@ export function Ask(props: UseAskProps) {
               }}
             >
               <IconButton
-                icon={PanelRightOpen}
-                label={t('ask.sources.show-panel')}
+                icon={ShieldCheck}
+                label={t('ask.sources.title')}
                 size="sm"
                 variant="ghost"
                 data-testid="ask-sources-toggle"
                 onClick={() => { setSourcesExpanded(true); }}
               />
-              <div
-                title={t('ask.sources.title')}
-                style={{
-                  writingMode: 'vertical-rl',
-                  transform: 'rotate(180deg)',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: 'var(--kp-text-faint)',
-                }}
-              >
-                <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
-                {t('ask.sources.title')}
-              </div>
             </div>
           )
         )}

@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 describe('useAsk scope normalization', () => {
-  it('normalizes a stale whole-practice scope before exposing Ask state without an active client', () => {
+  it('keeps whole-practice scope visible without an active client', () => {
     const { result } = renderHook(() => useAsk({}));
 
     expect(result.current.askScope).toBe('all-matters');
@@ -27,10 +27,10 @@ describe('useAsk scope normalization', () => {
       result.current.setAskScope('whole-practice');
     });
 
-    expect(result.current.askScope).toBe('all-matters');
+    expect(result.current.askScope).toBe('whole-practice');
   });
 
-  it('normalizes a stale whole-practice scope before exposing Ask state with an active client', () => {
+  it('keeps whole-practice scope visible with an active client', () => {
     const matter = useMatterStore.getState().createMatter({
       id: 'matter_scope_normalization',
       name: 'Scope Normalization',
@@ -47,6 +47,6 @@ describe('useAsk scope normalization', () => {
       result.current.setAskScope('whole-practice');
     });
 
-    expect(result.current.askScope).toBe('this-matter');
+    expect(result.current.askScope).toBe('whole-practice');
   });
 });

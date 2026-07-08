@@ -7,15 +7,17 @@
 // consumer mounting its own listener).
 
 import { Download } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { Callout } from '@/ui/kp';
 
 export function StillImportingBanner({ importing }: { importing: boolean }) {
+  const { t } = useTranslation();
   if (!importing) return null;
 
   return (
     <div data-testid="ask-still-importing-banner" role="status" aria-live="polite">
       <Callout variant="info" icon={Download}>
-        {'Still bringing in your files and email — answers may be incomplete.'}
+        {t('ask.turn.importing-banner')}
       </Callout>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/kp';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
@@ -38,12 +38,12 @@ export function SampleBridgeCallout() {
       data-testid="sample-bridge-callout"
       style={{
         display: 'flex',
-        alignItems: 'flex-start',
-        gap: 'var(--kp-space-sm)',
-        padding: 'var(--kp-space-sm) var(--kp-space-md)',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--color-border)',
-        background: 'var(--color-secondary)',
+        alignItems: 'center',
+        gap: 'var(--kp-space-xs)',
+        padding: 'var(--kp-space-xs) 0',
+        borderRadius: 0,
+        border: 0,
+        background: 'transparent',
         marginTop: 'var(--kp-space-xs)',
       }}
     >
@@ -51,7 +51,7 @@ export function SampleBridgeCallout() {
         <p
           style={{
             fontSize: 'var(--kp-font-sm)',
-            color: 'var(--color-foreground)',
+            color: 'var(--kp-text-dim)',
             lineHeight: 'var(--kp-leading-normal)',
             margin: 0,
           }}
@@ -61,8 +61,9 @@ export function SampleBridgeCallout() {
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <Button
-          variant="primary"
+          variant="secondary"
           size="sm"
+          iconLeft={Plus}
           data-testid="sample-bridge-add-matter"
           onClick={handleAddMatter}
         >
@@ -72,7 +73,7 @@ export function SampleBridgeCallout() {
           type="button"
           data-testid="sample-bridge-dismiss"
           onClick={handleDismiss}
-          aria-label="Dismiss"
+          aria-label={t('ask.sample-bridge.dismiss')}
           style={{
             display: 'inline-flex',
             alignItems: 'center',

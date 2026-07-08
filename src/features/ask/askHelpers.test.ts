@@ -65,11 +65,12 @@ describe('filterHitsByScope', () => {
 });
 
 describe('normalizeVisibleAskScope', () => {
-  it('moves a hidden whole-practice scope back to the default visible scope', () => {
+  it('keeps Book scope visible and only moves missing client scope back to the default', () => {
     expect(defaultAskScope(true)).toBe('this-matter');
     expect(defaultAskScope(false)).toBe('all-matters');
-    expect(normalizeVisibleAskScope('whole-practice', true)).toBe('this-matter');
-    expect(normalizeVisibleAskScope('whole-practice', false)).toBe('all-matters');
+    expect(normalizeVisibleAskScope('whole-practice', true)).toBe('whole-practice');
+    expect(normalizeVisibleAskScope('whole-practice', false)).toBe('whole-practice');
+    expect(normalizeVisibleAskScope('this-matter', false)).toBe('all-matters');
   });
 
   it('leaves every visible scope unchanged', () => {

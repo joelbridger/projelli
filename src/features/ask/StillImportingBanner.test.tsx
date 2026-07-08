@@ -20,6 +20,6 @@ describe('StillImportingBanner — QA-90', () => {
   it('shows the plain-language note while a content source is importing', () => {
     render(<StillImportingBanner importing />);
     expect(screen.getByTestId('ask-still-importing-banner')).toBeTruthy();
-    expect(screen.getByText(/still bringing in your files and email/i)).toBeTruthy();
+    expect(screen.getByText(/importing files and email/i)).toBeTruthy();
   });
 });

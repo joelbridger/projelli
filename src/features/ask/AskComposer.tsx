@@ -17,7 +17,7 @@ import type { CSSProperties, KeyboardEvent, ReactNode, RefObject } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sparkles, ArrowRight, SlidersHorizontal } from 'lucide-react';
-import { Button, Chip, Dropdown, SearchField } from '@/ui/kp';
+import { Button, Chip, Dropdown, IconButton, SearchField } from '@/ui/kp';
 import { ScopeToggle } from './ScopeToggle';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
@@ -142,29 +142,40 @@ function AnswerScopePopover({
     };
   }, [open]);
 
-  const label = filesOnly
-    ? t('ask.answer-scope.files-only')
-    : t('ask.answer-scope.files-general');
-
   return (
     <div ref={rootRef} style={{ position: 'relative', display: 'inline-flex' }}>
-      <Chip
-        size="md"
-        active
-        icon={SlidersHorizontal}
-        data-testid="ask-answer-scope-chip"
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        onClick={() => { setOpen((v) => !v); }}
-        style={{
-          padding: '8px 16px',
-          fontSize: '13.5px',
-          fontWeight: 600,
-          borderWidth: '1.5px',
-        }}
-      >
-        {label}
-      </Chip>
+      {filesOnly ? (
+        <Chip
+          size="md"
+          active
+          icon={SlidersHorizontal}
+          data-testid="ask-answer-scope-chip"
+          aria-label={t('ask.answer-scope.settings-label')}
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          title={t('ask.answer-scope.settings-label')}
+          onClick={() => { setOpen((v) => !v); }}
+          style={{
+            padding: '8px 14px',
+            fontSize: '13px',
+            fontWeight: 600,
+            borderWidth: '1.5px',
+          }}
+        >
+          {t('ask.answer-scope.files-only')}
+        </Chip>
+      ) : (
+        <IconButton
+          icon={SlidersHorizontal}
+          label={t('ask.answer-scope.settings-label')}
+          size="md"
+          variant="secondary"
+          data-testid="ask-answer-scope-chip"
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          onClick={() => { setOpen((v) => !v); }}
+        />
+      )}
       {open && (
         <Dropdown
           role="dialog"
@@ -219,10 +230,16 @@ export function AskComposer({
   onFilesOnlyChange,
   banner,
 }: AskComposerProps) {
+  const { t } = useTranslation();
   const centered = variant === 'centered';
 
   const submitText =
-    status === 'retrieving' ? 'Searching…' : status === 'answering' ? 'Answering…' : submitLabel;
+    status === 'retrieving'
+      ? t('ask.action.searching')
+      : status === 'answering'
+        ? t('ask.action.answering')
+        : submitLabel;
+  const showSubmitText = isBusy || status === 'retrieving' || status === 'answering';
 
   // The input + submit row — the demo Ask composer: a large 50px-tall search
   // field + a matching 50px "Ask" button (brand.css .kpd-ci / .kpd-ask-btn).
@@ -249,12 +266,24 @@ export function AskComposer({
         loading={isBusy}
         iconLeft={isBusy ? undefined : ArrowRight}
         aria-label={
-          status === 'retrieving' ? 'Searching your documents' : status === 'answering' ? 'Answering' : undefined
+          status === 'retrieving'
+            ? t('ask.action.searching-documents')
+            : status === 'answering'
+              ? t('ask.action.answering')
+              : submitLabel
         }
         data-testid="ask-composer-submit"
-        style={{ flexShrink: 0, height: 50, padding: '0 22px', borderRadius: 12, fontSize: '15px', fontWeight: 700 }}
+        style={{
+          flexShrink: 0,
+          height: 50,
+          minWidth: showSubmitText ? 118 : 50,
+          padding: showSubmitText ? '0 18px' : 0,
+          borderRadius: 12,
+          fontSize: '15px',
+          fontWeight: 700,
+        }}
       >
-        <span role={isBusy ? 'status' : undefined}>{submitText}</span>
+        {showSubmitText ? <span role={isBusy ? 'status' : undefined}>{submitText}</span> : null}
       </Button>
     </div>
   );

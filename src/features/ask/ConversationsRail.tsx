@@ -61,18 +61,19 @@ function RailItem({
   onSelect: (chatId: string) => void;
 }) {
   const label = session.label.length > 60 ? `${session.label.slice(0, 60)}…` : session.label;
+  const title = session.dateLabel ? `${session.label} · ${session.dateLabel}` : session.label;
   return (
     <button
       type="button"
       data-testid="rail-conversation-item"
       data-active={active ? 'true' : 'false'}
       aria-current={active ? 'true' : undefined}
-      title={session.label}
+      title={title}
       onClick={() => { onSelect(session.chatId); }}
       style={{
         display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
+        alignItems: 'center',
+        gap: 8,
         padding: '10px 12px',
         borderRadius: 'var(--radius-md)',
         border: '1px solid transparent',
@@ -92,9 +93,9 @@ function RailItem({
         if (!active) e.currentTarget.style.background = 'transparent';
       }}
     >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{label}</span>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{label}</span>
       {session.dateLabel && (
-        <span style={{ fontSize: '11.5px', color: 'var(--kp-text-faint)', fontWeight: 'var(--kp-weight-regular)' }}>
+        <span style={{ fontSize: '11px', color: 'var(--kp-text-faint)', fontWeight: 'var(--kp-weight-regular)', flex: 'none' }}>
           {session.dateLabel}
         </span>
       )}
@@ -112,6 +113,7 @@ export function ConversationsRail({
 }: ConversationsRailProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredGroups = useMemo(() => {
     if (!normalizedQuery) return groups;
@@ -122,13 +124,15 @@ export function ConversationsRail({
   }, [groups, normalizedQuery]);
   const hasAny = groups.some((g) => g.items.length > 0);
   const hasFiltered = filteredGroups.some((g) => g.items.length > 0);
+  const visibleGroupCount = filteredGroups.filter((g) => g.items.length > 0).length;
+  const showSearchField = searchOpen || query.trim().length > 0;
 
   if (collapsed) {
     return (
       <nav
         data-testid="conversations-rail"
         data-collapsed="true"
-        aria-label="Conversations"
+        aria-label={t('ask.conversations.title')}
         style={{
           ...railBase,
           width: RAIL_COLLAPSED_WIDTH,
@@ -139,7 +143,7 @@ export function ConversationsRail({
       >
         <IconButton
           icon={PanelLeftOpen}
-          label="Show conversations"
+          label={t('ask.conversations.show')}
           size="sm"
           variant="ghost"
           onClick={onToggleCollapsed}
@@ -147,7 +151,7 @@ export function ConversationsRail({
         />
         <IconButton
           icon={Plus}
-          label="New question"
+          label={t('ask.conversations.new-question')}
           size="sm"
           variant="secondary"
           onClick={onNewQuestion}
@@ -161,22 +165,47 @@ export function ConversationsRail({
     <nav
       data-testid="conversations-rail"
       data-collapsed="false"
-      aria-label="Conversations"
+      aria-label={t('ask.conversations.title')}
       style={{ ...railBase, width: RAIL_WIDTH }}
     >
-      {/* No "CONVERSATIONS" caps label (demo Ask) — just a quiet collapse
-          toggle, then the New question button + list. */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'space-between',
+          gap: 6,
           padding: 'var(--kp-space-2xs) var(--kp-space-sm) 0',
         }}
       >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <IconButton
+            icon={Search}
+            label={t('ask.conversations.search-placeholder')}
+            size="xs"
+            variant={showSearchField ? 'secondary' : 'ghost'}
+            onClick={() => { setSearchOpen((open) => !open); }}
+            data-testid="rail-search-toggle"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            iconLeft={Plus}
+            onClick={onNewQuestion}
+            data-testid="rail-new-question"
+            style={{
+              height: 30,
+              padding: '0 8px',
+              borderRadius: 8,
+              fontSize: '13px',
+              fontWeight: 700,
+            }}
+          >
+            {t('ask.conversations.new')}
+          </Button>
+        </div>
         <IconButton
           icon={PanelLeftClose}
-          label="Hide conversations"
+          label={t('ask.conversations.hide')}
           size="xs"
           variant="ghost"
           onClick={onToggleCollapsed}
@@ -185,36 +214,18 @@ export function ConversationsRail({
       </div>
 
       <div style={{ padding: `0 var(--kp-space-sm) var(--kp-space-xs)` }}>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={Plus}
-          onClick={onNewQuestion}
-          fullWidth
-          data-testid="rail-new-question"
-          // Demo-Ask "New question" sizing (brand.css .kpd-newq): larger, roomier.
-          style={{
-            justifyContent: 'flex-start',
-            height: 'auto',
-            padding: '11px 13px',
-            fontSize: '14px',
-            fontWeight: 600,
-            borderRadius: 10,
-            borderColor: 'var(--kp-divider-strong)',
-          }}
-        >
-          New question
-        </Button>
-        <SearchField
-          icon={Search}
-          value={query}
-          onChange={setQuery}
-          placeholder={t('ask.conversations.search-placeholder')}
-          aria-label={t('ask.conversations.search-placeholder')}
-          data-testid="rail-conversation-search"
-          size="sm"
-          style={{ marginTop: 8, width: '100%' }}
-        />
+        {showSearchField && (
+          <SearchField
+            icon={Search}
+            value={query}
+            onChange={setQuery}
+            placeholder={t('ask.conversations.search-placeholder')}
+            aria-label={t('ask.conversations.search-placeholder')}
+            data-testid="rail-conversation-search"
+            size="sm"
+            style={{ marginTop: 8, width: '100%' }}
+          />
+        )}
       </div>
 
       <div
@@ -253,7 +264,7 @@ export function ConversationsRail({
             group.items.length > 0 ? (
               <Fragment key={group.key}>
                 <div style={{ marginTop: 'var(--kp-space-sm)' }}>
-                  {group.title && (
+                  {group.title && visibleGroupCount > 1 && (
                     <Eyebrow style={{ marginBottom: 'var(--kp-space-2xs)' }}>{group.title}</Eyebrow>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

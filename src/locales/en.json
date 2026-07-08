@@ -1022,21 +1022,32 @@
     "book": {
       "option-label": "Book Overview",
       "option-helper": "from your Client Maps",
-      "loading": "Reading your client summaries...",
+      "loading": "Reading your client summaries",
       "no-facts": "No client summaries are built yet. Open a client and build their Client Map first.",
       "no-matches": "No clients in your book match that question.",
-      "matches-heading": "Matching clients",
+      "matches-heading": "Matches",
       "open-client": "Open client",
-      "summaries-note": "Answered from each client's saved summary. Documents were not searched across clients."
+      "summaries-note": "Summary-only.",
+      "summaries-note-title": "Answered from saved Client Maps. Documents were not searched across clients."
     },
     "whole-practice-confirm": {
-      "title": "Send summaries across your whole practice?",
-      "body_one": "This sends a brief summary of {{count}} client to {{provider}}. Continue?",
-      "body_other": "This sends brief summaries of {{count}} clients to {{provider}}. Continue?",
+      "title": "Send client summaries?",
+      "body_one": "Send summary for {{count}} client to {{provider}}?",
+      "body_other": "Send summaries for {{count}} clients to {{provider}}?",
       "provider-fallback": "your AI provider",
-      "remember": "Don't ask again before whole-practice questions",
+      "remember": "Remember for Book asks",
       "cancel": "Cancel",
       "continue": "Continue"
+    },
+    "scope-menu": {
+      "this-client": "This client",
+      "all-clients": "All clients",
+      "all-selected": "All",
+      "email": "Email",
+      "documents": "Documents",
+      "documents-selected": "Docs",
+      "book-overview": "Book overview",
+      "book-selected": "Book"
     },
     "scope-toggle": {
       "this-entity": "This {{entity}}",
@@ -1044,18 +1055,48 @@
       "aria-label": "Ask scope"
     },
     "composer": {
-      "placeholder-all-entity": "Ask across all {{entity}}…",
+      "placeholder-all-entity": "Ask across all {{entity}}",
+      "placeholder-client": "Ask {{name}}",
+      "placeholder-email": "Ask about imported email",
+      "placeholder-documents": "Ask across your documents",
+      "placeholder-book": "Ask across saved Client Maps",
       "aria-label": "Ask this {{entity}}"
     },
+    "demo-intro": {
+      "body": "Answers are cited to these files. Click a citation to open the source."
+    },
+    "indexing": {
+      "notice": "Index documents for cited answers.",
+      "enable": "Enable"
+    },
     "file-access": {
-      "all-entity-scope": "all your {{entity}}"
+      "all-entity-scope": "all your {{entity}}",
+      "prompt-title": "Allow AI file access for {{scopeLabel}}?",
+      "prompt-body": "It can search and read files. File text may go to {{provider}}. Any edit still asks first.",
+      "reconfirm": "This chat now covers {{scopeLabel}}, so it needs your OK again.",
+      "details-link": "Details",
+      "details": "Until you allow it, the AI only uses what you type and files you open or attach yourself.",
+      "allow": "Allow",
+      "allow-all": "Allow all",
+      "not-now": "Not now",
+      "turn-off": "Turn off",
+      "granted": "File access on. Edits still ask first.",
+      "denied": "File access off."
     },
     "action": {
-      "ask": "Ask"
+      "ask": "Ask",
+      "searching": "Searching",
+      "answering": "Answering",
+      "searching-documents": "Searching your documents"
     },
     "conversations": {
-      "other": "Other conversations",
-      "search-placeholder": "Search conversations",
+      "title": "Conversations",
+      "show": "Show conversations",
+      "hide": "Hide conversations",
+      "new-question": "New question",
+      "new": "New",
+      "other": "Other",
+      "search-placeholder": "Search",
       "empty": "Your conversations will appear here.",
       "no-results": "No conversations found."
     },
@@ -1066,16 +1107,69 @@
       "show-more": "Show more",
       "show-less": "Show less",
       "header-suffix-files-only": "from your files only",
-      "empty-hint": "When an answer uses your files, the cited sources appear here. General-knowledge answers have nothing to cite; that's the point.",
-      "footer-note": "General-knowledge answers have no source card. The Sources panel only ever fills with your files."
+      "empty-hint": "No file sources for this answer.",
+      "footer-note": "No file sources for this answer.",
+      "provenance-title": "This is an exported snapshot, not a live connection.",
+      "provenance-stale-title": "This exported snapshot may be out of date. Re-export from the tool for the latest.",
+      "provenance-stale-suffix": "may be out of date",
+      "status": {
+        "verified": "Verified",
+        "found": "Found",
+        "quote-not-found": "Quote not found",
+        "quote-mismatch": "Quote mismatch",
+        "wrong-client": "Wrong client",
+        "could-not-verify": "Could not verify",
+        "verified-title": "The stored source was checked and contains this exact quote.",
+        "checking-title": "Checking this quote against the stored source.",
+        "found-title": "This source was found. The automatic check could not confirm the exact quote."
+      }
     },
     "answer-scope": {
-      "title": "Answer scope",
-      "helper": "Choose whether Ask can use general knowledge, and manage file access for this chat.",
+      "title": "Answer settings",
+      "settings-label": "Answer settings",
+      "helper": "Control sources and file access for this chat.",
       "files-only": "Files only",
       "files-general": "Files + general",
-      "files-only-toggle": "Files-only mode",
+      "files-only-toggle": "Use files only",
       "files-only-title": "Answer only from your files, cited, with no general knowledge or drafts."
+    },
+    "answer-blocks": {
+      "label": {
+        "files": "Files",
+        "nothing-found": "No file match",
+        "files-unverified": "Found, not verified",
+        "files-checking": "Checking",
+        "general": "General",
+        "draft": "Draft"
+      },
+      "general-verifyline": "General knowledge. Verify current rules.",
+      "draft-note": "Draft for you to review before sending. Nothing is sent automatically.",
+      "cited-attestation": "Cited from your files. Open any number to check.",
+      "show-cited-files": "Show cited files",
+      "nothing-found-note": "No file match. General guidance is marked.",
+      "tally": {
+        "cited-claims_one": "1 claim cited from your files",
+        "cited-claims_other": "{{count}} claims cited from your files",
+        "checking-sources_one": "Checking 1 source",
+        "checking-sources_other": "Checking {{count}} sources",
+        "sources-unverified_one": "1 source found, not verified",
+        "sources-unverified_other": "{{count}} sources found, not verified",
+        "general": "General"
+      }
+    },
+    "turn": {
+      "view-ai-status": "View AI status",
+      "decline-note-client": "Nothing found in your files. Try a question about this client.",
+      "decline-note-all": "Nothing found in your files. Try a question about your clients.",
+      "still-importing-decline": "Still importing. Try again when it finishes.",
+      "uncited-warning": "Not cited from your files. Verify this before relying on it.",
+      "stale-plan-warning": "Uses old plan exports: {{exports}}. Re-export to refresh.",
+      "stale-plan-age_one": "1 day old",
+      "stale-plan-age_other": "{{count}} days old",
+      "answer-actions": "Answer actions",
+      "saving": "Saving",
+      "save-to-doc": "Save to doc",
+      "importing-banner": "Importing files and email. Answers may be incomplete."
     },
     "message-scope": {
       "all-title": "This answer searched across all {{entity}}.",
@@ -1083,8 +1177,9 @@
       "this-entity-fallback": "this {{entity}}"
     },
     "sample-bridge": {
-      "body": "This is sample data. When you are ready, add your first real {{entity}} to search your own files.",
-      "add-button": "Add a {{entity}}"
+      "body": "Sample data. Add your first {{entity}} to search your files.",
+      "add-button": "Add {{entity}}",
+      "dismiss": "Dismiss"
     }
   },
   "matter": {

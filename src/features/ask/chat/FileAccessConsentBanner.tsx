@@ -15,10 +15,14 @@
 // or to all-clients — re-asks. A single-client grant never widens to another
 // client or the whole practice. Light theme.
 
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Lock, FileSearch } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { TrustNote } from '@/ui/kp';
 import type { ChatProvider } from '@/features/ask/chat/providerModelResolution';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
+import { providerDisplayName } from '@/platform/privacy/egress';
 import {
   fileToolsAllowed,
   type ConsentScope,
@@ -50,6 +54,8 @@ export function FileAccessConsentBanner({
   onChange,
   className,
 }: FileAccessConsentBannerProps) {
+  const { t } = useTranslation();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   // Consent only governs cloud sends — local engines don't register tools and
   // "nothing leaves the device", so there's nothing to consent to. "Cloud"
   // here is the SAME predicate the send path gates on (isLocalProviderId,
@@ -65,6 +71,7 @@ export function FileAccessConsentBanner({
 
   const allowed = fileToolsAllowed(consent, consentScope);
   const grant = () => { onChange({ state: 'granted', grantedScope: consentScope }); };
+  const provider = providerDisplayName(effectiveProvider);
 
   // ── Granted for this scope → small "on" line with a turn-off. ──────────────
   if (allowed) {
@@ -72,19 +79,17 @@ export function FileAccessConsentBanner({
       <div
         data-testid="chat-file-access-consent"
         data-state="granted"
-        className={`flex items-center gap-2 px-3 py-1.5 rounded border border-emerald-300/60 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-900 dark:text-emerald-200 text-xs ${className ?? ''}`}
+        className={`flex items-center gap-2 rounded border border-emerald-300/60 bg-emerald-50 px-3 py-1.5 text-xs text-emerald-900 ${className ?? ''}`}
       >
         <FileSearch className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="flex-1">
-          {'The AI can search, open, and change files on its own in this chat (every change still asks first).'}
-        </span>
+        <span className="flex-1">{t('ask.file-access.granted')}</span>
         <button
           type="button"
           data-testid="chat-file-access-turn-off"
           className="underline hover:no-underline shrink-0"
           onClick={() => { onChange(null); }}
         >
-          Turn off
+          {t('ask.file-access.turn-off')}
         </button>
       </div>
     );
@@ -102,10 +107,10 @@ export function FileAccessConsentBanner({
       <div
         data-testid="chat-file-access-consent"
         data-state="denied"
-        className={`flex items-center gap-2 px-3 py-1.5 rounded border border-slate-200 bg-slate-50 dark:bg-slate-800/40 text-slate-600 dark:text-slate-300 text-xs ${className ?? ''}`}
+        className={`flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-600 ${className ?? ''}`}
       >
         <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        <span className="flex-1">{'File access is off for this chat.'}</span>
+        <span className="flex-1">{t('ask.file-access.denied')}</span>
         <button
           type="button"
           data-testid="chat-file-access-allow"
@@ -123,17 +128,21 @@ export function FileAccessConsentBanner({
     <div
       data-testid="chat-file-access-consent"
       data-state={reconfirm ? 'reconfirm' : 'unasked'}
-      className={`px-3 py-2 rounded border border-sky-300/60 bg-sky-50 dark:bg-sky-900/20 text-sky-900 dark:text-sky-100 text-xs ${className ?? ''}`}
+      className={`rounded border border-sky-300/60 bg-sky-50 px-3 py-2 text-xs text-sky-900 ${className ?? ''}`}
     >
       <div className="flex items-start gap-2">
         <Lock className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
         <div className="flex-1">
-          <p className="font-medium">{`Let the AI search and open files on its own for ${scopeLabel}?`}</p>
-          <p className="mt-0.5 opacity-90">
-            {reconfirm
-              ? `You allowed this earlier, but this chat now covers ${scopeLabel}, so it needs your OK again. It lets the AI search and read files on its own here, and draft or edit them (every change still asks first); what it reads is sent to your AI provider. Until you allow it, the AI only uses what you type and files you open or attach yourself.`
-              : `It lets the AI search and read files on its own for ${scopeLabel} to answer you, and draft or edit them (every change still asks first). What it reads is sent to your AI provider. Until you allow this, the AI only uses what you type and files you open or attach yourself.`}
-          </p>
+          <p className="font-medium">{t('ask.file-access.prompt-title', { scopeLabel })}</p>
+          <TrustNote className="mt-1" details={t('ask.file-access.details')}>
+            {t('ask.file-access.prompt-body', { provider })}
+          </TrustNote>
+          {reconfirm ? (
+            <p className="mt-1 opacity-80">{t('ask.file-access.reconfirm', { scopeLabel })}</p>
+          ) : null}
+          {detailsOpen ? (
+            <p className="mt-1 opacity-80">{t('ask.file-access.details')}</p>
+          ) : null}
           <div className="mt-2 flex items-center gap-2">
             <Button
               type="button"
@@ -142,7 +151,7 @@ export function FileAccessConsentBanner({
               data-testid="chat-file-access-allow"
               onClick={grant}
             >
-              {isAllScope ? 'Allow for all' : 'Allow file access'}
+              {isAllScope ? t('ask.file-access.allow-all') : t('ask.file-access.allow')}
             </Button>
             <button
               type="button"
@@ -150,7 +159,15 @@ export function FileAccessConsentBanner({
               className="underline hover:no-underline"
               onClick={() => { onChange({ state: 'denied' }); }}
             >
-              Not now
+              {t('ask.file-access.not-now')}
+            </button>
+            <button
+              type="button"
+              data-testid="chat-file-access-details"
+              className="underline hover:no-underline"
+              onClick={() => { setDetailsOpen((open) => !open); }}
+            >
+              {t('ask.file-access.details-link')}
             </button>
           </div>
         </div>
