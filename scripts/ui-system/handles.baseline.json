@@ -1,6 +1,6 @@
 {
   "_comment": "Permanent-handle baseline for the UI Iteration System. Regenerate with `node scripts/ui-system/handle-guard.mjs --update-baseline` ONLY when a handle removal/rename is intentional and logged in handles.migrations.json. `duplicates` freezes handles rendered from >1 file (frozen debt; the guard blocks NEW cross-file duplicates so a handle can't silently become ambiguous).",
-  "count": 1483,
+  "count": 1486,
   "keys": [
     "account-identity",
     "account-image-input",
@@ -104,7 +104,6 @@
     "api-key-wizard-submit",
     "api-key-wizard-tutorial-close",
     "api-key-wizard-verifying",
-    "app-back-button",
     "app-container",
     "app-header",
     "archived-matters-section",
@@ -510,6 +509,8 @@
     "document-grid-cards",
     "document-grid-scroll",
     "document-grid-view",
+    "documents-body",
+    "documents-content-panel",
     "documents-files-tab",
     "documents-search-field",
     "documents-split",
@@ -1303,6 +1304,7 @@
     "subheader-tts",
     "subheader-updates",
     "subheader-voice-input",
+    "subsection-${}",
     "sync-badge-${}",
     "tab-${}",
     "tab-bar-overflow",
@@ -1488,7 +1490,6 @@
     "workspace-selector-dialog"
   ],
   "duplicates": {
-    "account-identity": 2,
     "add-custom-section-form": 2,
     "archived-matters-section": 2,
     "archived-matters-toggle": 2,
@@ -1510,14 +1511,12 @@
     "custom-section-submit": 2,
     "custom-section-title": 2,
     "docx-editor": 2,
-    "file-tree": 2,
     "firm-remove-member-${}": 2,
     "matter-archive-${}": 2,
     "matter-restore-${}": 2,
     "matter-row-${}": 2,
     "privilege-option-${}": 2,
     "scope-option-${}": 2,
-    "settings-gear": 2,
     "status-bar-trial-chip": 2
   }
 }

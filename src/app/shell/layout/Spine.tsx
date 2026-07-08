@@ -28,7 +28,6 @@ import { AccountIdentity } from './AccountIdentity';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
-import { AppLogo } from '@/ui/brand/AppLogo';
 import {
   EV_OPEN_ACCOUNT,
   EV_OPEN_MATTER_MANAGER,
@@ -238,18 +237,6 @@ export function Spine({
             opacity: 1,
           }}
         />
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding:
-              'var(--kp-space-md) var(--kp-space-md) var(--kp-space-2xs)',
-          }}
-        >
-          <div style={{ filter: 'brightness(0) invert(1)' }}>
-            <AppLogo height={24} />
-          </div>
-        </div>
         <div
           style={{
             display: 'flex',

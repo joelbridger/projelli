@@ -54,6 +54,32 @@ test.describe('Spine Navigation (test mode)', () => {
     }
   });
 
+  test('top bar owns the logo and no longer renders the global Back button', async ({ page }) => {
+    const header = page.getByTestId('app-header');
+    const logo = header.getByRole('img', { name: 'Advisor Prep Hero' });
+
+    await expect(logo).toBeVisible();
+    await expect(logo).toHaveAttribute('src', /\/logo-dark\.svg$/);
+    await expect(page.getByTestId('app-back-button')).toHaveCount(0);
+    await expect(page.getByTestId('trust-bar')).toBeVisible();
+    await expect(page.getByLabel('Open Privacy Center')).toBeVisible();
+  });
+
+  test('spine no longer renders the old logo image', async ({ page }) => {
+    const spine = page.getByTestId('spine-nav');
+
+    await expect(
+      spine.getByRole('img', { name: 'Advisor Prep Hero' })
+    ).toHaveCount(0);
+
+    const spineImageSources = await spine.locator('img').evaluateAll((imgs) =>
+      imgs.map((img) => img.getAttribute('src') ?? '')
+    );
+    expect(spineImageSources.some((src) => src.includes('logo-white.svg'))).toBe(
+      false
+    );
+  });
+
   test('spine collapse and expand buttons work', async ({ page }) => {
     const collapseBtn = page.getByRole('button', { name: 'Collapse sidebar' });
     await hardClick(collapseBtn);

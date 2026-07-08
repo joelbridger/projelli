@@ -37,6 +37,12 @@ export const BRAND = {
     "blue": "#8d99ae",
     "accent": "#ef233c"
   },
+  "assets": {
+    "favicon": "/favicon.svg",
+    "logo": "/logo.svg",
+    "logoDark": "/logo-dark.svg",
+    "logoWhite": "/logo-white.svg"
+  },
   "messaging": {
     "onboardingHeadline": "Your private intelligence layer",
     "redlineAuthor": "Advisor Prep Hero AI",

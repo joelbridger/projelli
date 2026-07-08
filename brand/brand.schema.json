@@ -53,10 +53,12 @@
     },
     "assets": {
       "type": "object",
-      "required": ["faviconSvg", "logoSvg", "ogImage"],
+      "required": ["faviconSvg", "logoSvg", "logoSvgDark", "logoSvgWhite", "ogImage"],
       "properties": {
         "faviconSvg": { "type": "string" },
         "logoSvg": { "type": "string" },
+        "logoSvgDark": { "type": "string" },
+        "logoSvgWhite": { "type": "string" },
         "wordmarkSvg": { "type": "string" },
         "iconSource": { "type": "string" },
         "ogImage": { "type": "string" }

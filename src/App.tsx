@@ -45,7 +45,7 @@ import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { Button } from '@/ui/button';
-import { ArrowLeft, Command } from 'lucide-react';
+import { Command } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay renders the live 4-step OnboardingV2 flow.
@@ -542,6 +542,11 @@ function AppShell() {
     }
     setSidebarActiveTab(safeSnapshot.sidebarActiveTab);
   }, [matters, popNavigationEntry, rootPath]);
+  // The global Back button was removed from the UI by the 2026-07-07 chrome
+  // pass. Keep the navigation machinery compiled for future non-button entry
+  // points without rendering the old button.
+  void navigationDepth;
+  void handleAppBack;
 
   // M1 (v1.5) Memory: install the workspace RAG indexer once we know
   // which workspace is open. Watches `rootPath` and re-arms on switch.
@@ -1867,21 +1872,10 @@ function AppShell() {
       )}
       {/* Header bar */}
       <header
-        className="flex items-center gap-2 h-10 px-2 border-b bg-background shrink-0"
+        className="flex items-center gap-3 h-14 px-3 border-b bg-background shrink-0"
         data-testid="app-header"
       >
-        <Button
-          data-testid="app-back-button"
-          variant="ghost"
-          size="icon"
-          className="h-8 w-8 shrink-0 text-muted-foreground"
-          onClick={handleAppBack}
-          disabled={navigationDepth === 0}
-          title="Back"
-          aria-label="Back"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        <AppLogo variant="dark" height={30} className="shrink-0" />
         <TrustBar inline />
         <div className="flex items-center gap-2 shrink-0">
           {/* The gear opens the full-page Settings screen, which nests Privacy

@@ -4,21 +4,19 @@
  * Research finding (Streams A + C converge): the egress indicator was the
  * single most emotionally powerful moment in the persona study, yet today it
  * is buried among nine items in a 24px status strip. Here it is elevated to a
- * prominent, always-visible bar: which matter you are in (scope) on the left,
- * and exactly where an AI request would go (egress) on the right. Composes the
- * already-wired EgressIndicator + matter scope + Data Map, so the trust state
- * is real, not a mock. Rendered only in the reimagined shell.
+ * prominent, always-visible set of controls: where an AI request would go,
+ * how to inspect routing, and a one-click Privacy Center. The visible client
+ * scope label no longer lives here.
  *
- * Compact redesign: single tight line — matter scope on the left, egress pill
- * on the right — with a small info icon that reveals the full data-routing
- * explanation on demand (tooltip). The always-visible two-line paragraph is
- * removed; the meaning (three confidentiality states, color-coded) stays.
+ * Chrome redesign: the client scope label moved out of the top bar. This wrapper
+ * keeps the right-side trust controls together so desktop harnesses still grip
+ * data-testid="trust-bar".
  */
 /* eslint-disable lantern-i18n/no-hardcoded-string */
-import { Briefcase, Globe, Info, Lock } from 'lucide-react';
+import { Info, Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
-import { matterLabel } from '@/platform/rag/matterResolver';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import {
   Tooltip,
   TooltipContent,
@@ -27,6 +25,7 @@ import {
 import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
+import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 
 interface TrustBarProps {
   inline?: boolean;
@@ -35,6 +34,7 @@ interface TrustBarProps {
 export function TrustBar({ inline = false }: TrustBarProps) {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
+  const egressProvider = useActiveEgressProvider(confidentialityMode);
   // Fixed-English escape hatch: this whole component's copy is exempted from
   // i18n (see the file-level eslint-disable above; KNOWN-I18N-01), so the
   // noun stays English too rather than mixing languages.
@@ -62,8 +62,9 @@ export function TrustBar({ inline = false }: TrustBarProps) {
       style={{
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'flex-end',
         gap: 10,
-        height: inline ? 40 : 36,
+        height: inline ? 48 : 36,
         padding: inline ? '0 2px 0 0' : '0 14px 0 16px',
         flex: inline ? '1 1 auto' : 'none',
         minWidth: 0,
@@ -71,28 +72,6 @@ export function TrustBar({ inline = false }: TrustBarProps) {
         borderBottom: inline ? 'none' : '1px solid var(--color-border)',
       }}
     >
-      {/* Matter scope — icon + label only, tight */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-        {activeMatter
-          ? <Briefcase size={14} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none' }} />
-          : <Globe size={14} strokeWidth={1.75} style={{ color: 'var(--kp-navy)', flex: 'none' }} />}
-        <span
-          style={{
-            fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)',
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 280,
-          }}
-        >
-          {activeMatter ? matterLabel(activeMatter) : `All ${entityLabel.other}`}
-        </span>
-      </div>
-
-      <div style={{ flex: 1 }} />
-
-      {/* The AI-status pill is NOT shown here anymore — it lives once, per tab,
-          top-right on each surface header (Ask / Client Map / Workflows). The
-          top bar keeps only the info + lock affordances. The full Data Map now
-          lives inside the Privacy Center opened by the lock. */}
-
       {/* Info affordance: reveals the full data-routing explanation on hover.
           A7: title added as a standard browser tooltip alongside the Radix tooltip. */}
       <Tooltip>
@@ -102,6 +81,7 @@ export function TrustBar({ inline = false }: TrustBarProps) {
             label="Where does my data go?"
             variant="ghost"
             size="xs"
+            {...(inline ? { className: 'hidden sm:inline-flex' } : {})}
             title="What is this?"
             style={{ flexShrink: 0 }}
           />
@@ -112,6 +92,15 @@ export function TrustBar({ inline = false }: TrustBarProps) {
           <p style={{ color: 'var(--color-muted-foreground)' }}>{scopeSubtitle}</p>
         </TooltipContent>
       </Tooltip>
+
+      <EgressIndicator
+        provider={egressProvider}
+        mode={confidentialityMode}
+        variant="compact"
+        {...(inline
+          ? { className: 'min-w-0 shrink overflow-hidden' }
+          : {})}
+      />
 
       {/* Privacy Center shortcut — one click away from anywhere in the app. */}
       <IconButton
