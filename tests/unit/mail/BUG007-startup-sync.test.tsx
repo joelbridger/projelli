@@ -123,6 +123,22 @@ async function waitForInitialLoad() {
   });
 }
 
+async function openEmailActionsMenu() {
+  fireEvent.pointerDown(screen.getByTestId('email-more-actions'), { button: 0 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
+async function getSyncMenuItem() {
+  let syncItem = screen.queryByTestId('email-sync-now');
+  if (!syncItem) {
+    await openEmailActionsMenu();
+    syncItem = screen.getByTestId('email-sync-now');
+  }
+  return syncItem;
+}
+
 // ── Tests ───────────────────────────────────────────────────────────────────
 
 describe('BUG-007: startup sync + manual Sync now', () => {
@@ -149,8 +165,8 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     // One call from startup sync already happened
     const callsBefore = mockMailSyncAll.mock.calls.length;
 
-    // The "Sync now" button should be present
-    const syncBtn = screen.getByTestId('email-sync-now');
+    // The "Sync now" action now lives in the rail overflow menu.
+    const syncBtn = await getSyncMenuItem();
     expect(syncBtn).toBeInTheDocument();
 
     // Click it
@@ -179,8 +195,8 @@ describe('BUG-007: startup sync + manual Sync now', () => {
     });
 
     // Sync button should now be disabled (sync is in flight)
-    const syncBtn = screen.getByTestId('email-sync-now');
-    expect(syncBtn).toBeDisabled();
+    const syncBtn = await getSyncMenuItem();
+    expect(syncBtn).toHaveAttribute('data-disabled');
 
     // Resolve the sync and check button is re-enabled
     await act(async () => {
@@ -188,7 +204,7 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(await getSyncMenuItem()).not.toHaveAttribute('data-disabled');
   });
 
   // (d) No auto-sync fires when there are no connected accounts
@@ -212,8 +228,8 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    const syncBtn = screen.getByTestId('email-sync-now');
-    expect(syncBtn).toBeDisabled();
+    const syncBtn = await getSyncMenuItem();
+    expect(syncBtn).toHaveAttribute('data-disabled');
     expect(screen.queryByTestId('email-sync-stalled')).not.toBeInTheDocument();
 
     // Before the 90s stall threshold: still syncing, no warning yet.
@@ -221,7 +237,7 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       await vi.advanceTimersByTimeAsync(89_000);
     });
     expect(screen.queryByTestId('email-sync-stalled')).not.toBeInTheDocument();
-    expect(syncBtn).toBeDisabled();
+    expect(syncBtn).toHaveAttribute('data-disabled');
 
     // Past the 90s stall threshold: warning shows, button still disabled
     // (the sync may still legitimately finish).
@@ -229,14 +245,14 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
     expect(screen.getByTestId('email-sync-stalled')).toBeInTheDocument();
-    expect(screen.getByTestId('email-sync-now')).toBeDisabled();
+    expect(await getSyncMenuItem()).toHaveAttribute('data-disabled');
 
     // Past the hard timeout (5 min total): the button resets and a clear
     // error is shown instead of spinning forever.
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5 * 60_000);
     });
-    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(await getSyncMenuItem()).not.toHaveAttribute('data-disabled');
     expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
 
     // The backend sync must actually be told to stop — otherwise it keeps
@@ -261,7 +277,7 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       await vi.advanceTimersByTimeAsync(5 * 60_000);
     });
 
-    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(await getSyncMenuItem()).not.toHaveAttribute('data-disabled');
     expect(screen.getByTestId('email-sync-error')).toBeInTheDocument();
     expect(mockMailCancelSync).toHaveBeenCalled();
   });
@@ -274,8 +290,8 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    const syncBtn = screen.getByTestId('email-sync-now');
-    expect(syncBtn).toBeDisabled();
+    const syncBtn = await getSyncMenuItem();
+    expect(syncBtn).toHaveAttribute('data-disabled');
 
     await act(async () => {
       eventMock.handlers.get('mail-sync-progress')?.({
@@ -289,7 +305,7 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       });
     });
 
-    expect(screen.getByTestId('email-sync-now')).toHaveTextContent('Importing… 42 messages');
+    expect(await getSyncMenuItem()).toHaveTextContent('Importing... 42 messages');
   });
 
   it('(h) keeps Sync now disabled until the whole all-provider sync finishes', async () => {
@@ -308,7 +324,7 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    expect(screen.getByTestId('email-sync-now')).toBeDisabled();
+    expect(await getSyncMenuItem()).toHaveAttribute('data-disabled');
 
     await act(async () => {
       eventMock.handlers.get('mail-sync-progress')?.({
@@ -322,14 +338,14 @@ describe('BUG-007: startup sync + manual Sync now', () => {
       });
     });
 
-    expect(screen.getByTestId('email-sync-now')).toBeDisabled();
+    expect(await getSyncMenuItem()).toHaveAttribute('data-disabled');
 
     await act(async () => {
       resolveSync();
       await vi.advanceTimersByTimeAsync(50);
     });
 
-    expect(screen.getByTestId('email-sync-now')).not.toBeDisabled();
+    expect(await getSyncMenuItem()).not.toHaveAttribute('data-disabled');
   });
 
 });

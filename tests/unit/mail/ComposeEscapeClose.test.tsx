@@ -44,6 +44,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 
 import {
   mailListMessages,
+  mailGetMessage,
   mailConnectedAccounts,
   mailSend,
 } from '@/platform/utils/mail-commands';
@@ -92,6 +93,20 @@ function setupDefaultMocks() {
   (mailListMessages as ReturnType<typeof vi.fn>).mockResolvedValue({
     items: FIXTURE_ITEMS,
     total: FIXTURE_ITEMS.length,
+  });
+  (mailGetMessage as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+    id: FIXTURE_ITEMS[0]!.id,
+    subject: FIXTURE_ITEMS[0]!.subject,
+    from: `${FIXTURE_ITEMS[0]!.fromName} <${FIXTURE_ITEMS[0]!.fromAddr}>`,
+    to: ['advisor@example.com'],
+    cc: [],
+    date: FIXTURE_ITEMS[0]!.receivedDateTime,
+    provider: FIXTURE_ITEMS[0]!.provider,
+    account: FIXTURE_ITEMS[0]!.account,
+    body: FIXTURE_ITEMS[0]!.snippet,
+    hasAttachments: FIXTURE_ITEMS[0]!.hasAttachments,
+    attachments: [],
+    matterId: null,
   });
   (mailSend as unknown as ReturnType<typeof vi.fn>).mockResolvedValue('sent-ok');
   (useActiveMatter as ReturnType<typeof vi.fn>).mockReturnValue(null);

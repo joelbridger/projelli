@@ -20,7 +20,7 @@
 
 /// <reference types="@testing-library/jest-dom" />
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 // ── Module mocks ────────────────────────────────────────────────────────────
 
@@ -31,6 +31,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailRetagFolderMatter: vi.fn(),
   mailRetagMessageMatter: vi.fn(),
   mailSend: vi.fn(),
+  mailGetAttachment: vi.fn(),
   mailSyncAll: vi.fn().mockResolvedValue(undefined),
   MAIL_SYNC_EVENT: 'mail-sync-progress',
   MAIL_INDEX_CHUNK_EVENT: 'mail-index-chunk',
@@ -147,17 +148,23 @@ function setupDefaultMocks() {
     items: FIXTURE_ITEMS,
     total: FIXTURE_ITEMS.length,
   });
-  mockMailGetMessage.mockResolvedValue({
-    id: 'msg-001',
-    subject: 'Contract draft',
-    from: 'Alice Chen <alice@example.com>',
-    to: ['me@firm.com'],
-    cc: [],
-    date: '2026-06-10T09:00:00Z',
-    provider: 'm365',
-    body: 'See attached.',
-    hasAttachments: false,
-    attachments: [],
+  mockMailGetMessage.mockImplementation((sourceId: string) => {
+    const id = sourceId.startsWith('mail:') ? sourceId.slice('mail:'.length) : sourceId;
+    const item = FIXTURE_ITEMS.find((candidate) => candidate.id === id) ?? FIXTURE_ITEMS[0]!;
+    return Promise.resolve({
+      id: item.id,
+      subject: item.subject,
+      from: item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr,
+      to: ['me@firm.com'],
+      cc: [],
+      date: item.receivedDateTime,
+      provider: item.provider,
+      account: item.account,
+      body: item.snippet,
+      hasAttachments: item.hasAttachments,
+      attachments: [],
+      matterId: null,
+    });
   });
   mockMailRetagFolderMatter.mockResolvedValue(1);
   mockMailRetagMessageMatter.mockResolvedValue(undefined);
@@ -188,6 +195,19 @@ async function waitForInitialLoad() {
   await flushDebounce();
 }
 
+async function flushEmailDetail() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50);
+  });
+}
+
+async function openEmailActionsMenu() {
+  fireEvent.pointerDown(screen.getByTestId('email-more-actions'), { button: 0 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
 beforeEach(() => {
   setupDefaultMocks();
   vi.useFakeTimers();
@@ -198,14 +218,31 @@ beforeEach(() => {
 describe('EmailWorkspace', () => {
 
   // 1. Renders rows from mailListMessages results
-  it('renders email rows from mailListMessages results', async () => {
+  it('renders email rows in a left rail with the selected email on the right', async () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    const rows = screen.getAllByTestId('mail-row');
+    expect(screen.getByTestId('email-master-detail')).toBeInTheDocument();
+    expect(screen.getByRole('list', { name: 'Email list' })).toBeInTheDocument();
+    expect(screen.getByTestId('email-detail-pane')).toBeInTheDocument();
+
+    const rows = screen.getAllByTestId(/^email-rail-row-/);
     expect(rows).toHaveLength(FIXTURE_ITEMS.length);
-    expect(screen.getByText('Contract draft - please review')).toBeInTheDocument();
-    expect(screen.getByText('Deposition schedule')).toBeInTheDocument();
+    expect(rows[0]).toHaveTextContent('Contract draft - please review');
+    expect(rows[1]).toHaveTextContent('Deposition schedule');
+    await flushEmailDetail();
+    expect(screen.getByTestId('email-viewer-subject')).toHaveTextContent('Contract draft - please review');
+  });
+
+  it('changes the right-side email detail when a rail row is selected', async () => {
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+
+    fireEvent.click(screen.getByTestId('email-rail-row-msg-002'));
+    await flushEmailDetail();
+
+    expect(mockMailGetMessage).toHaveBeenLastCalledWith('mail:msg-002');
+    expect(screen.getByTestId('email-viewer-subject')).toHaveTextContent('Deposition schedule');
   });
 
   // 2. Debounced keyword triggers a query after typing
@@ -244,7 +281,8 @@ describe('EmailWorkspace', () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    // Expand the filter row (collapsed by default)
+    // Expand the filter row from the rail overflow menu (collapsed by default)
+    await openEmailActionsMenu();
     const filtersToggle = screen.getByTestId('filters-toggle');
     fireEvent.click(filtersToggle);
 
@@ -268,7 +306,7 @@ describe('EmailWorkspace', () => {
   });
 
   // 4. Open action dispatches keepance:open-email with correct sourceId
-  it('dispatches keepance:open-email with the correct sourceId when row is clicked', async () => {
+  it('dispatches keepance:open-email with the correct sourceId from the explicit open action', async () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
@@ -276,9 +314,7 @@ describe('EmailWorkspace', () => {
     const listener = (e: Event) => { dispatched.push(e as CustomEvent); };
     window.addEventListener('lantern:open-email', listener);
 
-    const rows = screen.getAllByTestId('mail-row');
-    expect(rows[0]).toBeDefined();
-    fireEvent.click(rows[0]!);
+    fireEvent.click(screen.getByTestId('email-rail-open-msg-001'));
 
     window.removeEventListener('lantern:open-email', listener);
 
@@ -287,44 +323,41 @@ describe('EmailWorkspace', () => {
   });
 
   // 5. Privilege sub-component calls setPrivilege when user selects a privilege
+  it('keeps the sensitive badge visible in the email rail', async () => {
+    mockUsePrivilegeForSource.mockImplementation((sourceId: string | null | undefined) => (
+      sourceId === 'mail:msg-001' ? 'attorney-client' : 'none'
+    ));
+
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+
+    const sensitiveRow = screen.getByTestId('email-rail-row-msg-001');
+    expect(within(sensitiveRow).getByTestId('email-rail-sensitive-msg-001')).toHaveTextContent('Sensitive');
+    expect(screen.queryByTestId('email-rail-sensitive-msg-002')).not.toBeInTheDocument();
+  });
+
   it('calls setPrivilege when a privilege option is selected from the dropdown', async () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    const rows = screen.getAllByTestId('mail-row');
-    expect(rows[0]).toBeDefined();
-    // Hover to reveal row actions
-    fireEvent.mouseEnter(rows[0]!);
+    await flushEmailDetail();
+    expect(screen.getByTestId('email-privilege-control')).toBeInTheDocument();
 
-    // Open the sensitivity dropdown. The control label is profession-aware
-    // (NEW-015): under the default 'advisor' profession it reads "Sensitive"
-    // (legal practices see "Privilege"). The underlying status values are
-    // unchanged, so the attorney-client option id still drives the store.
-    const privilegeBtn = rows[0]!.querySelector('button[title="Set sensitive"]');
-    expect(privilegeBtn).toBeTruthy();
-    fireEvent.click(privilegeBtn!);
-
-    // Select the "keep out of AI" (attorney-client) option
-    const acOption = screen.getByTestId('privilege-option-attorney-client');
+    const acOption = screen.getByTestId('email-privilege-option-attorney-client');
     fireEvent.click(acOption);
 
     expect(mockSetPrivilege).toHaveBeenCalledWith('mail:msg-001', 'attorney-client');
   });
 
   // 6. File-to-matter (per-message) calls mailRetagMessageMatter with correct args
-  it('calls mailRetagMessageMatter with correct args when a matter is chosen from per-row action', async () => {
+  it('calls mailRetagMessageMatter with correct args when a matter is chosen from the detail pane', async () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    const rows = screen.getAllByTestId('mail-row');
-    expect(rows[0]).toBeDefined();
-    fireEvent.mouseEnter(rows[0]!);
+    await flushEmailDetail();
+    expect(screen.getByTestId('email-file-to-matter')).toBeInTheDocument();
 
-    const fileBtn = screen.getByTestId('file-to-matter-msg-001');
-    fireEvent.click(fileBtn);
-
-    // Matter picker renders; click the first matter
-    const matterBtn = screen.getByText('Acme v. Beta');
+    const matterBtn = screen.getByTestId('file-to-matter-btn-matter-1');
     fireEvent.click(matterBtn);
 
     await act(async () => {
@@ -483,7 +516,8 @@ describe('EmailWorkspace', () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    // Switch to Ask AI mode
+    // Switch to Ask AI mode from the rail overflow menu
+    await openEmailActionsMenu();
     fireEvent.click(screen.getByTestId('mode-ask'));
 
     expect(screen.getByTestId('ask-empty-state')).toBeInTheDocument();
@@ -500,6 +534,7 @@ describe('EmailWorkspace', () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
+    await openEmailActionsMenu();
     fireEvent.click(screen.getByTestId('mode-ask'));
 
     const chips = screen.getAllByTestId('ask-chip');
@@ -637,30 +672,15 @@ describe('EmailWorkspace', () => {
     expect(countEl.textContent).toContain(`Showing 2 of ${String(FIXTURE_ITEMS.length)}`);
   });
 
-  // 21. Matter picker search — filters the matter list
-  it('filters the matter list in MatterPickerPopover when text is typed in the search input', async () => {
+  // 21. Detail pane matter choices
+  it('shows the matter choices in the selected email detail pane', async () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    const rows = screen.getAllByTestId('mail-row');
-    expect(rows[0]).toBeDefined();
-    fireEvent.mouseEnter(rows[0]!);
-
-    // Open the per-row File picker
-    const fileBtn = screen.getByTestId('file-to-matter-msg-001');
-    fireEvent.click(fileBtn);
-
-    // Both matters should appear initially
-    expect(screen.getByText('Acme v. Beta')).toBeInTheDocument();
-    expect(screen.getByText('Gamma Patent')).toBeInTheDocument();
-
-    // Type in the matter search
-    const searchInput = screen.getByTestId('matter-picker-search');
-    fireEvent.change(searchInput, { target: { value: 'Gamma' } });
-
-    // Only Gamma Patent should be visible now
-    expect(screen.queryByText('Acme v. Beta')).not.toBeInTheDocument();
-    expect(screen.getByText('Gamma Patent')).toBeInTheDocument();
+    await flushEmailDetail();
+    expect(screen.getByTestId('email-file-to-matter')).toBeInTheDocument();
+    expect(screen.getByTestId('file-to-matter-btn-matter-1')).toHaveTextContent('Acme v. Beta');
+    expect(screen.getByTestId('file-to-matter-btn-matter-2')).toHaveTextContent('Gamma Patent');
   });
 
   // 22. Auth error is mapped to a reconnect prompt
@@ -698,7 +718,7 @@ describe('EmailWorkspace', () => {
 
     // After retry, results appear
     expect(screen.queryByTestId('error-state')).not.toBeInTheDocument();
-    expect(screen.getAllByTestId('mail-row')).toHaveLength(FIXTURE_ITEMS.length);
+    expect(screen.getAllByTestId(/^email-rail-row-/)).toHaveLength(FIXTURE_ITEMS.length);
   });
 
 });

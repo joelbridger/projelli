@@ -58,6 +58,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 import {
   mailListMessages,
   mailListMessagesByMatter,
+  mailGetMessage,
   mailConnectedAccounts,
 } from '@/platform/utils/mail-commands';
 import { useActiveMatter, useMatters, getMatters } from '@/platform/matter/matterStore';
@@ -88,6 +89,7 @@ const GLOBAL_ITEMS = [
 
 const mockList = mailListMessages as ReturnType<typeof vi.fn>;
 const mockListByMatter = mailListMessagesByMatter as ReturnType<typeof vi.fn>;
+const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>;
 const mockConnected = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockUseActiveMatter = useActiveMatter as ReturnType<typeof vi.fn>;
 const mockUseMatters = useMatters as ReturnType<typeof vi.fn>;
@@ -100,6 +102,25 @@ function setupMocks() {
   mockConnected.mockResolvedValue(FIXTURE_ACCOUNTS);
   mockList.mockResolvedValue({ items: GLOBAL_ITEMS, total: GLOBAL_ITEMS.length });
   mockListByMatter.mockResolvedValue({ items: SCOPED_ITEMS, total: SCOPED_ITEMS.length });
+  mockMailGetMessage.mockImplementation((sourceId: string) => {
+    const id = sourceId.startsWith('mail:') ? sourceId.slice('mail:'.length) : sourceId;
+    const item = [...SCOPED_ITEMS, ...GLOBAL_ITEMS].find((candidate) => candidate.id === id)
+      ?? SCOPED_ITEMS[0]!;
+    return Promise.resolve({
+      id: item.id,
+      subject: item.subject,
+      from: item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr,
+      to: ['advisor@example.com'],
+      cc: [],
+      date: item.receivedDateTime,
+      provider: item.provider,
+      account: item.account,
+      body: item.snippet,
+      hasAttachments: item.hasAttachments,
+      attachments: [],
+      matterId: null,
+    });
+  });
   mockUseActiveMatter.mockReturnValue(ACTIVE_MATTER);
   mockUseMatters.mockReturnValue(FIXTURE_MATTERS);
   mockGetMatters.mockReturnValue(FIXTURE_MATTERS);
@@ -112,6 +133,13 @@ function setupMocks() {
 async function waitForInitialLoad() {
   await act(async () => { await vi.advanceTimersByTimeAsync(50); });
   await act(async () => { await vi.advanceTimersByTimeAsync(300); });
+}
+
+async function openEmailActionsMenu() {
+  fireEvent.pointerDown(screen.getByTestId('email-more-actions'), { button: 0 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
 }
 
 beforeEach(() => {
@@ -137,12 +165,12 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
     render(<EmailWorkspace embedded />);
     await waitForInitialLoad();
 
-    const rows = screen.getAllByTestId('mail-row');
+    const rows = screen.getAllByTestId(/^email-rail-row-/);
     expect(rows).toHaveLength(SCOPED_ITEMS.length);
-    expect(screen.getByText('Annual review agenda')).toBeInTheDocument();
+    expect(screen.getAllByText('Annual review agenda').length).toBeGreaterThan(0);
     // The per-message-filed mail whose folder maps ELSEWHERE still shows — proof
     // the engine (not a client-side folder filter) decided membership.
-    expect(screen.getByText('Beneficiary form (filed here)')).toBeInTheDocument();
+    expect(screen.getAllByText('Beneficiary form (filed here)').length).toBeGreaterThan(0);
     // No global-client mail leaks in.
     expect(screen.queryByText('Some other client mail')).not.toBeInTheDocument();
   });
@@ -165,7 +193,7 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
     // until the debounced refetch clears them.
     const { rerender } = render(<EmailWorkspace embedded />);
     await waitForInitialLoad();
-    expect(screen.getByText('Annual review agenda')).toBeInTheDocument();
+    expect(screen.getAllByText('Annual review agenda').length).toBeGreaterThan(0);
 
     mockUseActiveMatter.mockReturnValue(null);
     await act(async () => {
@@ -180,6 +208,7 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
     await waitForInitialLoad();
 
     // Switch to AI search mode and type a query.
+    await openEmailActionsMenu();
     fireEvent.click(screen.getByTestId('mode-ask'));
     fireEvent.change(screen.getByTestId('email-search-input'), { target: { value: 'beneficiary' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(300); });
@@ -196,6 +225,7 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
     render(<EmailWorkspace embedded />);
     await waitForInitialLoad();
 
+    await openEmailActionsMenu();
     fireEvent.click(screen.getByTestId('mode-ask'));
     fireEvent.change(screen.getByTestId('email-search-input'), { target: { value: 'beneficiary' } });
     await act(async () => { await vi.advanceTimersByTimeAsync(300); });
@@ -210,6 +240,6 @@ describe('EmailWorkspace per-client backend scoping (F2.6b)', () => {
 
     expect(mockList).toHaveBeenCalled();
     expect(mockListByMatter).not.toHaveBeenCalled();
-    expect(screen.getByText('Some other client mail')).toBeInTheDocument();
+    expect(screen.getAllByText('Some other client mail').length).toBeGreaterThan(0);
   });
 });

@@ -58,10 +58,11 @@ vi.mock('@/platform/utils/diagnostics', () => ({
   sendDiagnosticEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { mailListMessages, mailConnectedAccounts } from '@/platform/utils/mail-commands';
+import { mailListMessages, mailGetMessage, mailConnectedAccounts } from '@/platform/utils/mail-commands';
 import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 
 const mockList = mailListMessages as ReturnType<typeof vi.fn>;
+const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>;
 const mockAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 
 const IMPORTED_ITEM = {
@@ -77,6 +78,23 @@ beforeEach(() => {
   mockAccounts.mockResolvedValue([{ provider: 'gmail', account: 'default', label: 'Gmail' }]);
   // Initial load: nothing imported yet (the bug's starting state).
   mockList.mockResolvedValue({ items: [], total: 0 });
+  mockMailGetMessage.mockImplementation((sourceId: string) => {
+    const id = sourceId.startsWith('mail:') ? sourceId.slice('mail:'.length) : sourceId;
+    return Promise.resolve({
+      id,
+      subject: IMPORTED_ITEM.subject,
+      from: `${IMPORTED_ITEM.fromName} <${IMPORTED_ITEM.fromAddr}>`,
+      to: ['advisor@example.com'],
+      cc: [],
+      date: IMPORTED_ITEM.receivedDateTime,
+      provider: IMPORTED_ITEM.provider,
+      account: IMPORTED_ITEM.account,
+      body: IMPORTED_ITEM.snippet,
+      hasAttachments: IMPORTED_ITEM.hasAttachments,
+      attachments: [],
+      matterId: null,
+    });
+  });
 });
 
 async function waitForInitialLoad() {
@@ -103,7 +121,7 @@ describe('EmailWorkspace refreshes after an import (Bug C)', () => {
     });
 
     expect(mockList.mock.calls.length).toBeGreaterThan(callsAfterLoad);
-    expect(screen.getByText('Imported message')).toBeInTheDocument();
+    expect(screen.getAllByText('Imported message').length).toBeGreaterThan(0);
   });
 
   it('re-queries the message list when the window regains focus', async () => {
@@ -120,7 +138,7 @@ describe('EmailWorkspace refreshes after an import (Bug C)', () => {
     });
 
     expect(mockList.mock.calls.length).toBeGreaterThan(callsAfterLoad);
-    expect(screen.getByText('Imported message')).toBeInTheDocument();
+    expect(screen.getAllByText('Imported message').length).toBeGreaterThan(0);
   });
 
   it('does NOT re-query on a non-terminal "syncing" tick', async () => {
