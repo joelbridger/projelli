@@ -30,6 +30,8 @@ export { Callout } from './Callout';
 export type { CalloutProps } from './Callout';
 export { Dropdown } from './Dropdown';
 export type { DropdownProps } from './Dropdown';
+export { RailShell, RailShellActionMenu, RailShellHeader } from './RailShell';
+export type { RailShellActionMenuProps, RailShellHeaderProps, RailShellItem, RailShellProps } from './RailShell';
 export { SlidePanel } from './SlidePanel';
 export type { SlidePanelProps } from './SlidePanel';
 export { SurfaceToolbar, ToolbarSpacer } from './SurfaceToolbar';
