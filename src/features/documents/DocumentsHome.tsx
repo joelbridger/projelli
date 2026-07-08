@@ -9,7 +9,7 @@
  *   - Email-open flow: opening an email still shows it via an editorStore tab.
  *   - "Add files" import affordance + one-time trust note ("Indexed on your
  *     machine. Nothing was uploaded."), remembered via localStorage.
- *   - Trash: accessible via the Files/Trash toggle inside the grid view.
+ *   - Trash: a pinned rail destination below Files (count badge included).
  *   - All prop types are unchanged so App.tsx wiring is unmodified.
  *
  * Empty-tree fix: App.tsx test-mode seeds only `openFile()` calls but never
