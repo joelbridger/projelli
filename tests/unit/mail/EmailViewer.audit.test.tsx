@@ -11,6 +11,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// The strict local-AI reachability probe (single-source egress, fix round 2)
+// would otherwise make these machine-dependent: pin Ollama reachable so the
+// no-cloud-key fallback resolves and the draft (and its audit emit) can run.
+vi.mock('@/platform/providers/OllamaProvider', async (orig) => {
+  const actual = await orig<typeof import('@/platform/providers/OllamaProvider')>();
+  return { ...actual, detectOllama: vi.fn(async () => ({ reachable: true, models: ['llama3.1:8b'] })) };
+});
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 
 const mockMailGetMessage = vi.fn();
@@ -72,7 +80,17 @@ vi.mock('@/platform/providers/OllamaProvider', () => ({
 }));
 
 vi.mock('@/platform/providers/resolveLocalProvider', () => ({
+  // Old shape (kept for any residual callers) + the strict-probe resolver the
+  // email draft path uses since the single-source-egress rework.
   resolveLocalGenerationProvider: vi.fn(async () => ({
+    provider: {
+      sendMessage: vi.fn(async () => ({ content: 'Draft reply here.' })),
+      getMetadata: vi.fn(() => ({ model: 'llama3.1:8b' })),
+    },
+    providerId: 'ollama',
+    model: 'llama3.1:8b',
+  })),
+  resolveAvailableLocalGenerationProvider: vi.fn(async () => ({
     provider: {
       sendMessage: vi.fn(async () => ({ content: 'Draft reply here.' })),
       getMetadata: vi.fn(() => ({ model: 'llama3.1:8b' })),
