@@ -1,5 +1,12 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-09 — FB2 COMPLETE: preview v2 live on the Legion @ de6a46cd (coordinator-12)
+
+- All 7 FB2 lanes merged; gate: 7,108 tests + all guards green (final run: locale-only delta after full pass). Gallery v2 at the same artifact URL. Legion verified serving v2 (new-client dialog + APH logo probed).
+- Brand: APH restored via swappable single-source system (brand/README swap guide). Onboarding reverted to pre-preview screens per Jameson.
+- My personal review: add-client flow + groups PASS (chips fix verified in gallery shot 21).
+- Parallel work banked: robot-script grip audit (running), assured-routing lane BUILT-AHEAD in ~/lp-assured (lp/assured-routing — merge GATED on Jameson approval), assured spec in coordination/reports/.
+- AWAITING: Jameson verdict on preview v2 (approve all → merge to lantern-plus main | name items).
 ## UPDATE 2026-07-09 ~00:15 — PREVIEW LIVE ON THE LEGION; Jameson reviewing; first bench catch fixed (coordinator-12)
 
 - Legion runs lp/ux-simplify-v1 (src+public shipped, app restarted, served code verified). Gallery: https://claude.ai/code/artifact/e011c99b-9ac0-4d40-9d77-c9dab7005573
