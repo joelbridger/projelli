@@ -138,15 +138,16 @@ beforeEach(() => {
   useWorkspaceStore.setState({ recentWorkspaces: [], rootPath: null });
 });
 
-/** Render App and wait for the onboarding choice screen (deferred behind a 1200ms timer). */
+/** Render App and wait for the onboarding intro (deferred behind a 1200ms timer). */
 async function openOnboarding() {
   const utils = render(<App />);
   await screen.findByTestId('onboarding-v2-intro', {}, { timeout: 3000 });
   return utils;
 }
 
-/** Click the given start card. The live flow now starts on this screen. */
+/** intro -> choose-start, then click the given start card. */
 async function goToChooseStartAndPick(testId: 'choose-start-sample' | 'choose-start-own') {
+  fireEvent.click(screen.getByTestId('onboarding-v2-go'));
   await screen.findByTestId(testId);
   await act(async () => {
     fireEvent.click(screen.getByTestId(testId));

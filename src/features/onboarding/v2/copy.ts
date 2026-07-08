@@ -4,69 +4,57 @@
  * Centralized so (a) wording stays faithful to the approved design, (b) tests
  * can assert exact strings, and (c) a future i18n pass has one place to work
  * from. No em dashes anywhere (brand rule). SOC 2 is only ever attributed to
- * the AI provider, never to Lantern.
+ * the AI provider, never to Advisor Prep Hero.
  */
 
 export const ONB_COPY = {
   intro: {
-    headline: 'Set up Lantern.',
-    sub: 'Use sample data, or connect your own files.',
+    headline: 'A private AI that knows your clients.',
     flow: [
-      'Connect AI',
-      'Add files',
-      'Ask with sources',
+      'Connect your AI and files',
+      'Advisor Prep Hero builds Client Maps',
+      'Ask anything, with sources',
     ],
     pills: [
       'Our servers never see your documents or prompts',
       'Vault: optional AES-256 encryption',
       'Cloud AI providers are SOC 2 certified',
     ],
-    cta: 'Start setup',
-    sampleTitle: 'Use sample practice',
-    ownTitle: 'Use my files',
-    recommended: 'Recommended',
-    sampleBullets: [
-      'A worked household you can explore',
-      'A filled, cited Client Map',
-      'Nothing leaves your computer',
-    ],
-    ownBullets: [
-      'Pick where your practice lives',
-      'Import email, files, and Wealthbox next',
-      'Your data stays on this device',
-    ],
-    sampleCta: 'Use sample practice',
-    ownCta: 'Use my files',
+    cta: 'Go!',
   },
 
   ai: {
     headline: '1. Connect your AI',
     cloud: {
-      title: 'Cloud AI',
+      title: 'Use ChatGPT, Claude, or Gemini',
       bullets: [
-        'Uses your own AI account key.',
-        'Lantern never sees your key or data.',
-        'Usually gives the best answers.',
+        'Advisor Prep Hero never sees your key or your data',
+        'Providers are SOC 2 Type 2 certified',
+        'Encrypted in transit and at rest',
+        "Providers don't train on your data (on paid API usage)",
+        'Pay as you go with your own key',
       ],
-      whatLink: 'What does this mean?',
-      pickLabel: 'Provider',
+      whatLink: 'What is this?',
+      pickLabel: 'PICK YOUR PROVIDER, THEN GET YOUR KEY',
       connect: 'Connect',
       helpLink: 'I need help setting this up',
     },
     local: {
-      title: 'Local AI',
+      title: 'Use local AI',
       bullets: [
-        'Runs on this computer.',
-        'Nothing leaves.',
-        'Needs a larger download.',
+        'Runs on your computer',
+        'Completely secure (nothing leaves)',
+        '2.5 GB download (about 5 minutes)',
+        'Great at answering questions about lots of files',
+        'Not as great with complex reasoning',
       ],
-      moreLink: 'What does this mean?',
+      moreLink: 'Tell me more',
       tryLocal: 'Try Local AI',
       switchNote: 'Switch to cloud AI anytime',
     },
     payModal: {
       title: 'Pay as you go, with your own key',
-      body: 'You get an API key from the AI company you pick (OpenAI, Anthropic, or Google). You pay them directly, only for what you actually use, usually a few cents per question. Lantern never charges you for AI, and never sees your key or your data.',
+      body: 'You get an API key from the AI company you pick (OpenAI, Anthropic, or Google). You pay them directly, only for what you actually use, usually a few cents per question. Advisor Prep Hero never charges you for AI, and never sees your key or your data.',
       got: 'Got it',
     },
     localModal: {
@@ -78,25 +66,24 @@ export const ONB_COPY = {
 
   connect: {
     headline: '2. Securely connect your data',
-    trustLine: 'Connected data stays on this device.',
     pills: [
       'Encrypted in transit',
       'Stays on your device',
-      'Lantern never sees your data',
+      'Advisor Prep Hero never sees your data',
     ],
-    comingSoonLabel: 'More connectors planned',
+    comingSoonLabel: 'COMING SOON',
     connect: 'Connect',
     connected: 'Connected',
     desktopOnly: 'Available in the desktop app',
-    // Connector-access: honest "we read your exports" line. Lantern is not
+    // Connector-access: honest "we read your exports" line. Advisor Prep Hero is not
     // integrated with RightCapital or Jump; it reads the files those tools
     // export or sync into the places you just connected. Wording is verified
     // against docs/strategy/2026-06-29-connector-access-options-rightcapital-jump.md
     // (the "what we can honestly claim" table) — never "integration".
     worksWith: {
       title: 'Already use RightCapital or Jump?',
-      body: 'Lantern also reads the plan reports and meeting notes you export or save from tools like RightCapital and Jump, once they land in the files, email, or folders you just connected. It files each one to the right client, shows when it was exported, and cites it in answers.',
-      disclaimer: 'Lantern reads your exported files and saved notes. It is not an official integration with these tools, and their names belong to their owners.',
+      body: 'Advisor Prep Hero also reads the plan reports and meeting notes you export or save from tools like RightCapital and Jump, once they land in the files, email, or folders you just connected. It files each one to the right client, shows when it was exported, and cites it in answers.',
+      disclaimer: 'Advisor Prep Hero reads your exported files and saved notes. It is not an official integration with these tools, and their names belong to their owners.',
     },
   },
 
@@ -108,8 +95,7 @@ export const ONB_COPY = {
     aiLabel: 'Downloading your private AI',
     clientMapTitle: 'Building your Client Maps',
     clientMapSub: 'Assembling the whole story of every client and household.',
-    asksHeader: 'Try asking',
-    moreExamples: 'More examples',
+    asksHeader: 'Things you can ask Advisor Prep Hero',
     cta: 'Continue to the app',
   },
 
@@ -124,10 +110,6 @@ export const ONB_COPY = {
  * Verbatim, in order, from the prototype.
  */
 export const ONB_EXAMPLE_QUESTIONS: readonly string[] = [
-  'Who needs a review this week?',
-  'What changed for the Chen household?',
-  'Draft an agenda for tomorrow.',
-  'Find missing paperwork.',
   'Which client is doing a 1031 exchange?',
   'Who has a 529 for the kids?',
   'What changed for the Hendricks since our last review?',
@@ -152,7 +134,7 @@ export const ONB_EXAMPLE_QUESTIONS: readonly string[] = [
  */
 // NOTE (connector-access): RightCapital is intentionally NOT in this list. A
 // grayed-out "COMING SOON" logo implies an official integration is on the way,
-// which would overclaim — Lantern reads RightCapital's EXPORTED plan PDFs
+// which would overclaim — Advisor Prep Hero reads RightCapital's EXPORTED plan PDFs
 // today, it does not integrate with it. That capability is stated honestly in
 // the "Already use RightCapital or Jump?" callout on the connect screen instead.
 // Jump is likewise represented only as a recognized export, never as a logo.

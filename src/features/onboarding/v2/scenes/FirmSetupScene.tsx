@@ -36,7 +36,7 @@ interface Area {
 function statusText(done: boolean, active: boolean, pct: number | null, failed = false): string {
   if (failed) return 'Failed';
   if (done) return 'Done';
-  if (active) return pct != null ? `${String(pct)}%` : 'Working';
+  if (active) return pct != null ? `${String(pct)}%` : 'Working...';
   return 'Not started';
 }
 
@@ -61,7 +61,7 @@ function aiArea(p: SetupProgress): Area {
   const label = failed
     ? 'AI setup needs a retry'
     : cloudUnverified
-      ? 'AI key saved, not verified yet'
+      ? 'AI key saved — not verified yet'
       : ai.mode === 'cloud'
         ? 'Your AI provider is connected'
         : ONB_COPY.firm.aiLabel;
@@ -129,8 +129,6 @@ export function FirmSetupScene() {
   const C = ONB_COPY.firm;
   const progress = useSetupProgress();
   const [retryingModels, setRetryingModels] = useState(false);
-  const [showMoreExamples, setShowMoreExamples] = useState(false);
-  const visibleQuestions = showMoreExamples ? ONB_EXAMPLE_QUESTIONS : ONB_EXAMPLE_QUESTIONS.slice(0, 4);
 
   // Client Map "building" callout. building is effectively always 0 from this
   // hook, so derive "in progress" from built < total.
@@ -151,7 +149,7 @@ export function FirmSetupScene() {
       <div className="mt-8 w-full max-w-[760px] rounded-[24px] border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white p-7 text-left shadow-[0_10px_40px_rgba(var(--kp-navy-rgb),0.06)]">
         {progress == null ? (
           <div className="text-sm text-[#5b6b80]" data-testid="firm-progress-idle">
-            Getting ready. Your AI and data will start loading here.
+            Getting ready... your AI and data will start loading here.
           </div>
         ) : (
           <>
@@ -167,7 +165,7 @@ export function FirmSetupScene() {
                     active={a.active}
                     failed={a.failed}
                     status={a.status}
-                    retryLabel={retryingModels ? 'Retrying' : 'Retry'}
+                    retryLabel={retryingModels ? 'Retrying...' : 'Retry'}
                     onRetry={
                       a.failed
                         ? () => {
@@ -203,7 +201,7 @@ export function FirmSetupScene() {
         )}
 
         {/* Building your Client Maps */}
-          <div className="mt-7 rounded-2xl border border-[#1fa971]/25 bg-[#1fa971]/[0.06] p-4" data-testid="firm-client-maps">
+        <div className="mt-7 rounded-2xl border border-[#1fa971]/25 bg-[#1fa971]/[0.06] p-4" data-testid="firm-client-maps">
           <div className="text-sm font-bold text-[var(--kp-navy)]">{C.clientMapTitle}</div>
           <div className="text-xs text-[#5b6b80]">{C.clientMapSub}</div>
           {cmDone || cmBuilding ? (
@@ -224,11 +222,11 @@ export function FirmSetupScene() {
         </div>
       </div>
 
-      {/* Things you can ask Lantern */}
+      {/* Things you can ask Advisor Prep Hero */}
       <div className="mt-8 w-full max-w-[760px]">
         <div className="text-sm font-bold text-[var(--kp-navy)]">{C.asksHeader}</div>
         <div className="kp-onbv2-scroll mt-3 flex max-h-28 flex-wrap justify-center gap-2 overflow-y-auto">
-          {visibleQuestions.map((q) => (
+          {ONB_EXAMPLE_QUESTIONS.map((q) => (
             <span
               key={q}
               className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white px-3 py-1.5 text-xs text-[var(--kp-navy)] shadow-[0_4px_14px_rgba(var(--kp-navy-rgb),0.05)]"
@@ -238,16 +236,6 @@ export function FirmSetupScene() {
             </span>
           ))}
         </div>
-        {!showMoreExamples && ONB_EXAMPLE_QUESTIONS.length > 4 ? (
-          <button
-            type="button"
-            data-testid="firm-more-examples"
-            onClick={() => { setShowMoreExamples(true); }}
-            className="mt-3 text-sm font-semibold text-[var(--kp-accent)] hover:underline"
-          >
-            {C.moreExamples}
-          </button>
-        ) : null}
       </div>
     </div>
   );

@@ -1,5 +1,5 @@
 /**
- * Lantern — OnboardingV2 mounted as the live first-run surface in App.
+ * Advisor Prep Hero — OnboardingV2 mounted as the live first-run surface in App.
  *
  * These pin the App-level wiring that makes the 4-step OnboardingV2 the real
  * first-run experience (the old 9-step GuidedOnboarding was retired 2026-06-30
@@ -50,8 +50,7 @@ vi.mock('@/platform/providers/apiKeyValidation', () => ({
   validateApiKeyLive: (...a: unknown[]) => validateApiKeyLive(...a),
 }));
 
-// The archived IntroScene used Lottie JSON; keep the stub in case a preview
-// import pulls it in, but the live first-run flow now starts on ChooseStart.
+// IntroScene's flowchart loads Lottie JSON by fetch; stub the player.
 vi.mock('@/features/onboarding/v2/LottiePlayer', () => ({
   LottiePlayer: () => <div data-testid="lottie-stub" />,
 }));
@@ -131,7 +130,7 @@ beforeEach(() => {
 });
 
 /**
- * Render App and wait for the onboarding choice scene (deferred behind a
+ * Render App and wait for the onboarding intro scene (deferred behind a
  * 1200ms timer in App). Returns the RTL render result.
  */
 async function renderAppAndOpenOnboarding() {
@@ -140,8 +139,9 @@ async function renderAppAndOpenOnboarding() {
   return utils;
 }
 
-/** Walk choose-start (own data) -> ai scene. */
+/** Walk intro -> choose-start (own data) -> ai scene. */
 async function advanceToAiScene() {
+  fireEvent.click(screen.getByTestId('onboarding-v2-go')); // intro -> choose-start
   await screen.findByTestId('choose-start-own');
   await act(async () => {
     fireEvent.click(screen.getByTestId('choose-start-own')); // establish workspace -> ai
@@ -161,7 +161,6 @@ describe('App — OnboardingV2 as live first-run surface', () => {
     await renderAppAndOpenOnboarding();
 
     expect(screen.getByTestId('onboarding-v2-intro')).toBeInTheDocument();
-    expect(screen.getByTestId('onboarding-v2-choose-start')).toBeInTheDocument();
     expect(screen.queryByTestId('welcome-onboarding-dialog')).not.toBeInTheDocument();
     expect(screen.queryByTestId('onboarding-step-welcome')).not.toBeInTheDocument();
   });
