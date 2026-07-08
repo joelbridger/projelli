@@ -469,8 +469,8 @@ export function AuditEmptyState() {
     <div data-testid="audit-empty-state">
       <EmptyState
         icon={ShieldCheck}
-        title="No activity logged yet"
-        body="Every AI request, file operation, workflow run, and governance action will appear here. This record stays on your machine and is yours to export whenever you need it."
+        title="No activity yet"
+        body="AI actions and important changes will appear here."
       />
     </div>
     /* eslint-enable lantern-i18n/no-hardcoded-string */
@@ -490,7 +490,7 @@ export function AuditNoMatchState({ onClearFilters }: AuditNoMatchStateProps) {
       <EmptyState
         icon={Search}
         title="No activity matches your filters."
-        body="Your search or filters did not match any logged activity. Try broadening your search or clearing the filters to see all entries."
+        body="Try a broader search, or clear the filters."
         actions={
           <Button
             variant="secondary"

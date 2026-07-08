@@ -19,7 +19,6 @@
 import { useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Label } from '@/ui/label';
-import { InfoHelp } from '@/ui/InfoHelp';
 import i18n from '@/i18n';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { AuditService } from '@/platform/audit/AuditService';
@@ -79,10 +78,6 @@ export function LanguagePicker({ auditService }: LanguagePickerProps) {
           <Label htmlFor={controlId} className="text-sm font-medium cursor-pointer">
             {t('settings.language.label')}
           </Label>
-          <InfoHelp
-            content={t('settings.language.description')}
-            label={`About ${t('settings.language.label')}`}
-          />
         </div>
       </div>
       <div className="shrink-0">

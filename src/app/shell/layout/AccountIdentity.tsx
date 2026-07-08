@@ -67,11 +67,11 @@ export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityPr
   if (collapsed) {
     return (
       <button
-        type="button"
-        onClick={onOpen}
-        title={name}
-        aria-label={`Account: ${name}`}
-        data-testid="account-identity"
+      type="button"
+      onClick={onOpen}
+      title={`${name} · ${sublabel}`}
+      aria-label={`Account: ${name}`}
+      data-testid="account-identity"
         style={{
           width: 38,
           height: 38,
@@ -95,6 +95,8 @@ export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityPr
       type="button"
       onClick={onOpen}
       data-testid="account-identity"
+      title={`${name} · ${sublabel}`}
+      aria-label={`Account: ${name}, ${sublabel}`}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -122,9 +124,6 @@ export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityPr
           }}
         >
           {name}
-        </span>
-        <span style={{ display: 'block', fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-side-fg-faint)' }}>
-          {sublabel}
         </span>
       </span>
       <ChevronRight size={15} strokeWidth={2} style={{ flex: 'none', opacity: 0.5 }} />

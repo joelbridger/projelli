@@ -72,23 +72,26 @@ describe('PrivacyCenterHome', () => {
     expect(within(section).getByTestId('data-map-content-mock')).toBeTruthy();
   });
 
-  it('renders the report button', () => {
+  it('shows Open Data Map as the primary action when no matter is active', () => {
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
-    expect(screen.getByTestId('privacy-center-report-button')).toBeTruthy();
+    expect(screen.getByTestId('privacy-center-open-data-map-button').textContent).toContain('Open Data Map');
+    expect(screen.queryByTestId('privacy-center-report-button')).toBeNull();
   });
 
-  it('shows generic "Confidentiality Report" button label when no active matter', () => {
+  it('moves the firm security overview into the actions menu', () => {
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
-    expect(screen.getByTestId('privacy-center-report-button').textContent).toContain('Confidentiality Report');
+    fireEvent.pointerDown(screen.getByTestId('privacy-center-actions-menu'), { button: 0, ctrlKey: false });
+    expect(screen.getByTestId('privacy-center-firm-pack-button').textContent).toContain('security overview');
   });
 
-  it('shows matter-scoped button label when matter is active', () => {
+  it('shows one confidentiality report button when a matter is active', () => {
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={SAMPLE_MATTER} />);
-    expect(screen.getByTestId('privacy-center-report-button').textContent).toContain('Garcia v. Meridian');
+    expect(screen.getByTestId('privacy-center-report-button').textContent).toContain('Confidentiality Report');
+    expect(screen.queryByTestId('privacy-center-open-data-map-button')).toBeNull();
   });
 
-  it('clicking the report button opens the dialog', () => {
-    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
+  it('clicking the matter report button opens the dialog', () => {
+    render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={SAMPLE_MATTER} />);
     // Dialog not open initially
     expect(screen.queryByTestId('confidentiality-report-dialog-mock')).toBeNull();
     // Click the report button

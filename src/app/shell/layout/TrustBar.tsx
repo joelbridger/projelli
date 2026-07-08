@@ -78,16 +78,16 @@ export function TrustBar({ inline = false }: TrustBarProps) {
         <TooltipTrigger asChild>
           <IconButton
             icon={Info}
-            label="Where does my data go?"
+            label="Data flow"
             variant="ghost"
             size="xs"
             {...(inline ? { className: 'hidden sm:inline-flex' } : {})}
-            title="What is this?"
+            title="Data flow"
             style={{ flexShrink: 0 }}
           />
         </TooltipTrigger>
         <TooltipContent side="bottom" style={{ maxWidth: 340, lineHeight: 1.5, zIndex: 'var(--kp-z-tooltip)' as unknown as number }}>
-          <p style={{ marginBottom: 4, fontWeight: 600 }}>Where does your data go?</p>
+          <p style={{ marginBottom: 4, fontWeight: 600 }}>Data flow</p>
           <p style={{ marginBottom: 6 }}>{egressTooltip}</p>
           <p style={{ color: 'var(--color-muted-foreground)' }}>{scopeSubtitle}</p>
         </TooltipContent>

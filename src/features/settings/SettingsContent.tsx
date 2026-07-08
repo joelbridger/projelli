@@ -6,12 +6,9 @@
  *   - Full-page in the main window as the "Settings" nav tab (under Activity Log).
  *
  * Layout:
- *   Left sidebar  — 5-section nav (Workspace / AI & Privacy / Voice / Advanced / Help)
- *   Right content — settings for the active section, grouped into COLLAPSIBLE
- *                   accordion sub-sections (one open at a time; first open by
- *                   default; a search match auto-expands the groups that match).
- *   Top           — cross-section search bar
- *   Bottom-right  — Export / Import / Reset buttons
+ *   Left sidebar  — section nav (Workspace / AI / Privacy / Voice / Advanced / Help)
+ *   Right content — a simple vertical stack of short section groups.
+ *   Top           — cross-section search bar + rare actions menu.
  *
  * Behavior preserved from the original SettingsModal:
  *   - Deep-link aliases: any legacy category id (general, ai, integrations…)
@@ -20,7 +17,6 @@
  *   - Export / Import / Reset.
  *
  * Added behavior:
- *   - Accordion sub-sections (one open at a time, first default-open).
  *   - The right content area scroll position resets to top on section change.
  */
 
@@ -83,9 +79,17 @@ import {
   RotateCcw,
   ExternalLink,
   Settings,
+  MoreHorizontal,
 } from 'lucide-react';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { InfoHelp } from '@/ui/InfoHelp';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import {
   settingTestid,
   SETTINGS_GROUP_SEARCH,
@@ -193,6 +197,7 @@ function SettingRow({
   onAction?: (actionId: string) => void;
 }) {
   const controlId = `setting-control-${def.key}`;
+  const showHelp = shouldShowSettingHelp(def);
 
   // Action link (e.g. "Manage API Keys")
   if (def.action) {
@@ -204,7 +209,7 @@ function SettingRow({
         <div className="flex-1 min-w-0 mr-4">
           <div className="flex items-center gap-1.5">
             <Label className="text-sm font-medium">{def.label}</Label>
-            <InfoHelp content={def.description} label={`About ${def.label}`} />
+            {showHelp && <InfoHelp content={def.description} label={`About ${def.label}`} />}
           </div>
         </div>
         <Button
@@ -291,7 +296,7 @@ function SettingRow({
           <Label htmlFor={controlId} className="text-sm font-medium cursor-pointer">
             {def.label}
           </Label>
-          <InfoHelp content={def.description} label={`About ${def.label}`} />
+          {showHelp && <InfoHelp content={def.description} label={`About ${def.label}`} />}
         </div>
       </div>
       <div className="shrink-0">{control}</div>
@@ -299,17 +304,44 @@ function SettingRow({
   );
 }
 
+const HELP_SETTING_KEYS = new Set([
+  'confidentialityMode',
+  'privilegedMatterMode',
+  'ambientFileContext',
+  'ambientContextTokenLimit',
+  'chatContextTokenLimit',
+  'keepRecentTurns',
+  'externalExportConsent',
+  'externalExportStaleDays',
+  'manageApiKeys',
+  'manageAIRules',
+  'memoryEnabled',
+  'factsInjection',
+  'factsAutoAccept',
+  'aiFileApprovalMode',
+  'includePdfsInWorkspaceIndex',
+  'ocrScannedPdfs',
+  'meetings.transcribeMode',
+  'meetings.noticePolicy',
+  'meetings.noticeScript',
+  'meetings.noticeCardEnabled',
+  'meetings.noticeCardNameTemplate',
+  'meetings.noticeEvidenceRule',
+]);
+
+function shouldShowSettingHelp(def: SettingDefinition): boolean {
+  if (def.action) return true;
+  return HELP_SETTING_KEYS.has(def.key);
+}
 
 // ---------------------------------------------------------------------------
-// Accordion sub-section
+// Settings group stack
 // ---------------------------------------------------------------------------
 
 /**
  * SubSection — one settings group. Its header label is rendered by the parent
- * AccordionSection as a horizontal tab; this component just renders the group's
- * content when its tab is active. `id` / `label` / `containsMatch` are read by
- * the parent (via child inspection) to build the tab strip and decide search
- * matches; they are not used in this component's own render.
+ * AccordionSection as a plain heading. `id` / `label` / `containsMatch` are
+ * read by the parent (via child inspection) to decide search matches.
  */
 interface SubSectionProps {
   id: string;
@@ -329,14 +361,8 @@ function SubSection({ testid, children }: SubSectionProps) {
 }
 
 /**
- * AccordionSection — despite the legacy name, renders a top-level section's
- * sub-sections as a row of horizontal tabs with one content panel below,
- * instead of an accordion. It reads each SubSection child's props
- * (id / label / testid / containsMatch) to build the tab strip. The first tab
- * is selected by default; while a search is active it jumps to the first
- * matching tab and dims the non-matching ones. The tab button keeps the
- * `${testid}-heading` test id (and an inner `${testid}` on the label) so the
- * existing `subheader-*` selectors still resolve.
+ * AccordionSection — legacy name, now a simple vertical stack. The left rail is
+ * the only navigation; these are just short headings inside the page.
  */
 function AccordionSection({
   ids: _ids,
@@ -366,49 +392,25 @@ function AccordionSection({
     [children]
   );
 
-  const [activeId, setActiveId] = useState<string>(items[0]?.id ?? '');
-
   const lowerQ = searchQuery.toLowerCase().trim();
   const isMatch = (it: { id: string; label: string; containsMatch: boolean }): boolean =>
     it.containsMatch || groupKeywordMatch(it.id, it.label, lowerQ);
-
-  // While searching, show the first matching tab; otherwise keep the user's
-  // selection (falling back to the first tab if it no longer exists).
-  const firstMatchId = searchActive ? items.find(isMatch)?.id : undefined;
-  const effectiveActive =
-    firstMatchId ?? (items.some((i) => i.id === activeId) ? activeId : items[0]?.id ?? '');
-  const activeItem = items.find((i) => i.id === effectiveActive);
+  const visibleItems = searchActive ? items.filter(isMatch) : items;
 
   return (
-    <div>
-      <div role="tablist" className="flex flex-wrap gap-1 border-b border-border/60 mb-5">
-        {items.map((it) => {
-          const active = it.id === effectiveActive;
-          const dim = searchActive && !isMatch(it);
-          return (
-            <button
-              key={it.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              {...(it.testid ? { 'data-testid': `${it.testid}-heading` } : {})}
-              onClick={() => { setActiveId(it.id); }}
-              className={cn(
-                'px-3 py-2 -mb-px border-b-2 transition-colors',
-                'text-xs font-semibold uppercase tracking-wide',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-t-sm',
-                active
-                  ? 'border-[var(--kp-navy)] text-[var(--kp-navy)]'
-                  : 'border-transparent text-muted-foreground hover:text-foreground',
-                dim && 'opacity-40'
-              )}
-            >
-              <span {...(it.testid ? { 'data-testid': it.testid } : {})}>{it.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      <div>{activeItem?.node}</div>
+    <div className="space-y-8">
+      {visibleItems.map((it) => (
+        <section key={it.id} aria-labelledby={`${it.id}-heading`} className="space-y-3">
+          <h3
+            id={`${it.id}-heading`}
+            {...(it.testid ? { 'data-testid': `${it.testid}-heading` } : {})}
+            className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+          >
+            <span {...(it.testid ? { 'data-testid': it.testid } : {})}>{it.label}</span>
+          </h3>
+          {it.node}
+        </section>
+      ))}
     </div>
   );
 }
@@ -565,7 +567,7 @@ function WorkspaceSection(props: SectionProps) {
         </SubSection>
         <SubSection
           id="ws-files"
-          label="Files and Workspace"
+          label="Files"
           testid="subheader-files"
           containsMatch={anyMatch(filesKeys, props)}
         >
@@ -576,7 +578,7 @@ function WorkspaceSection(props: SectionProps) {
   );
 }
 
-function AiPrivacySection(props: SectionProps) {
+function AiSection(props: SectionProps) {
   // Token-limit keys go under a collapsed "Advanced" group (NEW-016): non-technical
   // advisors shouldn't see raw token numbers up front.
   const aiMainKeys     = ['ambientFileContext', 'keepRecentTurns', 'manageApiKeys', 'manageAIRules'];
@@ -590,18 +592,10 @@ function AiPrivacySection(props: SectionProps) {
   const showAdvancedRows = advancedOpen || advancedHasSearchMatch;
 
   const aiMatch = anyMatch(['confidentialityMode', 'privilegedMatterMode', ...aiMainKeys, ...aiAdvancedKeys], props);
-  // Privacy has no schema keys (rendered by PrivacySettings); treat as a match
-  // unless the search clearly has nothing AI/memory either (keep it reachable).
-  const privacyMatch = !props.searchActive
-    || ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt', 'notice', 'recording', 'consent', 'strict', 'standard', 'spoken', 'script', 'policy']
-        .some((kw) => props.searchQuery.toLowerCase().includes(kw))
-    // Also match the notice settings' own schema label/description text (the
-    // control is custom-rendered, so it isn't covered by renderRows) — codex-review R5.
-    || anyMatch(['meetings.noticePolicy', 'meetings.noticeScript'], props);
 
   return (
-    <div data-testid="section-ai-privacy">
-      <AccordionSection ids={['aip-ai', 'aip-memory', 'aip-privacy']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
+    <div data-testid="section-ai">
+      <AccordionSection ids={['aip-ai', 'aip-memory']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="aip-ai"
           label="AI"
@@ -647,16 +641,40 @@ function AiPrivacySection(props: SectionProps) {
           {renderRows(memoryKeys, props)}
           <MemoryFactsSettings />
         </SubSection>
+      </AccordionSection>
+    </div>
+  );
+}
+
+function PrivacySection(props: SectionProps) {
+  const noticeKeys = ['meetings.noticePolicy', 'meetings.noticeScript'];
+  const lowerQ = props.searchQuery.toLowerCase();
+  const privacyMatch = !props.searchActive
+    || ['privacy', 'telemetry', 'tracking', 'data', 'anonymous', 'opt', 'consent', 'data map']
+        .some((kw) => lowerQ.includes(kw));
+  const noticeMatch = !props.searchActive
+    || ['notice', 'recording', 'strict', 'standard', 'spoken', 'script', 'policy', 'meeting']
+        .some((kw) => lowerQ.includes(kw))
+    || anyMatch(noticeKeys, props);
+
+  return (
+    <div data-testid="section-privacy">
+      <AccordionSection ids={['privacy-core', 'privacy-recording']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
-          id="aip-privacy"
+          id="privacy-core"
           label="Privacy"
           testid="subheader-privacy"
           containsMatch={privacyMatch}
         >
           <PrivacySettings />
-          <div style={{ marginTop: 24 }}>
-            <RecordingNoticeSettings />
-          </div>
+        </SubSection>
+        <SubSection
+          id="privacy-recording"
+          label="Recording notice"
+          testid="subheader-recording-notice"
+          containsMatch={noticeMatch}
+        >
+          <RecordingNoticeSettings />
         </SubSection>
       </AccordionSection>
     </div>
@@ -694,7 +712,7 @@ function VoiceSection(props: SectionProps) {
         </SubSection>
         <SubSection
           id="voice-tts"
-          label="Text to Speech"
+          label="Text to speech"
           testid="subheader-tts"
           containsMatch={anyMatch(ttsKeys, props)}
         >
@@ -782,7 +800,7 @@ function HelpSection(props: SectionProps) {
       <AccordionSection ids={['adv-shortcuts', 'adv-setup', 'adv-about']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="adv-shortcuts"
-          label="Keyboard Shortcuts"
+          label="Shortcuts"
           testid="subheader-shortcuts"
           containsMatch={anyShortcutMatch}
         >
@@ -815,6 +833,57 @@ function HelpSection(props: SectionProps) {
         </SubSection>
       </AccordionSection>
     </div>
+  );
+}
+
+function SettingsActionsMenu({
+  onExport,
+  onImport,
+  onReset,
+}: {
+  onExport: () => void;
+  onImport: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          icon={MoreHorizontal}
+          label="More settings actions"
+          variant="secondary"
+          size="md"
+          data-testid="settings-actions-menu"
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuItem
+          data-testid="settings-export"
+          className="gap-2"
+          onSelect={() => { onExport(); }}
+        >
+          <Download className="h-4 w-4" aria-hidden />
+          Export settings
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          data-testid="settings-import"
+          className="gap-2"
+          onSelect={() => { onImport(); }}
+        >
+          <Upload className="h-4 w-4" aria-hidden />
+          Import settings
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          data-testid="settings-reset"
+          className="gap-2 text-destructive focus:text-destructive"
+          onSelect={() => { onReset(); }}
+        >
+          <RotateCcw className="h-4 w-4" aria-hidden />
+          Reset settings...
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -915,7 +984,7 @@ export function SettingsContent({
   // in its description, and "language" lands on General rather than Voice.
   const sectionScores = useMemo<Record<SectionCategory, number>>(() => {
     const scores: Record<SectionCategory, number> = {
-      workspace: 0, 'ai-privacy': 0, voice: 0, advanced: 0, help: 0,
+      workspace: 0, ai: 0, privacy: 0, voice: 0, advanced: 0, help: 0,
     };
     const lowerQ = searchQuery.toLowerCase().trim();
     if (!lowerQ) return scores;
@@ -943,7 +1012,7 @@ export function SettingsContent({
   // Which sections have any match (score > 0).
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
     if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(['workspace', 'ai-privacy', 'voice', 'advanced', 'help']);
+      return new Set<SectionCategory>(['workspace', 'ai', 'privacy', 'voice', 'advanced', 'help']);
     }
     const sections = new Set<SectionCategory>();
     (Object.keys(sectionScores) as SectionCategory[]).forEach((sec) => {
@@ -956,7 +1025,7 @@ export function SettingsContent({
   // current section is already a top match (so typing doesn't yank you around).
   const effectiveSection: SectionCategory = (() => {
     if (!searchActive) return activeSection;
-    const order: SectionCategory[] = ['workspace', 'ai-privacy', 'voice', 'advanced', 'help'];
+    const order: SectionCategory[] = ['workspace', 'ai', 'privacy', 'voice', 'advanced', 'help'];
     const maxScore = Math.max(...order.map((s) => sectionScores[s]));
     if (maxScore <= 0) return activeSection;
     if (sectionScores[activeSection] === maxScore) return activeSection;
@@ -1073,6 +1142,11 @@ export function SettingsContent({
                 size="md"
                 style={{ flex: 1, minWidth: 240 }}
               />
+              <SettingsActionsMenu
+                onExport={handleExport}
+                onImport={handleImport}
+                onReset={handleReset}
+              />
             </SurfaceToolbar>
           </>
         )}
@@ -1087,6 +1161,11 @@ export function SettingsContent({
               onChange={(v) => { setSearchQuery(v); }}
               onClear={() => { setSearchQuery(''); }}
               size="md"
+            />
+            <SettingsActionsMenu
+              onExport={handleExport}
+              onImport={handleImport}
+              onReset={handleReset}
             />
             <IconButton
               icon={X}
@@ -1137,12 +1216,9 @@ export function SettingsContent({
               );
             })}
 
-            {/* Nested surfaces (Privacy Center / Activity Log) appended below
-                the schema sections, separated by a divider so they read as
-                distinct destinations rather than more preferences. */}
+            {/* Extra surfaces (Privacy Center / Activity Log) use the same left rail. */}
             {extraSections && extraSections.length > 0 && (
               <>
-                <div className="my-2 mx-6 border-t border-border/60" aria-hidden="true" />
                 {extraSections.map((sec) => {
                   const isActive = viewingExtra && activeExtraId === sec.id;
                   return (
@@ -1176,8 +1252,10 @@ export function SettingsContent({
               activeExtra.content
             ) : activeSection === 'workspace' ? (
               <WorkspaceSection {...sectionProps} />
-            ) : activeSection === 'ai-privacy' ? (
-              <AiPrivacySection {...sectionProps} />
+            ) : activeSection === 'ai' ? (
+              <AiSection {...sectionProps} />
+            ) : activeSection === 'privacy' ? (
+              <PrivacySection {...sectionProps} />
             ) : activeSection === 'voice' ? (
               <VoiceSection {...sectionProps} />
             ) : activeSection === 'advanced' ? (
@@ -1187,44 +1265,13 @@ export function SettingsContent({
             )}
           </div>
         </div>
-
-        {/* Footer */}
-        <div className="shrink-0 border-t px-8 py-4 flex items-center justify-end gap-2">
-          <Button
-            data-testid="settings-export"
-            variant="secondary"
-            size="sm"
-            iconLeft={Download}
-            onClick={handleExport}
-          >
-            {t('settings.modal.export')}
-          </Button>
-          <Button
-            data-testid="settings-import"
-            variant="secondary"
-            size="sm"
-            iconLeft={Upload}
-            onClick={handleImport}
-          >
-            {t('settings.modal.import')}
-          </Button>
-          <Button
-            data-testid="settings-reset"
-            variant="danger"
-            size="sm"
-            iconLeft={RotateCcw}
-            onClick={handleReset}
-          >
-            {t('settings.modal.reset')}
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            className="hidden"
-            onChange={handleImportFile}
-          />
-        </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".json"
+          className="hidden"
+          onChange={handleImportFile}
+        />
       </div>
       {showApiKeyTutorial && (
         <ApiKeyWizard

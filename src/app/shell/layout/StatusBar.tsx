@@ -7,7 +7,7 @@ import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { isDocxUnsaved, subscribeDocxSaveRegistry, getDocxSaveVersion } from '@/platform/fs/docxSaveRegistry';
 import { cn } from '@/lib/utils';
-import { FolderOpen, File, Edit, ChevronRight, Bug, ShieldOff } from 'lucide-react';
+import { FolderOpen, Edit, ChevronRight, Bug, ShieldOff } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -180,6 +180,8 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
   // Declared here (below the egress effect) purely to keep unrelated lines stable.
   useSyncExternalStore(subscribeDocxSaveRegistry, getDocxSaveVersion, getDocxSaveVersion);
   const activeTabModified = !!activeTab && (activeTab.isDirty || isDocxUnsaved(activeTab.path));
+  const showTrialInStatus =
+    !!onOpenSettings && !isActivated && (trial.isExpired || trial.daysRemaining <= 3);
 
   const projectName = getProjectName(rootPath, t('layout.status-bar.no-workspace'));
 
@@ -330,35 +332,14 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
       {/* Right-side cluster. gap-4 gives every segment consistent breathing
           room so nothing feels mashed together (v1.6 rc.6). */}
       <div className="flex items-center gap-4">
-        {/* F4b: show a calm informational chip when there's plenty of trial
-            time left (5+ days, unactivated). The full TrialStatusChip (with
-            its "· Upgrade" CTA) is reserved for the urgent states: low days,
-            expired, or activated license confirmation. */}
-        {onOpenSettings && !isActivated && !trial.isExpired && trial.daysRemaining >= 5 ? (
-          <button
-            type="button"
-            data-testid="status-bar-trial-chip"
-            data-trial-tone="amber"
-            onClick={onOpenSettings}
-            title="View license settings"
-            className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium transition-colors bg-amber-50 text-amber-800 hover:bg-amber-100"
-          >
-            Free trial, {trial.daysRemaining} days left
-          </button>
-        ) : onOpenSettings ? (
+        {/* Non-urgent trial details live in the account surface; the status bar
+            only keeps urgent trial warnings. */}
+        {showTrialInStatus ? (
           <TrialStatusChip onClick={onOpenSettings} />
         ) : null}
 
         {showFileContext && activeTab && (
           <>
-            <div
-              data-testid="status-bar-active-file"
-              className="flex items-center gap-1"
-            >
-              <File className="h-3 w-3" />
-              <span className="truncate max-w-[200px]">{activeTab.name}</span>
-            </div>
-
             {activeTabModified && (
               <div
                 data-testid="status-bar-modified"
@@ -389,7 +370,7 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
             }
           >
             <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
-            <span className="truncate">{t('privacy.privileged-matter.badge')}</span>
+            <span className="truncate">Isolated client</span>
           </div>
         )}
 

@@ -40,16 +40,12 @@ export function PrivacySettings() {
         />
       </div>
 
-      {/* WS-C — the data map: a plain-English, printable account of where data
-          goes, reachable from Privacy (and from Settings → AI). */}
-      <div className="rounded-lg border border-border bg-card p-6 space-y-3">
-        <div className="flex items-center gap-1.5">
-          <h3 className="text-base font-semibold">{t('settings.privacy.data-map.title')}</h3>
-          <InfoHelp
-            content={t('settings.privacy.data-map.description')}
-            label={`About ${t('settings.privacy.data-map.title')}`}
-          />
-        </div>
+      {/* WS-C — a compact doorway to the printable Data Map. */}
+      <div className="flex items-center justify-between gap-3 border-b border-border/50 pb-3">
+        <span className="inline-flex items-center gap-1.5 text-sm font-medium">
+          <MapPin className="h-4 w-4 text-muted-foreground" aria-hidden />
+          Data Map
+        </span>
         <Button
           data-testid="privacy-open-data-map"
           variant="outline"
@@ -59,8 +55,7 @@ export function PrivacySettings() {
             setDataMapOpen(true);
           }}
         >
-          <MapPin className="h-4 w-4" />
-          {t('settings.privacy.data-map.cta')}
+          Open Data Map
         </Button>
       </div>
 

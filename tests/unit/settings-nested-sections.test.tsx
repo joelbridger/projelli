@@ -2,7 +2,7 @@
  * SettingsContent — nested extra sections (newNav).
  *
  * In the 3-tab IA the gear opens the Settings screen, and Privacy Center +
- * Activity Log are nested as sections in that screen's left nav. They are
+ * Activity Log live as normal items in that screen's left nav. They are
  * passed in via the `extraSections` prop (so SettingsContent stays decoupled
  * from those surfaces' data wiring). When the prop is omitted — the default /
  * flag-off path — the Settings screen is byte-for-byte unchanged (5 sections).
@@ -29,7 +29,7 @@ const extraSections = [
 ];
 
 describe('SettingsContent — nested extra sections (newNav)', () => {
-  it('renders the extra section nav buttons alongside the 5 standard sections', () => {
+  it('renders the extra section nav buttons alongside the 6 standard sections', () => {
     render(<SettingsContent variant="page" extraSections={extraSections} />);
     expect(screen.getByTestId('settings-category-privacy-center')).toBeInTheDocument();
     expect(screen.getByTestId('settings-category-activity-log')).toBeInTheDocument();
@@ -65,12 +65,12 @@ describe('SettingsContent — nested extra sections (newNav)', () => {
     expect(screen.getByTestId('settings-category-workspace').getAttribute('aria-current')).toBe('page');
   });
 
-  it('without extraSections, only the 5 standard sections render (flag-off unchanged)', () => {
+  it('without extraSections, only the 6 standard sections render', () => {
     render(<SettingsContent variant="page" />);
     const navBtns = screen
       .getAllByRole('button')
       .filter((b) => (b.getAttribute('data-testid') ?? '').startsWith('settings-category-'));
-    expect(navBtns).toHaveLength(5);
+    expect(navBtns).toHaveLength(6);
     expect(screen.queryByTestId('settings-category-privacy-center')).not.toBeInTheDocument();
     expect(screen.queryByTestId('settings-category-activity-log')).not.toBeInTheDocument();
   });

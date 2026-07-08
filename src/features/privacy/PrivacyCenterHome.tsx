@@ -1,5 +1,5 @@
 /**
- * PrivacyCenterHome — "Where your data is" full-page surface.
+ * PrivacyCenterHome — full-page privacy surface.
  *
  * A native full-page surface following the AuditHome pattern:
  * SurfaceHeader, live egress status, the DataMapContent, and a
@@ -8,12 +8,18 @@
  * Also surfaces the "Generate a security overview for my firm" button that
  * opens the FirmSecurityPack — the printable trust document for IT / GC.
  */
-import { useState, useCallback } from 'react';
-import { Lock, FileText } from 'lucide-react';
+import { useState, useCallback, useRef } from 'react';
+import { Lock, FileText, MapPin, MoreHorizontal } from 'lucide-react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { Button } from '@/ui/kp';
+import { Button, IconButton } from '@/ui/kp';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
 import { VaultControlCard } from '@/features/firm/vault/VaultControlCard';
 import { ConfidentialityReportDialog } from '@/platform/privacy/ui/ConfidentialityReportDialog';
@@ -33,6 +39,7 @@ export interface PrivacyCenterHomeProps {
 export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterHomeProps) {
   const [reportOpen, setReportOpen] = useState(false);
   const [firmPackOpen, setFirmPackOpen] = useState(false);
+  const dataMapSectionRef = useRef<HTMLElement | null>(null);
   const confidentialityMode = useConfidentialityMode();
   const activeProvider = useActiveEgressProvider(confidentialityMode);
   const [builtReport, setBuiltReport] = useState<ConfidentialityReport | null>(null);
@@ -51,6 +58,10 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
     setBuiltReport(buildReport());
     setReportOpen(true);
   }, [buildReport]);
+
+  const handleOpenDataMap = useCallback(() => {
+    dataMapSectionRef.current?.scrollIntoView({ block: 'start' });
+  }, []);
 
   return (
     <div
@@ -71,30 +82,52 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
       <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
         <SurfaceHeader
           Icon={Lock}
-          title="Where your data is"
+          title="Privacy Center"
           actions={
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              {/* eslint-disable lantern-i18n/no-hardcoded-string -- trust-document button copy, English-canonical */}
-              <Button
-                variant="secondary"
-                size="sm"
-                data-testid="privacy-center-firm-pack-button"
-                onClick={() => { setFirmPackOpen(true); }}
-              >
-                <FileText className="h-3.5 w-3.5 mr-1.5" />
-                Generate a security overview for my firm
-              </Button>
-              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-              <Button
-                variant="primary"
-                size="sm"
-                data-testid="privacy-center-report-button"
-                onClick={handleOpenReport}
-              >
-                {activeMatter
-                  ? `Confidentiality Report for ${activeMatter.name}`
-                  : 'Confidentiality Report'}
-              </Button>
+              {activeMatter ? (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  data-testid="privacy-center-report-button"
+                  onClick={handleOpenReport}
+                >
+                  Confidentiality Report
+                </Button>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  data-testid="privacy-center-open-data-map-button"
+                  onClick={handleOpenDataMap}
+                >
+                  <MapPin className="h-3.5 w-3.5 mr-1.5" />
+                  Open Data Map
+                </Button>
+              )}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton
+                    icon={MoreHorizontal}
+                    label="More privacy actions"
+                    variant="secondary"
+                    size="sm"
+                    data-testid="privacy-center-actions-menu"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  {/* eslint-disable lantern-i18n/no-hardcoded-string -- trust-document button copy, English-canonical */}
+                  <DropdownMenuItem
+                    data-testid="privacy-center-firm-pack-button"
+                    className="gap-2"
+                    onSelect={() => { setFirmPackOpen(true); }}
+                  >
+                    <FileText className="h-4 w-4" aria-hidden />
+                    Generate a security overview for my firm
+                  </DropdownMenuItem>
+                  {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           }
         />
@@ -113,7 +146,7 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
         }}
       >
         <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
-          Current mode:
+          Mode
         </span>
         <EgressIndicator provider={activeProvider} mode={confidentialityMode} variant="compact" />
         {activeMatter && (
@@ -128,37 +161,23 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
         data-testid="privacy-center-scroll"
         style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 'var(--kp-space-md) var(--kp-gutter)' }}
       >
-        <VaultControlCard />
         <section
+          ref={dataMapSectionRef}
           data-testid="privacy-center-data-map-section"
           aria-labelledby="privacy-center-data-map-heading"
           style={{ maxWidth: 920 }}
         >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string -- fixed-English trust-document label */}
           <h2
             id="privacy-center-data-map-heading"
-            style={{
-              margin: '0 0 var(--kp-space-xs)',
-              fontSize: 'var(--kp-font-lg)',
-              fontWeight: 'var(--kp-weight-semibold)',
-              color: 'var(--kp-navy)',
-            }}
+            className="sr-only"
           >
             Data Map
           </h2>
-          <p
-            style={{
-              margin: '0 0 var(--kp-space-md)',
-              fontSize: 'var(--kp-font-sm)',
-              color: 'var(--color-muted-foreground)',
-              maxWidth: 720,
-            }}
-          >
-            A plain-English map of what stays on this computer and what can leave it.
-          </p>
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
           <DataMapContent variant="expanded" />
         </section>
+        <div style={{ marginTop: 'var(--kp-space-md)' }}>
+          <VaultControlCard />
+        </div>
       </div>
 
       {/* Confidentiality Report dialog */}
