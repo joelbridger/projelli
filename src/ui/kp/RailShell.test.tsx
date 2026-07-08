@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RailShell, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
@@ -12,6 +12,38 @@ const ITEMS = [
 
 function getRailRow(label: string): HTMLElement {
   return screen.getByRole('option', { name: new RegExp(label, 'i') });
+}
+
+function installVirtualRailLayout() {
+  const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+  const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+  const scrollToDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'scrollTo');
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 520; } });
+  Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 280; } });
+  Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+    configurable: true,
+    value(this: HTMLElement, options?: ScrollToOptions | number, y?: number) {
+      this.scrollTop = typeof options === 'number' ? y ?? 0 : options?.top ?? this.scrollTop;
+      const element = this;
+      queueMicrotask(() => {
+        element.dispatchEvent(new Event('scroll'));
+      });
+    },
+  });
+
+  return () => {
+    if (heightDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
+    }
+    if (widthDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
+    }
+    if (scrollToDescriptor) {
+      Object.defineProperty(HTMLElement.prototype, 'scrollTo', scrollToDescriptor);
+    } else {
+      delete (HTMLElement.prototype as Partial<HTMLElement>).scrollTo;
+    }
+  };
 }
 
 describe('RailShell', () => {
@@ -44,6 +76,40 @@ describe('RailShell', () => {
 
     fireEvent.click(getRailRow('Client email'));
     expect(onSelect).toHaveBeenCalledWith('email');
+  });
+
+  it('can opt into rendering only the visible row window for large lists', async () => {
+    const restoreVirtualRailLayout = installVirtualRailLayout();
+
+    try {
+      const items = Array.from({ length: 200 }, (_, index) => ({
+        id: `item-${String(index)}`,
+        label: `Client item ${String(index)}`,
+        testId: `virtual-rail-row-${String(index)}`,
+      }));
+
+      render(
+        <RailShell
+          header={<RailShellHeader title="Client work" />}
+          listAriaLabel="Client work"
+          items={items}
+          activeId="item-0"
+          onSelect={() => {}}
+          virtualization={{ enabled: true, estimateSize: 44, overscan: 2 }}
+        >
+          <section>Selected detail</section>
+        </RailShell>,
+      );
+
+      await waitFor(() => {
+        const rows = screen.getAllByTestId(/^virtual-rail-row-/);
+        expect(rows.length).toBeGreaterThan(0);
+        expect(rows.length).toBeLessThan(200);
+      });
+      expect(screen.queryByText('Client item 199')).toBeNull();
+    } finally {
+      restoreVirtualRailLayout();
+    }
   });
 
   it('scrolls the active row into view when selection changes', () => {
@@ -111,6 +177,58 @@ describe('RailShell', () => {
     expect(notesRow.getAttribute('tabindex')).toBe('0');
     expect(emailRow.getAttribute('tabindex')).toBe('-1');
     expect(document.activeElement).toBe(notesRow);
+  });
+
+  it('moves keyboard focus with End-key selection in a virtualized rail', async () => {
+    const restoreVirtualRailLayout = installVirtualRailLayout();
+
+    try {
+      const items = Array.from({ length: 200 }, (_, index) => ({
+        id: `item-${String(index)}`,
+        label: `Client item ${String(index)}`,
+        testId: `virtual-focus-row-${String(index)}`,
+      }));
+
+      function VirtualKeyboardHarness() {
+        const [activeId, setActiveId] = useState('item-0');
+        return (
+          <RailShell
+            header={<RailShellHeader title="Client work" />}
+            listAriaLabel="Client work"
+            items={items}
+            activeId={activeId}
+            onSelect={setActiveId}
+            virtualization={{ enabled: true, estimateSize: 44, overscan: 2 }}
+          >
+            <section>{activeId}</section>
+          </RailShell>
+        );
+      }
+
+      render(<VirtualKeyboardHarness />);
+
+      await waitFor(() => {
+        expect(screen.getAllByTestId(/^virtual-focus-row-/).length).toBeGreaterThan(0);
+      });
+      const firstRow = screen.getByTestId('virtual-focus-row-0');
+      expect(screen.queryByTestId('virtual-focus-row-199')).toBeNull();
+      firstRow.focus();
+
+      fireEvent.keyDown(firstRow, { key: 'End' });
+      const list = screen.getByRole('listbox', { name: 'Client work' }) as HTMLElement;
+      const virtualCanvas = list.firstElementChild as HTMLElement | null;
+      list.scrollTop = Number.parseFloat(virtualCanvas?.style.height ?? '') || 1_000_000;
+      fireEvent.scroll(list);
+
+      await waitFor(() => {
+        const lastRow = screen.getByTestId('virtual-focus-row-199');
+        expect(lastRow.getAttribute('aria-selected')).toBe('true');
+        expect(lastRow.getAttribute('tabindex')).toBe('0');
+        expect(document.activeElement).toBe(lastRow);
+      });
+    } finally {
+      restoreVirtualRailLayout();
+    }
   });
 
   it('does not steal clicks from controls inside custom row content', () => {

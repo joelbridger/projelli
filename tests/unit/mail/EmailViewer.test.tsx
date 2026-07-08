@@ -18,6 +18,7 @@ const mockMailGetMessage = vi.fn();
 const mockMailGetAttachment = vi.fn();
 const mockMailRetagMessageMatter = vi.fn();
 const mockMailSend = vi.fn();
+const mockSetPrivilege = vi.fn();
 
 vi.mock('@/platform/utils/mail-commands', () => ({
   get mailGetMessage() { return mockMailGetMessage; },
@@ -34,7 +35,7 @@ vi.mock('@/platform/matter/matterStore', () => ({
 }));
 
 vi.mock('@/platform/firm/privilegeStore', () => ({
-  usePrivilegeStore: vi.fn(() => vi.fn()),
+  usePrivilegeStore: vi.fn(() => mockSetPrivilege),
   usePrivilegeForSource: vi.fn(() => 'none'),
 }));
 
@@ -148,6 +149,26 @@ describe('EmailViewer', () => {
     // The raw message id must NOT appear in user-facing copy (fix: no id leak).
     expect(err).not.toHaveTextContent('id:');
     expect(err).toHaveTextContent('message not found');
+  });
+
+  it('keeps sensitivity and file-to-matter actions available when the message body cannot load', async () => {
+    mockMailGetMessage.mockRejectedValue(new Error('message not found'));
+    mockMailRetagMessageMatter.mockResolvedValue(undefined);
+
+    render(<EmailViewer sourceId="mail:missing" />);
+
+    await screen.findByTestId('email-viewer-error');
+    expect(screen.getByTestId('email-privilege-control')).toBeInTheDocument();
+    expect(screen.getByTestId('email-file-to-matter')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('email-privilege-option-attorney-client'));
+    expect(mockSetPrivilege).toHaveBeenCalledWith('mail:missing', 'attorney-client');
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId('file-to-matter-btn-m1'));
+    });
+
+    await waitFor(() => expect(mockMailRetagMessageMatter).toHaveBeenCalledWith('missing', 'm1'));
   });
 
   it('stripResidualTags removes angle-bracket markup but keeps text', () => {

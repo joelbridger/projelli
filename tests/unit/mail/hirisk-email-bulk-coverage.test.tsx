@@ -47,6 +47,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 import {
   mailListMessages,
+  mailGetMessage,
   mailConnectedAccounts,
   mailRetagMessageMatter,
   mailRetagFolderMatter,
@@ -57,6 +58,7 @@ import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 
 const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
+const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>;
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockMailRetagMessageMatter = mailRetagMessageMatter as ReturnType<typeof vi.fn>;
 const mockMailRetagFolderMatter = mailRetagFolderMatter as ReturnType<typeof vi.fn>;
@@ -115,6 +117,24 @@ describe('High-risk email coverage', () => {
       items: messages,
       total: messages.length,
     });
+    mockMailGetMessage.mockImplementation((sourceId: string) => {
+      const id = sourceId.startsWith('mail:') ? sourceId.slice('mail:'.length) : sourceId;
+      const item = messages.find((candidate) => candidate.id === id) ?? messages[0]!;
+      return Promise.resolve({
+        id: item.id,
+        subject: item.subject,
+        from: item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr,
+        to: ['advisor@example.com'],
+        cc: [],
+        date: item.receivedDateTime,
+        provider: item.provider,
+        account: item.account,
+        body: item.snippet,
+        hasAttachments: item.hasAttachments,
+        attachments: [],
+        matterId: null,
+      });
+    });
     mockMailRetagMessageMatter.mockResolvedValue(undefined);
     mockMailRetagFolderMatter.mockResolvedValue(0);
     mockUseActiveMatter.mockReturnValue(null);
@@ -149,12 +169,10 @@ describe('High-risk email coverage', () => {
     render(<EmailWorkspace />);
     await waitForInitialEmailLoad();
 
-    expect(screen.getAllByTestId('mail-row')).toHaveLength(2);
+    expect(screen.getAllByTestId(/^email-rail-row-/)).toHaveLength(2);
 
-    fireEvent.mouseEnter(screen.getByText('Contract draft - please review').closest('[data-testid="mail-row"]')!);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Contract draft - please review' }));
 
-    fireEvent.mouseEnter(screen.getByText('Deposition schedule').closest('[data-testid="mail-row"]')!);
     fireEvent.click(screen.getByRole('checkbox', { name: 'Select Deposition schedule' }));
 
     expect(screen.getByTestId('bulk-action-bar')).toHaveTextContent('2 selected');
@@ -163,7 +181,7 @@ describe('High-risk email coverage', () => {
     expect(screen.getByTestId('bulk-matter-picker-search')).toBeInTheDocument();
 
     await act(async () => {
-      fireEvent.click(screen.getByRole('button', { name: 'Acme v. Beta - Acme Corp' }));
+      fireEvent.click(screen.getByTestId('bulk-matter-choice-matter-acme'));
       await Promise.resolve();
       await Promise.resolve();
     });

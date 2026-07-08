@@ -1,25 +1,10 @@
 /**
- * Perf (P2.2) — EmailWorkspace / MailRow render hygiene measurement.
+ * EmailWorkspace rail-shell regression tests.
  *
- * Two properties, measured directly (not vibes) — call counts of
- * `usePrivilegeForSource` (the first hook MailRow calls) as an exact proxy
- * for "did this specific MailRow instance actually render", since a
- * `React.Profiler` around the whole tree can't distinguish "1 row
- * re-rendered" from "20 rows re-rendered" (`onRender` fires once per commit
- * of the wrapped subtree, not once per component instance inside it):
- *
- *  1. Memoization: (a) MailRow in isolation skips re-rendering when given
- *     an identical-props re-render, and still re-renders on a genuine prop
- *     change; (b) end-to-end through EmailWorkspace, selecting a SECOND row
- *     (when `anySelected` is already true, so only that one row's
- *     `selected` prop actually changes) re-renders only that one row.
- *  2. Virtualization: with a busy inbox (200 rows, at the documented page
- *     size), only a small window of rows near the scroll container's
- *     visible height are ever mounted — not all 200 — while the reported
- *     "Showing N" count still reflects the true total.
- *
- * Reuses the same module mocks as ReimaginedEmailWorkspace.test.tsx so the
- * EmailWorkspace-level tests exercise the SAME component, not a stub.
+ * The standalone MailRow memo test stays here because MailRow still exists for
+ * legacy readers. The EmailWorkspace-level tests now guard the WP4 master-detail
+ * layout: rail rows on the left, selected email detail on the right, bulk
+ * selection, overflow filters, and embedded client refetch behavior.
  */
 
 /// <reference types="@testing-library/jest-dom" />
@@ -30,6 +15,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
   mailListMessages: vi.fn(),
   mailListMessagesByMatter: vi.fn(),
   mailGetMessage: vi.fn(),
+  mailGetAttachment: vi.fn(),
   mailConnectedAccounts: vi.fn(),
   mailRetagFolderMatter: vi.fn(),
   mailRetagMessageMatter: vi.fn(),
@@ -65,6 +51,7 @@ vi.mock('@/platform/rag/matterResolver', () => ({
 import {
   mailListMessages,
   mailListMessagesByMatter,
+  mailGetMessage,
   mailConnectedAccounts,
 } from '@/platform/utils/mail-commands';
 import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
@@ -92,6 +79,7 @@ function makeItems(count: number) {
 }
 
 const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
+const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>;
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockUseActiveMatter = useActiveMatter as ReturnType<typeof vi.fn>;
 const mockUseMatters = useMatters as ReturnType<typeof vi.fn>;
@@ -102,6 +90,24 @@ function setupMocks(items: ReturnType<typeof makeItems>) {
   vi.clearAllMocks();
   mockMailConnectedAccounts.mockResolvedValue(FIXTURE_ACCOUNTS);
   mockMailListMessages.mockResolvedValue({ items, total: items.length });
+  mockMailGetMessage.mockImplementation((sourceId: string) => {
+    const id = sourceId.startsWith('mail:') ? sourceId.slice('mail:'.length) : sourceId;
+    const item = items.find((candidate) => candidate.id === id) ?? items[0]!;
+    return Promise.resolve({
+      id: item.id,
+      subject: item.subject,
+      from: item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr,
+      to: ['me@firm.com'],
+      cc: [],
+      date: item.receivedDateTime,
+      provider: item.provider,
+      account: item.account,
+      body: item.snippet,
+      hasAttachments: item.hasAttachments,
+      attachments: [],
+      matterId: null,
+    });
+  });
   mockUseActiveMatter.mockReturnValue(null);
   mockUseMatters.mockReturnValue([]);
   (usePrivilegeStore as unknown as ReturnType<typeof vi.fn>).mockReturnValue(vi.fn());
@@ -118,15 +124,29 @@ async function waitForInitialLoad() {
   });
 }
 
+async function flushEmailDetail() {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(50);
+  });
+}
+
+async function openEmailActionsMenu() {
+  fireEvent.pointerDown(screen.getByTestId('email-more-actions'), { button: 0 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
 
 afterEach(() => {
+  window.history.pushState({}, '', '/');
   vi.useRealTimers();
 });
 
-describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
+describe('EmailWorkspace rail-shell regression coverage', () => {
   // Isolated MailRow memoization test. A `React.Profiler` around
   // EmailWorkspace can't tell "1 row re-rendered" from "20 rows
   // re-rendered" — `onRender` fires once per COMMIT of the wrapped subtree,
@@ -162,48 +182,55 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     expect(mockUsePrivilegeForSource).toHaveBeenCalledTimes(2);
   });
 
-  // End-to-end version of the same property, through the real EmailWorkspace
-  // + selection flow: selecting a SECOND row (when `anySelected` is already
-  // true, so only that one row's `selected` prop actually changes) must not
-  // force every OTHER visible row to do render work — verified via the same
-  // usePrivilegeForSource-call-count proxy, counted per row via the id
-  // argument each row passes to it (`mail:<id>`).
-  it('selecting a second row does not re-render every other visible row', async () => {
-    const items = makeItems(20); // below the virtualize threshold — every row is really in the DOM
+  it('EmailWorkspace renders rail rows and the selected email detail', async () => {
+    const items = makeItems(20);
     setupMocks(items);
-    const mockUsePrivilegeForSource = usePrivilegeForSource as ReturnType<typeof vi.fn>;
-    mockUsePrivilegeForSource.mockReturnValue('none');
 
     render(<EmailWorkspace />);
     await waitForInitialLoad();
-    expect(screen.getAllByTestId('mail-row')).toHaveLength(20);
+    expect(screen.getAllByTestId(/^email-rail-row-/)).toHaveLength(20);
+    expect(screen.queryByTestId('mail-row')).not.toBeInTheDocument();
 
-    // Select row 0 — this flips `anySelected` false -> true for every row,
-    // so a re-render of all rows here is CORRECT, not a bug.
+    await flushEmailDetail();
+    expect(screen.getByTestId('email-viewer-subject')).toHaveTextContent('Message 0');
+  });
+
+  it('shows a browser-demo preview instead of the desktop-only reader error for mail fixtures', async () => {
+    const items = makeItems(2);
+    setupMocks(items);
+    window.history.pushState({}, '', '/?mailFixture=1');
+
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+
+    expect(screen.getByText('Demo preview')).toBeInTheDocument();
+    expect(screen.getAllByText('This is the body snippet for message 0.')).toHaveLength(2);
+    expect(screen.queryByTestId('email-viewer-error')).not.toBeInTheDocument();
+  });
+
+  it('rail checkboxes support bulk selection without changing the active email', async () => {
+    const items = makeItems(10);
+    setupMocks(items);
+
+    render(<EmailWorkspace />);
+    await waitForInitialLoad();
+    await flushEmailDetail();
+
+    expect(screen.getByTestId('email-viewer-subject')).toHaveTextContent('Message 0');
+
     act(() => {
       fireEvent.click(screen.getByRole('checkbox', { name: 'Select Message 0' }));
     });
+    expect(screen.getByTestId('bulk-action-bar')).toHaveTextContent('1 selected');
+    expect(screen.getByTestId('email-viewer-subject')).toHaveTextContent('Message 0');
 
-    mockUsePrivilegeForSource.mockClear();
-
-    // Select row 1 — `anySelected` is already true; only row 1's own
-    // `selected` prop changes.
     act(() => {
       fireEvent.click(screen.getByRole('checkbox', { name: 'Select Message 1' }));
     });
-
-    const rerenderedRowIds = mockUsePrivilegeForSource.mock.calls.map((call: unknown[]) => call[0]);
-    console.log(`[perf/email-render] rows re-rendered after 2nd selection: ${JSON.stringify(rerenderedRowIds)}`);
-    expect(rerenderedRowIds).toEqual(['mail:msg-0001']);
+    expect(screen.getByTestId('bulk-action-bar')).toHaveTextContent('2 selected');
   });
 
-  it('virtualization: a 200-row inbox only mounts a small window of rows, not all 200', async () => {
-    // @tanstack/react-virtual's initial (synchronous, no ResizeObserver
-    // needed) measurement reads `element.offsetWidth`/`offsetHeight` — jsdom
-    // reports 0 for both on every element by default, which is why an
-    // un-mocked virtualizer renders nothing in tests. Mocking those two is
-    // enough; no ResizeObserver polyfill is needed (jsdom has none, and the
-    // library already no-ops gracefully when it's absent).
+  it('a busy inbox only mounts a bounded window of rail rows and keeps the loaded count honest', async () => {
     const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
     const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
     Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
@@ -216,15 +243,11 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
       render(<EmailWorkspace />);
       await waitForInitialLoad();
 
-      const rows = screen.getAllByTestId('mail-row');
-      console.log(`[perf/email-render] items=200 mountedRows=${rows.length}`);
-
-      // The result-count header is correctness-independent of virtualization
-      // (all 200 items loaded, so it reports "All email loaded" rather than
-      // "Showing N of M" — same as it would with virtualization off)...
-      expect(screen.getByTestId('result-count').textContent).toBe('All email loaded');
-      // ...while the DOM only carries a bounded window of rows, not all 200.
+      const rows = screen.getAllByTestId(/^email-rail-row-/);
+      expect(rows.length).toBeGreaterThan(0);
       expect(rows.length).toBeLessThan(100);
+      expect(screen.getByTestId('result-count')).toHaveTextContent('All email loaded');
+      expect(screen.getByRole('listbox', { name: 'Email list' })).toBeInTheDocument();
     } finally {
       if (heightDescriptor) {
         Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
@@ -235,286 +258,24 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     }
   });
 
-  // Codex review (P2.2, round 6): `useScrollPersistence`'s callback ref
-  // restores `scrollTop` on the DOM node directly, which is enough for a
-  // plain scrollable div (see use-scroll-persistence.test.tsx) — but
-  // @tanstack/react-virtual tracks its OWN internal scroll-offset state,
-  // seeded to 0 and only updated by a native `scroll` event, never by
-  // reading the element's actual `scrollTop` at setup. Without wiring the
-  // restored offset into the virtualizer's own `initialOffset`, reopening a
-  // busy inbox moved the visible scrollbar but left the virtualizer still
-  // rendering the TOP window of rows into a container visually scrolled
-  // elsewhere. This proves the fix by checking WHICH rows are actually
-  // mounted, not just that the DOM's scrollTop value looks right.
-  it('virtualization: restores the correct row window from a saved mid-list scroll position, not just the top', async () => {
-    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
-    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
-    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
-    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
-
-    try {
-      sessionStorage.clear();
-      // Row 100's estimated top offset (88px per row, matching
-      // MAIL_ROW_ESTIMATED_HEIGHT_PX) — simulates a user who'd scrolled deep
-      // into a 200-row inbox before navigating away.
-      sessionStorage.setItem('email-scroll-all', String(100 * 88));
-
-      const items = makeItems(200);
-      setupMocks(items);
-
-      render(<EmailWorkspace />);
-      await waitForInitialLoad();
-
-      const rows = screen.getAllByTestId('mail-row');
-      const renderedIndexes = rows
-        .map((r) => r.textContent?.match(/Message (\d+)/)?.[1])
-        .filter((v): v is string => v !== undefined)
-        .map(Number);
-      // eslint-disable-next-line no-console
-      console.log(`[perf/email-render] restored-offset window: rows ${renderedIndexes[0]}-${renderedIndexes[renderedIndexes.length - 1]}`);
-
-      // Must NOT be stuck showing the top of the list (the pre-fix
-      // behavior: the virtualizer's own offset stayed at its 0 default
-      // regardless of the restored `scrollTop`) — the exact starting row
-      // depends on the virtualizer's own estimate-vs-measured bookkeeping,
-      // so this checks the MEANINGFUL property (deep into the list, not
-      // clamped to the top) rather than one precise index.
-      expect(renderedIndexes[0]).toBeGreaterThan(20);
-    } finally {
-      sessionStorage.clear();
-      if (heightDescriptor) {
-        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
-      }
-      if (widthDescriptor) {
-        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
-      }
-    }
-  });
-
-  // Codex review (P2.2, round 9): `initialOffset` only seeds the
-  // virtualizer's internal scroll-offset state ONCE, at instance
-  // construction — a LATER query/filter change doesn't re-consult it. The
-  // debounced re-fetch (200ms, see Effect A) means the results box keeps
-  // showing the OLD items and stays MOUNTED for a beat after the filter
-  // state itself changes — `scrollContainerRef`'s own mount-time reset
-  // (round 8) never fires in that window because no (re)mount happens.
-  // Without an explicit `scrollToOffset(0)` reacting to the fingerprint
-  // change, the deep window seeded by `initialOffset` here would still be
-  // showing when the fingerprint (and soon after, the real results) change.
-  it('virtualization: a filter change resets the row window even before the box remounts', async () => {
-    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
-    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
-    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
-    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
-
-    try {
-      sessionStorage.clear();
-      // Seed a deep saved offset so the virtualizer's FIRST-ever
-      // construction (this component's first render) starts deep into the
-      // list — the same mechanism the round-6 test above already proves
-      // works, reused here just to get the virtualizer's internal state
-      // away from 0 before the filter change under test.
-      sessionStorage.setItem('email-scroll-all', String(100 * 88));
-
-      const items = makeItems(200);
-      setupMocks(items);
-
-      render(<EmailWorkspace />);
-      await waitForInitialLoad();
-
-      const readIndexes = () =>
-        screen
-          .getAllByTestId('mail-row')
-          .map((r) => r.textContent?.match(/Message (\d+)/)?.[1])
-          .filter((v): v is string => v !== undefined)
-          .map(Number);
-
-      // Sanity: confirm the seeded deep offset actually took effect before
-      // testing the reset.
-      expect(readIndexes()[0]).toBeGreaterThan(20);
-
-      act(() => {
-        fireEvent.click(screen.getByTestId('filters-toggle'));
-      });
-      // Do NOT advance fake timers afterward — the real re-fetch is
-      // debounced 200ms (see Effect A), so at this point `loading` is
-      // still false and the results box is still mounted showing the
-      // OLD 200 items. This is deliberately the window BEFORE any
-      // unmount/remount could paper over a missing fix.
-      //
-      // The reset's virtualizer-side half is dispatched via a microtask
-      // (see EmailWorkspace's round-9 comment — `flushSync` can't run
-      // synchronously nested inside the `useLayoutEffect` that resets
-      // `scrollTop`), so awaiting one extra microtask tick here lets it
-      // land before reading the rendered rows.
-      await act(async () => {
-        fireEvent.click(screen.getByTestId('attachment-filter'));
-        await Promise.resolve();
-      });
-
-      const resetIndexes = readIndexes();
-      console.log(`[perf/email-render] post-filter-change window (no remount): rows ${resetIndexes[0]}-${resetIndexes[resetIndexes.length - 1]}`);
-      expect(resetIndexes[0]).toBeLessThanOrEqual(5);
-    } finally {
-      sessionStorage.clear();
-      if (heightDescriptor) {
-        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
-      }
-      if (widthDescriptor) {
-        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
-      }
-    }
-  });
-
-  // Coordinator review (final pass): the activeMatter-change restore path in
-  // useScrollPersistence set only the DOM node's `scrollTop`, not the
-  // virtualizer's own internal offset. The non-embedded "Email" surface
-  // (unlike embedded per-client sub-tabs) isn't remounted per-matter — a
-  // client switch with a long list still mounted only goes through this
-  // effect, never `scrollContainerRef`'s own mount-time reset — so without
-  // notifying the virtualizer the same way the round-9 query-reset fix
-  // does, the OLD matter's row window kept rendering after the switch.
-  it("virtualization: switching matters resets the row window to the new matter's saved position", async () => {
-    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
-    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
-    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
-    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
-
-    try {
-      sessionStorage.clear();
-      // "All email" (no active matter) starts deep into the list...
-      sessionStorage.setItem('email-scroll-all', String(100 * 88));
-      // ...matter-2 has its OWN, much shallower saved position.
-      sessionStorage.setItem('email-scroll-matter-2', String(2 * 88));
-
-      const items = makeItems(200);
-      setupMocks(items);
-      mockUseActiveMatter.mockReturnValue(null);
-
-      // Non-embedded: scopedItems === items regardless of activeMatter, and
-      // activeMatter isn't in Effect A's dependency array, so switching
-      // matters here does NOT refetch/unmount the results box — isolating
-      // exactly the scroll-restore path under test (unlike the round-9
-      // test, no debounce window to work around).
-      render(<EmailWorkspace />);
-      await waitForInitialLoad();
-
-      const readIndexes = () =>
-        screen
-          .getAllByTestId('mail-row')
-          .map((r) => r.textContent?.match(/Message (\d+)/)?.[1])
-          .filter((v): v is string => v !== undefined)
-          .map(Number);
-
-      // Sanity: starts deep, matching the seeded "all email" offset.
-      expect(readIndexes()[0]).toBeGreaterThan(20);
-
-      mockUseActiveMatter.mockReturnValue({
-        id: 'matter-2',
-        name: 'Beta',
-        client: 'Beta Corp',
-        folderPaths: [],
-        createdAt: '2026-01-01T00:00:00Z',
-      });
-      // Trigger a re-render via something entirely unrelated to the matter
-      // switch itself — same technique as the "scopedItems reflects a
-      // matters/folder-mapping change" test above. The virtualizer-side
-      // half of the fix is dispatched via a microtask (see
-      // useScrollPersistence's comment), so awaiting one extra microtask
-      // tick here lets it land before reading the rendered rows.
-      await act(async () => {
-        fireEvent.click(screen.getByTestId('filters-toggle'));
-        await Promise.resolve();
-      });
-
-      const afterSwitch = readIndexes();
-      console.log(`[perf/email-render] post-matter-switch window: rows ${afterSwitch[0]}-${afterSwitch[afterSwitch.length - 1]}`);
-      // Must reflect matter-2's OWN (shallow) saved offset — NOT stay
-      // pinned to the previous matter's deep window.
-      expect(afterSwitch[0]).toBeLessThan(20);
-    } finally {
-      sessionStorage.clear();
-      if (heightDescriptor) {
-        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
-      }
-      if (widthDescriptor) {
-        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
-      }
-    }
-  });
-
-  it('a small inbox (below the virtualize threshold) still renders every row directly', async () => {
+  it('the rail list and detail pane stay in separate flexible regions', async () => {
     const items = makeItems(10);
     setupMocks(items);
 
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    expect(screen.getAllByTestId('mail-row')).toHaveLength(10);
-  });
-
-  // Codex review (P2.2, round 3): giving the results box a small fixed
-  // max-height (560px) — rather than letting it fill the remaining page
-  // height the way it did before virtualization — shrank the "safe zone"
-  // for row popovers (File/Privilege menus, absolutely positioned and
-  // clipped by any `overflow` ancestor) from the full page down to a few
-  // hundred pixels, so a dropdown opened on any row past the first few got
-  // visibly clipped. This checks the structural property that makes that
-  // regression possible: the results box must be a flexible (`flex: 1`),
-  // not a small-fixed-height, region.
-  it('the results box fills available space (flex: 1) instead of a small fixed height', async () => {
-    const items = makeItems(10);
-    setupMocks(items);
-
-    render(<EmailWorkspace />);
-    await waitForInitialLoad();
-
-    const resultsBox = screen.getByTestId('result-count').parentElement;
-    expect(resultsBox).not.toBeNull();
-    // jsdom expands the `flex` shorthand — "1" becomes "1 1 0%".
-    expect(resultsBox!.style.flex).toBe('1 1 0%');
-    // Explicitly guard against reintroducing a small fixed cap.
-    expect(resultsBox!.style.maxHeight).toBe('');
-  });
-
-  // Codex review (P2.2, round 4, P1): `flex: 1` on an element does NOTHING
-  // unless its own PARENT is an actual flex container — the "Body" wrapper
-  // had `flex: 1` (to size itself within the page) but no `display: flex`
-  // of its own, so the results box's `flex: 1` (checked above) was silently
-  // ignored: the box grew to fit `rowVirtualizer.getTotalSize()` instead of
-  // being constrained to a scrollable height, the virtualizer's scroll
-  // container never scrolled, and a busy (>40-row) inbox went blank past
-  // the first virtual window. Neither of the tests above would have caught
-  // this — they mock `offsetHeight`/`offsetWidth` uniformly on every
-  // element, which bypasses real CSS layout entirely and can't detect a
-  // broken flex chain. This instead directly asserts the structural
-  // property that makes flex-based sizing actually take effect: every
-  // `flex`-bearing element in the chain from `email-body` down to the
-  // virtualizer's scroll container must ALSO be a flex container itself
-  // (or be a direct, immediate flex child with nothing non-flex in between).
-  it('the flex chain from the page body down to the scroll container is unbroken', async () => {
-    const items = makeItems(10);
-    setupMocks(items);
-
-    render(<EmailWorkspace />);
-    await waitForInitialLoad();
-
+    const shellWrapper = screen.getByTestId('mail-list-scroll');
     const body = screen.getByTestId('email-body');
-    expect(body.style.display).toBe('flex');
-    expect(body.style.flexDirection).toBe('column');
+    const railList = screen.getByRole('listbox', { name: 'Email list' });
+    const detailPane = screen.getByTestId('email-detail-pane');
 
-    const resultsBox = screen.getByTestId('result-count').parentElement!;
-    // The results box must be a DIRECT child of `email-body` — if some
-    // future refactor wraps it in another element, that wrapper would also
-    // need `display: flex` or the chain breaks again.
-    expect(resultsBox.parentElement).toBe(body);
-    expect(resultsBox.style.display).toBe('flex');
-    expect(resultsBox.style.flexDirection).toBe('column');
-
-    const scrollContainer = screen.getByTestId('mail-list-scroll');
-    expect(scrollContainer.parentElement).toBe(resultsBox);
-    expect(scrollContainer.style.flex).toBe('1 1 0%');
-    expect(scrollContainer.style.overflowY).toBe('auto');
+    expect(shellWrapper.className).toContain('flex');
+    expect(shellWrapper.className).toContain('min-h-0');
+    expect(railList.className).toContain('overflow-y-auto');
+    expect(body.className).toContain('flex');
+    expect(body.className).toContain('flex-col');
+    expect(detailPane.className).toContain('flex-1');
   });
 
   // F2.6b reconcile: per-client scoping moved from a client-side `resolveMailMatter`
@@ -548,7 +309,7 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     mockUseMatters.mockReturnValue([]);
     render(<EmailWorkspace embedded />);
     await waitForInitialLoad();
-    expect(screen.queryAllByTestId('mail-row')).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^email-rail-row-/)).toHaveLength(0);
 
     // A folder mapping is added elsewhere (e.g. the matter manager) — the matters
     // list changes, so the reactive map changes and the scoped list refetches.
@@ -557,13 +318,12 @@ describe('Perf (P2.2) — EmailWorkspace / MailRow render hygiene', () => {
     // Trigger a re-render via something entirely UNRELATED to matters scoping —
     // toggling the filters panel is pure local UI state — then let the debounced
     // scoped refetch run.
-    act(() => {
-      fireEvent.click(screen.getByTestId('filters-toggle'));
-    });
+    await openEmailActionsMenu();
+    fireEvent.click(screen.getByTestId('filters-toggle'));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300);
     });
 
-    expect(screen.getAllByTestId('mail-row')).toHaveLength(1);
+    expect(screen.getAllByTestId(/^email-rail-row-/)).toHaveLength(1);
   });
 });

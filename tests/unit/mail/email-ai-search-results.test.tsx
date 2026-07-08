@@ -47,12 +47,14 @@ vi.mock('@/platform/utils/diagnostics', () => ({
 
 import {
   mailListMessages,
+  mailGetMessage,
   mailConnectedAccounts,
 } from '@/platform/utils/mail-commands';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import { EmailWorkspace } from '@/features/email/EmailWorkspace';
 
 const mockMailListMessages = mailListMessages as ReturnType<typeof vi.fn>;
+const mockMailGetMessage = mailGetMessage as unknown as ReturnType<typeof vi.fn>;
 const mockMailConnectedAccounts = mailConnectedAccounts as ReturnType<typeof vi.fn>;
 const mockRetrieve = MemoryService.retrieve as ReturnType<typeof vi.fn>;
 
@@ -78,6 +80,13 @@ async function waitForInitialLoad() {
   });
 }
 
+async function openEmailActionsMenu() {
+  fireEvent.pointerDown(screen.getByTestId('email-more-actions'), { button: 0 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
 describe('EmailWorkspace AI search results', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -86,6 +95,20 @@ describe('EmailWorkspace AI search results', () => {
       { provider: 'm365', account: 'default', label: 'Work' },
     ]);
     mockMailListMessages.mockResolvedValue({ items: [MAIL_ITEM], total: 1 });
+    mockMailGetMessage.mockResolvedValue({
+      id: MAIL_ITEM.id,
+      subject: MAIL_ITEM.subject,
+      from: `${MAIL_ITEM.fromName} <${MAIL_ITEM.fromAddr}>`,
+      to: ['advisor@example.com'],
+      cc: [],
+      date: MAIL_ITEM.receivedDateTime,
+      provider: MAIL_ITEM.provider,
+      account: MAIL_ITEM.account,
+      body: MAIL_ITEM.snippet,
+      hasAttachments: MAIL_ITEM.hasAttachments,
+      attachments: [],
+      matterId: null,
+    });
     mockRetrieve.mockResolvedValue([
       {
         id: 'hit-mail-1',
@@ -108,6 +131,7 @@ describe('EmailWorkspace AI search results', () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
+    await openEmailActionsMenu();
     vi.useRealTimers();
     fireEvent.click(screen.getByTestId('mode-ask'));
     fireEvent.change(screen.getByTestId('email-search-input'), {

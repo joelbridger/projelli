@@ -26,60 +26,216 @@
  * Light theme only. CSS variables + inline styles. No dark mode.
  */
 
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Mail,
   Search,
   Loader2,
   AlertTriangle,
-  PenLine,
   Sparkles,
   RefreshCw,
+  MoreHorizontal,
+  Plus,
+  ExternalLink,
+  Paperclip,
+  ShieldCheck,
+  Square,
+  CheckSquare,
+  FileDown,
 } from 'lucide-react';
-import { Button, SearchField, SegmentedToggle, FilterToggle, FilterPanel, SurfaceToolbar, Callout } from '@/ui/kp';
+import { useTranslation } from 'react-i18next';
+import { isTauri } from '@tauri-apps/api/core';
+import { Button, SearchField, FilterPanel, Callout, RailShell, IconButton, Badge } from '@/ui/kp';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap, type MailMatterMapEntry } from '@/platform/rag/matterResolver';
 import { useMailStore } from './mailStore';
 import {
   mailListMessages,
   mailListMessagesByMatter,
+  mailGetMessage,
   type MailListItem,
   type MailListPage,
   type MailListQuery,
 } from '@/platform/utils/mail-commands';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
-import { SurfaceHeader } from '@/ui/SurfaceHeader';
-import { mapMailError, filterInputStyle } from './emailWorkspaceHelpers';
+import { mapMailError, filterInputStyle, formatRelativeDate, slugify } from './emailWorkspaceHelpers';
 import { AskHitCard } from './AskHitCard';
 import { NoAccountsState } from './NoAccountsState';
-import { MailRow } from './MailRow';
+import { EmailViewer } from './EmailViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
-import { useScrollPersistence } from './useScrollPersistence';
 import { ComposeModal } from './ComposeModal';
 import { BulkActionBar } from './BulkActionBar';
 import { useAccountSync } from './useAccountSync';
-import { EV_OPEN_SETTINGS } from '@/config/identity';
+import { EV_OPEN_EMAIL, EV_OPEN_SETTINGS } from '@/config/identity';
+import { usePrivilegeForSource } from '@/platform/firm/privilegeStore';
+import { isPrivileged } from '@/platform/types/privilege';
+import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 
 // Stable empty map for the non-embedded (global) surface, so `mailMatterMap`
 // keeps the same reference across `matters` changes and never retriggers the
 // global list fetch. (Embedded builds a real map from `matters`.)
 const EMPTY_MAIL_MATTER_MAP: MailMatterMapEntry[] = [];
+const EMAIL_RAIL_VIRTUALIZE_ROW_THRESHOLD = 40;
+const EMAIL_RAIL_ROW_ESTIMATED_HEIGHT_PX = 88;
 
-// ── Perf (P2.2) ──────────────────────────────────────────────────────────────
-// The results list only virtualizes past this many rows — below it, the
-// difference is imperceptible and rendering directly keeps behavior/tests
-// (which use small fixture lists) exactly as before. Above it (a busy inbox
-// approaching the 200-row page cap), each MailRow is a fairly heavy DOM
-// subtree (checkbox, badges, hover actions), so an un-virtualized list gets
-// noticeably heavier to paint and scroll.
-const EMAIL_VIRTUALIZE_ROW_THRESHOLD = 40;
-// A reasonable average MailRow height — rows vary (snippet/attachments/badges
-// change height slightly), so this is only the INITIAL estimate; the
-// virtualizer measures each row's real height once rendered and corrects for
-// it, same pattern as SheetGrid.
-const MAIL_ROW_ESTIMATED_HEIGHT_PX = 88;
+interface EmailRailRowProps {
+  item: MailListItem;
+  subjectLabel: string;
+  bulkSelected: boolean;
+  anyBulkSelected: boolean;
+  onToggleSelect: (id: string) => void;
+  onOpenInTab: (id: string) => void;
+  selectLabel: string;
+  openLabel: string;
+}
+
+function EmailRailRow({
+  item,
+  subjectLabel,
+  bulkSelected,
+  anyBulkSelected,
+  onToggleSelect,
+  onOpenInTab,
+  selectLabel,
+  openLabel,
+}: EmailRailRowProps) {
+  const fromLabel = item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr;
+  const checkboxVisible = anyBulkSelected || bulkSelected;
+  const entityLabel = useEntityLabelEnglish();
+  const privilege = usePrivilegeForSource(`mail:${item.id}`);
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 items-start gap-2">
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={bulkSelected}
+          aria-label={selectLabel}
+          data-testid={`select-email-${item.id}`}
+          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-transparent text-[var(--color-muted-foreground)] transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kp-navy)] ${
+            checkboxVisible ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus:opacity-100 group-focus-within:opacity-100'
+          }`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onToggleSelect(item.id);
+          }}
+        >
+          {bulkSelected ? (
+            <CheckSquare className="h-3.5 w-3.5 text-[var(--kp-navy)]" strokeWidth={1.75} />
+          ) : (
+            <Square className="h-3.5 w-3.5" strokeWidth={1.75} />
+          )}
+        </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold leading-snug text-[var(--kp-navy)]">
+              {subjectLabel}
+            </span>
+            <span className="shrink-0 text-[11px] leading-snug text-[var(--color-muted-foreground)]">
+              {formatRelativeDate(item.receivedDateTime)}
+            </span>
+          </div>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 flex-1 truncate text-xs text-[var(--color-muted-foreground)]">
+              {fromLabel}
+            </span>
+            {item.hasAttachments ? (
+              <Paperclip className="h-3 w-3 shrink-0 text-[var(--color-muted-foreground)]" strokeWidth={1.75} />
+            ) : null}
+            {isPrivileged(privilege) ? (
+              <Badge
+                variant="privilege"
+                size="sm"
+                icon={ShieldCheck}
+                data-testid={`email-rail-sensitive-${item.id}`}
+                className="shrink-0"
+              >
+                {entityLabel.confidentialityBadge}
+              </Badge>
+            ) : null}
+          </div>
+        </div>
+        <IconButton
+          icon={ExternalLink}
+          label={openLabel}
+          size="xs"
+          variant="ghost"
+          data-testid={`email-rail-open-${item.id}`}
+          className="mt-0.5 opacity-0 group-hover:opacity-100 group-focus:opacity-100 group-focus-within:opacity-100"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenInTab(item.id);
+          }}
+        />
+      </div>
+      {item.snippet ? (
+        <div className="line-clamp-2 pl-7 text-xs leading-snug text-[var(--kp-side-fg-dim)]">
+          {item.snippet}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface EmailFixturePreviewProps {
+  item: MailListItem;
+  subjectLabel: string;
+  previewLabel: string;
+  previewNote: string;
+  snippetLabel: string;
+}
+
+function EmailFixturePreview({
+  item,
+  subjectLabel,
+  previewLabel,
+  previewNote,
+  snippetLabel,
+}: EmailFixturePreviewProps) {
+  const fromLabel = item.fromName ? `${item.fromName} <${item.fromAddr}>` : item.fromAddr;
+
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto bg-white px-6 py-6">
+      <div className="mx-auto w-full max-w-3xl">
+        <div className="flex items-start gap-2">
+          <Mail className="mt-1 h-5 w-5 shrink-0 text-[var(--kp-navy)]" strokeWidth={1.75} />
+          <div className="min-w-0">
+            <h1 className="m-0 text-xl font-semibold leading-tight text-slate-900">
+              {subjectLabel}
+            </h1>
+            <p className="mt-1 text-xs font-medium uppercase text-[var(--color-muted-foreground)]">
+              {previewLabel}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
+          <div className="font-medium text-slate-900">{fromLabel}</div>
+          <div className="mt-1 text-xs text-slate-500">{formatRelativeDate(item.receivedDateTime)}</div>
+        </div>
+        {item.snippet ? (
+          <div className="mt-5 border-t border-slate-100 pt-5">
+            <div className="mb-2 text-xs font-medium uppercase text-[var(--color-muted-foreground)]">
+              {snippetLabel}
+            </div>
+            <p className="m-0 text-sm leading-relaxed text-slate-800">{item.snippet}</p>
+          </div>
+        ) : null}
+        <p className="mt-5 rounded-md border border-[var(--kp-divider)] bg-[var(--kp-accent-softer)] px-3 py-2 text-xs leading-relaxed text-[var(--color-muted-foreground)]">
+          {previewNote}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -105,6 +261,7 @@ export function EmailWorkspace({
   onOpenSettings,
   embedded = false,
 }: EmailWorkspaceProps) {
+  const { t } = useTranslation();
   const activeMatter = useActiveMatter();
 
   // One page size everywhere. Embedded (per-client) browse is now scoped in the
@@ -213,6 +370,9 @@ export function EmailWorkspace({
 
   // Compose open state — compose state/effects live in ComposeModal
   const [composeOpen, setComposeOpen] = useState(false);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
+  const [detailExporting, setDetailExporting] = useState(false);
+  const [detailExportFailed, setDetailExportFailed] = useState(false);
 
   // Ref for focusing the search field from the first-connect callout CTA.
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -514,428 +674,502 @@ export function EmailWorkspace({
   // the debounced first-page refetch replaces them. `runList` additionally refuses
   // to fetch when there's no active client.
   //
-  // Perf (P2.2): `scopedItems` is memoized so the virtualized list below (and the
-  // MailRow subtrees) don't recompute on unrelated re-renders (hover, popover,
-  // toggling filters). `matters` is already subscribed above for `mailMatterMap`.
   const scopeMatches = !embedded || loadedScope === scopeKey;
   const scopedItems = useMemo(
     () => (scopeMatches ? items : []),
     [scopeMatches, items],
   );
 
-  // Fix 7: persist list scroll position per-matter in sessionStorage.
-  //
-  // Perf (P2.2) — this now targets the results list's OWN scroll container
-  // (a `flex: 1` region that fills whatever space is left below the
-  // toolbar/filters/other states — see the render below), not the outer
-  // page. Codex review (round 1) caught that pointing it at the page while
-  // introducing a separate, dedicated inner scroll region for the actual
-  // rows meant a user's scroll position within a long list was never
-  // persisted — the page container rarely scrolls at all once the list
-  // manages its own overflow, so the outer ref was the wrong (and now
-  // largely inert) element to track.
-  //
-  // Codex review (round 2) then caught that the results box is itself
-  // CONDITIONALLY rendered (hidden during loading/error/empty), so a plain
-  // object ref + one-time effect (the hook's original design) frequently
-  // ran before that box existed, restoring/saving against `null` forever.
-  // `useScrollPersistence` now returns a callback ref (fires exactly when
-  // the node mounts/unmounts) plus `getScrollElement()` for the
-  // virtualizer, which needs to read the current node imperatively rather
-  // than receive it as a ref object.
-  // Codex review (round 8): a query/filter change (a genuinely NEW search)
-  // must start the results list at the top, not restore wherever the
-  // PREVIOUS search happened to be scrolled to — the SAME fingerprint
-  // Effect A/B already use to detect "is this a new search or just
-  // pagination" (see queryFingerprintRef above) tells useScrollPersistence
-  // when that's happened.
-  const scrollResultsKey = JSON.stringify({ query, providerFilter, dateFrom, dateTo, hasAttachments, mode });
-  const { scrollContainerRef, getScrollElement, getInitialScrollOffset } = useScrollPersistence(activeMatter, scrollResultsKey);
+  const effectiveSelectedEmailId = useMemo(() => {
+    if (mode !== 'keyword' || scopedItems.length === 0) return null;
+    if (selectedEmailId && scopedItems.some((item) => item.id === selectedEmailId)) {
+      return selectedEmailId;
+    }
+    return scopedItems[0]?.id ?? null;
+  }, [mode, scopedItems, selectedEmailId]);
 
-  // Perf (P2.2) — virtualize the results list past EMAIL_VIRTUALIZE_ROW_THRESHOLD
-  // rows, using the SAME dedicated scroll container as scroll persistence
-  // above — deliberately separate from the outer page's own scroll (used by
-  // every other state: loading/error/no-results/filters/Ask mode). Keeping
-  // virtualization scoped to its own dedicated, always-present scroll
-  // element means it doesn't need to track the offset of anything above it
-  // (filters panel, bulk-action bar) the way virtualizing a page-level
-  // scroll region would.
-  //
-  // Codex review (round 3): this container was originally a fixed
-  // max-height (560px) box rather than filling available space — that
-  // shrank the safe zone for row popovers (File/Privilege, absolutely
-  // positioned and clipped by any `overflow` ancestor) from the full page
-  // height down to a few hundred pixels, so a dropdown opened on any row
-  // past the first few got visibly clipped. The render below now makes the
-  // results box `flex: 1` (fills remaining page height, same safe zone as
-  // before virtualization existed) instead of a small fixed height.
-  //
-  // Codex review (round 6): `getScrollElement`/`scrollContainerRef` restore
-  // `scrollTop` on the DOM node directly, but the virtualizer tracks its OWN
-  // internal scroll-offset state (starting at 0) independently of the DOM —
-  // it only learns the real position from a native `scroll` event, never by
-  // reading `scrollTop` at setup. Without `initialOffset`, reopening a busy
-  // (virtualized) inbox restored the visual scrollbar position but left the
-  // virtualizer still believing it was at the top, rendering the wrong
-  // (top) window of rows into a container that was scrolled elsewhere.
-  const shouldVirtualizeRows = scopedItems.length > EMAIL_VIRTUALIZE_ROW_THRESHOLD;
-  const rowVirtualizer = useVirtualizer({
-    count: scopedItems.length,
-    getScrollElement,
-    initialOffset: getInitialScrollOffset,
-    estimateSize: () => MAIL_ROW_ESTIMATED_HEIGHT_PX,
-    overscan: 8,
-    enabled: shouldVirtualizeRows,
-  });
-
-  // Codex review (round 9): `initialOffset` only seeds the virtualizer's
-  // internal `scrollOffset` ONCE, at instance construction (this component's
-  // first-ever render) — it is NOT re-read on later `scrollResultsKey`
-  // changes. Worse, most filter/query changes are debounced 200ms (see
-  // Effect A above) before the actual re-fetch starts, so the results box
-  // stays MOUNTED, showing the OLD items, for a beat after the filter state
-  // itself already changed — `scrollContainerRef`'s own mount-time reset
-  // (round 8, in useScrollPersistence) never fires in that window, because
-  // no (re)mount happens.
-  //
-  // This resets the DOM node directly (covering that "stays mounted" gap
-  // round 8 can't reach), then dispatches a synthetic `scroll` event so the
-  // virtualizer's own internal offset tracking (which only ever updates via
-  // its `scroll` listener, never by reading `scrollTop` on demand) picks up
-  // the reset — deliberately NOT `rowVirtualizer.scrollToOffset`, which
-  // routes through the library's default `scrollToFn` (a real
-  // `element.scrollTo` call) and depends on the BROWSER's own native
-  // `scroll` event eventually following it: an inherently async step with
-  // no synchronous guarantee, and one jsdom doesn't implement at all
-  // (making that approach unverifiable by a test).
-  //
-  // The dispatch itself is deferred to a microtask, NOT fired synchronously
-  // inline here: @tanstack/react-virtual's scroll listener calls
-  // `flushSync` for a live scroll event, and `flushSync` cannot run from
-  // inside a React lifecycle method that's already committing (this
-  // `useLayoutEffect`) — React warns "Cannot flush when React is already
-  // rendering" and the update is unreliable. A microtask runs immediately
-  // after this commit's call stack finishes unwinding — still well before
-  // the browser paints, so there's no visible flash — but gives React a
-  // clean, non-reentrant call stack to flush into. `useLayoutEffect` (not
-  // `useEffect`) so the DOM `scrollTop` reset itself still lands in the
-  // same commit as `scrollContainerRef`'s own mutations. Skipped on the
-  // very first render — that mount already restores correctly via
-  // `initialOffset`.
-  const isFirstScrollResultsKeyRenderRef = useRef(true);
-  useLayoutEffect(() => {
-    if (isFirstScrollResultsKeyRenderRef.current) {
-      isFirstScrollResultsKeyRenderRef.current = false;
+  useEffect(() => {
+    if (mode !== 'keyword' || loading || error || scopedItems.length === 0) {
+      if (mode === 'keyword' && scopedItems.length === 0 && selectedEmailId !== null) {
+        setSelectedEmailId(null);
+      }
       return;
     }
-    const node = getScrollElement();
-    if (!node) return;
-    node.scrollTop = 0;
-    queueMicrotask(() => {
-      node.dispatchEvent(new Event('scroll'));
-    });
-  }, [scrollResultsKey, getScrollElement]);
+    if (!selectedEmailId || !scopedItems.some((item) => item.id === selectedEmailId)) {
+      setSelectedEmailId(scopedItems[0]?.id ?? null);
+    }
+  }, [mode, loading, error, scopedItems, selectedEmailId]);
+
+  const handleOpenEmailInTab = useCallback((id: string) => {
+    window.dispatchEvent(
+      new CustomEvent(EV_OPEN_EMAIL, {
+        detail: { sourceId: `mail:${id}` },
+      }),
+    );
+  }, []);
+
+  const handleExportSelectedEmail = useCallback(() => {
+    if (!onSaveToWorkspace || !effectiveSelectedEmailId) return;
+    setDetailExporting(true);
+    setDetailExportFailed(false);
+    mailGetMessage(effectiveSelectedEmailId)
+      .then(async (msg) => {
+        const to = msg.to.join(', ');
+        const cc = msg.cc.length > 0 ? `\nCc: ${msg.cc.join(', ')}` : '';
+        const date = msg.date ?? '';
+        const content = `Subject: ${msg.subject}\nFrom: ${msg.from}\nTo: ${to}${cc}\nDate: ${date}\n\n${msg.body}`;
+        const suggestedName = `${slugify(msg.subject) || 'email'}.txt`;
+        await onSaveToWorkspace(content, suggestedName);
+      })
+      .catch(() => {
+        setDetailExportFailed(true);
+        setTimeout(() => { setDetailExportFailed(false); }, 3000);
+      })
+      .finally(() => {
+        setDetailExporting(false);
+      });
+  }, [onSaveToWorkspace, effectiveSelectedEmailId]);
+
+  const railItems = useMemo(
+    () => scopedItems.map((item) => ({
+      id: item.id,
+      label: item.subject || t('mail.workspace.no-subject'),
+      testId: `email-rail-row-${item.id}`,
+      ariaLabel: item.subject || t('mail.workspace.no-subject'),
+      content: (
+        <EmailRailRow
+          item={item}
+          subjectLabel={item.subject || t('mail.workspace.no-subject')}
+          bulkSelected={selectedIds.has(item.id)}
+          anyBulkSelected={selectedIds.size > 0}
+          onToggleSelect={handleToggleSelect}
+          onOpenInTab={handleOpenEmailInTab}
+          selectLabel={t('mail.workspace.select-email', { subject: item.subject || t('mail.workspace.no-subject') })}
+          openLabel={t('mail.workspace.open-in-tab')}
+        />
+      ),
+    })),
+    [scopedItems, selectedIds, handleToggleSelect, handleOpenEmailInTab, t],
+  );
+
+  const selectedEmailSourceId = effectiveSelectedEmailId ? `mail:${effectiveSelectedEmailId}` : null;
+  const selectedEmailItem = useMemo(
+    () => (effectiveSelectedEmailId ? scopedItems.find((item) => item.id === effectiveSelectedEmailId) ?? null : null),
+    [effectiveSelectedEmailId, scopedItems],
+  );
+  const shouldShowFixturePreview = !isTauri()
+    && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('mailFixture') === '1';
 
   // ── Render ────────────────────────────────────────────────────────────────
+
+  const railEmptyState = loading ? (
+    <div data-testid="loading-state" className="flex items-center gap-2 px-1 py-3 text-sm text-[var(--color-muted-foreground)]">
+      <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+      {t('mail.workspace.loading-email')}
+    </div>
+  ) : error ? (
+    <div data-testid="error-state" className="flex flex-col gap-2 px-1 py-3 text-sm">
+      <div className="flex items-center gap-2 font-medium text-[var(--kp-warning)]">
+        <AlertTriangle className="h-4 w-4" strokeWidth={1.75} />
+        {t('mail.workspace.could-not-load')}
+      </div>
+      <p className="m-0 text-xs leading-snug text-[var(--color-muted-foreground)]">{error}</p>
+      <Button variant="secondary" size="sm" data-testid="error-retry" onClick={handleRetry}>
+        {t('mail.workspace.try-again')}
+      </Button>
+    </div>
+  ) : mode === 'keyword' && hasConnectedMail ? (
+    <div data-testid="no-results-state" className="flex flex-col items-center gap-2 px-1 py-8 text-center">
+      <Mail className="h-7 w-7 text-[var(--color-muted-foreground)]" strokeWidth={1.5} />
+      <p className="m-0 text-sm font-medium text-[var(--color-foreground)]">{t('mail.workspace.no-emails')}</p>
+      <p className="m-0 text-xs leading-snug text-[var(--color-muted-foreground)]">
+        {query
+          ? t('mail.workspace.no-emails-query')
+          : embedded
+            ? t('mail.workspace.no-emails-client')
+            : t('mail.workspace.no-emails-synced')}
+      </p>
+      {embedded && scopeMatches && items.length < total ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          data-testid="email-scoped-load-more"
+          onClick={handleLoadMore}
+          disabled={loadingMore}
+          {...(loadingMore ? { iconLeft: Loader2 } : {})}
+        >
+          {loadingMore ? t('mail.workspace.looking') : t('mail.workspace.keep-looking')}
+        </Button>
+      ) : null}
+    </div>
+  ) : null;
+
+  const renderFilterPanel = () => (
+    <FilterPanel data-testid="filter-row" style={{ marginTop: 8, padding: 10 }}>
+      <div className="grid gap-2">
+        {uniqueProviders.length > 1 ? (
+          <select
+            data-testid="provider-filter"
+            value={providerFilter}
+            onChange={handleProviderChange}
+            aria-label={t('mail.workspace.provider-filter-aria')}
+            style={{ ...filterInputStyle, width: '100%' }}
+          >
+            <option value="">{t('mail.workspace.all-accounts')}</option>
+            {uniqueProviders.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        <label className="grid gap-1 text-[11px] font-medium text-[var(--color-muted-foreground)]">
+          {t('mail.workspace.from')}
+          <input
+            type="date"
+            data-testid="date-from"
+            value={dateFrom}
+            onChange={handleDateFromChange}
+            aria-label={t('mail.workspace.from-date-aria')}
+            style={{ ...filterInputStyle, width: '100%' }}
+          />
+        </label>
+        <label className="grid gap-1 text-[11px] font-medium text-[var(--color-muted-foreground)]">
+          {t('mail.workspace.to')}
+          <input
+            type="date"
+            data-testid="date-to"
+            value={dateTo}
+            onChange={handleDateToChange}
+            aria-label={t('mail.workspace.to-date-aria')}
+            style={{ ...filterInputStyle, width: '100%' }}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-[var(--color-muted-foreground)]">
+          <input
+            type="checkbox"
+            data-testid="attachment-filter"
+            checked={hasAttachments}
+            onChange={handleAttachmentToggle}
+            style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
+          />
+          {t('mail.workspace.has-attachment')}
+        </label>
+      </div>
+    </FilterPanel>
+  );
+
+  const railHeader = (
+    <div className="shrink-0 border-b border-[var(--kp-divider)] px-3 py-3">
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-sm font-semibold leading-tight text-[var(--kp-navy)]">
+          {t('mail.workspace.title')}
+        </div>
+        {hasConnectedMail ? (
+          <div className="flex shrink-0 items-center gap-1">
+            <IconButton
+              icon={Plus}
+              label={t('mail.workspace.new-email')}
+              size="sm"
+              variant="ghost"
+              data-testid="compose-btn"
+              onClick={() => { setComposeOpen(true); }}
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <IconButton
+                  icon={MoreHorizontal}
+                  label={t('mail.workspace.more-actions')}
+                  size="sm"
+                  variant="ghost"
+                  data-testid="email-more-actions"
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {(['keyword', 'ask'] as const).map((nextMode) => (
+                  <DropdownMenuItem
+                    key={nextMode}
+                    data-testid={`mode-${nextMode}`}
+                    onSelect={() => {
+                      setMode(nextMode);
+                      setQuery('');
+                      setOffset(0);
+                      setSelectedIds(new Set());
+                    }}
+                  >
+                    {mode === nextMode ? t('mail.workspace.current-prefix') : null}
+                    {nextMode === 'keyword' ? t('mail.workspace.keyword-search') : t('mail.workspace.ai-search')}
+                  </DropdownMenuItem>
+                ))}
+                {activeMatter && mode !== 'keyword' && !embedded ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      data-testid="email-scope-matter"
+                      onSelect={() => {
+                        setScopeAllEmail(false);
+                        setOffset(0);
+                      }}
+                    >
+                      {!scopeAllEmail ? t('mail.workspace.current-prefix') : null}
+                      {t('mail.workspace.this-client')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      data-testid="email-scope-all"
+                      onSelect={() => {
+                        setScopeAllEmail(true);
+                        setOffset(0);
+                      }}
+                    >
+                      {scopeAllEmail ? t('mail.workspace.current-prefix') : null}
+                      {t('mail.workspace.all-email')}
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+                {mode === 'keyword' ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      data-testid="filters-toggle"
+                      onSelect={() => { setFiltersVisible((v) => !v); }}
+                    >
+                      {filtersVisible ? t('mail.workspace.hide-filters') : t('mail.workspace.show-filters')}
+                      {activeFilterCount > 0 ? ` (${String(activeFilterCount)})` : ''}
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  data-testid="email-sync-now"
+                  disabled={syncing}
+                  onSelect={() => {
+                    if (syncing) return;
+                    handleSyncNow();
+                  }}
+                >
+                  {syncing ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                  ) : (
+                    <RefreshCw className="mr-2 h-3.5 w-3.5" strokeWidth={1.75} />
+                  )}
+                  {syncing
+                    ? syncImportedMessages != null
+                      ? t('mail.workspace.syncing-count', { count: syncImportedMessages })
+                      : t('mail.workspace.syncing')
+                    : t('mail.workspace.sync-now')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
+      </div>
+      {hasConnectedMail ? (
+        <>
+          <SearchField
+            ref={searchInputRef}
+            size="md"
+            icon={Search}
+            value={query}
+            onChange={(v) => {
+              setQuery(v);
+              setOffset(0);
+              setSelectedIds(new Set());
+            }}
+            onClear={handleClearQuery}
+            placeholder={mode === 'keyword' ? t('mail.workspace.search-keyword-placeholder') : t('mail.workspace.search-ai-placeholder')}
+            aria-label={t('mail.workspace.search-aria')}
+            data-testid="email-search-input"
+            style={{ marginTop: 10, width: '100%' }}
+          />
+          {mode === 'keyword' && filtersVisible ? renderFilterPanel() : null}
+          {mode === 'keyword' && !loading && !error && scopedItems.length > 0 ? (
+            <div data-testid="result-count" className="mt-2 flex items-center justify-between gap-2 text-[11px] text-[var(--color-muted-foreground)]">
+              <span>
+                {embedded
+                  ? t('mail.workspace.showing-client', { count: scopedItems.length })
+                  : total === items.length && !query
+                    ? t('mail.workspace.all-loaded')
+                    : t('mail.workspace.showing-count', { shown: items.length, total })}
+              </span>
+              {scopeMatches && items.length < total ? (
+                <button
+                  type="button"
+                  data-testid="load-more"
+                  className="shrink-0 rounded border border-[var(--kp-divider)] bg-white px-2 py-1 text-[11px] font-medium text-[var(--kp-navy)] disabled:opacity-60"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                >
+                  {loadingMore ? t('mail.workspace.loading-more') : t('mail.workspace.load-more', { count: total - items.length })}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+
+  const renderAskContent = () => (
+    <div className="h-full overflow-y-auto px-6 py-6">
+      {askLoading ? (
+        <div data-testid="ask-loading" className="flex items-center gap-2 py-4 text-sm text-[var(--color-muted-foreground)]">
+          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
+          {t('mail.workspace.searching-email')}
+        </div>
+      ) : null}
+
+      {askError ? (
+        <div data-testid="ask-error" className="flex items-center gap-2 py-4 text-sm text-[var(--kp-warning)]">
+          <AlertTriangle className="h-4 w-4 shrink-0" strokeWidth={2} />
+          {askError}
+        </div>
+      ) : null}
+
+      {!askLoading && !askError && !query.trim() ? (
+        <div data-testid="ask-empty-state" className="flex flex-col items-center gap-3 py-16 text-center">
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+          <div className="text-lg font-bold leading-tight text-[var(--kp-navy)]">Search your email</div>
+          <div className="max-w-sm text-sm leading-normal text-[var(--color-muted-foreground)]">
+            I search across your imported email and answer with citations you can open.
+          </div>
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            {[
+              'Who emailed about a beneficiary change?',
+              'Find statements with attachments from the custodian',
+              'What did the client agree to over email?',
+            ].map((chip) => (
+              <button
+                key={chip}
+                type="button"
+                data-testid="ask-chip"
+                onClick={() => { setQuery(chip); }}
+                className="inline-flex items-center rounded-full border border-[rgba(10,37,64,0.14)] bg-[rgba(10,37,64,0.05)] px-3 py-1.5 text-left text-xs font-medium text-[var(--kp-navy)] hover:bg-[rgba(10,37,64,0.09)]"
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+        </div>
+      ) : null}
+
+      {!askLoading && !askError && askHits.length === 0 && query.trim() ? (
+        <div data-testid="ask-no-results" className="py-6 text-center text-sm leading-relaxed text-[var(--color-muted-foreground)]">
+          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+          {!isMemoryEnabled() ? (
+            <span>
+              AI search needs memory enabled.{' '}
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
+                  onOpenSettings?.();
+                }}
+                className="font-semibold text-[var(--kp-navy)] underline"
+              >
+                Enable it in Settings
+              </button>
+              .
+            </span>
+          ) : activeMatter && !scopeAllEmail && embedded ? (
+            <span>No email is filed to this client yet. Connect a mail folder for this client to search their correspondence.</span>
+          ) : activeMatter && !scopeAllEmail ? (
+            <span>
+              No email is filed to this client yet.{' '}
+              <button
+                type="button"
+                data-testid="ask-no-results-switch-scope"
+                onClick={() => { setScopeAllEmail(true); }}
+                className="font-semibold text-[var(--kp-navy)] underline"
+              >
+                Switch to All email
+              </button>
+              {' '}above, or file emails to this client with the File button.
+            </span>
+          ) : (
+            'No matching email found for your question.'
+          )}
+          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+        </div>
+      ) : null}
+
+      {!askLoading && !askError && askHits.map((hit, i) => (
+        <AskHitCard key={hit.sourceId ?? hit.path} hit={hit} rank={i + 1} items={items} />
+      ))}
+    </div>
+  );
 
   return (
     <div
       data-testid="email-workspace"
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        height: '100%',
-        flex: 1,
-        minHeight: 0,
-        minWidth: 0,
-        background: 'var(--color-background)',
-        fontFamily: 'var(--font-sans)',
-        overflowY: 'auto',
-      }}
+      className="flex h-full min-h-0 min-w-0 flex-1 flex-col bg-[var(--color-background)] font-sans"
     >
-      {/* Page header — hidden when embedded as a per-client sub-tab (the hub
-          already shows the client header above the sub-tab bar). */}
-      {!embedded && (
-        <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--color-border)', flexShrink: 0 }}>
-          <SurfaceHeader
-            Icon={Mail}
-            title="Email"
-          />
-        </div>
-      )}
-
-      {/* Toolbar — compose, mode toggle, scope toggle (conditional), search, filters toggle */}
-      {hasConnectedMail && (
-      <SurfaceToolbar>
-        {/* 1. Compose button */}
-        <Button
-          variant="primary"
-          size="md"
-          iconLeft={PenLine}
-          data-testid="compose-btn"
-          onClick={() => { setComposeOpen(true); }}
-        >
-          New email
-        </Button>
-
-        {/* 2. Mode toggle — standard bordered/navy-filled segmented control */}
-        <div
-          className="kp-segmented kp-segmented--md"
-          role="group"
-          aria-label="Search mode"
-          style={{ flex: 'none' }}
-        >
-          {(['keyword', 'ask'] as const).map((m) => (
-            <button
-              key={m}
-              type="button"
-              data-testid={`mode-${m}`}
-              className={`kp-segmented__item${mode === m ? ' is-active' : ''}`}
-              aria-pressed={mode === m}
-              onClick={() => {
-                setMode(m);
-                setQuery('');
-                setOffset(0);
-                setSelectedIds(new Set());
-              }}
-            >
-              {m === 'keyword' ? 'Keyword' : 'AI search'}
-            </button>
-          ))}
-        </div>
-
-        {/* 3. Scope toggle — only when a matter is active AND in Ask AI mode.
-            Hidden when embedded: the per-client Email sub-tab is locked to this
-            client (no "All email" destination), so the toggle would be a no-op. */}
-        {activeMatter && mode !== 'keyword' && !embedded && (
-          <SegmentedToggle
-            ariaLabel="Email scope"
-            size="md"
-            variant="filled"
-            options={[
-              { value: 'matter' as const, label: 'This client' },
-              { value: 'all' as const, label: 'All email' },
-            ]}
-            value={scopeAllEmail ? 'all' : 'matter'}
-            onChange={(v) => {
-              setScopeAllEmail(v === 'all');
-              setOffset(0);
-            }}
-          />
-        )}
-
-        {/* 4. Filters toggle — keyword mode only, when accounts are loaded */}
-        {mode === 'keyword' && (
-          <FilterToggle
-            open={filtersVisible}
-            onToggle={() => { setFiltersVisible((v) => !v); }}
-            count={activeFilterCount}
-            label="Filters"
-            data-testid="filters-toggle"
-          />
-        )}
-
-        {/* 4b. Sync now button — the toolbar only renders when mail is connected */}
-        <Button
-          variant="ghost"
-          size="md"
-          iconLeft={syncing ? Loader2 : RefreshCw}
-          data-testid="email-sync-now"
-          disabled={syncing}
-          onClick={handleSyncNow}
-          aria-label="Sync email now"
-          style={syncing ? { opacity: 0.6 } : undefined}
-        >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          {syncing
-            ? syncImportedMessages != null
-              ? `Importing… ${syncImportedMessages.toLocaleString()} messages`
-              : 'Importing…'
-            : 'Sync now'}
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-        </Button>
-
-        {/* 5. Search field — grows to fill remaining space, always last */}
-        <SearchField
-          ref={searchInputRef}
-          size="md"
-          icon={Search}
-          value={query}
-          onChange={(v) => {
-            setQuery(v);
-            setOffset(0);
-            setSelectedIds(new Set());
+      <div data-testid="mail-list-scroll" className="flex min-h-0 flex-1">
+        <RailShell
+          className="min-h-0 flex-1"
+          railWidth={276}
+          header={railHeader}
+          listAriaLabel={t('mail.workspace.rail-list-label')}
+          items={mode === 'keyword' ? railItems : []}
+          activeId={mode === 'keyword' ? effectiveSelectedEmailId : null}
+          onSelect={setSelectedEmailId}
+          emptyState={railEmptyState}
+          virtualization={{
+            enabled: mode === 'keyword' && railItems.length > EMAIL_RAIL_VIRTUALIZE_ROW_THRESHOLD,
+            estimateSize: EMAIL_RAIL_ROW_ESTIMATED_HEIGHT_PX,
+            overscan: 8,
           }}
-          onClear={handleClearQuery}
-          placeholder={
-            mode === 'keyword'
-              ? 'Search email by keyword...'
-              : 'Search your email with AI...'
-          }
-          aria-label="Search email"
-          data-testid="email-search-input"
-          style={{ flex: 1, minWidth: 240 }}
-        />
-      </SurfaceToolbar>
-      )}
+        >
+          <div data-testid="email-master-detail" className="flex h-full min-h-0 min-w-0 flex-col">
+            <div data-testid="email-detail-pane" className="flex min-h-0 flex-1 flex-col bg-white">
+              <div data-testid="email-body" className="flex min-h-0 flex-1 flex-col">
+            {hasConnectedMail && !firstConnectCalloutSeen ? (
+              /* eslint-disable lantern-i18n/no-hardcoded-string */
+              <div className="shrink-0 px-6 pt-4">
+                <div data-testid="first-connect-callout">
+                  <Callout
+                    variant="info"
+                    icon={Sparkles}
+                    onDismiss={dismissFirstConnectCallout}
+                  >
+                    <span className="font-semibold">Your email is connected.</span>
+                    {' '}Try a search your inbox never could.{' '}
+                    <button
+                      type="button"
+                      data-testid="first-connect-callout-cta"
+                      onClick={() => {
+                        dismissFirstConnectCallout();
+                        searchInputRef.current?.focus();
+                      }}
+                      className="font-semibold text-[var(--kp-navy)] underline"
+                    >
+                      Search by name, topic, or deadline
+                    </button>
+                  </Callout>
+                </div>
+              </div>
+              /* eslint-enable lantern-i18n/no-hardcoded-string */
+            ) : null}
 
-      {/* Filter panel — full-width below toolbar, keyword mode only */}
-      {hasConnectedMail && mode === 'keyword' && filtersVisible && (
-        <FilterPanel data-testid="filter-row">
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              flexWrap: 'wrap',
-            }}
-          >
-            {/* Provider filter */}
-            {uniqueProviders.length > 1 && (
-              <select
-                data-testid="provider-filter"
-                value={providerFilter}
-                onChange={handleProviderChange}
-                aria-label="Filter by provider"
-                style={filterInputStyle}
-              >
-                <option value="">All accounts</option>
-                {uniqueProviders.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            )}
+            {syncStalled ? (
+              /* eslint-disable lantern-i18n/no-hardcoded-string */
+              <div data-testid="email-sync-stalled" className="shrink-0 px-6 pt-4">
+                <Callout variant="warning" icon={AlertTriangle}>
+                  This is taking longer than expected. The sync is still running in the background.
+                </Callout>
+              </div>
+              /* eslint-enable lantern-i18n/no-hardcoded-string */
+            ) : null}
+            {syncError ? (
+              <div data-testid="email-sync-error" className="shrink-0 px-6 pt-4">
+                <Callout variant="error" icon={AlertTriangle}>
+                  {syncError}
+                </Callout>
+              </div>
+            ) : null}
 
-            {/* Date from */}
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-              From
-              <input
-                type="date"
-                data-testid="date-from"
-                value={dateFrom}
-                onChange={handleDateFromChange}
-                aria-label="From date"
-                style={filterInputStyle}
-              />
-            </label>
-
-            {/* Date to */}
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-              To
-              <input
-                type="date"
-                data-testid="date-to"
-                value={dateTo}
-                onChange={handleDateToChange}
-                aria-label="To date"
-                style={filterInputStyle}
-              />
-            </label>
-
-            {/* Has attachment toggle */}
-            <label
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
-                fontSize: 'var(--kp-font-xs)',
-                color: 'var(--color-muted-foreground)',
-                cursor: 'pointer',
-              }}
-            >
-              <input
-                type="checkbox"
-                data-testid="attachment-filter"
-                checked={hasAttachments}
-                onChange={handleAttachmentToggle}
-                style={{ accentColor: 'var(--kp-navy)', cursor: 'pointer' }}
-              />
-              Has attachment
-            </label>
-          </div>
-        </FilterPanel>
-      )}
-
-      {/* First-connect TTV callout — shown exactly once after the first account connects */}
-      {hasConnectedMail && !firstConnectCalloutSeen && (
-        /* eslint-disable lantern-i18n/no-hardcoded-string */
-        <div style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
-          <div data-testid="first-connect-callout">
-          <Callout
-            variant="info"
-            icon={Sparkles}
-            onDismiss={dismissFirstConnectCallout}
-          >
-            <span style={{ fontWeight: 'var(--kp-weight-semibold)' }}>Your email is connected.</span>
-            {' '}Try a search your inbox never could.{' '}
-            <button
-              type="button"
-              data-testid="first-connect-callout-cta"
-              onClick={() => {
-                dismissFirstConnectCallout();
-                searchInputRef.current?.focus();
-              }}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                color: 'var(--kp-navy)',
-                fontWeight: 'var(--kp-weight-semibold)',
-                cursor: 'pointer',
-                fontSize: 'inherit',
-                textDecoration: 'underline',
-                fontFamily: 'inherit',
-              }}
-            >
-              Search by name, topic, or deadline
-            </button>
-          </Callout>
-          </div>
-        </div>
-        /* eslint-enable lantern-i18n/no-hardcoded-string */
-      )}
-
-      {/* Sync stall / timeout warnings — surfaced separately from the per-row
-          search error below since a stuck sync is not a search failure. */}
-      {syncStalled && (
-        /* eslint-disable lantern-i18n/no-hardcoded-string */
-        <div data-testid="email-sync-stalled" style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
-          <Callout variant="warning" icon={AlertTriangle}>
-            This is taking longer than expected. The sync is still running in the background.
-          </Callout>
-        </div>
-        /* eslint-enable lantern-i18n/no-hardcoded-string */
-      )}
-      {syncError && (
-        <div data-testid="email-sync-error" style={{ padding: `var(--kp-space-sm) var(--kp-gutter) 0`, flexShrink: 0 }}>
-          <Callout variant="error" icon={AlertTriangle}>
-            {syncError}
-          </Callout>
-        </div>
-      )}
-
-      {/* Body */}
-      {/* Codex review (P2.2, round 4, P1): this wrapper had `flex: 1` but no
-          `display: flex` of its OWN — flex properties only apply to children
-          of an actual flex container, so without this the results box's
-          `flex: 1` (see below) was a no-op: the box just grew to fit
-          `rowVirtualizer.getTotalSize()` instead of being constrained to the
-          remaining page height, so the virtualizer's scroll container never
-          actually scrolled and only the first virtual window of rows ever
-          rendered — a busy (>40-row) inbox went blank past that window. */}
-      <div data-testid="email-body" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-        {/* No accounts state */}
-        {accountsLoaded && accounts.length === 0 && (
-          <NoAccountsState onOpenSettings={onOpenSettings} />
-        )}
-
-        {/* Keyword mode */}
-        {hasConnectedMail && mode === 'keyword' && (
-          <>
-            {/* Bulk action bar */}
-            {selectedIds.size > 0 && (
+            {selectedIds.size > 0 ? (
               <BulkActionBar
                 selectedCount={selectedIds.size}
                 selectedIds={selectedIds}
@@ -943,535 +1177,74 @@ export function EmailWorkspace({
                 bulkMatterOpen={bulkMatterOpen}
                 onBulkMatterOpenChange={setBulkMatterOpen}
               />
-            )}
+            ) : null}
 
-            {/* Loading skeleton */}
-            {loading && (
-              <div
-                data-testid="loading-state"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: `var(--kp-space-2xl) var(--kp-gutter)`,
-                  gap: 'var(--kp-space-xs)',
-                  color: 'var(--color-muted-foreground)',
-                  fontSize: 'var(--kp-font-sm)',
-                }}
-              >
-                <Loader2
-                  style={{
-                    width: 'var(--kp-icon-md)',
-                    height: 'var(--kp-icon-md)',
-                    strokeWidth: 2,
-                    animation: 'spin 1s linear infinite',
-                  }}
-                />
-                { }
-                { }
-                Loading email...
-                { }
-                { }
-              </div>
-            )}
+            {accountsLoaded && accounts.length === 0 ? (
+              <NoAccountsState onOpenSettings={onOpenSettings} />
+            ) : null}
 
-            {/* Error state */}
-            {!loading && error && (
-              <div
-                data-testid="error-state"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: `var(--kp-space-2xl) var(--kp-gutter)`,
-                  gap: 'var(--kp-space-xs)',
-                  textAlign: 'center',
-                }}
-              >
-                <AlertTriangle
-                  style={{
-                    width: 24,
-                    height: 24,
-                    color: '#f59e0b',
-                    strokeWidth: 1.75,
-                  }}
-                />
-                <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', color: 'var(--color-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
-                  {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                  Could not load email
-                  {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-                </p>
-                <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', maxWidth: 340 }}>
-                  {error}
-                </p>
+            {hasConnectedMail && mode === 'keyword' && !loading && !error && selectedEmailSourceId && onSaveToWorkspace ? (
+              <div className="flex shrink-0 justify-end border-b border-[var(--kp-divider)] px-6 py-2">
                 <Button
-                  variant="secondary"
+                  variant={detailExportFailed ? 'danger' : 'secondary'}
                   size="sm"
-                  data-testid="error-retry"
-                  onClick={handleRetry}
-                  style={{ marginTop: 4 }}
+                  iconLeft={detailExportFailed ? AlertTriangle : FileDown}
+                  loading={detailExporting}
+                  data-testid={effectiveSelectedEmailId ? `email-detail-export-${effectiveSelectedEmailId}` : 'email-detail-export'}
+                  disabled={detailExporting}
+                  onClick={handleExportSelectedEmail}
                 >
-                  Try again
+                  {detailExportFailed ? t('mail.workspace.export-failed') : t('mail.workspace.export-selected')}
                 </Button>
               </div>
-            )}
+            ) : null}
 
-            {/* No results state */}
-            {!loading && !error && scopedItems.length === 0 && (
-              <div
-                data-testid="no-results-state"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: `var(--kp-space-2xl) var(--kp-gutter)`,
-                  gap: 'var(--kp-space-xs)',
-                  textAlign: 'center',
-                }}
-              >
-                <Mail
-                  style={{
-                    width: 28,
-                    height: 28,
-                    color: 'var(--color-muted-foreground)',
-                    strokeWidth: 1.5,
-                  }}
+            {hasConnectedMail && mode === 'keyword' && !loading && !error && scopedItems.length > 0 && selectedEmailSourceId ? (
+              shouldShowFixturePreview && selectedEmailItem ? (
+                <EmailFixturePreview
+                  item={selectedEmailItem}
+                  subjectLabel={selectedEmailItem.subject || t('mail.workspace.no-subject')}
+                  previewLabel={t('mail.workspace.demo-preview')}
+                  previewNote={t('mail.workspace.demo-preview-note')}
+                  snippetLabel={t('mail.workspace.snippet')}
                 />
-                <p style={{ margin: 0, fontSize: 'var(--kp-font-sm)', color: 'var(--color-foreground)', fontWeight: 'var(--kp-weight-medium)' }}>
-                  {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                  No emails found
-                  {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+              ) : (
+                <EmailViewer sourceId={selectedEmailSourceId} onOpenSettings={onOpenSettings} className="min-h-0 flex-1" />
+              )
+            ) : null}
+
+            {hasConnectedMail && mode === 'keyword' && !loading && !error && scopedItems.length === 0 ? (
+              <div
+                data-testid="email-detail-empty-state"
+                className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+              >
+                <Mail className="h-7 w-7 text-[var(--color-muted-foreground)]" strokeWidth={1.5} />
+                <p className="m-0 text-sm font-medium text-[var(--color-foreground)]">
+                  {t('mail.workspace.no-emails')}
                 </p>
-                <p style={{ margin: 0, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-                  { }
+                <p className="m-0 max-w-sm text-xs leading-snug text-[var(--color-muted-foreground)]">
                   {query
-                    ? 'Try a different keyword or adjust the filters.'
+                    ? t('mail.workspace.no-emails-query')
                     : embedded
-                      ? "No email is filed to this client yet. Connect a mail folder for this client to see their correspondence here."
-                      : 'No email has been synced yet.'}
-                  { }
+                      ? t('mail.workspace.no-emails-client')
+                      : t('mail.workspace.no-emails-synced')}
                 </p>
-                {/* Backend scoping (F2.6b) makes `total` the client's real mail
-                    count, so this only shows if a later page still has scoped mail
-                    to load — a safety net, not the primary paginator. Gated on
-                    `scopeMatches` so it never appends under a changed scope. */}
-                {embedded && scopeMatches && items.length < total && (
-                  <button
-                    type="button"
-                    data-testid="email-scoped-load-more"
-                    onClick={handleLoadMore}
-                    disabled={loadingMore}
-                    style={{
-                      marginTop: 4,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      padding: '6px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      fontSize: 'var(--kp-font-xs)',
-                      fontWeight: 'var(--kp-weight-medium)',
-                      color: 'var(--kp-navy)',
-                      background: '#fff',
-                      border: '1px solid var(--color-border)',
-                      cursor: loadingMore ? 'default' : 'pointer',
-                    }}
-                  >
-                    {loadingMore && (
-                      <Loader2 style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
-                    )}
-                    {loadingMore ? 'Looking...' : 'Keep looking in more email'}
-                  </button>
-                )}
               </div>
-            )}
+            ) : null}
 
-            {/* Results list */}
-            {!loading && !error && scopedItems.length > 0 && (
-              <div
-                style={{
-                  margin: `var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)`,
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-lg)',
-                  background: '#fff',
-                  boxShadow: 'var(--kp-shadow-1)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  // Perf (P2.2) fix (Codex review round 3): this box fills
-                  // whatever space remains below the toolbar/filters/other
-                  // states, the same way it did before virtualization —
-                  // giving it a SMALL fixed max-height instead (as the
-                  // original version of this fix did) shrank row popovers'
-                  // (File/Privilege) available room from the full page down
-                  // to a few hundred pixels, so a dropdown opened on any row
-                  // past the first few got clipped by this box's own
-                  // overflow. `flex: 1` + `minHeight: 0` restores the
-                  // original, full-page-height safe zone.
-                  flex: 1,
-                  minHeight: 0,
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  data-testid="result-count"
-                  style={{
-                    padding: `var(--kp-space-2xs) var(--kp-space-md)`,
-                    fontSize: 'var(--kp-font-2xs)',
-                    color: 'var(--color-muted-foreground)',
-                    borderBottom: '1px solid var(--color-border)',
-                    background: 'rgba(10,37,64,0.02)',
-                    flexShrink: 0,
-                  }}
-                >
-                  {embedded
-                    ? `Showing ${String(scopedItems.length)} for this client`
-                    : total === items.length && !query
-                      ? 'All email loaded'
-                      : `Showing ${String(items.length)} of ${String(total)}`}
-                </div>
-                <div
-                  ref={scrollContainerRef}
-                  data-testid="mail-list-scroll"
-                  style={{
-                    flex: 1,
-                    minHeight: 0,
-                    overflowY: 'auto',
-                  }}
-                  // Codex review (P2.2, rounds 3 & 5) flagged that row menus
-                  // (File/Privilege — `.kp-dropdown`, `position: absolute`)
-                  // can clip against this element's own `overflow: auto`
-                  // boundary for a row near the bottom of the visible list.
-                  // This is a PRE-EXISTING characteristic, not one this
-                  // change introduces: the page root ABOVE this element has
-                  // always had `overflow-y: auto` too (unchanged by any of
-                  // this ticket's commits), so a row's dropdown near the
-                  // bottom of the viewport was equally susceptible before
-                  // virtualization existed. Round 3 of this same review
-                  // fixed the part that WAS a regression — a small fixed
-                  // (560px) height here shrank the safe zone far below what
-                  // it was before; `flex: 1` above restores that original,
-                  // full-page-height safe zone. A real fix for the
-                  // underlying class of bug (any absolutely-positioned
-                  // popover clipping against ANY scrolling ancestor) means
-                  // portal/floating-position rendering in the shared
-                  // `Dropdown` primitive (`@/ui/kp`) — used well beyond
-                  // Email — which is out of this render-perf-only ticket's
-                  // scope and lane; flagged here as a real, pre-existing,
-                  // consciously-deferred follow-up rather than silently
-                  // dropped.
-                >
-                  {shouldVirtualizeRows ? (
-                    <div style={{ height: rowVirtualizer.getTotalSize(), position: 'relative', width: '100%' }}>
-                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                        const item = scopedItems[virtualRow.index];
-                        if (!item) return null;
-                        return (
-                          <div
-                            key={item.id}
-                            data-index={virtualRow.index}
-                            ref={rowVirtualizer.measureElement}
-                            style={{
-                              position: 'absolute',
-                              top: 0,
-                              left: 0,
-                              width: '100%',
-                              transform: `translateY(${String(virtualRow.start)}px)`,
-                            }}
-                          >
-                            <MailRow
-                              item={item}
-                              selected={selectedIds.has(item.id)}
-                              anySelected={selectedIds.size > 0}
-                              onToggleSelect={handleToggleSelect}
-                              onSaveToWorkspace={onSaveToWorkspace}
-                            />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    scopedItems.map((item) => (
-                      <MailRow
-                        key={item.id}
-                        item={item}
-                        selected={selectedIds.has(item.id)}
-                        anySelected={selectedIds.size > 0}
-                        onToggleSelect={handleToggleSelect}
-                        onSaveToWorkspace={onSaveToWorkspace}
-                      />
-                    ))
-                  )}
-                </div>
-
-                {/* Load more */}
-                {scopeMatches && items.length < total && (
-                  <div
-                    style={{
-                      padding: `var(--kp-space-sm) var(--kp-space-md)`,
-                      borderTop: '1px solid var(--color-border)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <button
-                      type="button"
-                      data-testid="load-more"
-                      onClick={handleLoadMore}
-                      disabled={loadingMore}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        padding: '6px 14px',
-                        borderRadius: 5,
-                        fontSize: 'var(--kp-font-xs)',
-                        fontWeight: 'var(--kp-weight-medium)',
-                        color: 'var(--color-foreground)',
-                        background: '#fff',
-                        border: '1px solid var(--color-border)',
-                        cursor: loadingMore ? 'default' : 'pointer',
-                      }}
-                    >
-                      {loadingMore && (
-                        <Loader2
-                          style={{
-                            width: 'var(--kp-icon-xs)',
-                            height: 'var(--kp-icon-xs)',
-                            strokeWidth: 2,
-                            animation: 'spin 1s linear infinite',
-                          }}
-                        />
-                      )}
-                      { }
-                      { }
-                      {loadingMore ? 'Loading...' : `Load more (${String(total - items.length)} remaining)`}
-                      { }
-                      { }
-                    </button>
-                  </div>
-                )}
+            {hasConnectedMail && mode === 'keyword' && (loading || error) ? (
+              <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--color-muted-foreground)]">
+                {loading ? t('mail.workspace.loading-email') : t('mail.workspace.select-email-after-error')}
               </div>
-            )}
-          </>
-        )}
+            ) : null}
 
-        {/* Ask mode */}
-        {accountsLoaded && accounts.length > 0 && mode === 'ask' && (
-          <div style={{ padding: `var(--kp-surface-gap) var(--kp-gutter) var(--kp-gutter)` }}>
-            {askLoading && (
-              <div
-                data-testid="ask-loading"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--kp-space-xs)',
-                  padding: `var(--kp-space-lg) 0`,
-                  color: 'var(--color-muted-foreground)',
-                  fontSize: 'var(--kp-font-sm)',
-                }}
-              >
-                <Loader2
-                  style={{
-                    width: 'var(--kp-icon-sm)',
-                    height: 'var(--kp-icon-sm)',
-                    strokeWidth: 2,
-                    animation: 'spin 1s linear infinite',
-                  }}
-                />
-                { }
-                { }
-                Searching email...
-                { }
-                { }
+            {accountsLoaded && accounts.length > 0 && mode === 'ask' ? renderAskContent() : null}
               </div>
-            )}
-
-            {askError && (
-              <div
-                data-testid="ask-error"
-                style={{
-                  padding: `var(--kp-space-md) 0`,
-                  fontSize: 'var(--kp-font-sm)',
-                  color: '#b45309',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                }}
-              >
-                <AlertTriangle style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, flex: 'none' }} />
-                {askError}
-              </div>
-            )}
-
-            {/* Ask AI empty state — no query typed yet */}
-            {!askLoading && !askError && !query.trim() && (
-              <div
-                data-testid="ask-empty-state"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  padding: `var(--kp-space-2xl) 0 var(--kp-space-xl)`,
-                  gap: 'var(--kp-space-sm)',
-                  textAlign: 'center',
-                }}
-              >
-                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                <div
-                  style={{
-                    fontSize: 'var(--kp-font-lg)',
-                    fontWeight: 'var(--kp-weight-bold)',
-                    lineHeight: 'var(--kp-leading-tight)',
-                    color: 'var(--kp-navy)',
-                    fontFamily: 'var(--font-sans)',
-                    letterSpacing: '-0.01em',
-                  }}
-                >
-                  Search your email
-                </div>
-                <div
-                  style={{
-                    fontSize: 'var(--kp-font-sm)',
-                    color: 'var(--color-muted-foreground)',
-                    maxWidth: 360,
-                    lineHeight: 'var(--kp-leading-normal)',
-                  }}
-                >
-                  I search across your imported email and answer with citations you can open.
-                </div>
-                <div
-                  style={{
-                    display: 'flex',
-                    flexWrap: 'wrap',
-                    justifyContent: 'center',
-                    gap: 8,
-                    marginTop: 8,
-                  }}
-                >
-                  {[
-                    'Who emailed about a beneficiary change?',
-                    'Find statements with attachments from the custodian',
-                    'What did the client agree to over email?',
-                  ].map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      data-testid="ask-chip"
-                      onClick={() => {
-                        setQuery(chip);
-                      }}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        padding: '6px 12px',
-                        borderRadius: 20,
-                        fontSize: 'var(--kp-font-xs)',
-                        fontWeight: 'var(--kp-weight-medium)',
-                        color: 'var(--kp-navy)',
-                        background: 'rgba(10,37,64,0.05)',
-                        border: '1px solid rgba(10,37,64,0.14)',
-                        cursor: 'pointer',
-                        fontFamily: 'var(--font-sans)',
-                        transition: 'background 0.1s, border-color 0.1s',
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,37,64,0.09)';
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(10,37,64,0.22)';
-                      }}
-                      onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(10,37,64,0.05)';
-                        (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(10,37,64,0.14)';
-                      }}
-                    >
-                      {chip}
-                    </button>
-                  ))}
-                </div>
-                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-              </div>
-            )}
-
-            {!askLoading && !askError && askHits.length === 0 && query.trim() && (
-              <div
-                data-testid="ask-no-results"
-                style={{
-                  padding: `var(--kp-space-lg) 0`,
-                  fontSize: 'var(--kp-font-sm)',
-                  color: 'var(--color-muted-foreground)',
-                  textAlign: 'center',
-                  lineHeight: 'var(--kp-leading-relaxed)',
-                }}
-              >
-                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                {!isMemoryEnabled() ? (
-                  <span>
-                    AI search needs memory enabled.{' '}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
-                        onOpenSettings?.();
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: 'var(--kp-navy)',
-                        fontWeight: 'var(--kp-weight-semibold)',
-                        cursor: 'pointer',
-                        fontSize: 'inherit',
-                        textDecoration: 'underline',
-                      }}
-                    >
-                      Enable it in Settings
-                    </button>
-                    .
-                  </span>
-                ) : activeMatter && !scopeAllEmail && embedded ? (
-                  <span>
-                    No email is filed to this client yet. Connect a mail folder for this client to search their correspondence.
-                  </span>
-                ) : activeMatter && !scopeAllEmail ? (
-                  <span>
-                    No email is filed to this client yet.{' '}
-                    <button
-                      type="button"
-                      data-testid="ask-no-results-switch-scope"
-                      onClick={() => { setScopeAllEmail(true); }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        padding: 0,
-                        color: 'var(--kp-navy)',
-                        fontWeight: 'var(--kp-weight-semibold)',
-                        cursor: 'pointer',
-                        fontSize: 'inherit',
-                        textDecoration: 'underline',
-                      }}
-                    >
-                      Switch to All email
-                    </button>
-                    {' '}above, or file emails to this client with the File button.
-                  </span>
-                ) : (
-                  'No matching email found for your question.'
-                )}
-                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-              </div>
-            )}
-
-            {!askLoading && !askError && askHits.map((hit, i) => (
-              <AskHitCard key={hit.sourceId ?? hit.path} hit={hit} rank={i + 1} items={items} />
-            ))}
+            </div>
           </div>
-        )}
+        </RailShell>
       </div>
 
-      {/* Compose modal — always mounted so draft text survives close/reopen */}
       <ComposeModal
         open={composeOpen}
         onOpenChange={setComposeOpen}
