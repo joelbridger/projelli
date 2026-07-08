@@ -518,7 +518,7 @@ export function TableHeader() {
         columnGap: 12,
         padding: '0 var(--kp-space-md)',
         borderBottom: '2px solid var(--color-border)',
-        background: 'rgba(10,37,64,0.025)',
+        background: 'rgba(var(--kp-navy-rgb),0.025)',
       }}
     >
       <Eyebrow style={{ padding: '9px 0' }}>Timestamp</Eyebrow>

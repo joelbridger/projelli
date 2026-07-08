@@ -25,6 +25,7 @@ function renderRail(overrides: Partial<React.ComponentProps<typeof Conversations
     activeChatId: 'ask-m1-2000',
     onSelect: vi.fn(),
     onNewQuestion: vi.fn(),
+    onRename: vi.fn(),
     collapsed: false,
     onToggleCollapsed: vi.fn(),
     ...overrides,

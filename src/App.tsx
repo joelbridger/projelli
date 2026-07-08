@@ -1367,12 +1367,16 @@ function AppShell() {
   // Shell-wide `lantern:*` CustomEvent wiring (matter manager, settings,
   // account, matter launch). See src/app/lifecycle/useGlobalEventBus.ts.
   useGlobalEventBus({
-    onOpenMatterManager: () => setNewClientOpen(true),
+    onOpenMatterManager: () => {
+      setNewClientOpen(true);
+    },
     onOpenClientSettings: (matterId: string | null) => {
       setClientSettingsMatterId(matterId);
       setMatterManagerOpen(true);
     },
-    onOpenNewGroup: () => setNewGroupOpen(true),
+    onOpenNewGroup: () => {
+      setNewGroupOpen(true);
+    },
     onOpenAccount: (tab?: string) => {
       setAccountWindowInitialTab(tab);
       setAccountWindowOpen(true);

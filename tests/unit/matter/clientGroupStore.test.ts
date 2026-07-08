@@ -26,7 +26,7 @@ describe('clientGroupStore — create / rename / delete', () => {
   beforeEach(reset);
 
   it('creates a named group with a stable id and no members', () => {
-    const g = useClientGroupStore.getState().createGroup('  Retirement plans  ');
+    const g = useClientGroupStore.getState().createGroup('  Retirement plans  ')!;
     expect(g.id).toMatch(/^cgroup_/);
     // Name is trimmed.
     expect(g.name).toBe('Retirement plans');

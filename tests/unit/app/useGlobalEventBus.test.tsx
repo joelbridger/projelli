@@ -17,6 +17,8 @@ import { EV_OPEN_SETTINGS } from '@/config/identity';
 function makeHandlers(): GlobalEventBusHandlers {
   return {
     onOpenMatterManager: vi.fn(),
+    onOpenClientSettings: vi.fn(),
+    onOpenNewGroup: vi.fn(),
     onOpenAccount: vi.fn(),
     openSettings: vi.fn(),
     setSidebarActiveTab: vi.fn(),
