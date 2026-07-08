@@ -51,7 +51,7 @@ describe('ClientMeetingsTab — master-detail rail', () => {
 
     await waitFor(() => expect(screen.getAllByTestId('meeting-row')).toHaveLength(2));
 
-    expect(screen.getByRole('list', { name: 'Meetings' })).toBeVisible();
+    expect(screen.getByRole('listbox', { name: 'Meetings' })).toBeVisible();
     const recordButton = screen.getByTestId('record-meeting-button');
     expect(recordButton).toHaveAttribute('aria-label', 'Record a meeting');
     expect(recordButton).toHaveTextContent('');
@@ -65,13 +65,13 @@ describe('ClientMeetingsTab — master-detail rail', () => {
 
     await waitFor(() => expect(within(screen.getByTestId('meeting-entry')).getByText('Roth planning')).toBeVisible());
     const rows = screen.getAllByTestId('meeting-row');
-    expect(rows[0]).toHaveAttribute('aria-current', 'page');
+    expect(rows[0]).toHaveAttribute('aria-selected', 'true');
 
     fireEvent.click(screen.getByTestId('meeting-title-rename'));
     expect(screen.getByTestId('meeting-title-input')).toHaveValue('Roth planning');
 
     fireEvent.click(rows[1]!);
-    await waitFor(() => expect(screen.getAllByTestId('meeting-row')[1]).toHaveAttribute('aria-current', 'page'));
+    await waitFor(() => expect(screen.getAllByTestId('meeting-row')[1]).toHaveAttribute('aria-selected', 'true'));
     expect(screen.queryByTestId('meeting-title-input')).toBeNull();
   });
 
@@ -90,9 +90,9 @@ describe('ClientMeetingsTab — master-detail rail', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('client-meetings-tab')).toBeVisible());
-    expect(screen.getByRole('list', { name: 'Meetings' })).toBeVisible();
+    expect(screen.getByRole('listbox', { name: 'Meetings' })).toBeVisible();
     await waitFor(() => expect(within(screen.getByTestId('meeting-entry')).getByText('Annual review')).toBeVisible());
     expect(screen.queryByTestId('meeting-entry-back')).toBeNull();
-    expect(screen.getAllByTestId('meeting-row')[1]).toHaveAttribute('aria-current', 'page');
+    expect(screen.getAllByTestId('meeting-row')[1]).toHaveAttribute('aria-selected', 'true');
   });
 });

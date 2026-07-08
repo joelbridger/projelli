@@ -424,7 +424,7 @@ describe('MatterHub — sub-tab workspace', () => {
     );
 
     await waitFor(() => expect(screen.getByTestId('client-meetings-tab')).toBeInTheDocument());
-    expect(screen.getByRole('list', { name: 'Meetings' })).toBeVisible();
+    expect(screen.getByRole('listbox', { name: 'Meetings' })).toBeVisible();
     expect(screen.getByTestId('client-meetings-rail-header')).toContainElement(screen.getByTestId('record-meeting-button'));
     await waitFor(() => expect(within(screen.getByTestId('meeting-entry')).getByText('Direct review')).toBeVisible());
     expect(screen.queryByTestId('meeting-entry-back')).toBeNull();
