@@ -414,6 +414,7 @@ export function DocxEditor({
   const [savingCopy, setSavingCopy] = useState(false);
   // The comment whose card is highlighted (clicked anchor <-> card linking).
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const openRenameAfterActionsMenuRef = useRef(false);
 
   // ---- Smoke P0 #5: Send to Wealthbox -------------------------------------
   // Checked only when the action can appear at all (a current matter is
@@ -444,12 +445,12 @@ export function DocxEditor({
     input.select();
   }, [isRenaming]);
 
-  const submitRename = useCallback(async () => {
+  const submitRename = useCallback(async (draftOverride?: string) => {
     if (!onRenameFile) {
       setIsRenaming(false);
       return;
     }
-    const trimmed = renameDraft.trim();
+    const trimmed = (draftOverride ?? renameDraft).trim();
     if (!trimmed) {
       setIsRenaming(false);
       return;
@@ -465,6 +466,10 @@ export function DocxEditor({
     }
     setIsRenaming(false);
   }, [fileName, onRenameFile, renameDraft]);
+
+  const startRenaming = useCallback(() => {
+    openRenameAfterActionsMenuRef.current = true;
+  }, []);
 
   // ---- A4: AI redline state ----------------------------------------------
   // Entitlement gate: AI redline is an AI feature, so it is gated off for a
@@ -2046,10 +2051,10 @@ export function DocxEditor({
               type="text"
               value={renameDraft}
               onChange={(e) => { setRenameDraft(e.target.value); }}
-              onBlur={() => { void submitRename(); }}
+              onBlur={(e) => { void submitRename(e.currentTarget.value); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
-                  void submitRename();
+                  void submitRename(e.currentTarget.value);
                 } else if (e.key === 'Escape') {
                   setIsRenaming(false);
                   const dot = fileName.lastIndexOf('.');
@@ -2080,11 +2085,20 @@ export function DocxEditor({
                 </span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-64">
+            <DropdownMenuContent
+              align="end"
+              className="w-64"
+              onCloseAutoFocus={(event) => {
+                if (!openRenameAfterActionsMenuRef.current) return;
+                openRenameAfterActionsMenuRef.current = false;
+                event.preventDefault();
+                setIsRenaming(true);
+              }}
+            >
               {onRenameFile && (
                 <DropdownMenuItem
                   data-testid="docx-rename-file"
-                  onSelect={() => { setIsRenaming(true); }}
+                  onSelect={startRenaming}
                 >
                   <Pencil className="mr-2 h-4 w-4" />
                   {t('media.docx-editor.rename-file')}
