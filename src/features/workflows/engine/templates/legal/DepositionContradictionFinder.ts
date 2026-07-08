@@ -103,7 +103,7 @@ Rules:
 export const DepositionContradictionFinder: WorkflowTemplate = {
   id: 'legal-deposition-contradiction-finder',
   name: 'Deposition Contradiction Finder',
-  description: 'Flag candidate contradictions between a witness\'s deposition testimony and the rest of the client record (other documents, emails, prior statements). Grounded in client-scoped retrieval; every finding carries a citation you verify. Produces a structured Word deliverable.',
+  description: 'Find cited candidate contradictions in a deposition and client record for attorney review.',
   version: '2.0.0',
   category: 'legal',
   requiresVerification: true,

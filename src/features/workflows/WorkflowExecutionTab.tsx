@@ -7,6 +7,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { InterviewForm } from './InterviewForm';
@@ -20,6 +34,7 @@ import {
   HelpCircle,
   Link as LinkIcon,
   Loader2,
+  MoreHorizontal,
   Settings,
   XCircle,
   Zap,
@@ -163,6 +178,8 @@ export function WorkflowExecutionTab({
   // English too rather than mixing languages.
   const entityLabel = useEntityLabelEnglish();
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [showAllSteps, setShowAllSteps] = useState(false);
+  const [docxExportOpen, setDocxExportOpen] = useState(false);
 
   // Firm name persisted in localStorage — used to brand exported .docx files
   const [firmName, setFirmName] = useState<string>(() => {
@@ -274,11 +291,18 @@ export function WorkflowExecutionTab({
   const isFailed = execution?.status === 'failed';
   const totalSteps = template.steps.length;
   const currentStep = execution?.currentStepIndex ?? 0;
+  const currentStepNumber = totalSteps > 0 ? Math.min(currentStep + 1, totalSteps) : 0;
+  const currentStepLabel = totalSteps > 0
+    ? t('workflow.execution.step-short', { current: currentStepNumber, total: totalSteps })
+    : t('workflow.execution.no-steps');
   const progressPercent = isCompleted
     ? 100
     : totalSteps > 0
       ? Math.round((currentStep / totalSteps) * 100)
       : 0;
+  const currentWorkflowStep = template.steps[currentStep];
+  const primaryFileLink = fileLinks[0] ?? null;
+  const suggestedFileBase = template.name.replace(/\s+/g, '-');
 
   // F-106/F-107 — provider-error blocking state. Render this INSTEAD of the
   // normal execution UI when the run was refused before starting because no
@@ -294,12 +318,11 @@ export function WorkflowExecutionTab({
         className={cn('flex flex-col h-full overflow-x-hidden', className)}
       >
         {/* Header — same chrome as the normal tab so it still feels familiar */}
-        <div className="shrink-0 border-b bg-muted/30 px-6 py-4">
+        <div className="shrink-0 border-b bg-background px-6 py-4">
           <div className="flex items-center gap-3">
             <Zap className="h-5 w-5 text-amber-500" />
             <div className="flex-1 min-w-0">
               <h2 className="text-base font-semibold truncate">{template.name}</h2>
-              <p className="text-xs text-muted-foreground truncate">{template.description}</p>
             </div>
           </div>
         </div>
@@ -313,14 +336,14 @@ export function WorkflowExecutionTab({
             <div>
               <p className="font-semibold text-base">
                 {needsClient
-                  ? 'Pick your client first.'
+                  ? t('workflow.execution.needs-client-title')
                   : isOllama
                   ? t('workflow.execution.ollama-unreachable-title')
                   : t('workflow.execution.needs-provider-title')}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 {needsClient
-                  ? 'Choose a client, then run the workflow again.'
+                  ? t('workflow.execution.needs-client-body')
                   : isOllama
                   ? t('workflow.execution.ollama-unreachable-body')
                   : t('workflow.execution.needs-provider-body')}
@@ -348,14 +371,21 @@ export function WorkflowExecutionTab({
       className={cn('flex flex-col h-full overflow-x-hidden', className)}
     >
       {/* Header */}
-      <div className="shrink-0 border-b bg-muted/30 px-6 py-4">
+      <div className="sticky top-0 z-10 shrink-0 border-b bg-background px-6 py-3">
         <div className="flex items-center gap-3">
           <Zap className="h-5 w-5 text-amber-500" />
           <div className="flex-1 min-w-0">
-            <h2 className="text-base font-semibold truncate">{template.name}</h2>
-            <p className="text-xs text-muted-foreground truncate">
-              {template.description}
-            </p>
+            <h2 className="text-base font-semibold truncate">
+              {template.name}
+              <span className="text-muted-foreground font-normal"> · </span>
+              <span className="text-muted-foreground font-medium">
+                {isCompleted
+                  ? t('workflow.execution.complete')
+                  : isFailed
+                    ? t('workflow.execution.failed')
+                    : currentStepLabel}
+              </span>
+            </h2>
           </div>
           {isRunning && (
             <Button
@@ -364,7 +394,7 @@ export function WorkflowExecutionTab({
               className="shrink-0 text-xs"
               onClick={onCancel}
             >
-              Cancel
+              {t('workflow.execution.cancel')}
             </Button>
           )}
         </div>
@@ -383,19 +413,19 @@ export function WorkflowExecutionTab({
           <span
             data-testid="workflow-status-pill"
             className={cn(
-              'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium shrink-0',
-              isCompleted && 'border-green-200 bg-green-50 text-green-700',
-              isFailed && 'border-red-200 bg-red-50 text-red-700',
-              isRunning && 'border-amber-200 bg-amber-50 text-amber-700'
+              'inline-flex items-center gap-1.5 text-xs font-medium shrink-0',
+              isCompleted && 'text-green-700',
+              isFailed && 'text-red-700',
+              isRunning && 'text-amber-700'
             )}
             style={{ pointerEvents: 'none' }}
           >
             {isRunning && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
             {isCompleted
-              ? 'Complete'
+              ? t('workflow.execution.complete')
               : isFailed
-                ? 'Failed'
-                : `Running step ${currentStep + 1} of ${totalSteps}`}
+                ? t('workflow.execution.failed')
+                : currentStepLabel}
           </span>
         </div>
       </div>
@@ -403,38 +433,64 @@ export function WorkflowExecutionTab({
       {/* Scrollable body */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
         {/* Step list */}
-        <div className="space-y-1">
-          {template.steps.map((step, index) => {
-            const isDone = execution ? index < execution.currentStepIndex : false;
-            const isCurrent = execution ? index === execution.currentStepIndex : false;
-            const isPending = !isDone && !isCurrent;
+        <div className="space-y-2">
+          {currentWorkflowStep && (
+            <div
+              data-testid="workflow-current-step"
+              className="flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
+            >
+              {isRunning ? (
+                <Loader2 className="h-4 w-4 text-amber-500 animate-spin shrink-0" />
+              ) : isFailed ? (
+                <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+              ) : (
+                <Clock className="h-4 w-4 text-muted-foreground/70 shrink-0" />
+              )}
+              <span className="truncate min-w-0">{currentWorkflowStep.name}</span>
+            </div>
+          )}
+          {template.steps.length > 1 && (
+            <button
+              type="button"
+              data-testid="workflow-show-all-steps"
+              className="text-xs font-medium text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setShowAllSteps((value) => !value);
+              }}
+            >
+              {showAllSteps ? t('workflow.execution.hide-all-steps') : t('workflow.execution.show-all-steps')}
+            </button>
+          )}
+          {showAllSteps && (
+            <div data-testid="workflow-all-steps" className="space-y-1">
+              {template.steps.map((step, index) => {
+                const isDone = execution ? index < execution.currentStepIndex : false;
+                const isCurrent = execution ? index === execution.currentStepIndex : false;
+                const isPending = !isDone && !isCurrent;
 
-            return (
-              <div
-                key={step.id}
-                className={cn(
-                  'flex items-center gap-2 px-3 py-1.5 rounded text-sm min-w-0',
-                  isCurrent && 'bg-amber-500/10 font-medium',
-                  isDone && 'text-muted-foreground'
-                )}
-              >
-                {isDone && <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />}
-                {isCurrent && isRunning && (
-                  <Loader2 className="h-4 w-4 text-amber-500 animate-spin shrink-0" />
-                )}
-                {isCurrent && isFailed && (
-                  <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                )}
-                {isPending && <Clock className="h-4 w-4 text-muted-foreground/50 shrink-0" />}
-                <span className="truncate min-w-0">{step.name}</span>
-                {step.description && (
-                  <span className="text-xs text-muted-foreground ml-auto truncate max-w-[40%] shrink-0">
-                    {step.description}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+                return (
+                  <div
+                    key={step.id}
+                    className={cn(
+                      'flex items-center gap-2 px-3 py-1.5 rounded text-sm min-w-0',
+                      isCurrent && 'bg-amber-500/10 font-medium',
+                      isDone && 'text-muted-foreground'
+                    )}
+                  >
+                    {isDone && <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />}
+                    {isCurrent && isRunning && (
+                      <Loader2 className="h-4 w-4 text-amber-500 animate-spin shrink-0" />
+                    )}
+                    {isCurrent && isFailed && (
+                      <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                    )}
+                    {isPending && <Clock className="h-4 w-4 text-muted-foreground/50 shrink-0" />}
+                    <span className="truncate min-w-0">{step.name}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Completed interview answers */}
@@ -459,35 +515,33 @@ export function WorkflowExecutionTab({
 
         {/* Current interview form — waiting for user input, NOT generating */}
         {interviewQuestions && isRunning && (
-          <Card className="border-amber-500/30">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
+          <div
+            data-testid="workflow-current-input"
+            className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3"
+          >
+            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-amber-900">
                 <HelpCircle className="h-4 w-4 text-amber-500" />
                 {t('workflow.execution.waiting-for-answers')}
-                {template.steps[currentStep]?.name ? `: ${template.steps[currentStep]!.name}` : ''}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InterviewForm
-                questions={interviewQuestions}
-                onSubmit={handleInterviewSubmit}
-                onCancel={onCancel}
-              />
-            </CardContent>
-          </Card>
+            </div>
+            <InterviewForm
+              questions={interviewQuestions}
+              onSubmit={handleInterviewSubmit}
+              onCancel={onCancel}
+            />
+          </div>
         )}
 
         {/* AI generation in progress (no interview, still running) */}
         {!interviewQuestions && isRunning && (
-          <Card>
-            <CardContent className="py-8 flex flex-col items-center gap-3 text-muted-foreground">
+          <div className="rounded-md border border-border py-8 flex flex-col items-center gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
               <p className="text-sm font-medium">
-                Generating{template.steps[currentStep]?.name ? `: ${template.steps[currentStep]!.name}` : '...'}
+                {currentWorkflowStep
+                  ? t('workflow.execution.generating-step', { step: currentWorkflowStep.name })
+                  : t('workflow.execution.generating')}
               </p>
               <p className="text-xs">{t('workflow.execution.may-take-moment')}</p>
-            </CardContent>
-          </Card>
+          </div>
         )}
 
         {/* Error state */}
@@ -497,7 +551,7 @@ export function WorkflowExecutionTab({
               <div className="flex items-start gap-2">
                 <XCircle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium text-red-600">Workflow failed</p>
+                  <p className="text-sm font-medium text-red-600">{t('workflow.execution.workflow-failed')}</p>
                   <p className="text-xs text-muted-foreground mt-1">{execution.error}</p>
                 </div>
               </div>
@@ -551,71 +605,133 @@ export function WorkflowExecutionTab({
 
         {/* Final output */}
         {isCompleted && finalOutput && (
-          <Card className="border-green-500/30">
+          <>
+          <Card className="border-green-500/30" data-testid="workflow-final-output">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <CheckCircle className="h-4 w-4 text-green-500" />
-                Generated Output
+                {t('workflow.execution.draft-ready')}
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <pre className="text-xs whitespace-pre-wrap break-words bg-muted/50 rounded p-3 max-h-[400px] overflow-y-auto overflow-x-hidden">
-                {finalOutput}
-              </pre>
-              {onExportDocx && (
-                <div className="mt-4 mb-3 flex items-center gap-2">
-                  <Label htmlFor="firm-name-input" className="text-xs text-muted-foreground whitespace-nowrap shrink-0">
-                    Firm name (optional):
+            <CardContent className="space-y-3">
+              <div className="flex items-center gap-2">
+                {primaryFileLink && (
+                  <Button
+                    data-testid="workflow-open-draft"
+                    size="sm"
+                    onClick={() => {
+                      onFileOpen?.(primaryFileLink.path, primaryFileLink.name);
+                    }}
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1.5" />
+                    {t('workflow.execution.open')}
+                  </Button>
+                )}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      data-testid="workflow-output-menu"
+                      size="sm"
+                      variant="outline"
+                      aria-label={t('workflow.execution.more-actions')}
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    {onSaveAsFile && (
+                      <DropdownMenuItem
+                        data-testid="workflow-save-output"
+                        onSelect={() => {
+                          onSaveAsFile(finalOutput, `${suggestedFileBase}.md`);
+                        }}
+                      >
+                        <Download className="h-3.5 w-3.5 mr-2" />
+                        {t('workflow.execution.save-as-file')}
+                      </DropdownMenuItem>
+                    )}
+                    {onExportDocx && (
+                      <DropdownMenuItem
+                        data-testid="workflow-export-docx-trigger"
+                        onSelect={() => {
+                          setDocxExportOpen(true);
+                        }}
+                      >
+                        <FileType className="h-3.5 w-3.5 mr-2 text-blue-600" />
+                        {t('workflow.execution.export-docx')}
+                      </DropdownMenuItem>
+                    )}
+                    {onExportPptx && (
+                      <DropdownMenuItem
+                        data-testid="workflow-export-pptx"
+                        onSelect={() => {
+                          onExportPptx(finalOutput, `${suggestedFileBase}.pptx`);
+                        }}
+                      >
+                        <FileType className="h-3.5 w-3.5 mr-2 text-orange-600" />
+                        {t('workflow.execution.export-pptx')}
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+              <details data-testid="workflow-output-preview" className="text-xs">
+                <summary className="cursor-pointer font-medium text-muted-foreground">
+                  {t('workflow.execution.preview-text')}
+                </summary>
+                <pre className="mt-2 whitespace-pre-wrap break-words bg-muted/50 rounded p-3 max-h-[400px] overflow-y-auto overflow-x-hidden">
+                  {finalOutput}
+                </pre>
+              </details>
+            </CardContent>
+          </Card>
+          {onExportDocx && (
+            <Dialog open={docxExportOpen} onOpenChange={setDocxExportOpen}>
+              <DialogContent data-testid="workflow-docx-export-dialog" className="max-w-sm">
+                <DialogHeader>
+                  <DialogTitle>{t('workflow.execution.export-docx')}</DialogTitle>
+                  <DialogDescription>
+                    {t('workflow.execution.export-docx-description')}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2">
+                  <Label htmlFor="firm-name-input" className="text-sm">
+                    {t('workflow.execution.firm-name')}
                   </Label>
                   <Input
                     id="firm-name-input"
+                    data-testid="workflow-firm-name-input"
                     value={firmName}
                     onChange={(e) => handleFirmNameChange(e.target.value)}
-                    placeholder="e.g. Acme Law PLLC"
-                    className="h-7 text-xs max-w-xs"
+                    placeholder={t('workflow.execution.firm-name-placeholder')}
+                    className="h-9 text-sm"
                   />
                 </div>
-              )}
-              <div className="flex items-center gap-2 mt-3">
-                {onSaveAsFile && (
+                <DialogFooter>
                   <Button
-                    size="sm"
                     variant="outline"
-                    onClick={() =>
-                      onSaveAsFile(finalOutput, `${template.name.replace(/\s+/g, '-')}.md`)
-                    }
+                    size="sm"
+                    onClick={() => {
+                      setDocxExportOpen(false);
+                    }}
                   >
-                    <Download className="h-3.5 w-3.5 mr-1.5" />
-                    {t('workflow.execution.save-as-file')}
+                    {t('workflow.execution.cancel')}
                   </Button>
-                )}
-                {onExportDocx && (
                   <Button
+                    data-testid="workflow-export-docx-confirm"
                     size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      onExportDocx(finalOutput, `${template.name.replace(/\s+/g, '-')}.docx`)
-                    }
+                    onClick={() => {
+                      onExportDocx(finalOutput, `${suggestedFileBase}.docx`);
+                      setDocxExportOpen(false);
+                    }}
                   >
-                    <FileType className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
-                    Export .docx
+                    {t('workflow.execution.export')}
                   </Button>
-                )}
-                {onExportPptx && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      onExportPptx(finalOutput, `${template.name.replace(/\s+/g, '-')}.pptx`)
-                    }
-                  >
-                    <FileType className="h-3.5 w-3.5 mr-1.5 text-orange-600" />
-                    Export .pptx
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+          </>
         )}
 
         {/* M7 — Chain suggestions: templates that can consume this run's outputs */}
@@ -628,11 +744,11 @@ export function WorkflowExecutionTab({
 
         {/* Live file links — files created during this workflow */}
         {fileLinks.length > 0 && (
-          <Card>
+          <Card data-testid="workflow-created-files">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm flex items-center gap-2">
                 <FileText className="h-4 w-4 text-blue-500" />
-                Created Files ({fileLinks.length})
+                {t('workflow.execution.created-file')}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-1">
@@ -641,7 +757,9 @@ export function WorkflowExecutionTab({
                   key={link.path}
                   data-testid={`workflow-file-link-${link.name}`}
                   className="flex items-center gap-2 w-full text-left text-sm px-2 py-1.5 rounded hover:bg-muted/50 transition-colors text-primary underline-offset-2 hover:underline"
-                  onClick={() => onFileOpen?.(link.path, link.name)}
+                  onClick={() => {
+                    onFileOpen?.(link.path, link.name);
+                  }}
                 >
                   <FileText className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">{link.name}</span>
@@ -669,6 +787,7 @@ interface ChainSuggestionsProps {
 
 function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
   const { t } = useTranslation();
+  const [pickerOpen, setPickerOpen] = useState(false);
   const allTemplates = useMemo(() => loadAllTemplates(), []);
   const sourceOutputIds = useMemo(
     () => (sourceTemplate.namedOutputs ?? []).map((o) => o.id),
@@ -692,14 +811,20 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
 
   return (
     <Card data-testid="chain-suggestions" className="border-amber-500/30">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-sm flex items-center gap-2">
+      <CardContent className="space-y-3 pt-4">
+        <Button
+          data-testid="chain-suggestions-open"
+          size="sm"
+          variant="outline"
+          className="gap-2"
+          onClick={() => {
+            setPickerOpen((value) => !value);
+          }}
+        >
           <LinkIcon className="h-4 w-4 text-amber-500" />
           {t('workflow.execution.use-as-input')}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {recommended.length > 0 && (
+        </Button>
+        {pickerOpen && recommended.length > 0 && (
           <div>
             <p className="text-xs text-muted-foreground mb-1.5">{t('workflow.execution.recommended-next')}</p>
             <div className="flex flex-wrap gap-1.5">
@@ -710,16 +835,18 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs"
-                  onClick={() => onPick(t)}
+                  onClick={() => {
+                    onPick(t);
+                  }}
                   title={t.description}
                 >
-                  {t.name} →
+                  {t.name}
                 </Button>
               ))}
             </div>
           </div>
         )}
-        {others.length > 0 && (
+        {pickerOpen && others.length > 0 && (
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground">
               {t('workflow.execution.other-templates')}
@@ -732,7 +859,9 @@ function ChainSuggestions({ sourceTemplate, onPick }: ChainSuggestionsProps) {
                   size="sm"
                   variant="ghost"
                   className="h-6 text-[11px]"
-                  onClick={() => onPick(t)}
+                  onClick={() => {
+                    onPick(t);
+                  }}
                 >
                   {t.name}
                 </Button>

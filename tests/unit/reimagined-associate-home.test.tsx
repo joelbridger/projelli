@@ -9,7 +9,7 @@
  *  - providerError banner renders + openSettings action fires.
  *  - Trial-locked state disables run buttons.
  *  - Recent runs strip appears and clicking focuses execution tab.
- *  - Practice-area filter chips: hidden when one category, visible + functional
+ *  - Practice-area filter dropdown: hidden when one category, visible + functional
  *    when multiple categories present.
  */
 
@@ -283,7 +283,7 @@ describe('AssociateHome (law persona)', () => {
     const runHistory: RunRecord[] = [
       {
         run_id: 'run-42',
-        workflow: 'Case Timeline Builder',
+        workflow: 'Deposition Contradiction Finder',
         model: 'claude-sonnet-4-6',
         inputs: {},
         outputs: {},
@@ -306,7 +306,7 @@ describe('AssociateHome (law persona)', () => {
     const runHistory: RunRecord[] = [
       {
         run_id: 'run-doc',
-        workflow: 'annual-review-packet',
+        workflow: 'Deposition Contradiction Finder',
         model: 'claude-sonnet-4-6',
         inputs: {},
         outputs: {
@@ -339,7 +339,7 @@ describe('AssociateHome (law persona)', () => {
     const runHistory: RunRecord[] = [
       {
         run_id: 'run-missing-doc',
-        workflow: 'annual-review-packet',
+        workflow: 'Deposition Contradiction Finder',
         model: 'claude-sonnet-4-6',
         inputs: {},
         outputs: {
@@ -385,8 +385,8 @@ describe('AssociateHome (law persona)', () => {
     })} />);
 
     const progress = screen.getByTestId('associate-live-progress');
-    expect(progress.textContent).toContain('Live run');
-    expect(progress.textContent).toContain('Step 1 of 1');
+    expect(progress.textContent).toContain('Running');
+    expect(progress.textContent).toContain('Step 1/1');
     expect(progress.querySelector('.animate-spin')).toBeTruthy();
   });
 
@@ -413,22 +413,22 @@ describe('AssociateHome (law persona)', () => {
     expect(onStartWorkflow).not.toHaveBeenCalled();
   });
 
-  // ── Practice-area filter chips ────────────────────────────────────────────
+  // ── Practice-area filter dropdown ─────────────────────────────────────────
 
-  it('hides the practice-area filter bar when only one category is present', () => {
-    // Law persona scopes to 'legal' only — one category, filter bar unnecessary.
+  it('hides the practice-area filter dropdown when only one category is present', () => {
+    // Law persona scopes to 'legal' only, so one category makes the dropdown unnecessary.
     render(<AssociateHome {...defaultProps()} />);
     expect(screen.queryByTestId('associate-practice-filter')).toBeNull();
   });
 });
 
-// ── Practice-area filter chips — multi-category persona ───────────────────
+// ── Practice-area filter dropdown — multi-category persona ─────────────────
 //
 // These tests set the profession to 'other' (isLawExperience = false) so all
 // three fixture templates (legal + tax) pass through the scope filter, giving
-// two distinct categories and making the chip bar appear.
+// two distinct categories and making the dropdown appear.
 
-describe('AssociateHome — practice-area filter chips (multi-category)', () => {
+describe('AssociateHome — practice-area filter dropdown (multi-category)', () => {
   beforeEach(() => {
     // Clear persisted UI state so tests don't bleed into each other.
     localStorage.clear();
@@ -461,40 +461,46 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     };
   }
 
-  it('shows the filter bar when multiple categories are present', () => {
+  function chooseFilter(value: string) {
+    fireEvent.change(screen.getByTestId('associate-practice-filter'), {
+      target: { value },
+    });
+  }
+
+  it('shows the filter dropdown when multiple categories are present', () => {
     render(<AssociateHome {...multiProps()} />);
     expect(screen.getByTestId('associate-practice-filter')).toBeTruthy();
   });
 
-  it('renders an "All" chip that is a button', () => {
+  it('renders an "All workflows" option', () => {
     render(<AssociateHome {...multiProps()} />);
-    const allChip = screen.getByTestId('associate-filter-all');
-    expect(allChip).toBeTruthy();
-    expect(allChip.tagName).toBe('BUTTON');
+    const allOption = screen.getByTestId('associate-filter-all');
+    expect(allOption).toBeTruthy();
+    expect(allOption).toHaveTextContent('All workflows');
   });
 
-  it('renders a chip for each category present in the template set', () => {
+  it('renders an option for each category present in the template set', () => {
     render(<AssociateHome {...multiProps()} />);
     // mockTemplates has 'legal' and 'tax' categories.
     expect(screen.getByTestId('associate-filter-legal')).toBeTruthy();
     expect(screen.getByTestId('associate-filter-tax')).toBeTruthy();
   });
 
-  it('clicking a category chip filters to only that category', () => {
+  it('choosing a category filters to only that category', () => {
     render(<AssociateHome {...multiProps()} />);
-    fireEvent.click(screen.getByTestId('associate-filter-tax'));
+    chooseFilter('tax');
 
     expect(screen.getByTestId('associate-workflow-row-tax-review-workflow')).toBeTruthy();
     expect(screen.queryByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeNull();
   });
 
-  it('clicking "All" after a category filter restores all workflow rows', () => {
+  it('choosing "All workflows" after a category filter restores all workflow rows', () => {
     render(<AssociateHome {...multiProps()} />);
 
-    fireEvent.click(screen.getByTestId('associate-filter-tax'));
+    chooseFilter('tax');
     expect(screen.queryByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeNull();
 
-    fireEvent.click(screen.getByTestId('associate-filter-all'));
+    chooseFilter('all');
     expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
     expect(screen.getByTestId('associate-workflow-row-tax-review-workflow')).toBeTruthy();
   });
@@ -502,8 +508,8 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
   it('search narrows within the selected category filter', () => {
     render(<AssociateHome {...multiProps()} />);
 
-    // Activate the legal chip.
-    fireEvent.click(screen.getByTestId('associate-filter-legal'));
+    // Activate the legal filter.
+    chooseFilter('legal');
 
     // Search for 'timeline' — matches Case Timeline Builder (legal).
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'timeline' } });
@@ -513,7 +519,7 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     expect(screen.queryByTestId('associate-workflow-row-tax-review-workflow')).toBeNull();
   });
 
-  it('search across "All" chip still works correctly', () => {
+  it('search across "All workflows" still works correctly', () => {
     render(<AssociateHome {...multiProps()} />);
 
     // "All" is active; search for 'tax'.
@@ -527,7 +533,7 @@ describe('AssociateHome — practice-area filter chips (multi-category)', () => 
     render(<AssociateHome {...multiProps()} />);
 
     // Apply a category filter then search for something that matches nothing.
-    fireEvent.click(screen.getByTestId('associate-filter-legal'));
+    chooseFilter('legal');
     fireEvent.change(screen.getByTestId('associate-search'), { target: { value: 'xyznotfound' } });
     expect(screen.getByTestId('associate-empty')).toBeTruthy();
 
@@ -603,8 +609,10 @@ describe('AssociateHome — localStorage persistence', () => {
   it('restores the active filter after a simulated remount', () => {
     const { unmount } = render(<AssociateHome {...persistProps()} />);
 
-    // Select the "Legal Practice" filter chip.
-    fireEvent.click(screen.getByTestId('associate-filter-legal'));
+    // Select the Legal filter.
+    fireEvent.change(screen.getByTestId('associate-practice-filter'), {
+      target: { value: 'legal' },
+    });
     // Confirm only legal rows are visible.
     expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
     expect(screen.queryByTestId('associate-workflow-row-tax-review-workflow')).toBeNull();
@@ -616,7 +624,7 @@ describe('AssociateHome — localStorage persistence', () => {
     // After remount the legal filter should be restored from localStorage.
     expect(screen.getByTestId('associate-workflow-row-deposition-contradiction-finder')).toBeTruthy();
     expect(screen.queryByTestId('associate-workflow-row-tax-review-workflow')).toBeNull();
-    // The Legal Practice chip should be active (aria role alone isn't enough; check
+    // The Legal filter should be active (aria role alone isn't enough; check
     // that the tax section is absent and legal is present, which proves the filter held).
   });
 
@@ -635,7 +643,9 @@ describe('AssociateHome — localStorage persistence', () => {
 
   it('writes the filter to localStorage when changed', () => {
     render(<AssociateHome {...persistProps()} />);
-    fireEvent.click(screen.getByTestId('associate-filter-tax'));
+    fireEvent.change(screen.getByTestId('associate-practice-filter'), {
+      target: { value: 'tax' },
+    });
 
     expect(localStorage.getItem('lantern:workflows-filter')).toBe('tax');
   });

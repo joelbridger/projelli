@@ -160,7 +160,7 @@ Sincerely,
 export const AnnualReviewPacket: WorkflowTemplate = {
   id: 'advisors-annual-review-packet',
   name: 'Annual Review Packet',
-  description: 'Generates a complete annual review document set: a personalized cover letter recapping the year\'s events and plan changes, a comprehensive review checklist of items to cover, and a narrative plan changes summary for the client file.',
+  description: 'Draft an annual review packet: cover letter, checklist, and plan-change summary.',
   version: '1.0.0',
   category: 'advisors',
   requiresVerification: true,

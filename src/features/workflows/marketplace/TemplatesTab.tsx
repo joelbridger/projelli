@@ -295,6 +295,7 @@ function BrowseView({
   onRefresh,
   onSelect,
 }: BrowseViewProps) {
+  const { t } = useTranslation();
   const categoryLabel =
     category === ALL_CATEGORIES ? 'All categories' : category;
 
@@ -309,7 +310,7 @@ function BrowseView({
           <Input
             data-testid="templates-tab-search"
             type="search"
-            placeholder="Search templates..."
+            placeholder={t('workflow.marketplace.search-templates')}
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             className="pl-8"

@@ -479,81 +479,170 @@
     "browser": {
       "error-title": "Unable to load page",
       "iframe-blocked-hint": "Some websites (like Google, GitHub, etc.) block iframe embedding for security. Click the button below to open this URL in your default browser.",
-      "open-external": "Open in External Browser"
+      "open-external": "Open in browser",
+      "search-placeholder": "Search or enter URL"
     },
     "chain-builder": {
-      "title": "Chain templates",
-      "description": "Run a sequence of templates. Each step can pull fields from an earlier step's output into its inputs.",
+      "title": "New chain",
+      "description": "Run templates in order, using one output as the next input.",
       "no-steps": "No steps yet. Add one to start composing a chain.",
       "map-outputs": "Map upstream outputs:"
     },
     "interview": {
-      "select-option": "Select an option"
+      "select-option": "Select an option",
+      "running": "Running",
+      "cancel": "Cancel",
+      "required": "This field is required",
+      "run": "Run"
     },
     "associate": {
       "rail-list-label": "Workflow templates",
-      "search-placeholder": "Search workflows...",
-      "filter-label": "Practice filters",
-      "filter-all": "All",
+      "search-placeholder": "Search workflows",
+      "filter-label": "Filter workflows",
+      "filter-all": "All workflows",
       "start-here": "Start here",
-      "live-run": "Live run",
-      "step-progress": "Step {{current}} of {{total}}",
+      "live-run": "Running",
+      "step-progress": "Step {{current}}/{{total}}",
       "run": "Run",
       "running": "Running",
-      "trial-ended-title": "Trial ended. Activate a license to run workflows.",
-      "trial-ended-description": "Activate a license to run workflows. Your work is still here and fully accessible.",
+      "trial-ended-title": "Trial ended. Your files are still here. Activate a license to run workflows.",
+      "trial-ended-description": "Your files are still here. Activate a license to run workflows.",
       "run-workflow": "Run {{name}}",
       "egress-local": "Runs on your computer. Nothing leaves.",
       "egress-cloud": "Runs on your AI provider with your own key.",
       "egress-none": "Connect an AI provider to run this.",
-      "other-running-title": "Another workflow is running.",
-      "other-running-body": "Finish or stop that run before starting a different workflow.",
+      "other-running-title": "Finish or stop the current run first.",
+      "other-running-body": "Finish or stop the current run first.",
       "steps": "Steps",
       "no-steps": "No setup steps",
       "recent-runs": "Recent runs",
-      "steps-count": "{{count}} steps",
-      "required-inputs-count": "{{count}} required inputs",
-      "outputs-count": "{{count}} outputs",
-      "category": "Category",
       "file-missing": "File missing",
       "workflow-result": "Workflow result",
-      "empty-title": "No workflows match",
-      "empty-body": "Try a different search term, or clear the filter to see all workflows.",
+      "empty-title": "No matches",
+      "empty-body": "Clear search to see all workflows.",
       "clear-search": "Clear search",
       "needs-client-title": "Pick your client first.",
       "needs-client-body": "Choose a client, then run the workflow again.",
-      "ollama-unreachable-title": "Local AI unreachable.",
-      "ollama-unreachable-body": "Advisor Prep Hero Local AI is not responding. Make sure it has finished setting up, then try again.",
-      "needs-provider-title": "No AI provider configured.",
-      "needs-provider-body": "Add an API key or set up Advisor Prep Hero Local AI to run workflows.",
-      "save-error-title": "Run record may not have saved."
+      "ollama-unreachable-title": "Local AI is offline",
+      "ollama-unreachable-body": "This workflow uses Local AI only. Start Local AI, then try again.",
+      "needs-provider-title": "Add an AI provider",
+      "needs-provider-body": "Add an API key or choose Local AI.",
+      "save-error-title": "Run record may not have saved.",
+      "inputs-count_other": "{{count}} inputs",
+      "steps-count_other": "{{count}} steps",
+      "categories": {
+        "legal": {
+          "label": "Legal",
+          "description": "Litigation, discovery, client intake, and transactional work"
+        },
+        "tax": {
+          "label": "Tax",
+          "description": "Tax research, planning, and compliance workflows"
+        },
+        "consulting": {
+          "label": "Consulting",
+          "description": "Client engagements, strategy, and deliverables"
+        },
+        "advisors": {
+          "label": "Advisors",
+          "description": "Advisory practice workflows and client management"
+        },
+        "research": {
+          "label": "Research",
+          "description": "General research and analysis"
+        },
+        "analysis": {
+          "label": "Analysis",
+          "description": "Document and data analysis"
+        },
+        "planning": {
+          "label": "Planning",
+          "description": "Business and project planning"
+        },
+        "kickoff": {
+          "label": "Kickoff",
+          "description": "New project and client onboarding"
+        },
+        "custom": {
+          "label": "Custom",
+          "description": "Your own saved templates"
+        }
+      },
+      "trust-no-ai": "No AI connected",
+      "trust-assured": "Assured AI route",
+      "trust-local": "Local AI only",
+      "details": "Details",
+      "trust-open-settings": "Open AI settings",
+      "steps-count_one": "1 step",
+      "outputs-count_other": "{{count}} outputs",
+      "outputs-count_one": "1 output",
+      "inputs-count_one": "1 input",
+      "trust-direct": "Sends directly to {{provider}}"
     },
     "execution": {
-      "waiting-for-answers": "Your input needed",
+      "waiting-for-answers": "Answer these questions",
       "may-take-moment": "This may take a moment depending on the AI provider.",
-      "save-as-file": "Save as file",
-      "use-as-input": "Use this as input for another template",
+      "save-as-file": "Save",
+      "use-as-input": "Use output in another workflow",
       "recommended-next": "Recommended next steps",
-      "other-templates": "Other templates (manual mapping required)",
-      "needs-provider-title": "I can't run this workflow yet",
-      "needs-provider-body": "No AI provider is set up. Add a provider key in Settings, or pick your local model.",
-      "needs-provider-action": "Open AI Settings",
-      "ollama-unreachable-title": "Ollama isn't running",
-      "ollama-unreachable-body": "This template is pinned to your local model and I won't send it to the cloud. Start Ollama, then try again.",
-      "ollama-unreachable-action": "Try again"
+      "other-templates": "More workflows",
+      "needs-provider-title": "Add an AI provider",
+      "needs-provider-body": "Add an API key or choose Local AI.",
+      "needs-provider-action": "Open AI settings",
+      "ollama-unreachable-title": "Local AI is offline",
+      "ollama-unreachable-body": "This workflow uses Local AI only. Start Local AI, then try again.",
+      "ollama-unreachable-action": "Try again",
+      "generating": "Generating",
+      "no-steps": "No steps",
+      "export-docx-description": "Add the firm name for this export.",
+      "complete": "Complete",
+      "export-docx": "Export .docx",
+      "created-file": "Created file",
+      "preview-text": "Preview text",
+      "draft-ready": "Draft ready",
+      "show-all-steps": "Show all steps",
+      "step-short": "Step {{current}}/{{total}}",
+      "cancel": "Cancel",
+      "failed": "Failed",
+      "export": "Export",
+      "export-pptx": "Export .pptx",
+      "more-actions": "More actions",
+      "open": "Open",
+      "generating-step": "Generating {{step}}",
+      "firm-name-placeholder": "e.g. Acme Law PLLC",
+      "needs-client-title": "Pick your client first.",
+      "workflow-failed": "Workflow failed",
+      "hide-all-steps": "Hide all steps",
+      "firm-name": "Firm name",
+      "needs-client-body": "Choose a client, then run the workflow again."
     },
     "panel": {
       "trial-ended-label": "Trial ended.",
       "trial-ended-description": "Activate a license in Settings, License to run workflows.",
       "step-of-click": "Step {{current}} of {{total}}, click to view",
-      "modal-title": "All workflows",
-      "modal-description": "Pre-built AI workflows for your practice. Pick one to start a guided conversation.",
-      "no-matches": "No workflows match \"{{query}}\"."
+      "modal-title": "Browse workflows",
+      "modal-description": "Pick a workflow to run.",
+      "no-matches": "No workflows match \"{{query}}\".",
+      "template-actions": "Actions for {{name}}",
+      "ai-calls-count_other": "{{count}} AI calls",
+      "local-estimate-note": "This workflow runs on Local AI. No provider charge.",
+      "delete-template": "Delete",
+      "current-execution": "Current run",
+      "actions": "Workflow actions",
+      "estimate-line": "{{steps}} · {{calls}} · est. {{cost}}",
+      "run-history": "Run history",
+      "estimate-note": "Estimate only. Your AI provider bills the actual cost.",
+      "ai-calls-count_one": "1 AI call",
+      "start-workflow": "Start workflow"
     },
     "fork": {
-      "title": "Duplicate template",
-      "description": "Create your own copy of this template. You can edit the system prompt that steers the AI while the workflow runs.",
-      "persona-hint": "This is the persona the AI uses in the first generation step. Leave it blank to fall back to the model's default persona."
+      "title": "Copy template",
+      "description": "Make an editable copy of this template.",
+      "persona-hint": "Optional instructions for how the AI should write.",
+      "ai-instructions": "AI instructions"
+    },
+    "marketplace": {
+      "search-templates": "Search templates"
     }
   },
   "marketplace": {

@@ -5,7 +5,6 @@ import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/ui/card';
 import type { InterviewQuestion } from '@/platform/types/workflow';
 import type { Matter } from '@/platform/types/matter';
 import { cn } from '@/lib/utils';
@@ -54,7 +53,7 @@ export function InterviewForm({
     const newErrors: Record<string, string> = {};
     for (const q of questions) {
       if (q.required && !answers[q.id]?.trim()) {
-        newErrors[q.id] = 'This field is required';
+        newErrors[q.id] = t('workflow.interview.required');
       }
     }
 
@@ -77,29 +76,30 @@ export function InterviewForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-3">
       {questions.map((question) => (
-        <Card
+        <div
           key={question.id}
           ref={(node) => { fieldRefs.current[question.id] = node; }}
           data-testid={`workflow-question-${question.id}`}
           className={cn(
+            'border-b border-amber-200/70 pb-3 last:border-b-0 last:pb-0',
             highlightedQuestionId === question.id &&
-              'ring-2 ring-amber-400 border-amber-400 bg-amber-50 transition-colors'
+              'rounded-md bg-amber-100/70 p-2 ring-2 ring-amber-400 transition-colors'
           )}
         >
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-foreground">
               {question.question}
               {question.required && <span className="text-red-500 ml-1">*</span>}
-            </CardTitle>
+            </label>
             {question.description && (
-              <CardDescription className="text-xs">
+              <p className="text-xs text-muted-foreground">
                 {question.description}
-              </CardDescription>
+              </p>
             )}
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div className="mt-2">
             {question.type === 'text' && (
               <Input
                 type="text"
@@ -195,18 +195,18 @@ export function InterviewForm({
             {errors[question.id] && (
               <p className="text-xs text-red-500 mt-1">{errors[question.id]}</p>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
 
       <div className="flex gap-2 justify-end pt-4">
         {onCancel && (
           <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-            Cancel
+            {t('workflow.interview.cancel')}
           </Button>
         )}
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Running...' : 'Run'}
+          {isSubmitting ? t('workflow.interview.running') : t('workflow.interview.run')}
         </Button>
       </div>
     </form>
