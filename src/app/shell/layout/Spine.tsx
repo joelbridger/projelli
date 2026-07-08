@@ -176,7 +176,7 @@ export function Spine({
   // produces a duplicate handle. The data-testid is written as two inline
   // template literals so the static handle-guard scanner sees both.
   const renderClientRow = (m: (typeof matters)[number], groupId?: string) => {
-    const on = m.id === activeMatterId;
+    const on = m.id === activeMatterId && !allClientsActive;
     const fullLabel = matterLabel(m);
     const displayLabel = m.client.trim() || fullLabel;
     return (
