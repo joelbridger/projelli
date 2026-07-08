@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { X, Paperclip, Loader2, AlertTriangle } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { X, Paperclip, AlertTriangle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
+import { Button, IconButton } from '@/ui/kp';
 import {
   mailSend,
   type ConnectedAccount,
@@ -19,6 +21,7 @@ interface ComposeModalProps {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: ComposeModalProps) {
+  const { t } = useTranslation();
   const [composeProvider, setComposeProvider] = useState('');
   const [composeAccount, setComposeAccount] = useState('');
   const [composeTo, setComposeTo] = useState('');
@@ -39,6 +42,7 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- opening clears transient send state before the dialog is used; draft fields intentionally stay intact.
       setComposeSendResult('none');
       setComposeSendError(null);
       setComposeAttachments([]);
@@ -60,16 +64,65 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
     };
   }, [open, onOpenChange]);
 
-  // Auto-select first account when compose opens and accounts are available
-  useEffect(() => {
-    if (open && composeProvider === '' && accounts.length > 0) {
-      const first = accounts[0];
-      if (first) {
-        setComposeProvider(first.provider);
-        setComposeAccount(first.account);
-      }
-    }
-  }, [open, accounts, composeProvider]);
+  const defaultAccount = accounts[0] ?? null;
+  const activeComposeProvider = composeProvider || defaultAccount?.provider || '';
+  const activeComposeAccount = composeAccount || defaultAccount?.account || '';
+
+  const handleSend = useCallback(() => {
+    const toArr = parseRecipients(composeTo);
+    const ccArr = parseRecipients(composeCc);
+    const bccArr = parseRecipients(composeBcc);
+    setComposeSending(true);
+    setComposeSendResult('none');
+    setComposeSendError(null);
+    void mailSend(
+      activeComposeProvider,
+      activeComposeAccount,
+      toArr,
+      ccArr,
+      bccArr,
+      composeSubject,
+      composeBody,
+      undefined,
+      composeAttachments.length > 0 ? composeAttachments : undefined,
+    )
+      .then(() => {
+        setComposeSending(false);
+        setComposeSendResult('success');
+        setTimeout(() => {
+          onOpenChange(false);
+          setComposeTo('');
+          setComposeCc('');
+          setComposeBcc('');
+          setComposeSubject('');
+          setComposeBody('');
+          setComposeCcBccOpen(false);
+          setComposeSendResult('none');
+          setComposeSendError(null);
+          setComposeAttachments([]);
+        }, 1500);
+      })
+      .catch((e: unknown) => {
+        setComposeSending(false);
+        const msg = e instanceof Error ? e.message : '';
+        if (msg.includes('scope_upgrade_required')) {
+          setComposeSendResult('scope_upgrade');
+        } else {
+          setComposeSendResult('error');
+          setComposeSendError(mapMailError(e));
+        }
+      });
+  }, [
+    composeTo,
+    composeCc,
+    composeBcc,
+    activeComposeProvider,
+    activeComposeAccount,
+    composeSubject,
+    composeBody,
+    composeAttachments,
+    onOpenChange,
+  ]);
 
   if (!open) return null;
 
@@ -90,7 +143,6 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
         }
       }}
     >
-      {/* eslint-disable lantern-i18n/no-hardcoded-string */}
       <div
         style={{
           background: '#fff',
@@ -115,25 +167,28 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
           }}
         >
           <span style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', fontFamily: 'var(--font-sans)' }}>
-            New email
+            {t('mail.compose.title')}
           </span>
-          <button
-            type="button"
-            data-testid="compose-close"
-            onClick={() => { onOpenChange(false); }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              padding: 4,
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--color-muted-foreground)',
-              borderRadius: 4,
-            }}
-          >
-            <X style={{ width: 'var(--kp-icon-md)', height: 'var(--kp-icon-md)', strokeWidth: 2 }} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Button
+              variant="primary"
+              size="sm"
+              data-testid="compose-send"
+              loading={composeSending}
+              disabled={accounts.length === 0}
+              onClick={handleSend}
+            >
+              {t('mail.compose.send')}
+            </Button>
+            <IconButton
+              icon={X}
+              label={t('mail.compose.close')}
+              size="sm"
+              variant="ghost"
+              data-testid="compose-close"
+              onClick={() => { onOpenChange(false); }}
+            />
+          </div>
         </div>
 
         {/* Modal body (scrollable) */}
@@ -141,15 +196,15 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
           {/* From selector */}
           {accounts.length === 0 ? (
             <div data-testid="compose-no-accounts" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', padding: '8px 0' }}>
-              Connect an account first in Settings.
+              {t('mail.compose.no-account')}
             </div>
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                From
+              <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-muted-foreground)' }}>
+                {t('mail.compose.from')}
               </span>
               <select
-                value={`${composeProvider}::${composeAccount}`}
+                value={`${activeComposeProvider}::${activeComposeAccount}`}
                 onChange={(e) => {
                   const [p = '', a = ''] = e.target.value.split('::');
                   setComposeProvider(p);
@@ -168,15 +223,15 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
 
           {/* To field */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-              To
+            <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-muted-foreground)' }}>
+              {t('mail.compose.to')}
             </span>
             <input
               type="text"
               data-testid="compose-to"
               value={composeTo}
               onChange={(e) => { setComposeTo(e.target.value); }}
-              placeholder="recipient@example.com"
+              placeholder={t('mail.compose.recipient-placeholder')}
               style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
             />
             <button
@@ -185,7 +240,7 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
               onClick={() => { setComposeCcBccOpen((o) => !o); }}
               style={{ flexShrink: 0, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', background: 'transparent', border: 'none', cursor: 'pointer' }}
             >
-              Cc / Bcc
+              {t('mail.compose.cc-bcc')}
             </button>
           </div>
 
@@ -193,28 +248,28 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
           {composeCcBccOpen && (
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                  Cc
+                <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-muted-foreground)' }}>
+                  {t('mail.compose.cc')}
                 </span>
                 <input
                   type="text"
                   data-testid="compose-cc"
                   value={composeCc}
                   onChange={(e) => { setComposeCc(e.target.value); }}
-                  placeholder="cc@example.com"
+                  placeholder={t('mail.compose.cc-placeholder')}
                   style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
                 />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-                  Bcc
+                <span style={{ width: 40, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-muted-foreground)' }}>
+                  {t('mail.compose.bcc')}
                 </span>
                 <input
                   type="text"
                   data-testid="compose-bcc"
                   value={composeBcc}
                   onChange={(e) => { setComposeBcc(e.target.value); }}
-                  placeholder="bcc@example.com"
+                  placeholder={t('mail.compose.bcc-placeholder')}
                   style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
                 />
               </div>
@@ -223,15 +278,15 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
 
           {/* Subject */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ width: 50, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
-              Subject
+            <span style={{ width: 50, flexShrink: 0, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--color-muted-foreground)' }}>
+              {t('mail.compose.subject')}
             </span>
             <input
               type="text"
               data-testid="compose-subject"
               value={composeSubject}
               onChange={(e) => { setComposeSubject(e.target.value); }}
-              placeholder="Subject"
+              placeholder={t('mail.compose.subject')}
               style={{ flex: 1, border: '1px solid var(--color-border)', borderRadius: 5, padding: '5px 8px', fontSize: 'var(--kp-font-sm)', fontFamily: 'var(--font-sans)', background: '#fff', color: 'var(--color-foreground)' }}
             />
           </div>
@@ -241,7 +296,7 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
             data-testid="compose-body"
             value={composeBody}
             onChange={(e) => { setComposeBody(e.target.value); }}
-            placeholder="Write your message..."
+            placeholder={t('mail.compose.body-placeholder')}
             rows={10}
             style={{
               width: '100%',
@@ -265,11 +320,13 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
                 type="button"
                 data-testid="compose-attach"
                 onClick={() => { attachFileRef.current?.click(); }}
+                aria-label={t('mail.compose.attach-file')}
+                title={t('mail.compose.attach-file')}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 5,
-                  padding: '4px 10px',
+                  justifyContent: 'center',
+                  padding: 6,
                   borderRadius: 5,
                   fontSize: 'var(--kp-font-xs)',
                   fontWeight: 'var(--kp-weight-medium)',
@@ -281,7 +338,6 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
                 }}
               >
                 <Paperclip style={{ width: 'var(--kp-icon-xs)', height: 'var(--kp-icon-xs)', strokeWidth: 2 }} />
-                Attach
               </button>
               <input
                 ref={attachFileRef}
@@ -357,7 +413,7 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
           {/* Send result states */}
           {composeSendResult === 'success' && (
             <div data-testid="compose-success" style={{ fontSize: 'var(--kp-font-xs)', color: '#047857' }}>
-              Email sent
+              {t('mail.compose.sent')}
             </div>
           )}
           {composeSendResult === 'error' && composeSendError && (
@@ -368,7 +424,7 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
           )}
           {composeSendResult === 'scope_upgrade' && (
             <div data-testid="compose-scope-upgrade" style={{ fontSize: 'var(--kp-font-xs)', color: '#b45309' }}>
-              Sending needs a one-time reconnect for the send permission. Go to Settings to reconnect your email.
+              {t('mail.compose.scope-upgrade')}
               {onOpenSettings && (
                 <button
                   type="button"
@@ -386,85 +442,13 @@ export function ComposeModal({ open, onOpenChange, accounts, onOpenSettings }: C
                     cursor: 'pointer',
                   }}
                 >
-                  Go to Settings
+                  {t('mail.compose.go-to-settings')}
                 </button>
               )}
             </div>
           )}
         </div>
-
-        {/* Modal footer */}
-        <div
-          style={{
-            padding: `var(--kp-space-xs) var(--kp-card-pad)`,
-            borderTop: '1px solid var(--color-border)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}
-        >
-          <button
-            type="button"
-            data-testid="compose-send"
-            disabled={composeSending || accounts.length === 0}
-            onClick={() => {
-              const toArr = parseRecipients(composeTo);
-              const ccArr = parseRecipients(composeCc);
-              const bccArr = parseRecipients(composeBcc);
-              setComposeSending(true);
-              setComposeSendResult('none');
-              setComposeSendError(null);
-              void mailSend(composeProvider, composeAccount, toArr, ccArr, bccArr, composeSubject, composeBody, undefined, composeAttachments.length > 0 ? composeAttachments : undefined)
-                .then(() => {
-                  setComposeSending(false);
-                  setComposeSendResult('success');
-                  setTimeout(() => {
-                    onOpenChange(false);
-                    setComposeTo('');
-                    setComposeCc('');
-                    setComposeBcc('');
-                    setComposeSubject('');
-                    setComposeBody('');
-                    setComposeCcBccOpen(false);
-                    setComposeSendResult('none');
-                    setComposeSendError(null);
-                    setComposeAttachments([]);
-                  }, 1500);
-                })
-                .catch((e: unknown) => {
-                  setComposeSending(false);
-                  const msg = e instanceof Error ? e.message : '';
-                  if (msg.includes('scope_upgrade_required')) {
-                    setComposeSendResult('scope_upgrade');
-                  } else {
-                    setComposeSendResult('error');
-                    setComposeSendError(mapMailError(e));
-                  }
-                });
-            }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '7px 18px',
-              borderRadius: 'var(--radius-md)',
-              fontSize: 'var(--kp-font-sm)',
-              fontWeight: 'var(--kp-weight-semibold)',
-              background: 'var(--kp-action-bg)',
-              color: 'var(--kp-action-fg)',
-              border: 'none',
-              cursor: composeSending || accounts.length === 0 ? 'default' : 'pointer',
-              opacity: composeSending || accounts.length === 0 ? 0.6 : 1,
-              fontFamily: 'var(--font-sans)',
-            }}
-          >
-            {composeSending && (
-              <Loader2 style={{ width: 'var(--kp-icon-sm)', height: 'var(--kp-icon-sm)', strokeWidth: 2, animation: 'spin 1s linear infinite' }} />
-            )}
-            Send
-          </button>
-        </div>
       </div>
-      {/* eslint-enable lantern-i18n/no-hardcoded-string */}
     </div>
   );
 }

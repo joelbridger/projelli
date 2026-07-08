@@ -3,6 +3,7 @@ import { Card } from '@/ui/kp';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 import type { MailListItem } from '@/platform/utils/mail-commands';
 import { EV_OPEN_EMAIL } from '@/config/identity';
+import { useTranslation } from 'react-i18next';
 
 // ── AskHit card ────────────────────────────────────────────────────────────
 
@@ -14,6 +15,7 @@ export interface AskHitCardProps {
 }
 
 export function AskHitCard({ hit, rank, items }: AskHitCardProps) {
+  const { t } = useTranslation();
   const sid = hit.sourceId ?? hit.path;
   const rawId = sid.startsWith('mail:') ? sid.slice(5) : sid;
 
@@ -42,6 +44,7 @@ export function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         marginBottom: 'var(--kp-space-xs)',
         cursor: 'pointer',
       }}
+      title={t('mail.workspace.match-strength')}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: snippet ? 4 : 0 }}>
         <span
@@ -71,18 +74,6 @@ export function AskHitCard({ hit, rank, items }: AskHitCardProps) {
         >
           {title}
         </span>
-        <span
-          style={{
-            fontSize: 'var(--kp-font-2xs)',
-            color: 'var(--color-muted-foreground)',
-            fontVariantNumeric: 'tabular-nums',
-            flex: 'none',
-          }}
-        >
-          { }
-          score {hit.score.toFixed(3)}
-          { }
-        </span>
       </div>
       {snippet && (
         <p
@@ -100,21 +91,6 @@ export function AskHitCard({ hit, rank, items }: AskHitCardProps) {
           {snippet}
         </p>
       )}
-      <span
-        style={{
-          display: 'block',
-          marginTop: 4,
-          fontSize: 'var(--kp-font-2xs)',
-          color: 'var(--color-muted-foreground)',
-          fontFamily: 'monospace',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-          opacity: 0.6,
-        }}
-      >
-        {rawId}
-      </span>
     </Card>
   );
 }

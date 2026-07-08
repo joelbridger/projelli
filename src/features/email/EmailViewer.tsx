@@ -34,9 +34,20 @@ import {
   Download,
   Copy,
   FileText,
-  CheckCircle2,
+  ChevronDown,
+  MoreHorizontal,
+  Check,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Button, Dropdown, IconButton, SearchField, TrustNote } from '@/ui/kp';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import {
   mailGetMessage,
   mailGetAttachment,
@@ -55,7 +66,6 @@ import {
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
 import {
@@ -65,6 +75,7 @@ import {
 } from '@/features/email/emailAuditLog';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { resolveEmailProvider, buildProviderAsync } from '@/features/email/resolveEmailProvider';
+import { slugify } from './emailWorkspaceHelpers';
 
 // Re-exported for existing direct test imports (tests/unit/privacy/*) — the
 // implementation moved to resolveEmailProvider.ts (Task 5), but these tests
@@ -77,6 +88,7 @@ export interface EmailViewerProps {
   sourceId: string;
   className?: string;
   onOpenSettings?: (() => void) | undefined;
+  onSaveToWorkspace?: ((content: string, suggestedName: string) => Promise<void>) | undefined;
 }
 
 /**
@@ -143,8 +155,12 @@ function downloadBase64File(filename: string, contentType: string, bytesBase64: 
 
 // ── Components ─────────────────────────────────────────────────────────────
 
-export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewerProps) {
+export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorkspace }: EmailViewerProps) {
   const { t } = useTranslation();
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  }, [t]);
   const [message, setMessage] = useState<MailView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -161,11 +177,6 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   const fileTargetId = message?.id ?? displayId(sourceId);
   const fileTargetIdRef = useRef(fileTargetId);
   useLayoutEffect(() => { fileTargetIdRef.current = fileTargetId; }, [fileTargetId]);
-  // Fixed-English escape hatch: the "File to {{entity}}" strings below are
-  // still hardcoded English (see the cleanup2 handoff), so the noun stays
-  // English too rather than mixing languages.
-  const entityLabel = useEntityLabelEnglish();
-
   // Privilege (WS-PRIV / VG-5c)
   const mailSourceId = privilegeSourceId(sourceId);
   const privilege = usePrivilegeForSource(mailSourceId);
@@ -188,8 +199,12 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   const [filingMatter, setFilingMatter] = useState<string | null>(null);
   const [fileSuccess, setFileSuccess] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [filePickerOpen, setFilePickerOpen] = useState(false);
+  const [fileMatterSearch, setFileMatterSearch] = useState('');
+  const filePickerRef = useRef<HTMLDivElement>(null);
 
   // Reply area state
+  const [replyOpen, setReplyOpen] = useState(false);
   const [replyMode, setReplyMode] = useState<'none' | 'draft' | 'mailto'>('none');
   const [replyDraft, setReplyDraft] = useState('');
   const [replyDraftLoading, setReplyDraftLoading] = useState(false);
@@ -206,6 +221,9 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   const [replySendResult, setReplySendResult] = useState<'none' | 'success' | 'error' | 'scope_upgrade'>('none');
   const [replySendError, setReplySendError] = useState<string | null>(null);
 
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [saveEmailError, setSaveEmailError] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -214,26 +232,35 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     // QA-53: each email starts with a clean reply/filing area — never carry a
     // draft, filing spinner, or success/error flag from the previous email.
     setReplyMode('none');
+    setReplyOpen(false);
     setReplyDraft('');
     setReplyDraftLoading(false);
     setReplyDraftError(null);
+    setReplySendResult('none');
+    setReplySendError(null);
+    setReplyCc('');
+    setReplyBcc('');
+    setReplyCcBccOpen(false);
     setFilingMatter(null);
     setFileSuccess(false);
     setFileError(null);
+    setFilePickerOpen(false);
+    setFileMatterSearch('');
+    setSaveEmailError(false);
     mailGetMessage(sourceId)
       .then((m) => {
         if (cancelled) return;
         setMessage(m);
         const addr = m.from.match(/<([^>]+)>/)?.[1] ?? m.from;
         setReplyTo(addr);
-        setReplySubject('Re: ' + m.subject.trim());
+        setReplySubject(tRef.current('mail.viewer.reply-subject-prefix', { subject: m.subject.trim() }));
       })
       .catch((e: unknown) => {
         if (cancelled) return;
         setError(
           e instanceof Error
             ? e.message
-            : 'This email could not be opened. It may not be synced yet.',
+            : tRef.current('mail.viewer.open-error-fallback'),
         );
       })
       .finally(() => {
@@ -243,6 +270,19 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       cancelled = true;
     };
   }, [sourceId]);
+
+  useEffect(() => {
+    if (!filePickerOpen) return;
+    const handler = (event: MouseEvent) => {
+      if (filePickerRef.current && !filePickerRef.current.contains(event.target as Node)) {
+        setFilePickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+    };
+  }, [filePickerOpen]);
 
   const handleDownloadAttachment = useCallback(async (attId: string, attName: string) => {
     if (!message) return;
@@ -254,13 +294,13 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       const data = await mailGetAttachment(provider, account, message.id, attId);
       downloadBase64File(data.filename || attName, data.contentType, data.bytesBase64);
     } catch (e: unknown) {
-      setDownloadError(e instanceof Error ? e.message : 'Failed to download attachment.');
+      setDownloadError(e instanceof Error ? e.message : t('mail.viewer.attachment-download-error'));
     } finally {
       setDownloadingId(null);
     }
-  }, [message]);
+  }, [message, t]);
 
-  const handleFileToMatter = useCallback(async (matterId: string) => {
+  const handleFileToMatter = useCallback(async (matterId: string): Promise<boolean> => {
     const targetId = fileTargetId;
     setFilingMatter(matterId);
     setFileError(null);
@@ -269,7 +309,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       await mailRetagMessageMatter(targetId, matterId);
       // QA-53: if the viewer moved to a different email while this filing ran,
       // drop the result — never mark the CURRENT (different) email filed here.
-      if (fileTargetIdRef.current !== targetId) return;
+      if (fileTargetIdRef.current !== targetId) return false;
       // BUG-013: persist the new association into the message so the viewer
       // shows "Filed to X" / the selected button immediately and after reopen —
       // not only via the transient success flag.
@@ -278,18 +318,21 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       setTimeout(() => {
         if (fileTargetIdRef.current === targetId) setFileSuccess(false);
       }, 2500);
+      return true;
     } catch (e: unknown) {
-      if (fileTargetIdRef.current !== targetId) return;
-      setFileError(e instanceof Error ? e.message : `Failed to file email to ${entityLabel.one}.`);
+      if (fileTargetIdRef.current !== targetId) return false;
+      setFileError(e instanceof Error ? e.message : t('mail.viewer.file-error'));
+      return false;
     } finally {
       // Only clear the spinner for the email this filing belonged to.
       if (fileTargetIdRef.current === targetId) setFilingMatter(null);
     }
-  }, [fileTargetId, entityLabel.one]);
+  }, [fileTargetId, t]);
 
   const handleDraftWithAI = useCallback(async () => {
     if (!message) return;
     const targetId = message.id;
+    setReplyOpen(true);
     setReplyMode('draft');
     setReplyDraftLoading(true);
     setReplyDraftError(null);
@@ -371,17 +414,19 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       setReplyDraft(response.content);
     } catch (e: unknown) {
       if (messageRef.current?.id !== targetId) return;
-      setReplyDraftError(e instanceof Error ? e.message : 'Failed to generate reply. Check your API key in Settings.');
+      setReplyDraftError(e instanceof Error ? e.message : t('mail.viewer.ai-draft-error'));
     } finally {
       if (messageRef.current?.id === targetId) setReplyDraftLoading(false);
     }
-  }, [message, filedMatterId, filedMatter]);
+  }, [message, filedMatterId, filedMatter, t]);
 
   const handleCopyReply = useCallback(() => {
     if (!replyDraft) return;
     void navigator.clipboard.writeText(replyDraft).then(() => {
       setReplyCopied(true);
       setTimeout(() => { setReplyCopied(false); }, 2000);
+    }).catch(() => {
+      setReplyCopied(false);
     });
   }, [replyDraft]);
 
@@ -396,6 +441,25 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     a.click();
     URL.revokeObjectURL(url);
   }, [replyDraft]);
+
+  const handleSaveEmailToWorkspace = useCallback(async () => {
+    if (!message || !onSaveToWorkspace) return;
+    setSavingEmail(true);
+    setSaveEmailError(false);
+    try {
+      const to = message.to.join(', ');
+      const cc = message.cc.length > 0 ? `\nCc: ${message.cc.join(', ')}` : '';
+      const date = message.date ?? '';
+      const content = `Subject: ${message.subject}\nFrom: ${message.from}\nTo: ${to}${cc}\nDate: ${date}\n\n${message.body}`;
+      const suggestedName = `${slugify(message.subject) || 'email'}.txt`;
+      await onSaveToWorkspace(content, suggestedName);
+    } catch {
+      setSaveEmailError(true);
+      setTimeout(() => { setSaveEmailError(false); }, 3000);
+    } finally {
+      setSavingEmail(false);
+    }
+  }, [message, onSaveToWorkspace]);
 
   const handleSendReply = useCallback(async () => {
     if (!message) return;
@@ -442,137 +506,178 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
         setReplySendResult('scope_upgrade');
       } else {
         setReplySendResult('error');
-        setReplySendError(e instanceof Error ? e.message : 'Failed to send reply.');
+        setReplySendError(e instanceof Error ? e.message : t('mail.viewer.reply-send-error'));
       }
     } finally {
       setReplySending(false);
     }
-  }, [message, replyTo, replyCc, replyBcc, replySubject, replyDraft, filedMatterId, filedMatter]);
+  }, [message, replyTo, replyCc, replyBcc, replySubject, replyDraft, filedMatterId, filedMatter, t]);
+
+  const filteredMatters = fileMatterSearch.trim()
+    ? matters.filter((m) => matterLabel(m).toLowerCase().includes(fileMatterSearch.toLowerCase()))
+    : matters;
 
   const privilegeControl = (
     <div
       data-testid="email-privilege-control"
       data-privilege={privilege}
-      className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
+      className="mt-3 flex flex-col items-start gap-1.5"
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-          {t('mail.viewer.privilege-label')}
-        </span>
-        <div
-          role="radiogroup"
-          aria-label={t('mail.viewer.privilege-label')}
-          className="flex overflow-hidden rounded-md border border-slate-200"
-        >
-          {ALL_PRIVILEGE_STATUSES.map((status) => (
-            <button
-              key={status}
-              type="button"
-              role="radio"
-              aria-checked={privilege === status}
-              data-testid={`email-privilege-option-${status}`}
-              onClick={() => {
-                setPrivilege(mailSourceId, status);
-              }}
-              className={`border-l border-slate-200 px-2 py-1 text-[11px] leading-tight first:border-l-0 ${
-                privilege === status
-                  ? 'bg-[var(--kp-navy)] font-medium text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {privilegeOptionLabel(status, t)}
-            </button>
-          ))}
-        </div>
-      </div>
-      {isPrivileged(privilege) && (
-        <p
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${
+              isPrivileged(privilege)
+                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            <span>{t('mail.viewer.privilege-label')}</span>
+            <span className="text-slate-400">·</span>
+            <span>{privilegeOptionLabel(privilege, t)}</span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-52">
+          <DropdownMenuRadioGroup
+            value={privilege}
+            onValueChange={(value) => {
+              setPrivilege(mailSourceId, value as Privilege);
+            }}
+          >
+            {ALL_PRIVILEGE_STATUSES.map((status) => (
+              <DropdownMenuRadioItem
+                key={status}
+                value={status}
+                data-testid={`email-privilege-option-${status}`}
+              >
+                {privilegeOptionLabel(status, t)}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {isPrivileged(privilege) ? (
+        <TrustNote
+          variant="warning"
           data-testid="email-privilege-note"
-          className="mt-1.5 text-[11px] leading-snug text-amber-700"
+          className="text-[11px] leading-snug"
         >
           {t('mail.viewer.privilege-note')}
-        </p>
-      )}
+        </TrustNote>
+      ) : null}
     </div>
   );
 
   const fileToMatterControl = (
     <div
       data-testid="email-file-to-matter"
-      className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
+      className="relative mt-3 flex flex-col items-start gap-1.5"
     >
-      {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+      <button
+        type="button"
+        className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+        onClick={() => {
+          setFilePickerOpen((open) => !open);
+        }}
+        aria-expanded={filePickerOpen}
+      >
         <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-        File to {entityLabel.one}
-      </div>
-      {/* BUG-013: when the message is already filed, show which matter it's
-          filed to (persists across reopen via message.matterId), so a lawyer
-          can see the current association and change it deliberately. */}
-      {filedMatter !== null && (
-        <p
-          data-testid="email-filed-matter"
-          className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
+        <span>{t('mail.viewer.filed-to-label')}</span>
+        <span
+          data-testid={filedMatterId !== null ? 'email-filed-matter' : undefined}
+          className="min-w-0 truncate text-slate-900"
         >
-          <CheckCircle2 className="h-3 w-3 shrink-0" />
-          Filed to {matterLabel(filedMatter)}
-        </p>
-      )}
-      {/* Message is filed, but to a matter not in the current list (e.g. an
-          archived/removed matter): still disclose the filed state honestly. */}
-      {filedMatter === null && filedMatterId !== null && (
-        <p
-          data-testid="email-filed-matter"
-          className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
-        >
-          <CheckCircle2 className="h-3 w-3 shrink-0" />
-          Filed to another {entityLabel.one}
-        </p>
-      )}
-      {fileError && (
-        <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
+          {filedMatter !== null
+            ? matterLabel(filedMatter)
+            : filedMatterId !== null
+              ? t('mail.viewer.filed-to-another-client')
+              : t('mail.viewer.not-filed')}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </button>
+      {fileError ? (
+        <p className="m-0 flex items-center gap-1 text-[11px] text-amber-700">
           <AlertTriangle className="h-3 w-3" />
           {fileError}
         </p>
-      )}
-      {fileSuccess && (
-        <p className="mb-1.5 text-[11px] text-emerald-700">Filed successfully.</p>
-      )}
-      {matters.length === 0 ? (
-        <p className="text-xs text-slate-400">No {entityLabel.other} yet. Create a {entityLabel.one} first.</p>
-      ) : (
-        <div className="flex flex-wrap gap-1.5">
-          {matters.map((m) => {
-            const isCurrent = m.id === filedMatterId;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                data-testid={`file-to-matter-btn-${m.id}`}
-                aria-pressed={isCurrent}
-                disabled={filingMatter === m.id}
-                onClick={() => { void handleFileToMatter(m.id); }}
-                className={
-                  isCurrent
-                    ? 'inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 disabled:opacity-60'
-                    : 'inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-60'
-                }
-              >
-                {filingMatter === m.id ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : isCurrent ? (
-                  <CheckCircle2 className="h-3 w-3" />
-                ) : (
-                  <FolderInput className="h-3 w-3" />
-                )}
-                {matterLabel(m)}
-              </button>
-            );
-          })}
-        </div>
-      )}
-      {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+      ) : null}
+      {fileSuccess ? (
+        <p className="m-0 text-[11px] text-emerald-700">{t('mail.viewer.filed-success')}</p>
+      ) : null}
+      {filePickerOpen ? (
+        <Dropdown
+          ref={filePickerRef}
+          style={{
+            top: 'calc(100% + 4px)',
+            left: 0,
+            minWidth: 240,
+            maxHeight: 300,
+            display: 'flex',
+            flexDirection: 'column',
+            overflowY: 'auto',
+          }}
+        >
+          <div className="shrink-0 border-b border-[var(--color-border)] px-2 py-1.5">
+            <SearchField
+              size="sm"
+              value={fileMatterSearch}
+              onChange={setFileMatterSearch}
+              placeholder={t('mail.viewer.find-client')}
+              aria-label={t('mail.viewer.find-client')}
+              data-testid="email-file-matter-search"
+              onClick={(event: React.MouseEvent<HTMLInputElement>) => {
+                event.stopPropagation();
+              }}
+            />
+          </div>
+          <div className="min-h-0 overflow-y-auto">
+            {matters.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-slate-500">
+                {t('mail.viewer.create-client-first')}
+              </div>
+            ) : filteredMatters.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-slate-500">
+                {t('mail.viewer.no-matches')}
+              </div>
+            ) : (
+              filteredMatters.map((m) => {
+                const isCurrent = m.id === filedMatterId;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    data-testid={`file-to-matter-btn-${m.id}`}
+                    aria-pressed={isCurrent}
+                    disabled={filingMatter === m.id}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void handleFileToMatter(m.id).then((filed) => {
+                        if (filed) setFilePickerOpen(false);
+                      }).catch((e: unknown) => {
+                        setFileError(e instanceof Error ? e.message : t('mail.viewer.file-error'));
+                      });
+                    }}
+                    className="flex w-full items-center justify-between gap-2 border-0 bg-transparent px-3 py-2 text-left text-xs text-slate-800 hover:bg-slate-50 disabled:opacity-60"
+                  >
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      {filingMatter === m.id ? (
+                        <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-slate-500" />
+                      ) : (
+                        <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                      )}
+                      <span className="truncate">{matterLabel(m)}</span>
+                    </span>
+                    {isCurrent ? <Check className="h-3.5 w-3.5 shrink-0 text-[var(--kp-navy)]" /> : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </Dropdown>
+      ) : null}
     </div>
   );
 
@@ -583,7 +688,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
         className={`flex h-full items-center justify-center text-slate-500 ${className ?? ''}`}
       >
         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        <span className="text-sm">Opening email...</span>
+        <span className="text-sm">{t('mail.viewer.opening')}</span>
       </div>
     );
   }
@@ -599,10 +704,9 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
             className="flex min-h-52 flex-col items-center justify-center gap-2 text-center text-slate-600"
           >
             <AlertTriangle className="h-8 w-8 text-amber-500" />
-            {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-            <p className="text-sm font-medium text-slate-800">This email could not be opened</p>
+            <p className="text-sm font-medium text-slate-800">{t('mail.viewer.open-error-title')}</p>
             <p className="max-w-md text-xs text-slate-500">
-              {error ?? 'Message not found. It may not be synced yet.'}
+              {error ?? t('mail.viewer.message-not-found')}
             </p>
           </div>
           {privilegeControl}
@@ -612,12 +716,13 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     );
   }
 
-  const subject = message.subject.trim() || '(no subject)';
+  const subject = message.subject.trim() || t('mail.workspace.no-subject');
   const date = message.date ? formatDate(message.date) : null;
 
   // mailto: link — extract plain email address from "Name <addr>" format
   const fromAddr = message.from.match(/<([^>]+)>/)?.[1] ?? message.from;
-  const mailtoHref = `mailto:${encodeURIComponent(fromAddr)}?subject=${encodeURIComponent(`Re: ${subject}`)}`;
+  const replySubjectLine = t('mail.viewer.reply-subject-prefix', { subject });
+  const mailtoHref = `mailto:${encodeURIComponent(fromAddr)}?subject=${encodeURIComponent(replySubjectLine)}`;
 
   return (
     <div
@@ -625,74 +730,105 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       className={`flex h-full flex-col overflow-y-auto bg-white text-slate-900 ${className ?? ''}`}
     >
       <div className="mx-auto w-full max-w-3xl px-6 py-6">
-        {/* Subject */}
-        <div className="flex items-start gap-2">
-          <Mail className="mt-1 h-5 w-5 shrink-0 text-[var(--kp-navy)]" />
-          <h1 data-testid="email-viewer-subject" className="text-xl font-semibold leading-tight text-slate-900">
-            {subject}
-          </h1>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2">
+            <Mail className="mt-1 h-5 w-5 shrink-0 text-[var(--kp-navy)]" />
+            <h1 data-testid="email-viewer-subject" className="min-w-0 text-xl font-semibold leading-tight text-slate-900">
+              {subject}
+            </h1>
+          </div>
+          {onSaveToWorkspace ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <IconButton
+                  icon={MoreHorizontal}
+                  label={t('mail.viewer.message-actions')}
+                  size="sm"
+                  variant="ghost"
+                  data-testid="email-reader-more-actions"
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  data-testid={`email-detail-export-${message.id}`}
+                  disabled={savingEmail}
+                  onSelect={(event) => {
+                    event.preventDefault();
+                    void handleSaveEmailToWorkspace().catch(() => {
+                      setSaveEmailError(true);
+                    });
+                  }}
+                >
+                  {savingEmail ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <FileText className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  {t('mail.viewer.save-email')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : null}
         </div>
+        {saveEmailError ? (
+          <p className="mt-2 flex items-center gap-1 text-[11px] text-amber-700">
+            <AlertTriangle className="h-3 w-3" />
+            {t('mail.viewer.save-email-error')}
+          </p>
+        ) : null}
 
-        {/* Header card: from / to / cc / date */}
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-          <HeaderRow label="From">
+        <div className="mt-4 space-y-1.5 border-b border-slate-100 pb-4 text-sm">
+          <HeaderRow label={t('mail.viewer.from')}>
             <span data-testid="email-viewer-from" className="font-medium text-slate-900">
-              {message.from || '(unknown sender)'}
+              {message.from || t('mail.viewer.unknown-sender')}
             </span>
           </HeaderRow>
           {message.to.length > 0 && (
-            <HeaderRow label="To">
+            <HeaderRow label={t('mail.viewer.to')}>
               <span data-testid="email-viewer-to" className="text-slate-700">
                 {message.to.join(', ')}
               </span>
             </HeaderRow>
           )}
           {message.cc.length > 0 && (
-            <HeaderRow label="Cc">
+            <HeaderRow label={t('mail.viewer.cc')}>
               <span data-testid="email-viewer-cc" className="text-slate-700">
                 {message.cc.join(', ')}
               </span>
             </HeaderRow>
           )}
           {date && (
-            <HeaderRow label="Date">
+            <HeaderRow label={t('mail.viewer.date')}>
               <span className="inline-flex items-center gap-1 text-slate-600">
                 <Calendar className="h-3.5 w-3.5" />
                 {date}
               </span>
             </HeaderRow>
           )}
-        </div>
 
-        {/* Attachments — clickable download */}
-        {message.hasAttachments && (
-          <div
-            data-testid="email-viewer-attachments"
-            className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
-          >
-            <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-500">
-              <Paperclip className="h-3.5 w-3.5" />
-              { }
-              Attachments
-              { }
-            </div>
-            {downloadError && (
-              <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
-                <AlertTriangle className="h-3 w-3" />
-                {downloadError}
-              </p>
-            )}
-            {message.attachments.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {message.attachments.map((att) => (
+          {message.hasAttachments && (
+            <div data-testid="email-viewer-attachments" className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+              <Paperclip className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+              {downloadError ? (
+                <span className="flex items-center gap-1 text-amber-700">
+                  <AlertTriangle className="h-3 w-3" />
+                  {downloadError}
+                </span>
+              ) : null}
+              {message.attachments.length > 0 ? (
+                message.attachments.map((att) => (
                   <button
                     key={att.id}
                     type="button"
                     data-testid={`attachment-download-${att.id}`}
                     disabled={downloadingId === att.id}
-                    onClick={() => { void handleDownloadAttachment(att.id, att.name); }}
+                    onClick={() => {
+                      void handleDownloadAttachment(att.id, att.name).catch((e: unknown) => {
+                        setDownloadError(e instanceof Error ? e.message : t('mail.viewer.attachment-download-error'));
+                      });
+                    }}
                     className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-                    title={`Download ${att.name}`}
+                    title={t('mail.viewer.download-attachment', { name: att.name })}
                   >
                     {downloadingId === att.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -701,22 +837,20 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
                     )}
                     {att.name}
                   </button>
-                ))}
-              </div>
-            ) : (
-              /* eslint-disable lantern-i18n/no-hardcoded-string */
-              <span className="text-xs text-slate-500">This message has attachments. Open it in your mail app to download them.</span>
-              /* eslint-enable lantern-i18n/no-hardcoded-string */
-            )}
-          </div>
-        )}
+                ))
+              ) : (
+                <span>{t('mail.viewer.attachments-open-in-mail')}</span>
+              )}
+            </div>
+          )}
+        </div>
 
         {privilegeControl}
 
         {fileToMatterControl}
 
         {/* Body */}
-        <div className="mt-5 border-t border-slate-100 pt-5">
+        <div className="mt-5">
           <pre
             data-testid="email-viewer-body"
             className="whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-slate-800"
@@ -728,205 +862,292 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
         {/* Reply area */}
         <div
           data-testid="email-reply-area"
-          className="mt-6 rounded-md border border-slate-200 bg-white"
+          className="mt-6 border-t border-slate-100 pt-4"
         >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
-            <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-            <span className="text-xs font-medium text-slate-600">Reply</span>
-          </div>
-
-          {/* To field */}
-          <div className="border-b border-slate-100 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-slate-400">To</span>
-              <input
-                type="text"
-                data-testid="reply-to-input"
-                value={replyTo}
-                onChange={(e) => { setReplyTo(e.target.value); }}
-                className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
-                placeholder="recipient@example.com"
-              />
-              <button
-                type="button"
-                data-testid="reply-cc-bcc-toggle"
-                onClick={() => { setReplyCcBccOpen((o) => !o); }}
-                className="shrink-0 text-[11px] text-slate-500 hover:text-slate-700"
+          {!replyOpen ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="primary"
+                size="sm"
+                iconLeft={Mail}
+                data-testid="reply-open-btn"
+                onClick={() => { setReplyOpen(true); }}
               >
-                Cc / Bcc
-              </button>
+                {t('mail.viewer.reply')}
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                iconLeft={replyDraftLoading ? undefined : FileText}
+                loading={replyDraftLoading}
+                data-testid="reply-draft-ai-btn"
+                onClick={() => {
+                  void handleDraftWithAI().catch((e: unknown) => {
+                    setReplyDraftError(e instanceof Error ? e.message : t('mail.viewer.ai-draft-error'));
+                  });
+                }}
+              >
+                {t('mail.viewer.draft-with-ai')}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <IconButton
+                    icon={MoreHorizontal}
+                    label={t('mail.viewer.reply-actions')}
+                    size="sm"
+                    variant="ghost"
+                    data-testid="reply-more-actions"
+                  />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuItem asChild>
+                    <a href={mailtoHref} data-testid="reply-mailto-link" rel="noopener noreferrer">
+                      <Mail className="mr-2 h-3.5 w-3.5" />
+                      {t('mail.viewer.open-in-mail-app')}
+                    </a>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="reply-copy-btn"
+                    disabled={!replyDraft}
+                    onSelect={(event) => {
+                      if (!replyDraft) {
+                        event.preventDefault();
+                        return;
+                      }
+                      handleCopyReply();
+                    }}
+                  >
+                    <Copy className="mr-2 h-3.5 w-3.5" />
+                    {replyCopied ? t('mail.viewer.copied') : t('mail.viewer.copy')}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="reply-save-doc-btn"
+                    disabled={!replyDraft}
+                    onSelect={(event) => {
+                      if (!replyDraft) {
+                        event.preventDefault();
+                        return;
+                      }
+                      handleSaveReplyAsDoc();
+                    }}
+                  >
+                    <FileText className="mr-2 h-3.5 w-3.5" />
+                    {t('mail.viewer.save-as-document')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
-          </div>
-
-          {/* Cc / Bcc fields */}
-          {replyCcBccOpen && (
+          ) : (
             <>
-              <div className="border-b border-slate-100 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-slate-400">Cc</span>
-                  <input
-                    type="text"
-                    data-testid="reply-cc-input"
-                    value={replyCc}
-                    onChange={(e) => { setReplyCc(e.target.value); }}
-                    className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
-                    placeholder="cc@example.com"
+              <div className="rounded-md border border-slate-200 bg-white">
+                <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+                  <Mail className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                  <span className="text-xs font-medium text-slate-600">{t('mail.viewer.reply')}</span>
+                </div>
+
+                <div className="border-b border-slate-100 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-10 shrink-0 text-[11px] font-medium text-slate-400">{t('mail.viewer.to')}</span>
+                    <input
+                      type="text"
+                      data-testid="reply-to-input"
+                      value={replyTo}
+                      onChange={(e) => { setReplyTo(e.target.value); }}
+                      className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
+                      placeholder={t('mail.viewer.recipient-placeholder')}
+                    />
+                    <button
+                      type="button"
+                      data-testid="reply-cc-bcc-toggle"
+                      onClick={() => { setReplyCcBccOpen((o) => !o); }}
+                      className="shrink-0 text-[11px] text-slate-500 hover:text-slate-700"
+                    >
+                      {t('mail.viewer.cc-bcc')}
+                    </button>
+                  </div>
+                </div>
+
+                {replyCcBccOpen && (
+                  <>
+                    <div className="border-b border-slate-100 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-10 shrink-0 text-[11px] font-medium text-slate-400">{t('mail.viewer.cc')}</span>
+                        <input
+                          type="text"
+                          data-testid="reply-cc-input"
+                          value={replyCc}
+                          onChange={(e) => { setReplyCc(e.target.value); }}
+                          className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
+                          placeholder={t('mail.viewer.cc-placeholder')}
+                        />
+                      </div>
+                    </div>
+                    <div className="border-b border-slate-100 px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-10 shrink-0 text-[11px] font-medium text-slate-400">{t('mail.viewer.bcc')}</span>
+                        <input
+                          type="text"
+                          data-testid="reply-bcc-input"
+                          value={replyBcc}
+                          onChange={(e) => { setReplyBcc(e.target.value); }}
+                          className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
+                          placeholder={t('mail.viewer.bcc-placeholder')}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="border-b border-slate-100 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-10 shrink-0 text-[11px] font-medium text-slate-400">{t('mail.viewer.subject-short')}</span>
+                    <input
+                      type="text"
+                      data-testid="reply-subject-input"
+                      value={replySubject}
+                      onChange={(e) => { setReplySubject(e.target.value); }}
+                      className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
+                      placeholder={t('mail.viewer.subject')}
+                    />
+                  </div>
+                </div>
+
+                <div className="px-3 py-3">
+                  <textarea
+                    data-testid="reply-draft-textarea"
+                    value={replyDraft}
+                    onChange={(e) => { setReplyDraft(e.target.value); }}
+                    className="w-full rounded border border-slate-200 bg-slate-50 p-2 text-sm leading-relaxed text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
+                    rows={6}
+                    style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
+                    placeholder={t('mail.viewer.reply-placeholder')}
                   />
                 </div>
-              </div>
-              <div className="border-b border-slate-100 px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <span className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-slate-400">Bcc</span>
-                  <input
-                    type="text"
-                    data-testid="reply-bcc-input"
-                    value={replyBcc}
-                    onChange={(e) => { setReplyBcc(e.target.value); }}
-                    className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
-                    placeholder="bcc@example.com"
-                  />
+
+                {replyMode === 'draft' && replyDraftError && (
+                  <div className="border-t border-slate-100 px-3 py-2">
+                    <p className="flex items-center gap-1 text-[11px] text-amber-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      {replyDraftError}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-2.5">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    iconLeft={replyDraftLoading ? undefined : FileText}
+                    loading={replyDraftLoading}
+                    data-testid="reply-draft-ai-btn"
+                    onClick={() => {
+                      void handleDraftWithAI().catch((e: unknown) => {
+                        setReplyDraftError(e instanceof Error ? e.message : t('mail.viewer.ai-draft-error'));
+                      });
+                    }}
+                  >
+                    {t('mail.viewer.draft-with-ai')}
+                  </Button>
+
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    iconLeft={Mail}
+                    loading={replySending}
+                    data-testid="reply-send-btn"
+                    onClick={() => {
+                      void handleSendReply().catch((e: unknown) => {
+                        setReplySendResult('error');
+                        setReplySendError(e instanceof Error ? e.message : t('mail.viewer.reply-send-error'));
+                      });
+                    }}
+                  >
+                    {t('mail.viewer.send')}
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <IconButton
+                        icon={MoreHorizontal}
+                        label={t('mail.viewer.reply-actions')}
+                        size="sm"
+                        variant="ghost"
+                        data-testid="reply-more-actions-open"
+                      />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-48">
+                      <DropdownMenuItem asChild>
+                        <a href={mailtoHref} data-testid="reply-mailto-link" rel="noopener noreferrer">
+                          <Mail className="mr-2 h-3.5 w-3.5" />
+                          {t('mail.viewer.open-in-mail-app')}
+                        </a>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        data-testid="reply-copy-btn"
+                        disabled={!replyDraft}
+                        onSelect={(event) => {
+                          if (!replyDraft) {
+                            event.preventDefault();
+                            return;
+                          }
+                          handleCopyReply();
+                        }}
+                      >
+                        <Copy className="mr-2 h-3.5 w-3.5" />
+                        {replyCopied ? t('mail.viewer.copied') : t('mail.viewer.copy')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        data-testid="reply-save-doc-btn"
+                        disabled={!replyDraft}
+                        onSelect={(event) => {
+                          if (!replyDraft) {
+                            event.preventDefault();
+                            return;
+                          }
+                          handleSaveReplyAsDoc();
+                        }}
+                      >
+                        <FileText className="mr-2 h-3.5 w-3.5" />
+                        {t('mail.viewer.save-as-document')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
+
+                {replySendResult === 'success' && (
+                  <div data-testid="reply-send-success" className="border-t border-slate-100 px-3 py-2">
+                    <p className="text-[11px] text-emerald-700">{t('mail.viewer.reply-sent')}</p>
+                  </div>
+                )}
+                {replySendResult === 'error' && replySendError && (
+                  <div data-testid="reply-send-error" className="border-t border-slate-100 px-3 py-2">
+                    <p className="flex items-center gap-1 text-[11px] text-amber-700">
+                      <AlertTriangle className="h-3 w-3" />
+                      {replySendError}
+                    </p>
+                  </div>
+                )}
+                {replySendResult === 'scope_upgrade' && (
+                  <div data-testid="reply-scope-upgrade" className="border-t border-slate-100 px-3 py-2">
+                    <p className="text-[11px] text-amber-700">
+                      {t('mail.viewer.scope-upgrade')}
+                    </p>
+                    {onOpenSettings && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        data-testid="reply-scope-upgrade-settings-btn"
+                        onClick={onOpenSettings}
+                        className="mt-1.5"
+                      >
+                        {t('mail.viewer.go-to-settings')}
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
-
-          {/* Subject field */}
-          <div className="border-b border-slate-100 px-3 py-2">
-            <div className="flex items-center gap-2">
-              <span className="w-10 shrink-0 text-[11px] font-medium uppercase tracking-wide text-slate-400">Subj</span>
-              <input
-                type="text"
-                data-testid="reply-subject-input"
-                value={replySubject}
-                onChange={(e) => { setReplySubject(e.target.value); }}
-                className="flex-1 rounded border border-slate-200 px-2 py-1 text-sm text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
-                placeholder="Subject"
-              />
-            </div>
-          </div>
-
-          {/* Body textarea */}
-          <div className="px-3 py-3">
-            <textarea
-              data-testid="reply-draft-textarea"
-              value={replyDraft}
-              onChange={(e) => { setReplyDraft(e.target.value); }}
-              className="w-full rounded border border-slate-200 bg-slate-50 p-2 text-sm leading-relaxed text-slate-800 focus:outline-none focus:ring-1 focus:ring-[var(--kp-navy)]"
-              rows={6}
-              style={{ resize: 'vertical', fontFamily: 'var(--font-sans)' }}
-              placeholder="Write your reply..."
-            />
-          </div>
-
-          {/* AI draft error */}
-          {replyMode === 'draft' && replyDraftError && (
-            <div className="border-t border-slate-100 px-3 py-2">
-              <p className="flex items-center gap-1 text-[11px] text-amber-700">
-                <AlertTriangle className="h-3 w-3" />
-                {replyDraftError}
-              </p>
-            </div>
-          )}
-
-          {/* Action row */}
-          <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 px-3 py-2.5">
-            <button
-              type="button"
-              data-testid="reply-draft-ai-btn"
-              onClick={() => { void handleDraftWithAI(); }}
-              disabled={replyDraftLoading}
-              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100 disabled:opacity-60"
-            >
-              {replyDraftLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <FileText className="h-3 w-3" />
-              )}
-              Draft with AI
-            </button>
-
-            <button
-              type="button"
-              data-testid="reply-send-btn"
-              onClick={() => { void handleSendReply(); }}
-              disabled={replySending}
-              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-[var(--kp-navy)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0c2f52] disabled:opacity-60"
-            >
-              {replySending ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Mail className="h-3 w-3" />
-              )}
-              Send
-            </button>
-
-            <a
-              href={mailtoHref}
-              data-testid="reply-mailto-link"
-              className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
-              rel="noopener noreferrer"
-            >
-              <Mail className="h-3 w-3" />
-              Reply in your mail app
-            </a>
-
-            {replyDraft && (
-              <>
-                <button
-                  type="button"
-                  data-testid="reply-copy-btn"
-                  onClick={handleCopyReply}
-                  className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
-                >
-                  <Copy className="h-3 w-3" />
-                  {replyCopied ? 'Copied!' : 'Copy'}
-                </button>
-                <button
-                  type="button"
-                  data-testid="reply-save-doc-btn"
-                  onClick={handleSaveReplyAsDoc}
-                  className="inline-flex items-center gap-1.5 rounded border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
-                >
-                  <FileText className="h-3 w-3" />
-                  Save as document
-                </button>
-              </>
-            )}
-          </div>
-
-          {/* Send result states */}
-          {replySendResult === 'success' && (
-            <div data-testid="reply-send-success" className="border-t border-slate-100 px-3 py-2">
-              <p className="text-[11px] text-emerald-700">Reply sent</p>
-            </div>
-          )}
-          {replySendResult === 'error' && replySendError && (
-            <div data-testid="reply-send-error" className="border-t border-slate-100 px-3 py-2">
-              <p className="flex items-center gap-1 text-[11px] text-amber-700">
-                <AlertTriangle className="h-3 w-3" />
-                {replySendError}
-              </p>
-            </div>
-          )}
-          {replySendResult === 'scope_upgrade' && (
-            <div data-testid="reply-scope-upgrade" className="border-t border-slate-100 px-3 py-2">
-              <p className="text-[11px] text-amber-700">
-                Sending needs a one-time reconnect for the send permission. Go to Settings to reconnect your email.
-              </p>
-              {onOpenSettings && (
-                <button
-                  type="button"
-                  data-testid="reply-scope-upgrade-settings-btn"
-                  onClick={onOpenSettings}
-                  className="mt-1.5 inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-100"
-                >
-                  Go to Settings
-                </button>
-              )}
-            </div>
-          )}
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
         </div>
       </div>
     </div>
@@ -936,7 +1157,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
 function HeaderRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-2 py-0.5">
-      <span className="w-12 shrink-0 text-xs font-medium uppercase tracking-wide text-slate-400">
+      <span className="w-12 shrink-0 text-xs font-medium text-slate-500">
         {label}
       </span>
       <span className="min-w-0 break-words">{children}</span>
