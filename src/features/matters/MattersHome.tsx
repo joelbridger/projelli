@@ -108,6 +108,7 @@ export interface MattersHomeProps {
   /** Forwarded verbatim to MatterHub's Meetings sub-tab (see MatterHubProps). */
   workspaceService?: WorkspaceService | null;
   clientMapMode?: MattersSurfaceMode;
+  onClientMapModeChange?: ((mode: MattersSurfaceMode) => void) | undefined;
 }
 
 // ── Sort state ─────────────────────────────────────────────────────────────
@@ -814,6 +815,8 @@ export function MattersHome({
   renderClientEmail,
   renderClientActivity,
   workspaceService,
+  clientMapMode = 'client-map',
+  onClientMapModeChange,
 }: MattersHomeProps = {}) {
   const { t } = useTranslation();
   const activeMatters = useActiveMatters();
@@ -831,14 +834,16 @@ export function MattersHome({
   // over from a client switch (clientMapHubId !== activeMatterId) falls back to
   // the overview rather than showing the wrong client's hub.
   const hubMatterId =
-    clientMapHubId !== null && clientMapHubId === activeMatterId
+    clientMapMode !== 'all-clients' && clientMapHubId !== null && clientMapHubId === activeMatterId
       ? clientMapHubId
       : null;
   const openHub = (id: string) => {
+    onClientMapModeChange?.('client-map');
     setActiveMatter(id);
     setClientMapHubId(id);
   };
   const closeHub = () => {
+    onClientMapModeChange?.('all-clients');
     setClientMapHubId(null);
   };
   const entityLabel = useEntityLabel();

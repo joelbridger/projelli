@@ -6,6 +6,7 @@
  */
 
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ShieldCheck,
   Search,
@@ -60,6 +61,7 @@ export interface DetailPanelProps {
 }
 
 export function DetailPanel({ entry, onClose }: DetailPanelProps) {
+  const { t } = useTranslation();
   // Fixed-English escape hatch: the "Firm {{entity}}" / "Local {{entity}}"
   // labels below are still hardcoded English strings (see the cleanup2
   // handoff), so the noun stays English too rather than mixing languages.
@@ -74,6 +76,9 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
   const hasInputs = Object.keys(inputs).length > 0;
   const hasOutputs = Object.keys(outputs).length > 0;
   const hasMetadata = Object.keys(metadata).length > 0;
+  const beforeText = toSafeString(metadata['beforeText']);
+  const afterText = toSafeString(metadata['afterText']);
+  const hasBeforeAfter = beforeText !== '' || afterText !== '';
 
   return (
     <SlidePanel
@@ -170,6 +175,16 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
           </Button>
         )}
 
+        {hasBeforeAfter && (
+          <BeforeAfterBlock
+            title={t('common.audit-log.before-after-title')}
+            beforeLabel={t('common.audit-log.before')}
+            afterLabel={t('common.audit-log.after')}
+            beforeText={beforeText}
+            afterText={afterText}
+          />
+        )}
+
         {/* Inputs */}
         {hasInputs && (
           <JsonBlock label="Inputs" value={inputs} />
@@ -186,6 +201,60 @@ export function DetailPanel({ entry, onClose }: DetailPanelProps) {
         )}
       </div>
     </SlidePanel>
+  );
+}
+
+interface BeforeAfterBlockProps {
+  title: string;
+  beforeLabel: string;
+  afterLabel: string;
+  beforeText: string;
+  afterText: string;
+}
+
+function BeforeAfterBlock({ title, beforeLabel, afterLabel, beforeText, afterText }: BeforeAfterBlockProps) {
+  return (
+    <div data-testid="audit-before-after-block">
+      <div style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--color-muted-foreground)', marginBottom: 6 }}>
+        {title}
+      </div>
+      <div
+        style={{
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--color-border)',
+          background: 'rgba(10,37,64,0.03)',
+          overflow: 'hidden',
+        }}
+      >
+        {beforeText !== '' && (
+          <BeforeAfterRow label={beforeLabel} value={beforeText} />
+        )}
+        {afterText !== '' && (
+          <BeforeAfterRow label={afterLabel} value={afterText} separated={beforeText !== ''} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BeforeAfterRow({ label, value, separated = false }: { label: string; value: string; separated?: boolean }) {
+  return (
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: '92px minmax(0, 1fr)',
+        gap: 'var(--kp-space-sm)',
+        padding: '10px 12px',
+        borderTop: separated ? '1px solid var(--color-border)' : undefined,
+      }}
+    >
+      <span style={{ fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--color-muted-foreground)' }}>
+        {label}
+      </span>
+      <span style={{ fontSize: 'var(--kp-font-sm)', lineHeight: 'var(--kp-leading-normal)', color: 'var(--kp-navy)', overflowWrap: 'anywhere' }}>
+        {value}
+      </span>
+    </div>
   );
 }
 

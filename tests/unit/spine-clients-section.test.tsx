@@ -122,6 +122,14 @@ describe('Spine — Clients section', () => {
     expect(onTabChange).toHaveBeenCalledWith('matters');
   });
 
+  it('highlights All Clients without also highlighting the Client Map nav tab', () => {
+    render(<Spine activeTab="matters" allClientsSelected />);
+
+    expect(screen.getByTestId('spine-all-clients-row')).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByTestId('spine-nav-matters')).not.toHaveAttribute('aria-current');
+    expect(screen.getByTestId('spine-client-row-m1').getAttribute('style')).toContain('background: transparent');
+  });
+
   it('clicking a client row always launches that client on the Client Map hub', () => {
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     render(<Spine activeTab="email" />);

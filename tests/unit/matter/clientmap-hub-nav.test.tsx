@@ -145,6 +145,17 @@ describe('Client Map hub navigation', () => {
     expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
   });
 
+  it('keeps the All Clients table visible even if a client hub id is still remembered', () => {
+    const id = seedMatter();
+    useMatterStore.getState().setActiveMatter(id);
+    useMatterStore.getState().setClientMapHubId(id);
+
+    render(<MattersHome clientMapMode="all-clients" />);
+
+    expect(screen.getByTestId(`matter-row-${id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId('mock-matter-hub')).not.toBeInTheDocument();
+  });
+
   it('shows the OVERVIEW table when no hub is open', () => {
     const id = seedMatter();
     render(<MattersHome clientMapMode="all-clients" />);

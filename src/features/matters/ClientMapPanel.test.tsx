@@ -64,6 +64,7 @@ describe('ClientMapPanel simplified controls', () => {
     fireEvent.click(screen.getByTestId('clientmap-source-link'));
 
     expect(screen.getByTestId('clientmap-sources-pane').getAttribute('data-collapsed')).toBe('false');
+    expect(screen.getByTestId('clientmap-sources-heading').textContent).toContain('Sources');
     expect(screen.getByTestId('source-card')).toBeTruthy();
     expect(openSource).not.toHaveBeenCalled();
   });
@@ -99,6 +100,8 @@ describe('ClientMapPanel simplified controls', () => {
     );
 
     expect(screen.queryByTestId('clientmap-add-bullet-input')).toBeNull();
+    expect(screen.getByTestId('clientmap-add-fact-row').textContent).toContain('Add fact');
+    expect(screen.getByTestId('clientmap-add-fact-row').textContent).not.toContain('+ Add fact');
 
     fireEvent.click(screen.getByTestId('clientmap-add-fact-row'));
 

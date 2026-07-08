@@ -9,11 +9,12 @@
 // It intentionally keeps ClientMapView's data contract while adding a few host
 // callbacks for the simplified hub shell.
 
-import { useRef, useState, type CSSProperties } from 'react';
+import { useId, useRef, useState, type CSSProperties } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { Check, ChevronLeft, ChevronRight, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus, Sparkles } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, MoreVertical, PanelLeftClose, PanelLeftOpen, Pencil, Plus, ShieldCheck, Sparkles, type LucideIcon } from 'lucide-react';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, Chip, Eyebrow, CountBadge, IconButton, RailShellActionMenu, RailShellHeader, TrustNote } from '@/ui/kp';
 import {
@@ -93,6 +94,79 @@ function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitati
 }
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
+
+const railIconButtonStyle: CSSProperties = {
+  width: 22,
+  height: 22,
+  border: 0,
+};
+
+
+const railAddSectionRowStyle: CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 4,
+  padding: 'var(--kp-space-xs) 2px',
+};
+
+function RailIconActionButton({
+  icon: Icon,
+  label,
+  testid,
+  onClick,
+}: {
+  icon: LucideIcon;
+  label: string;
+  testid: string;
+  onClick: () => void;
+}) {
+  const contentId = useId();
+  const [open, setOpen] = useState(false);
+
+  const show = () => {
+    setOpen(true);
+  };
+
+  const hide = () => {
+    setOpen(false);
+  };
+
+  return (
+    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+      <Tooltip open={open} onOpenChange={setOpen}>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={label}
+            aria-describedby={open ? contentId : undefined}
+            data-testid={testid}
+            className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
+            style={railIconButtonStyle}
+            onMouseEnter={show}
+            onMouseLeave={hide}
+            onFocus={show}
+            onBlur={hide}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                hide();
+              }
+            }}
+            onClick={() => {
+              hide();
+              onClick();
+            }}
+          >
+            <Icon size={15} strokeWidth={2} aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent id={contentId} side="bottom">
+          {label}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 
 const railTabsStyle: CSSProperties = {
   display: 'flex',
@@ -185,15 +259,15 @@ const mutedCountStyle: CSSProperties = {
 
 const itemRowStyle: CSSProperties = {
   display: 'flex',
-  alignItems: 'flex-start',
+  alignItems: 'center',
   gap: 'var(--kp-space-sm)',
-  padding: '10px 0',
+  padding: '7px 0',
 };
 
 const itemTextStyle: CSSProperties = {
   fontSize: 'var(--kp-font-md)',
   color: 'var(--kp-navy)',
-  lineHeight: 'var(--kp-leading-relaxed)',
+  lineHeight: 'var(--kp-leading-normal)',
 };
 
 const sourceChipStyle: CSSProperties = {
@@ -300,18 +374,19 @@ function ItemRow({
           flex: 'none',
         }}
       />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <span style={itemTextStyle}>{item.text}</span>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--kp-space-xs)',
+          flexWrap: 'wrap',
+        }}
+      >
+        <span style={{ ...itemTextStyle, flex: '1 1 260px', minWidth: 0 }}>{item.text}</span>
         {hasMeta && (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 'var(--kp-space-xs)',
-              marginTop: 'var(--kp-space-xs)',
-              flexWrap: 'wrap',
-            }}
-          >
+          <>
             {item.isAssumption && showAssumptionLabel && (
               <span
                 data-testid="clientmap-item-assumption"
@@ -323,7 +398,7 @@ function ItemRow({
             {item.sources.map((s, i) => (
               <SourceChip key={i} source={s} onOpenSource={onOpenSource} />
             ))}
-          </div>
+          </>
         )}
       </div>
       {hasMenu && (
@@ -333,10 +408,10 @@ function ItemRow({
               type="button"
               data-testid="clientmap-item-menu"
               aria-label={t('matter.client-map.row-actions')}
-              className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+              className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
               style={{ flex: 'none', marginTop: 1 }}
             >
-              <MoreVertical size={14} strokeWidth={1.75} aria-hidden />
+              <Pencil size={14} strokeWidth={1.75} aria-hidden />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-36">
@@ -1217,16 +1292,6 @@ export function ClientMapPanel({
             label: t('matter.client-map.search-sections'),
             testId: 'clientmap-section-search',
           }}
-          createAction={(
-            <IconButton
-              icon={Plus}
-              label={t('matter.client-map.new-section')}
-              data-testid="clientmap-tab-add"
-              onClick={() => {
-                select(NEW_KEY);
-              }}
-            />
-          )}
           menuAction={(
             <RailShellActionMenu icon={MoreVertical} label={t('matter.client-map.rail-actions')}>
               <DropdownMenuItem onSelect={() => { select(NEW_KEY); }}>
@@ -1246,6 +1311,7 @@ export function ClientMapPanel({
           )}
           className="mb-2 -mx-3 -mt-3"
         />
+
 
         <div style={railTabsStyle} role="tablist" aria-label="Client map sections">
           {visibleSectionList.map((s) => (
@@ -1267,6 +1333,17 @@ export function ClientMapPanel({
               {t('matter.client-map.no-section-results')}
             </div>
           )}
+
+          <div style={railAddSectionRowStyle}>
+            <RailIconActionButton
+              icon={Plus}
+              label={t('matter.client-map.new-section')}
+              testid="clientmap-tab-add"
+              onClick={() => {
+                select(NEW_KEY);
+              }}
+            />
+          </div>
 
           {/* "What I'm missing" — accent badge when there are open gaps */}
           <TabButton
@@ -1387,10 +1464,31 @@ export function ClientMapPanel({
         <div
           style={{
             display: 'flex',
-            justifyContent: sourcesCollapsed ? 'center' : 'flex-end',
+            alignItems: 'center',
+            justifyContent: sourcesCollapsed ? 'center' : 'space-between',
+            gap: 'var(--kp-space-xs)',
             marginBottom: sourcesCollapsed ? 0 : 'var(--kp-space-sm)',
           }}
         >
+          {!sourcesCollapsed && (
+            <div
+              data-testid="clientmap-sources-heading"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 7,
+                minWidth: 0,
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: 'var(--kp-text-faint)',
+              }}
+            >
+              <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none' }} />
+              <span>{t('ask.sources.title')}</span>
+            </div>
+          )}
           <button
             type="button"
             data-testid="clientmap-sources-toggle"
@@ -1412,6 +1510,7 @@ export function ClientMapPanel({
             citations={currentSources}
             selectedN={selectedSourceN}
             onSelect={setSelectedSourceN}
+            hideHeader
             onOpenCitation={(c) => {
               const ref = c.path != null ? sourceRefByRef.get(c.path) : undefined;
               if (ref) onOpenSource(ref);
