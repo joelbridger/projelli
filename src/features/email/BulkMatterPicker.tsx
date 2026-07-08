@@ -4,7 +4,7 @@ import { SearchField, Dropdown } from '@/ui/kp';
 import { useMatters } from '@/platform/matter/matterStore';
 import { mailRetagMessageMatter } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
+import { useTranslation } from 'react-i18next';
 
 // ── BulkMatterPicker ───────────────────────────────────────────────────────
 
@@ -16,10 +16,7 @@ export interface BulkMatterPickerProps {
 }
 
 export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: BulkMatterPickerProps) {
-  // Fixed-English escape hatch: the search placeholder/aria-label and empty
-  // states below are still hardcoded English strings (see the cleanup2
-  // handoff), so the noun stays English too rather than mixing languages.
-  const entityLabel = useEntityLabelEnglish();
+  const { t } = useTranslation();
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -61,8 +58,8 @@ export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: Bu
           size="sm"
           value={matterSearch}
           onChange={(v) => { setMatterSearch(v); }}
-          placeholder={`Search ${entityLabel.other}...`}
-          aria-label={`Search ${entityLabel.other}`}
+          placeholder={t('mail.filing.find-client')}
+          aria-label={t('mail.filing.find-client')}
           data-testid="bulk-matter-picker-search"
           onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.stopPropagation(); }}
         />
@@ -76,7 +73,7 @@ export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: Bu
         )}
         {filteredMatters.length === 0 ? (
           <div style={{ padding: `var(--kp-space-sm) var(--kp-space-sm)`, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-            {matters.length === 0 ? `No ${entityLabel.other} yet` : `No matching ${entityLabel.other}`}
+            {matters.length === 0 ? t('mail.filing.no-clients') : t('mail.filing.no-matches')}
           </div>
         ) : (
           filteredMatters.map((m) => (
@@ -98,7 +95,7 @@ export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: Bu
                   onDone();
                 } catch (err: unknown) {
                   setFiling(null);
-                  setFileError(err instanceof Error ? err.message : 'Failed to file emails. Please try again.');
+                  setFileError(err instanceof Error ? err.message : t('mail.filing.bulk-file-error'));
                 }
               })();
             }}

@@ -89,6 +89,18 @@ beforeEach(() => {
   );
 });
 
+async function openFilingPicker() {
+  const trigger = screen.getByTestId('email-file-to-matter').querySelector('button');
+  expect(trigger).not.toBeNull();
+  fireEvent.click(trigger!);
+  await screen.findByTestId('file-to-matter-btn-m1');
+}
+
+async function openReplyComposer() {
+  fireEvent.click(screen.getByTestId('reply-open-btn'));
+  await screen.findByTestId('reply-draft-textarea');
+}
+
 describe('EmailViewer — QA-53 stale-async cross-client isolation', () => {
   it('does not mark email B filed to the client chosen while viewing email A', async () => {
     const retag = deferred<void>();
@@ -98,6 +110,7 @@ describe('EmailViewer — QA-53 stale-async cross-client isolation', () => {
     await waitFor(() => { expect(screen.getByText('Subject A')).toBeTruthy(); });
 
     // Start filing email A to client m1.
+    await openFilingPicker();
     fireEvent.click(screen.getByTestId('file-to-matter-btn-m1'));
 
     // Switch to email B before the retag returns.
@@ -144,6 +157,7 @@ describe('EmailViewer — QA-53 stale-async cross-client isolation', () => {
     });
 
     // Email B's reply box must not contain the draft generated for email A.
+    await openReplyComposer();
     const textarea = screen.getByTestId('reply-draft-textarea') as HTMLTextAreaElement;
     expect(textarea.value).not.toContain("CLIENT A'S CASE");
   });

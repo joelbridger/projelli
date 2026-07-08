@@ -1,6 +1,7 @@
 import { FolderInput, ChevronDown, X } from 'lucide-react';
-import { Button } from '@/ui/kp';
+import { Button, IconButton } from '@/ui/kp';
 import { BulkMatterPicker } from './BulkMatterPicker';
+import { useTranslation } from 'react-i18next';
 
 // ── Props ──────────────────────────────────────────────────────────────────
 
@@ -21,26 +22,14 @@ export function BulkActionBar({
   bulkMatterOpen,
   onBulkMatterOpenChange,
 }: BulkActionBarProps) {
+  const { t } = useTranslation();
   return (
     <div
       data-testid="bulk-action-bar"
-      style={{
-        margin: `var(--kp-space-md) var(--kp-gutter) var(--kp-space-xs)`,
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-        borderRadius: 'var(--radius-md)',
-        border: '1px solid rgba(10,37,64,0.18)',
-        background: 'rgba(10,37,64,0.04)',
-        fontSize: 'var(--kp-font-xs)',
-        color: 'var(--kp-navy)',
-        fontWeight: 'var(--kp-weight-medium)',
-      }}
+      className="mx-6 mt-3 flex shrink-0 items-center gap-2 border-y border-[var(--kp-divider)] bg-white py-2 text-xs font-medium text-[var(--kp-navy)]"
     >
-      {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-      <span style={{ flex: 1 }}>
-        {selectedCount} selected
+      <span className="flex-1">
+        {t('mail.bulk.selected', { count: selectedCount })}
       </span>
       <div style={{ position: 'relative' }}>
         <Button
@@ -51,7 +40,7 @@ export function BulkActionBar({
           data-testid="bulk-file-to-matter"
           onClick={() => { onBulkMatterOpenChange(!bulkMatterOpen); }}
         >
-          File to client
+          {t('mail.bulk.file')}
         </Button>
         <BulkMatterPicker
           selectedIds={selectedIds}
@@ -60,15 +49,13 @@ export function BulkActionBar({
           onDone={onClearSelection}
         />
       </div>
-      <Button
+      <IconButton
         variant="ghost"
         size="sm"
-        iconLeft={X}
+        icon={X}
+        label={t('mail.bulk.clear-selection')}
         onClick={onClearSelection}
-      >
-        Clear selection
-      </Button>
-      {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+      />
     </div>
   );
 }

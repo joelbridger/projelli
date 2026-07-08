@@ -203,7 +203,7 @@ describe('EmailWorkspace rail-shell regression coverage', () => {
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    expect(screen.getByText('Demo preview')).toBeInTheDocument();
+    expect(screen.getByText('Preview')).toBeInTheDocument();
     expect(screen.getAllByText('This is the body snippet for message 0.')).toHaveLength(2);
     expect(screen.queryByTestId('email-viewer-error')).not.toBeInTheDocument();
   });
@@ -246,7 +246,7 @@ describe('EmailWorkspace rail-shell regression coverage', () => {
       const rows = screen.getAllByTestId(/^email-rail-row-/);
       expect(rows.length).toBeGreaterThan(0);
       expect(rows.length).toBeLessThan(100);
-      expect(screen.getByTestId('result-count')).toHaveTextContent('All email loaded');
+      expect(screen.queryByTestId('result-count')).not.toBeInTheDocument();
       expect(screen.getByRole('listbox', { name: 'Email list' })).toBeInTheDocument();
     } finally {
       if (heightDescriptor) {

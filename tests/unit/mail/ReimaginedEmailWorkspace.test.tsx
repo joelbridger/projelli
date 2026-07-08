@@ -208,6 +208,35 @@ async function openEmailActionsMenu() {
   });
 }
 
+async function openEmailRowActionsMenu(id: string) {
+  fireEvent.pointerDown(screen.getByTestId(`email-rail-actions-${id}`), { button: 0, ctrlKey: false });
+  fireEvent.click(screen.getByTestId(`email-rail-actions-${id}`));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+}
+
+async function openDetailSensitivityMenu() {
+  const trigger = screen.getByTestId('email-privilege-control').querySelector('button');
+  expect(trigger).not.toBeNull();
+  fireEvent.pointerDown(trigger!, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger!);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(screen.getByTestId('email-privilege-option-attorney-client')).toBeInTheDocument();
+}
+
+async function openDetailFilingPicker() {
+  const trigger = screen.getByTestId('email-file-to-matter').querySelector('button');
+  expect(trigger).not.toBeNull();
+  fireEvent.click(trigger!);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(0);
+  });
+  expect(screen.getByTestId('email-file-matter-search')).toBeInTheDocument();
+}
+
 beforeEach(() => {
   setupDefaultMocks();
   vi.useFakeTimers();
@@ -314,6 +343,7 @@ describe('EmailWorkspace', () => {
     const listener = (e: Event) => { dispatched.push(e as CustomEvent); };
     window.addEventListener('lantern:open-email', listener);
 
+    await openEmailRowActionsMenu('msg-001');
     fireEvent.click(screen.getByTestId('email-rail-open-msg-001'));
 
     window.removeEventListener('lantern:open-email', listener);
@@ -343,6 +373,7 @@ describe('EmailWorkspace', () => {
     await flushEmailDetail();
     expect(screen.getByTestId('email-privilege-control')).toBeInTheDocument();
 
+    await openDetailSensitivityMenu();
     const acOption = screen.getByTestId('email-privilege-option-attorney-client');
     fireEvent.click(acOption);
 
@@ -357,6 +388,7 @@ describe('EmailWorkspace', () => {
     await flushEmailDetail();
     expect(screen.getByTestId('email-file-to-matter')).toBeInTheDocument();
 
+    await openDetailFilingPicker();
     const matterBtn = screen.getByTestId('file-to-matter-btn-matter-1');
     fireEvent.click(matterBtn);
 
@@ -404,7 +436,8 @@ describe('EmailWorkspace', () => {
     await waitForInitialLoad();
 
     expect(screen.getByTestId('no-results-state')).toBeInTheDocument();
-    expect(screen.getByTestId('email-detail-empty-state')).toHaveTextContent('No emails found');
+    expect(screen.getByTestId('no-results-state')).toHaveTextContent('No email');
+    expect(screen.getByTestId('email-detail-empty-state')).toHaveTextContent('No email');
     expect(screen.queryByText('Select an email from the list to read it here.')).not.toBeInTheDocument();
     expect(screen.queryByTestId('no-accounts-state')).not.toBeInTheDocument();
   });
@@ -420,12 +453,12 @@ describe('EmailWorkspace', () => {
     await act(async () => { await vi.advanceTimersByTimeAsync(50); });
 
     expect(screen.getByTestId('no-accounts-state')).toBeInTheDocument();
-    expect(screen.getByText('Connect your email')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Connect email' })).toBeInTheDocument();
     expect(screen.queryByText('Your email is connected.')).not.toBeInTheDocument();
     expect(screen.queryByTestId('email-sync-now')).not.toBeInTheDocument();
     expect(screen.queryByTestId('email-search-input')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByText('Connect your email'));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect email' }));
     expect(onOpenSettings).toHaveBeenCalledOnce();
 
     expect(mockMailListMessages).not.toHaveBeenCalled();
@@ -523,12 +556,11 @@ describe('EmailWorkspace', () => {
     fireEvent.click(screen.getByTestId('mode-ask'));
 
     expect(screen.getByTestId('ask-empty-state')).toBeInTheDocument();
-    expect(screen.getByText('Search your email')).toBeInTheDocument();
+    expect(screen.getByText('Ask your email')).toBeInTheDocument();
 
-    // All three chips should render
     const chips = screen.getAllByTestId('ask-chip');
-    expect(chips.length).toBeGreaterThanOrEqual(3);
-    expect(chips[0]).toHaveTextContent('Who emailed about a beneficiary change?');
+    expect(chips).toHaveLength(2);
+    expect(chips[0]).toHaveTextContent('Beneficiary change');
   });
 
   // 15. Clicking a chip fills the Ask AI input with the chip text
@@ -544,7 +576,7 @@ describe('EmailWorkspace', () => {
     fireEvent.click(chips[0]!);
 
     const input = screen.getByTestId('email-search-input') as HTMLInputElement;
-    expect(input.value).toBe('Who emailed about a beneficiary change?');
+    expect(input.value).toBe('Beneficiary change');
     // Empty state should be hidden once there is a query
     expect(screen.queryByTestId('ask-empty-state')).not.toBeInTheDocument();
   });
@@ -632,8 +664,8 @@ describe('EmailWorkspace', () => {
     expect(screen.queryByTestId('compose-remove-attachment-0')).not.toBeInTheDocument();
   });
 
-  // 18. Result count line — shows "Showing N of M" when partial load
-  it('shows "Showing N of M" count when fewer items loaded than total', async () => {
+  // 18. Result count line — keeps the quiet "More" action when partial load
+  it('shows the quiet More action when fewer items loaded than total', async () => {
     // Simulate 2 loaded of 10 total
     mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: 10 });
 
@@ -642,20 +674,19 @@ describe('EmailWorkspace', () => {
 
     const countEl = screen.getByTestId('result-count');
     expect(countEl).toBeInTheDocument();
-    expect(countEl.textContent).toContain('Showing 2 of 10');
+    expect(countEl.textContent).toContain('More');
+    expect(countEl.textContent).not.toContain('2 of 10');
   });
 
-  // 19. Result count line — shows "All email loaded" when total === items.length and no query
-  it('shows "All email loaded" when all items are loaded and there is no query', async () => {
+  // 19. Result count line — hides when all items are loaded and no query is active
+  it('hides the result count when all items are loaded and there is no query', async () => {
     // items.length === total (2) and no query
     mockMailListMessages.mockResolvedValue({ items: FIXTURE_ITEMS, total: FIXTURE_ITEMS.length });
 
     render(<EmailWorkspace />);
     await waitForInitialLoad();
 
-    const countEl = screen.getByTestId('result-count');
-    expect(countEl).toBeInTheDocument();
-    expect(countEl.textContent).toContain('All email loaded');
+    expect(screen.queryByTestId('result-count')).not.toBeInTheDocument();
   });
 
   // 20. Result count line — shows "Showing N of M" when query is active (even if N === total in results)
@@ -671,7 +702,7 @@ describe('EmailWorkspace', () => {
     await flushDebounce();
 
     const countEl = screen.getByTestId('result-count');
-    expect(countEl.textContent).toContain(`Showing 2 of ${String(FIXTURE_ITEMS.length)}`);
+    expect(countEl.textContent).toContain(`2 of ${String(FIXTURE_ITEMS.length)}`);
   });
 
   // 21. Detail pane matter choices
@@ -681,6 +712,7 @@ describe('EmailWorkspace', () => {
 
     await flushEmailDetail();
     expect(screen.getByTestId('email-file-to-matter')).toBeInTheDocument();
+    await openDetailFilingPicker();
     expect(screen.getByTestId('file-to-matter-btn-matter-1')).toHaveTextContent('Acme v. Beta');
     expect(screen.getByTestId('file-to-matter-btn-matter-2')).toHaveTextContent('Gamma Patent');
   });

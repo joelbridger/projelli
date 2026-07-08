@@ -8,7 +8,7 @@ import {
   type MailListItem,
 } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
+import { useTranslation } from 'react-i18next';
 
 // ── MatterPickerPopover ────────────────────────────────────────────────────
 
@@ -22,10 +22,7 @@ export interface MatterPickerProps {
 }
 
 export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = 'message' }: MatterPickerProps) {
-  // Fixed-English escape hatch: the search placeholder/aria-label and empty
-  // states below are still hardcoded English strings (see the cleanup2
-  // handoff), so the noun stays English too rather than mixing languages.
-  const entityLabel = useEntityLabelEnglish();
+  const { t } = useTranslation();
   const matters = useMatters();
   const [filing, setFiling] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
@@ -68,8 +65,8 @@ export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = '
           size="sm"
           value={matterSearch}
           onChange={(v) => { setMatterSearch(v); }}
-          placeholder={`Search ${entityLabel.other}...`}
-          aria-label={`Search ${entityLabel.other}`}
+          placeholder={t('mail.filing.find-client')}
+          aria-label={t('mail.filing.find-client')}
           data-testid="matter-picker-search"
           onClick={(e: React.MouseEvent<HTMLInputElement>) => { e.stopPropagation(); }}
         />
@@ -99,7 +96,7 @@ export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = '
               color: 'var(--color-muted-foreground)',
             }}
           >
-            {matters.length === 0 ? `No ${entityLabel.other} yet` : `No matching ${entityLabel.other}`}
+            {matters.length === 0 ? t('mail.filing.no-clients') : t('mail.filing.no-matches')}
           </div>
         ) : (
           filteredMatters.map((m) => (
@@ -122,7 +119,7 @@ export function MatterPickerPopover({ item, open, onOpenChange, onDone, mode = '
                 })
                 .catch((err: unknown) => {
                   setFiling(null);
-                  setFileError(err instanceof Error ? err.message : 'Failed to file email. Please try again.');
+                  setFileError(err instanceof Error ? err.message : t('mail.filing.file-error'));
                 });
             }}
             style={{

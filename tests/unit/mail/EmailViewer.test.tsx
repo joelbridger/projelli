@@ -59,6 +59,18 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 vi.mock('@/platform/providers/OllamaProvider', () => ({
   OllamaProvider: vi.fn().mockImplementation(() => ({
     sendMessage: vi.fn(async () => ({ content: 'Draft reply here.' })),
+    getMetadata: vi.fn(() => ({ model: 'llama3.1:8b' })),
+  })),
+}));
+
+vi.mock('@/platform/providers/resolveLocalProvider', () => ({
+  resolveLocalGenerationProvider: vi.fn(async () => ({
+    provider: {
+      sendMessage: vi.fn(async () => ({ content: 'Draft reply here.' })),
+      getMetadata: vi.fn(() => ({ model: 'llama3.1:8b' })),
+    },
+    providerId: 'ollama',
+    model: 'llama3.1:8b',
   })),
 }));
 
@@ -84,6 +96,39 @@ function sampleMessage(overrides: Partial<MailView> = {}): MailView {
     attachments: [],
     ...overrides,
   };
+}
+
+async function openFilingPicker() {
+  const trigger = screen.getByTestId('email-file-to-matter').querySelector('button');
+  expect(trigger).not.toBeNull();
+  fireEvent.click(trigger!);
+  await screen.findByTestId('email-file-matter-search');
+}
+
+async function openSensitivityMenu() {
+  const trigger = screen.getByTestId('email-privilege-control').querySelector('button');
+  expect(trigger).not.toBeNull();
+  fireEvent.pointerDown(trigger!, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger!);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await screen.findByTestId('email-privilege-option-attorney-client');
+}
+
+async function openReplyComposer() {
+  fireEvent.click(screen.getByTestId('reply-open-btn'));
+  await screen.findByTestId('reply-to-input');
+}
+
+async function openReplyActions() {
+  const trigger = screen.getByTestId('reply-more-actions');
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await screen.findByTestId('reply-mailto-link');
 }
 
 describe('EmailViewer', () => {
@@ -145,7 +190,7 @@ describe('EmailViewer', () => {
     mockMailGetMessage.mockRejectedValue(new Error('message not found'));
     render(<EmailViewer sourceId="mail:missing" />);
     const err = await screen.findByTestId('email-viewer-error');
-    expect(err).toHaveTextContent('could not be opened');
+    expect(err).toHaveTextContent('mail.viewer.open-error-title');
     // The raw message id must NOT appear in user-facing copy (fix: no id leak).
     expect(err).not.toHaveTextContent('id:');
     expect(err).toHaveTextContent('message not found');
@@ -161,9 +206,11 @@ describe('EmailViewer', () => {
     expect(screen.getByTestId('email-privilege-control')).toBeInTheDocument();
     expect(screen.getByTestId('email-file-to-matter')).toBeInTheDocument();
 
+    await openSensitivityMenu();
     fireEvent.click(screen.getByTestId('email-privilege-option-attorney-client'));
     expect(mockSetPrivilege).toHaveBeenCalledWith('mail:missing', 'attorney-client');
 
+    await openFilingPicker();
     await act(async () => {
       fireEvent.click(screen.getByTestId('file-to-matter-btn-m1'));
     });
@@ -181,6 +228,7 @@ describe('EmailViewer', () => {
     mockMailGetMessage.mockResolvedValue(sampleMessage());
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-file-to-matter');
+    await openFilingPicker();
     // Matter button exists
     expect(screen.getByTestId('file-to-matter-btn-m1')).toBeInTheDocument();
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveTextContent('Acme v. Beta');
@@ -195,6 +243,7 @@ describe('EmailViewer', () => {
     render(<EmailViewer sourceId="mail:AAMk-xyz" />);
     const filed = await screen.findByTestId('email-filed-matter');
     expect(filed).toHaveTextContent(/Acme v\. Beta/);
+    await openFilingPicker();
     // The currently-filed matter's button is marked selected; others are not.
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');
   });
@@ -204,6 +253,7 @@ describe('EmailViewer', () => {
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-file-to-matter');
     expect(screen.queryByTestId('email-filed-matter')).not.toBeInTheDocument();
+    await openFilingPicker();
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'false');
   });
 
@@ -212,6 +262,7 @@ describe('EmailViewer', () => {
     mockMailRetagMessageMatter.mockResolvedValue(undefined);
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-file-to-matter');
+    await openFilingPicker();
 
     await act(async () => {
       fireEvent.click(screen.getByTestId('file-to-matter-btn-m1'));
@@ -220,6 +271,7 @@ describe('EmailViewer', () => {
 
     // The persistent filed indicator now shows and the button is marked current.
     expect(await screen.findByTestId('email-filed-matter')).toHaveTextContent(/Acme v\. Beta/);
+    await openFilingPicker();
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');
   });
 
@@ -228,9 +280,10 @@ describe('EmailViewer', () => {
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-reply-area');
     expect(screen.getByTestId('reply-draft-ai-btn')).toBeInTheDocument();
+    await openReplyActions();
     const mailtoLink = screen.getByTestId('reply-mailto-link');
     expect(mailtoLink).toHaveAttribute('href', expect.stringContaining('mailto:'));
-    expect(mailtoLink).toHaveAttribute('href', expect.stringContaining('Re%3A'));
+    expect(mailtoLink).toHaveAttribute('href', expect.stringContaining('mail.viewer.reply-subject-prefix'));
   });
 
   it('sends a reply via mailSend with the right args including inReplyToId', async () => {
@@ -239,6 +292,7 @@ describe('EmailViewer', () => {
 
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-reply-area');
+    await openReplyComposer();
 
     // Fill To field (the useEffect initializes it to 'pat@hender.com' from sampleMessage from address)
     fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
@@ -276,6 +330,7 @@ describe('EmailViewer', () => {
 
     render(<EmailViewer sourceId="AAMk-xyz" />);
     await screen.findByTestId('email-reply-area');
+    await openReplyComposer();
 
     fireEvent.change(screen.getByTestId('reply-to-input'), { target: { value: 'pat@hender.com' } });
     fireEvent.change(screen.getByTestId('reply-draft-textarea'), { target: { value: 'Hello.' } });
