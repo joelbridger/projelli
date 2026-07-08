@@ -15,10 +15,10 @@
  * Light theme, accessible (a labelled <nav>, icon-only buttons carry labels).
  */
 
-import { Fragment, useMemo, useState } from 'react';
-import type { CSSProperties, MouseEvent } from 'react';
+import { Fragment, useMemo, useRef, useState } from 'react';
+import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
+import { Plus, PanelLeftClose, PanelLeftOpen, Search, Pencil } from 'lucide-react';
 import { Button, IconButton, Eyebrow, SearchField } from '@/ui/kp';
 import type { RecentAskSession } from './askHelpers';
 // Single source of truth for the rail widths (shared with the Ask responsive
@@ -38,6 +38,7 @@ export interface ConversationsRailProps {
   activeChatId: string;
   onSelect: (chatId: string) => void;
   onNewQuestion: () => void;
+  onRename: (chatId: string, title: string) => void;
   collapsed: boolean;
   onToggleCollapsed: () => void;
 }
@@ -51,25 +52,54 @@ const railBase: CSSProperties = {
   minHeight: 0,
 };
 
+function eventStartedInNestedControl(currentTarget: HTMLElement, target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false;
+  const interactive = target.closest('button,input,textarea,select,[role="button"],[role="textbox"],[role="menuitem"]');
+  return Boolean(interactive && interactive !== currentTarget);
+}
+
 function RailItem({
   session,
   active,
   onSelect,
+  onRename,
 }: {
   session: RecentAskSession;
   active: boolean;
   onSelect: (chatId: string) => void;
+  onRename: (chatId: string, title: string) => void;
 }) {
+  const { t } = useTranslation();
+  const [renaming, setRenaming] = useState(false);
+  const [draft, setDraft] = useState(session.label);
+  const skipRenameBlurRef = useRef(false);
   const label = session.label.length > 60 ? `${session.label.slice(0, 60)}…` : session.label;
   const title = session.dateLabel ? `${session.label} · ${session.dateLabel}` : session.label;
+  const saveRename = () => {
+    onRename(session.chatId, draft);
+    setRenaming(false);
+  };
+  const handleRowKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (eventStartedInNestedControl(event.currentTarget, event.target)) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect(session.chatId);
+    }
+  };
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       data-testid="rail-conversation-item"
       data-active={active ? 'true' : 'false'}
       aria-current={active ? 'true' : undefined}
+      aria-label={title}
       title={title}
-      onClick={() => { onSelect(session.chatId); }}
+      onClick={(event: MouseEvent<HTMLDivElement>) => {
+        if (eventStartedInNestedControl(event.currentTarget, event.target)) return;
+        onSelect(session.chatId);
+      }}
+      onKeyDown={handleRowKeyDown}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -86,20 +116,70 @@ function RailItem({
         width: '100%',
         transition: 'background 0.1s',
       }}
-      onMouseEnter={(e: MouseEvent<HTMLButtonElement>) => {
+      onMouseEnter={(e: MouseEvent<HTMLDivElement>) => {
         if (!active) e.currentTarget.style.background = 'var(--kp-accent-softer)';
       }}
-      onMouseLeave={(e: MouseEvent<HTMLButtonElement>) => {
+      onMouseLeave={(e: MouseEvent<HTMLDivElement>) => {
         if (!active) e.currentTarget.style.background = 'transparent';
       }}
     >
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{label}</span>
-      {session.dateLabel && (
-        <span style={{ fontSize: '11px', color: 'var(--kp-text-faint)', fontWeight: 'var(--kp-weight-regular)', flex: 'none' }}>
-          {session.dateLabel}
-        </span>
+      {renaming ? (
+        <input
+          data-testid="rail-conversation-rename-input"
+          aria-label={t('ask.conversations.rename')}
+          autoFocus
+          value={draft}
+          onChange={(event) => { setDraft(event.target.value); }}
+          onBlur={() => {
+            if (skipRenameBlurRef.current) {
+              skipRenameBlurRef.current = false;
+              return;
+            }
+            saveRename();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') saveRename();
+            if (event.key === 'Escape') {
+              skipRenameBlurRef.current = true;
+              setDraft(session.label);
+              setRenaming(false);
+            }
+          }}
+          style={{
+            minWidth: 0,
+            flex: 1,
+            height: 24,
+            border: '1px solid var(--kp-divider)',
+            borderRadius: 'var(--radius-sm)',
+            padding: '2px 6px',
+            fontSize: '12px',
+          }}
+        />
+      ) : (
+        <>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{label}</span>
+          {session.dateLabel && (
+            <span style={{ fontSize: '11px', color: 'var(--kp-text-faint)', fontWeight: 'var(--kp-weight-regular)', flex: 'none' }}>
+              {session.dateLabel}
+            </span>
+          )}
+          <button
+            type="button"
+            data-testid="rail-conversation-rename"
+            aria-label={t('ask.conversations.rename')}
+            title={t('ask.conversations.rename')}
+            onClick={() => {
+              skipRenameBlurRef.current = false;
+              setDraft(session.label);
+              setRenaming(true);
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, border: 'none', borderRadius: 'var(--radius-sm)', background: 'transparent', color: 'var(--color-muted-foreground)', cursor: 'pointer', flex: 'none' }}
+          >
+            <Pencil aria-hidden="true" style={{ width: 12, height: 12 }} />
+          </button>
+        </>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -108,6 +188,7 @@ export function ConversationsRail({
   activeChatId,
   onSelect,
   onNewQuestion,
+  onRename,
   collapsed,
   onToggleCollapsed,
 }: ConversationsRailProps) {
@@ -274,6 +355,7 @@ export function ConversationsRail({
                         session={item}
                         active={item.chatId === activeChatId}
                         onSelect={onSelect}
+                        onRename={onRename}
                       />
                     ))}
                   </div>

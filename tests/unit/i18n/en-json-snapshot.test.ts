@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 130,
+        "ask": 131,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 289,
         "media": 100,
-        "meetings": 249,
+        "meetings": 250,
         "memory": 6,
         "model-download": 9,
         "onboarding": 68,
@@ -268,7 +268,8 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    expect(flat.length).toBe(1967); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
+    // +2 = FB2 meetask: Ask rail rename label and meeting notice resolve-menu label.
+    expect(flat.length).toBe(1969); // UX-simplification integration + FB2 meetask rail/notice labels.
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
