@@ -12,6 +12,7 @@ import { render, waitFor } from '@testing-library/react';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterUiStore } from '@/platform/matter/matterUiStore';
 import { useGlobalEventBus, type GlobalEventBusHandlers } from '@/app/lifecycle/useGlobalEventBus';
+import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 function makeHandlers(): GlobalEventBusHandlers {
   return {
@@ -33,6 +34,10 @@ function launch(detail: Record<string, unknown>) {
   window.dispatchEvent(new CustomEvent('lantern:matter-launch', { detail }));
 }
 
+function openSettingsEvent(detail: Record<string, unknown>) {
+  window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail }));
+}
+
 beforeEach(() => {
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null, snapshots: {} });
   // setActiveMatter only honors ids that exist, so seed the matters under test.
@@ -42,6 +47,50 @@ beforeEach(() => {
 });
 
 describe('useGlobalEventBus — per-client surface routing', () => {
+  it('routes a non-account settings event to the Settings page when the app shell is available', () => {
+    const handlers = {
+      ...makeHandlers(),
+      openSettingsPage: vi.fn(),
+      isAppShellAvailable: true,
+    };
+    render(<Harness handlers={handlers} />);
+
+    openSettingsEvent({ category: 'ai' });
+
+    expect(handlers.openSettingsPage).toHaveBeenCalledExactlyOnceWith('ai');
+    expect(handlers.openSettings).not.toHaveBeenCalled();
+    expect(handlers.onOpenAccount).not.toHaveBeenCalled();
+  });
+
+  it('keeps the Settings modal fallback when the app shell is unavailable', () => {
+    const handlers = {
+      ...makeHandlers(),
+      openSettingsPage: vi.fn(),
+      isAppShellAvailable: false,
+    };
+    render(<Harness handlers={handlers} />);
+
+    openSettingsEvent({ category: 'ai' });
+
+    expect(handlers.openSettings).toHaveBeenCalledExactlyOnceWith('ai');
+    expect(handlers.openSettingsPage).not.toHaveBeenCalled();
+  });
+
+  it('keeps account-style settings categories in the Account window', () => {
+    const handlers = {
+      ...makeHandlers(),
+      openSettingsPage: vi.fn(),
+      isAppShellAvailable: true,
+    };
+    render(<Harness handlers={handlers} />);
+
+    openSettingsEvent({ category: 'account' });
+
+    expect(handlers.onOpenAccount).toHaveBeenCalledOnce();
+    expect(handlers.openSettingsPage).not.toHaveBeenCalled();
+    expect(handlers.openSettings).not.toHaveBeenCalled();
+  });
+
   it('routes a Documents quick-action into the hub Documents sub-tab, not the global files surface', () => {
     const handlers = makeHandlers();
     render(<Harness handlers={handlers} />);

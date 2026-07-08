@@ -38,6 +38,10 @@ export interface GlobalEventBusHandlers {
   onOpenAccount: (tab?: string) => void;
   /** Open Settings deep-linked to a category. */
   openSettings: (category?: SettingCategory) => void;
+  /** Open the in-shell Settings page deep-linked to a category. */
+  openSettingsPage?: (category?: SettingCategory) => void;
+  /** True when the full app shell is visible and can host the Settings page. */
+  isAppShellAvailable?: boolean;
   setSidebarActiveTab: (tab: AppSurface) => void;
   setDocumentsView: (view: 'browser' | 'editor') => void;
   setAskPrefill: (prefill: AskPrefill | null) => void;
@@ -94,6 +98,10 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
         ?.category;
       if (category && ACCOUNT_CATEGORIES.has(category)) {
         ref.current.onOpenAccount();
+        return;
+      }
+      if (ref.current.isAppShellAvailable && ref.current.openSettingsPage) {
+        ref.current.openSettingsPage(category);
         return;
       }
       ref.current.openSettings(category);

@@ -161,12 +161,12 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'startupBehavior',
     category: 'workspace',
-    label: 'Startup',
-    description: 'What happens when you launch Lantern.',
+    label: 'On startup',
+    description: 'Choose what Lantern opens when the app starts.',
     type: 'select',
     defaultValue: 'reopen',
     options: [
-      { value: 'reopen', label: 'Reopen last workspace' },
+      { value: 'reopen', label: 'Reopen where you left off' },
       { value: 'selector', label: 'Show workspace selector' },
     ],
   },
@@ -215,7 +215,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'autoSaveInterval',
     category: 'workspace',
     label: 'Autosave delay',
-    description: 'Seconds between auto-saves (when enabled).',
+    description: 'How many seconds Lantern waits after you stop typing before it saves.',
     type: 'number',
     defaultValue: 2,
     min: 1,
@@ -257,16 +257,16 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'letterheadTemplatePath',
     category: 'workspace',
-    label: 'Letterhead Template',
+    label: 'Letterhead template',
     description:
-      'Path to a Word document whose letterhead (headers, footers, styles) new documents and workflow deliverables start from. Pick one with the file tree right-click menu.',
+      'Use a Word document that already has your firm header, footer, and styles. Example: Firm Letterhead.docx. Pick one from the file list menu.',
     type: 'text',
     defaultValue: '',
   },
   {
     key: 'trashRetention',
     category: 'workspace',
-    label: 'Trash Retention',
+    label: 'Trash retention',
     description: 'How long deleted files are kept before permanent removal.',
     type: 'select',
     defaultValue: '30',
@@ -281,8 +281,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'showHiddenFiles',
     category: 'workspace',
-    label: 'Show Hidden Files',
-    description: 'Display files and folders that start with a dot (e.g., .gitignore).',
+    label: 'Show hidden files',
+    description: 'Show files and folders that are normally tucked away, like .gitignore or .lantern system folders.',
     type: 'toggle',
     defaultValue: false,
   },
@@ -405,7 +405,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'manageAIRules',
     category: 'ai-privacy',
     label: 'AI rules',
-    description: 'Customize how AI behaves in this workspace.',
+    description:
+      'Opens ai-rules.md — standing instructions the AI follows in every chat.',
     type: 'text', // rendered as action link
     defaultValue: '',
     action: { label: 'Manage AI rules', actionId: 'open-ai-rules' },

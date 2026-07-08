@@ -59,6 +59,7 @@ export function NumberStepper({
   max,
   step = 1,
   id,
+  unit,
 }: {
   value: number;
   onChange: (v: number) => void;
@@ -66,6 +67,7 @@ export function NumberStepper({
   max?: number;
   step?: number;
   id?: string;
+  unit?: string | undefined;
 }) {
   const clamp = (v: number) => {
     let n = v;
@@ -97,6 +99,11 @@ export function NumberStepper({
         }}
         className="w-24 h-8 text-center text-sm"
       />
+      {unit && (
+        <span className="min-w-14 text-xs font-medium text-muted-foreground">
+          {unit}
+        </span>
+      )}
       <IconButton
         icon={ChevronUp}
         label="Increase"

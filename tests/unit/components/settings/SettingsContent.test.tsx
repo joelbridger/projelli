@@ -77,6 +77,41 @@ describe('SettingsContent', () => {
     expect(screen.getByTestId('subheader-files')).toHaveTextContent('Files');
   });
 
+  it('keeps startup visible, hides only the retired tab control, and keeps useful file hints visible', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+
+    expect(screen.getByTestId('setting-startupBehavior')).toHaveTextContent('On startup');
+    expect(screen.getByTestId('setting-startupBehavior')).toHaveTextContent('Reopen where you left off');
+    expect(screen.queryByTestId('setting-tabOverflow')).not.toBeInTheDocument();
+    expect(screen.getByTestId('setting-autoSaveInterval')).toHaveTextContent('seconds');
+    expect(screen.getByTestId('setting-letterheadTemplatePath')).toHaveTextContent('Firm Letterhead.docx');
+    expect(screen.getByTestId('setting-showHiddenFiles')).toHaveTextContent('.lantern');
+  });
+
+  it('keeps AI rules visible but disabled until a workspace is open', () => {
+    render(
+      <SettingsContent
+        variant="page"
+        initialCategory={'ai' as never}
+        hasWorkspaceOpen={false}
+      />,
+    );
+
+    expect(screen.getByTestId('setting-manageAIRules')).toHaveTextContent('AI rules');
+    expect(screen.getByTestId('setting-manageAIRules')).toHaveTextContent(
+      'Opens ai-rules.md — standing instructions the AI follows in every chat.'
+    );
+    expect(screen.getByRole('button', { name: 'Manage AI rules' })).toBeDisabled();
+    expect(screen.getByText('Open a workspace first')).toBeInTheDocument();
+  });
+
+  it('renders voice hotkeys as read-only values instead of blank rows', () => {
+    render(<SettingsContent variant="page" initialCategory={'voice' as never} />);
+
+    expect(screen.getByTestId('setting-voicePressToTalkShortcut')).toHaveTextContent('Ctrl+Shift+Space');
+    expect(screen.getByTestId('setting-voiceNoteShortcut')).toHaveTextContent('Ctrl+Shift+N');
+  });
+
   it('search shows the matching group and keeps the matching setting reachable', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
@@ -99,6 +134,26 @@ describe('SettingsContent', () => {
     });
 
     expect(screen.queryByTestId('setting-theme')).not.toBeInTheDocument();
+  });
+
+  it('search can find startup by the visible reopen wording', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+
+    fireEvent.change(screen.getByTestId('settings-search'), {
+      target: { value: 'reopen where you left off' },
+    });
+
+    expect(screen.getByTestId('setting-startupBehavior')).toBeInTheDocument();
+  });
+
+  it('search does not expose the retired tab overflow setting', () => {
+    render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
+
+    fireEvent.change(screen.getByTestId('settings-search'), {
+      target: { value: 'wrap to multiple rows' },
+    });
+
+    expect(screen.queryByTestId('setting-tabOverflow')).not.toBeInTheDocument();
   });
 
   it('resets the content scroll container to top when the active section changes', () => {

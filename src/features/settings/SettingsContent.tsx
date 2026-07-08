@@ -54,7 +54,6 @@ import { TemplateModelSettings } from '@/features/settings/TemplateModelSettings
 import { PrivacySettings } from '@/features/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
 import { RecordingNoticeSettings } from '@/features/settings/RecordingNoticeSettings';
-import { LocalAiSettingsControl } from '@/features/settings/LocalAiSettingsControl';
 import { MemoryFactsSettings } from '@/features/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/features/workflows/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/features/workflows/useTemplatesMarketplace';
@@ -106,6 +105,26 @@ import {
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
+const HIDDEN_SETTING_KEYS = new Set(['tabOverflow']);
+
+const INLINE_DESCRIPTION_KEYS = new Set([
+  'autoSaveInterval',
+  'letterheadTemplatePath',
+  'showHiddenFiles',
+]);
+
+const SETTINGS_MARKETPLACE_LIVE =
+  import.meta.env['VITE_SETTINGS_MARKETPLACE_LIVE'] === '1';
+
+function isVisibleSettingKey(key: string): boolean {
+  return !HIDDEN_SETTING_KEYS.has(key);
+}
+
+function numberUnitForSetting(key: string): string | undefined {
+  if (key === 'autoSaveInterval') return 'seconds';
+  return undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -138,6 +157,8 @@ export interface SettingsContentProps {
   variant?: 'modal' | 'page';
   /** Optional close handler for the modal header X (modal variant only). */
   onClose?: (() => void) | undefined;
+  /** Whether a workspace is open. AI rules need a workspace file to edit. */
+  hasWorkspaceOpen?: boolean | undefined;
   /**
    * Extra, non-schema nav sections appended after the 5 settings sections.
    * The gear opens the Settings screen and Privacy Center + Activity Log are
@@ -193,17 +214,23 @@ function SettingRow({
   value,
   onChange,
   onAction,
+  hasWorkspaceOpen,
 }: {
   def: SettingDefinition;
   value: unknown;
   onChange: (v: unknown) => void;
   onAction?: (actionId: string) => void;
+  hasWorkspaceOpen: boolean;
 }) {
   const controlId = `setting-control-${def.key}`;
   const showHelp = shouldShowSettingHelp(def);
 
   // Action link (e.g. "Manage API Keys")
   if (def.action) {
+    const actionDisabled = def.key === 'manageAIRules' && !hasWorkspaceOpen;
+    const disabledHint = actionDisabled ? 'Open a workspace first' : undefined;
+    const showInlineDescription = def.key === 'manageAIRules';
+
     return (
       <div
         data-testid={`setting-${def.key}`}
@@ -214,16 +241,30 @@ function SettingRow({
             <Label className="text-sm font-medium">{def.label}</Label>
             {showHelp && <InfoHelp content={def.description} label={`About ${def.label}`} />}
           </div>
+          {showInlineDescription && (
+            <p className="mt-1 max-w-[34rem] text-xs leading-relaxed text-muted-foreground">
+              {def.description}
+            </p>
+          )}
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconRight={ExternalLink}
-          className="shrink-0"
-          onClick={() => { onAction?.(def.action?.actionId ?? ''); }}
-        >
-          {def.action.label}
-        </Button>
+        <div className="shrink-0 text-right">
+          <Button
+            variant="secondary"
+            size="sm"
+            iconRight={ExternalLink}
+            className="shrink-0"
+            disabled={actionDisabled}
+            aria-describedby={disabledHint ? `${controlId}-hint` : undefined}
+            onClick={() => { onAction?.(def.action?.actionId ?? ''); }}
+          >
+            {def.action.label}
+          </Button>
+          {disabledHint && (
+            <p id={`${controlId}-hint`} className="mt-1 text-xs text-muted-foreground">
+              {disabledHint}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -270,6 +311,7 @@ function SettingRow({
           {...(def.min !== undefined ? { min: def.min } : {})}
           {...(def.max !== undefined ? { max: def.max } : {})}
           {...(def.step !== undefined ? { step: def.step } : {})}
+          {...(numberUnitForSetting(def.key) ? { unit: numberUnitForSetting(def.key) } : {})}
         />
       );
       break;
@@ -280,8 +322,22 @@ function SettingRow({
           id={controlId}
           value={typeof value === 'string' ? value : ''}
           onChange={(e) => { onChange(e.target.value); }}
+          {...(def.key === 'letterheadTemplatePath'
+            ? { placeholder: 'Example: Firm Letterhead.docx' }
+            : {})}
           className="max-w-[220px] h-8 text-sm"
         />
+      );
+      break;
+
+    case 'shortcut-display':
+      control = (
+        <kbd
+          id={controlId}
+          className="inline-flex min-w-[132px] justify-center rounded-md border border-border bg-muted px-2.5 py-1.5 text-xs font-medium text-foreground"
+        >
+          {String(value ?? def.defaultValue)}
+        </kbd>
       );
       break;
 
@@ -301,6 +357,11 @@ function SettingRow({
           </Label>
           {showHelp && <InfoHelp content={def.description} label={`About ${def.label}`} />}
         </div>
+        {INLINE_DESCRIPTION_KEYS.has(def.key) && (
+          <p className="mt-1 max-w-[34rem] text-xs leading-relaxed text-muted-foreground">
+            {def.description}
+          </p>
+        )}
       </div>
       <div className="shrink-0">{control}</div>
     </div>
@@ -318,6 +379,8 @@ const HELP_SETTING_KEYS = new Set([
   'externalExportStaleDays',
   'manageApiKeys',
   'manageAIRules',
+  'letterheadTemplatePath',
+  'showHiddenFiles',
   'memoryEnabled',
   'factsInjection',
   'factsAutoAccept',
@@ -513,6 +576,7 @@ interface SectionProps {
   templates?: WorkflowTemplate[] | undefined;
   onRestartOnboarding?: (() => void) | undefined;
   onNavigate: (section: SectionCategory) => void;
+  hasWorkspaceOpen: boolean;
 }
 
 /** Does any of `keys` survive the current search filter? Used to decide
@@ -538,6 +602,7 @@ function renderRows(
           value={props.getSetting(def.key)}
           onChange={(v) => { props.setSetting(def.key, v); }}
           onAction={props.onAction}
+          hasWorkspaceOpen={props.hasWorkspaceOpen}
         />
       );
     });
@@ -548,6 +613,7 @@ function settingMatchesQuery(def: SettingDefinition, lowerQ: string): boolean {
   if (def.label.toLowerCase().includes(lowerQ)) return true;
   if (def.description.toLowerCase().includes(lowerQ)) return true;
   if (def.key.toLowerCase().includes(lowerQ)) return true;
+  if (def.options?.some((opt) => opt.label.toLowerCase().includes(lowerQ))) return true;
   return (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
     (term) => term.includes(lowerQ) || lowerQ.includes(term)
   );
@@ -555,7 +621,7 @@ function settingMatchesQuery(def: SettingDefinition, lowerQ: string): boolean {
 
 function WorkspaceSection(props: SectionProps) {
   const generalKeys = ['startupBehavior', 'showWhatsNew'];
-  const editorKeys  = ['tabOverflow', 'fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
+  const editorKeys  = ['fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
   const filesKeys   = ['defaultNewFileType', 'letterheadTemplatePath', 'trashRetention', 'showHiddenFiles'];
 
   return (
@@ -615,8 +681,11 @@ function AiSection(props: SectionProps) {
           testid="subheader-ai"
           containsMatch={aiMatch}
         >
-          <ConfidentialityModeSettings />
-          <LocalAiSettingsControl />
+          <ConfidentialityModeSettings
+            onManageApiKeys={() => {
+              props.onAction('open-ai-keys');
+            }}
+          />
           {renderRows(aiMainKeys, props)}
           <AIContextCapabilityWarning getSetting={props.getSetting} />
           {/* Advanced — token limits: collapsed by default so non-technical users don't see raw numbers */}
@@ -743,33 +812,33 @@ function AdvancedSection(props: SectionProps) {
   const advancedKeys = ['showAiCostMeters'];
 
   const lowerQ = props.searchQuery.toLowerCase();
-  const extMatch = !props.searchActive
-    || ['extension', 'plugin', 'template', 'marketplace', 'model'].some((kw) => lowerQ.includes(kw));
+  const extMatch =
+    SETTINGS_MARKETPLACE_LIVE &&
+    (!props.searchActive ||
+      ['extension', 'plugin', 'template', 'marketplace', 'model'].some((kw) =>
+        lowerQ.includes(kw)
+      ));
   const advMatch = !props.searchActive
     || ['advanced', 'mobile', 'developer', 'debug', 'experimental'].some((kw) => lowerQ.includes(kw));
 
   return (
     <div data-testid="section-advanced">
       <AccordionSection ids={['adv-extensions', 'adv-updates', 'adv-advanced']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
-        <SubSection
-          id="adv-extensions"
-          label="Extensions"
-          testid="subheader-extensions"
-          containsMatch={extMatch}
-        >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          <div className="space-y-8">
+        {SETTINGS_MARKETPLACE_LIVE && (
+          <SubSection
+            id="adv-extensions"
+            label="Extensions"
+            testid="subheader-extensions"
+            containsMatch={extMatch}
+          >
+            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
             <div className="space-y-3">
               <Eyebrow primary>Browse and install</Eyebrow>
               <MarketplaceTab />
             </div>
-            <div className="space-y-3 border-t border-border/50 pt-6">
-              <Eyebrow primary>Per-workflow AI model</Eyebrow>
-              <TemplateModelSettings templates={props.templates ?? []} />
-            </div>
-          </div>
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-        </SubSection>
+            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+          </SubSection>
+        )}
         <SubSection
           id="adv-updates"
           label="Updates"
@@ -784,6 +853,11 @@ function AdvancedSection(props: SectionProps) {
           testid="subheader-advanced"
           containsMatch={advMatch || anyMatch(advancedKeys, props)}
         >
+          <div className="mb-6 space-y-3">
+            {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- existing English-only advanced settings copy */}
+            <Eyebrow primary>Per-workflow AI model</Eyebrow>
+            <TemplateModelSettings templates={props.templates ?? []} />
+          </div>
           {renderRows(advancedKeys, props)}
           <AdvancedSettings />
           <MobileSettings />
@@ -810,15 +884,7 @@ function HelpSection(props: SectionProps) {
 
   return (
     <div data-testid="section-help">
-      <AccordionSection ids={['adv-shortcuts', 'adv-setup', 'adv-about']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
-        <SubSection
-          id="adv-shortcuts"
-          label="Shortcuts"
-          testid="subheader-shortcuts"
-          containsMatch={anyShortcutMatch}
-        >
-          <ShortcutsSection searchQuery={props.searchQuery} />
-        </SubSection>
+      <AccordionSection ids={['adv-setup', 'adv-shortcuts', 'adv-about']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
         <SubSection
           id="adv-setup"
           label="Setup"
@@ -834,6 +900,14 @@ function HelpSection(props: SectionProps) {
             }}
           />
           {renderRows(onboardKeys, props)}
+        </SubSection>
+        <SubSection
+          id="adv-shortcuts"
+          label="Shortcuts"
+          testid="subheader-shortcuts"
+          containsMatch={anyShortcutMatch}
+        >
+          <ShortcutsSection searchQuery={props.searchQuery} />
         </SubSection>
         <SubSection
           id="adv-about"
@@ -913,6 +987,7 @@ export function SettingsContent({
   onRestartOnboarding,
   variant = 'modal',
   onClose,
+  hasWorkspaceOpen = true,
   extraSections,
 }: SettingsContentProps) {
   const { t } = useTranslation();
@@ -934,7 +1009,7 @@ export function SettingsContent({
   const [activeExtraId, setActiveExtraId] = useState<string | null>(null);
 
   const templateUpdateCount = useTemplateUpdateCount();
-  const marketplaceUpdateCount = templateUpdateCount;
+  const marketplaceUpdateCount = SETTINGS_MARKETPLACE_LIVE ? templateUpdateCount : 0;
   const [searchQuery, setSearchQuery] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -978,11 +1053,15 @@ export function SettingsContent({
   const filteredKeys = useMemo<Set<string>>(() => {
     const lowerQ = searchQuery.toLowerCase().trim();
     if (!lowerQ) {
-      return new Set(SETTINGS_SCHEMA.map((d) => d.key));
+      return new Set(
+        SETTINGS_SCHEMA
+          .filter((def) => isVisibleSettingKey(def.key))
+          .map((d) => d.key)
+      );
     }
     return new Set(
       SETTINGS_SCHEMA
-        .filter((def) => settingMatchesQuery(def, lowerQ))
+        .filter((def) => isVisibleSettingKey(def.key) && settingMatchesQuery(def, lowerQ))
         .map((d) => d.key)
     );
   }, [searchQuery]);
@@ -999,11 +1078,14 @@ export function SettingsContent({
     if (!lowerQ) return scores;
     const bump = (sec: SectionCategory, v: number) => { if (v > scores[sec]) scores[sec] = v; };
     for (const def of SETTINGS_SCHEMA) {
+      if (!isVisibleSettingKey(def.key)) continue;
       const sec = resolveSection(def.category);
       const aliasHit = (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
         (term) => term.includes(lowerQ) || lowerQ.includes(term)
       );
+      const optionHit = def.options?.some((opt) => opt.label.toLowerCase().includes(lowerQ)) ?? false;
       if (def.label.toLowerCase().includes(lowerQ) || aliasHit) bump(sec, 3);
+      else if (optionHit) bump(sec, 3);
       else if (def.key.toLowerCase().includes(lowerQ)) bump(sec, 2);
       else if (def.description.toLowerCase().includes(lowerQ)) bump(sec, 1);
     }
@@ -1119,6 +1201,7 @@ export function SettingsContent({
     templates,
     onRestartOnboarding,
     onNavigate: setActiveSection,
+    hasWorkspaceOpen,
   };
 
   return (
@@ -1232,9 +1315,9 @@ export function SettingsContent({
                   data-testid={`settings-category-${sec.id}`}
                   aria-current={isActive ? 'page' : undefined}
                   className={cn(
-                    'w-full flex items-center gap-2 text-left px-6 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
+                    'relative mx-2 w-[calc(100%-1rem)] rounded-md flex items-center gap-2 text-left px-4 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
                     isActive
-                      ? 'bg-background font-medium text-foreground'
+                      ? 'bg-primary/10 font-semibold text-primary shadow-sm'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                   )}
                   onClick={(e) => { e.stopPropagation(); setActiveExtraId(null); setActiveSection(sec.id); }}
@@ -1267,9 +1350,9 @@ export function SettingsContent({
                       data-testid={sec.testid}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'w-full flex items-center gap-2 text-left px-6 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
+                        'relative mx-2 w-[calc(100%-1rem)] rounded-md flex items-center gap-2 text-left px-4 py-2.5 text-[var(--kp-rail-row-title-font-size)] transition-colors',
                         isActive
-                          ? 'bg-background font-medium text-foreground'
+                          ? 'bg-primary/10 font-semibold text-primary shadow-sm'
                           : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
                       )}
                       onClick={(e) => { e.stopPropagation(); setSearchQuery(''); setActiveExtraId(sec.id); }}

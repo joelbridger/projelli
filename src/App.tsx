@@ -142,6 +142,7 @@ import {
   useSettingsStore,
   useSettingsHydrated,
 } from '@/platform/settings/settingsStore';
+import type { SettingCategory } from '@/platform/settings/schema';
 import { vaultStatus } from '@/platform/firm/vault/vaultClient';
 import { withTimeout } from '@/lib/withTimeout';
 import { raceDialogWithWatchdog } from '@/platform/fs/dialogWatchdog';
@@ -379,6 +380,10 @@ function AppShell() {
   // Sidebar state. The shell lands on the Client Map (matter-centric home).
   const [sidebarActiveTab, setSidebarActiveTab] =
     useState<AppSurface>('matters');
+  const [settingsPageFocus, setSettingsPageFocus] = useState<{
+    category?: SettingCategory;
+    key: number;
+  }>({ key: 0 });
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
@@ -517,6 +522,19 @@ function AppShell() {
     rootPath,
     sidebarActiveTab,
   ]);
+  const openSettingsPage = useCallback(
+    (category?: SettingCategory) => {
+      if (sidebarActiveTab !== 'settings') {
+        pushNavigationSnapshot();
+      }
+      setSettingsPageFocus((prev) => ({
+        key: prev.key + 1,
+        ...(category ? { category } : {}),
+      }));
+      setSidebarActiveTab('settings');
+    },
+    [pushNavigationSnapshot, sidebarActiveTab]
+  );
   const handleAppBack = useCallback(() => {
     const snapshot = popNavigationEntry();
     if (!snapshot) return;
@@ -1349,6 +1367,8 @@ function AppShell() {
       setAccountWindowOpen(true);
     },
     openSettings,
+    openSettingsPage,
+    isAppShellAvailable: Boolean(rootPath) && !showWorkspaceSelector && !showFirstRun,
     setSidebarActiveTab,
     setDocumentsView,
     setAskPrefill,
@@ -1876,7 +1896,7 @@ function AppShell() {
         data-testid="app-header"
       >
         <AppLogo variant="dark" height={30} className="shrink-0" />
-        <TrustBar inline />
+        <TrustBar inline onOpenAiSettings={() => openSettingsPage('ai')} />
         <div className="flex items-center gap-2 shrink-0">
           {/* The gear opens the full-page Settings screen, which nests Privacy
               Center + Activity Log as sections (see AppSurfaceRouter). The
@@ -1885,7 +1905,7 @@ function AppShell() {
           <SettingsGearButton
             active={sidebarActiveTab === 'settings'}
             onOpenSettings={() => {
-              setSidebarActiveTab('settings');
+              openSettingsPage();
             }}
           />
           <Button
@@ -2035,6 +2055,7 @@ function AppShell() {
           handleSettingsAction={handleSettingsAction}
           handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
           activeMatter={activeMatter}
+          settingsPageFocus={settingsPageFocus}
         />
       </main>
 
@@ -2083,6 +2104,7 @@ function AppShell() {
         settingsInitialCategory={settingsInitialCategory}
         handleSettingsAction={handleSettingsAction}
         handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
+        hasWorkspaceOpen={Boolean(rootPath)}
         accountWindowOpen={accountWindowOpen}
         setAccountWindowOpen={setAccountWindowOpen}
         accountWindowInitialTab={accountWindowInitialTab}

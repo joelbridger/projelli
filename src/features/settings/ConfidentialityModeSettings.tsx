@@ -24,8 +24,8 @@
  */
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 
-import { useState, useRef } from 'react';
-import { Laptop, Cloud, ShieldCheck, ShieldOff, Check } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Laptop, Cloud, ShieldCheck, ShieldOff, Check, Download, Loader2, KeyRound } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { InfoHelp } from '@/ui/InfoHelp';
 import {
@@ -38,6 +38,10 @@ import {
   useSetPrivilegedMatterMode,
 } from '@/platform/hooks/usePrivilegedMatterMode';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
+import { KeychainService, type KeyProvider } from '@/platform/providers/KeychainService';
+import { getKeyCheckStatus } from '@/platform/providers/keyVerification';
+import { EV_EGRESS_CONFIG_CHANGE, SK_DEFAULT_MODEL, SK_DEFAULT_PROVIDER } from '@/config/identity';
 
 interface ModeCard {
   mode: ConfidentialityMode;
@@ -91,7 +95,190 @@ const ASSURED_CARD: ModeCard = {
   accent: 'text-indigo-700 border-indigo-400 dark:text-indigo-300 dark:border-indigo-700',
 };
 
-export function ConfidentialityModeSettings() {
+const PROVIDER_NAMES: Record<KeyProvider, string> = {
+  anthropic: 'Anthropic',
+  openai: 'OpenAI',
+  google: 'Google AI',
+};
+
+function keyStatusLabel(provider: KeyProvider): string {
+  const status = getKeyCheckStatus(provider).status;
+  if (status === 'verified') return 'working';
+  if (status === 'invalid') return 'needs attention';
+  return 'saved';
+}
+
+function readCurrentCloudModel(): { provider: string; model: string } {
+  try {
+    return {
+      provider: localStorage.getItem(SK_DEFAULT_PROVIDER)?.trim() || '',
+      model: localStorage.getItem(SK_DEFAULT_MODEL)?.trim() || '',
+    };
+  } catch {
+    return { provider: '', model: '' };
+  }
+}
+
+function cloudProviderLabel(provider: string): string {
+  if (provider === 'anthropic' || provider === 'openai' || provider === 'google') {
+    return PROVIDER_NAMES[provider];
+  }
+  return provider;
+}
+
+function LocalAiCardDetails() {
+  const snap = useLocalLlmModelStatus();
+  const downloading =
+    snap.state === 'checking' ||
+    snap.state === 'downloading' ||
+    snap.state === 'verifying';
+  const pct =
+    snap.bytesTotal && snap.bytesTotal > 0
+      ? Math.min(100, Math.round((snap.bytesDone / snap.bytesTotal) * 100))
+      : 0;
+
+  if (snap.state === 'idle') {
+    return (
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+        Lantern Local AI is available in the desktop app.
+      </p>
+    );
+  }
+
+  if (snap.state === 'ready') {
+    return (
+      <p
+        data-testid="local-ai-ready"
+        className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-900"
+      >
+        Lantern Local AI is installed and ready.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 rounded-md border border-border bg-background/70 px-3 py-3 text-xs">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-medium text-foreground">Lantern Local AI</span>
+        {snap.state === 'absent' && (
+          <button
+            type="button"
+            data-testid="local-ai-download-button"
+            onClick={snap.start}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1.5 font-medium text-primary-foreground hover:bg-primary/90"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Install
+          </button>
+        )}
+        {snap.state === 'error' && (
+          <button
+            type="button"
+            data-testid="local-ai-retry-button"
+            onClick={snap.retry}
+            className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-medium text-foreground hover:bg-muted"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Resume
+          </button>
+        )}
+      </div>
+      {snap.state === 'absent' && (
+        <p className="mt-2 text-muted-foreground">
+          Install the local model to answer without sending prompts or files to a cloud AI.
+        </p>
+      )}
+      {downloading && (
+        <div className="mt-2" data-testid="local-ai-download-progress">
+          <div className="flex items-center gap-2 text-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+            {snap.state === 'verifying' ? 'Verifying download' : `Downloading ${String(pct)}%`}
+          </div>
+          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded bg-muted">
+            <div
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={pct}
+              className="h-full rounded bg-primary transition-[width]"
+              style={{ width: `${String(pct)}%` }}
+            />
+          </div>
+        </div>
+      )}
+      {snap.state === 'error' && (
+        <p className="mt-2 text-destructive">
+          Local AI needs attention{snap.message ? `: ${snap.message}` : '.'}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CloudAiCardDetails({
+  onManageApiKeys,
+}: {
+  onManageApiKeys?: (() => void) | undefined;
+}) {
+  const [storedKeys, setStoredKeys] = useState(() => new KeychainService().getStoredKeys());
+  const [currentModel, setCurrentModel] = useState(readCurrentCloudModel);
+
+  useEffect(() => {
+    const refresh = () => {
+      setStoredKeys(new KeychainService().getStoredKeys());
+      setCurrentModel(readCurrentCloudModel());
+    };
+    window.addEventListener(EV_EGRESS_CONFIG_CHANGE, refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener(EV_EGRESS_CONFIG_CHANGE, refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
+  return (
+    <div className="mt-3 rounded-md border border-border bg-background/70 px-3 py-3 text-xs">
+      <div className="flex items-center gap-1.5 font-medium text-foreground">
+        <KeyRound className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+        Account keys
+      </div>
+      {storedKeys.length === 0 ? (
+        <p className="mt-2 text-muted-foreground">No account keys saved yet.</p>
+      ) : (
+        <ul className="mt-2 space-y-1">
+          {storedKeys.map((key) => (
+            <li key={key.provider} className="flex items-center justify-between gap-2">
+              <span>{PROVIDER_NAMES[key.provider]}</span>
+              <span className="text-muted-foreground">{keyStatusLabel(key.provider)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="mt-3 border-t border-border/70 pt-3">
+        <div className="font-medium text-foreground">Current model</div>
+        <p className="mt-1 text-muted-foreground">
+          {currentModel.model
+            ? `${currentModel.provider ? `${cloudProviderLabel(currentModel.provider)}: ` : ''}${currentModel.model}`
+            : 'No default model selected yet.'}
+        </p>
+      </div>
+      <button
+        type="button"
+        data-testid="confidentiality-manage-cloud-keys"
+        onClick={onManageApiKeys}
+        className="mt-3 inline-flex items-center justify-center rounded-md border border-border bg-background px-3 py-1.5 font-medium text-foreground hover:bg-muted"
+      >
+        Add, change, or remove keys
+      </button>
+    </div>
+  );
+}
+
+export function ConfidentialityModeSettings({
+  onManageApiKeys,
+}: {
+  onManageApiKeys?: () => void;
+}) {
   const active = useConfidentialityMode();
   const setMode = useRecordConfidentialityChoice();
   const privileged = usePrivilegedMatterMode();
@@ -128,7 +315,7 @@ export function ConfidentialityModeSettings() {
         />
       </div>
 
-      <div className={cn('grid gap-2', isFirmUser ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
+      <div className={cn('grid gap-3', isFirmUser ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
         {cards.map((card) => {
           const Icon = card.icon;
           const selected = active === card.mode;
@@ -150,12 +337,12 @@ export function ConfidentialityModeSettings() {
               data-selected={selected ? 'true' : 'false'}
               data-disabled={disabled ? 'true' : 'false'}
               className={cn(
-                'relative text-left rounded-lg border p-3 transition-colors',
+                'relative text-left rounded-lg border p-4 transition-colors',
                 disabled
                   ? 'opacity-60 border-border bg-muted/20'
                   : selected
-                    ? cn('bg-background shadow-sm', card.accent)
-                    : 'border-border hover:bg-muted/30',
+                    ? cn('bg-background shadow-md ring-2 ring-primary/20', card.accent)
+                    : 'border-border bg-card hover:bg-muted/30',
               )}
             >
               <button
@@ -209,6 +396,10 @@ export function ConfidentialityModeSettings() {
                   )}
                 </span>
               </div>
+              {card.mode === 'local-only' && <LocalAiCardDetails />}
+              {card.mode === 'direct' && (
+                <CloudAiCardDetails onManageApiKeys={onManageApiKeys} />
+              )}
             </div>
           );
         })}

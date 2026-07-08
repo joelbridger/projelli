@@ -50,6 +50,8 @@ interface SettingsModalProps {
   initialCategory?: SettingCategory;
   /** Called when the user clicks "Restart guided setup" in the setup checklist. */
   onRestartOnboarding?: () => void;
+  /** Whether a workspace is open. AI rules need a workspace file to edit. */
+  hasWorkspaceOpen?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +66,7 @@ export function SettingsModal({
   templates,
   initialCategory,
   onRestartOnboarding,
+  hasWorkspaceOpen = true,
 }: SettingsModalProps) {
   const { t } = useTranslation();
 
@@ -100,6 +103,7 @@ export function SettingsModal({
           {...(onAction ? { onAction } : {})}
           auditEntries={auditEntries}
           templates={templates}
+          hasWorkspaceOpen={hasWorkspaceOpen}
           {...(initialCategory ? { initialCategory } : {})}
           {...(onRestartOnboarding ? { onRestartOnboarding } : {})}
         />
