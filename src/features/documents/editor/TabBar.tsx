@@ -38,12 +38,14 @@ const VOICE_NOTE_PATH_RE = /^Inbox\/note-.*\.md$/;
 type EditorTab = ReturnType<typeof useEditorStore.getState>['openTabs'][number];
 
 const TAB_STRIP_HEIGHT = 'var(--kp-tab-strip-height)';
+const VERTICAL_TAB_RAIL_WIDTH = 252;
 
 interface LeadingTabConfig {
   id: string;
   label: string;
   icon?: ReactNode;
   actions?: ReactNode;
+  below?: ReactNode;
   isActive: boolean;
   testId?: string;
   aliasTestIds?: string[];
@@ -1399,63 +1401,66 @@ export function TabBar({
 
   const renderLeadingTab = (item: LeadingTabConfig) => {
     return (
-      <div
-        role="tab"
-        tabIndex={0}
-        data-testid={item.testId}
-        data-leading-tab-id={item.id}
-        aria-selected={item.isActive}
-        className={cn(
-          'relative flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0',
-          isVertical
-            ? 'w-full rounded-md border border-transparent px-3 py-2 text-left'
-            : 'px-3 border-r',
-          item.isActive
-            ? isVertical
-              ? 'bg-[var(--kp-accent-soft)] text-[var(--kp-navy)] border-[rgba(var(--kp-navy-rgb),0.10)]'
-              : 'bg-background text-foreground'
-            : isVertical
-              ? 'text-muted-foreground hover:bg-[var(--kp-accent-softer)]'
-              : 'text-muted-foreground hover:bg-muted/50',
-        )}
-        style={isVertical ? { minHeight: 38 } : { height: TAB_STRIP_HEIGHT }}
-        onClick={item.onActivate}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
+      <>
+        <div
+          role="tab"
+          tabIndex={0}
+          data-testid={item.testId}
+          data-leading-tab-id={item.id}
+          aria-selected={item.isActive}
+          className={cn(
+            'relative flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0',
+            isVertical
+              ? 'w-full rounded-md border border-transparent px-3 py-2 text-left'
+              : 'px-3 border-r',
+            item.isActive
+              ? isVertical
+                ? 'bg-[var(--kp-accent-soft)] text-[var(--kp-navy)] border-[rgba(var(--kp-navy-rgb),0.10)]'
+                : 'bg-background text-foreground'
+              : isVertical
+                ? 'text-muted-foreground hover:bg-[var(--kp-accent-softer)]'
+                : 'text-muted-foreground hover:bg-muted/50',
+          )}
+          style={isVertical ? { minHeight: 38 } : { height: TAB_STRIP_HEIGHT }}
+          onClick={item.onActivate}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              item.onActivate();
+            }
+          }}
+          onDragOver={(e) => {
             e.preventDefault();
-            item.onActivate();
-          }
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = 'none';
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }}
-      >
-        {item.aliasTestIds?.map((alias) => (
-          <span
-            key={alias}
-            data-testid={alias}
-            aria-hidden="true"
-            className="absolute inset-0"
-          />
-        ))}
-        {item.icon}
-        <span className="min-w-0 flex-1 truncate">{item.label}</span>
-        {item.actions ? (
-          <span
-            className="ml-auto flex flex-none items-center"
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            {item.actions}
-          </span>
-        ) : null}
-      </div>
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'none';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          {item.aliasTestIds?.map((alias) => (
+            <span
+              key={alias}
+              data-testid={alias}
+              aria-hidden="true"
+              className="absolute inset-0"
+            />
+          ))}
+          {item.icon}
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          {item.actions ? (
+            <span
+              className="ml-auto flex flex-none items-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              {item.actions}
+            </span>
+          ) : null}
+        </div>
+        {item.below ? <div className="px-1">{item.below}</div> : null}
+      </>
     );
   };
 
@@ -1484,7 +1489,7 @@ export function TabBar({
     <div
       className={cn(
         isVertical
-          ? 'bg-background min-w-0 h-full border-r'
+          ? 'bg-background min-w-0 h-full border-r border-[var(--kp-divider)]'
           : 'bg-muted/30 min-w-0 w-full',
         showBorder && !isVertical && 'border-b',
       )}
@@ -1492,7 +1497,12 @@ export function TabBar({
       role="tablist"
       aria-label={ariaLabel}
       aria-orientation={orientation}
-      style={isVertical ? { width: 220, minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
+      style={isVertical ? {
+        width: VERTICAL_TAB_RAIL_WIDTH,
+        minWidth: VERTICAL_TAB_RAIL_WIDTH,
+        maxWidth: VERTICAL_TAB_RAIL_WIDTH,
+        minHeight: 0,
+      } : { minHeight: TAB_STRIP_HEIGHT }}
     >
       <div
         className={cn(
@@ -1508,6 +1518,14 @@ export function TabBar({
         {leadingTabItems.map((item) => (
           <Fragment key={item.id}>{renderLeadingTab(item)}</Fragment>
         ))}
+
+        {isVertical && leadingTabItems.length > 0 ? (
+          <div
+            data-testid="tab-bar-leading-separator"
+            className="my-1 h-px flex-none bg-[var(--kp-divider)]"
+            role="separator"
+          />
+        ) : null}
 
         {/* Left scroll arrow — only visible when scrolled right */}
         {!isVertical && canScrollLeft && (

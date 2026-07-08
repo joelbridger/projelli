@@ -192,7 +192,7 @@ export async function openStandaloneFile(
  * Assistant tab, which makes DocumentsHome.tsx render that tab's content
  * instead of the grid (`showFilesGrid` flips false once any editor-surface
  * tab is open) — the toolbar (docs-files-toggle, docs-trash-toggle, etc.)
- * only renders when the grid is shown. Click the pinned "Files" tab to force
+ * only renders when the grid is shown. Click the pinned "All files" tab to force
  * it back.
  */
 export async function switchToStandaloneFilesGrid(page: Page) {

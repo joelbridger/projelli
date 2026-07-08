@@ -817,7 +817,7 @@ export function DocumentGridView({
       ) : null}
 
       {/* ── Content area ───────────────────────────────────────────────── */}
-      {activeView === 'files' && docsView === 'tree' ? (
+      {activeView === 'files' && docsView === 'tree' && !isSearching ? (
         /* Tree view — full height, no padding wrapper */
         <div
           data-testid="documents-tree-view"

@@ -2,7 +2,7 @@
  * DocumentsHome — Documents rail layout.
  *
  * Layout: a vertical tab rail on the left, then the Files view or editor on the
- * right. The rail uses the shared editor TabBar with one pinned "Files" entry
+ * right. The rail uses the shared editor TabBar with one pinned "All files" entry
  * first, then the open document tabs from editorStore.openTabs.
  *
  * Preserved from R3:
@@ -23,7 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, FileText, FolderOpen, FolderTree, LayoutGrid, ListTree, MoreHorizontal, Plus, Trash2, Upload, X } from 'lucide-react';
+import { ExternalLink, FileText, FolderOpen, FolderTree, LayoutGrid, ListTree, MoreHorizontal, Plus, Search, Trash2, Upload, X } from 'lucide-react';
 import { IconButton, SearchField, TrustNote } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
@@ -346,8 +346,17 @@ export function DocumentsHome({
   // These live here so the toolbar can be rendered above the tab strip.
   const [activeView, setActiveView] = useState<'files' | 'trash'>('files');
   const [searchQuery, setSearchQuery] = useState('');
+  const [filesSearchOpen, setFilesSearchOpen] = useState(false);
+  const filesSearchInputRef = useRef<HTMLInputElement | null>(null);
+  const isFilesSearchVisible = filesSearchOpen || searchQuery.trim().length > 0;
 
-  // "userOnFiles" tracks whether the user explicitly clicked the "Files" tab.
+  useEffect(() => {
+    if (isFilesSearchVisible) {
+      filesSearchInputRef.current?.focus();
+    }
+  }, [isFilesSearchVisible]);
+
+  // "userOnFiles" tracks whether the user explicitly clicked the "All files" tab.
   // When false, the active document tab in editorStore drives what is shown.
   // When a new editor-surface tab becomes active externally (email-open flow,
   // AI shortcut, grid card click), we flip back to false via a ref — no setState inside an effect.
@@ -452,6 +461,11 @@ export function DocumentsHome({
     },
     [setActiveTab],
   );
+
+  const handleOpenFilesSearch = useCallback(() => {
+    handleTabActivate(FILES_TAB_ID);
+    setFilesSearchOpen(true);
+  }, [handleTabActivate]);
 
   // ── Toolbar folder state ──────────────────────────────────────────────────
   // The drilled-into folder (null = root), lifted from DocumentGridView so the
@@ -700,7 +714,6 @@ export function DocumentsHome({
     <>
       {activeView === 'files' && (
         <>
-          {filesCreateMenu}
           <div
             className="kp-segmented kp-segmented--sm"
             role="group"
@@ -731,21 +744,41 @@ export function DocumentsHome({
               <LayoutGrid size={12} strokeWidth={1.75} />
             </button>
           </div>
-
-          <SearchField
-            data-testid="documents-search-field"
-            value={searchQuery}
-            onChange={setSearchQuery}
-            onClear={() => { setSearchQuery(''); }}
-            placeholder={t('workspace.documents.search-placeholder')}
-            size="md"
-            style={{ flex: 1, minWidth: 220 }}
-          />
           {filesMoreMenu}
         </>
       )}
     </>
   );
+
+  const filesRailActions = (
+    <>
+      <IconButton
+        data-testid="documents-rail-search-trigger"
+        icon={Search}
+        label={t('workspace.documents.search-files')}
+        size="xs"
+        variant="ghost"
+        onClick={handleOpenFilesSearch}
+      />
+      {filesCreateMenu}
+    </>
+  );
+
+  const filesRailSearch = isFilesSearchVisible ? (
+    <SearchField
+      ref={filesSearchInputRef}
+      data-testid="documents-search-field"
+      value={searchQuery}
+      onChange={setSearchQuery}
+      onClear={() => { setSearchQuery(''); }}
+      placeholder={t('workspace.documents.search-placeholder')}
+      size="sm"
+      style={{ width: '100%' }}
+      onBlur={() => {
+        if (searchQuery.trim().length === 0) setFilesSearchOpen(false);
+      }}
+    />
+  ) : null;
 
   // ── Derived content state ────────────────────────────────────────────────
 
@@ -804,11 +837,13 @@ export function DocumentsHome({
       leadingTabs={[
         {
           id: FILES_TAB_ID,
-          label: t('workspace.documents.files'),
+          label: t('workspace.documents.all-files'),
           isActive: selectedTab === FILES_TAB_ID,
           testId: 'docs-files-toggle',
           aliasTestIds: ['documents-files-tab'],
           onActivate: () => { handleTabActivate(FILES_TAB_ID); },
+          actions: filesRailActions,
+          below: filesRailSearch,
           icon: (
             <FolderOpen
               style={{

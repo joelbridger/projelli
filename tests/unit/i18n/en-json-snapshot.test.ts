@@ -83,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 134,
-        "workspace": 51,
+        "workspace": 52,
       }
     `);
   });
@@ -268,7 +268,8 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    expect(flat.length).toBe(1967); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
+    // +1 = FB2 docs rail search: workspace.documents.search-files.
+    expect(flat.length).toBe(1968); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +416
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
