@@ -1082,7 +1082,6 @@ export function EmailWorkspace({
                 type="button"
                 onClick={() => {
                   window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
-                  onOpenSettings?.();
                 }}
                 className="font-semibold text-[var(--kp-navy)] underline"
               >

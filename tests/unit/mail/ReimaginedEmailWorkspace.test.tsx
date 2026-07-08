@@ -73,6 +73,7 @@ import { useActiveMatter, useMatters } from '@/platform/matter/matterStore';
 import { usePrivilegeStore, usePrivilegeForSource } from '@/platform/firm/privilegeStore';
 import { MemoryService, isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { EmailWorkspace } from '@/features/email/EmailWorkspace';
+import { EV_OPEN_SETTINGS } from '@/config/identity';
 
 // ── Fixture data ────────────────────────────────────────────────────────────
 
@@ -579,6 +580,49 @@ describe('EmailWorkspace', () => {
     expect(input.value).toBe('Beneficiary change');
     // Empty state should be hidden once there is a query
     expect(screen.queryByTestId('ask-empty-state')).not.toBeInTheDocument();
+  });
+
+  it('opens AI settings from the disabled-memory email link through one surface only', async () => {
+    let resolveRetrieve: ((hits: unknown[]) => void) | undefined;
+    mockIsMemoryEnabled.mockReturnValue(true);
+    mockMemoryRetrieve.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveRetrieve = resolve;
+        }),
+    );
+    const onOpenSettings = vi.fn();
+    const settingsEvents: CustomEvent[] = [];
+    const onSettingsEvent = vi.fn((event: Event) => {
+      settingsEvents.push(event as CustomEvent);
+    });
+    window.addEventListener(EV_OPEN_SETTINGS, onSettingsEvent);
+
+    try {
+      render(<EmailWorkspace onOpenSettings={onOpenSettings} />);
+      await waitForInitialLoad();
+
+      await openEmailActionsMenu();
+      fireEvent.click(screen.getByTestId('mode-ask'));
+      fireEvent.change(screen.getByTestId('email-search-input'), {
+        target: { value: 'beneficiary' },
+      });
+      expect(mockMemoryRetrieve).toHaveBeenCalled();
+
+      mockIsMemoryEnabled.mockReturnValue(false);
+      await act(async () => {
+        resolveRetrieve?.([]);
+        await vi.advanceTimersByTimeAsync(0);
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Enable it in Settings' }));
+
+      expect(onSettingsEvent).toHaveBeenCalledTimes(1);
+      expect(settingsEvents[0]?.detail).toEqual({ category: 'ai' });
+      expect(onOpenSettings).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(EV_OPEN_SETTINGS, onSettingsEvent);
+    }
   });
 
   // 16. Parses recipients correctly from comma/semicolon-separated input

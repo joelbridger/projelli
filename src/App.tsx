@@ -1367,6 +1367,8 @@ function AppShell() {
       setAccountWindowOpen(true);
     },
     openSettings,
+    openSettingsPage,
+    isAppShellAvailable: Boolean(rootPath) && !showWorkspaceSelector && !showFirstRun,
     setSidebarActiveTab,
     setDocumentsView,
     setAskPrefill,
