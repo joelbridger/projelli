@@ -108,6 +108,10 @@ export function RailShell({
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
   const enabledItems = useMemo(() => items.filter((item) => !item.disabled), [items]);
   const activeItemIndex = useMemo(() => items.findIndex((item) => item.id === activeId), [activeId, items]);
+  const tabStopItemId = useMemo(() => {
+    const activeEnabledItem = enabledItems.find((item) => item.id === activeId);
+    return activeEnabledItem?.id ?? enabledItems[0]?.id ?? null;
+  }, [activeId, enabledItems]);
 
   const selectItem = (id: string, focusRow = false) => {
     onSelect(id);
@@ -168,11 +172,11 @@ export function RailShell({
       >
         {header}
         <div
-          role="list"
+          role="listbox"
           aria-label={listAriaLabel}
           className={cn('flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overflow-x-hidden p-3 [scrollbar-width:thin]', listClassName)}
         >
-          {items.length === 0 && emptyState ? <div role="listitem" className="p-2">{emptyState}</div> : null}
+          {items.length === 0 && emptyState ? <div className="p-2">{emptyState}</div> : null}
           {items.map((item) => {
             const isActive = item.id === activeId;
             const rowAriaLabel = item.ariaLabel ?? (typeof item.label === 'string' ? item.label : undefined);
@@ -186,9 +190,9 @@ export function RailShell({
                     rowRefs.current.delete(item.id);
                   }
                 }}
-                role="listitem"
-                tabIndex={item.disabled ? -1 : 0}
-                aria-current={isActive ? 'page' : undefined}
+                role="option"
+                tabIndex={item.disabled || item.id !== tabStopItemId ? -1 : 0}
+                aria-selected={isActive}
                 aria-disabled={item.disabled || undefined}
                 aria-label={rowAriaLabel}
                 data-testid={item.testId}

@@ -11,9 +11,7 @@ const ITEMS = [
 ];
 
 function getRailRow(label: string): HTMLElement {
-  const row = screen.getByText(label).closest('[role="listitem"]');
-  if (!(row instanceof HTMLElement)) throw new Error(`Missing rail row for ${label}`);
-  return row;
+  return screen.getByRole('option', { name: new RegExp(label, 'i') });
 }
 
 describe('RailShell', () => {
@@ -36,9 +34,11 @@ describe('RailShell', () => {
       </RailShell>,
     );
 
-    expect(screen.getByRole('list', { name: 'Client work' })).toBeTruthy();
+    expect(screen.getByRole('listbox', { name: 'Client work' })).toBeTruthy();
     const activeRow = getRailRow('Meeting notes');
-    expect(activeRow.getAttribute('aria-current')).toBe('page');
+    expect(activeRow.getAttribute('aria-selected')).toBe('true');
+    expect(activeRow.getAttribute('tabindex')).toBe('0');
+    expect(getRailRow('Prep brief').getAttribute('tabindex')).toBe('-1');
     expect(activeRow.className).toContain('bg-[var(--kp-side-active-bg)]');
     expect(document.body.contains(screen.getByText('Selected detail'))).toBe(true);
 
@@ -100,12 +100,16 @@ describe('RailShell', () => {
     fireEvent.keyDown(notesRow, { key: 'ArrowDown' });
 
     const emailRow = getRailRow('Client email');
-    expect(emailRow.getAttribute('aria-current')).toBe('page');
+    expect(emailRow.getAttribute('aria-selected')).toBe('true');
+    expect(emailRow.getAttribute('tabindex')).toBe('0');
+    expect(notesRow.getAttribute('tabindex')).toBe('-1');
     expect(document.activeElement).toBe(emailRow);
 
     fireEvent.keyDown(emailRow, { key: 'ArrowUp' });
 
-    expect(notesRow.getAttribute('aria-current')).toBe('page');
+    expect(notesRow.getAttribute('aria-selected')).toBe('true');
+    expect(notesRow.getAttribute('tabindex')).toBe('0');
+    expect(emailRow.getAttribute('tabindex')).toBe('-1');
     expect(document.activeElement).toBe(notesRow);
   });
 
