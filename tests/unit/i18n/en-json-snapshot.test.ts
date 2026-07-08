@@ -51,7 +51,7 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 49,
+        "common": 50,
         "editor": 17,
         "entity-label": 50,
         "file-import": 3,
@@ -72,9 +72,9 @@ describe('en.json structure snapshot', () => {
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 168,
+        "settings": 172,
         "shortcuts-overlay": 2,
-        "spine": 7,
+        "spine": 8,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,
@@ -263,7 +263,9 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +6 = UX chrome simplification: command-palette tooltip (1), optional
+    //      sharing disclosure copy (4), and rail "Find client" label (1).
+    expect(flat.length).toBe(1553); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

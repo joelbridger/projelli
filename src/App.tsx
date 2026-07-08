@@ -1894,8 +1894,8 @@ function AppShell() {
             size="sm"
             className="h-7 w-7 px-0 text-muted-foreground"
             onClick={() => setShowCommandPalette(true)}
-            title={t('app.command-palette.open')}
-            aria-label={t('app.command-palette.open')}
+            title={t('common.command-palette.open')}
+            aria-label={t('common.command-palette.open')}
           >
             <Command className="h-3 w-3" />
           </Button>

@@ -1949,7 +1949,8 @@
     "aria": {
       "primary-nav": "Primary"
     },
-    "all-clients": "All Clients",
+    "all-clients": "All clients",
+    "find-client": "Find client",
     "new-client": "+ New {{entity}}",
     "no-clients-found": "No clients found"
   },
