@@ -17,7 +17,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreHorizontal } from 'lucide-react';
+import { Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreVertical } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
@@ -463,7 +463,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <IconButton
-                    icon={MoreHorizontal}
+                    icon={MoreVertical}
                     label={t('matter.hub.client-map-actions')}
                     variant="ghost"
                     size="md"

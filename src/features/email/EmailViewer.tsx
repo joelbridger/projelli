@@ -35,7 +35,7 @@ import {
   Copy,
   FileText,
   ChevronDown,
-  MoreHorizontal,
+  MoreVertical,
   Check,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -741,7 +741,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <IconButton
-                  icon={MoreHorizontal}
+                  icon={MoreVertical}
                   label={t('mail.viewer.message-actions')}
                   size="sm"
                   variant="ghost"
@@ -892,7 +892,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <IconButton
-                    icon={MoreHorizontal}
+                    icon={MoreVertical}
                     label={t('mail.viewer.reply-actions')}
                     size="sm"
                     variant="ghost"
@@ -1068,7 +1068,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <IconButton
-                        icon={MoreHorizontal}
+                        icon={MoreVertical}
                         label={t('mail.viewer.reply-actions')}
                         size="sm"
                         variant="ghost"

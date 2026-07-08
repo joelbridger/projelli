@@ -120,7 +120,7 @@ describe('ClientMapPanel (newNav hero view)', () => {
     expect(screen.getByTestId('custom-section-title')).toBeInTheDocument();
   });
 
-  it('shows an instant hover tooltip for the compact add action', () => {
+  it('keeps an accessible label for the compact add action', () => {
     render(
       <ClientMapPanel
         map={demoMap()}
@@ -130,9 +130,8 @@ describe('ClientMapPanel (newNav hero view)', () => {
     );
 
     const addButton = screen.getByTestId('clientmap-tab-add');
-    fireEvent.mouseEnter(addButton);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('New section');
-    fireEvent.mouseLeave(addButton);
+    expect(addButton).toHaveAccessibleName('New section');
+    expect(addButton).toHaveAttribute('title', 'New section');
   });
 
   it('uses document-type colors in the sources pane', () => {

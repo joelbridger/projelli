@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { MoreVertical } from 'lucide-react';
 import { Button, IconButton } from '@/ui/kp';
 import { InfoHelp } from '@/ui/InfoHelp';
 import {
@@ -84,7 +84,7 @@ export function RetentionSettings({ workspaceRoot }: { workspaceRoot: string }) 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <IconButton
-              icon={MoreHorizontal}
+              icon={MoreVertical}
               label={t('privacy.retention.more-actions')}
               size="sm"
               variant="ghost"

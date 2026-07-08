@@ -23,8 +23,8 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ExternalLink, FileText, FolderOpen, FolderTree, LayoutGrid, ListTree, MoreHorizontal, Plus, Trash2, Upload, X } from 'lucide-react';
-import { IconButton, SearchField, TrustNote } from '@/ui/kp';
+import { ExternalLink, FileText, FolderOpen, FolderTree, LayoutGrid, ListTree, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus, Trash2, Upload, X } from 'lucide-react';
+import { IconButton, RailShellHeader, TrustNote } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
   DropdownMenu,
@@ -346,6 +346,7 @@ export function DocumentsHome({
   // These live here so the toolbar can be rendered above the tab strip.
   const [activeView, setActiveView] = useState<'files' | 'trash'>('files');
   const [searchQuery, setSearchQuery] = useState('');
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // "userOnFiles" tracks whether the user explicitly clicked the "Files" tab.
   // When false, the active document tab in editorStore drives what is shown.
@@ -639,7 +640,7 @@ export function DocumentsHome({
           data-testid="documents-files-create-menu"
           icon={Plus}
           label={t('workspace.documents.create-menu')}
-          size="xs"
+          size="sm"
           variant="ghost"
         />
       </DropdownMenuTrigger>
@@ -677,9 +678,9 @@ export function DocumentsHome({
       <DropdownMenuTrigger asChild>
         <IconButton
           data-testid="documents-files-more-menu"
-          icon={MoreHorizontal}
+          icon={MoreVertical}
           label={t('workspace.documents.more-actions')}
-          size="xs"
+          size="sm"
           variant="ghost"
         />
       </DropdownMenuTrigger>
@@ -700,7 +701,6 @@ export function DocumentsHome({
     <>
       {activeView === 'files' && (
         <>
-          {filesCreateMenu}
           <div
             className="kp-segmented kp-segmented--sm"
             role="group"
@@ -731,17 +731,6 @@ export function DocumentsHome({
               <LayoutGrid size={12} strokeWidth={1.75} />
             </button>
           </div>
-
-          <SearchField
-            data-testid="documents-search-field"
-            value={searchQuery}
-            onChange={setSearchQuery}
-            onClear={() => { setSearchQuery(''); }}
-            placeholder={t('workspace.documents.search-placeholder')}
-            size="md"
-            style={{ flex: 1, minWidth: 220 }}
-          />
-          {filesMoreMenu}
         </>
       )}
     </>
@@ -853,6 +842,65 @@ export function DocumentsHome({
     />
   );
 
+  const renderDocumentsRail = () => (
+    <div
+      data-testid="documents-rail"
+      style={{
+        width: railCollapsed ? 44 : 252,
+        minWidth: railCollapsed ? 44 : 252,
+        maxWidth: railCollapsed ? 44 : 252,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        borderRight: '1px solid var(--kp-divider)',
+        background: 'var(--color-background)',
+      }}
+    >
+      {railCollapsed ? (
+        <div className="flex h-full flex-col items-center gap-2 py-2">
+          <IconButton
+            icon={PanelLeftOpen}
+            label={t('workspace.documents.show-rail')}
+            size="sm"
+            variant="ghost"
+            data-testid="documents-rail-show"
+            onClick={() => { setRailCollapsed(false); }}
+          />
+          {activeView === 'files' ? filesCreateMenu : null}
+        </div>
+      ) : (
+        <>
+          <RailShellHeader
+            title={t('workspace.documents.title')}
+            search={{
+              value: searchQuery,
+              onChange: setSearchQuery,
+              onClear: () => { setSearchQuery(''); },
+              placeholder: t('workspace.documents.search-placeholder'),
+              label: t('workspace.documents.search-placeholder'),
+              testId: 'documents-search-field',
+            }}
+            createAction={activeView === 'files' ? filesCreateMenu : undefined}
+            menuAction={activeView === 'files' ? filesMoreMenu : undefined}
+            collapseAction={(
+              <IconButton
+                icon={PanelLeftClose}
+                label={t('workspace.documents.hide-rail')}
+                size="sm"
+                variant="ghost"
+                data-testid="documents-rail-hide"
+                onClick={() => { setRailCollapsed(true); }}
+              />
+            )}
+          />
+          <div style={{ minHeight: 0, flex: 1 }}>
+            {renderDocumentTabStrip()}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   return (
@@ -891,7 +939,7 @@ export function DocumentsHome({
           overflow: 'hidden',
         }}
       >
-        {renderDocumentTabStrip()}
+        {renderDocumentsRail()}
 
         <div
           data-testid="documents-content-panel"

@@ -134,6 +134,7 @@ describe('EmailWorkspace AI search results', () => {
     await openEmailActionsMenu();
     vi.useRealTimers();
     fireEvent.click(screen.getByTestId('mode-ask'));
+    fireEvent.click(screen.getByTestId('email-search-input-toggle'));
     fireEvent.change(screen.getByTestId('email-search-input'), {
       target: { value: 'what happened with the deposition?' },
     });

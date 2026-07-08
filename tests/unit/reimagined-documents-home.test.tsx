@@ -10,7 +10,7 @@
  *  6. The grid reflects a populated fileTree (folders first)
  *  7. Trash toggle inside the grid shows/hides TrashPanel
  *  8. Search filters grid cards by name
- *  9. "Add files" button exists in the grid toolbar
+ *  9. "Add files" button exists in the rail create menu
  * 10. Trust banner shows the first time "Add files" is clicked, dismissible
  * 11. Email-open flow: email tab shows editor (email-open intact)
  * 12. File card click calls onFileOpen
@@ -198,6 +198,8 @@ vi.mock('react-i18next', () => ({
       'workspace.documents.grid': 'Grid',
       'workspace.documents.search-placeholder': 'Search',
       'workspace.documents.more-actions': 'More file actions',
+      'workspace.documents.show-rail': 'Show documents rail',
+      'workspace.documents.hide-rail': 'Hide documents rail',
       'workspace.documents.trust-banner': 'Indexed locally. Nothing uploaded.',
       'workspace.documents.empty-title': 'No files yet',
       'workspace.documents.empty-body': 'Create or add a file to start.',
@@ -259,6 +261,13 @@ async function openFilesCreateMenu() {
   fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
   fireEvent.click(trigger);
   await screen.findByTestId('documents-create-document');
+}
+
+function openDocumentsRailSearch(): HTMLElement {
+  const existing = screen.queryByTestId('documents-search-field');
+  if (existing) return existing;
+  fireEvent.click(screen.getByTestId('documents-search-field-toggle'));
+  return screen.getByTestId('documents-search-field');
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -464,8 +473,11 @@ describe('DocumentsHome — vertical tab rail', () => {
   it('uses a left-rail width instead of the old horizontal strip height', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
 
+    expect(screen.getByTestId('documents-rail')).toHaveStyle({
+      width: '252px',
+    });
     expect(screen.getByTestId('documents-tab-strip')).toHaveStyle({
-      width: '220px',
+      width: '100%',
     });
   });
 
@@ -1077,15 +1089,15 @@ describe('DocumentsHome — search', () => {
     mockOpenTabs = [];
   });
 
-  it('renders a search input in the grid toolbar', () => {
+  it('renders a search input in the rail header', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     expect(searchInput).toBeTruthy();
   });
 
   it('typing in the search input filters grid cards by name', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     expect(screen.getByText('Brief.md')).toBeTruthy();
     expect(screen.queryByText('Evidence.pdf')).toBeNull();
@@ -1094,7 +1106,7 @@ describe('DocumentsHome — search', () => {
 
   it('shows empty search state when no files match the query', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     fireEvent.change(searchInput, { target: { value: 'zzznomatch' } });
     expect(screen.getByText(/no files match your search/i)).toBeTruthy();
   });
@@ -1109,7 +1121,7 @@ describe('DocumentsHome — search', () => {
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
     expect(screen.getByText('NDA.docx')).toBeTruthy();
 
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     expect(screen.getByText('Brief.md')).toBeTruthy();
     expect(screen.queryByText('NDA.docx')).toBeNull();
@@ -1119,7 +1131,7 @@ describe('DocumentsHome — search', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
 
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     // Brief.md is at the tree root — no ancestor folder — so no path context
     // chip is needed to disambiguate it; a match at the root of the scope
@@ -1136,7 +1148,7 @@ describe('DocumentsHome — search', () => {
   it('(B4b fix) clicking a cross-folder file search result opens it directly', async () => {
     const onFileOpen = vi.fn().mockResolvedValue(undefined);
     render(<DocumentsHome {...buildDefaultProps({ onFileOpen })} />);
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     fireEvent.change(searchInput, { target: { value: 'nda' } });
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts/NDA.docx'));
     await waitFor(() => {
@@ -1244,8 +1256,10 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
     );
 
     expect(screen.queryByTestId('documents-toolbar')).toBeNull();
-    const filesView = screen.getByTestId('document-grid-view');
-    expect(filesView.contains(screen.getByTestId('documents-search-field'))).toBe(true);
+    const documentsRail = screen.getByTestId('documents-rail');
+    expect(documentsRail.contains(screen.getByTestId('documents-search-field-toggle'))).toBe(true);
+    fireEvent.click(screen.getByTestId('documents-search-field-toggle'));
+    expect(documentsRail.contains(screen.getByTestId('documents-search-field'))).toBe(true);
 
     const trigger = screen.getByTestId('documents-files-create-menu');
     fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
@@ -1641,7 +1655,7 @@ describe('DocumentGridView — grid count label', () => {
     // folder, so "N of M" no longer means anything honest — "M" used to be
     // this folder's item count, which isn't what's being searched anymore.
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     // Type a query that matches only "Brief.md"
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     const label = screen.getByTestId('grid-dir-label');
@@ -1651,7 +1665,7 @@ describe('DocumentGridView — grid count label', () => {
 
   it('hides the count again when the search is cleared', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = screen.getByRole('textbox');
+    const searchInput = openDocumentsRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     // Now clear the search
     fireEvent.change(searchInput, { target: { value: '' } });

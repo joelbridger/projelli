@@ -80,6 +80,7 @@ describe('SettingsContent', () => {
   it('search shows the matching group and keeps the matching setting reachable', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
+    fireEvent.click(screen.getByTestId('settings-search-toggle'));
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'auto save' },
     });
@@ -92,6 +93,7 @@ describe('SettingsContent', () => {
   it('theme search does not expose a user-facing theme setting', () => {
     render(<SettingsContent variant="page" initialCategory={'workspace' as never} />);
 
+    fireEvent.click(screen.getByTestId('settings-search-toggle'));
     fireEvent.change(screen.getByTestId('settings-search'), {
       target: { value: 'theme' },
     });

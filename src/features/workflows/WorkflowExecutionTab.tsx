@@ -34,7 +34,7 @@ import {
   HelpCircle,
   Link as LinkIcon,
   Loader2,
-  MoreHorizontal,
+  MoreVertical,
   Settings,
   XCircle,
   Zap,
@@ -635,7 +635,7 @@ export function WorkflowExecutionTab({
                       variant="outline"
                       aria-label={t('workflow.execution.more-actions')}
                     >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
+                      <MoreVertical className="h-3.5 w-3.5" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start">

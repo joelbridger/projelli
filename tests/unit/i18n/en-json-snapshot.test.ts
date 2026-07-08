@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 130,
+        "ask": 131,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -59,11 +59,11 @@ describe('en.json structure snapshot', () => {
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
-        "mail": 153,
+        "mail": 155,
         "marketplace": 14,
-        "matter": 289,
+        "matter": 294,
         "media": 100,
-        "meetings": 249,
+        "meetings": 255,
         "memory": 6,
         "model-download": 9,
         "onboarding": 68,
@@ -72,7 +72,7 @@ describe('en.json structure snapshot', () => {
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 188,
+        "settings": 190,
         "shortcuts-overlay": 2,
         "spine": 8,
         "tab-guard": 3,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 134,
-        "workspace": 51,
+        "workflow": 136,
+        "workspace": 53,
       }
     `);
   });
@@ -268,7 +268,10 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    expect(flat.length).toBe(1967); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
+    // +20 = FB2 railchrome: shared rail headers, search toggles, collapse labels,
+    //       and rail action menu labels across Ask, Mail, Client Map, Meetings,
+    //       Settings, Workflows, and Documents.
+    expect(flat.length).toBe(1987); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

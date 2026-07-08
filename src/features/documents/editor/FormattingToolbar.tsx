@@ -28,7 +28,7 @@ import {
   Edit3,
   Download,
   ChevronDown,
-  MoreHorizontal,
+  MoreVertical,
   Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -459,7 +459,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
                 title="More formatting"
                 disabled={isPreviewMode}
               >
-                <MoreHorizontal className="h-4 w-4" />
+                <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-44">

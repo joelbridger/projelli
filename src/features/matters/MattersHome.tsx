@@ -33,7 +33,7 @@ import {
   ChevronDown,
   Archive,
   ArchiveRestore,
-  MoreHorizontal,
+  MoreVertical,
   Mic,
   Clock,
 } from 'lucide-react';
@@ -498,7 +498,7 @@ function MatterRow({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <IconButton
-              icon={MoreHorizontal}
+              icon={MoreVertical}
               label={t('matter.home.row-menu-aria', { name: label })}
               variant="ghost"
               size="sm"

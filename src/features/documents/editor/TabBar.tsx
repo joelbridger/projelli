@@ -4,7 +4,7 @@
 import { Fragment, useCallback, useState, useRef, useEffect, useLayoutEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
-import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { X, GripVertical, MoreVertical, Settings, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/ui/button';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
@@ -1091,7 +1091,7 @@ export function TabBar({
                 aria-label="Group actions"
                 onClick={(e) => e.stopPropagation()}
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="min-w-[160px]">
@@ -1484,15 +1484,16 @@ export function TabBar({
     <div
       className={cn(
         isVertical
-          ? 'bg-background min-w-0 h-full border-r'
+          ? 'bg-background min-w-0 h-full'
           : 'bg-muted/30 min-w-0 w-full',
+        showBorder && isVertical && 'border-r',
         showBorder && !isVertical && 'border-b',
       )}
       data-testid={rootTestId}
       role="tablist"
       aria-label={ariaLabel}
       aria-orientation={orientation}
-      style={isVertical ? { width: 220, minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
+      style={isVertical ? { width: '100%', minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
     >
       <div
         className={cn(
@@ -1636,7 +1637,7 @@ export function TabBar({
                 title="All open tabs"
                 aria-label="All open tabs"
               >
-                <MoreHorizontal className="h-3.5 w-3.5" />
+                <MoreVertical className="h-3.5 w-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="max-h-[300px] overflow-y-auto">

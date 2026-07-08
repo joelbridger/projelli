@@ -7,9 +7,10 @@
  */
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mic, AlertTriangle } from 'lucide-react';
-import { Badge, Button, Callout, EmptyState, IconButton, RailShell, RailShellHeader } from '@/ui/kp';
+import { Mic, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus, AlertTriangle } from 'lucide-react';
+import { Badge, Button, Callout, EmptyState, IconButton, RailShell, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
 import type { RailShellItem } from '@/ui/kp';
+import { DropdownMenuItem } from '@/ui/dropdown-menu';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMeetingStore, needsReview, checkLowDiskSpaceWarning, resolveWorkspaceRoot } from './meetingStore';
@@ -180,6 +181,8 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
   const [selectedMeetingDir, setSelectedMeetingDir] = useState<string | null>(() => initialSelectedMeeting?.dir ?? null);
   const [directOpenMeeting, setDirectOpenMeeting] = useState(initialSelectedMeeting ?? null);
+  const [meetingSearchQuery, setMeetingSearchQuery] = useState('');
+  const [railCollapsed, setRailCollapsed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [scanFailed, setScanFailed] = useState(false);
   const recording = useMeetingStore((s) => s.status.recording);
@@ -262,14 +265,15 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
     setLoading(false);
   }, [matterFolder, workspaceService, directOpenMeeting?.dir]);
 
-  const handleMeetingChanged = useCallback(() => {
+  const runRefresh = useCallback(() => {
     void refresh().catch(() => {
       setScanFailed(true);
       setLoading(false);
     });
   }, [refresh]);
+  const handleMeetingChanged = runRefresh;
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { runRefresh(); }, [runRefresh]);
   useEffect(() => {
     if (!initialSelectedMeeting) return;
     setDirectOpenMeeting(initialSelectedMeeting);
@@ -281,7 +285,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
   // with its notes — without the advisor leaving and reopening the tab.
   const busy = recording || processing;
   useEffect(() => {
-    if (!busy) void refresh();
+    if (!busy) runRefresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busy]);
 
@@ -515,7 +519,23 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
     t,
   ]);
 
+  const filteredMeetingItems = useMemo(() => {
+    const q = meetingSearchQuery.trim().toLowerCase();
+    if (!q) return meetingItems;
+    return meetingItems.filter((item) => {
+      const label = typeof item.label === 'string' ? item.label : item.ariaLabel ?? item.id;
+      return label.toLowerCase().includes(q);
+    });
+  }, [meetingItems, meetingSearchQuery]);
+
   const railEmptyState = (() => {
+    if (meetingSearchQuery.trim() && meetings.length > 0) {
+      return (
+        <div data-testid="client-meetings-search-empty" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
+          {t('meetings.tab.no-results')}
+        </div>
+      );
+    }
     if (loading) {
       return (
         <div data-testid="client-meetings-loading" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
@@ -540,7 +560,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
               data-testid="client-meetings-retry-button"
               size="sm"
               variant="secondary"
-              onClick={() => { void refresh(); }}
+              onClick={runRefresh}
               style={{ marginTop: 'var(--kp-space-sm)' }}
             >
               {t('meetings.tab.retry-button')}
@@ -567,25 +587,71 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
           <div data-testid="client-meetings-rail-header">
             <RailShellHeader
               title={t('meetings.entry.breadcrumb-meetings')}
-              actions={
+              search={{
+                value: meetingSearchQuery,
+                onChange: setMeetingSearchQuery,
+                onClear: () => { setMeetingSearchQuery(''); },
+                placeholder: t('meetings.tab.search-placeholder'),
+                label: t('meetings.tab.search-placeholder'),
+                testId: 'client-meetings-search',
+              }}
+              createAction={
                 <IconButton
                   data-testid="record-meeting-button"
-                  icon={Mic}
+                  icon={Plus}
                   label={recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
                   onClick={handleRecordClick}
                   disabled={recording}
-                  variant="primary"
+                  variant="ghost"
                 />
               }
+              menuAction={(
+                <RailShellActionMenu icon={MoreVertical} label={t('meetings.tab.more-actions')}>
+                  <DropdownMenuItem onSelect={runRefresh}>
+                    {t('meetings.tab.refresh')}
+                  </DropdownMenuItem>
+                </RailShellActionMenu>
+              )}
+              collapseAction={(
+                <IconButton
+                  icon={PanelLeftClose}
+                  label={t('meetings.tab.hide-list')}
+                  size="sm"
+                  variant="ghost"
+                  data-testid="client-meetings-rail-hide"
+                  onClick={() => { setRailCollapsed(true); }}
+                />
+              )}
             />
           </div>
         }
         listAriaLabel={t('meetings.entry.breadcrumb-meetings')}
-        items={meetingItems}
+        items={filteredMeetingItems}
         activeId={selectedMeeting?.dir ?? null}
         onSelect={handleSelectMeeting}
         emptyState={railEmptyState}
         railWidth={268}
+        collapsed={railCollapsed}
+        collapsedRail={(
+          <div className="flex flex-col items-center gap-2">
+            <IconButton
+              icon={PanelLeftOpen}
+              label={t('meetings.tab.show-list')}
+              size="sm"
+              variant="ghost"
+              data-testid="client-meetings-rail-show"
+              onClick={() => { setRailCollapsed(false); }}
+            />
+            <IconButton
+              data-testid="record-meeting-button"
+              icon={Plus}
+              label={recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
+              onClick={handleRecordClick}
+              disabled={recording}
+              variant="ghost"
+            />
+          </div>
+        )}
         className="flex-1"
       >
         {selectedMeeting ? (

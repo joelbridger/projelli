@@ -1,5 +1,6 @@
 import {
   type CSSProperties,
+  type Ref,
   type KeyboardEvent,
   type MouseEvent,
   type ReactNode,
@@ -7,8 +8,10 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { MoreVertical, Search } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +19,7 @@ import {
 } from '@/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { IconButton } from './IconButton';
+import { SearchField } from './SearchField';
 import type { IconType } from './types';
 
 /**
@@ -69,18 +73,37 @@ export interface RailShellProps {
   listClassName?: string | undefined;
   contentClassName?: string | undefined;
   railWidth?: number | string | undefined;
+  collapsed?: boolean | undefined;
+  collapsedRail?: ReactNode;
+  collapsedRailWidth?: number | string | undefined;
   scrollActiveIntoView?: boolean | undefined;
   virtualization?: RailShellVirtualizationOptions | undefined;
 }
 
 export interface RailShellHeaderProps {
   title: ReactNode;
+  search?: RailShellHeaderSearchProps | undefined;
+  createAction?: ReactNode;
+  menuAction?: ReactNode;
+  collapseAction?: ReactNode;
   actions?: ReactNode;
   className?: string | undefined;
 }
 
+export interface RailShellHeaderSearchProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  label: string;
+  testId?: string | undefined;
+  toggleTestId?: string | undefined;
+  inputRef?: Ref<HTMLInputElement> | undefined;
+  onClear?: (() => void) | undefined;
+  disabled?: boolean | undefined;
+}
+
 export interface RailShellActionMenuProps {
-  icon: IconType;
+  icon?: IconType | undefined;
   label: string;
   children: ReactNode;
   align?: 'start' | 'center' | 'end';
@@ -101,6 +124,15 @@ function eventStartedInNestedControl(currentTarget: HTMLElement, target: EventTa
   return Boolean(interactive && interactive !== currentTarget);
 }
 
+function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
+  if (!ref) return;
+  if (typeof ref === 'function') {
+    ref(value);
+    return;
+  }
+  (ref as { current: T | null }).current = value;
+}
+
 export function RailShell({
   header,
   listAriaLabel,
@@ -114,6 +146,9 @@ export function RailShell({
   listClassName,
   contentClassName,
   railWidth,
+  collapsed = false,
+  collapsedRail,
+  collapsedRailWidth,
   scrollActiveIntoView = true,
   virtualization,
 }: RailShellProps) {
@@ -274,6 +309,25 @@ export function RailShell({
     );
   };
 
+  if (collapsed) {
+    return (
+      <section className={cn('flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--color-background)]', className)}>
+        <aside
+          className={cn(
+            'flex h-full min-h-0 flex-col items-center border-r border-[var(--kp-divider)] bg-[var(--color-background)] py-2 text-[var(--color-foreground)]',
+            railClassName,
+          )}
+          style={getRailWidthStyle(collapsedRailWidth ?? 44)}
+        >
+          {collapsedRail}
+        </aside>
+        <main className={cn('flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden', contentClassName)}>
+          {children}
+        </main>
+      </section>
+    );
+  }
+
   return (
     <section className={cn('flex h-full min-h-0 min-w-0 overflow-hidden bg-[var(--color-background)]', className)}>
       <aside
@@ -329,22 +383,95 @@ export function RailShell({
   );
 }
 
-export function RailShellHeader({ title, actions, className }: RailShellHeaderProps) {
+export function RailShellHeader({
+  title,
+  search,
+  createAction,
+  menuAction,
+  collapseAction,
+  actions,
+  className,
+}: RailShellHeaderProps) {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const searchValue = search?.value ?? '';
+  const showSearch = Boolean(search && (searchOpen || searchValue.trim().length > 0));
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    queueMicrotask(() => {
+      searchInputRef.current?.focus();
+    });
+  }, [searchOpen]);
+
+  const handleSearchClear = () => {
+    if (!search) return;
+    if (search.onClear) {
+      search.onClear();
+    } else {
+      search.onChange('');
+    }
+    setSearchOpen(false);
+  };
+
   return (
     <div
       className={cn(
-        'flex min-h-[54px] shrink-0 items-center justify-between gap-2 border-b border-[var(--kp-divider)] bg-[var(--color-background)] px-3 py-2.5',
+        'min-h-[54px] shrink-0 border-b border-[var(--kp-divider)] bg-[var(--color-background)] px-3 py-2.5',
         className,
       )}
     >
-      <div className="min-w-0 truncate text-sm font-semibold leading-tight text-[var(--kp-navy)]">{title}</div>
-      {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
+      <div className="flex min-h-[30px] items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-sm font-semibold leading-tight text-[var(--kp-navy)]">{title}</div>
+        <div className="flex shrink-0 items-center gap-1">
+          {search ? (
+            <IconButton
+              icon={Search}
+              label={search.label}
+              size="sm"
+              variant={showSearch ? 'secondary' : 'ghost'}
+              disabled={search.disabled}
+              onClick={() => { setSearchOpen((open) => !open); }}
+              data-testid={search.toggleTestId ?? (search.testId ? `${search.testId}-toggle` : undefined)}
+            />
+          ) : null}
+          {createAction}
+          {menuAction}
+          {actions}
+          {collapseAction}
+        </div>
+      </div>
+      {search && showSearch ? (
+        <div
+          className="mt-2"
+          onBlur={(event) => {
+            const next = event.relatedTarget;
+            if (next instanceof Node && event.currentTarget.contains(next)) return;
+            if (search.value.trim().length === 0) setSearchOpen(false);
+          }}
+        >
+          <SearchField
+            ref={(node) => {
+              searchInputRef.current = node;
+              assignRef(search.inputRef, node);
+            }}
+            value={search.value}
+            onChange={search.onChange}
+            onClear={handleSearchClear}
+            placeholder={search.placeholder}
+            aria-label={search.label}
+            data-testid={search.testId}
+            size="sm"
+            style={{ width: '100%' }}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
 
 export function RailShellActionMenu({
-  icon,
+  icon = MoreVertical,
   label,
   children,
   align = 'end',

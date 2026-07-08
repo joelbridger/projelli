@@ -33,12 +33,14 @@ import {
   Clock,
   Search,
   Loader2,
+  PanelLeftClose,
+  PanelLeftOpen,
   Star,
   Settings,
   AlertTriangle,
   AlertCircle,
 } from 'lucide-react';
-import { Button, Eyebrow, Card, EmptyState, Callout, SearchField, RailShell, RailShellHeader, TrustNote } from '@/ui/kp';
+import { Button, Eyebrow, Card, EmptyState, Callout, IconButton, RailShell, RailShellHeader, TrustNote } from '@/ui/kp';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
@@ -202,6 +204,7 @@ function WorkflowRailHeader({
   onFilterChange,
   onQueryChange,
   onQueryClear,
+  onCollapse,
 }: {
   presentCategories: CategoryConfig[];
   activeFilter: FilterKey;
@@ -209,32 +212,45 @@ function WorkflowRailHeader({
   onFilterChange: (key: FilterKey) => void;
   onQueryChange: (query: string) => void;
   onQueryClear: () => void;
+  onCollapse: () => void;
 }) {
   const { t } = useTranslation();
 
   return (
     <div data-testid="associate-workflows-rail" style={{ flex: 'none' }}>
-      <RailShellHeader title={t('spine.nav.workflows')} />
-      <div
-        data-testid="associate-toolbar"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 8,
-          padding: '10px 12px 12px',
-          borderBottom: '1px solid var(--kp-divider)',
+      <RailShellHeader
+        title={t('spine.nav.workflows')}
+        search={{
+          value: query,
+          onChange: onQueryChange,
+          onClear: onQueryClear,
+          placeholder: t('workflow.associate.search-placeholder'),
+          label: t('workflow.associate.search-placeholder'),
+          testId: 'associate-search',
         }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <SearchField
-            data-testid="associate-search"
-            value={query}
-            onChange={onQueryChange}
-            onClear={onQueryClear}
-            placeholder={t('workflow.associate.search-placeholder')}
+        collapseAction={(
+          <IconButton
+            icon={PanelLeftClose}
+            label={t('workflow.associate.hide-list')}
             size="sm"
-            style={{ minWidth: 0, flex: 1 }}
+            variant="ghost"
+            data-testid="associate-rail-hide"
+            onClick={onCollapse}
           />
+        )}
+      />
+      {presentCategories.length > 1 && (
+        <div
+          data-testid="associate-toolbar"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+            padding: '10px 12px 12px',
+            borderBottom: '1px solid var(--kp-divider)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {presentCategories.length > 1 && (
             <select
               data-testid="associate-practice-filter"
@@ -267,8 +283,9 @@ function WorkflowRailHeader({
               ))}
             </select>
           )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -746,6 +763,7 @@ export function AssociateHome({
   const [activeFilter, setActiveFilter] = useState<FilterKey>(readStoredFilter);
   const [missingArtifactRunIds, setMissingArtifactRunIds] = useState<Set<string>>(() => new Set());
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
+  const [railCollapsed, setRailCollapsed] = useState(false);
 
   // Persist filter to localStorage whenever it changes.
   useEffect(() => {
@@ -882,6 +900,7 @@ export function AssociateHome({
             onFilterChange={handleFilterChange}
             onQueryChange={setQuery}
             onQueryClear={() => { setQuery(''); }}
+            onCollapse={() => { setRailCollapsed(true); }}
           />
         }
         listAriaLabel={t('workflow.associate.rail-list-label')}
@@ -889,6 +908,17 @@ export function AssociateHome({
         activeId={selectedWorkflow?.id ?? null}
         onSelect={setSelectedWorkflowId}
         railWidth={284}
+        collapsed={railCollapsed}
+        collapsedRail={(
+          <IconButton
+            icon={PanelLeftOpen}
+            label={t('workflow.associate.show-list')}
+            size="sm"
+            variant="ghost"
+            data-testid="associate-rail-show"
+            onClick={() => { setRailCollapsed(false); }}
+          />
+        )}
         className="min-h-0 flex-1"
         contentClassName="bg-[var(--color-background)]"
       >

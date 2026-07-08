@@ -40,7 +40,7 @@ import {
   List,
   Loader2,
   Mail,
-  MoreHorizontal,
+  MoreVertical,
   PanelRightClose,
   PanelRightOpen,
   Pencil,
@@ -2081,7 +2081,7 @@ export function DocxEditor({
                 aria-label={t('media.docx-editor.document-actions')}
               >
                 <span data-testid="docx-document-actions-menu" className="flex h-full w-full items-center justify-center">
-                  <MoreHorizontal className="h-4 w-4" />
+                  <MoreVertical className="h-4 w-4" />
                 </span>
               </Button>
             </DropdownMenuTrigger>

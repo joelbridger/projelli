@@ -18,8 +18,9 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { CSSProperties, MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
-import { Button, IconButton, Eyebrow, SearchField } from '@/ui/kp';
+import { MoreVertical, Plus, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Button, IconButton, Eyebrow, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
+import { DropdownMenuItem } from '@/ui/dropdown-menu';
 import type { RecentAskSession } from './askHelpers';
 // Single source of truth for the rail widths (shared with the Ask responsive
 // breakpoints so the two never drift — QA-6).
@@ -113,7 +114,6 @@ export function ConversationsRail({
 }: ConversationsRailProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
-  const [searchOpen, setSearchOpen] = useState(false);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const filteredGroups = useMemo(() => {
     if (!normalizedQuery) return groups;
@@ -125,7 +125,6 @@ export function ConversationsRail({
   const hasAny = groups.some((g) => g.items.length > 0);
   const hasFiltered = filteredGroups.some((g) => g.items.length > 0);
   const visibleGroupCount = filteredGroups.filter((g) => g.items.length > 0).length;
-  const showSearchField = searchOpen || query.trim().length > 0;
 
   if (collapsed) {
     return (
@@ -168,24 +167,18 @@ export function ConversationsRail({
       aria-label={t('ask.conversations.title')}
       style={{ ...railBase, width: RAIL_WIDTH }}
     >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 6,
-          padding: 'var(--kp-space-2xs) var(--kp-space-sm) 0',
+      <RailShellHeader
+        title={t('ask.conversations.title')}
+        search={{
+          value: query,
+          onChange: setQuery,
+          onClear: () => { setQuery(''); },
+          placeholder: t('ask.conversations.search-placeholder'),
+          label: t('ask.conversations.search-placeholder'),
+          testId: 'rail-conversation-search',
+          toggleTestId: 'rail-search-toggle',
         }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <IconButton
-            icon={Search}
-            label={t('ask.conversations.search-placeholder')}
-            size="xs"
-            variant={showSearchField ? 'secondary' : 'ghost'}
-            onClick={() => { setSearchOpen((open) => !open); }}
-            data-testid="rail-search-toggle"
-          />
+        createAction={(
           <Button
             variant="ghost"
             size="sm"
@@ -196,37 +189,31 @@ export function ConversationsRail({
               height: 30,
               padding: '0 8px',
               borderRadius: 8,
-              fontSize: '13px',
+              fontSize: 'var(--kp-font-sm)',
               fontWeight: 700,
             }}
           >
             {t('ask.conversations.new')}
           </Button>
-        </div>
-        <IconButton
-          icon={PanelLeftClose}
-          label={t('ask.conversations.hide')}
-          size="xs"
-          variant="ghost"
-          onClick={onToggleCollapsed}
-          data-testid="rail-toggle"
-        />
-      </div>
-
-      <div style={{ padding: `0 var(--kp-space-sm) var(--kp-space-xs)` }}>
-        {showSearchField && (
-          <SearchField
-            icon={Search}
-            value={query}
-            onChange={setQuery}
-            placeholder={t('ask.conversations.search-placeholder')}
-            aria-label={t('ask.conversations.search-placeholder')}
-            data-testid="rail-conversation-search"
+        )}
+        menuAction={(
+          <RailShellActionMenu icon={MoreVertical} label={t('ask.conversations.more-actions')}>
+            <DropdownMenuItem onSelect={onNewQuestion}>
+              {t('ask.conversations.new-question')}
+            </DropdownMenuItem>
+          </RailShellActionMenu>
+        )}
+        collapseAction={(
+          <IconButton
+            icon={PanelLeftClose}
+            label={t('ask.conversations.hide')}
             size="sm"
-            style={{ marginTop: 8, width: '100%' }}
+            variant="ghost"
+            onClick={onToggleCollapsed}
+            data-testid="rail-toggle"
           />
         )}
-      </div>
+      />
 
       <div
         style={{
