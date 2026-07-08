@@ -24,6 +24,7 @@ function makeDriver(overrides = {}) {
   };
 }
 
+const ACTIONS_MENU = [{ testid: 'docx-document-actions-menu' }];
 const SEND_BUTTON = [{ testid: 'docx-send-to-wealthbox' }];
 
 describe('checkWealthboxQueueAndReview', () => {
@@ -35,6 +36,7 @@ describe('checkWealthboxQueueAndReview', () => {
       waitFor: vi.fn().mockResolvedValue({ found: true }),
       snapshot: vi
         .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
         .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
         .mockResolvedValueOnce({
           ok: true,
@@ -51,6 +53,7 @@ describe('checkWealthboxQueueAndReview', () => {
     const driver = makeDriver({
       snapshot: vi
         .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
         .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
         .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] })
         .mockResolvedValueOnce({
@@ -65,6 +68,30 @@ describe('checkWealthboxQueueAndReview', () => {
     expect(driver.click).toHaveBeenCalledWith('crm-write-card-collapsed');
   });
 
+  it('opens the document actions menu before looking for the Send to Wealthbox action', async () => {
+    const clickOrder = [];
+    const driver = makeDriver({
+      click: vi.fn().mockImplementation(async (testid) => { clickOrder.push(testid); }),
+      snapshot: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
+        .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
+        .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] })
+        .mockResolvedValueOnce({
+          ok: true,
+          elements: [{ testid: 'crm-write-card-collapsed' }, { testid: 'crm-approve-btn', text: 'Approve 1 change' }],
+        }),
+    });
+
+    const result = await checkWealthboxQueueAndReview({ driver });
+
+    expect(result.status).toBe(STATUS.PASS);
+    const menuIdx = clickOrder.indexOf('docx-document-actions-menu');
+    const sendIdx = clickOrder.indexOf('docx-send-to-wealthbox');
+    expect(menuIdx).toBeGreaterThanOrEqual(0);
+    expect(sendIdx).toBeGreaterThan(menuIdx);
+  });
+
   // Coordinator review catch (P2): CrmWritePendingBanner (QA finding P2) made
   // CrmWriteReviewCard mount ONLY on the Overview sub-tab — Documents (where
   // this check clicks Send to Wealthbox, per openSmokeClientDocumentsSubtab)
@@ -77,6 +104,7 @@ describe('checkWealthboxQueueAndReview', () => {
       click: vi.fn().mockImplementation(async (testid) => { clickOrder.push(testid); }),
       snapshot: vi
         .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
         .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
         .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] })
         .mockResolvedValueOnce({
@@ -88,10 +116,12 @@ describe('checkWealthboxQueueAndReview', () => {
     const result = await checkWealthboxQueueAndReview({ driver });
 
     expect(result.status).toBe(STATUS.PASS);
+    const menuIdx = clickOrder.indexOf('docx-document-actions-menu');
     const sendIdx = clickOrder.indexOf('docx-send-to-wealthbox');
     const reviewNowIdx = clickOrder.indexOf('hub-crm-pending-banner-review-now');
     const cardIdx = clickOrder.indexOf('crm-write-card-collapsed');
-    expect(sendIdx).toBeGreaterThanOrEqual(0);
+    expect(menuIdx).toBeGreaterThanOrEqual(0);
+    expect(sendIdx).toBeGreaterThan(menuIdx);
     expect(reviewNowIdx).toBeGreaterThan(sendIdx);
     expect(cardIdx).toBeGreaterThan(reviewNowIdx);
   });
@@ -103,6 +133,7 @@ describe('checkWealthboxQueueAndReview', () => {
       }),
       snapshot: vi
         .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
         .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
         .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] })
         .mockResolvedValueOnce({
@@ -121,6 +152,7 @@ describe('checkWealthboxQueueAndReview', () => {
     const driver = makeDriver({
       snapshot: vi
         .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
         .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
         .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] })
         .mockResolvedValueOnce({ ok: true, elements: [{ testid: 'crm-write-card-collapsed' }] }),
@@ -135,6 +167,7 @@ describe('checkWealthboxQueueAndReview', () => {
     const driver = makeDriver({
       snapshot: vi
         .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
         .mockResolvedValueOnce({ ok: true, elements: SEND_BUTTON })
         .mockResolvedValueOnce({
           ok: true,
@@ -149,11 +182,25 @@ describe('checkWealthboxQueueAndReview', () => {
 
   it('is SETUP-BLOCKED when the Send to Wealthbox button is not present at all', async () => {
     const driver = makeDriver({
+      snapshot: vi
+        .fn()
+        .mockResolvedValueOnce({ ok: true, elements: ACTIONS_MENU })
+        .mockResolvedValueOnce({ ok: true, elements: [] }),
+    });
+
+    const result = await checkWealthboxQueueAndReview({ driver });
+
+    expect(result.status).toBe(STATUS.SETUP_BLOCKED);
+  });
+
+  it('is SETUP-BLOCKED when the document actions menu is not present at all', async () => {
+    const driver = makeDriver({
       snapshot: vi.fn().mockResolvedValue({ ok: true, elements: [] }),
     });
 
     const result = await checkWealthboxQueueAndReview({ driver });
 
     expect(result.status).toBe(STATUS.SETUP_BLOCKED);
+    expect(driver.click).not.toHaveBeenCalledWith('docx-document-actions-menu');
   });
 });
