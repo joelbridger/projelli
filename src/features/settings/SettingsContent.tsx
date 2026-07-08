@@ -93,6 +93,7 @@ import {
 import {
   settingTestid,
   SETTINGS_GROUP_SEARCH,
+  SETTING_SEARCH_ALIASES,
   groupKeywordMatch,
 } from './settingsContentHelpers';
 import {
@@ -540,6 +541,16 @@ function renderRows(
     });
 }
 
+function settingMatchesQuery(def: SettingDefinition, lowerQ: string): boolean {
+  if (!lowerQ) return true;
+  if (def.label.toLowerCase().includes(lowerQ)) return true;
+  if (def.description.toLowerCase().includes(lowerQ)) return true;
+  if (def.key.toLowerCase().includes(lowerQ)) return true;
+  return (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
+    (term) => term.includes(lowerQ) || lowerQ.includes(term)
+  );
+}
+
 function WorkspaceSection(props: SectionProps) {
   const generalKeys = ['startupBehavior', 'showWhatsNew'];
   const editorKeys  = ['tabOverflow', 'fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
@@ -968,12 +979,7 @@ export function SettingsContent({
     }
     return new Set(
       SETTINGS_SCHEMA
-        .filter(
-          (def) =>
-            def.label.toLowerCase().includes(lowerQ) ||
-            def.description.toLowerCase().includes(lowerQ) ||
-            def.key.toLowerCase().includes(lowerQ)
-        )
+        .filter((def) => settingMatchesQuery(def, lowerQ))
         .map((d) => d.key)
     );
   }, [searchQuery]);
@@ -991,7 +997,10 @@ export function SettingsContent({
     const bump = (sec: SectionCategory, v: number) => { if (v > scores[sec]) scores[sec] = v; };
     for (const def of SETTINGS_SCHEMA) {
       const sec = resolveSection(def.category);
-      if (def.label.toLowerCase().includes(lowerQ)) bump(sec, 3);
+      const aliasHit = (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
+        (term) => term.includes(lowerQ) || lowerQ.includes(term)
+      );
+      if (def.label.toLowerCase().includes(lowerQ) || aliasHit) bump(sec, 3);
       else if (def.key.toLowerCase().includes(lowerQ)) bump(sec, 2);
       else if (def.description.toLowerCase().includes(lowerQ)) bump(sec, 1);
     }

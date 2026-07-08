@@ -525,11 +525,14 @@ export function Spine({
               </button>
               {filteredMatters.map((m) => {
                 const on = m.id === activeMatterId;
+                const fullLabel = matterLabel(m);
+                const displayLabel = m.client.trim() || fullLabel;
                 return (
                   <button
                     key={m.id}
                     type="button"
                     data-testid={`spine-client-row-${m.id}`}
+                    title={fullLabel}
                     onClick={() => {
                       // Rail client clicks always mean "open this client's map",
                       // never "restore wherever this client was last".
@@ -578,7 +581,7 @@ export function Spine({
                         textOverflow: 'ellipsis',
                       }}
                     >
-                      {matterLabel(m)}
+                      {displayLabel}
                     </div>
                   </button>
                 );

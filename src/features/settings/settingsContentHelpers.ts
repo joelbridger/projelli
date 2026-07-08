@@ -32,8 +32,8 @@ export function settingTestid(key: string): string | undefined {
  */
 export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; keywords: string[] }> = {
   'ws-general':     { section: 'workspace',  keywords: ['general', 'language', 'locale', 'translation', 'interface language', 'app language', 'english', 'spanish', 'startup', 'update notification'] },
-  'ws-editor':      { section: 'workspace',  keywords: ['editor', 'font', 'font size', 'text size', 'word wrap', 'line numbers'] },
-  'ws-files':       { section: 'workspace',  keywords: ['files', 'workspace', 'auto save', 'autosave', 'file type', 'letterhead', 'trash', 'hidden files', 'folder'] },
+  'ws-editor':      { section: 'workspace',  keywords: ['editor', 'font', 'font size', 'text size', 'auto save', 'auto-save', 'autosave', 'automatic save', 'word wrap', 'line numbers'] },
+  'ws-files':       { section: 'workspace',  keywords: ['files', 'workspace', 'file type', 'letterhead', 'trash', 'hidden files', 'folder'] },
   'aip-ai':         { section: 'ai',         keywords: ['model', 'models', 'provider', 'api key', 'anthropic', 'openai', 'claude', 'gpt', 'gemini', 'byok', 'language model'] },
   'aip-memory':     { section: 'ai',         keywords: ['memory', 'facts', 'remember', 'context', 'recall'] },
   'privacy-core':   { section: 'privacy',    keywords: ['privacy', 'telemetry', 'tracking', 'analytics', 'anonymous', 'opt out', 'confidential', 'privileged', 'egress', 'network', 'local only', 'data map'] },
@@ -46,6 +46,11 @@ export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; k
   'adv-shortcuts':  { section: 'help',       keywords: ['shortcut', 'shortcuts', 'keyboard', 'hotkey', 'hotkeys', 'keybinding'] },
   'adv-setup':      { section: 'help',       keywords: ['setup', 'onboarding', 'tour', 'guide', 'tutorial', 'getting started', 'restart setup', 'walkthrough'] },
   'adv-about':      { section: 'help',       keywords: ['about', 'legal', 'credits', 'licenses', 'acknowledgements'] },
+};
+
+export const SETTING_SEARCH_ALIASES: Record<string, string[]> = {
+  autoSave: ['auto save', 'auto-save', 'automatic save', 'save automatically'],
+  autoSaveInterval: ['auto save delay', 'auto-save delay', 'autosave delay', 'save delay', 'save interval'],
 };
 
 /**

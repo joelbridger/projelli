@@ -151,9 +151,9 @@ describe('SettingsModal controls per section', () => {
   it('Workspace shows common controls without extra help speckles on obvious rows', () => {
     renderModal('workspace');
 
-    expect(screen.getByText('On Startup')).toBeInTheDocument();
-    expect(screen.getByLabelText('On Startup')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'About On Startup' })).not.toBeInTheDocument();
+    expect(screen.getByText('Startup')).toBeInTheDocument();
+    expect(screen.getByLabelText('Startup')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'About Startup' })).not.toBeInTheDocument();
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
     expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
   });
