@@ -153,6 +153,10 @@ export function MeetingSendPanel({
   // disk always converges to the newest edit.
   const pendingPlanRef = useRef<MeetingDeliveryPlan | null>(null);
   const saverRef = useRef<Promise<void> | null>(null);
+  // Guards local state updates from a save that finishes after this panel has
+  // unmounted (the send drawer closing mid-debounce). onChanged still fires so
+  // the parent, which outlives the drawer, gets the saved meta.
+  const mountedRef = useRef(true);
   // Latest meta, read by the meeting-switch reset without making that reset
   // depend on every meta change (which would clobber in-flight local edits when
   // our own save fires onChanged -> setMeta).
@@ -172,7 +176,7 @@ export function MeetingSendPanel({
           lastSavedJson.current = JSON.stringify(normalizeMeetingDeliveryPlan(savedMeta.deliveryPlan));
           onChanged(savedMeta);
         }
-        setSaveState('saved');
+        if (mountedRef.current) setSaveState('saved');
       } finally {
         saverRef.current = null;
         // A plan queued during the exit window still gets drained.
@@ -187,6 +191,30 @@ export function MeetingSendPanel({
     saverRef.current = loop;
     return loop;
   }, [workspaceService, meetingDir, matterId, onChanged]);
+
+  // Always-latest drainSaves, so the unmount cleanup (which registers once with
+  // [] deps) drains through the current workspace/meeting, not a stale capture.
+  const drainSavesRef = useRef(drainSaves);
+  drainSavesRef.current = drainSaves;
+
+  // Finding 1 (unmount edge): the SlidePanel unmounts this panel the instant the
+  // send drawer closes. If that happens inside the 600ms autosave debounce, the
+  // pending recipient edit would be dropped (the debounce timer is cleared and
+  // never fires). On unmount, flush any pending save fire-and-forget so the edit
+  // still lands on disk. Guarded to no-op when nothing is pending, which is the
+  // case during React strict-mode's mount/cleanup/remount double-invoke (plan
+  // equals lastSaved at first mount, so pendingPlanRef is null).
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
+      if (pendingPlanRef.current) {
+        // eslint-disable-next-line lantern-async/no-silent-failure -- component is unmounting on drawer close; there is no UI left to surface a save error, and the parent still holds the last onChanged state
+        void drainSavesRef.current().catch(() => undefined);
+      }
+    };
+  }, []);
 
   // Reset local plan state only when the MEETING changes, never on every meta
   // update — otherwise an onChanged from our own save (or an unrelated meta

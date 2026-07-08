@@ -220,6 +220,33 @@ describe('MeetingSendPanel (merged send surface)', () => {
     }
   });
 
+  it('(finding 1, unmount edge) persists the last recipient edit when the drawer closes within the debounce window', async () => {
+    const files = new Map<string, string>();
+    files.set('/client/Meetings/one/meeting.json', JSON.stringify(meta()));
+    const ws = {
+      files,
+      readFile: vi.fn(async (path: string) => files.get(path) ?? ''),
+      writeFile: vi.fn(async (path: string, content: string) => { files.set(path, content); }),
+      readFileBinary: vi.fn(),
+      exists: vi.fn(async () => false),
+    };
+    const { unmount } = renderPanel({ ws: ws as never });
+
+    // Edit a recipient, then close the drawer (unmount) BEFORE the 600ms
+    // autosave debounce fires.
+    fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), { target: { value: 'late@example.com' } });
+    fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+    expect(ws.writeFile).not.toHaveBeenCalled(); // debounce has not fired yet
+    unmount();
+
+    // The unmount flush persists the pending edit rather than dropping it.
+    await waitFor(() => {
+      const disk = JSON.parse(files.get('/client/Meetings/one/meeting.json') ?? '{}') as MeetingMeta;
+      const emails = (disk.deliveryPlan?.artifacts.summary ?? []).map((r) => r.email);
+      expect(emails).toContain('late@example.com');
+    });
+  });
+
   it('(finding 3) offers known recipients (client emails / matter keys) as one-click suggestions in the add-person flow', async () => {
     const matter = { id: 'matter-1', meetingKeys: ['known@client.com'] } as unknown as Matter;
     renderPanel({ matter });
