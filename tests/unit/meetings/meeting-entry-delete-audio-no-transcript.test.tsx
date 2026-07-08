@@ -3,10 +3,17 @@
  * when transcription never produced transcript.json. In that state the audio
  * is the only meeting content left.
  */
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
+
+/** Delete audio now lives in the header `...` menu (meetings audit item 7). */
+function openActionsMenu() {
+  const trigger = screen.getByTestId('meeting-entry-actions-menu');
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger);
+}
 
 vi.mock('@/features/documents/media/DocxEditor', () => ({ DocxEditor: () => null }));
 vi.mock('@/features/dictation/audio/AudioPlayer', async () => {
@@ -60,8 +67,9 @@ describe('MeetingEntry — delete audio confirmation without transcript (QA-71)'
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-delete-audio')).toBeTruthy());
-    screen.getByTestId('meeting-entry-delete-audio').click();
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy());
+    openActionsMenu();
+    fireEvent.click(await screen.findByTestId('meeting-entry-delete-audio'));
 
     await waitFor(() => expect(screen.getByTestId('delete-audio-confirm')).toBeTruthy());
     const copy = screen.getByTestId('delete-audio-confirm').textContent ?? '';
@@ -76,10 +84,12 @@ describe('MeetingEntry — delete audio confirmation without transcript (QA-71)'
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    await waitFor(() => expect(screen.getByTestId('meeting-entry-delete-audio')).toBeTruthy());
-    expect(screen.getByTestId('meeting-entry-delete-audio').textContent).toMatch(/keep transcript/i);
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy());
+    openActionsMenu();
+    const deleteItem = await screen.findByTestId('meeting-entry-delete-audio');
+    expect(deleteItem.textContent).toMatch(/keep transcript/i);
 
-    screen.getByTestId('meeting-entry-delete-audio').click();
+    fireEvent.click(deleteItem);
 
     await waitFor(() => expect(screen.getByTestId('delete-audio-confirm')).toBeTruthy());
     const copy = screen.getByTestId('delete-audio-confirm').textContent ?? '';

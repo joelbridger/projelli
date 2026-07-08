@@ -682,13 +682,34 @@ async function main() {
         ['Recording', 'meeting-subtab-recording', 'scroll-meeting-recording'],
         ['Transcript', 'meeting-subtab-transcript', 'scroll-meeting-transcript'],
         ['Summary', 'meeting-subtab-summary', 'scroll-meeting-summary'],
-        ['Send to team', 'meeting-subtab-send-to-team', 'scroll-meeting-send-to-team'],
       ]) {
         await page.locator(`[data-testid="${tabId}"]`).click({ timeout: 8000 }).catch(() => {});
         await recordScroll(
           `Scrollability — Meeting detail ${label} tab`,
           { rootSelector: '[data-testid="meeting-entry"]', contentSelector: '[data-testid="meeting-entry-tab-scroll"]' },
           shotName,
+        );
+      }
+      // Send left the tab row; it opens the merged send surface in a drawer from
+      // the header Send action (disabled until the meeting is reviewed, so this
+      // is best-effort in the demo).
+      await page.locator('[data-testid="meeting-entry-send"]').click({ timeout: 8000 }).catch(() => {});
+      const sendDrawerOpen = await page
+        .waitForSelector('[data-testid="meeting-send-drawer"]', { timeout: 5000 })
+        .then(() => true)
+        .catch(() => false);
+      if (sendDrawerOpen) {
+        await recordScroll(
+          'Scrollability — Meeting send drawer',
+          { rootSelector: '[data-testid="meeting-send-drawer"]', contentSelector: '.kp-slide-panel__body' },
+          'scroll-meeting-send-drawer',
+        );
+      } else {
+        record(
+          'Scrollability — Meeting send drawer',
+          SKIP,
+          'Send opens only for a reviewed meeting; the web-demo meeting is not reviewed',
+          await shot(page, 'scroll-meeting-send-drawer-skip'),
         );
       }
     } else {

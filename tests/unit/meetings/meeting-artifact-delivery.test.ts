@@ -3,6 +3,7 @@ import {
   buildMeetingArtifactAvailability,
   buildMeetingSendPreview,
   MEETING_SEND_REVIEW_AGAIN_MESSAGE,
+  MEETING_SEND_NOT_REVIEWED_MESSAGE,
   sendMeetingArtifacts,
   type MeetingDeliveryStatus,
   type MeetingArtifactAvailability,
@@ -373,8 +374,7 @@ describe('meeting artifact delivery', () => {
     );
   });
 
-  it('rebuilds the preview from the latest saved plan before sending', async () => {
-    const opened = meta();
+  it('sends the confirmed snapshot when it matches the latest saved plan', async () => {
     const latest = meta({
       deliveryPlan: {
         ...plan(),
@@ -384,7 +384,7 @@ describe('meeting artifact delivery', () => {
         },
       },
     });
-    const { files, ws } = makeWs(opened);
+    const { files, ws } = makeWs(latest);
     files.set('/client/Meetings/one/meeting.json', JSON.stringify(latest));
     const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
 
@@ -394,7 +394,9 @@ describe('meeting artifact delivery', () => {
       matterId: 'matter-1',
       meta: latest,
       account,
-      preview: previewFor(opened),
+      // The confirmed preview reflects the latest saved plan (as the panel
+      // always builds it from the same meta it sends).
+      preview: previewFor(latest),
       availability: fullAvailability,
       clientName: 'Hendricks',
       t: t as never,
@@ -406,6 +408,54 @@ describe('meeting artifact delivery', () => {
 
     const notesCall = sendMail.mock.calls.find((call) => call[5] === 'Hendricks meeting Notes: Annual review');
     expect(notesCall?.[2]).toEqual(['updated@example.com']);
+  });
+
+  it('refuses to send when the title changed after the dialog was confirmed (finding 2)', async () => {
+    const opened = meta(); // confirmed with title "Annual review"
+    const renamed = meta({ customTitle: 'Renamed review' }); // same plan, new title
+    const { files, ws } = makeWs(opened);
+    files.set('/client/Meetings/one/meeting.json', JSON.stringify(renamed));
+    const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
+
+    await expect(sendMeetingArtifacts({
+      workspaceService: ws,
+      meetingDir: '/client/Meetings/one',
+      matterId: 'matter-1',
+      meta: opened,
+      account,
+      preview: previewFor(opened),
+      availability: fullAvailability,
+      clientName: 'Hendricks',
+      t: t as never,
+      buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
+      audit: { logDurable: vi.fn() } as never,
+      sendMail: sendMail as never,
+      nowIso: NOW,
+    })).rejects.toThrow(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
+    expect(sendMail).not.toHaveBeenCalled();
+  });
+
+  it('refuses to send an unreviewed meeting even if the UI gate is bypassed (finding 5)', async () => {
+    const unreviewed = meta({ reviewedAt: undefined });
+    const { ws } = makeWs(unreviewed);
+    const sendMail = vi.fn<TestMailSend>(async () => 'provider-message-1');
+
+    await expect(sendMeetingArtifacts({
+      workspaceService: ws,
+      meetingDir: '/client/Meetings/one',
+      matterId: 'matter-1',
+      meta: unreviewed,
+      account,
+      preview: previewFor(unreviewed),
+      availability: fullAvailability,
+      clientName: 'Hendricks',
+      t: t as never,
+      buildSummaryDocxBytes: async () => new Uint8Array([7, 8, 9]),
+      audit: { logDurable: vi.fn() } as never,
+      sendMail: sendMail as never,
+      nowIso: NOW,
+    })).rejects.toThrow(MEETING_SEND_NOT_REVIEWED_MESSAGE);
+    expect(sendMail).not.toHaveBeenCalled();
   });
 
   it('stops with a plain re-review message when recipients changed since the dialog opened', async () => {

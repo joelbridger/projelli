@@ -7,7 +7,7 @@
  */
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Info, Mic, AlertTriangle } from 'lucide-react';
+import { Mic, AlertTriangle } from 'lucide-react';
 import { Badge, Button, Callout, EmptyState, IconButton, RailShell, RailShellHeader } from '@/ui/kp';
 import type { RailShellItem } from '@/ui/kp';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
@@ -480,41 +480,25 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
       testId: 'meeting-row',
       ariaLabel: `${meetingDisplayTitle(m.meta, t)} ${formatMeetingDate(m.meta?.startedAt)}`,
       content: (
+        // Title-first, no per-row mic tile (item 16): every row here is already
+        // a meeting, so the repeated icon only ate the 268px rail.
         <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 5 }}>
-          <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 8 }}>
-            <span
-              aria-hidden="true"
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                flex: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--kp-accent-soft)',
-                color: 'var(--kp-navy)',
-              }}
-            >
-              <Mic style={{ width: 15, height: 15 }} />
-            </span>
-            <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-              {meetingDisplayTitle(m.meta, t)}
-            </span>
-          </div>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+            {meetingDisplayTitle(m.meta, t)}
+          </span>
           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
             {subtitle}
           </div>
-          {(quarantined || reviewItems.length > 0 || m.meta?.reviewedAt) && (
+          {/* Only status that changes behaviour stays in the rail (item 17):
+              quarantine and needs-review. A plain Reviewed state is quiet — it
+              shows as a chip in the meeting header instead. */}
+          {(quarantined || reviewItems.length > 0) && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {quarantined && (
                 <Badge variant="warning" size="sm" data-testid="meeting-quarantine-badge">{t('meetings.notice.quarantine-badge')}</Badge>
               )}
               {!quarantined && reviewItems.length > 0 && (
                 <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
-              )}
-              {reviewItems.length === 0 && m.meta?.reviewedAt && (
-                <Badge variant="neutral" size="sm">{t('meetings.tab.reviewed-badge')}</Badge>
               )}
             </div>
           )}
@@ -627,12 +611,6 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
                 body={t('meetings.tab.empty-body')}
                 data-testid="client-meetings-empty"
               />
-            )}
-            {!showEmpty && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-                <Info aria-hidden="true" style={{ width: 14, height: 14, flex: 'none' }} />
-                {t('meetings.tab.activity-hint')}
-              </div>
             )}
           </div>
         )}

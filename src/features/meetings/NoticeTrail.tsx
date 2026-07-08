@@ -15,7 +15,7 @@
  */
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ShieldCheck, AlertTriangle, Copy, Check, Info } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Copy, Check, Info, ChevronDown, ChevronRight } from 'lucide-react';
 import { Badge, Callout } from '@/ui/kp';
 import { deriveNoticeState, type NoticeEntry, type NoticeResolution } from './noticeLedger';
 import type { NoticePolicy } from './noticeSettings';
@@ -52,6 +52,7 @@ export function NoticeTrail({ meetingDir, notices, policy, inviteDisclosure, cha
   const clock = now ?? (() => new Date().toISOString());
   const doCopy = copyText ?? defaultCopyText;
   const [copied, setCopied] = useState<'invite' | 'chat' | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const resolve = (resolution: NoticeResolution) => {
     void onRecordNotice({ kind: 'notice-review-resolved', meetingDir, at: clock(), resolution });
@@ -100,6 +101,85 @@ export function NoticeTrail({ meetingDir, notices, policy, inviteDisclosure, cha
     </div>
   );
 
+  // Copy actions + local note — the notice tools that matter most before/during
+  // a meeting. Kept visible while the notice needs action; tucked inside Details
+  // once a meeting is verified/resolved (item 5).
+  const copyActions = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-sm)' }}>
+        <button
+          type="button"
+          data-testid="notice-copy-invite"
+          onClick={() => { handleCopy('invite'); }}
+          style={copyBtnStyle}
+        >
+          {copied === 'invite' ? <Check style={iconStyle} /> : <Copy style={iconStyle} />}
+          {copied === 'invite' ? t('meetings.notice.copied') : t('meetings.notice.copy-invite')}
+        </button>
+        <button
+          type="button"
+          data-testid="notice-copy-chat"
+          onClick={() => { handleCopy('chat'); }}
+          style={copyBtnStyle}
+        >
+          {copied === 'chat' ? <Check style={iconStyle} /> : <Copy style={iconStyle} />}
+          {copied === 'chat' ? t('meetings.notice.copied') : t('meetings.notice.copy-chat')}
+        </button>
+      </div>
+      <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+        <Info aria-hidden="true" style={{ width: 12, height: 12, flex: 'none', marginTop: 1 }} />
+        {t('meetings.notice.local-note')}
+      </span>
+    </div>
+  );
+
+  // A verified or resolved meeting collapses to one slim status row with the
+  // details/tools on demand (item 5); a meeting that still needs action keeps
+  // its warning block fully expanded (protected trust UI).
+  if (state.status === 'verified' || state.status === 'resolved') {
+    return (
+      <div
+        data-testid="notice-trail"
+        style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)', padding: '10px var(--kp-gutter)', borderTop: '1px solid var(--kp-divider)' }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <ShieldCheck aria-hidden="true" style={{ width: 14, height: 14, color: 'var(--kp-success)', flex: 'none' }} />
+          {state.status === 'verified' ? (
+            <span data-testid="notice-verified-chip" style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <Badge variant="success" size="sm">
+                {t('meetings.notice.verified-chip', { time: formatMs(state.atMs) })}
+              </Badge>
+            </span>
+          ) : (
+            <span data-testid="notice-resolved" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+              {t('meetings.notice.resolved-note', { how: resolvedHow(state.resolution) })}
+            </span>
+          )}
+          <button
+            type="button"
+            data-testid="notice-details-toggle"
+            aria-expanded={detailsOpen}
+            onClick={() => { setDetailsOpen((open) => !open); }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: 'var(--color-muted-foreground)', fontSize: 'var(--kp-font-xs)', fontFamily: 'inherit' }}
+          >
+            {detailsOpen ? <ChevronDown style={iconStyle} /> : <ChevronRight style={iconStyle} />}
+            {t('meetings.notice.details')}
+          </button>
+        </div>
+        {detailsOpen && (
+          <div data-testid="notice-details" style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
+            {state.status === 'verified' && (
+              <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+                {t('meetings.notice.verified-detail', { snippet: state.snippet })}
+              </span>
+            )}
+            {copyActions}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       data-testid="notice-trail"
@@ -110,24 +190,10 @@ export function NoticeTrail({ meetingDir, notices, policy, inviteDisclosure, cha
         {t('meetings.notice.trail-heading')}
       </div>
 
-      {state.status === 'verified' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span data-testid="notice-verified-chip" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start' }}>
-            <Badge variant="success" size="sm">
-              {t('meetings.notice.verified-chip', { time: formatMs(state.atMs) })}
-            </Badge>
-          </span>
-          <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-            {t('meetings.notice.verified-detail', { snippet: state.snippet })}
-          </span>
-        </div>
-      )}
-
       {state.status === 'unverified' && policy === 'standard' && (
         <div data-testid="notice-unverified">
           <Callout variant="warning" icon={AlertTriangle}>
             <div style={{ fontWeight: 'var(--kp-weight-semibold)' }}>{t('meetings.notice.unverified-title')}</div>
-            <div style={{ marginTop: 2, fontSize: 'var(--kp-font-xs)' }}>{t('meetings.notice.unverified-body')}</div>
             {resolutionButtons}
           </Callout>
         </div>
@@ -146,39 +212,7 @@ export function NoticeTrail({ meetingDir, notices, policy, inviteDisclosure, cha
         </div>
       )}
 
-      {state.status === 'resolved' && (
-        <span data-testid="notice-resolved" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-          {t('meetings.notice.resolved-note', { how: resolvedHow(state.resolution) })}
-        </span>
-      )}
-
-      {/* Copy actions — always available (the advisor can always disclose). */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-sm)' }}>
-          <button
-            type="button"
-            data-testid="notice-copy-invite"
-            onClick={() => { handleCopy('invite'); }}
-            style={copyBtnStyle}
-          >
-            {copied === 'invite' ? <Check style={iconStyle} /> : <Copy style={iconStyle} />}
-            {copied === 'invite' ? t('meetings.notice.copied') : t('meetings.notice.copy-invite')}
-          </button>
-          <button
-            type="button"
-            data-testid="notice-copy-chat"
-            onClick={() => { handleCopy('chat'); }}
-            style={copyBtnStyle}
-          >
-            {copied === 'chat' ? <Check style={iconStyle} /> : <Copy style={iconStyle} />}
-            {copied === 'chat' ? t('meetings.notice.copied') : t('meetings.notice.copy-chat')}
-          </button>
-        </div>
-        <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-          <Info aria-hidden="true" style={{ width: 12, height: 12, flex: 'none', marginTop: 1 }} />
-          {t('meetings.notice.local-note')}
-        </span>
-      </div>
+      {copyActions}
     </div>
   );
 }

@@ -26,6 +26,14 @@ vi.mock('@tauri-apps/plugin-fs', () => ({
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { setMeetingsWorkspaceService } from '@/features/meetings/meetingStore';
 
+/** The utility actions (copy/export/download/delete audio) now live behind the
+ *  header `...` menu (meetings audit items 7, 13). Open it the radix way. */
+async function openActionsMenu() {
+  const trigger = screen.getByTestId('meeting-entry-actions-menu');
+  fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false });
+  fireEvent.click(trigger);
+}
+
 function makeWorkspace(opts: { notesExists?: boolean; existingExports?: string[] } = {}) {
   const files = new Map<string, string>();
   files.set('/ws/C/Meetings/x/meeting.json', JSON.stringify({
@@ -74,7 +82,7 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     vi.clearAllMocks();
   });
 
-  it('keeps four sub-tabs at the top and mounts the send panels only on Send to team', async () => {
+  it('keeps three content tabs and opens the merged send surface in a drawer, not a fourth tab', async () => {
     const ws = makeWorkspace({ notesExists: true });
     setMeetingsWorkspaceService(ws as never);
 
@@ -85,52 +93,34 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     const recordingTab = screen.getByTestId('meeting-subtab-recording');
     const transcriptTab = screen.getByTestId('meeting-subtab-transcript');
     const summaryTab = screen.getByTestId('meeting-subtab-summary');
-    const sendToTeamTab = screen.getByTestId('meeting-subtab-send-to-team');
-    const tabs = [recordingTab, transcriptTab, summaryTab, sendToTeamTab];
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['Recording', 'Transcript', 'Summary', 'Send to team']);
+    expect([recordingTab, transcriptTab, summaryTab].map((tab) => tab.textContent)).toEqual([
+      'Recording', 'Transcript', 'Summary',
+    ]);
+    // Send left the tab row (item 1).
+    expect(screen.queryByTestId('meeting-subtab-send-to-team')).not.toBeInTheDocument();
     for (const [left, right] of [
       [recordingTab, transcriptTab],
       [transcriptTab, summaryTab],
-      [summaryTab, sendToTeamTab],
     ] as const) {
       expect(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     }
-    expect(
-      sendToTeamTab.compareDocumentPosition(screen.getByTestId('meeting-entry-tab-scroll')) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-    expect(
-      sendToTeamTab.compareDocumentPosition(screen.getByTestId('notice-trail')) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
 
     expect(screen.getByTestId('meeting-recording-tab')).toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
+    // The merged send surface is not mounted until the drawer opens.
+    expect(screen.queryByTestId('meeting-send-panel')).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
-    await waitFor(() => expect(screen.getByTestId('transcript-viewer')).toBeInTheDocument());
-    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
+    // Send is disabled until the meeting is reviewed.
+    expect(screen.getByTestId('meeting-entry-send')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('meeting-entry-mark-reviewed'));
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-send')).toBeEnabled());
 
-    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeInTheDocument());
-    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('meeting-subtab-send-to-team'));
-    await waitFor(() => expect(screen.getByTestId('meeting-recipients-panel')).toBeInTheDocument());
-    expect(screen.getByTestId('meeting-artifact-send-panel')).toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-recording-tab')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-transcript-tab')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-summary-tab')).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByTestId('meeting-subtab-recording'));
+    fireEvent.click(screen.getByTestId('meeting-entry-send'));
+    await waitFor(() => expect(screen.getByTestId('meeting-send-panel')).toBeInTheDocument());
+    // The review tabs stay mounted behind the drawer.
     expect(screen.getByTestId('meeting-recording-tab')).toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-recipients-panel')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('meeting-artifact-send-panel')).not.toBeInTheDocument();
   });
 
-  it('shows Recording, Transcript, Summary tabs; renames the meeting; exports transcript and Summary Word into the client documents folder', async () => {
+  it('shows the three tabs; renames the meeting; exports transcript and Summary Word from the actions menu', async () => {
     const ws = makeWorkspace({ notesExists: true });
     setMeetingsWorkspaceService(ws as never);
 
@@ -139,7 +129,6 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
     expect(screen.getByTestId('meeting-subtab-recording')).toBeTruthy();
     expect(screen.getByTestId('meeting-subtab-transcript')).toBeTruthy();
     expect(screen.getByTestId('meeting-subtab-summary')).toBeTruthy();
-    expect(screen.getByTestId('meeting-subtab-send-to-team')).toBeTruthy();
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry-mark-reviewed')).toBeTruthy());
     fireEvent.click(screen.getByTestId('meeting-title-rename'));
@@ -151,16 +140,14 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
       expect(JSON.parse(write?.[1] as string).customTitle).toBe('Quarterly plan review');
     });
 
-    fireEvent.click(screen.getByTestId('meeting-subtab-transcript'));
-    await waitFor(() => expect(screen.getByTestId('transcript-viewer')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('meeting-transcript-export'));
+    await openActionsMenu();
+    fireEvent.click(await screen.findByTestId('meeting-transcript-export'));
     await waitFor(() => {
       expect(ws.writeFile).toHaveBeenCalledWith('/ws/C/Meetings/x/transcript.txt', expect.stringContaining('Advisor: Hello client.'));
     });
 
-    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-summary-tab')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
+    await openActionsMenu();
+    fireEvent.click(await screen.findByTestId('meeting-summary-export-docx'));
     await waitFor(() => {
       expect(ws.writeFileBinary).toHaveBeenCalledWith('/ws/C/Documents/Quarterly plan review summary.docx', expect.any(ArrayBuffer));
     });
@@ -174,10 +161,13 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
     await waitFor(() => expect(screen.getByTestId('meeting-entry-notes-pending')).toBeTruthy());
-    expect(screen.getByTestId('meeting-summary-copy')).toBeDisabled();
-    expect(screen.getByTestId('meeting-summary-export-docx')).toBeDisabled();
-    expect(screen.getByTestId('meeting-summary-export-pdf')).toBeDisabled();
 
+    await openActionsMenu();
+    // Menu items are radix menuitems, disabled via aria-disabled, and clicking
+    // them writes nothing.
+    expect(await screen.findByTestId('meeting-summary-copy')).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByTestId('meeting-summary-export-docx')).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByTestId('meeting-summary-export-pdf')).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
     expect(ws.writeFileBinary).not.toHaveBeenCalled();
   });
@@ -191,9 +181,9 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy());
+    await openActionsMenu();
+    fireEvent.click(await screen.findByTestId('meeting-summary-export-docx'));
 
     await waitFor(() => {
       expect(ws.writeFileBinary).toHaveBeenCalledWith('/ws/C/Documents/Meeting summary 2.docx', expect.any(ArrayBuffer));
@@ -206,9 +196,9 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
 
     render(<MeetingEntry {...baseProps} workspaceService={ws as never} />);
 
-    fireEvent.click(screen.getByTestId('meeting-subtab-summary'));
-    await waitFor(() => expect(screen.getByTestId('meeting-summary-text')).toBeTruthy());
-    fireEvent.click(screen.getByTestId('meeting-summary-export-pdf'));
+    await waitFor(() => expect(screen.getByTestId('meeting-entry-actions-menu')).toBeTruthy());
+    await openActionsMenu();
+    fireEvent.click(await screen.findByTestId('meeting-summary-export-pdf'));
 
     await waitFor(() => {
       expect(ws.writeFileBinary).toHaveBeenCalledWith(
@@ -266,8 +256,11 @@ describe('MeetingEntry R7 tabs, rename, and exports', () => {
       <MeetingEntry {...baseProps} meetingDir="/ws/C/Meetings/B" folderName="B" workspaceService={ws as never} />,
     );
 
-    await waitFor(() => expect(screen.getByTestId('meeting-summary-export-docx')).toBeDisabled());
-    expect(screen.queryByTestId('meeting-summary-text')).toBeNull();
+    // Meeting B has no notes: the summary export in the actions menu is disabled
+    // and writes nothing.
+    await waitFor(() => expect(screen.queryByTestId('meeting-summary-text')).toBeNull());
+    await openActionsMenu();
+    expect(await screen.findByTestId('meeting-summary-export-docx')).toHaveAttribute('aria-disabled', 'true');
     fireEvent.click(screen.getByTestId('meeting-summary-export-docx'));
     expect(ws.writeFileBinary).not.toHaveBeenCalled();
   });

@@ -2560,11 +2560,9 @@
       "notes-pending": "notas pendientes",
       "notes-failed": "no se pudieron redactar las notas",
       "recording-incomplete": "la grabación no terminó de guardarse",
-      "activity-hint": "Cada reunión también aparece como una entrada en el historial de actividad de este cliente.",
       "record-note": "Grabado en este equipo. No se sube nada.",
       "loading": "Cargando reuniones…",
       "needs-review-badge": "Requiere revisión",
-      "reviewed-badge": "Revisada",
       "duration": "{{minutes}} min",
       "scan-error-title": "No se pudieron cargar las reuniones",
       "scan-error-body": "Algo interrumpió la comprobación. Tus grabaciones están seguras en este equipo.",
@@ -2599,16 +2597,11 @@
       "download-audio": "Descargar audio",
       "no-audio": "No hay audio guardado para esta reunión.",
       "no-one-spoke": "Nadie habló en la transcripción guardada.",
-      "copy": "Copiar",
-      "export": "Exportar",
-      "export-word": "Exportar Word",
-      "export-pdf": "Exportar PDF",
       "transcript-copied": "Transcripción copiada",
       "summary-copied": "Resumen copiado",
       "summary-empty": "Todavía no hay texto de resumen.",
       "summary-not-ready": "El resumen aún no está listo. La exportación se activa cuando haya texto real de notas.",
       "export-saved": "Guardado en {{path}}",
-      "type-chip-change": "cambiar",
       "generic-title": "Reunión",
       "dictated-title": "Nota dictada",
       "delete-audio-confirm-title": "¿Eliminar el audio de esta reunión?",
@@ -2618,10 +2611,7 @@
       "recipients": {
         "title": "Destinatarios",
         "description": "Elige quién debe recibir cada elemento de la reunión más tarde. Esto solo guarda el plan.",
-        "auto-title": "Incluidos desde la invitación",
-        "auto-description": "Todas las personas de la invitación del calendario empiezan incluidas para cada elemento de la reunión. Desmarca una persona o un elemento para dejarlo fuera.",
         "add-person": "Agregar persona",
-        "save": "Guardar plan",
         "saving": "Guardando...",
         "saved": "Guardado localmente. No se ha enviado nada.",
         "invalid-email": "Ingresa una dirección de correo válida.",
@@ -2631,7 +2621,6 @@
         "groups-description": "Los grupos se guardan dentro de la carpeta de este cliente, para que las listas de destinatarios se queden con ese cliente.",
         "group-name-placeholder": "Nombre del grupo",
         "save-group": "Guardar personas actuales como grupo",
-        "group-saved": "Grupo guardado para este cliente.",
         "use-group": "Agregar {{name}} ({{count}})",
         "artifacts": {
           "audio": {
@@ -2650,7 +2639,8 @@
             "label": "Notas",
             "help": "El archivo de notas del asesor."
           }
-        }
+        },
+        "suggestions-label": "Sugeridos:"
       },
       "send": {
         "title": "Enviar elementos de la reunión",
@@ -2683,7 +2673,16 @@
         "sent-with-errors_other": "Se intentaron {{total}} elementos; {{failed}} fallaron. Revisa el registro de envío.",
         "email-subject": "{{client}} reunión {{artifact}}: {{title}}",
         "email-body": "Hola,\n\nAdjunto está {{artifact}} de la reunión de {{client}}: {{title}}.\n\nEnviado desde mi cuenta de correo conectada después de revisarlo."
-      }
+      },
+      "send-review-first": "Revisa primero",
+      "export-summary-word": "Exportar resumen como Word",
+      "copy-summary": "Copiar resumen",
+      "actions-menu": "Más acciones",
+      "export-transcript": "Exportar transcripción",
+      "copy-transcript": "Copiar transcripción",
+      "send-action": "Enviar",
+      "export-summary-pdf": "Exportar resumen como PDF",
+      "type-change": "Cambiar tipo"
     },
     "types": {
       "annual-review": "Revisión anual",
@@ -2703,7 +2702,11 @@
       "mac-permission-button": "Abrir Preferencias del Sistema",
       "two-party-note-unknown": "Si su estado exige el consentimiento de todos, pregunte antes de grabar. Sugerencia: «Me gustaría grabar esto para mis notas. ¿Les parece bien a todos?»",
       "start-failed": "La grabación no pudo iniciarse: {{message}}",
-      "low-disk-warning": "Poco espacio en disco. Es posible que las grabaciones largas no quepan."
+      "low-disk-warning": "Poco espacio en disco. Es posible que las grabaciones largas no quepan.",
+      "step-start": "3. Empieza a grabar",
+      "step-say": "2. Di el aviso",
+      "rules-details": "Reglas de grabación",
+      "step-ask": "1. Pide consentimiento"
     },
     "dictation": {
       "file-as-meeting-note": "Archivar como nota de reunión…",
@@ -2719,7 +2722,6 @@
       "verified-chip": "Aviso hablado detectado a las {{time}}",
       "verified-detail": "Detectado en la grabación: «{{snippet}}»",
       "unverified-title": "No se detectó ningún aviso de grabación hablado en los primeros 5 minutos de esta reunión.",
-      "unverified-body": "Si lo comunicó a todos de otra forma, o la transcripción simplemente no lo captó, indíquenos cómo desea registrarlo.",
       "resolve-disclosed": "Avisado por adelantado (invitación o chat)",
       "resolve-missed": "Se dio el aviso, la transcripción no lo captó",
       "resolve-ack": "Reconocer la omisión",
@@ -2746,13 +2748,16 @@
       "settings-script-label": "Lo que dice en voz alta",
       "settings-script-placeholder": "Déjelo en blanco para usar el texto integrado.",
       "settings-script-default-label": "Texto integrado:",
-      "pill-copy-chat": "Copiar aviso para el chat"
+      "pill-copy-chat": "Copiar aviso para el chat",
+      "details": "Detalles"
     },
     "auto-join": {
       "heading": "Se unirá automáticamente",
       "body": "Estas reuniones iniciarán el mismo flujo de grabación y Notice Card que el botón Grabar.",
       "error": "No se pudieron revisar las próximas reuniones.",
-      "disable": "No unirse"
+      "disable": "No unirse",
+      "summary_one": "Se unirá automáticamente a {{count}} reunión",
+      "summary_other": "Se unirá automáticamente a {{count}} reuniones"
     },
     "notice-card": {
       "offer-label": "¿Añadir la Tarjeta de Aviso a esta reunión?",
@@ -2788,7 +2793,9 @@
       "settings-name-label": "Nombre de la Tarjeta de Aviso (usa {advisor} para tu nombre)",
       "settings-evidence-label": "Qué satisface un aviso de grabación estricto",
       "settings-evidence-either": "Un aviso hablado o la tarjeta presente toda la reunión",
-      "settings-evidence-both": "Un aviso hablado y la tarjeta presente toda la reunión"
+      "settings-evidence-both": "Un aviso hablado y la tarjeta presente toda la reunión",
+      "pill-present-short": "En la reunión",
+      "offer-explain-summary": "¿Qué es esto?"
     },
     "before-you-meet": {
       "title": "Before you meet",

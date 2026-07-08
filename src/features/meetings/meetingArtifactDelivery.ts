@@ -72,6 +72,24 @@ export interface MeetingSendDeps {
 
 const DOCX_TYPE = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const MEETING_SEND_REVIEW_AGAIN_MESSAGE = 'Recipients changed. Review the send again before emailing.';
+export const MEETING_SEND_NOT_REVIEWED_MESSAGE = 'Mark the meeting reviewed before sending.';
+
+/** A stable signature of a send preview's user-visible facts (per artifact:
+ *  the subject, body, attachment name, and recipient set). Two previews with
+ *  the same signature would produce byte-identical emails. */
+function sendPreviewSignature(preview: MeetingSendPreview): string {
+  return JSON.stringify(
+    preview.items
+      .map((item) => [
+        item.artifact,
+        item.subject,
+        item.body,
+        item.attachmentName,
+        item.recipients.map((recipient) => recipient.email).sort(),
+      ])
+      .sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+  );
+}
 
 export function emptyMeetingDeliveryStatus(): MeetingDeliveryStatus {
   return { version: 1, sendLog: [] };
@@ -152,11 +170,22 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
   if (base.matterId !== deps.matterId) {
     throw new Error('This meeting belongs to a different client.');
   }
+  // Defense in depth: the panel gates Review on meta.reviewedAt, but the sender
+  // re-checks the meeting on disk so an unreviewed meeting can never be emailed
+  // even if a caller bypasses the UI gate.
+  if (!base.reviewedAt) {
+    throw new Error(MEETING_SEND_NOT_REVIEWED_MESSAGE);
+  }
   const openedPlan = normalizeMeetingDeliveryPlan(deps.meta.deliveryPlan);
   const latestPlan = normalizeMeetingDeliveryPlan(base.deliveryPlan);
   if (!sameRecipientArtifacts(openedPlan.artifacts, latestPlan.artifacts)) {
     throw new Error(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
   }
+  // The user confirmed `deps.preview`. Rebuild the preview from the latest saved
+  // meeting.json and refuse to send if it differs at all (e.g. the title was
+  // renamed between opening the dialog and confirming) — otherwise the user
+  // would confirm one email and we would send a different one. We then send the
+  // exact confirmed snapshot, never a silently-rebuilt one.
   const freshPreview = buildMeetingSendPreview({
     meta: base,
     availability: deps.availability,
@@ -164,13 +193,16 @@ export async function sendMeetingArtifacts(deps: MeetingSendDeps): Promise<Meeti
     clientName: deps.clientName,
     t: deps.t,
   });
-  if (freshPreview.items.length === 0) return [];
+  if (sendPreviewSignature(freshPreview) !== sendPreviewSignature(deps.preview)) {
+    throw new Error(MEETING_SEND_REVIEW_AGAIN_MESSAGE);
+  }
+  if (deps.preview.items.length === 0) return [];
 
   const now = deps.nowIso ?? new Date().toISOString();
   const sendMail = deps.sendMail ?? defaultMailSend;
   const entries: MeetingSendLogEntry[] = [];
 
-  for (const item of freshPreview.items) {
+  for (const item of deps.preview.items) {
     const id = deps.idFactory?.() ?? `meeting_send_${String(Date.now())}_${Math.random().toString(36).slice(2, 9)}`;
     try {
       const attachment = await buildAttachment(item, deps);

@@ -125,71 +125,99 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
     );
   }
 
+  // Legal disclaimer folds behind a "Recording rules" disclosure, EXCEPT when
+  // the state is conservative/unknown (two-party), where the recording law is
+  // ambiguous and the disclaimer must stay in view (item 9, trust ladder).
+  const disclaimerInline = consentMode === 'two-party';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[440px]" data-testid="consent-dialog">
         <DialogHeader>
           <DialogTitle>{t('meetings.consent.title')}</DialogTitle>
         </DialogHeader>
-        <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
-          {t('meetings.consent.body-local')}
-        </p>
-        {lowDiskSpace && (
-          <p data-testid="consent-low-disk-warning" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-warning, #b45309)', margin: 0 }}>
-            {t('meetings.consent.low-disk-warning')}
+
+        {/* Step 1 — ask for consent. */}
+        <div style={stepStyle}>
+          <span style={stepHeadingStyle}>{t('meetings.consent.step-ask')}</span>
+          <p style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', margin: 0 }}>
+            {t('meetings.consent.body-local')}
           </p>
-        )}
-        {/* Trust review E2 / Legion bug: the "say this out loud" step ALWAYS
-            renders when starting a recording (falls back to the built-in wording
-            via `sayThis`), never gated on a possibly-empty prop. */}
-        <div
-          data-testid="consent-notice-script"
-          style={{
-            border: '1px solid var(--kp-accent-soft)',
-            background: 'var(--kp-accent-soft)',
-            borderRadius: 'var(--radius-md)',
-            padding: '10px 12px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 4,
-          }}
-        >
-          <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-            {t('meetings.notice.consent-script-heading')}
-          </span>
-          <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
-            “{sayThis}”
-          </span>
-          <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-            {t('meetings.notice.consent-script-hint')}
-          </span>
+          {lowDiskSpace && (
+            <p data-testid="consent-low-disk-warning" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-warning, #b45309)', margin: 0 }}>
+              {t('meetings.consent.low-disk-warning')}
+            </p>
+          )}
+          {consentMode === 'two-party' && (
+            <p
+              data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}
+              style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', margin: 0 }}
+            >
+              {stateKnown ? t('meetings.consent.two-party-note') : t('meetings.consent.two-party-note-unknown')}
+            </p>
+          )}
+          {standingConsent && (
+            <p data-testid="standing-consent-note" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', margin: 0 }}>
+              {t('meetings.consent.standing-note', { date: formatDate(standingConsent.confirmedAt) })}
+            </p>
+          )}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--kp-font-sm)' }}>
+            <input
+              type="checkbox"
+              data-testid="consent-checkbox"
+              checked={checked}
+              onChange={(e) => { setChecked(e.target.checked); }}
+            />
+            {t('meetings.consent.checkbox')}
+          </label>
         </div>
-        {noticeCard && <NoticeCardConsentSection {...noticeCard} />}
-        {consentMode === 'two-party' && (
-          <p
-            data-testid={stateKnown ? 'consent-two-party-note' : 'consent-two-party-note-unknown'}
-            style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}
+
+        {/* Step 2 — say the notice out loud (always rendered; protected). */}
+        <div style={stepStyle}>
+          <span style={stepHeadingStyle}>{t('meetings.consent.step-say')}</span>
+          <div
+            data-testid="consent-notice-script"
+            style={{
+              border: '1px solid var(--kp-accent-soft)',
+              background: 'var(--kp-accent-soft)',
+              borderRadius: 'var(--radius-md)',
+              padding: '10px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+            }}
           >
-            {stateKnown ? t('meetings.consent.two-party-note') : t('meetings.consent.two-party-note-unknown')}
-          </p>
-        )}
-        {standingConsent && (
-          <p data-testid="standing-consent-note" style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-            {t('meetings.consent.standing-note', { date: formatDate(standingConsent.confirmedAt) })}
-          </p>
-        )}
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--kp-font-sm)' }}>
-          <input
-            type="checkbox"
-            data-testid="consent-checkbox"
-            checked={checked}
-            onChange={(e) => { setChecked(e.target.checked); }}
-          />
-          {t('meetings.consent.checkbox')}
-        </label>
-        <p style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
-          {t('meetings.consent.disclaimer')}
-        </p>
+            <span style={{ fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+              {t('meetings.notice.consent-script-heading')}
+            </span>
+            <span data-testid="consent-notice-script-text" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)', fontStyle: 'italic' }}>
+              “{sayThis}”
+            </span>
+            <span style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)' }}>
+              {t('meetings.notice.consent-script-hint')}
+            </span>
+          </div>
+          {noticeCard && <NoticeCardConsentSection {...noticeCard} />}
+        </div>
+
+        {/* Step 3 — start recording (the footer button); recording rules. */}
+        <div style={stepStyle}>
+          <span style={stepHeadingStyle}>{t('meetings.consent.step-start')}</span>
+          {disclaimerInline ? (
+            <p data-testid="consent-disclaimer" style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', margin: 0 }}>
+              {t('meetings.consent.disclaimer')}
+            </p>
+          ) : (
+            <details>
+              <summary data-testid="consent-rules-toggle" style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', cursor: 'pointer' }}>
+                {t('meetings.consent.rules-details')}
+              </summary>
+              <p data-testid="consent-disclaimer" style={{ fontSize: 'var(--kp-font-2xs)', color: 'var(--color-muted-foreground)', margin: '4px 0 0' }}>
+                {t('meetings.consent.disclaimer')}
+              </p>
+            </details>
+          )}
+        </div>
         {errorMessage && (
           <p data-testid="consent-error" role="alert" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--kp-danger)', margin: 0 }}>
             {t('meetings.consent.start-failed', { message: errorMessage })}
@@ -211,5 +239,19 @@ export function ConsentDialog({ open, onOpenChange, consentMode, stateKnown = tr
     </Dialog>
   );
 }
+
+const stepStyle: React.CSSProperties = {
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 6,
+};
+
+const stepHeadingStyle: React.CSSProperties = {
+  fontSize: 'var(--kp-font-xs)',
+  fontWeight: 'var(--kp-weight-semibold)',
+  color: 'var(--color-muted-foreground)',
+  textTransform: 'uppercase',
+  letterSpacing: '0.02em',
+};
 
 export default ConsentDialog;

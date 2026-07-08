@@ -28,10 +28,12 @@ const verified: NoticeEntry = { kind: 'verbal-notice-verified', meetingDir: DIR,
 const notDetected: NoticeEntry = { kind: 'verbal-notice-not-detected', meetingDir: DIR, at: 't' };
 
 describe('NoticeTrail', () => {
-  it('shows a verified chip with the timestamp and snippet', () => {
+  it('shows a verified chip with the timestamp and the snippet inside Details', () => {
     renderTrail([verified]);
     const chip = screen.getByTestId('notice-verified-chip');
     expect(chip.textContent).toContain('0:14');
+    // The snippet + copy tools collapse behind Details for a verified meeting.
+    fireEvent.click(screen.getByTestId('notice-details-toggle'));
     expect(screen.getByTestId('notice-trail').textContent).toContain('recording this for my notes');
   });
 
@@ -67,6 +69,7 @@ describe('NoticeTrail', () => {
 
   it('copies the invite disclosure and records a ledger entry', async () => {
     const { onRecordNotice, copyText } = renderTrail([verified]);
+    fireEvent.click(screen.getByTestId('notice-details-toggle'));
     fireEvent.click(screen.getByTestId('notice-copy-invite'));
     await waitFor(() => { expect(copyText).toHaveBeenCalledWith('INVITE TEXT'); });
     await waitFor(() => { expect(onRecordNotice).toHaveBeenCalledTimes(1); });
@@ -76,6 +79,7 @@ describe('NoticeTrail', () => {
 
   it('copies the chat notice and records a ledger entry', async () => {
     const { onRecordNotice, copyText } = renderTrail([verified]);
+    fireEvent.click(screen.getByTestId('notice-details-toggle'));
     fireEvent.click(screen.getByTestId('notice-copy-chat'));
     await waitFor(() => { expect(copyText).toHaveBeenCalledWith('CHAT TEXT'); });
     await waitFor(() => { expect(onRecordNotice).toHaveBeenCalledTimes(1); });
@@ -85,6 +89,7 @@ describe('NoticeTrail', () => {
   it('does NOT record a ledger entry when the clipboard copy fails (codex-review R5)', async () => {
     const failingCopy = vi.fn(() => Promise.reject(new Error('clipboard blocked')));
     const { onRecordNotice } = renderTrail([verified], { copyText: failingCopy });
+    fireEvent.click(screen.getByTestId('notice-details-toggle'));
     fireEvent.click(screen.getByTestId('notice-copy-invite'));
     await waitFor(() => { expect(failingCopy).toHaveBeenCalledTimes(1); });
     expect(onRecordNotice).not.toHaveBeenCalled();

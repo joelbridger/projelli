@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CalendarClock, Video, XCircle } from 'lucide-react';
+import { CalendarClock, ChevronDown, ChevronRight, Video, XCircle } from 'lucide-react';
 import { calendarListEvents, CALENDAR_SYNC_EVENT } from '@/platform/utils/calendar-commands';
 import { useActiveMatters } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -38,6 +38,7 @@ export function AutoJoinMeetingsPanel() {
   const disabledKeys = useDisabledAutoJoinEventKeys();
   const [willJoin, setWillJoin] = useState<AutoJoinCandidate[]>([]);
   const [error, setError] = useState(false);
+  const [expanded, setExpanded] = useState(false);
 
   const refresh = useCallback(async () => {
     const nowMs = Date.now();
@@ -96,18 +97,28 @@ export function AutoJoinMeetingsPanel() {
       data-testid="meeting-auto-join-panel"
       style={{ marginTop: 'var(--kp-space-md)' }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)' }}>
-        <CalendarClock aria-hidden="true" style={{ width: 18, height: 18, color: 'var(--kp-accent)' }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-            {t('meetings.auto-join.heading')}
-          </div>
-          <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', marginTop: 2 }}>
-            {t('meetings.auto-join.body')}
-          </div>
+      {/* Slim strip by default (item 25): a one-line summary + chevron; the
+          rows and Don't join controls appear only once expanded. */}
+      <button
+        type="button"
+        data-testid="meeting-auto-join-toggle"
+        aria-expanded={expanded}
+        onClick={() => { setExpanded((open) => !open); }}
+        style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)', width: '100%', border: 'none', background: 'transparent', padding: 0, cursor: willJoin.length > 0 ? 'pointer' : 'default', fontFamily: 'inherit', textAlign: 'left' }}
+        disabled={willJoin.length === 0}
+      >
+        <CalendarClock aria-hidden="true" style={{ width: 18, height: 18, color: 'var(--kp-accent)', flex: 'none' }} />
+        <div style={{ flex: 1, minWidth: 0, fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+          {willJoin.length > 0
+            ? t('meetings.auto-join.summary', { count: willJoin.length })
+            : t('meetings.auto-join.heading')}
         </div>
-        <Badge variant="neutral" size="sm">{String(willJoin.length)}</Badge>
-      </div>
+        {willJoin.length > 0 && (
+          expanded
+            ? <ChevronDown aria-hidden="true" style={{ width: 16, height: 16, color: 'var(--color-muted-foreground)', flex: 'none' }} />
+            : <ChevronRight aria-hidden="true" style={{ width: 16, height: 16, color: 'var(--color-muted-foreground)', flex: 'none' }} />
+        )}
+      </button>
 
       {error && (
         <div data-testid="meeting-auto-join-error" style={{ marginTop: 'var(--kp-space-sm)', fontSize: 'var(--kp-font-xs)', color: 'var(--color-danger)' }}>
@@ -115,8 +126,11 @@ export function AutoJoinMeetingsPanel() {
         </div>
       )}
 
-      {willJoin.length > 0 && (
+      {expanded && willJoin.length > 0 && (
         <div style={{ marginTop: 'var(--kp-space-md)', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
+          <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+            {t('meetings.auto-join.body')}
+          </div>
           {willJoin.map((candidate) => {
             const matter = matters.find((m) => m.id === candidate.matterId);
             return (

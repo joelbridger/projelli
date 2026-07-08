@@ -193,22 +193,29 @@ export function RecordPill() {
           <Check style={{ width: 11, height: 11 }} />
           {t('meetings.pill.local')}
         </span>
-        {noticeCardPill && (
+        {/* Notice Card status stays quiet when normal: a present card shows a
+            tiny success chip with a tooltip; only the in-progress/failed states
+            spell out a full status line (item 10). */}
+        {noticeCardPill && noticeCardPill.kind === 'present' && (
+          <span
+            data-testid="record-pill-notice-card"
+            title={t('meetings.notice-card.pill-present')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', color: 'var(--kp-success)', cursor: 'default' }}
+          >
+            <Check style={{ width: 11, height: 11 }} />
+            {t('meetings.notice-card.pill-present-short')}
+          </span>
+        )}
+        {noticeCardPill && noticeCardPill.kind !== 'present' && (
           <span
             data-testid="record-pill-notice-card"
             style={{
               fontSize: 'var(--kp-font-2xs)',
-              color:
-                noticeCardPill.tone === 'ok'
-                  ? 'var(--kp-success)'
-                  : noticeCardPill.tone === 'warn'
-                    ? 'var(--kp-danger)'
-                    : 'var(--color-muted-foreground)',
+              color: noticeCardPill.tone === 'warn' ? 'var(--kp-danger)' : 'var(--color-muted-foreground)',
             }}
           >
             {noticeCardPill.kind === 'joining' && t('meetings.notice-card.pill-joining')}
             {noticeCardPill.kind === 'lobby' && t('meetings.notice-card.pill-lobby')}
-            {noticeCardPill.kind === 'present' && t('meetings.notice-card.pill-present')}
             {noticeCardPill.kind === 'failed' && t('meetings.notice-card.pill-failed')}
             {noticeCardPill.kind === 'window-open-failed' && t('meetings.notice-card.pill-window-open-failed')}
           </span>
@@ -223,20 +230,16 @@ export function RecordPill() {
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 5,
           border: '1px solid var(--kp-divider)',
           background: 'transparent',
           color: 'var(--kp-navy)',
           borderRadius: 999,
-          padding: '6px 10px',
-          fontSize: 'var(--kp-font-2xs)',
-          fontWeight: 'var(--kp-weight-medium)',
+          padding: 8,
           cursor: 'pointer',
           fontFamily: 'inherit',
         }}
       >
-        {chatCopied ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
-        {chatCopied ? t('meetings.notice.copied') : t('meetings.notice.pill-copy-chat')}
+        {chatCopied ? <Check style={{ width: 13, height: 13 }} /> : <Copy style={{ width: 13, height: 13 }} />}
       </button>
       <button
         type="button"
