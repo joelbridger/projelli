@@ -105,6 +105,7 @@
      Tune the whole app's rhythm from here; surfaces reference these, not raw numbers. ---- */
   --kp-gutter: var(--kp-space-xl);                                          /* 32px — left/right padding of every full-page surface */
   --kp-surface-header-pad: var(--kp-space-lg) var(--kp-gutter) var(--kp-space-md); /* 24px 32px 16px — the [icon] Title + description header block */
+  --kp-surface-header-row-height: var(--kp-control-md);                      /* one title-row height across Ask / Client Map / Workflows */
   --kp-surface-gap: var(--kp-space-lg);                                     /* 24px — space between a surface's header divider and its content (never 0) */
   --kp-card-pad: var(--kp-space-lg);                                        /* 24px — padding inside cards / panels */
   --kp-section-gap: var(--kp-space-xl);                                     /* 32px — vertical space between major sections */
@@ -123,6 +124,8 @@
   --kp-font-xl:  18px;
   --kp-font-2xl: 22px;   /* surface titles */
   --kp-font-3xl: 28px;
+  --kp-rail-row-title-font-size: var(--kp-font-sm); /* rail row titles */
+  --kp-rail-row-meta-font-size: var(--kp-font-2xs); /* rail row dates / counts / meta */
   --kp-weight-regular: 400;
   --kp-weight-medium: 500;
   --kp-weight-semibold: 600;

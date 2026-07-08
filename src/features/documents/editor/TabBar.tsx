@@ -898,10 +898,10 @@ export function TabBar({
         role="presentation"
         // `group` enables group-hover:* targeting on descendants.
         className={cn(
-          'group flex items-center text-sm transition-colors relative flex-shrink-0 snap-start',
+          'group flex items-center transition-colors relative flex-shrink-0 snap-start',
           isVertical
-            ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left'
-            : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px]',
+            ? 'w-full min-w-0 gap-2 rounded-md border border-transparent px-3 py-2 text-left text-[var(--kp-rail-row-title-font-size)]'
+            : 'gap-1 px-3 py-1.5 border-r min-w-[120px] max-w-[200px] text-sm',
           isVertical && opts.insideGroup && 'ml-5 w-[calc(100%-1.25rem)]',
           isActive
             ? isVertical
@@ -1406,10 +1406,10 @@ export function TabBar({
         data-leading-tab-id={item.id}
         aria-selected={item.isActive}
         className={cn(
-          'relative flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0',
+          'relative flex items-center gap-1.5 font-medium transition-colors flex-shrink-0',
           isVertical
-            ? 'w-full rounded-md border border-transparent px-3 py-2 text-left'
-            : 'px-3 border-r',
+            ? 'w-full rounded-md border border-transparent px-3 py-2 text-left text-[var(--kp-rail-row-title-font-size)]'
+            : 'px-3 border-r text-sm',
           item.isActive
             ? isVertical
               ? 'bg-[var(--kp-accent-soft)] text-[var(--kp-navy)] border-[rgba(var(--kp-navy-rgb),0.10)]'

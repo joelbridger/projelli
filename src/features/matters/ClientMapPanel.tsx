@@ -177,7 +177,7 @@ const panelTitleStyle: CSSProperties = {
 };
 
 const mutedCountStyle: CSSProperties = {
-  fontSize: 'var(--kp-font-2xs)',
+  fontSize: 'var(--kp-rail-row-meta-font-size)',
   fontWeight: 'var(--kp-weight-bold)',
   color: 'var(--color-muted-foreground)',
   flex: 'none',
@@ -419,7 +419,7 @@ function TabButton({
         style={{
           flex: 1,
           minWidth: 0,
-          fontSize: 'var(--kp-font-sm)',
+          fontSize: 'var(--kp-rail-row-title-font-size)',
           fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
           color: muted && !active ? 'var(--color-muted-foreground)' : 'var(--kp-navy)',
           overflow: 'hidden',

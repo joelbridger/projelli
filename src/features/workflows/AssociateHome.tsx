@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  ListChecks,
   Search,
   Loader2,
   PanelLeftClose,
@@ -41,6 +42,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { Button, Eyebrow, Card, EmptyState, Callout, IconButton, RailShell, RailShellHeader, TrustNote } from '@/ui/kp';
+import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import type { WorkflowTemplate, WorkflowExecution, RunRecord, WorkflowChain } from '@/platform/types/workflow';
 import { loadAllTemplates } from '@/features/workflows/engine/userTemplates';
 import { prioritizeByProfession } from '@/features/workflows/engine/prioritizeByProfession';
@@ -304,7 +306,7 @@ function WorkflowRailRow({
   return (
     <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 4 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-        <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 650 }}>
+        <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-rail-row-title-font-size)', fontWeight: 'var(--kp-weight-medium)' }}>
           {template.name}
         </span>
         {isFeatured ? (
@@ -882,6 +884,7 @@ export function AssociateHome({
       data-testid="associate-home"
       style={{
         display: 'flex',
+        flexDirection: 'column',
         height: '100%',
         flex: 1,
         minHeight: 0,
@@ -891,6 +894,20 @@ export function AssociateHome({
         overflow: 'hidden',
       }}
     >
+      <div
+        data-testid="associate-surface-header"
+        style={{
+          padding: 'var(--kp-surface-header-pad)',
+          borderBottom: '1px solid var(--kp-divider)',
+          flexShrink: 0,
+        }}
+      >
+        <SurfaceHeader
+          Icon={ListChecks}
+          iconColor="var(--kp-accent)"
+          title={t('spine.nav.workflows')}
+        />
+      </div>
       <RailShell
         header={
           <WorkflowRailHeader

@@ -80,7 +80,7 @@ function RailItem({
         border: '1px solid transparent',
         background: active ? 'var(--kp-accent-soft)' : 'transparent',
         color: active ? 'var(--kp-navy)' : 'var(--color-foreground)',
-        fontSize: '13px',
+        fontSize: 'var(--kp-rail-row-title-font-size)',
         fontWeight: active ? 'var(--kp-weight-semibold)' : 'var(--kp-weight-medium)',
         cursor: 'pointer',
         textAlign: 'left',
@@ -96,7 +96,7 @@ function RailItem({
     >
       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{label}</span>
       {session.dateLabel && (
-        <span style={{ fontSize: '11px', color: 'var(--kp-text-faint)', fontWeight: 'var(--kp-weight-regular)', flex: 'none' }}>
+        <span style={{ fontSize: 'var(--kp-rail-row-meta-font-size)', color: 'var(--kp-text-faint)', fontWeight: 'var(--kp-weight-regular)', flex: 'none' }}>
           {session.dateLabel}
         </span>
       )}

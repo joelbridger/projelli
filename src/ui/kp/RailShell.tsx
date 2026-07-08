@@ -274,7 +274,7 @@ export function RailShell({
         aria-label={rowAriaLabel}
         data-testid={item.testId}
         className={cn(
-          'group flex min-h-[42px] w-full items-center gap-2 rounded-md border border-transparent px-3 py-2.5 text-left text-[var(--kp-font-sm)] transition-colors',
+          'group flex min-h-[42px] w-full items-center gap-2 rounded-md border border-transparent px-3 py-2.5 text-left text-[var(--kp-rail-row-title-font-size)] transition-colors',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--kp-navy)] focus-visible:ring-offset-2',
           item.disabled && 'cursor-not-allowed opacity-[var(--kp-opacity-disabled)]',
           isActive
@@ -299,7 +299,7 @@ export function RailShell({
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="truncate font-medium leading-tight">{item.label}</span>
               {item.supportingText ? (
-                <span className="truncate text-xs leading-snug text-[var(--kp-side-fg-dim)]">{item.supportingText}</span>
+                <span className="truncate text-[var(--kp-rail-row-meta-font-size)] leading-snug text-[var(--kp-side-fg-dim)]">{item.supportingText}</span>
               ) : null}
             </span>
             {item.trailing ? <span className="ml-auto flex shrink-0 items-center">{item.trailing}</span> : null}

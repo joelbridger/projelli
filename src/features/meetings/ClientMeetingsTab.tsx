@@ -487,10 +487,10 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
         // Title-first, no per-row mic tile (item 16): every row here is already
         // a meeting, so the repeated icon only ate the 268px rail.
         <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 5 }}>
-          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-rail-row-title-font-size)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
             {meetingDisplayTitle(m.meta, t)}
           </span>
-          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-rail-row-meta-font-size)', color: 'var(--color-muted-foreground)' }}>
             {subtitle}
           </div>
           {/* Only status that changes behaviour stays in the rail (item 17):
