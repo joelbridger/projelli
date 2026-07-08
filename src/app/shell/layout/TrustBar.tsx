@@ -12,25 +12,21 @@
  * keeps the right-side trust controls together so desktop harnesses still grip
  * data-testid="trust-bar".
  */
-import { Info, Lock } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { useActiveMatter } from '@/platform/matter/matterStore';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressDestination } from '@/platform/hooks/useActiveEgressProvider';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/ui/tooltip';
 import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
-import { EV_OPEN_PRIVACY_CENTER, EV_OPEN_SETTINGS } from '@/config/identity';
+import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 
 interface TrustBarProps {
   inline?: boolean;
+  onOpenAiSettings?: (() => void) | undefined;
 }
 
-export function TrustBar({ inline = false }: TrustBarProps) {
+export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
   const activeMatter = useActiveMatter();
   const confidentialityMode = useConfidentialityMode();
   // Single source of truth: provider id + whether the firm assured proxy is live,
@@ -76,27 +72,6 @@ export function TrustBar({ inline = false }: TrustBarProps) {
         borderBottom: inline ? 'none' : '1px solid var(--color-border)',
       }}
     >
-      {/* Info affordance: reveals the full data-routing explanation on hover.
-          A7: title added as a standard browser tooltip alongside the Radix tooltip. */}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <IconButton
-            icon={Info}
-            label="Data flow"
-            variant="ghost"
-            size="xs"
-            {...(inline ? { className: 'hidden sm:inline-flex' } : {})}
-            title="Data flow"
-            style={{ flexShrink: 0 }}
-          />
-        </TooltipTrigger>
-        <TooltipContent side="bottom" style={{ maxWidth: 340, lineHeight: 1.5, zIndex: 'var(--kp-z-tooltip)' as unknown as number }}>
-          <p style={{ marginBottom: 4, fontWeight: 600 }}>Data flow</p>
-          <p style={{ marginBottom: 6 }}>{egressTooltip}</p>
-          <p style={{ color: 'var(--color-muted-foreground)' }}>{scopeSubtitle}</p>
-        </TooltipContent>
-      </Tooltip>
-
       {/* F1: the ONE always-visible egress pill for the whole app. The short
           status form ("Using local AI" / "Using cloud AI" / "No AI connected");
           the full provider detail stays in its tooltip + the inspectable data-*
@@ -107,7 +82,8 @@ export function TrustBar({ inline = false }: TrustBarProps) {
         mode={confidentialityMode}
         assuredAvailable={assuredAvailable}
         variant="status"
-        onClick={() => { window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } })); }}
+        onClick={onOpenAiSettings}
+        tooltipExtra={`${egressTooltip} ${scopeSubtitle}`}
         {...(inline
           ? { className: 'min-w-0 shrink overflow-hidden' }
           : {})}

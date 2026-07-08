@@ -5,12 +5,11 @@
  * SurfaceHeader, live egress status, the DataMapContent, and a
  * "Confidentiality Report" action for the active matter.
  *
- * Also surfaces the "Generate a security overview for my firm" button that
- * opens the FirmSecurityPack — the printable trust document for IT / GC.
+ * Also surfaces Privacy Center export actions for Word or PDF.
  */
 import { useState, useCallback, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, MapPin, MoreHorizontal } from 'lucide-react';
+import { Lock, Download, MapPin, MoreHorizontal } from 'lucide-react';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Matter } from '@/platform/types/matter';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -30,7 +29,10 @@ import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode'
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
 import type { ConfidentialityReport } from '@/platform/privacy/confidentialityReport';
-import { FirmSecurityPack } from '@/features/privacy/FirmSecurityPack';
+import {
+  exportPrivacyCenterOverviewDocx,
+  exportPrivacyCenterOverviewPdf,
+} from '@/features/privacy/privacyCenterOverviewExport';
 
 export interface PrivacyCenterHomeProps {
   auditEntries: AuditEntry[];
@@ -40,7 +42,6 @@ export interface PrivacyCenterHomeProps {
 export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterHomeProps) {
   const { t } = useTranslation();
   const [reportOpen, setReportOpen] = useState(false);
-  const [firmPackOpen, setFirmPackOpen] = useState(false);
   const dataMapSectionRef = useRef<HTMLElement | null>(null);
   const confidentialityMode = useConfidentialityMode();
   const activeProvider = useActiveEgressProvider(confidentialityMode);
@@ -120,12 +121,28 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
                 <DropdownMenuContent align="end" className="w-64">
                   {/* eslint-disable lantern-i18n/no-hardcoded-string -- trust-document button copy, English-canonical */}
                   <DropdownMenuItem
-                    data-testid="privacy-center-firm-pack-button"
+                    data-testid="privacy-center-export-docx"
                     className="gap-2"
-                    onSelect={() => { setFirmPackOpen(true); }}
+                    onSelect={() => {
+                      void exportPrivacyCenterOverviewDocx().catch((error: unknown) => {
+                        console.error('Failed to export Privacy Center Word document:', error);
+                      });
+                    }}
                   >
-                    <FileText className="h-4 w-4" aria-hidden />
-                    Generate a security overview for my firm
+                    <Download className="h-4 w-4" aria-hidden />
+                    Export privacy center (Word)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    data-testid="privacy-center-export-pdf"
+                    className="gap-2"
+                    onSelect={() => {
+                      void exportPrivacyCenterOverviewPdf().catch((error: unknown) => {
+                        console.error('Failed to export Privacy Center PDF:', error);
+                      });
+                    }}
+                  >
+                    <Download className="h-4 w-4" aria-hidden />
+                    Export privacy center (PDF)
                   </DropdownMenuItem>
                   {/* eslint-enable lantern-i18n/no-hardcoded-string */}
                 </DropdownMenuContent>
@@ -191,43 +208,6 @@ export function PrivacyCenterHome({ auditEntries, activeMatter }: PrivacyCenterH
         />
       )}
 
-      {/* Firm Security Pack overlay — slides in over the privacy center */}
-      {firmPackOpen && (
-        <div
-          data-testid="firm-security-pack-overlay"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'var(--color-background)',
-            zIndex: 10,
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          <div
-            style={{
-              padding: '0.5rem var(--kp-gutter)',
-              borderBottom: '1px solid var(--color-border)',
-              flexShrink: 0,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end',
-            }}
-          >
-            <Button
-              variant="ghost"
-              size="sm"
-              data-testid="firm-security-pack-close-button"
-              onClick={() => { setFirmPackOpen(false); }}
-            >
-              Close
-            </Button>
-          </div>
-          <div style={{ flex: 1, overflow: 'hidden' }}>
-            <FirmSecurityPack />
-          </div>
-        </div>
-      )}
     </div>
   );
 }

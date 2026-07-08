@@ -78,10 +78,15 @@ describe('PrivacyCenterHome', () => {
     expect(screen.queryByTestId('privacy-center-report-button')).toBeNull();
   });
 
-  it('moves the firm security overview into the actions menu', () => {
+  it('offers Privacy Center Word and PDF exports in the actions menu', () => {
     render(<PrivacyCenterHome auditEntries={SAMPLE_ENTRIES} activeMatter={null} />);
     fireEvent.pointerDown(screen.getByTestId('privacy-center-actions-menu'), { button: 0, ctrlKey: false });
-    expect(screen.getByTestId('privacy-center-firm-pack-button').textContent).toContain('security overview');
+    expect(screen.getByTestId('privacy-center-export-docx')).toHaveTextContent(
+      'Export privacy center (Word)',
+    );
+    expect(screen.getByTestId('privacy-center-export-pdf')).toHaveTextContent(
+      'Export privacy center (PDF)',
+    );
   });
 
   it('shows one confidentiality report button when a matter is active', () => {

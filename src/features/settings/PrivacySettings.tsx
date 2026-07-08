@@ -241,6 +241,9 @@ export function PrivacySettings() {
             }
           />
         </div>
+        <p className="text-sm text-muted-foreground">
+          {t('settings.privacy.email.empty')}
+        </p>
       </div>
     </div>
   );

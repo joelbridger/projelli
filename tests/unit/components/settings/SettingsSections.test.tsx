@@ -132,17 +132,17 @@ describe('SettingsModal section groups', () => {
     expect(screen.getByTestId('subheader-recording-notice')).toBeInTheDocument();
   });
 
-  it('Advanced section shows Extensions, Updates, and Advanced groups together', () => {
+  it('Advanced section shows Updates and Advanced groups while Marketplace is hidden', () => {
     renderModal('advanced');
-    expect(screen.getByTestId('subheader-extensions')).toBeInTheDocument();
+    expect(screen.queryByTestId('subheader-extensions')).not.toBeInTheDocument();
     expect(screen.getByTestId('subheader-updates')).toBeInTheDocument();
     expect(screen.getByTestId('subheader-advanced')).toBeInTheDocument();
   });
 
-  it('Help section shows Shortcuts, Setup, and About groups together', () => {
+  it('Help section shows Setup, Shortcuts, and About groups together', () => {
     renderModal('help');
-    expect(screen.getByTestId('subheader-shortcuts')).toHaveTextContent('Shortcuts');
     expect(screen.getByTestId('subheader-setup')).toBeInTheDocument();
+    expect(screen.getByTestId('subheader-shortcuts')).toHaveTextContent('Shortcuts');
     expect(screen.getByTestId('subheader-about')).toBeInTheDocument();
   });
 });
@@ -151,9 +151,8 @@ describe('SettingsModal controls per section', () => {
   it('Workspace shows common controls without extra help speckles on obvious rows', () => {
     renderModal('workspace');
 
-    expect(screen.getByText('Startup')).toBeInTheDocument();
-    expect(screen.getByLabelText('Startup')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'About Startup' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Startup')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Startup')).not.toBeInTheDocument();
     expect(screen.getByTestId('setting-autoSave')).toBeInTheDocument();
     expect(screen.getByTestId('setting-defaultNewFileType')).toBeInTheDocument();
   });

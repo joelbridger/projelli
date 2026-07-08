@@ -64,6 +64,7 @@ export interface EgressIndicatorProps {
   variant?: 'full' | 'compact' | 'status';
   className?: string;
   onClick?: (() => void) | undefined;
+  tooltipExtra?: string | undefined;
   /**
    * Override the base `data-testid` (defaults to `egress-indicator`). The label
    * handle becomes `${testId}-label`. Used to give the composer's action-time
@@ -192,6 +193,7 @@ export function EgressIndicator({
   variant = 'full',
   className,
   onClick,
+  tooltipExtra,
   testId,
 }: EgressIndicatorProps) {
   const view = useEgressView(provider, mode, assuredAvailable);
@@ -201,6 +203,8 @@ export function EgressIndicator({
   // composer's action-time indicator.
   const rootTestId = testId ?? 'egress-indicator';
   const labelTestId = testId ? `${testId}-label` : 'egress-indicator-label';
+  const tooltipText = (label: string, note: string): string =>
+    [label, note, tooltipExtra].filter(Boolean).join('. ');
 
   // Neutral "checking" badge while the local-model status probe is unresolved.
   // data-data-leaves is hard "false" — nothing can leave during this window.
@@ -243,7 +247,7 @@ export function EgressIndicator({
             data-destination={destination}
             data-data-leaves="false"
             aria-label={`${shortLabel}. Open AI options`}
-            title={`${view.label}. ${view.note}`}
+            title={tooltipText(view.label, view.note)}
             className={statusClassName}
           >
             {content}
@@ -256,7 +260,7 @@ export function EgressIndicator({
           data-destination={destination}
           data-data-leaves="false"
           role="status"
-          title={`${view.label}. ${view.note}`}
+          title={tooltipText(view.label, view.note)}
           className={statusClassName}
         >
           {content}
@@ -274,7 +278,7 @@ export function EgressIndicator({
             pendingStyles,
             className,
           )}
-          title={`${view.label}. ${view.note}`}
+          title={tooltipText(view.label, view.note)}
         >
           <NeutralIcon className={cn('h-3 w-3 shrink-0', pulse)} aria-hidden />
           <span className="truncate">{view.label}</span>
@@ -335,7 +339,7 @@ export function EgressIndicator({
           data-severity={info.severity}
           data-data-leaves={info.dataLeaves ? 'true' : 'false'}
           aria-label={`${shortLabel}. Open AI options`}
-          title={`${label}. ${note}`}
+          title={tooltipText(label, note)}
           className={statusClassName}
         >
           {content}
@@ -349,7 +353,7 @@ export function EgressIndicator({
         data-severity={info.severity}
         data-data-leaves={info.dataLeaves ? 'true' : 'false'}
         role="status"
-        title={`${label}. ${note}`}
+        title={tooltipText(label, note)}
         className={statusClassName}
       >
         {content}
@@ -369,7 +373,7 @@ export function EgressIndicator({
           SEVERITY_STYLES[info.severity],
           className,
         )}
-        title={`${label}. ${note}`}
+        title={tooltipText(label, note)}
       >
         <EgressIcon info={info} className="h-3 w-3 shrink-0" />
         <span className="truncate">{label}</span>

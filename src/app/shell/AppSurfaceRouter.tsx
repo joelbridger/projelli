@@ -154,6 +154,7 @@ export interface AppSurfaceRouterProps {
   handleSettingsAction: (actionId: string) => void;
   handleSettingsRestartOnboarding: () => void;
   activeMatter: Matter | null;
+  settingsPageFocus?: { category?: SettingCategory; key: number };
 }
 
 export function AppSurfaceRouter({
@@ -218,6 +219,7 @@ export function AppSurfaceRouter({
   handleSettingsAction,
   handleSettingsRestartOnboarding,
   activeMatter,
+  settingsPageFocus,
 }: AppSurfaceRouterProps) {
   // Privacy Center + Activity Log are nested as sections inside the Settings
   // screen (the gear opens Settings). Built here so SettingsContent stays
@@ -669,11 +671,15 @@ export function AppSurfaceRouter({
           >
             {(SettingsContent) => (
               <SettingsContent
+                key={settingsPageFocus?.key ?? 0}
                 variant="page"
                 auditEntries={auditEntries}
                 templates={loadAllTemplates()}
                 onAction={handleSettingsAction}
                 onRestartOnboarding={handleSettingsRestartOnboarding}
+                {...(settingsPageFocus?.category
+                  ? { initialCategory: settingsPageFocus.category }
+                  : {})}
                 extraSections={settingsNestedSections}
               />
             )}

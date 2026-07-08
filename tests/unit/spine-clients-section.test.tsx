@@ -239,4 +239,12 @@ describe('Spine — Clients section', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText('Hendricks Household')).toBeInTheDocument();
   });
+
+  it('lets the client list fill the available rail space instead of using a small fixed cap', () => {
+    render(<Spine activeTab="matters" />);
+    const list = screen.getByTestId('spine-client-list');
+
+    expect(list).toHaveStyle({ flex: '1 1 auto', minHeight: '0' });
+    expect(list.style.maxHeight).toBe('');
+  });
 });

@@ -313,9 +313,11 @@ export function Spine({
         </div>
         <div
           style={{
-            flex: 'none',
+            flex: '1 1 auto',
             minHeight: 0,
             borderTop: '1px solid var(--kp-side-border)',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {/* Header row toggles the section and carries the "+ New client" affordance. */}
@@ -420,8 +422,10 @@ export function Spine({
           </div>
           {clientsOpen && (
             <div
+              data-testid="spine-client-list"
               style={{
-                maxHeight: 280,
+                flex: '1 1 auto',
+                minHeight: 0,
                 overflowY: 'auto',
                 padding: '0 10px var(--kp-space-xs)',
               }}
@@ -607,7 +611,7 @@ export function Spine({
             </div>
           )}
         </div>
-        <div style={{ flex: 1, minHeight: 0 }} />
+        <div style={{ flex: 'none', minHeight: 0 }} />
         <div
           style={{
             display: 'flex',

@@ -430,10 +430,12 @@
       "email": {
         "title": "Actualizaciones por correo electrónico",
         "title__sourceHash": "273ea8304d5cb611e05f6a3014bcf7f76279840419a1ce5b4ac7cc62bbca4fa0",
-        "intro": "Si te suscribiste a las actualizaciones por correo al iniciar la app por primera vez (o a través del sitio web), recibirás anuncios de lanzamiento y códigos de descuento. Sin campañas de goteo ni boletines semanales.",
-        "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
-        "unsub": "Para eliminarte de la lista, responde <c>UNSUB</c> a cualquier correo de Lantern. Todas las respuestas van directamente al soporte.",
-        "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f"
+      "intro": "Si te suscribiste a las actualizaciones por correo al iniciar la app por primera vez (o a través del sitio web), recibirás anuncios de lanzamiento y códigos de descuento. Sin campañas de goteo ni boletines semanales.",
+      "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
+      "unsub": "Para eliminarte de la lista, responde <c>UNSUB</c> a cualquier correo de Lantern. Todas las respuestas van directamente al soporte.",
+      "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f",
+      "empty": "No te has suscrito a los correos del producto.",
+      "empty__sourceHash": "8b51d05710fbbf3a196fb7844a630f2c7f248892974960fdafc6f584dd68d4a1"
       },
       "data-map": {
         "title": "Where your data lives and who can see it",

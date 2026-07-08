@@ -261,7 +261,8 @@
       "email": {
         "title": "Email updates",
         "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
-        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Lantern email. All replies go straight to support."
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Lantern email. All replies go straight to support.",
+        "empty": "You haven't signed up for product emails."
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
