@@ -11,6 +11,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { BRAND } from '@/config/brand';
 
 const EM_DASH = '—';
 
@@ -67,10 +68,10 @@ describe('Solo license recovery (Phase 5.1)', () => {
     const recovery = screen.getByTestId('license-recovery');
     const text = recovery.textContent ?? '';
 
-    expect(text).toMatch(/already bought Lantern/i);
+    expect(text).toMatch(new RegExp(`already bought ${BRAND.name}`, 'i'));
     expect(text).not.toContain(EM_DASH);
 
-    const info = screen.getByRole('button', { name: 'About Already bought Lantern?' });
+    const info = screen.getByRole('button', { name: `About Already bought ${BRAND.name}?` });
     fireEvent.mouseEnter(info);
     const help = screen.getByRole('tooltip').textContent ?? '';
     expect(help).toMatch(/restore it on this computer/i);

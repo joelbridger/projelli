@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { BRAND } from '@/config/brand';
 
 const mockGmailConnect = vi.fn();
 const mockGmailConnectCancel = vi.fn();
@@ -85,7 +86,7 @@ describe('MailGmailConnect', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /connect gmail/i }));
 
-    expect(await screen.findByText(/email connects in the Lantern desktop app/i)).toBeInTheDocument();
+    expect(await screen.findByText(new RegExp(`email connects in the ${BRAND.name} desktop app`, 'i'))).toBeInTheDocument();
     // The alarm framing must NOT be used for an expected limitation.
     expect(screen.queryByText(/something went wrong/i)).not.toBeInTheDocument();
   });

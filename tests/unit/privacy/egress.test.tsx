@@ -17,6 +17,8 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
+import { BRAND } from '@/config/brand';
+import { LOCAL_AI_NAME } from '@/config/brandText';
 
 import {
   resolveEgress,
@@ -31,6 +33,10 @@ import { effectiveChatProvider } from '@/features/ask/chat/providerModelResoluti
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 function setMode(mode: ConfidentialityMode) {
   useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, mode);
@@ -70,9 +76,9 @@ describe('resolveEgress (the single source of truth)', () => {
       const expectedName = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' }[provider];
       expect(info.label).toContain(expectedName);
       expect(info.label).toMatch(/Sent to your/i);
-      // The note is honest that the provider sees the prompt + that Lantern isn't in between.
+      // The note is honest that the provider sees the prompt + that the app isn't in between.
       expect(info.note).toMatch(/receives the prompt/i);
-      expect(info.note).toMatch(/Lantern is not in between/i);
+      expect(info.note).toContain(`${BRAND.name} is not in between`);
     }
   });
 
@@ -87,7 +93,7 @@ describe('resolveEgress (the single source of truth)', () => {
     const info = resolveEgress({ provider: 'anthropic', mode: 'direct', isDemo: true, hasDemoByokKey: false });
     expect(info.destination).toBe('demo-proxy');
     expect(info.severity).toBe('warn');
-    expect(info.note).toMatch(/shared Lantern relay/i);
+    expect(info.note).toContain(`shared ${BRAND.name} relay`);
     expect(info.label).toMatch(/do not use with client data/i);
   });
 
@@ -101,15 +107,15 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(DEFAULT_CONFIDENTIALITY_MODE).toBe('direct');
   });
 
-  // Embedded Lantern Local AI engine (llama.cpp) — local-model initiative.
-  it('Lantern Local AI => nothing leaves the machine, named correctly', () => {
+  // Embedded branded Local AI engine (llama.cpp) — local-model initiative.
+  it('branded Local AI => nothing leaves the machine, named correctly', () => {
     const info = resolveEgress({ provider: 'lantern-local', mode: 'direct' });
     expect(info.destination).toBe('local');
     expect(info.severity).toBe('safe');
     expect(info.dataLeaves).toBe(false);
     expect(info.provider).toBe('lantern-local');
     // The honest note names the actual local engine, not Ollama.
-    expect(info.note).toMatch(/Lantern Local AI/);
+    expect(info.note).toContain(LOCAL_AI_NAME);
     expect(info.note).not.toMatch(/Ollama/);
   });
 
@@ -128,7 +134,7 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(isLocalProvider('lantern-local')).toBe(true);
     expect(isLocalProvider('ollama')).toBe(true);
     expect(isLocalProvider('anthropic')).toBe(false);
-    expect(providerDisplayName('lantern-local')).toBe('Lantern Local AI');
+    expect(providerDisplayName('lantern-local')).toBe(LOCAL_AI_NAME);
   });
 });
 
@@ -147,7 +153,7 @@ describe('EgressIndicator', () => {
     expect(screen.getByTestId('egress-indicator-label').textContent).toMatch(/on your machine/i);
   });
 
-  it('names the embedded Lantern Local AI engine in the note (not Ollama)', () => {
+  it('names the embedded branded Local AI engine in the note (not Ollama)', () => {
     // Regression: the local note used a static i18n string that hard-coded
     // "(Ollama)"; for a lantern-local chat it must name the actual engine.
     setMode('direct');
@@ -156,7 +162,7 @@ describe('EgressIndicator', () => {
     expect(el.getAttribute('data-destination')).toBe('local');
     expect(el.getAttribute('data-data-leaves')).toBe('false');
     const note = screen.getByTestId('egress-indicator-note').textContent || '';
-    expect(note).toMatch(/Lantern Local AI/);
+    expect(note).toContain(LOCAL_AI_NAME);
     expect(note).not.toMatch(/Ollama/);
   });
 
@@ -313,7 +319,7 @@ describe('DataMapDialog', () => {
 
     // Files stay local.
     expect(screen.getByText(/stay on your machine/i)).toBeTruthy();
-    expect(screen.getByText(/no Lantern cloud holding copies/i)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`no ${escapeRegExp(BRAND.name)} cloud holding copies`, 'i'))).toBeTruthy();
 
     // Keys in the OS keychain.
     expect(screen.getByText(/operating system keychain/i)).toBeTruthy();
@@ -330,15 +336,15 @@ describe('DataMapDialog', () => {
     // Email encrypted locally.
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();
 
-    // Lantern servers: honest about the license check plus opt-in analytics + bug reports.
-    expect(screen.getByText(/only automatic contact with Lantern.s servers is a periodic license check/i)).toBeTruthy();
+    // App servers: honest about the license check plus opt-in analytics + bug reports.
+    expect(screen.getByText(new RegExp(`only automatic contact with ${escapeRegExp(BRAND.possessive)} servers is a periodic license check`, 'i'))).toBeTruthy();
     expect(screen.getByText(/Neither analytics nor bug reports are on by default/i)).toBeTruthy();
 
     // Firm Assured-mode relay path is disclosed honestly.
     expect(screen.getByText(/For firm Assured mode/i)).toBeTruthy();
 
     // Desktop build (not demo): the affirmation shows, and the demo-relay caveat does not.
-    expect(screen.getByText(/using the Lantern desktop app/i)).toBeTruthy();
+    expect(screen.getByText(new RegExp(`using the ${escapeRegExp(BRAND.name)} desktop app`, 'i'))).toBeTruthy();
     expect(screen.queryByText(/never be used with confidential or client/i)).toBeNull();
 
     // Printable region + print control exist.

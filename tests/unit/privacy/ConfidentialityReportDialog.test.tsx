@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
+import { BRAND } from '@/config/brand';
 import { ConfidentialityReportDialog } from '@/platform/privacy/ui/ConfidentialityReportDialog';
 import { buildConfidentialityReport } from '@/platform/privacy/confidentialityReport';
 import type { AuditEntry } from '@/platform/types/audit';
@@ -97,7 +98,7 @@ describe('ConfidentialityReportDialog', () => {
     );
     const attestationText = screen.getByTestId('confidentiality-attestation').textContent ?? '';
     expect(attestationText).toMatch(/your own API key/i);
-    expect(attestationText).toMatch(/Lantern was not in the path/i);
+    expect(attestationText).toContain(`${BRAND.name} was not in the path`);
     // Honesty: must not claim nothing left
     expect(attestationText).not.toMatch(/nothing left this machine/i);
   });

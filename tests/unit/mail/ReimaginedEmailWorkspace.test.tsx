@@ -611,7 +611,7 @@ describe('EmailWorkspace', () => {
 
       await openEmailActionsMenu();
       fireEvent.click(screen.getByTestId('mode-ask'));
-      fireEvent.change(screen.getByTestId('email-search-input'), {
+      fireEvent.change(openEmailSearch(), {
         target: { value: 'beneficiary' },
       });
       expect(mockMemoryRetrieve).toHaveBeenCalled();

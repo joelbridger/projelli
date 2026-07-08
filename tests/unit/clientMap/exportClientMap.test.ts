@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { BRAND } from '@/config/brand';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import {
   clientMapToMarkdown,
@@ -45,7 +46,7 @@ describe('clientMap export', () => {
 
     const markdown = clientMapToMarkdown(map, 'Hendricks Household', new Date('2026-07-07T02:00:00.000Z'));
 
-    expect(markdown).toContain('# Lantern Client Map: Hendricks Household');
+    expect(markdown).toContain(`# ${BRAND.name} Client Map: Hendricks Household`);
     expect(markdown).toContain('Prepared for Northcrest Wealth');
     expect(markdown).toContain('- Robert and Susan are retired. Source: document: Plan.docx, p. 2.');
     expect(markdown).toContain('Casey Advisor - bullet edited - Household.');

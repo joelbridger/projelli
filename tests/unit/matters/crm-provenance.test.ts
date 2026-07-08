@@ -1,5 +1,6 @@
 import '@/i18n';
 import { describe, it, expect } from 'vitest';
+import { BRAND } from '@/config/brand';
 import i18next from 'i18next';
 import { composeCrmProvenance } from '@/features/matters/crmProvenance';
 
@@ -12,7 +13,7 @@ describe('composeCrmProvenance (E3 — AI-drafted CRM notes carry their origin)'
       { advisor: 'Dana Lee', sourceKind: 'meeting', sourceDate: '2026-07-02T00:00:00Z', approvedIso: '2026-07-04T00:00:00Z' },
       'en-US',
     );
-    expect(line).toContain('Lantern AI');
+    expect(line).toContain(BRAND.messaging.redlineAuthor);
     expect(line).toContain('Dana Lee');
     expect(line).toContain('7/2/2026'); // meeting date, en-US
     expect(line).toContain('7/4/2026'); // approval date, en-US
@@ -25,7 +26,7 @@ describe('composeCrmProvenance (E3 — AI-drafted CRM notes carry their origin)'
       { advisor: 'Dana Lee', sourceKind: 'document', approvedIso: '2026-07-04T00:00:00Z' },
       'en-US',
     );
-    expect(line).toContain('Lantern AI');
+    expect(line).toContain(BRAND.messaging.redlineAuthor);
     expect(line).toContain('Dana Lee');
     expect(line.toLowerCase()).not.toContain('meeting');
   });

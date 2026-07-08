@@ -5,6 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { brandText } from '@/config/brandText';
 import { LibreOfficeHelpNotice } from '@/features/documents/media/LibreOfficeHelpNotice';
 
 const DOWNLOAD_URL = 'https://www.libreoffice.org/download/download-libreoffice/';
@@ -27,8 +28,10 @@ describe('LibreOfficeHelpNotice (VG-4a)', () => {
     const notice = screen.getByTestId('libreoffice-help-notice');
     expect(notice).toHaveTextContent('PDF export needs LibreOffice');
     expect(notice).toHaveTextContent(
-      'Lantern converts Word to PDF locally using LibreOffice, a free program. ' +
-        'Nothing leaves your machine. Install it, then run the export again.',
+      brandText(
+        'Lantern converts Word to PDF locally using LibreOffice, a free program. ' +
+          'Nothing leaves your machine. Install it, then run the export again.',
+      ),
     );
     expect(notice).toHaveTextContent(DOWNLOAD_URL);
   });

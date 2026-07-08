@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { BRAND } from '@/config/brand';
 import { buildConfidentialityReport, pickAttestation } from '@/platform/privacy/confidentialityReport';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
@@ -49,17 +50,17 @@ describe('pickAttestation', () => {
     expect(text).toMatch(/no third party saw/i);
   });
 
-  it('all direct: mentions provider received prompts and Lantern not in path', () => {
+  it('all direct: mentions provider received prompts and app not in path', () => {
     const text = pickAttestation({ direct: 2 });
     expect(text).toMatch(/your own API key/i);
-    expect(text).toMatch(/Lantern was not in the path/i);
+    expect(text).toContain(`${BRAND.name} was not in the path`);
     expect(text).toMatch(/provider received the prompts/i);
   });
 
   it('all assured: mentions zero-retention proxy', () => {
     const text = pickAttestation({ assured: 1 });
     expect(text).toMatch(/zero-retention proxy/i);
-    expect(text).toMatch(/Lantern retained no prompt/i);
+    expect(text).toContain(`${BRAND.name} retained no prompt`);
   });
 
   it('mixed local+direct: mentions both honestly without overclaiming', () => {
@@ -102,7 +103,7 @@ describe('buildConfidentialityReport', () => {
     expect(report.allUnderOwnKeyOrLocal).toBe(true);
     expect(report.byMode['direct']).toBe(2);
     expect(report.attestation).toMatch(/your own API key/i);
-    expect(report.attestation).toMatch(/Lantern was not in the path/i);
+    expect(report.attestation).toContain(`${BRAND.name} was not in the path`);
     // Honesty check: must NOT claim nothing left
     expect(report.attestation).not.toMatch(/nothing left this machine/i);
   });

@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { StrictMode } from 'react';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
+import { BRAND } from '@/config/brand';
 
 // --- Tauri mock: a programmable invoke that dispatches by command name. ----
 const invokeMock = vi.fn();
@@ -1689,18 +1690,18 @@ describe('DocxEditor — AI redline (A4)', () => {
             { kind: 'run', text: 'The ' },
             {
               kind: 'insertion',
-              meta: { id: '1', author: 'Lantern AI', date: '2026-06-09T00:00:00Z' },
+              meta: { id: '1', author: BRAND.messaging.redlineAuthor, date: '2026-06-09T00:00:00Z' },
               runs: [{ text: 'Vendor' }],
             },
             {
               kind: 'deletion',
-              meta: { id: '1', author: 'Lantern AI', date: '2026-06-09T00:00:00Z' },
+              meta: { id: '1', author: BRAND.messaging.redlineAuthor, date: '2026-06-09T00:00:00Z' },
               runs: [{ text: 'Company' }],
             },
             { kind: 'run', text: ' shall indemnify the Client ' },
             {
               kind: 'deletion',
-              meta: { id: '2', author: 'Lantern AI', date: '2026-06-09T00:00:00Z' },
+              meta: { id: '2', author: BRAND.messaging.redlineAuthor, date: '2026-06-09T00:00:00Z' },
               runs: [{ text: 'for all losses' }],
             },
             { kind: 'run', text: '.' },
@@ -1741,10 +1742,10 @@ describe('DocxEditor — AI redline (A4)', () => {
       if (cmd === 'docx_open') return Promise.resolve(plainDoc());
       if (cmd === 'docx_author_revisions') {
         // Drift-safe contract: the editor applies BOTH edits against the
-        // ORIGINAL doc in ONE engine call, attributed to Lantern AI.
+        // ORIGINAL doc in ONE engine call, attributed to the branded AI author.
         expect(args?.['document']).toEqual(plainDoc());
         expect(args?.['edits']).toEqual(TWO_EDITS);
-        expect(args?.['author']).toBe('Lantern AI');
+        expect(args?.['author']).toBe(BRAND.messaging.redlineAuthor);
         return Promise.resolve({
           document: redlinedDoc(),
           results: [
@@ -1775,7 +1776,7 @@ describe('DocxEditor — AI redline (A4)', () => {
     await waitFor(() =>
       expect(invokeMock).toHaveBeenCalledWith(
         'docx_author_revisions',
-        expect.objectContaining({ author: 'Lantern AI' }),
+        expect.objectContaining({ author: BRAND.messaging.redlineAuthor }),
       ),
     );
 
@@ -1788,8 +1789,8 @@ describe('DocxEditor — AI redline (A4)', () => {
       const ids = rows.map((r) => r.getAttribute('data-revision-id'));
       expect(ids).toEqual(expect.arrayContaining(['1', '2']));
     });
-    // The AI's insertion + deletions are attributed to Lantern AI.
-    expect(screen.getByTestId('docx-insertion')).toHaveAttribute('data-author', 'Lantern AI');
+    // The AI's insertion + deletions are attributed to the branded AI author.
+    expect(screen.getByTestId('docx-insertion')).toHaveAttribute('data-author', BRAND.messaging.redlineAuthor);
     const dels = screen.getAllByTestId('docx-deletion');
     expect(dels.length).toBeGreaterThanOrEqual(2);
 

@@ -9,6 +9,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { BRAND } from '@/config/brand';
 
 // The engine is "available" and returns a DOM whose plain text depends on the
 // opened path, so the two versions produce a visible text diff.
@@ -131,7 +132,7 @@ describe('BinaryVersionHistoryPanel', () => {
       .getAllByTestId('binary-version-author')
       .map((el) => el.textContent);
     // Newest first: the AI redline, then the user save.
-    expect(authors[0]).toContain('Lantern AI');
+    expect(authors[0]).toContain(BRAND.messaging.redlineAuthor);
     expect(authors[1]).toContain('You');
   });
 

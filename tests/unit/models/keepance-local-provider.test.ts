@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { LOCAL_AI_NAME } from '@/config/brandText';
 import {
   AppLocalProvider as LanternLocalProvider,
   parseSseChunk,
@@ -28,7 +29,7 @@ describe('LanternLocalProvider', () => {
     it('reports providerId, $0 cost, streaming, no vision, the real ctx window', () => {
       const meta = provider().getMetadata();
       expect(meta.providerId).toBe('lantern-local');
-      expect(meta.name).toBe('Lantern Local AI');
+      expect(meta.name).toBe(LOCAL_AI_NAME);
       expect(meta.costPerInputToken).toBe(0);
       expect(meta.costPerOutputToken).toBe(0);
       expect(meta.capabilities?.streaming).toBe(true);

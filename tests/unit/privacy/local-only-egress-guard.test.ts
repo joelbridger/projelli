@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { LOCAL_AI_NAME } from '@/config/brandText';
 
 const h = vi.hoisted(() => {
   let _mode = 'direct';
@@ -230,7 +231,7 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
     h.localStatus = 'absent';
     h.ollamaReachable = false;
     await expect(buildResolvedAskProvider()).rejects.toThrow(
-      /Lantern Local AI is still downloading or setting up/,
+      `${LOCAL_AI_NAME} is still downloading or setting up`,
     );
   });
 

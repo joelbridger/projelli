@@ -2,6 +2,7 @@
 import '@/i18n';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { BRAND } from '@/config/brand';
 
 // R5 (Tier B): the compliance-note default depends on the license tier — mock
 // it so we can exercise both firm (practice) and solo defaults deterministically.
@@ -253,7 +254,7 @@ describe('CrmWriteReviewCard', () => {
     await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
     const arg = vi.mocked(crmCreateNote).mock.calls[0]![0] as { provenance?: string };
     expect(arg.provenance).toBeTruthy();
-    expect(arg.provenance).toContain('Lantern AI');
+    expect(arg.provenance).toContain(BRAND.messaging.redlineAuthor);
     expect(arg.provenance?.toLowerCase()).toContain('meeting');
   });
 

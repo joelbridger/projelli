@@ -1,5 +1,6 @@
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { brandText } from '@/config/brandText';
 import { MeetingSendPanel } from '@/features/meetings/MeetingSendPanel';
 import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/features/meetings/meetingRecipientPlan';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
@@ -161,7 +162,7 @@ describe('MeetingSendPanel (merged send surface)', () => {
   it('shows the privacy trust note at the action point', async () => {
     renderPanel();
     expect(await screen.findByTestId('meeting-send-trust-note')).toHaveTextContent(
-      'Review first. Sends by your email. Lantern never receives files.',
+      brandText('Review first. Sends by your email. Lantern never receives files.'),
     );
   });
 
