@@ -1,4 +1,3 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * Collapsible "Before you meet" strip on a client's Map (MatterHub overview
  * panel). Shows today's pre-generated brief with source chips; one keystroke
@@ -14,12 +13,14 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ChevronDown,
   ChevronUp,
   FileType,
   RefreshCw,
   CheckCircle2,
+  MoreHorizontal,
 } from 'lucide-react';
 import { localDay, useBriefStore, type MeetingBrief } from './briefStore';
 import { enqueueBriefs } from './briefQueue';
@@ -30,17 +31,24 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { CiteChip } from '@/ui/kp/CiteChip';
 import { FileText } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 
 function basename(path: string): string {
   return path.split(/[\\/]/).pop() ?? path;
 }
 
 export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
+  const { t } = useTranslation();
   const briefs = useBriefStore((s) => s.briefs);
   const matter = useMatterStore((s) =>
     s.matters.find((m) => m.id === matterId)
   );
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [busy, setBusy] = useState(false);
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [savedAgendaKey, setSavedAgendaKey] = useState<string | null>(null);
@@ -51,6 +59,10 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
     .sort((a, b) => a.eventId.localeCompare(b.eventId));
 
   if (todays.length === 0) return null;
+  const firstBrief = todays[0];
+  const summary = todays.length === 1 && firstBrief
+    ? firstBrief.eventTitle
+    : t('meetings.before-you-meet.count', { count: todays.length });
 
   async function exportDocx(brief: MeetingBrief) {
     setBusy(true);
@@ -146,35 +158,85 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
   return (
     <div
       data-testid="before-you-meet"
-      className="mb-[var(--kp-surface-gap)] rounded-lg border border-slate-200 bg-[var(--kp-bg-soft)] px-3.5 py-2.5 shadow-sm"
+      className="mb-[var(--kp-surface-gap)] rounded-md border border-slate-200 bg-white px-3.5 py-2.5"
     >
-      <div className="flex items-center gap-2">
+      <button
+        type="button"
+        data-testid="brief-collapse-toggle"
+        onClick={() => {
+          setCollapsed((v) => !v);
+        }}
+        className="flex w-full cursor-pointer items-center gap-2 border-none bg-transparent p-0 text-left"
+        aria-expanded={!collapsed}
+        aria-label={t('meetings.before-you-meet.toggle')}
+      >
         <span className="text-sm font-bold text-[var(--kp-navy)]">
-          Before you meet
+          {t('meetings.before-you-meet.title')}
         </span>
-        <button
-          type="button"
-          data-testid="brief-collapse-toggle"
-          onClick={() => {
-            setCollapsed((v) => !v);
-          }}
-          className="flex cursor-pointer items-center border-none bg-transparent"
-          aria-label="Toggle briefing"
-        >
-          {collapsed ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-        </button>
-      </div>
+        <span className="min-w-0 flex-1 truncate text-xs text-slate-500">
+          {summary}
+        </span>
+        {collapsed ? <ChevronDown size={16} aria-hidden /> : <ChevronUp size={16} aria-hidden />}
+      </button>
       {!collapsed &&
         todays.map((brief) => (
           <div key={brief.key} className="mt-2">
             {brief.status === 'ready' && (
               <>
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[var(--kp-navy)]">
+                    {brief.eventTitle}
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        data-testid="brief-actions-menu"
+                        aria-label={t('meetings.before-you-meet.actions')}
+                        className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
+                      >
+                        <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-36">
+                      <DropdownMenuItem
+                        data-testid="brief-export-docx"
+                        disabled={busy}
+                        onSelect={() => {
+                          void exportDocx(brief);
+                        }}
+                      >
+                        <FileType size={13} aria-hidden />
+                        {t('meetings.before-you-meet.brief')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        data-testid="agenda-export-docx"
+                        disabled={busy}
+                        onSelect={() => {
+                          void exportAgenda(brief);
+                        }}
+                      >
+                        <FileType size={13} aria-hidden />
+                        {t('meetings.before-you-meet.agenda')}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        data-testid="brief-refresh"
+                        onSelect={() => {
+                          void refresh(brief);
+                        }}
+                      >
+                        <RefreshCw size={13} aria-hidden />
+                        {t('meetings.before-you-meet.refresh')}
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
                 {brief.stale && (
                   <span
                     data-testid="brief-stale-chip"
                     className="mb-1.5 inline-block rounded-full bg-amber-100 px-2 py-px text-[11px] text-amber-800"
                   >
-                    New documents arrived since this was written
+                    {t('meetings.before-you-meet.new-files')}
                   </span>
                 )}
                 {brief.bullets != null && brief.bullets.length > 0 ? (
@@ -222,56 +284,21 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
                   </>
                 )}
                 <div className="mt-2 flex items-center gap-2">
-                  <button
-                    type="button"
-                    data-testid="brief-export-docx"
-                    onClick={() => {
-                      void exportDocx(brief);
-                    }}
-                    disabled={busy}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-[var(--kp-navy)] hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    <FileType size={13} />
-                    Export brief (Word)
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="agenda-export-docx"
-                    onClick={() => {
-                      void exportAgenda(brief);
-                    }}
-                    disabled={busy}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-[var(--kp-navy)] hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    <FileType size={13} />
-                    Agenda (Word)
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="brief-refresh"
-                    onClick={() => {
-                      void refresh(brief);
-                    }}
-                    className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs text-[var(--kp-navy)] hover:bg-slate-50"
-                  >
-                    <RefreshCw size={13} />
-                    Refresh
-                  </button>
                   {(savedKey === brief.key || savedAgendaKey === brief.key) && (
                     <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--kp-success)]">
                       <CheckCircle2 size={14} />
-                      Saved
+                      {t('meetings.before-you-meet.saved')}
                     </span>
                   )}
                 </div>
               </>
             )}
             {(brief.status === 'pending' || brief.status === 'generating') && (
-              <p className="text-xs text-slate-500">Preparing your briefing…</p>
+              <p className="text-xs text-slate-500">{t('meetings.before-you-meet.preparing')}</p>
             )}
             {brief.status === 'failed' && (
               <p className="text-xs text-red-700">
-                {`Could not prepare this briefing: ${brief.error ?? 'unknown error'}`}
+                {t('meetings.before-you-meet.failed', { error: brief.error ?? t('meetings.before-you-meet.unknown-error') })}
               </p>
             )}
           </div>

@@ -101,10 +101,10 @@ export interface MattersHomeProps {
    * Handed the exact `Matter` the open hub is rendering (from MatterHub), so the
    * scoped Documents surface reads its `folderPaths`/id from the client actually
    * on screen, not a stale outer "active matter" closure in the shell.
-   */
+  */
   renderClientDocuments?: (matter: Matter | null) => ReactNode;
   renderClientEmail?: () => ReactNode;
-  renderClientActivity?: () => ReactNode;
+  renderClientActivity?: (options?: { clientMapSectionKey?: string; clientMapSectionTitle?: string }) => ReactNode;
   /** Forwarded verbatim to MatterHub's Meetings sub-tab (see MatterHubProps). */
   workspaceService?: WorkspaceService | null;
   clientMapMode?: MattersSurfaceMode;

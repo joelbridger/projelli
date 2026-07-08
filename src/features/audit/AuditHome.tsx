@@ -84,11 +84,18 @@ export interface AuditHomeProps {
    * the Activity tab reads as "this client's activity", not the global log.
    */
   scopeMatterId?: string;
+  clientMapSectionKey?: string;
+  clientMapSectionTitle?: string;
+}
+
+function matchesClientMapSection(entry: AuditEntry, sectionKey: string): boolean {
+  if (!entry.action.startsWith('client_map_')) return false;
+  return entry.metadata['sectionKey'] === sectionKey;
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, onRepairSeal, scopeMatterId }: AuditHomeProps) {
+export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, onRepairSeal, scopeMatterId, clientMapSectionKey }: AuditHomeProps) {
   // Embedded as a per-client Activity tab (scopeMatterId set) → the hub header
   // already labels the surface, so hide this inner header to match Documents.
   const embedded = scopeMatterId !== undefined;
@@ -120,8 +127,11 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
   // every downstream derivation (models, scopes, counts, export) operates on
   // this client's activity only. Unscoped (scopeMatterId absent) = global log.
   const entries = useMemo(
-    () => (scopeMatterId ? filterEntries(entriesProp, { matterId: scopeMatterId }) : entriesProp),
-    [entriesProp, scopeMatterId],
+    () => {
+      const scoped = scopeMatterId ? filterEntries(entriesProp, { matterId: scopeMatterId }) : entriesProp;
+      return clientMapSectionKey ? scoped.filter((entry) => matchesClientMapSection(entry, clientMapSectionKey)) : scoped;
+    },
+    [entriesProp, scopeMatterId, clientMapSectionKey],
   );
 
   // ── Derived data ──────────────────────────────────────────────────────

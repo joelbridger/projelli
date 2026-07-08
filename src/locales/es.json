@@ -1522,7 +1522,10 @@
       "delete": "Eliminar",
       "delete-title": "¿Eliminar este perfil de voz?",
       "delete-body": "El patrón de voz guardado de {{name}} se eliminará de este equipo. Las reuniones ya etiquetadas conservarán sus nombres. Esta acción queda registrada en tu registro de auditoría.",
-      "delete-confirm": "Eliminar perfil de voz"
+      "delete-confirm": "Eliminar perfil de voz",
+      "count_one": "{{count}} profile",
+      "count_other": "{{count}} profiles",
+      "manage": "Manage"
     },
     "hub": {
       "tab-documents": "Documentos",
@@ -1565,12 +1568,20 @@
       "edit-item-title__sourceHash": "9f84eeebf87f5b9b0b2daaab2a9b989fa5894da5d6a21d8571e532648307a076",
       "local-only-notice": "Se ejecuta solo en este dispositivo. La generación usa tu modelo local.",
       "local-only-notice__sourceHash": "4d1f2a50b1e4a694d508cc0aabfb7a6839dd4c3cf04555330f19a5f1ea73ca98",
-      "building": "Creando el Client Map...",
+      "building": "Creando el Client Map",
       "building__sourceHash": "2d9d2bc78ae27e605307f5f65717b9d7578dbfca861455c0760234301f2155ba",
       "empty-notice": "Aún no se encontró información. Agrega primero documentos o correos a este cliente.",
       "empty-notice__sourceHash": "6591aae690ad0639d6123c93ff529c15026fb02adb3860d74aca635980317cd6",
       "error-notice": "No se pudo crear el Client Map. Revisa tu conexión de IA e inténtalo de nuevo.",
-      "error-notice__sourceHash": "11c1b30791944f0f832654cdeaf2801cf57188364893856ed7674a80482b9e51"
+      "error-notice__sourceHash": "11c1b30791944f0f832654cdeaf2801cf57188364893856ed7674a80482b9e51",
+      "section-history-title": "History: {{section}}",
+      "not-updated-yet": "Not updated yet",
+      "updated-recently": "Updated recently",
+      "updated-at": "Updated {{date}}",
+      "updating": "Updating",
+      "sync-failed": "Sync failed",
+      "no-new-changes": "No new changes",
+      "updated-short": "Updated"
     },
     "citation": {
       "unverified-warning": "No se pudieron verificar una o más citas con la fuente. Abre la fuente para confirmarla antes de basarte en ella.",
@@ -1579,6 +1590,72 @@
     "empty-canvas": {
       "select-client": "Haz clic en un cliente a la izquierda",
       "select-client__sourceHash": "cee7419b85443e257939e57bfaf0285a98bde68b0ded2ce1bd449cc5d7ce9853"
+    },
+    "client-map": {
+      "new-section": "New section",
+      "rail-money": "Money",
+      "rail-missing": "Missing",
+      "source-chip-label": "Show {{label}} in Sources",
+      "row-actions": "Fact actions",
+      "edit": "Edit",
+      "remove": "Remove",
+      "section-actions": "Section actions",
+      "view-section-history": "View section history",
+      "save-as-template": "Save as template",
+      "remove-section": "Remove section",
+      "meetings-filter": "Meetings ({{count}})",
+      "section-empty": "No facts yet.",
+      "add-fact-row": "+ Add fact",
+      "add-fact": "Add fact",
+      "add": "Add",
+      "missing-title": "Missing",
+      "level": {
+        "thin": "Thin",
+        "getting-there": "Getting there",
+        "solid": "Solid"
+      },
+      "coverage-caveat-short": "Only includes files Lantern can read.",
+      "coverage-caveat-label": "What this includes",
+      "coverage-caveat-full": "This is a head start for your review, not a guarantee the whole record is complete.",
+      "answer-one-by-one": "Answer one by one",
+      "answer": "Answer",
+      "question-actions": "Question actions",
+      "ask-client": "Ask client",
+      "assumptions-title": "Assumptions",
+      "assuming": "assuming",
+      "map-complete": "Nothing outstanding. This map looks complete.",
+      "add-section-heading": "Add a section",
+      "add-section-body": "Add a topic. Lantern fills it from this client's sources.",
+      "section-name": "Name",
+      "section-name-placeholder": "Insurance coverage",
+      "track-label": "Track",
+      "track-placeholder": "Policies, limits, renewals",
+      "section-error": "Could not fill this section. Check your AI connection and try again.",
+      "add-section-submit": "Add section",
+      "saved-templates": "Saved templates",
+      "apply-template": "Apply",
+      "preview-tracking": "Tracking: {{prompt}}.",
+      "preview-updated": "Lantern keeps this updated from new documents and email.",
+      "remove-bullet-title": "Remove this fact?",
+      "remove-bullet-desc": "This removes the fact from the client map. The edit stays in History.",
+      "remove-section-title": "Remove this section?",
+      "remove-section-desc": "This removes the section and its facts from this client map. History keeps a record.",
+      "keep-it": "Keep it",
+      "keep-section": "Keep section",
+      "interview-answer-placeholder": "Answer",
+      "interview-save": "Save",
+      "interview-flag": "Flag",
+      "close": "Close"
+    },
+    "client-questions": {
+      "heading": "Questions for the client",
+      "copy": "Copy questions",
+      "copied": "Copied",
+      "remove": "Remove",
+      "remove-one": "Remove: {{question}}"
+    },
+    "crm-write": {
+      "approve-to-send": "Approve to send to Wealthbox."
     }
   },
   "firm": {
@@ -2605,6 +2682,21 @@
       "settings-evidence-label": "Qué satisface un aviso de grabación estricto",
       "settings-evidence-either": "Un aviso hablado o la tarjeta presente toda la reunión",
       "settings-evidence-both": "Un aviso hablado y la tarjeta presente toda la reunión"
+    },
+    "before-you-meet": {
+      "title": "Before you meet",
+      "count_one": "{{count}} meeting",
+      "count_other": "{{count}} meetings",
+      "toggle": "Toggle briefing",
+      "actions": "Brief actions",
+      "brief": "Brief",
+      "agenda": "Agenda",
+      "refresh": "Refresh",
+      "new-files": "New files added",
+      "saved": "Saved",
+      "preparing": "Preparing your briefing",
+      "failed": "Could not prepare this briefing: {{error}}",
+      "unknown-error": "unknown error"
     }
   },
   "spine": {

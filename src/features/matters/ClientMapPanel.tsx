@@ -4,19 +4,25 @@
 // ClientMapView.  Left rail = compact action icons, clickable vertical tabs
 // (one per section), and "What I'm missing".  Right pane =
 // the selected section with big title, blue-bullet item rows, source chips,
-// inline Edit, and the custom-section / template / gap panels folded in.
+// quiet row menus, and the custom-section / template / gap panels folded in.
 //
-// Props are IDENTICAL to ClientMapView so callers can swap the component
-// behind a feature flag without touching their own code.
+// It intentionally keeps ClientMapView's data contract while adding a few host
+// callbacks for the simplified hub shell.
 
-import { useId, useState, type CSSProperties } from 'react';
+import { useId, useRef, useState, type CSSProperties } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { ChevronLeft, ChevronRight, Clock3, Plus, Sparkles, Trash2, type LucideIcon } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { Button, Chip, Eyebrow, CountBadge } from '@/ui/kp';
+import { Button, Chip, Eyebrow, CountBadge, TrustNote } from '@/ui/kp';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { CORE_SECTION_ORDER, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
@@ -29,15 +35,14 @@ import type {
   ClientMapItem,
   ClientMapSection,
   SourceRef,
-  CompletenessLevel,
   GapQuestion,
-  ClientMapEditHistoryEntry,
 } from '@/platform/clientMap/types';
 import { flagForClient, unresolvedAskGaps, displayCompleteness } from '@/features/matters/clientMap/guidedInterview';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildCustomSection } from '@/features/matters/clientMap/customSection';
 import { useTemplatesStore, applyTemplateToMatter } from '@/features/matters/clientMap/templatesStore';
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
+import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { SourcePanel } from '@/features/ask/SourcePanel';
 import type { AnswerCitation } from '@/features/ask/askHelpers';
 import { skClientMapSourcesCollapsed, skClientMapTab } from '@/config/identity';
@@ -90,10 +95,6 @@ function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitati
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
 
-const LABEL_WHAT_MISSING = "What I'm missing";
-const LABEL_NEW_SECTION = 'New section';
-const LABEL_START_GUIDED_INTERVIEW = 'Start guided interview';
-
 const railTopActionsStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
@@ -112,45 +113,6 @@ const railIconButtonStyle: CSSProperties = {
   height: 22,
   border: 0,
 };
-const EDIT_LABEL = 'Edit';
-const LABEL_STILL_MISSING = "What I'm still missing";
-const LABEL_MAP_COMPLETE = 'Nothing outstanding — this map looks complete.';
-const LABEL_SECTION_EMPTY = 'Nothing here yet — this section fills in as documents and email come in.';
-const LABEL_WORKING_ASSUMPTIONS = 'Working assumptions';
-const LABEL_I_KNOW = 'I know this';
-const LABEL_ASK_CLIENT = 'Ask the client';
-const LABEL_SAVE_TEMPLATE = 'Save as template';
-const LABEL_REMOVE_BTN = 'Remove';
-const LABEL_ADD_BULLET = 'Add bullet';
-const LABEL_ADD_BULLET_PH = 'Add a client-map bullet...';
-const LABEL_EDIT_HISTORY = 'Edit history';
-const LABEL_NO_HISTORY = 'No edits yet.';
-const LABEL_REMOVE_BULLET_TITLE = 'Remove this bullet?';
-const LABEL_REMOVE_BULLET_DESC =
-  'This removes the bullet from the client map. The edit will stay in the history.';
-const LABEL_REMOVE_SECTION_TITLE = 'Remove this section?';
-const LABEL_REMOVE_SECTION_DESC =
-  'This removes the section and its bullets from this client map. The edit history will keep a record.';
-const LABEL_ADD_SECTION_HEADING = 'Add a section';
-const LABEL_ADD_SECTION_BODY =
-  "Name a section and say what to track. Advisor Prep Hero fills it in from this client’s documents and email, with sources you can check.";
-const LABEL_SECTION_NAME = 'Section name';
-const LABEL_SECTION_NAME_PH = 'e.g. Insurance coverage';
-const LABEL_WHAT_TO_TRACK = 'What should I track here?';
-const LABEL_WHAT_TO_TRACK_PH = 'e.g. policy types, coverage limits, and renewal dates';
-const LABEL_SECTION_ERROR =
-  'Could not fill this section. Your AI provider may be unavailable, or no account key is set. Nothing was added — try again.';
-const LABEL_ADD_SECTION_BTN = 'Add section';
-const LABEL_REUSE_TEMPLATE = 'Reuse a saved template';
-const LABEL_USE_TEMPLATE = 'Use';
-const LABEL_ASSUMING = 'assuming';
-
-const LEVEL_LABEL: Record<CompletenessLevel, string> = {
-  thin: 'Thin',
-  'getting-there': 'Getting there',
-  solid: 'Solid',
-};
-
 // Sentinel keys for the non-section right panels.
 const MISSING_KEY = '__missing';
 const NEW_KEY = '__new';
@@ -166,9 +128,10 @@ function tabStorageKey(matterId: string): string {
 
 function readSourcesCollapsedPreference(matterId: string): boolean {
   try {
-    return localStorage.getItem(skClientMapSourcesCollapsed(matterId)) === '1';
+    const stored = localStorage.getItem(skClientMapSourcesCollapsed(matterId));
+    return stored === null ? true : stored === '1';
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -257,19 +220,6 @@ const sourceChipStyle: CSSProperties = {
   fontWeight: 'var(--kp-weight-semibold)',
 };
 
-const editButtonStyle: CSSProperties = {
-  height: 22,
-  minHeight: 22,
-  padding: '0 var(--kp-space-xs)',
-  color: 'var(--kp-navy)',
-  fontSize: 'var(--kp-font-xs)',
-};
-
-const removeButtonStyle: CSSProperties = {
-  ...editButtonStyle,
-  color: 'var(--kp-danger)',
-};
-
 const mutedTextStyle: CSSProperties = {
   color: 'var(--color-muted-foreground)',
   fontSize: 'var(--kp-font-sm)',
@@ -305,13 +255,14 @@ function SourceChip({
   source: SourceRef;
   onOpenSource: (r: SourceRef) => void;
 }) {
+  const { t } = useTranslation();
   const label = sourceChipLabel(source);
   return (
     <Chip
       data-testid="clientmap-source-link"
       size="sm"
       style={sourceChipStyle}
-      aria-label={`Open ${label}`}
+      aria-label={t('matter.client-map.source-chip-label', { label })}
       onClick={() => {
         onOpenSource(source);
       }}
@@ -321,6 +272,17 @@ function SourceChip({
   );
 }
 
+function completenessLevelLabel(level: ClientMap['completeness']['level'], t: (key: string) => string): string {
+  switch (level) {
+    case 'thin':
+      return t('matter.client-map.level.thin');
+    case 'getting-there':
+      return t('matter.client-map.level.getting-there');
+    case 'solid':
+      return t('matter.client-map.level.solid');
+  }
+}
+
 // ── ItemRow ───────────────────────────────────────────────────────────────────
 
 function ItemRow({
@@ -328,15 +290,19 @@ function ItemRow({
   onOpenSource,
   onEdit,
   onRemove,
+  showAssumptionLabel = true,
 }: {
   item: ClientMapItem;
   onOpenSource: (r: SourceRef) => void;
   onEdit?: () => void;
   onRemove?: () => void;
+  showAssumptionLabel?: boolean;
 }) {
-  const hasMeta = item.sources.length > 0 || onEdit != null || onRemove != null || item.isAssumption;
+  const { t } = useTranslation();
+  const hasMenu = onEdit != null || onRemove != null;
+  const hasMeta = item.sources.length > 0 || (item.isAssumption && showAssumptionLabel);
   return (
-    <div data-testid="clientmap-item" style={itemRowStyle}>
+    <div data-testid="clientmap-item" className="group" style={itemRowStyle}>
       <span
         style={{
           width: 6,
@@ -359,126 +325,53 @@ function ItemRow({
               flexWrap: 'wrap',
             }}
           >
-            {item.isAssumption && (
+            {item.isAssumption && showAssumptionLabel && (
               <span
                 data-testid="clientmap-item-assumption"
                 style={{ ...mutedTextStyle, fontSize: 'var(--kp-font-xs)' }}
               >
-                {LABEL_ASSUMING}
+                {t('matter.client-map.assuming')}
               </span>
             )}
             {item.sources.map((s, i) => (
               <SourceChip key={i} source={s} onOpenSource={onOpenSource} />
             ))}
-            {onEdit != null && (
-              <Button
-                type="button"
-                data-testid="clientmap-item-edit"
-                variant="ghost"
-                size="sm"
-                style={editButtonStyle}
-                onClick={onEdit}
-              >
-                {EDIT_LABEL}
-              </Button>
-            )}
-            {onRemove != null && (
-              <Button
-                type="button"
-                data-testid="clientmap-item-remove"
-                variant="ghost"
-                size="sm"
-                style={removeButtonStyle}
-                onClick={onRemove}
-              >
-                {LABEL_REMOVE_BTN}
-              </Button>
-            )}
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function formatHistoryTime(timestamp: string): string {
-  const d = new Date(timestamp);
-  if (Number.isNaN(d.getTime())) return timestamp;
-  return d.toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-function historyActionText(entry: ClientMapEditHistoryEntry): string {
-  switch (entry.action) {
-    case 'bullet_added':
-      return 'added';
-    case 'bullet_edited':
-      return 'edited';
-    case 'bullet_removed':
-      return 'removed';
-    case 'section_removed':
-      return 'removed this section';
-  }
-}
-
-function HistoryList({ entries }: { entries: ClientMapEditHistoryEntry[] }) {
-  const visible = entries.slice().reverse().slice(0, 8);
-  return (
-    <div
-      data-testid="clientmap-edit-history"
-      style={{
-        marginTop: 'var(--kp-space-xl)',
-        paddingTop: 'var(--kp-space-md)',
-        borderTop: '1px solid var(--kp-divider)',
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-xs)', marginBottom: 'var(--kp-space-sm)' }}>
-        <Clock3 size={14} strokeWidth={1.75} style={{ color: 'var(--color-muted-foreground)' }} />
-        <Eyebrow>{LABEL_EDIT_HISTORY}</Eyebrow>
-      </div>
-      {visible.length === 0 ? (
-        <div style={mutedTextStyle}>{LABEL_NO_HISTORY}</div>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {visible.map((entry) => {
-            const sourceLabel = entry.sources[0] ? sourceChipLabel(entry.sources[0]) : null;
-            const isAutomatic = entry.actor === 'Updated automatically';
-            return (
-              <li key={entry.id} style={{ ...mutedTextStyle, fontSize: 'var(--kp-font-xs)' }}>
-                {isAutomatic ? (
-                  <>
-                    <strong style={{ color: 'var(--kp-navy)' }}>Updated automatically</strong>
-                    {sourceLabel ? ` from ${sourceLabel}` : ''}
-                    {entry.afterText || entry.beforeText ? (
-                      <>
-                        {': '}
-                        <span style={{ color: 'var(--kp-navy)' }}>
-                          "{entry.afterText ?? entry.beforeText}"
-                        </span>
-                      </>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    <strong style={{ color: 'var(--kp-navy)' }}>{entry.actor}</strong>{' '}
-                    {historyActionText(entry)}{' '}
-                    {entry.afterText || entry.beforeText ? (
-                      <span style={{ color: 'var(--kp-navy)' }}>
-                        "{entry.afterText ?? entry.beforeText}"
-                      </span>
-                    ) : null}{' '}
-                    {sourceLabel ? `from ${sourceLabel}` : ''}
-                  </>
-                )}
-                {' '} - {formatHistoryTime(entry.timestamp)}
-              </li>
-            );
-          })}
-        </ul>
+      {hasMenu && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-testid="clientmap-item-menu"
+              aria-label={t('matter.client-map.row-actions')}
+              className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100"
+              style={{ flex: 'none', marginTop: 1 }}
+            >
+              <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-36">
+            {onEdit != null && (
+              <DropdownMenuItem
+                data-testid="clientmap-item-edit"
+                onSelect={onEdit}
+              >
+                {t('matter.client-map.edit')}
+              </DropdownMenuItem>
+            )}
+            {onRemove != null && (
+              <DropdownMenuItem
+                data-testid="clientmap-item-remove"
+                className="text-destructive focus:text-destructive"
+                onSelect={onRemove}
+              >
+                {t('matter.client-map.remove')}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       )}
     </div>
   );
@@ -655,7 +548,7 @@ function SectionPanel({
   onAddItem,
   onSaveTemplate,
   onDelete,
-  historyEntries,
+  onViewHistory,
 }: {
   section: ClientMapSection;
   onOpenSource: (r: SourceRef) => void;
@@ -664,10 +557,12 @@ function SectionPanel({
   onAddItem: (text: string) => void;
   onSaveTemplate?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
-  historyEntries: ClientMapEditHistoryEntry[];
+  onViewHistory: () => void;
 }) {
+  const { t } = useTranslation();
   const isCustom = section.kind === 'custom';
   const [newBullet, setNewBullet] = useState('');
+  const [addingFact, setAddingFact] = useState(false);
   // Wave 0: filter this section's facts down to the ones cited to imported
   // meeting notes (Jump exports, Zocks connector, local meetings). The chip
   // only appears when the section actually has such an item.
@@ -687,34 +582,46 @@ function SectionPanel({
             active={meetingNotesOnly}
             onClick={() => { setMeetingNotesOnly((v) => !v); }}
           >
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Imported meeting notes ({meetingNoteCount})
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            {t('matter.client-map.meetings-filter', { count: meetingNoteCount })}
           </Chip>
         )}
-        {isCustom && onSaveTemplate != null && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            data-testid="clientmap-section-save-template"
-            onClick={onSaveTemplate}
-          >
-            {LABEL_SAVE_TEMPLATE}
-          </Button>
-        )}
-        {isCustom && onDelete != null && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            iconLeft={Trash2}
-            data-testid="clientmap-section-delete"
-            onClick={onDelete}
-          >
-            {LABEL_REMOVE_BTN}
-          </Button>
-        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-testid="clientmap-section-menu"
+              aria-label={t('matter.client-map.section-actions')}
+              className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--sm"
+            >
+              <MoreHorizontal size={15} strokeWidth={1.75} aria-hidden />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem
+              data-testid="clientmap-section-history"
+              onSelect={onViewHistory}
+            >
+              {t('matter.client-map.view-section-history')}
+            </DropdownMenuItem>
+            {isCustom && onSaveTemplate != null && (
+              <DropdownMenuItem
+                data-testid="clientmap-section-save-template"
+                onSelect={onSaveTemplate}
+              >
+                {t('matter.client-map.save-as-template')}
+              </DropdownMenuItem>
+            )}
+            {isCustom && onDelete != null && (
+              <DropdownMenuItem
+                data-testid="clientmap-section-delete"
+                className="text-destructive focus:text-destructive"
+                onSelect={onDelete}
+              >
+                {t('matter.client-map.remove-section')}
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </PanelHeader>
       {section.items.length > 0 ? (
         <div>
@@ -733,44 +640,70 @@ function SectionPanel({
           ))}
         </div>
       ) : (
-        <div style={mutedTextStyle}>{LABEL_SECTION_EMPTY}</div>
+        <div style={mutedTextStyle}>{t('matter.client-map.section-empty')}</div>
       )}
-      <form
-        data-testid="clientmap-add-bullet-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const text = newBullet.trim();
-          if (!text) return;
-          onAddItem(text);
-          setNewBullet('');
-        }}
-        style={{
-          marginTop: 'var(--kp-space-lg)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--kp-space-xs)',
-        }}
-      >
-        <input
-          data-testid="clientmap-add-bullet-input"
-          type="text"
-          value={newBullet}
-          onChange={(e) => { setNewBullet(e.target.value); }}
-          placeholder={LABEL_ADD_BULLET_PH}
-          style={{ ...inputStyle, height: 36, flex: 1 }}
-        />
-        <Button
-          type="submit"
-          data-testid="clientmap-add-bullet-submit"
-          variant="secondary"
-          size="sm"
-          iconLeft={Plus}
-          disabled={!newBullet.trim()}
+      {addingFact ? (
+        <form
+          data-testid="clientmap-add-bullet-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const text = newBullet.trim();
+            if (!text) return;
+            onAddItem(text);
+            setNewBullet('');
+            setAddingFact(false);
+          }}
+          style={{
+            marginTop: 'var(--kp-space-lg)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--kp-space-xs)',
+          }}
         >
-          {LABEL_ADD_BULLET}
-        </Button>
-      </form>
-      <HistoryList entries={historyEntries} />
+          <input
+            data-testid="clientmap-add-bullet-input"
+            type="text"
+            value={newBullet}
+            onChange={(e) => { setNewBullet(e.target.value); }}
+            placeholder={t('matter.client-map.add-fact')}
+            style={{ ...inputStyle, height: 36, flex: 1 }}
+            autoFocus
+          />
+          <Button
+            type="submit"
+            data-testid="clientmap-add-bullet-submit"
+            variant="secondary"
+            size="sm"
+            disabled={!newBullet.trim()}
+          >
+            {t('matter.client-map.add')}
+          </Button>
+        </form>
+      ) : (
+        <button
+          type="button"
+          data-testid="clientmap-add-fact-row"
+          onClick={() => { setAddingFact(true); }}
+          style={{
+            marginTop: 'var(--kp-space-lg)',
+            width: '100%',
+            border: 0,
+            background: 'transparent',
+            color: 'var(--color-muted-foreground)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 'var(--kp-space-xs)',
+            padding: '8px 0',
+            fontSize: 'var(--kp-font-sm)',
+            fontWeight: 'var(--kp-weight-semibold)',
+            cursor: 'pointer',
+            fontFamily: 'var(--font-sans)',
+          }}
+        >
+          <Plus size={14} strokeWidth={1.75} aria-hidden />
+          {t('matter.client-map.add-fact-row')}
+        </button>
+      )}
     </div>
   );
 }
@@ -788,6 +721,8 @@ function MissingPanel({
   onAnswerQuestion?: ((question: GapQuestion) => void) | undefined;
   onFlagForClient?: ((question: GapQuestion) => void) | undefined;
 }) {
+  const { t } = useTranslation();
+  const [interviewOpen, setInterviewOpen] = useState(false);
   // Recomputed against unresolved gaps only (Codex review of D1): otherwise the
   // level chip can stay stuck (e.g. "Getting there") after every remaining gap
   // has been answered or flagged, even though nothing is outstanding anymore.
@@ -797,28 +732,37 @@ function MissingPanel({
   const hasAssumptions = c.assuming.length > 0;
   return (
     <div data-testid="clientmap-completeness">
-      <PanelHeader title={LABEL_STILL_MISSING}>
+      <PanelHeader title={t('matter.client-map.missing-title')}>
         <Chip data-testid="clientmap-completeness-level" size="sm">
-          {LEVEL_LABEL[c.level]}
+          {completenessLevelLabel(c.level, t)}
         </Chip>
       </PanelHeader>
 
-      {/* Coverage caveat — honest about what this map is. It's built only from
-          the files Advisor Prep Hero can read, so a clean map is a head-start for your
-          review, not a guarantee the whole record is complete. Stated plainly so
-          the catch (e.g. a stale beneficiary) never reads as "everything's been
-          checked." */}
-      <div
+      <TrustNote
         data-testid="clientmap-coverage-caveat"
-        style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-md)' }}
+        details={t('matter.client-map.coverage-caveat-full')}
+        style={{ marginBottom: 'var(--kp-space-md)' }}
       >
-        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-        Built from the files Advisor Prep Hero can read — a head-start for your review, not a guarantee the whole record is complete.
-        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-      </div>
+        {t('matter.client-map.coverage-caveat-short')}
+      </TrustNote>
 
       {hasGaps && (
         <div style={{ marginBottom: hasAssumptions ? 'var(--kp-space-lg)' : 0 }}>
+          <Button
+            type="button"
+            data-testid="clientmap-start-interview"
+            variant="secondary"
+            size="sm"
+            style={{ marginBottom: 'var(--kp-space-sm)' }}
+            onClick={() => { setInterviewOpen(true); }}
+          >
+            {t('matter.client-map.answer-one-by-one')}
+          </Button>
+          {interviewOpen && (
+            <div style={{ marginBottom: 'var(--kp-space-md)' }}>
+              <GuidedInterview matterId={map.matterId} onClose={() => { setInterviewOpen(false); }} />
+            </div>
+          )}
           {askGaps.map((q, i) => (
             <div
               key={i}
@@ -834,22 +778,34 @@ function MissingPanel({
                   onAnswerQuestion?.(q);
                 }}
               >
-                {LABEL_I_KNOW}
+                {t('matter.client-map.answer')}
               </Button>
-              <Button
-                data-testid="clientmap-ask-flag"
-                size="sm"
-                variant="secondary"
-                onClick={() => {
-                  if (onFlagForClient) {
-                    onFlagForClient(q);
-                  } else {
-                    flagForClient(map.matterId, q.text);
-                  }
-                }}
-              >
-                {LABEL_ASK_CLIENT}
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    data-testid="clientmap-ask-menu"
+                    aria-label={t('matter.client-map.question-actions')}
+                    className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
+                  >
+                    <MoreHorizontal size={14} strokeWidth={1.75} aria-hidden />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-36">
+                  <DropdownMenuItem
+                    data-testid="clientmap-ask-flag"
+                    onSelect={() => {
+                      if (onFlagForClient) {
+                        onFlagForClient(q);
+                      } else {
+                        flagForClient(map.matterId, q.text);
+                      }
+                    }}
+                  >
+                    {t('matter.client-map.ask-client')}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           ))}
         </div>
@@ -857,10 +813,10 @@ function MissingPanel({
 
       {hasAssumptions && (
         <div style={{ marginBottom: 'var(--kp-space-lg)' }}>
-          <Eyebrow>{LABEL_WORKING_ASSUMPTIONS}</Eyebrow>
+          <Eyebrow>{t('matter.client-map.assumptions-title')}</Eyebrow>
           <div>
             {c.assuming.map((it) => (
-              <ItemRow key={it.id} item={it} onOpenSource={onOpenSource} />
+              <ItemRow key={it.id} item={it} onOpenSource={onOpenSource} showAssumptionLabel={false} />
             ))}
           </div>
         </div>
@@ -868,7 +824,7 @@ function MissingPanel({
 
       {!hasGaps && !hasAssumptions && (
         <div style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-lg)' }}>
-          {LABEL_MAP_COMPLETE}
+          {t('matter.client-map.map-complete')}
         </div>
       )}
 
@@ -889,6 +845,7 @@ function AddSectionPanel({
   onCreated: (key: string) => void;
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
+  const { t } = useTranslation();
   const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
@@ -906,13 +863,13 @@ function AddSectionPanel({
     setBusy(true);
     setError(null);
     const sectionId = uuidv4();
-    const t = title.trim();
-    const p = prompt.trim() || t;
+    const sectionTitle = title.trim();
+    const p = prompt.trim() || sectionTitle;
     addCustomSection(matterId, {
       id: sectionId,
       kind: 'custom',
       key: sectionId,
-      title: t,
+      title: sectionTitle,
       prompt: p,
       scope: 'matter',
       items: [],
@@ -926,13 +883,13 @@ function AddSectionPanel({
           id: sectionId,
           kind: 'custom',
           key: sectionId,
-          title: t,
+          title: sectionTitle,
           prompt: p,
           scope: 'matter',
           items: [
             {
               id: uuidv4(),
-              text: `Tracking: ${p}.`,
+              text: t('matter.client-map.preview-tracking', { prompt: p }),
               origin: 'ai',
               isAssumption: false,
               sources: [],
@@ -940,7 +897,7 @@ function AddSectionPanel({
             },
             {
               id: uuidv4(),
-              text: 'Advisor Prep Hero keeps this updated from new documents and email.',
+              text: t('matter.client-map.preview-updated'),
               origin: 'ai',
               isAssumption: false,
               sources: [],
@@ -949,7 +906,7 @@ function AddSectionPanel({
           ],
         };
       } else {
-        populated = await buildCustomSection(matterId, sectionId, t, p, onAuditLog ? { onAuditLog } : undefined);
+        populated = await buildCustomSection(matterId, sectionId, sectionTitle, p, onAuditLog ? { onAuditLog } : undefined);
       }
       // D3: merge the AI-populated items into the section rather than replacing
       // it wholesale — the section started empty, so anything already in it here
@@ -961,7 +918,7 @@ function AddSectionPanel({
       onCreated(sectionId);
     } catch {
       removeSectionSilently(matterId, sectionId);
-      setError(LABEL_SECTION_ERROR);
+      setError(t('matter.client-map.section-error'));
     } finally {
       setBusy(false);
     }
@@ -979,7 +936,7 @@ function AddSectionPanel({
 
   return (
     <div data-testid="clientmap-new-section">
-      <PanelHeader title={LABEL_ADD_SECTION_HEADING} />
+      <PanelHeader title={t('matter.client-map.add-section-heading')} />
       <p
         style={{
           ...mutedTextStyle,
@@ -988,7 +945,7 @@ function AddSectionPanel({
           maxWidth: 520,
         }}
       >
-        {LABEL_ADD_SECTION_BODY}
+        {t('matter.client-map.add-section-body')}
       </p>
 
       <form
@@ -1005,7 +962,7 @@ function AddSectionPanel({
       >
         <div>
           <label htmlFor="cmp-section-title" style={fieldLabelStyle}>
-            {LABEL_SECTION_NAME}
+            {t('matter.client-map.section-name')}
           </label>
           <input
             id="cmp-section-title"
@@ -1015,13 +972,13 @@ function AddSectionPanel({
             onChange={(e) => {
               setTitle(e.target.value);
             }}
-            placeholder={LABEL_SECTION_NAME_PH}
+            placeholder={t('matter.client-map.section-name-placeholder')}
             style={inputStyle}
           />
         </div>
         <div>
           <label htmlFor="cmp-section-description" style={fieldLabelStyle}>
-            {LABEL_WHAT_TO_TRACK}
+            {t('matter.client-map.track-label')}
           </label>
           <input
             id="cmp-section-description"
@@ -1031,7 +988,7 @@ function AddSectionPanel({
             onChange={(e) => {
               setPrompt(e.target.value);
             }}
-            placeholder={LABEL_WHAT_TO_TRACK_PH}
+            placeholder={t('matter.client-map.track-placeholder')}
             style={inputStyle}
           />
         </div>
@@ -1054,7 +1011,7 @@ function AddSectionPanel({
             disabled={!title.trim() || busy}
             loading={busy}
           >
-            {LABEL_ADD_SECTION_BTN}
+            {t('matter.client-map.add-section-submit')}
           </Button>
         </div>
       </form>
@@ -1068,7 +1025,7 @@ function AddSectionPanel({
             maxWidth: 520,
           }}
         >
-          <Eyebrow>{LABEL_REUSE_TEMPLATE}</Eyebrow>
+          <Eyebrow>{t('matter.client-map.saved-templates')}</Eyebrow>
           <ul
             style={{
               listStyle: 'none',
@@ -1088,8 +1045,7 @@ function AddSectionPanel({
                   alignItems: 'center',
                   gap: 'var(--kp-space-sm)',
                   padding: 'var(--kp-space-xs) var(--kp-space-sm)',
-                  border: 'var(--kp-border-width) solid var(--color-border)',
-                  borderRadius: 'var(--radius-md)',
+                  borderRadius: 'var(--radius-sm)',
                   background: 'var(--color-background)',
                 }}
               >
@@ -1111,13 +1067,14 @@ function AddSectionPanel({
                   data-testid="clientmap-template-apply"
                   variant="secondary"
                   size="sm"
+                  iconLeft={Check}
                   loading={applying === tpl.id}
                   disabled={applying !== null}
                   onClick={() => {
                     void applyTemplate(tpl.id);
                   }}
                 >
-                  {LABEL_USE_TEMPLATE}
+                  {t('matter.client-map.apply-template')}
                 </Button>
               </li>
             ))}
@@ -1145,7 +1102,7 @@ export function ClientMapPanel({
   onEditItem,
   onAnswerQuestion,
   onFlagForClient,
-  onStartInterview,
+  onViewSectionHistory,
   onAuditLog,
 }: {
   map: ClientMap;
@@ -1153,8 +1110,7 @@ export function ClientMapPanel({
   onEditItem: (sectionKey: string, itemId: string) => void;
   onAnswerQuestion?: (question: GapQuestion) => void;
   onFlagForClient?: (question: GapQuestion) => void;
-  /** Toggle the guided-interview panel from the compact rail action icon. */
-  onStartInterview?: () => void;
+  onViewSectionHistory?: (sectionKey: string, sectionTitle: string) => void;
   /** Audit sink for custom-section builds (Trust-fixes finding #1) — threaded
    *  down to AddSectionPanel so a custom section or applied template records
    *  an egress entry before it sends this client's context to an AI provider. */
@@ -1166,6 +1122,8 @@ export function ClientMapPanel({
   const addUserItem = useClientMapStore((s) => s.addUserItem);
   const saveTemplate = useTemplatesStore((s) => s.saveTemplate);
   const { confirm, dialogProps } = useConfirmDialog();
+  const sourcesPaneRef = useRef<HTMLDivElement | null>(null);
+  const [selectedSourceN, setSelectedSourceN] = useState<number | null>(null);
 
   // Build the ordered section list: core sections first (in spec order, with
   // empty shells for any that have not been filled yet), then custom sections.
@@ -1212,6 +1170,7 @@ export function ClientMapPanel({
 
   const select = (key: string): void => {
     setActiveKey(key);
+    setSelectedSourceN(null);
     if (key === NEW_KEY) return;
     try {
       localStorage.setItem(tabStorageKey(map.matterId), key);
@@ -1221,11 +1180,6 @@ export function ClientMapPanel({
   };
 
   const activeSection = sectionList.find((s) => s.key === activeKey);
-  const activeHistory =
-    activeSection !== undefined
-      ? (map.editHistory ?? []).filter((entry) => entry.sectionKey === activeSection.key)
-      : [];
-
   // The Sources column reflects whatever the user is currently viewing: the
   // cited sources behind the active section's facts (or, on "What I'm missing",
   // the know/assuming facts). Empty on the "+ New section" composer.
@@ -1248,6 +1202,16 @@ export function ClientMapPanel({
     }
   }
 
+  const setSourcesCollapsedPreference = (collapsed: boolean): void => {
+    try {
+      localStorage.setItem(skClientMapSourcesCollapsed(map.matterId), collapsed ? '1' : '0');
+    // eslint-disable-next-line lantern-async/no-silent-failure -- Keep the in-memory preference if browser storage is unavailable.
+    } catch {
+      // localStorage unavailable — keep the in-memory preference for this view.
+    }
+    setSourcesCollapseState({ matterId: map.matterId, collapsed });
+  };
+
   const toggleSourcesCollapsed = (): void => {
     setSourcesCollapseState((current) => {
       const currentCollapsed =
@@ -1265,6 +1229,21 @@ export function ClientMapPanel({
     });
   };
 
+  const showSourceInPane = (source: SourceRef): void => {
+    const citation = currentSources.find((c) => c.path === source.ref || c.id === source.citationId);
+    if (citation !== undefined) {
+      setSelectedSourceN(citation.n);
+    }
+    setSourcesCollapsedPreference(false);
+    window.setTimeout(() => {
+      if (citation === undefined) return;
+      const card = sourcesPaneRef.current?.querySelector<HTMLElement>(
+        `[data-testid="source-card"][data-cite="${String(citation.n)}"]`,
+      );
+      card?.scrollIntoView({ block: 'nearest' });
+    }, 0);
+  };
+
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
       {/* Left rail: compact action icons, then sections, then "What I'm missing". */}
@@ -1272,20 +1251,12 @@ export function ClientMapPanel({
         <div style={railTopActionsStyle}>
           <RailIconActionButton
             icon={Plus}
-            label={LABEL_NEW_SECTION}
+            label={t('matter.client-map.new-section')}
             testid="clientmap-tab-add"
             onClick={() => {
               select(NEW_KEY);
             }}
           />
-          {onStartInterview && (
-            <RailIconActionButton
-              icon={Sparkles}
-              label={LABEL_START_GUIDED_INTERVIEW}
-              testid="clientmap-start-interview"
-              onClick={onStartInterview}
-            />
-          )}
         </div>
 
         <div style={railTabsStyle} role="tablist" aria-label="Client map sections">
@@ -1293,7 +1264,7 @@ export function ClientMapPanel({
             <TabButton
               key={s.key}
               testid={`clientmap-tab-${s.key}`}
-              title={s.title}
+              title={s.key === 'money' ? t('matter.client-map.rail-money') : s.title}
               count={null}
               active={activeKey === s.key}
               accent={false}
@@ -1307,7 +1278,7 @@ export function ClientMapPanel({
           {/* "What I'm missing" — accent badge when there are open gaps */}
           <TabButton
             testid={`clientmap-tab-${MISSING_KEY}`}
-            title={LABEL_WHAT_MISSING}
+            title={t('matter.client-map.rail-missing')}
             count={missingCount > 0 ? missingCount : null}
             active={activeKey === MISSING_KEY}
             accent={missingCount > 0}
@@ -1334,23 +1305,23 @@ export function ClientMapPanel({
           ) : activeKey === MISSING_KEY || activeSection === undefined ? (
             <MissingPanel
               map={map}
-              onOpenSource={onOpenSource}
+              onOpenSource={showSourceInPane}
               onAnswerQuestion={onAnswerQuestion}
               onFlagForClient={onFlagForClient}
             />
           ) : (
             <SectionPanel
               section={activeSection}
-              onOpenSource={onOpenSource}
+              onOpenSource={showSourceInPane}
               onEdit={(itemId) => {
                 onEditItem(activeSection.key, itemId);
               }}
               onRemoveItem={(itemId) => {
                 void (async () => {
-                  const ok = await confirm(LABEL_REMOVE_BULLET_DESC, {
-                    title: LABEL_REMOVE_BULLET_TITLE,
-                    confirmLabel: LABEL_REMOVE_BTN,
-                    cancelLabel: 'Keep it',
+                  const ok = await confirm(t('matter.client-map.remove-bullet-desc'), {
+                    title: t('matter.client-map.remove-bullet-title'),
+                    confirmLabel: t('matter.client-map.remove'),
+                    cancelLabel: t('matter.client-map.keep-it'),
                     variant: 'destructive',
                   });
                   if (ok) removeItem(map.matterId, activeSection.key, itemId);
@@ -1375,10 +1346,10 @@ export function ClientMapPanel({
                 activeSection.kind === 'custom'
                   ? () => {
                       void (async () => {
-                        const ok = await confirm(LABEL_REMOVE_SECTION_DESC, {
-                          title: LABEL_REMOVE_SECTION_TITLE,
-                          confirmLabel: LABEL_REMOVE_BTN,
-                          cancelLabel: 'Keep section',
+                        const ok = await confirm(t('matter.client-map.remove-section-desc'), {
+                          title: t('matter.client-map.remove-section-title'),
+                          confirmLabel: t('matter.client-map.remove-section'),
+                          cancelLabel: t('matter.client-map.keep-section'),
                           variant: 'destructive',
                         });
                         if (ok) {
@@ -1391,7 +1362,9 @@ export function ClientMapPanel({
                     }
                   : undefined
               }
-              historyEntries={activeHistory}
+              onViewHistory={() => {
+                onViewSectionHistory?.(activeSection.key, activeSection.title);
+              }}
             />
           )}
         </div>
@@ -1401,6 +1374,7 @@ export function ClientMapPanel({
           the cited sources behind the facts the user is currently viewing, and
           updates as they switch sections / "What I'm missing". */}
       <div
+        ref={sourcesPaneRef}
         data-testid="clientmap-sources-pane"
         data-collapsed={sourcesCollapsed ? 'true' : 'false'}
         style={{
@@ -1425,8 +1399,9 @@ export function ClientMapPanel({
           <button
             type="button"
             data-testid="clientmap-sources-toggle"
-            aria-label={sourcesCollapsed ? t('ask.sources.show-panel') : t('ask.sources.collapse')}
-            title={sourcesCollapsed ? t('ask.sources.show-panel') : t('ask.sources.collapse')}
+            aria-label={t('ask.sources.title')}
+            aria-expanded={!sourcesCollapsed}
+            title={t('ask.sources.title')}
             className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--sm"
             onClick={toggleSourcesCollapsed}
           >
@@ -1440,8 +1415,8 @@ export function ClientMapPanel({
         {!sourcesCollapsed && (
           <SourcePanel
             citations={currentSources}
-            selectedN={null}
-            onSelect={() => {}}
+            selectedN={selectedSourceN}
+            onSelect={setSelectedSourceN}
             onOpenCitation={(c) => {
               const ref = c.path != null ? sourceRefByRef.get(c.path) : undefined;
               if (ref) onOpenSource(ref);

@@ -23,7 +23,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Badge, IconButton, SlidePanel } from '@/ui/kp';
+import { Badge, IconButton, QuietStatus, SlidePanel } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import {
   DropdownMenu,
@@ -36,7 +36,6 @@ import { usePromptDialog } from '@/platform/hooks/usePromptDialog';
 import { PromptDialog } from '@/ui/PromptDialog';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { BeforeYouMeetStrip } from '@/features/meetings/BeforeYouMeetStrip';
-import { GuidedInterview } from '@/features/matters/GuidedInterview';
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { CrmWritePendingBanner } from '@/features/matters/CrmWritePendingBanner';
 import { VoiceprintsCard } from '@/features/matters/VoiceprintsCard';
@@ -76,7 +75,7 @@ export interface MatterHubProps {
    */
   renderDocuments?: (matter: Matter | null) => ReactNode;
   renderEmail?: () => ReactNode;
-  renderActivity?: () => ReactNode;
+  renderActivity?: (options?: { clientMapSectionKey?: string; clientMapSectionTitle?: string }) => ReactNode;
   /**
    * The active WorkspaceService (or null before a workspace is open), passed
    * down from the shell for the self-contained Meetings sub-tab
@@ -115,24 +114,23 @@ function hubTabLabel(id: HubTab, t: (key: string) => string): string {
   }
 }
 
-function formatClientMapUpdated(timestamp: string | undefined): string {
-  if (!timestamp) return 'Not updated yet';
+function formatClientMapUpdated(
+  timestamp: string | undefined,
+  labels: {
+    notUpdatedYet: string;
+    updatedRecently: string;
+    updatedAt: (date: string) => string;
+  },
+): string {
+  if (!timestamp) return labels.notUpdatedYet;
   const d = new Date(timestamp);
-  if (Number.isNaN(d.getTime())) return 'Updated recently';
-  return `Updated ${d.toLocaleString(undefined, {
+  if (Number.isNaN(d.getTime())) return labels.updatedRecently;
+  return labels.updatedAt(d.toLocaleString(undefined, {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
     minute: '2-digit',
-  })}`;
-}
-
-function formatClientMapSyncText(timestamp: string | undefined, result: ClientMapSyncResult | null): string {
-  if (result === 'unchanged') return 'No new changes';
-  if (result === 'updated') return 'Updated';
-  if (result === 'in_flight') return 'Already syncing';
-  if (result === 'failed') return 'Sync failed';
-  return formatClientMapUpdated(timestamp);
+  }));
 }
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
@@ -174,6 +172,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const [isSyncingClientMap, setIsSyncingClientMap] = useState(false);
   const [exportingClientMap, setExportingClientMap] = useState<'word' | 'pdf' | null>(null);
   const [clientMapSyncResult, setClientMapSyncResult] = useState<ClientMapSyncResult | null>(null);
+  const [historySectionFilter, setHistorySectionFilter] = useState<{ key: string; title: string } | null>(null);
   // Direct opens from Client Map/Activity still land inside the Meetings rail.
   // MatterHub only passes the requested meeting down; ClientMeetingsTab owns the
   // master-detail selection so the rail never disappears.
@@ -253,10 +252,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     }
   }, [crmSyncStatus, checkForUpdates]);
 
-  // ── Client Map handlers ──────────────────────────────────────────────────
-  // The Client Map is the hero of the Overview tab — always expanded.
-  const [showInterview, setShowInterview] = useState(false);
-
   // In-app prompt dialog (WebView2-safe: native window.prompt is dead in the
   // Tauri Windows build, so Client Map edits/answers go through the in-DOM
   // dialog instead).
@@ -321,6 +316,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       setIsSyncingClientMap(false);
     });
   }, [checkForUpdates, generate, isSyncingClientMap, matterId]);
+
+  useEffect(() => {
+    if (clientMapSyncResult !== 'unchanged' && clientMapSyncResult !== 'updated') return undefined;
+    const timeout = window.setTimeout(() => { setClientMapSyncResult(null); }, 3000);
+    return () => { window.clearTimeout(timeout); };
+  }, [clientMapSyncResult]);
 
   const handleExportClientMapWord = useCallback(() => {
     void (async () => {
@@ -405,9 +406,27 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
     );
   }
 
-  const clientMapUpdatedText = isSyncingClientMap
-    ? 'Syncing...'
-    : formatClientMapSyncText(clientMap.map?.lastBuiltAt, clientMapSyncResult);
+  const clientMapUpdatedText = formatClientMapUpdated(clientMap.map?.lastBuiltAt, {
+    notUpdatedYet: t('matter.hub.not-updated-yet'),
+    updatedRecently: t('matter.hub.updated-recently'),
+    updatedAt: (date) => t('matter.hub.updated-at', { date }),
+  });
+  const clientMapHeaderStatus =
+    isSyncingClientMap || clientMapSyncResult === 'in_flight'
+      ? t('matter.hub.updating')
+      : clientMapSyncResult === 'failed'
+        ? t('matter.hub.sync-failed')
+        : clientMapSyncResult === 'unchanged'
+          ? t('matter.hub.no-new-changes')
+          : clientMapSyncResult === 'updated'
+            ? t('matter.hub.updated-short')
+            : '';
+  const clientMapHeaderStatusState =
+    clientMapSyncResult === 'failed'
+      ? 'failure'
+      : isSyncingClientMap || clientMapSyncResult === 'in_flight'
+        ? 'pending'
+        : 'ok';
 
   return (
     <div
@@ -469,13 +488,23 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   <DropdownMenuItem
                     data-testid="clientmap-sync-button"
                     disabled={isSyncingClientMap}
+                    title={clientMapUpdatedText}
                     onClick={handleSyncClientMap}
                   >
                     {t('matter.hub.sync-all')}
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                    data-testid="clientmap-last-updated-menu"
+                    disabled
+                  >
+                    {clientMapUpdatedText}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                     data-testid="clientmap-history-button"
-                    onClick={() => { setIsHistoryOpen(true); }}
+                    onClick={() => {
+                      setHistorySectionFilter(null);
+                      setIsHistoryOpen(true);
+                    }}
                   >
                     {t('matter.hub.history-title')}
                   </DropdownMenuItem>
@@ -485,12 +514,13 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 data-testid="clientmap-last-updated"
                 aria-live="polite"
                 style={{
-                  color: 'var(--color-muted-foreground)',
-                  fontSize: 'var(--kp-font-xs)',
                   whiteSpace: 'nowrap',
+                  display: clientMapHeaderStatus === '' ? 'none' : 'inline',
                 }}
               >
-                {clientMapUpdatedText}
+                {clientMapHeaderStatus !== '' ? (
+                  <QuietStatus state={clientMapHeaderStatusState}>{clientMapHeaderStatus}</QuietStatus>
+                ) : null}
               </span>
             </div>
           }
@@ -635,23 +665,6 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                   </div>
                 )}
 
-                {/* When ready: the optional guided-interview panel. The interview BUTTON
-                    now lives in the header (top-right). When the interview is
-                    closed this collapses to zero height, so the section rail
-                    meets the tab bar — exactly like Ask. */}
-                {clientMap.status === 'ready' && clientMap.map !== undefined && (
-                  <div style={{ padding: '0 var(--kp-gutter)' }}>
-                    {showInterview && (
-                      <div style={{ margin: 'var(--kp-surface-gap) 0 12px' }}>
-                        <GuidedInterview
-                          matterId={matterId}
-                          onClose={() => { setShowInterview(false); }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )}
-
                 {/* Codex review catch: the Wealthbox write-back queue is
                     independent of Client Map readiness — a note sent from the
                     (always-available) shared notes editor must stay reachable
@@ -681,7 +694,10 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                       })();
                     }}
                     onFlagForClient={(gap) => { flagForClient(matterId, gap.text); }}
-                    onStartInterview={() => { setShowInterview((v) => !v); }}
+                    onViewSectionHistory={(sectionKey, sectionTitle) => {
+                      setHistorySectionFilter({ key: sectionKey, title: sectionTitle });
+                      setIsHistoryOpen(true);
+                    }}
                     {...(onAuditLog ? { onAuditLog } : {})}
                   />
                 )}
@@ -726,7 +742,9 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Clock style={{ width: 'var(--kp-icon-lg)', height: 'var(--kp-icon-lg)', color: 'var(--kp-accent)', strokeWidth: 1.75 }} />
             <div style={{ fontSize: 'var(--kp-font-md)', fontWeight: 'var(--kp-weight-bold)', color: 'var(--kp-navy)', lineHeight: 'var(--kp-leading-tight)' }}>
-              {t('matter.hub.history-title')}
+              {historySectionFilter
+                ? t('matter.hub.section-history-title', { section: historySectionFilter.title })
+                : t('matter.hub.history-title')}
             </div>
           </div>
         }
@@ -734,7 +752,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
         closeLabel={t('matter.hub.history-close')}
         data-testid="clientmap-history-panel"
       >
-        {renderActivity ? renderActivity() : <SubTabUnavailable label={t('matter.hub.history-title')} />}
+        {renderActivity
+          ? renderActivity(historySectionFilter ? {
+              clientMapSectionKey: historySectionFilter.key,
+              clientMapSectionTitle: historySectionFilter.title,
+            } : undefined)
+          : <SubTabUnavailable label={t('matter.hub.history-title')} />}
       </SlidePanel>
       <PromptDialog {...promptDialogProps} />
     </div>

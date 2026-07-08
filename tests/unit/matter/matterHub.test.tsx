@@ -108,6 +108,11 @@ function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null, pendingMeetingOpen: null });
 }
 
+async function openFirstClientMapItemEdit() {
+  fireEvent.pointerDown(screen.getAllByTestId('clientmap-item-menu')[0]!, { button: 0, ctrlKey: false });
+  return screen.findByTestId('clientmap-item-edit');
+}
+
 function makeMeetingsWorkspace() {
   const meetingDir = 'C:/WS/Clients/Acme/Meetings/direct';
   return {
@@ -214,12 +219,12 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.queryByTestId('clientmap-history-button')).toBeNull();
 
     const menuButton = screen.getByTestId('clientmap-actions-menu-button');
-    expect(menuButton).toHaveAccessibleName('Client map actions');
+    expect(menuButton).toHaveAccessibleName('Actions');
     fireEvent.pointerDown(menuButton);
 
-    expect(await screen.findByTestId('clientmap-export-word')).toHaveTextContent('Export client map (DOCX)');
-    expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export client map (PDF)');
-    expect(screen.getByTestId('clientmap-sync-button')).toHaveTextContent('Sync all');
+    expect(await screen.findByTestId('clientmap-export-word')).toHaveTextContent('Export Word');
+    expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export PDF');
+    expect(screen.getByTestId('clientmap-sync-button')).toHaveTextContent('Update map');
     expect(screen.getByTestId('clientmap-history-button')).toHaveTextContent('History');
   });
 
@@ -261,7 +266,7 @@ describe('MatterHub — list to hub navigation', () => {
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
     fireEvent.pointerDown(screen.getByTestId('clientmap-actions-menu-button'));
     const syncButton = await screen.findByTestId('clientmap-sync-button');
-    expect(syncButton).toHaveTextContent('Sync all');
+    expect(syncButton).toHaveTextContent('Update map');
 
     fireEvent.click(syncButton);
 
@@ -557,8 +562,8 @@ describe('MatterHub — sub-tab workspace', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    // Click the item's Edit button.
-    fireEvent.click(screen.getAllByTestId('clientmap-item-edit')[0]!);
+    // Open the row menu and click the item's Edit command.
+    fireEvent.click(await openFirstClientMapItemEdit());
 
     // The in-app prompt appears, prefilled with the current text.
     const input = (await screen.findByDisplayValue('Client owns a rental property')) as HTMLInputElement;
@@ -598,7 +603,7 @@ describe('MatterHub — sub-tab workspace', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    fireEvent.click(screen.getAllByTestId('clientmap-item-edit')[0]!);
+    fireEvent.click(await openFirstClientMapItemEdit());
     const input = await screen.findByDisplayValue('Original fact');
     fireEvent.change(input, { target: { value: 'Should be discarded' } });
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
