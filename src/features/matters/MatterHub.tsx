@@ -19,7 +19,6 @@ import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreHorizontal } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
-import { MeetingEntry } from '@/features/meetings/MeetingEntry';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
@@ -185,6 +184,10 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const [isSyncingClientMap, setIsSyncingClientMap] = useState(false);
   const [exportingClientMap, setExportingClientMap] = useState<'word' | 'pdf' | null>(null);
   const [clientMapSyncResult, setClientMapSyncResult] = useState<ClientMapSyncResult | null>(null);
+  // Direct opens from Client Map/Activity still land inside the Meetings rail.
+  // MatterHub only passes the requested meeting down; ClientMeetingsTab owns the
+  // master-detail selection so the rail never disappears.
+  const [initialSelectedMeeting, setInitialSelectedMeeting] = useState<{ dir: string; folderName: string; startMs?: number } | null>(null);
 
   // Honor + consume a pending sub-tab request. Reactive on `pendingHubTab` so it
   // handles a quick-action targeting the SAME already-open client (no remount).
@@ -198,15 +201,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           setIsHistoryOpen(true);
         } else {
           setSubTab(requested);
+          if (requested !== 'meetings') setInitialSelectedMeeting(null);
         }
         setPendingHubTab(null);
       });
     }
   }, [pendingHubTab, setPendingHubTab]);
-
-  // The currently open meeting on the Meetings sub-tab (list view when null).
-  // Reset happens naturally on client switch (MatterHub remounts per matter).
-  const [selectedMeeting, setSelectedMeeting] = useState<{ dir: string; folderName: string; startMs?: number } | null>(null);
 
   // Honor a `meeting:<dir>#<ms>` Client Map source click or Activity entry
   // click (Task 11's ref-resolution): land on the Meetings sub-tab with that
@@ -218,7 +218,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       const req = pendingMeetingOpen;
       queueMicrotask(() => {
         setSubTab('meetings');
-        setSelectedMeeting({
+        setInitialSelectedMeeting({
           dir: req.meetingDir,
           folderName: req.meetingDir.split('/').pop() ?? req.meetingDir,
           startMs: req.startMs,
@@ -518,7 +518,10 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                       role="tab"
                       aria-selected={active}
                       data-testid={`hub-subtab-${id}`}
-                      onClick={() => { setSubTab(id); }}
+                      onClick={() => {
+                        setSubTab(id);
+                        if (id !== 'meetings') setInitialSelectedMeeting(null);
+                      }}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -575,7 +578,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
             OTHER sub-tab and jumps back to Overview (where the full card
             lives) on click. */}
         {subTab !== 'overview' && (
-          <CrmWritePendingBanner matterId={matterId} onReviewNow={() => { setSubTab('overview'); }} />
+          <CrmWritePendingBanner matterId={matterId} onReviewNow={() => { setSubTab('overview'); setInitialSelectedMeeting(null); }} />
         )}
         {subTab === 'overview' && (
           <div
@@ -720,25 +723,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
 
         {subTab === 'meetings' && (
           <div data-testid="hub-subtab-panel-meetings" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            {selectedMeeting ? (
-              <MeetingEntry
-                matterId={matterId}
-                meetingDir={selectedMeeting.dir}
-                folderName={selectedMeeting.folderName}
-                clientName={headerTitle}
-                workspaceRoot={workspaceRoot ?? ''}
-                workspaceService={workspaceService ?? null}
-                onBack={() => { setSelectedMeeting(null); }}
-                {...(selectedMeeting.startMs !== undefined ? { initialSeekMs: selectedMeeting.startMs } : {})}
-              />
-            ) : (
-              <ClientMeetingsTab
-                matterId={matterId}
-                matterFolder={matter.folderPaths[0] ?? ''}
-                onOpenMeeting={(m) => { setSelectedMeeting({ dir: m.dir, folderName: m.folderName }); }}
-                workspaceService={workspaceService ?? null}
-              />
-            )}
+            <ClientMeetingsTab
+              matterId={matterId}
+              matterFolder={matter.folderPaths[0] ?? ''}
+              workspaceService={workspaceService ?? null}
+              {...(initialSelectedMeeting ? { initialSelectedMeeting } : {})}
+            />
           </div>
         )}
 

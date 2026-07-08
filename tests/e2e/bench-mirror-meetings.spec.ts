@@ -18,9 +18,19 @@ async function openMeetingsTab(page: Page) {
   await hardClick(page.getByTestId('spine-nav-matters'));
   const subtabBar = page.getByTestId('hub-subtab-bar');
   const matterRow = page.getByTestId(`matter-row-${BRENNAN_ID}`);
-  await expect(subtabBar.or(matterRow)).toBeVisible({ timeout: 15_000 });
-  if (await matterRow.isVisible().catch(() => false)) {
-    await hardClick(matterRow);
+  const spineClientRow = page.getByTestId(`spine-client-row-${BRENNAN_ID}`);
+  await expect.poll(async () => {
+    if (await subtabBar.isVisible().catch(() => false)) return 'hub';
+    if (await matterRow.isVisible().catch(() => false)) return 'matter-row';
+    if (await spineClientRow.isVisible().catch(() => false)) return 'spine-row';
+    return 'none';
+  }, { timeout: 15_000 }).not.toBe('none');
+  if (!(await subtabBar.isVisible().catch(() => false))) {
+    if (await matterRow.isVisible().catch(() => false)) {
+      await hardClick(matterRow);
+    } else if (await spineClientRow.isVisible().catch(() => false)) {
+      await hardClick(spineClientRow);
+    }
     await expect(subtabBar).toBeVisible({ timeout: 15_000 });
   }
   await hardClick(page.getByTestId('hub-subtab-meetings'));
@@ -32,8 +42,9 @@ test.describe('Bench mirror: Wave 3c — Meetings tab', () => {
     await openMeetingsTab(page);
     await expect(page.getByTestId('client-meetings-tab')).toBeVisible();
     await expect(page.getByTestId('client-meetings-empty')).toBeVisible({ timeout: 10_000 });
-    // 2026-07-04 UX review S6: the empty state itself carries the record CTA.
-    await expect(page.getByTestId('record-meeting-button')).toBeEnabled();
+    // 2026-07-04 UX review S6: the rail header carries the record CTA.
+    const railHeader = page.getByTestId('client-meetings-rail-header');
+    await expect(railHeader.getByTestId('record-meeting-button')).toBeEnabled();
   });
 
   test('Record a meeting opens the consent dialog, gated on the checkbox', async ({ page }) => {

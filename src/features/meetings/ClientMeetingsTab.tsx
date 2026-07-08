@@ -2,18 +2,20 @@
  * ClientMeetingsTab — the per-client Meetings sub-tab (MatterHub, between
  * Email and Activity). Lists THIS client's meetings chronologically (reading
  * only its own `Meetings/` folder — never a cross-client inbox), and opens
- * `MeetingEntry` on a row click. A "Record a meeting" affordance starts a
- * new recording; the interim direct `startRecording` call here is replaced
- * by the real consent dialog in Task 13.
+ * `MeetingEntry` beside the list. A mic affordance in the rail starts a new
+ * recording; the consent-gated start flow stays here.
  */
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Info, Mic, AlertTriangle } from 'lucide-react';
-import { Badge, Button, Callout, EmptyState } from '@/ui/kp';
+import { Badge, Button, Callout, EmptyState, IconButton, RailShell, RailShellHeader } from '@/ui/kp';
+import type { RailShellItem } from '@/ui/kp';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
-import { useMeetingStore, needsReview, checkLowDiskSpaceWarning } from './meetingStore';
+import { useMeetingStore, needsReview, checkLowDiskSpaceWarning, resolveWorkspaceRoot } from './meetingStore';
 import type { MeetingCalendarEventMeta, MeetingMeta } from './meetingStore';
 import { meetingDisplayTitle, formatMeetingDate, formatMeetingDuration } from './meetingDisplay';
+import { MeetingEntry } from './MeetingEntry';
 import { ConsentDialog, isMacPermissionError } from './ConsentDialog';
 import { consentModeFor } from './recordingConsentLaw';
 import { makeConsentLedger, type ConsentEntry } from './consentLedger';
@@ -23,8 +25,8 @@ import { calendarListEvents } from '@/platform/utils/calendar-commands';
 import type { CalendarEventDto } from '@/platform/utils/calendar-commands';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { useActiveMatters } from '@/platform/matter/matterStore';
-import { buildCalendarMatterMap, resolveMattersForCalendarEvent } from '@/platform/rag/matterResolver';
+import { useActiveMatters, useMatterStore } from '@/platform/matter/matterStore';
+import { buildCalendarMatterMap, matterLabel, resolveMattersForCalendarEvent } from '@/platform/rag/matterResolver';
 import { pickNoticeCardOffer, type NoticeCardOffer } from './noticeCard/pickOffer';
 import { buildDisplayName, detectPlatform } from './noticeCard/meetingPlatform';
 import { canAutoJoin, type NoticeCardPlatform } from './noticeCard/noticeCardTypes';
@@ -164,16 +166,20 @@ export async function listClientMeetings(
 export interface ClientMeetingsTabProps {
   matterId: string;
   matterFolder: string;
-  onOpenMeeting: (meeting: MeetingSummary) => void;
   /** Injected by MatterHub (ultimately the app-layer active WorkspaceService) —
    *  features must not reach for the app-layer singleton themselves, per
    *  ARCHITECTURE.md's DAG. Null before a workspace is open. */
   workspaceService: ListableWorkspace | null;
+  /** Optional direct-open request from Client Map source links or Activity rows.
+   *  The tab still owns the rail and opens this meeting inside the right pane. */
+  initialSelectedMeeting?: { dir: string; folderName: string; startMs?: number };
 }
 
-export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, workspaceService }: ClientMeetingsTabProps) {
+export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, initialSelectedMeeting }: ClientMeetingsTabProps) {
   const { t, i18n } = useTranslation();
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
+  const [selectedMeetingDir, setSelectedMeetingDir] = useState<string | null>(() => initialSelectedMeeting?.dir ?? null);
+  const [directOpenMeeting, setDirectOpenMeeting] = useState(initialSelectedMeeting ?? null);
   const [loading, setLoading] = useState(true);
   const [scanFailed, setScanFailed] = useState(false);
   const recording = useMeetingStore((s) => s.status.recording);
@@ -200,6 +206,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   const soloName = useProfileStore((s) => s.soloName);
   const getSetting = useSettingsStore((s) => s.getSetting);
   const activeMatters = useActiveMatters();
+  const matter = useMatterStore((s) => s.matters.find((candidate) => candidate.id === matterId) ?? null);
   const [noticeCardOffer, setNoticeCardOffer] = useState<NoticeCardOffer<CalendarEventDto> | null>(null);
   const [matchedCalendarEvent, setMatchedCalendarEvent] = useState<MeetingCalendarEventMeta | null>(null);
   const [noticeCardChecked, setNoticeCardChecked] = useState(false);
@@ -214,10 +221,22 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
 
   const refresh = useCallback(async () => {
     const ws = workspaceService;
-    if (!ws) { setMeetings([]); setScanFailed(false); setLoading(false); return; }
+    if (!ws) {
+      setMeetings([]);
+      setSelectedMeetingDir(null);
+      setScanFailed(false);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const { meetings: list, scanFailed: failed } = await listClientMeetings(matterFolder, ws);
     setMeetings(list);
+    setSelectedMeetingDir((current) => {
+      if (current && directOpenMeeting?.dir === current) return current;
+      if (list.length === 0) return null;
+      if (current && list.some((meeting) => meeting.dir === current)) return current;
+      return list[0]?.dir ?? null;
+    });
     setScanFailed(failed);
     // Recording Notice Kit — one ledger read, grouped by meeting dir, so each
     // row can reflect its notice state (verified / needs-review / quarantined).
@@ -241,9 +260,22 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
       setNoticeCardEvidence({});
     }
     setLoading(false);
-  }, [matterFolder, workspaceService]);
+  }, [matterFolder, workspaceService, directOpenMeeting?.dir]);
+
+  const handleMeetingChanged = useCallback(() => {
+    void refresh().catch(() => {
+      setScanFailed(true);
+      setLoading(false);
+    });
+  }, [refresh]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!initialSelectedMeeting) return;
+    setDirectOpenMeeting(initialSelectedMeeting);
+    setSelectedMeetingDir(initialSelectedMeeting.dir);
+  }, [initialSelectedMeeting]);
+
   // Refresh once a recording for this client finishes AND its post-stop
   // pipeline (transcription + notes) is done, so the new meeting appears —
   // with its notes — without the advisor leaving and reopening the tab.
@@ -377,52 +409,145 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
   // error must read as "couldn't check," never as "your recordings are gone."
   const showScanError = !loading && !busy && scanFailed;
   const showEmpty = !loading && !busy && !scanFailed && meetings.length === 0;
+  const selectedMeeting =
+    meetings.find((meeting) => meeting.dir === selectedMeetingDir) ??
+    (directOpenMeeting && selectedMeetingDir === directOpenMeeting.dir
+      ? {
+          dir: directOpenMeeting.dir,
+          folderName: directOpenMeeting.folderName,
+          meta: null,
+          hasNotes: false,
+          hasAudio: false,
+          hasTranscript: false,
+        }
+      : null);
+  const selectedMeetingInitialSeekMs =
+    selectedMeeting && directOpenMeeting?.dir === selectedMeeting.dir
+      ? directOpenMeeting.startMs
+      : undefined;
+  const clientName = matter ? matterLabel(matter) : matterId;
 
-  return (
-    <div
-      data-testid="client-meetings-tab"
-      style={{
-        flex: 1,
-        minHeight: 0,
-        overflowY: 'auto',
-        padding: 'var(--kp-gutter)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--kp-space-lg)',
-      }}
-    >
-      {/* The record affordance leads the surface (prototype: top-left, with
-          the local-capture reassurance beside it). On the empty tab the
-          EmptyState below carries the same button instead. */}
-      {!showEmpty && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)', flexWrap: 'wrap' }}>
-          <Button
-            data-testid="record-meeting-button"
-            onClick={handleRecordClick}
-            disabled={recording}
-            iconLeft={Mic}
-          >
-            {recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
-          </Button>
-          <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-            {t('meetings.tab.record-note')}
-          </span>
+  const handleSelectMeeting = useCallback((dir: string) => {
+    setDirectOpenMeeting(null);
+    setSelectedMeetingDir(dir);
+  }, []);
+
+  useEffect(() => {
+    setSelectedMeetingDir((current) => {
+      if (current && directOpenMeeting?.dir === current) return current;
+      if (meetings.length === 0) return null;
+      if (current && meetings.some((meeting) => meeting.dir === current)) return current;
+      return meetings[0]?.dir ?? null;
+    });
+  }, [meetings, directOpenMeeting?.dir]);
+
+  const meetingItems = useMemo<RailShellItem[]>(() => meetings.map((m) => {
+    const noticeState = noticeStates[meetingDirKey(m.dir)];
+    const cardEvidence = noticeCardEvidenceStates[meetingDirKey(m.dir)];
+    const reviewItems = needsReview(
+      m,
+      matterQueue,
+      undefined,
+      noticeState
+        ? {
+            state: noticeState,
+            policy: noticePolicy,
+            ...(cardEvidence ? { cardEvidence } : {}),
+            evidenceRule: resolveNoticeEvidenceRule(getSetting),
+          }
+        : undefined,
+    );
+    const quarantined = reviewItems.some((i) => i.kind === 'notice-quarantined');
+    const duration = formatMeetingDuration(m.meta?.durationMs, t);
+    const subtitle = (
+      <>
+        {formatMeetingDate(m.meta?.startedAt)}
+        {duration && ` · ${duration}`}
+        {!m.hasNotes &&
+          ` · ${
+            m.meta?.notesError
+              ? t('meetings.tab.notes-failed')
+              : m.meta?.recordingError && !m.hasAudio
+                ? t('meetings.tab.recording-incomplete')
+                : t('meetings.tab.notes-pending')
+          }`}
+      </>
+    );
+
+    return {
+      id: m.dir,
+      label: meetingDisplayTitle(m.meta, t),
+      testId: 'meeting-row',
+      ariaLabel: `${meetingDisplayTitle(m.meta, t)} ${formatMeetingDate(m.meta?.startedAt)}`,
+      content: (
+        <div style={{ display: 'flex', minWidth: 0, flexDirection: 'column', gap: 5 }}>
+          <div style={{ display: 'flex', minWidth: 0, alignItems: 'center', gap: 8 }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 8,
+                flex: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--kp-accent-soft)',
+                color: 'var(--kp-navy)',
+              }}
+            >
+              <Mic style={{ width: 15, height: 15 }} />
+            </span>
+            <span style={{ minWidth: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+              {meetingDisplayTitle(m.meta, t)}
+            </span>
+          </div>
+          <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+            {subtitle}
+          </div>
+          {(quarantined || reviewItems.length > 0 || m.meta?.reviewedAt) && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {quarantined && (
+                <Badge variant="warning" size="sm" data-testid="meeting-quarantine-badge">{t('meetings.notice.quarantine-badge')}</Badge>
+              )}
+              {!quarantined && reviewItems.length > 0 && (
+                <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
+              )}
+              {reviewItems.length === 0 && m.meta?.reviewedAt && (
+                <Badge variant="neutral" size="sm">{t('meetings.tab.reviewed-badge')}</Badge>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      ),
+    };
+  }), [
+    meetings,
+    noticeStates,
+    noticeCardEvidenceStates,
+    matterQueue,
+    noticePolicy,
+    getSetting,
+    t,
+  ]);
 
-      {loading && (
+  const railEmptyState = (() => {
+    if (loading) {
+      return (
         <div data-testid="client-meetings-loading" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
           {t('meetings.tab.loading')}
         </div>
-      )}
-
-      {!loading && processing && meetings.length === 0 && (
+      );
+    }
+    if (processing && meetings.length === 0) {
+      return (
         <div data-testid="client-meetings-processing" style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)' }}>
           {t('meetings.pill.processing')}
         </div>
-      )}
-
-      {showScanError && (
+      );
+    }
+    if (showScanError) {
+      return (
         <div data-testid="client-meetings-scan-error">
           <Callout variant="error" icon={AlertTriangle}>
             <div style={{ fontWeight: 'var(--kp-weight-semibold)' }}>{t('meetings.tab.scan-error-title')}</div>
@@ -438,113 +563,80 @@ export function ClientMeetingsTab({ matterId, matterFolder, onOpenMeeting, works
             </Button>
           </Callout>
         </div>
-      )}
+      );
+    }
+    return null;
+  })();
 
-      {showEmpty && (
-        <EmptyState
-          icon={Mic}
-          title={t('meetings.tab.empty-title')}
-          body={t('meetings.tab.empty-body')}
-          data-testid="client-meetings-empty"
-          actions={
-            // showEmpty implies not recording/processing — no disabled state needed
-            <Button data-testid="record-meeting-button" onClick={handleRecordClick} iconLeft={Mic}>
-              {t('meetings.tab.record-button')}
-            </Button>
-          }
-        />
-      )}
-
-      {meetings.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-xs)' }}>
-          {meetings.map((m) => {
-            const noticeState = noticeStates[meetingDirKey(m.dir)];
-            const cardEvidence = noticeCardEvidenceStates[meetingDirKey(m.dir)];
-            const reviewItems = needsReview(
-              m,
-              matterQueue,
-              undefined,
-              noticeState
-                ? {
-                    state: noticeState,
-                    policy: noticePolicy,
-                    ...(cardEvidence ? { cardEvidence } : {}),
-                    evidenceRule: resolveNoticeEvidenceRule(getSetting),
-                  }
-                : undefined,
-            );
-            const quarantined = reviewItems.some((i) => i.kind === 'notice-quarantined');
-            const duration = formatMeetingDuration(m.meta?.durationMs, t);
-            return (
-              <button
-                key={m.dir}
-                type="button"
-                data-testid="meeting-row"
-                className="kp-card kp-card--interactive"
-                onClick={() => { onOpenMeeting(m); }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--kp-space-md)',
-                  textAlign: 'left',
-                  width: '100%',
-                  fontFamily: 'inherit',
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 9,
-                    flex: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: 'var(--kp-accent-soft)',
-                    color: 'var(--kp-navy)',
-                  }}
-                >
-                  <Mic style={{ width: 17, height: 17 }} />
-                </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: 'block', fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-                    {meetingDisplayTitle(m.meta, t)}
-                  </span>
-                  <span style={{ display: 'block', fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', marginTop: 2 }}>
-                    {formatMeetingDate(m.meta?.startedAt)}
-                    {duration && ` · ${duration}`}
-                    {!m.hasNotes &&
-                      ` · ${
-                        m.meta?.notesError
-                          ? t('meetings.tab.notes-failed')
-                          : m.meta?.recordingError && !m.hasAudio
-                            ? t('meetings.tab.recording-incomplete')
-                            : t('meetings.tab.notes-pending')
-                      }`}
-                  </span>
-                </span>
-                <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  {quarantined && (
-                    <Badge variant="warning" size="sm" data-testid="meeting-quarantine-badge">{t('meetings.notice.quarantine-badge')}</Badge>
-                  )}
-                  {!quarantined && reviewItems.length > 0 && (
-                    <Badge variant="warning" size="sm">{t('meetings.tab.needs-review-badge')}</Badge>
-                  )}
-                  {reviewItems.length === 0 && m.meta?.reviewedAt && (
-                    <Badge variant="neutral" size="sm">{t('meetings.tab.reviewed-badge')}</Badge>
-                  )}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      )}
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
-        <Info aria-hidden="true" style={{ width: 14, height: 14, flex: 'none' }} />
-        {t('meetings.tab.activity-hint')}
-      </div>
+  return (
+    <div
+      data-testid="client-meetings-tab"
+      style={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: 'auto',
+        display: 'flex',
+      }}
+    >
+      <RailShell
+        header={
+          <div data-testid="client-meetings-rail-header">
+            <RailShellHeader
+              title={t('meetings.entry.breadcrumb-meetings')}
+              actions={
+                <IconButton
+                  data-testid="record-meeting-button"
+                  icon={Mic}
+                  label={recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
+                  onClick={handleRecordClick}
+                  disabled={recording}
+                  variant="primary"
+                />
+              }
+            />
+          </div>
+        }
+        listAriaLabel={t('meetings.entry.breadcrumb-meetings')}
+        items={meetingItems}
+        activeId={selectedMeeting?.dir ?? null}
+        onSelect={handleSelectMeeting}
+        emptyState={railEmptyState}
+        railWidth={268}
+        className="flex-1"
+      >
+        {selectedMeeting ? (
+          <MeetingEntry
+            key={selectedMeeting.dir}
+            matterId={matterId}
+            meetingDir={selectedMeeting.dir}
+            folderName={selectedMeeting.folderName}
+            clientName={clientName}
+            workspaceRoot={resolveWorkspaceRoot()}
+            workspaceService={workspaceService as WorkspaceService | null}
+            onBack={() => { setSelectedMeetingDir(null); }}
+            onChanged={handleMeetingChanged}
+            showBackButton={false}
+            {...(selectedMeetingInitialSeekMs !== undefined ? { initialSeekMs: selectedMeetingInitialSeekMs } : {})}
+          />
+        ) : (
+          <div style={{ display: 'flex', minHeight: 0, flex: 1, flexDirection: 'column', justifyContent: 'center', padding: 'var(--kp-gutter)' }}>
+            {showEmpty && (
+              <EmptyState
+                icon={Mic}
+                title={t('meetings.tab.empty-title')}
+                body={t('meetings.tab.empty-body')}
+                data-testid="client-meetings-empty"
+              />
+            )}
+            {!showEmpty && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+                <Info aria-hidden="true" style={{ width: 14, height: 14, flex: 'none' }} />
+                {t('meetings.tab.activity-hint')}
+              </div>
+            )}
+          </div>
+        )}
+      </RailShell>
       <ConsentDialog
         open={showConsent}
         onOpenChange={setShowConsent}

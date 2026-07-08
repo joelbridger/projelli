@@ -45,6 +45,11 @@ export interface MeetingEntryProps {
    *  features must not reach for the app-layer singleton themselves, per
    *  ARCHITECTURE.md's DAG. Null before a workspace is open. */
   workspaceService: WorkspaceService | null;
+  /** Optional hook for embedded master-detail views to refresh their rail after
+   *  this detail page changes meeting files or notice evidence. */
+  onChanged?: () => void;
+  /** The master-detail meetings rail already provides navigation context. */
+  showBackButton?: boolean;
 }
 
 const audit = new AuditService('meetings');
@@ -89,7 +94,7 @@ function transcriptLooksSilent(transcript: TranscriptFile | null): boolean {
   return !!transcript && transcript.segments.every((seg) => !seg.text.trim());
 }
 
-export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService }: MeetingEntryProps) {
+export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService, onChanged, showBackButton = true }: MeetingEntryProps) {
   const { t } = useTranslation();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
@@ -232,10 +237,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     void (async () => {
       await ensureMeetingNoticeVerified(meetingDir, matterId);
       await loadNotices(token);
+      onChanged?.();
     })().catch(() => {
       if (token === noticeLoadToken.current) setNotices([]);
     });
-  }, [meetingDir, matterId, transcript, loadNotices]);
+  }, [meetingDir, matterId, transcript, loadNotices, onChanged]);
 
   const handleRecordNotice = useCallback(async (entry: NoticeEntry) => {
     const ws = workspaceService;
@@ -243,10 +249,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     try {
       await makeConsentLedger(ws, () => matterFolder).recordNotice(entry);
       await loadNotices(noticeLoadToken.current);
+      onChanged?.();
     } catch {
       setNotices([]);
     }
-  }, [workspaceService, matterFolder, loadNotices]);
+  }, [workspaceService, matterFolder, loadNotices, onChanged]);
 
   const handleSeek = useCallback((ms: number) => {
     setSeekMs(ms);
@@ -270,18 +277,20 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     await ws.delete(`${meetingDir}/audio.wav`);
     setAudioSrc(null);
     setHasAudio(false);
+    onChanged?.();
     void audit.logDurable('meeting_audio_deleted', 'Meeting audio deleted (transcript kept)', {
       metadata: { matterId, meetingDir },
     }).catch((err: unknown) => {
       setExportNotice(err instanceof Error ? err.message : String(err));
     });
-  }, [matterId, meetingDir, workspaceService]);
+  }, [matterId, meetingDir, workspaceService, onChanged]);
 
   const handleMarkReviewed = useCallback(async () => {
     if (!meta) return;
     const updated = await markMeetingReviewed(meetingDir);
     if (updated) setMeta(updated);
-  }, [meetingDir, meta]);
+    onChanged?.();
+  }, [meetingDir, meta, onChanged]);
 
   // QA-31 — "Retry" once notesError is set: re-runs generation, then
   // re-reads meeting.json (for the cleared/updated notesError) and notes.docx
@@ -329,7 +338,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         setSummaryText('');
       }
     }
-  }, [meetingDir, matterId, workspaceService]);
+    onChanged?.();
+  }, [meetingDir, matterId, workspaceService, onChanged]);
 
   // QA-40 — "Retry" once transcriptError is set: re-runs transcription (Rust
   // resumes from .transcribe-progress.json), then re-reads meeting.json and
@@ -363,7 +373,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     } catch {
       if (isCurrentLoad()) setHasNotes(false);
     }
-  }, [meetingDir, matterId, workspaceRoot, workspaceService]);
+    onChanged?.();
+  }, [meetingDir, matterId, workspaceRoot, workspaceService, onChanged]);
 
   const handleSaveType = useCallback(async () => {
     const entered = typeInput.trim();
@@ -376,7 +387,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     await makeMeetingTypesStore(workspaceService).learnCorrection(meta.calendarTitle ?? folderName, typeId);
     if (updated) setMeta(updated);
     setEditingType(false);
-  }, [typeInput, meta, meetingDir, folderName, workspaceService, t]);
+    onChanged?.();
+  }, [typeInput, meta, meetingDir, folderName, workspaceService, t, onChanged]);
 
   const handleSaveTitle = useCallback(async () => {
     if (!meta || !workspaceService) { setRenaming(false); return; }
@@ -388,7 +400,8 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     });
     if (updated) setMeta(updated);
     setRenaming(false);
-  }, [meta, titleInput, meetingDir, workspaceService]);
+    onChanged?.();
+  }, [meta, titleInput, meetingDir, workspaceService, onChanged]);
 
   const copyText = useCallback(async (text: string, notice: string) => {
     await navigator.clipboard.writeText(text);
@@ -494,6 +507,16 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     a.click();
   }, [audioSrc, meta, t]);
 
+  const handleRecipientsSaved = useCallback((updated: MeetingMeta) => {
+    setMeta(updated);
+    onChanged?.();
+  }, [onChanged]);
+
+  const handleArtifactSent = useCallback((updated: MeetingMeta) => {
+    setMeta(updated);
+    onChanged?.();
+  }, [onChanged]);
+
   return (
     <div
       data-testid="meeting-entry"
@@ -501,9 +524,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
-            <ChevronLeft style={{ width: 18, height: 18 }} />
-          </button>
+          {showBackButton && (
+            <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
+              <ChevronLeft style={{ width: 18, height: 18 }} />
+            </button>
+          )}
           <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{clientName} / {t('meetings.entry.breadcrumb-meetings')} /</span>
             {renaming ? (
@@ -844,7 +869,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                   meta={meta}
                   matter={matter}
                   workspaceService={workspaceService}
-                  onSaved={setMeta}
+                  onSaved={handleRecipientsSaved}
                 />
               )}
 
@@ -861,7 +886,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
                   summaryReady={summaryReady}
                   transcript={transcript}
                   buildSummaryDocxBytes={buildSummaryDocxBytes}
-                  onSent={setMeta}
+                  onSent={handleArtifactSent}
                 />
               )}
             </div>

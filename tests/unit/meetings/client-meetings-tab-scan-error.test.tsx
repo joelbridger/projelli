@@ -31,7 +31,6 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
       <ClientMeetingsTab
         matterId="m1"
         matterFolder="C:/WS/Clients/Acme"
-        onOpenMeeting={() => {}}
         workspaceService={ws}
       />,
     );
@@ -52,7 +51,6 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
       <ClientMeetingsTab
         matterId="m1"
         matterFolder="C:/WS/Clients/Acme"
-        onOpenMeeting={() => {}}
         workspaceService={ws}
       />,
     );
@@ -71,7 +69,6 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
       <ClientMeetingsTab
         matterId="m1"
         matterFolder="C:/WS/Clients/Acme"
-        onOpenMeeting={() => {}}
         workspaceService={ws}
       />,
     );
@@ -95,7 +92,6 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
       <ClientMeetingsTab
         matterId="m1"
         matterFolder="C:/WS/Clients/Acme"
-        onOpenMeeting={() => {}}
         workspaceService={ws}
       />,
     );
