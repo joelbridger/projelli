@@ -14,8 +14,6 @@
  *   - Assured     Selectable once the firm admin sets a managed key; routed
  *                 through the firm's zero-retention proxy (managed key + DPA).
  *
- * Also hosts the entry point to the full Data Map ("Where your data lives…").
- *
  * Light-theme first.
  */
 /*
@@ -27,16 +25,14 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
 
 import { useState, useRef } from 'react';
-import { Laptop, Cloud, ShieldCheck, ShieldOff, MapPin, Check } from 'lucide-react';
+import { Laptop, Cloud, ShieldCheck, ShieldOff, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/ui/button';
 import { InfoHelp } from '@/ui/InfoHelp';
 import {
   useConfidentialityMode,
   useRecordConfidentialityChoice,
 } from '@/platform/hooks/useConfidentialityMode';
 import { modeNeedsManagedKey, type ConfidentialityMode } from '@/platform/privacy/egress';
-import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import {
   usePrivilegedMatterMode,
   useSetPrivilegedMatterMode,
@@ -98,7 +94,6 @@ const ASSURED_CARD: ModeCard = {
 export function ConfidentialityModeSettings() {
   const active = useConfidentialityMode();
   const setMode = useRecordConfidentialityChoice();
-  const [dataMapOpen, setDataMapOpen] = useState(false);
   const privileged = usePrivilegedMatterMode();
   const setPrivileged = useSetPrivilegedMatterMode();
   // Show the isolation affirmation callout briefly after the user manually
@@ -310,22 +305,6 @@ export function ConfidentialityModeSettings() {
         )}
       </div>
 
-      <div className="mt-3">
-        <Button
-          data-testid="open-data-map"
-          variant="outline"
-          size="sm"
-          className="gap-1.5 text-xs"
-          onClick={() => {
-            setDataMapOpen(true);
-          }}
-        >
-          <MapPin className="h-3.5 w-3.5" />
-          Where your data lives and who can see it
-        </Button>
-      </div>
-
-      <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
     </div>
   );
 }

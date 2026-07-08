@@ -52,6 +52,7 @@ export function MemoryFactsSettings({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [newFactText, setNewFactText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [addOpen, setAddOpen] = useState((initialFacts?.length ?? 0) > 0);
 
   const refresh = useCallback(async () => {
     if (initialFacts !== undefined) {
@@ -82,6 +83,10 @@ export function MemoryFactsSettings({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (facts.length > 0) setAddOpen(true);
+  }, [facts.length]);
 
   const handleDelete = useCallback(
     async (id: string) => {
@@ -147,18 +152,18 @@ export function MemoryFactsSettings({
         </div>
       )}
 
-      <div
-        data-testid="settings-facts-table"
-        className="mb-3 rounded-md border border-border/60"
-      >
-        {facts.length === 0 ? (
-          <div
-            data-testid="settings-facts-empty"
-            className="px-3 py-4 text-xs text-muted-foreground text-center"
-          >
-            {t('settings.memory-facts.empty')}
-          </div>
-        ) : (
+      {facts.length === 0 ? (
+        <div
+          data-testid="settings-facts-empty"
+          className="mb-3 text-xs text-muted-foreground"
+        >
+          {t('settings.memory-facts.empty')}
+        </div>
+      ) : (
+        <div
+          data-testid="settings-facts-table"
+          className="mb-3 rounded-md border border-border/60"
+        >
           <ul className="divide-y divide-border/50">
             {facts.map((fact) => (
               <li
@@ -184,10 +189,23 @@ export function MemoryFactsSettings({
               </li>
             ))}
           </ul>
-        )}
-      </div>
+        </div>
+      )}
 
-      <div className="flex items-center gap-2">
+      <details
+        className="group"
+        open={addOpen}
+        onToggle={(event) => {
+          setAddOpen(event.currentTarget.open);
+        }}
+      >
+        <summary
+          data-testid="settings-facts-add-toggle"
+          className="mb-2 cursor-pointer text-xs font-medium text-muted-foreground"
+        >
+          {t('settings.memory-facts.add-toggle')}
+        </summary>
+        <div className="flex items-center gap-2">
         <Input
           data-testid="settings-facts-add-input"
           value={newFactText}
@@ -214,7 +232,8 @@ export function MemoryFactsSettings({
           <Plus className="h-3 w-3" />
           {t('common.actions.add')}
         </Button>
-      </div>
+        </div>
+      </details>
     </div>
   );
 }

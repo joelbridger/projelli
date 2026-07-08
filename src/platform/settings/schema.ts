@@ -4,8 +4,8 @@
  * The Settings modal renders FROM this schema. Adding a new setting later
  * means adding one entry to `SETTINGS_SCHEMA` — no component changes needed.
  *
- * v3.2 — 20 flat categories collapsed into 5 elegant sections:
- *   workspace   | AI & Privacy   | Voice   | Advanced   | Help
+ * v3.3 — 20 flat categories collapsed into 6 simple sections:
+ *   Workspace | AI | Privacy | Voice | Advanced | Help
  *
  * Account content (License, Firm, Usage, Connections) moved to a dedicated
  * AccountWindow and is no longer a Settings section.
@@ -19,19 +19,20 @@
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
-/** The 5 canonical section ids used in the sidebar nav. */
-export type SectionCategory = 'workspace' | 'ai-privacy' | 'voice' | 'advanced' | 'help';
+/** The 6 canonical section ids used in the sidebar nav. */
+export type SectionCategory = 'workspace' | 'ai' | 'privacy' | 'voice' | 'advanced' | 'help';
 
 /**
- * SettingCategory includes both the 5 new section ids AND every legacy id so
+ * SettingCategory includes both the 6 new section ids AND every legacy id so
  * that callers that pass e.g. `initialCategory="ai"` still type-check.
  * 'account' is kept as a legacy alias (deep-links are intercepted in App.tsx
  * and redirected to the AccountWindow before Settings ever sees them).
  */
 export type SettingCategory =
-  // ── 5 canonical sections ──────────────────────────────────────────────
+  // ── 6 canonical sections ──────────────────────────────────────────────
   | 'workspace'
-  | 'ai-privacy'
+  | 'ai'
+  | 'privacy'
   | 'voice'
   | 'advanced'
   | 'help'
@@ -41,7 +42,6 @@ export type SettingCategory =
   | 'license'
   | 'firm'
   | 'editor'
-  | 'ai'
   | 'memory'
   | 'files'
   | 'shortcuts'
@@ -52,7 +52,7 @@ export type SettingCategory =
   | 'mobile'
   | 'updates'
   | 'onboarding'
-  | 'privacy'
+  | 'ai-privacy'
   | 'about';
 
 export interface SettingOption {
@@ -80,13 +80,14 @@ export interface SettingDefinition {
   action?: SettingAction;
 }
 
-/** The 5 nav sections shown in the sidebar. */
+/** The 6 nav sections shown in the sidebar. */
 export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
-  { id: 'workspace',   label: 'Workspace' },
-  { id: 'ai-privacy', label: 'AI & Privacy' },
-  { id: 'voice',      label: 'Voice' },
-  { id: 'advanced',   label: 'Advanced' },
-  { id: 'help',       label: 'Help' },
+  { id: 'workspace', label: 'Workspace' },
+  { id: 'ai',        label: 'AI' },
+  { id: 'privacy',   label: 'Privacy' },
+  { id: 'voice',     label: 'Voice' },
+  { id: 'advanced',  label: 'Advanced' },
+  { id: 'help',      label: 'Help' },
 ];
 
 /**
@@ -103,10 +104,12 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   general:      'workspace',
   editor:       'workspace',
   files:        'workspace',
-  // AI & Privacy
-  ai:           'ai-privacy',
-  memory:       'ai-privacy',
-  privacy:      'ai-privacy',
+  // AI
+  ai:           'ai',
+  memory:       'ai',
+  'ai-privacy': 'ai',
+  // Privacy
+  privacy:      'privacy',
   // Account (intercepted by App.tsx; falls back to workspace if Settings ever sees them)
   account:      'workspace',
   license:      'workspace',
@@ -126,7 +129,6 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   onboarding:   'help',
   // Canonical ids map to themselves
   workspace:    'workspace',
-  'ai-privacy': 'ai-privacy',
   advanced:     'advanced',
   help:         'help',
 };

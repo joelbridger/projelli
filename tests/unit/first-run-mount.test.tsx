@@ -50,7 +50,8 @@ vi.mock('@/platform/providers/apiKeyValidation', () => ({
   validateApiKeyLive: (...a: unknown[]) => validateApiKeyLive(...a),
 }));
 
-// IntroScene's flowchart loads Lottie JSON by fetch; stub the player.
+// The archived IntroScene used Lottie JSON; keep the stub in case a preview
+// import pulls it in, but the live first-run flow now starts on ChooseStart.
 vi.mock('@/features/onboarding/v2/LottiePlayer', () => ({
   LottiePlayer: () => <div data-testid="lottie-stub" />,
 }));
@@ -130,7 +131,7 @@ beforeEach(() => {
 });
 
 /**
- * Render App and wait for the onboarding intro scene (deferred behind a
+ * Render App and wait for the onboarding choice scene (deferred behind a
  * 1200ms timer in App). Returns the RTL render result.
  */
 async function renderAppAndOpenOnboarding() {
@@ -139,9 +140,8 @@ async function renderAppAndOpenOnboarding() {
   return utils;
 }
 
-/** Walk intro -> choose-start (own data) -> ai scene. */
+/** Walk choose-start (own data) -> ai scene. */
 async function advanceToAiScene() {
-  fireEvent.click(screen.getByTestId('onboarding-v2-go')); // intro -> choose-start
   await screen.findByTestId('choose-start-own');
   await act(async () => {
     fireEvent.click(screen.getByTestId('choose-start-own')); // establish workspace -> ai
@@ -161,6 +161,7 @@ describe('App — OnboardingV2 as live first-run surface', () => {
     await renderAppAndOpenOnboarding();
 
     expect(screen.getByTestId('onboarding-v2-intro')).toBeInTheDocument();
+    expect(screen.getByTestId('onboarding-v2-choose-start')).toBeInTheDocument();
     expect(screen.queryByTestId('welcome-onboarding-dialog')).not.toBeInTheDocument();
     expect(screen.queryByTestId('onboarding-step-welcome')).not.toBeInTheDocument();
   });

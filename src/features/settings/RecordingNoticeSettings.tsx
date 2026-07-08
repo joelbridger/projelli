@@ -11,7 +11,6 @@
  * Light-theme first, to match the rest of Settings.
  */
 import { useTranslation } from 'react-i18next';
-import { Check } from 'lucide-react';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { getSettingDef } from '@/platform/settings/schema';
@@ -52,67 +51,41 @@ export function RecordingNoticeSettings() {
           label={`About ${t('meetings.notice.settings-policy-heading')}`}
         />
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-sm)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {CARD_VALUES.map((value) => {
           const selected = policy === value;
           return (
             <div
               key={value}
               style={{
-                position: 'relative',
-                textAlign: 'left',
                 display: 'flex',
                 alignItems: 'flex-start',
-                gap: 10,
-                border: `1px solid ${selected ? 'var(--kp-accent)' : 'var(--kp-divider)'}`,
-                background: selected ? 'var(--kp-accent-soft)' : 'transparent',
-                borderRadius: 'var(--radius-md)',
-                padding: '10px 12px',
-                fontFamily: 'inherit',
+                gap: 8,
+                color: 'var(--kp-navy)',
+                cursor: 'pointer',
               }}
             >
-              <button
-                type="button"
+              <input
+                id={`notice-policy-${value}`}
+                type="radio"
+                name="notice-policy"
                 data-testid={`notice-policy-${value}`}
-                aria-pressed={selected}
-                aria-label={cardTitle(value)}
-                onClick={() => { setSetting('meetings.noticePolicy', value); }}
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  border: 0,
-                  borderRadius: 'var(--radius-md)',
-                  background: 'transparent',
-                  cursor: 'pointer',
-                }}
+                checked={selected}
+                onChange={() => { setSetting('meetings.noticePolicy', value); }}
+                style={{ marginTop: 2 }}
               />
-              <span
-                aria-hidden="true"
-                style={{
-                  position: 'relative',
-                  width: 18,
-                  height: 18,
-                  flex: 'none',
-                  marginTop: 1,
-                  borderRadius: 999,
-                  border: `2px solid ${selected ? 'var(--kp-accent)' : 'var(--kp-divider)'}`,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--kp-accent)',
-                  pointerEvents: 'none',
-                }}
-              >
-                {selected && <Check style={{ width: 12, height: 12 }} />}
-              </span>
-              <span style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: 2, pointerEvents: 'none' }}>
+              <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-                  {cardTitle(value)}
+                  <label htmlFor={`notice-policy-${value}`} style={{ cursor: 'pointer' }}>
+                    {cardTitle(value)}
+                  </label>
                   <InfoHelp
-                    className="pointer-events-auto"
                     content={cardDesc(value)}
                     label={`About ${cardTitle(value)}`}
                   />
+                </span>
+                <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+                  {cardDesc(value)}
                 </span>
               </span>
             </div>
@@ -149,123 +122,135 @@ export function RecordingNoticeSettings() {
         />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-            {t('meetings.notice-card.settings-heading')}
-          </span>
-          <InfoHelp
-            content={noticeCardHelp}
-            label={`About ${t('meetings.notice-card.settings-heading')}`}
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
-          <input
-            id="notice-card-enabled"
-            type="checkbox"
-            data-testid="notice-card-enabled"
-            checked={cardEnabled}
-            onChange={(e) => { setSetting('meetings.noticeCardEnabled', e.target.checked); }}
-          />
-          <label htmlFor="notice-card-enabled" style={{ cursor: 'pointer' }}>
-            {t('meetings.notice-card.settings-enabled-label')}
-          </label>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--kp-font-xs)', color: 'var(--kp-navy)' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <label htmlFor="notice-card-name-template">
-              {t('meetings.notice-card.settings-name-label')}
-            </label>
-            <InfoHelp
-              content={noticeCardNameHelp}
-              label={`About ${t('meetings.notice-card.settings-name-label')}`}
-            />
-          </span>
-          <input
-            id="notice-card-name-template"
-            type="text"
-            data-testid="notice-card-name-template"
-            value={cardName}
-            placeholder="⏺ Recording Notice — {advisor}"
-            onChange={(e) => { setSetting('meetings.noticeCardNameTemplate', e.target.value); }}
-            style={{
-              fontSize: 'var(--kp-font-sm)',
-              fontFamily: 'inherit',
-              color: 'var(--kp-navy)',
-              border: '1px solid var(--kp-divider)',
-              borderRadius: 'var(--radius-md)',
-              padding: '6px 10px',
-            }}
-          />
-        </div>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)', marginTop: 2 }}>
-          <span>{t('meetings.notice-card.settings-evidence-label')}</span>
-          <InfoHelp
-            content={evidenceHelp}
-            label={`About ${t('meetings.notice-card.settings-evidence-label')}`}
-          />
-        </span>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {(['either', 'both'] as const).map((value) => {
-            const selected = evidenceRule === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                data-testid={`notice-evidence-${value}`}
-                aria-pressed={selected}
-                onClick={() => { setSetting('meetings.noticeEvidenceRule', value); }}
-                style={{
-                  textAlign: 'left',
-                  border: `1px solid ${selected ? 'var(--kp-accent)' : 'var(--kp-divider)'}`,
-                  background: selected ? 'var(--kp-accent-soft)' : 'transparent',
-                  borderRadius: 'var(--radius-md)',
-                  padding: '8px 10px',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  fontSize: 'var(--kp-font-sm)',
-                  color: 'var(--kp-navy)',
-                }}
-              >
-                {value === 'both'
-                  ? t('meetings.notice-card.settings-evidence-both')
-                  : t('meetings.notice-card.settings-evidence-either')}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
-          <span>{t('meetings.notice-card.save-bg-heading')}</span>
-          <InfoHelp
-            content={t('meetings.notice-card.save-bg-help')}
-            label={`About ${t('meetings.notice-card.save-bg-heading')}`}
-          />
-        </span>
-        <button
-          type="button"
-          data-testid="save-recording-background"
-          onClick={() => {
-            void saveRecordingBackgroundImage(t('meetings.notice-card.bg-label'));
-          }}
+      <details data-testid="recording-notice-advanced" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <summary
+          data-testid="recording-notice-advanced-toggle"
           style={{
-            alignSelf: 'flex-start',
-            fontSize: 'var(--kp-font-xs)',
-            fontWeight: 'var(--kp-weight-medium)',
-            color: 'var(--kp-navy)',
-            background: 'transparent',
-            border: '1px solid var(--kp-divider)',
-            borderRadius: 999,
-            padding: '6px 12px',
             cursor: 'pointer',
-            fontFamily: 'inherit',
+            fontSize: 'var(--kp-font-xs)',
+            fontWeight: 'var(--kp-weight-semibold)',
+            color: 'var(--color-muted-foreground)',
           }}
         >
-          {t('meetings.notice-card.save-bg-button')}
-        </button>
-      </div>
+          {t('meetings.notice-card.settings-advanced-summary')}
+        </summary>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+              {t('meetings.notice-card.settings-heading')}
+            </span>
+            <InfoHelp
+              content={noticeCardHelp}
+              label={`About ${t('meetings.notice-card.settings-heading')}`}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--kp-font-sm)', color: 'var(--kp-navy)' }}>
+            <input
+              id="notice-card-enabled"
+              type="checkbox"
+              data-testid="notice-card-enabled"
+              checked={cardEnabled}
+              onChange={(e) => { setSetting('meetings.noticeCardEnabled', e.target.checked); }}
+            />
+            <label htmlFor="notice-card-enabled" style={{ cursor: 'pointer' }}>
+              {t('meetings.notice-card.settings-enabled-label')}
+            </label>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 'var(--kp-font-xs)', color: 'var(--kp-navy)' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <label htmlFor="notice-card-name-template">
+                {t('meetings.notice-card.settings-name-label')}
+              </label>
+              <InfoHelp
+                content={noticeCardNameHelp}
+                label={`About ${t('meetings.notice-card.settings-name-label')}`}
+              />
+            </span>
+            <input
+              id="notice-card-name-template"
+              type="text"
+              data-testid="notice-card-name-template"
+              value={cardName}
+              placeholder={t('meetings.notice-card.settings-name-placeholder')}
+              onChange={(e) => { setSetting('meetings.noticeCardNameTemplate', e.target.value); }}
+              style={{
+                fontSize: 'var(--kp-font-sm)',
+                fontFamily: 'inherit',
+                color: 'var(--kp-navy)',
+                border: '1px solid var(--kp-divider)',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 10px',
+              }}
+            />
+          </div>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)', marginTop: 2 }}>
+            <span>{t('meetings.notice-card.settings-evidence-label')}</span>
+            <InfoHelp
+              content={evidenceHelp}
+              label={`About ${t('meetings.notice-card.settings-evidence-label')}`}
+            />
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {(['either', 'both'] as const).map((value) => {
+              const selected = evidenceRule === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  data-testid={`notice-evidence-${value}`}
+                  aria-pressed={selected}
+                  onClick={() => { setSetting('meetings.noticeEvidenceRule', value); }}
+                  style={{
+                    textAlign: 'left',
+                    border: `1px solid ${selected ? 'var(--kp-accent)' : 'var(--kp-divider)'}`,
+                    background: selected ? 'var(--kp-accent-soft)' : 'transparent',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '8px 10px',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: 'var(--kp-font-sm)',
+                    color: 'var(--kp-navy)',
+                  }}
+                >
+                  {value === 'both'
+                    ? t('meetings.notice-card.settings-evidence-both')
+                    : t('meetings.notice-card.settings-evidence-either')}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 'var(--kp-font-sm)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-navy)' }}>
+              <span>{t('meetings.notice-card.save-bg-heading')}</span>
+              <InfoHelp
+                content={t('meetings.notice-card.save-bg-help')}
+                label={`About ${t('meetings.notice-card.save-bg-heading')}`}
+              />
+            </span>
+            <button
+              type="button"
+              data-testid="save-recording-background"
+              onClick={() => {
+                void saveRecordingBackgroundImage(t('meetings.notice-card.bg-label'));
+              }}
+              style={{
+                alignSelf: 'flex-start',
+                fontSize: 'var(--kp-font-xs)',
+                fontWeight: 'var(--kp-weight-medium)',
+                color: 'var(--kp-navy)',
+                background: 'transparent',
+                border: '1px solid var(--kp-divider)',
+                borderRadius: 999,
+                padding: '6px 12px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              {t('meetings.notice-card.save-bg-button')}
+            </button>
+          </div>
+        </div>
+      </details>
     </div>
   );
 }

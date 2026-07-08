@@ -148,9 +148,18 @@ describe('Spine — Clients section', () => {
     expect(screen.getByTestId('spine-new-client')).toBeInTheDocument();
   });
 
+  it('shows client search as an icon until a short list needs it', () => {
+    render(<Spine activeTab="matters" />);
+
+    expect(screen.queryByTestId('spine-client-search')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('spine-client-search-toggle'));
+    expect(screen.getByTestId('spine-client-search')).toBeInTheDocument();
+  });
+
   it('filters the client rail as the advisor types in the client search box', () => {
     render(<Spine activeTab="matters" />);
 
+    fireEvent.click(screen.getByTestId('spine-client-search-toggle'));
     fireEvent.change(screen.getByTestId('spine-client-search'), {
       target: { value: 'doe' },
     });
@@ -166,6 +175,7 @@ describe('Spine — Clients section', () => {
   it('shows a small empty row under All Clients when rail search matches no clients', () => {
     render(<Spine activeTab="matters" />);
 
+    fireEvent.click(screen.getByTestId('spine-client-search-toggle'));
     fireEvent.change(screen.getByTestId('spine-client-search'), {
       target: { value: 'zzzz' },
     });

@@ -5,7 +5,7 @@
  * filter, and Client Map quick actions — they stay routable content surfaces,
  * just not rail tabs. The binder spine of the case file.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Sparkles,
@@ -16,7 +16,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  Users,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -81,11 +80,13 @@ export function Spine({
 }: SpineProps) {
   const { t } = useTranslation();
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const clientSearchRef = useRef<HTMLInputElement | null>(null);
   // Collapsible "Clients" section: open by default (the active client should
   // still be visible without an extra click), but no longer force-stretched
   // to fill the rest of the rail — it sizes to its own content/cap instead.
   const [clientsOpen, setClientsOpen] = useState(true);
   const [clientSearchQuery, setClientSearchQuery] = useState('');
+  const [clientSearchExpanded, setClientSearchExpanded] = useState(false);
   // Archived clients stay reachable via the Client Map's archived section
   // (MattersHome) and the Clients management dialog — the rail switcher
   // only ever lists the active roster, so archiving a client actually
@@ -106,6 +107,16 @@ export function Spine({
         m.client.toLowerCase().includes(q)
     );
   })();
+  const clientSearchVisible =
+    clientSearchExpanded ||
+    matters.length > 7 ||
+    clientSearchQuery.trim().length > 0;
+
+  useEffect(() => {
+    if (clientSearchExpanded && clientsOpen) {
+      clientSearchRef.current?.focus();
+    }
+  }, [clientSearchExpanded, clientsOpen]);
 
   // The 3-tab IA. The internal ids are KEPT (matters/search/workflows) so the
   // surface router + testids are unchanged; only the labels and placement move.
@@ -354,6 +365,33 @@ export function Spine({
                 {entityLabel.Other}
               </span>
             </button>
+            {!clientSearchVisible && (
+              <button
+                type="button"
+                data-testid="spine-client-search-toggle"
+                title={t('spine.find-client')}
+                aria-label={t('spine.find-client')}
+                onClick={() => {
+                  setClientsOpen(true);
+                  setClientSearchExpanded(true);
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 22,
+                  height: 22,
+                  borderRadius: 'var(--radius-md)',
+                  border: 0,
+                  background: 'transparent',
+                  color: 'var(--kp-side-fg-dim)',
+                  cursor: 'pointer',
+                  flex: 'none',
+                }}
+              >
+                <Search size={14} strokeWidth={2} />
+              </button>
+            )}
             <button
               type="button"
               data-testid="spine-new-client"
@@ -387,42 +425,45 @@ export function Spine({
                 padding: '0 10px var(--kp-space-xs)',
               }}
             >
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  height: 30,
-                  padding: '0 8px',
-                  marginBottom: 6,
-                  borderRadius: 'var(--radius-md)',
-                  border: '1px solid var(--kp-side-border)',
-                  background: 'var(--kp-side-border)',
-                  color: 'var(--kp-side-fg-dim)',
-                }}
-              >
-                <Search size={13} strokeWidth={2} style={{ flex: 'none' }} />
-                <input
-                  data-testid="spine-client-search"
-                  type="search"
-                  value={clientSearchQuery}
-                  onChange={(e) => {
-                    setClientSearchQuery(e.currentTarget.value);
-                  }}
-                  placeholder="Search clients"
-                  aria-label="Search clients"
+              {clientSearchVisible && (
+                <label
                   style={{
-                    width: '100%',
-                    minWidth: 0,
-                    border: 0,
-                    outline: 'none',
-                    background: 'transparent',
-                    color: 'var(--kp-side-fg)',
-                    fontSize: 'var(--kp-font-sm)',
-                    fontFamily: 'inherit',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    height: 30,
+                    padding: '0 8px',
+                    marginBottom: 6,
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--kp-side-border)',
+                    background: 'var(--kp-side-border)',
+                    color: 'var(--kp-side-fg-dim)',
                   }}
-                />
-              </label>
+                >
+                  <Search size={13} strokeWidth={2} style={{ flex: 'none' }} />
+                  <input
+                    ref={clientSearchRef}
+                    data-testid="spine-client-search"
+                    type="search"
+                    value={clientSearchQuery}
+                    onChange={(e) => {
+                      setClientSearchQuery(e.currentTarget.value);
+                    }}
+                    placeholder={t('spine.find-client')}
+                    aria-label={t('spine.find-client')}
+                    style={{
+                      width: '100%',
+                      minWidth: 0,
+                      border: 0,
+                      outline: 'none',
+                      background: 'transparent',
+                      color: 'var(--kp-side-fg)',
+                      fontSize: 'var(--kp-font-sm)',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </label>
+              )}
               <button
                 type="button"
                 data-testid="spine-all-clients-row"
@@ -441,14 +482,13 @@ export function Spine({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 'var(--kp-space-xs)',
                   width: '100%',
                   textAlign: 'left',
-                  border: '1px solid var(--kp-side-border)',
+                  border: 0,
                   cursor: 'pointer',
                   background: allClientsActive
                     ? 'var(--kp-side-active-bg)'
-                    : 'var(--kp-side-border)',
+                    : 'transparent',
                   color: 'var(--kp-side-fg)',
                   padding: 'var(--kp-space-xs) var(--kp-space-sm)',
                   borderRadius: 'var(--radius-md)',
@@ -469,11 +509,6 @@ export function Spine({
                     }}
                   />
                 )}
-                <Users
-                  size={14}
-                  strokeWidth={1.9}
-                  style={{ flex: 'none', color: 'var(--kp-side-accent)' }}
-                />
                 <span
                   style={{
                     fontSize: 'var(--kp-font-sm)',

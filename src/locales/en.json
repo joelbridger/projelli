@@ -46,6 +46,7 @@
       "open-email-client": "Open email client instead"
     },
     "command-palette": {
+      "open": "Command palette (Ctrl+K)",
       "search-description": "Type a command or search across the app",
       "no-commands": "No commands found"
     },
@@ -221,13 +222,19 @@
     },
     "privacy": {
       "title": "Privacy",
-      "description": "Advisor Prep Hero is local-first. Your files, your AI prompts, and your account keys never leave your machine. Any opt-ins below are the only data Advisor Prep Hero ever collects, and all default to off.",
+      "description": "Lantern keeps your work on this computer. Optional sharing is off unless you turn it on.",
+      "optional-sharing": {
+        "title": "Optional sharing",
+        "description": "Lantern keeps your work on this computer. Optional sharing is off unless you turn it on.",
+        "details-label": "What is shared?"
+      },
       "design-partner": {
-        "title": "Optional error reporting",
-        "description": "You are among the first advisors using Advisor Prep Hero in practice. With this on, Advisor Prep Hero sends structured usage counts only: which features you use and where you get stuck. Never your content, file names, client names, or prompts. Off by default; turn it off any time.",
+        "title": "Error reporting",
+        "description": "Sends structure-only counts when the app gets stuck.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
+        "not-sent": "Never your content, file names, client names, or prompts.",
         "field-features": "Which features you used: ask, workflow, search, email import. A count only, not what you asked.",
         "field-workflow-id": "Which workflow template you ran (the template id, not the output).",
         "field-search-count": "How many searches you ran. No query text.",
@@ -235,8 +242,8 @@
         "endpoint-note": "Endpoint: forms.lanternplatform.app/api/forms/lantern/design-partner-event. Used only to improve the product for your practice."
       },
       "telemetry": {
-        "title": "Anonymous usage stats",
-        "description": "Help improve Advisor Prep Hero by sending lifecycle events: app launches, trial start, trial end, license activated, license deactivated. No content, no files, no AI prompts, no email.",
+        "title": "Usage stats",
+        "description": "Sends basic app events like launch, trial start, and license activation. No content, files, AI prompts, or email.",
         "enabled": "Enabled",
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
@@ -255,7 +262,7 @@
       "data-map": {
         "title": "Where your data lives and who can see it",
         "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Advisor Prep Hero’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
-        "cta": "Open the data map"
+        "cta": "Open Data Map"
       }
     },
     "mcp": {
@@ -320,9 +327,10 @@
       "title": "Memory Facts",
       "description": "Durable facts about you that the AI always knows. Stored locally at <c>.lantern/memory.json</c> in your workspace.",
       "load-error": "Couldn't load facts: {{error}}",
-      "empty": "No facts saved yet. Proposed facts from chat conversations will show up here after you accept them.",
+      "empty": "No saved facts yet.",
       "delete-aria": "Delete fact",
-      "add-placeholder": "Add a fact about yourself..."
+      "add-toggle": "Add fact",
+      "add-placeholder": "Add a fact..."
     },
     "template-models": {
       "empty": "No workflow templates yet.",
@@ -330,12 +338,33 @@
       "description": "Pin a provider and model for each template. Leave blank to use the template's built-in default (or your global default)."
     },
     "mobile-page": {
-      "title": "Mobile",
-      "description": "Read your Advisor Prep Hero workspace on your phone today. Point Advisor Prep Hero at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Advisor Prep Hero mobile reader is in beta and lands in the v2.0 cycle.",
+      "title": "Phone access",
+      "description": "Read this workspace on your phone with iCloud, Dropbox, Syncthing, or Google Drive.",
       "heads-up-label": "Heads up:",
-      "heads-up-text": "Treat your phone as read-only while using the cloud sync workaround. Editing the same file on two devices in quick succession can produce a conflict copy.",
+      "heads-up-text": "For now, read on phone. Edit on one device at a time.",
       "setup-steps": "Setup steps",
-      "things-to-know": "Things to know"
+      "things-to-know": "Things to know",
+      "full-guide": "Full guide",
+      "providers": {
+        "icloud": {
+          "label": "iCloud Drive",
+          "guidance": "Best if you use Apple devices.",
+          "open-app": "Open Files on iPhone"
+        },
+        "dropbox": {
+          "label": "Dropbox",
+          "guidance": "Works across Mac, Windows, iPhone, and Android.",
+          "open-app": "Open Dropbox on iPhone"
+        },
+        "syncthing": {
+          "label": "Syncthing",
+          "guidance": "Keeps data between your own devices without a cloud account."
+        },
+        "gdrive": {
+          "label": "Google Drive",
+          "guidance": "Best if you already use Google Drive, especially on Android."
+        }
+      }
     },
     "api-keys": {
       "title": "AI Account Keys",
@@ -353,7 +382,11 @@
     },
     "voice": {
       "title": "Voice input",
-      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new text file into <c>Inbox/</c>."
+      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new text file into <c>Inbox/</c>.",
+      "status-checking": "Checking voice availability",
+      "status-missing": "Voice unavailable in this build",
+      "status-denied": "Mic permission denied. Allow microphone access to use voice.",
+      "status-ready": "Ready"
     },
     "advanced": {
       "title": "Advanced",
@@ -1078,7 +1111,7 @@
     "download": "Download Advisor Prep Hero Local AI",
     "downloading": "Downloading… {{pct}}%",
     "verifying": "Checking the download…",
-    "ready": "Installed and ready. Pick \"Advisor Prep Hero Local AI\" as your model in any chat.",
+    "ready": "Local AI installed.",
     "error": "The download was interrupted. Nothing is lost.",
     "retry": "Resume download"
   },
@@ -1844,7 +1877,7 @@
       "title-local-only": "On because On this computer only is selected. Network plugins and MCP servers are disabled."
     },
     "retention": {
-      "title": "Meeting recordings",
+      "title": "Deleted files",
       "subtitle": "Choose what happens to recordings on this computer. Deletions are recorded in your audit log.",
       "mode-keep": "Keep everything",
       "mode-keep-hint": "Audio, transcript, and notes stay until you delete them.",
@@ -1853,9 +1886,11 @@
       "mode-summary": "Summary only",
       "mode-summary-hint": "Audio and transcript are removed once notes exist. Only the notes stay.",
       "days-label": "Days to keep audio",
-      "run-now": "Run cleanup now",
+      "change": "Change",
+      "more-actions": "More deleted-file actions",
+      "run-now": "Clean up now",
       "last-sweep": "Last cleanup: {{when}}, removed {{count}} items",
-      "never-swept": "Cleanup has not run yet.",
+      "never-swept": "No cleanup yet.",
       "datamap-title": "Meeting recording retention",
       "sweep-errors": "{{count}} items could not be removed. See the audit log.",
       "attestation-button": "Export attestation report (Word)",
@@ -2363,9 +2398,11 @@
       "bg-label": "RECORDING in progress",
       "unsupported-fallback": "This meeting link isn't one the notice card can join, so say the recording notice aloud instead.",
       "settings-heading": "Notice Card",
-      "settings-enabled-label": "Offer the Notice Card for online meetings",
+      "settings-advanced-summary": "Advanced recording notice",
+      "settings-enabled-label": "Offer Notice Card",
       "settings-name-label": "Notice Card name (use {advisor} for your first name)",
-      "settings-evidence-label": "What satisfies a Strict recording notice",
+      "settings-name-placeholder": "Recording Notice - {advisor}",
+      "settings-evidence-label": "Strict proof",
       "settings-evidence-either": "Either a spoken notice or full-meeting card presence",
       "settings-evidence-both": "Both a spoken notice and full-meeting card presence",
       "offer-explain-summary": "What is this?",
@@ -2389,7 +2426,8 @@
     "aria": {
       "primary-nav": "Primary"
     },
-    "all-clients": "All Clients",
+    "all-clients": "All clients",
+    "find-client": "Find client",
     "new-client": "+ New {{entity}}",
     "no-clients-found": "No clients found"
   },

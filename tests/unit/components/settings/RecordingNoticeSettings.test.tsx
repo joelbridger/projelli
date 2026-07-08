@@ -21,7 +21,7 @@ describe('RecordingNoticeSettings info help', () => {
     );
   });
 
-  it('still selects the policy through the card button', () => {
+  it('still selects the policy through the compact radio control', () => {
     render(<RecordingNoticeSettings />);
 
     fireEvent.click(screen.getByTestId('notice-policy-strict'));

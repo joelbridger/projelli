@@ -72,14 +72,27 @@ describe('PrivacySettings — design-partner card', () => {
     const text = card.textContent ?? '';
     expect(text.toLowerCase()).not.toContain('never your content');
 
-    const info = screen.getByRole('button', { name: 'About Optional error reporting' });
-    fireEvent.mouseEnter(info);
-    // The sensitive-data promise still exists, but it now lives behind the info icon.
-    expect(screen.getByRole('tooltip').textContent?.toLowerCase()).toContain('never your content');
+    fireEvent.click(screen.getByTestId('privacy-sharing-details-toggle'));
+    // The sensitive-data promise still exists, but it now lives behind the disclosure.
+    expect(screen.getByTestId('privacy-sharing-details').textContent?.toLowerCase()).toContain(
+      'never your content',
+    );
   });
 
   it('also still renders the telemetry toggle', () => {
     expect(screen.getByTestId('privacy-telemetry-toggle')).toBeInTheDocument();
+  });
+
+  it('combines both opt-ins under optional sharing', () => {
+    expect(screen.getByTestId('privacy-optional-sharing-card')).toHaveTextContent(
+      'Optional sharing',
+    );
+    expect(screen.getByTestId('privacy-optional-sharing-card')).toHaveTextContent(
+      'Usage stats',
+    );
+    expect(screen.getByTestId('privacy-optional-sharing-card')).toHaveTextContent(
+      'Error reporting',
+    );
   });
 });
 

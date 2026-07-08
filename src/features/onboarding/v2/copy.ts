@@ -9,46 +9,58 @@
 
 export const ONB_COPY = {
   intro: {
-    headline: 'A private AI that knows your clients.',
+    headline: 'Set up Lantern.',
+    sub: 'Use sample data, or connect your own files.',
     flow: [
-      'Connect your AI and files',
-      'Advisor Prep Hero builds Client Maps',
-      'Ask anything, with sources',
+      'Connect AI',
+      'Add files',
+      'Ask with sources',
     ],
     pills: [
       'Our servers never see your documents or prompts',
       'Vault: optional AES-256 encryption',
       'Cloud AI providers are SOC 2 certified',
     ],
-    cta: 'Go!',
+    cta: 'Start setup',
+    sampleTitle: 'Use sample practice',
+    ownTitle: 'Use my files',
+    recommended: 'Recommended',
+    sampleBullets: [
+      'A worked household you can explore',
+      'A filled, cited Client Map',
+      'Nothing leaves your computer',
+    ],
+    ownBullets: [
+      'Pick where your practice lives',
+      'Import email, files, and Wealthbox next',
+      'Your data stays on this device',
+    ],
+    sampleCta: 'Use sample practice',
+    ownCta: 'Use my files',
   },
 
   ai: {
     headline: '1. Connect your AI',
     cloud: {
-      title: 'Use ChatGPT, Claude, or Gemini',
+      title: 'Cloud AI',
       bullets: [
-        'Advisor Prep Hero never sees your key or your data',
-        'Providers are SOC 2 Type 2 certified',
-        'Encrypted in transit and at rest',
-        "Providers don't train on your data (on paid API usage)",
-        'Pay as you go with your own key',
+        'Uses your own AI account key.',
+        'Lantern never sees your key or data.',
+        'Usually gives the best answers.',
       ],
-      whatLink: 'What is this?',
-      pickLabel: 'PICK YOUR PROVIDER, THEN GET YOUR KEY',
+      whatLink: 'What does this mean?',
+      pickLabel: 'Provider',
       connect: 'Connect',
       helpLink: 'I need help setting this up',
     },
     local: {
-      title: 'Use local AI',
+      title: 'Local AI',
       bullets: [
-        'Runs on your computer',
-        'Completely secure (nothing leaves)',
-        '2.5 GB download (about 5 minutes)',
-        'Great at answering questions about lots of files',
-        'Not as great with complex reasoning',
+        'Runs on this computer.',
+        'Nothing leaves.',
+        'Needs a larger download.',
       ],
-      moreLink: 'Tell me more',
+      moreLink: 'What does this mean?',
       tryLocal: 'Try Local AI',
       switchNote: 'Switch to cloud AI anytime',
     },
@@ -66,12 +78,13 @@ export const ONB_COPY = {
 
   connect: {
     headline: '2. Securely connect your data',
+    trustLine: 'Connected data stays on this device.',
     pills: [
       'Encrypted in transit',
       'Stays on your device',
       'Advisor Prep Hero never sees your data',
     ],
-    comingSoonLabel: 'COMING SOON',
+    comingSoonLabel: 'More connectors planned',
     connect: 'Connect',
     connected: 'Connected',
     desktopOnly: 'Available in the desktop app',
@@ -95,7 +108,8 @@ export const ONB_COPY = {
     aiLabel: 'Downloading your private AI',
     clientMapTitle: 'Building your Client Maps',
     clientMapSub: 'Assembling the whole story of every client and household.',
-    asksHeader: 'Things you can ask Advisor Prep Hero',
+    asksHeader: 'Try asking',
+    moreExamples: 'More examples',
     cta: 'Continue to the app',
   },
 
@@ -110,6 +124,10 @@ export const ONB_COPY = {
  * Verbatim, in order, from the prototype.
  */
 export const ONB_EXAMPLE_QUESTIONS: readonly string[] = [
+  'Who needs a review this week?',
+  'What changed for the Chen household?',
+  'Draft an agenda for tomorrow.',
+  'Find missing paperwork.',
   'Which client is doing a 1031 exchange?',
   'Who has a 529 for the kids?',
   'What changed for the Hendricks since our last review?',

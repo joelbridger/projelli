@@ -102,7 +102,6 @@ function renderFlow() {
 }
 
 const goToAi = () => {
-  fireEvent.click(screen.getByTestId('onboarding-v2-go'));
   fireEvent.click(screen.getByTestId('choose-start-own'));
 };
 const clickContinue = () => fireEvent.click(screen.getByTestId('onboarding-v2-continue'));
@@ -117,9 +116,10 @@ describe('OnboardingV2 navigation', () => {
     useOAuthPendingStore.setState({ count: 0 });
   });
 
-  it('opens on the intro and advances to "1. Connect your AI" on Go', () => {
+  it('opens on the setup choice and advances to "1. Connect your AI" after a choice', () => {
     renderFlow();
-    expect(screen.getByText('A private AI that knows your clients.')).toBeTruthy();
+    expect(screen.getByText('Set up Lantern.')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-v2-choose-start')).toBeTruthy();
     goToAi();
     expect(screen.getByText('1. Connect your AI')).toBeTruthy();
   });
@@ -232,6 +232,7 @@ describe('AiScene real key wiring', () => {
   it('"Try Local AI" starts the real download, records local-only, and advances', () => {
     renderFlow();
     goToAi();
+    fireEvent.click(screen.getByTestId('ai-mode-local'));
     fireEvent.click(screen.getByTestId('ai-try-local'));
     expect(h.start).toHaveBeenCalledTimes(1);
     expect(h.recordChoice).toHaveBeenCalledWith('local-only');
@@ -335,7 +336,7 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
 
     const emailRow = screen.getByTestId('firm-row-email');
     expect(emailRow.textContent).toContain('128 imported');
-    expect(emailRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working...');
+    expect(emailRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working');
   });
 
   it('shows OneDrive import progress in the shared setup progress list', () => {
@@ -346,7 +347,7 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     const oneDriveRow = screen.getByTestId('firm-row-onedrive');
     expect(oneDriveRow.textContent).toContain('OneDrive');
     expect(oneDriveRow.textContent).toContain('7 imported');
-    expect(oneDriveRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working...');
+    expect(oneDriveRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working');
   });
 
   it('shows "not verified" for a cloud key that was saved but never live-checked', () => {
@@ -364,7 +365,7 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     });
     gotoFirm();
     const aiRow = screen.getByTestId('firm-row-ai');
-    expect(aiRow.textContent).toContain('AI key saved — not verified yet');
+    expect(aiRow.textContent).toContain('AI key saved, not verified yet');
     expect(aiRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Not verified');
   });
 

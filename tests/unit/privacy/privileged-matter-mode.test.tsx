@@ -220,8 +220,10 @@ describe('StatusBar: Privileged Matter Mode badge', () => {
     render(<StatusBar />);
     const badge = screen.getByTestId('privileged-matter-badge');
     expect(badge).toBeInTheDocument();
-    // Badge copy uses "Isolated matter" (security lockdown) not "Privileged" (legal concept).
-    expect(badge.textContent).toContain('outside connections are blocked');
+    // The visible badge stays short in the simplified status bar; the hover
+    // text keeps the fuller explanation.
+    expect(badge.textContent).toContain('Isolated client');
+    expect(badge).toHaveAttribute('title', expect.stringContaining('network plugins'));
   });
 
   it('does not render the badge when the mode is off', () => {

@@ -1,19 +1,15 @@
 /**
  * MobileSettingsPage — Settings → Mobile.
  *
- * Mirrors the public web docs at /docs/mobile-access/ in a more compact form
- * suitable for the Settings modal. Four tabs (iCloud / Dropbox / Syncthing /
- * Google Drive), each rendering a short steps list, key tips, and a deep-link
- * "open" button when a stable iOS scheme is known.
+ * Mirrors the public web docs at /docs/mobile-access/ in a compact Settings
+ * form. The step-by-step setup stays in the full guide.
  *
  * Stream D1 of the v2.0 mega-release. The dedicated mobile reader (D2) is
  * still in beta; this page documents the cloud-sync workaround that ships
  * the v2.0 mobile story today.
  */
 
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/ui/tabs';
 import { Button } from '@/ui/button';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { ExternalLink } from 'lucide-react';
@@ -23,15 +19,8 @@ type ProviderId = 'icloud' | 'dropbox' | 'syncthing' | 'gdrive';
 
 interface ProviderTab {
   id: ProviderId;
-  label: string;
-  /** One-line tagline shown above the steps. */
-  tagline: string;
-  /** Numbered setup steps. Kept short; the website has the long form. */
-  steps: string[];
-  /** Bullet caveats / "things to know" list. */
-  tips: string[];
   /** Deep link to the provider's iOS / native app, when stable. */
-  deepLink?: { href: string; label: string };
+  deepLink?: { href: string };
   /** Web docs URL for the matching long-form guide. */
   docsHref: string;
 }
@@ -39,81 +28,28 @@ interface ProviderTab {
 const PROVIDERS: ProviderTab[] = [
   {
     id: 'icloud',
-    label: 'iCloud Drive',
-    tagline: 'Easiest path on Apple devices. About 5 minutes.',
-    steps: [
-      'On your Mac, make sure iCloud Drive is on under System Settings → Apple ID → iCloud.',
-      'In Advisor Prep Hero, open File → Open Workspace and pick a folder inside ~/Library/Mobile Documents/com~apple~CloudDocs/. A folder called "Advisor Prep Hero" works well.',
-      'Wait for the first sync to finish (watch the cloud icons in Finder).',
-      'On your iPhone, open the Files app → Browse → iCloud Drive → Advisor Prep Hero to read your workspace.',
-    ],
-    tips: [
-      'Treat your phone as read-only for now to avoid conflict copies.',
-      'Free iCloud tier is 5 GB. A typical Advisor Prep Hero workspace fits easily.',
-      'For nicer text file rendering on iPhone, install a reader app like Taio or 1Writer and point it at the same iCloud folder.',
-    ],
     // Apple's documented Files app deep link. Opens straight into Files.
-    deepLink: { href: 'shareddocuments://', label: 'Open Files on iPhone' },
+    deepLink: { href: 'shareddocuments://' },
     docsHref: `${BRAND.urls.mobileDocsBase}/icloud`,
   },
   {
     id: 'dropbox',
-    label: 'Dropbox',
-    tagline: 'Cross-platform. Reliable conflict handling. Works on iOS and Android.',
-    steps: [
-      'Install Dropbox for desktop from dropbox.com/install if you don\'t already have it.',
-      'In Advisor Prep Hero, open File → Open Workspace and pick a folder inside your Dropbox folder.',
-      'Wait for the green checkmark next to the folder in Finder / File Explorer.',
-      'Install the Dropbox iOS or Android app, sign in, and navigate to the Advisor Prep Hero folder. Tap any .md file.',
-    ],
-    tips: [
-      'Dropbox creates clearly labeled "conflicted copy" files when both devices edit at once. Still cleanest to edit on one at a time.',
-      'Free tier is 2 GB. Text files are tiny so this is rarely the bottleneck.',
-      'If you use Smart Sync, right-click your Advisor Prep Hero folder and "Make Available Offline" so Advisor Prep Hero can always read from disk.',
-    ],
     // Documented Dropbox iOS scheme used to open the app.
-    deepLink: { href: 'dbapi-2://1/connect', label: 'Open Dropbox on iPhone' },
+    deepLink: { href: 'dbapi-2://1/connect' },
     docsHref: `${BRAND.urls.mobileDocsBase}/dropbox`,
   },
   {
     id: 'syncthing',
-    label: 'Syncthing',
-    tagline: 'Open source, peer-to-peer. Your data stays on your devices.',
-    steps: [
-      'Install Syncthing on your computer from syncthing.net/downloads. The admin UI opens at http://127.0.0.1:8384.',
-      'In Syncthing, add a folder (label "Advisor Prep Hero") pointing at a local path like ~/Advisor Prep Hero-Sync/.',
-      'In Advisor Prep Hero, open File → Open Workspace and select that same folder.',
-      'On Android: install Syncthing-Fork and pair using your computer\'s device ID. On iPhone: use Möbius Sync (paid) and follow the same pairing flow.',
-    ],
-    tips: [
-      'Both devices must be running Syncthing for files to sync. Sleeping your laptop pauses sync.',
-      'iOS does not have an official free Syncthing client. If you don\'t want to pay for Möbius Sync, the iCloud Drive tab is a better fit on iPhone.',
-      'For nicer text file rendering on Android, install Markor and open .md files with that.',
-    ],
     docsHref: `${BRAND.urls.mobileDocsBase}/syncthing`,
   },
   {
     id: 'gdrive',
-    label: 'Google Drive',
-    tagline: 'Best on Android. Requires the Google Drive desktop app in "Mirror" mode.',
-    steps: [
-      'Install Google Drive for desktop from google.com/drive/download. When asked, choose "Mirror files" (not "Stream files"), so a real local copy lives on your hard drive.',
-      'In Advisor Prep Hero, open File → Open Workspace and pick a folder inside the mirrored Drive location.',
-      'Wait for the green checkmark in Finder / File Explorer.',
-      'On Android, open the Google Drive app and navigate to the Advisor Prep Hero folder. On iPhone, install Google Drive for iOS and do the same.',
-    ],
-    tips: [
-      '"Mirror" mode is required. "Stream" mode keeps files cloud-only and Advisor Prep Hero won\'t reliably read them.',
-      'Free tier is 15 GB shared across Drive, Gmail, and Photos. Check your overall Google storage isn\'t already full.',
-      'On Android, tap a .md file to pick a default reader app once. Markor is a solid free choice.',
-    ],
     docsHref: `${BRAND.urls.mobileDocsBase}/google-drive`,
   },
 ];
 
 export function MobileSettingsPage() {
   const { t } = useTranslation();
-  const [active, setActive] = useState<ProviderId>('icloud');
 
   return (
     <div className="space-y-6" data-testid="mobile-settings-page">
@@ -130,60 +66,26 @@ export function MobileSettingsPage() {
         {t('settings.mobile-page.heads-up-text')}
       </div>
 
-      <Tabs
-        value={active}
-        onValueChange={(v) => {
-          setActive(v as ProviderId);
-        }}
-      >
-        <TabsList className="grid w-full grid-cols-4">
-          {PROVIDERS.map((p) => (
-            <TabsTrigger
-              key={p.id}
-              value={p.id}
-              data-testid={`mobile-tab-${p.id}`}
-            >
-              {p.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
+      <div className="space-y-2">
         {PROVIDERS.map((p) => (
-          <TabsContent
+          <section
             key={p.id}
-            value={p.id}
             data-testid={`mobile-panel-${p.id}`}
-            className="space-y-5 pt-4"
+            className="rounded-md border border-border/60 p-3"
           >
-            <section>
-              <div className="mb-2 flex items-center gap-1.5">
-                <h3 className="text-sm font-semibold">{t('settings.mobile-page.setup-steps')}</h3>
-                <InfoHelp content={p.tagline} label={`About ${p.label}`} />
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h4
+                  data-testid={`mobile-tab-${p.id}`}
+                  className="text-sm font-semibold text-foreground"
+                >
+                  {t(`settings.mobile-page.providers.${p.id}.label`)}
+                </h4>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {t(`settings.mobile-page.providers.${p.id}.guidance`)}
+                </p>
               </div>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-foreground/90">
-                {p.steps.map((step, i) => (
-                  <li key={i}>{step}</li>
-                ))}
-              </ol>
-            </section>
-
-            <section>
-              <div className="mb-2 flex items-center gap-1.5">
-                <h3 className="text-sm font-semibold">{t('settings.mobile-page.things-to-know')}</h3>
-                <InfoHelp
-                  label={`About ${t('settings.mobile-page.things-to-know')}`}
-                  content={
-                    <ul className="ml-4 list-disc space-y-1">
-                      {p.tips.map((tip, i) => (
-                        <li key={i}>{tip}</li>
-                      ))}
-                    </ul>
-                  }
-                />
-              </div>
-            </section>
-
-            <div className="flex flex-wrap gap-2 pt-1">
+              <div className="flex flex-wrap gap-2">
               {p.deepLink && (
                 <Button
                   asChild
@@ -193,7 +95,7 @@ export function MobileSettingsPage() {
                   data-testid={`mobile-deeplink-${p.id}`}
                 >
                   <a href={p.deepLink.href}>
-                    {p.deepLink.label}
+                    {t(`settings.mobile-page.providers.${p.id}.open-app`)}
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 </Button>
@@ -206,14 +108,15 @@ export function MobileSettingsPage() {
                 data-testid={`mobile-docs-${p.id}`}
               >
                 <a href={p.docsHref} target="_blank" rel="noopener noreferrer">
-                  Full guide
+                  {t('settings.mobile-page.full-guide')}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </Button>
+              </div>
             </div>
-          </TabsContent>
+          </section>
         ))}
-      </Tabs>
+      </div>
     </div>
   );
 }

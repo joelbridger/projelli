@@ -1892,12 +1892,12 @@ function AppShell() {
             data-testid="command-palette-button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground"
+            className="h-7 w-7 px-0 text-muted-foreground"
             onClick={() => setShowCommandPalette(true)}
-            title="Command Palette (Ctrl+K)"
+            title={t('common.command-palette.open')}
+            aria-label={t('common.command-palette.open')}
           >
-            <Command className="h-3 w-3 mr-1" />
-            Ctrl+K
+            <Command className="h-3 w-3" />
           </Button>
         </div>
       </header>

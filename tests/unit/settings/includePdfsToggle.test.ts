@@ -1,9 +1,9 @@
 /**
  * Plan A3 - includePdfsInWorkspaceIndex setting smoke tests.
  *
- * v3.1: the "memory" sub-section now lives inside the "ai-privacy" section.
- * The schema category for this setting is 'ai-privacy' (the canonical section).
- * Use resolveSection('memory') === 'ai-privacy' to confirm the alias still works.
+ * v3.3: memory lives under the top-level AI section.
+ * The schema category still accepts 'ai-privacy' as a compatibility alias.
+ * Use resolveSection('memory') === 'ai' to confirm the alias still works.
  */
 import { describe, it, expect } from 'vitest';
 import { SETTINGS_SCHEMA, resolveSection } from '@/platform/settings/schema';
@@ -15,11 +15,9 @@ describe('includePdfsInWorkspaceIndex setting', () => {
     expect(entry).toBeDefined();
   });
 
-  it('is in the ai-privacy section (Memory sub-section)', () => {
-    // The setting moved from the standalone "memory" category into the
-    // "ai-privacy" section. resolveSection('memory') confirms the alias works.
+  it('resolves to the AI section (Memory group)', () => {
     expect(entry?.category).toBe('ai-privacy');
-    expect(resolveSection('memory')).toBe('ai-privacy');
+    expect(resolveSection('memory')).toBe('ai');
   });
 
   it('defaults to true (PDF search on out of the box; BUG-015 follow-up, 2026-06-20)', () => {

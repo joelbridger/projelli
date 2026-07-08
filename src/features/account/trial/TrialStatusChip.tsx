@@ -1,10 +1,9 @@
 /**
- * TrialStatusChip — persistent status-bar license/trial indicator.
+ * TrialStatusChip — urgent status-bar license/trial indicator.
  *
  * Three states:
- *   - Activated license → green "Personal / Professional / Practice active" chip (reassurance)
- *   - Trial, 5+ days    → amber "Free trial · N days left"
- *   - Trial, 1-4 days   → red "Free trial · N days left"
+ *   - Activated license → green "Personal / Professional / Practice active" chip
+ *   - Trial, urgent     → red "Trial: N days"
  *   - Expired           → red "Trial ended · Activate"
  *
  * During the trial the chip tooltip carries the frictionless framing (full
@@ -52,7 +51,7 @@ export function TrialStatusChip({ onClick }: TrialStatusChipProps) {
     tone = 'red';
     title = 'View license settings';
   } else if (trial.daysRemaining < 5) {
-    label = `Free trial · ${trial.daysRemaining} day${trial.daysRemaining === 1 ? '' : 's'} left`;
+    label = `Trial: ${trial.daysRemaining} day${trial.daysRemaining === 1 ? '' : 's'}`;
     tone = 'red';
     title = trialTooltip;
   } else {

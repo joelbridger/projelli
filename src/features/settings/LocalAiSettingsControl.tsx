@@ -11,8 +11,9 @@
  */
 
 import { useTranslation } from 'react-i18next';
-import { Cpu, Check, Download, Loader2 } from 'lucide-react';
+import { Cpu, Download, Loader2 } from 'lucide-react';
 import { InfoHelp } from '@/ui/InfoHelp';
+import { QuietStatus } from '@/ui/kp';
 import { useLocalLlmModelStatus } from '@/platform/hooks/useLocalLlmModelStatus';
 
 export interface LocalAiSettingsControlProps {
@@ -28,6 +29,18 @@ export function LocalAiSettingsControl({ status }: LocalAiSettingsControlProps) 
   // Off-desktop (browser / unprobed) the engine isn't available — render nothing
   // rather than a dead button.
   if (snap.state === 'idle') return null;
+
+  if (snap.state === 'ready') {
+    return (
+      <QuietStatus
+        data-testid="local-ai-settings"
+        data-state={snap.state}
+        className="mt-2"
+      >
+        <span data-testid="local-ai-ready">{t('local-ai-settings.ready')}</span>
+      </QuietStatus>
+    );
+  }
 
   const downloading =
     snap.state === 'checking' ||
@@ -85,16 +98,6 @@ export function LocalAiSettingsControl({ status }: LocalAiSettingsControlProps) 
                   style={{ width: `${String(pct)}%` }}
                 />
               </div>
-            </div>
-          )}
-
-          {snap.state === 'ready' && (
-            <div
-              data-testid="local-ai-ready"
-              className="mt-3 inline-flex items-center gap-2 text-xs font-medium text-emerald-700"
-            >
-              <Check className="h-3.5 w-3.5" />
-              {t('local-ai-settings.ready')}
             </div>
           )}
 

@@ -50,6 +50,12 @@ import {
   SurfaceToolbar,
 } from '@/ui/kp';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
+import {
   PAGE_SIZE,
   ActionCategory,
   ACTION_CATEGORY,
@@ -423,40 +429,6 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
 
       {/* Toolbar */}
       <SurfaceToolbar>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={Download}
-          data-testid="audit-home-export-csv"
-          onClick={handleExportCSV}
-          disabled={filteredEntries.length === 0}
-          title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as CSV'}
-          aria-label="Export audit log as CSV"
-        >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          CSV
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-        </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={Download}
-          data-testid="audit-home-export-json"
-          onClick={handleExportJSON}
-          disabled={filteredEntries.length === 0}
-          title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export as JSON'}
-          aria-label="Export audit log as JSON"
-        >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          JSON
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-        </Button>
-        <FilterToggle
-          open={showFilters}
-          onToggle={() => { setShowFilters((v) => !v); }}
-          count={activeFilterCount}
-          data-testid="audit-home-filter-toggle"
-        />
         <SearchField
           size="md"
           style={{ flex: 1, minWidth: 240 }}
@@ -467,6 +439,47 @@ export function AuditHome({ entries: entriesProp, integrity, onVerifyIntegrity, 
           data-testid="audit-home-search"
           aria-label="Search audit entries"
         />
+        <FilterToggle
+          open={showFilters}
+          onToggle={() => { setShowFilters((v) => !v); }}
+          count={activeFilterCount}
+          data-testid="audit-home-filter-toggle"
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={Download}
+              data-testid="audit-home-export-menu"
+              disabled={filteredEntries.length === 0}
+              title={filteredEntries.length === 0 ? 'No activity to export yet' : 'Export activity'}
+              aria-label="Export audit log"
+            >
+              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+              Export
+              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-44">
+            <DropdownMenuItem
+              data-testid="audit-home-export-csv"
+              className="gap-2"
+              onSelect={() => { handleExportCSV(); }}
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              data-testid="audit-home-export-json"
+              className="gap-2"
+              onSelect={() => { handleExportJSON(); }}
+            >
+              <Download className="h-4 w-4" aria-hidden />
+              JSON
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </SurfaceToolbar>
 
       {/* Content — filter panel, result-count note, table */}

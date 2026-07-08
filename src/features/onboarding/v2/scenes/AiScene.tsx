@@ -35,6 +35,7 @@ import { AiSetupHelpLink } from '../../AiSetupHelpLink';
 import { clearAiSetupDeferred } from '../../aiSetupState';
 import { ApiKeyTester } from '../../ApiKeyTester';
 import { ONB_COPY } from '../copy';
+import { SegmentedToggle } from '@/ui/kp';
 
 const PROVIDERS: { id: ProviderId; label: string }[] = [
   { id: 'openai', label: 'OpenAI' },
@@ -53,6 +54,7 @@ export interface AiSceneProps {
 
 export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
   const C = ONB_COPY.ai;
+  const [aiMode, setAiMode] = useState<'cloud' | 'local'>('cloud');
   const [provider, setProvider] = useState<ProviderId>('anthropic');
   const [keyText, setKeyText] = useState('');
   const [connecting, setConnecting] = useState(false);
@@ -184,37 +186,50 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
         {C.headline}
       </h1>
 
-      <div className="mt-10 grid w-full max-w-[1120px] grid-cols-1 gap-6 text-left lg:grid-cols-2">
+      <div className="mt-5">
+        <SegmentedToggle
+          ariaLabel="Choose AI setup"
+          value={aiMode}
+          onChange={setAiMode}
+          size="md"
+          variant="pill"
+          data-testid="ai-mode"
+          options={[
+            { value: 'cloud', label: C.cloud.title, testId: 'ai-mode-cloud' },
+            { value: 'local', label: C.local.title, testId: 'ai-mode-local' },
+          ]}
+        />
+      </div>
+
+      <div className="mt-8 w-full max-w-[760px] text-left">
         {/* ---- Card 1: Cloud BYOK ---- */}
+        {aiMode === 'cloud' ? (
         <div
-          className={`rounded-[22px] border-2 bg-white p-7 transition-shadow ${
+          className={`rounded-[16px] border bg-white p-6 transition-shadow ${
             connected ? 'border-[#1fa971]' : 'border-[rgba(var(--kp-navy-rgb),0.10)]'
           }`}
           data-testid="ai-card-cloud"
         >
           <h2 className="text-xl font-bold text-[var(--kp-navy)]">{C.cloud.title}</h2>
           <ul className="mt-4 space-y-2.5">
-            {C.cloud.bullets.map((b, i) => (
+            {C.cloud.bullets.map((b) => (
               <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--kp-blue)]" strokeWidth={3} aria-hidden="true" />
-                <span>
-                  {b}
-                  {i === C.cloud.bullets.length - 1 ? (
-                    <button
-                      type="button"
-                      onClick={() => { setPayOpen(true); }}
-                      className="ml-2 font-semibold text-[var(--kp-accent)] underline-offset-2 hover:underline"
-                      data-testid="ai-what-is-this"
-                    >
-                      {C.cloud.whatLink}
-                    </button>
-                  ) : null}
-                </span>
+                <span>{b}</span>
               </li>
             ))}
           </ul>
+          <button
+            type="button"
+            onClick={() => { setPayOpen(true); }}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--kp-accent)] hover:underline"
+            data-testid="ai-what-is-this"
+          >
+            <Info className="h-4 w-4" aria-hidden="true" />
+            {C.cloud.whatLink}
+          </button>
 
-          <div className="mt-6 text-xs font-bold tracking-[0.08em] text-[#5b6b80]">
+          <div className="mt-6 text-xs font-bold text-[#5b6b80]">
             {C.cloud.pickLabel}
           </div>
           <div className="mt-3 inline-flex rounded-full bg-[#f5f7fb] p-1" role="group" aria-label="Choose a provider">
@@ -283,7 +298,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-connect"
               className="rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-50"
             >
-              {connecting ? 'Connecting...' : connected ? 'Connected' : savedUnverified ? 'Saved' : C.cloud.connect}
+              {connecting ? 'Connecting' : connected ? 'Connected' : savedUnverified ? 'Saved' : C.cloud.connect}
             </button>
           </div>
 
@@ -308,7 +323,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               role="status"
             >
               I saved your key, but I couldn&apos;t reach {providerLabel} just now to check it. You
-              can continue — I&apos;ll verify it the first time you use it.
+              can continue. I&apos;ll verify it the first time you use it.
             </div>
           ) : null}
           {error ? (
@@ -325,9 +340,11 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
             />
           </div>
         </div>
+        ) : null}
 
         {/* ---- Card 2: Local AI ---- */}
-        <div className="rounded-[22px] border-2 border-[rgba(var(--kp-navy-rgb),0.10)] bg-white p-7" data-testid="ai-card-local">
+        {aiMode === 'local' ? (
+        <div className="rounded-[16px] border border-[rgba(var(--kp-navy-rgb),0.10)] bg-white p-6" data-testid="ai-card-local">
           <h2 className="text-xl font-bold text-[var(--kp-navy)]">{C.local.title}</h2>
           <ul className="mt-4 space-y-2.5">
             {C.local.bullets.map((b) => (
@@ -360,7 +377,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
                 {ollamaModels.length === 1
                   ? '1 model is installed'
                   : `${String(ollamaModels.length)} models are installed`}
-                . You can use it now — no download needed.
+                . You can use it now, no download needed.
               </div>
               <button
                 type="button"
@@ -377,7 +394,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
                 data-testid="ai-try-local"
                 className="mt-2 w-full rounded-xl border border-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-[var(--kp-accent)] transition-transform active:translate-y-px disabled:opacity-60"
               >
-                {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : 'Or download the built-in model'}
+                {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download' : 'Or download the built-in model'}
               </button>
             </div>
           ) : (
@@ -388,11 +405,12 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-try-local"
               className="mt-5 w-full rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-60"
             >
-              {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : C.local.tryLocal}
+              {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download' : C.local.tryLocal}
             </button>
           )}
           <div className="mt-2 text-center text-xs text-[#8a93a3]">{C.local.switchNote}</div>
         </div>
+        ) : null}
       </div>
 
       {payOpen ? (

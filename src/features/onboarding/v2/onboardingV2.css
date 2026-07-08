@@ -66,52 +66,12 @@
   box-sizing: border-box;
 }
 
-/* ---- Decorative background (orbs + grain) ---- */
 .kp-onbv2-bg {
   position: absolute;
   inset: 0;
   overflow: hidden;
   background: var(--kp-stage);
   pointer-events: none;
-}
-.kp-onbv2-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(90px);
-  opacity: 0.85;
-  will-change: transform;
-}
-.kp-onbv2-orb--pink {
-  width: 60vmax;
-  height: 60vmax;
-  top: -18vmax;
-  right: -12vmax;
-  background: radial-gradient(circle, rgba(255, 60, 232, 0.5), rgba(255, 60, 232, 0) 70%);
-  animation: kp-onbv2-drift-pink 9s ease-in-out infinite alternate;
-}
-.kp-onbv2-orb--blue {
-  width: 66vmax;
-  height: 66vmax;
-  bottom: -22vmax;
-  left: -14vmax;
-  background: radial-gradient(circle, rgba(93, 198, 255, 0.6), rgba(93, 198, 255, 0) 70%);
-  animation: kp-onbv2-drift-blue 9s ease-in-out infinite alternate;
-}
-.kp-onbv2-grain {
-  position: absolute;
-  inset: 0;
-  opacity: 0.45;
-  background-image: radial-gradient(rgba(10, 37, 64, 0.05) 1px, transparent 1px);
-  background-size: 4px 4px;
-}
-
-@keyframes kp-onbv2-drift-pink {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(-3vmax, 3vmax) scale(1.06); }
-}
-@keyframes kp-onbv2-drift-blue {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(3vmax, -2vmax) scale(1.05); }
 }
 
 /* ---- Entrance animations (respect reduced-motion) ---- */
@@ -196,7 +156,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .kp-onbv2-orb,
   .kp-onbv2-rise,
   .kp-onbv2-shimmer::after,
   .kp-onbv2-indet {

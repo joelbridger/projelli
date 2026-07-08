@@ -261,12 +261,13 @@ describe('AuditHome', () => {
 
   it('export CSV and JSON buttons are present and enabled when entries exist', () => {
     render(<AuditHome entries={SAMPLE} />);
+    const exportMenu = screen.getByTestId('audit-home-export-menu');
+    expect(exportMenu).not.toBeDisabled();
+    fireEvent.pointerDown(exportMenu, { button: 0, ctrlKey: false });
     const csvBtn = screen.getByTestId('audit-home-export-csv');
     const jsonBtn = screen.getByTestId('audit-home-export-json');
     expect(csvBtn).toBeInTheDocument();
     expect(jsonBtn).toBeInTheDocument();
-    expect(csvBtn).not.toBeDisabled();
-    expect(jsonBtn).not.toBeDisabled();
   });
 
   it('filters visible activity and export note by matter', () => {
@@ -307,14 +308,13 @@ describe('AuditHome', () => {
     const search = screen.getByTestId('audit-home-search');
     // A query that matches nothing
     fireEvent.change(search, { target: { value: 'zzznomatch' } });
-    expect(screen.getByTestId('audit-home-export-csv')).toBeDisabled();
-    expect(screen.getByTestId('audit-home-export-json')).toBeDisabled();
+    expect(screen.getByTestId('audit-home-export-menu')).toBeDisabled();
   });
 
   it('shows empty state when entries array is empty', () => {
     render(<AuditHome entries={[]} />);
     expect(screen.getByTestId('audit-empty-state')).toBeInTheDocument();
-    expect(screen.getByText('No activity logged yet')).toBeInTheDocument();
+    expect(screen.getByText('No activity yet')).toBeInTheDocument();
     expect(screen.queryByTestId('audit-table-row')).not.toBeInTheDocument();
   });
 
@@ -338,7 +338,7 @@ describe('AuditHome', () => {
     // Truly empty: no entries in the log
     const { unmount } = render(<AuditHome entries={[]} />);
     expect(screen.getByTestId('audit-empty-state')).toBeInTheDocument();
-    expect(screen.getByText('No activity logged yet')).toBeInTheDocument();
+    expect(screen.getByText('No activity yet')).toBeInTheDocument();
     expect(screen.queryByTestId('audit-no-match-state')).not.toBeInTheDocument();
     unmount();
 
