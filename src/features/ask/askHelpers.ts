@@ -68,7 +68,7 @@ export function defaultAskScope(hasMatter: boolean): AskScope {
 }
 
 export function normalizeVisibleAskScope(scope: AskScope, hasMatter: boolean): AskScope {
-  return scope === 'whole-practice' ? defaultAskScope(hasMatter) : scope;
+  return scope === 'this-matter' && !hasMatter ? 'all-matters' : scope;
 }
 
 /**

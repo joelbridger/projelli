@@ -40,10 +40,11 @@ function renderComposer(overrides: Partial<ComponentProps<typeof AskComposer>> =
 }
 
 describe('AskComposer answer-scope chip', () => {
-  it('shows the active answer mode on the chip and keeps file controls inside the popover', () => {
+  it('shows a quiet answer-settings button and keeps file controls inside the popover', () => {
     renderComposer();
 
-    expect(screen.getByTestId('ask-answer-scope-chip')).toHaveTextContent('Files + general');
+    expect(screen.getByTestId('ask-answer-scope-chip')).toHaveAttribute('aria-label', 'Answer settings');
+    expect(screen.getByTestId('ask-answer-scope-chip')).toHaveTextContent('');
     expect(screen.queryByTestId('chat-file-access-consent')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('ask-answer-scope-chip'));
