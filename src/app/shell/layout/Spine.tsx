@@ -362,7 +362,8 @@ export function Spine({
           }}
         >
           {nav.map(({ id, label, Icon }) => {
-            const on = active === id;
+            // The Client Map tab yields its highlight while All Clients mode is on.
+            const on = active === id && !(id === 'matters' && allClientsActive);
             return (
               <button
                 key={id}
