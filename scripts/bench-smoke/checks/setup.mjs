@@ -23,7 +23,7 @@ import { SMOKE_CLIENT_MATTER_ID } from './smoke-workspace.mjs';
 // Root cause, confirmed in the app source (MatterHub.tsx): once ANY client
 // hub is open, there is no UI control wired back to the client table
 // (closeHub() is never bound to a visible button), so
-// matter-launch-documents-<matterId> can legitimately disappear the instant
+// matter-actions-menu-<matterId> can legitimately disappear the instant
 // a prior check (e.g. Wave 0/Wave 2, which open a docx note) leaves a hub
 // open on a different sub-tab — but the hub's own sub-tab bar
 // (hub-subtab-overview / hub-subtab-documents) is a persistent sibling
@@ -55,7 +55,7 @@ export const checkWorkspaceBinding = withGuard(
   'Phase 1 — setup',
   async ({ driver }) => {
     const elements = await requireSnapshot(driver);
-    const clientsEntry = findByTestId(elements, 'spine-new-client') || findByText(elements, /clients/i);
+    const clientsEntry = findByTestId(elements, 'spine-client-list') || findByTestId(elements, 'spine-clients-toggle') || findByText(elements, /clients/i);
     if (!clientsEntry) {
       return makeResult({
         id: 'workspace-binding',
@@ -70,7 +70,7 @@ export const checkWorkspaceBinding = withGuard(
       id: 'workspace-binding',
       section: 'Phase 1 — setup',
       status: STATUS.PASS,
-      detail: 'Clients management entry point is present, implying the workspace is bound and its client list rendered.',
+      detail: 'Client list entry point is present, implying the workspace is bound and its client list rendered.',
       screenshots: [shot],
     });
   }

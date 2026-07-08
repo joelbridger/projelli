@@ -97,7 +97,7 @@ test.describe('Spine Navigation (test mode)', () => {
 
     await hardClick(page.getByTestId('spine-nav-workflows'));
     await expect(page.getByTestId('associate-home')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible();
+    await expect(page.getByTestId('associate-surface-header')).toContainText('Workflows');
 
     // Back to the Client Map — content switches away from Ask.
     await hardClick(page.getByTestId('spine-nav-matters'));

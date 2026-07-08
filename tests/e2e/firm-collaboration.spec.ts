@@ -25,12 +25,12 @@
  *
  * Navigation path (real):
  *   Sidebar "AI Assistant" tab → open/create a chat → AIChatViewer mounts →
- *   matter-scope-selector button in chat header → dropdown → matter-scope-manage
- *   → MatterManagerDialog opens.
+ *   client rail add menu → New client dialog. Per-client sharing still happens
+ *   through the client row's settings menu.
  *
  * Admin console navigation:
- *   Settings gear → settings-category-firm → FirmAdminConsole appears below
- *   FirmSignIn (only for admins). Used for member invite + ethical wall.
+ *   Account window → Firm tab → FirmAdminConsole appears below FirmSignIn
+ *   (only for admins). Used for member invite + ethical wall.
  *
  * Selector strategy:
  *   - All selectors use data-testid (page.getByTestId()) where possible.
@@ -47,6 +47,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { readWorkspaceScopedJSON, MATTERS_KEY } from './helpers/scopedStorage';
+import { hardClick } from './helpers/test-utils';
 
 // ── Run ID — unique suffix so repeated backend runs don't collide ────────────
 // Computed once at module load; safe in spec files (Playwright worker constant).
@@ -90,7 +91,6 @@ const LICENSE_KEY = readLocalFirmBackendLicenseKey();
 
 // Unique per run so DB accumulation doesn't collide across repeated executions.
 const MATTER_CLIENT_NAME = `E2E Convergence Client ${RUN_ID}`;
-const MATTER_NAME = `Convergence Matter ${RUN_ID}`;
 
 // Shared state across tests (serial suite).
 let sharedFirmMatterId = '';   // set after admin shares the matter
@@ -215,12 +215,6 @@ async function openAIChatForMatterManager(page: Page): Promise<void> {
   await scopeSelector.waitFor({ state: 'visible', timeout: 8000 });
 }
 
-/**
- * Open the MatterManagerDialog via the real path:
- *   AI chat header matter-scope-selector → dropdown → matter-scope-manage.
- *
- * Prerequisite: call openAIChatForMatterManager first.
- */
 async function openMatterManager(page: Page): Promise<void> {
   const scopeSelector = page.getByTestId('matter-scope-selector');
   await scopeSelector.waitFor({ state: 'visible', timeout: 6000 });
@@ -235,27 +229,38 @@ async function openMatterManager(page: Page): Promise<void> {
   await page.getByTestId('matter-manager-dialog').waitFor({ state: 'visible', timeout: 6000 });
 }
 
+async function openNewClientDialog(page: Page): Promise<void> {
+  await hardClick(page.getByTestId('spine-new-client'));
+  await hardClick(page.getByTestId('spine-new-client-item'));
+  await page.getByTestId('new-client-dialog').waitFor({ state: 'visible', timeout: 6000 });
+}
+
 /**
- * Navigate to the Matter Manager dialog, create a new matter, share it with the
- * firm, and capture the local matter ID + firm matter ID.
+ * Create a new client, share it with the firm, and capture the local matter ID
+ * + firm matter ID.
  */
 async function shareNewMatter(
   page: Page,
-  matterName: string,
   clientName: string,
 ): Promise<void> {
   await openAIChatForMatterManager(page);
-  await openMatterManager(page);
+  await hardClick(page.getByTestId('spine-nav-matters'));
+  await openNewClientDialog(page);
 
-  // Fill in matter name and client name.
-  await page.getByTestId('matter-new-name').fill(matterName);
-  await page.getByTestId('matter-new-client').fill(clientName);
-  await page.getByTestId('matter-create-button').click();
+  await page.getByTestId('new-client-name').fill(clientName);
+  await page.getByTestId('new-client-create').click();
 
-  // Wait for the new matter row to appear — it should show a firm-section once
-  // the firm session is active. The firm-share-* button will be present for the
-  // most recently created matter (last item in matter-list).
-  // Use a locator that finds the share button anywhere in the dialog.
+  const createdSpineRow = page.locator('[data-testid^="spine-client-row-"]').filter({ hasText: clientName }).first();
+  await createdSpineRow.waitFor({ state: 'visible', timeout: 8000 });
+  const createdRowTestId = await createdSpineRow.getAttribute('data-testid');
+  const createdMatterId = createdRowTestId?.replace('spine-client-row-', '') ?? '';
+  if (!createdMatterId) throw new Error(`Could not resolve created client id for ${clientName}`);
+
+  await hardClick(page.getByTestId('spine-all-clients-row'));
+  await hardClick(page.getByTestId(`matter-actions-menu-${createdMatterId}`));
+  await hardClick(page.getByTestId(`matter-settings-${createdMatterId}`));
+  await page.getByTestId('matter-manager-dialog').waitFor({ state: 'visible', timeout: 6000 });
+
   const shareBtn = page.locator('[data-testid^="firm-share-"]').last();
   await shareBtn.waitFor({ state: 'visible', timeout: 8000 });
   await shareBtn.click();
@@ -461,9 +466,9 @@ test.describe('Firm shared matter notes — two-client convergence', () => {
   });
 
   test('admin shares a matter and opens notes', async () => {
-    // shareNewMatter navigates: Settings close → AI sidebar tab → new chat →
-    // matter-scope-selector → matter-scope-manage → create matter → share.
-    await shareNewMatter(pageA, MATTER_NAME, MATTER_CLIENT_NAME);
+    // shareNewMatter navigates: Ask surface → client rail add menu → new client
+    // dialog → client row menu → client settings → share.
+    await shareNewMatter(pageA, MATTER_CLIENT_NAME);
     // sharedLocalMatterIdA and sharedFirmMatterId are now set.
 
     // Invite the member to the shared matter via the admin console.

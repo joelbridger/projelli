@@ -32,7 +32,7 @@ test.describe('Workflows surface', () => {
 
   test('shows category filters and workflow rows', async ({ page }) => {
     await expect(page.getByTestId('associate-toolbar')).toBeVisible();
-    await expect(page.getByTestId('associate-search')).toBeVisible();
+    await expect(page.getByTestId('associate-search-toggle')).toBeVisible();
 
     // Default profession is 'advisor' (see professionStore.ts) — and
     // prioritizeByProfession.ts's PIVOT-A5 branch deliberately EXCLUDES the
@@ -45,6 +45,7 @@ test.describe('Workflows surface', () => {
   });
 
   test('search filters the workflow rail', async ({ page }) => {
+    await hardClick(page.getByTestId('associate-search-toggle'));
     const search = page.getByTestId('associate-search');
     await expect(search).toBeVisible();
 

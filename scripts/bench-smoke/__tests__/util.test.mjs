@@ -109,9 +109,10 @@ describe('openAllClientsTable', () => {
 });
 
 describe('openSmokeClientDocuments', () => {
-  it('clicks the matter-launch-documents testid for the given matterId, then waits for the given text', async () => {
+  it('opens the row menu, clicks the matter-launch-documents testid for the given matterId, then waits for the given text', async () => {
     const driver = { click: vi.fn(), evalJs: vi.fn().mockResolvedValue(true), waitFor: vi.fn().mockResolvedValue({ found: true }) };
     await openSmokeClientDocuments(driver, { matterId: 'matter_abc', waitForText: 'Documents' });
+    expect(driver.click).toHaveBeenCalledWith('matter-actions-menu-matter_abc');
     expect(driver.click).toHaveBeenCalledWith('matter-launch-documents-matter_abc');
     expect(driver.waitFor).toHaveBeenCalledWith('Documents', 10);
   });
@@ -125,12 +126,13 @@ describe('openSmokeClientDocuments', () => {
       waitFor: vi.fn().mockResolvedValue({ found: true }),
     };
     await openSmokeClientDocuments(driver, { matterId: 'matter_abc' });
-    expect(calls).toEqual(['click:spine-nav-matters', 'click:spine-clients-toggle', 'click:spine-all-clients-row', 'click:matter-launch-documents-matter_abc']);
+    expect(calls).toEqual(['click:spine-nav-matters', 'click:spine-clients-toggle', 'click:spine-all-clients-row', 'click:matter-actions-menu-matter_abc', 'click:matter-launch-documents-matter_abc']);
   });
 
-  it('still attempts the launch-documents click when ensureClientsTableTab throws (e.g. minimal fake driver)', async () => {
+  it('still attempts the row menu and launch-documents clicks when ensureClientsTableTab throws (e.g. minimal fake driver)', async () => {
     const driver = { click: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: true }) };
     await openSmokeClientDocuments(driver, { matterId: 'matter_abc' });
+    expect(driver.click).toHaveBeenCalledWith('matter-actions-menu-matter_abc');
     expect(driver.click).toHaveBeenCalledWith('matter-launch-documents-matter_abc');
   });
 
@@ -182,11 +184,11 @@ describe('openSmokeClientDocumentsSubtab', () => {
 });
 
 describe('openSettingsAiPrivacy', () => {
-  it('clicks settings-gear then settings-category-ai-privacy, in order', async () => {
+  it('clicks settings-gear then settings-category-ai, in order', async () => {
     const calls = [];
     const driver = { click: vi.fn((testid) => calls.push(testid)) };
     await openSettingsAiPrivacy(driver);
-    expect(calls).toEqual(['settings-gear', 'settings-category-ai-privacy']);
+    expect(calls).toEqual(['settings-gear', 'settings-category-ai']);
   });
 
   it('propagates a DriverError from either click (best-effort callers catch it)', async () => {

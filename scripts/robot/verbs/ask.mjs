@@ -77,9 +77,19 @@ export async function askQuestion(page, args = {}) {
       await page.click('[data-testid="spine-nav-matters"]', { timeout: 8000 }).catch(() => {});
       await dismissKnownBlockingDialogs(page);
       await page.waitForTimeout(800);
-      const launch = page.locator(`[data-testid="matter-launch-ask-${matterId}"]`).first();
-      if (await launch.count()) await launch.click({ timeout: 8000 }).catch(() => {});
-      else await page.locator('[data-testid^="matter-launch-ask-"]').first().click({ timeout: 8000 }).catch(() => {});
+      const menu = page.locator(`[data-testid="matter-actions-menu-${matterId}"]`).first();
+      if (await menu.count()) {
+        await menu.click({ timeout: 8000 }).catch(() => {});
+        await page.locator(`[data-testid="matter-launch-ask-${matterId}"]`).first().click({ timeout: 8000 }).catch(() => {});
+      } else {
+        const fallbackMenu = page.locator('[data-testid^="matter-actions-menu-"]').first();
+        const fallbackMenuId = await fallbackMenu.getAttribute('data-testid', { timeout: 8000 }).catch(() => null);
+        if (fallbackMenuId) {
+          const fallbackMatterId = fallbackMenuId.replace('matter-actions-menu-', '');
+          await fallbackMenu.click({ timeout: 8000 }).catch(() => {});
+          await page.locator(`[data-testid="matter-launch-ask-${fallbackMatterId}"]`).first().click({ timeout: 8000 }).catch(() => {});
+        }
+      }
       await dismissKnownBlockingDialogs(page);
       await page
         .waitForSelector('[data-testid="ask-composer-input"],[data-testid="hub-ask-input"]', { timeout: 15000 })

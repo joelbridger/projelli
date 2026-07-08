@@ -26,7 +26,7 @@ async function openMemorySettings(page: import('@playwright/test').Page) {
   // surface instead (same SettingsContent, rendered in the main window).
   await hardClick(page.getByTestId('settings-gear'));
   await expect(page.getByTestId('settings-page')).toBeVisible();
-  await hardClick(page.getByTestId('settings-category-ai-privacy'));
+  await hardClick(page.getByTestId('settings-category-ai'));
   await hardClick(page.getByTestId('subheader-memory-heading'));
   await expect(page.getByTestId('settings-facts-section')).toBeVisible();
 }
@@ -138,15 +138,17 @@ test.describe('v1.5 error paths + edge cases', () => {
     await hardClick(page.getByTestId('settings-gear'));
     await expect(page.getByTestId('settings-page')).toBeVisible();
 
+    await hardClick(page.getByTestId('settings-search-toggle'));
     const search = page.getByTestId('settings-search');
+    await expect(search).toBeVisible();
     await search.fill('memory');
 
-    // Memory should still be accessible under AI & Privacy. Other top-level
+    // Memory should still be accessible under AI. Other top-level
     // sections should not list settings matching "memory".
     // We assert the Memory category button is visible (non-empty after
     // filter) and that the Add-fact input remains reachable once we
     // click through.
-    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('settings-category-ai'));
     await hardClick(page.getByTestId('subheader-memory-heading'));
     await expect(page.getByTestId('settings-facts-section')).toBeVisible();
 

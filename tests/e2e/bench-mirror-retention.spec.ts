@@ -21,7 +21,7 @@ import { hardClick, waitForTestModeLoad } from './helpers/test-utils';
 
 async function openPrivacySettings(page: import('@playwright/test').Page) {
   await hardClick(page.getByTestId('settings-gear'));
-  await hardClick(page.getByTestId('settings-category-ai-privacy'));
+  await hardClick(page.getByTestId('settings-category-privacy'));
   await hardClick(page.getByTestId('subheader-privacy'));
   await expect(page.getByTestId('retention-settings')).toBeVisible({ timeout: 10_000 });
 }

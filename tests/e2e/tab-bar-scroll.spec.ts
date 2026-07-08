@@ -57,7 +57,7 @@ test.describe('Documents rail vertical scroll', () => {
     const railScroller = strip.locator('[data-testid="tab-bar-scroll"]');
     await expect(strip).toBeVisible();
     await expect(strip).toHaveAttribute('aria-orientation', 'vertical');
-    await expect(page.getByTestId('documents-files-tab')).toBeVisible();
+    await expect(page.getByTestId('docs-files-toggle')).toBeVisible();
 
     const firstTabText = await strip
       .locator('[role="tab"]')

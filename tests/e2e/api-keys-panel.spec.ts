@@ -2,7 +2,7 @@
  * API key management tests.
  *
  * Lantern 3.0 moved key management out of the old AI Assistant "Keys" tab.
- * The current path is Settings -> AI & Privacy -> Manage AI Account Keys,
+ * The current path is Settings -> AI -> Manage AI Account Keys,
  * backed by the ApiKeyManager dialog and the add-key wizard.
  */
 
@@ -47,7 +47,7 @@ async function openApiKeyManager(page: Page) {
   await hardClick(page.getByTestId('settings-gear'));
   await expect(page.getByTestId('settings-page')).toBeVisible();
 
-  await hardClick(page.getByTestId('settings-category-ai-privacy'));
+  await hardClick(page.getByTestId('settings-category-ai'));
   const apiKeysSetting = page.getByTestId('setting-manageApiKeys');
   await expect(apiKeysSetting).toBeVisible();
   await hardClick(apiKeysSetting.getByRole('button', { name: 'Manage AI Account Keys' }));
@@ -68,7 +68,7 @@ test.describe('API key management', () => {
     await hardClick(page.getByTestId('settings-gear'));
     await expect(page.getByTestId('settings-page')).toBeVisible();
 
-    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('settings-category-ai'));
     const apiKeysSetting = page.getByTestId('setting-manageApiKeys');
     await expect(apiKeysSetting).toBeVisible();
     await expect(apiKeysSetting).toContainText('AI Account Keys');

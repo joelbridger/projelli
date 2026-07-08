@@ -111,7 +111,7 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     await waitForTestModeLoad(page);
     await hardClick(page.getByTestId('settings-gear'));
     await expect(page.getByTestId('settings-page')).toBeVisible();
-    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('settings-category-ai'));
     await hardClick(page.getByTestId('subheader-memory-heading'));
     await expect(page.getByTestId('settings-facts-section')).toBeVisible();
 
@@ -193,9 +193,9 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     await waitForTestModeLoad(page);
     await hardClick(page.getByTestId('settings-gear'));
     await expect(page.getByTestId('settings-page')).toBeVisible();
-    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('settings-category-ai'));
     await hardClick(page.getByTestId('subheader-ai-heading'));
-    await expect(page.getByTestId('section-ai-privacy')).toBeVisible();
+    await expect(page.getByTestId('section-ai')).toBeVisible();
 
     const result = await scan(page);
     expect(result.newCritical).toBe(0);
@@ -207,7 +207,7 @@ test.describe('v1.5 accessibility sweep — critical + serious zero-tolerance', 
     await waitForTestModeLoad(page);
     await openSidebarTab(page, 'workflows');
     // 3.0 renders the full workflow picker directly on the Workflows surface.
-    await expect(page.getByRole('heading', { name: 'Workflows' })).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByTestId('associate-surface-header')).toContainText('Workflows', { timeout: 5_000 });
     // Default profession is 'advisor' (professionStore.ts), and
     // prioritizeByProfession.ts's PIVOT-A5 branch deliberately excludes the
     // legal pack entirely for advisors, floating 'Advisors' to the top

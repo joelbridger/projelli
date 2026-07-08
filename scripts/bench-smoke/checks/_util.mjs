@@ -89,12 +89,11 @@ export async function ensureClientsTableTab(driver) {
 }
 
 /**
- * Navigate into the known smoke-test client's Documents view (confirmed live:
- * clicking the per-row `matter-launch-documents-<matterId>` quick action from
- * the Clients/Client-Map list enters that client's "hub" — Client Map /
- * Documents / Email / Activity sub-tabs). Idempotent: if already on that
- * client's Documents (or the button simply isn't present because we're
- * already past the Clients list), the click may no-op or fail — callers
+ * Navigate into the known smoke-test client's Documents view. The per-row
+ * actions now live behind that row's three-dot menu, so the bench opens the
+ * menu first and then chooses Documents. Idempotent: if already on that
+ * client's Documents (or the menu simply isn't present because we're already
+ * past the Clients list), the click may no-op or fail — callers
  * treat a thrown DriverError as SETUP-BLOCKED (bench state doesn't allow
  * getting there this run), not a hard failure.
  */
@@ -106,6 +105,7 @@ export async function openSmokeClientDocuments(driver, { matterId, waitForText =
     // gate either way (e.g. it may still work if we were already on the
     // Clients table and this normalization step wasn't even needed).
   }
+  await driver.click(`matter-actions-menu-${matterId}`);
   await driver.click(`matter-launch-documents-${matterId}`);
   const wait = await driver.waitFor(waitForText, 10);
   if (!wait.found) {
@@ -142,7 +142,7 @@ export async function openAskSurface(driver) {
  * editor tab — confirmed live that file rows have no data-testid/button/role
  * and open on double-click, not a single click (see click-by-text.mjs).
  *
- * Switches to "Tree" view first (best-effort, non-fatal): the Documents
+ * Switches to Tree view first (best-effort, non-fatal): the Documents
  * panel's Tree/Grid view-mode choice persists across navigation, and Grid
  * view only shows the CURRENT folder's contents — if a prior session/check
  * left it on Grid sitting at a client's root folder, the smoke note (which
@@ -156,7 +156,7 @@ export async function openAskSurface(driver) {
  */
 export async function openSmokeClientNote(driver, { fileName, waitForText = 'Draft follow-up' } = {}) {
   try {
-    await driver.clickByText('Tree');
+    await driver.click('docs-view-tree');
     // Switching view modes re-renders the panel (folders re-expand); give
     // the filename a moment to actually land in the DOM before searching
     // for it — confirmed live that searching immediately after the Tree
@@ -175,8 +175,8 @@ export async function openSmokeClientNote(driver, { fileName, waitForText = 'Dra
 }
 
 /**
- * Navigate into Settings > AI & Privacy (`settings-gear` spine button ->
- * `settings-category-ai-privacy` rail entry — src/app/shell/layout/
+ * Navigate into Settings > AI (`settings-gear` spine button ->
+ * `settings-category-ai` rail entry — src/app/shell/layout/
  * SettingsGearButton.tsx, src/features/settings/.../SettingsContent.tsx).
  * That view's first sub-tab is the confidentiality-mode picker by default, no
  * extra click needed. Like openSmokeClientDocuments's siblings, each click
@@ -186,7 +186,7 @@ export async function openSmokeClientNote(driver, { fileName, waitForText = 'Dra
  */
 export async function openSettingsAiPrivacy(driver) {
   await driver.click('settings-gear');
-  await driver.click('settings-category-ai-privacy');
+  await driver.click('settings-category-ai');
 }
 
 /**

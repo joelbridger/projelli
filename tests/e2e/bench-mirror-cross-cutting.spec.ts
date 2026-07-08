@@ -93,7 +93,7 @@ test.describe('Bench mirror: Cross-cutting', () => {
     await expect(egressLabel).toBeVisible({ timeout: 10_000 });
 
     await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('settings-category-ai'));
     await hardClick(page.getByTestId('confidentiality-mode-local-only'));
     await expect(page.getByTestId('confidentiality-local-active-note')).toBeVisible({ timeout: 10_000 });
 
@@ -105,7 +105,7 @@ test.describe('Bench mirror: Cross-cutting', () => {
 
     // Revert to the recommended default so this test doesn't leak state.
     await hardClick(page.getByTestId('settings-gear'));
-    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('settings-category-ai'));
     await hardClick(page.getByTestId('confidentiality-mode-direct'));
 
     await hardClick(page.getByTestId('spine-nav-search'));

@@ -381,10 +381,16 @@ async function reachAsk(page) {
   }
   await page.locator('[data-testid="spine-nav-matters"]').click().catch(() => {});
   await page
-    .waitForSelector('[data-testid^="matter-launch-ask-"], [data-testid="ask-composer-input"]', { timeout: 20000 })
+    .waitForSelector('[data-testid^="matter-actions-menu-"], [data-testid="ask-composer-input"]', { timeout: 20000 })
     .catch(() => {});
   if (!(await hasHandle(page, 'ask-composer-input'))) {
-    await page.locator('[data-testid^="matter-launch-ask-"]').first().click({ timeout: 15000 }).catch(() => {});
+    const menu = page.locator('[data-testid^="matter-actions-menu-"]').first();
+    const menuId = await menu.getAttribute('data-testid', { timeout: 15000 }).catch(() => null);
+    if (menuId) {
+      const matterId = menuId.replace('matter-actions-menu-', '');
+      await menu.click({ timeout: 15000 }).catch(() => {});
+      await page.locator(`[data-testid="matter-launch-ask-${matterId}"]`).click({ timeout: 15000 }).catch(() => {});
+    }
   }
   return page.waitForSelector('[data-testid="ask-composer-input"]', { timeout: 20000 }).then(() => true).catch(() => false);
 }
@@ -501,7 +507,7 @@ async function main() {
   );
 
   await page.locator('[data-testid="spine-nav-workflows"]').click({ timeout: 8000 }).catch(() => {});
-  await page.waitForSelector('[data-testid="associate-home"]', { timeout: 10000 }).catch(() => {});
+  await page.waitForSelector('[data-testid="associate-surface-header"]', { timeout: 10000 }).catch(() => {});
   await recordScroll(
     'Scrollability — Workflows',
     { rootSelector: '[data-testid="associate-home"]' },

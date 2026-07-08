@@ -53,7 +53,7 @@ async function showMemorySettings(page: import('@playwright/test').Page) {
   if (!(await page.getByTestId('settings-page').isVisible().catch(() => false))) {
     await openSettingsPage(page);
   }
-  await hardClick(page.getByTestId('settings-category-ai-privacy'));
+  await hardClick(page.getByTestId('settings-category-ai'));
   await hardClick(page.getByTestId('subheader-memory-heading'));
   await expect(page.getByTestId('settings-facts-section')).toBeVisible();
 }
@@ -191,7 +191,7 @@ test.describe('v1.5 multi-feature integration flows', () => {
     // "checking" until the next mount.
     await openSettingsPage(page);
     await hardClick(page.getByTestId('settings-category-workspace'));
-    await hardClick(page.getByTestId('settings-category-ai-privacy'));
+    await hardClick(page.getByTestId('settings-category-ai'));
     await hardClick(page.getByTestId('subheader-memory-heading'));
     await hardClick(page.getByTestId('settings-category-voice'));
     await closeAccountWindow(page);

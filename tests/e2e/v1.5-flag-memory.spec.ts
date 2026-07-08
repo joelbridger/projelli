@@ -5,7 +5,7 @@
  *   1. The @workspace command chip renders inline when a message contains
  *      "@workspace" — the parser path is reachable end-to-end from the UI.
  *   2. The Ask-my-workspace toggle exists and is clickable.
- *   3. The memory-facts settings panel exists under Settings → AI & Privacy → Memory.
+ *   3. The memory-facts settings panel exists under Settings → AI → Memory.
  *   4. The proposed-facts panel anchor testid is present in the render
  *      tree (rendered conditionally; the structural test id path exists).
  *   5. The Sources accordion anchor exists in the viewer module (asserted
@@ -27,7 +27,7 @@ import { waitForTestModeLoad, hardClick, openAIAssistantPane } from './helpers/t
 async function openMemorySettings(page: import('@playwright/test').Page) {
   await hardClick(page.getByTestId('settings-gear'));
   await expect(page.getByTestId('settings-page')).toBeVisible();
-  await hardClick(page.getByTestId('settings-category-ai-privacy'));
+  await hardClick(page.getByTestId('settings-category-ai'));
   await hardClick(page.getByTestId('subheader-memory-heading'));
   await expect(page.getByTestId('settings-facts-section')).toBeVisible();
 }

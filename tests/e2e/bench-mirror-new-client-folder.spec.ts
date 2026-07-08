@@ -29,13 +29,14 @@ test.describe('Bench mirror: QA-5 — new client gets its own scoped folder', ()
     await page.goto('/?testMode=true');
     await waitForTestModeLoad(page);
 
-    // Open the canonical create dialog from the client rail's "+ New client".
+    // Open the canonical create dialog from the client rail's add menu.
     await hardClick(page.getByTestId('spine-new-client').first());
-    await expect(page.getByTestId('matter-manager-dialog')).toBeVisible({ timeout: 10_000 });
+    await hardClick(page.getByTestId('spine-new-client-item'));
+    await expect(page.getByTestId('new-client-dialog')).toBeVisible({ timeout: 10_000 });
 
     const clientName = 'The Delgado Household';
-    await page.getByTestId('matter-new-client').fill(clientName);
-    await hardClick(page.getByTestId('matter-create-button'));
+    await page.getByTestId('new-client-name').fill(clientName);
+    await hardClick(page.getByTestId('new-client-create'));
 
     // The created client must be scoped to its OWN folder under the workspace —
     // not the empty folderPaths that caused the "No documents yet" bug.
