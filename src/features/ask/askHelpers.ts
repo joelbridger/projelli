@@ -162,6 +162,8 @@ export interface AnswerCitation {
    * citations.
    */
   matterId?: string;
+  /** Source kind / file extension, when known. Drives source-card file icons. */
+  sourceType?: string;
   /**
    * Connector-access: present when this source was recognized as the OUTPUT of
    * an external advisor tool (a RightCapital plan PDF, a Jump meeting note). It
@@ -1101,6 +1103,7 @@ function citationFromHit(
     // match is neither grounded nor verified.
     grounded: inExpectedMatter,
     paragraphIndex: hit.paragraphIndex,
+    ...(hit.sourceType !== undefined ? { sourceType: hit.sourceType } : {}),
     ...(hit.id !== undefined ? { id: hit.id } : {}),
     ...(hit.matterId !== undefined ? { matterId: hit.matterId } : {}),
     ...(provenance ? { provenance } : {}),

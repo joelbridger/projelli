@@ -5,10 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
+import type { AuditEntry } from '@/platform/types/audit';
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
@@ -95,6 +96,7 @@ vi.mock('@/platform/state/aiChatStore', () => ({
 // ── Import components after mocks ──────────────────────────────────────────────
 import { MattersHome } from '@/features/matters/MattersHome';
 import { MatterHub } from '@/features/matters/MatterHub';
+import { AuditHome } from '@/features/audit/AuditHome';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 
 function resetStore() {
@@ -149,7 +151,7 @@ describe('MatterHub — list to hub navigation', () => {
     expect(screen.getByTestId('hub-isolated-badge')).toBeInTheDocument();
   });
 
-  it('opens Word and PDF exports from one Download icon menu', async () => {
+  it('opens all Client Map actions from one three-dot menu', async () => {
     useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
     const matter = useMatterStore.getState().matters[0]!;
     const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z' };
@@ -165,18 +167,22 @@ describe('MatterHub — list to hub navigation', () => {
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
-    expect(screen.queryByRole('button', { name: 'Export Word' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Export PDF' })).toBeNull();
+    expect(screen.queryByTestId('clientmap-export-word')).toBeNull();
+    expect(screen.queryByTestId('clientmap-export-pdf')).toBeNull();
+    expect(screen.queryByTestId('clientmap-sync-button')).toBeNull();
+    expect(screen.queryByTestId('clientmap-history-button')).toBeNull();
 
-    const downloadButton = screen.getByTestId('clientmap-download-button');
-    expect(downloadButton).toHaveAccessibleName('Download client map');
-    fireEvent.pointerDown(downloadButton);
+    const menuButton = screen.getByTestId('clientmap-actions-menu-button');
+    expect(menuButton).toHaveAccessibleName('Client map actions');
+    fireEvent.pointerDown(menuButton);
 
-    expect(await screen.findByTestId('clientmap-export-word')).toHaveTextContent('Export Word');
-    expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export PDF');
+    expect(await screen.findByTestId('clientmap-export-word')).toHaveTextContent('Export client map (DOCX)');
+    expect(screen.getByTestId('clientmap-export-pdf')).toHaveTextContent('Export client map (PDF)');
+    expect(screen.getByTestId('clientmap-sync-button')).toHaveTextContent('Sync all');
+    expect(screen.getByTestId('clientmap-history-button')).toHaveTextContent('History');
   });
 
-  it('renders the Client Map header icons as one matching ghost trio with updated text after History', () => {
+  it('renders the Client Map header as menu plus updated text', () => {
     useMatterStore.getState().createMatter({ name: 'Hendricks Household', client: 'Hendricks' });
     const matter = useMatterStore.getState().matters[0]!;
     const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z' };
@@ -185,17 +191,16 @@ describe('MatterHub — list to hub navigation', () => {
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
 
     const group = screen.getByTestId('clientmap-header-icon-group');
-    const downloadButton = screen.getByTestId('clientmap-download-button');
-    const syncButton = screen.getByTestId('clientmap-sync-button');
-    const historyButton = screen.getByTestId('clientmap-history-button');
+    const menuButton = screen.getByTestId('clientmap-actions-menu-button');
     const lastUpdated = screen.getByTestId('clientmap-last-updated');
 
-    expect(group).toContainElement(downloadButton);
-    for (const button of [downloadButton, syncButton, historyButton]) {
-      expect(button).toHaveClass('kp-icon-btn--ghost');
-      expect(button).not.toHaveClass('kp-icon-btn--secondary');
-    }
-    expect(historyButton.compareDocumentPosition(lastUpdated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(group).toContainElement(menuButton);
+    expect(screen.queryByTestId('clientmap-download-button')).toBeNull();
+    expect(screen.queryByTestId('clientmap-sync-group')).toBeNull();
+    expect(screen.queryByTestId('clientmap-sync-button')).toBeNull();
+    expect(screen.queryByTestId('clientmap-history-button')).toBeNull();
+    expect(menuButton).toHaveClass('kp-icon-btn--ghost');
+    expect(menuButton.compareDocumentPosition(lastUpdated) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows honest sync copy when the Client Map is unchanged', async () => {
@@ -213,9 +218,9 @@ describe('MatterHub — list to hub navigation', () => {
     useClientMapStore.getState().setMap(matter.id, map);
 
     render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
-    const syncButton = screen.getByTestId('clientmap-sync-button');
-    expect(syncButton).toHaveAccessibleName('Sync client map');
-    expect(syncButton).toHaveTextContent('');
+    fireEvent.pointerDown(screen.getByTestId('clientmap-actions-menu-button'));
+    const syncButton = await screen.findByTestId('clientmap-sync-button');
+    expect(syncButton).toHaveTextContent('Sync all');
 
     fireEvent.click(syncButton);
 
@@ -253,6 +258,26 @@ describe('MatterHub — list to hub navigation', () => {
 
     expect(screen.queryByTestId('clientmap-updates-marker')).toBeNull();
     expect(screen.queryByText(/updates? to review/i)).toBeNull();
+    expect(screen.getByTestId('clientmap-panel')).toBeInTheDocument();
+  });
+
+  it('does not show the old local-only note above a ready Client Map', () => {
+    useMatterStore.getState().createMatter({ name: 'Local Co', client: 'Local Co' });
+    const matter = useMatterStore.getState().matters[0]!;
+    const map = { ...emptyClientMap(matter.id), lastBuiltAt: '2026-07-07T00:00:00.000Z' };
+    map.sections[0]!.items.push({
+      id: 'local-ready-item',
+      text: 'Ready map fact',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [],
+      updatedAt: '2026-07-07T00:00:00.000Z',
+    });
+    useClientMapStore.getState().setMap(matter.id, map);
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+
+    expect(screen.queryByTestId('hub-clientmap-local-notice')).toBeNull();
     expect(screen.getByTestId('clientmap-panel')).toBeInTheDocument();
   });
 
@@ -373,27 +398,55 @@ describe('MatterHub — sub-tab workspace', () => {
     window.removeEventListener('lantern:matter-launch', handler);
   });
 
-  it('opens the per-client activity feed from the History icon panel', () => {
+  it('opens the per-client activity feed from the History menu item', async () => {
     useMatterStore.getState().createMatter({ name: 'History Co', client: 'History Co' });
     const matter = useMatterStore.getState().matters[0]!;
+    const drawerEntry: AuditEntry = {
+      id: 'drawer-fit-entry',
+      timestamp: '2026-07-08T14:22:00.000Z',
+      action: 'egress',
+      description: 'Reviewed a very long client activity item that needs to wrap instead of disappearing beyond the right edge of the drawer.',
+      model: 'claude-sonnet-4-with-a-long-provider-label',
+      inputs: {},
+      outputs: {},
+      userDecision: 'approved',
+      metadata: { mode: 'direct' },
+    };
 
     render(
       <MatterHub
         matterId={matter.id}
         onBack={() => undefined}
-        renderActivity={() => <div data-testid="stub-activity">client activity feed</div>}
+        renderActivity={() => <AuditHome entries={[drawerEntry]} />}
       />,
     );
 
     expect(screen.queryByTestId('hub-subtab-activity')).toBeNull();
 
-    const historyButton = screen.getByTestId('clientmap-history-button');
-    expect(historyButton).toHaveAccessibleName('Open client history');
-    fireEvent.keyDown(historyButton, { key: 'Enter', code: 'Enter' });
+    fireEvent.pointerDown(screen.getByTestId('clientmap-actions-menu-button'));
+    const historyButton = await screen.findByTestId('clientmap-history-button');
+    expect(historyButton).toHaveTextContent('History');
     fireEvent.click(historyButton);
 
-    expect(screen.getByTestId('clientmap-history-panel')).toBeInTheDocument();
-    expect(screen.getByTestId('stub-activity')).toHaveTextContent('client activity feed');
+    const panel = screen.getByTestId('clientmap-history-panel');
+    expect(panel).toBeInTheDocument();
+    expect(panel).toHaveStyle({ width: '720px' });
+
+    const row = await within(panel).findByTestId('audit-table-row');
+    const actionLine = within(row).getByTestId('audit-row-action-line');
+    const description = within(row).getByTestId('audit-row-description');
+    const meta = within(row).getByTestId('audit-row-meta');
+    const modelBadge = within(row).getByText('claude-sonnet-4-with-a-long-provider-label');
+
+    expect(row.style.gridTemplateColumns).not.toBe('160px 1fr 120px 100px');
+    expect(row.style.gridTemplateColumns).toMatch(/minmax\(0(px)?, 1fr\)/);
+    expect(actionLine.style.flexWrap).toBe('wrap');
+    expect(description.style.whiteSpace).toBe('normal');
+    expect(description.style.overflowWrap).toBe('anywhere');
+    expect(modelBadge).toHaveStyle({ whiteSpace: 'normal', overflowWrap: 'anywhere' });
+    expect(meta.style.flexWrap).toBe('wrap');
+    expect(meta).toHaveTextContent('Approved');
+    expect(meta).toHaveTextContent('Direct');
   });
 
   it('a sub-tab with no supplied surface shows a graceful placeholder', () => {

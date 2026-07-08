@@ -11,8 +11,9 @@
 
 import { useId, useState, type CSSProperties } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { Clock3, Plus, Sparkles, Star, Trash2, type LucideIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock3, Plus, Sparkles, Trash2, type LucideIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import { Button, Chip, Eyebrow, CountBadge } from '@/ui/kp';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
@@ -39,7 +40,7 @@ import { useTemplatesStore, applyTemplateToMatter } from '@/features/matters/cli
 import { ClientQuestionsList } from '@/features/matters/ClientQuestionsList';
 import { SourcePanel } from '@/features/ask/SourcePanel';
 import type { AnswerCitation } from '@/features/ask/askHelpers';
-import { skClientMapTab } from '@/config/identity';
+import { skClientMapSourcesCollapsed, skClientMapTab } from '@/config/identity';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // ── Sources column helpers ────────────────────────────────────────────────────
@@ -49,6 +50,18 @@ function sourceBasename(ref: string): string {
   const clean = ref.split('?')[0] ?? ref;
   const seg = clean.split('/').pop() ?? clean;
   return seg || clean;
+}
+function extensionFromSourceRef(ref: string): string | undefined {
+  const clean = ref.split(/[?#]/)[0] ?? ref;
+  const name = clean.split(/[\\/]/).pop() ?? clean;
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot >= name.length - 1) return undefined;
+  return name.slice(dot + 1).toLowerCase();
+}
+function sourceTypeForSourceRef(source: SourceRef): string | undefined {
+  if (source.kind === 'document') return extensionFromSourceRef(source.ref) ?? 'document';
+  if (source.kind === 'email') return 'mail';
+  return source.kind;
 }
 function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitation[] {
   const seen = new Set<string>();
@@ -66,6 +79,8 @@ function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitati
         verified: true,
         matterId,
       };
+      const sourceType = sourceTypeForSourceRef(s);
+      if (sourceType !== undefined) c.sourceType = sourceType;
       if (s.citationId !== undefined) c.id = s.citationId;
       out.push(c);
     }
@@ -147,6 +162,14 @@ const IS_TEST =
 
 function tabStorageKey(matterId: string): string {
   return skClientMapTab(matterId);
+}
+
+function readSourcesCollapsedPreference(matterId: string): boolean {
+  try {
+    return localStorage.getItem(skClientMapSourcesCollapsed(matterId)) === '1';
+  } catch {
+    return false;
+  }
 }
 
 // ── CSS tokens ────────────────────────────────────────────────────────────────
@@ -1137,6 +1160,7 @@ export function ClientMapPanel({
    *  an egress entry before it sends this client's context to an AI provider. */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
 }) {
+  const { t } = useTranslation();
   const removeSection = useClientMapStore((s) => s.removeSection);
   const removeItem = useClientMapStore((s) => s.removeItem);
   const addUserItem = useClientMapStore((s) => s.addUserItem);
@@ -1177,6 +1201,14 @@ export function ClientMapPanel({
     }
     return sectionList[0]?.key ?? MISSING_KEY;
   });
+  const [sourcesCollapseState, setSourcesCollapseState] = useState(() => ({
+    matterId: map.matterId,
+    collapsed: readSourcesCollapsedPreference(map.matterId),
+  }));
+  const sourcesCollapsed =
+    sourcesCollapseState.matterId === map.matterId
+      ? sourcesCollapseState.collapsed
+      : readSourcesCollapsedPreference(map.matterId);
 
   const select = (key: string): void => {
     setActiveKey(key);
@@ -1216,6 +1248,23 @@ export function ClientMapPanel({
     }
   }
 
+  const toggleSourcesCollapsed = (): void => {
+    setSourcesCollapseState((current) => {
+      const currentCollapsed =
+        current.matterId === map.matterId
+          ? current.collapsed
+          : readSourcesCollapsedPreference(map.matterId);
+      const next = !currentCollapsed;
+      try {
+        localStorage.setItem(skClientMapSourcesCollapsed(map.matterId), next ? '1' : '0');
+      // eslint-disable-next-line lantern-async/no-silent-failure -- Keep the in-memory preference if browser storage is unavailable.
+      } catch {
+        // localStorage unavailable — keep the in-memory preference for this view.
+      }
+      return { matterId: map.matterId, collapsed: next };
+    });
+  };
+
   return (
     <div data-testid="clientmap-panel" style={shellStyle}>
       {/* Left rail: compact action icons, then sections, then "What I'm missing". */}
@@ -1231,7 +1280,7 @@ export function ClientMapPanel({
           />
           {onStartInterview && (
             <RailIconActionButton
-              icon={Star}
+              icon={Sparkles}
               label={LABEL_START_GUIDED_INTERVIEW}
               testid="clientmap-start-interview"
               onClick={onStartInterview}
@@ -1352,24 +1401,53 @@ export function ClientMapPanel({
           the cited sources behind the facts the user is currently viewing, and
           updates as they switch sections / "What I'm missing". */}
       <div
+        data-testid="clientmap-sources-pane"
+        data-collapsed={sourcesCollapsed ? 'true' : 'false'}
         style={{
-          width: 326,
+          width: sourcesCollapsed ? 48 : 326,
           flex: 'none',
           borderLeft: '1px solid var(--kp-divider)',
           background: 'var(--kp-bg-soft)',
           overflowY: 'auto',
-          padding: 'var(--kp-surface-gap) var(--kp-card-pad)',
+          padding: sourcesCollapsed
+            ? 'var(--kp-space-sm) var(--kp-space-xs)'
+            : 'var(--kp-surface-gap) var(--kp-card-pad)',
+          transition: 'width 0.12s ease',
         }}
       >
-        <SourcePanel
-          citations={currentSources}
-          selectedN={null}
-          onSelect={() => {}}
-          onOpenCitation={(c) => {
-            const ref = c.path != null ? sourceRefByRef.get(c.path) : undefined;
-            if (ref) onOpenSource(ref);
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: sourcesCollapsed ? 'center' : 'flex-end',
+            marginBottom: sourcesCollapsed ? 0 : 'var(--kp-space-sm)',
           }}
-        />
+        >
+          <button
+            type="button"
+            data-testid="clientmap-sources-toggle"
+            aria-label={sourcesCollapsed ? t('ask.sources.show-panel') : t('ask.sources.collapse')}
+            title={sourcesCollapsed ? t('ask.sources.show-panel') : t('ask.sources.collapse')}
+            className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--sm"
+            onClick={toggleSourcesCollapsed}
+          >
+            {sourcesCollapsed ? (
+              <ChevronLeft size={14} strokeWidth={1.75} aria-hidden />
+            ) : (
+              <ChevronRight size={14} strokeWidth={1.75} aria-hidden />
+            )}
+          </button>
+        </div>
+        {!sourcesCollapsed && (
+          <SourcePanel
+            citations={currentSources}
+            selectedN={null}
+            onSelect={() => {}}
+            onOpenCitation={(c) => {
+              const ref = c.path != null ? sourceRefByRef.get(c.path) : undefined;
+              if (ref) onOpenSource(ref);
+            }}
+          />
+        )}
       </div>
       <ConfirmDialog {...dialogProps} data-testid="clientmap-confirm-dialog" />
     </div>

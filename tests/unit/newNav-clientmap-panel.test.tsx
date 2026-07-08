@@ -2,7 +2,8 @@ import { beforeEach, describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { ClientMapPanel } from '@/features/matters/ClientMapPanel';
 import { emptyClientMap, CORE_SECTION_TITLE } from '@/platform/clientMap/types';
-import type { ClientMap } from '@/platform/clientMap/types';
+import { skClientMapSourcesCollapsed } from '@/config/identity';
+import type { ClientMap, SourceRef } from '@/platform/clientMap/types';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
@@ -14,6 +15,42 @@ function demoMap(): ClientMap {
   const money = base.sections.find((s) => s.id === 'money')!;
   money.items = [
     { id: 'i1', text: 'Investable assets $4.2M; 62/38 split.', origin: 'ai', isAssumption: false, sources: [], updatedAt: '2026-06-20T00:00:00.000Z' },
+  ];
+  return base;
+}
+
+function mapWithDocumentSources(): ClientMap {
+  const base = emptyClientMap('matter_demo_sources');
+  const money = base.sections.find((s) => s.id === 'money')!;
+  const docxSource: SourceRef = {
+    kind: 'document',
+    ref: '/clients/hendricks/plan.docx',
+    snippet: 'The plan targets retirement at 62.',
+    locator: 'paragraph 4',
+  };
+  const pdfSource: SourceRef = {
+    kind: 'document',
+    ref: '/clients/hendricks/tax-return.pdf',
+    snippet: 'The return shows taxable income.',
+    locator: 'page 2',
+  };
+  money.items = [
+    {
+      id: 'i-docx',
+      text: 'The client wants to retire at 62.',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [docxSource],
+      updatedAt: '2026-06-20T00:00:00.000Z',
+    },
+    {
+      id: 'i-pdf',
+      text: 'The latest tax return is on file.',
+      origin: 'ai',
+      isAssumption: false,
+      sources: [pdfSource],
+      updatedAt: '2026-06-20T00:00:00.000Z',
+    },
   ];
   return base;
 }
@@ -82,6 +119,7 @@ describe('ClientMapPanel (newNav hero view)', () => {
 
     expect(addButton).toHaveAccessibleName('New section');
     expect(interviewButton).toHaveAccessibleName('Start guided interview');
+    expect(interviewButton.querySelector('svg')).toHaveClass('lucide-sparkles');
     expect(addButton).toHaveTextContent('');
     expect(interviewButton).toHaveTextContent('');
     expect(addButton.compareDocumentPosition(householdTab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -112,5 +150,43 @@ describe('ClientMapPanel (newNav hero view)', () => {
     const interviewButton = screen.getByTestId('clientmap-start-interview');
     fireEvent.mouseEnter(interviewButton);
     expect(screen.getByRole('tooltip')).toHaveTextContent('Start guided interview');
+  });
+
+  it('uses document-type colors in the sources pane', () => {
+    render(<ClientMapPanel map={mapWithDocumentSources()} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
+
+    fireEvent.click(screen.getByTestId('clientmap-tab-money'));
+
+    const icons = screen.getAllByTestId('source-card-file-icon');
+    expect(icons[0]).toHaveClass('text-blue-500');
+    expect(icons[1]).toHaveClass('text-red-500');
+  });
+
+  it('collapses and restores the sources pane, and remembers the choice', () => {
+    const map = mapWithDocumentSources();
+    render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
+
+    const pane = screen.getByTestId('clientmap-sources-pane');
+    const toggle = screen.getByTestId('clientmap-sources-toggle');
+    expect(pane.dataset['collapsed']).toBe('false');
+    expect(localStorage.getItem(skClientMapSourcesCollapsed(map.matterId))).toBeNull();
+
+    fireEvent.click(toggle);
+
+    expect(screen.getByTestId('clientmap-sources-pane').dataset['collapsed']).toBe('true');
+    expect(localStorage.getItem(skClientMapSourcesCollapsed(map.matterId))).toBe('1');
+    expect(screen.queryByTestId('source-panel')).toBeNull();
+  });
+
+  it('starts with the sources pane collapsed when the saved preference says so', () => {
+    const map = mapWithDocumentSources();
+    localStorage.setItem(skClientMapSourcesCollapsed(map.matterId), '1');
+
+    render(<ClientMapPanel map={map} onOpenSource={vi.fn()} onEditItem={vi.fn()} />);
+
+    expect(screen.getByTestId('clientmap-sources-pane').dataset['collapsed']).toBe('true');
+    fireEvent.click(screen.getByTestId('clientmap-sources-toggle'));
+    expect(screen.getByTestId('clientmap-sources-pane').dataset['collapsed']).toBe('false');
+    expect(localStorage.getItem(skClientMapSourcesCollapsed(map.matterId))).toBe('0');
   });
 });
