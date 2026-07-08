@@ -119,6 +119,7 @@ export function RailShell({
 }: RailShellProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const rowRefs = useRef(new Map<string, HTMLDivElement>());
+  const pendingFocusIdRef = useRef<string | null>(null);
   const enabledItems = useMemo(() => items.filter((item) => !item.disabled), [items]);
   const activeItemIndex = useMemo(() => items.findIndex((item) => item.id === activeId), [activeId, items]);
   const virtualEstimate = virtualization?.estimateSize;
@@ -138,20 +139,26 @@ export function RailShell({
     enabled: virtualEnabled,
   });
 
+  const focusRowById = (id: string) => {
+    const row = rowRefs.current.get(id);
+    if (!row) return false;
+    row.focus({ preventScroll: true });
+    return true;
+  };
+
   const selectItem = (id: string, focusRow = false) => {
     onSelect(id);
     if (focusRow) {
       if (virtualEnabled) {
         const index = items.findIndex((item) => item.id === id);
         if (index >= 0) {
+          pendingFocusIdRef.current = id;
           rowVirtualizer.scrollToIndex(index, { align: 'auto' });
-          queueMicrotask(() => {
-            rowRefs.current.get(id)?.focus({ preventScroll: true });
-          });
+          if (focusRowById(id)) pendingFocusIdRef.current = null;
           return;
         }
       }
-      rowRefs.current.get(id)?.focus({ preventScroll: true });
+      focusRowById(id);
     }
   };
 
@@ -209,6 +216,14 @@ export function RailShell({
         ref={(node) => {
           if (node) {
             rowRefs.current.set(item.id, node);
+            if (pendingFocusIdRef.current === item.id) {
+              queueMicrotask(() => {
+                if (pendingFocusIdRef.current === item.id && rowRefs.current.get(item.id) === node) {
+                  node.focus({ preventScroll: true });
+                  pendingFocusIdRef.current = null;
+                }
+              });
+            }
           } else {
             rowRefs.current.delete(item.id);
           }
