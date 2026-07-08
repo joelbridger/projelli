@@ -1,18 +1,12 @@
 // src/features/matters/GuidedInterview.tsx
 import { useState } from 'react';
-import { Card, Eyebrow, Button } from '@/ui/kp';
+import { useTranslation } from 'react-i18next';
+import { Eyebrow, Button } from '@/ui/kp';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { interviewQuestions, answerQuestion, flagForClient } from '@/features/matters/clientMap/guidedInterview';
 
-const LABEL_ANSWER_PLACEHOLDER = 'Type your answer here...';
-const LABEL_SUBMIT = 'I know this';
-const LABEL_FLAG = 'Ask the client';
-const LABEL_ALL_CAUGHT_UP = 'All caught up';
-const LABEL_NO_QUESTIONS = 'No open questions right now.';
-const LABEL_CLOSE = 'Close';
-
 function questionOfLabel(current: number, total: number): string {
-  return `Question ${String(current)} of ${String(total)}`;
+  return `${String(current)} / ${String(total)}`;
 }
 
 export interface GuidedInterviewProps {
@@ -21,6 +15,7 @@ export interface GuidedInterviewProps {
 }
 
 export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
+  const { t } = useTranslation();
   const map = useClientMapStore((s) => s.getMap(matterId));
   const [index, setIndex] = useState(0);
   const [answer, setAnswer] = useState('');
@@ -30,17 +25,7 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
   const questions = interviewQuestions(map);
   const question = questions[index];
 
-  if (questions.length === 0 || !question) {
-    return (
-      <Card variant="raised">
-        <Eyebrow>{LABEL_ALL_CAUGHT_UP}</Eyebrow>
-        <p>{LABEL_NO_QUESTIONS}</p>
-        <Button variant="secondary" size="sm" onClick={onClose}>
-          {LABEL_CLOSE}
-        </Button>
-      </Card>
-    );
-  }
+  if (questions.length === 0 || !question) return null;
 
   // Answering or flagging marks the current gap resolved (BUG-106), so it is
   // pruned from interviewQuestions and the next gap slides into the same index.
@@ -66,16 +51,30 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
   }
 
   return (
-    <Card variant="raised">
+    <div
+      data-testid="clientmap-guided-interview"
+      style={{
+        borderTop: '1px solid var(--kp-divider)',
+        borderBottom: '1px solid var(--kp-divider)',
+        padding: 'var(--kp-space-md) 0',
+      }}
+    >
       <Eyebrow>{questionOfLabel(index + 1, questions.length)}</Eyebrow>
       <p style={{ marginBottom: '0.75rem' }}>{question.text}</p>
       <input
         data-testid="clientmap-interview-answer"
         type="text"
-        placeholder={LABEL_ANSWER_PLACEHOLDER}
+        placeholder={t('matter.clientmap.interview-answer-placeholder')}
         value={answer}
         onChange={(e) => { setAnswer(e.target.value); }}
-        style={{ display: 'block', width: '100%', marginBottom: '0.5rem', padding: '0.375rem 0.5rem', border: '1px solid #d1d5db', borderRadius: '0.25rem' }}
+        style={{
+          display: 'block',
+          width: '100%',
+          marginBottom: '0.5rem',
+          padding: '0.375rem 0.5rem',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md)',
+        }}
       />
       <div style={{ display: 'flex', gap: '0.5rem' }}>
         <Button
@@ -83,7 +82,7 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
           size="sm"
           onClick={handleSubmit}
         >
-          {LABEL_SUBMIT}
+          {t('matter.clientmap.interview-save')}
         </Button>
         <Button
           data-testid="clientmap-interview-flag"
@@ -91,9 +90,16 @@ export function GuidedInterview({ matterId, onClose }: GuidedInterviewProps) {
           size="sm"
           onClick={handleFlag}
         >
-          {LABEL_FLAG}
+          {t('matter.clientmap.interview-flag')}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+        >
+          {t('matter.clientmap.close')}
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

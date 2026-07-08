@@ -1,5 +1,7 @@
 // src/features/matters/ClientQuestionsList.tsx
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Check, Copy, X } from 'lucide-react';
 import { Eyebrow } from '@/ui/kp';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import type { ClientQuestion } from '@/platform/clientMap/types';
@@ -9,17 +11,12 @@ import type { ClientQuestion } from '@/platform/clientMap/types';
 // flagged questions yet.
 const EMPTY_QUESTIONS: ClientQuestion[] = [];
 
-const LABEL_HEADING = 'Questions for the client';
-const LABEL_EMPTY = 'No questions flagged yet.';
-const LABEL_COPY = 'Copy all';
-const LABEL_COPIED = 'Copied';
-const LABEL_REMOVE = 'Remove';
-
 export interface ClientQuestionsListProps {
   matterId: string;
 }
 
 export function ClientQuestionsList({ matterId }: ClientQuestionsListProps) {
+  const { t } = useTranslation();
   // Select the raw stored array (stable reference) and default to a shared empty
   // array; do NOT call getClientQuestions in the selector (it returns a fresh
   // `?? []` each render, which loops the store subscription).
@@ -44,44 +41,44 @@ export function ClientQuestionsList({ matterId }: ClientQuestionsListProps) {
     }
   }
 
+  if (questions.length === 0) return null;
+
   return (
     <div data-testid="clientmap-client-questions" style={{ marginTop: 'var(--kp-space-xl)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <Eyebrow>{LABEL_HEADING}</Eyebrow>
-        {questions.length > 0 && (
-          <button
-            type="button"
-            data-testid="clientmap-questions-copy"
-            onClick={handleCopy}
-            style={{ fontSize: 12, color: '#2563eb', background: 'none', border: '1px solid #d1d5db', borderRadius: 4, padding: '2px 8px', cursor: 'pointer' }}
-          >
-            {copied ? LABEL_COPIED : LABEL_COPY}
-          </button>
-        )}
+        <Eyebrow>{t('matter.clientQuestions.heading')}</Eyebrow>
+        <button
+          type="button"
+          data-testid="clientmap-questions-copy"
+          aria-label={copied ? t('matter.clientQuestions.copied') : t('matter.clientQuestions.copy')}
+          title={copied ? t('matter.clientQuestions.copied') : t('matter.clientQuestions.copy')}
+          onClick={handleCopy}
+          className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
+        >
+          {copied ? <Check size={13} strokeWidth={1.75} aria-hidden /> : <Copy size={13} strokeWidth={1.75} aria-hidden />}
+        </button>
       </div>
-      {questions.length === 0 ? (
-        <p>{LABEL_EMPTY}</p>
-      ) : (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-          {questions.map((q) => (
-            <li
-              key={q.id}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0' }}
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {questions.map((q) => (
+          <li
+            key={q.id}
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 8, padding: '4px 0' }}
+          >
+            <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{q.text}</span>
+            <button
+              type="button"
+              data-testid="clientmap-question-remove"
+              aria-label={t('matter.clientQuestions.remove-one', { question: q.text })}
+              title={t('matter.clientQuestions.remove')}
+              onClick={() => { removeClientQuestion(matterId, q.id); }}
+              className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
+              style={{ flexShrink: 0 }}
             >
-              <span style={{ flex: 1, fontSize: 13, color: '#374151' }}>{q.text}</span>
-              <button
-                type="button"
-                data-testid="clientmap-question-remove"
-                aria-label={`${LABEL_REMOVE}: ${q.text}`}
-                onClick={() => { removeClientQuestion(matterId, q.id); }}
-                style={{ fontSize: 12, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}
-              >
-                {LABEL_REMOVE}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+              <X size={13} strokeWidth={1.75} aria-hidden />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

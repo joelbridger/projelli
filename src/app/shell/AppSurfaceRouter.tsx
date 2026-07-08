@@ -447,7 +447,7 @@ export function AppSurfaceRouter({
     </LazyBoundary>
   );
 
-  const buildActivity = (opts: { scopeMatterId?: string }) => (
+  const buildActivity = (opts: { scopeMatterId?: string; clientMapSectionKey?: string; clientMapSectionTitle?: string }) => (
     // LazyBoundary's error boundary is the "auditable / inspectable" trust
     // surface guard: it contains BOTH a failed chunk fetch and a malformed
     // audit row thrown later, so neither can white-screen the whole app.
@@ -470,6 +470,10 @@ export function AppSurfaceRouter({
           onVerifyIntegrity={verifyAuditIntegrity}
           onRepairSeal={repairAuditSeal}
           {...(opts.scopeMatterId ? { scopeMatterId: opts.scopeMatterId } : {})}
+          {...(opts.clientMapSectionKey ? {
+            clientMapSectionKey: opts.clientMapSectionKey,
+            ...(opts.clientMapSectionTitle ? { clientMapSectionTitle: opts.clientMapSectionTitle } : {}),
+          } : {})}
         />
       )}
     </LazyBoundary>
@@ -497,9 +501,17 @@ export function AppSurfaceRouter({
               ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
             })
           }
-          renderClientActivity={() =>
+          renderClientActivity={(activityOptions) =>
             buildActivity(
-              activeMatter ? { scopeMatterId: activeMatter.id } : {}
+              activeMatter
+                ? {
+                    scopeMatterId: activeMatter.id,
+                    ...(activityOptions?.clientMapSectionKey ? {
+                      clientMapSectionKey: activityOptions.clientMapSectionKey,
+                      ...(activityOptions.clientMapSectionTitle ? { clientMapSectionTitle: activityOptions.clientMapSectionTitle } : {}),
+                    } : {}),
+                  }
+                : {}
             )
           }
           workspaceService={workspaceServiceRef.current}
