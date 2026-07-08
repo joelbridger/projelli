@@ -2455,7 +2455,8 @@
             "label": "Notas",
             "help": "El archivo de notas del asesor."
           }
-        }
+        },
+        "suggestions-label": "Sugeridos:"
       },
       "send": {
         "title": "Enviar elementos de la reunión",

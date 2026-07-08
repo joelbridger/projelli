@@ -35,6 +35,7 @@ import { mmss } from './meetingSources';
 import {
   MEETING_ARTIFACTS,
   addGroupToMeetingDeliveryPlan,
+  buildMeetingRecipientSuggestions,
   calendarAttendeesToRecipients,
   loadMeetingRecipientGroups,
   normalizeEmailAddress,
@@ -142,19 +143,65 @@ export function MeetingSendPanel({
   const [logOpen, setLogOpen] = useState(false);
 
   // The plan JSON last persisted to disk; guards the autosave effect from
-  // re-firing on the meta-driven reset (saving -> onChanged -> setMeta -> plan
-  // resets to the just-saved value -> equal JSON -> no save). Seeded from the
-  // opened meta so an unchanged plan never triggers a write.
+  // re-firing when nothing changed. Seeded from the opened meta.
   const lastSavedJson = useRef(JSON.stringify(resolveMeetingDeliveryPlan(meta)));
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Finding 1 — saves are SERIALIZED through a single draining loop so a
+  // debounced save already in flight can never overwrite a newer plan or fire
+  // onChanged with a stale one. `pendingPlanRef` always holds the latest plan
+  // to persist; the loop drains it, so the write order is monotonic and the
+  // disk always converges to the newest edit.
+  const pendingPlanRef = useRef<MeetingDeliveryPlan | null>(null);
+  const saverRef = useRef<Promise<void> | null>(null);
+  // Latest meta, read by the meeting-switch reset without making that reset
+  // depend on every meta change (which would clobber in-flight local edits when
+  // our own save fires onChanged -> setMeta).
+  const metaRef = useRef(meta);
+  metaRef.current = meta;
 
+  const drainSaves = useCallback((): Promise<void> => {
+    if (saverRef.current) return saverRef.current;
+    const ws = workspaceService;
+    if (!ws) return Promise.resolve();
+    const loop = (async () => {
+      try {
+        while (pendingPlanRef.current) {
+          const toSave = pendingPlanRef.current;
+          pendingPlanRef.current = null;
+          const savedMeta = await saveMeetingRecipientPlan(ws, meetingDir, matterId, toSave);
+          lastSavedJson.current = JSON.stringify(normalizeMeetingDeliveryPlan(savedMeta.deliveryPlan));
+          onChanged(savedMeta);
+        }
+        setSaveState('saved');
+      } finally {
+        saverRef.current = null;
+        // A plan queued during the exit window still gets drained.
+        if (pendingPlanRef.current) {
+          void drainSaves().catch((err: unknown) => {
+            setRecipientError(err instanceof Error ? err.message : String(err));
+            setSaveState('idle');
+          });
+        }
+      }
+    })();
+    saverRef.current = loop;
+    return loop;
+  }, [workspaceService, meetingDir, matterId, onChanged]);
+
+  // Reset local plan state only when the MEETING changes, never on every meta
+  // update — otherwise an onChanged from our own save (or an unrelated meta
+  // change like Mark reviewed) would overwrite a plan the advisor is editing.
   useEffect(() => {
-    const resolved = resolveMeetingDeliveryPlan(meta);
+    const resolved = resolveMeetingDeliveryPlan(metaRef.current);
     lastSavedJson.current = JSON.stringify(resolved);
+    pendingPlanRef.current = null;
     setPlan(resolved);
     setPersonInput('');
     setRecipientError(null);
-  }, [meta, meetingDir]);
+    setSaveState('idle');
+    // meta is intentionally read via metaRef (not a dep) so a same-meeting meta
+    // change never resets a plan the advisor is editing; only meetingDir resets.
+  }, [meetingDir]);
 
   useEffect(() => {
     const request = { cancelled: false };
@@ -181,43 +228,37 @@ export function MeetingSendPanel({
     return () => { cancelled = true; };
   }, [workspaceService, matter]);
 
-  // Persist the current plan to meeting.json now, returning the saved meta.
-  const persistPlan = useCallback(async (toSave: MeetingDeliveryPlan): Promise<MeetingMeta | null> => {
-    if (!workspaceService) return null;
-    const savedMeta = await saveMeetingRecipientPlan(workspaceService, meetingDir, matterId, toSave);
-    lastSavedJson.current = JSON.stringify(normalizeMeetingDeliveryPlan(savedMeta.deliveryPlan));
-    onChanged(savedMeta);
-    return savedMeta;
-  }, [workspaceService, meetingDir, matterId, onChanged]);
-
   // Auto-save (item 2): debounce plan changes to disk. No separate Save button.
+  // The change goes to `pendingPlanRef` immediately (so a flush can pick up the
+  // very latest edit) but the drain is debounced.
   useEffect(() => {
     if (!workspaceService) return;
     if (JSON.stringify(plan) === lastSavedJson.current) return;
     setSaveState('saving');
+    pendingPlanRef.current = plan;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(() => {
-      void persistPlan(plan)
-        .then(() => { setSaveState('saved'); })
-        .catch((err: unknown) => {
-          setRecipientError(err instanceof Error ? err.message : String(err));
-          setSaveState('idle');
-        });
+      void drainSaves().catch((err: unknown) => {
+        setRecipientError(err instanceof Error ? err.message : String(err));
+        setSaveState('idle');
+      });
     }, AUTOSAVE_DELAY_MS);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
-  }, [plan, workspaceService, persistPlan]);
+  }, [plan, workspaceService, drainSaves]);
 
   // Flush any pending debounce and guarantee disk == current plan before a
   // review/send, so meetingArtifactDelivery's opened-vs-disk plan guard never
-  // false-triggers "review again".
+  // false-triggers "review again". Drains serially until nothing is pending.
   const flushSave = useCallback(async () => {
     if (autosaveTimer.current) { clearTimeout(autosaveTimer.current); autosaveTimer.current = null; }
     if (!workspaceService) return;
-    if (JSON.stringify(plan) === lastSavedJson.current) return;
-    setSaveState('saving');
-    await persistPlan(plan);
-    setSaveState('saved');
-  }, [plan, workspaceService, persistPlan]);
+    if (JSON.stringify(plan) !== lastSavedJson.current) {
+      pendingPlanRef.current = plan;
+      setSaveState('saving');
+    }
+    await drainSaves();
+    while (pendingPlanRef.current) await drainSaves();
+  }, [plan, workspaceService, drainSaves]);
 
   const calendarRecipients = useMemo(
     () => calendarAttendeesToRecipients(meta.calendarEvent),
@@ -227,6 +268,14 @@ export function MeetingSendPanel({
     () => mergeRecipients([...calendarRecipients, ...recipientsInDeliveryPlan(plan)]),
     [calendarRecipients, plan],
   );
+  // Finding 3 — restore the suggestion source (client emails from
+  // matter.meetingKeys, calendar attendees, and people from the saved plan) so
+  // the advisor can one-click a known recipient instead of only calendar +
+  // already-added people. Suggestions already in the matrix are dropped.
+  const suggestionPeople = useMemo(() => {
+    const present = new Set(personRows.map((row) => row.email));
+    return buildMeetingRecipientSuggestions(meta, matter).filter((person) => !present.has(person.email));
+  }, [meta, matter, personRows]);
 
   const togglePerson = (recipient: MeetingRecipient) => {
     setRecipientError(null);
@@ -258,6 +307,12 @@ export function MeetingSendPanel({
     setPlan((current) => setRecipientForEveryArtifact(current, { email, source: 'manual' }, true));
     setPersonInput('');
     setRecipientError(null);
+  };
+
+  const addSuggestion = (recipient: MeetingRecipient) => {
+    setRecipientError(null);
+    // Adding a known person defaults to every item on, same as typing them.
+    setPlan((current) => setRecipientForEveryArtifact(current, { ...recipient, source: 'manual' }, true));
   };
 
   const removePerson = (recipient: MeetingRecipient) => {
@@ -458,6 +513,37 @@ export function MeetingSendPanel({
               </div>
             );
           })}
+          {suggestionPeople.length > 0 && (
+            <div data-testid="meeting-recipient-suggestions" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, paddingTop: 4, alignItems: 'center' }}>
+              <span style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)' }}>
+                {t('meetings.entry.recipients.suggestions-label')}
+              </span>
+              {suggestionPeople.map((person) => (
+                <button
+                  key={person.email}
+                  type="button"
+                  data-testid={`meeting-recipient-suggestion-${person.email}`}
+                  onClick={() => { addSuggestion(person); }}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    border: '1px solid var(--kp-divider)',
+                    borderRadius: 'var(--radius-sm)',
+                    background: 'var(--color-background)',
+                    color: 'var(--kp-navy)',
+                    padding: '4px 7px',
+                    fontSize: 'var(--kp-font-xs)',
+                    fontFamily: 'inherit',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Plus style={{ width: 12, height: 12 }} />
+                  {person.name || person.email}
+                </button>
+              ))}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: 6, minWidth: 0, paddingTop: 4 }}>
             <input
               type="email"

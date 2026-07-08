@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 220,
         "media": 100,
-        "meetings": 233,
+        "meetings": 234,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
@@ -271,7 +271,9 @@ describe('en.json structure snapshot', () => {
     //   join) added 9 keys (details/step-*/rules-details/offer-explain-summary/
     //   pill-present-short/auto-join.summary_one+_other) and removed 3 orphans
     //   (notice.unverified-body, tab.activity-hint, tab.reviewed-badge) = +6.
-    expect(flat.length).toBe(1553);
+    // +1 fix round 1: meetings.entry.recipients.suggestions-label (restored the
+    //   client-email/matter-key recipient suggestions in the send matrix).
+    expect(flat.length).toBe(1554);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

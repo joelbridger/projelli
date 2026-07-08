@@ -2455,7 +2455,8 @@
             "label": "Notizen",
             "help": "Die Beraternotizdatei."
           }
-        }
+        },
+        "suggestions-label": "Vorschläge:"
       },
       "send": {
         "title": "Besprechungsinhalte senden",

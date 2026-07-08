@@ -1781,7 +1781,8 @@
             "label": "Notes",
             "help": "The advisor notes file."
           }
-        }
+        },
+        "suggestions-label": "Suggested:"
       },
       "send": {
         "title": "Send meeting items",

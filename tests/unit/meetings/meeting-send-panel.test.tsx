@@ -1,8 +1,9 @@
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MeetingSendPanel } from '@/features/meetings/MeetingSendPanel';
 import { emptyMeetingRecipientArtifacts, type MeetingDeliveryPlan } from '@/features/meetings/meetingRecipientPlan';
 import type { MeetingMeta } from '@/features/meetings/meetingStore';
+import type { Matter } from '@/platform/types/matter';
 
 vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/utils/mail-commands')>();
@@ -55,7 +56,7 @@ function makeWorkspace(files = new Map<string, string>()) {
   };
 }
 
-function renderPanel(opts: { inputMeta?: MeetingMeta; ws?: ReturnType<typeof makeWorkspace>; onChanged?: () => void } = {}) {
+function renderPanel(opts: { inputMeta?: MeetingMeta; ws?: ReturnType<typeof makeWorkspace>; onChanged?: () => void; matter?: Matter | null } = {}) {
   const ws = opts.ws ?? makeWorkspace();
   const onChanged = opts.onChanged ?? vi.fn();
   const utils = render(
@@ -63,7 +64,7 @@ function renderPanel(opts: { inputMeta?: MeetingMeta; ws?: ReturnType<typeof mak
       matterId="matter-1"
       meetingDir="/client/Meetings/one"
       meta={opts.inputMeta ?? meta()}
-      matter={null}
+      matter={opts.matter ?? null}
       clientName="Hendricks"
       workspaceService={ws as never}
       hasAudio={false}
@@ -153,5 +154,84 @@ describe('MeetingSendPanel (merged send surface)', () => {
     expect(await screen.findByTestId('meeting-send-trust-note')).toHaveTextContent(
       'Review first. Sends by your email. Lantern never receives files.',
     );
+  });
+
+  it('(finding 1) serializes recipient saves: an in-flight debounced save never runs concurrently with the flush and disk converges to the latest edit', async () => {
+    vi.useFakeTimers();
+    try {
+      const files = new Map<string, string>();
+      files.set('/client/Meetings/one/meeting.json', JSON.stringify(meta()));
+      let inFlight = 0;
+      let maxInFlight = 0;
+      let releaseFirstWrite: () => void = () => {};
+      const firstWriteGate = new Promise<void>((resolve) => { releaseFirstWrite = resolve; });
+      let writeCount = 0;
+      const writtenSummaryEmails: string[][] = [];
+      const ws = {
+        files,
+        readFile: vi.fn(async (path: string) => files.get(path) ?? ''),
+        writeFile: vi.fn(async (path: string, content: string) => {
+          inFlight += 1;
+          maxInFlight = Math.max(maxInFlight, inFlight);
+          writeCount += 1;
+          if (writeCount === 1) await firstWriteGate; // hold the first (debounced) write open
+          files.set(path, content);
+          const parsed = JSON.parse(content) as MeetingMeta;
+          writtenSummaryEmails.push((parsed.deliveryPlan?.artifacts.summary ?? []).map((r) => r.email));
+          inFlight -= 1;
+        }),
+        readFileBinary: vi.fn(),
+        exists: vi.fn(async () => false),
+      };
+      const onChanged = vi.fn();
+      renderPanel({ ws: ws as never, onChanged });
+
+      // Add person A, then let the 600ms autosave debounce fire — its save is
+      // now in flight, blocked on the gate.
+      fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), { target: { value: 'a@example.com' } });
+      fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+      await act(async () => { await vi.advanceTimersByTimeAsync(600); });
+      expect(ws.writeFile).toHaveBeenCalledTimes(1);
+      expect(inFlight).toBe(1);
+
+      // Add person B while the first save is still blocked, then trigger the
+      // flush by clicking Review send.
+      fireEvent.change(screen.getByTestId('meeting-recipient-input-person'), { target: { value: 'b@example.com' } });
+      fireEvent.click(screen.getByTestId('meeting-recipient-add-person'));
+      fireEvent.click(screen.getByTestId('meeting-send-review'));
+
+      // Release the in-flight save; the serialized loop then persists the newer
+      // {A,B} plan. No two writes ever ran at once.
+      await act(async () => {
+        releaseFirstWrite();
+        await vi.advanceTimersByTimeAsync(600);
+      });
+      await vi.waitFor(() => expect(screen.getByTestId('meeting-send-confirm-body')).toBeInTheDocument());
+
+      expect(maxInFlight).toBe(1);
+      const finalDisk = JSON.parse(files.get('/client/Meetings/one/meeting.json') ?? '{}') as MeetingMeta;
+      const finalEmails = (finalDisk.deliveryPlan?.artifacts.summary ?? []).map((r) => r.email);
+      expect(finalEmails).toEqual(expect.arrayContaining(['a@example.com', 'b@example.com']));
+      // Writes are monotonic: no later write drops a recipient an earlier one had.
+      const last = writtenSummaryEmails.at(-1) ?? [];
+      expect(last).toEqual(expect.arrayContaining(['a@example.com', 'b@example.com']));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('(finding 3) offers known recipients (client emails / matter keys) as one-click suggestions in the add-person flow', async () => {
+    const matter = { id: 'matter-1', meetingKeys: ['known@client.com'] } as unknown as Matter;
+    renderPanel({ matter });
+
+    const chip = await screen.findByTestId('meeting-recipient-suggestion-known@client.com');
+    expect(chip).toBeInTheDocument();
+    fireEvent.click(chip);
+
+    // Clicking the suggestion adds them as a person row (all items on) and the
+    // chip disappears (now present in the matrix).
+    expect(await screen.findByTestId('meeting-recipient-person-row-known@client.com')).toBeInTheDocument();
+    expect(screen.getByTestId('meeting-recipient-person-artifact-summary-known@client.com')).toBeChecked();
+    expect(screen.queryByTestId('meeting-recipient-suggestion-known@client.com')).not.toBeInTheDocument();
   });
 });
