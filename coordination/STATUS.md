@@ -1,5 +1,13 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-08 ~23:20 — UX-SIMPLIFICATION PREVIEW COMPLETE: GATE GREEN, gallery live, Legion syncing (coordinator-12)
+
+- ALL 9 lanes merged into lp/ux-simplify-v1 @ 9ca9e907 (pushed+verified). FULL GATE GREEN: 7,059 tests passed / 0 failed (4 skipped), typecheck+tests-typecheck clean, i18n complete (es/de backfilled to 1,967 keys via Codex), eslint/token/handle guards green (21 handle removals documented in handles.migrations.json), cargo 28 tests ok (brand files regenerated).
+- Review economics: every lane cross-reviewed (Codex-built→Fable review; Opus-built→Codex adversarial review). Fix rounds: meetings ×2 (send-safety: serialized autosave + unmount flush, confirmed-snapshot send, restored suggestions, sender reviewedAt guard), found ×2 + coordinator test repair (single-source egress: mode-tagged hook, destination enum incl. assured, strict local probe, distinct testids, clickable pill). Pre-existing PRODUCT bug filed in QUESTIONS-FOR-JAMESON: Ask/Workflows ignore firm Assured routes (email honors them) — needs its own lane + Jameson read.
+- Brand: INTERIM plain-text Lantern wordmark at brand/assets (old mascot/wordmark read the retired name); real logo design = Jameson. Icon PNGs unchanged.
+- Before/after gallery (12 pairs): https://claude.ai/code/artifact/e011c99b-9ac0-4d40-9d77-c9dab7005573 (NEW url — old gallery artifact was deleted). Enhanced audit report: jameworld.com/claudereports 2026-07-08.
+- Legion syncing to the PREVIEW branch (rollback = re-run legion-sync from ~/lantern-plus main tip). lantern-plus main is FROZEN until Jameson approves the visuals; approval = merge lp/ux-simplify-v1 → lantern-plus (fast, gate already green).
+- Housekeeping: integration worktree ~/lp-ux-integrate holds the preview checkout + lp-dev tmux serves it on :5173; 9 lane worktrees ~/lp-ux-* retained until approval (drop-lane surgery may need them).
 ## UPDATE 2026-07-08 ~17:15 — UX-SIMPLIFICATION BUILD LAUNCHED (coordinator-12, Fable pass)
 
 - Fable re-audit of the Codex UX report DONE: all 7 audits read + spot-checked (accurate); app visually inspected via fresh browser-mode screenshots (testMode=true&seedDemo=true, capture set in coordinator scratchpad current-ui/).
