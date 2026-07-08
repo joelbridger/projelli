@@ -7,7 +7,7 @@
  * Covers:
  *   - tts-output-status present when ttsEnabled=true
  *   - tts-output-status absent when ttsEnabled=false
- *   - voice-status (existing voice input banner) still renders alongside TTS
+ *   - voice-status (quiet ready state) still renders alongside TTS
  *   - Both subsections coexist without errors
  */
 
@@ -16,7 +16,7 @@ import { render, screen, act } from '@testing-library/react';
 import { VoiceSettingsSection } from '@/features/settings/VoiceSettingsSection';
 
 describe('VoiceSettingsSection with TTS output section wired', () => {
-  it('renders existing voice-status banner', async () => {
+  it('renders quiet voice-status when ready', async () => {
     await act(async () => {
       render(
         <VoiceSettingsSection
@@ -27,7 +27,7 @@ describe('VoiceSettingsSection with TTS output section wired', () => {
         />,
       );
     });
-    expect(screen.getByTestId('voice-status')).toBeInTheDocument();
+    expect(screen.getByTestId('voice-status')).toHaveAttribute('data-status', 'ready');
   });
 
   it('does not render tts-output-status when ttsEnabled=false', async () => {

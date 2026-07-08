@@ -11,6 +11,7 @@ import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { CheckCircle2, AlertCircle, Mic, MicOff } from 'lucide-react';
 import { InfoHelp } from '@/ui/InfoHelp';
+import { QuietStatus } from '@/ui/kp';
 import { isVoiceSidecarAvailable } from '@/platform/voice/voiceStatus';
 import { VoiceOutputSettingsSection } from '@/features/dictation/tts/VoiceOutputSettingsSection';
 
@@ -76,19 +77,19 @@ export function VoiceSettingsSection({
     };
   }, [onProbeSidecar, onProbeMic]);
 
-  let label: string;
+  let labelKey: string;
   let testidStatus: 'ready' | 'missing' | 'denied' | 'checking';
   if (sidecar === 'checking') {
-    label = 'Checking voice availability...';
+    labelKey = 'settings.voice.status-checking';
     testidStatus = 'checking';
   } else if (sidecar === 'missing') {
-    label = 'Sidecar missing (voice features disabled in this build)';
+    labelKey = 'settings.voice.status-missing';
     testidStatus = 'missing';
   } else if (mic === 'denied') {
-    label = 'Mic permission denied (allow microphone access to use voice)';
+    labelKey = 'settings.voice.status-denied';
     testidStatus = 'denied';
   } else {
-    label = 'Voice ready';
+    labelKey = 'settings.voice.status-ready';
     testidStatus = 'ready';
   }
 
@@ -102,6 +103,15 @@ export function VoiceSettingsSection({
       <div className="mb-6">
         <div className="mb-3 flex items-center gap-1.5">
           <span className="text-sm font-medium">{t('settings.voice.title')}</span>
+          {testidStatus === 'ready' ? (
+            <QuietStatus
+              data-testid="voice-status"
+              data-status={testidStatus}
+              className="ml-1"
+            >
+              {t(labelKey)}
+            </QuietStatus>
+          ) : null}
           <InfoHelp
             label={`About ${t('settings.voice.title')}`}
             content={
@@ -112,22 +122,20 @@ export function VoiceSettingsSection({
             }
           />
         </div>
-        <div
-          data-testid="voice-status"
-          data-status={testidStatus}
-          className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2"
-        >
-          <Icon
-            className={`h-4 w-4 shrink-0 ${
-              testidStatus === 'ready'
-                ? 'text-emerald-500'
-                : testidStatus === 'checking'
-                  ? 'text-muted-foreground'
-                  : 'text-amber-500'
-            }`}
-          />
-          <span className="text-sm">{label}</span>
-        </div>
+        {testidStatus !== 'ready' ? (
+          <div
+            data-testid="voice-status"
+            data-status={testidStatus}
+            className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2"
+          >
+            <Icon
+              className={`h-4 w-4 shrink-0 ${
+                testidStatus === 'checking' ? 'text-muted-foreground' : 'text-amber-500'
+              }`}
+            />
+            <span className="text-sm">{t(labelKey)}</span>
+          </div>
+        ) : null}
       </div>
 
       <VoiceOutputSettingsSection

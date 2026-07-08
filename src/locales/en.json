@@ -307,9 +307,10 @@
       "title": "Memory Facts",
       "description": "Durable facts about you that the AI always knows. Stored locally at <c>.lantern/memory.json</c> in your workspace.",
       "load-error": "Couldn't load facts: {{error}}",
-      "empty": "No facts saved yet. Proposed facts from chat conversations will show up here after you accept them.",
+      "empty": "No saved facts yet.",
       "delete-aria": "Delete fact",
-      "add-placeholder": "Add a fact about yourself..."
+      "add-toggle": "Add fact",
+      "add-placeholder": "Add a fact..."
     },
     "template-models": {
       "empty": "No workflow templates yet.",
@@ -317,12 +318,33 @@
       "description": "Pin a provider and model for each template. Leave blank to use the template's built-in default (or your global default)."
     },
     "mobile-page": {
-      "title": "Mobile",
-      "description": "Read your Advisor Prep Hero workspace on your phone today. Point Advisor Prep Hero at a synced folder on your computer (iCloud, Dropbox, Syncthing, or Google Drive) and the same files show up on your phone in the matching app. The dedicated Advisor Prep Hero mobile reader is in beta and lands in the v2.0 cycle.",
+      "title": "Phone access",
+      "description": "Read this workspace on your phone with iCloud, Dropbox, Syncthing, or Google Drive.",
       "heads-up-label": "Heads up:",
-      "heads-up-text": "Treat your phone as read-only while using the cloud sync workaround. Editing the same file on two devices in quick succession can produce a conflict copy.",
+      "heads-up-text": "For now, read on phone. Edit on one device at a time.",
       "setup-steps": "Setup steps",
-      "things-to-know": "Things to know"
+      "things-to-know": "Things to know",
+      "full-guide": "Full guide",
+      "providers": {
+        "icloud": {
+          "label": "iCloud Drive",
+          "guidance": "Best if you use Apple devices.",
+          "open-app": "Open Files on iPhone"
+        },
+        "dropbox": {
+          "label": "Dropbox",
+          "guidance": "Works across Mac, Windows, iPhone, and Android.",
+          "open-app": "Open Dropbox on iPhone"
+        },
+        "syncthing": {
+          "label": "Syncthing",
+          "guidance": "Keeps data between your own devices without a cloud account."
+        },
+        "gdrive": {
+          "label": "Google Drive",
+          "guidance": "Best if you already use Google Drive, especially on Android."
+        }
+      }
     },
     "api-keys": {
       "title": "AI Account Keys",
@@ -340,7 +362,11 @@
     },
     "voice": {
       "title": "Voice input",
-      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new text file into <c>Inbox/</c>."
+      "description": "Hands-free capture via a bundled offline speech-recognition model. Audio never leaves your machine. Press-to-talk inserts into the focused text field; voice-to-note saves a new text file into <c>Inbox/</c>.",
+      "status-checking": "Checking voice availability",
+      "status-missing": "Voice unavailable in this build",
+      "status-denied": "Mic permission denied. Allow microphone access to use voice.",
+      "status-ready": "Ready"
     },
     "advanced": {
       "title": "Advanced",
@@ -944,7 +970,7 @@
     "download": "Download Advisor Prep Hero Local AI",
     "downloading": "Downloading… {{pct}}%",
     "verifying": "Checking the download…",
-    "ready": "Installed and ready. Pick \"Advisor Prep Hero Local AI\" as your model in any chat.",
+    "ready": "Local AI installed.",
     "error": "The download was interrupted. Nothing is lost.",
     "retry": "Resume download"
   },
@@ -1534,7 +1560,7 @@
       "title-local-only": "On because On this computer only is selected. Network plugins and MCP servers are disabled."
     },
     "retention": {
-      "title": "Meeting recordings",
+      "title": "Deleted files",
       "subtitle": "Choose what happens to recordings on this computer. Deletions are recorded in your audit log.",
       "mode-keep": "Keep everything",
       "mode-keep-hint": "Audio, transcript, and notes stay until you delete them.",
@@ -1543,9 +1569,11 @@
       "mode-summary": "Summary only",
       "mode-summary-hint": "Audio and transcript are removed once notes exist. Only the notes stay.",
       "days-label": "Days to keep audio",
-      "run-now": "Run cleanup now",
+      "change": "Change",
+      "more-actions": "More deleted-file actions",
+      "run-now": "Clean up now",
       "last-sweep": "Last cleanup: {{when}}, removed {{count}} items",
-      "never-swept": "Cleanup has not run yet.",
+      "never-swept": "No cleanup yet.",
       "datamap-title": "Meeting recording retention",
       "sweep-errors": "{{count}} items could not be removed. See the audit log.",
       "attestation-button": "Export attestation report (Word)",
@@ -1930,9 +1958,11 @@
       "bg-label": "RECORDING in progress",
       "unsupported-fallback": "This meeting link isn't one the notice card can join, so say the recording notice aloud instead.",
       "settings-heading": "Notice Card",
-      "settings-enabled-label": "Offer the Notice Card for online meetings",
+      "settings-advanced-summary": "Advanced recording notice",
+      "settings-enabled-label": "Offer Notice Card",
       "settings-name-label": "Notice Card name (use {advisor} for your first name)",
-      "settings-evidence-label": "What satisfies a Strict recording notice",
+      "settings-name-placeholder": "Recording Notice - {advisor}",
+      "settings-evidence-label": "Strict proof",
       "settings-evidence-either": "Either a spoken notice or full-meeting card presence",
       "settings-evidence-both": "Both a spoken notice and full-meeting card presence"
     },

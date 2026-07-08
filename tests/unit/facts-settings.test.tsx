@@ -27,7 +27,8 @@ describe('MemoryFactsSettings', () => {
   it('renders the empty state when no facts exist', () => {
     render(<MemoryFactsSettings initialFacts={[]} />);
     expect(screen.getByTestId('settings-facts-empty')).toBeTruthy();
-    expect(screen.getByTestId('settings-facts-table')).toBeTruthy();
+    expect(screen.queryByTestId('settings-facts-table')).toBeNull();
+    expect(screen.getByTestId('settings-facts-add-toggle')).toBeTruthy();
   });
 
   it('renders a row per fact with the expected testids', () => {
@@ -62,6 +63,7 @@ describe('MemoryFactsSettings', () => {
   it('invokes onAdd with the typed text and clears the input', async () => {
     const onAdd = vi.fn(async () => undefined);
     render(<MemoryFactsSettings initialFacts={[]} onAdd={onAdd} />);
+    fireEvent.click(screen.getByTestId('settings-facts-add-toggle'));
     const input = screen.getByTestId(
       'settings-facts-add-input',
     ) as HTMLInputElement;
@@ -79,6 +81,7 @@ describe('MemoryFactsSettings', () => {
   it('does not call onAdd for empty or whitespace-only input', async () => {
     const onAdd = vi.fn(async () => undefined);
     render(<MemoryFactsSettings initialFacts={[]} onAdd={onAdd} />);
+    fireEvent.click(screen.getByTestId('settings-facts-add-toggle'));
     const input = screen.getByTestId(
       'settings-facts-add-input',
     ) as HTMLInputElement;
@@ -93,6 +96,7 @@ describe('MemoryFactsSettings', () => {
   it('submits via Enter keypress on the add input', async () => {
     const onAdd = vi.fn(async () => undefined);
     render(<MemoryFactsSettings initialFacts={[]} onAdd={onAdd} />);
+    fireEvent.click(screen.getByTestId('settings-facts-add-toggle'));
     const input = screen.getByTestId('settings-facts-add-input');
     fireEvent.change(input, { target: { value: 'Enter submit' } });
     fireEvent.keyDown(input, { key: 'Enter' });

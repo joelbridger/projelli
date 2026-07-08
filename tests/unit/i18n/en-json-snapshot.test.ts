@@ -63,16 +63,16 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 220,
         "media": 100,
-        "meetings": 227,
+        "meetings": 229,
         "memory": 6,
         "model-download": 9,
         "onboarding": 67,
         "plugins": 4,
-        "privacy": 31,
+        "privacy": 33,
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 172,
+        "settings": 188,
         "shortcuts-overlay": 2,
         "spine": 8,
         "tab-guard": 3,
@@ -268,7 +268,10 @@ describe('en.json structure snapshot', () => {
     // +3 = F1 single-source egress (UX lane L0): workflow.associate.egress-{local,
     //      cloud,none} — the quiet TrustNote line above Run that replaced the
     //      duplicate egress status pill in the workflow template detail.
-    expect(flat.length).toBe(1556); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +20 = UX chrome follow-up items 19-25: folded Settings labels for
+    //      recording notice (+2), deleted files (+2), memory (+1), voice (+4),
+    //      and phone access (+11).
+    expect(flat.length).toBe(1576); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
