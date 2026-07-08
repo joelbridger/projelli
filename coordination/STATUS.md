@@ -1,5 +1,11 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-09 ~00:15 — PREVIEW LIVE ON THE LEGION; Jameson reviewing; first bench catch fixed (coordinator-12)
+
+- Legion runs lp/ux-simplify-v1 (src+public shipped, app restarted, served code verified). Gallery: https://claude.ai/code/artifact/e011c99b-9ac0-4d40-9d77-c9dab7005573
+- BENCH CATCH #1 (Jameson): chrome lane hid a `matters.length > 7` threshold in the Spine client search (C2 violation my diff review missed; my rig had 4 sample clients, his bench 26). FIXED @ebedb8ff+: threshold removed, empty-blur collapse added, 26-client + blur regression tests. Shipped + verified live.
+- LESSONS: (1) screenshot rigs must include a LARGE-dataset variant — threshold bugs are invisible with small samples; (2) never pipe typecheck output through tail in a && chain (masks exit code — nearly shipped a broken test).
+- AWAITING: Jameson verdict on the gallery/bench (approve all | drop items | rework screen). Approval = merge preview → lantern-plus (frozen) + Legion stays as-is.
 ## UPDATE 2026-07-08 ~23:20 — UX-SIMPLIFICATION PREVIEW COMPLETE: GATE GREEN, gallery live, Legion syncing (coordinator-12)
 
 - ALL 9 lanes merged into lp/ux-simplify-v1 @ 9ca9e907 (pushed+verified). FULL GATE GREEN: 7,059 tests passed / 0 failed (4 skipped), typecheck+tests-typecheck clean, i18n complete (es/de backfilled to 1,967 keys via Codex), eslint/token/handle guards green (21 handle removals documented in handles.migrations.json), cargo 28 tests ok (brand files regenerated).
