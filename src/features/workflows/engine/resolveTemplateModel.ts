@@ -15,6 +15,7 @@
  */
 
 import type { TemplateProviderId, WorkflowTemplate } from '@/platform/types/workflow';
+import type { AssuredRoute } from '@/platform/firm/assuredInference';
 export {
   TEMPLATE_MODEL_OVERRIDES_KEY,
   type TemplateModelOverride,
@@ -89,6 +90,12 @@ export function resolveTemplateModel(
 export type WorkflowProviderResolution =
   | { kind: 'lantern-local'; model: string | undefined }
   | { kind: 'ollama'; model: string | undefined }
+  | {
+      kind: 'assured-cloud';
+      provider: 'anthropic' | 'openai' | 'google';
+      model: string | undefined;
+      assuredRoute: AssuredRoute;
+    }
   | { kind: 'cloud'; provider: 'claude' | 'openai' | 'gemini'; model: string | undefined; key: string }
   | { kind: 'mock' }
   | { kind: 'needs-provider' }
@@ -126,6 +133,8 @@ export interface ResolveWorkflowProviderInput {
    * Mirrors how Ask / Chat / Client Map already resolve the local provider.
    */
   localModelReady: boolean;
+  /** Live firm zero-retention route, resolved by the shared generation seam. */
+  assuredRoute?: AssuredRoute;
 }
 
 /**
@@ -160,6 +169,7 @@ export function resolveWorkflowProvider(
     localOnly,
     installedOllamaModels,
     localModelReady,
+    assuredRoute,
   } = input;
 
   // F-502 / F-503 — Local-only confidentiality mode: workflows run ON DEVICE,
@@ -198,6 +208,15 @@ export function resolveWorkflowProvider(
       return { kind: 'ollama-unreachable' };
     }
     return { kind: 'ollama', model: pickedModel };
+  }
+
+  if (assuredRoute) {
+    return {
+      kind: 'assured-cloud',
+      provider: assuredRoute.provider,
+      model: assuredRoute.model,
+      assuredRoute,
+    };
   }
 
   // Cloud provider assignment — prefer the pinned provider's key, then fall

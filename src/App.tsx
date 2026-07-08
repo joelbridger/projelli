@@ -337,8 +337,12 @@ function AppShell() {
         !IS_DEMO_MODE) ||
       forceOnboarding;
     if (shouldShow) {
-      const id = setTimeout(() => setShowFirstRun(true), 1200);
-      return () => clearTimeout(id);
+      const id = setTimeout(() => {
+        setShowFirstRun(true);
+      }, 1200);
+      return () => {
+        clearTimeout(id);
+      };
     }
     return undefined;
   }, []);
@@ -357,8 +361,12 @@ function AppShell() {
     if (!FORCE_TOUR && !featureTour.shouldAutoShow) return;
     // Do not open the tour while the onboarding overlay is open.
     if (showFirstRun) return;
-    const timeoutId = setTimeout(() => setTourOpen(true), 800);
-    return () => clearTimeout(timeoutId);
+    const timeoutId = setTimeout(() => {
+      setTourOpen(true);
+    }, 800);
+    return () => {
+      clearTimeout(timeoutId);
+    };
   }, [FORCE_TOUR, featureTour.shouldAutoShow, showFirstRun]);
   const workspaceServiceRef = useRef<WorkspaceService | null>(null);
   const fileSystemWatcherRef = useRef<FileSystemWatcher | null>(null);

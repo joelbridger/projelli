@@ -31,7 +31,11 @@ import { retryWithBackoff } from '@/lib/retryWithBackoff';
 import { createMockProvider } from '@/platform/providers/MockProvider';
 import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import { detectOllama, OLLAMA_DEFAULT_MODEL } from '@/platform/providers/OllamaProvider';
-import { createProvider } from '@/platform/providers/providerFactory';
+import { createProvider, type ChatProviderId } from '@/platform/providers/providerFactory';
+import {
+  resolveActiveGenerationRoute,
+  type ActiveGenerationRoute,
+} from '@/platform/providers/resolveActiveGenerationProvider';
 import { isEmbeddedLocalModelReady } from '@/platform/providers/resolveLocalProvider';
 import { modeRestrictsToLocal } from '@/platform/privacy/egress';
 import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
@@ -61,6 +65,7 @@ import type {
   WorkflowExecution,
   InterviewQuestion,
   WorkflowFileData,
+  TemplateProviderId,
 } from '@/platform/types/workflow';
 import type { APIKey } from '@/platform/types/ai';
 import type { RunRecord } from '@/platform/types/workflow';
@@ -154,6 +159,19 @@ function enrichWorkflowRunRecord(opts: {
       ...(primaryArtifactPath ? { primaryArtifactPath } : {}),
     },
   };
+}
+
+function templateProviderToFactoryProvider(provider: TemplateProviderId): ChatProviderId {
+  switch (provider) {
+    case 'claude':
+      return 'anthropic';
+    case 'gemini':
+      return 'google';
+    case 'openai':
+      return 'openai';
+    case 'ollama':
+      return 'ollama';
+  }
 }
 
 export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
@@ -299,7 +317,8 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // must land on an installed local model (or block honestly) no matter
       // what the template/global default says, so it needs reachability plus
       // the installed tag list.
-      const localOnly = modeRestrictsToLocal(getConfidentialityMode());
+      const workflowConfidentialityMode = getConfidentialityMode();
+      const localOnly = modeRestrictsToLocal(workflowConfidentialityMode);
       // F-503 — in private mode prefer the embedded Lantern Local AI when its
       // model is downloaded + ready (it needs no separate Ollama daemon), the
       // same on-device default Ask / Chat / Client Map use. Probe it first; only
@@ -317,6 +336,15 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         installedOllamaModels = ollamaStatus.models;
       }
 
+      const generationRoute: ActiveGenerationRoute = await resolveActiveGenerationRoute({
+        mode: workflowConfidentialityMode,
+        preferredProvider: templateProviderToFactoryProvider(pickedProvider),
+        stream: false,
+        allowCloudFallback: false,
+        preservePinnedLocal: pickedProvider === 'ollama',
+        ...(pickedModel ? { preferredModel: pickedModel } : {}),
+      });
+
       // Pure resolution — decides kind, never creates providers or side-effects.
       const providerResolution = resolveWorkflowProvider({
         pickedProvider,
@@ -329,6 +357,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         localOnly,
         installedOllamaModels,
         localModelReady,
+        ...(generationRoute.assuredRoute ? { assuredRoute: generationRoute.assuredRoute } : {}),
       });
 
       // Handle the two early-return blocking cases BEFORE creating the folder
@@ -476,6 +505,17 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
         console.log(
           `Using Ollama (${providerResolution.model ?? OLLAMA_DEFAULT_MODEL}) for workflow generation [source=${resolution.source}]`
         );
+      } else if (providerResolution.kind === 'assured-cloud') {
+        assertCloudGenerationAllowed();
+        provider = createProvider({
+          provider: providerResolution.provider,
+          ...(providerResolution.model ? { model: providerResolution.model } : {}),
+          assured: providerResolution.assuredRoute,
+          ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
+        });
+        console.log(
+          `Using firm Assured ${providerResolution.provider} route (${providerResolution.model ?? 'default'}) for workflow generation [source=${resolution.source}]`
+        );
       } else if (providerResolution.kind === 'cloud') {
         // Personal-install choice gate (Task 1.3 fix): workflow generation is
         // cloud generation; block it until the user has made an explicit
@@ -520,7 +560,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       }
 
       const workflowAuditProvider =
-        providerResolution.kind === 'cloud'
+        providerResolution.kind === 'assured-cloud'
+          ? providerResolution.provider
+          : providerResolution.kind === 'cloud'
           ? providerResolution.provider === 'claude'
             ? 'anthropic'
             : providerResolution.provider === 'gemini'
@@ -646,8 +688,9 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
             onAuditLog: addAuditEntry,
             providerId: workflowAuditProvider,
             model: provider.getMetadata().model,
-            getConfidentialityMode,
+            getConfidentialityMode: () => workflowConfidentialityMode,
             getScope: getWorkflowAuditScope,
+            assuredAvailable: providerResolution.kind === 'assured-cloud',
             isDemo: IS_DEMO,
           },
           // WS-D — litigation `analyze` step dependencies. Retrieval is scoped to

@@ -9,6 +9,7 @@ const h = vi.hoisted(() => ({
   ollamaReachable: false,
   ollamaModels: ['llama3.2:3b'],
   ollamaConstructed: 0,
+  assuredProviders: [] as string[],
   keys: {
     anthropic: null as string | null,
     openai: null as string | null,
@@ -22,6 +23,13 @@ vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
 
 vi.mock('@/platform/firm/firmStore', () => ({
   useFirmStore: { getState: () => ({ session: { activated: true } }) },
+}));
+
+vi.mock('@/platform/firm/resolveAssuredRoute', () => ({
+  resolveAssuredRoute: (provider: string, model: string, stream = true) =>
+    h.mode === 'assured' && h.assuredProviders.includes(provider)
+      ? { provider, model, accessToken: 'a', seatToken: 's', stream }
+      : undefined,
 }));
 
 vi.mock('@/platform/settings/settingsStore', () => ({
@@ -134,6 +142,7 @@ describe('Ask provider resolution when no AI is connected', () => {
     h.ollamaReachable = false;
     h.ollamaModels = ['llama3.2:3b'];
     h.ollamaConstructed = 0;
+    h.assuredProviders = [];
     h.keys = { anthropic: null, openai: null, google: null };
     localStorage.clear();
   });
@@ -175,6 +184,27 @@ describe('Ask provider resolution when no AI is connected', () => {
     await expect(resolveActiveAskProviderId()).resolves.toBe('ollama');
     await expect(buildResolvedAskProvider()).resolves.toMatchObject({
       providerId: 'ollama',
+    });
+  });
+
+  it('assured mode resolves through a firm managed provider even when no personal key exists', async () => {
+    h.mode = 'assured';
+    h.assuredProviders = ['openai'];
+
+    await expect(resolveActiveAskProviderId()).resolves.toBe('openai');
+    await expect(buildResolvedAskProvider()).resolves.toMatchObject({
+      providerId: 'openai',
+    });
+  });
+
+  it('assured mode prefers the firm managed provider over a leftover personal key', async () => {
+    h.mode = 'assured';
+    h.assuredProviders = ['openai'];
+    h.keys.anthropic = 'sk-ant-leftover';
+
+    await expect(resolveActiveAskProviderId()).resolves.toBe('openai');
+    await expect(buildResolvedAskProvider()).resolves.toMatchObject({
+      providerId: 'openai',
     });
   });
 });

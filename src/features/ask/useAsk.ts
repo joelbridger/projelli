@@ -705,6 +705,7 @@ export function useAsk({
           | 'ollama'
           | 'lantern-local';
         model: string;
+        assuredAvailable: boolean;
       } | null = null;
       let providerCallStarted = false;
       let failedStage: AskFailureStage = 'setup';
@@ -1112,6 +1113,7 @@ export function useAsk({
         providerAudit = {
           providerId: resolvedProvider.providerId,
           model: resolvedProvider.model,
+          assuredAvailable: resolvedProvider.assuredAvailable,
         };
         // HOLE #2 (Codex re-review) — pin the egress banner to the engine this send
         // ACTUALLY resolved to (buildResolvedAskProvider is the single source of
@@ -1312,7 +1314,7 @@ export function useAsk({
             mode: getConfidentialityMode(),
             isDemo: IS_DEMO,
             hasDemoByokKey: hasDemoByokKey(),
-            assuredAvailable: false,
+            assuredAvailable: providerAudit.assuredAvailable,
           });
           onAuditLog?.(
             auditEventToEntry({
@@ -1333,7 +1335,7 @@ export function useAsk({
           // A real response came back from a cloud provider's key, so it is
           // proven to work — prefer it for future chats (mirrors the "Check"
           // button in ApiKeyManager and the Wizard's on-save verification).
-          if (isVerifiableProvider(providerAudit.providerId)) {
+          if (!providerAudit.assuredAvailable && isVerifiableProvider(providerAudit.providerId)) {
             markKeyVerified(providerAudit.providerId);
           }
         };
@@ -1642,7 +1644,7 @@ export function useAsk({
             mode: getConfidentialityMode(),
             isDemo: IS_DEMO,
             hasDemoByokKey: hasDemoByokKey(),
-            assuredAvailable: false,
+            assuredAvailable: providerAudit.assuredAvailable,
           });
           onAuditLog?.({
             action: 'user_action',
@@ -1691,6 +1693,7 @@ export function useAsk({
         if (
           providerCallStarted &&
           providerAudit &&
+          !providerAudit.assuredAvailable &&
           isVerifiableProvider(providerAudit.providerId) &&
           isAuthRejectionError(raw, {
             mode: getConfidentialityMode(),

@@ -37,6 +37,11 @@ vi.mock('@/platform/providers/GeminiProvider', () => ({
 
 vi.mock('@/features/ask/ChatCostChip', () => ({ ChatCostChip: () => null }));
 
+vi.mock('@/platform/hooks/useConfidentialityMode', () => ({
+  getConfidentialityMode: () => 'assured',
+  useConfidentialityMode: () => 'assured',
+}));
+
 // The personal-install choice gate (Task 1.3) lives in localOnlyGuard.
 // Stub assertCloudGenerationAllowed as a no-op here — these tests focus on
 // the assured stream flag, not on the confidentiality-choice gate itself.

@@ -230,7 +230,7 @@ describe('Ask buildProviderAsync honours local-only (A1)', () => {
     h.localStatus = 'absent';
     h.ollamaReachable = false;
     await expect(buildResolvedAskProvider()).rejects.toThrow(
-      /Lantern Local AI is still downloading or setting up/,
+      /Local AI is still downloading or setting up/,
     );
   });
 

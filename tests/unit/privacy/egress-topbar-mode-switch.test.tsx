@@ -58,6 +58,10 @@ vi.mock('@/platform/utils/tauri-commands', async (orig) => {
 vi.mock('@/platform/providers/KeychainService', () => ({
   KeychainService: vi.fn().mockImplementation(function () {
     return {
+      getKey: async (p: string) => {
+        if (h.hold) await h.hold;
+        return h.keys[p as keyof typeof h.keys] ?? null;
+      },
       hasKey: async (p: string) => {
         if (h.hold) await h.hold;
         return Boolean(h.keys[p as keyof typeof h.keys]?.trim());
@@ -142,16 +146,12 @@ describe('top-bar badge destination agrees with the send path across modes', () 
     expect(screen.getByTestId('egress-indicator').textContent).not.toMatch(/Using local AI/i);
   });
 
-  // COORDINATOR RULING (fix round 2): the GLOBAL top-bar badge mirrors
-  // Ask/Workflows (BYOK-preferred), so it does NOT show assured. A personal key
-  // in assured mode → provider-direct (what Ask actually sends). Email's own
-  // action-time note stays assured (see resolveEmailProvider).
-  it('assured mode + a personal key → global badge is provider-direct (BYOK), NOT assured-proxy', async () => {
+  it('assured mode + a personal key → global badge is assured-proxy when a firm route is live', async () => {
     h.mode = 'assured';
     h.assuredProviders = ['openai'];
     h.keys.anthropic = 'sk-ant';
     render(<TopBarBadge mode="assured" />);
-    await waitFor(() => expect(destination()).toBe('provider-direct'));
+    await waitFor(() => expect(destination()).toBe('assured-proxy'));
   });
 });
 

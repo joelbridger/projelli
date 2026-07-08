@@ -16,10 +16,8 @@ import {
 } from '@/platform/rag/sourceProvenance';
 import type { WorkspaceSource } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
-import { createProvider } from '@/platform/providers/providerFactory';
 import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import { mailGetMessage } from '@/platform/utils/mail-commands';
-import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
 import { LOCAL_AI_NAME } from '@/config/brandText';
 import {
@@ -32,13 +30,10 @@ import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import type { ChatMessage } from '@/platform/types/ai';
-import {
-  cloudKeyPresenceFromValues,
-  type CloudProviderKeyValues,
-} from '@/platform/providers/resolvePreferredCloudProvider';
+import { KeychainService } from '@/platform/providers/KeychainService';
+import { resolveActiveGenerationProvider } from '@/platform/providers/resolveActiveGenerationProvider';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
-  resolveActiveCloudResolution,
   resolveActiveEgressProviderId,
   type ActiveEgressProviderId,
 } from '@/platform/privacy/activeEgressProvider';
@@ -266,6 +261,7 @@ export interface ResolvedAskProvider {
   provider: Provider;
   providerId: 'anthropic' | 'openai' | 'google' | 'ollama' | 'lantern-local';
   model: string;
+  assuredAvailable: boolean;
 }
 
 // NO_AI_PROVIDER's value is the literal 'none'; we spell it out here (rather than
@@ -321,7 +317,8 @@ export async function hasCloudKey(): Promise<boolean> {
 }
 
 async function resolveAvailableLocalAskProvider(): Promise<ResolvedAskProvider | null> {
-  return await resolveAvailableLocalGenerationProvider();
+  const local = await resolveAvailableLocalGenerationProvider();
+  return local ? { ...local, assuredAvailable: false } : null;
 }
 
 /**
@@ -392,34 +389,23 @@ export async function buildResolvedAskProvider(): Promise<ResolvedAskProvider> {
   // personal install with no cloud key still falls back to local Ollama (no egress).
   // Retrieval (MemoryService) runs BEFORE this function and is unaffected. Firm installs
   // are a no-op (the gate checks isFirm first and passes through).
-  const kc = new KeychainService();
-  const cloudKeys: CloudProviderKeyValues = {
-    anthropic: (await kc.getKey('anthropic'))?.trim(),
-    openai: (await kc.getKey('openai'))?.trim(),
-    google: (await kc.getKey('google'))?.trim(),
-  };
-  // Same cloud-selection path the pre-send badge uses (resolveActiveCloudResolution
-  // in activeEgressProvider.ts), so the badge name and the actual send can never
-  // disagree.
-  const resolved = resolveActiveCloudResolution(cloudKeyPresenceFromValues(cloudKeys));
-
+  const resolved = await resolveActiveGenerationProvider({
+    mode: getConfidentialityMode(),
+    stream: true,
+    allowCloudFallback: true,
+    preservePinnedLocal: false,
+  });
   if (resolved) {
-    const apiKey = cloudKeys[resolved.provider];
-    if (apiKey) {
+    if (resolved.destination !== 'local') {
       assertCloudGenerationAllowed();
-      // One front door: build through the shared factory so this surface can
-      // never drift from the redline / chat / Client Map on which provider a
-      // given selection maps to (fix F2.2). resolved.provider is cloud-only
-      // here; the factory throws on an unknown id rather than defaulting.
-      const provider = createProvider({ provider: resolved.provider, apiKey, model: resolved.model });
-      return { provider, providerId: resolved.provider, model: provider.getMetadata().model };
     }
+    return {
+      provider: resolved.provider,
+      providerId: resolved.providerId,
+      model: resolved.provider.getMetadata().model,
+      assuredAvailable: resolved.assuredAvailable,
+    };
   }
-  // No usable cloud provider (no key, or no explicit choice yet). In Direct /
-  // Assured mode, only claim a local route after proving one exists: embedded
-  // Lantern Local AI ready, else a reachable Ollama daemon.
-  const localProvider = await resolveAvailableLocalAskProvider();
-  if (localProvider) return localProvider;
   throw new Error(NO_ASK_PROVIDER_CONNECTED_MESSAGE);
 }
 
@@ -436,7 +422,12 @@ export async function buildProviderAsync(): Promise<Provider> {
  */
 function buildDemoAskProvider(): ResolvedAskProvider {
   const provider = createDemoProvider();
-  return { provider, providerId: 'anthropic', model: provider.getMetadata().model };
+  return {
+    provider,
+    providerId: 'anthropic',
+    model: provider.getMetadata().model,
+    assuredAvailable: false,
+  };
 }
 
 /**

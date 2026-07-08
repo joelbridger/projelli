@@ -425,3 +425,47 @@ describe('F-503 — embedded local model preferred in private mode', () => {
     expect(r.kind).toBe('cloud');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Assured routing — firm zero-retention route wins before personal BYOK
+// ---------------------------------------------------------------------------
+
+describe('Assured workflow provider resolution', () => {
+  it('assured route wins over a leftover personal key, even for a different cloud provider', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude',
+      pickedModel: 'claude-sonnet-4-6',
+      anthropicKey: 'sk-ant-leftover',
+      localOnly: false,
+      assuredRoute: {
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+        accessToken: 'access',
+        seatToken: 'seat',
+        stream: false,
+      },
+    } as Partial<ResolveWorkflowProviderInput>));
+
+    expect(r).toMatchObject({
+      kind: 'assured-cloud',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+    });
+  });
+
+  it('missing assured route falls back to BYOK before sending', () => {
+    const r = resolveWorkflowProvider(makeInput({
+      pickedProvider: 'claude',
+      pickedModel: 'claude-sonnet-4-6',
+      anthropicKey: 'sk-ant',
+      localOnly: false,
+      assuredRoute: undefined,
+    } as Partial<ResolveWorkflowProviderInput>));
+
+    expect(r).toMatchObject({
+      kind: 'cloud',
+      provider: 'claude',
+      model: 'claude-sonnet-4-6',
+    });
+  });
+});

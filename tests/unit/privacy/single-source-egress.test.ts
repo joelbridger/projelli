@@ -72,6 +72,8 @@ vi.mock('@/platform/utils/tauri-commands', async (orig) => {
 vi.mock('@/platform/providers/KeychainService', () => ({
   KeychainService: vi.fn().mockImplementation(function () {
     return {
+      getKey: (p: string) =>
+        Promise.resolve(h.keys[p as keyof typeof h.keys] ?? null),
       hasKey: (p: string) =>
         Promise.resolve(Boolean(h.keys[p as keyof typeof h.keys]?.trim())),
       getStoredKeys: () =>
@@ -84,6 +86,7 @@ vi.mock('@/platform/providers/KeychainService', () => ({
 
 import {
   pickEgressDestination,
+  resolveActiveEgressDestination,
   resolveActiveEgressProviderId,
   toRealProviderId,
 } from '@/platform/privacy/activeEgressProvider';
@@ -188,24 +191,28 @@ describe('the two render paths resolve identically (single source)', () => {
     expect(await resolveActiveAskProviderId()).toBe('lantern-local');
   });
 
-  // COORDINATOR RULING (fix round 2): the GLOBAL badge mirrors Ask/Workflows,
-  // which prefer personal BYOK over the firm assured route. So the global resolver
-  // does NOT prefer assured. (Email's OWN action-time note stays assured — proven
-  // in resolveEmailProvider.test.ts.)
-  it('assured mode + a personal key → global badge = the BYOK provider (matches what Ask sends), NOT assured', async () => {
+  it('assured mode + a personal key → global badge = the firm assured provider, not the BYOK key', async () => {
     h.mode = 'assured';
     h.assuredProviders = ['openai'];
     h.keys = { anthropic: 'sk-ant', openai: null, google: null };
-    expect(await resolveActiveEgressProvider('assured')).toBe('anthropic');
-    expect(await resolveActiveAskProviderId()).toBe('anthropic');
+    expect(await resolveActiveEgressProvider('assured')).toBe('openai');
+    expect(await resolveActiveAskProviderId()).toBe('openai');
+    await expect(resolveActiveEgressDestination('assured')).resolves.toEqual({
+      providerId: 'openai',
+      assuredAvailable: true,
+    });
   });
 
-  it('assured mode + NO personal key → global badge falls back like Ask (none here), never names an assured provider', async () => {
+  it('assured mode + NO personal key → global badge still names the firm assured provider', async () => {
     h.mode = 'assured';
     h.assuredProviders = ['openai'];
     h.keys = { anthropic: null, openai: null, google: null };
-    expect(await resolveActiveEgressProvider('assured')).toBe('none');
-    expect(await resolveActiveAskProviderId()).toBe('none');
+    expect(await resolveActiveEgressProvider('assured')).toBe('openai');
+    expect(await resolveActiveAskProviderId()).toBe('openai');
+    await expect(resolveActiveEgressDestination('assured')).resolves.toEqual({
+      providerId: 'openai',
+      assuredAvailable: true,
+    });
   });
 });
 

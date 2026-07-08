@@ -29,12 +29,15 @@ import type { Provider } from '@/platform/providers/Provider';
 import { createProvider, isLocalProviderId } from '@/platform/providers/providerFactory';
 import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import {
+  resolveActiveGenerationProvider,
+  resolveActiveGenerationRoute,
+} from '@/platform/providers/resolveActiveGenerationProvider';
+import {
   effectiveChatProvider,
   resolveAvailableProviders,
   type LocalModelAvailability,
 } from '@/features/ask/chat/providerModelResolution';
 import { assertLocalOnlyAllowsSend, assertCloudGenerationAllowed, isLocalOnlyMode, LocalOnlyEgressError } from '@/platform/privacy/localOnlyGuard';
-import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
 import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import { isTauriProductionBuild, parseApiError, ApiResponseParseError } from '@/platform/providers/fetchUtils';
@@ -267,7 +270,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
     onFileTreeChange,
     onAuditLog,
     t,
-    assuredAvailableForChat,
     sessions,
     addMessage,
     updateLastMessage,
@@ -284,7 +286,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
     messages,
     isLoading,
     aiRules,
-    openFiles,
     scopedOpenFiles,
     inputValue,
     pendingAttachments,
@@ -418,10 +419,26 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // window too) rather than guess a cloud default and leak. Silent, like the
     // empty-input / already-loading guards above.
     if (effectiveProvider === null) return;
+    const preferredProvider = effectiveProvider === 'none' ? null : effectiveProvider;
+    const preferredModel = chatData.model ?? (preferredProvider === 'openai' ? OPENAI_DEFAULT_MODEL : undefined);
+    const cloudKeys = {
+      anthropic: apiKeys.find((key) => key.provider === 'anthropic' && key.isValid)?.key,
+      openai: apiKeys.find((key) => key.provider === 'openai' && key.isValid)?.key,
+      google: apiKeys.find((key) => key.provider === 'google' && key.isValid)?.key,
+    };
+    const preflightRoute = await resolveActiveGenerationRoute({
+      mode: getConfidentialityMode(),
+      preferredProvider,
+      stream: true,
+      allowCloudFallback: true,
+      preservePinnedLocal: preferredProvider !== null && isLocalProviderId(preferredProvider),
+      cloudKeys,
+      ...(preferredModel ? { preferredModel } : {}),
+    });
     // No provider configured at all (no valid key, no on-device model). Surface
     // a clear, honest message instead of a confusing "No valid none API key"
     // error — and matching the egress badge that now reads "No AI connected".
-    if (effectiveProvider === 'none') {
+    if (preflightRoute.providerId === 'none' || preflightRoute.providerId === 'local-pending') {
       addMessage(chatId, {
         role: 'assistant',
         content: 'No AI provider is connected. Add an API key in Settings, or set up local AI, to start chatting.',
@@ -430,6 +447,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
       });
       return;
     }
+    const sendProvider = preflightRoute.providerId;
+    const sendModel = preflightRoute.model;
+    const sendAssuredAvailable = preflightRoute.assuredAvailable;
     const bypassContextLimit = bypassNextContextLimitRef.current;
     bypassNextContextLimitRef.current = false;
 
@@ -456,7 +476,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       ? { kind: 'matter', matterId: activeMatter.id }
       : { kind: 'allMatters' };
     const fileToolsEnabled = fileToolsAllowed(getFileAccessConsent(chatId), turnConsentScope);
-    const providerIsCloud = !isLocalProviderId(effectiveProvider);
+    const providerIsCloud = preflightRoute.destination !== 'local';
 
     const rawContent = inputValue.trim();
     const parsed = parseWorkspaceCommand(rawContent);
@@ -876,32 +896,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
       let providerCallAttempted = false;
       try {
         // Determine provider from chat data, fallback to anthropic
-        const chatProvider = effectiveProvider;
-        const chatModel = chatData.model;
+        let chatProvider = sendProvider;
+        let chatModel = sendModel;
         let effectiveChatModel = chatModel ?? chatProvider;
-
-        // WS-C honesty — a LOCAL provider (Ollama) needs no API key; inference
-        // runs on the user's own machine. The key lookup + "no key" error only
-        // applies to cloud providers. We MUST NOT fall through from a local
-        // selection to a cloud provider on any path below.
-        const isLocal = isLocalProviderId(chatProvider);
-
-        // Find valid API key for the chat's provider (cloud only).
-        const apiKey = isLocal
-          ? undefined
-          : apiKeys.find(k => k.provider === chatProvider && k.isValid);
-
-        if (!isLocal && !apiKey) {
-          const providerNames: Record<string, string> = { anthropic: 'Anthropic', openai: 'OpenAI', google: 'Google' };
-          throw new Error(`No valid ${providerNames[chatProvider] ?? chatProvider} API key found. Please add your API key in the settings.`);
-        }
+        let assuredAvailableForSend = sendAssuredAvailable;
 
         const buildEgressAuditPayload = () => {
           const egress = resolveEgress({
             provider: chatProvider,
             mode: getConfidentialityMode(),
             isDemo: IS_DEMO,
-            assuredAvailable: assuredAvailableForChat,
+            assuredAvailable: assuredAvailableForSend,
           });
           // A3: build the egress audit scope from the scope CAPTURED at send time
           // (`turnScope`), NOT a late getActiveScope(). The egress records which
@@ -1440,12 +1445,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
         // Create the appropriate provider
         let provider: Provider;
-        const rulesOpt = aiRules ? { aiRules } : {};
-        // Firm "Assured" path: when confidentiality mode is 'assured' AND the
-        // firm has a managed key for this provider, route the cloud call through
-        // the zero-retention proxy. Undefined => BYOK-direct (unchanged).
-        const assuredRoute = resolveAssuredRoute(chatProvider, chatModel || '', useStreamingForThisSend);
-        const assuredOpt = assuredRoute ? { assured: assuredRoute } : {};
 
         if (IS_DEMO) {
           // Demo build: route every chat through the demo provider, which
@@ -1454,6 +1453,24 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // demo's seeded workspace is read-mostly and the proxy is text-only.
           provider = createDemoProvider({ ...(chatModel ? { model: chatModel } : {}) });
         } else {
+          const resolvedGeneration = await resolveActiveGenerationProvider({
+            mode: getConfidentialityMode(),
+            preferredProvider: chatProvider,
+            stream: useStreamingForThisSend,
+            allowCloudFallback: true,
+            preservePinnedLocal: isLocalProviderId(chatProvider),
+            cloudKeys,
+            ...(chatModel ? { preferredModel: chatModel } : {}),
+            ...(aiRules ? { aiRules } : {}),
+          });
+          if (!resolvedGeneration) {
+            throw new Error('No AI provider is connected. Add an API key in Settings, or set up local AI, to start chatting.');
+          }
+          chatProvider = resolvedGeneration.providerId;
+          chatModel = resolvedGeneration.model;
+          provider = resolvedGeneration.provider;
+          effectiveChatModel = provider.getMetadata().model;
+          assuredAvailableForSend = resolvedGeneration.assuredAvailable;
           // Local-only ENFORCEMENT (privacy): the egress indicator says
           // "nothing leaves" in Local-only mode, but this send routes by the
           // chat's STORED provider — so a chat created with a cloud provider and
@@ -1469,30 +1486,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // the provider check; local-only mode is already caught above; firm installs
           // are a no-op (the gate checks isFirm first and passes through).
           assertCloudGenerationAllowed(chatProvider);
-          // WS-C honesty — one front door (fix F2.2): this is the single chat
-          // send path, and it builds the provider through the shared factory so
-          // it can never drift from redline / Client Map / At-a-Glance on which
-          // provider a selection maps to. A LOCAL id ('ollama'/'lantern-local')
-          // constructs the on-device engine and ignores the empty key + assured
-          // route; the factory throws on an unknown id rather than defaulting to
-          // Claude, so a confidential/local chat can never be silently routed to
-          // the cloud. (createProvider ignores `assured` for local ids.)
-          provider = createProvider({
-            provider: chatProvider,
-            apiKey: apiKey?.key ?? '',
-            // Preserve the pre-F2.2 no-model default EXACTLY: when a chat carries
-            // no stored model (a legacy/edge .aichat), OpenAI used its own
-            // constructor default (gpt-4o), not the factory's free-tier default
-            // (gpt-4o-mini). Local ids and Anthropic/Gemini already match, so
-            // only OpenAI needs the explicit fallback.
-            ...(chatModel
-              ? { model: chatModel }
-              : chatProvider === 'openai'
-                ? { model: OPENAI_DEFAULT_MODEL }
-                : {}),
-            ...rulesOpt,
-            ...assuredOpt,
-          });
           // File-access tools are a CLOUD-provider capability: the local engines
           // don't support tool calling (the non-tool streaming path handles them
           // and the egress indicator stays "nothing leaves"). setTools lives on
@@ -1824,14 +1817,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
           updateLastMessage(chatId, bufferedPartial);
         }
 
-        const chatProvider = effectiveProvider;
-        const chatModel = chatData.model;
+        const chatProvider = sendProvider;
+        const chatModel = sendModel;
         if (!providerSendCompletedOrCancelledAfterEgress || error instanceof LocalOnlyEgressError) {
           const egress = resolveEgress({
             provider: chatProvider,
             mode: getConfidentialityMode(),
             isDemo: IS_DEMO,
-            assuredAvailable: assuredAvailableForChat,
+            assuredAvailable: sendAssuredAvailable,
           });
           const failureType = error instanceof LocalOnlyEgressError
             ? 'egress_blocked'
@@ -1874,6 +1867,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         const rawErrorMessage = error instanceof Error ? error.message : String(error);
         if (
           providerCallAttempted &&
+          !sendAssuredAvailable &&
           isVerifiableProvider(chatProvider) &&
           isAuthRejectionError(rawErrorMessage, {
             mode: getConfidentialityMode(),
@@ -1891,7 +1885,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // telling the user how to fix it. We NEVER silently retry on a cloud
         // provider here: a Local-only / Ollama selection that errors stays
         // local-and-failed, it does not leak to the cloud.
-        if (isLocalProviderId(effectiveProvider)) {
+        if (isLocalProviderId(chatProvider)) {
           errorContent =
             "Ollama isn't running, so this local chat couldn't get a response. " +
             'Start Ollama (then try again), or switch your confidentiality mode ' +
@@ -1913,10 +1907,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
           if (statusCode) {
             const parsed = parseApiError(
-              effectiveProvider as 'anthropic' | 'openai' | 'google',
+              chatProvider as 'anthropic' | 'openai' | 'google',
               statusCode,
               error.message,
-              chatData.model,
+              chatModel,
             );
             errorContent = `${parsed.message}\n${parsed.guidance}`;
           } else {
@@ -1962,7 +1956,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       streamFlusher?.finish();
       useAiBatchReviewStore.getState().openReview();
     });
-  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, setStreamingPreview, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, openFiles, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged]);
+  }, [inputValue, pendingAttachments, pdfExtractions, previewUrls, messages, chatData, localAvailability, onSave, isLoading, apiKeys, chatId, addMessage, updateLastMessage, updateMessages, setLoading, setStreamingPreview, workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, aiRules, scopedOpenFiles, scopedFolder, recordCost, clearDraftInput, askWorkspaceMode, activeMatter, includePrivileged, abortControllerRef, chatContextTokenLimit, handleManualCompress, setCompressedTokensBefore, setCompressionModalOpen, setInputValue, setMissingSourceWarning, setPdfExtractions, setPendingAttachments, setPendingCompressAndSend, setPreviewUrls, t]);
 
   const handleSendAnyway = useCallback(() => {
     bypassNextContextLimitRef.current = true;

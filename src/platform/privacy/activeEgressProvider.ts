@@ -7,13 +7,9 @@
  * disagrees with itself is worse than none, so every egress consumer now resolves
  * through the functions here.
  *
- * Fix round 1 hardened three real defects the badge must never have:
- *   - ASSURED (item 2, revised by the fix-round-2 ruling): the GLOBAL badge is BYOK-first (it mirrors Ask/Workflows' real send preference); assured shows globally only when a firm route can send through
- *     the zero-retention proxy for a provider the user has NO personal key for.
- *     The resolver checks `resolveAssuredRoute` FIRST (assured wins over personal
- *     BYOK, exactly like the email send path), and returns `assuredAvailable` so
- *     the badge renders the assured-proxy destination instead of falsely saying
- *     "No AI connected" or naming a personal provider.
+ * The badge now resolves through the same Assured-first generation route the
+ * send paths use: local-only → demo → firm Assured → personal BYOK → on-device
+ * fallback → none.
  *   - STRICT LOCAL (item 3): in 'local-only' mode we use the SAME strict probe
  *     the send uses (`resolveAvailableLocalGenerationProvider`) — embedded model
  *     ready, else a PROVABLY-REACHABLE Ollama. When nothing is usable the badge
@@ -28,8 +24,6 @@ import {
   NO_AI_PROVIDER,
   LOCAL_PENDING_PROVIDER,
 } from '@/platform/privacy/egress';
-import { IS_DEMO } from '@/web-demo/demoModeFlag';
-import { KeychainService } from '@/platform/providers/KeychainService';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
   getInvalidProviders,
@@ -45,7 +39,10 @@ import {
   PROFESSION_MODEL_STORAGE_KEY,
   PROFESSION_PROVIDER_STORAGE_KEY,
 } from '@/platform/profile/professionModel';
-import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
+import {
+  resolveActiveGenerationRoute,
+  resolveActiveGenerationRouteSync,
+} from '@/platform/providers/resolveActiveGenerationProvider';
 
 /** The concrete engine ids the badge can name, plus the two sentinels. */
 export type ActiveEgressProviderId =
@@ -180,52 +177,16 @@ export function resolveActiveCloudResolution(
 export async function resolveActiveEgressDestination(
   mode: string,
 ): Promise<ActiveEgressDestination> {
-  if (mode === 'local-only') {
-    // STRICT probe — same as resolveLocalOnlyAskProvider: an engine only when one
-    // is genuinely usable, else LOCAL_PENDING ("setting up").
-    const local = await resolveAvailableLocalGenerationProvider();
-    return pickEgressDestination({
-      localOnly: true,
-      isDemo: false,
-      assuredProvider: null,
-      cloudProvider: null,
-      localOnlyEngineId: local?.providerId ?? null,
-      availableLocalEngineId: null,
-    });
-  }
-  if (IS_DEMO) return { providerId: 'anthropic', assuredAvailable: false };
-
-  // COORDINATOR SCOPE RULING (fix round 2): the GLOBAL top-bar badge mirrors
-  // TODAY'S Ask + Workflows reality, where personal BYOK wins over the firm
-  // Assured route (Ask/Workflows do not route through the assured proxy — only
-  // email/chat/redline do). So the global resolver does NOT prefer assured:
-  // `assuredProvider` is always null here. The underlying send-side
-  // inconsistency (email prefers Assured; Ask/Workflows prefer BYOK) is a
-  // PRE-EXISTING product bug filed for a dedicated lane — not rewired here.
-  // Email's OWN action-time indicators stay assured-honest by resolving through
-  // resolveEmailProvider() (assured-preferred) and feeding its assuredAvailable
-  // into resolveEgress() — independent of this global hook.
-  const kc = new KeychainService();
-  const availableKeys: CloudProviderKeyPresence = {
-    anthropic: await kc.hasKey('anthropic'),
-    openai: await kc.hasKey('openai'),
-    google: await kc.hasKey('google'),
-  };
-  const cloud = resolveActiveCloudResolution(availableKeys);
-  const cloudProvider = (cloud?.provider ?? null) as ActiveEgressProviderId | null;
-  let availableLocalEngineId: 'lantern-local' | 'ollama' | null = null;
-  if (!cloud) {
-    const local = await resolveAvailableLocalGenerationProvider();
-    availableLocalEngineId = local?.providerId ?? null;
-  }
-  return pickEgressDestination({
-    localOnly: false,
-    isDemo: false,
-    assuredProvider: null,
-    cloudProvider,
-    localOnlyEngineId: null,
-    availableLocalEngineId,
+  const route = await resolveActiveGenerationRoute({
+    mode,
+    stream: true,
+    allowCloudFallback: true,
+    preservePinnedLocal: false,
   });
+  return {
+    providerId: route.providerId as ActiveEgressProviderId,
+    assuredAvailable: route.assuredAvailable,
+  };
 }
 
 /**
@@ -241,33 +202,16 @@ export async function resolveActiveEgressDestination(
  * fallback.
  */
 export function resolveActiveEgressDestinationSync(mode: string): ActiveEgressDestination {
-  if (mode === 'local-only') {
-    return { providerId: LOCAL_PENDING_PROVIDER, assuredAvailable: false };
-  }
-  if (IS_DEMO) return { providerId: 'anthropic', assuredAvailable: false };
-
-  // Global badge mirrors Ask/Workflows (BYOK-preferred) — see the ruling comment
-  // in resolveActiveEgressDestination above. No global assured preference.
-  let present = new Set<string>();
-  try {
-    present = new Set(new KeychainService().getStoredKeys().map((k) => k.provider));
-    // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort sync mirror for the initial paint; the authoritative async check corrects it
-  } catch {
-    // KeychainService unavailable — fall through to "no provider".
-  }
-  const cloud = resolveActiveCloudResolution({
-    anthropic: present.has('anthropic'),
-    openai: present.has('openai'),
-    google: present.has('google'),
+  const route = resolveActiveGenerationRouteSync({
+    mode,
+    stream: true,
+    allowCloudFallback: true,
+    preservePinnedLocal: false,
   });
-  return pickEgressDestination({
-    localOnly: false,
-    isDemo: false,
-    assuredProvider: null,
-    cloudProvider: (cloud?.provider ?? null) as ActiveEgressProviderId | null,
-    localOnlyEngineId: null,
-    availableLocalEngineId: null,
-  });
+  return {
+    providerId: route.providerId as ActiveEgressProviderId,
+    assuredAvailable: route.assuredAvailable,
+  };
 }
 
 /**

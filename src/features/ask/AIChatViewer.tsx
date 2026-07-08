@@ -25,12 +25,14 @@ import { cn } from '@/lib/utils';
 import type { AIChatFile } from '@/platform/types/ai';
 import type { AuditEntry } from '@/platform/types/audit';
 import type { Provider } from '@/platform/providers/Provider';
-import { createProvider } from '@/platform/providers/providerFactory';
-import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
 import { isLocalProviderId } from '@/platform/providers/providerFactory';
-import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
+import { OPENAI_DEFAULT_MODEL } from '@/platform/providers/OpenAIProvider';
+import { assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
+import { resolveActiveGenerationProvider } from '@/platform/providers/resolveActiveGenerationProvider';
 import { isAssuredProvider } from '@/platform/firm/resolveAssuredRoute';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { getConfidentialityMode, useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { useActiveEgressDestination } from '@/platform/hooks/useActiveEgressProvider';
 import { useAIChatStore, getDraftInput, useAskWorkspaceMode, useScopedFolder, useFileAccessConsent } from '@/platform/state/aiChatStore';
 import type { ConsentScope } from '@/platform/ai/fileAccessConsent';
 import { useActiveMatter, useActiveMatters } from '@/platform/matter/matterStore';
@@ -191,19 +193,24 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   // configured" (the two now agree).
   const validProviders = resolveAvailableProviders(apiKeys);
   const effectiveProvider = effectiveChatProvider(chatData.provider, localAvailability, validProviders);
+  const confidentialityMode = useConfidentialityMode();
+  const activeEgressDestination = useActiveEgressDestination(confidentialityMode);
   const localStatusPending = effectiveProvider === null;
   // No usable provider at all (no saved/valid key, no on-device model). Distinct
   // from `localStatusPending` (probe still running): here we KNOW there's nothing
   // to send with, so the badge shows "No AI connected" and send is disabled.
-  const noProviderConnected = effectiveProvider === 'none';
+  const noProviderConnected =
+    effectiveProvider === 'none' && activeEgressDestination?.providerId === 'none';
   // Firm "Assured" availability for THIS chat's provider — does the firm have a
   // managed key for it? Drives the egress indicator's assured-proxy story.
-  const assuredAvailableForChat = useFirmStore((s) =>
+  const assuredAvailableForSavedProvider = useFirmStore((s) =>
     effectiveProvider !== null &&
     effectiveProvider !== 'none' &&
     isAssuredProvider(effectiveProvider) &&
     s.assuredProviders.includes(effectiveProvider),
   );
+  const assuredAvailableForChat =
+    activeEgressDestination?.assuredAvailable ?? assuredAvailableForSavedProvider;
   // 30-day trial gate. Locks chat send + voice when expired and not paid.
   const trialGate = useTrialGate();
   // Use global store for chat state (persists across navigation)
@@ -430,44 +437,14 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
     // While the local-model status probe is unresolved (effectiveProvider null)
     // we don't know the destination — bail and let the effect re-run once it
     // resolves (effectiveProvider is in the dep array), never guessing a cloud.
-    if (effectiveProvider === null || effectiveProvider === 'none') return;
-    const chatProvider = effectiveProvider;
-    // WS-C honesty — a LOCAL (Ollama) chat extracts facts on the local model
-    // itself ($0, nothing leaves). It needs no key, so it must not be gated by
-    // the cloud key check, and it must NEVER fall through to a cloud provider.
-    const isLocal = isLocalProviderId(chatProvider);
-    // BUG-021 (privacy): auto fact-extraction sends the conversation transcript
-    // to the provider. In Local-only mode, never run it on a cloud provider —
-    // advance the checkpoint and skip, so the transcript can't leak.
-    if (isLocalOnlyMode() && !isLocal) {
-      extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
-      return;
-    }
-    // Personal-install choice gate (Task 1.3 fix): auto fact-extraction is cloud
-    // generation; block it until the user has made an explicit confidentiality choice.
-    // Skip for local providers (they never leave the machine). Advance the checkpoint
-    // so we don't spin — when the user makes a choice, the store changes and the next
-    // render will trigger a fresh extraction check.
-    if (!isLocal) {
-      try {
-        assertCloudGenerationAllowed(chatProvider);
-      } catch {
-        extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
-        return;
-      }
-    }
-    const apiKey = isLocal
-      ? undefined
-      : apiKeys.find((k) => k.provider === chatProvider && k.isValid);
-    if (!isLocal && !apiKey) {
-      // No key — silently advance the checkpoint so we don't spin on
-      // every render. Next checkpoint will try again when there's a key.
-      extractionStateRef.current = markCheckpointRan(
-        extractionStateRef.current,
-        count,
-      );
-      return;
-    }
+    if (effectiveProvider === null) return;
+    const preferredProvider = effectiveProvider === 'none' ? null : effectiveProvider;
+    const preferredModel = chatData.model ?? (preferredProvider === 'openai' ? OPENAI_DEFAULT_MODEL : undefined);
+    const cloudKeys = {
+      anthropic: apiKeys.find((k) => k.provider === 'anthropic' && k.isValid)?.key,
+      openai: apiKeys.find((k) => k.provider === 'openai' && k.isValid)?.key,
+      google: apiKeys.find((k) => k.provider === 'google' && k.isValid)?.key,
+    };
 
     extractionInFlightRef.current = true;
     // A1 (Codex P1): bind the fact to the client the TRANSCRIPT belongs to, not
@@ -496,23 +473,28 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
           return;
         }
 
-        // One front door: build through the shared factory (fix F2.2). Local
-        // ids ('ollama'/'lantern-local') construct the local engine and ignore
-        // the empty key; cloud ids use the validated key resolved above. The
-        // factory throws on an unknown id rather than defaulting to a cloud
-        // provider, so a local/confidential selection can never be downgraded.
-        const provider: Provider = createProvider({
-          provider: chatProvider,
-          apiKey: apiKey?.key ?? '',
-          // Preserve the pre-F2.2 no-model default EXACTLY: only OpenAI's factory
-          // free-tier default (gpt-4o-mini) differs from its constructor default
-          // (gpt-4o) that this path used before; local/Anthropic/Gemini match.
-          ...(chatData.model
-            ? { model: chatData.model }
-            : chatProvider === 'openai'
-              ? { model: OPENAI_DEFAULT_MODEL }
-              : {}),
+        const resolvedProvider = await resolveActiveGenerationProvider({
+          mode: getConfidentialityMode(),
+          preferredProvider,
+          stream: false,
+          allowCloudFallback: true,
+          preservePinnedLocal: preferredProvider !== null && isLocalProviderId(preferredProvider),
+          cloudKeys,
+          ...(preferredModel ? { preferredModel } : {}),
         });
+        if (!resolvedProvider) {
+          extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
+          return;
+        }
+        if (resolvedProvider.destination !== 'local') {
+          try {
+            assertCloudGenerationAllowed(resolvedProvider.providerId);
+          } catch {
+            extractionStateRef.current = markCheckpointRan(extractionStateRef.current, count);
+            return;
+          }
+        }
+        const provider: Provider = resolvedProvider.provider;
         const proposals = await runExtraction(provider, messages);
         extractionStateRef.current = markCheckpointRan(
           extractionStateRef.current,
