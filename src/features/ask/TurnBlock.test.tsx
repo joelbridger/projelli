@@ -24,7 +24,7 @@ const baseProps = {
 };
 
 /**
- * QA-7 — the "Answering…" spinner used to give no feedback at all, however
+ * QA-7 — the "Answering" spinner used to give no feedback at all, however
  * long it sat with no token. These specs pin the visible state machine: quiet
  * spinner while fresh, a warning line once `answerStalled` flips true (shown
  * whether the stall happens before the first token OR mid-answer, once some
@@ -34,13 +34,13 @@ const baseProps = {
 describe('TurnBlock — QA-7 stalled-answer feedback', () => {
   it('shows only the plain spinner when not stalled', () => {
     render(<TurnBlock {...baseProps} answerStalled={false} />);
-    expect(screen.getByText('Answering…')).toBeTruthy();
+    expect(screen.getByText('Answering')).toBeTruthy();
     expect(screen.queryByTestId('ask-answer-stalled-warning')).toBeNull();
   });
 
   it('shows the stalled warning once answerStalled is true, alongside the spinner', () => {
     render(<TurnBlock {...baseProps} answerStalled />);
-    expect(screen.getByText('Answering…')).toBeTruthy();
+    expect(screen.getByText('Answering')).toBeTruthy();
     const warning = screen.getByTestId('ask-answer-stalled-warning');
     expect(warning.textContent).toContain('taking longer than expected');
     expect(warning.textContent).toContain('local model may still be downloading or loading');
@@ -62,7 +62,7 @@ describe('TurnBlock — QA-7 stalled-answer feedback', () => {
   it('never shows the spinner once a real answer is streaming in, but is not stalled', () => {
     const inProgressTurn: AskTurn = { ...streamingTurn, answer: 'The Chen household is doing a 1031 exchange.' };
     render(<TurnBlock {...baseProps} turn={inProgressTurn} answerStalled={false} />);
-    expect(screen.queryByText('Answering…')).toBeNull();
+    expect(screen.queryByText('Answering')).toBeNull();
     expect(screen.queryByTestId('ask-answer-stalled-warning')).toBeNull();
   });
 
@@ -80,7 +80,7 @@ describe('TurnBlock — QA-7 stalled-answer feedback', () => {
     // The partial text itself must still render — the warning augments it,
     // it never replaces or hides the tokens already streamed in.
     expect(screen.getByText(/The Chen household is doing a/)).toBeTruthy();
-    expect(screen.queryByText('Answering…')).toBeNull();
+    expect(screen.queryByText('Answering')).toBeNull();
     const warning = screen.getByTestId('ask-answer-stalled-warning');
     expect(warning.textContent).toContain('taking longer than expected');
     fireEvent.click(screen.getByText('View AI status'));
@@ -93,19 +93,19 @@ describe('TurnBlock — QA-7 stalled-answer feedback', () => {
  * Local-only send may be waiting on the embedded sidecar to become healthy
  * (a cold model load can legitimately take up to two minutes). That's an
  * honest, expected wait — not a stall — so it gets its own message instead of
- * the generic "Answering…" spinner or the "taking longer than expected"
+ * the generic "Answering" spinner or the "taking longer than expected"
  * stall warning.
  */
 describe('TurnBlock — Fix 1b "Local AI is starting" state', () => {
-  it('shows "Local AI is starting…" instead of "Answering…" while localAiStarting is true', () => {
+  it('shows "Local AI is starting…" instead of "Answering" while localAiStarting is true', () => {
     render(<TurnBlock {...baseProps} localAiStarting />);
     expect(screen.getByText('Local AI is starting…')).toBeTruthy();
-    expect(screen.queryByText('Answering…')).toBeNull();
+    expect(screen.queryByText('Answering')).toBeNull();
   });
 
-  it('falls back to the plain "Answering…" spinner once localAiStarting clears', () => {
+  it('falls back to the plain "Answering" spinner once localAiStarting clears', () => {
     render(<TurnBlock {...baseProps} localAiStarting={false} />);
-    expect(screen.getByText('Answering…')).toBeTruthy();
+    expect(screen.getByText('Answering')).toBeTruthy();
     expect(screen.queryByText('Local AI is starting…')).toBeNull();
   });
 
@@ -125,10 +125,10 @@ describe('TurnBlock — Fix 1b "Local AI is starting" state', () => {
  * "taking longer than expected" warning before the (prompt-scaled) budget.
  */
 describe('TurnBlock — lp/localai-patience "reading your documents" state', () => {
-  it('shows the calm "reading your documents" message instead of "Answering…" while localEvaluating is true', () => {
+  it('shows the calm "reading your documents" message instead of "Answering" while localEvaluating is true', () => {
     render(<TurnBlock {...baseProps} localEvaluating />);
     expect(screen.getByText(/reading your documents/)).toBeTruthy();
-    expect(screen.queryByText('Answering…')).toBeNull();
+    expect(screen.queryByText('Answering')).toBeNull();
   });
 
   it('never shows the alarming stalled warning while calmly evaluating', () => {
@@ -137,9 +137,9 @@ describe('TurnBlock — lp/localai-patience "reading your documents" state', () 
     expect(screen.queryByText(/taking longer than expected/)).toBeNull();
   });
 
-  it('falls back to the plain "Answering…" spinner once localEvaluating clears', () => {
+  it('falls back to the plain "Answering" spinner once localEvaluating clears', () => {
     render(<TurnBlock {...baseProps} localEvaluating={false} />);
-    expect(screen.getByText('Answering…')).toBeTruthy();
+    expect(screen.getByText('Answering')).toBeTruthy();
     expect(screen.queryByText(/reading your documents/)).toBeNull();
   });
 

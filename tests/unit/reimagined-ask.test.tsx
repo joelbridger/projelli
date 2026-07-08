@@ -340,7 +340,7 @@ describe('Ask', () => {
   it('sample bridge callout renders its sample-data nudge', () => {
     render(<SampleBridgeCallout />);
     expect(screen.getByTestId('sample-bridge-callout')).toBeDefined();
-    expect(screen.getByText(/this is sample data/i)).toBeDefined();
+    expect(screen.getByText(/sample data\. add your first client/i)).toBeDefined();
   });
 
   it('sample bridge callout is hidden after clicking dismiss and localStorage key is set', () => {
@@ -397,12 +397,10 @@ describe('Ask', () => {
     };
     try {
       render(<Ask />);
-      // The persistent rail lists both threads under the "This client" group.
-      // (Scope the heading lookup to the rail — the same phrase also appears as a
-      // scope pill in the composer.)
+      // The persistent rail lists both threads. A lone group no longer needs a heading.
       const rail = screen.getByTestId('conversations-rail');
       expect(rail).toBeInTheDocument();
-      expect(within(rail).getByText(/this client/i)).toBeInTheDocument();
+      expect(within(rail).queryByText(/this client/i)).toBeNull();
       const items = screen.getAllByTestId('rail-conversation-item');
       expect(items.length).toBe(2);
       expect(screen.getByText(/what are the deposition highlights/i)).toBeInTheDocument();
@@ -467,66 +465,71 @@ describe('Ask', () => {
     expect(screen.getByTestId('scope-toggle')).toBeDefined();
   });
 
-  it('shows only "All matters" option when no matter is active', () => {
+  function openScopeMenu() {
+    fireEvent.pointerDown(screen.getByTestId('scope-toggle'), { button: 0, ctrlKey: false });
+  }
+
+  it('shows all non-client scope options when no matter is active', () => {
     mockActiveMatter = null;
     render(<Ask />);
-    // "This matter" should not be present
+    openScopeMenu();
     expect(screen.queryByTestId('scope-option-this-matter')).toBeNull();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
-    // Email and Documents visible (not sample matter)
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
+    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
   });
 
-  it('shows "This matter" + "All matters" + Email + Documents when a non-sample matter is active', () => {
+  it('shows the full scope menu when a non-sample matter is active', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
+    openScopeMenu();
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
     expect(screen.getByTestId('scope-option-email')).toBeDefined();
     expect(screen.getByTestId('scope-option-documents')).toBeDefined();
+    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
   });
 
-  it('hides Email and Documents options on the sample matter', () => {
+  it('keeps Email, Documents, and Book available on the sample matter', () => {
     mockActiveMatter = { id: SAMPLE_MATTER_ID, name: 'Garcia v. Meridian Properties LLC', isSample: true };
     render(<Ask />);
-    expect(screen.queryByTestId('scope-option-email')).toBeNull();
-    expect(screen.queryByTestId('scope-option-documents')).toBeNull();
-    // This matter and All matters still shown
+    openScopeMenu();
+    expect(screen.getByTestId('scope-option-email')).toBeDefined();
+    expect(screen.getByTestId('scope-option-documents')).toBeDefined();
     expect(screen.getByTestId('scope-option-this-matter')).toBeDefined();
     expect(screen.getByTestId('scope-option-all-matters')).toBeDefined();
+    expect(screen.getByTestId('scope-option-whole-practice')).toBeDefined();
   });
 
-  it('defaults to "this-matter" scope when a matter is active (aria-pressed=true)', () => {
+  it('defaults to "this-matter" scope when a matter is active', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
-    const thisMatterBtn = screen.getByTestId('scope-option-this-matter') as HTMLButtonElement;
-    expect(thisMatterBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('This client');
   });
 
   it('defaults to "all-matters" scope when no matter is active', () => {
     mockActiveMatter = null;
     render(<Ask />);
-    const allMattersBtn = screen.getByTestId('scope-option-all-matters') as HTMLButtonElement;
-    expect(allMattersBtn.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('All');
   });
 
   it('clicking the Email scope option changes active scope to email', () => {
     mockActiveMatter = { id: 'matter_abc', name: 'ABC v. XYZ' };
     render(<Ask />);
+    openScopeMenu();
     const emailBtn = screen.getByTestId('scope-option-email');
     fireEvent.click(emailBtn);
-    expect((screen.getByTestId('scope-option-email') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByTestId('scope-option-this-matter') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Email');
   });
 
   it('clicking the Documents scope option changes active scope to documents', () => {
     mockActiveMatter = null;
     render(<Ask />);
+    openScopeMenu();
     const docsBtn = screen.getByTestId('scope-option-documents');
     fireEvent.click(docsBtn);
-    expect((screen.getByTestId('scope-option-documents') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByTestId('scope-option-all-matters') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Docs');
   });
 
   // -------------------------------------------------------------------------
@@ -552,6 +555,7 @@ describe('Ask', () => {
     render(<Ask />);
 
     // Switch to Email scope then submit a question
+    openScopeMenu();
     const emailBtn = screen.getByTestId('scope-option-email');
     fireEvent.click(emailBtn);
 
@@ -562,7 +566,7 @@ describe('Ask', () => {
 
     // isMemoryEnabled() returns false in mock, so retrieve is NOT called.
     // The scope toggle itself (the thing under test) is verified by aria-pressed.
-    expect((screen.getByTestId('scope-option-email') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Email');
   });
 
   it('filterHitsByScope keeps only non-mail hits for documents scope', async () => {
@@ -576,12 +580,12 @@ describe('Ask', () => {
     render(<Ask />);
 
     // Switch to Documents scope
+    openScopeMenu();
     const docsBtn = screen.getByTestId('scope-option-documents');
     fireEvent.click(docsBtn);
 
     // Verify the scope selection registered
-    expect((screen.getByTestId('scope-option-documents') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('true');
-    expect((screen.getByTestId('scope-option-this-matter') as HTMLButtonElement).getAttribute('aria-pressed')).toBe('false');
+    expect(screen.getByTestId('scope-toggle')).toHaveTextContent('Docs');
   });
 
   // -------------------------------------------------------------------------
@@ -650,20 +654,20 @@ describe('Ask', () => {
   });
 
   // -------------------------------------------------------------------------
-  // Fix #5 — "Enable indexing" button in memory-off warning
+  // Fix #5 — "Enable" button in memory-off warning
   // -------------------------------------------------------------------------
 
-  it('shows the Enable indexing button when memory is off and no turns', () => {
+  it('shows the Enable button when memory is off and no turns', () => {
     render(<Ask />);
     // isMemoryEnabled() returns false in mock, so the warning should show
-    const btn = screen.queryByRole('button', { name: /enable indexing/i });
+    const btn = screen.queryByRole('button', { name: /^enable$/i });
     expect(btn).not.toBeNull();
   });
 
-  it('"Enable indexing" button dispatches keepance:open-settings event', () => {
+  it('"Enable" button dispatches keepance:open-settings event', () => {
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
     render(<Ask />);
-    const btn = screen.getByRole('button', { name: /enable indexing/i });
+    const btn = screen.getByRole('button', { name: /^enable$/i });
     fireEvent.click(btn);
     expect(dispatchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'lantern:open-settings' }),
@@ -698,9 +702,9 @@ describe('Ask', () => {
   // Fix #7 — accessibility: memory warning rewording
   // -------------------------------------------------------------------------
 
-  it('memory-off warning uses plain-language "indexed on your machine" text', () => {
+  it('memory-off warning uses plain-language indexing text', () => {
     render(<Ask />);
-    expect(screen.getByText(/cited answers need your documents indexed on your machine/i)).toBeDefined();
+    expect(screen.getByText(/index documents for cited answers/i)).toBeDefined();
   });
 
   // -------------------------------------------------------------------------

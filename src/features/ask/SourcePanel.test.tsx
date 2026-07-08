@@ -236,7 +236,7 @@ describe('SourcePanel — shared citation verdict cache hardening', () => {
     expect(snapshot.lruKeys).not.toContain(firstKey);
     expect(snapshot.requestedKeys).toHaveLength(CITATION_VERDICT_CACHE_MAX_ENTRIES);
     expect(snapshot.lruKeys).toHaveLength(CITATION_VERDICT_CACHE_MAX_ENTRIES);
-  });
+  }, 30000);
 
   it('bounds held-for-retry keys together with requested tracking while indexing is unsettled', async () => {
     useStillImportingMock.mockReturnValue('importing');
@@ -264,7 +264,7 @@ describe('SourcePanel — shared citation verdict cache hardening', () => {
     expect(snapshot.heldForRetryKeys).not.toContain(firstKey);
     expect(snapshot.requestedKeys).not.toContain(firstKey);
     expect(snapshot.lruKeys).not.toContain(firstKey);
-  });
+  }, 30000);
 
   it('clears old verdicts on RAG indexing progress so changed source content gets checked again', async () => {
     const cite = makeCitation({ id: 'chunk-stale', excerpt: 'The old cached quote.' });

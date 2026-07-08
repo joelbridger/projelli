@@ -49,7 +49,23 @@ export function BookAnswerPanel({ result, loading, error, onOpenClient, onOpenSo
           </div>
         </div>
       )}
-      <p style={{ fontSize: 11.5, color: 'var(--kp-text-muted, #6b7280)', margin: 0 }}>{t('ask.book.summaries-note')}</p>
+      <span
+        title={t('ask.book.summaries-note-title')}
+        style={{
+          alignSelf: 'flex-start',
+          display: 'inline-flex',
+          alignItems: 'center',
+          borderRadius: 999,
+          border: '1px solid var(--kp-divider)',
+          background: 'var(--kp-bg-soft)',
+          padding: '3px 8px',
+          fontSize: 11.5,
+          fontWeight: 600,
+          color: 'var(--kp-text-muted, #6b7280)',
+        }}
+      >
+        {t('ask.book.summaries-note')}
+      </span>
     </div>
   );
 }

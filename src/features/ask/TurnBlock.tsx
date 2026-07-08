@@ -1,5 +1,4 @@
 import {
-  Quote,
   Loader2,
   ShieldCheck,
   Save,
@@ -7,10 +6,18 @@ import {
   Info,
   Clock,
   Download,
+  MoreHorizontal,
 } from 'lucide-react';
-import { Button, Callout } from '@/ui/kp';
+import { useTranslation } from 'react-i18next';
+import { Button, Callout, IconButton, TrustNote } from '@/ui/kp';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 import type { AuditEntry } from '@/platform/types/audit';
-import type { AskTurn } from './askHelpers';
+import type { AskScope, AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
 import { NO_EVIDENCE_DECLINE, STILL_IMPORTING_DECLINE } from './askPrompt';
 import { AnswerBlocks } from './AnswerBlocks';
@@ -48,6 +55,7 @@ export function TurnBlock({
   onOpenAiStatus,
   onOpenFileAtPath,
   onAuditLog,
+  askScope,
 }: {
   turn: AskTurn;
   turnIdx: number;
@@ -106,7 +114,9 @@ export function TurnBlock({
    * deduped) — so a check first issued here still lands on the audit log.
    */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  askScope?: AskScope;
 }) {
+  const { t } = useTranslation();
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
 
@@ -129,6 +139,9 @@ export function TurnBlock({
     new Date(),
     staleDays
   );
+  const stalePlanSummary = stalePlans.map((s) => (
+    `${s.toolLabel}, ${formatExportDate(s.exportedAt)} (${t('ask.turn.stale-plan-age', { count: s.ageDays })})`
+  )).join(', ');
 
   // BUG-016: the "Answered over your own files" attestation must reflect a
   // grounded, verifiable citation — not merely the presence of any citation.
@@ -157,36 +170,14 @@ export function TurnBlock({
         gap: 'var(--kp-space-sm)',
       }}
     >
-      {/* The question, echoed at the top in grey italic with a quote mark. */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: 9,
-        }}
-      >
-        <Quote
-          size={14}
-          strokeWidth={1.75}
-          style={{ color: 'var(--kp-text-faint)', marginTop: 4, flex: 'none' }}
-        />
-        <span
-          style={{
-            fontSize: '14.5px',
-            color: 'var(--kp-text-dim)',
-            fontStyle: 'italic',
-            lineHeight: 1.5,
-          }}
-        >
-          {turn.question}
-        </span>
+      <div style={{ fontSize: '14px', color: 'var(--kp-text-dim)', lineHeight: 1.45 }}>
+        {turn.question}
       </div>
 
       {/* Answer — sections with bold lead-ins, green numbered citation chips,
           and (for drafts) a clean email card. */}
       <div
         style={{
-          paddingLeft: 23,
           display: 'flex',
           flexDirection: 'column',
           gap: 13,
@@ -208,7 +199,7 @@ export function TurnBlock({
                 ? ASK_LOCAL_AI_STARTING_MESSAGE
                 : localEvaluating
                   ? ASK_LOCAL_AI_EVALUATING_MESSAGE
-                  : 'Answering…'}
+                  : t('ask.action.answering')}
             </span>
           </div>
         ) : usingBlocks ? (
@@ -278,9 +269,7 @@ export function TurnBlock({
                     size="sm"
                     onClick={onOpenAiStatus}
                   >
-                    {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                    View AI status
-                    {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                    {t('ask.turn.view-ai-status')}
                   </Button>
                 )}
               </div>
@@ -294,31 +283,13 @@ export function TurnBlock({
             by the "No indexed sources" note below — the two are mutually exclusive.
             WS3: add data-testid so tests can assert its presence. */}
         {!usingBlocks && !isStreaming && turn.answer && hasGroundedCitation && (
-          <div
+          <TrustNote
             data-testid="ask-cited-attestation"
-            style={{
-              padding: '9px 12px',
-              borderRadius: 10,
-              background: '#e6f5ee',
-              border: '1px solid #8fc9b0',
-              display: 'flex',
-              gap: 8,
-              alignItems: 'center',
-              fontSize: '12.5px',
-              fontWeight: 600,
-              color: '#16654a',
-            }}
+            icon={ShieldCheck}
+            style={{ fontWeight: 600 }}
           >
-            <ShieldCheck
-              size={14}
-              strokeWidth={2}
-              style={{ flex: 'none', color: '#16654a' }}
-            />
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Answered over your own files. Every cited claim has a source you can
-            open and check.
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-          </div>
+            {t('ask.answer-blocks.cited-attestation')}
+          </TrustNote>
         )}
 
         {/* Deliberate decline: Ask found nothing in the files and said so. This
@@ -347,11 +318,7 @@ export function TurnBlock({
               strokeWidth={2}
               style={{ flex: 'none', color: 'var(--kp-text-dim)' }}
             />
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            This is on purpose — I only answer from your files, never from
-            general knowledge. Ask about something in this household and I'll
-            cite the source.
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            {t(askScope === 'all-matters' ? 'ask.turn.decline-note-all' : 'ask.turn.decline-note-client')}
           </div>
         )}
 
@@ -378,10 +345,7 @@ export function TurnBlock({
               strokeWidth={2}
               style={{ flex: 'none', color: 'var(--kp-text-dim)' }}
             />
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            Your files and email are still being imported, so this may just not
-            be indexed yet — try again once that finishes.
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+            {t('ask.turn.still-importing-decline')}
           </div>
         )}
 
@@ -400,9 +364,7 @@ export function TurnBlock({
           !isStillImportingDecline && (
             <div data-testid="ask-uncited-warning">
               <Callout variant="warning" icon={AlertTriangle}>
-                {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-                Not cited from your files. Verify this before relying on it.
-                {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+                {t('ask.turn.uncited-warning')}
               </Callout>
             </div>
           )}
@@ -413,37 +375,36 @@ export function TurnBlock({
         {!isStreaming && turn.answer && stalePlans.length > 0 && (
           <div data-testid="ask-stale-plan-warning">
             <Callout variant="warning" icon={Clock}>
-              {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-              This answer relies on exported plan snapshots that may be out of
-              date:{' '}
-              {stalePlans.map((s, i) => (
-                <span key={`${s.toolLabel}-${s.exportedAt}`}>
-                  {i > 0 ? ', ' : ''}
-                  {s.toolLabel} plan from {formatExportDate(s.exportedAt)} (
-                  {s.ageDays} days ago)
-                </span>
-              ))}
-              . A plan is a point-in-time snapshot, so figures may be out of
-              date. Re-export the latest to refresh it.
-              {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+              {t('ask.turn.stale-plan-warning', { exports: stalePlanSummary })}
             </Callout>
           </div>
         )}
 
-        {/* Save to document button */}
         {!isStreaming && turn.answer && onSaveToDocument && (
-          <Button
-            variant="secondary"
-            size="sm"
-            iconLeft={Save}
-            loading={isSaving}
-            onClick={() => void onSaveToDocument(turnIdx, turn.answer)}
-            style={{ alignSelf: 'flex-start' }}
-          >
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            {isSaving ? 'Saving…' : 'Save to document'}
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-          </Button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <IconButton
+                  icon={MoreHorizontal}
+                  label={t('ask.turn.answer-actions')}
+                  size="sm"
+                  variant="ghost"
+                  data-testid="ask-answer-actions-menu"
+                  disabled={isSaving}
+                />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  data-testid="ask-save-to-document"
+                  disabled={isSaving}
+                  onSelect={() => { void onSaveToDocument(turnIdx, turn.answer); }}
+                >
+                  <Save className="mr-2 h-3.5 w-3.5" strokeWidth={1.75} />
+                  {isSaving ? t('ask.turn.saving') : t('ask.turn.save-to-doc')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         )}
       </div>
     </div>

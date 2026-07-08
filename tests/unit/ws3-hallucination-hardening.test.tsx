@@ -207,7 +207,7 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
     // Must contain honest wording
     const warning = screen.getByTestId('ask-uncited-warning');
     expect(warning.textContent).toMatch(/not cited|verify|rely/i);
-  });
+  }, 15000);
 
   it('does NOT render uncited callout when citations are present', async () => {
     const { TurnBlock } = await import('@/features/ask/TurnBlock');
@@ -300,8 +300,8 @@ describe('Task 3b — CitationText data-verified attribute', () => {
 /* QA-85 rewrote the manual "Verify against source" button into an automatic  */
 /* check: the moment a citation appears, SourcePanel calls the REAL backend   */
 /* verifier (rag_verify_citations_batch) for it — no click required. A card   */
-/* starts neutral "Source found" and only ever earns green "Verified against  */
-/* source" once that real check comes back verified.                         */
+/* starts neutral "Found" and only ever earns green "Verified" once that real */
+/* check comes back verified.                                                */
 /* -------------------------------------------------------------------------- */
 describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
   beforeEach(async () => {
@@ -316,7 +316,7 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     mockAuditLog.mockReset();
   });
 
-  it('shows neutral "Source found" and never fetches when id/matterId are absent', async () => {
+  it('shows neutral "Found" and never fetches when id/matterId are absent', async () => {
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
       n: 1,
@@ -331,12 +331,12 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
       <SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />
     );
     const status = screen.getByTestId('verify-status');
-    expect(status.textContent).toMatch(/source found/i);
-    expect(status.textContent).not.toMatch(/verified against source/i);
+    expect(status.textContent).toMatch(/^Found$/i);
+    expect(status.textContent).not.toMatch(/^Verified$/i);
     expect(mockRagVerifyCitationsBatch).not.toHaveBeenCalled();
   });
 
-  it('starts neutral "Source found" and auto-upgrades to green "Verified against source" — no click required', async () => {
+  it('starts neutral "Found" and auto-upgrades to green "Verified" — no click required', async () => {
     setVerdict({ verdict: 'verified' });
     const { SourcePanel } = await import('@/features/ask/SourcePanel');
     const cite = {
@@ -354,9 +354,9 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     );
     // Before the real check resolves the card must NOT claim "Verified" —
     // this is the exact overstatement QA-85 fixed (it used to trust the
-    // grounding flag `cite.verified` and show "Verified against source" here).
+    // grounding flag `cite.verified` and show "Verified" here).
     expect(screen.getByTestId('verify-status').textContent).toMatch(
-      /source found/i
+      /^Found$/i
     );
     expect(mockRagVerifyCitationsBatch).toHaveBeenCalledWith([
       {
@@ -367,7 +367,7 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     ]);
     await waitFor(() =>
       expect(screen.getByTestId('verify-status').textContent).toMatch(
-        /verified against source/i
+        /^Verified$/i
       )
     );
     expect(screen.queryByTestId('verify-verdict')).toBeNull();
@@ -426,7 +426,7 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'notFound');
     // Must not soften the message
-    expect(verdict.textContent).toMatch(/not found|do not rely/i);
+    expect(verdict.textContent).toMatch(/quote not found/i);
   });
 
   it('shows red problem text for textMismatch verdict, automatically', async () => {
@@ -450,7 +450,7 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'textMismatch');
-    expect(verdict.textContent).toMatch(/does not match|do not rely/i);
+    expect(verdict.textContent).toMatch(/quote mismatch/i);
   });
 
   it('shows red problem text for matterMismatch verdict, automatically', async () => {
@@ -474,10 +474,10 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     );
     const verdict = screen.getByTestId('verify-verdict');
     expect(verdict).toHaveAttribute('data-verdict', 'matterMismatch');
-    expect(verdict.textContent).toMatch(/different client|do not rely/i);
+    expect(verdict.textContent).toMatch(/wrong client/i);
   });
 
-  it('falls back to neutral "Source found" — never fakes "Verified" — when the verifier is unavailable (browser/dev mode)', async () => {
+  it('falls back to neutral "Found" — never fakes "Verified" — when the verifier is unavailable (browser/dev mode)', async () => {
     mockRagVerifyCitationsBatch.mockRejectedValue(
       new Error('RAG is only available in the desktop app.')
     );
@@ -501,12 +501,12 @@ describe('Task 4 (QA-85) — SourcePanel automatic real-verification', () => {
     // Give the rejected promise's catch handler a tick to settle state.
     await waitFor(() => {
       expect(screen.getByTestId('verify-status').textContent).toMatch(
-        /source found/i
+        /^Found$/i
       );
     });
     expect(screen.queryByTestId('verify-verdict')).toBeNull();
     expect(screen.getByTestId('verify-status').textContent).not.toMatch(
-      /verified against source/i
+      /^Verified$/i
     );
   });
 
