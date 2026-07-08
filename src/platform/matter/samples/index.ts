@@ -29,6 +29,7 @@ import planSummary from './Sample - Plan Summary.md?raw';
 import emailThread from './Sample - Email Thread.md?raw';
 import beneficiaryEstateNotes from './Sample - Beneficiary & Estate Notes.md?raw';
 import accountSummary from './Sample - Account Summary.md?raw';
+import { brandText } from '@/config/brandText';
 
 export type OnboardingProfession = 'legal' | 'tax' | 'consulting' | 'advisor' | 'other';
 
@@ -39,69 +40,46 @@ export interface SampleFile {
   content: string;
 }
 
+function sampleFile(filename: string, content: string): SampleFile {
+  return { filename, content: brandText(content) };
+}
+
 /**
  * The original three generic sample files. Used for the 'other' profession
  * and exported for tests / UI that need a stable file count.
  */
 export const SAMPLE_FILES: SampleFile[] = [
-  { filename: 'Sample - Client Intake.md', content: clientIntake },
-  { filename: 'Sample - Weekly Review.md', content: weeklyReview },
-  { filename: 'Sample - Pricing Strategy.md', content: pricingStrategy },
+  sampleFile('Sample - Client Intake.md', clientIntake),
+  sampleFile('Sample - Weekly Review.md', weeklyReview),
+  sampleFile('Sample - Pricing Strategy.md', pricingStrategy),
 ];
 
 /**
  * Profession-specific primary samples. The first file an attorney, CPA, or
  * consultant sees when they open Lantern should look like their own work.
  */
-const LEGAL_PRIMARY: SampleFile = {
-  filename: 'Sample - Client Overview.md',
-  content: matterOverview,
-};
+const LEGAL_PRIMARY = sampleFile('Sample - Client Overview.md', matterOverview);
 
-const TAX_PRIMARY: SampleFile = {
-  filename: 'Sample - Client Research Note.md',
-  content: clientResearchNote,
-};
+const TAX_PRIMARY = sampleFile('Sample - Client Research Note.md', clientResearchNote);
 
-const CONSULTING_PRIMARY: SampleFile = {
-  filename: 'Sample - Engagement Summary.md',
-  content: engagementSummary,
-};
+const CONSULTING_PRIMARY = sampleFile('Sample - Engagement Summary.md', engagementSummary);
 
-const ADVISOR_OVERVIEW: SampleFile = {
-  filename: 'Sample - Household Overview.md',
-  content: householdOverview,
-};
+const ADVISOR_OVERVIEW = sampleFile('Sample - Household Overview.md', householdOverview);
 
-const ADVISOR_MEETING: SampleFile = {
-  filename: 'Sample - Meeting Notes.md',
-  content: meetingNotes,
-};
+const ADVISOR_MEETING = sampleFile('Sample - Meeting Notes.md', meetingNotes);
 
-const ADVISOR_PLAN: SampleFile = {
-  filename: 'Sample - Plan Summary.md',
-  content: planSummary,
-};
+const ADVISOR_PLAN = sampleFile('Sample - Plan Summary.md', planSummary);
 
-const ADVISOR_EMAIL_THREAD: SampleFile = {
-  filename: 'Sample - Email Thread.md',
-  content: emailThread,
-};
+const ADVISOR_EMAIL_THREAD = sampleFile('Sample - Email Thread.md', emailThread);
 
-const ADVISOR_BENEFICIARY_ESTATE: SampleFile = {
-  filename: 'Sample - Beneficiary & Estate Notes.md',
-  content: beneficiaryEstateNotes,
-};
+const ADVISOR_BENEFICIARY_ESTATE = sampleFile(
+  'Sample - Beneficiary & Estate Notes.md',
+  beneficiaryEstateNotes,
+);
 
-const ADVISOR_ACCOUNT_SUMMARY: SampleFile = {
-  filename: 'Sample - Account Summary.md',
-  content: accountSummary,
-};
+const ADVISOR_ACCOUNT_SUMMARY = sampleFile('Sample - Account Summary.md', accountSummary);
 
-const WEEKLY_REVIEW_SAMPLE: SampleFile = {
-  filename: 'Sample - Weekly Review.md',
-  content: weeklyReview,
-};
+const WEEKLY_REVIEW_SAMPLE = sampleFile('Sample - Weekly Review.md', weeklyReview);
 
 /**
  * Return the ordered list of sample files to seed for the given profession.

@@ -11,6 +11,7 @@ import {
   isMicrosoftSignInExpiredError,
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
+import { brandText } from '@/config/brandText';
 
 export function MailConnect() {
   const { t } = useTranslation();
@@ -118,7 +119,7 @@ export function MailConnect() {
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
         Microsoft 365 email
-        <InfoHelp content="Bring your Outlook mail into Lantern so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Lantern desktop app." />
+        <InfoHelp content={brandText('Bring your Outlook mail into Lantern so you can actually find it. Your mail is encrypted and stays on this machine. Requires the Lantern desktop app.')} />
       </h3>
       {fdeStatus === 'off' && (
         <p className="mt-2 text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">
@@ -129,7 +130,7 @@ export function MailConnect() {
       {!connected && (
         <div className="mt-3 space-y-3">
           <p className="text-xs text-slate-500">
-            A browser window will open to sign in to Microsoft. Complete sign-in there and Lantern will connect automatically.
+            {brandText('A browser window will open to sign in to Microsoft. Complete sign-in there and Lantern will connect automatically.')}
           </p>
 
           {connectError && (

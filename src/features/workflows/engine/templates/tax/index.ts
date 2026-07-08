@@ -16,8 +16,9 @@ import { EntityElectionAnalysis } from './EntityElectionAnalysis';
 import { WISPBuilder } from './WISPBuilder';
 
 import type { WorkflowTemplate } from '@/platform/types/workflow';
+import { brandValue } from '@/config/brandText';
 
-export const TAX_TEMPLATES: WorkflowTemplate[] = [
+export const TAX_TEMPLATES: WorkflowTemplate[] = brandValue([
   EngagementLetterBuilder,
   PreReviewChecklist,
   Section7216ConsentTemplate,
@@ -31,7 +32,7 @@ export const TAX_TEMPLATES: WorkflowTemplate[] = [
   SCorpReasonableCompMemo,
   EntityElectionAnalysis,
   WISPBuilder,
-];
+]);
 
 export {
   EngagementLetterBuilder,

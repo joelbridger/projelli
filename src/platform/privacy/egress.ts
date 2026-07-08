@@ -1,8 +1,11 @@
+import { BRAND } from '@/config/brand';
+import { brandText, LOCAL_AI_NAME } from '@/config/brandText';
+
 /**
  * Egress logic — the single source of truth for "where does the next AI
  * request go?"
  *
- * This is deliberately a pure, dependency-free module so the egress indicator
+ * This is deliberately a pure module so the egress indicator
  * (composer + status bar), the data map, and the test suite all derive the
  * SAME answer from the SAME inputs. If the destination story is ever wrong,
  * it is wrong in exactly one place.
@@ -133,7 +136,7 @@ export function providerDisplayName(provider: EgressProvider): string {
     case 'ollama':
       return 'Ollama';
     case 'lantern-local':
-      return 'Lantern Local AI';
+      return LOCAL_AI_NAME;
     default:
       return provider;
   }
@@ -199,7 +202,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
       // Always-visible trust badge: name the engine in plain language
       // ("Lantern Local AI"), never the developer tool ("Ollama") — the brand
       // name only belongs in the advanced bring-your-own-runtime panel.
-      note: 'This runs on Lantern Local AI, a private model on your own computer. No AI prompt or file is sent to a cloud AI.',
+      note: `${LOCAL_AI_NAME} is a private model on your own computer. No AI prompt or file is sent to a cloud AI.`,
       dataLeaves: false,
       provider: localProvider,
     };
@@ -213,8 +216,8 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
     return {
       destination: 'assured-proxy',
       severity: 'assured',
-      label: `Assured: via Lantern zero-retention proxy to ${name}`,
-      note: `Sent through the Lantern proxy using your firm's managed ${name} key. Lantern retains nothing (no prompt, no completion) and stamps each response no-retention. ${name} still receives the prompt under your firm's DPA and zero-retention settings.`,
+      label: `Assured: via ${BRAND.name} zero-retention proxy to ${name}`,
+      note: `Sent through the ${BRAND.name} proxy using your firm's managed ${name} key. ${BRAND.name} retains nothing (no prompt, no completion) and stamps each response no-retention. ${name} still receives the prompt under your firm's DPA and zero-retention settings.`,
       dataLeaves: true,
       provider,
     };
@@ -227,7 +230,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
       destination: 'demo-proxy',
       severity: 'warn',
       label: 'Browser demo. Do not use with client data',
-      note: 'In this online demo, messages pass through a shared Lantern relay. The desktop app never does this. Do not enter confidential or client information here.',
+      note: `In this online demo, messages pass through a shared ${BRAND.name} relay. The desktop app never does this. Do not enter confidential or client information here.`,
       dataLeaves: true,
       provider,
     };
@@ -239,7 +242,7 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
     destination: 'provider-direct',
     severity: 'direct',
     label: `Sent to your ${name} account`,
-    note: `Sent straight from your machine to ${name} with your own API key. Lantern is not in between. ${name} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your ${name} account.`,
+    note: brandText(`Sent straight from your machine to ${name} with your own API key. Lantern is not in between. ${name} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your ${name} account.`),
     dataLeaves: true,
     provider,
   };

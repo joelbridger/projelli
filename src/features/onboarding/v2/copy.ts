@@ -7,7 +7,9 @@
  * the AI provider, never to Lantern.
  */
 
-export const ONB_COPY = {
+import { brandValue } from '@/config/brandText';
+
+const RAW_ONB_COPY = {
   intro: {
     headline: 'Set up Lantern.',
     sub: 'Use sample data, or connect your own files.',
@@ -118,6 +120,8 @@ export const ONB_COPY = {
     continue: 'Continue',
   },
 } as const;
+
+export const ONB_COPY = brandValue(RAW_ONB_COPY);
 
 /**
  * Example questions previewed on the "Setting up your firm" screen.

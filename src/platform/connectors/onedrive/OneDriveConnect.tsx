@@ -38,6 +38,7 @@ import {
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
 import type { Matter } from '@/platform/types/matter';
+import { brandText } from '@/config/brandText';
 
 // Durable, append-only audit trail for connector activity, so a OneDrive sync
 // (including one that imported zero files or failed) always leaves a record —
@@ -418,7 +419,7 @@ export function OneDriveConnect() {
     <section className="rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-900">
         OneDrive and SharePoint documents
-        <InfoHelp content="Imports documents from any OneDrive or SharePoint folder named after one of your clients. Lantern downloads those files into the client's folder on this device, so they appear in the client's Documents and become searchable. Read-only in the cloud: Lantern only asks Microsoft for files. It never edits, uploads, moves, or deletes anything in OneDrive or SharePoint." />
+        <InfoHelp content={brandText("Imports documents from any OneDrive or SharePoint folder named after one of your clients. Lantern downloads those files into the client's folder on this device, so they appear in the client's Documents and become searchable. Read-only in the cloud: Lantern only asks Microsoft for files. It never edits, uploads, moves, or deletes anything in OneDrive or SharePoint.")} />
       </h3>
       {localOnly && (
         <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -532,8 +533,8 @@ export function OneDriveConnect() {
                 </>
               ) : (
                 <span className="text-slate-500">
-                  No new files came in. Lantern imports files only from a
-                  OneDrive folder named after one of your clients — checked{' '}
+                  {brandText('No new files came in. Lantern imports files only from a OneDrive folder named after one of your clients')}
+                  {' — checked '}
                   {lastReport.seen}{' '}
                   {lastReport.seen === 1 ? 'item' : 'items'}.
                 </span>

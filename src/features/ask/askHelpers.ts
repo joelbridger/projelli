@@ -21,6 +21,7 @@ import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/re
 import { mailGetMessage } from '@/platform/utils/mail-commands';
 import { KeychainService } from '@/platform/providers/KeychainService';
 import { assertCloudGenerationAllowed, isLocalOnlyMode } from '@/platform/privacy/localOnlyGuard';
+import { LOCAL_AI_NAME } from '@/config/brandText';
 import {
   fileToolsAllowed,
   broadestConsentScope,
@@ -328,7 +329,7 @@ async function resolveAvailableLocalAskProvider(): Promise<ResolvedAskProvider |
  * exact string through unchanged (same pattern as NO_ASK_PROVIDER_CONNECTED_MESSAGE).
  */
 export const LOCAL_AI_NOT_READY_MESSAGE =
-  "Lantern Local AI is still downloading or setting up. Check its progress in Settings, then try again.";
+  `${LOCAL_AI_NAME} is still downloading or setting up. Check its progress in Settings, then try again.`;
 
 /**
  * The local engine Local-only mode actually sends to: the embedded Advisor Prep

@@ -26,6 +26,7 @@ import { Check, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
 import type { OnboardingStartMode, OnboardingStartResult } from '../../onboardingTypes';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { AppLogo } from '@/ui/brand/AppLogo';
+import { brandText } from '@/config/brandText';
 import { ONB_COPY } from '../copy';
 
 export interface ChooseStartSceneProps {
@@ -153,7 +154,7 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
             {intro.ownTitle}
             <InfoHelp
               as="span"
-              content="Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so Lantern builds Client Maps from your real clients."
+              content={brandText('Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so Lantern builds Client Maps from your real clients.')}
             />
           </h2>
           <ul className="mt-4 space-y-2">

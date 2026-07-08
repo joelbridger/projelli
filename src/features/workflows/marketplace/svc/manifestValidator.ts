@@ -11,6 +11,7 @@ import type {
   TemplateManifest,
   TemplateFileType,
 } from '@/features/workflows/types/templateManifest';
+import { brandText } from '@/config/brandText';
 
 const TEMPLATE_FILE_TYPES: readonly TemplateFileType[] = [
   'markdown',
@@ -98,7 +99,7 @@ export function checkMinAppVersion(
   currentAppVersion: string,
 ): string | null {
   if (compareSemver(manifest.minAppVersion, currentAppVersion) > 0) {
-    return `Template requires Lantern ${manifest.minAppVersion} or newer (you have ${currentAppVersion}).`;
+    return brandText(`Template requires Lantern ${manifest.minAppVersion} or newer (you have ${currentAppVersion}).`);
   }
   return null;
 }

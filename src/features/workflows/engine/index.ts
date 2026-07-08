@@ -23,6 +23,7 @@ import { ADVISOR_TEMPLATES } from './templates/advisors/index';
 import { UserInterviews } from './templates/UserInterviews';
 import { UserInterviewsSynthesis } from './templates/UserInterviewsSynthesis';
 import { WeeklyReviewWorkflow } from './templates/WeeklyReviewWorkflow';
+import { brandValue } from '@/config/brandText';
 
 // All packs ship as available. Advisor review (a practicing attorney / CPA
 // signing off) still proceeds in parallel, but per the 2026-06-01 operating
@@ -30,7 +31,7 @@ import { WeeklyReviewWorkflow } from './templates/WeeklyReviewWorkflow';
 // production-ready rather than "Preview, pending review." The legal and tax
 // packs used to be wrapped in a markPreview() helper here; that gating was
 // removed when the directive landed.
-export const allWorkflows = [
+export const allWorkflows = brandValue([
   ...LEGAL_TEMPLATES, ...TAX_TEMPLATES, ...CONSULTING_TEMPLATES, ...ADVISOR_TEMPLATES,
   UserInterviews, UserInterviewsSynthesis, WeeklyReviewWorkflow,
-];
+]);

@@ -16,6 +16,7 @@
 
 import { useEffect, useRef, type ReactNode } from 'react';
 import { AppLogo } from '@/ui/brand/AppLogo';
+import { brandText } from '@/config/brandText';
 
 export interface OnboardingShellProps {
   children: ReactNode;
@@ -135,7 +136,7 @@ export function OnboardingShell({
       data-testid="onboarding-v2"
       role="dialog"
       aria-modal="true"
-      aria-label="Set up Lantern"
+      aria-label={brandText('Set up Lantern')}
     >
       <div className="kp-onbv2-bg" aria-hidden="true" />
 

@@ -69,6 +69,7 @@
  */
 import { useProfessionStore, getProfession } from '@/platform/profile/professionStore';
 import type { Profession } from '@/platform/profile/professionModel';
+import { brandValue } from '@/config/brandText';
 
 export interface ProfessionCopy {
   /**
@@ -119,7 +120,7 @@ export interface ProfessionCopy {
   peerNoun: string;
 }
 
-const COPY: Record<Profession, ProfessionCopy> = {
+const COPY: Record<Profession, ProfessionCopy> = brandValue({
   legal: {
     confidentialityTerm: 'attorney-client privilege',
     confidentialityShort: 'privilege',
@@ -180,7 +181,7 @@ const COPY: Record<Profession, ProfessionCopy> = {
     complexWorkDesc: 'in-depth analysis and drafting',
     peerNoun: 'professionals',
   },
-};
+});
 
 /**
  * Reactive React hook. Re-renders the component whenever the profession

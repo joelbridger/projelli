@@ -66,7 +66,7 @@ describe('en.json structure snapshot', () => {
         "meetings": 249,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 68,
+        "onboarding": 69,
         "plugins": 4,
         "privacy": 35,
         "quick-open": 1,
@@ -268,7 +268,7 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    expect(flat.length).toBe(1967); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
+    expect(flat.length).toBe(1968); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

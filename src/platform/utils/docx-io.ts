@@ -33,6 +33,7 @@ import {
 } from 'docx';
 
 import type { ContradictionAnalysisResult, ContradictionFinding } from '@/platform/types/workflow';
+import { BRAND } from '@/config/brand';
 
 import { dataUrlToArrayBuffer } from './spreadsheet-io';
 
@@ -163,7 +164,7 @@ function buildBrandingHeader(firmName: string): Paragraph[] {
     new Paragraph({
       children: [
         new TextRun({
-          text: `Document prepared with Lantern — ${dateString}`,
+          text: `${BRAND.messaging.exportWatermark} — ${dateString}`,
           size: 20, // 10pt
           color: '555555',
         }),
@@ -206,8 +207,8 @@ export async function serializeDocx(
   };
 
   const doc = new Document({
-    creator: 'Lantern',
-    description: 'Document edited in Lantern',
+    creator: BRAND.name,
+    description: `Document edited in ${BRAND.name}`,
     numbering: {
       config: [
         {
@@ -1282,8 +1283,8 @@ export async function serializeContradictionsDocx(
   };
 
   const doc = new Document({
-    creator: 'Lantern',
-    description: 'Litigation contradiction analysis prepared in Lantern (draft. verify before relying)',
+    creator: BRAND.name,
+    description: `Litigation contradiction analysis prepared in ${BRAND.name} (draft. verify before relying)`,
     sections: [sectionOptions],
   });
 

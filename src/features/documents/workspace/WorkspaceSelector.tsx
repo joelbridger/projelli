@@ -380,8 +380,8 @@ export function WorkspaceSelector({
         if (!WebFSBackend.isSupported()) {
           setError(
             typeof window !== 'undefined' && window.isSecureContext === false
-              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Lantern over https or on localhost.'
-              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Lantern desktop app.',
+              ? `Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open ${BRAND.name} over https or on localhost.`
+              : `This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the ${BRAND.name} desktop app.`,
           );
           setIsLoading(false);
           return;
@@ -451,8 +451,8 @@ export function WorkspaceSelector({
         if (!WebFSBackend.isSupported()) {
           setError(
             typeof window !== 'undefined' && window.isSecureContext === false
-              ? 'Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open Lantern over https or on localhost.'
-              : 'This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the Lantern desktop app.',
+              ? `Opening a folder from a browser needs a secure (https) connection. The desktop app does this natively. To use it in a browser, open ${BRAND.name} over https or on localhost.`
+              : `This browser does not support opening folders. Please use Chrome, Edge, or Opera, or use the ${BRAND.name} desktop app.`,
           );
           setIsLoading(false);
           return;

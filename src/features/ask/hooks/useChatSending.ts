@@ -113,6 +113,7 @@ import { buildOpenFilesPromptBlock, refusalKeyForReason } from '../AIChatViewer'
 import type { APIKey } from '../AIChatViewer';
 import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { EV_TRASH_CHANGED } from '@/config/identity';
+import { brandText } from '@/config/brandText';
 
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
@@ -1174,7 +1175,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 ) {
                   return {
                     content:
-                      'This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Lantern needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.',
+                      brandText('This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Lantern needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.'),
                     path: relativePath,
                     withheld: true,
                   };

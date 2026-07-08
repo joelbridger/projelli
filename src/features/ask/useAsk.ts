@@ -130,6 +130,7 @@ import {
   grantExternalExportConsent,
 } from '@/platform/rag/exportConsent';
 import { SK_ASK_RAIL_COLLAPSED, SK_ASK_FILES_ONLY } from '@/config/identity';
+import { brandText } from '@/config/brandText';
 
 /** localStorage key for the conversations-rail collapsed preference. */
 const ASK_RAIL_COLLAPSED_KEY = SK_ASK_RAIL_COLLAPSED;
@@ -1008,7 +1009,7 @@ export function useAsk({
           if (!alreadyConsented) {
             const toolsLabel = formatToolList(recognizedTools);
             const consented = await confirmExportConsent(
-              `Lantern found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Lantern reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Lantern and use your chosen AI on it.`,
+              brandText(`Lantern found a report you exported or saved from ${toolsLabel} among the files it would use to answer. Lantern reads exported files; it is not connected to ${toolsLabel}. Confirm your firm permits you to store this exported report in Lantern and use your chosen AI on it.`),
               {
                 title: `Use exported reports from ${toolsLabel}?`,
                 confirmLabel: 'Yes, my firm permits this',

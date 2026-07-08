@@ -12,8 +12,9 @@ import { FindingsSynthesizer } from './FindingsSynthesizer';
 import { WorkshopBoardPrep } from './WorkshopBoardPrep';
 
 import type { WorkflowTemplate } from '@/platform/types/workflow';
+import { brandValue } from '@/config/brandText';
 
-export const CONSULTING_TEMPLATES: WorkflowTemplate[] = [
+export const CONSULTING_TEMPLATES: WorkflowTemplate[] = brandValue([
   StatementOfWorkDrafter,
   ClientDiscoverySynthesizer,
   ConfidentialResearchMemo,
@@ -23,7 +24,7 @@ export const CONSULTING_TEMPLATES: WorkflowTemplate[] = [
   CompetitiveLandscapeBuilder,
   FindingsSynthesizer,
   WorkshopBoardPrep,
-];
+]);
 
 export {
   StatementOfWorkDrafter,

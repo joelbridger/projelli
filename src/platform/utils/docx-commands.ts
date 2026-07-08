@@ -23,6 +23,7 @@ import type {
 } from '@/platform/types/docx';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { BRAND } from '@/config/brand';
 // Pure-JS table detection lives in docx-table-utils.ts, not docx-io.ts: this
 // module is statically reached from the always-on document editor, and
 // docx-io.ts pulls in mammoth/docx-preview/JSZip/docx. `markdownToRedlineBlocks`
@@ -53,7 +54,7 @@ export function isDocxEngineAvailable(): boolean {
 }
 
 const BROWSER_ERROR =
-  'The Word document editor is only available in the Lantern desktop app.';
+  `The Word document editor is only available in the ${BRAND.name} desktop app.`;
 
 /**
  * Open a `.docx` at `path` and return its JSON DOM for the editor.

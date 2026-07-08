@@ -21,6 +21,7 @@ import { buildEsignMatterMap } from '@/platform/rag/matterResolver';
 import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
 import { InfoHelp } from '@/ui/InfoHelp';
+import { brandText } from '@/config/brandText';
 
 export function DocuSignConnect() {
   const [progress, setProgress] = useState<DocusignSyncProgress | null>(null);
@@ -134,7 +135,7 @@ export function DocuSignConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               DocuSign
-              <InfoHelp content="Import completed envelopes, recipients, document names, and signing history. Lantern only reads DocuSign data." />
+              <InfoHelp content={brandText('Import completed envelopes, recipients, document names, and signing history. Lantern only reads DocuSign data.')} />
             </h3>
           </div>
         </div>

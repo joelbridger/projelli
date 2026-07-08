@@ -19,6 +19,7 @@ import {
 } from '@/ui/dialog';
 import { useUpdaterStore } from '@/platform/updater/updaterStore';
 import { Sparkles } from 'lucide-react';
+import { BRAND } from '@/config/brand';
 
 export interface UpdateReleaseNotesModalProps {
   open: boolean;
@@ -45,7 +46,7 @@ export function UpdateReleaseNotesModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-4 w-4 text-amber-700" />
-            <span>Lantern {version}</span>
+            <span>{BRAND.name} {version}</span>
           </DialogTitle>
           <DialogDescription>
             {date

@@ -18,6 +18,7 @@ import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { InfoHelp } from '@/ui/InfoHelp';
+import { brandText } from '@/config/brandText';
 
 // Durable, append-only audit trail for connector activity, so a Calendly sync
 // (including one that indexed zero meetings or failed) always leaves a record —
@@ -147,7 +148,7 @@ export function CalendlyConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Calendly
-          <InfoHelp content="Import scheduled meetings and invitee intake answers into client memory. Requires the Lantern desktop app." />
+          <InfoHelp content={brandText('Import scheduled meetings and invitee intake answers into client memory. Requires the Lantern desktop app.')} />
         </h3>
       </section>
     );
@@ -158,7 +159,7 @@ export function CalendlyConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Calendly
-          <InfoHelp content="Import scheduled events and invitee Q&A as read-only meeting memory. Lantern uses GET requests only." />
+          <InfoHelp content={brandText('Import scheduled events and invitee Q&A as read-only meeting memory. Lantern uses GET requests only.')} />
         </h3>
         {!connected && (
           <div className="mt-3 space-y-3">

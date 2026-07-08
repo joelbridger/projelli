@@ -22,6 +22,7 @@ import sampleWorkspaceLegal from './sample-workspace.json';
 import sampleWorkspaceTax from './sample-workspace-tax.json';
 import sampleWorkspaceConsulting from './sample-workspace-consulting.json';
 import { WebFSBackend } from '@/platform/fs/WebFSBackend';
+import { brandText } from '@/config/brandText';
 
 // Pre-built PDF sample documents (committed binary assets). A browser has no JS
 // PDF *writer*, so unlike `.docx` (generated from text at seed time) these are
@@ -95,10 +96,20 @@ export function getDemoProfession(): DemoProfession {
 }
 
 export function getSampleForProfession(profession: DemoProfession): SampleWorkspace {
-  if (profession === 'legal') return sampleWorkspaceLegal as SampleWorkspace;
-  if (profession === 'tax') return sampleWorkspaceTax as SampleWorkspace;
-  if (profession === 'consulting') return sampleWorkspaceConsulting as SampleWorkspace;
-  return sampleWorkspaceAdvisor as SampleWorkspace;
+  const sample =
+    profession === 'legal'
+      ? (sampleWorkspaceLegal as SampleWorkspace)
+      : profession === 'tax'
+        ? (sampleWorkspaceTax as SampleWorkspace)
+        : profession === 'consulting'
+          ? (sampleWorkspaceConsulting as SampleWorkspace)
+          : (sampleWorkspaceAdvisor as SampleWorkspace);
+
+  return {
+    ...sample,
+    description: brandText(sample.description),
+    files: sample.files.map((file) => ({ ...file, content: brandText(file.content) })),
+  };
 }
 
 /**
