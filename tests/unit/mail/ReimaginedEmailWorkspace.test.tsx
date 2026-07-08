@@ -404,6 +404,8 @@ describe('EmailWorkspace', () => {
     await waitForInitialLoad();
 
     expect(screen.getByTestId('no-results-state')).toBeInTheDocument();
+    expect(screen.getByTestId('email-detail-empty-state')).toHaveTextContent('No emails found');
+    expect(screen.queryByText('Select an email from the list to read it here.')).not.toBeInTheDocument();
     expect(screen.queryByTestId('no-accounts-state')).not.toBeInTheDocument();
   });
 

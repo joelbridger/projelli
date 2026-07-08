@@ -83,6 +83,8 @@ import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 // keeps the same reference across `matters` changes and never retriggers the
 // global list fetch. (Embedded builds a real map from `matters`.)
 const EMPTY_MAIL_MATTER_MAP: MailMatterMapEntry[] = [];
+const EMAIL_RAIL_VIRTUALIZE_ROW_THRESHOLD = 40;
+const EMAIL_RAIL_ROW_ESTIMATED_HEIGHT_PX = 88;
 
 interface EmailRailRowProps {
   item: MailListItem;
@@ -1113,6 +1115,11 @@ export function EmailWorkspace({
           activeId={mode === 'keyword' ? effectiveSelectedEmailId : null}
           onSelect={setSelectedEmailId}
           emptyState={railEmptyState}
+          virtualization={{
+            enabled: mode === 'keyword' && railItems.length > EMAIL_RAIL_VIRTUALIZE_ROW_THRESHOLD,
+            estimateSize: EMAIL_RAIL_ROW_ESTIMATED_HEIGHT_PX,
+            overscan: 8,
+          }}
         >
           <div data-testid="email-master-detail" className="flex h-full min-h-0 min-w-0 flex-col">
             <div data-testid="email-detail-pane" className="flex min-h-0 flex-1 flex-col bg-white">
@@ -1207,8 +1214,21 @@ export function EmailWorkspace({
             ) : null}
 
             {hasConnectedMail && mode === 'keyword' && !loading && !error && scopedItems.length === 0 ? (
-              <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-[var(--color-muted-foreground)]">
-                {t('mail.workspace.select-email-empty')}
+              <div
+                data-testid="email-detail-empty-state"
+                className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center"
+              >
+                <Mail className="h-7 w-7 text-[var(--color-muted-foreground)]" strokeWidth={1.5} />
+                <p className="m-0 text-sm font-medium text-[var(--color-foreground)]">
+                  {t('mail.workspace.no-emails')}
+                </p>
+                <p className="m-0 max-w-sm text-xs leading-snug text-[var(--color-muted-foreground)]">
+                  {query
+                    ? t('mail.workspace.no-emails-query')
+                    : embedded
+                      ? t('mail.workspace.no-emails-client')
+                      : t('mail.workspace.no-emails-synced')}
+                </p>
               </div>
             ) : null}
 

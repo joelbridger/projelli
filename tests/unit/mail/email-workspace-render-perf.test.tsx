@@ -230,16 +230,32 @@ describe('EmailWorkspace rail-shell regression coverage', () => {
     expect(screen.getByTestId('bulk-action-bar')).toHaveTextContent('2 selected');
   });
 
-  it('a busy inbox renders in the rail and keeps the loaded count honest', async () => {
-    const items = makeItems(200);
-    setupMocks(items);
+  it('a busy inbox only mounts a bounded window of rail rows and keeps the loaded count honest', async () => {
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 560; } });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 800; } });
 
-    render(<EmailWorkspace />);
-    await waitForInitialLoad();
+    try {
+      const items = makeItems(200);
+      setupMocks(items);
 
-    expect(screen.getAllByTestId(/^email-rail-row-/)).toHaveLength(200);
-    expect(screen.getByTestId('result-count')).toHaveTextContent('All email loaded');
-    expect(screen.getByRole('list', { name: 'Email list' })).toBeInTheDocument();
+      render(<EmailWorkspace />);
+      await waitForInitialLoad();
+
+      const rows = screen.getAllByTestId(/^email-rail-row-/);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows.length).toBeLessThan(100);
+      expect(screen.getByTestId('result-count')).toHaveTextContent('All email loaded');
+      expect(screen.getByRole('list', { name: 'Email list' })).toBeInTheDocument();
+    } finally {
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
+      }
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
+      }
+    }
   });
 
   it('the rail list and detail pane stay in separate flexible regions', async () => {

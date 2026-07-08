@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RailShell, RailShellActionMenu, RailShellHeader } from '@/ui/kp';
@@ -44,6 +44,48 @@ describe('RailShell', () => {
 
     fireEvent.click(getRailRow('Client email'));
     expect(onSelect).toHaveBeenCalledWith('email');
+  });
+
+  it('can opt into rendering only the visible row window for large lists', async () => {
+    const heightDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight');
+    const widthDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetWidth');
+    Object.defineProperty(HTMLElement.prototype, 'offsetHeight', { configurable: true, get() { return 520; } });
+    Object.defineProperty(HTMLElement.prototype, 'offsetWidth', { configurable: true, get() { return 280; } });
+
+    try {
+      const items = Array.from({ length: 200 }, (_, index) => ({
+        id: `item-${String(index)}`,
+        label: `Client item ${String(index)}`,
+        testId: `virtual-rail-row-${String(index)}`,
+      }));
+
+      render(
+        <RailShell
+          header={<RailShellHeader title="Client work" />}
+          listAriaLabel="Client work"
+          items={items}
+          activeId="item-0"
+          onSelect={() => {}}
+          virtualization={{ enabled: true, estimateSize: 44, overscan: 2 }}
+        >
+          <section>Selected detail</section>
+        </RailShell>,
+      );
+
+      await waitFor(() => {
+        const rows = screen.getAllByTestId(/^virtual-rail-row-/);
+        expect(rows.length).toBeGreaterThan(0);
+        expect(rows.length).toBeLessThan(200);
+      });
+      expect(screen.queryByText('Client item 199')).toBeNull();
+    } finally {
+      if (heightDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetHeight', heightDescriptor);
+      }
+      if (widthDescriptor) {
+        Object.defineProperty(HTMLElement.prototype, 'offsetWidth', widthDescriptor);
+      }
+    }
   });
 
   it('scrolls the active row into view when selection changes', () => {

@@ -158,6 +158,9 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   // where a stale callback could pass the guard against the wrong email.
   const messageRef = useRef<MailView | null>(null);
   useLayoutEffect(() => { messageRef.current = message; }, [message]);
+  const fileTargetId = message?.id ?? displayId(sourceId);
+  const fileTargetIdRef = useRef(fileTargetId);
+  useLayoutEffect(() => { fileTargetIdRef.current = fileTargetId; }, [fileTargetId]);
   // Fixed-English escape hatch: the "File to {{entity}}" strings below are
   // still hardcoded English (see the cleanup2 handoff), so the noun stays
   // English too rather than mixing languages.
@@ -258,8 +261,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   }, [message]);
 
   const handleFileToMatter = useCallback(async (matterId: string) => {
-    if (!message) return;
-    const targetId = message.id;
+    const targetId = fileTargetId;
     setFilingMatter(matterId);
     setFileError(null);
     setFileSuccess(false);
@@ -267,23 +269,23 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
       await mailRetagMessageMatter(targetId, matterId);
       // QA-53: if the viewer moved to a different email while this filing ran,
       // drop the result — never mark the CURRENT (different) email filed here.
-      if (messageRef.current?.id !== targetId) return;
+      if (fileTargetIdRef.current !== targetId) return;
       // BUG-013: persist the new association into the message so the viewer
       // shows "Filed to X" / the selected button immediately and after reopen —
       // not only via the transient success flag.
       setMessage((prev) => (prev && prev.id === targetId ? { ...prev, matterId } : prev));
       setFileSuccess(true);
       setTimeout(() => {
-        if (messageRef.current?.id === targetId) setFileSuccess(false);
+        if (fileTargetIdRef.current === targetId) setFileSuccess(false);
       }, 2500);
     } catch (e: unknown) {
-      if (messageRef.current?.id !== targetId) return;
+      if (fileTargetIdRef.current !== targetId) return;
       setFileError(e instanceof Error ? e.message : `Failed to file email to ${entityLabel.one}.`);
     } finally {
       // Only clear the spinner for the email this filing belonged to.
-      if (messageRef.current?.id === targetId) setFilingMatter(null);
+      if (fileTargetIdRef.current === targetId) setFilingMatter(null);
     }
-  }, [message, entityLabel.one]);
+  }, [fileTargetId, entityLabel.one]);
 
   const handleDraftWithAI = useCallback(async () => {
     if (!message) return;
@@ -447,6 +449,133 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
     }
   }, [message, replyTo, replyCc, replyBcc, replySubject, replyDraft, filedMatterId, filedMatter]);
 
+  const privilegeControl = (
+    <div
+      data-testid="email-privilege-control"
+      data-privilege={privilege}
+      className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
+    >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
+          <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+          {t('mail.viewer.privilege-label')}
+        </span>
+        <div
+          role="radiogroup"
+          aria-label={t('mail.viewer.privilege-label')}
+          className="flex overflow-hidden rounded-md border border-slate-200"
+        >
+          {ALL_PRIVILEGE_STATUSES.map((status) => (
+            <button
+              key={status}
+              type="button"
+              role="radio"
+              aria-checked={privilege === status}
+              data-testid={`email-privilege-option-${status}`}
+              onClick={() => {
+                setPrivilege(mailSourceId, status);
+              }}
+              className={`border-l border-slate-200 px-2 py-1 text-[11px] leading-tight first:border-l-0 ${
+                privilege === status
+                  ? 'bg-[var(--kp-navy)] font-medium text-white'
+                  : 'bg-white text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {privilegeOptionLabel(status, t)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {isPrivileged(privilege) && (
+        <p
+          data-testid="email-privilege-note"
+          className="mt-1.5 text-[11px] leading-snug text-amber-700"
+        >
+          {t('mail.viewer.privilege-note')}
+        </p>
+      )}
+    </div>
+  );
+
+  const fileToMatterControl = (
+    <div
+      data-testid="email-file-to-matter"
+      className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
+    >
+      {/* eslint-disable lantern-i18n/no-hardcoded-string */}
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+        <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+        File to {entityLabel.one}
+      </div>
+      {/* BUG-013: when the message is already filed, show which matter it's
+          filed to (persists across reopen via message.matterId), so a lawyer
+          can see the current association and change it deliberately. */}
+      {filedMatter !== null && (
+        <p
+          data-testid="email-filed-matter"
+          className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
+        >
+          <CheckCircle2 className="h-3 w-3 shrink-0" />
+          Filed to {matterLabel(filedMatter)}
+        </p>
+      )}
+      {/* Message is filed, but to a matter not in the current list (e.g. an
+          archived/removed matter): still disclose the filed state honestly. */}
+      {filedMatter === null && filedMatterId !== null && (
+        <p
+          data-testid="email-filed-matter"
+          className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
+        >
+          <CheckCircle2 className="h-3 w-3 shrink-0" />
+          Filed to another {entityLabel.one}
+        </p>
+      )}
+      {fileError && (
+        <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
+          <AlertTriangle className="h-3 w-3" />
+          {fileError}
+        </p>
+      )}
+      {fileSuccess && (
+        <p className="mb-1.5 text-[11px] text-emerald-700">Filed successfully.</p>
+      )}
+      {matters.length === 0 ? (
+        <p className="text-xs text-slate-400">No {entityLabel.other} yet. Create a {entityLabel.one} first.</p>
+      ) : (
+        <div className="flex flex-wrap gap-1.5">
+          {matters.map((m) => {
+            const isCurrent = m.id === filedMatterId;
+            return (
+              <button
+                key={m.id}
+                type="button"
+                data-testid={`file-to-matter-btn-${m.id}`}
+                aria-pressed={isCurrent}
+                disabled={filingMatter === m.id}
+                onClick={() => { void handleFileToMatter(m.id); }}
+                className={
+                  isCurrent
+                    ? 'inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 disabled:opacity-60'
+                    : 'inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-60'
+                }
+              >
+                {filingMatter === m.id ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : isCurrent ? (
+                  <CheckCircle2 className="h-3 w-3" />
+                ) : (
+                  <FolderInput className="h-3 w-3" />
+                )}
+                {matterLabel(m)}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+    </div>
+  );
+
   if (loading) {
     return (
       <div
@@ -462,15 +591,23 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
   if (error || !message) {
     return (
       <div
-        data-testid="email-viewer-error"
-        className={`flex h-full flex-col items-center justify-center gap-2 p-6 text-center text-slate-600 ${className ?? ''}`}
+        className={`h-full overflow-y-auto bg-white text-slate-900 ${className ?? ''}`}
       >
-        <AlertTriangle className="h-8 w-8 text-amber-500" />
-        {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-        <p className="text-sm font-medium text-slate-800">This email could not be opened</p>
-        <p className="max-w-md text-xs text-slate-500">
-          {error ?? 'Message not found. It may not be synced yet.'}
-        </p>
+        <div className="mx-auto w-full max-w-3xl px-6 py-6">
+          <div
+            data-testid="email-viewer-error"
+            className="flex min-h-52 flex-col items-center justify-center gap-2 text-center text-slate-600"
+          >
+            <AlertTriangle className="h-8 w-8 text-amber-500" />
+            {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
+            <p className="text-sm font-medium text-slate-800">This email could not be opened</p>
+            <p className="max-w-md text-xs text-slate-500">
+              {error ?? 'Message not found. It may not be synced yet.'}
+            </p>
+          </div>
+          {privilegeControl}
+          {fileToMatterControl}
+        </div>
       </div>
     );
   }
@@ -574,130 +711,9 @@ export function EmailViewer({ sourceId, className, onOpenSettings }: EmailViewer
           </div>
         )}
 
-        {/* Privilege control (WS-PRIV / VG-5c) */}
-        <div
-          data-testid="email-privilege-control"
-          data-privilege={privilege}
-          className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
-        >
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600">
-              <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-              {t('mail.viewer.privilege-label')}
-            </span>
-            <div
-              role="radiogroup"
-              aria-label={t('mail.viewer.privilege-label')}
-              className="flex overflow-hidden rounded-md border border-slate-200"
-            >
-              {ALL_PRIVILEGE_STATUSES.map((status) => (
-                <button
-                  key={status}
-                  type="button"
-                  role="radio"
-                  aria-checked={privilege === status}
-                  data-testid={`email-privilege-option-${status}`}
-                  onClick={() => {
-                    setPrivilege(mailSourceId, status);
-                  }}
-                  className={`border-l border-slate-200 px-2 py-1 text-[11px] leading-tight first:border-l-0 ${
-                    privilege === status
-                      ? 'bg-[var(--kp-navy)] font-medium text-white'
-                      : 'bg-white text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {privilegeOptionLabel(status, t)}
-                </button>
-              ))}
-            </div>
-          </div>
-          {isPrivileged(privilege) && (
-            <p
-              data-testid="email-privilege-note"
-              className="mt-1.5 text-[11px] leading-snug text-amber-700"
-            >
-              {t('mail.viewer.privilege-note')}
-            </p>
-          )}
-        </div>
+        {privilegeControl}
 
-        {/* File to matter */}
-        <div
-          data-testid="email-file-to-matter"
-          className="mt-4 rounded-md border border-slate-200 bg-white px-3 py-2"
-        >
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-            <FolderInput className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-            File to {entityLabel.one}
-          </div>
-          {/* BUG-013: when the message is already filed, show which matter it's
-              filed to (persists across reopen via message.matterId), so a lawyer
-              can see the current association and change it deliberately. */}
-          {filedMatter !== null && (
-            <p
-              data-testid="email-filed-matter"
-              className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
-            >
-              <CheckCircle2 className="h-3 w-3 shrink-0" />
-              Filed to {matterLabel(filedMatter)}
-            </p>
-          )}
-          {/* Message is filed, but to a matter not in the current list (e.g. an
-              archived/removed matter): still disclose the filed state honestly. */}
-          {filedMatter === null && filedMatterId !== null && (
-            <p
-              data-testid="email-filed-matter"
-              className="mb-1.5 flex items-center gap-1 text-[11px] font-medium text-emerald-700"
-            >
-              <CheckCircle2 className="h-3 w-3 shrink-0" />
-              Filed to another {entityLabel.one}
-            </p>
-          )}
-          {fileError && (
-            <p className="mb-1.5 flex items-center gap-1 text-[11px] text-amber-700">
-              <AlertTriangle className="h-3 w-3" />
-              {fileError}
-            </p>
-          )}
-          {fileSuccess && (
-            <p className="mb-1.5 text-[11px] text-emerald-700">Filed successfully.</p>
-          )}
-          {matters.length === 0 ? (
-            <p className="text-xs text-slate-400">No {entityLabel.other} yet. Create a {entityLabel.one} first.</p>
-          ) : (
-            <div className="flex flex-wrap gap-1.5">
-              {matters.map((m) => {
-                const isCurrent = m.id === filedMatterId;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    data-testid={`file-to-matter-btn-${m.id}`}
-                    aria-pressed={isCurrent}
-                    disabled={filingMatter === m.id}
-                    onClick={() => { void handleFileToMatter(m.id); }}
-                    className={
-                      isCurrent
-                        ? 'inline-flex items-center gap-1 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 disabled:opacity-60'
-                        : 'inline-flex items-center gap-1 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-100 disabled:opacity-60'
-                    }
-                  >
-                    {filingMatter === m.id ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : isCurrent ? (
-                      <CheckCircle2 className="h-3 w-3" />
-                    ) : (
-                      <FolderInput className="h-3 w-3" />
-                    )}
-                    {matterLabel(m)}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-        </div>
+        {fileToMatterControl}
 
         {/* Body */}
         <div className="mt-5 border-t border-slate-100 pt-5">
