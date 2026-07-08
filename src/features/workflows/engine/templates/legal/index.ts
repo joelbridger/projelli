@@ -54,8 +54,9 @@ import { CitationFormatter } from './CitationFormatter';
 import { IssueSpotter } from './IssueSpotter';
 
 import type { WorkflowTemplate } from '@/platform/types/workflow';
+import { brandValue } from '@/config/brandText';
 
-export const LEGAL_TEMPLATES: WorkflowTemplate[] = [
+export const LEGAL_TEMPLATES: WorkflowTemplate[] = brandValue([
   DepositionContradictionFinder,
   EvidenceGapAnalyzer,
   CaseTimelineBuilder,
@@ -75,7 +76,7 @@ export const LEGAL_TEMPLATES: WorkflowTemplate[] = [
   RealEstateClosingChecklist,
   CitationFormatter,
   IssueSpotter,
-];
+]);
 
 export {
   DepositionContradictionFinder,

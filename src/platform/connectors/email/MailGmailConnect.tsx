@@ -6,6 +6,7 @@ import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
+import { brandText } from '@/config/brandText';
 
 export function MailGmailConnect() {
   useMailSync();
@@ -117,17 +118,14 @@ export function MailGmailConnect() {
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
         Gmail
-        <InfoHelp content="Signs in with your Google account directly. Your email stays on this device and never leaves your machine. Requires the Lantern desktop app." />
+        <InfoHelp content={brandText('Signs in with your Google account directly. Your email stays on this device and never leaves your machine. Requires the Lantern desktop app.')} />
       </h3>
 
       {!connected && (
         <div className="mt-3 space-y-3">
-          {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <p className="text-xs text-slate-500">
-            A browser window will open to sign in to Google. Google will ask you to confirm
-            access to Lantern. This is normal. Choose Continue.
+            {brandText('A browser window will open to sign in to Google. Google will ask you to confirm access to Lantern. This is normal. Choose Continue.')}
           </p>
-          {/* eslint-enable lantern-i18n/no-hardcoded-string */}
 
           {!configured && (
             /* This build has no Google OAuth client credentials baked in
@@ -145,8 +143,7 @@ export function MailGmailConnect() {
               /* Expected limitation in the web preview — a calm info note, not a
                  red alarm (UX-22). */
               <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-                <p>Email connects in the Lantern desktop app.</p>
+                <p>{brandText('Email connects in the Lantern desktop app.')}</p>
               </div>
             ) : (
               <div className="rounded-md bg-slate-50 p-3 text-sm text-slate-800">

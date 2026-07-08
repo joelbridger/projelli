@@ -291,7 +291,7 @@ export function Spine({
             key={id}
             type="button"
             title={label}
-            aria-current={active === id ? 'page' : undefined}
+            aria-current={active === id && !(id === 'matters' && allClientsActive) ? 'page' : undefined}
             data-testid={`spine-nav-collapsed-${id}`}
             onClick={() => onTabChange?.(id)}
             style={{
@@ -301,9 +301,9 @@ export function Spine({
               border: 0,
               cursor: 'pointer',
               color:
-                active === id ? 'var(--kp-side-fg)' : 'var(--kp-side-fg-dim)',
+                active === id && !(id === 'matters' && allClientsActive) ? 'var(--kp-side-fg)' : 'var(--kp-side-fg-dim)',
               background:
-                active === id ? 'var(--kp-side-active-bg)' : 'transparent',
+                active === id && !(id === 'matters' && allClientsActive) ? 'var(--kp-side-active-bg)' : 'transparent',
             }}
           >
             <Icon size={18} style={{ margin: '0 auto' }} strokeWidth={1.75} />
@@ -416,9 +416,11 @@ export function Spine({
         </div>
         <div
           style={{
-            flex: 'none',
+            flex: '1 1 auto',
             minHeight: 0,
             borderTop: '1px solid var(--kp-side-border)',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
           {/* Header row toggles the section and carries the "+ New client" affordance. */}
@@ -542,8 +544,10 @@ export function Spine({
           </div>
           {clientsOpen && (
             <div
+              data-testid="spine-client-list"
               style={{
-                maxHeight: 280,
+                flex: '1 1 auto',
+                minHeight: 0,
                 overflowY: 'auto',
                 padding: '0 10px var(--kp-space-xs)',
               }}

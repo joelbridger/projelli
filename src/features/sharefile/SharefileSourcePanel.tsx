@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { FileText, X } from 'lucide-react';
 import { EV_OPEN_SHAREFILE } from '@/config/identity';
+import { BRAND } from '@/config/brand';
 
 interface SharefileSourceState {
   sourceId: string;
@@ -53,7 +54,7 @@ export function SharefileSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Lantern imported this citation from ShareFile as read-only text. Full cloud-document opening is a fast-follow.
+          {BRAND.name} imported this citation from ShareFile as read-only text. Full cloud-document opening is a fast-follow.
         </p>
       </div>
     </div>

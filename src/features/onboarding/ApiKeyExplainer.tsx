@@ -67,10 +67,7 @@ export function ApiKeyExplainer({
         <div className="px-4 pb-4 space-y-2 text-xs text-muted-foreground leading-relaxed">
           {!collapsible && <div className="h-1" />}
           <p>
-            An API key is like a password that lets your computer talk directly
-            to an AI company (Anthropic, OpenAI, or Google). You create it on
-            their site, paste it here once, and Lantern stores it in your
-            operating system's secure keychain.
+            {t('onboarding.api-key-explainer.what-is-body')}
           </p>
           <p>
             {t('onboarding.api-key-explainer.privacy-body')}

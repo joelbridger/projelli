@@ -17,6 +17,8 @@
  * compile.  The CATEGORY_ALIAS_MAP in SettingsModal resolves them at runtime.
  */
 
+import { brandText } from '@/config/brandText';
+
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
 /** The 6 canonical section ids used in the sidebar nav. */
@@ -162,7 +164,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'startupBehavior',
     category: 'workspace',
     label: 'On startup',
-    description: 'Choose what Lantern opens when the app starts.',
+    description: brandText('Choose what Lantern opens when the app starts.'),
     type: 'select',
     defaultValue: 'reopen',
     options: [
@@ -174,7 +176,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'showWhatsNew',
     category: 'workspace',
     label: 'Update notifications',
-    description: 'Display a toast when a new version of Lantern is available.',
+    description: brandText('Display a toast when a new version of Lantern is available.'),
     type: 'toggle',
     defaultValue: true,
   },
@@ -376,7 +378,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Allow exported reports from other tools',
     description:
-      'When on, Lantern may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Lantern reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.',
+      brandText('When on, Lantern may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Lantern reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.'),
     type: 'toggle',
     defaultValue: false,
   },
@@ -385,7 +387,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Flag exported plans older than (days)',
     description:
-      'A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Lantern used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.',
+      brandText('A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Lantern used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.'),
     type: 'number',
     defaultValue: 90,
     min: 7,
@@ -662,7 +664,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'autoUpdateCheck',
     category: 'advanced',
     label: 'Automatic updates',
-    description: 'When enabled, Lantern checks GitHub Releases for new versions in the background and prompts you when one is available.',
+    description: brandText('When enabled, Lantern checks GitHub Releases for new versions in the background and prompts you when one is available.'),
     type: 'toggle',
     defaultValue: true,
   },
@@ -743,7 +745,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'resetFeatureTour',
     category: 'help',
     label: 'Feature tour',
-    description: 'Replay the guided tour that introduces the Lantern workspace.',
+    description: brandText('Replay the guided tour that introduces the Lantern workspace.'),
     type: 'text',
     defaultValue: '',
     action: { label: 'Start tour', actionId: 'reset-feature-tour' },
@@ -754,7 +756,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'aboutWhatsNew',
     category: 'help',
     label: "What's new",
-    description: 'See highlights from the most recent Lantern releases.',
+    description: brandText('See highlights from the most recent Lantern releases.'),
     type: 'text',
     defaultValue: '',
     action: { label: "What's new", actionId: 'open-whats-new' },

@@ -52,7 +52,7 @@
     "bug-report": {
       "title": "Fehler melden",
       "title__sourceHash": "f75e0bd8ff2369251bc8767de55dd8c0bcb3efd1dbc34041bfca4058f9edf0ef",
-      "description": "Beschreibe, was schiefgelaufen ist. Meldungen landen direkt beim Lantern-Team.",
+      "description": "Beschreibe, was schiefgelaufen ist. Meldungen landen direkt beim {{productName}}-Team.",
       "description__sourceHash": "90745362a3ba692b8a9434bafc6f1dc318af6ce21272dcc810d6bca2e57118f6",
       "success": "Danke, dein Bericht ist angekommen. Falls du eine E-Mail-Adresse hinterlassen hast, melde ich mich, sobald es etwas zu berichten gibt.",
       "success__sourceHash": "4db9f77b45c80c60276eb21358b92bb63c74c6eab1d59b248fd43b95f6907eed",
@@ -144,8 +144,8 @@
       "empty-confirm_other__sourceHash": "aee61d68f115ab14be7922d247ac0d5def4ee1c93018de8622f726f6402cd51a"
     },
     "web-demo": {
-      "banner": "Du verwendest die Lantern-Demo. Dateien bleiben nur in deinem Browser und werden nirgendwo synchronisiert.",
-      "byok-confirm-description": "Dein Schlüssel wird nur in deinem Browser gespeichert. Die Lantern-Demo sieht ihn nie. KI-Anfragen gehen direkt von diesem Tab an Anthropic."
+      "banner": "Du verwendest die {{productName}}-Demo. Dateien bleiben nur in deinem Browser und werden nirgendwo synchronisiert.",
+      "byok-confirm-description": "Dein Schlüssel wird nur in deinem Browser gespeichert. Die {{productName}}-Demo sieht ihn nie. KI-Anfragen gehen direkt von diesem Tab an Anthropic."
     }
   },
   "file-import": {
@@ -203,7 +203,7 @@
       "tabs-open_one__sourceHash": "0a31f6a8b7d199532d8574307bf901fe83997c034167d109dace3d7d62630268",
       "tabs-open_other": "{{count}} Dateien geöffnet",
       "tabs-open_other__sourceHash": "bdf97bdcad54458e35cf56aa78038f99020da85bffea48c2c1c363aaf598d940",
-      "bug-report-title": "Fehler melden, wird direkt an das Lantern-Team gesendet",
+      "bug-report-title": "Fehler melden, wird direkt an das {{productName}}-Team gesendet",
       "bug-report-title__sourceHash": "2f7fa6da3c07bc59c11d0db87267c4ad43e2d6d4655bd5130a636b3ca9a4ce3a",
       "bug-report-cta": "Etwas funktioniert nicht? Gib uns Bescheid!",
       "bug-report-cta__sourceHash": "ed9685394e5c2d85b72d913a8d68a0ff46d1178f9b0176bfb9e186c8220834d7"
@@ -253,7 +253,7 @@
     "modal": {
       "title": "Einstellungen",
       "title__sourceHash": "74a883a037bc227f91891ab654a753d3a99f31ab06ae5b5d2b6e594a692b41f8",
-      "description": "Lantern-Einstellungen konfigurieren",
+      "description": "{{productName}}-Einstellungen konfigurieren",
       "description__sourceHash": "36ca199aa5ec20ee12955c2e0f88d0f716aae761c87c724e33e24a2a04e66d11",
       "search-placeholder": "Einstellungen durchsuchen...",
       "search-placeholder__sourceHash": "6801207d5994165123a10ab767fd9439130fae500f8c407877ae5070843b906d",
@@ -291,7 +291,7 @@
     "license": {
       "title": "Lizenz",
       "title__sourceHash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
-      "description": "Eine Lizenz hält KI-Chat, Workflows und alle Lantern-Funktionen nach Ihrer Testphase aktiv. Schlüssel sind verfügbar unter <pricingLink>lantern.com</pricingLink>.",
+      "description": "Eine Lizenz hält KI-Chat, Workflows und alle {{productName}}-Funktionen nach Ihrer Testphase aktiv. Schlüssel sind verfügbar unter <pricingLink>lantern.com</pricingLink>.",
       "description__sourceHash": "5cdede16d12ec5981d36069071f514adb12fadbc540e15f9ef25fe76e5c4126b",
       "deactivate-confirm": "Diese Lizenz deaktivieren? Sie verlieren den Zugang zu kostenpflichtigen Funktionen, bis Sie die Lizenz erneut aktivieren.",
       "deactivate-confirm__sourceHash": "2cff19c7259e4828cf7e844917462cea95640e0282d0f3deb804dafff9c80d89",
@@ -335,7 +335,7 @@
       "activate-to-continue__sourceHash": "1cd904d5614b84a0ca65d2bd3e153cdc2a37d21498140c8e3124d4b0c097ccf9",
       "trial-expired-detail": "Ihre {{days}}-tägige kostenlose Testphase endete am <endDateBold>{{endDate}}</endDateBold>. KI-Chat und Workflows sind pausiert. Ihre vorhandenen Dateien sind weiterhin vollständig lesbar. Aktivieren Sie eine Lizenz, um weiterzuarbeiten.",
       "trial-expired-detail__sourceHash": "a61970076eaea03b53147e680c0771077767087d1db8752cbdd0000083e58347",
-      "trial-active-detail": "Sie nutzen die kostenlose Testphase. Alle Lantern-Funktionen sind für {{days}} Tage ab dem ersten Start freigeschaltet: eigene KI-Schlüssel verwenden, Workflows ausführen, Dateien bearbeiten und vieles mehr. Nach Ablauf der Testphase werden KI-Chat und Workflows pausiert, bis Sie eine Lizenz aktivieren. Ihre Dateien bleiben weiterhin zugänglich.",
+      "trial-active-detail": "Sie nutzen die kostenlose Testphase. Alle {{productName}}-Funktionen sind für {{days}} Tage ab dem ersten Start freigeschaltet: eigene KI-Schlüssel verwenden, Workflows ausführen, Dateien bearbeiten und vieles mehr. Nach Ablauf der Testphase werden KI-Chat und Workflows pausiert, bis Sie eine Lizenz aktivieren. Ihre Dateien bleiben weiterhin zugänglich.",
       "trial-active-detail__sourceHash": "bbf0659907061d4be48fe1f9495f855667801d347160cdc889a5f46c3b6aa0b6",
       "days-left_one": "Noch 1 Tag",
       "days-left_one__sourceHash": "94138aa699e8ac7a7414bb60cbdff90e4fc87d16b8ddc025e01690428570230a",
@@ -345,8 +345,8 @@
       "get-license-cta__sourceHash": "3cd49792283e16e730cdac6d3efc1ad24488d5266392e6621443ba9ed357e833",
       "already-have-key": "Bereits einen Lizenzschlüssel?",
       "already-have-key__sourceHash": "b0be03f349873e8bf1511090c79a05688ea392e60f07faf3fc0400a814f90ee2",
-      "recovery-heading": "Lantern schon gekauft?",
-      "recovery-detail": "Gib deinen Lizenzcode ein, um Lantern auf diesem Computer wiederherzustellen. Kein Konto erforderlich.",
+      "recovery-heading": "{{productName}} schon gekauft?",
+      "recovery-detail": "Gib deinen Lizenzcode ein, um {{productName}} auf diesem Computer wiederherzustellen. Kein Konto erforderlich.",
       "recovery-restore": "Wiederherstellen",
       "recovery-restoring": "Wird wiederhergestellt...",
       "unlocks-heading": "Was Ihre Lizenz freischaltet:",
@@ -372,12 +372,12 @@
     "privacy": {
       "title": "Datenschutz",
       "title__sourceHash": "54a57c3147c49f33de5898b87084ad2b14c4ab308f762454bf92aca907478ad5",
-      "description": "Lantern ist local-first. Ihre Dateien, KI-Eingaben und API-Schlüssel verlassen Ihren Computer niemals. Alle unten aufgeführten Opt-ins sind die einzigen Daten, die Lantern jemals erfasst, und alle sind standardmäßig deaktiviert.",
+      "description": "{{productName}} ist local-first. Ihre Dateien, KI-Eingaben und API-Schlüssel verlassen Ihren Computer niemals. Alle unten aufgeführten Opt-ins sind die einzigen Daten, die {{productName}} jemals erfasst, und alle sind standardmäßig deaktiviert.",
       "description__sourceHash": "034249738804df65d5105bac50add4d9fbfcc51a2958ee5dac9278e773d9af5f",
       "optional-sharing": {
         "title": "Optionales Teilen",
         "title__sourceHash": "dc3d1c57efff2b2c42ac21084ad13afc8f55e750450599e926fa633f25e38a2f",
-        "description": "Lantern behält deine Arbeit auf diesem Computer. Optionales Teilen ist aus, bis du es einschaltest.",
+        "description": "{{productName}} behält deine Arbeit auf diesem Computer. Optionales Teilen ist aus, bis du es einschaltest.",
         "description__sourceHash": "d5298c8a0d6ff2046b64b7253415fe5a853ce32aa76259ee3152dabea1454d79",
         "details-label": "Was wird geteilt?",
         "details-label__sourceHash": "eaf88324289db8abfe287369def985a0bac9b227b3271300096e4586c7658ba9"
@@ -385,7 +385,7 @@
       "design-partner": {
         "title": "Design-Partner-Diagnose",
         "title__sourceHash": "2413b6a8cdc3e679665dd6734bce73fbcf7828dc82267f2aa59352d5fe1259cc",
-        "description": "Sie gehören zu den ersten Anwälten, die Lantern in der Praxis nutzen. Wenn diese Option aktiviert ist, sendet Lantern ausschließlich strukturierte Nutzungszahlen: welche Funktionen Sie verwenden und wo Sie nicht weiterkommen. Niemals Ihre Inhalte, Dateinamen, Mandantennamen oder Prompts. Standardmäßig deaktiviert; jederzeit abschaltbar.",
+        "description": "Sie gehören zu den ersten Anwälten, die {{productName}} in der Praxis nutzen. Wenn diese Option aktiviert ist, sendet {{productName}} ausschließlich strukturierte Nutzungszahlen: welche Funktionen Sie verwenden und wo Sie nicht weiterkommen. Niemals Ihre Inhalte, Dateinamen, Mandantennamen oder Prompts. Standardmäßig deaktiviert; jederzeit abschaltbar.",
         "description__sourceHash": "af73ac1af5d8252f760817c5849e0e9d9a131e47fd386df4b48451597d6182c4",
         "enabled": "Aktiviert",
         "enabled__sourceHash": "92c1cdfdf4cb9cf6fcca962f206de36fd5d60db1178bc9461052f8de703a0e06",
@@ -409,7 +409,7 @@
       "telemetry": {
         "title": "Anonyme Nutzungsstatistiken",
         "title__sourceHash": "a5ae59854735498da223906cc49efa42af3a439f2093090712fd23624f3f4c08",
-        "description": "Helfen Sie dabei, Lantern zu verbessern, indem Sie Lifecycle-Ereignisse senden: App-Start, Testbeginn, Testende, Lizenz aktiviert, Lizenz deaktiviert. Kein Inhalt, keine Dateien, keine KI-Eingaben, keine E-Mail.",
+        "description": "Helfen Sie dabei, {{productName}} zu verbessern, indem Sie Lifecycle-Ereignisse senden: App-Start, Testbeginn, Testende, Lizenz aktiviert, Lizenz deaktiviert. Kein Inhalt, keine Dateien, keine KI-Eingaben, keine E-Mail.",
         "description__sourceHash": "2151b3e914b8df54cef6245d7eee381d46d81cd67cbdcb5df67625efc67fdd3b",
         "enabled": "Aktiviert",
         "enabled__sourceHash": "92c1cdfdf4cb9cf6fcca962f206de36fd5d60db1178bc9461052f8de703a0e06",
@@ -419,13 +419,13 @@
         "what-is-sent__sourceHash": "f9af9adf841a24b702b4a51f959f4e23065a87a0aa2e46f02155022db2d04044",
         "field-install-id": "<c>install_id</c>: eine zufällige UUID, die auf diesem Gerät generiert wurde (unten sichtbar). Nicht mit Ihrer E-Mail oder Lizenz verknüpft.",
         "field-install-id__sourceHash": "d742007e3bd981816ee7213bb8a9fe08a25c469e6c0c74d8142554367c7c8025",
-        "field-app-version": "<c>app_version</c>, <c>platform</c>: welcher Build von Lantern sowie macOS / Windows / Linux.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: welcher Build von {{productName}} sowie macOS / Windows / Linux.",
         "field-app-version__sourceHash": "b0b94f12279049a2778750da65c5896f08060d173c5dc6a9d5df9e394ac6eb86",
         "field-event": "<c>event</c>: eines von <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
         "field-license-tier": "<c>license_tier</c> (wenn relevant): trial, personal, professional, practice.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
-        "endpoint-note": "Endpunkt: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL gespeichert auf Lantern-Servern. Wird ausschließlich für Trichter-Metriken und Roadmap-Entscheidungen verwendet.",
+        "endpoint-note": "Endpunkt: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL gespeichert auf {{productName}}-Servern. Wird ausschließlich für Trichter-Metriken und Roadmap-Entscheidungen verwendet.",
         "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",
         "install-id-display": "Ihre Installations-ID: <c>{{id}}</c>",
         "install-id-display__sourceHash": "52e2a9cf6161dc02a352627b94c8e6694d0a6aa311200f3f358a7fdf8b213a52"
@@ -433,23 +433,23 @@
       "email": {
         "title": "E-Mail-Updates",
         "title__sourceHash": "273ea8304d5cb611e05f6a3014bcf7f76279840419a1ce5b4ac7cc62bbca4fa0",
-      "intro": "Wenn Sie beim ersten Start (oder über die Website) in E-Mail-Updates eingewilligt haben, erhalten Sie Start-Ankündigungen und Rabattcodes. Keine Drip-Kampagnen, keine wöchentlichen Newsletter.",
-      "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
-      "unsub": "Um sich von der Liste zu entfernen, antworten Sie auf eine beliebige Lantern-E-Mail mit <c>UNSUB</c>. Alle Antworten gehen direkt an den Support.",
-      "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f",
-      "empty": "Sie haben sich nicht für Produkt-E-Mails angemeldet.",
-      "empty__sourceHash": "8b51d05710fbbf3a196fb7844a630f2c7f248892974960fdafc6f584dd68d4a1"
+        "intro": "Wenn Sie beim ersten Start (oder über die Website) in E-Mail-Updates eingewilligt haben, erhalten Sie Start-Ankündigungen und Rabattcodes. Keine Drip-Kampagnen, keine wöchentlichen Newsletter.",
+        "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
+        "unsub": "Um sich von der Liste zu entfernen, antworten Sie auf eine beliebige {{productName}}-E-Mail mit <c>UNSUB</c>. Alle Antworten gehen direkt an den Support.",
+        "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f",
+        "empty": "Sie haben sich nicht für Produkt-E-Mails angemeldet.",
+        "empty__sourceHash": "8b51d05710fbbf3a196fb7844a630f2c7f248892974960fdafc6f584dd68d4a1"
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Lantern’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
       }
     },
     "mcp": {
       "title": "MCP-Server",
       "title__sourceHash": "d938c8168e3acbba8c9bc7f55dfec4cc5a3cd2a5891778b6605112f43167c8dd",
-      "description": "Stellen Sie Ihren Lantern-Arbeitsbereich jedem MCP-kompatiblen KI-Client zur Verfügung. Einmal installiert, können Sie Claude Desktop, Cursor oder andere Clients nach Ihren Notizen, Chats und Gedächtniseinträgen fragen, ohne kopieren und einfügen zu müssen.",
+      "description": "Stellen Sie Ihren {{productName}}-Arbeitsbereich jedem MCP-kompatiblen KI-Client zur Verfügung. Einmal installiert, können Sie Claude Desktop, Cursor oder andere Clients nach Ihren Notizen, Chats und Gedächtniseinträgen fragen, ohne kopieren und einfügen zu müssen.",
       "description__sourceHash": "8a22d9a49611f2793b3e9b2c85dc97f7c40218756fe83d79c8b1573ee12f6618",
       "copied-status": "Bundle-Pfad in die Zwischenablage kopiert: {{path}}",
       "copied-status__sourceHash": "dfb53e729d2c1830198104b0910f1838c68d647f7dfafde631cc55b3c756af0a",
@@ -474,9 +474,9 @@
         "step-open-claude__sourceHash": "6837d2d4488128cc818b5bb07c1bc329d065a5e358d7bf3669298847c6204597",
         "step-config": "Öffnen Sie <b>Einstellungen, Entwickler, Konfiguration bearbeiten</b>, oder ziehen Sie die <c>.mcpb</c>-Datei in das Claude-Desktop-Fenster.",
         "step-config__sourceHash": "29e612151c6a693e965a559702c6df7380f179cc19623c2ce2d1aabcec57c623",
-        "step-pick-folder": "Wenn Sie nach einem Arbeitsbereichsordner gefragt werden, wählen Sie denselben Ordner, den Sie in Lantern geöffnet haben.",
+        "step-pick-folder": "Wenn Sie nach einem Arbeitsbereichsordner gefragt werden, wählen Sie denselben Ordner, den Sie in {{productName}} geöffnet haben.",
         "step-pick-folder__sourceHash": "efe4c495cfe05f0905c9eea2a6d7f728f45b38a7d03f70b17c6a76d1704b3884",
-        "after-install": "Fragen Sie Claude nach der Installation: \"Durchsuche meinen Lantern-Arbeitsbereich nach X\" oder \"Lies notes/plan.md\", und beobachten Sie, wie es funktioniert.",
+        "after-install": "Fragen Sie Claude nach der Installation: \"Durchsuche meinen {{productName}}-Arbeitsbereich nach X\" oder \"Lies notes/plan.md\", und beobachten Sie, wie es funktioniert.",
         "after-install__sourceHash": "346c4999e6e86b02f8996e0e75ac379eb8cb9d13e32b8b43cf9ef0055a0d27cc"
       },
       "disabled-title": "MCP ist im Modus für privilegierte Mandate deaktiviert",
@@ -510,7 +510,7 @@
     "ollama": {
       "title": "Ollama (lokale Modelle)",
       "title__sourceHash": "bf573b8117fba67f34e92461610bbacb7cb5ac520d4cdc91d300a33c56f508a2",
-      "description": "KI-Modelle direkt auf Ihrem Rechner ausführen: kostenlos, offline, privat. Lantern kommuniziert mit einem lokal laufenden Ollama-Dienst unter <c>127.0.0.1:11434</c>.",
+      "description": "KI-Modelle direkt auf Ihrem Rechner ausführen: kostenlos, offline, privat. {{productName}} kommuniziert mit einem lokal laufenden Ollama-Dienst unter <c>127.0.0.1:11434</c>.",
       "description__sourceHash": "2f89a774b9f1619b8a463a4e87d816f39ff31d9dbd0c76780778693e36e54a3f",
       "status": {
         "checking": "Ollama wird geprüft...",
@@ -570,7 +570,7 @@
     "mobile-page": {
       "title": "Mobile",
       "title__sourceHash": "cbaad3cf4a6507e5d6f98157fa255ca964588c8c30ecf198fb9c98ed97413f59",
-      "description": "Lesen Sie Ihren Lantern-Arbeitsbereich heute auf Ihrem Smartphone. Richten Sie Lantern auf einen synchronisierten Ordner auf Ihrem Computer ein (iCloud, Dropbox, Syncthing oder Google Drive) und die gleichen Dateien erscheinen auf Ihrem Smartphone in der passenden App. Der dedizierte Lantern-Mobile-Reader befindet sich in der Beta-Phase und wird im Rahmen des v2.0-Zyklus veröffentlicht.",
+      "description": "Lesen Sie Ihren {{productName}}-Arbeitsbereich heute auf Ihrem Smartphone. Richten Sie {{productName}} auf einen synchronisierten Ordner auf Ihrem Computer ein (iCloud, Dropbox, Syncthing oder Google Drive) und die gleichen Dateien erscheinen auf Ihrem Smartphone in der passenden App. Der dedizierte {{productName}}-Mobile-Reader befindet sich in der Beta-Phase und wird im Rahmen des v2.0-Zyklus veröffentlicht.",
       "description__sourceHash": "72e3e66fa44241763f33be72b406de704f19e26cb7338c53d71564a9ea5f0dad",
       "heads-up-label": "Hinweis:",
       "heads-up-label__sourceHash": "edf0c1a56db5dfef2a874d395f5314f321c71b971042f3a7cc1d39bcac66a96b",
@@ -622,7 +622,7 @@
       "get-key-link__sourceHash": "02d7af705ed7378f98b8ab085626a18c4be25ec42f281c388dc7293d17321315",
       "add-key": "API-Schlüssel hinzufügen",
       "add-key__sourceHash": "0d8253e382ac639b379c74e01b171ed7e24a9c8db894af6b65194af8938a152b",
-      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher kann Lantern deine gespeicherten KI-Schlüssel gerade nicht erreichen. Deine Dokumente sind davon nicht betroffen. Starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, oder versuche es gleich noch einmal.",
+      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher kann {{productName}} deine gespeicherten KI-Schlüssel gerade nicht erreichen. Deine Dokumente sind davon nicht betroffen. Starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, oder versuche es gleich noch einmal.",
       "credential-service-unavailable__sourceHash": "d9f092dd6d68f0191101c49514b579f1337079fb35733b18ac6f0b11d35200a7"
     },
     "plugins": {
@@ -770,7 +770,7 @@
       "rename-description__sourceHash": "c053c3b074e001ad8246479c564991ac85ecd2a1527944696db9d514e2bfeef6"
     },
     "open-error": {
-      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher konnte Lantern diesen Arbeitsbereich nicht vollständig öffnen. Deine Dateien sind sicher. Versuche es erneut, oder starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, falls dies weiterhin auftritt.",
+      "credential-service-unavailable": "Der Windows-Dienst für die Anmeldeinformationsverwaltung läuft nicht, daher konnte {{productName}} diesen Arbeitsbereich nicht vollständig öffnen. Deine Dateien sind sicher. Versuche es erneut, oder starte den Dienst \"Anmeldeinformationsverwaltung\" (services.msc) neu, falls dies weiterhin auftritt.",
       "credential-service-unavailable__sourceHash": "3a0ad4347d7ad692781cc2b89e0ae886063358c8d86a79995edc8e679380d492",
       "generic": "Dieser Arbeitsbereich konnte nicht geöffnet werden. Bitte versuche es erneut.",
       "generic__sourceHash": "8927cfef2d83f553f4e35ed2d47214a5e6cd97dc9c8c9f335056192c756aed90",
@@ -909,9 +909,9 @@
       "needs-client-title": "Wähle zuerst deinen Klienten.",
       "needs-client-body": "Wähle einen Klienten und starte den Workflow dann erneut.",
       "ollama-unreachable-title": "Lokale KI nicht erreichbar.",
-      "ollama-unreachable-body": "Lantern Local AI antwortet nicht. Stelle sicher, dass die Einrichtung abgeschlossen ist, und versuche es erneut.",
+      "ollama-unreachable-body": "{{localAiName}} antwortet nicht. Stelle sicher, dass die Einrichtung abgeschlossen ist, und versuche es erneut.",
       "needs-provider-title": "Kein KI-Anbieter eingerichtet.",
-      "needs-provider-body": "Füge einen API-Schlüssel hinzu oder richte Lantern Local AI ein, um Workflows auszuführen.",
+      "needs-provider-body": "Füge einen API-Schlüssel hinzu oder richte {{localAiName}} ein, um Workflows auszuführen.",
       "save-error-title": "Der Laufdatensatz wurde möglicherweise nicht gespeichert.",
       "inputs-count_other": "{{count}} Eingaben",
       "steps-count_other": "{{count}} Schritte",
@@ -1352,11 +1352,11 @@
       "back": "Zurück",
       "back__sourceHash": "76900f1bfd16c8d4dd3d25e6f46638d7165aee23883ccea6bfe071c514421769",
       "welcome": {
-        "title": "Willkommen bei Lantern",
+        "title": "Willkommen bei {{productName}}",
         "title__sourceHash": "d5fe9d81910bf07d222bc1fc1ac71c79057fc7dc8b3e44249867b6ac44906218",
         "subtitle": "Der private Ort, an dem deine Kanzlei lebt und der dir antwortet.",
         "subtitle__sourceHash": "d3c0e8a5e320c6ac7bdcb081098198a4dfbb6517cd033de9bc7130507ee1035e",
-        "body-1": "Lantern speichert deine Mandanten, Dokumente und E-Mails auf deinem eigenen Rechner. Stelle eine Frage über deine gesamte Kanzlei und erhalte eine Antwort mit Quellenangaben, die du prüfen kannst. Deine Dateien bleiben echte Dateien in einem Ordner, den du kontrollierst.",
+        "body-1": "{{productName}} speichert deine Mandanten, Dokumente und E-Mails auf deinem eigenen Rechner. Stelle eine Frage über deine gesamte Kanzlei und erhalte eine Antwort mit Quellenangaben, die du prüfen kannst. Deine Dateien bleiben echte Dateien in einem Ordner, den du kontrollierst.",
         "body-1__sourceHash": "23fed4b3172431891f54f89e1b0e25690fc34a81553caf51b673fdbd348c3468",
         "body-2": "Die Einrichtung dauert etwa 2 Minuten. Ich helfe dir, einen Ordner für deine Mandanten auszuwählen, dein KI-Anbieterkonto zu verbinden (optional) und deinen ersten Workflow zu starten.",
         "body-2__sourceHash": "c268d7a5eed759795bc6481324db162cd67595fffa5a0e97326b28b7859cd459",
@@ -1380,7 +1380,7 @@
         "body-2__sourceHash": "0cc1368f13d536662588c71b75314a0a60b78b68f571fd04e1a6a973fec2dfc5",
         "common-choices": "Häufige Optionen:",
         "common-choices__sourceHash": "d8005a99652714a2ecb00a765f6dc9d139a58c8ddc997ae5d97d2272c1e3fd17",
-        "icloud-path": "~/iCloud Drive/Lantern",
+        "icloud-path": "~/iCloud Drive/{{productName}}",
         "icloud-path__sourceHash": "0fb118852e14a717940090f1b04161d04a135d54d74bbec70869e417129587ac",
         "body-3": "Im nächsten Schritt können Sie den Ordner tatsächlich auswählen. Bestätigen Sie zunächst, dass Sie verstanden haben, was wir gleich von Ihnen möchten.",
         "body-3__sourceHash": "a92248a0d302065c465b91b75db19433058fb8cde2b8cbec0f1e21c229655425",
@@ -1392,7 +1392,7 @@
         "title__sourceHash": "0fa2908448436feb2149a025eb14201396b7669e548bec4963d57ebda84fecdc",
         "subtitle": "Optional, aber für die KI-Funktionen benötigst du einen Schlüssel.",
         "subtitle__sourceHash": "e5cc2dcf151bc5441244b503b1af0014d2a8f9a2830aca19bedf22add0a0432c",
-        "body-1": "Lantern ist ein \"Bring your own key\"-Tool. Du registrierst dich direkt bei einem KI-Anbieter und fügst den API-Schlüssel hier ein. Deine Schlüssel werden im sicheren Schlüsselbund deines Betriebssystems gespeichert und verlassen deinen Computer nie.",
+        "body-1": "{{productName}} ist ein \"Bring your own key\"-Tool. Du registrierst dich direkt bei einem KI-Anbieter und fügst den API-Schlüssel hier ein. Deine Schlüssel werden im sicheren Schlüsselbund deines Betriebssystems gespeichert und verlassen deinen Computer nie.",
         "body-1__sourceHash": "050c447d3705bacc9890d9e4b2a5a70cec4528dfbae7a6ed1c0ab97d3fb2a905",
         "body-2": "Der schnellste Einstieg gelingt mit <s>Anthropic Claude</s>:",
         "body-2__sourceHash": "8a00f17d9a512bcb8e303517949578cd6508bab7cc4b32fe4eae6b1ed1d1e8fb",
@@ -1414,7 +1414,7 @@
         "title__sourceHash": "fb5d039c2235b5eb8b418f01f663b4d12570862073cdf8506aaf2c0dd9adf56e",
         "subtitle": "Sieh, wie ein echtes Dokument in Sekunden entsteht.",
         "subtitle__sourceHash": "7ccaa29a70ea83efa7c68f2ef0737753ef92ef70edea9acab3b255a5ccedd228",
-        "body-1": "Am schnellsten siehst du, was Lantern kann, wenn du einen Workflow ausführst. Wähle eine Vorlage im Tab Workflows, beantworte die gestellten Fragen und sieh zu, wie ein fertiges Word-Dokument in deinem Mandantenordner entsteht.",
+        "body-1": "Am schnellsten siehst du, was {{productName}} kann, wenn du einen Workflow ausführst. Wähle eine Vorlage im Tab Workflows, beantworte die gestellten Fragen und sieh zu, wie ein fertiges Word-Dokument in deinem Mandantenordner entsteht.",
         "body-1__sourceHash": "4799e581b29751d13d4d02e21d86aed2b3a65447d65ac61209c781d6d392b5e1",
         "step-1": "Klicke in der Seitenleiste auf <s>Workflows</s>",
         "step-1__sourceHash": "0be72e15852586347bcd761f9ca624fd5890d4aa12711f4903162b2b645f4742",
@@ -1438,7 +1438,7 @@
     },
     "disk-encryption": {
       "title": "Eine Sache zum Prüfen: deine Festplattenverschlüsselung",
-      "body": "Lantern speichert deine Dokumente als normale Dateien in deinem Arbeitsordner, auf deinem Rechner. Geht der Laptop verloren oder wird er gestohlen, schützt sie die Festplattenverschlüsselung deines Betriebssystems. Zu prüfen, ob sie eingeschaltet ist, dauert nur eine Minute.",
+      "body": "{{productName}} speichert deine Dokumente als normale Dateien in deinem Arbeitsordner, auf deinem Rechner. Geht der Laptop verloren oder wird er gestohlen, schützt sie die Festplattenverschlüsselung deines Betriebssystems. Zu prüfen, ob sie eingeschaltet ist, dauert nur eine Minute.",
       "check-windows": "Windows: Einstellungen, dann Datenschutz und Sicherheit, dann Geräteverschlüsselung (oder suche nach BitLocker). Dort sollte Ein stehen.",
       "check-macos": "Mac: Systemeinstellungen, dann Datenschutz & Sicherheit, dann FileVault. Dort sollte stehen, dass FileVault aktiviert ist.",
       "check-linux": "Linux: Die meisten Installer bieten LUKS-Festplattenverschlüsselung an. Prüfe die Datenträgereinstellungen deiner Distribution oder führe lsblk aus und suche nach einem crypt-Eintrag.",
@@ -1451,7 +1451,7 @@
     "api-key-card": {
       "title": "Nächster Schritt: KI-Schlüssel hinzufügen",
       "title__sourceHash": "6c12e9c2353854280698e1a8efa880daeebe480cd0d533a784017fa309dcc3bd",
-      "description": "Lantern verwendet deinen eigenen API-Schlüssel von Anthropic, OpenAI oder Google, damit deine KI-Nutzung direkt an deinen Anbieter geht, ohne Aufschlag von uns. Dein Lantern-Plan deckt die Software ab.",
+      "description": "{{productName}} verwendet deinen eigenen API-Schlüssel von Anthropic, OpenAI oder Google, damit deine KI-Nutzung direkt an deinen Anbieter geht, ohne Aufschlag von uns. Dein {{productName}}-Plan deckt die Software ab.",
       "description__sourceHash": "e49759058f108ef5e37c23d0ad9cde9b5f0b2cfbf04a9e39da8b88cff0cfee58",
       "walk-me-through": "Schritt für Schritt führen",
       "walk-me-through__sourceHash": "83a76e6892919b343df3fefcfef65efcac4dac23bc91b8df9b421f0d0c128ae8",
@@ -1466,7 +1466,7 @@
         "body__sourceHash": "ba89ec2f74e9a88d5e5486c303f2055b5141e3caeb6fae64af5b5db863fd1f63"
       },
       "step-2-ollama": {
-        "body": "Lade Ollama für dein Betriebssystem herunter und führe dann in einem Terminal <c>ollama pull llama3.2</c> aus (oder ein beliebiges Modell). Lantern erkennt Ollama im nächsten Schritt automatisch.",
+        "body": "Lade Ollama für dein Betriebssystem herunter und führe dann in einem Terminal <c>ollama pull llama3.2</c> aus (oder ein beliebiges Modell). {{productName}} erkennt Ollama im nächsten Schritt automatisch.",
         "body__sourceHash": "04438c6482e9b1d0621311e3d0f683df60508a34d0b559c6a82165199594f6b5"
       },
       "ollama-running": "Ollama läuft",
@@ -1487,21 +1487,22 @@
       "direct-urls__sourceHash": "2376e4561159cc03481bfcb6b4d0bd4f6009baa31ee6cba855710f7f9cf8b02e"
     },
     "welcome": {
-      "title": "Willkommen bei Lantern",
+      "title": "Willkommen bei {{productName}}",
       "title__sourceHash": "d5fe9d81910bf07d222bc1fc1ac71c79057fc7dc8b3e44249867b6ac44906218",
       "description": "Ein paar optionale Einstellungen, beide standardmäßig deaktiviert. Überspringe sie, wenn du möchtest.",
       "description__sourceHash": "81f5ec87b429ff9eaccaac3e1991d66957862668a1077e8bed7ef866f534b709",
       "email-optin-label": "E-Mail-Updates, Tipps und Rabattcodes zusenden",
       "email-optin-label__sourceHash": "484a32d897b9fa023757a516543b3b7bfb3f0d1e8137f1850eb6f5d2239dbd22",
-      "email-optin-help": "Nur echte Updates, keine Drip-Kampagnen, keine wöchentlichen Newsletter. Jederzeit abbestellbar. Geht direkt an das Lantern-Team.",
+      "email-optin-help": "Nur echte Updates, keine Drip-Kampagnen, keine wöchentlichen Newsletter. Jederzeit abbestellbar. Geht direkt an das {{productName}}-Team.",
       "email-optin-help__sourceHash": "2221fab2b8aca62d29f43156c58785f7325e7aff47187c2cf662ae0509a2cc6a",
-      "telemetry-label": "Lantern mit anonymen Nutzungsstatistiken verbessern helfen",
+      "telemetry-label": "{{productName}} mit anonymen Nutzungsstatistiken verbessern helfen",
       "telemetry-label__sourceHash": "5e9554dbf5aff7af0d7ae4aa41fc6c1d1160edc15b3e94722e21df4dd9013184",
       "telemetry-help": "Sendet eine zufällige Installations-ID, die App-Version, Ihre Plattform und Lifecycle-Ereignisse (Testversion gestartet, Lizenz aktiviert usw.). Keine Inhalte, keine Dateien, keine KI-Prompts, keine E-Mail. Sie können dies in den Einstellungen unter 'Datenschutz' deaktivieren.",
       "telemetry-help__sourceHash": "5d8887ac3c6fdfe0be0db46d61436aa9fbd7b576e9d4b8fa0ebc3878039d7b84"
     },
     "api-key-explainer": {
-      "privacy-body": "Diese direkte Verbindung macht Lantern privat: Deine Prompts gehen direkt von deinem Computer an den Anbieter, den du gewählt hast. Lanterns Server sehen deine Arbeit, deine Dateien oder deine Gespräche nie."
+      "privacy-body": "Diese direkte Verbindung macht {{productName}} privat: Deine Prompts gehen direkt von deinem Computer an den Anbieter, den du gewählt hast. {{productNamePossessive}} Server sehen deine Arbeit, deine Dateien oder deine Gespräche nie.",
+      "what-is-body": "Ein API-Schlussel ist wie ein Passwort, mit dem dein Computer direkt mit einem KI-Anbieter (Anthropic, OpenAI oder Google) sprechen kann. Du erstellst ihn dort, fugst ihn hier einmal ein, und {{productName}} speichert ihn im sicheren Schlusselbund deines Betriebssystems."
     }
   },
   "search": {
@@ -1565,7 +1566,7 @@
       "formatting-warning__sourceHash": "f0e45b821ef3a571aa17837d4dcb060d8518a8d42f5f392481250a24ad4cad99",
       "opening": "{{fileName}} wird geöffnet...",
       "opening__sourceHash": "a0a0e302918f3bf04d5efa972e7242a0b4002147531a76e8827a19f4ce94bfc7",
-      "desktop-only": "Das Bearbeiten von Word-Dokumenten mit Änderungsverfolgung ist nur in der Lantern-Desktop-App verfügbar. Hier wird eine schreibgeschützte Vorschau angezeigt.",
+      "desktop-only": "Das Bearbeiten von Word-Dokumenten mit Änderungsverfolgung ist nur in der {{productName}}-Desktop-App verfügbar. Hier wird eine schreibgeschützte Vorschau angezeigt.",
       "desktop-only__sourceHash": "78a37300d3c83d5aaeca156c515259adfefe180f8085d3b1e95833d955f4e0d6",
       "reviewing": "Überprüfung",
       "reviewing__sourceHash": "f25c17d74655c783136292958c75620c2918ee4fc0b9a3c011e6f4a16e1ed153",
@@ -1629,9 +1630,9 @@
       "redline-close": "Schließen",
       "redline-dismiss": "Verwerfen",
       "redline-egress-note": "Sendet den Dokumenttext direkt mit Ihrem eigenen Schlüssel an Ihren KI-Anbieter.",
-      "redline-summary-headline": "Lantern AI hat {{applied}} nachverfolgte Änderung(en) vorgeschlagen.",
+      "redline-summary-headline": "{{productAiName}} hat {{applied}} nachverfolgte Änderung(en) vorgeschlagen.",
       "redline-skipped": "· {{skipped}} konnten nicht platziert werden",
-      "redline-no-changes": "Lantern AI hat keine Änderungen vorgeschlagen.",
+      "redline-no-changes": "{{productAiName}} hat keine Änderungen vorgeschlagen.",
       "redline-op-insert": "Eingefügter Text",
       "redline-op-delete": "Gelöschter Text",
       "redline-op-replace": "Ersetzter Text",
@@ -1658,7 +1659,7 @@
       "save-copy-success": "Rettungskopie gespeichert unter {{path}}.",
       "save-copy-failed": "Kopie konnte nicht gespeichert werden: {{message}}",
       "pdf-needs-libreoffice-title": "Der PDF-Export benötigt LibreOffice",
-      "pdf-needs-libreoffice-body": "Lantern wandelt Word lokal mit LibreOffice in PDF um, einem kostenlosen Programm. Nichts verlässt Ihren Computer. Installieren Sie es und führen Sie den Export danach erneut aus.",
+      "pdf-needs-libreoffice-body": "{{productName}} wandelt Word lokal mit LibreOffice in PDF um, einem kostenlosen Programm. Nichts verlässt Ihren Computer. Installieren Sie es und führen Sie den Export danach erneut aus.",
       "pdf-libreoffice-copy": "Link kopieren",
       "pdf-libreoffice-copied": "Kopiert",
       "pdf-needs-libreoffice-title__locked": true,
@@ -1719,11 +1720,11 @@
   },
   "model-download": {
     "title": "Private Suche wird eingerichtet",
-    "body": "Lantern lädt seine private Suchmaschine (etwa 465 MB) einmalig von Hugging Face herunter. Sie können weiterarbeiten. Suche und KI-Antworten aus Ihren Dateien werden aktiviert, sobald der Download abgeschlossen ist.",
+    "body": "{{productName}} lädt seine private Suchmaschine (etwa 465 MB) einmalig von Hugging Face herunter. Sie können weiterarbeiten. Suche und KI-Antworten aus Ihren Dateien werden aktiviert, sobald der Download abgeschlossen ist.",
     "verifying": "Die heruntergeladenen Dateien werden geprüft",
     "progress": "{{done}} MB von {{total}} MB",
     "progress-unknown": "Bisher {{done}} MB",
-    "stalled": "Der Download scheint festzuhängen. Ein Neustart von Lantern setzt ihn dort fort, wo er angehalten hat.",
+    "stalled": "Der Download scheint festzuhängen. Ein Neustart von {{productName}} setzt ihn dort fort, wo er angehalten hat.",
     "error-title": "Der Download der Suchmaschine wurde unterbrochen",
     "error-body": "Es ist nichts verloren gegangen. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
     "retry": "Download fortsetzen",
@@ -1738,23 +1739,23 @@
     "retry__locked": true
   },
   "local-ai-download": {
-    "title": "Lantern Local AI wird heruntergeladen",
-    "body": "Lantern lädt seine private KI für dieses Gerät (etwa 2,4 GB) einmalig herunter. Sie können weiterarbeiten. Sie läuft vollständig offline, sobald sie bereit ist.",
+    "title": "{{localAiName}} wird heruntergeladen",
+    "body": "{{productName}} lädt seine private KI für dieses Gerät (etwa 2,4 GB) einmalig herunter. Sie können weiterarbeiten. Sie läuft vollständig offline, sobald sie bereit ist.",
     "verifying": "Das heruntergeladene Modell wird geprüft",
     "progress": "{{done}} MB von {{total}} MB",
     "progress-unknown": "{{done}} MB bisher",
-    "stalled": "Der Download scheint zu hängen. Ein Neustart von Lantern setzt ihn dort fort, wo er gestoppt wurde.",
-    "error-title": "Der Download von Lantern Local AI wurde unterbrochen",
+    "stalled": "Der Download scheint zu hängen. Ein Neustart von {{productName}} setzt ihn dort fort, wo er gestoppt wurde.",
+    "error-title": "Der Download von {{localAiName}} wurde unterbrochen",
     "error-body": "Es ist nichts verloren. Der Download wird dort fortgesetzt, wo er gestoppt wurde.",
     "retry": "Download fortsetzen"
   },
   "local-ai-settings": {
-    "title": "Lantern Local AI",
+    "title": "{{localAiName}}",
     "description": "Eine private KI, die vollständig auf diesem Computer läuft. Ihre Dateien und Fragen verlassen das Gerät nie. Sie ist etwas weniger präzise als die Cloud-Modelle, aber nichts, was Sie fragen, geht ins Internet. Einmaliger Download, etwa 2,4 GB.",
-    "download": "Lantern Local AI herunterladen",
+    "download": "{{localAiName}} herunterladen",
     "downloading": "Wird heruntergeladen… {{pct}} %",
     "verifying": "Download wird geprüft…",
-    "ready": "Installiert und bereit. Wählen Sie „Lantern Local AI“ als Modell in einem beliebigen Chat.",
+    "ready": "Installiert und bereit. Wählen Sie „{{localAiName}}“ als Modell in einem beliebigen Chat.",
     "error": "Der Download wurde unterbrochen. Es ist nichts verloren.",
     "retry": "Download fortsetzen"
   },
@@ -1769,7 +1770,7 @@
       "version": "Version",
       "versions": "Versionen",
       "author-user": "Sie",
-      "author-ai": "Lantern AI",
+      "author-ai": "{{productAiName}}",
       "preview": "Vorschau",
       "this-version": "Diese Version",
       "current": "Aktuell",
@@ -1778,7 +1779,7 @@
       "restore-confirm": "Die Datei auf die Version vom {{date}} wiederherstellen? Ihre aktuelle Version wird zuerst gespeichert, es geht also nichts verloren.",
       "diff-loading": "Vergleich wird erstellt...",
       "docx-text-diff-note": "Es wird ein Textvergleich angezeigt. Word-Formatierung und Details zu nachverfolgten Änderungen werden hier als reiner Text verglichen.",
-      "docx-diff-desktop-only": "Der Vergleich von Word-Dokumenten erfordert die Lantern-Desktop-App."
+      "docx-diff-desktop-only": "Der Vergleich von Word-Dokumenten erfordert die {{productName}}-Desktop-App."
     }
   },
   "updater": {
@@ -1815,7 +1816,7 @@
       "see-whats-new__sourceHash": "4145a3ef06190f8fd23ac446110bae8668ab5e09ff7d62983c426fee311096cf"
     },
     "modal": {
-      "title": "Neuigkeiten in Lantern",
+      "title": "Neuigkeiten in {{productName}}",
       "title__sourceHash": "b5a5412c72af53ae4a3b5d7d5e1f22811b7aee82bd066fc58c38947d6867aa55",
       "description": "Highlights aus den neuesten Versionen.",
       "description__sourceHash": "b90373285d0fce2163c2d8db4b04c9cd3d61d97db75cc4aa86ada4eecc3293d8"
@@ -2117,7 +2118,7 @@
       "dismiss__sourceHash": "48845bff334a50a59aaecf499f28a7a24c3b4b891b8b18a9f1169ad8e8a6b261"
     },
     "cost-dashboard": {
-      "provider-note": "Kosten werden direkt von {{provider}} abgerechnet, nicht von Lantern."
+      "provider-note": "Kosten werden direkt von {{provider}} abgerechnet, nicht von {{productName}}."
     }
   },
   "matter": {
@@ -2470,7 +2471,7 @@
       "isolated-pill__sourceHash": "1d183f3f10e963cae3a2e0a10a693f7895b03602715a121d984f3406e37ba2e2",
       "sample-pill": "Beispiel",
       "sample-pill__sourceHash": "95a2f1edb08a76120b82cec7c93ca477618639f04beac7d2aeba2dc039d43715",
-      "scope-badge-title": "Der Abruf ist auf diesen Haushalt beschränkt. Lantern vermischt niemals die Dateien eines Mandanten mit den Antworten eines anderen.",
+      "scope-badge-title": "Der Abruf ist auf diesen Haushalt beschränkt. {{productName}} vermischt niemals die Dateien eines Mandanten mit den Antworten eines anderen.",
       "scope-badge-title__sourceHash": "d37e877b409bf559ab3c58371592d1c6ef69a83c3dc7c33aca92b3fd0082ba99",
       "scope-badge-suffix": "Nur {{name}}",
       "scope-badge-suffix__sourceHash": "96f88f10d75743618756a537acf1def378a9b59a662ba58999cb46c522d1cf92",
@@ -2532,7 +2533,7 @@
         "getting-there": "Getting there",
         "solid": "Solid"
       },
-      "coverage-caveat-short": "Only includes files Lantern can read.",
+      "coverage-caveat-short": "Only includes files {{productName}} can read.",
       "coverage-caveat-label": "What this includes",
       "coverage-caveat-full": "This is a head start for your review, not a guarantee the whole record is complete.",
       "answer-one-by-one": "Answer one by one",
@@ -2543,7 +2544,7 @@
       "assuming": "assuming",
       "map-complete": "Nothing outstanding. This map looks complete.",
       "add-section-heading": "Add a section",
-      "add-section-body": "Add a topic. Lantern fills it from this client's sources.",
+      "add-section-body": "Add a topic. {{productName}} fills it from this client's sources.",
       "section-name": "Name",
       "section-name-placeholder": "Insurance coverage",
       "track-label": "Track",
@@ -2553,7 +2554,7 @@
       "saved-templates": "Saved templates",
       "apply-template": "Apply",
       "preview-tracking": "Tracking: {{prompt}}.",
-      "preview-updated": "Lantern keeps this updated from new documents and email.",
+      "preview-updated": "{{productName}} keeps this updated from new documents and email.",
       "remove-bullet-title": "Remove this fact?",
       "remove-bullet-desc": "This removes the fact from the client map. The edit stays in History.",
       "remove-section-title": "Remove this section?",
@@ -2590,7 +2591,7 @@
       "role-label": "Rolle",
       "seat-label": "Lizenz",
       "signout": "Abmelden",
-      "just-bought-link": "Ich habe gerade Lantern Firm gekauft",
+      "just-bought-link": "Ich habe gerade {{productName}} Firm gekauft",
       "back-to-signin": "Zuruck zur Anmeldung"
     },
     "claim": {
@@ -2718,7 +2719,7 @@
       "privileged-confirm-accept": "Teilen"
     },
     "bridge": {
-      "heading": "Lantern mit Ihrer Kanzlei nutzen",
+      "heading": "{{productName}} mit Ihrer Kanzlei nutzen",
       "intro": "Waehlen Sie, wie Sie in eine Kanzlei einsteigen moechten. Danach koennen Sie Ihre vorhandenen Mandanten uebertragen und fuer jeden entscheiden, ob es privat bleibt oder mit Kollegen geteilt wird.",
       "door-create-title": "Kanzlei gruenden",
       "door-create-body": "Sie werden Administrator und der erste Platz. Laden Sie Kollegen ein, teilen Sie Mandanten, richten Sie Single Sign-on und die Kanzleisicherheit ein.",
@@ -2730,8 +2731,8 @@
       "cancel": "Jetzt nicht"
     },
     "prompt": {
-      "title": "Lantern mit Ihrer Kanzlei nutzen",
-      "body": "Holen Sie Kollegen dazu und teilen Sie Mandanten, oder treten Sie einer Kanzlei bei, die Lantern bereits nutzt. Ihre privaten Mandanten bleiben privat.",
+      "title": "{{productName}} mit Ihrer Kanzlei nutzen",
+      "body": "Holen Sie Kollegen dazu und teilen Sie Mandanten, oder treten Sie einer Kanzlei bei, die {{productName}} bereits nutzt. Ihre privaten Mandanten bleiben privat.",
       "action": "Mit meiner Kanzlei nutzen",
       "dismiss": "Schliessen"
     }
@@ -2744,15 +2745,15 @@
       },
       "direct": {
         "label": "Direct to {{provider}} (your account)",
-        "note": "Sent straight from your machine to {{provider}} with your own API key. Lantern is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+        "note": "Sent straight from your machine to {{provider}} with your own API key. {{productName}} is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
       },
       "demo": {
         "label": "Browser demo. Do not use with client data",
-        "note": "In this online demo, messages pass through a shared Lantern relay. The desktop app never does this. Do not enter confidential or client information here."
+        "note": "In this online demo, messages pass through a shared {{productName}} relay. The desktop app never does this. Do not enter confidential or client information here."
       },
       "checking": {
         "label": "KI-Ziel wird geprüft",
-        "note": "Lantern bestätigt, wohin diese Anfrage gesendet wird, bevor sie abgeschickt wird.",
+        "note": "{{productName}} bestätigt, wohin diese Anfrage gesendet wird, bevor sie abgeschickt wird.",
         "label__sourceHash": "261eafaa0ca58f57d83b98557eacc3a7e7af03830a3fa3d03bcafab252a1152b",
         "note__sourceHash": "a3482fcc43661d2c22c4979b0d1f710fb41d0d72561574d354ffad7a11a7bac9"
       },
@@ -2804,7 +2805,7 @@
     "connect": {
       "error-prefix": "Etwas ist schiefgelaufen:",
       "error-prefix__sourceHash": "45f299433853dea7fdc057bc0abe34640f23954dbb6baf04232c06012a06ed8c",
-      "fde-warning": "Die vollständige Festplattenverschlüsselung ist auf diesem Gerät aus. Lantern verschlüsselt deine E-Mail, aber FileVault (macOS) oder BitLocker (Windows) fügt eine zweite Schutzschicht hinzu, falls dein Gerät gestohlen wird."
+      "fde-warning": "Die vollständige Festplattenverschlüsselung ist auf diesem Gerät aus. {{productName}} verschlüsselt deine E-Mail, aber FileVault (macOS) oder BitLocker (Windows) fügt eine zweite Schutzschicht hinzu, falls dein Gerät gestohlen wird."
     },
     "workspace": {
       "title": "E-Mail",
@@ -2977,7 +2978,7 @@
   },
   "vault": {
     "ceremony": {
-      "cannot-recover-warning": "Lantern kann dies nicht fur Sie wiederherstellen. Wenn Sie diesen Satz und den Schlussel Ihres Gerats verlieren, sind Ihre verschlusselten Dateien dauerhaft nicht mehr zuganglich.",
+      "cannot-recover-warning": "{{productName}} kann dies nicht fur Sie wiederherstellen. Wenn Sie diesen Satz und den Schlussel Ihres Gerats verlieren, sind Ihre verschlusselten Dateien dauerhaft nicht mehr zuganglich.",
       "phrase-label": "Ihr 24-Worter-Wiederherstellungssatz",
       "copy-phrase": "Satz kopieren",
       "copied": "Kopiert",
@@ -2988,8 +2989,8 @@
     },
     "enable": {
       "title": "Diesen Arbeitsbereich verschlusseln",
-      "subtitle": "AES-256 im Ruhezustand, transparent in Lantern",
-      "detail": "Wenn aktiviert, wird jede Dokumentdatei in diesem Arbeitsbereich als Chiffretext auf dem Datentrager gespeichert. Lantern entschlusselt sie transparent, sodass Ihr Arbeitsablauf unverandert bleibt.",
+      "subtitle": "AES-256 im Ruhezustand, transparent in {{productName}}",
+      "detail": "Wenn aktiviert, wird jede Dokumentdatei in diesem Arbeitsbereich als Chiffretext auf dem Datentrager gespeichert. {{productName}} entschlusselt sie transparent, sodass Ihr Arbeitsablauf unverandert bleibt.",
       "bullet-names-visible": "Dateinamen und Ordnerstruktur bleiben sichtbar",
       "bullet-phrase-once": "Ein 24-Worter-Wiederherstellungssatz wird einmalig erzeugt. Sie mussen ihn speichern.",
       "bullet-no-recovery": "Wenn Sie den Satz und den Keychain-Schlussel verlieren, konnen die Dateien nicht wiederhergestellt werden",
@@ -3011,7 +3012,7 @@
     "locked": {
       "title": "Tresor gesperrt",
       "subtitle": "Dieser Arbeitsbereich ist verschlusselt und der Schlussel befindet sich nicht auf diesem Gerat.",
-      "explanation": "Geben Sie Ihren 24-Worter-Wiederherstellungssatz ein, um diesen Tresor zu entsperren. Lantern stellt den Schlussel in Ihrem Keychain wieder her, sodass Sie diesen Arbeitsbereich von nun an normal offnen konnen.",
+      "explanation": "Geben Sie Ihren 24-Worter-Wiederherstellungssatz ein, um diesen Tresor zu entsperren. {{productName}} stellt den Schlussel in Ihrem Keychain wieder her, sodass Sie diesen Arbeitsbereich von nun an normal offnen konnen.",
       "phrase-hint": "Wiederherstellungssatze bestehen aus 24 durch Leerzeichen getrennten Wortern.",
       "phrase-label": "Wiederherstellungssatz",
       "phrase-placeholder": "wort1 wort2 wort3 ...",
@@ -3036,7 +3037,7 @@
     "control": {
       "checking": "Tresorstatus wird geprüft",
       "locked-note": "Dieser Tresor ist gesperrt. Öffnen Sie den Arbeitsbereich erneut, um ihn mit Ihrem Wiederherstellungssatz zu entsperren.",
-      "on-body": "Die Dateien dieses Arbeitsbereichs sind im Ruhezustand verschlüsselt. Lantern entschlüsselt sie transparent, sodass Ihre Arbeit unverändert bleibt.",
+      "on-body": "Die Dateien dieses Arbeitsbereichs sind im Ruhezustand verschlüsselt. {{productName}} entschlüsselt sie transparent, sodass Ihre Arbeit unverändert bleibt.",
       "on-title": "Tresor ist aktiviert",
       "checking__sourceHash": "f146177bb205f641cb07dd2ec8263ed0792435c106547548a2579dc62fe0f1b0",
       "locked-note__sourceHash": "1975466ed78653f8189cc16ad9ecf64ace9c47f5bda9a279079634f264b6f0a6",
@@ -3175,7 +3176,7 @@
       },
       "send": {
         "title": "Besprechungsinhalte senden",
-        "privacy-note": "Zuerst prüfen. Beim Senden verlassen die ausgewählten Dateien diesen Computer über Ihr verbundenes E-Mail-Konto. Lantern erhält sie nicht.",
+        "privacy-note": "Zuerst prüfen. Beim Senden verlassen die ausgewählten Dateien diesen Computer über Ihr verbundenes E-Mail-Konto. {{productName}} erhält sie nicht.",
         "review-button": "Senden prüfen",
         "account-label": "E-Mail-Konto",
         "no-account": "E-Mail in den Einstellungen verbinden",

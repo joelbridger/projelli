@@ -5,6 +5,7 @@ import { resolveAvailableLocalGenerationProvider } from '@/platform/providers/re
 import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import type { Provider } from '@/platform/providers/Provider';
 import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
+import { LOCAL_AI_NAME } from '@/config/brandText';
 
 /**
  * Honest, actionable failures shown when no usable local engine is available
@@ -15,9 +16,9 @@ import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
  * `error.message` to the user, so these are the exact strings they see.
  */
 export const EMAIL_LOCAL_AI_NOT_READY_MESSAGE =
-  'Lantern Local AI is still downloading or setting up. Check its progress in Settings, then try again.';
+  `${LOCAL_AI_NAME} is still downloading or setting up. Check its progress in Settings, then try again.`;
 export const EMAIL_NO_PROVIDER_MESSAGE =
-  'No AI provider is connected. Add an API key in Settings, or set up Lantern Local AI to draft on your computer.';
+  `No AI provider is connected. Add an API key in Settings, or set up ${LOCAL_AI_NAME} to draft on your computer.`;
 
 // ── buildProviderAsync — mirrors Ask.tsx pattern ─────────────────
 

@@ -19,6 +19,7 @@ import { useUpdaterStore } from '@/platform/updater/updaterStore';
 import { Download, RefreshCw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { UpdateReleaseNotesModal } from './UpdateReleaseNotesModal';
+import { BRAND } from '@/config/brand';
 
 export function UpdateBanner() {
   const { t } = useTranslation();
@@ -56,7 +57,7 @@ export function UpdateBanner() {
           <Download className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
           {status === 'available' && (
             <span className="truncate">
-              <span className="font-medium">Lantern {version}</span> is available
+              <span className="font-medium">{BRAND.name} {version}</span> is available
             </span>
           )}
           {status === 'downloading' && (

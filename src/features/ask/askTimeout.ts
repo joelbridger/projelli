@@ -18,6 +18,7 @@
  */
 
 import { isTauri } from '@tauri-apps/api/core';
+import { BRAND } from '@/config/brand';
 
 /**
  * Retrieval is a LOCAL vector search that normally returns in well under a
@@ -187,7 +188,7 @@ export const ASK_ANSWER_STALL_WARNING =
 
 /** Honest failure copy after ASK_ANSWER_TIMEOUT_MS of total silence. */
 export const ASK_ANSWER_STALL_ERROR_MESSAGE =
-  "Lantern couldn't get an answer — it may still be downloading or loading the local model. Check its status, then try again.";
+  `${BRAND.name} couldn't get an answer — it may still be downloading or loading the local model. Check its status, then try again.`;
 
 /**
  * lp/localai-patience — CALM waiting copy shown while the LOCAL engine is still

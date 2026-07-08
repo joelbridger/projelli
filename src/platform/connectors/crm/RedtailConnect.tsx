@@ -1,4 +1,3 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 import { useEffect, useState } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import {
@@ -27,6 +26,7 @@ import {
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { InfoHelp } from '@/ui/InfoHelp';
+import { brandText } from '@/config/brandText';
 
 const PROVIDER = 'redtail' as const;
 const REDTAIL_KEY_PREFIX = 'redtail:';
@@ -125,7 +125,7 @@ export function RedtailConnect() {
 
       const count = households.length;
       const confirmed = await confirm(
-        `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? Lantern imports only the contacts, notes, and activities this login can read.`,
+        brandText(`Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'} into local encrypted storage on this device? Lantern imports only the contacts, notes, and activities this login can read.`),
         {
           title: `Import ${String(count)} Redtail famil${count === 1 ? 'y' : 'ies'}`,
           confirmLabel: 'Import',
@@ -228,7 +228,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Redtail CRM
-          <InfoHelp content="Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Lantern desktop app." />
+          <InfoHelp content={brandText('Connect Redtail CRM to bring families, contacts, notes, and activities into Client Maps. Requires the Lantern desktop app.')} />
         </h3>
       </section>
     );
@@ -239,7 +239,7 @@ export function RedtailConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Redtail CRM
-          <InfoHelp content="Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Lantern stores the UserKey, not the password." />
+          <InfoHelp content={brandText('Read-only import for Redtail families, contacts, notes, and activities. Your password is used once to get a Redtail UserKey; Lantern stores the UserKey, not the password.')} />
         </h3>
 
         {!connected && (
@@ -265,7 +265,7 @@ export function RedtailConnect() {
               />
             </div>
             <p className="text-xs text-slate-500">
-              The vendor API key comes from Lantern configuration. If it is missing, Redtail will not connect yet.
+              {brandText('The vendor API key comes from Lantern configuration. If it is missing, Redtail will not connect yet.')}
             </p>
             <button
               type="button"

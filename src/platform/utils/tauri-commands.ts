@@ -13,6 +13,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import { LOCAL_AI_NAME } from '@/config/brandText';
 
 /**
  * Resolve `path` to an absolute workspace path using the active workspace root.
@@ -714,7 +715,7 @@ export async function localLlmModelEnsure(): Promise<string> {
  *  @throws if we're in the browser — the sidecar only exists in the desktop app. */
 export async function localLlmSidecarStart(): Promise<string> {
   if (!isTauri()) {
-    throw new Error('Lantern Local AI is only available in the desktop app.');
+    throw new Error(`${LOCAL_AI_NAME} is only available in the desktop app.`);
   }
   return invoke<string>('local_llm_sidecar_start');
 }

@@ -15,6 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { ExternalLink } from 'lucide-react';
 import { openExternal } from '@/platform/utils/openExternal';
 import { Button } from '@/ui/button';
+import { BRAND } from '@/config/brand';
 
 export type ProviderId = 'anthropic' | 'openai' | 'google';
 
@@ -52,7 +53,7 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create Key"',
-        body: 'A dialog opens. Give it a label like "Lantern" so you remember where it goes. Leave the Anthropic "Workspace" dropdown on its default (this is Anthropic\'s billing workspace, not your Lantern workspace).',
+        body: `A dialog opens. Give it a label like "${BRAND.name}" so you remember where it goes. Leave the Anthropic "Workspace" dropdown on its default (this is Anthropic's billing workspace, not your ${BRAND.name} workspace).`,
       },
       {
         title: 'Copy the key and paste it here',
@@ -82,7 +83,7 @@ export const PROVIDER_TUTORIALS: Record<ProviderId, ProviderTutorial> = {
       },
       {
         title: 'Click "Create new secret key"',
-        body: 'Name it "Lantern". Permissions: "All" is fine. Click Create.',
+        body: `Name it "${BRAND.name}". Permissions: "All" is fine. Click Create.`,
       },
       {
         title: 'Copy the key and paste it here',

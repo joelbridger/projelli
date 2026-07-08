@@ -33,6 +33,7 @@ import {
   resolveMatterForHousehold,
 } from '@/platform/rag/matterResolver';
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
+import { brandText } from '@/config/brandText';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 export function WealthboxConnect() {
@@ -203,7 +204,7 @@ export function WealthboxConnect() {
       // exactly how many records will be written to local encrypted storage.
       const count = households.length;
       const confirmed = await confirm(
-        `Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? Lantern stores this data locally — it stays on your machine.`,
+        brandText(`Import ${String(count)} household${count === 1 ? '' : 's'} into local encrypted storage on this device? Lantern stores this data locally — it stays on your machine.`),
         {
           title: `Import ${String(count)} Wealthbox household${count === 1 ? '' : 's'}`,
           confirmLabel: 'Import',
@@ -457,7 +458,7 @@ export function WealthboxConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Wealthbox
-          <InfoHelp content="Connect your Wealthbox account to bring client household data into your Client Maps. Requires the Lantern desktop app." />
+          <InfoHelp content={brandText('Connect your Wealthbox account to bring client household data into your Client Maps. Requires the Lantern desktop app.')} />
         </h3>
         <p className="mt-3 text-xs text-slate-400 italic">
           Available in the desktop app only.
@@ -471,7 +472,7 @@ export function WealthboxConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Wealthbox
-          <InfoHelp content="Connect your Wealthbox account to bring client household data into your Client Maps. Lantern imports what this Wealthbox login can see." />
+          <InfoHelp content={brandText('Connect your Wealthbox account to bring client household data into your Client Maps. Lantern imports what this Wealthbox login can see.')} />
         </h3>
 
         {/* B3: disconnect didn't fully remove the data/key — keep a visible retry

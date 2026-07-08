@@ -30,6 +30,7 @@ import { keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
 import { isTauri } from '@tauri-apps/api/core';
 import { FirmApiClient } from './FirmApiClient';
 import { KC_DEVICE_META_SERVICE, KC_DEVICE_PREFIX, KC_FALLBACK_PREFIX } from '@/config/identity';
+import { BRAND } from '@/config/brand';
 
 // ── Service names & keychain keys -------------------------------------------
 
@@ -244,7 +245,7 @@ export async function registerDevice(client: FirmApiClient): Promise<void> {
 
   // machine_id and label are best-effort; they help the admin identify devices.
   const machineId = deviceId; // Use deviceId as stable machine_id (no Tauri machine API needed)
-  const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : 'Lantern Desktop';
+  const label = typeof navigator !== 'undefined' ? navigator.userAgent.slice(0, 80) : `${BRAND.name} Desktop`;
 
   await client.registerDevice(deviceId, machineId, label, publicJwk);
 }

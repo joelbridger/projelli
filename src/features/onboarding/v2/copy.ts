@@ -7,7 +7,9 @@
  * the AI provider, never to Advisor Prep Hero.
  */
 
-export const ONB_COPY = {
+import { brandValue } from '@/config/brandText';
+
+const RAW_ONB_COPY = {
   intro: {
     headline: 'A private AI that knows your clients.',
     flow: [
@@ -104,6 +106,8 @@ export const ONB_COPY = {
     continue: 'Continue',
   },
 } as const;
+
+export const ONB_COPY = brandValue(RAW_ONB_COPY);
 
 /**
  * Example questions previewed on the "Setting up your firm" screen.

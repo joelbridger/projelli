@@ -33,6 +33,7 @@ import {
   useRecordConfidentialityChoice,
 } from '@/platform/hooks/useConfidentialityMode';
 import { modeNeedsManagedKey, type ConfidentialityMode } from '@/platform/privacy/egress';
+import { brandText } from '@/config/brandText';
 import {
   usePrivilegedMatterMode,
   useSetPrivilegedMatterMode,
@@ -308,7 +309,7 @@ export function ConfidentialityModeSettings({
             <div className="space-y-2">
               <p>Choose whether AI requests stay on your computer or are sent to a cloud provider you control.</p>
               {isFirmUser && (
-                <p>Firm security: the Assured option below routes AI requests through your firm's zero-retention proxy so Lantern retains nothing.</p>
+                <p>{brandText("Firm security: the Assured option below routes AI requests through your firm's zero-retention proxy so Lantern retains nothing.")}</p>
               )}
             </div>
           }
@@ -318,6 +319,7 @@ export function ConfidentialityModeSettings({
       <div className={cn('grid gap-3', isFirmUser ? 'sm:grid-cols-3' : 'sm:grid-cols-2')}>
         {cards.map((card) => {
           const Icon = card.icon;
+          const blurb = brandText(card.blurb);
           const selected = active === card.mode;
           // Assured is gated on a managed key being configured; others are always on.
           const disabled =
@@ -373,7 +375,7 @@ export function ConfidentialityModeSettings({
                   {card.title}
                   <InfoHelp
                     className="pointer-events-auto"
-                    content={card.blurb}
+                    content={blurb}
                     label={`About ${card.title}`}
                   />
                 </span>
@@ -412,7 +414,7 @@ export function ConfidentialityModeSettings({
         >
           On this computer only is on. Your documents and prompts are never sent
           to a cloud AI — answers run on a local model on your machine (the
-          built-in Lantern Local AI when it&rsquo;s ready, or your own Ollama).
+          built-in {brandText('Lantern Local AI')} when it&rsquo;s ready, or your own Ollama).
           Cloud AI providers are disabled in the chat picker. Connectors you have
           set up still sync.
         </p>

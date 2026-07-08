@@ -21,6 +21,7 @@
 
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import type { ConfidentialityMode } from '@/platform/privacy/egress';
+import { brandText } from '@/config/brandText';
 
 export interface ConfidentialityReportCall {
   at: string;           // ISO timestamp
@@ -100,9 +101,9 @@ export function pickAttestation(byMode: Record<string, number>): string {
     }
     parts.push(
       `${calls(directCount)} went directly from your machine to your AI provider under your own API key. ` +
-      'Lantern was not in the path and has no copy of these prompts. ' +
+      brandText('Lantern was not in the path and has no copy of these prompts. ') +
       'Your provider received the prompts and may retain them briefly per their data policy. ' +
-      'Lantern does not use your data for training.'
+      brandText('Lantern does not use your data for training.')
     );
     return parts.join(' ');
   }
@@ -116,7 +117,7 @@ export function pickAttestation(byMode: Record<string, number>): string {
     }
     parts.push(
       `${calls(assuredCount)} were routed through your firm's zero-retention proxy. ` +
-      'Lantern retained no prompt or completion. ' +
+      brandText('Lantern retained no prompt or completion. ') +
       'Your AI provider received the prompts under your firm\'s agreement with them.'
     );
     return parts.join(' ');
@@ -131,12 +132,12 @@ export function pickAttestation(byMode: Record<string, number>): string {
   }
   if (hasDirect) {
     parts.push(
-      `${calls(directCount)} went directly from your machine to your AI provider under your own key (Lantern not in the path).`
+      brandText(`${calls(directCount)} went directly from your machine to your AI provider under your own key (Lantern not in the path).`)
     );
   }
   if (hasAssured) {
     parts.push(
-      `${calls(assuredCount)} went through your firm's zero-retention proxy (Lantern retained nothing).`
+      brandText(`${calls(assuredCount)} went through your firm's zero-retention proxy (Lantern retained nothing).`)
     );
   }
   return parts.join(' ');

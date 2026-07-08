@@ -86,7 +86,7 @@ function buildMailto(
   context: string,
   meta: Metadata,
 ): string {
-  const subject = 'Lantern AI setup help';
+  const subject = `${BRAND.name} AI setup help`;
   const lines = [
     message,
     '',
@@ -94,7 +94,7 @@ function buildMailto(
     '---',
     `Provider: ${provider}`,
     `Where: ${context}`,
-    `Lantern version: ${meta.version}`,
+    `${BRAND.name} version: ${meta.version}`,
     `Platform: ${meta.os}`,
     `User agent: ${meta.userAgent}`,
   ].filter(Boolean);

@@ -10,8 +10,9 @@ import { BooksRecordsRetentionNote } from './BooksRecordsRetentionNote';
 import { RegBIDocumentation } from './RegBIDocumentation';
 
 import type { WorkflowTemplate } from '@/platform/types/workflow';
+import { brandValue } from '@/config/brandText';
 
-export const ADVISOR_TEMPLATES: WorkflowTemplate[] = [
+export const ADVISOR_TEMPLATES: WorkflowTemplate[] = brandValue([
   AnnualReviewPacket,
   MeetingPrepAndSuitabilityNotes,
   RegSPSafeguardsOutline,
@@ -19,7 +20,7 @@ export const ADVISOR_TEMPLATES: WorkflowTemplate[] = [
   ConfidentialClientDataInventory,
   BooksRecordsRetentionNote,
   RegBIDocumentation,
-];
+]);
 
 export {
   ClientFinancialPlanSummary,

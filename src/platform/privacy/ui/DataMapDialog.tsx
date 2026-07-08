@@ -56,6 +56,7 @@ import {
   Users,
 } from 'lucide-react';
 import { BRAND } from '@/config/brand';
+import { brandText } from '@/config/brandText';
 
 export interface DataMapDialogProps {
   open: boolean;
@@ -160,6 +161,16 @@ export const DATA_MAP_ROWS: MapRow[] = [
   },
 ];
 
+function brandMapRow(row: MapRow): MapRow {
+  const next: MapRow = {
+    ...row,
+    title: brandText(row.title),
+    body: brandText(row.body),
+  };
+  if (row.caveat) next.caveat = brandText(row.caveat);
+  return next;
+}
+
 export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
   const handlePrint = useCallback(() => {
     // Print just the document region into a tidy, client-ready page so the app
@@ -191,7 +202,7 @@ export function DataMapDialog({ open, onOpenChange }: DataMapDialogProps) {
       return;
     }
 
-    doc.title = 'Where your data lives and who can see it (Lantern)';
+    doc.title = brandText('Where your data lives and who can see it (Lantern)');
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -320,13 +331,14 @@ export function DataMapContent({
   const lastSweep = useRetentionPolicyStore((s) => (workspaceRoot ? s.lastSweep[workspaceRoot] : undefined));
   const [attestationPath, setAttestationPath] = useState<string | null>(null);
   const [attestationError, setAttestationError] = useState<string | null>(null);
+  const rows = DATA_MAP_ROWS.map(brandMapRow);
   return (
     <div id={printableId} data-testid="data-map-content">
       <h1 className="text-lg font-semibold mb-1">
         Where your data lives and who can see it
       </h1>
       <p className="sub text-sm text-muted-foreground mb-4">
-        How Lantern handles your information, in plain language. The short
+        How {BRAND.name} handles your information, in plain language. The short
         version: your work stays on your computer, your AI requests go straight
         to the provider you chose (not through us), and you can run entirely on
         your own machine when you need to.
@@ -338,7 +350,7 @@ export function DataMapContent({
         // section instead of an all-collapsed header scan. Single-open model is
         // preserved; the rest stay collapsed for a viewport-friendly list.
         <Accordion className="space-y-0" defaultValue="0">
-          {DATA_MAP_ROWS.map((row, i) => {
+          {rows.map((row, i) => {
             const Icon = row.icon;
             return (
               <AccordionItem
@@ -378,7 +390,7 @@ export function DataMapContent({
         // collapsed) and handlePrint force-shows [hidden], so the PDF still
         // captures every section. Do not unmount collapsed bodies.
         <div className="space-y-0">
-          {DATA_MAP_ROWS.map((row, i) => {
+          {rows.map((row, i) => {
             const Icon = row.icon;
             const isOpen = openRow === i;
             return (
@@ -464,14 +476,14 @@ export function DataMapContent({
       {IS_DEMO ? (
         <p className="foot mt-4 text-xs text-muted-foreground">
           You are using the online browser demo. The demo routes AI messages
-          through a shared Lantern relay and should never be used with
+          through a shared {BRAND.name} relay and should never be used with
           confidential or client information. Download the desktop app for the
           full private, local-first experience described above.
         </p>
       ) : (
         <p className="foot mt-4 text-xs text-muted-foreground">
-          You are using the Lantern desktop app. Everything described above
-          applies to you. Lantern is a tool you control, not a custodian of
+          You are using the {BRAND.name} desktop app. Everything described above
+          applies to you. {BRAND.name} is a tool you control, not a custodian of
           your data. You decide what is sent and to whom.
         </p>
       )}

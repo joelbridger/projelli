@@ -34,6 +34,7 @@ import { SalesforceConnect } from '@/platform/connectors/crm/SalesforceConnect';
 import { RedtailConnect } from '@/platform/connectors/crm/RedtailConnect';
 import { McpSettingsSection } from '@/features/settings/McpSettingsSection';
 import { OllamaSettingsSection } from '@/features/settings/OllamaSettingsSection';
+import { BRAND } from '@/config/brand';
 import {
   Accordion,
   AccordionItem,
@@ -275,7 +276,7 @@ export function AccountWindow({ open, onOpenChange, auditEntries, initialTab }: 
                     <Building2 size={20} style={{ color: 'var(--color-primary)', flexShrink: 0, marginTop: 2 }} aria-hidden />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 600, fontSize: 'var(--kp-font-sm)' }}>
-                        Use Lantern with your firm
+                        Use {BRAND.name} with your firm
                       </p>
                       <p style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', margin: '4px 0 8px' }}>
                         Start a firm or join one, then bring your clients over. You choose for each client whether it stays private or is shared with colleagues.

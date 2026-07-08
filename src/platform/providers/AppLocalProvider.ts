@@ -23,6 +23,7 @@ import type {
   TextExtractBlock,
   AttachmentBytes,
 } from './Provider';
+import { LOCAL_AI_NAME } from '@/config/brandText';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { extractPdfText } from '@/lib/pdf-extract';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
@@ -153,7 +154,7 @@ export class AppLocalProvider implements Provider {
     if (this.endpoint) return this.endpoint;
     const endpoint = (await this.startSidecar()).replace(/\/+$/, '');
     if (endpoint.length === 0) {
-      throw new Error('Lantern Local AI did not return a local endpoint');
+      throw new Error(`${LOCAL_AI_NAME} did not return a local endpoint`);
     }
     this.endpoint = endpoint;
     return endpoint;
@@ -272,13 +273,13 @@ export class AppLocalProvider implements Provider {
         await this.warmupBackoff(signal);
         continue;
       }
-      throw new Error(`Lantern Local AI error: HTTP ${String(resp.status)}`);
+      throw new Error(`${LOCAL_AI_NAME} error: HTTP ${String(resp.status)}`);
     }
     // Unreachable in practice (the loop returns or throws), but keeps the
     // function total for the type checker.
     throw lastError instanceof Error
       ? lastError
-      : new Error('Lantern Local AI did not become ready');
+      : new Error(`${LOCAL_AI_NAME} did not become ready`);
   }
 
   private async post(
@@ -346,7 +347,7 @@ export class AppLocalProvider implements Provider {
     const reader = resp.body?.getReader();
     if (!reader) {
       controlled.cleanup();
-      throw new Error('Lantern Local AI stream returned no body');
+      throw new Error(`${LOCAL_AI_NAME} stream returned no body`);
     }
 
     const decoder = new TextDecoder();
@@ -418,14 +419,14 @@ IMPORTANT: Respond ONLY with the JSON object.`;
       return JSON.parse(cleaned) as T;
     } catch (err) {
       throw new Error(
-        `Failed to parse Lantern Local AI response as JSON: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        `Failed to parse ${LOCAL_AI_NAME} response as JSON: ${err instanceof Error ? err.message : 'Unknown error'}`,
       );
     }
   }
 
   getMetadata(): ProviderMetadata {
     return {
-      name: 'Lantern Local AI',
+      name: LOCAL_AI_NAME,
       providerId: 'lantern-local',
       model: this.model,
       costPerInputToken: 0,
@@ -457,12 +458,12 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         },
       } satisfies TextExtractBlock;
     }
-    throw new Error(`Unsupported attachment type for Lantern Local AI: ${att.type}`);
+    throw new Error(`Unsupported attachment type for ${LOCAL_AI_NAME}: ${att.type}`);
   }
 
   supportsAttachment(att: ChatAttachment, _model: string): true | string {
     if (att.type === 'image') {
-      return 'Lantern Local AI is text-only and cannot read images. Use a cloud model for images.';
+      return `${LOCAL_AI_NAME} is text-only and cannot read images. Use a cloud model for images.`;
     }
     // pdf — read locally via text extraction.
     return true;

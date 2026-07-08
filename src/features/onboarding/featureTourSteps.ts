@@ -9,6 +9,8 @@
  * Placement: 'top' | 'bottom' | 'left' | 'right' | 'center' (center
  * = modal-in-the-middle, for intro + outro steps).
  */
+import { brandText } from '@/config/brandText';
+
 export interface FeatureTourStep {
   id: string;
   title: string;
@@ -18,7 +20,7 @@ export interface FeatureTourStep {
   placement: 'top' | 'bottom' | 'left' | 'right' | 'center';
 }
 
-export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
+const RAW_FEATURE_TOUR_STEPS: FeatureTourStep[] = [
   {
     id: 'intro',
     title: 'A quick look at the new layout',
@@ -97,3 +99,9 @@ export const FEATURE_TOUR_STEPS: FeatureTourStep[] = [
     placement: 'center',
   },
 ];
+
+export const FEATURE_TOUR_STEPS: FeatureTourStep[] = RAW_FEATURE_TOUR_STEPS.map((step) => ({
+  ...step,
+  title: brandText(step.title),
+  body: brandText(step.body),
+}));

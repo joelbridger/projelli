@@ -4,6 +4,7 @@ import { useMailSync } from '@/platform/connectors/email/useMailSync';
 import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
+import { brandText } from '@/config/brandText';
 
 export function MailImapConnect() {
   useMailSync();
@@ -77,7 +78,7 @@ export function MailImapConnect() {
           Outlook app password
         </a>
         ), Fastmail, or any standard IMAP host. Your password is stored only in
-        this device's keychain and never leaves your machine. Requires the Lantern desktop app.
+        {brandText("this device's keychain and never leaves your machine. Requires the Lantern desktop app.")}
       </p>
 
       {!connected && (

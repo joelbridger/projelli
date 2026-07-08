@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { LineChart, X } from 'lucide-react';
 import { EV_OPEN_ADDEPAR } from '@/config/identity';
+import { BRAND } from '@/config/brand';
 
 interface AddeparSourceState {
   sourceId: string;
@@ -53,7 +54,7 @@ export function AddeparSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Lantern imported this citation from Addepar as read-only text. Full portfolio detail is a fast-follow.
+          {BRAND.name} imported this citation from Addepar as read-only text. Full portfolio detail is a fast-follow.
         </p>
       </div>
     </div>

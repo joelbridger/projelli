@@ -1,6 +1,7 @@
 import type { ClientMap, ClientMapEditHistoryEntry, ClientMapItem, SourceRef } from '@/platform/clientMap/types';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { SK_FIRM_NAME } from '@/config/identity';
+import { BRAND } from '@/config/brand';
 
 function escapeMarkdown(text: string): string {
   return text.replace(/\|/g, '\\|').trim();
@@ -27,9 +28,9 @@ function firmName(): string {
   const fromProfile = profile.firmName.trim() || profile.soloName.trim();
   if (fromProfile) return fromProfile;
   try {
-    return localStorage.getItem(SK_FIRM_NAME)?.trim() || 'Lantern';
+    return localStorage.getItem(SK_FIRM_NAME)?.trim() || BRAND.name;
   } catch {
-    return 'Lantern';
+    return BRAND.name;
   }
 }
 
@@ -60,12 +61,12 @@ export function suggestClientMapPdfExportName(clientName: string): string {
 export function clientMapToMarkdown(map: ClientMap, clientName: string, generatedAt = new Date()): string {
   const generated = generatedAt.toLocaleString();
   const lines: string[] = [
-    `# Lantern Client Map: ${clientName}`,
+    `# ${BRAND.name} Client Map: ${clientName}`,
     '',
     `Prepared for ${firmName()}`,
     `Updated ${generated}`,
     '',
-    'This map is built from the client files Lantern can read. Review the sources before using it with a client.',
+    `This map is built from the client files ${BRAND.name} can read. Review the sources before using it with a client.`,
     '',
   ];
 

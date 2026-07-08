@@ -38,7 +38,7 @@
     },
     "bug-report": {
       "title": "Report a bug",
-      "description": "Tell us what went wrong. Reports go straight to the Lantern team.",
+      "description": "Tell us what went wrong. Reports go straight to the {{productName}} team.",
       "success": "Thanks, your report landed. If you left an email I'll reply when there's something to share.",
       "email-label": "Your email",
       "email-optional": "(optional, so we can reply)",
@@ -88,8 +88,8 @@
       "empty-confirm_other": "This will permanently delete all {{count}} items in the trash. This action cannot be undone."
     },
     "web-demo": {
-      "banner": "You are using the Lantern demo. Files live in your browser only and are not synced anywhere.",
-      "byok-confirm-description": "Your key is stored only in your browser. The Lantern demo never sees it. AI requests go straight from this tab to Anthropic."
+      "banner": "You are using the {{productName}} demo. Files live in your browser only and are not synced anywhere.",
+      "byok-confirm-description": "Your key is stored only in your browser. The {{productName}} demo never sees it. AI requests go straight from this tab to Anthropic."
     }
   },
   "file-import": {
@@ -124,7 +124,7 @@
       "modified": "Modified",
       "tabs-open_one": "{{count}} file open",
       "tabs-open_other": "{{count}} files open",
-      "bug-report-title": "Report a bug, sends directly to the Lantern team",
+      "bug-report-title": "Report a bug, sends directly to the {{productName}} team",
       "bug-report-cta": "Something broken? Let us know!"
     },
     "main-panel": {
@@ -154,7 +154,7 @@
   "settings": {
     "modal": {
       "title": "Settings",
-      "description": "Configure Lantern preferences",
+      "description": "Configure {{productName}} preferences",
       "search-placeholder": "Search settings",
       "clear-search-aria": "Clear search",
       "close-aria": "Close settings",
@@ -177,7 +177,7 @@
     },
     "license": {
       "title": "License",
-      "description": "A license keeps AI chat, workflows, and all Lantern features running after your trial. Keys are available at <pricingLink>lantern.com</pricingLink>.",
+      "description": "A license keeps AI chat, workflows, and all {{productName}} features running after your trial. Keys are available at <pricingLink>lantern.com</pricingLink>.",
       "deactivate-confirm": "Deactivate this license? You will lose access to paid features until you re-activate.",
       "badge": {
         "activated": "ACTIVATED",
@@ -207,12 +207,12 @@
       "activate-success": "License activated successfully.",
       "activate-to-continue": "Activate to continue",
       "trial-expired-detail": "Your {{days}}-day free trial ended on <endDateBold>{{endDate}}</endDateBold>. AI chat and workflows are paused. Your existing files are still here, fully readable. Activate a license to keep building.",
-      "trial-active-detail": "You're on the free trial. Every Lantern feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
+      "trial-active-detail": "You're on the free trial. Every {{productName}} feature is unlocked for {{days}} days from first launch, bring your own AI keys, run workflows, edit files, the works. When the trial ends, AI chat and workflows pause until you activate a license; your files stay accessible.",
       "days-left_one": "1 day left",
       "days-left_other": "{{count}} days left",
       "get-license-cta": "Get a license at lantern.com",
       "already-have-key": "Already have a license key?",
-      "recovery-heading": "Already bought Lantern?",
+      "recovery-heading": "Already bought {{productName}}?",
       "recovery-detail": "Enter your license code to restore it on this computer. No account needed.",
       "recovery-restore": "Restore",
       "recovery-restoring": "Restoring",
@@ -231,10 +231,10 @@
     },
     "privacy": {
       "title": "Privacy",
-      "description": "Lantern keeps your work on this computer. Optional sharing is off unless you turn it on.",
+      "description": "{{productName}} keeps your work on this computer. Optional sharing is off unless you turn it on.",
       "optional-sharing": {
         "title": "Optional sharing",
-        "description": "Lantern keeps your work on this computer. Optional sharing is off unless you turn it on.",
+        "description": "{{productName}} keeps your work on this computer. Optional sharing is off unless you turn it on.",
         "details-label": "What is shared?"
       },
       "design-partner": {
@@ -257,27 +257,27 @@
         "disabled": "Disabled",
         "what-is-sent": "What is sent, exactly:",
         "field-install-id": "<c>install_id</c>: a random UUID generated on this machine (visible below). Not tied to your email or license.",
-        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of Lantern, and macOS / Windows / Linux.",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: which build of {{productName}}, and macOS / Windows / Linux.",
         "field-event": "<c>event</c>: one of <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-license-tier": "<c>license_tier</c> (when relevant): trial, personal, professional, practice.",
-        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL stored on Lantern's server. Used only for funnel metrics and roadmap decisions.",
+        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL stored on {{productNamePossessive}} server. Used only for funnel metrics and roadmap decisions.",
         "install-id-display": "Your install ID: <c>{{id}}</c>"
       },
       "email": {
         "title": "Email updates",
         "intro": "If you opted into email updates at first launch (or via the website), you'll get launch announcements and discount codes. No drip campaigns, no weekly newsletters.",
-        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any Lantern email. All replies go straight to support.",
+        "unsub": "To remove yourself from the list, reply <c>UNSUB</c> to any {{productName}} email. All replies go straight to support.",
         "empty": "You haven't signed up for product emails."
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Lantern’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open Data Map"
       }
     },
     "mcp": {
       "title": "MCP server",
-      "description": "Expose your Lantern workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
+      "description": "Expose your {{productName}} workspace to any MCP-compatible AI client. Install once, then ask Claude Desktop, Cursor, or any other client about your notes, chats, and memory facts without copy-pasting.",
       "copied-status": "Copied bundle path to clipboard: {{path}}",
       "status": {
         "loading": "Looking up bundle path",
@@ -293,8 +293,8 @@
         "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
         "step-open-claude": "Open Claude Desktop.",
         "step-config": "Open <b>Settings, Developer, Edit Config</b>, or drag the <c>.mcpb</c> file into the Claude Desktop window.",
-        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in Lantern.",
-        "after-install": "After install, ask Claude \"search my Lantern workspace for X\" or \"read notes/plan.md\" and watch it work."
+        "step-pick-folder": "When prompted for a workspace folder, pick the same folder you opened in {{productName}}.",
+        "after-install": "After install, ask Claude \"search my {{productName}} workspace for X\" or \"read notes/plan.md\" and watch it work."
       }
     },
     "mcp-approval": {
@@ -314,7 +314,7 @@
     },
     "ollama": {
       "title": "Ollama (local models)",
-      "description": "Run AI models directly on your machine: free, offline, private. Lantern talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
+      "description": "Run AI models directly on your machine: free, offline, private. {{productName}} talks to a locally running Ollama daemon on <c>127.0.0.1:11434</c>.",
       "status": {
         "checking": "Checking Ollama",
         "ready_one": "Ollama ready, {{count}} model installed",
@@ -381,7 +381,7 @@
       "description": "Configure account keys for AI model providers. Keys are stored securely and never logged.",
       "get-key-link": "Get account key",
       "add-key": "Add account key",
-      "credential-service-unavailable": "Windows' credential storage service isn't running, so Lantern can't reach your saved AI keys right now. This does not affect your documents. Restart the \"Credential Manager\" service (services.msc), or try again shortly."
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so {{productName}} can't reach your saved AI keys right now. This does not affect your documents. Restart the \"Credential Manager\" service (services.msc), or try again shortly."
     },
     "plugins": {
       "title": "Plugins",
@@ -477,7 +477,7 @@
       "rename-description": "Enter a new name for your project. This will rename the workspace folder."
     },
     "open-error": {
-      "credential-service-unavailable": "Windows' credential storage service isn't running, so Lantern couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
+      "credential-service-unavailable": "Windows' credential storage service isn't running, so {{productName}} couldn't finish opening this workspace. Your files are safe. Try again, or restart the \"Credential Manager\" service (services.msc) if this keeps happening.",
       "generic": "Could not open this workspace. Please try again.",
       "dismiss": "Dismiss"
     }
@@ -867,9 +867,9 @@
       "skip-for-now": "Skip for now",
       "back": "Back",
       "welcome": {
-        "title": "Welcome to Lantern",
+        "title": "Welcome to {{productName}}",
         "subtitle": "The private place your practice lives, that answers you back.",
-        "body-1": "Lantern keeps your clients' files, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
+        "body-1": "{{productName}} keeps your clients' files, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
         "body-2": "Setup takes about 2 minutes. I'll help you pick a folder for your work, connect your AI provider account (optional), and run your first workflow.",
         "step-1": "Step 1. Pick a folder for your work",
         "step-2": "Step 2. Connect your AI provider account (optional)",
@@ -882,14 +882,14 @@
         "body-1": "This is where your client work will live: real Word documents, PDFs, and notes in a normal folder on your hard drive. Nothing is uploaded anywhere. Pick a location that's easy to find and easy to back up.",
         "body-2": "Pro tip: a folder inside Dropbox, iCloud, or OneDrive syncs across devices, but that also means your files sit with that provider. For client-confidential work, keep the folder local.",
         "common-choices": "Common choices:",
-        "icloud-path": "~/iCloud Drive/Lantern",
+        "icloud-path": "~/iCloud Drive/{{productName}}",
         "body-3": "The next screen will let you actually pick the folder. For now, just confirm you understand what we're about to ask.",
         "cta": "Got it"
       },
       "apikey": {
         "title": "Add an AI provider key",
         "subtitle": "Optional, but you'll need one to use the AI features.",
-        "body-1": "Lantern is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
+        "body-1": "{{productName}} is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
         "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
         "step-go-to": "Go to <a>console.anthropic.com</a>",
         "step-signup": "Sign up (free, $5 in credits to start)",
@@ -901,7 +901,7 @@
       "demo": {
         "title": "Run your first workflow",
         "subtitle": "See a real deliverable come together in seconds.",
-        "body-1": "The fastest way to see what Lantern does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
+        "body-1": "The fastest way to see what {{productName}} does is to run a workflow. Pick any template from the Workflows tab, answer the questions it asks, and watch it produce a finished Word document in your folder.",
         "step-1": "Click <s>Workflows</s> in the sidebar",
         "step-2": "Pick any template that fits your practice",
         "step-3": "Answer the questions and click <s>Generate</s>",
@@ -915,14 +915,14 @@
     },
     "disk-encryption": {
       "title": "One thing to check: your disk encryption",
-      "body": "Lantern keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
+      "body": "{{productName}} keeps your documents as normal files in your workspace folder, on your machine. If the laptop is lost or stolen, your operating system's full-disk encryption is what protects them. It takes a minute to confirm it is on.",
       "check-windows": "Windows: Settings, then Privacy & security, then Device encryption (or search for BitLocker). It should say On.",
       "check-macos": "Mac: System Settings, then Privacy & Security, then FileVault. It should say FileVault is turned on.",
       "check-linux": "Linux: most installers offer LUKS full-disk encryption. Check your distribution's disk settings, or run lsblk and look for a crypt entry."
     },
     "api-key-card": {
       "title": "Next step: add your AI account key",
-      "description": "Lantern uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your Lantern plan covers the software.",
+      "description": "{{productName}} uses your own account key from Anthropic, OpenAI, or Google, so your AI usage goes straight to your provider with no markup from us. Your {{productName}} plan covers the software.",
       "walk-me-through": "Walk me through it",
       "add-key": "Add account key",
       "keys-local": "Account keys are stored locally on your computer. Never sent to us."
@@ -932,7 +932,7 @@
         "body": "Click the button below to open <s>{{dashboard}}</s> in your browser. You'll need to sign in (or sign up) to get to the keys page."
       },
       "step-2-ollama": {
-        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). Lantern auto-detects Ollama on the next step."
+        "body": "Download Ollama for your OS, then in a terminal run <c>ollama pull llama3.2</c> (or any model you want). {{productName}} auto-detects Ollama on the next step."
       },
       "ollama-running": "Ollama is running",
       "ollama-models-ready_one": "1 model ready",
@@ -945,15 +945,16 @@
       "direct-urls": "Direct URLs (click to open in your browser):"
     },
     "welcome": {
-      "title": "Welcome to Lantern",
+      "title": "Welcome to {{productName}}",
       "description": "A couple of optional things, both off by default. Skip if you'd rather not.",
       "email-optin-label": "Email me launch updates, tips, and discount codes",
-      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the Lantern team.",
-      "telemetry-label": "Help improve Lantern with anonymous usage stats",
+      "email-optin-help": "Real updates only, no drip campaigns, no weekly newsletters. Unsubscribe any time. Goes straight to the {{productName}} team.",
+      "telemetry-label": "Help improve {{productName}} with anonymous usage stats",
       "telemetry-help": "Sends a random install ID, the app version, your platform, and lifecycle events (trial started, license activated, etc.). No content, no files, no AI prompts, no email. You can turn this off in Settings, Privacy."
     },
     "api-key-explainer": {
-      "privacy-body": "That direct connection is what makes Lantern private: your prompts go straight from your machine to the provider you chose. Lantern's servers never see your work, your files, or your conversations."
+      "privacy-body": "That direct connection is what makes {{productName}} private: your prompts go straight from your machine to the provider you chose. {{productNamePossessive}} servers never see your work, your files, or your conversations.",
+      "what-is-body": "An API key is like a password that lets your computer talk directly to an AI company (Anthropic, OpenAI, or Google). You create it on their site, paste it here once, and {{productName}} stores it in your operating system's secure keychain."
     }
   },
   "search": {
@@ -993,7 +994,7 @@
       "concurrent-edit-conflict": "This text changed elsewhere while you were editing it, so your last change wasn't applied. Please make the edit again.",
       "formatting-warning": "Some advanced formatting (tables, images, page headers) may not be preserved when saving. A backup of the original file is created before your first edit.",
       "opening": "Opening {{fileName}}",
-      "desktop-only": "Editing Word documents with tracked changes is only available in the Lantern desktop app. Showing a read-only preview here.",
+      "desktop-only": "Editing Word documents with tracked changes is only available in the {{productName}} desktop app. Showing a read-only preview here.",
       "reviewing": "Review",
       "reviewing-hint": "Show changes. Turn off for final view.",
       "review": "Review",
@@ -1037,9 +1038,9 @@
       "redline-close": "Close",
       "redline-dismiss": "Dismiss",
       "redline-egress-note": "Sends this document to your AI provider with your key.",
-      "redline-summary-headline": "Lantern AI proposed {{applied}} tracked change(s).",
+      "redline-summary-headline": "{{productAiName}} proposed {{applied}} tracked change(s).",
       "redline-skipped": "· {{skipped}} could not be placed",
-      "redline-no-changes": "Lantern AI suggested no changes.",
+      "redline-no-changes": "{{productAiName}} suggested no changes.",
       "redline-op-insert": "Inserted text",
       "redline-op-delete": "Deleted text",
       "redline-op-replace": "Replaced text",
@@ -1066,7 +1067,7 @@
       "save-copy-success": "Saved a rescue copy to {{path}}.",
       "save-copy-failed": "Couldn't save the copy: {{message}}",
       "pdf-needs-libreoffice-title": "PDF export needs LibreOffice",
-      "pdf-needs-libreoffice-body": "Lantern converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
+      "pdf-needs-libreoffice-body": "{{productName}} converts Word to PDF locally using LibreOffice, a free program. Nothing leaves your machine. Install it, then run the export again.",
       "pdf-libreoffice-copy": "Copy link",
       "pdf-libreoffice-copied": "Copied"
     },
@@ -1105,30 +1106,30 @@
   },
   "model-download": {
     "title": "Setting up your private AI (1 of 2: search)",
-    "body": "Lantern is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
+    "body": "{{productName}} is downloading the part that searches your files (about 465 MB), one time. You can keep working. Search and AI answers from your files switch on when it finishes.",
     "verifying": "Checking the downloaded files",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
-    "stalled": "The download looks stuck. Restarting Lantern resumes it where it stopped.",
+    "stalled": "The download looks stuck. Restarting {{productName}} resumes it where it stopped.",
     "error-title": "The search engine download was interrupted",
     "error-body": "Nothing is lost. The download resumes where it stopped.",
     "retry": "Resume download"
   },
   "local-ai-download": {
     "title": "Setting up your private AI (2 of 2: the AI that writes answers)",
-    "body": "Lantern is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
+    "body": "{{productName}} is downloading the part that writes answers (about 2.4 GB), one time. You can keep working. It runs fully offline once it's ready.",
     "verifying": "Checking the downloaded model",
     "progress": "{{done}} MB of {{total}} MB",
     "progress-unknown": "{{done}} MB so far",
-    "stalled": "The download looks stuck. Restarting Lantern resumes it where it stopped.",
-    "error-title": "The Lantern Local AI download was interrupted",
+    "stalled": "The download looks stuck. Restarting {{productName}} resumes it where it stopped.",
+    "error-title": "The {{localAiName}} download was interrupted",
     "error-body": "Nothing is lost. The download resumes where it stopped.",
     "retry": "Resume download"
   },
   "local-ai-settings": {
-    "title": "Lantern Local AI",
+    "title": "{{localAiName}}",
     "description": "A private AI that runs entirely on this computer. Your files and questions never leave the machine. It's slightly less sharp than the cloud models, but nothing you ask ever goes online. One-time download, about 2.4 GB.",
-    "download": "Download Lantern Local AI",
+    "download": "Download {{localAiName}}",
     "downloading": "Downloading {{pct}}%",
     "verifying": "Checking the download",
     "ready": "Local AI installed.",
@@ -1144,7 +1145,7 @@
       "version": "Version",
       "versions": "versions",
       "author-user": "You",
-      "author-ai": "Lantern AI",
+      "author-ai": "{{productAiName}}",
       "preview": "Preview",
       "this-version": "This version",
       "current": "Current",
@@ -1153,7 +1154,7 @@
       "restore-confirm": "Restore the file to the version from {{date}}? Your current version is saved first, so nothing is lost.",
       "diff-loading": "Building diff",
       "docx-text-diff-note": "Showing a text comparison. Word formatting and tracked-change detail are compared as plain text here.",
-      "docx-diff-desktop-only": "Comparing Word documents needs the Lantern desktop app."
+      "docx-diff-desktop-only": "Comparing Word documents needs the {{productName}} desktop app."
     }
   },
   "updater": {
@@ -1183,7 +1184,7 @@
       "see-whats-new": "See what's new"
     },
     "modal": {
-      "title": "What's new in Lantern",
+      "title": "What's new in {{productName}}",
       "description": "Highlights from the most recent releases."
     }
   },
@@ -1378,7 +1379,7 @@
       "dismiss": "Dismiss"
     },
     "cost-dashboard": {
-      "provider-note": "Costs are billed directly by {{provider}}, not by Lantern."
+      "provider-note": "Costs are billed directly by {{provider}}, not by {{productName}}."
     }
   },
   "matter": {
@@ -1462,7 +1463,7 @@
       "privileged-label": "Network lockdown for this client",
       "privileged-hint": "When this client is active, network plugins and MCP servers are turned off so nothing can leave your machine through an extension. Unrelated to email sensitivity tagging.",
       "mcp-access-label": "Allow connected external AI tools to access this client's files",
-      "mcp-access-hint": "Off by default. Turning this on lets external AI tools connected to Lantern (via the MCP protocol) read this client's files, even when another client is active.",
+      "mcp-access-hint": "Off by default. Turning this on lets external AI tools connected to {{productName}} (via the MCP protocol) read this client's files, even when another client is active.",
       "mcp-access-badge": "External AI access allowed",
       "firm-share-section": "Share with my firm",
       "firm-shared-section": "Shared with my firm",
@@ -1655,7 +1656,7 @@
         "getting-there": "Getting there",
         "solid": "Solid"
       },
-      "coverage-caveat-short": "Only includes files Lantern can read.",
+      "coverage-caveat-short": "Only includes files {{productName}} can read.",
       "coverage-caveat-label": "What this includes",
       "coverage-caveat-full": "This is a head start for your review, not a guarantee the whole record is complete.",
       "answer-one-by-one": "Answer one by one",
@@ -1666,7 +1667,7 @@
       "assuming": "assuming",
       "map-complete": "Nothing outstanding. This map looks complete.",
       "add-section-heading": "Add a section",
-      "add-section-body": "Add a topic. Lantern fills it from this client's sources.",
+      "add-section-body": "Add a topic. {{productName}} fills it from this client's sources.",
       "section-name": "Name",
       "section-name-placeholder": "Insurance coverage",
       "track-label": "Track",
@@ -1676,7 +1677,7 @@
       "saved-templates": "Saved templates",
       "apply-template": "Apply",
       "preview-tracking": "Tracking: {{prompt}}.",
-      "preview-updated": "Lantern keeps this updated from new documents and email.",
+      "preview-updated": "{{productName}} keeps this updated from new documents and email.",
       "remove-bullet-title": "Remove this fact?",
       "remove-bullet-desc": "This removes the fact from the client map. The edit stays in History.",
       "remove-section-title": "Remove this section?",
@@ -1732,7 +1733,7 @@
       "back-to": "Back to {{entityOther}}",
       "isolated-pill": "Isolated",
       "sample-pill": "Sample",
-      "scope-badge-title": "Recall is scoped to this household. Lantern never mixes one client's files into another client's answers.",
+      "scope-badge-title": "Recall is scoped to this household. {{productName}} never mixes one client's files into another client's answers.",
       "scope-badge-suffix": "{{name}} only",
       "answer-prompt": "Your answer to:",
       "answer-title": "Your answer",
@@ -1759,7 +1760,7 @@
       "role-label": "Role",
       "seat-label": "Seat",
       "signout": "Sign out",
-      "just-bought-link": "I just bought Lantern Firm",
+      "just-bought-link": "I just bought {{productName}} Firm",
       "back-to-signin": "Back to sign in"
     },
     "claim": {
@@ -1886,7 +1887,7 @@
       "privileged-confirm-accept": "Share it"
     },
     "bridge": {
-      "heading": "Use Lantern with your firm",
+      "heading": "Use {{productName}} with your firm",
       "intro": "Pick how you want to get into a firm. Then you can bring your existing clients over, choosing for each one whether to keep it private or share it with colleagues.",
       "door-create-title": "Start a firm",
       "door-create-body": "You become the admin and the first seat. Invite colleagues, share clients, set up single sign-on and the firm security.",
@@ -1898,8 +1899,8 @@
       "cancel": "Not now"
     },
     "prompt": {
-      "title": "Use Lantern with your firm",
-      "body": "Bring colleagues in and share clients, or join a firm that already uses Lantern. Your private clients stay private.",
+      "title": "Use {{productName}} with your firm",
+      "body": "Bring colleagues in and share clients, or join a firm that already uses {{productName}}. Your private clients stay private.",
       "action": "Use this with my firm",
       "dismiss": "Dismiss"
     }
@@ -1912,15 +1913,15 @@
       },
       "direct": {
         "label": "Sent to your {{provider}} account",
-        "note": "Sent straight from your machine to {{provider}} with your own account key. Lantern is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+        "note": "Sent straight from your machine to {{provider}} with your own account key. {{productName}} is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
       },
       "demo": {
         "label": "Browser demo. Do not use with client data",
-        "note": "In this online demo, messages pass through a shared Lantern relay. The desktop app never does this. Do not enter confidential or client information here."
+        "note": "In this online demo, messages pass through a shared {{productName}} relay. The desktop app never does this. Do not enter confidential or client information here."
       },
       "checking": {
         "label": "Checking AI destination",
-        "note": "Lantern is confirming where this request will go before sending."
+        "note": "{{productName}} is confirming where this request will go before sending."
       },
       "none": {
         "label": "No AI connected",
@@ -1962,7 +1963,7 @@
   "mail": {
     "connect": {
       "error-prefix": "Something went wrong:",
-      "fde-warning": "Full-disk encryption is off on this machine. Lantern encrypts your mail, but enabling FileVault (macOS) or BitLocker (Windows) adds a second layer of protection if your device is stolen."
+      "fde-warning": "Full-disk encryption is off on this machine. {{productName}} encrypts your mail, but enabling FileVault (macOS) or BitLocker (Windows) adds a second layer of protection if your device is stolen."
     },
     "workspace": {
       "title": "Email",
@@ -2134,11 +2135,11 @@
     "control": {
       "checking": "Checking vault status",
       "on-title": "Vault is on",
-      "on-body": "This workspace's files are encrypted at rest. Lantern decrypts them transparently, so your work is unchanged.",
+      "on-body": "This workspace's files are encrypted at rest. {{productName}} decrypts them transparently, so your work is unchanged.",
       "locked-note": "This vault is locked. Reopen the workspace to unlock it with your recovery phrase."
     },
     "ceremony": {
-      "cannot-recover-warning": "Lantern cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
+      "cannot-recover-warning": "{{productName}} cannot recover this for you. If you lose this phrase and your device's keychain, your encrypted files will be permanently inaccessible.",
       "phrase-label": "Your 24-word recovery phrase",
       "copy-phrase": "Copy phrase",
       "copied": "Copied",
@@ -2149,8 +2150,8 @@
     },
     "enable": {
       "title": "Encrypt this workspace",
-      "subtitle": "AES-256 at rest, transparent in Lantern",
-      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. Lantern decrypts them transparently so your workflow is unchanged.",
+      "subtitle": "AES-256 at rest, transparent in {{productName}}",
+      "detail": "When enabled, every document file in this workspace is stored as ciphertext on disk. {{productName}} decrypts them transparently so your workflow is unchanged.",
       "bullet-names-visible": "File names and folder structure remain visible",
       "bullet-phrase-once": "A 24-word recovery phrase is generated once. You must save it.",
       "bullet-no-recovery": "If you lose the phrase and the keychain, files cannot be recovered",
@@ -2172,7 +2173,7 @@
     "locked": {
       "title": "Vault locked",
       "subtitle": "This workspace is encrypted and the key is not on this machine.",
-      "explanation": "Enter your 24-word recovery phrase to unlock this vault. Lantern will restore the key to your keychain so you can open this workspace normally from now on.",
+      "explanation": "Enter your 24-word recovery phrase to unlock this vault. {{productName}} will restore the key to your keychain so you can open this workspace normally from now on.",
       "phrase-hint": "Recovery phrases are 24 words separated by spaces.",
       "phrase-label": "Recovery phrase",
       "phrase-placeholder": "word1 word2 word3 ",
@@ -2332,7 +2333,7 @@
       },
       "send": {
         "title": "Send meeting items",
-        "privacy-note": "Review first. Sends by your email. Lantern never receives files.",
+        "privacy-note": "Review first. Sends by your email. {{productName}} never receives files.",
         "review-button": "Review send",
         "account-label": "Email account",
         "no-account": "Connect email in Settings",
@@ -2405,7 +2406,7 @@
     "notice": {
       "default-script": "Quick note before we start. I'm recording this meeting for my notes. The recording stays on my computer. Is that alright with everyone?",
       "consent-script-heading": "Say after starting:",
-      "consent-script-hint": "Lantern checks the transcript for this later.",
+      "consent-script-hint": "{{productName}} checks the transcript for this later.",
       "trail-heading": "Notice",
       "verified-chip": "Spoken notice detected at {{time}}",
       "verified-detail": "Detected in the recording: “{{snippet}}”",

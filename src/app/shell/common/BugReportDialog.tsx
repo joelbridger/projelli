@@ -40,13 +40,13 @@ function collectMetadata(): Metadata {
 }
 
 function buildMailto(message: string, email: string, meta: Metadata): string {
-  const subject = `Lantern ${meta.version} bug report`;
+  const subject = `${BRAND.name} ${meta.version} bug report`;
   const lines = [
     message,
     '',
     email ? `Reply to: ${email}` : '',
     '---',
-    `Lantern version: ${meta.version}`,
+    `${BRAND.name} version: ${meta.version}`,
     `Platform: ${meta.os}`,
     `User agent: ${meta.userAgent}`,
   ].filter(Boolean);

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { ClipboardList, X } from 'lucide-react';
 import { EV_OPEN_JOTFORM } from '@/config/identity';
+import { BRAND } from '@/config/brand';
 
 interface JotformSourceState {
   sourceId: string;
@@ -53,7 +54,7 @@ export function JotformSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Lantern imported this citation from Jotform as read-only text. Full submission detail is a fast-follow.
+          {BRAND.name} imported this citation from Jotform as read-only text. Full submission detail is a fast-follow.
         </p>
       </div>
     </div>
