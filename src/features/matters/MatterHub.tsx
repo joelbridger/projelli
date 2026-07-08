@@ -23,7 +23,7 @@ import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
-import { Badge, IconButton, SlidePanel } from '@/ui/kp';
+import { Badge, IconButton, QuietStatus, SlidePanel } from '@/ui/kp';
 import SurfaceHeader from '@/ui/SurfaceHeader';
 import {
   DropdownMenu,
@@ -431,6 +431,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
           : clientMapSyncResult === 'updated'
             ? t('matter.hub.updated-short')
             : '';
+  const clientMapHeaderStatusState =
+    clientMapSyncResult === 'failed'
+      ? 'failure'
+      : isSyncingClientMap || clientMapSyncResult === 'in_flight'
+        ? 'pending'
+        : 'ok';
 
   return (
     <div
@@ -518,13 +524,13 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 data-testid="clientmap-last-updated"
                 aria-live="polite"
                 style={{
-                  color: 'var(--color-muted-foreground)',
-                  fontSize: 'var(--kp-font-xs)',
                   whiteSpace: 'nowrap',
                   display: clientMapHeaderStatus === '' ? 'none' : 'inline',
                 }}
               >
-                {clientMapHeaderStatus}
+                {clientMapHeaderStatus !== '' ? (
+                  <QuietStatus state={clientMapHeaderStatusState}>{clientMapHeaderStatus}</QuietStatus>
+                ) : null}
               </span>
             </div>
           }

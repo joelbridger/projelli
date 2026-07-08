@@ -13,9 +13,9 @@ import { useId, useRef, useState, type CSSProperties } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { Check, ChevronLeft, ChevronRight, Info, MoreHorizontal, Plus, Sparkles, type LucideIcon } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Sparkles, type LucideIcon } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import { Button, Chip, Eyebrow, CountBadge } from '@/ui/kp';
+import { Button, Chip, Eyebrow, CountBadge, TrustNote } from '@/ui/kp';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/ui/tooltip';
 import {
   DropdownMenu,
@@ -738,28 +738,13 @@ function MissingPanel({
         </Chip>
       </PanelHeader>
 
-      <div
+      <TrustNote
         data-testid="clientmap-coverage-caveat"
-        style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-md)', display: 'flex', alignItems: 'center', gap: 6 }}
+        details={t('matter.client-map.coverage-caveat-full')}
+        style={{ marginBottom: 'var(--kp-space-md)' }}
       >
         {t('matter.client-map.coverage-caveat-short')}
-        <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                aria-label={t('matter.client-map.coverage-caveat-label')}
-                className="kp-icon-btn kp-icon-btn--ghost kp-icon-btn--xs"
-              >
-                <Info size={13} strokeWidth={1.75} aria-hidden />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              {t('matter.client-map.coverage-caveat-full')}
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </div>
+      </TrustNote>
 
       {hasGaps && (
         <div style={{ marginBottom: hasAssumptions ? 'var(--kp-space-lg)' : 0 }}>

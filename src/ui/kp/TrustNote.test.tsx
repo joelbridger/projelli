@@ -1,3 +1,4 @@
+/* eslint-disable lantern-i18n/no-hardcoded-string -- Component tests use literal sample copy. */
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { TrustNote } from './TrustNote';
