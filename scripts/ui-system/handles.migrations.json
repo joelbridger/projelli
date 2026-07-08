@@ -282,6 +282,54 @@
       "replacement": null,
       "reason": "FB2 clientux (line 14): the privilege toggle was removed from the create flow; per-client network-lockdown stays available in Client settings (matter-privileged-<id>).",
       "date": "2026-07-08"
+    },
+    {
+      "removed": "ai-mode",
+      "replacement": null,
+      "reason": "Jameson's onboarding revert restored the pre-preview AI setup cards, so the temporary AI mode segmented control no longer exists.",
+      "date": "2026-07-09"
+    },
+    {
+      "removed": "ai-mode-cloud",
+      "replacement": null,
+      "reason": "Jameson's onboarding revert restored the pre-preview AI setup cards, so the temporary Cloud AI mode option no longer exists.",
+      "date": "2026-07-09"
+    },
+    {
+      "removed": "ai-mode-local",
+      "replacement": null,
+      "reason": "Jameson's onboarding revert restored the pre-preview AI setup cards, so the temporary Local AI mode option no longer exists; ai-try-local remains the real action.",
+      "date": "2026-07-09"
+    },
+    {
+      "removed": "connect-more-planned",
+      "replacement": null,
+      "reason": "Jameson's onboarding revert restored the pre-preview connector screen and removed the temporary planned-connectors expander.",
+      "date": "2026-07-09"
+    },
+    {
+      "removed": "firm-more-examples",
+      "replacement": null,
+      "reason": "Jameson's onboarding revert restored the pre-preview firm setup screen and removed the temporary extra-examples expander.",
+      "date": "2026-07-09"
+    },
+    {
+      "removed": "firm-security-pack-close-button",
+      "replacement": "privacy-center-export-docx",
+      "reason": "The security-pack overlay was replaced by Privacy Center export actions; the Word export is the primary replacement action.",
+      "date": "2026-07-09"
+    },
+    {
+      "removed": "firm-security-pack-overlay",
+      "replacement": "privacy-center-export-docx",
+      "reason": "The security-pack overlay was replaced by Privacy Center export actions; the Word export is the primary replacement action.",
+      "date": "2026-07-09"
+    },
+    {
+      "removed": "privacy-center-firm-pack-button",
+      "replacement": "privacy-center-export-docx",
+      "reason": "The old firm security pack button was replaced by the Privacy Center Word/PDF export actions; the Word export is the primary replacement action.",
+      "date": "2026-07-09"
     }
   ]
 }

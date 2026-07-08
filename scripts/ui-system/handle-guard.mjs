@@ -55,7 +55,7 @@ function listSourceFiles(dir) {
 }
 
 // ---- extract handle keys ----------------------------------------------------
-const ATTR = '(?:data-testid|testId|testid|rootTestId|getTabTestId)';
+const ATTR = '(?:data-testid|testId|testid|rootTestId|getTabTestId|toggleTestId)';
 // String literal:  data-testid="foo"  /  testId='foo'
 const RE_LITERAL = new RegExp(`${ATTR}\\s*=\\s*["']([^"'\\n]+)["']`, 'g');
 // JSX-braced template: data-testid={`ai-provider-${p.id}`}
@@ -66,8 +66,10 @@ const RE_TEMPLATE = new RegExp(`${ATTR}\\s*=\\s*\\{\\s*\`([^\`]+)\`\\s*\\}`, 'g'
 const RE_BRACED_TEMPLATE = new RegExp(`${ATTR}\\s*=\\s*\\{[^\\n\`]*\`([^\`]+)\`[^\\n]*\\}`, 'g');
 // Object prop passed to a reusable component:
 //   leadingTab={{ testId: 'documents-files-tab' }}
-const RE_OBJECT_LITERAL = /\btestId\s*:\s*["']([^"'\n]+)["']/g;
-const RE_OBJECT_TEMPLATE = /\btestId\s*:\s*`([^`]+)`/g;
+//   search={{ toggleTestId: 'rail-search-toggle' }}
+const OBJECT_ATTR = '(?:testId|testid|rootTestId|getTabTestId|toggleTestId)';
+const RE_OBJECT_LITERAL = new RegExp(`\\b${OBJECT_ATTR}\\s*:\\s*["']([^"'\\n]+)["']`, 'g');
+const RE_OBJECT_TEMPLATE = new RegExp(`\\b${OBJECT_ATTR}\\s*:\\s*\`([^\`]+)\``, 'g');
 
 /** Replace every ${...} interpolation with a fixed ${} placeholder. */
 function normaliseTemplate(body) {
