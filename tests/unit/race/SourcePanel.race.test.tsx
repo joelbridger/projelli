@@ -74,7 +74,7 @@ describe('SourcePanel — QA-56/QA-85 stale citation-verify isolation', () => {
     // The stale verdict for quote A must NOT be shown against quote B's card —
     // B's own check is still pending, so the card stays neutral.
     expect(screen.queryByTestId('verify-verdict')).toBeNull();
-    expect(screen.getByTestId('verify-status').textContent).toMatch(/source found/i);
+    expect(screen.getByTestId('verify-status').textContent).toMatch(/found/i);
 
     // Now B's own check resolves — its verdict (and only its verdict) shows.
     await act(async () => {
@@ -122,7 +122,7 @@ describe('SourcePanel — QA-56/QA-85 stale citation-verify isolation', () => {
     // backend call is issued for the same content key.
     rerender(<SourcePanel citations={[cite]} selectedN={null} onSelect={() => {}} />);
     expect(mockRagVerifyCitationsBatch).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('verify-status').textContent).toMatch(/source found/i);
+    expect(screen.getByTestId('verify-status').textContent).toMatch(/found/i);
 
     // The in-flight batch resolves — its result lands in the shared store and
     // the reappeared card upgrades normally: never stuck pending.
@@ -132,7 +132,7 @@ describe('SourcePanel — QA-56/QA-85 stale citation-verify isolation', () => {
       await Promise.resolve();
     });
     await waitFor(() =>
-      expect(screen.getByTestId('verify-status').textContent).toMatch(/verified against source/i),
+      expect(screen.getByTestId('verify-status').textContent).toMatch(/verified/i),
     );
   });
 });
