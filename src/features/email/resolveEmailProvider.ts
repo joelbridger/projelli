@@ -34,7 +34,7 @@ export async function resolveEmailProvider(): Promise<ResolvedEmailProvider> {
   // BUG-021 (privacy): "Draft with AI" sends the email body to the provider, so
   // it must honour Local-only mode — force the local model instead of picking a
   // cloud key, so an email never leaves the machine when the indicator says so.
-  // F-503 — the local engine is the embedded Advisor Prep Hero Local AI when ready, else
+  // F-503 — the local engine is the embedded Lantern Local AI when ready, else
   // Ollama (the same on-device resolution Ask / Chat / Client Map use).
   if (isLocalOnlyMode()) {
     const resolved = await resolveLocalGenerationProvider();

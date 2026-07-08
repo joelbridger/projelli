@@ -155,7 +155,7 @@ export function JotformConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               Jotform
-              <InfoHelp content="Import intake and KYC form submissions as read-only client records. Advisor Prep Hero indexes the submitted answers, not files." />
+              <InfoHelp content="Import intake and KYC form submissions as read-only client records. Lantern indexes the submitted answers, not files." />
             </h3>
           </div>
         </div>
@@ -173,7 +173,7 @@ export function JotformConnect() {
       {!connected ? (
         <div className="mt-4 space-y-3">
           <p className="text-xs text-slate-500">
-            Paste an API key from your Jotform account API settings. Advisor Prep Hero stores it in this computer's keychain.
+            Paste an API key from your Jotform account API settings. Lantern stores it in this computer's keychain.
           </p>
           <input
             type="password"

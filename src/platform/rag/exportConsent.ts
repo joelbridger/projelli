@@ -1,5 +1,5 @@
 /**
- * exportConsent — the single source of truth for "may Advisor Prep Hero send recognized
+ * exportConsent — the single source of truth for "may Lantern send recognized
  * external-tool EXPORTS (RightCapital plans, Jump meeting notes) to the AI?"
  *
  * The `externalExportConsent` setting promises the advisor that exported reports

@@ -136,7 +136,7 @@ export function OnboardingShell({
       data-testid="onboarding-v2"
       role="dialog"
       aria-modal="true"
-      aria-label="Set up Advisor Prep Hero"
+      aria-label="Set up Lantern"
     >
       {/* Decorative background */}
       <div className="kp-onbv2-bg" aria-hidden="true">

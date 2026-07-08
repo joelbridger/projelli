@@ -67,10 +67,10 @@ describe('Solo license recovery (Phase 5.1)', () => {
     const recovery = screen.getByTestId('license-recovery');
     const text = recovery.textContent ?? '';
 
-    expect(text).toMatch(/already bought Advisor Prep Hero/i);
+    expect(text).toMatch(/already bought Lantern/i);
     expect(text).not.toContain(EM_DASH);
 
-    const info = screen.getByRole('button', { name: 'About Already bought Advisor Prep Hero?' });
+    const info = screen.getByRole('button', { name: 'About Already bought Lantern?' });
     fireEvent.mouseEnter(info);
     const help = screen.getByRole('tooltip').textContent ?? '';
     expect(help).toMatch(/restore it on this computer/i);

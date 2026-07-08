@@ -56,7 +56,7 @@ export function UpdateBanner() {
           <Download className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
           {status === 'available' && (
             <span className="truncate">
-              <span className="font-medium">Advisor Prep Hero {version}</span> is available
+              <span className="font-medium">Lantern {version}</span> is available
             </span>
           )}
           {status === 'downloading' && (

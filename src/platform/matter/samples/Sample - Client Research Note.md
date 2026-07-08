@@ -1,7 +1,7 @@
 # Sample: Client Research Note
 
 > Fictional client: **Diane Yuen**, self-employed graphic designer. Tax year 2025.
-> This is a sample so you can see what a finished tax research note looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what a finished tax research note looks like in Lantern. Delete it whenever you want.
 
 ---
 
@@ -47,4 +47,4 @@ This note reflects a preliminary read of the facts as Diane described them. Do n
 
 ---
 
-*Prepared in Advisor Prep Hero. Review and edit before using in any client deliverable.*
+*Prepared in Lantern. Review and edit before using in any client deliverable.*

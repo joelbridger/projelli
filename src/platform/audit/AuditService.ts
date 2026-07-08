@@ -1,7 +1,7 @@
 // Audit Service
 // Append-only log of all AI actions and significant user operations
 //
-// PERSISTENCE (Advisor Prep Hero 3.0):
+// PERSISTENCE (Lantern 3.0):
 //   - Desktop (Tauri): entries are persisted to a SQLCipher-ENCRYPTED,
 //     append-only store on disk (`src-tauri/src/commands/audit/`), keyed by a
 //     master key in the OS keychain. This is the audit "defense file" at rest.

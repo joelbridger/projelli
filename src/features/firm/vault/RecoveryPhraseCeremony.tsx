@@ -2,7 +2,7 @@
  * RecoveryPhraseCeremony — mandatory confirmed recovery-phrase ceremony.
  *
  * Displays the 24-word BIP39 recovery phrase with a numbered word grid,
- * a copy button, the "Advisor Prep Hero cannot recover this for you" warning, and
+ * a copy button, the "Lantern cannot recover this for you" warning, and
  * a confirmation step that requires the user to re-enter 3 specific words
  * before the Activate button enables.
  *

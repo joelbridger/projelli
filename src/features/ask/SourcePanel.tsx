@@ -117,7 +117,7 @@ function ProvenanceBadge({ cite }: { cite: AnswerCitation }) {
       title={
         stale
           ? 'This plan is an exported snapshot and may be out of date. Re-export from the tool for the latest.'
-          : 'Advisor Prep Hero reads the file you exported or saved from this tool. It is a point-in-time snapshot, not a live connection.'
+          : 'Lantern reads the file you exported or saved from this tool. It is a point-in-time snapshot, not a live connection.'
       }
       style={{
         display: 'inline-flex',

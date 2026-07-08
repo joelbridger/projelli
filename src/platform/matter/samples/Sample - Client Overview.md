@@ -1,7 +1,7 @@
 # Sample: Client Overview
 
 > Fictional client file: **Garcia v. Meridian Properties LLC**, commercial lease dispute.
-> This is a sample so you can see what a finished client overview looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what a finished client overview looks like in Lantern. Delete it whenever you want.
 
 ---
 

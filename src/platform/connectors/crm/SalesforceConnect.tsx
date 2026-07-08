@@ -144,7 +144,7 @@ export function SalesforceConnect() {
 
       const count = households.length;
       const confirmed = await confirm(
-        `Import ${String(count)} Salesforce household${count === 1 ? '' : 's'} into local encrypted storage on this device? Advisor Prep Hero imports only the households and contacts this Salesforce login can read.`,
+        `Import ${String(count)} Salesforce household${count === 1 ? '' : 's'} into local encrypted storage on this device? Lantern imports only the households and contacts this Salesforce login can read.`,
         {
           title: `Import ${String(count)} Salesforce household${count === 1 ? '' : 's'}`,
           confirmLabel: 'Import',
@@ -280,7 +280,7 @@ export function SalesforceConnect() {
       <section className="rounded-lg border border-slate-200 bg-white p-4">
         <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
           Salesforce FSC
-          <InfoHelp content="Connect Salesforce Financial Services Cloud to bring household and contact data into Client Maps. Requires the Advisor Prep Hero desktop app." />
+          <InfoHelp content="Connect Salesforce Financial Services Cloud to bring household and contact data into Client Maps. Requires the Lantern desktop app." />
         </h3>
       </section>
     );

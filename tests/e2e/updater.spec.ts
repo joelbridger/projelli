@@ -117,9 +117,8 @@ test.describe('Auto-updater UI', () => {
     await page.getByTestId('update-banner-see-changes').click();
     const modal = page.getByTestId('update-release-notes-modal');
     await expect(modal).toBeVisible();
-    // UpdateReleaseNotesModal.tsx renders "Advisor Prep Hero {version}" —
-    // the 2026-07-01 rebrand changed BRAND.name from "Lantern".
-    await expect(modal.getByRole('heading', { name: /advisor prep hero 1\.0\.8/i })).toBeVisible();
+    // UpdateReleaseNotesModal.tsx renders "Lantern {version}".
+    await expect(modal.getByRole('heading', { name: /lantern 1\.0\.8/i })).toBeVisible();
     // Body shows the release notes verbatim.
     await expect(page.getByTestId('update-release-notes-body')).toContainText(
       'Auto-updater now ships out of the box'

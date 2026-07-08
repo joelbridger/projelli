@@ -70,7 +70,7 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-choose-start">
       <h1 className="inline-flex items-center gap-2 text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">
         How do you want to start?
-        <InfoHelp content="You can explore a ready-made sample practice right now, or point Advisor Prep Hero at your own data. You can always switch later." />
+        <InfoHelp content="You can explore a ready-made sample practice right now, or point Lantern at your own data. You can always switch later." />
       </h1>
 
       <div className="mt-10 grid w-full max-w-[920px] grid-cols-1 gap-6 text-left md:grid-cols-2">
@@ -129,7 +129,7 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
             Connect my own data
             <InfoHelp
               as="span"
-              content="Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so Advisor Prep Hero builds Client Maps from your real clients."
+              content="Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so Lantern builds Client Maps from your real clients."
             />
           </h2>
           <ul className="mt-4 space-y-2">

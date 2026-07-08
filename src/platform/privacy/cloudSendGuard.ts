@@ -9,7 +9,7 @@
  * The guarantee: in private mode (Local-only) no AI prompt or file is ever sent
  * to a cloud AI. Every cloud provider's send methods call `assertCloudSendAllowed`
  * as their first statement, so the rule is enforced in ONE place for every
- * current and future call path. Local providers (Ollama / Advisor Prep Hero Local AI) do
+ * current and future call path. Local providers (Ollama / Lantern Local AI) do
  * NOT call it, so on-device inference is unaffected.
  */
 

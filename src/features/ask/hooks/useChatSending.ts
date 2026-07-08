@@ -117,7 +117,7 @@ import { EV_TRASH_CHANGED } from '@/config/identity';
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
   chatData: AIChatFile;
-  /** Whether the embedded Advisor Prep Hero Local AI model is ready — so a chat with no
+  /** Whether the embedded Lantern Local AI model is ready — so a chat with no
    *  saved provider resolves to 'lantern-local' (on-device) instead of a cloud
    *  fallback. Keeps the send path in agreement with the egress badge. */
   localAvailability: LocalModelAvailability;
@@ -321,7 +321,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // provider before the main send guard runs. In Local-only mode, force the
     // local model so compression can't leak to the cloud.
     if (isLocalOnlyMode()) {
-      // Use the chat's ACTUAL local engine for compression so a Advisor Prep Hero Local
+      // Use the chat's ACTUAL local engine for compression so a Lantern Local
       // AI chat isn't silently rerouted to the user's Ollama daemon (which may
       // not even be running). Both stay fully on-device.
       return chatProvider === 'lantern-local'
@@ -1174,7 +1174,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 ) {
                   return {
                     content:
-                      'This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Advisor Prep Hero needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.',
+                      'This file is recognized as an exported report from an outside tool (for example RightCapital or Jump). Lantern needs your one-time confirmation before exported reports are used with AI. Turn on "Allow exported reports from other tools" in Settings → AI & Privacy, or ask about it in the Ask tab where you will be prompted. The file content was not read.',
                     path: relativePath,
                     withheld: true,
                   };

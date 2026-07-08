@@ -43,13 +43,13 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Easiest path on Apple devices. About 5 minutes.',
     steps: [
       'On your Mac, make sure iCloud Drive is on under System Settings → Apple ID → iCloud.',
-      'In Advisor Prep Hero, open File → Open Workspace and pick a folder inside ~/Library/Mobile Documents/com~apple~CloudDocs/. A folder called "Advisor Prep Hero" works well.',
+      'In Lantern, open File → Open Workspace and pick a folder inside ~/Library/Mobile Documents/com~apple~CloudDocs/. A folder called "Lantern" works well.',
       'Wait for the first sync to finish (watch the cloud icons in Finder).',
-      'On your iPhone, open the Files app → Browse → iCloud Drive → Advisor Prep Hero to read your workspace.',
+      'On your iPhone, open the Files app → Browse → iCloud Drive → Lantern to read your workspace.',
     ],
     tips: [
       'Treat your phone as read-only for now to avoid conflict copies.',
-      'Free iCloud tier is 5 GB. A typical Advisor Prep Hero workspace fits easily.',
+      'Free iCloud tier is 5 GB. A typical Lantern workspace fits easily.',
       'For nicer text file rendering on iPhone, install a reader app like Taio or 1Writer and point it at the same iCloud folder.',
     ],
     // Apple's documented Files app deep link. Opens straight into Files.
@@ -62,14 +62,14 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Cross-platform. Reliable conflict handling. Works on iOS and Android.',
     steps: [
       'Install Dropbox for desktop from dropbox.com/install if you don\'t already have it.',
-      'In Advisor Prep Hero, open File → Open Workspace and pick a folder inside your Dropbox folder.',
+      'In Lantern, open File → Open Workspace and pick a folder inside your Dropbox folder.',
       'Wait for the green checkmark next to the folder in Finder / File Explorer.',
-      'Install the Dropbox iOS or Android app, sign in, and navigate to the Advisor Prep Hero folder. Tap any .md file.',
+      'Install the Dropbox iOS or Android app, sign in, and navigate to the Lantern folder. Tap any .md file.',
     ],
     tips: [
       'Dropbox creates clearly labeled "conflicted copy" files when both devices edit at once. Still cleanest to edit on one at a time.',
       'Free tier is 2 GB. Text files are tiny so this is rarely the bottleneck.',
-      'If you use Smart Sync, right-click your Advisor Prep Hero folder and "Make Available Offline" so Advisor Prep Hero can always read from disk.',
+      'If you use Smart Sync, right-click your Lantern folder and "Make Available Offline" so Lantern can always read from disk.',
     ],
     // Documented Dropbox iOS scheme used to open the app.
     deepLink: { href: 'dbapi-2://1/connect', label: 'Open Dropbox on iPhone' },
@@ -81,8 +81,8 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Open source, peer-to-peer. Your data stays on your devices.',
     steps: [
       'Install Syncthing on your computer from syncthing.net/downloads. The admin UI opens at http://127.0.0.1:8384.',
-      'In Syncthing, add a folder (label "Advisor Prep Hero") pointing at a local path like ~/Advisor Prep Hero-Sync/.',
-      'In Advisor Prep Hero, open File → Open Workspace and select that same folder.',
+      'In Syncthing, add a folder (label "Lantern") pointing at a local path like ~/Lantern-Sync/.',
+      'In Lantern, open File → Open Workspace and select that same folder.',
       'On Android: install Syncthing-Fork and pair using your computer\'s device ID. On iPhone: use Möbius Sync (paid) and follow the same pairing flow.',
     ],
     tips: [
@@ -98,12 +98,12 @@ const PROVIDERS: ProviderTab[] = [
     tagline: 'Best on Android. Requires the Google Drive desktop app in "Mirror" mode.',
     steps: [
       'Install Google Drive for desktop from google.com/drive/download. When asked, choose "Mirror files" (not "Stream files"), so a real local copy lives on your hard drive.',
-      'In Advisor Prep Hero, open File → Open Workspace and pick a folder inside the mirrored Drive location.',
+      'In Lantern, open File → Open Workspace and pick a folder inside the mirrored Drive location.',
       'Wait for the green checkmark in Finder / File Explorer.',
-      'On Android, open the Google Drive app and navigate to the Advisor Prep Hero folder. On iPhone, install Google Drive for iOS and do the same.',
+      'On Android, open the Google Drive app and navigate to the Lantern folder. On iPhone, install Google Drive for iOS and do the same.',
     ],
     tips: [
-      '"Mirror" mode is required. "Stream" mode keeps files cloud-only and Advisor Prep Hero won\'t reliably read them.',
+      '"Mirror" mode is required. "Stream" mode keeps files cloud-only and Lantern won\'t reliably read them.',
       'Free tier is 15 GB shared across Drive, Gmail, and Photos. Check your overall Google storage isn\'t already full.',
       'On Android, tap a .md file to pick a default reader app once. Markor is a solid free choice.',
     ],

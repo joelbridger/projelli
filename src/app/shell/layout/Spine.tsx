@@ -97,11 +97,14 @@ export function Spine({
   const setClientMapHubTab = useMatterStore((s) => s.setClientMapHubTab);
   const entityLabel = useEntityLabel();
   const newClientLabel = t('spine.new-client', { entity: entityLabel.one });
+  const clientRailLabel = (matter: (typeof matters)[number]): string =>
+    matter.client.trim() || matter.name.trim() || matterLabel(matter);
   const filteredMatters = (() => {
     const q = clientSearchQuery.trim().toLowerCase();
     if (!q) return matters;
     return matters.filter(
       (m) =>
+        clientRailLabel(m).toLowerCase().includes(q) ||
         matterLabel(m).toLowerCase().includes(q) ||
         m.client.toLowerCase().includes(q)
     );
@@ -409,8 +412,8 @@ export function Spine({
                   onChange={(e) => {
                     setClientSearchQuery(e.currentTarget.value);
                   }}
-                  placeholder="Search clients"
-                  aria-label="Search clients"
+                  placeholder={t('spine.find-client')}
+                  aria-label={t('spine.find-client')}
                   style={{
                     width: '100%',
                     minWidth: 0,
@@ -490,11 +493,14 @@ export function Spine({
               </button>
               {filteredMatters.map((m) => {
                 const on = m.id === activeMatterId;
+                const displayLabel = clientRailLabel(m);
+                const fullLabel = matterLabel(m);
                 return (
                   <button
                     key={m.id}
                     type="button"
                     data-testid={`spine-client-row-${m.id}`}
+                    title={fullLabel}
                     onClick={() => {
                       // Rail client clicks always mean "open this client's map",
                       // never "restore wherever this client was last".
@@ -543,7 +549,7 @@ export function Spine({
                         textOverflow: 'ellipsis',
                       }}
                     >
-                      {matterLabel(m)}
+                      {displayLabel}
                     </div>
                   </button>
                 );

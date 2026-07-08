@@ -198,7 +198,7 @@ export function BoxConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               Box
-              <InfoHelp content="Import supported documents from Box into encrypted local search. Advisor Prep Hero only reads Box files." />
+              <InfoHelp content="Import supported documents from Box into encrypted local search. Lantern only reads Box files." />
             </h3>
           </div>
         </div>

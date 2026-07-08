@@ -12,7 +12,7 @@ describe('composeCrmProvenance (E3 — AI-drafted CRM notes carry their origin)'
       { advisor: 'Dana Lee', sourceKind: 'meeting', sourceDate: '2026-07-02T00:00:00Z', approvedIso: '2026-07-04T00:00:00Z' },
       'en-US',
     );
-    expect(line).toContain('Advisor Prep Hero AI');
+    expect(line).toContain('Lantern AI');
     expect(line).toContain('Dana Lee');
     expect(line).toContain('7/2/2026'); // meeting date, en-US
     expect(line).toContain('7/4/2026'); // approval date, en-US
@@ -25,7 +25,7 @@ describe('composeCrmProvenance (E3 — AI-drafted CRM notes carry their origin)'
       { advisor: 'Dana Lee', sourceKind: 'document', approvedIso: '2026-07-04T00:00:00Z' },
       'en-US',
     );
-    expect(line).toContain('Advisor Prep Hero AI');
+    expect(line).toContain('Lantern AI');
     expect(line).toContain('Dana Lee');
     expect(line.toLowerCase()).not.toContain('meeting');
   });

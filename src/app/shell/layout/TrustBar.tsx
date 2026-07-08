@@ -52,8 +52,8 @@ export function TrustBar({ inline = false }: TrustBarProps) {
     confidentialityMode === 'local-only'
       ? 'On this computer only: AI runs on your machine. No AI prompt or file is sent to a cloud AI.'
       : confidentialityMode === 'assured'
-        ? 'Assured: requests route through your firm\'s zero-retention proxy. Advisor Prep Hero never sees content.'
-        : 'Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Advisor Prep Hero is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.';
+        ? 'Assured: requests route through your firm\'s zero-retention proxy. Lantern never sees content.'
+        : 'Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Lantern is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.';
 
   return (
     <div

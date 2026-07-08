@@ -300,7 +300,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // what the template/global default says, so it needs reachability plus
       // the installed tag list.
       const localOnly = modeRestrictsToLocal(getConfidentialityMode());
-      // F-503 — in private mode prefer the embedded Advisor Prep Hero Local AI when its
+      // F-503 — in private mode prefer the embedded Lantern Local AI when its
       // model is downloaded + ready (it needs no separate Ollama daemon), the
       // same on-device default Ask / Chat / Client Map use. Probe it first; only
       // probe Ollama if the embedded model isn't ready, so a machine with the
@@ -455,7 +455,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
       // the resolution result. All blocking cases already returned above.
       let provider: Provider;
       if (providerResolution.kind === 'lantern-local') {
-        // F-503 — embedded Advisor Prep Hero Local AI (private mode). Fully on-device,
+        // F-503 — embedded Lantern Local AI (private mode). Fully on-device,
         // zero cost, zero network egress. The model id is the provider's own
         // default; only AI Rules are threaded in.
         provider = createProvider({
@@ -463,7 +463,7 @@ export function useWorkflowRunner(options: UseWorkflowRunnerOptions) {
           ...(aiRulesContent ? { aiRules: aiRulesContent } : {}),
         });
         console.log(
-          `Using embedded Advisor Prep Hero Local AI for workflow generation [source=${resolution.source}]`
+          `Using embedded Lantern Local AI for workflow generation [source=${resolution.source}]`
         );
       } else if (providerResolution.kind === 'ollama') {
         // F-107 — Ollama branch. Reachability confirmed above; construct the

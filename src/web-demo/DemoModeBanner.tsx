@@ -16,11 +16,13 @@ import { Button } from '@/ui/button';
 import { BYOKKeyInput } from './BYOKKeyInput';
 import { trackDemoDownloadClicked } from './demoPlausible';
 import { BRAND } from '@/config/brand';
+import { useTranslation } from 'react-i18next';
 
 const DOWNLOAD_URL =
   BRAND.urls.pricing + '?utm_source=demo&utm_campaign=v2-launch&utm_content=banner';
 
 export function DemoModeBanner() {
+  const { t } = useTranslation();
   // `?clean` hides the demo chrome so the app can be screen-recorded for the
   // marketing site without the banner in frame.
   if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('clean')) {
@@ -49,8 +51,7 @@ export function DemoModeBanner() {
       }}
     >
       <span>
-        You are using the Advisor Prep Hero demo. Files live in your browser only and
-        are not synced anywhere.
+        {t('common.web-demo.banner')}
       </span>
       <BYOKKeyInput />
       <Button

@@ -23,7 +23,8 @@
  * 30 characters long. Anything else is rejected with an inline error.
  */
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
@@ -75,17 +76,12 @@ function clearStoredKey(): void {
 }
 
 export function BYOKKeyInput() {
+  const { t } = useTranslation();
   const [storedKey, setStoredKey] = useState<string | null>(() => readStoredKey());
   const [expanded, setExpanded] = useState(false);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pendingKey, setPendingKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    // If something else clears the key (Reset session, devtools), keep the
-    // visible state in sync the next time we mount.
-    setStoredKey(readStoredKey());
-  }, []);
 
   function handleSave() {
     const trimmed = draft.trim();
@@ -202,8 +198,7 @@ export function BYOKKeyInput() {
           <AlertDialogHeader>
             <AlertDialogTitle>Store your API key in this browser?</AlertDialogTitle>
             <AlertDialogDescription>
-              Your key is stored only in your browser. The Advisor Prep Hero demo never
-              sees it. AI requests go straight from this tab to Anthropic.
+              {t('common.web-demo.byok-confirm-description')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

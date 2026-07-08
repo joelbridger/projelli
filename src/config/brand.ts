@@ -19,15 +19,15 @@
  */
 
 export const BRAND = {
-  "name": "Advisor Prep Hero",
-  "nameShort": "APH",
-  "legalName": "Advisor Prep Hero",
-  "possessive": "Advisor Prep Hero's",
+  "name": "Lantern",
+  "nameShort": "Lantern",
+  "legalName": "Lantern",
+  "possessive": "Lantern's",
   "tagline": "The private intelligence layer for a financial advisory practice.",
   "taglineShort": "Local-first workspace for confidential client work.",
   "positioning": "the private place your whole practice lives, and it answers you back",
   "descriptions": {
-    "store": "Advisor Prep Hero is a local-first AI workspace for financial advisors who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports RIAs, advisors, CPAs, and consultants where client confidentiality is non-negotiable.",
+    "store": "Lantern is a local-first AI workspace for financial advisors who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports RIAs, advisors, CPAs, and consultants where client confidentiality is non-negotiable.",
     "shortStore": "Local-first AI workspace for confidential client work",
     "meta": "Find anything you have ever emailed or filed, with cited answers. Redline in real Word. Your client files never leave your machine. Built for financial advisors and RIAs."
   },
@@ -45,8 +45,8 @@ export const BRAND = {
   },
   "messaging": {
     "onboardingHeadline": "Your private intelligence layer",
-    "redlineAuthor": "Advisor Prep Hero AI",
-    "exportWatermark": "Prepared with Advisor Prep Hero"
+    "redlineAuthor": "Lantern AI",
+    "exportWatermark": "Prepared with Lantern"
   },
   "urls": {
     "site": "https://advisorprephero.com",

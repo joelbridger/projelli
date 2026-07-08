@@ -1,6 +1,6 @@
 /**
  * FirmSecurityPack — one-click "security overview" a solo lawyer can hand to
- * their firm's IT department or General Counsel to get Advisor Prep Hero approved.
+ * their firm's IT department or General Counsel to get Lantern approved.
  *
  * ACCURACY IS THE WHOLE POINT. Every claim mirrors the real architecture and
  * the canonical facts in `src/platform/privacy/egress.ts`. No marketing
@@ -68,12 +68,12 @@ const SECTIONS: Section[] = [
     id: 'what-lantern-is',
     icon: Laptop,
     tone: 'text-emerald-700 bg-emerald-50',
-    heading: 'What Advisor Prep Hero is',
+    heading: 'What Lantern is',
     body: (
       <p>
-        Advisor Prep Hero is a private intelligence layer for your practice. It runs as a
+        Lantern is a private intelligence layer for your practice. It runs as a
         desktop app on your own computer. Documents, email, and client records stay
-        in local files you control. Advisor Prep Hero answers questions across all of
+        in local files you control. Lantern answers questions across all of
         it and shows a citation you can open and check for every answer.
       </p>
     ),
@@ -86,7 +86,7 @@ const SECTIONS: Section[] = [
     body: (
       <>
         <p>
-          Your files stay on your own computer. Advisor Prep Hero has no content server.
+          Your files stay on your own computer. Lantern has no content server.
           We never receive, store, or can read your client records.
         </p>
         <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>Data map (full detail below):</p>
@@ -111,7 +111,7 @@ const SECTIONS: Section[] = [
           <strong>Direct (bring your own key):</strong>{' '}
           {DIRECT_EGRESS.note}{' '}
           <span style={{ color: '#555' }}>
-            (data leaves to your chosen AI provider, not to Advisor Prep Hero)
+            (data leaves to your chosen AI provider, not to Lantern)
           </span>
         </div>
         <div>
@@ -139,7 +139,7 @@ const SECTIONS: Section[] = [
     heading: 'Keys and accounts',
     body: (
       <p>
-        Advisor Prep Hero never holds AI keys and never charges for AI usage. Solo use needs
+        Lantern never holds AI keys and never charges for AI usage. Solo use needs
         no account at all. Firm use adds single sign-on, seats, and shared matters.
       </p>
     ),
@@ -166,7 +166,7 @@ const SECTIONS: Section[] = [
     body: (
       <div>
         <p>
-          <strong>SOC 2:</strong> Advisor Prep Hero is not SOC 2 certified. A readiness and
+          <strong>SOC 2:</strong> Lantern is not SOC 2 certified. A readiness and
           gap-analysis assessment is complete (see{' '}
           <code>docs/trust/soc2-readiness.md</code>); a formal audit by an
           independent CPA firm has not yet been completed. A SOC 2 Type II report
@@ -187,9 +187,9 @@ const SECTIONS: Section[] = [
           execution.
         </p>
         <p style={{ marginTop: '0.5rem' }}>
-          <strong>Firm installation:</strong> Advisor Prep Hero runs as a desktop application
+          <strong>Firm installation:</strong> Lantern runs as a desktop application
           on your hardware. Your IT team deploys and updates it through your normal
-          software distribution process. No configuration of Advisor Prep Hero&apos;s
+          software distribution process. No configuration of Lantern&apos;s
           infrastructure is required for a solo or small-firm install.
         </p>
       </div>
@@ -250,7 +250,7 @@ function usePrint(printableId: string) {
       return;
     }
 
-    doc.title = 'Advisor Prep Hero security overview for IT / General Counsel';
+    doc.title = 'Lantern security overview for IT / General Counsel';
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -302,10 +302,10 @@ export function FirmSecurityPackContent() {
   return (
     <div id={PRINTABLE_ID} data-testid="firm-security-pack-content">
       <h1 className="text-lg font-semibold mb-1">
-        Advisor Prep Hero security overview for your firm&apos;s IT / General Counsel
+        Lantern security overview for your firm&apos;s IT / General Counsel
       </h1>
       <p className="sub text-sm text-muted-foreground mb-4">
-        This is a plain-English summary of how Advisor Prep Hero handles your client
+        This is a plain-English summary of how Lantern handles your client
         data, written so your security and ethics reviewers can evaluate it
         quickly. Every claim here matches how the software actually works. If
         something isn&apos;t finished yet, I say so.
@@ -360,11 +360,11 @@ export function FirmSecurityPackContent() {
       </div>
 
       <p className="foot mt-4 text-xs text-muted-foreground">
-        This document was generated from the Advisor Prep Hero desktop app. All claims
+        This document was generated from the Lantern desktop app. All claims
         are verifiable against the source code referenced in{' '}
         <code>docs/trust/security-overview.md</code>. For the full data
         processing contract, see <code>docs/legal/DPA-template.md</code>. For
-        SOC 2 status, see <code>docs/trust/soc2-readiness.md</code>. Advisor Prep Hero
+        SOC 2 status, see <code>docs/trust/soc2-readiness.md</code>. Lantern
         is not SOC 2 certified as of this document.
       </p>
     </div>

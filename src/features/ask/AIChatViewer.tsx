@@ -169,7 +169,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
   // The provider this chat ACTUALLY targets. A chat with no saved provider must
-  // never fall back to the cloud ('anthropic') while the embedded Advisor Prep Hero Local
+  // never fall back to the cloud ('anthropic') while the embedded Lantern Local
   // AI model is ready — that would make the egress badge claim "data leaves" for
   // a chat that runs on-device. The badge, the input toolbar, and the send path
   // all read this one value (see effectiveChatProvider) so they can't disagree.

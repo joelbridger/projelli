@@ -10,7 +10,7 @@
  *   2. Shared — no BYOK key. We instantiate a thin DemoProxyProvider that
  *      POSTs to `/api/demo-chat`, routed by Caddy to the on-server Bun proxy
  *      (`~/services/lantern-demo-proxy`). The proxy enforces rate limits,
- *      monthly spend caps, and uses Advisor Prep Hero's shared Anthropic key.
+ *      monthly spend caps, and uses Lantern's shared Anthropic key.
  *
  * Limit-hit detection: when the proxy returns 429 (rate-limited) or 503/502
  * (budget exhausted / upstream failure), the provider dispatches a
@@ -120,7 +120,7 @@ class DemoProxyProvider implements Provider {
 
   getMetadata(): ProviderMetadata {
     return {
-      name: 'Advisor Prep Hero Demo (shared key)',
+      name: 'Lantern Demo (shared key)',
       providerId: 'lantern-demo-proxy',
       model: this.modelHint,
       capabilities: { streaming: false, vision: false, functionCalling: false },

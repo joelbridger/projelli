@@ -56,7 +56,7 @@ test.describe('Spine Navigation (test mode)', () => {
 
   test('top bar owns the logo and no longer renders the global Back button', async ({ page }) => {
     const header = page.getByTestId('app-header');
-    const logo = header.getByRole('img', { name: 'Advisor Prep Hero' });
+    const logo = header.getByRole('img', { name: 'Lantern' });
 
     await expect(logo).toBeVisible();
     await expect(logo).toHaveAttribute('src', /\/logo-dark\.svg$/);
@@ -69,7 +69,7 @@ test.describe('Spine Navigation (test mode)', () => {
     const spine = page.getByTestId('spine-nav');
 
     await expect(
-      spine.getByRole('img', { name: 'Advisor Prep Hero' })
+      spine.getByRole('img', { name: 'Lantern' })
     ).toHaveCount(0);
 
     const spineImageSources = await spine.locator('img').evaluateAll((imgs) =>

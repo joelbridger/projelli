@@ -1,7 +1,7 @@
 # Sample: Beneficiary & Estate Notes
 
 > Fictional household: **The Hendricks Household**, beneficiary designations and estate planning notes.
-> This is a sample so you can see what beneficiary and estate documentation looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what beneficiary and estate documentation looks like in Lantern. Delete it whenever you want.
 
 ---
 

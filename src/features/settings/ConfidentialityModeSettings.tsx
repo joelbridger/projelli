@@ -6,7 +6,7 @@
  * seeing the range, with the active one marked, is the fix):
  *
  *   - Local-only  Documents and prompts are never sent to a cloud AI: only
- *                 on-device models are usable (the built-in Advisor Prep Hero Local AI
+ *                 on-device models are usable (the built-in Lantern Local AI
  *                 by default, or the user's own Ollama) and cloud AI providers
  *                 are disabled. (User-authorized connectors still sync.)
  *                 Selecting this constrains the model picker elsewhere.
@@ -70,7 +70,7 @@ const SOLO_CARDS: ModeCard[] = [
     icon: Laptop,
     title: 'On this computer only',
     blurb:
-      'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Advisor Prep Hero Local AI, or your own Ollama. Connectors you have set up still sync. Use this for your most sensitive client work.',
+      'AI runs on your machine: your documents and prompts are never sent to a cloud AI. Cloud AI providers are turned off and only on-device models are used — the built-in Lantern Local AI, or your own Ollama. Connectors you have set up still sync. Use this for your most sensitive client work.',
     accent: 'text-emerald-700 border-emerald-400 dark:text-emerald-300 dark:border-emerald-700',
     tag: 'Most private',
   },
@@ -79,7 +79,7 @@ const SOLO_CARDS: ModeCard[] = [
     icon: Cloud,
     title: 'Cloud AI (your account)',
     blurb:
-      'Your own API key talks directly to your chosen AI provider (Anthropic, OpenAI, or Google). Advisor Prep Hero is not in between. The provider sees your prompt, so control retention and training in your provider account.',
+      'Your own API key talks directly to your chosen AI provider (Anthropic, OpenAI, or Google). Lantern is not in between. The provider sees your prompt, so control retention and training in your provider account.',
     accent: 'text-sky-700 border-sky-400 dark:text-sky-300 dark:border-sky-700',
     tag: 'Most capable',
   },
@@ -91,7 +91,7 @@ const ASSURED_CARD: ModeCard = {
   icon: ShieldCheck,
   title: 'Assured',
   blurb:
-    "Cloud inference routed through the Advisor Prep Hero zero-retention proxy using your firm's managed key. We keep nothing (DPA + provider zero-retention). Available once your firm admin sets a managed key.",
+    "Cloud inference routed through the Lantern zero-retention proxy using your firm's managed key. We keep nothing (DPA + provider zero-retention). Available once your firm admin sets a managed key.",
   accent: 'text-indigo-700 border-indigo-400 dark:text-indigo-300 dark:border-indigo-700',
 };
 
@@ -126,7 +126,7 @@ export function ConfidentialityModeSettings() {
             <div className="space-y-2">
               <p>Choose whether AI requests stay on your computer or are sent to a cloud provider you control.</p>
               {isFirmUser && (
-                <p>Firm security: the Assured option below routes AI requests through your firm's zero-retention proxy so Advisor Prep Hero retains nothing.</p>
+                <p>Firm security: the Assured option below routes AI requests through your firm's zero-retention proxy so Lantern retains nothing.</p>
               )}
             </div>
           }
@@ -226,7 +226,7 @@ export function ConfidentialityModeSettings() {
         >
           On this computer only is on. Your documents and prompts are never sent
           to a cloud AI — answers run on a local model on your machine (the
-          built-in Advisor Prep Hero Local AI when it&rsquo;s ready, or your own Ollama).
+          built-in Lantern Local AI when it&rsquo;s ready, or your own Ollama).
           Cloud AI providers are disabled in the chat picker. Connectors you have
           set up still sync.
         </p>

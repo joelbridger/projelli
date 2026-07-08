@@ -304,7 +304,7 @@ export function AppDialogs({
         </LazyBoundary>
       )}
 
-      {/* Advisor Prep Hero 3.0: rebuilt first-run wizard — the live first-run surface.
+      {/* Lantern 3.0: rebuilt first-run wizard — the live first-run surface.
           Built above as `firstRunOverlay` so it also renders over the
           WorkspaceSelector branch (where first run usually happens). */}
       {firstRunOverlay}

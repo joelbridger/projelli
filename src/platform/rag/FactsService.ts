@@ -7,7 +7,7 @@
  * Facts gives it a short, user-approved list of durable truths that are
  * ALWAYS in the system prompt (not retrieved conditionally). Think
  * "the user is a Senior Product Designer", "the user's wife is Allison",
- * "the user ships via the Advisor Prep Hero 8-week plan".
+ * "the user ships via the Lantern 8-week plan".
  *
  * Design notes:
  *   - All IO goes through a pluggable `FactsStorage` adapter so the unit

@@ -77,7 +77,7 @@ export function MailImapConnect() {
           Outlook app password
         </a>
         ), Fastmail, or any standard IMAP host. Your password is stored only in
-        this device's keychain and never leaves your machine. Requires the Advisor Prep Hero desktop app.
+        this device's keychain and never leaves your machine. Requires the Lantern desktop app.
       </p>
 
       {!connected && (

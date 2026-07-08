@@ -1,4 +1,4 @@
-// Advisor Prep Hero Local AI provider — the embedded llama.cpp engine ("Advisor Prep Hero Local AI").
+// Lantern Local AI provider — the embedded llama.cpp engine ("Lantern Local AI").
 //
 // Unlike OllamaProvider (which talks to a daemon the USER installed), this talks
 // to the `llama-server` sidecar that LANTERN itself bundles, downloads a model
@@ -153,7 +153,7 @@ export class AppLocalProvider implements Provider {
     if (this.endpoint) return this.endpoint;
     const endpoint = (await this.startSidecar()).replace(/\/+$/, '');
     if (endpoint.length === 0) {
-      throw new Error('Advisor Prep Hero Local AI did not return a local endpoint');
+      throw new Error('Lantern Local AI did not return a local endpoint');
     }
     this.endpoint = endpoint;
     return endpoint;
@@ -272,13 +272,13 @@ export class AppLocalProvider implements Provider {
         await this.warmupBackoff(signal);
         continue;
       }
-      throw new Error(`Advisor Prep Hero Local AI error: HTTP ${String(resp.status)}`);
+      throw new Error(`Lantern Local AI error: HTTP ${String(resp.status)}`);
     }
     // Unreachable in practice (the loop returns or throws), but keeps the
     // function total for the type checker.
     throw lastError instanceof Error
       ? lastError
-      : new Error('Advisor Prep Hero Local AI did not become ready');
+      : new Error('Lantern Local AI did not become ready');
   }
 
   private async post(
@@ -346,7 +346,7 @@ export class AppLocalProvider implements Provider {
     const reader = resp.body?.getReader();
     if (!reader) {
       controlled.cleanup();
-      throw new Error('Advisor Prep Hero Local AI stream returned no body');
+      throw new Error('Lantern Local AI stream returned no body');
     }
 
     const decoder = new TextDecoder();
@@ -418,14 +418,14 @@ IMPORTANT: Respond ONLY with the JSON object.`;
       return JSON.parse(cleaned) as T;
     } catch (err) {
       throw new Error(
-        `Failed to parse Advisor Prep Hero Local AI response as JSON: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        `Failed to parse Lantern Local AI response as JSON: ${err instanceof Error ? err.message : 'Unknown error'}`,
       );
     }
   }
 
   getMetadata(): ProviderMetadata {
     return {
-      name: 'Advisor Prep Hero Local AI',
+      name: 'Lantern Local AI',
       providerId: 'lantern-local',
       model: this.model,
       costPerInputToken: 0,
@@ -457,12 +457,12 @@ IMPORTANT: Respond ONLY with the JSON object.`;
         },
       } satisfies TextExtractBlock;
     }
-    throw new Error(`Unsupported attachment type for Advisor Prep Hero Local AI: ${att.type}`);
+    throw new Error(`Unsupported attachment type for Lantern Local AI: ${att.type}`);
   }
 
   supportsAttachment(att: ChatAttachment, _model: string): true | string {
     if (att.type === 'image') {
-      return 'Advisor Prep Hero Local AI is text-only and cannot read images. Use a cloud model for images.';
+      return 'Lantern Local AI is text-only and cannot read images. Use a cloud model for images.';
     }
     // pdf — read locally via text extraction.
     return true;

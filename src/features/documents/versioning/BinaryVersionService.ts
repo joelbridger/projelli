@@ -1,6 +1,6 @@
 // Binary Version Service (WS-A / A5)
 //
-// Advisor Prep Hero 3.0 made Microsoft Word `.docx` the canonical document format. The
+// Lantern 3.0 made Microsoft Word `.docx` the canonical document format. The
 // legacy `VersionService` snapshots TEXT into localStorage, which destroys a
 // binary `.docx` (and can't scale to large packages). This service stores
 // version snapshots as REAL FILES on disk inside a workspace `.versions/` area,

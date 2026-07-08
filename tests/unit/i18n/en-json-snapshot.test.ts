@@ -47,11 +47,11 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 50,
+        "ask": 51,
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 49,
+        "common": 51,
         "editor": 17,
         "entity-label": 50,
         "file-import": 3,
@@ -59,14 +59,14 @@ describe('en.json structure snapshot', () => {
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
-        "mail": 55,
+        "mail": 56,
         "marketplace": 14,
         "matter": 220,
         "media": 100,
         "meetings": 227,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 67,
+        "onboarding": 68,
         "plugins": 4,
         "privacy": 31,
         "quick-open": 1,
@@ -74,7 +74,7 @@ describe('en.json structure snapshot', () => {
         "search": 6,
         "settings": 168,
         "shortcuts-overlay": 2,
-        "spine": 7,
+        "spine": 8,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,
@@ -82,7 +82,7 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 62,
+        "workflow": 65,
         "workspace": 31,
       }
     `);
@@ -263,7 +263,11 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +4 = UX copy lane: spine.find-client and workflow metadata plural
+    //      forms for step/input/output counts.
+    // +5 = UX copy lane i18n sweep: demo banner/key note, API-key privacy
+    //      note, AI cost provider note, and Microsoft mail disk warning.
+    expect(flat.length).toBe(1556); // +49 from the email master-detail lane (rail, menus, empty states)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

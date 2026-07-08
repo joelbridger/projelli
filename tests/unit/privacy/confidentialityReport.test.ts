@@ -52,14 +52,14 @@ describe('pickAttestation', () => {
   it('all direct: mentions provider received prompts and Lantern not in path', () => {
     const text = pickAttestation({ direct: 2 });
     expect(text).toMatch(/your own API key/i);
-    expect(text).toMatch(/Advisor Prep Hero was not in the path/i);
+    expect(text).toMatch(/Lantern was not in the path/i);
     expect(text).toMatch(/provider received the prompts/i);
   });
 
   it('all assured: mentions zero-retention proxy', () => {
     const text = pickAttestation({ assured: 1 });
     expect(text).toMatch(/zero-retention proxy/i);
-    expect(text).toMatch(/Advisor Prep Hero retained no prompt/i);
+    expect(text).toMatch(/Lantern retained no prompt/i);
   });
 
   it('mixed local+direct: mentions both honestly without overclaiming', () => {
@@ -102,7 +102,7 @@ describe('buildConfidentialityReport', () => {
     expect(report.allUnderOwnKeyOrLocal).toBe(true);
     expect(report.byMode['direct']).toBe(2);
     expect(report.attestation).toMatch(/your own API key/i);
-    expect(report.attestation).toMatch(/Advisor Prep Hero was not in the path/i);
+    expect(report.attestation).toMatch(/Lantern was not in the path/i);
     // Honesty check: must NOT claim nothing left
     expect(report.attestation).not.toMatch(/nothing left this machine/i);
   });

@@ -200,7 +200,7 @@ export function ShareFileConnect() {
           <div>
             <h3 className="text-sm font-semibold text-slate-900 inline-flex items-center gap-1.5">
               ShareFile documents
-              <InfoHelp content="Import documents this ShareFile token can read. Advisor Prep Hero downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client. Read-only: Advisor Prep Hero lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile." />
+              <InfoHelp content="Import documents this ShareFile token can read. Lantern downloads supported Office and text files, extracts text locally, and stores encrypted search chunks by client. Read-only: Lantern lists folders and downloads files. It never uploads, edits, moves, or deletes anything in ShareFile." />
             </h3>
           </div>
         </div>

@@ -222,7 +222,7 @@ export function FirmSetupScene() {
         </div>
       </div>
 
-      {/* Things you can ask Advisor Prep Hero */}
+      {/* Things you can ask Lantern */}
       <div className="mt-8 w-full max-w-[760px]">
         <div className="text-sm font-bold text-[var(--kp-navy)]">{C.asksHeader}</div>
         <div className="kp-onbv2-scroll mt-3 flex max-h-28 flex-wrap justify-center gap-2 overflow-y-auto">

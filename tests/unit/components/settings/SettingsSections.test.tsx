@@ -280,13 +280,13 @@ describe('SettingsModal controls per section', () => {
 
     expect(screen.getByText('On Startup')).toBeInTheDocument();
     expect(screen.getByLabelText('On Startup')).toBeInTheDocument();
-    expect(screen.queryByText('What happens when you launch Advisor Prep Hero.')).not.toBeInTheDocument();
+    expect(screen.queryByText('What happens when you launch Lantern.')).not.toBeInTheDocument();
 
     const info = screen.getByRole('button', { name: 'About On Startup' });
     expect(info).toBeInTheDocument();
 
     fireEvent.mouseEnter(info);
-    expect(screen.getByRole('tooltip')).toHaveTextContent('What happens when you launch Advisor Prep Hero.');
+    expect(screen.getByRole('tooltip')).toHaveTextContent('What happens when you launch Lantern.');
   });
 
   it('Workspace: autoSave toggle is present (from editor, after expanding)', () => {

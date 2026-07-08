@@ -289,7 +289,7 @@ export function FormattingToolbar({ editorRef, className, isPreviewMode, onToggl
 
         case 'pdf': {
           // PDF uses the print-to-PDF path: no binary file is produced by
-          // Advisor Prep Hero; the OS print dialog handles writing the file.
+          // Lantern; the OS print dialog handles writing the file.
           //
           // Dynamic import keeps mermaid + KaTeX out of the startup bundle,
           // but window.open() must happen synchronously from the click handler

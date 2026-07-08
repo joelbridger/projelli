@@ -84,7 +84,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   model_call: Cpu,
   context_compressed: Scissors,
   user_action: User,
-  // Advisor Prep Hero 3.0 provenance events.
+  // Lantern 3.0 provenance events.
   retrieval_executed: SearchIcon,
   citation_verified: ShieldCheck,
   privilege_evaluated: Lock,
@@ -165,7 +165,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   model_call: 'Model Call',
   context_compressed: 'Context Compressed',
   user_action: 'User Action',
-  // Advisor Prep Hero 3.0 provenance events.
+  // Lantern 3.0 provenance events.
   retrieval_executed: 'Files Searched',
   citation_verified: 'Citation Checked',
   privilege_evaluated: 'Privilege Checked',
@@ -246,7 +246,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   model_call: 'text-amber-600 dark:text-amber-400',
   context_compressed: 'text-orange-600 dark:text-orange-400',
   user_action: 'text-gray-600 dark:text-gray-400',
-  // Advisor Prep Hero 3.0 provenance events.
+  // Lantern 3.0 provenance events.
   retrieval_executed: 'text-sky-600 dark:text-sky-400',
   citation_verified: 'text-emerald-600 dark:text-emerald-400',
   privilege_evaluated: 'text-indigo-600 dark:text-indigo-400',

@@ -141,7 +141,7 @@ export function resolveSection(cat: string): SectionCategory {
 
 /**
  * Connector-access: one-time firm consent to store and AI-process the exported
- * reports/notes Advisor Prep Hero recognizes from outside tools (RightCapital, Jump).
+ * reports/notes Lantern recognizes from outside tools (RightCapital, Jump).
  * Set the first time such an export would be used to answer (a deliberate
  * checkbox, also recorded in the audit log) and revocable here in Settings.
  * Lives in the schema (not free-form state) so it survives persistence — the
@@ -159,8 +159,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'startupBehavior',
     category: 'workspace',
-    label: 'On Startup',
-    description: 'What happens when you launch Advisor Prep Hero.',
+    label: 'Startup',
+    description: 'What happens when you launch Lantern.',
     type: 'select',
     defaultValue: 'reopen',
     options: [
@@ -171,8 +171,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'showWhatsNew',
     category: 'workspace',
-    label: 'Show Update Notifications',
-    description: 'Display a toast when a new version of Advisor Prep Hero is available.',
+    label: 'Update notifications',
+    description: 'Display a toast when a new version of Lantern is available.',
     type: 'toggle',
     defaultValue: true,
   },
@@ -181,7 +181,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'tabOverflow',
     category: 'workspace',
-    label: 'Tab Overflow',
+    label: 'Tabs',
     description: 'How tabs behave when they exceed the available width.',
     type: 'select',
     defaultValue: 'scroll',
@@ -193,7 +193,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'fontSize',
     category: 'workspace',
-    label: 'Font Size',
+    label: 'Font size',
     description: 'Base font size for text editors (px).',
     type: 'number',
     defaultValue: 14,
@@ -204,7 +204,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'autoSave',
     category: 'workspace',
-    label: 'Auto Save',
+    label: 'Autosave',
     description: 'Automatically save files after changes.',
     type: 'toggle',
     defaultValue: true,
@@ -212,7 +212,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'autoSaveInterval',
     category: 'workspace',
-    label: 'Auto Save Interval',
+    label: 'Autosave delay',
     description: 'Seconds between auto-saves (when enabled).',
     type: 'number',
     defaultValue: 2,
@@ -223,7 +223,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'wordWrap',
     category: 'workspace',
-    label: 'Word Wrap',
+    label: 'Word wrap',
     description: 'Wrap long lines instead of scrolling horizontally.',
     type: 'toggle',
     defaultValue: true,
@@ -231,7 +231,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'lineNumbers',
     category: 'workspace',
-    label: 'Line Numbers',
+    label: 'Line numbers',
     description: 'Show line numbers in text editors.',
     type: 'toggle',
     defaultValue: true,
@@ -241,7 +241,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'defaultNewFileType',
     category: 'workspace',
-    label: 'Default New Document Type',
+    label: 'New document type',
     description:
       'Format used when you create a new document. Word (.docx) is the canonical document format; choose Markdown or Plain Text for quick notes.',
     type: 'select',
@@ -326,7 +326,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'ambientFileContext',
     category: 'ai-privacy',
-    label: 'Ambient File Context',
+    label: 'Open files in AI',
     description: 'Automatically share open files with AI chat.',
     type: 'toggle',
     defaultValue: true,
@@ -334,7 +334,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'ambientContextTokenLimit',
     category: 'ai-privacy',
-    label: 'Context Token Limit',
+    label: 'Open-file limit',
     description: 'Max tokens included from open files in AI prompts.',
     type: 'number',
     defaultValue: 50000,
@@ -345,7 +345,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'chatContextTokenLimit',
     category: 'ai-privacy',
-    label: 'Chat Context Token Limit',
+    label: 'Chat limit',
     description:
       'Maximum tokens sent to the AI per chat turn (includes history, files, and your message). Default is 200K. Raise only if your provider and model support a larger window.',
     type: 'number',
@@ -357,7 +357,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'keepRecentTurns',
     category: 'ai-privacy',
-    label: 'Keep Recent Turns (Compression)',
+    label: 'Keep recent turns',
     description:
       'When compressing context, how many of the most recent conversation turns to keep verbatim.',
     type: 'number',
@@ -374,7 +374,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Allow exported reports from other tools',
     description:
-      'When on, Advisor Prep Hero may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Advisor Prep Hero reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.',
+      'When on, Lantern may store and use your chosen AI on the reports and notes you export or save from outside tools like RightCapital and Jump (recognized automatically from the files you import). Lantern reads these exported files; it is not connected to those tools. You are asked once before this is first used, and that choice is recorded in your audit log. Turn off to stop using them.',
     type: 'toggle',
     defaultValue: false,
   },
@@ -383,7 +383,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Flag exported plans older than (days)',
     description:
-      'A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Advisor Prep Hero used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.',
+      'A financial plan you export from a tool like RightCapital is a point-in-time snapshot. When a plan Lantern used to answer is older than this many days, it is flagged as possibly out of date in the sources and the answer. Meeting notes are never flagged on age.',
     type: 'number',
     defaultValue: 90,
     min: 7,
@@ -393,20 +393,20 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'manageApiKeys',
     category: 'ai-privacy',
-    label: 'AI Account Keys',
+    label: 'AI account keys',
     description: 'Add or remove account keys for AI providers.',
     type: 'text', // rendered as action link
     defaultValue: '',
-    action: { label: 'Manage AI Account Keys', actionId: 'open-ai-keys' },
+    action: { label: 'Manage AI account keys', actionId: 'open-ai-keys' },
   },
   {
     key: 'manageAIRules',
     category: 'ai-privacy',
-    label: 'AI Rules',
+    label: 'AI rules',
     description: 'Customize how AI behaves in this workspace.',
     type: 'text', // rendered as action link
     defaultValue: '',
-    action: { label: 'Manage AI Rules', actionId: 'open-ai-rules' },
+    action: { label: 'Manage AI rules', actionId: 'open-ai-rules' },
   },
 
   // ── AI & Privacy: Memory ──────────────────────────────────────────────
@@ -422,7 +422,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'factsInjection',
     category: 'ai-privacy',
-    label: 'Inject memory facts into chat',
+    label: 'Add saved facts to chat',
     description:
       'Prepend your saved memory facts to every chat system prompt so the AI always knows prior durable context. Turn off if you want workspace memory without the facts block.',
     type: 'toggle',
@@ -444,7 +444,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Approve AI file changes',
     description:
-      'Choose when the AI must show you what it is about to do — and get your OK — before changing a file in your workspace. "Only risky changes" (recommended) lets it freely create new files but pauses to show a before/after whenever it would overwrite or delete something that already exists. "Every change" pauses for all file changes. "Review at the end" lets it work, then shows everything it changed for you to approve or undo together.',
+      'Choose when the AI must show you what it is about to do and get your OK before changing a file in your workspace. "Only risky changes" (recommended) lets it freely create new files but pauses to show a before/after whenever it would overwrite or delete something that already exists. "Every change" pauses for all file changes. "Review at the end" lets it work, then shows everything it changed for you to approve or undo together.',
     type: 'select',
     defaultValue: 'risky',
     options: [
@@ -478,7 +478,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'voice',
     label: 'Voice input',
     description:
-      'Hold Ctrl+Shift+Space (Cmd+Shift+Space on Mac) to talk; release to transcribe and insert at the cursor. Runs a bundled speech-recognition binary on your machine — no network, no API key.',
+      'Hold Ctrl+Shift+Space (Cmd+Shift+Space on Mac) to talk; release to transcribe and insert at the cursor. Runs a bundled speech-recognition binary on your machine. No network or API key.',
     type: 'toggle',
     defaultValue: true,
   },
@@ -521,7 +521,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'voice',
     label: 'Text-to-speech output',
     description:
-      'Enable the "Read aloud" button on AI responses. Runs a bundled speech engine on your machine — no API key, no cloud.',
+      'Enable the "Read aloud" button on AI responses. Runs a bundled speech engine on your machine. No API key or cloud.',
     type: 'toggle',
     defaultValue: false,
   },
@@ -574,7 +574,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'voice',
     label: 'Meeting transcription',
     description:
-      "Live starts transcribing the moment a recording stops. Battery saver waits until you're on AC power or tap \"Transcribe now\" — useful for long meetings on battery.",
+      "Live starts transcribing the moment a recording stops. Battery saver waits until you're on AC power or tap \"Transcribe now\", useful for long meetings on battery.",
     type: 'select',
     defaultValue: 'live',
     options: [
@@ -594,12 +594,12 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'privacy',
     label: 'Recording notice policy',
     description:
-      'Standard verifies the spoken recording notice and flags a meeting for review when none is detected. Strict keeps an unverified meeting quarantined until you resolve it — nothing is ever deleted or stopped automatically.',
+      'Standard verifies the spoken recording notice and flags a meeting for review when none is detected. Strict keeps an unverified meeting quarantined until you resolve it. Nothing is ever deleted or stopped automatically.',
     type: 'select',
     defaultValue: 'standard',
     options: [
-      { value: 'standard', label: 'Standard — flag meetings with no detected notice' },
-      { value: 'strict', label: 'Strict — quarantine meetings until the notice is resolved' },
+      { value: 'standard', label: 'Standard - flag meetings with no detected notice' },
+      { value: 'strict', label: 'Strict - quarantine meetings until the notice is resolved' },
     ],
   },
   {
@@ -623,7 +623,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'privacy',
     label: 'Offer the Notice Card for online meetings',
     description:
-      'When a meeting has a Teams or Zoom link, offer to add the Notice Card — a participant that runs on your computer, shows everyone the meeting is being recorded, records nothing, and leaves when recording ends. You can turn it off for any single meeting.',
+      'When a meeting has a Teams or Zoom link, offer to add the Notice Card, a participant that runs on your computer, shows everyone the meeting is being recorded, records nothing, and leaves when recording ends. You can turn it off for any single meeting.',
     type: 'toggle',
     defaultValue: true,
   },
@@ -636,7 +636,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     description:
       'The name the Notice Card shows in the participant list. Use {advisor} for your first name. The leading recording symbol makes it clear at a glance, even camera-off.',
     type: 'text',
-    defaultValue: '⏺ Recording Notice — {advisor}',
+    defaultValue: 'Recording Notice - {advisor}',
   },
   {
     // What satisfies the Strict policy: verbal notice OR full-duration card
@@ -649,8 +649,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     type: 'select',
     defaultValue: 'either',
     options: [
-      { value: 'either', label: 'Either — a spoken notice or full-meeting card presence' },
-      { value: 'both', label: 'Both — a spoken notice and full-meeting card presence' },
+      { value: 'either', label: 'Either - a spoken notice or full-meeting card presence' },
+      { value: 'both', label: 'Both - a spoken notice and full-meeting card presence' },
     ],
   },
 
@@ -658,8 +658,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'autoUpdateCheck',
     category: 'advanced',
-    label: 'Check for updates automatically',
-    description: 'When enabled, Advisor Prep Hero checks GitHub Releases for new versions in the background and prompts you when one is available.',
+    label: 'Automatic updates',
+    description: 'When enabled, Lantern checks GitHub Releases for new versions in the background and prompts you when one is available.',
     type: 'toggle',
     defaultValue: true,
   },
@@ -702,7 +702,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
 
   // ── Advanced: Smarter search re-ranking (experimental, default OFF) ─────
   {
-    // WS3d-A. When ON, Advisor Prep Hero runs a second, more careful scorer over the
+    // WS3d-A. When ON, Lantern runs a second, more careful scorer over the
     // documents the first search finds, re-ordering them so the most relevant
     // passage rises to the top. It needs a one-time model download and adds a
     // little time per search. OFF by default: search behaves exactly as it
@@ -712,7 +712,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'advanced',
     label: 'Smarter search re-ranking (experimental)',
     description:
-      'Re-orders search results with a second, more careful relevance check so the best passage surfaces first. Requires a one-time model download and adds a little time per search. Off by default — leaving it off keeps search exactly as it is today.',
+      'Re-orders search results with a second, more careful relevance check so the best passage surfaces first. Requires a one-time model download and adds a little time per search. Off by default; leaving it off keeps search exactly as it is today.',
     type: 'toggle',
     defaultValue: false,
   },
@@ -721,7 +721,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'advanced',
     label: 'Keyword + meaning search (experimental)',
     description:
-      'Also matches the exact words in your search — names, case numbers, citations — and blends those hits with the meaning-based results, so a passage that uses your exact terms is more likely to surface. Off by default; leaving it off keeps search exactly as it is today.',
+      'Also matches the exact words in your search, like names, case numbers, and citations, and blends those hits with the meaning-based results, so a passage that uses your exact terms is more likely to surface. Off by default; leaving it off keeps search exactly as it is today.',
     type: 'toggle',
     defaultValue: false,
   },
@@ -730,7 +730,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'viewApiKeyTutorial',
     category: 'help',
-    label: 'Account Key Setup Guide',
+    label: 'Account key setup guide',
     description: 'Step-by-step guide to get an account key from Anthropic, OpenAI, or Google.',
     type: 'text',
     defaultValue: '',
@@ -739,8 +739,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'resetFeatureTour',
     category: 'help',
-    label: 'Feature Tour',
-    description: 'Replay the guided tour that introduces the Advisor Prep Hero workspace.',
+    label: 'Feature tour',
+    description: 'Replay the guided tour that introduces the Lantern workspace.',
     type: 'text',
     defaultValue: '',
     action: { label: 'Start tour', actionId: 'reset-feature-tour' },
@@ -751,7 +751,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'aboutWhatsNew',
     category: 'help',
     label: "What's new",
-    description: 'See highlights from the most recent Advisor Prep Hero releases.',
+    description: 'See highlights from the most recent Lantern releases.',
     type: 'text',
     defaultValue: '',
     action: { label: "What's new", actionId: 'open-whats-new' },

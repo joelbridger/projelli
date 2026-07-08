@@ -7,7 +7,7 @@
 // in order:
 //
 //   1. Local-only mode  -> an on-machine model, no key needed. Prefer the
-//      embedded Advisor Prep Hero Local AI when its model is downloaded + ready (F-503) —
+//      embedded Lantern Local AI when its model is downloaded + ready (F-503) —
 //      it needs no separate Ollama daemon — else the egress-resolved local
 //      provider ('ollama'). This matches Ask / Chat / Client Map / workflows.
 //   2. Otherwise, prefer the SAME provider the trust bar / Privacy Center
@@ -32,7 +32,7 @@ export interface RedlineProviderInput {
   /** The user's BYOK keys (same shape DocxEditor receives). */
   apiKeys: { provider: string; key: string; isValid: boolean }[];
   /**
-   * F-503 — the embedded Advisor Prep Hero Local AI model is downloaded + READY. In
+   * F-503 — the embedded Lantern Local AI model is downloaded + READY. In
    * Local-only mode the redline prefers this on-device engine over Ollama (it
    * needs no separate daemon), so a machine with the embedded model but no
    * Ollama can still run Word "Revise with AI" privately. Defaults false.
@@ -46,7 +46,7 @@ export function resolveRedlineProvider({
   apiKeys,
   localModelReady = false,
 }: RedlineProviderInput): ChatProviderId {
-  // Local-only: on-machine model, no key needed. Prefer the embedded Advisor Prep Hero
+  // Local-only: on-machine model, no key needed. Prefer the embedded Lantern
   // Local AI when ready (F-503); else the egress-resolved local provider, which
   // is 'ollama' here.
   if (localOnly) return localModelReady ? 'lantern-local' : egressProvider;

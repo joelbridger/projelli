@@ -1,5 +1,5 @@
 // Fix 2 (demo readiness) — Local-only mode used to silently swap to Ollama
-// whenever the embedded Advisor Prep Hero Local AI model wasn't `ready` yet, even on a
+// whenever the embedded Lantern Local AI model wasn't `ready` yet, even on a
 // machine with no Ollama installed at all. That guaranteed a confusing failure
 // deep inside the send ("Ollama unreachable") on a fresh install where the
 // embedded model is still downloading. Local-only must now use Ollama ONLY

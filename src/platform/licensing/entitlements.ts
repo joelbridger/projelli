@@ -4,7 +4,7 @@
  *
  * Why this exists
  * ───────────────
- * Advisor Prep Hero 3.0 moves to a per-seat ANNUAL subscription (Solo / Professional /
+ * Lantern 3.0 moves to a per-seat ANNUAL subscription (Solo / Professional /
  * Firm). But existing customers bought under the OLD one-time model (one-time
  * Personal, one-time Lifetime/Practice, and some annual Professional). When
  * those users auto-update to 3.0 they must NOT be locked out, and a lapsed
@@ -193,7 +193,7 @@ export interface Entitlement {
 }
 
 /**
- * The Advisor Prep Hero 3.0 boundary. Any license whose purchase predates this instant
+ * The Lantern 3.0 boundary. Any license whose purchase predates this instant
  * was bought under the old one-time model and is grandfathered. Set to the 3.0
  * launch date. Anything purchased AT or AFTER this is a 3.0 subscription/trial.
  *
@@ -514,7 +514,7 @@ export function entitlementMessage(e: Entitlement): { headline: string; body: st
     case 'grandfathered':
       return {
         headline: 'You keep everything you paid for.',
-        body: 'Your original license stays fully active. Advisor Prep Hero 3.0 never claws back what you already own.',
+        body: 'Your original license stays fully active. Lantern 3.0 never claws back what you already own.',
       };
     case 'offline-grace':
       return {

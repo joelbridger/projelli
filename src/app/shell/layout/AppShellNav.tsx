@@ -1,5 +1,5 @@
 /**
- * AppShellNav — the matter-centric navy "Spine" navigation (the Advisor Prep Hero 3.0
+ * AppShellNav — the matter-centric navy "Spine" navigation (the Lantern 3.0
  * shell). A thin wrapper around <Spine>.
  *
  * The legacy <Sidebar> shell was removed in the 3.0 reorg; the reimagined shell

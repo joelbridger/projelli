@@ -1,7 +1,7 @@
 # Sample: Account Summary
 
 > Fictional household: **The Hendricks Household**, account holdings snapshot.
-> This is a sample so you can see what an account summary looks like in Advisor Prep Hero. Delete it whenever you want.
+> This is a sample so you can see what an account summary looks like in Lantern. Delete it whenever you want.
 > Balances are approximate and illustrative. Performance reporting lives in Tamarac.
 
 ---

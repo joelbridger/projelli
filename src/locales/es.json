@@ -6,6 +6,10 @@
       "add": "Añadir",
       "add__sourceHash": "9fd728c66c9a256b121472dabf32a34317aed01d8427d70ec830289cf23a7cc8"
     },
+    "web-demo": {
+      "banner": "Estas usando la demo de Lantern. Los archivos viven solo en tu navegador y no se sincronizan en ningun lugar.",
+      "byok-confirm-description": "Tu clave se guarda solo en tu navegador. La demo de Lantern nunca la ve. Las solicitudes de IA van directamente desde esta pestaña a Anthropic."
+    },
     "audit-log": {
       "entry-details-title": "Detalles de la entrada de auditoría",
       "entry-details-title__sourceHash": "4d6241ea65f6e7fee9ff365b39ebb301308eb663fe3d0bb922c29efa60ed2a73",
@@ -49,7 +53,7 @@
     "bug-report": {
       "title": "Informar de un error",
       "title__sourceHash": "f75e0bd8ff2369251bc8767de55dd8c0bcb3efd1dbc34041bfca4058f9edf0ef",
-      "description": "Cuéntanos qué salió mal. Los informes llegan directamente al equipo de Advisor Prep Hero.",
+      "description": "Cuéntanos qué salió mal. Los informes llegan directamente al equipo de Lantern.",
       "description__sourceHash": "90745362a3ba692b8a9434bafc6f1dc318af6ce21272dcc810d6bca2e57118f6",
       "success": "Gracias, hemos recibido tu informe. Si dejaste un correo electrónico, te responderé cuando haya novedades.",
       "success__sourceHash": "4db9f77b45c80c60276eb21358b92bb63c74c6eab1d59b248fd43b95f6907eed",
@@ -154,7 +158,7 @@
       "tabs-open_one__sourceHash": "0a31f6a8b7d199532d8574307bf901fe83997c034167d109dace3d7d62630268",
       "tabs-open_other": "{{count}} archivos abiertos",
       "tabs-open_other__sourceHash": "bdf97bdcad54458e35cf56aa78038f99020da85bffea48c2c1c363aaf598d940",
-      "bug-report-title": "Informar de un error, se envía directamente al equipo de Advisor Prep Hero",
+      "bug-report-title": "Informar de un error, se envía directamente al equipo de Lantern",
       "bug-report-title__sourceHash": "2f7fa6da3c07bc59c11d0db87267c4ad43e2d6d4655bd5130a636b3ca9a4ce3a",
       "bug-report-cta": "¿Algo no funciona? ¡Cuéntanoslo!",
       "bug-report-cta__sourceHash": "ed9685394e5c2d85b72d913a8d68a0ff46d1178f9b0176bfb9e186c8220834d7"
@@ -204,7 +208,7 @@
     "modal": {
       "title": "Configuración",
       "title__sourceHash": "74a883a037bc227f91891ab654a753d3a99f31ab06ae5b5d2b6e594a692b41f8",
-      "description": "Configura las preferencias de Advisor Prep Hero",
+      "description": "Configura las preferencias de Lantern",
       "description__sourceHash": "36ca199aa5ec20ee12955c2e0f88d0f716aae761c87c724e33e24a2a04e66d11",
       "search-placeholder": "Buscar ajustes...",
       "search-placeholder__sourceHash": "6801207d5994165123a10ab767fd9439130fae500f8c407877ae5070843b906d",
@@ -242,7 +246,7 @@
     "license": {
       "title": "Licencia",
       "title__sourceHash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
-      "description": "Una licencia mantiene el chat de IA, los flujos de trabajo y todas las funciones de Advisor Prep Hero activas tras tu prueba. Las claves están disponibles en <pricingLink>lantern.com</pricingLink>.",
+      "description": "Una licencia mantiene el chat de IA, los flujos de trabajo y todas las funciones de Lantern activas tras tu prueba. Las claves están disponibles en <pricingLink>lantern.com</pricingLink>.",
       "description__sourceHash": "5cdede16d12ec5981d36069071f514adb12fadbc540e15f9ef25fe76e5c4126b",
       "deactivate-confirm": "¿Desactivar esta licencia? Perderás el acceso a las funciones de pago hasta que la reactives.",
       "deactivate-confirm__sourceHash": "2cff19c7259e4828cf7e844917462cea95640e0282d0f3deb804dafff9c80d89",
@@ -286,7 +290,7 @@
       "activate-to-continue__sourceHash": "1cd904d5614b84a0ca65d2bd3e153cdc2a37d21498140c8e3124d4b0c097ccf9",
       "trial-expired-detail": "Tu prueba gratuita de {{days}} días finalizó el <endDateBold>{{endDate}}</endDateBold>. El chat con IA y los flujos de trabajo están pausados. Tus archivos existentes siguen aquí y son totalmente accesibles. Activa una licencia para seguir construyendo.",
       "trial-expired-detail__sourceHash": "a61970076eaea03b53147e680c0771077767087d1db8752cbdd0000083e58347",
-      "trial-active-detail": "Estás en el periodo de prueba gratuito. Todas las funciones de Advisor Prep Hero están desbloqueadas durante {{days}} días desde el primer inicio: usa tus propias claves de IA, ejecuta flujos de trabajo, edita archivos y mucho más. Cuando finalice la prueba, el chat con IA y los flujos de trabajo se pausarán hasta que actives una licencia; tus archivos seguirán siendo accesibles.",
+      "trial-active-detail": "Estás en el periodo de prueba gratuito. Todas las funciones de Lantern están desbloqueadas durante {{days}} días desde el primer inicio: usa tus propias claves de IA, ejecuta flujos de trabajo, edita archivos y mucho más. Cuando finalice la prueba, el chat con IA y los flujos de trabajo se pausarán hasta que actives una licencia; tus archivos seguirán siendo accesibles.",
       "trial-active-detail__sourceHash": "bbf0659907061d4be48fe1f9495f855667801d347160cdc889a5f46c3b6aa0b6",
       "days-left_one": "Queda 1 día",
       "days-left_one__sourceHash": "94138aa699e8ac7a7414bb60cbdff90e4fc87d16b8ddc025e01690428570230a",
@@ -296,7 +300,7 @@
       "get-license-cta__sourceHash": "3cd49792283e16e730cdac6d3efc1ad24488d5266392e6621443ba9ed357e833",
       "already-have-key": "¿Ya tienes una clave de licencia?",
       "already-have-key__sourceHash": "b0be03f349873e8bf1511090c79a05688ea392e60f07faf3fc0400a814f90ee2",
-      "recovery-heading": "¿Ya compraste Advisor Prep Hero?",
+      "recovery-heading": "¿Ya compraste Lantern?",
       "recovery-detail": "Introduce tu código de licencia para restaurarlo en este ordenador. No necesitas cuenta.",
       "recovery-restore": "Restaurar",
       "recovery-restoring": "Restaurando...",
@@ -323,12 +327,12 @@
     "privacy": {
       "title": "Privacidad",
       "title__sourceHash": "54a57c3147c49f33de5898b87084ad2b14c4ab308f762454bf92aca907478ad5",
-      "description": "Advisor Prep Hero es local por diseño. Tus archivos, tus prompts de IA y tus claves de API nunca salen de tu máquina. Cualquier opción que aparezca a continuación son los únicos datos que Advisor Prep Hero recopila, y todas están desactivadas por defecto.",
+      "description": "Lantern es local por diseño. Tus archivos, tus prompts de IA y tus claves de API nunca salen de tu máquina. Cualquier opción que aparezca a continuación son los únicos datos que Lantern recopila, y todas están desactivadas por defecto.",
       "description__sourceHash": "034249738804df65d5105bac50add4d9fbfcc51a2958ee5dac9278e773d9af5f",
       "design-partner": {
         "title": "Diagnóstico de socio de diseño",
         "title__sourceHash": "2413b6a8cdc3e679665dd6734bce73fbcf7828dc82267f2aa59352d5fe1259cc",
-        "description": "Eres de las primeras personas en usar Advisor Prep Hero en la práctica legal. Con esto activado, Advisor Prep Hero envía solo conteos estructurados: qué funciones usas y dónde te atascas. Nunca tu contenido, nombres de archivos, nombres de clientes ni prompts. Desactivado por defecto; puedes apagarlo en cualquier momento.",
+        "description": "Eres de las primeras personas en usar Lantern en la práctica legal. Con esto activado, Lantern envía solo conteos estructurados: qué funciones usas y dónde te atascas. Nunca tu contenido, nombres de archivos, nombres de clientes ni prompts. Desactivado por defecto; puedes apagarlo en cualquier momento.",
         "description__sourceHash": "af73ac1af5d8252f760817c5849e0e9d9a131e47fd386df4b48451597d6182c4",
         "enabled": "Activado",
         "enabled__sourceHash": "92c1cdfdf4cb9cf6fcca962f206de36fd5d60db1178bc9461052f8de703a0e06",
@@ -350,7 +354,7 @@
       "telemetry": {
         "title": "Estadísticas de uso anónimas",
         "title__sourceHash": "a5ae59854735498da223906cc49efa42af3a439f2093090712fd23624f3f4c08",
-        "description": "Ayuda a mejorar Advisor Prep Hero enviando eventos de ciclo de vida: lanzamientos de la app, inicio del período de prueba, fin del período de prueba, licencia activada, licencia desactivada. Sin contenido, sin archivos, sin prompts de IA, sin correo electrónico.",
+        "description": "Ayuda a mejorar Lantern enviando eventos de ciclo de vida: lanzamientos de la app, inicio del período de prueba, fin del período de prueba, licencia activada, licencia desactivada. Sin contenido, sin archivos, sin prompts de IA, sin correo electrónico.",
         "description__sourceHash": "2151b3e914b8df54cef6245d7eee381d46d81cd67cbdcb5df67625efc67fdd3b",
         "enabled": "Activado",
         "enabled__sourceHash": "92c1cdfdf4cb9cf6fcca962f206de36fd5d60db1178bc9461052f8de703a0e06",
@@ -360,13 +364,13 @@
         "what-is-sent__sourceHash": "f9af9adf841a24b702b4a51f959f4e23065a87a0aa2e46f02155022db2d04044",
         "field-install-id": "<c>install_id</c>: un UUID aleatorio generado en este equipo (visible más abajo). No está vinculado a tu correo ni a tu licencia.",
         "field-install-id__sourceHash": "d742007e3bd981816ee7213bb8a9fe08a25c469e6c0c74d8142554367c7c8025",
-        "field-app-version": "<c>app_version</c>, <c>platform</c>: la versión de Advisor Prep Hero instalada y el sistema operativo (macOS / Windows / Linux).",
+        "field-app-version": "<c>app_version</c>, <c>platform</c>: la versión de Lantern instalada y el sistema operativo (macOS / Windows / Linux).",
         "field-app-version__sourceHash": "b0b94f12279049a2778750da65c5896f08060d173c5dc6a9d5df9e394ac6eb86",
         "field-event": "<c>event</c>: uno de <c>app_launch</c>, <c>trial_start</c>, <c>trial_end</c>, <c>license_activated</c>, <c>license_deactivated</c>.",
         "field-event__sourceHash": "bc1f75f1e8aca06d01bb82dfcc2fdd8763fa6bb049773ee3e3bc4567a8c5d6af",
         "field-license-tier": "<c>license_tier</c> (cuando corresponda): trial, personal, professional, practice.",
         "field-license-tier__sourceHash": "f7d152bd910804c89a34c457ce6be8502aa36e700605e229bf85904ae9dc2890",
-        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL almacenado en servidores de Advisor Prep Hero. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
+        "endpoint-note": "Endpoint: <c>forms.lanternplatform.app/api/forms/lantern/app-event</c>. JSONL almacenado en servidores de Lantern. Se usa únicamente para métricas de embudo y decisiones de hoja de ruta.",
         "endpoint-note__sourceHash": "db930261bf43f001c34e4e42013d35c2e5151ba931b8d208f3a0368e29fba6e9",
         "install-id-display": "Tu ID de instalación: <c>{{id}}</c>",
         "install-id-display__sourceHash": "52e2a9cf6161dc02a352627b94c8e6694d0a6aa311200f3f358a7fdf8b213a52"
@@ -376,19 +380,19 @@
         "title__sourceHash": "273ea8304d5cb611e05f6a3014bcf7f76279840419a1ce5b4ac7cc62bbca4fa0",
         "intro": "Si te suscribiste a las actualizaciones por correo al iniciar la app por primera vez (o a través del sitio web), recibirás anuncios de lanzamiento y códigos de descuento. Sin campañas de goteo ni boletines semanales.",
         "intro__sourceHash": "5374b77af50d1185509943d13c4764a7e072db9ad1de07b699dc1db0fa12d0a6",
-        "unsub": "Para eliminarte de la lista, responde <c>UNSUB</c> a cualquier correo de Advisor Prep Hero. Todas las respuestas van directamente al soporte.",
+        "unsub": "Para eliminarte de la lista, responde <c>UNSUB</c> a cualquier correo de Lantern. Todas las respuestas van directamente al soporte.",
         "unsub__sourceHash": "626d7ab8d08ee9e570934274be883f50b437a6400a8fa507f403f7298dedb40f"
       },
       "data-map": {
         "title": "Where your data lives and who can see it",
-        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Advisor Prep Hero’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
+        "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what Lantern’s own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
       }
     },
     "mcp": {
       "title": "Servidor MCP",
       "title__sourceHash": "d938c8168e3acbba8c9bc7f55dfec4cc5a3cd2a5891778b6605112f43167c8dd",
-      "description": "Expón tu espacio de trabajo de Advisor Prep Hero a cualquier cliente de IA compatible con MCP. Instálalo una vez y luego consulta a Claude Desktop, Cursor o cualquier otro cliente sobre tus notas, chats y datos de memoria sin tener que copiar y pegar.",
+      "description": "Expón tu espacio de trabajo de Lantern a cualquier cliente de IA compatible con MCP. Instálalo una vez y luego consulta a Claude Desktop, Cursor o cualquier otro cliente sobre tus notas, chats y datos de memoria sin tener que copiar y pegar.",
       "description__sourceHash": "8a22d9a49611f2793b3e9b2c85dc97f7c40218756fe83d79c8b1573ee12f6618",
       "copied-status": "Ruta del bundle copiada al portapapeles: {{path}}",
       "copied-status__sourceHash": "dfb53e729d2c1830198104b0910f1838c68d647f7dfafde631cc55b3c756af0a",
@@ -413,9 +417,9 @@
         "step-open-claude__sourceHash": "6837d2d4488128cc818b5bb07c1bc329d065a5e358d7bf3669298847c6204597",
         "step-config": "Abre <b>Ajustes, Desarrollador, Editar configuración</b>, o arrastra el archivo <c>.mcpb</c> a la ventana de Claude Desktop.",
         "step-config__sourceHash": "29e612151c6a693e965a559702c6df7380f179cc19623c2ce2d1aabcec57c623",
-        "step-pick-folder": "Cuando se te pida una carpeta de espacio de trabajo, elige la misma que abriste en Advisor Prep Hero.",
+        "step-pick-folder": "Cuando se te pida una carpeta de espacio de trabajo, elige la misma que abriste en Lantern.",
         "step-pick-folder__sourceHash": "efe4c495cfe05f0905c9eea2a6d7f728f45b38a7d03f70b17c6a76d1704b3884",
-        "after-install": "Tras la instalación, pregúntale a Claude «busca X en mi espacio de trabajo de Advisor Prep Hero» o «lee notes/plan.md» y observa cómo funciona.",
+        "after-install": "Tras la instalación, pregúntale a Claude «busca X en mi espacio de trabajo de Lantern» o «lee notes/plan.md» y observa cómo funciona.",
         "after-install__sourceHash": "346c4999e6e86b02f8996e0e75ac379eb8cb9d13e32b8b43cf9ef0055a0d27cc"
       },
       "disabled-title": "MCP está desactivado en el Modo de Asunto Privilegiado",
@@ -449,7 +453,7 @@
     "ollama": {
       "title": "Ollama (modelos locales)",
       "title__sourceHash": "bf573b8117fba67f34e92461610bbacb7cb5ac520d4cdc91d300a33c56f508a2",
-      "description": "Ejecuta modelos de IA directamente en tu equipo: gratis, sin conexión y con total privacidad. Advisor Prep Hero se comunica con un daemon de Ollama en ejecución local en <c>127.0.0.1:11434</c>.",
+      "description": "Ejecuta modelos de IA directamente en tu equipo: gratis, sin conexión y con total privacidad. Lantern se comunica con un daemon de Ollama en ejecución local en <c>127.0.0.1:11434</c>.",
       "description__sourceHash": "2f89a774b9f1619b8a463a4e87d816f39ff31d9dbd0c76780778693e36e54a3f",
       "status": {
         "checking": "Comprobando Ollama...",
@@ -507,7 +511,7 @@
     "mobile-page": {
       "title": "Móvil",
       "title__sourceHash": "cbaad3cf4a6507e5d6f98157fa255ca964588c8c30ecf198fb9c98ed97413f59",
-      "description": "Consulta tu espacio de trabajo de Advisor Prep Hero en tu teléfono hoy mismo. Apunta Advisor Prep Hero a una carpeta sincronizada en tu ordenador (iCloud, Dropbox, Syncthing o Google Drive) y los mismos archivos aparecerán en tu teléfono en la aplicación correspondiente. El lector móvil dedicado de Advisor Prep Hero está en beta y llegará en el ciclo v2.0.",
+      "description": "Consulta tu espacio de trabajo de Lantern en tu teléfono hoy mismo. Apunta Lantern a una carpeta sincronizada en tu ordenador (iCloud, Dropbox, Syncthing o Google Drive) y los mismos archivos aparecerán en tu teléfono en la aplicación correspondiente. El lector móvil dedicado de Lantern está en beta y llegará en el ciclo v2.0.",
       "description__sourceHash": "72e3e66fa44241763f33be72b406de704f19e26cb7338c53d71564a9ea5f0dad",
       "heads-up-label": "Aviso:",
       "heads-up-label__sourceHash": "edf0c1a56db5dfef2a874d395f5314f321c71b971042f3a7cc1d39bcac66a96b",
@@ -527,7 +531,7 @@
       "get-key-link__sourceHash": "02d7af705ed7378f98b8ab085626a18c4be25ec42f281c388dc7293d17321315",
       "add-key": "Añadir clave API",
       "add-key__sourceHash": "0d8253e382ac639b379c74e01b171ed7e24a9c8db894af6b65194af8938a152b",
-      "credential-service-unavailable": "El servicio de almacenamiento de credenciales de Windows no se está ejecutando, por lo que Advisor Prep Hero no puede acceder a tus claves de IA guardadas en este momento. Esto no afecta a tus documentos. Reinicia el servicio \"Administrador de credenciales\" (services.msc), o inténtalo de nuevo en unos minutos.",
+      "credential-service-unavailable": "El servicio de almacenamiento de credenciales de Windows no se está ejecutando, por lo que Lantern no puede acceder a tus claves de IA guardadas en este momento. Esto no afecta a tus documentos. Reinicia el servicio \"Administrador de credenciales\" (services.msc), o inténtalo de nuevo en unos minutos.",
       "credential-service-unavailable__sourceHash": "d9f092dd6d68f0191101c49514b579f1337079fb35733b18ac6f0b11d35200a7"
     },
     "plugins": {
@@ -627,7 +631,7 @@
       "rename-description__sourceHash": "c053c3b074e001ad8246479c564991ac85ecd2a1527944696db9d514e2bfeef6"
     },
     "open-error": {
-      "credential-service-unavailable": "El servicio de almacenamiento de credenciales de Windows no se está ejecutando, por lo que Advisor Prep Hero no pudo terminar de abrir este espacio de trabajo. Tus archivos están a salvo. Inténtalo de nuevo, o reinicia el servicio \"Administrador de credenciales\" (services.msc) si esto sigue ocurriendo.",
+      "credential-service-unavailable": "El servicio de almacenamiento de credenciales de Windows no se está ejecutando, por lo que Lantern no pudo terminar de abrir este espacio de trabajo. Tus archivos están a salvo. Inténtalo de nuevo, o reinicia el servicio \"Administrador de credenciales\" (services.msc) si esto sigue ocurriendo.",
       "credential-service-unavailable__sourceHash": "3a0ad4347d7ad692781cc2b89e0ae886063358c8d86a79995edc8e679380d492",
       "generic": "No se pudo abrir este espacio de trabajo. Inténtalo de nuevo.",
       "generic__sourceHash": "8927cfef2d83f553f4e35ed2d47214a5e6cd97dc9c8c9f335056192c756aed90",
@@ -720,9 +724,12 @@
       "steps": "Pasos",
       "no-steps": "Sin pasos de configuración",
       "recent-runs": "Ejecuciones recientes",
-      "steps-count": "{{count}} pasos",
-      "required-inputs-count": "{{count}} entradas requeridas",
-      "outputs-count": "{{count}} salidas",
+      "steps-count_one": "{{count}} paso",
+      "steps-count_other": "{{count}} pasos",
+      "required-inputs-count_one": "{{count}} entrada",
+      "required-inputs-count_other": "{{count}} entradas",
+      "outputs-count_one": "{{count}} salida",
+      "outputs-count_other": "{{count}} salidas",
       "category": "Categoría",
       "file-missing": "Falta el archivo",
       "workflow-result": "Resultado del flujo de trabajo",
@@ -732,9 +739,9 @@
       "needs-client-title": "Elige primero tu cliente.",
       "needs-client-body": "Elige un cliente y luego vuelve a ejecutar el flujo de trabajo.",
       "ollama-unreachable-title": "La IA local no está disponible.",
-      "ollama-unreachable-body": "Advisor Prep Hero Local AI no responde. Asegúrate de que haya terminado de configurarse y vuelve a intentarlo.",
+      "ollama-unreachable-body": "Lantern Local AI no responde. Asegúrate de que haya terminado de configurarse y vuelve a intentarlo.",
       "needs-provider-title": "No hay proveedor de IA configurado.",
-      "needs-provider-body": "Agrega una clave de API o configura Advisor Prep Hero Local AI para ejecutar flujos de trabajo.",
+      "needs-provider-body": "Agrega una clave de API o configura Lantern Local AI para ejecutar flujos de trabajo.",
       "save-error-title": "Es posible que no se haya guardado el registro de ejecución."
     },
     "execution": {
@@ -1025,11 +1032,11 @@
       "back": "Atrás",
       "back__sourceHash": "76900f1bfd16c8d4dd3d25e6f46638d7165aee23883ccea6bfe071c514421769",
       "welcome": {
-        "title": "Bienvenido a Advisor Prep Hero",
+        "title": "Bienvenido a Lantern",
         "title__sourceHash": "d5fe9d81910bf07d222bc1fc1ac71c79057fc7dc8b3e44249867b6ac44906218",
         "subtitle": "El lugar privado donde vive tu despacho, y que te responde.",
         "subtitle__sourceHash": "d3c0e8a5e320c6ac7bdcb081098198a4dfbb6517cd033de9bc7130507ee1035e",
-        "body-1": "Advisor Prep Hero guarda tus clientes, documentos y correo en tu propio equipo. Haz una pregunta sobre todo tu despacho y recibe una respuesta con citas que puedes verificar. Tus archivos permanecen como archivos reales en una carpeta que tú controlas.",
+        "body-1": "Lantern guarda tus clientes, documentos y correo en tu propio equipo. Haz una pregunta sobre todo tu despacho y recibe una respuesta con citas que puedes verificar. Tus archivos permanecen como archivos reales en una carpeta que tú controlas.",
         "body-1__sourceHash": "23fed4b3172431891f54f89e1b0e25690fc34a81553caf51b673fdbd348c3468",
         "body-2": "La configuración dura unos 2 minutos. Te ayudaré a elegir una carpeta para tus clientes, conectar tu cuenta de proveedor de IA (opcional) y ejecutar tu primer flujo de trabajo.",
         "body-2__sourceHash": "c268d7a5eed759795bc6481324db162cd67595fffa5a0e97326b28b7859cd459",
@@ -1053,7 +1060,7 @@
         "body-2__sourceHash": "0cc1368f13d536662588c71b75314a0a60b78b68f571fd04e1a6a973fec2dfc5",
         "common-choices": "Opciones habituales:",
         "common-choices__sourceHash": "d8005a99652714a2ecb00a765f6dc9d139a58c8ddc997ae5d97d2272c1e3fd17",
-        "icloud-path": "~/iCloud Drive/Advisor Prep Hero",
+        "icloud-path": "~/iCloud Drive/Lantern",
         "icloud-path__sourceHash": "0fb118852e14a717940090f1b04161d04a135d54d74bbec70869e417129587ac",
         "body-3": "En la siguiente pantalla podrás seleccionar la carpeta. Por ahora, solo confirma que entiendes lo que estamos a punto de pedirte.",
         "body-3__sourceHash": "a92248a0d302065c465b91b75db19433058fb8cde2b8cbec0f1e21c229655425",
@@ -1065,7 +1072,7 @@
         "title__sourceHash": "0fa2908448436feb2149a025eb14201396b7669e548bec4963d57ebda84fecdc",
         "subtitle": "Opcional, pero la necesitarás para usar las funciones de IA.",
         "subtitle__sourceHash": "e5cc2dcf151bc5441244b503b1af0014d2a8f9a2830aca19bedf22add0a0432c",
-        "body-1": "Advisor Prep Hero es una herramienta de «trae tu propia clave». Te registras directamente con un proveedor de IA y pegas su clave API aquí. Tus claves se almacenan en el llavero seguro de tu sistema operativo y nunca salen de tu ordenador.",
+        "body-1": "Lantern es una herramienta de «trae tu propia clave». Te registras directamente con un proveedor de IA y pegas su clave API aquí. Tus claves se almacenan en el llavero seguro de tu sistema operativo y nunca salen de tu ordenador.",
         "body-1__sourceHash": "050c447d3705bacc9890d9e4b2a5a70cec4528dfbae7a6ed1c0ab97d3fb2a905",
         "body-2": "La forma más rápida de empezar es con <s>Anthropic Claude</s>:",
         "body-2__sourceHash": "8a00f17d9a512bcb8e303517949578cd6508bab7cc4b32fe4eae6b1ed1d1e8fb",
@@ -1087,7 +1094,7 @@
         "title__sourceHash": "fb5d039c2235b5eb8b418f01f663b4d12570862073cdf8506aaf2c0dd9adf56e",
         "subtitle": "Ve cómo se genera un documento final en segundos.",
         "subtitle__sourceHash": "7ccaa29a70ea83efa7c68f2ef0737753ef92ef70edea9acab3b255a5ccedd228",
-        "body-1": "La forma más rápida de ver qué hace Advisor Prep Hero es ejecutar un flujo de trabajo. Elige cualquier plantilla de la pestaña Workflows, responde las preguntas y observa cómo genera un documento Word terminado en tu carpeta de clientes.",
+        "body-1": "La forma más rápida de ver qué hace Lantern es ejecutar un flujo de trabajo. Elige cualquier plantilla de la pestaña Workflows, responde las preguntas y observa cómo genera un documento Word terminado en tu carpeta de clientes.",
         "body-1__sourceHash": "4799e581b29751d13d4d02e21d86aed2b3a65447d65ac61209c781d6d392b5e1",
         "step-1": "Haz clic en <s>Workflows</s> en la barra lateral",
         "step-1__sourceHash": "0be72e15852586347bcd761f9ca624fd5890d4aa12711f4903162b2b645f4742",
@@ -1111,7 +1118,7 @@
     },
     "disk-encryption": {
       "title": "Una cosa que revisar: el cifrado de tu disco",
-      "body": "Advisor Prep Hero guarda tus documentos como archivos normales en tu carpeta de trabajo, en tu equipo. Si el portátil se pierde o te lo roban, lo que los protege es el cifrado de disco completo de tu sistema operativo. Confirmar que está activado toma un minuto.",
+      "body": "Lantern guarda tus documentos como archivos normales en tu carpeta de trabajo, en tu equipo. Si el portátil se pierde o te lo roban, lo que los protege es el cifrado de disco completo de tu sistema operativo. Confirmar que está activado toma un minuto.",
       "check-windows": "Windows: Configuración, luego Privacidad y seguridad, luego Cifrado del dispositivo (o busca BitLocker). Debe decir Activado.",
       "check-macos": "Mac: Ajustes del Sistema, luego Privacidad y seguridad, luego FileVault. Debe decir que FileVault está activado.",
       "check-linux": "Linux: la mayoría de los instaladores ofrecen cifrado de disco completo LUKS. Revisa la configuración de discos de tu distribución, o ejecuta lsblk y busca una entrada crypt.",
@@ -1124,7 +1131,7 @@
     "api-key-card": {
       "title": "Siguiente paso: añade tu clave de IA",
       "title__sourceHash": "6c12e9c2353854280698e1a8efa880daeebe480cd0d533a784017fa309dcc3bd",
-      "description": "Advisor Prep Hero utiliza tu propia clave API de Anthropic, OpenAI o Google, de modo que tu uso de IA va directamente a tu proveedor sin recargo de nuestra parte. Tu plan de Advisor Prep Hero cubre el software.",
+      "description": "Lantern utiliza tu propia clave API de Anthropic, OpenAI o Google, de modo que tu uso de IA va directamente a tu proveedor sin recargo de nuestra parte. Tu plan de Lantern cubre el software.",
       "description__sourceHash": "e49759058f108ef5e37c23d0ad9cde9b5f0b2cfbf04a9e39da8b88cff0cfee58",
       "walk-me-through": "Guíame paso a paso",
       "walk-me-through__sourceHash": "83a76e6892919b343df3fefcfef65efcac4dac23bc91b8df9b421f0d0c128ae8",
@@ -1133,13 +1140,16 @@
       "keys-local": "Las claves se guardan localmente en tu equipo. Nunca se nos envían.",
       "keys-local__sourceHash": "e2204f8849038c283dc7e2856cfe1a22cd8f3df1e2d7498c1b409407df06d65f"
     },
+    "api-key-explainer": {
+      "privacy-body": "Esa conexion directa es lo que hace privado a Lantern: tus instrucciones van directamente desde tu equipo al proveedor que elegiste. Los servidores de Lantern nunca ven tu trabajo, tus archivos ni tus conversaciones."
+    },
     "api-key-wizard": {
       "step-1": {
         "body": "Haz clic en el botón de abajo para abrir <s>{{dashboard}}</s> en tu navegador. Tendrás que iniciar sesión (o registrarte) para acceder a la página de claves.",
         "body__sourceHash": "ba89ec2f74e9a88d5e5486c303f2055b5141e3caeb6fae64af5b5db863fd1f63"
       },
       "step-2-ollama": {
-        "body": "Descarga Ollama para tu sistema operativo y, en una terminal, ejecuta <c>ollama pull llama3.2</c> (o el modelo que prefieras). Advisor Prep Hero detecta Ollama automáticamente en el siguiente paso.",
+        "body": "Descarga Ollama para tu sistema operativo y, en una terminal, ejecuta <c>ollama pull llama3.2</c> (o el modelo que prefieras). Lantern detecta Ollama automáticamente en el siguiente paso.",
         "body__sourceHash": "04438c6482e9b1d0621311e3d0f683df60508a34d0b559c6a82165199594f6b5"
       },
       "ollama-running": "Ollama está en ejecución",
@@ -1160,15 +1170,15 @@
       "direct-urls__sourceHash": "2376e4561159cc03481bfcb6b4d0bd4f6009baa31ee6cba855710f7f9cf8b02e"
     },
     "welcome": {
-      "title": "Bienvenido a Advisor Prep Hero",
+      "title": "Bienvenido a Lantern",
       "title__sourceHash": "d5fe9d81910bf07d222bc1fc1ac71c79057fc7dc8b3e44249867b6ac44906218",
       "description": "Un par de opciones, ambas desactivadas por defecto. Omítelas si lo prefieres.",
       "description__sourceHash": "81f5ec87b429ff9eaccaac3e1991d66957862668a1077e8bed7ef866f534b709",
       "email-optin-label": "Envíame actualizaciones de lanzamiento, consejos y códigos de descuento",
       "email-optin-label__sourceHash": "484a32d897b9fa023757a516543b3b7bfb3f0d1e8137f1850eb6f5d2239dbd22",
-      "email-optin-help": "Solo actualizaciones reales, sin campañas de goteo ni boletines semanales. Cancela la suscripción en cualquier momento. Llega directamente al equipo de Advisor Prep Hero.",
+      "email-optin-help": "Solo actualizaciones reales, sin campañas de goteo ni boletines semanales. Cancela la suscripción en cualquier momento. Llega directamente al equipo de Lantern.",
       "email-optin-help__sourceHash": "2221fab2b8aca62d29f43156c58785f7325e7aff47187c2cf662ae0509a2cc6a",
-      "telemetry-label": "Ayuda a mejorar Advisor Prep Hero con estadísticas de uso anónimas",
+      "telemetry-label": "Ayuda a mejorar Lantern con estadísticas de uso anónimas",
       "telemetry-label__sourceHash": "5e9554dbf5aff7af0d7ae4aa41fc6c1d1160edc15b3e94722e21df4dd9013184",
       "telemetry-help": "Envía un ID de instalación aleatorio, la versión de la app, tu plataforma y eventos del ciclo de vida (prueba iniciada, licencia activada, etc.). Sin contenido, sin archivos, sin prompts de IA, sin correo electrónico. Puedes desactivarlo en Ajustes, Privacidad.",
       "telemetry-help__sourceHash": "5d8887ac3c6fdfe0be0db46d61436aa9fbd7b576e9d4b8fa0ebc3878039d7b84"
@@ -1549,7 +1559,7 @@
       "isolated-pill__sourceHash": "1d183f3f10e963cae3a2e0a10a693f7895b03602715a121d984f3406e37ba2e2",
       "sample-pill": "Ejemplo",
       "sample-pill__sourceHash": "95a2f1edb08a76120b82cec7c93ca477618639f04beac7d2aeba2dc039d43715",
-      "scope-badge-title": "La recuperación está limitada a este hogar. Advisor Prep Hero nunca mezcla los archivos de un cliente con las respuestas de otro.",
+      "scope-badge-title": "La recuperación está limitada a este hogar. Lantern nunca mezcla los archivos de un cliente con las respuestas de otro.",
       "scope-badge-title__sourceHash": "d37e877b409bf559ab3c58371592d1c6ef69a83c3dc7c33aca92b3fd0082ba99",
       "scope-badge-suffix": "Solo {{name}}",
       "scope-badge-suffix__sourceHash": "96f88f10d75743618756a537acf1def378a9b59a662ba58999cb46c522d1cf92",
@@ -1595,7 +1605,7 @@
       "role-label": "Rol",
       "seat-label": "Licencia",
       "signout": "Cerrar sesion",
-      "just-bought-link": "Acabo de comprar Advisor Prep Hero Firm",
+      "just-bought-link": "Acabo de comprar Lantern Firm",
       "back-to-signin": "Volver al inicio de sesion"
     },
     "claim": {
@@ -1723,7 +1733,7 @@
       "privileged-confirm-accept": "Compartirlo"
     },
     "bridge": {
-      "heading": "Usa Advisor Prep Hero con tu bufete",
+      "heading": "Usa Lantern con tu bufete",
       "intro": "Elige como quieres entrar a un bufete. Luego puedes traer tus clientes existentes y decidir para cada uno si lo mantienes privado o lo compartes con colegas.",
       "door-create-title": "Crear un bufete",
       "door-create-body": "Te conviertes en el administrador y el primer puesto. Invita colegas, comparte clientes, configura el inicio de sesion unico y la seguridad del bufete.",
@@ -1735,8 +1745,8 @@
       "cancel": "Ahora no"
     },
     "prompt": {
-      "title": "Usa Advisor Prep Hero con tu bufete",
-      "body": "Trae a tus colegas y comparte clientes, o unete a un bufete que ya usa Advisor Prep Hero. Tus clientes privados siguen siendo privados.",
+      "title": "Usa Lantern con tu bufete",
+      "body": "Trae a tus colegas y comparte clientes, o unete a un bufete que ya usa Lantern. Tus clientes privados siguen siendo privados.",
       "action": "Usar esto con mi bufete",
       "dismiss": "Descartar"
     }
@@ -1774,7 +1784,7 @@
       "formatting-warning__sourceHash": "f0e45b821ef3a571aa17837d4dcb060d8518a8d42f5f392481250a24ad4cad99",
       "opening": "Abriendo {{fileName}}...",
       "opening__sourceHash": "a0a0e302918f3bf04d5efa972e7242a0b4002147531a76e8827a19f4ce94bfc7",
-      "desktop-only": "La edición de documentos de Word con control de cambios solo está disponible en la aplicación de escritorio de Advisor Prep Hero. Aquí se muestra una vista previa de solo lectura.",
+      "desktop-only": "La edición de documentos de Word con control de cambios solo está disponible en la aplicación de escritorio de Lantern. Aquí se muestra una vista previa de solo lectura.",
       "desktop-only__sourceHash": "78a37300d3c83d5aaeca156c515259adfefe180f8085d3b1e95833d955f4e0d6",
       "reviewing": "Revisión",
       "reviewing__sourceHash": "f25c17d74655c783136292958c75620c2918ee4fc0b9a3c011e6f4a16e1ed153",
@@ -1838,9 +1848,9 @@
       "redline-close": "Cerrar",
       "redline-dismiss": "Descartar",
       "redline-egress-note": "Envía el texto del documento directamente a tu proveedor de IA con tu propia clave.",
-      "redline-summary-headline": "Advisor Prep Hero AI propuso {{applied}} cambio(s) con seguimiento.",
+      "redline-summary-headline": "Lantern AI propuso {{applied}} cambio(s) con seguimiento.",
       "redline-skipped": "· {{skipped}} no se pudieron ubicar",
-      "redline-no-changes": "Advisor Prep Hero AI no sugirió cambios.",
+      "redline-no-changes": "Lantern AI no sugirió cambios.",
       "redline-op-insert": "Texto insertado",
       "redline-op-delete": "Texto eliminado",
       "redline-op-replace": "Texto reemplazado",
@@ -1867,7 +1877,7 @@
       "save-copy-success": "Copia de rescate guardada en {{path}}.",
       "save-copy-failed": "No se pudo guardar la copia: {{message}}",
       "pdf-needs-libreoffice-title": "La exportación a PDF necesita LibreOffice",
-      "pdf-needs-libreoffice-body": "Advisor Prep Hero convierte Word a PDF localmente con LibreOffice, un programa gratuito. Nada sale de tu equipo. Instálalo y vuelve a ejecutar la exportación.",
+      "pdf-needs-libreoffice-body": "Lantern convierte Word a PDF localmente con LibreOffice, un programa gratuito. Nada sale de tu equipo. Instálalo y vuelve a ejecutar la exportación.",
       "pdf-libreoffice-copy": "Copiar enlace",
       "pdf-libreoffice-copied": "Copiado",
       "pdf-needs-libreoffice-title__locked": true,
@@ -1928,11 +1938,11 @@
   },
   "model-download": {
     "title": "Configurando la búsqueda privada",
-    "body": "Advisor Prep Hero está descargando su motor de búsqueda privado (unos 465 MB), una sola vez, desde Hugging Face. Puedes seguir trabajando. La búsqueda y las respuestas de IA sobre tus archivos se activan cuando termina.",
+    "body": "Lantern está descargando su motor de búsqueda privado (unos 465 MB), una sola vez, desde Hugging Face. Puedes seguir trabajando. La búsqueda y las respuestas de IA sobre tus archivos se activan cuando termina.",
     "verifying": "Comprobando los archivos descargados",
     "progress": "{{done}} MB de {{total}} MB",
     "progress-unknown": "{{done}} MB hasta ahora",
-    "stalled": "La descarga parece atascada. Reiniciar Advisor Prep Hero la reanuda donde se detuvo.",
+    "stalled": "La descarga parece atascada. Reiniciar Lantern la reanuda donde se detuvo.",
     "error-title": "La descarga del motor de búsqueda se interrumpió",
     "error-body": "No se ha perdido nada. La descarga se reanuda donde se detuvo.",
     "retry": "Reanudar descarga",
@@ -1947,23 +1957,23 @@
     "retry__locked": true
   },
   "local-ai-download": {
-    "title": "Descargando Advisor Prep Hero Local AI",
-    "body": "Advisor Prep Hero está descargando su IA privada en el dispositivo (unos 2,4 GB), una sola vez. Puedes seguir trabajando. Funciona totalmente sin conexión una vez que está lista.",
+    "title": "Descargando Lantern Local AI",
+    "body": "Lantern está descargando su IA privada en el dispositivo (unos 2,4 GB), una sola vez. Puedes seguir trabajando. Funciona totalmente sin conexión una vez que está lista.",
     "verifying": "Comprobando el modelo descargado",
     "progress": "{{done}} MB de {{total}} MB",
     "progress-unknown": "{{done}} MB hasta ahora",
-    "stalled": "La descarga parece atascada. Reiniciar Advisor Prep Hero la reanuda donde se detuvo.",
-    "error-title": "La descarga de Advisor Prep Hero Local AI se interrumpió",
+    "stalled": "La descarga parece atascada. Reiniciar Lantern la reanuda donde se detuvo.",
+    "error-title": "La descarga de Lantern Local AI se interrumpió",
     "error-body": "No se ha perdido nada. La descarga se reanuda donde se detuvo.",
     "retry": "Reanudar descarga"
   },
   "local-ai-settings": {
-    "title": "Advisor Prep Hero Local AI",
+    "title": "Lantern Local AI",
     "description": "Una IA privada que se ejecuta por completo en este equipo. Tus archivos y preguntas nunca salen de la máquina. Es algo menos precisa que los modelos en la nube, pero nada de lo que preguntes sale a internet. Descarga única, unos 2,4 GB.",
-    "download": "Descargar Advisor Prep Hero Local AI",
+    "download": "Descargar Lantern Local AI",
     "downloading": "Descargando… {{pct}}%",
     "verifying": "Comprobando la descarga…",
-    "ready": "Instalada y lista. Elige «Advisor Prep Hero Local AI» como tu modelo en cualquier chat.",
+    "ready": "Instalada y lista. Elige «Lantern Local AI» como tu modelo en cualquier chat.",
     "error": "La descarga se interrumpió. No se ha perdido nada.",
     "retry": "Reanudar descarga"
   },
@@ -1978,7 +1988,7 @@
       "version": "Versión",
       "versions": "versiones",
       "author-user": "Tú",
-      "author-ai": "Advisor Prep Hero AI",
+      "author-ai": "Lantern AI",
       "preview": "Vista previa",
       "this-version": "Esta versión",
       "current": "Actual",
@@ -1987,7 +1997,7 @@
       "restore-confirm": "¿Restaurar el archivo a la versión del {{date}}? Tu versión actual se guarda primero, así que no se pierde nada.",
       "diff-loading": "Generando comparación...",
       "docx-text-diff-note": "Mostrando una comparación de texto. El formato de Word y el detalle de los cambios registrados se comparan aquí como texto sin formato.",
-      "docx-diff-desktop-only": "Comparar documentos de Word requiere la aplicación de escritorio de Advisor Prep Hero."
+      "docx-diff-desktop-only": "Comparar documentos de Word requiere la aplicación de escritorio de Lantern."
     }
   },
   "updater": {
@@ -2024,7 +2034,7 @@
       "see-whats-new__sourceHash": "4145a3ef06190f8fd23ac446110bae8668ab5e09ff7d62983c426fee311096cf"
     },
     "modal": {
-      "title": "Novedades en Advisor Prep Hero",
+      "title": "Novedades en Lantern",
       "title__sourceHash": "b5a5412c72af53ae4a3b5d7d5e1f22811b7aee82bd066fc58c38947d6867aa55",
       "description": "Lo más destacado de las últimas versiones.",
       "description__sourceHash": "b90373285d0fce2163c2d8db4b04c9cd3d61d97db75cc4aa86ada4eecc3293d8"
@@ -2113,6 +2123,9 @@
     "action": {
       "ask": "Preguntar"
     },
+    "cost-dashboard": {
+      "provider-note": "Los costos se facturan directamente por {{provider}}, no por Lantern."
+    },
     "conversations": {
       "other": "Otras conversaciones",
       "search-placeholder": "Buscar conversaciones",
@@ -2160,17 +2173,17 @@
       },
       "direct": {
         "label": "Direct to {{provider}} (your account)",
-        "note": "Sent straight from your machine to {{provider}} with your own API key. Advisor Prep Hero is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
+        "note": "Sent straight from your machine to {{provider}} with your own API key. Lantern is not in between. {{provider}} receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your {{provider}} account."
       },
       "demo": {
         "label": "Browser demo. Do not use with client data",
-        "note": "In this online demo, messages pass through a shared Advisor Prep Hero relay. The desktop app never does this. Do not enter confidential or client information here."
+        "note": "In this online demo, messages pass through a shared Lantern relay. The desktop app never does this. Do not enter confidential or client information here."
       },
       "sending": "Enviando a tu proveedor de IA",
       "sending__locked": true,
       "checking": {
         "label": "Comprobando destino de la IA",
-        "note": "Advisor Prep Hero está confirmando adónde irá esta solicitud antes de enviarla.",
+        "note": "Lantern está confirmando adónde irá esta solicitud antes de enviarla.",
         "label__sourceHash": "261eafaa0ca58f57d83b98557eacc3a7e7af03830a3fa3d03bcafab252a1152b",
         "note__sourceHash": "a3482fcc43661d2c22c4979b0d1f710fb41d0d72561574d354ffad7a11a7bac9"
       },
@@ -2209,7 +2222,8 @@
   "mail": {
     "connect": {
       "error-prefix": "Algo salio mal:",
-      "error-prefix__sourceHash": "45f299433853dea7fdc057bc0abe34640f23954dbb6baf04232c06012a06ed8c"
+      "error-prefix__sourceHash": "45f299433853dea7fdc057bc0abe34640f23954dbb6baf04232c06012a06ed8c",
+      "fde-warning": "El cifrado completo del disco esta desactivado en esta maquina. Lantern cifra tu correo, pero activar FileVault (macOS) o BitLocker (Windows) añade una segunda capa de proteccion si te roban el dispositivo."
     },
     "workspace": {
       "title": "Correo electrónico",
@@ -2277,7 +2291,7 @@
   },
   "vault": {
     "ceremony": {
-      "cannot-recover-warning": "Advisor Prep Hero no puede recuperar esto por ti. Si pierdes esta frase y el llavero de tu dispositivo, tus archivos cifrados serán permanentemente inaccesibles.",
+      "cannot-recover-warning": "Lantern no puede recuperar esto por ti. Si pierdes esta frase y el llavero de tu dispositivo, tus archivos cifrados serán permanentemente inaccesibles.",
       "phrase-label": "Tu frase de recuperación de 24 palabras",
       "copy-phrase": "Copiar frase",
       "copied": "Copiado",
@@ -2288,8 +2302,8 @@
     },
     "enable": {
       "title": "Cifrar este espacio de trabajo",
-      "subtitle": "AES-256 en reposo, transparente en Advisor Prep Hero",
-      "detail": "Cuando está activado, cada archivo de documento en este espacio de trabajo se almacena como texto cifrado en el disco. Advisor Prep Hero los descifra de forma transparente para que tu flujo de trabajo no cambie.",
+      "subtitle": "AES-256 en reposo, transparente en Lantern",
+      "detail": "Cuando está activado, cada archivo de documento en este espacio de trabajo se almacena como texto cifrado en el disco. Lantern los descifra de forma transparente para que tu flujo de trabajo no cambie.",
       "bullet-names-visible": "Los nombres de archivo y la estructura de carpetas siguen siendo visibles",
       "bullet-phrase-once": "Se genera una frase de recuperación de 24 palabras una sola vez. Debes guardarla.",
       "bullet-no-recovery": "Si pierdes la frase y el llavero, los archivos no se pueden recuperar",
@@ -2311,7 +2325,7 @@
     "locked": {
       "title": "Caja fuerte bloqueada",
       "subtitle": "Este espacio de trabajo está cifrado y la clave no está en este equipo.",
-      "explanation": "Introduce tu frase de recuperación de 24 palabras para desbloquear esta caja fuerte. Advisor Prep Hero restaurará la clave en tu llavero para que puedas abrir este espacio de trabajo con normalidad a partir de ahora.",
+      "explanation": "Introduce tu frase de recuperación de 24 palabras para desbloquear esta caja fuerte. Lantern restaurará la clave en tu llavero para que puedas abrir este espacio de trabajo con normalidad a partir de ahora.",
       "phrase-hint": "Las frases de recuperación son 24 palabras separadas por espacios.",
       "phrase-label": "Frase de recuperación",
       "phrase-placeholder": "palabra1 palabra2 palabra3 ...",
@@ -2336,7 +2350,7 @@
     "control": {
       "checking": "Comprobando el estado de la caja fuerte",
       "locked-note": "Esta caja fuerte está bloqueada. Vuelve a abrir el espacio de trabajo para desbloquearla con tu frase de recuperación.",
-      "on-body": "Los archivos de este espacio de trabajo están cifrados en reposo. Advisor Prep Hero los descifra de forma transparente, así que tu trabajo no cambia.",
+      "on-body": "Los archivos de este espacio de trabajo están cifrados en reposo. Lantern los descifra de forma transparente, así que tu trabajo no cambia.",
       "on-title": "La caja fuerte está activada",
       "checking__sourceHash": "f146177bb205f641cb07dd2ec8263ed0792435c106547548a2579dc62fe0f1b0",
       "locked-note__sourceHash": "1975466ed78653f8189cc16ad9ecf64ace9c47f5bda9a279079634f264b6f0a6",
@@ -2621,6 +2635,7 @@
       "primary-nav__sourceHash": "efe10c80ec8a9f38624cbb47103010a8cf32488a503e4b4bfe4f92307a9cefa7"
     },
     "all-clients": "Todos los clientes",
+    "find-client": "Buscar cliente",
     "all-clients__sourceHash": "af74a947145158a6b52fa8c4803dda8ec620c47a1d0df9cebb3ec544b6c5eefc",
     "new-client": "+ Nuevo: {{entity}}",
     "new-client__sourceHash": "a9fe3fa8d9a5a54befcbdb8828c382f353f09681dabb688a40f72f49f1a82a2c",

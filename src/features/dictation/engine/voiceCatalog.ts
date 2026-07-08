@@ -1,10 +1,10 @@
 import { BRAND } from '@/config/brand';
 /**
- * Voice catalog for Advisor Prep Hero TTS (Stream B).
+ * Voice catalog for Lantern TTS (Stream B).
  *
  * Bundled voice: en_US-amy-medium (ships with the installer).
  * Lazy-download voices: es_ES-mls-medium, de_DE-thorsten-medium.
- * Additional voices are downloaded on first use from Advisor Prep Hero's CDN.
+ * Additional voices are downloaded on first use from Lantern's CDN.
  *
  * CDN pattern: https://lantern.com/voices/<voice-id>.tar.gz
  * Each archive unpacks to <voice-id>.onnx + <voice-id>.onnx.json

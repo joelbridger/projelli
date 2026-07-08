@@ -133,7 +133,7 @@ const LABEL_REMOVE_SECTION_DESC =
   'This removes the section and its bullets from this client map. The edit history will keep a record.';
 const LABEL_ADD_SECTION_HEADING = 'Add a section';
 const LABEL_ADD_SECTION_BODY =
-  "Name a section and say what to track. Advisor Prep Hero fills it in from this client’s documents and email, with sources you can check.";
+  "Name a section and say what to track. Lantern fills it in from this client’s documents and email, with sources you can check.";
 const LABEL_SECTION_NAME = 'Section name';
 const LABEL_SECTION_NAME_PH = 'e.g. Insurance coverage';
 const LABEL_WHAT_TO_TRACK = 'What should I track here?';
@@ -804,7 +804,7 @@ function MissingPanel({
       </PanelHeader>
 
       {/* Coverage caveat — honest about what this map is. It's built only from
-          the files Advisor Prep Hero can read, so a clean map is a head-start for your
+          the files Lantern can read, so a clean map is a head-start for your
           review, not a guarantee the whole record is complete. Stated plainly so
           the catch (e.g. a stale beneficiary) never reads as "everything's been
           checked." */}
@@ -813,7 +813,7 @@ function MissingPanel({
         style={{ ...mutedTextStyle, marginBottom: 'var(--kp-space-md)' }}
       >
         {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-        Built from the files Advisor Prep Hero can read — a head-start for your review, not a guarantee the whole record is complete.
+        Built from the files Lantern can read — a head-start for your review, not a guarantee the whole record is complete.
         {/* eslint-enable lantern-i18n/no-hardcoded-string */}
       </div>
 
@@ -940,7 +940,7 @@ function AddSectionPanel({
             },
             {
               id: uuidv4(),
-              text: 'Advisor Prep Hero keeps this updated from new documents and email.',
+              text: 'Lantern keeps this updated from new documents and email.',
               origin: 'ai',
               isAssumption: false,
               sources: [],

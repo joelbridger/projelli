@@ -53,7 +53,7 @@ export function ZocksSourcePanel() {
           </blockquote>
         )}
         <p className="text-xs text-slate-400">
-          Advisor Prep Hero imported this citation from Zocks as read-only text. Full meeting detail is a fast-follow.
+          Lantern imported this citation from Zocks as read-only text. Full meeting detail is a fast-follow.
         </p>
       </div>
     </div>

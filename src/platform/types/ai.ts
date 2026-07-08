@@ -264,7 +264,7 @@ export interface AIChatFile {
   /**
    * Which AI provider this chat sends to. `'ollama'` and `'lantern-local'` are
    * LOCAL providers: inference runs on the user's own machine (Ollama on
-   * 127.0.0.1:11434, or the embedded llama.cpp engine "Advisor Prep Hero Local AI") and
+   * 127.0.0.1:11434, or the embedded llama.cpp engine "Lantern Local AI") and
    * nothing leaves the device. The cloud providers (anthropic/openai/google)
    * send the prompt directly to that vendor with the user's own key (BYOK).
    */

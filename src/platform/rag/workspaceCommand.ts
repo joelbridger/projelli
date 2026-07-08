@@ -181,7 +181,7 @@ export function buildWorkspaceContextBlock(hits: RagHit[]): string {
       'on their header. When you rely on one, state the export date in your answer ' +
       '(for example "as of your RightCapital plan from Jun 12, 2026") and make clear ' +
       'the figures are from that snapshot, not live. If such a plan is more than a ' +
-      'few months old, briefly note it may be out of date. Never imply Advisor Prep Hero is ' +
+      'few months old, briefly note it may be out of date. Never imply Lantern is ' +
       'connected to or integrated with these tools; it reads the files they export.'
     : '';
   return (

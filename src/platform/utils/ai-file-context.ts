@@ -132,7 +132,7 @@ export async function extractForAI(
       // context path doesn't emit raw escape sequences.
       return null;
     } else if (ext === 'rt') {
-      // Advisor Prep Hero's internal `.rt` format — HTML-serialized TipTap state.
+      // Lantern's internal `.rt` format — HTML-serialized TipTap state.
       // Strip tags with a minimal regex so we don't pull in a DOM parser.
       rawText = content
         .replace(/<[^>]*>/g, ' ')

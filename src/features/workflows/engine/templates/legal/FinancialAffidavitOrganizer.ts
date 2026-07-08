@@ -174,7 +174,7 @@ Every figure in this affidavit must be verified against the source documents lis
 
 ---
 
-*This financial affidavit was organized by Advisor Prep Hero AI. Do not certify or file this document until all figures have been independently verified against source documents.*`;
+*This financial affidavit was organized by Lantern AI. Do not certify or file this document until all figures have been independently verified against source documents.*`;
 
 export const FinancialAffidavitOrganizer: WorkflowTemplate = {
   id: 'financial-affidavit-organizer',

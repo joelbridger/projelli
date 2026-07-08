@@ -82,7 +82,7 @@ export function DemoExitModal({
           {/* eslint-disable lantern-i18n/no-hardcoded-string */}
           <DialogTitle>What's one caught mistake worth?</DialogTitle>
           <DialogDescription>
-            You just watched Advisor Prep Hero catch a beneficiary designation still
+            You just watched Lantern catch a beneficiary designation still
             pointing at an ex-spouse — the kind of miss that surfaces years
             later, in front of a client or a regulator. Catching one of those
             pays for the tool many times over. On your own client files, the

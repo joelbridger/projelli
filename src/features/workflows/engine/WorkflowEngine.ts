@@ -695,7 +695,7 @@ export class WorkflowEngine {
 
     if (!this.analyzeDeps) {
       throw new Error(
-        'This workflow needs client-scoped retrieval, which is only available in the Advisor Prep Hero desktop app with an active client.',
+        'This workflow needs client-scoped retrieval, which is only available in the Lantern desktop app with an active client.',
       );
     }
     if (!this.fileOps.writeFileBinary) {

@@ -45,7 +45,7 @@ export const ALL_EXPORT_OPTIONS: Record<ExportFormat, ExportOption> = {
   },
 };
 
-/** Extensions that are editable markdown in Advisor Prep Hero. */
+/** Extensions that are editable markdown in Lantern. */
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown', 'txt']);
 
 /**
