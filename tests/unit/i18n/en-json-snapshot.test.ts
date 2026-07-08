@@ -47,34 +47,34 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 50,
+        "ask": 130,
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 49,
-        "editor": 17,
+        "common": 72,
+        "editor": 27,
         "entity-label": 50,
         "file-import": 3,
         "firm": 143,
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,
-        "mail": 55,
+        "mail": 153,
         "marketplace": 14,
-        "matter": 220,
+        "matter": 289,
         "media": 100,
-        "meetings": 227,
+        "meetings": 249,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 67,
+        "onboarding": 68,
         "plugins": 4,
-        "privacy": 33,
+        "privacy": 35,
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 168,
+        "settings": 188,
         "shortcuts-overlay": 2,
-        "spine": 7,
+        "spine": 8,
         "tab-guard": 3,
         "tts": 1,
         "updater": 2,
@@ -82,8 +82,8 @@ describe('en.json structure snapshot', () => {
         "version": 17,
         "whats-new": 4,
         "whiteboard": 1,
-        "workflow": 65,
-        "workspace": 31,
+        "workflow": 134,
+        "workspace": 51,
       }
     `);
   });
@@ -268,7 +268,7 @@ describe('en.json structure snapshot', () => {
     //      duplicate egress status pill in the workflow template detail.
     // +2 = F1 fix round 1: privacy.egress.local-pending.{label,note} — the honest
     //      "Local AI setting up" badge state (item 3), never a false "Using local AI".
-    expect(flat.length).toBe(1552); // +49 from the email master-detail lane (rail, menus, empty states)
+    expect(flat.length).toBe(1967); // UX-simplification integration: 9 lanes of new/renamed keys (menus, trust notes, shorter labels) net +415
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

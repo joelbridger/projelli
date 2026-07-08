@@ -1,4 +1,4 @@
-# `kp` — the Advisor Prep Hero design-system layer
+# `kp` — the Lantern design-system layer
 
 Surfaces import primitives from `@/ui/kp`; the look lives in
 `src/styles/globals.css` (`@layer components`). Spec + rationale:

@@ -15,9 +15,9 @@ import { resolveAssuredRoute } from '@/platform/firm/resolveAssuredRoute';
  * `error.message` to the user, so these are the exact strings they see.
  */
 export const EMAIL_LOCAL_AI_NOT_READY_MESSAGE =
-  'Advisor Prep Hero Local AI is still downloading or setting up. Check its progress in Settings, then try again.';
+  'Lantern Local AI is still downloading or setting up. Check its progress in Settings, then try again.';
 export const EMAIL_NO_PROVIDER_MESSAGE =
-  'No AI provider is connected. Add an API key in Settings, or set up Advisor Prep Hero Local AI to draft on your computer.';
+  'No AI provider is connected. Add an API key in Settings, or set up Lantern Local AI to draft on your computer.';
 
 // ── buildProviderAsync — mirrors Ask.tsx pattern ─────────────────
 
