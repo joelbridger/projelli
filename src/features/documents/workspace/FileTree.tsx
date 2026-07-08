@@ -500,20 +500,20 @@ export function FileTree({
 
       {/* Multi-select actions bar */}
       {selectedPaths.size > 0 && (
-        <div className="flex items-center justify-between px-3 py-2 bg-primary/10 border-b border-primary">
+        <div className="flex items-center justify-between gap-2 border-b bg-muted/30 px-3 py-1.5">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-primary">
-              {selectedPaths.size} item{selectedPaths.size > 1 ? 's' : ''} selected
+            <span className="text-xs font-medium text-muted-foreground">
+              {t('workspace.file-tree.selected-count', { count: selectedPaths.size })}
             </span>
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-xs"
+              className="h-6 w-6 p-0"
               onClick={clearSelection}
-              title="Clear selection"
+              title={t('workspace.file-tree.clear-selection')}
+              aria-label={t('workspace.file-tree.clear-selection')}
             >
-              <X className="h-3 w-3 mr-1" />
-              Clear
+              <X className="h-3.5 w-3.5" />
             </Button>
           </div>
           <div className="flex items-center gap-1">
@@ -521,12 +521,12 @@ export function FileTree({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs"
+                className="h-6 w-6 p-0"
                 onClick={handleBatchDownload}
-                title="Download selected files"
+                title={t('workspace.file-tree.download-selected')}
+                aria-label={t('workspace.file-tree.download-selected')}
               >
-                <Download className="h-3 w-3 mr-1" />
-                Download
+                <Download className="h-3.5 w-3.5" />
               </Button>
             )}
             {onDelete && (
@@ -534,12 +534,12 @@ export function FileTree({
                 data-testid="batch-delete"
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-xs text-destructive hover:text-destructive"
+                className="h-6 w-6 p-0 text-destructive hover:text-destructive"
                 onClick={handleBatchDelete}
-                title="Delete selected items"
+                title={t('workspace.file-tree.delete-selected')}
+                aria-label={t('workspace.file-tree.delete-selected')}
               >
-                <Trash2 className="h-3 w-3 mr-1" />
-                Delete
+                <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
           </div>
@@ -551,11 +551,10 @@ export function FileTree({
         <EmptyState
           panelName="files"
           icon={FilePlus}
-          title="No files yet"
-          description="Create a document from the toolbar above, drop files in from your desktop, or start a new note to get going. Press Ctrl+P to quickly open any file by name."
-          shortcut="Ctrl+N / Ctrl+P"
+          title={t('workspace.file-tree.empty-title')}
+          description={t('workspace.file-tree.empty-description')}
           {...(onCreateDefaultDocument
-            ? { cta: { label: 'New document', onClick: onCreateDefaultDocument } }
+            ? { cta: { label: t('workspace.documents.new-document'), onClick: onCreateDefaultDocument } }
             : {})}
         />
       ) : (
@@ -606,7 +605,7 @@ export function FileTree({
       )}
 
       {/* Footer with "Open on Desktop" link */}
-      {rootPath && (
+      {rootPath && !hideToolbar && (
         <div className="border-t px-2 py-2">
           <Button
             data-testid="open-on-desktop"

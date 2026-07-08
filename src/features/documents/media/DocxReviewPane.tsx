@@ -55,31 +55,30 @@ export function ReviewPane({
         </Button>
       </div>
 
-      {/* Bulk actions */}
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <Button
-          data-testid="docx-accept-all"
-          variant="outline"
-          size="sm"
-          className="h-7 flex-1 gap-1 text-xs"
-          disabled={revisionCount === 0}
-          onClick={() => { onResolveAll('accept'); }}
-        >
-          <CheckCheck className="h-3.5 w-3.5 text-emerald-600" />
-          {t('media.docx-editor.accept-all')}
-        </Button>
-        <Button
-          data-testid="docx-reject-all"
-          variant="outline"
-          size="sm"
-          className="h-7 flex-1 gap-1 text-xs"
-          disabled={revisionCount === 0}
-          onClick={() => { onResolveAll('reject'); }}
-        >
-          <XCircle className="h-3.5 w-3.5 text-red-600" />
-          {t('media.docx-editor.reject-all')}
-        </Button>
-      </div>
+      {revisionCount > 0 && (
+        <div className="flex items-center gap-2 border-b px-3 py-2">
+          <Button
+            data-testid="docx-accept-all"
+            variant="outline"
+            size="sm"
+            className="h-7 flex-1 gap-1 text-xs"
+            onClick={() => { onResolveAll('accept'); }}
+          >
+            <CheckCheck className="h-3.5 w-3.5 text-emerald-600" />
+            {t('media.docx-editor.accept-all')}
+          </Button>
+          <Button
+            data-testid="docx-reject-all"
+            variant="outline"
+            size="sm"
+            className="h-7 flex-1 gap-1 text-xs"
+            onClick={() => { onResolveAll('reject'); }}
+          >
+            <XCircle className="h-3.5 w-3.5 text-red-600" />
+            {t('media.docx-editor.reject-all')}
+          </Button>
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-auto">
         {/* Changes */}

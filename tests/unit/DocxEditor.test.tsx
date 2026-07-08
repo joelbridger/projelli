@@ -354,14 +354,21 @@ describe('DocxEditor — rendering', () => {
     );
 
     await screen.findByTestId('docx-editor-topbar');
-    fireEvent.click(screen.getByTestId('docx-rename-file'));
-    const input = screen.getByDisplayValue('client.v2');
+    const openRenameInput = async () => {
+      const trigger = screen.getByTestId('docx-document-actions-menu');
+      fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
+      fireEvent.click(trigger);
+      fireEvent.click(await screen.findByTestId('docx-rename-file'));
+      return screen.findByDisplayValue('client.v2');
+    };
+
+    const input = await openRenameInput();
     fireEvent.blur(input);
     await waitFor(() => expect(onRenameFile).not.toHaveBeenCalled());
 
-    fireEvent.click(screen.getByTestId('docx-rename-file'));
-    const nextInput = screen.getByDisplayValue('client.v2');
+    const nextInput = await openRenameInput();
     fireEvent.change(nextInput, { target: { value: 'client.v3' } });
+    await screen.findByDisplayValue('client.v3');
     fireEvent.keyDown(nextInput, { key: 'Enter' });
     await waitFor(() => expect(onRenameFile).toHaveBeenCalledWith('client.v3.docx'));
   });

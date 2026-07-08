@@ -1,7 +1,7 @@
 // Version History Panel Component
 // Displays file version history with restore and compare capabilities
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useReducer } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { History, RotateCcw, Trash2, Download, X, Clock, FileText, GitCompare } from 'lucide-react';
@@ -20,93 +20,84 @@ interface VersionHistoryPanelProps {
   className?: string;
 }
 
+function formatVersionDate(date: Date) {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
+function formatVersionSize(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function reportVersionActionError(error: unknown) {
+  console.error('Version history action failed:', error);
+}
+
 export function VersionHistoryPanel({
   filePath,
-  fileName,
   currentContent,
   onRestore,
   onClose,
   className,
 }: VersionHistoryPanelProps) {
   const { t } = useTranslation();
-  const [versions, setVersions] = useState<FileVersion[]>([]);
+  const [, refreshVersions] = useReducer((value: number) => value + 1, 0);
   const [selectedVersion, setSelectedVersion] = useState<FileVersion | null>(null);
   const [previewContent, setPreviewContent] = useState<string>('');
   const [previewMode, setPreviewMode] = useState<'diff' | 'raw'>('diff');
   const versionService = getVersionService();
   const { confirm, dialogProps: confirmDialogProps } = useConfirmDialog();
+  const versions = versionService.getVersions(filePath);
 
-  // Load versions on mount
-  useEffect(() => {
-    const loadedVersions = versionService.getVersions(filePath);
-    setVersions(loadedVersions);
-  }, [filePath]);
+  async function handleRestore(version: FileVersion) {
+    const confirmed = await confirm(`Restore file to version from ${formatVersionDate(version.timestamp)}?`, {
+      title: 'Restore Version',
+      confirmLabel: 'Restore',
+    });
+    if (confirmed) {
+      onRestore(version.content);
+      onClose();
+    }
+  }
 
-  const handleRestore = useCallback(
-    async (version: FileVersion) => {
-      const confirmed = await confirm(`Restore file to version from ${formatDate(version.timestamp)}?`, {
-        title: 'Restore Version',
-        confirmLabel: 'Restore',
-      });
-      if (confirmed) {
-        onRestore(version.content);
-        onClose();
+  async function handleDelete(versionId: string) {
+    const confirmed = await confirm('Delete this version?', {
+      title: 'Delete Version',
+      variant: 'destructive',
+      confirmLabel: 'Delete',
+    });
+    if (confirmed) {
+      versionService.deleteVersion(filePath, versionId);
+      refreshVersions();
+      if (selectedVersion?.id === versionId) {
+        setSelectedVersion(null);
+        setPreviewContent('');
       }
-    },
-    [onRestore, onClose, confirm]
-  );
+    }
+  }
 
-  const handleDelete = useCallback(
-    async (versionId: string) => {
-      const confirmed = await confirm('Delete this version?', {
-        title: 'Delete Version',
-        variant: 'destructive',
-        confirmLabel: 'Delete',
-      });
-      if (confirmed) {
-        versionService.deleteVersion(filePath, versionId);
-        const updatedVersions = versionService.getVersions(filePath);
-        setVersions(updatedVersions);
-        if (selectedVersion?.id === versionId) {
-          setSelectedVersion(null);
-          setPreviewContent('');
-        }
-      }
-    },
-    [filePath, selectedVersion, confirm]
-  );
-
-  const handlePreview = useCallback((version: FileVersion) => {
+  function handlePreview(version: FileVersion) {
     setSelectedVersion(version);
     setPreviewContent(version.content);
-  }, []);
+  }
 
-  const handleExport = useCallback(() => {
+  function handleExport() {
     const data = versionService.exportVersions();
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `version-history-${Date.now()}.json`;
+    a.download = 'version-history.json';
     a.click();
     URL.revokeObjectURL(url);
-  }, []);
-
-  const formatDate = (date: Date) => {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
-  };
-
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  }
 
   return (
     <div className={cn('flex flex-col h-full bg-background border-l', className)}>
@@ -115,8 +106,7 @@ export function VersionHistoryPanel({
         <div className="flex items-center gap-2">
           <History className="h-5 w-5 text-primary" />
           <div>
-            <h2 className="text-lg font-semibold">Version History</h2>
-            <p className="text-sm text-muted-foreground">{fileName}</p>
+            <h2 className="text-lg font-semibold">{t('version.history.title')}</h2>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -148,7 +138,9 @@ export function VersionHistoryPanel({
                   'p-3 border rounded-lg transition-colors cursor-pointer hover:bg-muted/50',
                   selectedVersion?.id === version.id && 'bg-primary/10 border-primary'
                 )}
-                onClick={() => handlePreview(version)}
+                onClick={() => {
+                  handlePreview(version);
+                }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex-1 min-w-0">
@@ -158,7 +150,7 @@ export function VersionHistoryPanel({
                         {index === 0 ? 'Latest' : `Version ${versions.length - index}`}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {formatDate(version.timestamp)}
+                        {formatVersionDate(version.timestamp)}
                       </span>
                     </div>
                     {version.message && (
@@ -167,12 +159,12 @@ export function VersionHistoryPanel({
                       </p>
                     )}
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>{formatSize(version.size)}</span>
+                      <span>{formatVersionSize(version.size)}</span>
                       {index > 0 && versions[index - 1] && (
                         <span className="text-green-600">
                           {version.size > versions[index - 1]!.size
-                            ? `+${formatSize(version.size - versions[index - 1]!.size)}`
-                            : `-${formatSize(versions[index - 1]!.size - version.size)}`}
+                            ? `+${formatVersionSize(version.size - versions[index - 1]!.size)}`
+                            : `-${formatVersionSize(versions[index - 1]!.size - version.size)}`}
                         </span>
                       )}
                     </div>
@@ -184,7 +176,7 @@ export function VersionHistoryPanel({
                       className="h-7 w-7 p-0"
                       onClick={(e) => {
                         e.stopPropagation();
-                        void handleRestore(version);
+                        void handleRestore(version).catch(reportVersionActionError);
                       }}
                       title="Restore this version"
                     >
@@ -197,7 +189,7 @@ export function VersionHistoryPanel({
                         className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                         onClick={(e) => {
                           e.stopPropagation();
-                          void handleDelete(version.id);
+                          void handleDelete(version.id).catch(reportVersionActionError);
                         }}
                         title="Delete this version"
                       >
@@ -228,7 +220,9 @@ export function VersionHistoryPanel({
                   variant={previewMode === 'diff' ? 'default' : 'ghost'}
                   size="sm"
                   className="h-6 text-xs"
-                  onClick={() => setPreviewMode('diff')}
+                  onClick={() => {
+                    setPreviewMode('diff');
+                  }}
                 >
                   Diff
                 </Button>
@@ -236,7 +230,9 @@ export function VersionHistoryPanel({
                   variant={previewMode === 'raw' ? 'default' : 'ghost'}
                   size="sm"
                   className="h-6 text-xs"
-                  onClick={() => setPreviewMode('raw')}
+                  onClick={() => {
+                    setPreviewMode('raw');
+                  }}
                 >
                   Raw
                 </Button>
@@ -245,7 +241,9 @@ export function VersionHistoryPanel({
             <Button
               variant="default"
               size="sm"
-              onClick={() => handleRestore(selectedVersion)}
+              onClick={() => {
+                void handleRestore(selectedVersion).catch(reportVersionActionError);
+              }}
             >
               <RotateCcw className="h-3.5 w-3.5 mr-2" />
               Restore
@@ -276,7 +274,7 @@ export function VersionHistoryPanel({
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span>{versions.length} version{versions.length > 1 ? 's' : ''}</span>
             <span>
-              Total: {formatSize(versions.reduce((sum, v) => sum + v.size, 0))}
+              Total: {formatVersionSize(versions.reduce((sum, v) => sum + v.size, 0))}
             </span>
           </div>
         </div>

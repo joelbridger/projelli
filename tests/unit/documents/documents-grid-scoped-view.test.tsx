@@ -112,7 +112,30 @@ vi.mock('@/features/documents/workspace/FileTree', () => ({
 }));
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, opts?: { count?: number }) => ({
+      'workspace.documents.create-menu': 'New or add',
+      'workspace.documents.new-document': 'New document',
+      'workspace.documents.new-folder': 'New folder',
+      'workspace.documents.add-files': 'Add files',
+      'workspace.documents.title': 'Documents',
+      'workspace.documents.files': 'Files',
+      'workspace.documents.trash': 'Trash',
+      'workspace.documents.view-mode': 'View',
+      'workspace.documents.tree': 'Tree',
+      'workspace.documents.grid': 'Grid',
+      'workspace.documents.search-placeholder': 'Search',
+      'workspace.documents.more-actions': 'More file actions',
+      'workspace.documents.empty-title': 'No files yet',
+      'workspace.documents.empty-body': 'Create or add a file to start.',
+      'workspace.documents.no-results-title': 'No results',
+      'workspace.documents.no-results-body': 'No files match your search. Try a different name.',
+      'workspace.documents.all-files': 'All files',
+      'workspace.file-tree.open-on-desktop': 'Show on computer',
+    }[key] ?? (key === 'workspace.documents.search-results'
+      ? `${String(opts?.count ?? 0)} ${opts?.count === 1 ? 'result' : 'results'}`
+      : key)),
+  }),
 }));
 
 const EMPTY_TRASH_STATS: TrashStats = { itemCount: 0, totalSize: 0, oldestItem: undefined };

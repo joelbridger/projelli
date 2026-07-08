@@ -11,6 +11,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Folder,
   FileText,
@@ -326,10 +327,6 @@ function FileCard({ node, isActive, onOpen, onMoveInto, pathContext }: FileCardP
     [isFolder, onMoveInto, node.path],
   );
 
-  // Dynamic states (drag-over, active, dragging) are layered via style on top of
-  // the kp-card--interactive CSS classes. Card's :hover shadow is intentionally
-  // left to the CSS; we only override border-color and background for the
-  // drag/active states that need runtime values.
   const dynamicStyle: React.CSSProperties = {
     display: 'flex',
     flexDirection: 'column',
@@ -341,17 +338,25 @@ function FileCard({ node, isActive, onOpen, onMoveInto, pathContext }: FileCardP
     minWidth: 0,
     fontFamily: 'Satoshi, sans-serif',
     opacity: isDragging ? 0.5 : 1,
-    ...(isDragOver && isFolder
-      ? { borderStyle: 'dashed', borderColor: 'var(--kp-navy)', background: 'rgba(10,37,64,0.08)' }
+    border: '1px solid',
+    borderColor: isDragOver && isFolder
+      ? 'var(--kp-navy)'
       : isActive
-        ? { borderColor: 'var(--kp-navy)', borderWidth: 2, background: 'rgba(10,37,64,0.04)' }
-        : {}),
+        ? 'rgba(var(--kp-navy-rgb),0.22)'
+        : 'transparent',
+    borderStyle: isDragOver && isFolder ? 'dashed' : 'solid',
+    borderRadius: 'var(--radius-md)',
+    background: isDragOver && isFolder
+      ? 'rgba(10,37,64,0.08)'
+      : isActive
+        ? 'rgba(var(--kp-navy-rgb),0.06)'
+        : 'transparent',
   };
 
   return (
     <button
       type="button"
-      className="kp-card kp-card--interactive"
+      className="document-grid-tile"
       data-testid={`grid-card-${node.path}`}
       draggable
       onDragStart={handleDragStart}
@@ -405,27 +410,20 @@ function FileCard({ node, isActive, onOpen, onMoveInto, pathContext }: FileCardP
 
 interface WorkspaceEmptyStateProps {
   onCreateDocument: () => void;
-  onCreateFolder: () => void;
 }
 
-function WorkspaceEmptyState({ onCreateDocument, onCreateFolder }: WorkspaceEmptyStateProps) {
+function WorkspaceEmptyState({ onCreateDocument }: WorkspaceEmptyStateProps) {
+  const { t } = useTranslation();
   return (
     <div data-testid="grid-empty-state">
       <EmptyState
         icon={Folder}
-        title="Your workspace is ready"
-        body="Real Word documents, with tracked changes and AI redlining, stored as files on your computer."
+        title={t('workspace.documents.empty-title')}
+        body={t('workspace.documents.empty-body')}
         actions={
-          <>
-            {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-            <Button variant="primary" size="md" iconLeft={Plus} onClick={onCreateDocument}>
-              New Word document
-            </Button>
-            <Button variant="secondary" size="md" onClick={onCreateFolder}>
-              New folder
-            </Button>
-            {/* eslint-enable lantern-i18n/no-hardcoded-string */}
-          </>
+          <Button variant="primary" size="md" iconLeft={Plus} onClick={onCreateDocument}>
+            {t('workspace.documents.new-document')}
+          </Button>
         }
       />
     </div>
@@ -514,7 +512,6 @@ export interface DocumentGridViewProps {
 export function DocumentGridView({
   onFileOpen,
   onCreateFile,
-  onCreateFolder,
   onMove,
   onCreateDefaultDocument,
   onCreateDocxAtRoot,
@@ -538,6 +535,7 @@ export function DocumentGridView({
   scopeRootFolderPaths,
   headerControls,
 }: DocumentGridViewProps) {
+  const { t } = useTranslation();
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
   // Per-client Documents sub-tab passes a pre-scoped tree; the global browser
   // uses the full workspace tree from the store.
@@ -671,7 +669,7 @@ export function DocumentGridView({
   function buildBreadcrumbs(): BreadcrumbSegment[] {
     if (currentFolderPath === null) return [];
 
-    const segments: BreadcrumbSegment[] = [{ label: 'All files', path: null }];
+    const segments: BreadcrumbSegment[] = [{ label: t('workspace.documents.all-files'), path: null }];
 
     function collectAncestors(
       nodes: FileNode[],
@@ -700,29 +698,15 @@ export function DocumentGridView({
 
   // ── File counts ─────────────────────────────────────────────────────────
 
-  // Count items at the CURRENT directory level when browsing. A search
-  // spans the whole scoped tree (not just this folder), so its count is
-  // reported separately as a result count rather than "N of M" — "M" would
-  // otherwise misleadingly imply the tree's total size is this folder's size.
-  const currentDirCount = currentNodes.length;
+  // A search spans the whole scoped tree, so the count is a result count.
+  // Normal browsing is intentionally count-free to keep the file surface quiet.
   const filteredCount = filteredNodes.length;
 
   function currentDirLabel(): string {
     if (isSearching) {
-      return filteredCount === 1 ? '1 result' : `${String(filteredCount)} results`;
+      return t('workspace.documents.search-results', { count: filteredCount });
     }
-
-    if (currentDirCount === 0) return 'No items';
-
-    const folderCount = currentNodes.filter((n) => n.type === 'folder').length;
-    const fileCount = currentNodes.filter((n) => n.type !== 'folder').length;
-    if (folderCount > 0 && fileCount === 0) {
-      return folderCount === 1 ? '1 folder' : `${String(folderCount)} folders`;
-    }
-    if (fileCount > 0 && folderCount === 0) {
-      return fileCount === 1 ? '1 item' : `${String(fileCount)} items`;
-    }
-    return currentDirCount === 1 ? '1 item' : `${String(currentDirCount)} items`;
+    return '';
   }
 
   // ── Handlers ────────────────────────────────────────────────────────────
@@ -750,10 +734,6 @@ export function DocumentGridView({
     } else {
       onCreateFile(currentFolderPath ?? createFolderFallback ?? rootPath ?? '');
     }
-  }
-
-  function handleCreateFolder() {
-    onCreateFolder(currentFolderPath ?? createFolderFallback ?? rootPath ?? '');
   }
 
   // R6-1: grid drag-and-drop. Dropping a card onto a FOLDER card moves it
@@ -867,7 +847,7 @@ export function DocumentGridView({
             )}
 
             {/* Subtitle */}
-            {breadcrumbs.length === 0 && (
+            {isSearching && (
               <div
                 data-testid="grid-dir-label"
                 style={{
@@ -885,21 +865,17 @@ export function DocumentGridView({
             {fileTree.length === 0 ? (
               <WorkspaceEmptyState
                 onCreateDocument={handleCreateDocument}
-                onCreateFolder={handleCreateFolder}
               />
             ) : filteredNodes.length === 0 && isSearching ? (
-              /* eslint-disable lantern-i18n/no-hardcoded-string */
               <EmptyState
                 icon={Search}
-                title="No results"
-                body="No files match your search. Try a different name."
+                title={t('workspace.documents.no-results-title')}
+                body={t('workspace.documents.no-results-body')}
                 compact
               />
-              /* eslint-enable lantern-i18n/no-hardcoded-string */
             ) : filteredNodes.length === 0 ? (
               <WorkspaceEmptyState
                 onCreateDocument={handleCreateDocument}
-                onCreateFolder={handleCreateFolder}
               />
             ) : (
               <div
@@ -925,25 +901,16 @@ export function DocumentGridView({
           </>
         ) : (
           /* Trash view */
-          <div
-            style={{
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-lg)',
-              background: '#fff',
-              overflow: 'hidden',
-            }}
-          >
-            <TrashPanel
-              items={trashItems}
-              stats={trashStats}
-              onRestore={onRestore}
-              onPermanentDelete={onPermanentDelete}
-              onEmptyTrash={onEmptyTrash}
-              {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
-              {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
-              {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
-            />
-          </div>
+          <TrashPanel
+            items={trashItems}
+            stats={trashStats}
+            onRestore={onRestore}
+            onPermanentDelete={onPermanentDelete}
+            onEmptyTrash={onEmptyTrash}
+            {...(retentionPeriod !== undefined ? { retentionPeriod } : {})}
+            {...(customRetentionDays !== undefined ? { customRetentionDays } : {})}
+            {...(onRetentionChange !== undefined ? { onRetentionChange } : {})}
+          />
         )}
       </div>
       )}
