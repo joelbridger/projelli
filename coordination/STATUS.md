@@ -1,5 +1,11 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-08 ~05:30 — rails unified + UX-minimalism audit delivered (coordinator-11, zero-token mode)
+
+- Rail consistency SHIPPED (tip c2d7e462, gate green, pushed+verified, Legion live): Email/Meetings/Workflows left rails restyled at the RailShell level to the airy white Ask/ClientMap/Documents template. Codex-built, adversarially reviewed MERGE-READY first pass.
+- UX-minimalism audit DONE per Jameson: 7 parallel Codex senior-designer audits (one per screen, grounded in real JSX+i18n) → coordination/reports/ux-simplification-2026-07-08/ (7 files + SYNTHESIS.md, committed) → published to jameworld.com/claudereports. Top systemic themes: one visible primary action per view; flatten boxes-in-boxes; shorter trust copy (signals stay); one home per idea; collapse filters/modes/empty-states until needed. AWAITING Jameson wave go-ahead before any build.
+- Zero-token mode holding: all-Codex execution, batched sentinels; successor must keep it until Jameson lifts it.
+
 ## UPDATE 2026-07-08 ~02:50 — the 4:28 PM master plan SHIPPED: master-detail everywhere, all 7 lanes live on the Legion (coordinator-11)
 
 - Jameson's markdown feedback file (docs/Lantern UI Feedback july 7 2026 428 pm.md) executed per its embedded instructions: Fable ingested + interviewed (1 question — the back button is REMOVED entirely, machinery kept) + wrote coordination/MASTER-PLAN-UI-FEEDBACK-0707-428PM.md. Mid-flight Jameson ordered ZERO-TOKEN MODE (Anthropic budget nearly out) — the planned Sonnet/Opus fleet was replaced by ALL-CODEX execution: 7 build lanes, 7 adversarial reviews, 6 fix rounds, delta re-reviews, one conflict-reconcile job, all watched by single batched sentinels to minimize coordinator wakeups.
