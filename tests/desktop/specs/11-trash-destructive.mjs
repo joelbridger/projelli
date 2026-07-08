@@ -56,7 +56,7 @@ async function fillPrompt(session, app, value, confirmText = 'OK') {
 }
 
 // Land on the Files BROWSER surface in files+tree view, robustly. Clicking the
-// pinned "Files" tab can race with a just-renamed file auto-opening as the active
+// pinned "All files" tab can race with a just-renamed file auto-opening as the active
 // editor (DocumentsHome navigates back to the editor a beat later), so require the
 // Files/Trash toggle — which renders only on the browser surface — to STAY mounted
 // across a settle window; if it flips, the outer retry re-clicks the chip.

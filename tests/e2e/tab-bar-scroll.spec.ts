@@ -2,10 +2,10 @@
  * Documents Rail Vertical Scroll E2E Tests
  *
  * The Documents surface owns the visible tab rail. It scrolls vertically when
- * many documents are open, keeps the pinned Files entry first, and scrolls the
+ * many documents are open, keeps the pinned All files entry first, and scrolls the
  * active document into view.
  *
- * The global document tabs beyond the pinned "Files" chip only render on the
+ * The global document tabs beyond the pinned "All files" chip only render on the
  * standalone (non-embedded) Documents/editor surface — DocumentsHome.tsx
  * deliberately hides them in the per-client embedded tab (matter isolation:
  * "a foreign client's open file could appear here" otherwise). gotoDocuments()
@@ -63,7 +63,7 @@ test.describe('Documents rail vertical scroll', () => {
       .locator('[role="tab"]')
       .first()
       .evaluate((el) => el.textContent ?? '');
-    expect(firstTabText).toContain('Files');
+    expect(firstTabText).toContain('All files');
 
     // The rail should now overflow vertically, not rely on horizontal buttons.
     const overflow = await railScroller.evaluate((el) => ({

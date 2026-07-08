@@ -2,15 +2,15 @@
  * DocumentsHome — unit tests (vertical left rail + grid model)
  *
  * Covers:
- *  1. Vertical rail: pinned "Files" entry renders + is selected by default
- *  2. DocumentGridView renders when "Files" tab is active (no left column)
+ *  1. Vertical rail: pinned "All files" entry renders + is selected by default
+ *  2. DocumentGridView renders when "All files" tab is active (no left column)
  *  3. Opening a file tab adds it to the strip and switches to editor view
- *  4. Clicking "Files" tab returns to the grid
+ *  4. Clicking "All files" tab returns to the grid
  *  5. Folders render in the grid; files render in the grid
  *  6. The grid reflects a populated fileTree (folders first)
  *  7. Trash toggle inside the grid shows/hides TrashPanel
  *  8. Search filters grid cards by name
- *  9. "Add files" button exists in the rail create menu
+ *  9. "Add files" button exists in the grid toolbar
  * 10. Trust banner shows the first time "Add files" is clicked, dismissible
  * 11. Email-open flow: email tab shows editor (email-open intact)
  * 12. File card click calls onFileOpen
@@ -190,16 +190,15 @@ vi.mock('react-i18next', () => ({
       'workspace.documents.new-folder': 'New folder',
       'workspace.documents.add-files': 'Add files',
       'workspace.documents.title': 'Documents',
-      'workspace.documents.files': 'Files',
+      'workspace.documents.files': 'All files',
       'workspace.documents.trash': 'Trash',
       'workspace.documents.view-files-trash': 'View files or trash',
       'workspace.documents.view-mode': 'View',
       'workspace.documents.tree': 'Tree',
       'workspace.documents.grid': 'Grid',
+      'workspace.documents.search-files': 'Search files',
       'workspace.documents.search-placeholder': 'Search',
       'workspace.documents.more-actions': 'More file actions',
-      'workspace.documents.show-rail': 'Show documents rail',
-      'workspace.documents.hide-rail': 'Hide documents rail',
       'workspace.documents.trust-banner': 'Indexed locally. Nothing uploaded.',
       'workspace.documents.empty-title': 'No files yet',
       'workspace.documents.empty-body': 'Create or add a file to start.',
@@ -263,11 +262,9 @@ async function openFilesCreateMenu() {
   await screen.findByTestId('documents-create-document');
 }
 
-function openDocumentsRailSearch(): HTMLElement {
-  const existing = screen.queryByTestId('documents-search-field');
-  if (existing) return existing;
-  fireEvent.click(screen.getByTestId('documents-search-field-toggle'));
-  return screen.getByTestId('documents-search-field');
+function openRailSearch() {
+  fireEvent.click(screen.getByTestId('documents-rail-search-trigger'));
+  return screen.getByRole('textbox');
 }
 
 // ── Tests ──────────────────────────────────────────────────────────────────
@@ -299,15 +296,16 @@ describe('DocumentsHome — vertical tab rail', () => {
     expect(screen.getByTestId('documents-tab-strip')).toHaveAttribute('aria-orientation', 'vertical');
   });
 
-  it('shows a pinned "Files" entry as the first rail item', () => {
+  it('shows a pinned "All files" entry as the first rail item', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     const rail = screen.getByTestId('documents-tab-strip');
     const tabs = Array.from(rail.querySelectorAll('[role="tab"]'));
-    expect(tabs[0]?.textContent).toContain('Files');
+    expect(tabs[0]?.textContent).toContain('All files');
     expect(screen.getByTestId('docs-files-toggle')).toBe(tabs[0]);
+    expect(screen.getByTestId('tab-bar-leading-separator')).toBeTruthy();
   });
 
-  it('keeps the pinned "Files" tab out of drag and group operations', () => {
+  it('keeps the pinned "All files" tab out of drag and group operations', () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [
       { path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' },
@@ -473,11 +471,8 @@ describe('DocumentsHome — vertical tab rail', () => {
   it('uses a left-rail width instead of the old horizontal strip height', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
 
-    expect(screen.getByTestId('documents-rail')).toHaveStyle({
-      width: '252px',
-    });
     expect(screen.getByTestId('documents-tab-strip')).toHaveStyle({
-      width: '100%',
+      width: '252px',
     });
   });
 
@@ -619,7 +614,7 @@ describe('DocumentsHome — grid file view', () => {
     mockOpenTabs = [];
   });
 
-  it('renders the DocumentGridView when Files tab is active', () => {
+  it('renders the DocumentGridView when All files tab is active', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     expect(screen.getByTestId('document-grid-view')).toBeTruthy();
   });
@@ -778,8 +773,8 @@ describe('DocumentsHome — file open + editor tab', () => {
     );
     // The foreign tab chip must not be visible/clickable anywhere in the hub.
     expect(screen.queryByText('secret.docx')).toBeNull();
-    // The pinned "Files" tab (back to the scoped list) stays.
-    expect(screen.getByTestId('documents-tab-strip').textContent).toContain('Files');
+    // The pinned "All files" tab (back to the scoped list) stays.
+    expect(screen.getByTestId('documents-tab-strip').textContent).toContain('All files');
   });
 
   it('embedded mode shows this client\'s open document tabs and focuses an existing tab without making another one', async () => {
@@ -872,7 +867,7 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(screen.getByText('Contracts')).toBeTruthy();
   });
 
-  it('clicking "Files" tab from editor view returns to the grid', async () => {
+  it('clicking "All files" tab from editor view returns to the grid', async () => {
     mockActiveTabPath = '/workspace/Brief.md';
     mockOpenTabs = [{ path: '/workspace/Brief.md', name: 'Brief.md', type: 'file' }];
     render(<DocumentsHome {...buildDefaultProps()} />);
@@ -882,10 +877,10 @@ describe('DocumentsHome — file open + editor tab', () => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
     });
 
-    // Click the "Files" tab in the strip
+    // Click the "All files" tab in the strip
     const strip = screen.getByTestId('documents-tab-strip');
     const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
-      (el) => el.textContent?.trim() === 'Files',
+      (el) => el.textContent?.trim() === 'All files',
     );
     expect(filesTab).toBeTruthy();
     fireEvent.click(filesTab!);
@@ -1089,15 +1084,16 @@ describe('DocumentsHome — search', () => {
     mockOpenTabs = [];
   });
 
-  it('renders a search input in the rail header', () => {
+  it('opens a search input from the All files rail row', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = openDocumentsRailSearch();
+    expect(screen.queryByRole('textbox')).toBeNull();
+    const searchInput = openRailSearch();
     expect(searchInput).toBeTruthy();
   });
 
   it('typing in the search input filters grid cards by name', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = openDocumentsRailSearch();
+    const searchInput = openRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     expect(screen.getByText('Brief.md')).toBeTruthy();
     expect(screen.queryByText('Evidence.pdf')).toBeNull();
@@ -1106,7 +1102,7 @@ describe('DocumentsHome — search', () => {
 
   it('shows empty search state when no files match the query', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = openDocumentsRailSearch();
+    const searchInput = openRailSearch();
     fireEvent.change(searchInput, { target: { value: 'zzznomatch' } });
     expect(screen.getByText(/no files match your search/i)).toBeTruthy();
   });
@@ -1121,7 +1117,7 @@ describe('DocumentsHome — search', () => {
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
     expect(screen.getByText('NDA.docx')).toBeTruthy();
 
-    const searchInput = openDocumentsRailSearch();
+    const searchInput = openRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     expect(screen.getByText('Brief.md')).toBeTruthy();
     expect(screen.queryByText('NDA.docx')).toBeNull();
@@ -1131,7 +1127,7 @@ describe('DocumentsHome — search', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts'));
 
-    const searchInput = openDocumentsRailSearch();
+    const searchInput = openRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     // Brief.md is at the tree root — no ancestor folder — so no path context
     // chip is needed to disambiguate it; a match at the root of the scope
@@ -1148,7 +1144,7 @@ describe('DocumentsHome — search', () => {
   it('(B4b fix) clicking a cross-folder file search result opens it directly', async () => {
     const onFileOpen = vi.fn().mockResolvedValue(undefined);
     render(<DocumentsHome {...buildDefaultProps({ onFileOpen })} />);
-    const searchInput = openDocumentsRailSearch();
+    const searchInput = openRailSearch();
     fireEvent.change(searchInput, { target: { value: 'nda' } });
     fireEvent.click(screen.getByTestId('grid-card-/workspace/Contracts/NDA.docx'));
     await waitFor(() => {
@@ -1241,7 +1237,7 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
     expect(filesView.contains(screen.getByTestId('docs-view-toggle'))).toBe(true);
   });
 
-  it('moves file creation into the Files toolbar plus menu and removes the old toolbar row', async () => {
+  it('moves file search and creation into the All files rail row', async () => {
     const onCreateDefaultDocument = vi.fn();
     const onCreateFolder = vi.fn();
     const onImportFiles = vi.fn();
@@ -1256,10 +1252,13 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
     );
 
     expect(screen.queryByTestId('documents-toolbar')).toBeNull();
-    const documentsRail = screen.getByTestId('documents-rail');
-    expect(documentsRail.contains(screen.getByTestId('documents-search-field-toggle'))).toBe(true);
-    fireEvent.click(screen.getByTestId('documents-search-field-toggle'));
-    expect(documentsRail.contains(screen.getByTestId('documents-search-field'))).toBe(true);
+    expect(screen.queryByTestId('documents-search-field')).toBeNull();
+    const rail = screen.getByTestId('documents-tab-strip');
+    expect(rail.contains(screen.getByTestId('documents-rail-search-trigger'))).toBe(true);
+    expect(rail.contains(screen.getByTestId('documents-files-create-menu'))).toBe(true);
+
+    fireEvent.click(screen.getByTestId('documents-rail-search-trigger'));
+    expect(rail.contains(screen.getByTestId('documents-search-field'))).toBe(true);
 
     const trigger = screen.getByTestId('documents-files-create-menu');
     fireEvent.pointerDown(trigger, new MouseEvent('pointerdown', { bubbles: true }));
@@ -1293,6 +1292,18 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
     // New architecture: DocumentGridView stays mounted (it owns the shared
     // toolbar); the grid *body* is what hides in tree mode.
     expect(screen.queryByTestId('document-grid-cards')).toBeNull();
+  });
+
+  it('rail search shows file results even while tree view is selected', () => {
+    render(<DocumentsHome {...buildDefaultProps()} />);
+    fireEvent.click(screen.getByTestId('docs-view-tree'));
+    expect(screen.getByTestId('file-tree')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('documents-rail-search-trigger'));
+    fireEvent.change(screen.getByTestId('documents-search-field'), { target: { value: 'NDA' } });
+
+    expect(screen.queryByTestId('file-tree')).toBeNull();
+    expect(screen.getByText('NDA.docx')).toBeTruthy();
   });
 
   it('switching back to Grid restores the grid view', () => {
@@ -1574,17 +1585,17 @@ describe('DocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
     expect(strip.getAttribute('role')).toBe('tablist');
   });
 
-  it('the Files tab has role="tab" and is focusable', () => {
+  it('the All files tab has role="tab" and is focusable', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     const strip = screen.getByTestId('documents-tab-strip');
     const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
-      (el) => el.textContent?.trim().startsWith('Files'),
+      (el) => el.textContent?.trim().startsWith('All files'),
     );
     expect(filesTab).toBeTruthy();
     expect(filesTab).toHaveAttribute('tabindex', '0');
   });
 
-  it('pressing Enter on the Files tab activates it (returns to grid)', async () => {
+  it('pressing Enter on the All files tab activates it (returns to grid)', async () => {
     // Start with the editor visible (active tab is a file).
     render(<DocumentsHome {...buildDefaultProps()} />);
     await waitFor(() => {
@@ -1593,7 +1604,7 @@ describe('DocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
 
     const strip = screen.getByTestId('documents-tab-strip');
     const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
-      (el) => el.textContent?.trim().startsWith('Files'),
+      (el) => el.textContent?.trim().startsWith('All files'),
     ) as HTMLElement | undefined;
     expect(filesTab).toBeTruthy();
 
@@ -1605,7 +1616,7 @@ describe('DocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
     });
   });
 
-  it('pressing Space on the Files tab activates it (returns to grid)', async () => {
+  it('pressing Space on the All files tab activates it (returns to grid)', async () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     await waitFor(() => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
@@ -1613,7 +1624,7 @@ describe('DocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
 
     const strip = screen.getByTestId('documents-tab-strip');
     const filesTab = Array.from(strip.querySelectorAll('[role="tab"]')).find(
-      (el) => el.textContent?.trim().startsWith('Files'),
+      (el) => el.textContent?.trim().startsWith('All files'),
     ) as HTMLElement | undefined;
     expect(filesTab).toBeTruthy();
 
@@ -1655,7 +1666,7 @@ describe('DocumentGridView — grid count label', () => {
     // folder, so "N of M" no longer means anything honest — "M" used to be
     // this folder's item count, which isn't what's being searched anymore.
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = openDocumentsRailSearch();
+    const searchInput = openRailSearch();
     // Type a query that matches only "Brief.md"
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     const label = screen.getByTestId('grid-dir-label');
@@ -1665,7 +1676,7 @@ describe('DocumentGridView — grid count label', () => {
 
   it('hides the count again when the search is cleared', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const searchInput = openDocumentsRailSearch();
+    const searchInput = openRailSearch();
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     // Now clear the search
     fireEvent.change(searchInput, { target: { value: '' } });
