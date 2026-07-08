@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Advisor Prep Hero",
+  "productName": "Lantern",
   "version": "3.3.5",
   "identifier": "com.lantern.app",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "create": false,
-        "title": "Advisor Prep Hero",
+        "title": "Lantern",
         "width": 1200,
         "height": 800,
         "minWidth": 800,
@@ -52,9 +52,9 @@
     ],
     "category": "Productivity",
     "shortDescription": "Local-first AI workspace for confidential client work",
-    "longDescription": "Advisor Prep Hero is a local-first AI workspace for financial advisors who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports RIAs, advisors, CPAs, and consultants where client confidentiality is non-negotiable.",
-    "publisher": "Advisor Prep Hero",
-    "copyright": "Copyright 2026 Advisor Prep Hero",
+    "longDescription": "Lantern is a local-first AI workspace for financial advisors who handle confidential client work. Your files stay on your machine. Bring your own API key or run AI models locally with Ollama. Supports RIAs, advisors, CPAs, and consultants where client confidentiality is non-negotiable.",
+    "publisher": "Lantern",
+    "copyright": "Copyright 2026 Lantern",
     "windows": {
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
