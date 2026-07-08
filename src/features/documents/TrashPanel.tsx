@@ -19,12 +19,18 @@ import {
   FileText,
   Folder,
   AlertTriangle,
-  Clock,
-  HardDrive,
+  MoreHorizontal,
   Settings,
 } from 'lucide-react';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import { EmptyState } from '@/ui/EmptyState';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/ui/dropdown-menu';
 
 export type TrashRetentionPeriod = 'never' | 7 | 30 | 90 | 'custom';
 
@@ -107,15 +113,25 @@ export function TrashPanel({
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
     if (days === 0) {
-      return 'Today';
+      return t('common.trash.today');
     } else if (days === 1) {
-      return 'Yesterday';
+      return t('common.trash.yesterday');
     } else if (days < 7) {
-      return `${String(days)} days ago`;
+      return t('common.trash.days-ago', { count: days });
     } else {
       return date.toLocaleDateString();
     }
   };
+
+  const oldestLabel = stats.oldestItem
+    ? t('common.trash.oldest', { date: formatDate(stats.oldestItem) })
+    : null;
+  const trashSummary = oldestLabel
+    ? t('common.trash.summary-with-oldest', {
+        size: formatFileSize(stats.totalSize),
+        oldest: oldestLabel,
+      })
+    : t('common.trash.summary', { size: formatFileSize(stats.totalSize) });
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
@@ -123,52 +139,47 @@ export function TrashPanel({
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center gap-2">
           <Trash2 className="h-5 w-5" />
-          <span className="font-medium">Trash</span>
+          <span className="font-medium">{t('workspace.documents.trash')}</span>
           {items.length > 0 && (
             <span className="text-xs text-muted-foreground">
-              ({items.length} items)
+              {t('common.trash.item-count', { count: items.length })}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          {onRetentionChange && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowSettings(true)}
-              title="Trash retention settings"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-          )}
-          {items.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setConfirmAction('empty')}
-              className="text-destructive hover:text-destructive"
-            >
-              Empty Trash
-            </Button>
-          )}
-        </div>
+        {(onRetentionChange || items.length > 0) && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0"
+                title={items.length > 0 ? trashSummary : t('common.trash.more-actions')}
+                aria-label={t('common.trash.more-actions')}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              {onRetentionChange && (
+                <DropdownMenuItem onSelect={() => setShowSettings(true)} className="gap-2">
+                  <Settings className="h-3.5 w-3.5" />
+                  {t('common.trash.settings-menu')}
+                </DropdownMenuItem>
+              )}
+              {onRetentionChange && items.length > 0 && <DropdownMenuSeparator />}
+              {items.length > 0 && (
+                <DropdownMenuItem
+                  onSelect={() => setConfirmAction('empty')}
+                  className="gap-2 text-destructive focus:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t('common.trash.empty-menu')}
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
-
-      {/* Stats bar */}
-      {items.length > 0 && (
-        <div className="flex items-center gap-4 px-4 py-2 text-xs text-muted-foreground bg-muted/30 border-b">
-          <div className="flex items-center gap-1">
-            <HardDrive className="h-3 w-3" />
-            <span>{formatFileSize(stats.totalSize)}</span>
-          </div>
-          {stats.oldestItem && (
-            <div className="flex items-center gap-1">
-              <Clock className="h-3 w-3" />
-              <span>Oldest: {formatDate(stats.oldestItem)}</span>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Item list */}
       <div className="flex-1 overflow-auto">
@@ -176,13 +187,13 @@ export function TrashPanel({
           <EmptyState
             panelName="trash"
             icon={Trash2}
-            title="Trash is empty"
+            title={t('common.trash.empty-title')}
             description={
               retentionPeriod === 'never'
-                ? 'Deleted files live here until you empty the trash. Restore any file from here back to its original folder.'
+                ? t('common.trash.empty-description-never')
                 : retentionPeriod === 'custom'
-                  ? `Deleted files live here for ${String(customRetentionDays)} day${customRetentionDays === 1 ? '' : 's'} before being removed permanently. Restore any file from here back to its original folder.`
-                  : `Deleted files live here for ${String(retentionPeriod)} days before being removed permanently. Restore any file from here back to its original folder.`
+                  ? t('common.trash.empty-description-days', { count: customRetentionDays })
+                  : t('common.trash.empty-description-days', { count: retentionPeriod })
             }
           />
         ) : (
@@ -262,15 +273,15 @@ export function TrashPanel({
                 className="w-full px-3 py-2 rounded-md border bg-background"
               >
                 <option value="never">{t('common.trash.retention-never')}</option>
-                <option value="7">7 days</option>
-                <option value="30">30 days</option>
-                <option value="90">90 days</option>
-                <option value="custom">Custom...</option>
+                <option value="7">{t('common.trash.retention-days', { count: 7 })}</option>
+                <option value="30">{t('common.trash.retention-days', { count: 30 })}</option>
+                <option value="90">{t('common.trash.retention-days', { count: 90 })}</option>
+                <option value="custom">{t('common.trash.retention-custom')}</option>
               </select>
             </div>
             {localRetention === 'custom' && (
               <div className="space-y-2">
-                <label className="text-sm font-medium">Custom days:</label>
+                <label className="text-sm font-medium">{t('common.trash.custom-days-label')}</label>
                 <input
                   type="number"
                   min="1"

@@ -51,8 +51,8 @@ describe('en.json structure snapshot', () => {
         "audio": 1,
         "chat": 12,
         "citation": 3,
-        "common": 49,
-        "editor": 17,
+        "common": 69,
+        "editor": 27,
         "entity-label": 50,
         "file-import": 3,
         "firm": 143,
@@ -83,7 +83,7 @@ describe('en.json structure snapshot', () => {
         "whats-new": 4,
         "whiteboard": 1,
         "workflow": 62,
-        "workspace": 31,
+        "workspace": 50,
       }
     `);
   });
@@ -263,7 +263,11 @@ describe('en.json structure snapshot', () => {
     // +2 = this batch's merge: meetings "Send to team" tab + documents rail
     //      close-other-tabs (each branch counted only its own keys; the true
     //      combined total is both).
-    expect(flat.length).toBe(1547); // +49 from the email master-detail lane (rail, menus, empty states)
+    // +49 = L4 Documents UX simplification: Trash/menu/settings copy (+20),
+    //      autosave copy (+10), and Documents/FileTree browser copy (+19)
+    //      for rail Trash, toolbar create, quiet counts, empty states, and
+    //      show-on-computer labels.
+    expect(flat.length).toBe(1596);
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

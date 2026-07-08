@@ -23,7 +23,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FolderOpen, FolderTree, FileText, Plus, Upload, ListTree, LayoutGrid } from 'lucide-react';
+import { ExternalLink, FolderOpen, FolderTree, FileText, LayoutGrid, ListTree, MoreHorizontal, Plus, Trash2, Upload } from 'lucide-react';
 import { Callout, IconButton, SearchField } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import {
@@ -38,7 +38,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { DocumentGridView } from './DocumentGridView';
-import { FileTree } from '@/features/documents/workspace/FileTree';
+import { FileTree, resolveExplorerPath } from '@/features/documents/workspace/FileTree';
 import { TabBar } from './editor/TabBar';
 import { scopeFileTreeToFolders, toAbsolute, toScopedFolderPath } from './scopeFileTree';
 import { isPathInFolder } from '@/platform/rag/matterResolver';
@@ -48,6 +48,7 @@ import { SK_FIRST_FILE_TRUST_SHOWN, SK_DOCS_VIEW } from '@/config/identity';
 
 const TRUST_STORAGE_KEY = SK_FIRST_FILE_TRUST_SHOWN;
 const FILES_TAB_ID = '__files__';
+const TRASH_TAB_ID = '__trash__';
 
 // R6-1: which Files view the user last chose (vertical expanding tree vs the
 // folder-drill grid). Persisted so the choice survives reloads.
@@ -208,6 +209,7 @@ interface TrustBannerProps {
 }
 
 function TrustBanner({ onDismiss }: TrustBannerProps) {
+  const { t } = useTranslation();
   return (
     <div
       role="status"
@@ -220,9 +222,7 @@ function TrustBanner({ onDismiss }: TrustBannerProps) {
       }}
     >
       <Callout variant="info" icon={FileText} onDismiss={onDismiss}>
-        {/* eslint-disable lantern-i18n/no-hardcoded-string */}
-        Indexed on your machine. Nothing was uploaded.
-        {/* eslint-enable lantern-i18n/no-hardcoded-string */}
+        {t('workspace.documents.trust-banner')}
       </Callout>
     </div>
   );
@@ -265,6 +265,7 @@ export function DocumentsHome({
   const lastOpenRequest = useEditorStore((s) => s.lastOpenRequest);
   const setActiveTab = useEditorStore((s) => s.setActiveTab);
   const rootPath = useWorkspaceStore((s) => s.rootPath);
+  const selectedPath = useWorkspaceStore((s) => s.selectedPath);
   const storeFileTree = useWorkspaceStore((s) => s.fileTree);
   // Used (only when scoping) to drop nested foreign-client folders from the tree.
   const matters = useMatterStore((s) => s.matters);
@@ -365,6 +366,7 @@ export function DocumentsHome({
     // out of the effect synchronous execution (satisfies react-hooks/set-state-in-effect).
     if (userOnFilesRef.current) {
       queueMicrotask(() => {
+        setActiveView('files');
         setUserOnFiles(false);
         userOnFilesRef.current = false;
       });
@@ -381,6 +383,7 @@ export function DocumentsHome({
     if (!tabBelongsToThisDocumentsView(matchingTab)) return;
     if (userOnFilesRef.current) {
       queueMicrotask(() => {
+        setActiveView('files');
         setUserOnFiles(false);
         userOnFilesRef.current = false;
       });
@@ -399,12 +402,13 @@ export function DocumentsHome({
     if (documentsView === prevDocumentsViewRef.current) return;
     prevDocumentsViewRef.current = documentsView;
     const wantBrowser = documentsView === 'browser' || (embedded && !hasVisibleActiveTab);
-    userOnFilesRef.current = wantBrowser;
-    // queueMicrotask to stay consistent with the external-tab-change effect
-    // above (same rule: no synchronous setState inside the effect body).
-    queueMicrotask(() => {
-      setUserOnFiles(wantBrowser);
-    });
+      userOnFilesRef.current = wantBrowser;
+      // queueMicrotask to stay consistent with the external-tab-change effect
+      // above (same rule: no synchronous setState inside the effect body).
+      queueMicrotask(() => {
+        if (!wantBrowser) setActiveView('files');
+        setUserOnFiles(wantBrowser);
+      });
   }, [documentsView, embedded, hasVisibleActiveTab]);
 
   // ── Tab handlers ─────────────────────────────────────────────────────────
@@ -412,9 +416,15 @@ export function DocumentsHome({
   const handleTabActivate = useCallback(
     (tabPath: string) => {
       if (tabPath === FILES_TAB_ID) {
+        setActiveView('files');
+        userOnFilesRef.current = true;
+        setUserOnFiles(true);
+      } else if (tabPath === TRASH_TAB_ID) {
+        setActiveView('trash');
         userOnFilesRef.current = true;
         setUserOnFiles(true);
       } else {
+        setActiveView('files');
         userOnFilesRef.current = false;
         setUserOnFiles(false);
         setActiveTab(tabPath);
@@ -583,6 +593,23 @@ export function DocumentsHome({
     onCreateFolder(createTargetPath ?? embeddedCreateFallback ?? rootPath ?? '');
   }, [createTargetPath, embeddedCreateFallback, rootPath, onCreateFolder]);
 
+  const handleOpenInExplorer = useCallback(async () => {
+    if (!rootPath) return;
+
+    try {
+      if (typeof window !== 'undefined' && '__TAURI__' in window) {
+        const { invoke } = await import('@tauri-apps/api/core');
+        await invoke('open_in_explorer', {
+          path: resolveExplorerPath(rootPath, selectedPath ?? currentFolderPath),
+        });
+      } else {
+        alert(t('workspace.file-tree.open-on-desktop-browser-only'));
+      }
+    } catch (error) {
+      alert(t('workspace.file-tree.open-on-desktop-failed', { error: String(error) }));
+    }
+  }, [currentFolderPath, rootPath, selectedPath, t]);
+
   const trashBadgeCount = trashStats.itemCount;
 
   const filesCreateMenu = (
@@ -625,62 +652,37 @@ export function DocumentsHome({
     </DropdownMenu>
   );
 
+  const filesMoreMenu = rootPath ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton
+          data-testid="documents-files-more-menu"
+          icon={MoreHorizontal}
+          label={t('workspace.documents.more-actions')}
+          size="xs"
+          variant="ghost"
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuItem
+          data-testid="open-on-desktop"
+          onSelect={() => { void handleOpenInExplorer(); }}
+          className="gap-2"
+        >
+          <ExternalLink className="h-3.5 w-3.5 text-[var(--kp-navy)]" />
+          {t('workspace.file-tree.open-on-desktop')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+
   const filesViewControls = (
     <>
-      {!embedded && (
-        <div
-          className="kp-segmented kp-segmented--md"
-          role="group"
-          aria-label={t('workspace.documents.view-files-trash')}
-        >
-          <button
-            type="button"
-            data-testid="docs-files-toggle"
-            className={`kp-segmented__item${activeView === 'files' ? ' is-active' : ''}`}
-            aria-pressed={activeView === 'files'}
-            onClick={() => { setActiveView('files'); }}
-          >
-            {t('workspace.documents.files')}
-          </button>
-          <button
-            type="button"
-            data-testid="docs-trash-toggle"
-            className={`kp-segmented__item${activeView === 'trash' ? ' is-active' : ''}`}
-            aria-pressed={activeView === 'trash'}
-            onClick={() => { setActiveView('trash'); }}
-          >
-            {t('workspace.documents.trash')}
-            {trashBadgeCount > 0 && (
-              <span
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 18,
-                  height: 18,
-                  borderRadius: 9,
-                  fontSize: 'var(--kp-font-2xs)',
-                  fontWeight: 'var(--kp-weight-bold)',
-                  background:
-                    activeView === 'trash'
-                      ? 'rgba(255,255,255,0.25)'
-                      : 'rgba(10,37,64,0.12)',
-                  color: activeView === 'trash' ? '#fff' : 'var(--kp-navy)',
-                  padding: '0 4px',
-                  marginLeft: 4,
-                }}
-              >
-                {String(trashBadgeCount)}
-              </span>
-            )}
-          </button>
-        </div>
-      )}
-
       {activeView === 'files' && (
         <>
+          {filesCreateMenu}
           <div
-            className="kp-segmented kp-segmented--md"
+            className="kp-segmented kp-segmented--sm"
             role="group"
             aria-label={t('workspace.documents.view-mode')}
             data-testid="docs-view-toggle"
@@ -691,20 +693,22 @@ export function DocumentsHome({
               data-testid="docs-view-tree"
               className={`kp-segmented__item${docsView === 'tree' ? ' is-active' : ''}`}
               aria-pressed={docsView === 'tree'}
+              aria-label={t('workspace.documents.tree')}
+              title={t('workspace.documents.tree')}
               onClick={() => { handleSetDocsView('tree'); }}
             >
               <ListTree size={12} strokeWidth={1.75} />
-              {t('workspace.documents.tree')}
             </button>
             <button
               type="button"
               data-testid="docs-view-grid"
               className={`kp-segmented__item${docsView === 'grid' ? ' is-active' : ''}`}
               aria-pressed={docsView === 'grid'}
+              aria-label={t('workspace.documents.grid')}
+              title={t('workspace.documents.grid')}
               onClick={() => { handleSetDocsView('grid'); }}
             >
               <LayoutGrid size={12} strokeWidth={1.75} />
-              {t('workspace.documents.grid')}
             </button>
           </div>
 
@@ -717,6 +721,7 @@ export function DocumentsHome({
             size="md"
             style={{ flex: 1, minWidth: 220 }}
           />
+          {filesMoreMenu}
         </>
       )}
     </>
@@ -733,10 +738,36 @@ export function DocumentsHome({
 
   // Show the grid when: user explicitly clicked Files, no visible tabs exist,
   // or this embedded client view is looking at a different client's active tab.
-  const showFilesGrid = userOnFiles || visibleTabs.length === 0 || (embedded && !activeVisibleTab);
+  const showFilesGrid = activeView === 'trash' || userOnFiles || visibleTabs.length === 0 || (embedded && !activeVisibleTab);
 
   // The "selected" tab path for highlight purposes in the strip.
-  const selectedTab = showFilesGrid || !activeVisibleTab ? FILES_TAB_ID : (activeTabPath ?? FILES_TAB_ID);
+  const selectedTab = activeView === 'trash'
+    ? TRASH_TAB_ID
+    : showFilesGrid || !activeVisibleTab
+      ? FILES_TAB_ID
+      : (activeTabPath ?? FILES_TAB_ID);
+
+  const trashBadge = trashBadgeCount > 0 ? (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        minWidth: 18,
+        height: 18,
+        borderRadius: 9,
+        fontSize: 'var(--kp-font-2xs)',
+        fontWeight: 'var(--kp-weight-bold)',
+        background: selectedTab === TRASH_TAB_ID
+          ? 'rgba(10,37,64,0.12)'
+          : 'rgba(10,37,64,0.08)',
+        color: 'var(--kp-navy)',
+        padding: '0 4px',
+      }}
+    >
+      {String(trashBadgeCount)}
+    </span>
+  ) : null;
 
   const renderDocumentTabStrip = () => (
     <TabBar
@@ -750,27 +781,55 @@ export function DocumentsHome({
       getTabTestId={(path) => `documents-tab-${path.replace(/[^a-zA-Z0-9_-]+/g, '-')}`}
       {...(onRenameFile ? { onRenameFile } : {})}
       showGroupManagerButton={!embedded}
-      leadingTab={{
-        id: FILES_TAB_ID,
-        label: t('workspace.documents.files'),
-        isActive: selectedTab === FILES_TAB_ID,
-        testId: 'documents-files-tab',
-        onActivate: () => { handleTabActivate(FILES_TAB_ID); },
-        actions: filesCreateMenu,
-        icon: (
-          <FolderOpen
-            style={{
-              width: 'var(--kp-icon-sm)',
-              height: 'var(--kp-icon-sm)',
-              color:
-                selectedTab === FILES_TAB_ID
-                  ? 'var(--kp-navy)'
-                  : 'var(--color-muted-foreground)',
-              strokeWidth: 2,
-            }}
-          />
-        ),
-      }}
+      leadingTabs={[
+        {
+          id: FILES_TAB_ID,
+          label: t('workspace.documents.files'),
+          isActive: selectedTab === FILES_TAB_ID,
+          testId: 'docs-files-toggle',
+          aliasTestIds: ['documents-files-tab'],
+          onActivate: () => { handleTabActivate(FILES_TAB_ID); },
+          icon: (
+            <FolderOpen
+              style={{
+                width: 'var(--kp-icon-sm)',
+                height: 'var(--kp-icon-sm)',
+                color:
+                  selectedTab === FILES_TAB_ID
+                    ? 'var(--kp-navy)'
+                    : 'var(--color-muted-foreground)',
+                strokeWidth: 2,
+              }}
+            />
+          ),
+        },
+        ...(!embedded
+          ? [
+              {
+                id: TRASH_TAB_ID,
+                label: t('workspace.documents.trash'),
+                isActive: selectedTab === TRASH_TAB_ID,
+                testId: 'docs-trash-toggle',
+                aliasTestIds: ['documents-trash-tab'],
+                onActivate: () => { handleTabActivate(TRASH_TAB_ID); },
+                actions: trashBadge,
+                icon: (
+                  <Trash2
+                    style={{
+                      width: 'var(--kp-icon-sm)',
+                      height: 'var(--kp-icon-sm)',
+                      color:
+                        selectedTab === TRASH_TAB_ID
+                          ? 'var(--kp-navy)'
+                          : 'var(--color-muted-foreground)',
+                      strokeWidth: 2,
+                    }}
+                  />
+                ),
+              },
+            ]
+          : []),
+      ]}
     />
   );
 
@@ -794,10 +853,10 @@ export function DocumentsHome({
       {/* Page header — hidden when embedded as a per-client sub-tab (the hub
           already shows the client header above the sub-tab bar). */}
       {!embedded && (
-        <div style={{ padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
+        <div style={{ padding: 'var(--kp-space-sm) var(--kp-gutter)', borderBottom: '1px solid var(--kp-divider)', flexShrink: 0 }}>
           <SurfaceHeader
             Icon={FolderTree}
-            title="Documents"
+            title={t('workspace.documents.title')}
           />
         </div>
       )}
@@ -860,7 +919,7 @@ export function DocumentsHome({
             onPermanentDelete={onPermanentDelete}
             onEmptyTrash={onEmptyTrash}
             docsView={docsView}
-            headerControls={filesViewControls}
+            headerControls={activeView === 'files' ? filesViewControls : undefined}
             currentFolderPath={currentFolderPath}
             onSetCurrentFolderPath={setCurrentFolderPath}
             {...(embeddedCreateFallback ? { createFolderFallback: embeddedCreateFallback } : {})}

@@ -4,7 +4,7 @@
  * Persona-C's klutz exploration reported that the Files menu's "New document"
  * button (shown once a client has files) created a file INSTANTLY with a
  * generic name (`my-document.docx`) and no naming prompt, while the
- * empty-state "+ New Word document" button (shown when a client has zero
+ * empty-state "+ New document" button (shown when a client has zero
  * files) opened the "Create Word Document" naming dialog first — an
  * inconsistent, confusing affordance (see BUG-DB QA-26).
  *
@@ -70,7 +70,25 @@ vi.mock('@/platform/state/editorStore', () => {
 });
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string) => ({
+      'workspace.documents.create-menu': 'New or add',
+      'workspace.documents.new-document': 'New document',
+      'workspace.documents.new-folder': 'New folder',
+      'workspace.documents.add-files': 'Add files',
+      'workspace.documents.title': 'Documents',
+      'workspace.documents.files': 'Files',
+      'workspace.documents.trash': 'Trash',
+      'workspace.documents.view-mode': 'View',
+      'workspace.documents.tree': 'Tree',
+      'workspace.documents.grid': 'Grid',
+      'workspace.documents.search-placeholder': 'Search',
+      'workspace.documents.more-actions': 'More file actions',
+      'workspace.documents.empty-title': 'No files yet',
+      'workspace.documents.empty-body': 'Create or add a file to start.',
+      'workspace.file-tree.open-on-desktop': 'Show on computer',
+    }[key] ?? key),
+  }),
 }));
 
 const EMPTY_TRASH_STATS: TrashStats = { itemCount: 0, totalSize: 0, oldestItem: undefined };
@@ -101,7 +119,7 @@ async function openFilesCreateMenu() {
   await screen.findByTestId('documents-create-document');
 }
 
-describe('QA-26 (P3): Files menu "New document" and empty-state "New Word document" stay consistent', () => {
+describe('QA-26 (P3): Files menu "New document" and empty-state "New document" stay consistent', () => {
   it('both creation affordances are visible on a zero-file client, and BOTH call the same onCreateDefaultDocument entry point', async () => {
     const onCreateDefaultDocument = vi.fn();
     const onCreateFile = vi.fn();
@@ -114,7 +132,7 @@ describe('QA-26 (P3): Files menu "New document" and empty-state "New Word docume
 
     expect(screen.getByTestId('grid-empty-state')).toBeTruthy();
 
-    const emptyStateButton = screen.getByRole('button', { name: 'New Word document' });
+    const emptyStateButton = screen.getByRole('button', { name: 'New document' });
     await openFilesCreateMenu();
     const filesMenuButton = screen.getByTestId('documents-create-document');
     expect(filesMenuButton).toBeTruthy();
@@ -138,7 +156,7 @@ describe('QA-26 (P3): Files menu "New document" and empty-state "New Word docume
 
     await openFilesCreateMenu();
     fireEvent.click(screen.getByTestId('documents-create-document'));
-    fireEvent.click(screen.getByRole('button', { name: 'New Word document' }));
+    fireEvent.click(screen.getByRole('button', { name: 'New document' }));
 
     expect(onCreateDocxAtRoot).toHaveBeenCalledTimes(2);
     expect(onCreateFile).not.toHaveBeenCalled();

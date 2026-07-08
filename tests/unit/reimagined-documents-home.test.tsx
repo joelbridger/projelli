@@ -184,19 +184,30 @@ vi.mock('@/features/documents/workspace/FileTree', () => ({
 // react-i18next mock
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => ({
-      'workspace.documents.create-menu': 'Create or add files',
+    t: (key: string, opts?: { count?: number }) => ({
+      'workspace.documents.create-menu': 'New or add',
       'workspace.documents.new-document': 'New document',
       'workspace.documents.new-folder': 'New folder',
       'workspace.documents.add-files': 'Add files',
+      'workspace.documents.title': 'Documents',
       'workspace.documents.files': 'Files',
       'workspace.documents.trash': 'Trash',
       'workspace.documents.view-files-trash': 'View files or trash',
       'workspace.documents.view-mode': 'View',
       'workspace.documents.tree': 'Tree',
       'workspace.documents.grid': 'Grid',
-      'workspace.documents.search-placeholder': 'Search files...',
-    }[key] ?? key),
+      'workspace.documents.search-placeholder': 'Search',
+      'workspace.documents.more-actions': 'More file actions',
+      'workspace.documents.trust-banner': 'Indexed locally. Nothing uploaded.',
+      'workspace.documents.empty-title': 'No files yet',
+      'workspace.documents.empty-body': 'Create or add a file to start.',
+      'workspace.documents.all-files': 'All files',
+      'workspace.documents.no-results-title': 'No results',
+      'workspace.documents.no-results-body': 'No files match your search. Try a different name.',
+      'workspace.file-tree.open-on-desktop': 'Show on computer',
+    }[key] ?? (key === 'workspace.documents.search-results'
+      ? `${String(opts?.count ?? 0)} ${opts?.count === 1 ? 'result' : 'results'}`
+      : key)),
   }),
 }));
 
@@ -284,7 +295,7 @@ describe('DocumentsHome — vertical tab rail', () => {
     const rail = screen.getByTestId('documents-tab-strip');
     const tabs = Array.from(rail.querySelectorAll('[role="tab"]'));
     expect(tabs[0]?.textContent).toContain('Files');
-    expect(screen.getByTestId('documents-files-tab')).toBe(tabs[0]);
+    expect(screen.getByTestId('docs-files-toggle')).toBe(tabs[0]);
   });
 
   it('keeps the pinned "Files" tab out of drag and group operations', () => {
@@ -296,7 +307,7 @@ describe('DocumentsHome — vertical tab rail', () => {
 
     render(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
 
-    const filesTab = screen.getByTestId('documents-files-tab');
+    const filesTab = screen.getByTestId('docs-files-toggle');
     expect(filesTab.getAttribute('draggable')).not.toBe('true');
 
     const docTab = screen.getByTestId(documentsTabTestId('/workspace/Brief.md'));
@@ -454,7 +465,7 @@ describe('DocumentsHome — vertical tab rail', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
 
     expect(screen.getByTestId('documents-tab-strip')).toHaveStyle({
-      width: '252px',
+      width: '220px',
     });
   });
 
@@ -469,7 +480,7 @@ describe('DocumentsHome — vertical tab rail', () => {
     const { rerender } = render(
       <DocumentsHome {...buildDefaultProps()} documentsView="browser" />,
     );
-    expect(screen.getByTestId('documents-files-tab')).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByTestId('docs-files-toggle')).toHaveAttribute('aria-selected', 'true');
 
     mockActiveTabPath = '/workspace/Evidence.pdf';
     rerender(<DocumentsHome {...buildDefaultProps()} documentsView="editor" />);
@@ -494,7 +505,7 @@ describe('DocumentsHome — vertical tab rail', () => {
       expect(screen.getByTestId('documents-editor-pane')).toBeTruthy();
     });
 
-    fireEvent.click(screen.getByTestId('documents-files-tab'));
+    fireEvent.click(screen.getByTestId('docs-files-toggle'));
     await waitFor(() => {
       expect(screen.getByTestId('document-grid-view')).toBeTruthy();
     });
@@ -722,11 +733,11 @@ describe('DocumentsHome — file open + editor tab', () => {
     expect(onImportFiles).toHaveBeenLastCalledWith('/workspace/Client B');
   });
 
-  it('embedded mode hides the global Trash toggle (cross-client surface)', () => {
+  it('embedded mode hides the global Trash rail item (cross-client surface)', () => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
     const { rerender } = render(<DocumentsHome {...buildDefaultProps()} />);
-    // Global mode shows the Files/Trash toggle.
+    // Global mode shows the Trash rail item.
     expect(screen.queryByTestId('docs-trash-toggle')).toBeTruthy();
     // Embedded (per-client) mode hides it — Trash is a global cross-client view.
     rerender(
@@ -738,7 +749,7 @@ describe('DocumentsHome — file open + editor tab', () => {
       />,
     );
     expect(screen.queryByTestId('docs-trash-toggle')).toBeNull();
-    expect(screen.queryByTestId('docs-files-toggle')).toBeNull();
+    expect(screen.queryByTestId('docs-files-toggle')).toBeTruthy();
   });
 
   it('embedded mode never shows a foreign client\'s open editor tab', () => {
@@ -985,7 +996,7 @@ describe('DocumentsHome — trust banner', () => {
     const btn = screen.getByTestId('add-files-btn');
     fireEvent.click(btn);
     expect(screen.getByTestId('trust-banner')).toBeTruthy();
-    expect(screen.getByText(/indexed on your machine/i)).toBeTruthy();
+    expect(screen.getByText(/indexed locally/i)).toBeTruthy();
   });
 
   it('trust banner can be dismissed', async () => {
@@ -1016,46 +1027,43 @@ describe('DocumentsHome — trust banner', () => {
   });
 });
 
-// ── Trash (inside grid) ────────────────────────────────────────────────────
+// ── Trash (left rail) ──────────────────────────────────────────────────────
 
-describe('DocumentsHome — trash toggle', () => {
+describe('DocumentsHome — trash rail item', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
-  it('shows the Files toggle button in the grid toolbar', () => {
+  it('shows the Files rail item', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const filesBtn = screen.getByRole('button', { name: /^files$/i });
-    expect(filesBtn).toBeTruthy();
+    expect(screen.getByTestId('docs-files-toggle')).toBeTruthy();
   });
 
-  it('shows the Trash toggle button in the grid toolbar', () => {
+  it('shows the Trash rail item', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const trashBtn = screen.getByRole('button', { name: /^trash/i });
-    expect(trashBtn).toBeTruthy();
+    expect(screen.getByTestId('docs-trash-toggle')).toBeTruthy();
   });
 
-  it('clicking the Trash toggle renders the TrashPanel', () => {
+  it('clicking the Trash rail item renders the TrashPanel', () => {
     render(<DocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
     expect(screen.queryByTestId('trash-panel')).toBeNull();
-    const trashBtn = screen.getByRole('button', { name: /^trash/i });
-    fireEvent.click(trashBtn);
+    fireEvent.click(screen.getByTestId('docs-trash-toggle'));
     expect(screen.getByTestId('trash-panel')).toBeTruthy();
   });
 
   it('TrashPanel receives and renders trashed items', () => {
     render(<DocumentsHome {...buildDefaultProps({ trashItems: SAMPLE_TRASH_ITEMS })} />);
-    fireEvent.click(screen.getByRole('button', { name: /^trash/i }));
+    fireEvent.click(screen.getByTestId('docs-trash-toggle'));
     expect(screen.getByTestId('trash-item-trash-1')).toBeTruthy();
     expect(screen.getByText('OldDraft.md')).toBeTruthy();
   });
 
-  it('clicking Files toggle returns to grid view', () => {
+  it('clicking Files rail item returns to grid view', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    fireEvent.click(screen.getByRole('button', { name: /^trash/i }));
+    fireEvent.click(screen.getByTestId('docs-trash-toggle'));
     expect(screen.getByTestId('trash-panel')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /^files$/i }));
+    fireEvent.click(screen.getByTestId('docs-files-toggle'));
     expect(screen.queryByTestId('trash-panel')).toBeNull();
     expect(screen.getByText('Brief.md')).toBeTruthy();
   });
@@ -1221,7 +1229,7 @@ describe('DocumentsHome — Tree | Grid toggle (R6-1)', () => {
     expect(filesView.contains(screen.getByTestId('docs-view-toggle'))).toBe(true);
   });
 
-  it('moves file creation into the Files rail plus menu and removes the old toolbar row', async () => {
+  it('moves file creation into the Files toolbar plus menu and removes the old toolbar row', async () => {
     const onCreateDefaultDocument = vi.fn();
     const onCreateFolder = vi.fn();
     const onImportFiles = vi.fn();
@@ -1615,20 +1623,17 @@ describe('DocumentsHome — tab keyboard accessibility (Fix 1 a11y)', () => {
   });
 });
 
-// ── Fix 2: Grid count with search query active ────────────────────────────────
+// ── Grid count with search query active ───────────────────────────────────────
 
-describe('DocumentGridView — grid count label (Fix 2)', () => {
+describe('DocumentGridView — grid count label', () => {
   beforeEach(() => {
     mockActiveTabPath = null;
     mockOpenTabs = [];
   });
 
-  it('shows total count when no search is active', () => {
+  it('hides the count when no search is active', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
-    const label = screen.getByTestId('grid-dir-label');
-    // mockFileTree has 3 items: Contracts (folder), Brief.md, Evidence.pdf
-    expect(label.textContent).toMatch(/3 items/i);
-    expect(label.textContent).not.toContain(' of ');
+    expect(screen.queryByTestId('grid-dir-label')).toBeNull();
   });
 
   it('shows a result count (not "N of M items") when a search query narrows the results', () => {
@@ -1644,15 +1649,12 @@ describe('DocumentGridView — grid count label (Fix 2)', () => {
     expect(label.textContent).not.toContain(' of ');
   });
 
-  it('restores the plain total label when the search is cleared', () => {
+  it('hides the count again when the search is cleared', () => {
     render(<DocumentsHome {...buildDefaultProps()} />);
     const searchInput = screen.getByRole('textbox');
     fireEvent.change(searchInput, { target: { value: 'brief' } });
     // Now clear the search
     fireEvent.change(searchInput, { target: { value: '' } });
-    const label = screen.getByTestId('grid-dir-label');
-    expect(label.textContent).not.toContain(' of ');
-    expect(label.textContent).not.toMatch(/result/i);
-    expect(label.textContent).toMatch(/3 items/i);
+    expect(screen.queryByTestId('grid-dir-label')).toBeNull();
   });
 });

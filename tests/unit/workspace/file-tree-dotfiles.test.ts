@@ -74,7 +74,7 @@ describe('WorkspaceService.getFileTree — dotfile handling', () => {
     const names = tree.map((n) => n.name);
 
     // Ordinary dotfile + dot-directory are visible; .lantern is hidden for ALL
-    // fileTree consumers (DocumentBrowser/DocumentGridView included).
+    // fileTree consumers, including DocumentGridView.
     expect(names).toContain('.gitignore');
     expect(names).toContain('.git');
     expect(names).toContain('.trash');

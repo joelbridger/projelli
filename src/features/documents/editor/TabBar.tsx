@@ -1,7 +1,7 @@
 // Tab Bar Component
 // Displays open file tabs with close buttons, dirty indicators, drag-to-reorder, and tab groups
 
-import { useCallback, useState, useRef, useEffect, useLayoutEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { Fragment, useCallback, useState, useRef, useEffect, useLayoutEffect, useMemo, useSyncExternalStore, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, GripVertical, MoreHorizontal, Settings, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
@@ -46,6 +46,7 @@ interface LeadingTabConfig {
   actions?: ReactNode;
   isActive: boolean;
   testId?: string;
+  aliasTestIds?: string[];
   onActivate: () => void;
 }
 
@@ -53,6 +54,7 @@ interface TabBarProps {
   orientation?: 'horizontal' | 'vertical';
   onRenameFile?: (path: string, newName: string) => Promise<void>;
   leadingTab?: LeadingTabConfig;
+  leadingTabs?: LeadingTabConfig[];
   tabFilter?: (tab: EditorTab) => boolean;
   selectedTabPath?: string | null;
   onActivateTab?: (path: string) => void;
@@ -100,6 +102,7 @@ export function TabBar({
   orientation = 'horizontal',
   onRenameFile,
   leadingTab,
+  leadingTabs,
   tabFilter,
   selectedTabPath,
   onActivateTab,
@@ -165,6 +168,10 @@ export function TabBar({
   const displayedTabs = useMemo(
     () => (tabFilter ? openTabs.filter(tabFilter) : openTabs),
     [openTabs, tabFilter],
+  );
+  const leadingTabItems = useMemo(
+    () => leadingTabs ?? (leadingTab ? [leadingTab] : []),
+    [leadingTab, leadingTabs],
   );
   const effectiveActiveTabPath =
     selectedTabPath === undefined ? activeTabPath : selectedTabPath;
@@ -363,7 +370,7 @@ export function TabBar({
   useLayoutEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- scroll arrow visibility must be measured before paint to avoid flicker.
     updateScrollButtons();
-  }, [updateScrollButtons, displayedTabs.length, tabGroups.length, leadingTab]);
+  }, [updateScrollButtons, displayedTabs.length, tabGroups.length, leadingTabItems]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -868,7 +875,7 @@ export function TabBar({
     clearDragState();
   }, [openTabs, ungroupTab, clearDragState]);
 
-  if (displayedTabs.length === 0 && !leadingTab) {
+  if (displayedTabs.length === 0 && leadingTabItems.length === 0) {
     return null;
   }
 
@@ -1390,21 +1397,20 @@ export function TabBar({
     );
   };
 
-  const renderLeadingTab = () => {
-    if (!leadingTab) return null;
+  const renderLeadingTab = (item: LeadingTabConfig) => {
     return (
       <div
         role="tab"
         tabIndex={0}
-        data-testid={leadingTab.testId}
-        data-leading-tab-id={leadingTab.id}
-        aria-selected={leadingTab.isActive}
+        data-testid={item.testId}
+        data-leading-tab-id={item.id}
+        aria-selected={item.isActive}
         className={cn(
-          'flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0',
+          'relative flex items-center gap-1.5 text-sm font-medium transition-colors flex-shrink-0',
           isVertical
             ? 'w-full rounded-md border border-transparent px-3 py-2 text-left'
             : 'px-3 border-r',
-          leadingTab.isActive
+          item.isActive
             ? isVertical
               ? 'bg-[var(--kp-accent-soft)] text-[var(--kp-navy)] border-[rgba(var(--kp-navy-rgb),0.10)]'
               : 'bg-background text-foreground'
@@ -1413,11 +1419,11 @@ export function TabBar({
               : 'text-muted-foreground hover:bg-muted/50',
         )}
         style={isVertical ? { minHeight: 38 } : { height: TAB_STRIP_HEIGHT }}
-        onClick={leadingTab.onActivate}
+        onClick={item.onActivate}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            leadingTab.onActivate();
+            item.onActivate();
           }
         }}
         onDragOver={(e) => {
@@ -1430,15 +1436,23 @@ export function TabBar({
           e.stopPropagation();
         }}
       >
-        {leadingTab.icon}
-        <span className="min-w-0 flex-1 truncate">{leadingTab.label}</span>
-        {leadingTab.actions ? (
+        {item.aliasTestIds?.map((alias) => (
+          <span
+            key={alias}
+            data-testid={alias}
+            aria-hidden="true"
+            className="absolute inset-0"
+          />
+        ))}
+        {item.icon}
+        <span className="min-w-0 flex-1 truncate">{item.label}</span>
+        {item.actions ? (
           <span
             className="ml-auto flex flex-none items-center"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
-            {leadingTab.actions}
+            {item.actions}
           </span>
         ) : null}
       </div>
@@ -1478,7 +1492,7 @@ export function TabBar({
       role="tablist"
       aria-label={ariaLabel}
       aria-orientation={orientation}
-      style={isVertical ? { width: 252, minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
+      style={isVertical ? { width: 220, minHeight: 0 } : { minHeight: TAB_STRIP_HEIGHT }}
     >
       <div
         className={cn(
@@ -1491,7 +1505,9 @@ export function TabBar({
         onDragLeave={handleTabBarDragLeave}
         onDrop={handleTabBarDrop}
       >
-        {renderLeadingTab()}
+        {leadingTabItems.map((item) => (
+          <Fragment key={item.id}>{renderLeadingTab(item)}</Fragment>
+        ))}
 
         {/* Left scroll arrow — only visible when scrolled right */}
         {!isVertical && canScrollLeft && (
@@ -1592,17 +1608,17 @@ export function TabBar({
             size="sm"
             className={cn(
               isVertical
-                ? 'mt-2 h-8 w-full justify-start gap-2 border-t px-2 pt-2'
+                ? 'mt-2 h-8 w-full justify-center border-t px-2 pt-2'
                 : 'px-2 border-l flex-shrink-0',
             )}
             style={isVertical ? undefined : { height: TAB_STRIP_HEIGHT }}
             onClick={() => {
               setShowGroupManager(true);
             }}
-            title="Manage Tab Groups"
+            title={t('editor.tab-group-manager.title')}
+            aria-label={t('editor.tab-group-manager.title')}
           >
             <Settings className="h-3.5 w-3.5" />
-            {isVertical && <span className="text-xs">{t('editor.tab-group-manager.title')}</span>}
           </Button>
         )}
 

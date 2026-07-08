@@ -435,6 +435,13 @@
   }
   .kp-card--interactive:hover { box-shadow: var(--kp-shadow-2); border-color: rgba(var(--kp-navy-rgb),0.2); }
   .kp-card--featured { border-color: var(--kp-navy); border-width: var(--kp-border-width-strong); background: rgba(var(--kp-navy-rgb),0.03); }
+  .document-grid-tile:hover {
+    background: rgba(var(--kp-navy-rgb),0.04) !important;
+  }
+  .document-grid-tile:focus-visible {
+    outline: 2px solid rgba(var(--kp-navy-rgb),0.35);
+    outline-offset: 2px;
+  }
 
   /* ---- EmptyState --------------------------------------------------- */
   .kp-empty {
