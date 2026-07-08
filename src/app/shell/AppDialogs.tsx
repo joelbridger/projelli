@@ -83,6 +83,8 @@ export interface AppDialogsProps {
   settingsInitialCategory: SettingCategory | undefined;
   handleSettingsAction: (actionId: string) => void;
   handleSettingsRestartOnboarding: () => void;
+  /** Whether a workspace is open. AI rules need a workspace file to edit. */
+  hasWorkspaceOpen: boolean;
 
   // Account window
   accountWindowOpen: boolean;
@@ -168,6 +170,7 @@ export function AppDialogs({
   settingsInitialCategory,
   handleSettingsAction,
   handleSettingsRestartOnboarding,
+  hasWorkspaceOpen,
   accountWindowOpen,
   setAccountWindowOpen,
   accountWindowInitialTab,
@@ -273,6 +276,7 @@ export function AppDialogs({
         onOpenChange={setShowSettingsModal}
         auditEntries={auditEntries}
         templates={loadAllTemplates()}
+        hasWorkspaceOpen={hasWorkspaceOpen}
         {...(settingsInitialCategory ? { initialCategory: settingsInitialCategory } : {})}
         onAction={handleSettingsAction}
         onRestartOnboarding={handleSettingsRestartOnboarding}

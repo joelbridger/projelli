@@ -161,12 +161,12 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
   {
     key: 'startupBehavior',
     category: 'workspace',
-    label: 'Startup',
-    description: 'What happens when you launch Lantern.',
+    label: 'On startup',
+    description: 'Choose what Lantern opens when the app starts.',
     type: 'select',
     defaultValue: 'reopen',
     options: [
-      { value: 'reopen', label: 'Reopen last workspace' },
+      { value: 'reopen', label: 'Reopen where you left off' },
       { value: 'selector', label: 'Show workspace selector' },
     ],
   },
@@ -405,7 +405,8 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     key: 'manageAIRules',
     category: 'ai-privacy',
     label: 'AI rules',
-    description: 'Customize how AI behaves in this workspace.',
+    description:
+      'Opens ai-rules.md — standing instructions the AI follows in every chat.',
     type: 'text', // rendered as action link
     defaultValue: '',
     action: { label: 'Manage AI rules', actionId: 'open-ai-rules' },

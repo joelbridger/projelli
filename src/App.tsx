@@ -2102,6 +2102,7 @@ function AppShell() {
         settingsInitialCategory={settingsInitialCategory}
         handleSettingsAction={handleSettingsAction}
         handleSettingsRestartOnboarding={handleSettingsRestartOnboarding}
+        hasWorkspaceOpen={Boolean(rootPath)}
         accountWindowOpen={accountWindowOpen}
         setAccountWindowOpen={setAccountWindowOpen}
         accountWindowInitialTab={accountWindowInitialTab}

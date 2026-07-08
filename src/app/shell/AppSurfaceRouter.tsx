@@ -675,6 +675,7 @@ export function AppSurfaceRouter({
                 variant="page"
                 auditEntries={auditEntries}
                 templates={loadAllTemplates()}
+                hasWorkspaceOpen={Boolean(rootPath)}
                 onAction={handleSettingsAction}
                 onRestartOnboarding={handleSettingsRestartOnboarding}
                 {...(settingsPageFocus?.category

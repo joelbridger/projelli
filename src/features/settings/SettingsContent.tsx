@@ -103,11 +103,7 @@ import {
 import { useConfirmDialog } from '@/platform/hooks/useConfirmDialog';
 import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
-const HIDDEN_SETTING_KEYS = new Set([
-  'startupBehavior',
-  'tabOverflow',
-  'manageAIRules',
-]);
+const HIDDEN_SETTING_KEYS = new Set(['tabOverflow']);
 
 const INLINE_DESCRIPTION_KEYS = new Set([
   'autoSaveInterval',
@@ -159,6 +155,8 @@ export interface SettingsContentProps {
   variant?: 'modal' | 'page';
   /** Optional close handler for the modal header X (modal variant only). */
   onClose?: (() => void) | undefined;
+  /** Whether a workspace is open. AI rules need a workspace file to edit. */
+  hasWorkspaceOpen?: boolean | undefined;
   /**
    * Extra, non-schema nav sections appended after the 5 settings sections.
    * The gear opens the Settings screen and Privacy Center + Activity Log are
@@ -214,17 +212,23 @@ function SettingRow({
   value,
   onChange,
   onAction,
+  hasWorkspaceOpen,
 }: {
   def: SettingDefinition;
   value: unknown;
   onChange: (v: unknown) => void;
   onAction?: (actionId: string) => void;
+  hasWorkspaceOpen: boolean;
 }) {
   const controlId = `setting-control-${def.key}`;
   const showHelp = shouldShowSettingHelp(def);
 
   // Action link (e.g. "Manage API Keys")
   if (def.action) {
+    const actionDisabled = def.key === 'manageAIRules' && !hasWorkspaceOpen;
+    const disabledHint = actionDisabled ? 'Open a workspace first' : undefined;
+    const showInlineDescription = def.key === 'manageAIRules';
+
     return (
       <div
         data-testid={`setting-${def.key}`}
@@ -235,16 +239,30 @@ function SettingRow({
             <Label className="text-sm font-medium">{def.label}</Label>
             {showHelp && <InfoHelp content={def.description} label={`About ${def.label}`} />}
           </div>
+          {showInlineDescription && (
+            <p className="mt-1 max-w-[34rem] text-xs leading-relaxed text-muted-foreground">
+              {def.description}
+            </p>
+          )}
         </div>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconRight={ExternalLink}
-          className="shrink-0"
-          onClick={() => { onAction?.(def.action?.actionId ?? ''); }}
-        >
-          {def.action.label}
-        </Button>
+        <div className="shrink-0 text-right">
+          <Button
+            variant="secondary"
+            size="sm"
+            iconRight={ExternalLink}
+            className="shrink-0"
+            disabled={actionDisabled}
+            aria-describedby={disabledHint ? `${controlId}-hint` : undefined}
+            onClick={() => { onAction?.(def.action?.actionId ?? ''); }}
+          >
+            {def.action.label}
+          </Button>
+          {disabledHint && (
+            <p id={`${controlId}-hint`} className="mt-1 text-xs text-muted-foreground">
+              {disabledHint}
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -556,6 +574,7 @@ interface SectionProps {
   templates?: WorkflowTemplate[] | undefined;
   onRestartOnboarding?: (() => void) | undefined;
   onNavigate: (section: SectionCategory) => void;
+  hasWorkspaceOpen: boolean;
 }
 
 /** Does any of `keys` survive the current search filter? Used to decide
@@ -581,6 +600,7 @@ function renderRows(
           value={props.getSetting(def.key)}
           onChange={(v) => { props.setSetting(def.key, v); }}
           onAction={props.onAction}
+          hasWorkspaceOpen={props.hasWorkspaceOpen}
         />
       );
     });
@@ -591,13 +611,14 @@ function settingMatchesQuery(def: SettingDefinition, lowerQ: string): boolean {
   if (def.label.toLowerCase().includes(lowerQ)) return true;
   if (def.description.toLowerCase().includes(lowerQ)) return true;
   if (def.key.toLowerCase().includes(lowerQ)) return true;
+  if (def.options?.some((opt) => opt.label.toLowerCase().includes(lowerQ))) return true;
   return (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
     (term) => term.includes(lowerQ) || lowerQ.includes(term)
   );
 }
 
 function WorkspaceSection(props: SectionProps) {
-  const generalKeys = ['showWhatsNew'];
+  const generalKeys = ['startupBehavior', 'showWhatsNew'];
   const editorKeys  = ['fontSize', 'autoSave', 'autoSaveInterval', 'wordWrap', 'lineNumbers'];
   const filesKeys   = ['defaultNewFileType', 'letterheadTemplatePath', 'trashRetention', 'showHiddenFiles'];
 
@@ -637,7 +658,7 @@ function WorkspaceSection(props: SectionProps) {
 function AiSection(props: SectionProps) {
   // Token-limit keys go under a collapsed "Advanced" group (NEW-016): non-technical
   // advisors shouldn't see raw token numbers up front.
-  const aiMainKeys     = ['ambientFileContext', 'keepRecentTurns', 'manageApiKeys'];
+  const aiMainKeys     = ['ambientFileContext', 'keepRecentTurns', 'manageApiKeys', 'manageAIRules'];
   const aiAdvancedKeys = ['ambientContextTokenLimit', 'chatContextTokenLimit'];
   const memoryKeys = ['memoryEnabled', 'factsInjection', 'factsAutoAccept', 'includePdfsInWorkspaceIndex', 'ocrScannedPdfs'];
   // confidentialityMode and privilegedMatterMode are rendered by ConfidentialityModeSettings
@@ -964,6 +985,7 @@ export function SettingsContent({
   onRestartOnboarding,
   variant = 'modal',
   onClose,
+  hasWorkspaceOpen = true,
   extraSections,
 }: SettingsContentProps) {
   const { t } = useTranslation();
@@ -1058,7 +1080,9 @@ export function SettingsContent({
       const aliasHit = (SETTING_SEARCH_ALIASES[def.key] ?? []).some(
         (term) => term.includes(lowerQ) || lowerQ.includes(term)
       );
+      const optionHit = def.options?.some((opt) => opt.label.toLowerCase().includes(lowerQ)) ?? false;
       if (def.label.toLowerCase().includes(lowerQ) || aliasHit) bump(sec, 3);
+      else if (optionHit) bump(sec, 3);
       else if (def.key.toLowerCase().includes(lowerQ)) bump(sec, 2);
       else if (def.description.toLowerCase().includes(lowerQ)) bump(sec, 1);
     }
@@ -1174,6 +1198,7 @@ export function SettingsContent({
     templates,
     onRestartOnboarding,
     onNavigate: setActiveSection,
+    hasWorkspaceOpen,
   };
 
   return (
