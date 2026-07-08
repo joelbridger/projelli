@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
@@ -46,10 +46,14 @@ vi.mock('@/platform/hooks/useFirm', () => ({
 }));
 
 // ── Workspace store (empty tree) ───────────────────────────────────────────────
-vi.mock('@/platform/fs/workspaceStore', () => ({
-  useWorkspaceStore: (sel: (s: { rootPath: string | null; fileTree: unknown[] }) => unknown) =>
-    sel({ rootPath: null, fileTree: [] }),
-}));
+vi.mock('@/platform/fs/workspaceStore', () => {
+  const workspaceState = { rootPath: null as string | null, fileTree: [] as unknown[] };
+  const useWorkspaceStore = Object.assign(
+    (sel: (s: typeof workspaceState) => unknown) => sel(workspaceState),
+    { getState: () => workspaceState },
+  );
+  return { useWorkspaceStore };
+});
 
 // ── Tauri keychain (firm module deps) ─────────────────────────────────────────
 vi.mock('@tauri-apps/api/core', () => ({
@@ -81,6 +85,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
 }));
 
 vi.mock('@/platform/rag/MemoryService', () => ({
+  isMemoryEnabled: () => false,
   MemoryService: {
     retrieve: vi.fn(async () => []),
   },
@@ -98,7 +103,43 @@ import { MatterHub } from '@/features/matters/MatterHub';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 
 function resetStore() {
-  useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null });
+  useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null, pendingMeetingOpen: null });
+}
+
+function makeMeetingsWorkspace() {
+  const meetingDir = 'C:/WS/Clients/Acme/Meetings/direct';
+  return {
+    exists: vi.fn(async (path: string) => path === 'C:/WS/Clients/Acme/Meetings'),
+    list: vi.fn(async (path: string) => {
+      if (path === 'C:/WS/Clients/Acme/Meetings') {
+        return [{ name: 'direct', path: meetingDir, type: 'folder' as const }];
+      }
+      if (path === meetingDir) {
+        return [
+          { name: 'meeting.json', path: `${meetingDir}/meeting.json`, type: 'file' as const },
+          { name: 'transcript.json', path: `${meetingDir}/transcript.json`, type: 'file' as const },
+        ];
+      }
+      return [];
+    }),
+    readFile: vi.fn(async (path: string) => {
+      if (path.endsWith('.consent-ledger.json')) return JSON.stringify({ entries: [], notices: [] });
+      if (path.endsWith('meeting.json')) {
+        return JSON.stringify({
+          matterId: 'm1',
+          startedAt: '2026-07-04T10:00:00Z',
+          customTitle: 'Direct review',
+          consent: { mode: 'one-party', confirmedBy: 'user', confirmedAt: '2026-07-04T10:00:00Z' },
+        });
+      }
+      if (path.endsWith('transcript.json')) return JSON.stringify({ segments: [] });
+      throw new Error('not present');
+    }),
+    writeFile: vi.fn(async () => {}),
+    readFileBinary: vi.fn(async () => { throw new Error('not present'); }),
+    writeFileBinary: vi.fn(async () => {}),
+    delete: vi.fn(async () => {}),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -336,6 +377,33 @@ describe('MatterHub — sub-tab workspace', () => {
     // Overview is the default and leads with the Client Map.
     expect(screen.getByTestId('hub-subtab-panel-overview')).toBeInTheDocument();
     expect(screen.getByTestId('hub-panel-clientmap')).toBeInTheDocument();
+  });
+
+  it('opens a requested meeting inside the Meetings rail, not as a standalone detail page', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Acme Plan',
+      client: 'Acme',
+      folderPaths: ['C:/WS/Clients/Acme'],
+    });
+    useMatterStore.getState().setPendingMeetingOpen({
+      meetingDir: 'C:/WS/Clients/Acme/Meetings/direct',
+      startMs: 12_000,
+    });
+
+    render(
+      <MatterHub
+        matterId={matter.id}
+        onBack={() => undefined}
+        workspaceService={makeMeetingsWorkspace() as never}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('client-meetings-tab')).toBeInTheDocument());
+    expect(screen.getByRole('list', { name: 'Meetings' })).toBeVisible();
+    expect(screen.getByTestId('client-meetings-rail-header')).toContainElement(screen.getByTestId('record-meeting-button'));
+    await waitFor(() => expect(within(screen.getByTestId('meeting-entry')).getByText('Direct review')).toBeVisible());
+    expect(screen.queryByTestId('meeting-entry-back')).toBeNull();
+    expect(useMatterStore.getState().pendingMeetingOpen).toBeNull();
   });
 
   it('clicking a sub-tab renders its supplied scoped surface in place (no global navigation)', () => {

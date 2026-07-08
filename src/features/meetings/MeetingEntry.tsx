@@ -48,6 +48,8 @@ export interface MeetingEntryProps {
   /** Optional hook for embedded master-detail views to refresh their rail after
    *  this detail page changes meeting files or notice evidence. */
   onChanged?: () => void;
+  /** The master-detail meetings rail already provides navigation context. */
+  showBackButton?: boolean;
 }
 
 const audit = new AuditService('meetings');
@@ -92,7 +94,7 @@ function transcriptLooksSilent(transcript: TranscriptFile | null): boolean {
   return !!transcript && transcript.segments.every((seg) => !seg.text.trim());
 }
 
-export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService, onChanged }: MeetingEntryProps) {
+export function MeetingEntry({ matterId, meetingDir, folderName, clientName, workspaceRoot, onBack, initialSeekMs, workspaceService, onChanged, showBackButton = true }: MeetingEntryProps) {
   const { t } = useTranslation();
   const [meta, setMeta] = useState<MeetingMeta | null>(null);
   const [transcript, setTranscript] = useState<TranscriptFile | null>(null);
@@ -522,9 +524,11 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: 'var(--kp-surface-header-pad)', borderBottom: '1px solid var(--kp-divider)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
-            <ChevronLeft style={{ width: 18, height: 18 }} />
-          </button>
+          {showBackButton && (
+            <button type="button" data-testid="meeting-entry-back" onClick={onBack} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex' }}>
+              <ChevronLeft style={{ width: 18, height: 18 }} />
+            </button>
+          )}
           <div style={{ fontSize: 'var(--kp-font-sm)', color: 'var(--color-muted-foreground)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{clientName} / {t('meetings.entry.breadcrumb-meetings')} /</span>
             {renaming ? (

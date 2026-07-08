@@ -45,7 +45,6 @@ describe('ClientMeetingsTab — master-detail rail', () => {
       <ClientMeetingsTab
         matterId="m1"
         matterFolder="C:/WS/Clients/Acme"
-        onOpenMeeting={() => {}}
         workspaceService={makeWorkspace() as never}
       />,
     );
@@ -58,6 +57,7 @@ describe('ClientMeetingsTab — master-detail rail', () => {
     expect(recordButton).toHaveTextContent('');
 
     await waitFor(() => expect(screen.getByTestId('meeting-entry')).toBeVisible());
+    expect(screen.queryByTestId('meeting-entry-back')).toBeNull();
     expect(screen.getByTestId('meeting-subtab-recording')).toBeVisible();
     expect(screen.getByTestId('meeting-subtab-transcript')).toBeVisible();
     expect(screen.getByTestId('meeting-subtab-summary')).toBeVisible();
@@ -73,5 +73,26 @@ describe('ClientMeetingsTab — master-detail rail', () => {
     fireEvent.click(rows[1]!);
     await waitFor(() => expect(screen.getAllByTestId('meeting-row')[1]).toHaveAttribute('aria-current', 'page'));
     expect(screen.queryByTestId('meeting-title-input')).toBeNull();
+  });
+
+  it('opens a direct requested meeting inside the rail with no embedded back arrow', async () => {
+    render(
+      <ClientMeetingsTab
+        matterId="m1"
+        matterFolder="C:/WS/Clients/Acme"
+        workspaceService={makeWorkspace() as never}
+        initialSelectedMeeting={{
+          dir: 'C:/WS/Clients/Acme/Meetings/a',
+          folderName: 'a',
+          startMs: 45_000,
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByTestId('client-meetings-tab')).toBeVisible());
+    expect(screen.getByRole('list', { name: 'Meetings' })).toBeVisible();
+    await waitFor(() => expect(within(screen.getByTestId('meeting-entry')).getByText('Annual review')).toBeVisible());
+    expect(screen.queryByTestId('meeting-entry-back')).toBeNull();
+    expect(screen.getAllByTestId('meeting-row')[1]).toHaveAttribute('aria-current', 'page');
   });
 });

@@ -166,20 +166,20 @@ export async function listClientMeetings(
 export interface ClientMeetingsTabProps {
   matterId: string;
   matterFolder: string;
-  /** Kept for the parent hub's older full-page meeting route. Normal row
-   *  selection now stays inside this master-detail tab so the rail remains
-   *  visible. */
-  onOpenMeeting: (meeting: MeetingSummary) => void;
   /** Injected by MatterHub (ultimately the app-layer active WorkspaceService) —
    *  features must not reach for the app-layer singleton themselves, per
    *  ARCHITECTURE.md's DAG. Null before a workspace is open. */
   workspaceService: ListableWorkspace | null;
+  /** Optional direct-open request from Client Map source links or Activity rows.
+   *  The tab still owns the rail and opens this meeting inside the right pane. */
+  initialSelectedMeeting?: { dir: string; folderName: string; startMs?: number };
 }
 
-export function ClientMeetingsTab({ matterId, matterFolder, workspaceService }: ClientMeetingsTabProps) {
+export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, initialSelectedMeeting }: ClientMeetingsTabProps) {
   const { t, i18n } = useTranslation();
   const [meetings, setMeetings] = useState<MeetingSummary[]>([]);
-  const [selectedMeetingDir, setSelectedMeetingDir] = useState<string | null>(null);
+  const [selectedMeetingDir, setSelectedMeetingDir] = useState<string | null>(() => initialSelectedMeeting?.dir ?? null);
+  const [directOpenMeeting, setDirectOpenMeeting] = useState(initialSelectedMeeting ?? null);
   const [loading, setLoading] = useState(true);
   const [scanFailed, setScanFailed] = useState(false);
   const recording = useMeetingStore((s) => s.status.recording);
@@ -232,6 +232,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService }: 
     const { meetings: list, scanFailed: failed } = await listClientMeetings(matterFolder, ws);
     setMeetings(list);
     setSelectedMeetingDir((current) => {
+      if (current && directOpenMeeting?.dir === current) return current;
       if (list.length === 0) return null;
       if (current && list.some((meeting) => meeting.dir === current)) return current;
       return list[0]?.dir ?? null;
@@ -259,7 +260,7 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService }: 
       setNoticeCardEvidence({});
     }
     setLoading(false);
-  }, [matterFolder, workspaceService]);
+  }, [matterFolder, workspaceService, directOpenMeeting?.dir]);
 
   const handleMeetingChanged = useCallback(() => {
     void refresh().catch(() => {
@@ -269,6 +270,12 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService }: 
   }, [refresh]);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (!initialSelectedMeeting) return;
+    setDirectOpenMeeting(initialSelectedMeeting);
+    setSelectedMeetingDir(initialSelectedMeeting.dir);
+  }, [initialSelectedMeeting]);
+
   // Refresh once a recording for this client finishes AND its post-stop
   // pipeline (transcription + notes) is done, so the new meeting appears —
   // with its notes — without the advisor leaving and reopening the tab.
@@ -402,16 +409,37 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService }: 
   // error must read as "couldn't check," never as "your recordings are gone."
   const showScanError = !loading && !busy && scanFailed;
   const showEmpty = !loading && !busy && !scanFailed && meetings.length === 0;
-  const selectedMeeting = meetings.find((meeting) => meeting.dir === selectedMeetingDir) ?? null;
+  const selectedMeeting =
+    meetings.find((meeting) => meeting.dir === selectedMeetingDir) ??
+    (directOpenMeeting && selectedMeetingDir === directOpenMeeting.dir
+      ? {
+          dir: directOpenMeeting.dir,
+          folderName: directOpenMeeting.folderName,
+          meta: null,
+          hasNotes: false,
+          hasAudio: false,
+          hasTranscript: false,
+        }
+      : null);
+  const selectedMeetingInitialSeekMs =
+    selectedMeeting && directOpenMeeting?.dir === selectedMeeting.dir
+      ? directOpenMeeting.startMs
+      : undefined;
   const clientName = matter ? matterLabel(matter) : matterId;
+
+  const handleSelectMeeting = useCallback((dir: string) => {
+    setDirectOpenMeeting(null);
+    setSelectedMeetingDir(dir);
+  }, []);
 
   useEffect(() => {
     setSelectedMeetingDir((current) => {
+      if (current && directOpenMeeting?.dir === current) return current;
       if (meetings.length === 0) return null;
       if (current && meetings.some((meeting) => meeting.dir === current)) return current;
       return meetings[0]?.dir ?? null;
     });
-  }, [meetings]);
+  }, [meetings, directOpenMeeting?.dir]);
 
   const meetingItems = useMemo<RailShellItem[]>(() => meetings.map((m) => {
     const noticeState = noticeStates[meetingDirKey(m.dir)];
@@ -552,24 +580,26 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService }: 
     >
       <RailShell
         header={
-          <RailShellHeader
-            title={t('meetings.entry.breadcrumb-meetings')}
-            actions={
-              <IconButton
-                data-testid="record-meeting-button"
-                icon={Mic}
-                label={recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
-                onClick={handleRecordClick}
-                disabled={recording}
-                variant="primary"
-              />
-            }
-          />
+          <div data-testid="client-meetings-rail-header">
+            <RailShellHeader
+              title={t('meetings.entry.breadcrumb-meetings')}
+              actions={
+                <IconButton
+                  data-testid="record-meeting-button"
+                  icon={Mic}
+                  label={recording ? t('meetings.tab.recording') : t('meetings.tab.record-button')}
+                  onClick={handleRecordClick}
+                  disabled={recording}
+                  variant="primary"
+                />
+              }
+            />
+          </div>
         }
         listAriaLabel={t('meetings.entry.breadcrumb-meetings')}
         items={meetingItems}
         activeId={selectedMeeting?.dir ?? null}
-        onSelect={setSelectedMeetingDir}
+        onSelect={handleSelectMeeting}
         emptyState={railEmptyState}
         railWidth={268}
         className="flex-1"
@@ -585,6 +615,8 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService }: 
             workspaceService={workspaceService as WorkspaceService | null}
             onBack={() => { setSelectedMeetingDir(null); }}
             onChanged={handleMeetingChanged}
+            showBackButton={false}
+            {...(selectedMeetingInitialSeekMs !== undefined ? { initialSeekMs: selectedMeetingInitialSeekMs } : {})}
           />
         ) : (
           <div style={{ display: 'flex', minHeight: 0, flex: 1, flexDirection: 'column', justifyContent: 'center', padding: 'var(--kp-gutter)' }}>

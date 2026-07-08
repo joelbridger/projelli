@@ -34,7 +34,6 @@ describe('ClientMeetingsTab — notes-failed row copy (QA-31)', () => {
       <ClientMeetingsTab
         matterId="m1"
         matterFolder="C:/WS/Clients/Acme"
-        onOpenMeeting={() => {}}
         workspaceService={makeWorkspace(META_OK)}
       />,
     );
@@ -47,7 +46,6 @@ describe('ClientMeetingsTab — notes-failed row copy (QA-31)', () => {
       <ClientMeetingsTab
         matterId="m1"
         matterFolder="C:/WS/Clients/Acme"
-        onOpenMeeting={() => {}}
         workspaceService={makeWorkspace({
           ...META_OK,
           notesError: { kind: 'error', at: '2026-07-04T10:05:00Z' },
