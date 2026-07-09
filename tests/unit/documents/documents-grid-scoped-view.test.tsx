@@ -234,6 +234,49 @@ describe('DocumentsHome — Grid view with relative tree paths (real bug shape)'
     expect(onImportFiles).toHaveBeenCalledWith(`${ROOT}/Clients/Acme`);
   });
 
+  it('zero-file client Documents tab sends BOTH New document buttons to the absolute client folder', async () => {
+    mockStoreFileTree = [
+      {
+        id: 'clients',
+        name: 'Clients',
+        path: 'Clients',
+        type: 'folder',
+        children: [
+          {
+            id: 'acme',
+            name: 'Acme',
+            path: 'Clients/Acme',
+            type: 'folder',
+            children: [],
+          },
+        ],
+      },
+    ];
+    const onCreateDefaultDocument = vi.fn();
+    render(
+      <DocumentsHome
+        {...buildProps({ onCreateDefaultDocument })}
+        embedded
+        scopeFolderPaths={[`${ROOT}/Clients/Acme`]}
+        scopeMatterId="acme"
+      />,
+    );
+
+    expect(screen.getByTestId('grid-empty-state')).toBeTruthy();
+    const emptyStateButton = screen
+      .getByTestId('grid-empty-state')
+      .querySelector('button');
+    expect(emptyStateButton).toBeTruthy();
+
+    await openFilesCreateMenu();
+    fireEvent.click(screen.getByTestId('documents-create-document'));
+    fireEvent.click(emptyStateButton!);
+
+    expect(onCreateDefaultDocument).toHaveBeenCalledTimes(2);
+    expect(onCreateDefaultDocument).toHaveBeenNthCalledWith(1, `${ROOT}/Clients/Acme`);
+    expect(onCreateDefaultDocument).toHaveBeenNthCalledWith(2, `${ROOT}/Clients/Acme`);
+  });
+
   it('navigating to an ANCESTOR folder (e.g. "Clients") does not let create/import escape the client scope (Codex review round 3, P1)', async () => {
     // The scoped tree deliberately keeps ancestor folders (here "Clients") so
     // the client's own mapped folder is reachable via breadcrumbs. Fixing the

@@ -24,7 +24,12 @@ import { resolveWorkspacePath } from '@/platform/fs/pathResolve';
 import { workspacePath } from '@/platform/fs/appPath';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
+import {
+  resolveClientDocumentFolderPaths,
+  shouldBackfillClientDocumentFolder,
+} from '@/app/shell/clientDocumentFolderPaths';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import {
@@ -325,6 +330,7 @@ export function AppSurfaceRouter({
     embedded?: boolean;
     scopeFolderPaths?: string[];
     scopeMatterId?: string;
+    ensureScopeFolder?: () => void;
   }) => (
     <DocumentsHome
       // Per-client key so switching clients on the same sub-tab REMOUNTS this
@@ -340,15 +346,27 @@ export function AppSurfaceRouter({
       documentsView={documentsView}
       onFileOpen={handleFileOpen}
       onCreateFile={handleCreateFile}
-      onCreateFolder={handleCreateFolder}
+      onCreateFolder={(parentPath) => {
+        opts.ensureScopeFolder?.();
+        handleCreateFolder(parentPath);
+      }}
       onRename={handleRename}
       onRenameFile={handleRenameWithName}
       onDelete={handleDelete}
       onMove={handleMove}
       onDownload={handleDownload}
-      onCreateDefaultDocument={handleCreateDefaultDocument}
-      onImportFiles={handleImportFiles}
-      onCreateDocxAtRoot={handleCreateDocxAtRoot}
+      onCreateDefaultDocument={(parentPath) => {
+        opts.ensureScopeFolder?.();
+        handleCreateDefaultDocument(parentPath);
+      }}
+      onImportFiles={(folderPath) => {
+        opts.ensureScopeFolder?.();
+        return handleImportFiles(folderPath);
+      }}
+      onCreateDocxAtRoot={(parentPath) => {
+        opts.ensureScopeFolder?.();
+        return handleCreateDocxAtRoot(parentPath);
+      }}
       onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
       onCreateFolderAtRoot={handleCreateFolderAtRoot}
       onSetLetterheadTemplate={handleSetLetterheadTemplate}
@@ -492,11 +510,36 @@ export function AppSurfaceRouter({
             // outer `activeMatter` closure, which can lag behind the hub's client
             // on a switch. This guarantees `scopeFolderPaths`/`scopeMatterId`
             // describe the client actually on screen (2026-07-01 re-fix).
-            buildDocumentsHome({
-              embedded: true,
-              scopeFolderPaths: hubMatter?.folderPaths ?? [],
-              ...(hubMatter ? { scopeMatterId: hubMatter.id } : {}),
-            })
+            {
+              const scopeFolderPaths = resolveClientDocumentFolderPaths({
+                matter: hubMatter,
+                matters: useMatterStore.getState().matters,
+                workspaceRoot: rootPath,
+              });
+              const ensureScopeFolder = shouldBackfillClientDocumentFolder(hubMatter, scopeFolderPaths)
+                ? () => {
+                    const folderPath = scopeFolderPaths[0];
+                    useMatterStore.getState().setFolderPaths(hubMatter.id, scopeFolderPaths);
+                    if (folderPath && workspaceServiceRef.current) {
+                      void workspaceServiceRef.current
+                        .mkdir(folderPath)
+                        .then(() => workspaceServiceRef.current?.getFileTree())
+                        .then((tree) => {
+                          if (tree) setFileTree(tree);
+                        })
+                        .catch((error: unknown) => {
+                          console.warn('[AppSurfaceRouter] could not create client document folder:', error);
+                        });
+                    }
+                  }
+                : undefined;
+              return buildDocumentsHome({
+                embedded: true,
+                scopeFolderPaths,
+                ...(hubMatter ? { scopeMatterId: hubMatter.id } : {}),
+                ...(ensureScopeFolder ? { ensureScopeFolder } : {}),
+              });
+            }
           }
           renderClientEmail={() =>
             buildEmailWorkspace({
