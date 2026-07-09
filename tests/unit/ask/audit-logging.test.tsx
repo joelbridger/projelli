@@ -143,7 +143,7 @@ describe('Ask audit logging', () => {
     });
   });
 
-  it('logs retrieval, egress, and model_call for a successful Ask request', async () => {
+  it('logs retrieval, egress intent/outcome, and model_call intent/outcome for a successful Ask request', async () => {
     const logged: LoggedEntry[] = [];
     render(<Ask onAuditLog={(entry) => logged.push(entry)} />);
 
@@ -157,13 +157,17 @@ describe('Ask audit logging', () => {
     expect(eventsOfType(logged, 'scope_active')).toHaveLength(1);
     expect(eventsOfType(logged, 'privilege_evaluated')).toHaveLength(1);
     expect(eventsOfType(logged, 'retrieval_executed')).toHaveLength(1);
-    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
-    expect(logged.filter((entry) => entry.action === 'model_call')).toHaveLength(1);
+    expect(eventsOfType(logged, 'egress')).toHaveLength(2);
+    expect(logged.filter((entry) => entry.action === 'model_call')).toHaveLength(2);
 
-    const egress = eventsOfType(logged, 'egress')[0]!;
+    const egress = eventsOfType(logged, 'egress').find(
+      (entry) => entry.metadata['auditPhase'] === 'outcome',
+    )!;
     expect(egress.description).toContain('AI request sent');
     expect(egress.model).toBe('claude-audit-stub');
     expect(egress.metadata).toMatchObject({
+      auditPhase: 'outcome',
+      auditMustPersist: true,
       provider: 'anthropic',
       model: 'claude-audit-stub',
       destination: 'provider-direct',
@@ -171,10 +175,41 @@ describe('Ask audit logging', () => {
       scope: { kind: 'allMatters' },
     });
 
-    const modelCall = logged.find((entry) => entry.action === 'model_call')!;
+    const modelCall = logged.find(
+      (entry) =>
+        entry.action === 'model_call' &&
+        entry.metadata['auditPhase'] === 'outcome',
+    )!;
     expect(modelCall.tokensIn).toBe(11);
     expect(modelCall.tokensOut).toBe(7);
     expect(modelCall.costUsd).toBe(0.0002);
     expect(modelCall.provider).toBe('anthropic');
+  });
+
+  it('blocks the provider call when the durable egress intent cannot be saved', async () => {
+    const onAuditLog = vi.fn(async (entry: LoggedEntry) => {
+      if (entry.action === 'egress' && entry.metadata['auditPhase'] === 'intent') {
+        throw new Error('audit store unavailable');
+      }
+    });
+    render(<Ask onAuditLog={onAuditLog} />);
+
+    fireEvent.change(screen.getByTestId('ask-composer-input'), {
+      target: { value: 'When does the client want to retire?' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /^Ask$/i }));
+
+    await waitFor(() =>
+      expect(onAuditLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'egress',
+          metadata: expect.objectContaining({
+            auditPhase: 'intent',
+            auditMustPersist: true,
+          }),
+        }),
+      ),
+    );
+    expect(h.sendMessage).not.toHaveBeenCalled();
   });
 });

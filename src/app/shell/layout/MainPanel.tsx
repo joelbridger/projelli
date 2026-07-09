@@ -77,6 +77,7 @@ import {
 import { FileText, List, PanelRightClose, FileType, X, History, Download, ChevronDown, MoreVertical, Columns, Rows, Pencil } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { saveFile } from '@/platform/utils/saveFile';
+import { createAuditPairId, mustLogAuditPhase } from '@/platform/audit/durableAudit';
 import { withShortcut } from '@/platform/utils/shortcuts';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useActiveEgressProvider } from '@/platform/hooks/useActiveEgressProvider';
@@ -1132,7 +1133,23 @@ export function MainPanel({
       const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
       const bytes = await markdownToDocxBytes(activeTab.content, activeTab.name);
       const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.docx';
-      await saveFile(bytes, {
+      const auditPairId = createAuditPairId('file_export');
+      const baseAudit = {
+        action: 'file_export' as const,
+        description: `Exported file as Word: ${activeTab.name}`,
+        model: undefined,
+        inputs: {
+          sourcePath: activeTab.path,
+          sourceName: activeTab.name,
+          format: 'docx',
+          byteSize: bytes.byteLength,
+        },
+        outputs: {},
+        userDecision: 'approved' as const,
+        metadata: { auditEventType: 'file_export', format: 'docx' },
+      };
+      await mustLogAuditPhase(onAuditLog, baseAudit, 'intent', auditPairId);
+      const savedPath = await saveFile(bytes, {
         suggestedName,
         types: [
           {
@@ -1143,10 +1160,19 @@ export function MainPanel({
           },
         ],
       });
+      await mustLogAuditPhase(
+        onAuditLog,
+        {
+          ...baseAudit,
+          outputs: { success: true, savedPath: savedPath ?? null },
+        },
+        'outcome',
+        auditPairId,
+      );
     } catch (error) {
       console.error('Failed to export to .docx:', error);
     }
-  }, [activeTab]);
+  }, [activeTab, onAuditLog]);
 
   const exportAsPptx = useCallback(async () => {
     if (!activeTab) return;
@@ -1154,7 +1180,23 @@ export function MainPanel({
       const { markdownToPptxBytes } = await import('@/platform/utils/pptx-io');
       const bytes = await markdownToPptxBytes(activeTab.content);
       const suggestedName = activeTab.name.replace(/\.(md|markdown|txt)$/i, '') + '.pptx';
-      await saveFile(bytes, {
+      const auditPairId = createAuditPairId('file_export');
+      const baseAudit = {
+        action: 'file_export' as const,
+        description: `Exported file as PowerPoint: ${activeTab.name}`,
+        model: undefined,
+        inputs: {
+          sourcePath: activeTab.path,
+          sourceName: activeTab.name,
+          format: 'pptx',
+          byteSize: bytes.byteLength,
+        },
+        outputs: {},
+        userDecision: 'approved' as const,
+        metadata: { auditEventType: 'file_export', format: 'pptx' },
+      };
+      await mustLogAuditPhase(onAuditLog, baseAudit, 'intent', auditPairId);
+      const savedPath = await saveFile(bytes, {
         suggestedName,
         types: [
           {
@@ -1165,10 +1207,19 @@ export function MainPanel({
           },
         ],
       });
+      await mustLogAuditPhase(
+        onAuditLog,
+        {
+          ...baseAudit,
+          outputs: { success: true, savedPath: savedPath ?? null },
+        },
+        'outcome',
+        auditPairId,
+      );
     } catch (error) {
       console.error('Failed to export to .pptx:', error);
     }
-  }, [activeTab]);
+  }, [activeTab, onAuditLog]);
 
   const ext = activeTab ? getFileExtension(activeTab.path)?.toLowerCase() : undefined;
   const activeIsDocx = ext === 'docx';

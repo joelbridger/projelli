@@ -53,9 +53,22 @@ type AuditLogOptions = {
   provider?: string;
 };
 
+export class AuditPersistenceError extends Error {
+  readonly entry: AuditEntry;
+  override readonly cause: unknown;
+
+  constructor(entry: AuditEntry, cause: unknown) {
+    super(`Audit entry could not be saved durably: ${errorMessage(cause)}`);
+    this.name = 'AuditPersistenceError';
+    this.entry = entry;
+    this.cause = cause;
+  }
+}
+
 const CRITICAL_ACTIONS = new Set<AuditActionType>([
   'egress',
   'model_call',
+  'file_export',
   'file_create',
   'file_update',
   'file_delete',
@@ -77,6 +90,9 @@ const CRITICAL_ACTIONS = new Set<AuditActionType>([
   'wall_set_from_manager',
   'key_published',
   'seat_revoked',
+  'wealthbox.create_note',
+  'wealthbox.create_task',
+  'wealthbox.field_updated',
 ]);
 
 function errorMessage(error: unknown): string {
@@ -251,6 +267,25 @@ export class AuditService {
   ): Promise<AuditEntry> {
     const { persisted } = this.logDurablePending(action, description, options);
     return persisted;
+  }
+
+  /**
+   * Log a compliance-critical action and require durable persistence.
+   *
+   * Use this before actions that must not happen without a saved audit row
+   * (cloud egress, model calls, CRM writes, exports). Unlike `logDurable()`,
+   * this throws when the encrypted store/localStorage write fails so callers can
+   * block the action.
+   */
+  async mustLogDurable(
+    action: AuditActionType,
+    description: string,
+    options: AuditLogOptions = {}
+  ): Promise<AuditEntry> {
+    const entry = this.buildEntry(action, description, options);
+    entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
+    this.entries.push(entry);
+    return this.recordDurableOrThrow(entry);
   }
 
   /**
@@ -540,6 +575,15 @@ export class AuditService {
   }
 
   private async recordDurable(entry: AuditEntry): Promise<AuditEntry> {
+    try {
+      return await this.recordDurableOrThrow(entry);
+    } catch (error) {
+      console.error('Audit persistence failed:', error);
+      return entry;
+    }
+  }
+
+  private async recordDurableOrThrow(entry: AuditEntry): Promise<AuditEntry> {
     entry.metadata = { ...entry.metadata, auditPersistenceStatus: 'pending' };
     try {
       const savedEntry: AuditEntry = {
@@ -550,7 +594,7 @@ export class AuditService {
         await auditAppend(entryToRecord(savedEntry));
       } else {
         entry.metadata = savedEntry.metadata;
-        this.persist();
+        this.persistOrThrow();
         return entry;
       }
       entry.metadata = savedEntry.metadata;
@@ -560,7 +604,7 @@ export class AuditService {
         auditPersistenceStatus: 'failed',
         auditPersistenceError: errorMessage(error),
       };
-      console.error('Audit persistence failed:', error);
+      throw new AuditPersistenceError(entry, error);
     }
     return entry;
   }
@@ -573,10 +617,15 @@ export class AuditService {
     if (typeof localStorage === 'undefined') return;
 
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify(this.entries));
+      this.persistOrThrow();
     } catch {
       // Ignore storage errors
     }
+  }
+
+  private persistOrThrow(): void {
+    if (typeof localStorage === 'undefined') return;
+    localStorage.setItem(this.storageKey, JSON.stringify(this.entries));
   }
 }
 

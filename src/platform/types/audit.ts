@@ -13,6 +13,7 @@ export type AuditActionType =
   | 'file_delete'
   | 'file_move'
   | 'file_rename'
+  | 'file_export'
   | 'workflow_start'
   | 'workflow_complete'
   | 'workflow_fail'

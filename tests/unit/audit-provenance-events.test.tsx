@@ -291,7 +291,10 @@ describe('Lantern 3.0 audit provenance events', () => {
     await sendWorkspaceMessage((e) => logged.push(e));
 
     const egress = eventsOfType(logged, 'egress');
-    expect(egress).toHaveLength(1);
+    // A1 fail-closed audit: every successful send now writes a durable
+    // intent row BEFORE egress and an outcome row after — a pair.
+    expect(egress).toHaveLength(2);
+    expect(egress.map((e) => (e.metadata as Record<string, unknown>)['auditPhase'])).toEqual(['intent', 'outcome']);
     const payload = egress[0]!.metadata as Record<string, unknown>;
     expect(payload['destination']).toBe('provider-direct');
     expect(payload['provider']).toBe('anthropic');
@@ -320,7 +323,7 @@ describe('Lantern 3.0 audit provenance events', () => {
     await sendWorkspaceMessage((e) => logged.push(e), chatWithoutModel);
 
     const egress = eventsOfType(logged, 'egress');
-    expect(egress).toHaveLength(1);
+    expect(egress).toHaveLength(2); // intent + outcome pair (A1)
     expect(egress[0]?.model).toBe('stub');
     expect(egress[0]?.metadata).toMatchObject({ model: 'stub' });
     expect(egress[0]?.model).not.toBe('unknown');
@@ -336,7 +339,7 @@ describe('Lantern 3.0 audit provenance events', () => {
     await sendWorkspaceMessage((e) => logged.push(e));
 
     const egress = eventsOfType(logged, 'egress');
-    expect(egress).toHaveLength(1);
+    expect(egress).toHaveLength(2); // intent + outcome pair (A1)
     const payload = egress[0]!.metadata as Record<string, unknown>;
     expect(payload['scope']).toMatchObject({ kind: 'matter', matterId: m.id });
   });
@@ -372,8 +375,8 @@ describe('Lantern 3.0 audit provenance events', () => {
     await sendWorkspaceMessage((e) => logged.push(e));
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
 
-    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
-    expect(logged.filter((e) => e.action === 'model_call')).toHaveLength(1);
+    expect(eventsOfType(logged, 'egress')).toHaveLength(2); // intent + outcome (A1)
+    expect(logged.filter((e) => e.action === 'model_call')).toHaveLength(2); // intent + outcome (A1)
     expect(eventsOfType(logged, 'egress_failed')).toHaveLength(0);
   });
 
@@ -401,10 +404,13 @@ describe('Lantern 3.0 audit provenance events', () => {
 
     await waitFor(() => {
       const egress = eventsOfType(logged, 'egress');
-      expect(egress).toHaveLength(1);
-      expect((egress[0]!.metadata as Record<string, unknown>)['status']).toBe('cancelled');
+      // A1: the durable intent row precedes the send; the cancelled row follows.
+      expect(egress).toHaveLength(2);
+      const statuses = egress.map((e) => (e.metadata as Record<string, unknown>)['status']);
+      expect(statuses).toContain('cancelled');
     });
-    expect(logged.filter((e) => e.action === 'model_call')).toHaveLength(0);
+    // model_call intent row was durably written before the stream started.
+    expect(logged.filter((e) => e.action === 'model_call')).toHaveLength(1);
     expect(eventsOfType(logged, 'egress_failed')).toHaveLength(0);
   });
 
@@ -424,7 +430,12 @@ describe('Lantern 3.0 audit provenance events', () => {
       expect(msgs.some((m) => m.role === 'assistant' && m.content.includes('Response stopped by user'))).toBe(true);
     });
 
-    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    // A1 fail-closed: the durable INTENT row is written before the send and
+    // stays even when the stream aborts before any chunk — that attempt
+    // happened and must be auditable. No outcome/cancelled/failed row follows.
+    const egress = eventsOfType(logged, 'egress');
+    expect(egress).toHaveLength(1);
+    expect((egress[0]!.metadata as Record<string, unknown>)['auditPhase']).toBe('intent');
     expect(eventsOfType(logged, 'egress_failed')).toHaveLength(0);
   });
 
@@ -483,7 +494,7 @@ describe('Lantern 3.0 audit provenance events', () => {
     act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
 
-    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
+    expect(eventsOfType(logged, 'egress')).toHaveLength(2); // intent + outcome (A1)
     expect(eventsOfType(logged, 'attachment_sent_to_provider')).toHaveLength(1);
   });
 
