@@ -124,17 +124,79 @@ export function formatSourceIdentity(source: AuditSourceIdentity): string {
   return locator ? `${source.label} (${locator})` : source.label;
 }
 
+const SOURCE_KIND_LABELS: Record<string, { singular: string; plural: string }> = {
+  mail: { singular: 'email', plural: 'emails' },
+  email: { singular: 'email', plural: 'emails' },
+  pdf: { singular: 'PDF', plural: 'PDFs' },
+  docx: { singular: 'Word document', plural: 'Word documents' },
+  doc: { singular: 'Word document', plural: 'Word documents' },
+  document: { singular: 'document', plural: 'documents' },
+  crm: { singular: 'CRM record', plural: 'CRM records' },
+  meeting: { singular: 'meeting note', plural: 'meeting notes' },
+  transcript: { singular: 'transcript', plural: 'transcripts' },
+  xlsx: { singular: 'spreadsheet', plural: 'spreadsheets' },
+  xls: { singular: 'spreadsheet', plural: 'spreadsheets' },
+  pptx: { singular: 'presentation', plural: 'presentations' },
+  ppt: { singular: 'presentation', plural: 'presentations' },
+  onedrive: { singular: 'OneDrive item', plural: 'OneDrive items' },
+  box: { singular: 'Box item', plural: 'Box items' },
+  sharefile: { singular: 'ShareFile item', plural: 'ShareFile items' },
+  jotform: { singular: 'Jotform form', plural: 'Jotform forms' },
+  esign: { singular: 'e-signature record', plural: 'e-signature records' },
+  zocks: { singular: 'Zocks note', plural: 'Zocks notes' },
+  addepar: { singular: 'Addepar record', plural: 'Addepar records' },
+};
+
+function normalizedSourceKind(source: AuditSourceIdentity): string {
+  const type = source.sourceType?.toLowerCase();
+  const ext = extension(source.path);
+  if (type === 'mail' || type === 'email' || source.path.startsWith('mail:')) return 'mail';
+  if (source.path.startsWith('crm:')) return 'crm';
+  if (source.path.startsWith('meeting:')) return 'meeting';
+  if (type && type !== 'document') return type;
+  return ext ?? type ?? 'document';
+}
+
+function sourceKindLabel(kind: string, count: number): string {
+  const labels = SOURCE_KIND_LABELS[kind] ?? {
+    singular: kind,
+    plural: `${kind}s`,
+  };
+  return count === 1 ? labels.singular : labels.plural;
+}
+
 export function countSourcesByKind(sources: ReadonlyArray<AuditSourceIdentity>): {
+  total: number;
+  topKinds: Array<{ kind: string; label: string; count: number }>;
+  byKind: Record<string, number>;
   emails: number;
   pdfs: number;
 } {
-  let emails = 0;
-  let pdfs = 0;
+  const byKind = new Map<string, number>();
   for (const source of sources) {
-    const type = source.sourceType?.toLowerCase();
-    const ext = extension(source.path);
-    if (type === 'mail' || type === 'email' || source.path.startsWith('mail:')) emails += 1;
-    if (type === 'pdf' || ext === 'pdf') pdfs += 1;
+    const kind = normalizedSourceKind(source);
+    byKind.set(kind, (byKind.get(kind) ?? 0) + 1);
   }
-  return { emails, pdfs };
+  const topKinds = [...byKind.entries()]
+    .map(([kind, count]) => ({ kind, count, label: sourceKindLabel(kind, count) }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label))
+    .slice(0, 2);
+  return {
+    total: sources.length,
+    topKinds,
+    byKind: Object.fromEntries(byKind),
+    emails: byKind.get('mail') ?? 0,
+    pdfs: byKind.get('pdf') ?? 0,
+  };
+}
+
+export function formatSourceCountSummary(sources: ReadonlyArray<AuditSourceIdentity>): string {
+  const counts = countSourcesByKind(sources);
+  const sourceWord = counts.total === 1 ? 'source' : 'sources';
+  const topKindSummary = counts.topKinds
+    .map((kind) => `${String(kind.count)} ${kind.label}`)
+    .join(', ');
+  return topKindSummary
+    ? `${String(counts.total)} ${sourceWord} (${topKindSummary})`
+    : `${String(counts.total)} ${sourceWord}`;
 }

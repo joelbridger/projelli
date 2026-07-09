@@ -27,6 +27,7 @@ import { composeCrmProvenance } from '@/features/matters/crmProvenance';
 import { useLicense } from '@/platform/hooks/useLicense';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { getRememberedComplianceNoteChoice, setRememberedComplianceNoteChoice } from '@/features/matters/complianceNotePref';
+import { brandText } from '@/config/brandText';
 
 export interface CrmWriteReviewCardProps {
   matterId: string;
@@ -438,7 +439,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
             >
               <Check size={13} strokeWidth={3} style={{ flex: 'none', marginTop: 1 }} />
               <span>
-                Approved {pluralize(sentCount, 'change')} to Wealthbox; sent direct to Wealthbox; nothing to Lantern.
+                {brandText(`Approved ${pluralize(sentCount, 'change')} to Wealthbox; sent direct to Wealthbox; nothing to Lantern.`)}
               </span>
             </div>
           )}

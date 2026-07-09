@@ -111,6 +111,7 @@ export async function buildClientMap(
 
   const resolvedProvider = await buildResolvedProviderForClientMap();
   const provider = resolvedProvider.provider;
+  let buildEgress: ClientMap['buildEgress'];
   // Trust-fixes finding #1: egress must be recorded IMMEDIATELY BEFORE the
   // send, not only after a successful response, so a timeout or provider
   // error still leaves an egress record in the Activity Log. model_call is a
@@ -122,6 +123,11 @@ export async function buildClientMap(
       isDemo: false,
       assuredAvailable: false,
     });
+    buildEgress = {
+      provider: egress.provider,
+      destination: egress.destination,
+      dataLeaves: egress.dataLeaves,
+    };
     options?.onAuditLog?.(auditEventToEntry({
       type: 'egress',
       timestamp: new Date().toISOString(),
@@ -201,5 +207,6 @@ export async function buildClientMap(
     pendingUpdates: [],
     lastBuiltAt: new Date().toISOString(),
     lastSourceFingerprint: '',
+    ...(buildEgress ? { buildEgress } : {}),
   };
 }

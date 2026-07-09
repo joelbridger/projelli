@@ -33,6 +33,10 @@ import {
   ASK_LOCAL_AI_STARTING_MESSAGE,
   ASK_LOCAL_AI_EVALUATING_MESSAGE,
 } from './askTimeout';
+import {
+  useCitationVerification,
+  citationTrustState,
+} from './citationVerification';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -56,7 +60,6 @@ export function TurnBlock({
   onOpenFileAtPath,
   onAuditLog,
   askScope,
-  currentProviderId,
 }: {
   turn: AskTurn;
   turnIdx: number;
@@ -116,18 +119,19 @@ export function TurnBlock({
    */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
   askScope?: AskScope;
-  currentProviderId?: string;
 }) {
   const { t } = useTranslation();
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
-  const receiptProviderId = turn.providerId ?? currentProviderId;
 
   // Ask-smart: a completed turn produced by the source-aware agent carries
   // provenance blocks; render those with their labels + per-answer tally instead
   // of the flat CitationText + single green/uncited attestation. Files-only,
   // demo (files-only), and legacy turns have no blocks and use the flat path.
   const usingBlocks = !isStreaming && !!turn.blocks && turn.blocks.length > 0;
+  const flatCitations = usingBlocks ? [] : turn.citations;
+  const flatVerdicts = useCitationVerification(flatCitations, onAuditLog);
+  const flatTrustStates = flatCitations.map((c) => citationTrustState(c, flatVerdicts));
 
   // Connector-access: surface a deterministic freshness warning (not just the
   // model's prose) when this answer leaned on an exported plan snapshot that is
@@ -153,8 +157,8 @@ export function TurnBlock({
   // is the defense-in-depth that guarantees an unverified citation can never
   // trigger the green banner (and that such an answer shows the uncited
   // warning instead).
-  const hasGroundedCitation = turn.citations.some((c) => c.verified);
-  const verifiedCitationCount = turn.citations.filter((c) => c.verified).length;
+  const verifiedCitationCount = flatTrustStates.filter((state) => state === 'verified').length;
+  const hasGroundedCitation = verifiedCitationCount > 0;
 
   // A deliberate "I couldn't find that in your files" decline is not an uncited
   // claim — it's the trust behaviour working. Show a calm "this is on purpose"
@@ -220,7 +224,8 @@ export function TurnBlock({
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
             {...(onAuditLog !== undefined ? { onAuditLog } : {})}
             {...(turn.readSources ? { readSources: turn.readSources } : {})}
-            {...(receiptProviderId ? { providerId: receiptProviderId } : {})}
+            {...(turn.providerId ? { providerId: turn.providerId } : {})}
+            {...(turn.egressDestination ? { egressDestination: turn.egressDestination } : {})}
           />
         ) : isPersisted ? (
           // Persisted (loaded history) turns: plain text.
@@ -380,7 +385,8 @@ export function TurnBlock({
             claimsVerified={verifiedCitationCount}
             citations={turn.citations}
             {...(turn.readSources ? { readSources: turn.readSources } : {})}
-            {...(receiptProviderId ? { providerId: receiptProviderId } : {})}
+            {...(turn.providerId ? { providerId: turn.providerId } : {})}
+            {...(turn.egressDestination ? { egressDestination: turn.egressDestination } : {})}
             {...(onOpenSourcesPanel !== undefined
               ? { onOpenSourcesPanel: () => { onOpenSourcesPanel(turnIdx); } }
               : {})}

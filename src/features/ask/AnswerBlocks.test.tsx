@@ -24,6 +24,7 @@ import { resetCitationVerificationForTests } from './citationVerification';
 import type { AnswerBlock, AnswerCitation } from './askHelpers';
 import type { CitationVerdict } from '@/platform/utils/tauri-commands';
 import type { ImportStatus } from './useStillImporting';
+import { BRAND } from '@/config/brand';
 
 const { ragVerifyCitationsBatchMock, useStillImportingMock } = vi.hoisted(() => ({
   ragVerifyCitationsBatchMock: vi.fn(),
@@ -217,12 +218,75 @@ describe('AnswerBlocks — header badge agrees with the live citation verifier (
           },
         ]}
         providerId="openai"
+        egressDestination="provider-direct"
       />,
     );
 
     await waitFor(() => {
       expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
-        '1 claim verified against 1 local source; sent direct to OpenAI; nothing to Lantern',
+        `1 claim verified against 1 local source; sent direct to OpenAI; nothing to ${BRAND.name}`,
+      );
+    });
+  });
+
+  it('names the firm zero-retention proxy when the recorded route is assured', async () => {
+    const cite = makeCitation({ verified: false });
+    ragVerifyCitationsBatchMock.mockResolvedValue([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+
+    render(
+      <AnswerBlocks
+        blocks={[filesBlock([cite])]}
+        selected={null}
+        onSelect={() => {}}
+        readSources={[
+          {
+            id: 'clients/jane/plan.docx',
+            label: 'plan.docx',
+            path: 'clients/jane/plan.docx',
+            sourceType: 'docx',
+            chunkCount: 1,
+          },
+        ]}
+        providerId="openai"
+        egressDestination="assured-proxy"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+        `1 claim verified against 1 local source; via your firm's zero-retention proxy to OpenAI; ${BRAND.name} retained nothing`,
+      );
+    });
+  });
+
+  it('does not invent a provider for source-grounded demo answers', async () => {
+    const cite = makeCitation({ verified: false });
+    ragVerifyCitationsBatchMock.mockResolvedValue([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+
+    render(
+      <AnswerBlocks
+        blocks={[filesBlock([cite])]}
+        selected={null}
+        onSelect={() => {}}
+        readSources={[
+          {
+            id: 'clients/jane/plan.docx',
+            label: 'plan.docx',
+            path: 'clients/jane/plan.docx',
+            sourceType: 'docx',
+            chunkCount: 1,
+          },
+        ]}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+        '1 claim verified against 1 local source; source-grounded demo answer',
       );
     });
   });

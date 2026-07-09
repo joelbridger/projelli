@@ -44,6 +44,7 @@ import {
   resolveEgress,
   isLocalProvider,
   type ConfidentialityMode,
+  type EgressInfo,
 } from '@/platform/privacy/egress';
 import {
   fileToolsAllowed,
@@ -707,6 +708,8 @@ export function useAsk({
           | 'lantern-local';
         model: string;
       } | null = null;
+      let egressForSend: EgressInfo | null = null;
+      let egressDestinationForReceipt: EgressInfo['destination'] | undefined;
       let providerCallStarted = false;
       let failedStage: AskFailureStage = 'setup';
       // F2.5b (Codex P2) — hoisted so the FAILURE audit below can record whether
@@ -1310,8 +1313,8 @@ export function useAsk({
               hasEvidence: groundingHits.length > 0,
             });
 
-        const emitSuccessfulEgress = () => {
-          if (!providerAudit) return;
+        const resolveEgressForSend = (): EgressInfo | null => {
+          if (!providerAudit) return null;
           const egress = resolveEgress({
             provider: providerAudit.providerId,
             mode: getConfidentialityMode(),
@@ -1319,6 +1322,15 @@ export function useAsk({
             hasDemoByokKey: hasDemoByokKey(),
             assuredAvailable: false,
           });
+          egressForSend = egress;
+          egressDestinationForReceipt = egress.destination;
+          return egress;
+        };
+
+        const emitSuccessfulEgress = () => {
+          if (!providerAudit) return;
+          const egress = egressForSend ?? resolveEgressForSend();
+          if (!egress) return;
           onAuditLog?.(
             auditEventToEntry({
               type: 'egress',
@@ -1451,6 +1463,7 @@ export function useAsk({
           if (typeof provider.sendMessageStreaming === 'function') {
             failedStage = 'provider-send';
             providerCallStarted = true;
+            resolveEgressForSend();
             const streamResp = await Promise.race([
               provider.sendMessageStreaming(q, {
                 systemPrompt,
@@ -1482,6 +1495,7 @@ export function useAsk({
           } else {
             failedStage = 'provider-send';
             providerCallStarted = true;
+            resolveEgressForSend();
             const resp = await Promise.race([
               provider.sendMessage(q, {
                 systemPrompt,
@@ -1567,6 +1581,7 @@ export function useAsk({
           ...(blocks ? { blocks } : {}),
           readSources: readSourcesForPrompt,
           ...(providerAudit?.providerId ? { providerId: providerAudit.providerId } : {}),
+          ...(egressDestinationForReceipt ? { egressDestination: egressDestinationForReceipt } : {}),
           // F2.5b (Codex P1) — durable "this answer used client file content"
           // marker, from the consent-gated grounding set (not the rendered
           // citations), so a grounded-but-uncited answer is still redacted from
@@ -1621,6 +1636,7 @@ export function useAsk({
             : {}),
           askReadSources: readSourcesForPrompt,
           ...(providerAudit?.providerId ? { askProviderId: providerAudit.providerId } : {}),
+          ...(egressDestinationForReceipt ? { askEgressDestination: egressDestinationForReceipt } : {}),
           // F2.5b (Codex P1) — persist the file-grounding marker so history redaction
           // still works after a reload (reconstructTurns restores it).
           // F2.5b (Codex round 5) — persist the grounding decision ALWAYS (true OR

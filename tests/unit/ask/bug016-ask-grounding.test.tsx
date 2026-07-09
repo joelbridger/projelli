@@ -30,13 +30,15 @@
  *      (no chip, no fabricated source title, no "Answered over your own files"
  *      banner, uncited state shown).
  *   3. Regression guard: a real answer that cites a genuinely retrieved file
- *      still renders its chip + the green attestation (no over-tightening).
+ *      still renders its chip + the green attestation after the live verifier
+ *      confirms it (no over-tightening, no free green badge).
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
 import { reconstructTurns } from '@/features/ask/askHelpers';
+import { resetCitationVerificationForTests } from '@/features/ask/citationVerification';
 import type { ChatMessage } from '@/platform/types/ai';
 import type { RagHit } from '@/platform/utils/tauri-commands';
 
@@ -47,6 +49,7 @@ const h = vi.hoisted(() => ({
   retrieve: vi.fn<(...a: unknown[]) => Promise<unknown[]>>(),
   initSession: vi.fn(),
   addMessage: vi.fn(),
+  verifyCitations: vi.fn<(...a: unknown[]) => Promise<unknown[]>>(),
   sessions: {} as Record<string, unknown>,
 }));
 
@@ -105,6 +108,14 @@ vi.mock('@/platform/rag/MemoryService', () => ({
   isMemoryEnabled: () => true,
 }));
 
+vi.mock('@/platform/utils/tauri-commands', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/platform/utils/tauri-commands')>();
+  return {
+    ...actual,
+    ragVerifyCitationsBatch: (...args: unknown[]): unknown => h.verifyCitations(...args),
+  };
+});
+
 /* ----- AI provider: returns a configurable (possibly fabricated) answer ---- */
 
 vi.mock('@/platform/providers/ClaudeProvider', () => {
@@ -157,11 +168,16 @@ async function ask(question: string) {
 
 describe('BUG-016 — Ask grounding', () => {
   beforeEach(() => {
+    resetCitationVerificationForTests();
     h.retrieve.mockReset();
     h.initSession.mockReset();
     h.addMessage.mockReset();
+    h.verifyCitations.mockReset();
     h.answer.text = '';
     h.retrieve.mockResolvedValue([]);
+    h.verifyCitations.mockImplementation((citations?: unknown[]) =>
+      Promise.resolve((citations ?? []).map(() => ({ verdict: 'verified' })))
+    );
     // Pin Files-only mode: this suite tests the strict cited-or-decline grounding
     // net, which is exactly Files-only mode's contract. (Smart mode is the
     // default and is covered in ask-smart-agent.test.tsx.)

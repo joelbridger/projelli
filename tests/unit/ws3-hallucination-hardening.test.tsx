@@ -183,6 +183,15 @@ describe('Task 2 — CitationText chip fires onOpenFileAtPath on click', () => {
 /* Task 3: Distinct visual treatment for uncited / unverified answers          */
 /* -------------------------------------------------------------------------- */
 describe('Task 3a — TurnBlock shows warning callout when citations.length === 0', () => {
+  beforeEach(async () => {
+    const { resetCitationVerificationForTests } =
+      await import('@/features/ask/citationVerification');
+    resetCitationVerificationForTests();
+    mockRagVerifyCitation.mockReset();
+    mockRagVerifyCitationsBatch.mockReset();
+    mockAuditLog.mockReset();
+  });
+
   it('renders uncited warning callout for a completed answer with no citations', async () => {
     const { TurnBlock } = await import('@/features/ask/TurnBlock');
     const turn = {
@@ -209,7 +218,8 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
     expect(warning.textContent).toMatch(/not cited|verify|rely/i);
   }, 15000);
 
-  it('does NOT render uncited callout when citations are present', async () => {
+  it('does NOT render uncited callout when a citation is live-verified', async () => {
+    setVerdict({ verdict: 'verified' });
     const { TurnBlock } = await import('@/features/ask/TurnBlock');
     const turn = {
       question: 'What is the fee?',
@@ -222,6 +232,8 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
           path: '/ws/fee-agreement.docx',
           locator: 'fee-agreement.docx §2',
           verified: true,
+          id: 'fee-chunk-1',
+          matterId: 'matter-fee',
         },
       ],
       sources: [],
@@ -238,9 +250,10 @@ describe('Task 3a — TurnBlock shows warning callout when citations.length === 
         isPersisted={false}
       />
     );
+    await waitFor(() => {
+      expect(screen.getByTestId('ask-cited-attestation')).toBeInTheDocument();
+    });
     expect(screen.queryByTestId('ask-uncited-warning')).not.toBeInTheDocument();
-    // Green attestation should still appear
-    expect(screen.getByTestId('ask-cited-attestation')).toBeInTheDocument();
   });
 });
 

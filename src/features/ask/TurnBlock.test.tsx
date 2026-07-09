@@ -1,8 +1,9 @@
 import '@/i18n';
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TurnBlock } from './TurnBlock';
 import type { AskTurn } from './askHelpers';
+import { resetCitationVerificationForTests } from './citationVerification';
 
 const streamingTurn: AskTurn = {
   question: 'Which client is doing a 1031 exchange?',
@@ -22,6 +23,10 @@ const baseProps = {
   isPersisted: false,
   isStreaming: true,
 };
+
+beforeEach(() => {
+  resetCitationVerificationForTests();
+});
 
 /**
  * QA-7 — the "Answering" spinner used to give no feedback at all, however
@@ -154,5 +159,64 @@ describe('TurnBlock — lp/localai-patience "reading your documents" state', () 
     render(<TurnBlock {...baseProps} turn={partialTurn} localEvaluating />);
     expect(screen.getByText(/The Chen household is doing a/)).toBeTruthy();
     expect(screen.queryByText(/reading your documents/)).toBeNull();
+  });
+});
+
+describe('TurnBlock — honest receipts for flat legacy/demo answers', () => {
+  it('does not trust the stale citation.verified flag on the flat path', () => {
+    const staleTurn: AskTurn = {
+      question: 'What is the fee?',
+      answer: 'The fee is $350 per hour. {1}',
+      citations: [
+        {
+          n: 1,
+          label: 'fee.docx',
+          excerpt: 'The fee is $350 per hour.',
+          path: 'clients/jane/fee.docx',
+          locator: 'paragraph 3',
+          verified: true,
+        },
+      ],
+      sources: [],
+      providerId: 'openai',
+      egressDestination: 'provider-direct',
+    };
+
+    render(
+      <TurnBlock
+        {...baseProps}
+        turn={staleTurn}
+        isStreaming={false}
+      />,
+    );
+
+    expect(screen.queryByTestId('ask-cited-attestation')).toBeNull();
+    expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+      '0 claims verified against 1 local source; sent direct to OpenAI',
+    );
+  });
+
+  it('does not invent a provider when the turn did not record one', () => {
+    const demoTurn: AskTurn = {
+      question: 'What is in the sample?',
+      answer: 'The sample says Sarah is the primary contact.',
+      citations: [],
+      sources: [],
+    };
+
+    render(
+      <TurnBlock
+        {...baseProps}
+        turn={demoTurn}
+        isStreaming={false}
+      />,
+    );
+
+    expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+      'source-grounded demo answer',
+    );
+    expect(screen.getByTestId('ask-answer-receipt').textContent).not.toContain(
+      'sent direct to',
+    );
   });
 });

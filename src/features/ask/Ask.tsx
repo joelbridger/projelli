@@ -601,7 +601,6 @@ export function Ask(props: UseAskProps) {
                       isSaving={savingIdx === idx}
                       isPersisted={false}
                       askScope={askScope}
-                      {...(displayedProvider ? { currentProviderId: displayedProvider } : {})}
                       {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
                       {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
                     />
@@ -624,7 +623,6 @@ export function Ask(props: UseAskProps) {
                       answerStalled={answerStalled}
                       localAiStarting={localAiStarting}
                       localEvaluating={localEvaluating}
-                      {...(displayedProvider ? { currentProviderId: displayedProvider } : {})}
                       onOpenAiStatus={() => {
                         window.dispatchEvent(new CustomEvent(EV_OPEN_SETTINGS, { detail: { category: 'ai' } }));
                       }}

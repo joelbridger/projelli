@@ -126,7 +126,7 @@ describe('CrmWriteReviewCard', () => {
     );
     await waitFor(() => {
       expect(screen.getByTestId('crm-write-approval-receipt').textContent).toContain(
-        'Approved 1 change to Wealthbox; sent direct to Wealthbox; nothing to Lantern.',
+        `Approved 1 change to Wealthbox; sent direct to Wealthbox; nothing to ${BRAND.name}.`,
       );
     });
   });

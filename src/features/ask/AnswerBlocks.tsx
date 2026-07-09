@@ -42,7 +42,8 @@ import {
 import type { AuditEntry, AuditSourceIdentity } from '@/platform/types/audit';
 import { CitationText } from './CitationText';
 import { TrustNote } from '@/ui/kp';
-import { isLocalProvider, providerDisplayName } from '@/platform/privacy/egress';
+import type { EgressDestination } from '@/platform/privacy/egress';
+import { receiptRouteText } from '@/platform/privacy/receiptText';
 
 const FILES = { fg: '#16654a', bg: '#e6f5ee', border: '#8fc9b0' };
 // B1: a files block whose citations are grounded but NOT verified (post-hoc
@@ -183,17 +184,19 @@ function answerReceiptText({
   claimsVerified,
   sourceCount,
   providerId,
+  egressDestination,
 }: {
   claimsVerified: number;
   sourceCount: number;
   providerId?: string;
+  egressDestination?: EgressDestination;
 }): string {
   const claimWord = claimsVerified === 1 ? 'claim' : 'claims';
   const sourceWord = sourceCount === 1 ? 'source' : 'sources';
-  const provider = providerId ? providerDisplayName(providerId) : 'your AI provider';
-  const route = providerId && isLocalProvider(providerId)
-    ? `ran on ${provider}; 0 files left this machine`
-    : `sent direct to ${provider}; nothing to Lantern`;
+  const route = receiptRouteText({
+    ...(providerId ? { providerId } : {}),
+    ...(egressDestination ? { destination: egressDestination } : {}),
+  });
   return `${String(claimsVerified)} ${claimWord} verified against ${String(sourceCount)} local ${sourceWord}; ${route}`;
 }
 
@@ -202,12 +205,14 @@ export function AnswerReceipt({
   citations,
   readSources,
   providerId,
+  egressDestination,
   onOpenSourcesPanel,
 }: {
   claimsVerified: number;
   citations: AnswerCitation[];
   readSources?: AuditSourceIdentity[];
   providerId?: string;
+  egressDestination?: EgressDestination;
   onOpenSourcesPanel?: () => void;
 }) {
   const sourceCount = readSources && readSources.length > 0
@@ -217,6 +222,7 @@ export function AnswerReceipt({
     claimsVerified,
     sourceCount,
     ...(providerId ? { providerId } : {}),
+    ...(egressDestination ? { egressDestination } : {}),
   });
   const canOpenSources = sourceCount > 0 && onOpenSourcesPanel !== undefined;
   const content = (
@@ -263,6 +269,7 @@ export function AnswerBlocks({
   onAuditLog,
   readSources,
   providerId,
+  egressDestination,
 }: {
   blocks: AnswerBlock[];
   selected: number | null;
@@ -283,6 +290,8 @@ export function AnswerBlocks({
   readSources?: AuditSourceIdentity[];
   /** Provider used for this answer, captured at answer time when available. */
   providerId?: string;
+  /** Where this answer was actually sent, captured at answer time when available. */
+  egressDestination?: EgressDestination;
 }) {
   const { t } = useTranslation();
   const tally = tallyBlocks(blocks);
@@ -469,6 +478,7 @@ export function AnswerBlocks({
         citations={allCitations}
         {...(readSources ? { readSources } : {})}
         {...(providerId ? { providerId } : {})}
+        {...(egressDestination ? { egressDestination } : {})}
         {...(onOpenSourcesPanel ? { onOpenSourcesPanel } : {})}
       />
     </div>

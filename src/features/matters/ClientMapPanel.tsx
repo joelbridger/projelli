@@ -48,9 +48,10 @@ import type { AnswerCitation } from '@/features/ask/askHelpers';
 import { skClientMapSourcesCollapsed, skClientMapTab } from '@/config/identity';
 import type { AuditEntry } from '@/platform/types/audit';
 import {
-  countSourcesByKind,
+  formatSourceCountSummary,
   sourceIdentitiesFromSourceRefs,
 } from '@/platform/audit/sourceCapture';
+import { receiptRouteText } from '@/platform/privacy/receiptText';
 
 // ── Sources column helpers ────────────────────────────────────────────────────
 // Map the Client Map's cited sources (SourceRef) onto the Ask SourcePanel's
@@ -108,13 +109,17 @@ function sourceRefsForClientMap(map: ClientMap): SourceRef[] {
 }
 
 function clientMapBuildReceiptText(map: ClientMap, gapCount: number): string {
-  const sourceCounts = countSourcesByKind(
+  const sourceSummary = formatSourceCountSummary(
     sourceIdentitiesFromSourceRefs(sourceRefsForClientMap(map)),
   );
-  const emailWord = sourceCounts.emails === 1 ? 'email' : 'emails';
-  const pdfWord = sourceCounts.pdfs === 1 ? 'PDF' : 'PDFs';
   const gapWord = gapCount === 1 ? 'gap' : 'gaps';
-  return `Built from ${String(sourceCounts.emails)} ${emailWord}, ${String(sourceCounts.pdfs)} ${pdfWord}; ${String(gapCount)} ${gapWord}; 0 files left this machine`;
+  const route = map.buildEgress
+    ? receiptRouteText({
+        providerId: map.buildEgress.provider,
+        destination: map.buildEgress.destination,
+      })
+    : '0 files left this machine';
+  return `Built from ${sourceSummary}; ${String(gapCount)} ${gapWord}; ${route}`;
 }
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────

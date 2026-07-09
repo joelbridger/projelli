@@ -25,6 +25,21 @@ function makeMap(): ClientMap {
                 ref: 'clients/sarah/profile.docx',
                 snippet: 'Sarah Henderson is the primary contact.',
               },
+              {
+                kind: 'document',
+                ref: 'clients/sarah/estate.docx',
+                snippet: 'Sarah updated her estate documents in 2024.',
+              },
+              {
+                kind: 'crm',
+                ref: 'crm:wealthbox:household-1',
+                snippet: 'The Wealthbox household lists Sarah as primary.',
+              },
+              {
+                kind: 'meeting',
+                ref: 'meeting:annual-review-1',
+                snippet: 'Sarah confirmed the Roth conversion goal.',
+              },
             ],
             updatedAt: '2026-07-08T00:00:00Z',
           },
@@ -40,6 +55,11 @@ function makeMap(): ClientMap {
     pendingUpdates: [],
     lastBuiltAt: '2026-07-08T00:00:00Z',
     lastSourceFingerprint: 'fp-1',
+    buildEgress: {
+      provider: 'anthropic',
+      destination: 'provider-direct',
+      dataLeaves: true,
+    },
   };
 }
 
@@ -61,11 +81,11 @@ describe('ClientMapPanel simplified controls', () => {
 
     expect(screen.getByTestId('clientmap-sources-pane').getAttribute('data-collapsed')).toBe('true');
 
-    fireEvent.click(screen.getByTestId('clientmap-source-link'));
+    fireEvent.click(screen.getAllByTestId('clientmap-source-link')[0]!);
 
     expect(screen.getByTestId('clientmap-sources-pane').getAttribute('data-collapsed')).toBe('false');
     expect(screen.getByTestId('clientmap-sources-heading').textContent).toContain('Sources');
-    expect(screen.getByTestId('source-card')).toBeTruthy();
+    expect(screen.getAllByTestId('source-card').length).toBeGreaterThan(0);
     expect(openSource).not.toHaveBeenCalled();
   });
 
@@ -79,7 +99,29 @@ describe('ClientMapPanel simplified controls', () => {
     );
 
     expect(screen.getByTestId('clientmap-build-receipt').textContent).toContain(
-      'Built from 0 emails, 0 PDFs; 1 gap; 0 files left this machine',
+      'Built from 4 sources (2 Word documents, 1 CRM record); 1 gap; sent direct to Anthropic',
+    );
+  });
+
+  it('shows the firm-proxy route when the Client Map was built through Assured mode', () => {
+    const map = {
+      ...makeMap(),
+      buildEgress: {
+        provider: 'openai',
+        destination: 'assured-proxy' as const,
+        dataLeaves: true,
+      },
+    };
+    render(
+      <ClientMapPanel
+        map={map}
+        onOpenSource={() => {}}
+        onEditItem={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('clientmap-build-receipt').textContent).toContain(
+      "via your firm's zero-retention proxy to OpenAI",
     );
   });
 

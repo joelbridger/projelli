@@ -43,6 +43,7 @@ import {
   type ActiveEgressProviderId,
 } from '@/platform/privacy/activeEgressProvider';
 import type { AuditSourceIdentity } from '@/platform/types/audit';
+import type { EgressDestination } from '@/platform/privacy/egress';
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -245,6 +246,8 @@ export interface AskTurn {
   readSources?: AuditSourceIdentity[];
   /** Provider used for this answer, captured at answer time for proof lines. */
   providerId?: string;
+  /** Where this answer was actually sent, captured at answer time for proof lines. */
+  egressDestination?: EgressDestination;
   isStreaming?: boolean;
   error?: string;
 }
@@ -1430,12 +1433,15 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
           : assistantMsg.askGroundedFromFiles === false
             ? { groundedFromFiles: false }
             : {};
-      const receiptMarker: Pick<AskTurn, 'readSources' | 'providerId'> = {};
+      const receiptMarker: Pick<AskTurn, 'readSources' | 'providerId' | 'egressDestination'> = {};
       if (assistantMsg.askReadSources && assistantMsg.askReadSources.length > 0) {
         receiptMarker.readSources = assistantMsg.askReadSources;
       }
       if (assistantMsg.askProviderId) {
         receiptMarker.providerId = assistantMsg.askProviderId;
+      }
+      if (assistantMsg.askEgressDestination) {
+        receiptMarker.egressDestination = assistantMsg.askEgressDestination;
       }
       const groundedCitations = (assistantMsg.askCitations ?? [])
         .filter((c) => {
