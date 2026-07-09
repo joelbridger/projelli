@@ -37,8 +37,14 @@ import {
   getFileAccessConsent,
 } from '@/platform/state/aiChatStore';
 import type { ChatMessage, WorkspaceSource } from '@/platform/types/ai';
-import type { AuditEntry, AuditScope } from '@/platform/types/audit';
+import type { AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import {
+  createAuditPairId,
+  mustLogAuditPhase,
+  type AuditEntryInput,
+  type AuditLogSink,
+} from '@/platform/audit/durableAudit';
 import {
   resolveEgress,
   isLocalProvider,
@@ -194,7 +200,7 @@ export interface UseAskProps {
     matterId?: string
   ) => void | Promise<void>;
   /** App-level audit sink. When omitted, Ask still works but does not log. */
-  onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  onAuditLog?: AuditLogSink;
 }
 
 export function useAsk({
@@ -1305,8 +1311,8 @@ export function useAsk({
               hasEvidence: groundingHits.length > 0,
             });
 
-        const emitSuccessfulEgress = () => {
-          if (!providerAudit) return;
+        const buildEgressEntry = (): AuditEntryInput | null => {
+          if (!providerAudit) return null;
           const egress = resolveEgress({
             provider: providerAudit.providerId,
             mode: getConfidentialityMode(),
@@ -1314,37 +1320,42 @@ export function useAsk({
             hasDemoByokKey: hasDemoByokKey(),
             assuredAvailable: false,
           });
-          onAuditLog?.(
-            auditEventToEntry({
-              type: 'egress',
-              timestamp: new Date().toISOString(),
-              payload: {
-                provider: egress.provider,
-                model: providerAudit.model,
-                mode: getConfidentialityMode(),
-                destination: egress.destination,
-                dataLeaves: egress.dataLeaves,
-                scope: buildAuditScope(retrievalScope),
-                // F2.5 — was client file content actually part of this send?
-                fileToolsEnabled,
-              },
-            })
-          );
+          return auditEventToEntry({
+            type: 'egress',
+            timestamp: new Date().toISOString(),
+            payload: {
+              provider: egress.provider,
+              model: providerAudit.model,
+              mode: getConfidentialityMode(),
+              destination: egress.destination,
+              dataLeaves: egress.dataLeaves,
+              scope: buildAuditScope(retrievalScope),
+              // F2.5 — was client file content actually part of this send?
+              fileToolsEnabled,
+            },
+          });
+        };
+
+        const emitSuccessfulEgress = async (auditPairId: string) => {
+          const entry = buildEgressEntry();
+          if (!entry || !providerAudit) return;
+          const providerId = providerAudit.providerId;
+          await mustLogAuditPhase(onAuditLog, entry, 'outcome', auditPairId);
           // A real response came back from a cloud provider's key, so it is
           // proven to work — prefer it for future chats (mirrors the "Check"
           // button in ApiKeyManager and the Wizard's on-save verification).
-          if (isVerifiableProvider(providerAudit.providerId)) {
-            markKeyVerified(providerAudit.providerId);
+          if (isVerifiableProvider(providerId)) {
+            markKeyVerified(providerId);
           }
         };
 
-        const emitModelCall = (
+        const buildModelCallEntry = (
           contentLength: number,
           usage?: { inputTokens?: number; outputTokens?: number },
           cost?: number
-        ) => {
-          if (!providerAudit) return;
-          onAuditLog?.({
+        ): AuditEntryInput | null => {
+          if (!providerAudit) return null;
+          return {
             action: 'model_call',
             description: `Search question to ${providerAudit.model}`,
             model: providerAudit.model,
@@ -1356,7 +1367,7 @@ export function useAsk({
             tokensOut: usage?.outputTokens ?? 0,
             costUsd: cost ?? 0,
             provider: providerAudit.providerId,
-          });
+          };
         };
 
         // Fix 1b (demo readiness) — see waitForLocalAiSidecarReady's doc comment
@@ -1442,6 +1453,15 @@ export function useAsk({
           firstTokenTimeoutMs: firstTokenBudgetMs,
         });
         try {
+          const auditPairId = createAuditPairId('ask');
+          const egressIntent = buildEgressEntry();
+          if (egressIntent) {
+            await mustLogAuditPhase(onAuditLog, egressIntent, 'intent', auditPairId);
+          }
+          const modelCallIntent = buildModelCallEntry(0);
+          if (modelCallIntent) {
+            await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
+          }
           if (typeof provider.sendMessageStreaming === 'function') {
             failedStage = 'provider-send';
             providerCallStarted = true;
@@ -1471,8 +1491,11 @@ export function useAsk({
               stallPromise,
             ]);
             answerText = streamResp.content;
-            emitSuccessfulEgress();
-            emitModelCall(answerText.length, streamResp.usage, streamResp.cost);
+            await emitSuccessfulEgress(auditPairId);
+            const modelCallOutcome = buildModelCallEntry(answerText.length, streamResp.usage, streamResp.cost);
+            if (modelCallOutcome) {
+              await mustLogAuditPhase(onAuditLog, modelCallOutcome, 'outcome', auditPairId);
+            }
           } else {
             failedStage = 'provider-send';
             providerCallStarted = true;
@@ -1488,8 +1511,11 @@ export function useAsk({
               stallPromise,
             ]);
             answerText = resp.content;
-            emitSuccessfulEgress();
-            emitModelCall(answerText.length, resp.usage, resp.cost);
+            await emitSuccessfulEgress(auditPairId);
+            const modelCallOutcome = buildModelCallEntry(answerText.length, resp.usage, resp.cost);
+            if (modelCallOutcome) {
+              await mustLogAuditPhase(onAuditLog, modelCallOutcome, 'outcome', auditPairId);
+            }
           }
         } finally {
           watchdog.cancel();

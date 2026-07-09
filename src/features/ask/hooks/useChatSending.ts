@@ -21,8 +21,14 @@ import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
 import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/platform/types/ai';
-import type { AuditEntry, AuditScope, CitationVerdict } from '@/platform/types/audit';
+import type { AuditScope, CitationVerdict } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import {
+  createAuditPairId,
+  mustLogAuditPhase,
+  type AuditEntryInput,
+  type AuditLogSink,
+} from '@/platform/audit/durableAudit';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Provider } from '@/platform/providers/Provider';
@@ -127,7 +133,7 @@ export interface UseChatSendingDeps {
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null> | undefined;
   rootPath: string | undefined;
   onFileTreeChange: (() => void) | undefined;
-  onAuditLog: ((entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void) | undefined;
+  onAuditLog: AuditLogSink | undefined;
   // Hook + store values.
   t: ReturnType<typeof useTranslation>['t'];
   assuredAvailableForChat: boolean;
@@ -916,9 +922,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
           return { egress, auditScope };
         };
 
-        const emitSuccessfulEgressAudit = () => {
+        const buildSuccessfulEgressAuditEntry = (): AuditEntryInput => {
           const { egress, auditScope } = buildEgressAuditPayload();
-          onAuditLog?.(auditEventToEntry({
+          return auditEventToEntry({
             type: 'egress',
             timestamp: new Date().toISOString(),
             payload: {
@@ -935,12 +941,21 @@ export function useChatSending(deps: UseChatSendingDeps) {
               // which sends could pull more files.
               fileToolsEnabled,
             },
-          }));
+          });
         };
 
-        const emitCancelledEgressAudit = () => {
+        const emitSuccessfulEgressAudit = async (auditPairId: string) => {
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildSuccessfulEgressAuditEntry(),
+            'outcome',
+            auditPairId,
+          );
+        };
+
+        const buildCancelledEgressAuditEntry = (): AuditEntryInput => {
           const { egress, auditScope } = buildEgressAuditPayload();
-          onAuditLog?.({
+          return {
             action: 'egress',
             description: `AI request cancelled after sending to ${chatProvider}`,
             model: effectiveChatModel,
@@ -965,8 +980,36 @@ export function useChatSending(deps: UseChatSendingDeps) {
               status: 'cancelled',
               fileToolsEnabled, // F2.5
             },
-          });
+          };
         };
+
+        const emitCancelledEgressAudit = async (auditPairId: string) => {
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildCancelledEgressAuditEntry(),
+            'outcome',
+            auditPairId,
+          );
+        };
+
+        const buildModelCallAuditEntry = (
+          contentLength: number,
+          streamed: boolean,
+          usage?: { inputTokens?: number; outputTokens?: number },
+          cost?: number,
+        ): AuditEntryInput => ({
+          action: 'model_call',
+          description: `Chat message to ${effectiveChatModel}`,
+          model: effectiveChatModel,
+          inputs: { promptLength: userMessage.content.length },
+          outputs: { contentLength },
+          userDecision: 'auto',
+          metadata: { chatId, streamed },
+          tokensIn: usage?.inputTokens ?? 0,
+          tokensOut: usage?.outputTokens ?? 0,
+          costUsd: cost ?? 0,
+          provider: chatProvider,
+        });
 
         const emitSuccessfulAttachmentAudits = () => {
           // Only attachments actually sent — a withheld unconsented export must
@@ -1627,6 +1670,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // below get a use that TS can narrow as non-null.
           const flusher = createStreamFlusher(chatId, setStreamingPreview);
           streamFlusher = flusher;
+          const auditPairId = createAuditPairId('chat');
 
           try {
             // Race guard (defense-in-depth; cloud providers also fail-closed
@@ -1634,6 +1678,18 @@ export function useChatSending(deps: UseChatSendingDeps) {
             // BEFORE the attachment/memory awaits, so re-check immediately before
             // the actual network send.
             assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
+            await mustLogAuditPhase(
+              onAuditLog,
+              buildSuccessfulEgressAuditEntry(),
+              'intent',
+              auditPairId,
+            );
+            await mustLogAuditPhase(
+              onAuditLog,
+              buildModelCallAuditEntry(0, true),
+              'intent',
+              auditPairId,
+            );
             providerCallAttempted = true;
             streamingResponse = await provider.sendMessageStreaming!(userMessage.content, {
               systemPrompt,
@@ -1658,7 +1714,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
               flusher.flushNow(accumulated);
               if (streamingAuditState.receivedChunk) {
                 providerSendCompletedOrCancelledAfterEgress = true;
-                emitCancelledEgressAudit();
+                await emitCancelledEgressAudit(auditPairId);
                 emitSuccessfulAttachmentAudits();
               }
             } else {
@@ -1673,7 +1729,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // aborted streams isn't worth the complexity.
           if (streamingResponse) {
             providerSendCompletedOrCancelledAfterEgress = true;
-            emitSuccessfulEgressAudit();
+            await emitSuccessfulEgressAudit(auditPairId);
             emitSuccessfulAttachmentAudits();
 
             recordCost(chatId, {
@@ -1687,19 +1743,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
             // CostMetrics can aggregate over 30 days. Only log when
             // audit callback is wired; the chat-only surface works
             // without it.
-            onAuditLog?.({
-              action: 'model_call',
-              description: `Chat message to ${effectiveChatModel}`,
-              model: effectiveChatModel,
-              inputs: { promptLength: userMessage.content.length },
-              outputs: { contentLength: streamingResponse.content.length },
-              userDecision: 'auto',
-              metadata: { chatId, streamed: true },
-              tokensIn: streamingResponse.usage.inputTokens,
-              tokensOut: streamingResponse.usage.outputTokens,
-              costUsd: streamingResponse.cost,
-              provider: chatProvider,
-            });
+            await mustLogAuditPhase(
+              onAuditLog,
+              buildModelCallAuditEntry(
+                streamingResponse.content.length,
+                true,
+                streamingResponse.usage,
+                streamingResponse.cost,
+              ),
+              'outcome',
+              auditPairId,
+            );
           }
 
           // WS-B/C — verify citations against the local store now the full
@@ -1733,6 +1787,19 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // Race guard (defense-in-depth): re-check the mode immediately before
           // the actual send (the top-of-send check predates the awaits above).
           assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
+          const auditPairId = createAuditPairId('chat');
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildSuccessfulEgressAuditEntry(),
+            'intent',
+            auditPairId,
+          );
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildModelCallAuditEntry(0, false),
+            'intent',
+            auditPairId,
+          );
           providerCallAttempted = true;
           const response = await provider.sendMessage(userMessage.content, {
             systemPrompt,
@@ -1742,7 +1809,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
           });
 
           providerSendCompletedOrCancelledAfterEgress = true;
-          emitSuccessfulEgressAudit();
+          await emitSuccessfulEgressAudit(auditPairId);
           emitSuccessfulAttachmentAudits();
 
           // Q3 — record cost for the chip + Q4 audit entry immediately after
@@ -1754,19 +1821,17 @@ export function useChatSending(deps: UseChatSendingDeps) {
             outputTokens: response.usage.outputTokens,
             provider: chatProvider,
           });
-          onAuditLog?.({
-            action: 'model_call',
-            description: `Chat message to ${effectiveChatModel}`,
-            model: effectiveChatModel,
-            inputs: { promptLength: userMessage.content.length },
-            outputs: { contentLength: response.content.length },
-            userDecision: 'auto',
-            metadata: { chatId, streamed: false },
-            tokensIn: response.usage.inputTokens,
-            tokensOut: response.usage.outputTokens,
-            costUsd: response.cost,
-            provider: chatProvider,
-          });
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildModelCallAuditEntry(
+              response.content.length,
+              false,
+              response.usage,
+              response.cost,
+            ),
+            'outcome',
+            auditPairId,
+          );
 
           // WS-B/C — verify the citations in the answer against the local
           // store BEFORE presenting them. Verified sources are marked safe;

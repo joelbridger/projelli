@@ -1503,30 +1503,45 @@ function AppShell() {
   // persisted row and the on-screen row describe the same event. Append-only on
   // both sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback(
-    (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
+    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
+      const options = {
+        ...(entry.model !== undefined ? { model: entry.model } : {}),
+        inputs: entry.inputs,
+        outputs: entry.outputs,
+        ...(entry.userDecision !== undefined
+          ? { userDecision: entry.userDecision }
+          : {}),
+        metadata: entry.metadata,
+        ...(entry.tokensIn !== undefined
+          ? { tokensIn: entry.tokensIn }
+          : {}),
+        ...(entry.tokensOut !== undefined
+          ? { tokensOut: entry.tokensOut }
+          : {}),
+        ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
+        ...(entry.provider !== undefined
+          ? { provider: entry.provider }
+          : {}),
+      };
+      if (entry.metadata['auditMustPersist'] === true) {
+        const newEntry = await auditServiceRef.current.mustLogDurable(
+          entry.action,
+          entry.description,
+          options,
+        );
+        setAuditEntries((prev) => [newEntry, ...prev]);
+        try {
+          setAuditIntegrity(await auditServiceRef.current.verifyIntegrity());
+        } catch {
+          // The action audit already persisted; integrity refresh is best-effort UI.
+        }
+        return;
+      }
       const { entry: newEntry, persisted } =
         auditServiceRef.current.logDurablePending(
           entry.action,
           entry.description,
-          {
-            ...(entry.model !== undefined ? { model: entry.model } : {}),
-            inputs: entry.inputs,
-            outputs: entry.outputs,
-            ...(entry.userDecision !== undefined
-              ? { userDecision: entry.userDecision }
-              : {}),
-            metadata: entry.metadata,
-            ...(entry.tokensIn !== undefined
-              ? { tokensIn: entry.tokensIn }
-              : {}),
-            ...(entry.tokensOut !== undefined
-              ? { tokensOut: entry.tokensOut }
-              : {}),
-            ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
-            ...(entry.provider !== undefined
-              ? { provider: entry.provider }
-              : {}),
-          }
+          options
         );
       setAuditEntries((prev) => [newEntry, ...prev]);
       void persisted

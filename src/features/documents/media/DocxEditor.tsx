@@ -65,6 +65,7 @@ import { AutoSaveIndicator } from '@/features/documents/editor/AutoSaveIndicator
 import { DocxViewer } from '@/features/documents/media/DocxViewer';
 import { LibreOfficeHelpNotice } from '@/features/documents/media/LibreOfficeHelpNotice';
 import { detectLibreOffice } from '@/platform/utils/tauri-commands';
+import { createAuditPairId, mustLogAuditPhase } from '@/platform/audit/durableAudit';
 import {
   docxAuthorRevisions,
   docxConvertToPdf,
@@ -1452,14 +1453,48 @@ export function DocxEditor({
     [exportBusy, flushSaveBeforeExport, filePath],
   );
 
+  const auditFileExport = useCallback(
+    async (
+      phase: 'intent' | 'outcome',
+      auditPairId: string,
+      format: 'docx' | 'pdf',
+      destinationPath: string | null,
+      outputs: Record<string, unknown> = {},
+    ) => {
+      await mustLogAuditPhase(
+        onAuditLog,
+        {
+          action: 'file_export',
+          description: `Exported file as ${format.toUpperCase()}: ${fileName}`,
+          model: undefined,
+          inputs: {
+            sourcePath: filePath,
+            sourceName: fileName,
+            format,
+            destinationPath,
+          },
+          outputs,
+          userDecision: 'approved',
+          metadata: { auditEventType: 'file_export', format },
+        },
+        phase,
+        auditPairId,
+      );
+    },
+    [fileName, filePath, onAuditLog],
+  );
+
   const handleExportWord = useCallback(() => {
     void runExport(async (srcPath) => {
       const dest = await pickSavePath(`${exportStem}.docx`, 'docx');
       if (!dest) return null;
+      const auditPairId = createAuditPairId('file_export');
+      await auditFileExport('intent', auditPairId, 'docx', dest);
       await docxExportCopy(srcPath, dest);
+      await auditFileExport('outcome', auditPairId, 'docx', dest, { success: true });
       return t('media.docx-editor.export-saved-word');
     });
-  }, [runExport, pickSavePath, exportStem, t]);
+  }, [runExport, pickSavePath, exportStem, auditFileExport, t]);
 
   const handleExportPdf = useCallback(() => {
     void runExport(async (srcPath) => {
@@ -1471,6 +1506,8 @@ export function DocxEditor({
       }
       // A retry after installing LibreOffice clears any stale help notice.
       setLibreOfficeHelpOpen(false);
+      const auditPairId = createAuditPairId('file_export');
+      await auditFileExport('intent', auditPairId, 'pdf', null);
       // Convert the saved .docx to PDF (LibreOffice) -> temp path, then let the
       // user choose where to save the PDF (read bytes, write via saveFile).
       const pdfPath = await docxConvertToPdf(srcPath);
@@ -1483,9 +1520,13 @@ export function DocxEditor({
       });
       // In Tauri, `saved` is the path (undefined => cancelled).
       if (saved === undefined) return null;
+      await auditFileExport('outcome', auditPairId, 'pdf', saved, {
+        success: true,
+        byteSize: bytes.byteLength,
+      });
       return t('media.docx-editor.export-saved-pdf');
     });
-  }, [runExport, exportStem, t]);
+  }, [runExport, exportStem, auditFileExport, t]);
 
   const handleExportCleanCopy = useCallback(
     (acceptAllChanges: boolean) => {
@@ -1495,13 +1536,23 @@ export function DocxEditor({
           'docx',
         );
         if (!dest) return null;
+        const auditPairId = createAuditPairId('file_export');
+        await auditFileExport('intent', auditPairId, 'docx', dest, {
+          cleanCopy: true,
+          acceptAllChanges,
+        });
         await docxExportCleanCopy(srcPath, dest, acceptAllChanges);
+        await auditFileExport('outcome', auditPairId, 'docx', dest, {
+          success: true,
+          cleanCopy: true,
+          acceptAllChanges,
+        });
         return acceptAllChanges
           ? t('media.docx-editor.export-saved-clean-final')
           : t('media.docx-editor.export-saved-clean');
       });
     },
-    [runExport, pickSavePath, exportStem, t],
+    [runExport, pickSavePath, exportStem, auditFileExport, t],
   );
 
   const runDraftFollowUp = useCallback(() => {

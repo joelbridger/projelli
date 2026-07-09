@@ -24,7 +24,7 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: mocks.invoke,
 }));
 
-import { AuditService, isAuditEncrypted } from '@/platform/audit/AuditService';
+import { AuditPersistenceError, AuditService, isAuditEncrypted } from '@/platform/audit/AuditService';
 import type { AuditActionType, AuditEvent } from '@/platform/types/audit';
 
 describe('AuditService persistence (browser, localStorage)', () => {
@@ -152,6 +152,21 @@ describe('AuditService persistence (desktop, encrypted store)', () => {
     expect(entry.metadata['auditPersistenceStatus']).toBe('failed');
     expect(String(entry.metadata['auditPersistenceError'])).toContain('encrypted store unavailable');
     expect(svc.getAll()[0]).toBe(entry);
+  });
+
+  it('mustLogDurable throws when a required desktop audit row cannot persist', async () => {
+    mocks.invoke.mockRejectedValue(new Error('encrypted store unavailable'));
+    const svc = new AuditService('desktop-critical-must-fail');
+
+    await expect(
+      svc.mustLogDurable('egress', 'AI request intent to Anthropic', {
+        metadata: { auditEventType: 'egress', auditPhase: 'intent' },
+      }),
+    ).rejects.toBeInstanceOf(AuditPersistenceError);
+
+    const entry = svc.getAll()[0]!;
+    expect(entry.metadata['auditPersistenceStatus']).toBe('failed');
+    expect(String(entry.metadata['auditPersistenceError'])).toContain('encrypted store unavailable');
   });
 
   it('persists successful durable rows with saved status, never pending', async () => {

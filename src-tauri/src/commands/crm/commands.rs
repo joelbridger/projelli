@@ -525,6 +525,8 @@ fn crm_audit_payload_json_for_matter(
     action: &str,
     description: &str,
     matter_id: &str,
+    audit_phase: &str,
+    audit_pair_id: &str,
 ) -> String {
     serde_json::json!({
         "id": id,
@@ -539,13 +541,34 @@ fn crm_audit_payload_json_for_matter(
             "auditEventType": action,
             "source": "crm-backend",
             "scope": { "kind": "matter", "matterId": matter_id },
+            "auditPhase": audit_phase,
+            "auditPairId": audit_pair_id,
+            "auditMustPersist": true,
+            "auditPersistenceStatus": "saved",
         },
     })
     .to_string()
 }
 
-/// Matter-scoped variant of [`append_crm_audit_best_effort`] — same
-/// best-effort contract (never propagates to the calling command).
+fn crm_audit_failure_message(audit_phase: &str, detail: Option<String>) -> String {
+    let base = if audit_phase == "intent" {
+        "Audit log is unavailable, so the CRM write was blocked before anything was sent."
+            .to_string()
+    } else {
+        "Audit log is unavailable after the CRM write attempt; the CRM result could not be recorded durably."
+            .to_string()
+    };
+    match detail {
+        Some(detail) => format!("{base}: {detail}"),
+        None => base,
+    }
+}
+
+/// Matter-scoped CRM write audit append that must persist.
+///
+/// Compliance-critical CRM writes call this with `audit_phase = "intent"`
+/// BEFORE contacting the CRM. If that append fails, the caller refuses the
+/// write, so no CRM mutation can happen without a durable audit row.
 /// `write_dedup_key`: when `Some`, the audit entry's id is DETERMINISTIC
 /// (derived from the write's own dedup key) instead of randomly generated.
 /// `EncryptedAuditStore::append` is `INSERT OR IGNORE` on id — a deterministic
@@ -554,13 +577,15 @@ fn crm_audit_payload_json_for_matter(
 /// "pushed" entry), while a write that landed but whose process crashed
 /// before this call ever ran gets audited for the first time on the very
 /// next retry that recovers it, instead of never being audited at all.
-async fn append_crm_audit_best_effort_for_matter(
+async fn append_crm_audit_must_for_matter(
     app: &AppHandle,
     action: &str,
     description: &str,
     matter_id: &str,
     write_dedup_key: Option<&str>,
-) {
+    audit_phase: &str,
+    audit_pair_id: &str,
+) -> Result<(), String> {
     use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
 
     let ws_opt: Option<std::path::PathBuf> = {
@@ -572,21 +597,23 @@ async fn append_crm_audit_best_effort_for_matter(
         }
     };
     let Some(ws) = ws_opt else {
-        log::warn!("crm audit append skipped (non-fatal): no workspace path available");
-        return;
+        return Err(crm_audit_failure_message(audit_phase, None));
     };
 
     let action_s = action.to_string();
     let desc_s = description.to_string();
     let matter_id_s = matter_id.to_string();
     let write_dedup_key = write_dedup_key.map(str::to_string);
+    let audit_phase_s = audit_phase.to_string();
+    let audit_phase_for_error = audit_phase_s.clone();
+    let audit_pair_id_s = audit_pair_id.to_string();
 
     let result = tokio::task::spawn_blocking(move || -> anyhow::Result<AuditEntryRecord> {
         let store = EncryptedAuditStore::open(&ws)?;
 
         let timestamp = chrono::Utc::now().to_rfc3339();
         let id = match &write_dedup_key {
-            Some(key) => format!("audit_crmwrite_{key}"),
+            Some(key) => format!("audit_crmwrite_{key}_{audit_phase_s}"),
             None => {
                 let nanos = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
@@ -594,12 +621,20 @@ async fn append_crm_audit_best_effort_for_matter(
                     .unwrap_or_default();
                 let mut rng_bytes = [0u8; 4];
                 rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
-                format!("audit_crm_{}_{}", nanos, hex::encode(rng_bytes))
+                format!("audit_crm_{}_{}_{}", audit_phase_s, nanos, hex::encode(rng_bytes))
             }
         };
 
         let payload_json =
-            crm_audit_payload_json_for_matter(&id, &timestamp, &action_s, &desc_s, &matter_id_s);
+            crm_audit_payload_json_for_matter(
+                &id,
+                &timestamp,
+                &action_s,
+                &desc_s,
+                &matter_id_s,
+                &audit_phase_s,
+                &audit_pair_id_s,
+            );
 
         let rec = AuditEntryRecord {
             id,
@@ -616,9 +651,10 @@ async fn append_crm_audit_best_effort_for_matter(
     match result {
         Ok(Ok(rec)) => {
             let _ = app.emit(CRM_AUDIT_APPENDED_EVENT, &rec);
+            Ok(())
         }
-        Ok(Err(e)) => log::warn!("crm audit append failed (non-fatal): {e:#}"),
-        Err(e) => log::warn!("crm audit spawn failed (non-fatal): {e}"),
+        Ok(Err(e)) => Err(crm_audit_failure_message(&audit_phase_for_error, Some(format!("{e:#}")))),
+        Err(e) => Err(crm_audit_failure_message(&audit_phase_for_error, Some(e.to_string()))),
     }
 }
 
@@ -789,10 +825,26 @@ async fn crm_create_write(
     });
 
     let write_dedup_key = write::dedup_key(&req);
+    let audit_pair_id = format!("crmwrite_{write_dedup_key}");
+    let intent_description = format!(
+        "{} push requested to {} household {household_key} (source: {source_ref})",
+        kind.as_str(),
+        provider.display_name(),
+    );
+    append_crm_audit_must_for_matter(
+        &app,
+        &action,
+        &intent_description,
+        &matter_id,
+        Some(&write_dedup_key),
+        "intent",
+        &audit_pair_id,
+    )
+    .await?;
 
     match write::push_crm_write(client.as_ref(), &store, &state.write_guard, &req).await {
         Ok(receipt) => {
-            // The audit id is deterministic (see append_crm_audit_best_effort_for_matter)
+            // The audit id is deterministic (see append_crm_audit_must_for_matter)
             // and INSERT-OR-IGNORE at the store layer, so this is always safe
             // to call even on a deduped receipt: a genuine retry of an
             // already-audited write silently no-ops (no duplicate "pushed"
@@ -805,14 +857,16 @@ async fn crm_create_write(
                 kind.as_str(),
                 provider.display_name(),
             );
-            append_crm_audit_best_effort_for_matter(
+            append_crm_audit_must_for_matter(
                 &app,
                 &action,
                 &description,
                 &matter_id,
                 Some(&write_dedup_key),
+                "outcome",
+                &audit_pair_id,
             )
-            .await;
+            .await?;
             Ok(receipt)
         }
         // Wealthbox may already have accepted (even persisted) this write —
@@ -827,14 +881,16 @@ async fn crm_create_write(
                 kind.as_str(),
                 provider.display_name(),
             );
-            append_crm_audit_best_effort_for_matter(
+            append_crm_audit_must_for_matter(
                 &app,
                 &action,
                 &description,
                 &matter_id,
                 Some(&format!("{write_dedup_key}_ambiguous")),
+                "outcome",
+                &audit_pair_id,
             )
-            .await;
+            .await?;
             Err(CrmWriteError::VerifyPending.to_string())
         }
         Err(e) => Err(e.to_string()),
@@ -937,6 +993,21 @@ pub async fn crm_update_field(
     // string would let harmless whitespace defeat the INSERT OR IGNORE
     // dedup this id exists for.
     let write_dedup_key = format!("{}_{}", write::dedup_key_field(&req), requested_at.trim());
+    let audit_pair_id = format!("crmwrite_{write_dedup_key}");
+    let intent_description = format!(
+        "field '{field}' update requested on {} household {household_key} (source: {source_ref})",
+        provider.display_name(),
+    );
+    append_crm_audit_must_for_matter(
+        &app,
+        &action,
+        &intent_description,
+        &matter_id,
+        Some(&write_dedup_key),
+        "intent",
+        &audit_pair_id,
+    )
+    .await?;
 
     match write::push_crm_field_update(client.as_ref(), &store, &state.write_guard, &req).await {
         Ok(receipt) => {
@@ -950,7 +1021,16 @@ pub async fn crm_update_field(
             // write or a cache hit collides with its own prior entry (no
             // duplicate); a LATER, separate approval (new requested_at) of
             // the same content always gets its own entry.
-            append_crm_audit_best_effort_for_matter(&app, &action, &description, &matter_id, Some(&write_dedup_key)).await;
+            append_crm_audit_must_for_matter(
+                &app,
+                &action,
+                &description,
+                &matter_id,
+                Some(&write_dedup_key),
+                "outcome",
+                &audit_pair_id,
+            )
+            .await?;
             Ok(receipt)
         }
         Err(CrmWriteError::StaleFieldValue(current)) => {
@@ -959,14 +1039,16 @@ pub async fn crm_update_field(
                  skipped — the value changed in the CRM since this was proposed",
                 provider.display_name(),
             );
-            append_crm_audit_best_effort_for_matter(
+            append_crm_audit_must_for_matter(
                 &app,
                 &action,
                 &description,
                 &matter_id,
                 Some(&format!("{write_dedup_key}_stale")),
+                "outcome",
+                &audit_pair_id,
             )
-            .await;
+            .await?;
             Err(CrmWriteError::StaleFieldValue(current).to_string())
         }
         Err(CrmWriteError::VerifyPending) => {
@@ -975,14 +1057,16 @@ pub async fn crm_update_field(
                  MAY have been applied — delivery unconfirmed, will verify on retry",
                 provider.display_name(),
             );
-            append_crm_audit_best_effort_for_matter(
+            append_crm_audit_must_for_matter(
                 &app,
                 &action,
                 &description,
                 &matter_id,
                 Some(&format!("{write_dedup_key}_ambiguous")),
+                "outcome",
+                &audit_pair_id,
             )
-            .await;
+            .await?;
             Err(CrmWriteError::VerifyPending.to_string())
         }
         Err(e) => Err(e.to_string()),
@@ -3134,6 +3218,31 @@ mod tests {
             "scope must be an object"
         );
         assert_eq!(v["metadata"]["scope"]["kind"], "allMatters");
+    }
+
+    /// CRM write intents are the fail-closed gate. The command writes this
+    /// row before contacting Wealthbox; if the append fails, the command
+    /// returns an error and the CRM write never starts.
+    #[test]
+    fn crm_write_audit_payload_marks_intent_as_must_persist() {
+        let payload = crm_audit_payload_json_for_matter(
+            "audit_crmwrite_dedup_intent",
+            "2026-07-09T00:00:00Z",
+            "wealthbox.create_note",
+            "Note push requested to Wealthbox household 12345",
+            "matter-1",
+            "intent",
+            "crmwrite_dedup",
+        );
+        let v: serde_json::Value = serde_json::from_str(&payload).expect("valid json");
+
+        assert_eq!(v["action"], "wealthbox.create_note");
+        assert_eq!(v["metadata"]["scope"]["kind"], "matter");
+        assert_eq!(v["metadata"]["scope"]["matterId"], "matter-1");
+        assert_eq!(v["metadata"]["auditPhase"], "intent");
+        assert_eq!(v["metadata"]["auditPairId"], "crmwrite_dedup");
+        assert_eq!(v["metadata"]["auditMustPersist"], true);
+        assert_eq!(v["metadata"]["auditPersistenceStatus"], "saved");
     }
 
     // ── Fix A: audit roundtrip — wealthbox.* entry persists and lists ─────────
