@@ -4,7 +4,7 @@
  * Wires the REAL data connectors. Rather than pixel-cloning the prototype's
  * three logo tiles with mock buttons, this reuses the actual, tested connector
  * components (MailConnect / MailGmailConnect / MailImapConnect /
- * WealthboxConnect / OneDriveConnect).
+ * WealthboxConnect / OneDriveConnect / CalendarConnect).
  * That matters: those components don't just authenticate, they kick off the
  * background sync that the "Setting up your firm" progress bars read from. A
  * cloned tile would connect but never import.
@@ -22,6 +22,7 @@ import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
 import { MailImapConnect } from '@/platform/connectors/email/MailImapConnect';
 import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect';
 import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
+import { CalendarConnect } from '@/platform/connectors/calendar/CalendarConnect';
 
 import { SecurityPill } from '../components/SecurityPill';
 import { getOnboardingV2Copy, ONB_COMING_SOON_LOGOS } from '../copy';
@@ -90,6 +91,16 @@ export function ConnectScene() {
             badgeLabel={C.badges.readsIn}
           >
             <MailConnect />
+          </ConnectorCard>
+          <ConnectorCard
+            testId="connect-calendar"
+            brand="calendar"
+            title={C.cards.calendar.title}
+            description={C.cards.calendar.description}
+            badgeKind="reads-in"
+            badgeLabel={C.badges.readsIn}
+          >
+            <CalendarConnect />
           </ConnectorCard>
           <ConnectorCard
             testId="connect-gmail"

@@ -183,6 +183,10 @@ export function getOnboardingV2Copy(t: unknown = defaultTranslate) {
           title: text(t, 'connect.cards.onedrive.title'),
           description: text(t, 'connect.cards.onedrive.description'),
         },
+        calendar: {
+          title: text(t, 'connect.cards.calendar.title'),
+          description: text(t, 'connect.cards.calendar.description'),
+        },
         wealthbox: {
           title: text(t, 'connect.cards.wealthbox.title'),
           description: text(t, 'connect.cards.wealthbox.description'),

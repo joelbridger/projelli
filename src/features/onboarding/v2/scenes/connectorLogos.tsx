@@ -2,6 +2,7 @@ export type ConnectorBrand =
   | 'gmail'
   | 'm365'
   | 'onedrive'
+  | 'calendar'
   | 'wealthbox'
   | 'salesforce'
   | 'redtail'
