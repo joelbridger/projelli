@@ -19,18 +19,16 @@
 //! (and any run that sets the env var) the Notice Card webview creation failed
 //! with `0x8007139F` and the recording-notice guest never joined the meeting.
 //!
-//! The fix is to compute the argument string in ONE place. Release builds hand
-//! that same explicit string to BOTH window builders, preserving today's behavior
-//! and ignoring machine-level env vars. Windows debug builds instead put that
-//! exact string in `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` before each WebView2
-//! environment is created, then gives that environment to wry so wry does not
-//! call `AdditionalBrowserArguments` for that window. That lets WebView2 read
-//! the CDP debug-port flag from its own env var while preserving wry's default
-//! flags, especially
-//! `--autoplay-policy=no-user-gesture-required` for Notice Card media.
+//! The fix is to compute the argument string in ONE place and hand the *same*
+//! string to BOTH window builders. Passing an explicit string makes wry use it
+//! verbatim — it only appends its own autoplay/proxy extras on the `None` path —
+//! so this string must itself REPRODUCE every extra wry would have added for our
+//! windows. In particular it keeps `--autoplay-policy=no-user-gesture-required`
+//! (wry's default, which the companion window needs to play meeting media with no
+//! user gesture); see `WRY_DEFAULT_BROWSER_ARGS`. With both windows fed the same
+//! complete string they are byte-for-byte identical in every config.
 
-pub const WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS_ENV: &str =
-    "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
+pub const WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS_ENV: &str = "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS";
 
 /// The full additional-browser-args string wry would build for THIS app's
 /// webviews when left to its own devices — reproduced exactly so that our
@@ -74,65 +72,21 @@ pub fn webview_browser_args() -> String {
     )
 }
 
-/// Windows debug builds need CDP to be enabled by WebView2 itself, from the
-/// process environment, before a WebView2 environment is created. This writes the
-/// complete shared args string there and returns it for logging/tests.
+/// Windows debug builds need the bench's CDP flag to reach the Edge/WebView2
+/// child process. wry 0.55.1 always creates an options object and sets
+/// `AdditionalBrowserArguments` when it creates its own environment, so the
+/// reliable path is to give wry the exact full string directly and log what it
+/// got. That also keeps the main window and Notice Card byte-identical.
 #[cfg(all(windows, debug_assertions))]
-pub fn install_debug_webview2_args_env() -> String {
-    let args = webview_browser_args_with(
-        std::env::var(WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS_ENV).ok(),
-        true,
+pub fn debug_webview_browser_args(window_label: &str) -> String {
+    let inherited = std::env::var(WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS_ENV).ok();
+    let args = webview_browser_args_with(inherited.clone(), true);
+    log::info!(
+        "[webview2-debug] {window_label}: path=additional_browser_args inherited_{WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS_ENV}={:?} final_args={:?}",
+        inherited.as_deref(),
+        args
     );
-    std::env::set_var(WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS_ENV, &args);
     args
-}
-
-/// Create a Windows debug WebView2 environment without passing an
-/// `AdditionalBrowserArguments` options object. In this mode WebView2 reads
-/// `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` directly, which is the path the CDP
-/// debug port needs on the Windows bench.
-#[cfg(all(windows, debug_assertions))]
-pub fn create_debug_webview2_environment() -> Result<
-    webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Environment,
-    webview2_com::Error,
-> {
-    use std::sync::mpsc;
-
-    use webview2_com::{
-        CreateCoreWebView2EnvironmentCompletedHandler,
-        Microsoft::Web::WebView2::Win32::{
-            CreateCoreWebView2EnvironmentWithOptions, ICoreWebView2EnvironmentOptions,
-        },
-    };
-    use windows::{
-        core::{Error as WindowsError, PCWSTR},
-        Win32::Foundation::{E_POINTER, E_UNEXPECTED},
-    };
-
-    install_debug_webview2_args_env();
-
-    let (tx, rx) = mpsc::channel();
-    let handler = CreateCoreWebView2EnvironmentCompletedHandler::create(Box::new(
-        move |error_code, environment| {
-            let result = (|| {
-                error_code?;
-                environment.ok_or_else(|| WindowsError::from(E_POINTER))
-            })();
-            tx.send(result)
-                .map_err(|_| WindowsError::from(E_UNEXPECTED))
-        },
-    ));
-
-    unsafe {
-        CreateCoreWebView2EnvironmentWithOptions(
-            PCWSTR::null(),
-            PCWSTR::null(),
-            Option::<&ICoreWebView2EnvironmentOptions>::None,
-            &handler,
-        )?;
-    }
-
-    Ok(webview2_com::wait_with_pump(rx)??)
 }
 
 /// Pure core of [`webview_browser_args`], split out so the env-independent

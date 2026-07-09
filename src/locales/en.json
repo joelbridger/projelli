@@ -932,7 +932,7 @@
             "body": "Answers come with sources you can open."
           }
         },
-        "trust-line": "Your client data never touches our servers, the cloud, or any AI's training. Ever.",
+        "trust-line": "Your files stay on your computer. Cloud AI sends only your question, straight to your own AI account, never to our servers or to train AI.",
         "help-line": "You can reopen this walkthrough anytime from Help.",
         "cta": "Go!"
       },

@@ -193,13 +193,6 @@ tauri-plugin-process = "2"
 # a real wide-string argument with no shell parsing, so the OAuth URL stays intact.
 [target."cfg(windows)".dependencies]
 windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
-# Windows dev-build WebView2 CDP setup. These match Tauri/wry's resolved
-# versions and are only used to create debug WebView2 environments without
-# passing AdditionalBrowserArguments, so WebView2 reads
-# WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS directly for the debug port.
-webview2-com = "0.38.2"
-windows = { version = "0.61.3", features = ["Win32_Foundation"] }
-
 # macOS-only: MacTapSource (capture::sources) sends SIGTERM to the
 # capture-mac sidecar for a graceful stop per its documented contract.
 [target."cfg(target_os = \"macos\")".dependencies]

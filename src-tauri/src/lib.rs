@@ -364,18 +364,21 @@ pub fn run() {
             //
             // Important split:
             // - Release/non-Windows keeps today's explicit wry args behavior.
-            // - Windows debug creates a WebView2 environment with
-            //   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set to the complete shared
-            //   args string. The builder then uses that environment instead of
-            //   passing `AdditionalBrowserArguments`, so WebView2's own env-var
-            //   path opens the CDP port.
+            // - Windows debug also passes the full string directly through wry's
+            //   `AdditionalBrowserArguments` path. In wry 0.55.1 this is the
+            //   path that makes the Edge/WebView2 child process visibly carry
+            //   `--remote-debugging-port=...`; the attempted custom-environment
+            //   path succeeded but did not open CDP on the Windows bench.
             if let Some(window_config) = app.config().app.windows.first() {
                 let builder =
                     tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?;
 
                 #[cfg(all(windows, debug_assertions))]
-                let builder = builder
-                    .with_environment(crate::webview_env::create_debug_webview2_environment()?);
+                let builder = {
+                    let browser_args = crate::webview_env::debug_webview_browser_args("main");
+                    log::info!("[webview2-debug] main: window_path=additional_browser_args");
+                    builder.additional_browser_args(&browser_args)
+                };
 
                 #[cfg(not(all(windows, debug_assertions)))]
                 let builder = {

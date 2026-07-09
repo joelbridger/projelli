@@ -63,10 +63,11 @@ pub async fn notice_card_open(
         .initialization_script(&init_script);
 
     #[cfg(all(windows, debug_assertions))]
-    let builder = builder.with_environment(
-        crate::webview_env::create_debug_webview2_environment()
-            .map_err(|e| format!("create debug WebView2 environment: {e}"))?,
-    );
+    let builder = {
+        let browser_args = crate::webview_env::debug_webview_browser_args(&label);
+        log::info!("[webview2-debug] {label}: window_path=additional_browser_args");
+        builder.additional_browser_args(&browser_args)
+    };
 
     #[cfg(not(all(windows, debug_assertions)))]
     let builder = {
