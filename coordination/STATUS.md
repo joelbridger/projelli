@@ -1,5 +1,13 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-09 ~05:20 — RESEARCH-DRIVEN PRODUCT PUSH (coordinator-12)
+
+- ⭐ USER RESEARCH (wife onboarding, 2026-07-08): 3 clips transcribed LOCALLY, analyzed. Two-pillar buying model (compliance gate FIRST); our local-first architecture = the answer to her #1 pain. GTM playbook: XYPN approved-list (Jump path), herd-adoption logos, Microsoft-adjacency, court Synergy Compliance, CCO pack. Private in docs/user-research/ (audio gitignored). Published + memory (project_advisor_user_research).
+- SEC/RIA COMPLIANCE RESEARCH: the 10-item checklist of what Synergy/CCO needs mapped to SEC rules (Reg S-P 2024 amendments = concrete bar; no explicit AI-software rule). Local-first = structural advantage. coordination/reports/sec-ria-compliance-research.md, published.
+- COMPLIANCE & SECURITY PACK: drafting (docs/partnerships/compliance-pack/) — the CCO deliverable + onboarding CTA target.
+- ONBOARDING REFRAME (feat/onboarding-reframe): hero "The AI you're actually allowed to use with client data" + new ComplianceScene "Why you can use this when you can't use ChatGPT" + "For your compliance officer" CTA + provider consumer-names + shield (not wifi) icon + re-findable tour. Built, full gate green. Design docs/plans/onboarding-reframe.md. NOT merged (present first).
+- CALENDAR (feat/calendly-scheduling): Phase 1 (availability engine, TDD) + Phase 2 (advisor Scheduling surface — top-bar calendar icon → rail+content, SurfaceHeader, booking-link card, availability, meeting types, live slot preview). Design-reviewed by Fable via screenshots: looks native/good; timezone polish (UTC→advisor-local) IN FLIGHT. Plans docs/plans/calendly-*.
+- AWAITING JAMESON: see the new onboarding + calendar visuals; Plaid go/no-go; UI preview approve-all; assured-routing merge; deploy calls (booking page = commercial).
 ## UPDATE 2026-07-09 ~02:00 — DEMO BUGS FIXED + JUMP-PARITY PHASE 1 BUILDS DONE (coordinator-12)
 
 - DEMO BUGS (Jameson hit on clean-slate walkthrough, FIXED + shipped to Legion v5): (1) OneDrive disconnect crash "cannot read properties of null" → null-guard in OneDriveConnect.tsx (backend null result = clean disconnect). (2) Anthropic key showed disconnected after nav-back → NOT real loss; AiScene never re-checked keychain on remount → added mount hasKey() restore. Both @lp/ux-simplify-v1, 23 tests green.
