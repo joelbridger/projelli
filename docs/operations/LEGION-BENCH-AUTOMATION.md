@@ -139,3 +139,14 @@ scp james@100.127.67.22:C:/agent-shot.png /tmp/legion-shot.png
 ```
 
 Use the dev bridge for precise app actions. Use PyAutoGUI for the real operating-system surface.
+
+## Field notes — first production session (2026-07-09, coordinator-14)
+
+Proven end-to-end tonight: /health, /testids (~26KB of labels with the full client list), /eval, /click, /text. Drove client selection, tab navigation, email search ("Roth conversion" → 5 results), settings navigation, and Ask submission entirely by label — zero screenshots needed for reading state.
+
+Gotchas found live (patterns to reuse):
+1. **Radix/portal dropdown menus ignore element.click().** The `/click?testid=` route (and eval `.click()`) does nothing on Radix DropdownMenu triggers. Working pattern: ask the bridge for the trigger's real screen position, then click with the pyautogui agent:
+   `/eval` → `(window.screenX + rect.x + rect.width/2) * devicePixelRatio` (add `window.outerHeight - window.innerHeight` to y for the title bar), then `legdrive.sh click X Y`. Menu items: same pattern.
+2. **React inputs need the native-setter trick** (plain `.value=` is ignored): get `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set`, call it, then dispatch `new Event('input',{bubbles:true})`. Works for search boxes and the Ask composer. cmdk/command-palette inputs may need real key events instead.
+3. **PowerShell → SSH output is not always valid UTF-8.** Decode with `errors="replace"` on the reading side (the `€`/dash class of characters otherwise kills a strict JSON parse).
+4. **A helper wrapper beats raw Invoke-WebRequest quoting.** URL-encode the JS on the Linux side (python urllib.parse.quote) and pass one clean URL over ssh; inline PowerShell quoting of JS reliably mangles it.
