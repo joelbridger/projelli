@@ -133,6 +133,33 @@ pub(crate) fn needs_drop_and_rebuild(
     migrating || stale_key_format || rebuild_required
 }
 
+fn mark_mail_backfill_needed_after_vector_rebuild(workspace: &Path, reason: &str) {
+    if !crate::commands::mail::store::EncryptedMailStore::db_path(workspace).exists() {
+        return;
+    }
+    let key = match crate::commands::mail::crypto::get_or_create_master_key() {
+        Ok(key) => key,
+        Err(e) => {
+            log::warn!(
+                "rag: failed to load mail key after vector rebuild ({reason}); \
+                 mail RAG backfill marker not set: {e:#}"
+            );
+            return;
+        }
+    };
+    match crate::commands::mail::mark_rag_backfill_needed_after_vector_rebuild(workspace, &key) {
+        Ok(true) => {
+            log::info!("rag: marked mail RAG backfill needed after vector rebuild ({reason})");
+        }
+        Ok(false) => {}
+        Err(e) => {
+            log::warn!(
+                "rag: failed to mark mail RAG backfill after vector rebuild ({reason}): {e:#}"
+            );
+        }
+    }
+}
+
 /// QA-92 — given a stat-fresh manifest entry, its path token, and the per-scope
 /// row counts pre-scanned from the live table, decide whether a boot reconcile
 /// may SKIP the file. The manifest is only a receipt: a file can look "already
@@ -278,7 +305,9 @@ pub(crate) async fn run_workspace_index(
     // the handle to the dataset being purged, and AGAIN after so any handle a read
     // re-cached in the tiny pre-drop window is cleared (the next read then re-opens
     // the freshly recreated table, which read-consistency fills in as rows land).
-    if needs_drop_and_rebuild(migrating, stale_key_format, rebuild_required) {
+    let dropped_vector_store =
+        needs_drop_and_rebuild(migrating, stale_key_format, rebuild_required);
+    if dropped_vector_store {
         invalidate_table_cache(&state).await;
         let reason = if migrating {
             format!("schema migration to v{}", store::INDEX_VERSION)
@@ -291,6 +320,7 @@ pub(crate) async fn run_workspace_index(
         store::drop_table(&conn)
             .await
             .map_err(|e| format!("drop table for {reason}: {e}"))?;
+        mark_mail_backfill_needed_after_vector_rebuild(&workspace, &reason);
         manifest::delete(&workspace);
         invalidate_table_cache(&state).await;
     }
@@ -331,6 +361,9 @@ pub(crate) async fn run_workspace_index(
     // (which would otherwise see retained pdf entries as "fresh") re-indexes PDFs
     // too. (The migration path already deletes it above.)
     if table_missing {
+        if !dropped_vector_store {
+            mark_mail_backfill_needed_after_vector_rebuild(&workspace, "missing vector table");
+        }
         manifest::delete(&workspace);
     }
 

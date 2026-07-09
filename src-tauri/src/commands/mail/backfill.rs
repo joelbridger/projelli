@@ -438,6 +438,24 @@ pub(crate) fn mark_rag_backfill_needed(
     result
 }
 
+/// A destructive vector-store rebuild removes derived mail chunks too. Unlike
+/// the sync-failure path, this must persist the marker even if this process
+/// already marked once earlier and the session latch is stale.
+///
+/// Returns `Ok(false)` when the workspace has no encrypted mail store, matching
+/// `mail_backfill_rag`'s fast no-op and avoiding accidental DB creation.
+pub(crate) fn mark_rag_backfill_needed_after_vector_rebuild(
+    workspace: &std::path::Path,
+    key: &[u8; 32],
+) -> anyhow::Result<bool> {
+    if !EncryptedMailStore::db_path(workspace).exists() {
+        return Ok(false);
+    }
+    MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
+    mark_rag_backfill_needed(workspace, key)?;
+    Ok(true)
+}
+
 /// Check, at the end of a provider's sync, whether the just-imported mail is NOT
 /// yet fully searchable — so the terminal event can honestly say "indexing still
 /// finishing in the background" instead of asserting "searchable". Three
