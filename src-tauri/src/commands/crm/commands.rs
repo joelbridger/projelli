@@ -2399,6 +2399,74 @@ pub async fn crm_list_households(provider: Option<String>) -> Result<Vec<CrmHous
 mod tests {
     use super::*;
 
+    fn test_pending_crm_proposal() -> PendingCrmProposal {
+        let mut proposal = PendingCrmProposal {
+            proposal_id: "proposal-1".to_string(),
+            provider: "wealthbox".to_string(),
+            kind: "note".to_string(),
+            matter_id: "matter-1".to_string(),
+            household_key: "household-1".to_string(),
+            content_hash: String::new(),
+            title: "Follow-up note".to_string(),
+            body: "Discussed Roth conversion planning.".to_string(),
+            due_date: None,
+            source_ref: "doc:meeting-notes.docx".to_string(),
+            requested_at: Some("2026-07-09T12:00:00Z".to_string()),
+            field: None,
+            existing_value: None,
+            new_value: None,
+            final_value: None,
+            provenance: Some("Generated from the July review meeting.".to_string()),
+            ai_source_kind: Some("meeting".to_string()),
+            ai_source_date: Some("2026-07-09".to_string()),
+            status: "sending".to_string(),
+            remote_id: None,
+            error: None,
+            created_at: "2026-07-09T12:00:01Z".to_string(),
+            updated_at: "2026-07-09T12:00:01Z".to_string(),
+        };
+        proposal.content_hash = crm_proposal_content_hash(&proposal);
+        proposal
+    }
+
+    #[test]
+    fn verify_crm_proposal_rejects_content_hash_mismatch() {
+        let mut proposal = test_pending_crm_proposal();
+        proposal.body = "Tampered content after the advisor approved.".to_string();
+
+        let err = verify_crm_proposal(&proposal).expect_err("tampered proposal must fail");
+        assert_eq!(
+            err,
+            "CRM proposal no longer matches its saved approval hash"
+        );
+    }
+
+    #[test]
+    fn verify_crm_proposal_rejects_already_sent() {
+        let mut proposal = test_pending_crm_proposal();
+        proposal.status = "sent".to_string();
+
+        let err = verify_crm_proposal(&proposal).expect_err("sent proposal must fail");
+        assert_eq!(err, "this CRM proposal was already sent");
+    }
+
+    #[test]
+    fn verify_crm_proposal_rejects_missing_created_at() {
+        let mut proposal = test_pending_crm_proposal();
+        proposal.created_at = "   ".to_string();
+
+        let err =
+            verify_crm_proposal(&proposal).expect_err("proposal without created_at must fail");
+        assert_eq!(err, "CRM proposal is missing its creation time");
+    }
+
+    #[test]
+    fn verify_crm_proposal_accepts_valid_pending_proposal() {
+        let proposal = test_pending_crm_proposal();
+
+        verify_crm_proposal(&proposal).expect("valid pending proposal must pass");
+    }
+
     /// Build a `CrmState` for disconnect tests. Workspace is `None` by default so the
     /// purge path (which needs the keychain) is not exercised headless.
     fn test_state(is_syncing: bool) -> CrmState {

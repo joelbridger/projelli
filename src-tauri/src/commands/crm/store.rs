@@ -1116,6 +1116,69 @@ mod tests {
         (dir, s)
     }
 
+    fn pending_crm_proposal(id: &str) -> PendingCrmProposal {
+        PendingCrmProposal {
+            proposal_id: id.to_string(),
+            provider: "wealthbox".to_string(),
+            kind: "note".to_string(),
+            matter_id: "matter-1".to_string(),
+            household_key: "household-1".to_string(),
+            content_hash: "hash-v1".to_string(),
+            title: "Follow-up note".to_string(),
+            body: "Discussed Roth conversion planning.".to_string(),
+            due_date: None,
+            source_ref: "doc:meeting-notes.docx".to_string(),
+            requested_at: Some("2026-07-09T12:00:00Z".to_string()),
+            field: None,
+            existing_value: None,
+            new_value: None,
+            final_value: None,
+            provenance: Some("Generated from the July review meeting.".to_string()),
+            ai_source_kind: Some("meeting".to_string()),
+            ai_source_date: Some("2026-07-09".to_string()),
+            status: "sending".to_string(),
+            remote_id: None,
+            error: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        }
+    }
+
+    #[test]
+    fn proposal_upsert_preserves_created_at_on_reupsert() {
+        let (_dir, store) = crm_store();
+        let first = store
+            .proposal_upsert(&pending_crm_proposal("proposal-preserve-created-at"))
+            .expect("insert proposal");
+        assert!(
+            !first.created_at.trim().is_empty(),
+            "first insert must assign created_at"
+        );
+
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        let mut second = pending_crm_proposal("proposal-preserve-created-at");
+        second.content_hash = "hash-v2".to_string();
+        second.body = "Advisor approved a revised note body.".to_string();
+        second.status = "sent".to_string();
+        second.remote_id = Some("crm-note-123".to_string());
+        second.created_at = "2099-01-01T00:00:00Z".to_string();
+
+        let saved = store
+            .proposal_upsert(&second)
+            .expect("re-upsert proposal");
+
+        assert_eq!(
+            saved.created_at, first.created_at,
+            "re-upsert must keep the original creation time"
+        );
+        assert_eq!(
+            saved.body, "Advisor approved a revised note body.",
+            "re-upsert must still save the latest proposal content"
+        );
+        assert_eq!(saved.status, "sent");
+        assert_eq!(saved.remote_id.as_deref(), Some("crm-note-123"));
+    }
+
     #[test]
     fn outbound_ledger_upsert_and_get_roundtrip() {
         let (dir, store) = crm_store();
