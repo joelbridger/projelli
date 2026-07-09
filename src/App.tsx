@@ -92,6 +92,7 @@ import { useAiBatchReviewStore } from '@/platform/ai/aiBatchReviewStore';
 import { createWebFSBackend } from '@/platform/fs/WebFSBackend';
 import { writeSampleFiles } from '@/platform/matter/samples';
 import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
+import { seedSampleGoldenPath } from '@/features/onboarding/seedSampleGoldenPath';
 import { useProfessionStore } from '@/platform/profile/professionStore';
 import type {
   OnboardingStartMode,
@@ -1307,6 +1308,7 @@ function AppShell() {
           await writeSampleFiles(service, 'advisor');
           const matter = getOrCreateSampleMatter(root);
           seedSampleClientMap(matter.id);
+          await seedSampleGoldenPath(service, root, matter.id);
           setSidebarActiveTab('matters');
           // NB: the setup-progress Client Map count intentionally EXCLUDES sample
           // matters (see computeClientMapProgress), so we don't try to report the

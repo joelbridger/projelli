@@ -540,7 +540,7 @@ export async function ragRetrieve(
   enableHybridSearch?: boolean,
 ): Promise<RagHit[]> {
   if (!isTauri()) {
-    throw new Error('RAG is only available in the desktop app.');
+    throw new Error('Private file search is only available in the desktop app.');
   }
   return invoke<RagHit[]>('rag_retrieve', {
     query,

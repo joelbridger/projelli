@@ -194,6 +194,9 @@ export const WEB_DEMO_ADVISOR_QUESTIONS: [string, string, string, string] = [
   'Disability insurance coverage?',
 ];
 
+export const SAMPLE_WHOLE_BOOK_QUESTION =
+  'Which clients need an estate or beneficiary follow-up before the next review?';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Demo answers
 // Paths use the {WORKSPACE_ROOT} placeholder. Call resolveDemoAnswerPaths()

@@ -57,6 +57,7 @@ describe('ClientMeetingsTab — scan failure vs genuine empty', () => {
 
     await waitFor(() => expect(screen.getByTestId('client-meetings-empty')).toBeTruthy());
     expect(screen.queryByTestId('client-meetings-scan-error')).toBeNull();
+    expect(screen.getByTestId('client-meetings-empty-record')).toHaveTextContent('Record a meeting');
   });
 
   it('shows a distinct scan-error state (with a retry action) instead of "No meetings yet" when the scan keeps failing', async () => {

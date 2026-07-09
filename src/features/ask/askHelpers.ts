@@ -526,6 +526,13 @@ export function friendlyErrorMessage(
     return 'That question is too long for this model. Try a shorter one.';
   }
 
+  if (
+    lower.includes('private file search is only available in the desktop app') ||
+    lower.includes('rag is only available in the desktop app')
+  ) {
+    return 'Private file search is only available in the desktop app. In this browser preview, use the sample questions or open the desktop app to search your files.';
+  }
+
   // The AI was never reached: the failure was in searching your files, not the
   // AI or a key. (Covers the "provider returned 200 but the local index wasn't
   // ready" case, where retrieval throws before the provider call.)

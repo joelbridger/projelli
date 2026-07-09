@@ -2156,6 +2156,10 @@
       "body": "Las respuestas citan estos archivos. Haz clic en una cita para abrir la fuente.",
       "body__sourceHash": "785f3f107560567e01090c9f9d2b9199d76399c748a5d3765343d296b1f2435e"
     },
+    "empty": {
+      "sample-title": "Prueba una de estas preguntas de muestra.",
+      "whole-book-prefix": "Todo el libro: {{question}}"
+    },
     "indexing": {
       "notice": "Indexa documentos para respuestas con citas.",
       "notice__sourceHash": "2854cce608493867b719b0366995ed1fbae84174b532b6954e558d2d0d8efbd0",
@@ -2200,6 +2204,7 @@
     "conversations": {
       "title": "Conversaciones",
       "title__sourceHash": "1d432f58690c2b4a9737b0a97f04b70bb4f0d9950d5177619039afe139f3b31e",
+      "title-short": "Chats",
       "show": "Mostrar conversaciones",
       "show__sourceHash": "a50e7d6fd1d79071d849e592aede5c9ea855f5bb85b7a0efe55af27bc40fb126",
       "hide": "Ocultar conversaciones",
@@ -3362,6 +3367,7 @@
       "no-results": "No se encontraron reuniones.",
       "empty-title": "Aún no hay reuniones",
       "empty-body": "Las grabaciones que hagas con este cliente quedan aquí mismo: notas, transcripción y audio juntos.",
+      "empty-cta": "Grabar una reunión",
       "notes-pending": "notas pendientes",
       "notes-failed": "no se pudieron redactar las notas",
       "recording-incomplete": "la grabación no terminó de guardarse",

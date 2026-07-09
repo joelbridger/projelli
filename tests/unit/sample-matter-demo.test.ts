@@ -21,6 +21,7 @@ import {
   getDemoQuestions,
   getDemoAnswerForWorkspace,
   getSampleMatterName,
+  SAMPLE_WHOLE_BOOK_QUESTION,
 } from '@/platform/matter/samples/sampleMatterDemo';
 import type { Profession } from '@/platform/profile/professionModel';
 
@@ -104,6 +105,11 @@ describe('getDemoQuestions', () => {
     const combined = questions.join(' ').toLowerCase();
     expect(combined).not.toContain('garcia');
     expect(combined).not.toContain('deduct');
+  });
+
+  it('exports the sample whole-book suggested question', () => {
+    expect(SAMPLE_WHOLE_BOOK_QUESTION).toContain('clients');
+    expect(SAMPLE_WHOLE_BOOK_QUESTION.toLowerCase()).toContain('beneficiary');
   });
 });
 
