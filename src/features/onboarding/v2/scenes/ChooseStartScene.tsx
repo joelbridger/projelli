@@ -1,4 +1,3 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * ChooseStartScene — "Pick how you want to start".
  *
@@ -22,10 +21,12 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Check, FolderPlus, Sparkles, Loader2 } from 'lucide-react';
 
 import type { OnboardingStartMode, OnboardingStartResult } from '../../onboardingTypes';
 import { InfoHelp } from '@/ui/InfoHelp';
+import { getOnboardingV2Copy } from '../copy';
 
 export interface ChooseStartSceneProps {
   /** Establish the workspace (and seed the sample for 'sample'); resolves with
@@ -36,6 +37,8 @@ export interface ChooseStartSceneProps {
 }
 
 export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartSceneProps) {
+  const { t } = useTranslation();
+  const C = getOnboardingV2Copy(t).choose;
   const [busy, setBusy] = useState<OnboardingStartMode | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,10 +60,10 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
         // User backed out of the folder picker — stay put, no error.
         setError(null);
       } else {
-        setError(result.error ?? 'Something went wrong. Please try again.');
+        setError(result.error ?? C.error);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Something went wrong. Please try again.');
+      setError(e instanceof Error ? e.message : C.error);
     } finally {
       setBusy(null);
     }
@@ -69,8 +72,8 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
   return (
     <div className="flex w-full flex-col items-center" data-testid="onboarding-v2-choose-start">
       <h1 className="inline-flex items-center gap-2 text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">
-        How do you want to start?
-        <InfoHelp content="You can explore a ready-made sample practice right now, or point Advisor Prep Hero at your own data. You can always switch later." />
+        {C.headline}
+        <InfoHelp content={C.help} />
       </h1>
 
       <div className="mt-10 grid w-full max-w-[920px] grid-cols-1 gap-6 text-left md:grid-cols-2">
@@ -83,20 +86,20 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
           className="group relative flex flex-col rounded-[22px] border-2 border-[var(--kp-accent)] bg-white p-7 text-left transition-shadow hover:shadow-[0_18px_50px_rgba(var(--kp-navy-rgb),0.12)] disabled:opacity-60"
         >
           <span className="absolute right-5 top-5 rounded-full bg-[var(--kp-accent)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.08em] text-white">
-            Recommended
+            {C.sample.badge}
           </span>
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[var(--kp-accent)]/10">
             <Sparkles className="h-5 w-5 text-[var(--kp-accent)]" strokeWidth={2} aria-hidden="true" />
           </div>
           <h2 className="inline-flex items-center gap-1.5 mt-4 text-xl font-bold text-[var(--kp-navy)]">
-            Start with a sample practice
+            {C.sample.title}
             <InfoHelp
               as="span"
-              content="Land in a populated practice — the Hendricks Household, with real documents and a ready Client Map — so you can ask a cited question in your first minute."
+              content={C.sample.help}
             />
           </h2>
           <ul className="mt-4 space-y-2">
-            {['A worked household you can explore', 'A filled, cited Client Map', 'Nothing leaves your computer'].map((b) => (
+            {C.sample.bullets.map((b) => (
               <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--kp-blue)]" strokeWidth={3} aria-hidden="true" />
                 <span>{b}</span>
@@ -106,10 +109,10 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
           <span className="mt-6 inline-flex items-center gap-2 self-start rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white">
             {busy === 'sample' ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Setting up...
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {C.sample.loading}
               </>
             ) : (
-              'Use the sample'
+              C.sample.cta
             )}
           </span>
         </button>
@@ -126,14 +129,14 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
             <FolderPlus className="h-5 w-5 text-[var(--kp-navy)]" strokeWidth={2} aria-hidden="true" />
           </div>
           <h2 className="inline-flex items-center gap-1.5 mt-4 text-xl font-bold text-[var(--kp-navy)]">
-            Connect my own data
+            {C.own.title}
             <InfoHelp
               as="span"
-              content="Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so Advisor Prep Hero builds Client Maps from your real clients."
+              content={C.own.help}
             />
           </h2>
           <ul className="mt-4 space-y-2">
-            {['Pick where your practice lives', 'Import email, files & Wealthbox next', 'Your data stays on your machine'].map((b) => (
+            {C.own.bullets.map((b) => (
               <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">
                 <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--kp-blue)]" strokeWidth={3} aria-hidden="true" />
                 <span>{b}</span>
@@ -143,10 +146,10 @@ export function ChooseStartScene({ onChooseStart, onReady }: ChooseStartScenePro
           <span className="mt-6 inline-flex items-center gap-2 self-start rounded-xl border border-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-[var(--kp-accent)]">
             {busy === 'own' ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Opening...
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> {C.own.loading}
               </>
             ) : (
-              'Choose my folder'
+              C.own.cta
             )}
           </span>
         </button>

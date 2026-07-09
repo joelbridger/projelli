@@ -12,9 +12,9 @@
  *   2. once the workspace loaded (rootPath set), App's top-level render flipped
  *      from the WorkspaceSelector branch to the main shell. The full-screen
  *      onboarding overlay renders in BOTH branches, so switching branches
- *      remounted OnboardingV2 and reset its internal `scene` back to the intro —
- *      the user oscillated intro ↔ choose-start forever, never reaching
- *      "Connect your AI".
+ *      remounted OnboardingV2 and reset its internal `scene` back to the intro.
+ *      The user oscillated intro ↔ choose-start forever, never reaching the
+ *      next onboarding beat.
  *
  * These tests mount the REAL App so both the recents registration and the
  * branch-stability fix are exercised end-to-end. Note the existing
@@ -155,7 +155,7 @@ async function goToChooseStartAndPick(testId: 'choose-start-sample' | 'choose-st
 }
 
 describe('OnboardingV2 sample/own start — recents + no intro loop', () => {
-  it('sample start registers the workspace in Recents and advances to the AI step', async () => {
+  it('sample start registers the workspace in Recents and advances to the compliance beat', async () => {
     await openOnboarding();
     await goToChooseStartAndPick('choose-start-sample');
 
@@ -168,9 +168,9 @@ describe('OnboardingV2 sample/own start — recents + no intro loop', () => {
       expect.arrayContaining([expect.objectContaining({ path: '/ws' })]),
     );
 
-    // The wizard advanced past choose-start to the AI ("Connect your AI") step —
-    // it did NOT loop back to the intro.
-    await screen.findByTestId('onboarding-v2-ai');
+    // The wizard advanced past choose-start to the next beat. It did NOT loop
+    // back to the intro.
+    await screen.findByTestId('onboarding-v2-compliance');
     expect(screen.queryByTestId('onboarding-v2-intro')).not.toBeInTheDocument();
   });
 
@@ -187,9 +187,9 @@ describe('OnboardingV2 sample/own start — recents + no intro loop', () => {
     // ...and the workspace is in recents.
     expect(useWorkspaceStore.getState().recentWorkspaces.some((w) => w.path === '/ws')).toBe(true);
 
-    // The wizard stays mounted and advances to the AI step; it does NOT reset to
-    // the intro, and App does NOT flip to the main shell mid-onboarding.
-    await screen.findByTestId('onboarding-v2-ai');
+    // The wizard stays mounted and advances to the compliance beat; it does NOT
+    // reset to the intro, and App does NOT flip to the main shell mid-onboarding.
+    await screen.findByTestId('onboarding-v2-compliance');
     await waitFor(() =>
       expect(screen.queryByTestId('onboarding-v2-intro')).not.toBeInTheDocument(),
     );

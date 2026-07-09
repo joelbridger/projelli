@@ -1,6 +1,5 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
- * AiScene — "1. Connect your AI".
+ * AiScene — "1. Bring your own AI".
  *
  * Prototype two-card layout (cloud BYOK vs local AI), wired to the REAL setup
  * primitives, not a mockup:
@@ -16,7 +15,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Check, Info, X } from 'lucide-react';
+import { Check, Info, ShieldCheck, X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 import { openExternal } from '@/platform/utils/openExternal';
 import { createKeychainService, type KeyProvider } from '@/platform/providers/KeychainService';
@@ -34,13 +34,7 @@ import { PROVIDER_TUTORIALS, type ProviderId } from '../../ProviderTutorialSteps
 import { AiSetupHelpLink } from '../../AiSetupHelpLink';
 import { clearAiSetupDeferred } from '../../aiSetupState';
 import { ApiKeyTester } from '../../ApiKeyTester';
-import { ONB_COPY } from '../copy';
-
-const PROVIDERS: { id: ProviderId; label: string }[] = [
-  { id: 'openai', label: 'OpenAI' },
-  { id: 'anthropic', label: 'Anthropic' },
-  { id: 'google', label: 'Google' },
-];
+import { getOnboardingV2Copy } from '../copy';
 
 export interface AiSceneProps {
   onSaveKey: (provider: KeyProvider, key: string) => void | Promise<void>;
@@ -52,7 +46,14 @@ export interface AiSceneProps {
 }
 
 export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
-  const C = ONB_COPY.ai;
+  const { t } = useTranslation();
+  const copy = getOnboardingV2Copy(t);
+  const C = copy.ai;
+  const providers: { id: ProviderId; label: string }[] = [
+    { id: 'openai', label: C.providers.openai },
+    { id: 'anthropic', label: C.providers.anthropic },
+    { id: 'google', label: C.providers.google },
+  ];
   const [provider, setProvider] = useState<ProviderId>('anthropic');
   const [keyText, setKeyText] = useState('');
   const [connecting, setConnecting] = useState(false);
@@ -95,12 +96,14 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
           setSavedUnverified(true);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!cancelled) setSavedUnverified(false);
+      });
     return () => { cancelled = true; };
   }, [provider]);
 
   const tutorial = PROVIDER_TUTORIALS[provider];
-  const providerLabel = PROVIDERS.find((p) => p.id === provider)?.label ?? 'your provider';
+  const providerLabel = providers.find((p) => p.id === provider)?.label ?? C.providers.anthropic;
 
   function changeProvider(id: ProviderId) {
     setProvider(id);
@@ -113,7 +116,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
   async function handleConnect() {
     const key = keyText.trim();
     if (!key) {
-      setError('Paste your key first.');
+      setError(C.errorEmpty);
       return;
     }
     // Commit the cloud BYOK choice BEFORE validating. Two reasons:
@@ -167,7 +170,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
       onAiResolved?.();
     } catch (e) {
       restoreConfidentialityChoice(priorChoice);
-      setError(e instanceof Error ? e.message : 'Could not save your key.');
+      setError(e instanceof Error ? e.message : C.errorSave);
     } finally {
       clearTimeout(timeout);
       setConnecting(false);
@@ -199,6 +202,9 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
       <h1 className="text-3xl font-extrabold tracking-[-0.01em] text-[var(--kp-navy)] md:text-4xl">
         {C.headline}
       </h1>
+      <p className="mt-3 max-w-[68ch] text-sm leading-relaxed text-[rgba(var(--kp-navy-rgb),0.72)]">
+        {C.modeNote}
+      </p>
 
       <div className="mt-10 grid w-full max-w-[1120px] grid-cols-1 gap-6 text-left lg:grid-cols-2">
         {/* ---- Card 1: Cloud BYOK ---- */}
@@ -233,8 +239,8 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
           <div className="mt-6 text-xs font-bold tracking-[0.08em] text-[#5b6b80]">
             {C.cloud.pickLabel}
           </div>
-          <div className="mt-3 inline-flex rounded-full bg-[#f5f7fb] p-1" role="group" aria-label="Choose a provider">
-            {PROVIDERS.map((p) => (
+          <div className="mt-3 inline-flex rounded-full bg-[#f5f7fb] p-1" role="group" aria-label={C.cloud.pickLabel}>
+            {providers.map((p) => (
               <button
                 key={p.id}
                 type="button"
@@ -255,25 +261,25 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
             <li className="flex items-start gap-3">
               <StepBadge n={1} />
               <span className="text-sm text-[var(--kp-navy)]">
-                Open the{' '}
+                {C.steps.openPrefix}{' '}
                 <button
                   type="button"
                   onClick={() => void openExternal(tutorial.consoleUrl)}
                   className="font-semibold text-[var(--kp-accent)] underline underline-offset-2"
                   data-testid="ai-open-console"
                 >
-                  {providerLabel} API keys page
+                  {C.steps.openLink(providerLabel)}
                 </button>{' '}
-                and sign in.
+                {C.steps.openSuffix}
               </span>
             </li>
             <li className="flex items-start gap-3">
               <StepBadge n={2} />
-              <span className="text-sm text-[var(--kp-navy)]">Create a free key.</span>
+              <span className="text-sm text-[var(--kp-navy)]">{C.steps.createKey}</span>
             </li>
             <li className="flex items-start gap-3">
               <StepBadge n={3} />
-              <span className="text-sm text-[var(--kp-navy)]">Paste it below.</span>
+              <span className="text-sm text-[var(--kp-navy)]">{C.steps.pasteKey}</span>
             </li>
           </ol>
 
@@ -288,7 +294,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
                 setSavedUnverified(false);
                 setError(null);
               }}
-              placeholder={`Paste your ${providerLabel} key`}
+              placeholder={C.keyPlaceholder(providerLabel)}
               data-testid="ai-key-input"
               className="flex-1 rounded-xl border border-[rgba(var(--kp-navy-rgb),0.15)] bg-[#f5f7fb] px-4 py-3 text-sm outline-none focus:border-[var(--kp-accent)]"
             />
@@ -299,7 +305,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-connect"
               className="rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-50"
             >
-              {connecting ? 'Connecting...' : connected ? 'Connected' : savedUnverified ? 'Saved' : C.cloud.connect}
+              {connecting ? C.cloud.connecting : connected ? C.cloud.connected : savedUnverified ? C.cloud.saved : C.cloud.connect}
             </button>
           </div>
 
@@ -314,7 +320,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[#1fa971]"
               data-testid="ai-connected"
             >
-              <Check className="h-4 w-4" strokeWidth={3} /> Connected. You can continue.
+              <Check className="h-4 w-4" strokeWidth={3} /> {C.connectedStatus}
             </div>
           ) : null}
           {savedUnverified ? (
@@ -323,8 +329,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-saved-unverified"
               role="status"
             >
-              I saved your key, but I couldn&apos;t reach {providerLabel} just now to check it. You
-              can continue — I&apos;ll verify it the first time you use it.
+              {C.savedUnverified(providerLabel)}
             </div>
           ) : null}
           {error ? (
@@ -344,7 +349,10 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
 
         {/* ---- Card 2: Local AI ---- */}
         <div className="rounded-[22px] border-2 border-[rgba(var(--kp-navy-rgb),0.10)] bg-white p-7" data-testid="ai-card-local">
-          <h2 className="text-xl font-bold text-[var(--kp-navy)]">{C.local.title}</h2>
+          <h2 className="inline-flex items-center gap-2 text-xl font-bold text-[var(--kp-navy)]">
+            <ShieldCheck className="h-5 w-5 text-[var(--kp-accent)]" strokeWidth={2} aria-hidden="true" />
+            {C.local.title}
+          </h2>
           <ul className="mt-4 space-y-2.5">
             {C.local.bullets.map((b) => (
               <li key={b} className="flex items-start gap-2.5 text-sm text-[var(--kp-navy)]">
@@ -370,13 +378,10 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-ollama-detected"
             >
               <div className="text-sm font-bold text-[var(--kp-navy)]">
-                We found Ollama on this computer
+                {C.ollama.title}
               </div>
               <div className="mt-1 text-xs text-[#41506a]">
-                {ollamaModels.length === 1
-                  ? '1 model is installed'
-                  : `${String(ollamaModels.length)} models are installed`}
-                . You can use it now — no download needed.
+                {C.ollama.modelInstalled(ollamaModels.length)}. {C.ollama.suffix}
               </div>
               <button
                 type="button"
@@ -384,7 +389,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
                 data-testid="ai-use-ollama"
                 className="mt-3 w-full rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px"
               >
-                Use my Ollama
+                {C.ollama.useOllama}
               </button>
               <button
                 type="button"
@@ -393,7 +398,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
                 data-testid="ai-try-local"
                 className="mt-2 w-full rounded-xl border border-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-[var(--kp-accent)] transition-transform active:translate-y-px disabled:opacity-60"
               >
-                {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : 'Or download the built-in model'}
+                {localReady ? C.ollama.localReady : localBusy ? C.ollama.startingDownload : C.ollama.downloadBuiltIn}
               </button>
             </div>
           ) : (
@@ -404,7 +409,7 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
               data-testid="ai-try-local"
               className="mt-5 w-full rounded-xl bg-[var(--kp-accent)] px-6 py-3 text-sm font-bold text-white transition-transform active:translate-y-px disabled:opacity-60"
             >
-              {localReady ? 'Local AI ready, continue' : localBusy ? 'Starting download...' : C.local.tryLocal}
+              {localReady ? C.ollama.localReady : localBusy ? C.ollama.startingDownload : C.local.tryLocal}
             </button>
           )}
           <div className="mt-2 text-center text-xs text-[#8a93a3]">{C.local.switchNote}</div>
@@ -412,10 +417,24 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
       </div>
 
       {payOpen ? (
-        <OnbModal title={C.payModal.title} body={C.payModal.body} cta={C.payModal.got} onClose={() => { setPayOpen(false); }} testId="ai-pay-modal" />
+        <OnbModal
+          title={C.payModal.title}
+          body={C.payModal.body}
+          cta={C.payModal.got}
+          closeLabel={copy.nav.close}
+          onClose={() => { setPayOpen(false); }}
+          testId="ai-pay-modal"
+        />
       ) : null}
       {localOpen ? (
-        <OnbModal title={C.localModal.title} body={C.localModal.body} cta={C.localModal.got} onClose={() => { setLocalOpen(false); }} testId="ai-local-modal" />
+        <OnbModal
+          title={C.localModal.title}
+          body={C.localModal.body}
+          cta={C.localModal.got}
+          closeLabel={copy.nav.close}
+          onClose={() => { setLocalOpen(false); }}
+          testId="ai-local-modal"
+        />
       ) : null}
     </div>
   );
@@ -433,12 +452,14 @@ function OnbModal({
   title,
   body,
   cta,
+  closeLabel,
   onClose,
   testId,
 }: {
   title: string;
   body: string;
   cta: string;
+  closeLabel: string;
   onClose: () => void;
   testId: string;
 }) {
@@ -458,7 +479,7 @@ function OnbModal({
         <button
           type="button"
           onClick={onClose}
-          aria-label="Close"
+          aria-label={closeLabel}
           className="absolute right-5 top-5 text-[#9aa4b4] hover:text-[var(--kp-navy)]"
         >
           <X className="h-6 w-6" />

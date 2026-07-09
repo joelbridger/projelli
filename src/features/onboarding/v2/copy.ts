@@ -1,147 +1,267 @@
+import i18n from '@/i18n';
+
+type TranslateLike = (key: string, options?: Record<string, unknown>) => unknown;
+
+const defaultTranslate: TranslateLike = (key, options) => (
+  options === undefined ? i18n.t(key) : i18n.t(key, options)
+);
+const key = (leaf: string) => `onboarding.v2.${leaf}`;
+const text = (t: unknown, leaf: string, options?: Record<string, unknown>) => {
+  const translate = t as TranslateLike;
+  const value = options === undefined ? translate(key(leaf)) : translate(key(leaf), options);
+  return typeof value === 'string' ? value : String(value);
+};
+
 /**
- * Verbatim copy for OnboardingV2, lifted from the round-8 prototype spec.
+ * Central copy map for the V2 onboarding flow.
  *
- * Centralized so (a) wording stays faithful to the approved design, (b) tests
- * can assert exact strings, and (c) a future i18n pass has one place to work
- * from. No em dashes anywhere (brand rule). SOC 2 is only ever attributed to
- * the AI provider, never to Advisor Prep Hero.
+ * Components pass their live `t()` function so locale changes still work.
+ * Tests use ONB_COPY, the English/default snapshot of the same translation
+ * keys, to keep exact-copy assertions simple.
  */
+export function getOnboardingV2Copy(t: unknown = defaultTranslate) {
+  return {
+    nav: {
+      dialogLabel: text(t, 'nav.dialog-label'),
+      back: text(t, 'nav.back'),
+      continue: text(t, 'nav.continue'),
+      goToStep: (step: number) => text(t, 'nav.go-to-step', { step }),
+      close: text(t, 'nav.close'),
+    },
 
-import { brandValue } from '@/config/brandText';
-
-const RAW_ONB_COPY = {
-  intro: {
-    headline: 'A private AI that knows your clients.',
-    flow: [
-      'Connect your AI and files',
-      'Advisor Prep Hero builds Client Maps',
-      'Ask anything, with sources',
-    ],
-    pills: [
-      'Our servers never see your documents or prompts',
-      'Vault: optional AES-256 encryption',
-      'Cloud AI providers are SOC 2 certified',
-    ],
-    cta: 'Go!',
-  },
-
-  ai: {
-    headline: '1. Connect your AI',
-    cloud: {
-      title: 'Use ChatGPT, Claude, or Gemini',
-      bullets: [
-        'Advisor Prep Hero never sees your key or your data',
-        'Providers are SOC 2 Type 2 certified',
-        'Encrypted in transit and at rest',
-        "Providers don't train on your data (on paid API usage)",
-        'Pay as you go with your own key',
+    intro: {
+      headline: text(t, 'intro.headline'),
+      flow: [
+        {
+          title: text(t, 'intro.flow.connect.title'),
+          body: text(t, 'intro.flow.connect.body'),
+        },
+        {
+          title: text(t, 'intro.flow.client-map.title'),
+          body: text(t, 'intro.flow.client-map.body'),
+        },
+        {
+          title: text(t, 'intro.flow.ask.title'),
+          body: text(t, 'intro.flow.ask.body'),
+        },
       ],
-      whatLink: 'What is this?',
-      pickLabel: 'PICK YOUR PROVIDER, THEN GET YOUR KEY',
-      connect: 'Connect',
-      helpLink: 'I need help setting this up',
+      trustLine: text(t, 'intro.trust-line'),
+      helpLine: text(t, 'intro.help-line'),
+      cta: text(t, 'intro.cta'),
     },
-    local: {
-      title: 'Use local AI',
-      bullets: [
-        'Runs on your computer',
-        'Completely secure (nothing leaves)',
-        '2.5 GB download (about 5 minutes)',
-        'Great at answering questions about lots of files',
-        'Not as great with complex reasoning',
+
+    choose: {
+      headline: text(t, 'choose.headline'),
+      help: text(t, 'choose.help'),
+      sample: {
+        badge: text(t, 'choose.sample.badge'),
+        title: text(t, 'choose.sample.title'),
+        help: text(t, 'choose.sample.help'),
+        bullets: [
+          text(t, 'choose.sample.bullet-1'),
+          text(t, 'choose.sample.bullet-2'),
+          text(t, 'choose.sample.bullet-3'),
+        ],
+        loading: text(t, 'choose.sample.loading'),
+        cta: text(t, 'choose.sample.cta'),
+      },
+      own: {
+        title: text(t, 'choose.own.title'),
+        help: text(t, 'choose.own.help'),
+        bullets: [
+          text(t, 'choose.own.bullet-1'),
+          text(t, 'choose.own.bullet-2'),
+          text(t, 'choose.own.bullet-3'),
+        ],
+        loading: text(t, 'choose.own.loading'),
+        cta: text(t, 'choose.own.cta'),
+      },
+      error: text(t, 'choose.error'),
+    },
+
+    compliance: {
+      headline: text(t, 'compliance.headline'),
+      body: text(t, 'compliance.body'),
+      points: [
+        text(t, 'compliance.point-1'),
+        text(t, 'compliance.point-2'),
+        text(t, 'compliance.point-3'),
       ],
-      moreLink: 'Tell me more',
-      tryLocal: 'Try Local AI',
-      switchNote: 'Switch to cloud AI anytime',
+      cta: text(t, 'compliance.cta'),
+      modalTitle: text(t, 'compliance.modal-title'),
+      modalBody: text(t, 'compliance.modal-body'),
+      modalCta: text(t, 'compliance.modal-cta'),
     },
-    payModal: {
-      title: 'Pay as you go, with your own key',
-      body: 'You get an API key from the AI company you pick (OpenAI, Anthropic, or Google). You pay them directly, only for what you actually use, usually a few cents per question. Advisor Prep Hero never charges you for AI, and never sees your key or your data.',
-      got: 'Got it',
+
+    ai: {
+      headline: text(t, 'ai.headline'),
+      modeNote: text(t, 'ai.mode-note'),
+      providers: {
+        openai: text(t, 'ai.providers.openai'),
+        anthropic: text(t, 'ai.providers.anthropic'),
+        google: text(t, 'ai.providers.google'),
+      },
+      cloud: {
+        title: text(t, 'ai.cloud.title'),
+        bullets: [
+          text(t, 'ai.cloud.bullet-1'),
+          text(t, 'ai.cloud.bullet-2'),
+          text(t, 'ai.cloud.bullet-3'),
+          text(t, 'ai.cloud.bullet-4'),
+          text(t, 'ai.cloud.bullet-5'),
+        ],
+        whatLink: text(t, 'ai.cloud.what-link'),
+        pickLabel: text(t, 'ai.cloud.pick-label'),
+        connect: text(t, 'ai.cloud.connect'),
+        connecting: text(t, 'ai.cloud.connecting'),
+        connected: text(t, 'ai.cloud.connected'),
+        saved: text(t, 'ai.cloud.saved'),
+      },
+      steps: {
+        openPrefix: text(t, 'ai.steps.open-prefix'),
+        openLink: (provider: string) => text(t, 'ai.steps.open-link', { provider }),
+        openSuffix: text(t, 'ai.steps.open-suffix'),
+        createKey: text(t, 'ai.steps.create-key'),
+        pasteKey: text(t, 'ai.steps.paste-key'),
+      },
+      keyPlaceholder: (provider: string) => text(t, 'ai.key-placeholder', { provider }),
+      errorEmpty: text(t, 'ai.error-empty'),
+      errorSave: text(t, 'ai.error-save'),
+      connectedStatus: text(t, 'ai.connected-status'),
+      savedUnverified: (provider: string) => text(t, 'ai.saved-unverified', { provider }),
+      local: {
+        title: text(t, 'ai.local.title'),
+        bullets: [
+          text(t, 'ai.local.bullet-1'),
+          text(t, 'ai.local.bullet-2'),
+          text(t, 'ai.local.bullet-3'),
+          text(t, 'ai.local.bullet-4'),
+          text(t, 'ai.local.bullet-5'),
+        ],
+        moreLink: text(t, 'ai.local.more-link'),
+        tryLocal: text(t, 'ai.local.try-local'),
+        switchNote: text(t, 'ai.local.switch-note'),
+      },
+      ollama: {
+        title: text(t, 'ai.ollama.title'),
+        modelInstalled: (count: number) => text(t, 'ai.ollama.model-installed', { count }),
+        suffix: text(t, 'ai.ollama.suffix'),
+        useOllama: text(t, 'ai.ollama.use-ollama'),
+        localReady: text(t, 'ai.ollama.local-ready'),
+        startingDownload: text(t, 'ai.ollama.starting-download'),
+        downloadBuiltIn: text(t, 'ai.ollama.download-built-in'),
+      },
+      payModal: {
+        title: text(t, 'ai.pay-modal.title'),
+        body: text(t, 'ai.pay-modal.body'),
+        got: text(t, 'ai.pay-modal.got'),
+      },
+      localModal: {
+        title: text(t, 'ai.local-modal.title'),
+        body: text(t, 'ai.local-modal.body'),
+        got: text(t, 'ai.local-modal.got'),
+      },
     },
-    localModal: {
-      title: 'Local AI, explained',
-      body: "Local AI runs entirely on your own computer. It's free, and fully private, so nothing ever leaves your machine. It's a one time download of about 2.5 GB. It's great at answering questions across lots of your files, though not as strong on complex reasoning. You can switch to cloud AI any time.",
-      got: 'Got it',
+
+    connect: {
+      headline: text(t, 'connect.headline'),
+      pills: [
+        text(t, 'connect.pills.encrypted'),
+        text(t, 'connect.pills.device'),
+        text(t, 'connect.pills.private'),
+      ],
+      cards: {
+        m365: {
+          title: text(t, 'connect.cards.m365.title'),
+          description: text(t, 'connect.cards.m365.description'),
+        },
+        gmail: {
+          title: text(t, 'connect.cards.gmail.title'),
+          description: text(t, 'connect.cards.gmail.description'),
+        },
+        onedrive: {
+          title: text(t, 'connect.cards.onedrive.title'),
+          description: text(t, 'connect.cards.onedrive.description'),
+        },
+        wealthbox: {
+          title: text(t, 'connect.cards.wealthbox.title'),
+          description: text(t, 'connect.cards.wealthbox.description'),
+        },
+        imap: {
+          toggle: text(t, 'connect.cards.imap.toggle'),
+          title: text(t, 'connect.cards.imap.title'),
+          description: text(t, 'connect.cards.imap.description'),
+        },
+      },
+      comingSoonLabel: text(t, 'connect.coming-soon-label'),
+      worksWith: {
+        title: text(t, 'connect.works-with.title'),
+        body: text(t, 'connect.works-with.body'),
+        disclaimer: text(t, 'connect.works-with.disclaimer'),
+      },
     },
-  },
 
-  connect: {
-    headline: '2. Securely connect your data',
-    pills: [
-      'Encrypted in transit',
-      'Stays on your device',
-      'Advisor Prep Hero never sees your data',
-    ],
-    comingSoonLabel: 'COMING SOON',
-    connect: 'Connect',
-    connected: 'Connected',
-    desktopOnly: 'Available in the desktop app',
-    // Connector-access: honest "we read your exports" line. Advisor Prep Hero is not
-    // integrated with RightCapital or Jump; it reads the files those tools
-    // export or sync into the places you just connected. Wording is verified
-    // against docs/strategy/2026-06-29-connector-access-options-rightcapital-jump.md
-    // (the "what we can honestly claim" table) — never "integration".
-    worksWith: {
-      title: 'Already use RightCapital or Jump?',
-      body: 'Advisor Prep Hero also reads the plan reports and meeting notes you export or save from tools like RightCapital and Jump, once they land in the files, email, or folders you just connected. It files each one to the right client, shows when it was exported, and cites it in answers.',
-      disclaimer: 'Advisor Prep Hero reads your exported files and saved notes. It is not an official integration with these tools, and their names belong to their owners.',
+    firm: {
+      headline: text(t, 'firm.headline'),
+      sub: text(t, 'firm.sub'),
+      yourAi: text(t, 'firm.your-ai'),
+      importing: text(t, 'firm.importing'),
+      aiLabel: text(t, 'firm.ai-label'),
+      aiRetryLabel: text(t, 'firm.ai-retry-label'),
+      aiUnverifiedLabel: text(t, 'firm.ai-unverified-label'),
+      aiCloudReadyLabel: text(t, 'firm.ai-cloud-ready-label'),
+      clientMapTitle: text(t, 'firm.client-map-title'),
+      clientMapSub: text(t, 'firm.client-map-sub'),
+      clientMapNote: text(t, 'firm.client-map-note'),
+      asksHeader: text(t, 'firm.asks-header'),
+      idle: text(t, 'firm.idle'),
+      cta: text(t, 'firm.cta'),
+      status: {
+        failed: text(t, 'firm.status.failed'),
+        done: text(t, 'firm.status.done'),
+        working: text(t, 'firm.status.working'),
+        notStarted: text(t, 'firm.status.not-started'),
+        notVerified: text(t, 'firm.status.not-verified'),
+        retrying: text(t, 'firm.status.retrying'),
+        retry: text(t, 'firm.status.retry'),
+      },
+      rows: {
+        email: text(t, 'firm.rows.email'),
+        wealthbox: text(t, 'firm.rows.wealthbox'),
+        oneDrive: text(t, 'firm.rows.onedrive'),
+        files: text(t, 'firm.rows.files'),
+        imported: (count: number) => text(t, 'firm.rows.imported', { count }),
+        checked: (count: number) => text(t, 'firm.rows.checked', { count }),
+        households: (count: number) => text(t, 'firm.rows.households', { count }),
+      },
+      questions: [
+        text(t, 'firm.questions.q1'),
+        text(t, 'firm.questions.q2'),
+        text(t, 'firm.questions.q3'),
+        text(t, 'firm.questions.q4'),
+        text(t, 'firm.questions.q5'),
+        text(t, 'firm.questions.q6'),
+        text(t, 'firm.questions.q7'),
+        text(t, 'firm.questions.q8'),
+        text(t, 'firm.questions.q9'),
+        text(t, 'firm.questions.q10'),
+        text(t, 'firm.questions.q11'),
+        text(t, 'firm.questions.q12'),
+        text(t, 'firm.questions.q13'),
+        text(t, 'firm.questions.q14'),
+        text(t, 'firm.questions.q15'),
+        text(t, 'firm.questions.q16'),
+      ],
     },
-  },
+  } as const;
+}
 
-  firm: {
-    headline: '3. Setting up your firm',
-    sub: 'You can continue to the app and these will load in the background.',
-    yourAi: 'YOUR AI',
-    importing: 'IMPORTING YOUR DATA',
-    aiLabel: 'Downloading your private AI',
-    clientMapTitle: 'Building your Client Maps',
-    clientMapSub: 'Assembling the whole story of every client and household.',
-    asksHeader: 'Things you can ask Advisor Prep Hero',
-    cta: 'Continue to the app',
-  },
-
-  nav: {
-    back: 'Back',
-    continue: 'Continue',
-  },
-} as const;
-
-export const ONB_COPY = brandValue(RAW_ONB_COPY);
+export const ONB_COPY = getOnboardingV2Copy();
 
 /**
- * Example questions previewed on the "Setting up your firm" screen.
- * Verbatim, in order, from the prototype.
- */
-export const ONB_EXAMPLE_QUESTIONS: readonly string[] = [
-  'Which client is doing a 1031 exchange?',
-  'Who has a 529 for the kids?',
-  'What changed for the Hendricks since our last review?',
-  'Which clients are over-concentrated in one stock?',
-  'Who turns 73 this year for RMDs?',
-  "Which households haven't been contacted in 90 days?",
-  'Who has a CD maturing next month?',
-  'Which clients mentioned retiring early?',
-  'Who is a good candidate for a Roth conversion?',
-  'Which accounts are missing a beneficiary?',
-  'Who had a major life event this quarter?',
-  'Who has cash sitting uninvested?',
-  'Which clients asked about the market last week?',
-  'Who is closest to their retirement goal?',
-  'Which clients hold concentrated employer stock?',
-  'Who mentioned a home purchase or move?',
-];
-
-/**
- * "Coming soon" connector logos for the data screen — grayed out, in order.
+ * "Coming soon" connector logos for the data screen, grayed out in order.
  * Files live under /public/onboarding/logos.
  */
-// NOTE (connector-access): RightCapital is intentionally NOT in this list. A
-// grayed-out "COMING SOON" logo implies an official integration is on the way,
-// which would overclaim — Advisor Prep Hero reads RightCapital's EXPORTED plan PDFs
-// today, it does not integrate with it. That capability is stated honestly in
-// the "Already use RightCapital or Jump?" callout on the connect screen instead.
-// Jump is likewise represented only as a recognized export, never as a logo.
 export const ONB_COMING_SOON_LOGOS: readonly { name: string; file: string }[] = [
   { name: 'Redtail', file: 'redtail.svg' },
   { name: 'Salesforce', file: 'salesforce.svg' },

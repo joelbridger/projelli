@@ -16,7 +16,9 @@
  */
 
 import { useEffect, useRef, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AppLogo } from '@/ui/brand/AppLogo';
+import { getOnboardingV2Copy } from '../copy';
 
 export interface OnboardingShellProps {
   children: ReactNode;
@@ -77,6 +79,9 @@ export function OnboardingShell({
   onArrowNav,
   topBanner,
 }: OnboardingShellProps) {
+  const { t } = useTranslation();
+  const C = getOnboardingV2Copy(t);
+
   useEffect(() => {
     if (!onArrowNav) return undefined;
     const handler = (e: KeyboardEvent) => {
@@ -136,7 +141,7 @@ export function OnboardingShell({
       data-testid="onboarding-v2"
       role="dialog"
       aria-modal="true"
-      aria-label="Set up Advisor Prep Hero"
+      aria-label={C.nav.dialogLabel}
     >
       {/* Decorative background */}
       <div className="kp-onbv2-bg" aria-hidden="true">
@@ -177,7 +182,7 @@ export function OnboardingShell({
               data-testid="onboarding-v2-back"
               className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-base font-bold text-[var(--kp-navy)] shadow-[0_8px_24px_rgba(var(--kp-navy-rgb),0.10)] transition-transform active:translate-y-px"
             >
-              &larr; Back
+              <span aria-hidden="true">&larr;</span> {C.nav.back}
             </button>
           ) : null}
         </div>
@@ -190,7 +195,7 @@ export function OnboardingShell({
                 <button
                   key={i}
                   type="button"
-                  aria-label={`Go to step ${String(i + 1)}`}
+                  aria-label={C.nav.goToStep(i + 1)}
                   aria-current={state === 'active' ? 'step' : undefined}
                   onClick={onDotClick ? () => { onDotClick(i); } : undefined}
                   className={`h-2.5 rounded-full transition-all ${

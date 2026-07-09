@@ -1,4 +1,3 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
  * FirmSetupScene — "3. Setting up your firm".
  *
@@ -14,13 +13,14 @@
  */
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useSetupProgress } from '@/platform/hooks/useSetupProgress';
 import type { SetupProgress } from '@/platform/utils/setup-progress-commands';
 import { retryFailedModelDownloads } from '@/platform/utils/setup-progress-commands';
 import { getVerifiedProviders } from '@/platform/providers/keyVerification';
 
 import { ProgressRow } from '../components/ProgressRow';
-import { ONB_COPY, ONB_EXAMPLE_QUESTIONS } from '../copy';
+import { getOnboardingV2Copy } from '../copy';
 
 interface Area {
   key: string;
@@ -33,18 +33,20 @@ interface Area {
   detail?: string | undefined;
 }
 
-function statusText(done: boolean, active: boolean, pct: number | null, failed = false): string {
-  if (failed) return 'Failed';
-  if (done) return 'Done';
-  if (active) return pct != null ? `${String(pct)}%` : 'Working...';
-  return 'Not started';
+type FirmCopy = ReturnType<typeof getOnboardingV2Copy>['firm'];
+
+function statusText(C: FirmCopy, done: boolean, active: boolean, pct: number | null, failed = false): string {
+  if (failed) return C.status.failed;
+  if (done) return C.status.done;
+  if (active) return pct != null ? `${String(pct)}%` : C.status.working;
+  return C.status.notStarted;
 }
 
 /** AI brain row (cloud key = ready only once verified; local = live download
  *  percent). A cloud key that was saved but never passed a live check (e.g.
  *  saved while the provider was unreachable) is "saved, not verified" — NOT
  *  "ready" — so we don't over-promise. It verifies on first real use. */
-function aiArea(p: SetupProgress): Area {
+function aiArea(p: SetupProgress, C: FirmCopy): Area {
   const { ai } = p;
   const failed =
     ai.searchModel.state === 'failed' ||
@@ -59,54 +61,54 @@ function aiArea(p: SetupProgress): Area {
   const active = ai.state === 'downloading';
   const pct = failed || done ? 100 : active ? (ai.percent ?? null) : 0;
   const label = failed
-    ? 'AI setup needs a retry'
+    ? C.aiRetryLabel
     : cloudUnverified
-      ? 'AI key saved — not verified yet'
+      ? C.aiUnverifiedLabel
       : ai.mode === 'cloud'
-        ? 'Your AI provider is connected'
-        : ONB_COPY.firm.aiLabel;
-  const status = cloudUnverified ? 'Not verified' : statusText(done, active, pct, failed);
+        ? C.aiCloudReadyLabel
+        : C.aiLabel;
+  const status = cloudUnverified ? C.status.notVerified : statusText(C, done, active, pct, failed);
   return { key: 'ai', label, pct, done, active, failed, status };
 }
 
-function importAreas(p: SetupProgress): Area[] {
+function importAreas(p: SetupProgress, C: FirmCopy): Area[] {
   const { email, crm, fileIndex, oneDrive } = p;
 
   const emailDone = email.connected && !email.syncing;
   const emailArea: Area = {
     key: 'email',
-    label: 'Email',
+    label: C.rows.email,
     pct: email.connected ? (email.syncing ? null : 100) : 0,
     done: emailDone,
     active: email.syncing,
-    status: statusText(emailDone, email.syncing, email.syncing ? null : email.connected ? 100 : 0),
-    detail: email.messagesImported != null ? `${email.messagesImported.toLocaleString()} imported` : undefined,
+    status: statusText(C, emailDone, email.syncing, email.syncing ? null : email.connected ? 100 : 0),
+    detail: email.messagesImported != null ? C.rows.imported(email.messagesImported) : undefined,
   };
 
   const crmDone = crm.connected && !crm.syncing;
   const crmArea: Area = {
     key: 'crm',
-    label: 'Wealthbox',
+    label: C.rows.wealthbox,
     pct: crm.connected ? (crm.syncing ? null : 100) : 0,
     done: crmDone,
     active: crm.syncing,
-    status: statusText(crmDone, crm.syncing, crm.syncing ? null : crm.connected ? 100 : 0),
-    detail: crm.connected ? `${String(crm.householdsProcessed)} households` : undefined,
+    status: statusText(C, crmDone, crm.syncing, crm.syncing ? null : crm.connected ? 100 : 0),
+    detail: crm.connected ? C.rows.households(crm.householdsProcessed) : undefined,
   };
 
   const oneDriveDone = !oneDrive.syncing && (oneDrive.itemsImported ?? 0) > 0;
   const oneDriveArea: Area = {
     key: 'onedrive',
-    label: 'OneDrive',
+    label: C.rows.oneDrive,
     pct: oneDrive.syncing ? null : oneDriveDone ? 100 : 0,
     done: oneDriveDone,
     active: oneDrive.syncing,
-    status: statusText(oneDriveDone, oneDrive.syncing, oneDrive.syncing ? null : oneDriveDone ? 100 : 0),
+    status: statusText(C, oneDriveDone, oneDrive.syncing, oneDrive.syncing ? null : oneDriveDone ? 100 : 0),
     detail:
       oneDrive.itemsImported != null
-        ? `${oneDrive.itemsImported.toLocaleString()} imported`
+        ? C.rows.imported(oneDrive.itemsImported)
         : oneDrive.itemsChecked != null
-          ? `${oneDrive.itemsChecked.toLocaleString()} checked`
+          ? C.rows.checked(oneDrive.itemsChecked)
           : undefined,
   };
 
@@ -114,11 +116,11 @@ function importAreas(p: SetupProgress): Area[] {
   const filePct = fileIndex.indexing ? fileIndex.percent : fileDone ? 100 : 0;
   const fileArea: Area = {
     key: 'files',
-    label: 'Files',
+    label: C.rows.files,
     pct: filePct,
     done: fileDone,
     active: fileIndex.indexing,
-    status: statusText(fileDone, fileIndex.indexing, filePct),
+    status: statusText(C, fileDone, fileIndex.indexing, filePct),
     detail: fileIndex.total != null ? `${String(fileIndex.processed ?? 0)}/${String(fileIndex.total)}` : undefined,
   };
 
@@ -126,7 +128,8 @@ function importAreas(p: SetupProgress): Area[] {
 }
 
 export function FirmSetupScene() {
-  const C = ONB_COPY.firm;
+  const { t } = useTranslation();
+  const C = getOnboardingV2Copy(t).firm;
   const progress = useSetupProgress();
   const [retryingModels, setRetryingModels] = useState(false);
 
@@ -149,14 +152,14 @@ export function FirmSetupScene() {
       <div className="mt-8 w-full max-w-[760px] rounded-[24px] border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white p-7 text-left shadow-[0_10px_40px_rgba(var(--kp-navy-rgb),0.06)]">
         {progress == null ? (
           <div className="text-sm text-[#5b6b80]" data-testid="firm-progress-idle">
-            Getting ready... your AI and data will start loading here.
+            {C.idle}
           </div>
         ) : (
           <>
             <div className="text-xs font-bold tracking-[0.08em] text-[#5b6b80]">{C.yourAi}</div>
             <div className="mt-3">
               {(() => {
-                const a = aiArea(progress);
+                const a = aiArea(progress, C);
                 return (
                   <ProgressRow
                     label={a.label}
@@ -165,7 +168,7 @@ export function FirmSetupScene() {
                     active={a.active}
                     failed={a.failed}
                     status={a.status}
-                    retryLabel={retryingModels ? 'Retrying...' : 'Retry'}
+                    retryLabel={retryingModels ? C.status.retrying : C.status.retry}
                     onRetry={
                       a.failed
                         ? () => {
@@ -184,7 +187,7 @@ export function FirmSetupScene() {
 
             <div className="mt-7 text-xs font-bold tracking-[0.08em] text-[#5b6b80]">{C.importing}</div>
             <div className="mt-3 space-y-4">
-              {importAreas(progress).map((a) => (
+              {importAreas(progress, C).map((a) => (
                 <ProgressRow
                   key={a.key}
                   label={a.label}
@@ -216,7 +219,7 @@ export function FirmSetupScene() {
             // Nothing queued yet — be honest rather than animate a sweep that
             // isn't backing any real work. This is the true behavior.
             <div className="mt-2 text-xs text-[#5b6b80]" data-testid="firm-client-maps-note">
-              I build a Client Map for each client automatically the first time you open them.
+              {C.clientMapNote}
             </div>
           )}
         </div>
@@ -226,7 +229,7 @@ export function FirmSetupScene() {
       <div className="mt-8 w-full max-w-[760px]">
         <div className="text-sm font-bold text-[var(--kp-navy)]">{C.asksHeader}</div>
         <div className="kp-onbv2-scroll mt-3 flex max-h-28 flex-wrap justify-center gap-2 overflow-y-auto">
-          {ONB_EXAMPLE_QUESTIONS.map((q) => (
+          {C.questions.map((q) => (
             <span
               key={q}
               className="inline-flex items-center gap-1.5 rounded-full border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white px-3 py-1.5 text-xs text-[var(--kp-navy)] shadow-[0_4px_14px_rgba(var(--kp-navy-rgb),0.05)]"

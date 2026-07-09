@@ -17,7 +17,7 @@ export interface ProgressRowProps {
   pct: number | null;
   done: boolean;
   active: boolean;
-  /** Right-aligned status text (e.g. "64%", "Working...", "Done"). */
+  /** Right-aligned status text (e.g. "64%", "Working", "Done"). */
   status: string;
   failed?: boolean | undefined;
   retryLabel?: string | undefined;

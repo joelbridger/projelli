@@ -863,6 +863,225 @@
       "picker-unresponsive-own-data": "The folder picker didn't respond. Type the folder path where your practice files should live.",
       "picker-unresponsive-sample": "The folder picker didn't respond. Type the folder path where your sample practice should be created."
     },
+    "v2": {
+      "nav": {
+        "dialog-label": "Set up {{productName}}",
+        "back": "Back",
+        "continue": "Continue",
+        "go-to-step": "Go to step {{step}}",
+        "close": "Close"
+      },
+      "intro": {
+        "headline": "The AI you're actually allowed to use with client data.",
+        "flow": {
+          "connect": {
+            "title": "Connect your practice",
+            "body": "Files, email, and CRM stay on your machine."
+          },
+          "client-map": {
+            "title": "It builds a Client Map",
+            "body": "Every household is cited from your own records."
+          },
+          "ask": {
+            "title": "Ask anything",
+            "body": "Answers come with sources you can open."
+          }
+        },
+        "trust-line": "Your client data never touches our servers, the cloud, or any AI's training. Ever.",
+        "help-line": "You can reopen this walkthrough anytime from Help.",
+        "cta": "Go!"
+      },
+      "choose": {
+        "headline": "How do you want to start?",
+        "help": "You can explore a ready-made sample practice right now, or point {{productName}} at your own data. You can always switch later.",
+        "sample": {
+          "badge": "Recommended",
+          "title": "Start with a sample practice",
+          "help": "Land in a populated practice: the Hendricks Household, with real documents and a ready Client Map, so you can ask a cited question in your first minute.",
+          "bullet-1": "A worked household you can explore",
+          "bullet-2": "A filled, cited Client Map",
+          "bullet-3": "Nothing leaves your computer",
+          "loading": "Setting up",
+          "cta": "Use the sample"
+        },
+        "own": {
+          "title": "Connect my own data",
+          "help": "Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so {{productName}} builds Client Maps from your real clients.",
+          "bullet-1": "Pick where your practice lives",
+          "bullet-2": "Import email, files, and Wealthbox next",
+          "bullet-3": "Your data stays on your machine",
+          "loading": "Opening",
+          "cta": "Choose my folder"
+        },
+        "error": "Something went wrong. Please try again."
+      },
+      "compliance": {
+        "headline": "Why you can use this when you can't use ChatGPT",
+        "body": "Most firms do not allow client files in public chat tools. {{productName}} is built so the files stay under your control.",
+        "point-1": "Your files stay on your computer. The AI reads them locally.",
+        "point-2": "When you use a cloud AI, it's your account and your key. We never see your data, and the provider doesn't train on it.",
+        "point-3": "You get a simple security one-pager to hand to the person who reviews new tools.",
+        "cta": "For your compliance officer",
+        "modal-title": "Compliance & Security",
+        "modal-body": "One-pager coming: data flow, encryption, SOC 2 status.",
+        "modal-cta": "Got it"
+      },
+      "ai": {
+        "headline": "1. Bring your own AI",
+        "mode-note": "Either way, your client files stay on your machine. Cloud AI sends questions to your own AI account. On-device AI keeps even the questions on this computer.",
+        "providers": {
+          "openai": "ChatGPT (OpenAI)",
+          "anthropic": "Claude (Anthropic)",
+          "google": "Gemini (Google)"
+        },
+        "cloud": {
+          "title": "Use ChatGPT, Claude, or Gemini",
+          "bullet-1": "Your client files stay on your machine",
+          "bullet-2": "Questions go from your computer to your own AI account",
+          "bullet-3": "{{productName}} never sees your key, prompts, or client data",
+          "bullet-4": "Paid API usage is not used for training",
+          "bullet-5": "Pay the AI provider directly for what you use",
+          "what-link": "What is this?",
+          "pick-label": "Pick your provider, then get your key",
+          "connect": "Connect",
+          "connecting": "Connecting",
+          "connected": "Connected",
+          "saved": "Saved"
+        },
+        "steps": {
+          "open-prefix": "Open the",
+          "open-link": "{{provider}} API keys page",
+          "open-suffix": "and sign in.",
+          "create-key": "Create a free key.",
+          "paste-key": "Paste it below."
+        },
+        "key-placeholder": "Paste your {{provider}} key",
+        "error-empty": "Paste your key first.",
+        "error-save": "Could not save your key.",
+        "connected-status": "Connected. You can continue.",
+        "saved-unverified": "I saved your key, but I couldn't reach {{provider}} just now to check it. You can continue. I'll verify it the first time you use it.",
+        "local": {
+          "title": "Use on-device AI",
+          "bullet-1": "Runs on this computer",
+          "bullet-2": "Your files and questions stay on this computer",
+          "bullet-3": "2.5 GB download, about 5 minutes",
+          "bullet-4": "Good at answering questions across lots of files",
+          "bullet-5": "Less strong for complex reasoning",
+          "more-link": "Tell me more",
+          "try-local": "Try on-device AI",
+          "switch-note": "You can switch to cloud AI anytime"
+        },
+        "ollama": {
+          "title": "We found Ollama on this computer",
+          "model-installed_one": "1 model is installed",
+          "model-installed_other": "{{count}} models are installed",
+          "suffix": "You can use it now, no download needed.",
+          "use-ollama": "Use my Ollama",
+          "local-ready": "On-device AI ready, continue",
+          "starting-download": "Starting download",
+          "download-built-in": "Or download the built-in model"
+        },
+        "pay-modal": {
+          "title": "Pay as you go, with your own key",
+          "body": "You get an API key from the AI company you pick: ChatGPT, Claude, or Gemini. You pay them directly, only for what you actually use, usually a few cents per question. {{productName}} never charges you for AI, and never sees your key or your data.",
+          "got": "Got it"
+        },
+        "local-modal": {
+          "title": "On-device AI, explained",
+          "body": "On-device AI runs on your own computer. It's free and fully private, so your files and questions stay on this machine. It's a one-time download of about 2.5 GB. It's good at answering questions across lots of files, though not as strong on complex reasoning. You can switch to cloud AI any time.",
+          "got": "Got it"
+        }
+      },
+      "connect": {
+        "headline": "2. Connect your practice",
+        "pills": {
+          "encrypted": "Encrypted in transit",
+          "device": "Stays on your device",
+          "private": "{{productName}} never sees your data"
+        },
+        "cards": {
+          "m365": {
+            "title": "Microsoft 365 / Outlook",
+            "description": "Email from Outlook and Microsoft 365."
+          },
+          "gmail": {
+            "title": "Gmail",
+            "description": "Email from your Google account."
+          },
+          "onedrive": {
+            "title": "OneDrive",
+            "description": "Client folders from OneDrive and SharePoint."
+          },
+          "wealthbox": {
+            "title": "Wealthbox",
+            "description": "Households and CRM notes from Wealthbox."
+          },
+          "imap": {
+            "toggle": "Other email option (IMAP)",
+            "title": "Other email",
+            "description": "Standard IMAP accounts."
+          }
+        },
+        "coming-soon-label": "Coming soon",
+        "works-with": {
+          "title": "Start with CRM, email, and files",
+          "body": "{{productName}} starts with the places your practice already keeps client work: CRM notes, email, OneDrive or SharePoint folders, PDFs, and Word files. If tools like RightCapital, Holistiplan, DocuSign, or Jump save reports into those places, {{productName}} reads the saved files there and cites them in answers.",
+          "disclaimer": "{{productName}} reads saved files and notes. It is not an official integration with those tools, and their names belong to their owners."
+        }
+      },
+      "firm": {
+        "headline": "3. Setting up your firm",
+        "sub": "You can continue to the app and these will load in the background.",
+        "your-ai": "Your AI",
+        "importing": "Importing your data",
+        "ai-label": "Downloading your private AI",
+        "ai-retry-label": "AI setup needs a retry",
+        "ai-unverified-label": "AI key saved, not verified yet",
+        "ai-cloud-ready-label": "Your AI provider is connected",
+        "client-map-title": "Building your Client Maps",
+        "client-map-sub": "Assembling the whole story of every client and household.",
+        "client-map-note": "I build a Client Map for each client automatically the first time you open them.",
+        "asks-header": "Things you can ask {{productName}}",
+        "idle": "Getting ready. Your AI and data will start loading here.",
+        "cta": "Continue to the app",
+        "status": {
+          "failed": "Failed",
+          "done": "Done",
+          "working": "Working",
+          "not-started": "Not started",
+          "not-verified": "Not verified",
+          "retrying": "Retrying",
+          "retry": "Retry"
+        },
+        "rows": {
+          "email": "Email",
+          "wealthbox": "Wealthbox",
+          "onedrive": "OneDrive",
+          "files": "Files",
+          "imported": "{{count}} imported",
+          "checked": "{{count}} checked",
+          "households": "{{count}} households"
+        },
+        "questions": {
+          "q1": "Which client is doing a 1031 exchange?",
+          "q2": "Who has a 529 for the kids?",
+          "q3": "What changed for the Hendricks since our last review?",
+          "q4": "Which clients are over-concentrated in one stock?",
+          "q5": "Who turns 73 this year for RMDs?",
+          "q6": "Which households haven't been contacted in 90 days?",
+          "q7": "Who has a CD maturing next month?",
+          "q8": "Which clients mentioned retiring early?",
+          "q9": "Who is a good candidate for a Roth conversion?",
+          "q10": "Which accounts are missing a beneficiary?",
+          "q11": "Who had a major life event this quarter?",
+          "q12": "Who has cash sitting uninvested?",
+          "q13": "Which clients asked about the market last week?",
+          "q14": "Who is closest to their retirement goal?",
+          "q15": "Which clients hold concentrated employer stock?",
+          "q16": "Who mentioned a home purchase or move?"
+        }
+      }
+    },
     "first-run": {
       "skip-for-now": "Skip for now",
       "back": "Back",

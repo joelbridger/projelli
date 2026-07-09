@@ -102,9 +102,13 @@ function renderFlow() {
   return { onSaveKey, onComplete };
 }
 
-const goToAi = () => {
+const goToCompliance = () => {
   fireEvent.click(screen.getByTestId('onboarding-v2-go'));
   fireEvent.click(screen.getByTestId('choose-start-own'));
+};
+const goToAi = () => {
+  goToCompliance();
+  fireEvent.click(screen.getByTestId('onboarding-v2-continue'));
 };
 const clickContinue = () => fireEvent.click(screen.getByTestId('onboarding-v2-continue'));
 
@@ -118,35 +122,46 @@ describe('OnboardingV2 navigation', () => {
     useOAuthPendingStore.setState({ count: 0 });
   });
 
-  it('opens on the restored intro, then advances through the setup choice to "1. Connect your AI"', () => {
+  it('opens on the restored intro, then advances through the setup choice to the compliance beat', () => {
     renderFlow();
     expect(screen.getByText(ONB_COPY.intro.headline)).toBeTruthy();
     fireEvent.click(screen.getByTestId('onboarding-v2-go'));
     expect(screen.getByTestId('onboarding-v2-choose-start')).toBeTruthy();
     fireEvent.click(screen.getByTestId('choose-start-own'));
-    expect(screen.getByText('1. Connect your AI')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-v2-compliance')).toBeTruthy();
+    expect(screen.getByText(ONB_COPY.compliance.headline)).toBeTruthy();
+  });
+
+  it('opens the compliance officer placeholder from the compliance beat', () => {
+    renderFlow();
+    goToCompliance();
+    fireEvent.click(screen.getByTestId('onboarding-compliance-officer-cta'));
+    expect(screen.getByTestId('onboarding-compliance-security-modal')).toBeTruthy();
+    expect(screen.getByText(ONB_COPY.compliance.modalTitle)).toBeTruthy();
+    expect(screen.getByText(ONB_COPY.compliance.modalBody)).toBeTruthy();
   });
 
   it('loop-proof: mounting with a workspace already open starts past the intro, never on it', () => {
     // Belt-and-suspenders for the "sample practice → back to the intro forever"
     // BLOCKER. If the overlay is ever remounted AFTER a workspace loads (any
     // cause), it must NOT show the intro again. With a workspace present the user
-    // has already passed intro + ChooseStart, so we start on the AI step.
+    // has already passed intro + ChooseStart, so we start on the compliance
+    // beat.
     render(
       <OnboardingV2 onSaveKey={vi.fn()} onComplete={vi.fn()} hasWorkspace={true} />,
     );
-    expect(screen.getByText('1. Connect your AI')).toBeTruthy();
+    expect(screen.getByTestId('onboarding-v2-compliance')).toBeTruthy();
     expect(screen.queryByTestId('onboarding-v2-intro')).not.toBeInTheDocument();
     expect(screen.queryByTestId('onboarding-v2-choose-start')).not.toBeInTheDocument();
   });
 
-  it('walks intro -> ai -> connect -> firm and completes onboarding', () => {
+  it('walks intro -> compliance -> ai -> connect -> firm and completes onboarding', () => {
     const { onComplete } = renderFlow();
     goToAi();
     clickContinue(); // ai -> connect
-    expect(screen.getByText('2. Securely connect your data')).toBeTruthy();
+    expect(screen.getByText(ONB_COPY.connect.headline)).toBeTruthy();
     clickContinue(); // connect -> firm
-    expect(screen.getByText('3. Setting up your firm')).toBeTruthy();
+    expect(screen.getByText(ONB_COPY.firm.headline)).toBeTruthy();
     // Last scene: button reads "Continue to the app" and completes.
     expect(screen.getByTestId('onboarding-v2-continue').textContent).toContain('Continue to the app');
     clickContinue();
@@ -159,7 +174,7 @@ describe('OnboardingV2 navigation', () => {
     goToAi();
     clickContinue(); // connect
     fireEvent.click(screen.getByTestId('onboarding-v2-back'));
-    expect(screen.getByText('1. Connect your AI')).toBeTruthy();
+    expect(screen.getByText(ONB_COPY.ai.headline)).toBeTruthy();
   });
 
   it('marks AI setup deferred when Continue skips the AI screen unresolved', () => {
@@ -195,6 +210,15 @@ describe('AiScene real key wiring', () => {
     expect(await screen.findByTestId('ai-connected')).toBeTruthy();
     // A real live check passed -> the key is now genuinely verified.
     expect(isKeyVerified('anthropic')).toBe(true);
+  });
+
+  it('labels providers with the names advisors recognize', () => {
+    renderFlow();
+    goToAi();
+    expect(screen.getByTestId('ai-provider-openai').textContent).toBe(ONB_COPY.ai.providers.openai);
+    expect(screen.getByTestId('ai-provider-anthropic').textContent).toBe(ONB_COPY.ai.providers.anthropic);
+    expect(screen.getByTestId('ai-provider-google').textContent).toBe(ONB_COPY.ai.providers.google);
+    expect(screen.getByText(ONB_COPY.ai.modeNote)).toBeTruthy();
   });
 
   it('on a NETWORK failure saves the key, does NOT mark verified, and clears a stale verified marker', async () => {
@@ -239,7 +263,7 @@ describe('AiScene real key wiring', () => {
     expect(h.start).toHaveBeenCalledTimes(1);
     expect(h.recordChoice).toHaveBeenCalledWith('local-only');
     // advanced to the connect scene
-    expect(screen.getByText('2. Securely connect your data')).toBeTruthy();
+    expect(screen.getByText(ONB_COPY.connect.headline)).toBeTruthy();
     // a real choice was made, so AI setup is NOT marked deferred
     expect(hasDeferredAiSetup()).toBe(false);
   });
@@ -253,7 +277,7 @@ describe('AiScene real key wiring', () => {
 
   it('a dot jump cannot skip past Connect while an OAuth sign-in is pending (even after Back)', () => {
     renderFlow();
-    goToAi(); // intro -> choose-start(own) -> AI
+    goToAi(); // intro -> choose-start(own) -> compliance -> AI
     fireEvent.click(screen.getByTestId('onboarding-v2-continue')); // AI -> Connect
     expect(screen.getByTestId('onboarding-v2-connect')).toBeTruthy();
 
@@ -263,15 +287,15 @@ describe('AiScene real key wiring', () => {
     fireEvent.click(screen.getByTestId('onboarding-v2-back')); // Connect -> AI
     expect(screen.getByTestId('onboarding-v2-ai')).toBeTruthy();
 
-    // ...then tries to dot-jump straight to Firm setup (step 4). The forward
+    // ...then tries to dot-jump straight to Firm setup (step 5). The forward
     // lock must hold from this earlier scene too, NOT just on the Connect step.
-    fireEvent.click(screen.getByRole('button', { name: 'Go to step 4' }));
+    fireEvent.click(screen.getByRole('button', { name: ONB_COPY.nav.goToStep(5) }));
     expect(screen.queryByTestId('onboarding-v2-firm')).toBeNull();
     expect(screen.getByTestId('onboarding-v2-ai')).toBeTruthy();
 
     // Once the sign-in settles, navigation is allowed again.
     act(() => { useOAuthPendingStore.getState().end(); });
-    fireEvent.click(screen.getByRole('button', { name: 'Go to step 4' }));
+    fireEvent.click(screen.getByRole('button', { name: ONB_COPY.nav.goToStep(5) }));
     expect(screen.getByTestId('onboarding-v2-firm')).toBeTruthy();
   });
 });
@@ -342,7 +366,7 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
 
     const emailRow = screen.getByTestId('firm-row-email');
     expect(emailRow.textContent).toContain('128 imported');
-    expect(emailRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working...');
+    expect(emailRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working');
   });
 
   it('shows OneDrive import progress in the shared setup progress list', () => {
@@ -353,7 +377,7 @@ describe('FirmSetupScene drives bars from useSetupProgress', () => {
     const oneDriveRow = screen.getByTestId('firm-row-onedrive');
     expect(oneDriveRow.textContent).toContain('OneDrive');
     expect(oneDriveRow.textContent).toContain('7 imported');
-    expect(oneDriveRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working...');
+    expect(oneDriveRow.querySelector('[data-testid="progress-status"]')?.textContent).toBe('Working');
   });
 
   it('shows "not verified" for a cloud key that was saved but never live-checked', () => {

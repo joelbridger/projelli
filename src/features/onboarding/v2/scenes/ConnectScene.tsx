@@ -1,6 +1,5 @@
-/* eslint-disable lantern-i18n/no-hardcoded-string */
 /**
- * ConnectScene — "2. Securely connect your data".
+ * ConnectScene — "2. Connect your practice".
  *
  * Wires the REAL data connectors. Rather than pixel-cloning the prototype's
  * three logo tiles with mock buttons, this reuses the actual, tested connector
@@ -15,6 +14,7 @@
  */
 
 import { useState, type ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Lock, Monitor, EyeOff, ChevronDown, FileDown, Mail } from 'lucide-react';
 
 import { MailConnect } from '@/platform/connectors/email/MailConnect';
@@ -24,14 +24,15 @@ import { OneDriveConnect } from '@/platform/connectors/onedrive/OneDriveConnect'
 import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
 
 import { SecurityPill } from '../components/SecurityPill';
-import { ONB_COPY, ONB_COMING_SOON_LOGOS } from '../copy';
+import { getOnboardingV2Copy, ONB_COMING_SOON_LOGOS } from '../copy';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { ConnectorLogo, type ConnectorBrand } from './connectorLogos';
 
 const PILL_ICONS = [Lock, Monitor, EyeOff] as const;
 
 export function ConnectScene() {
-  const C = ONB_COPY.connect;
+  const { t } = useTranslation();
+  const C = getOnboardingV2Copy(t).connect;
   const [moreEmail, setMoreEmail] = useState(false);
 
   return (
@@ -49,32 +50,32 @@ export function ConnectScene() {
         <ConnectorCard
           testId="connect-m365"
           brand="m365"
-          title="Microsoft 365 / Outlook"
-          description="Email from Outlook and Microsoft 365."
+          title={C.cards.m365.title}
+          description={C.cards.m365.description}
         >
           <MailConnect />
         </ConnectorCard>
         <ConnectorCard
           testId="connect-gmail"
           brand="gmail"
-          title="Gmail"
-          description="Email from your Google account."
+          title={C.cards.gmail.title}
+          description={C.cards.gmail.description}
         >
           <MailGmailConnect />
         </ConnectorCard>
         <ConnectorCard
           testId="connect-onedrive"
           brand="onedrive"
-          title="OneDrive"
-          description="Client folders from OneDrive and SharePoint."
+          title={C.cards.onedrive.title}
+          description={C.cards.onedrive.description}
         >
           <OneDriveConnect />
         </ConnectorCard>
         <ConnectorCard
           testId="connect-wealthbox"
           brand="wealthbox"
-          title="Wealthbox"
-          description="Households and CRM notes from Wealthbox."
+          title={C.cards.wealthbox.title}
+          description={C.cards.wealthbox.description}
         >
           <WealthboxConnect />
         </ConnectorCard>
@@ -90,7 +91,7 @@ export function ConnectScene() {
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--kp-accent)] hover:underline"
         >
           <ChevronDown className={`h-4 w-4 transition-transform ${moreEmail ? 'rotate-180' : ''}`} aria-hidden="true" />
-          Other email option (IMAP)
+          {C.cards.imap.toggle}
         </button>
         {moreEmail ? (
           <div className="mt-3 max-w-[470px]">
@@ -103,8 +104,8 @@ export function ConnectScene() {
                   <Mail className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-bold text-[var(--kp-navy)]">Other email</div>
-                  <div className="mt-1 text-xs leading-snug text-[var(--kp-text-dim)]">Standard IMAP accounts.</div>
+                  <div className="text-sm font-bold text-[var(--kp-navy)]">{C.cards.imap.title}</div>
+                  <div className="mt-1 text-xs leading-snug text-[var(--kp-text-dim)]">{C.cards.imap.description}</div>
                 </div>
               </div>
               <div className="mt-4 min-w-0 [&>section]:!m-0 [&>section]:!border-0 [&>section]:!bg-transparent [&>section]:!p-0 [&>section]:!shadow-none [&_h3]:sr-only">
@@ -115,9 +116,9 @@ export function ConnectScene() {
         ) : null}
       </div>
 
-      {/* Connector-access: honest "we read your exports" line. Advisor Prep Hero reads
-          the plan reports / meeting notes other tools export into the places
-          just connected — it is NOT an integration with those tools. */}
+      {/* Connector-access: honest "we read saved files" line. Advisor Prep Hero reads
+          CRM notes, email, files, and saved reports from the places just
+          connected — it is NOT an integration with those other tools. */}
       <div
         data-testid="connect-works-with-exports"
         className="mt-8 w-full max-w-[760px] rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] p-6 text-left"

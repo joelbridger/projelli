@@ -66,7 +66,7 @@ describe('en.json structure snapshot', () => {
         "meetings": 256,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 69,
+        "onboarding": 224,
         "plugins": 4,
         "privacy": 35,
         "quick-open": 1,
@@ -271,7 +271,10 @@ describe('en.json structure snapshot', () => {
     // +20 = FB2 railchrome: shared rail headers, search toggles, collapse labels,
     //       and rail action menu labels across Ask, Mail, Client Map, Meetings,
     //       Settings, Workflows, and Documents.
-    expect(flat.length).toBe(2025); // FB2 batch: groups, rename affordances, rail chrome labels, brand routing (+38)
+    // +155 = onboarding reframe: V2 intro, start choice, compliance beat,
+    //       AI provider setup, connector copy, firm-progress labels, and
+    //       example questions now live in i18n instead of the copy helper.
+    expect(flat.length).toBe(2180); // Onboarding reframe moved V2 copy into i18n (+155)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

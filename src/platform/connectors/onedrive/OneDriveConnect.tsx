@@ -330,6 +330,7 @@ export function OneDriveConnect() {
       // Robustness: if the backend returns nothing (e.g. an inconsistent state
       // where a stale token exists but there's no connection/data to remove),
       // treat it as a clean disconnect rather than crashing on result.* reads.
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- native command can return null in inconsistent states even though the generated TS type is narrower
       if (!result) {
         setDataRemains(false);
         setDisconnectIncomplete(false);

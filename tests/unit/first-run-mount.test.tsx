@@ -1,7 +1,7 @@
 /**
  * Advisor Prep Hero — OnboardingV2 mounted as the live first-run surface in App.
  *
- * These pin the App-level wiring that makes the 4-step OnboardingV2 the real
+ * These pin the App-level wiring that makes the 5-beat OnboardingV2 the real
  * first-run experience (the old 9-step GuidedOnboarding was retired 2026-06-30
  * and archived at src/features/onboarding/_archive/GuidedOnboarding.tsx; its
  * own App-mount coverage moved with it is no longer relevant since App no
@@ -139,13 +139,15 @@ async function renderAppAndOpenOnboarding() {
   return utils;
 }
 
-/** Walk intro -> choose-start (own data) -> ai scene. */
+/** Walk intro -> choose-start (own data) -> compliance -> ai scene. */
 async function advanceToAiScene() {
   fireEvent.click(screen.getByTestId('onboarding-v2-go')); // intro -> choose-start
   await screen.findByTestId('choose-start-own');
   await act(async () => {
-    fireEvent.click(screen.getByTestId('choose-start-own')); // establish workspace -> ai
+    fireEvent.click(screen.getByTestId('choose-start-own')); // establish workspace -> compliance
   });
+  await screen.findByTestId('onboarding-v2-compliance');
+  fireEvent.click(screen.getByTestId('onboarding-v2-continue')); // compliance -> ai
   await screen.findByTestId('onboarding-v2-ai');
 }
 

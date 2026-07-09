@@ -17,7 +17,7 @@
  * is actually bounded to ~130px (not 500/1920px), at two viewport sizes.
  *
  * QA-9 — the model-download progress banner overlapped a scene's numbered
- * step header ("2. Securely connect your data", "3. Setting up your firm").
+ * step header ("2. Connect your practice", "3. Setting up your firm").
  * Root cause: the banner was mounted as an independent `fixed inset-x-0
  * top-0 z-[60]` layer OUTSIDE the onboarding shell (itself `fixed inset-0
  * z-50`), so it floated on top of the shell's content with no reserved
@@ -78,7 +78,7 @@ test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
         const iconSvg = icon.locator('svg').first();
         await expect(iconSvg).toBeVisible({ timeout: 20_000 });
         await expect(heading).toBeVisible({ timeout: 20_000 });
-        await expect(heading).toHaveText(ONB_COPY.intro.flow[i] ?? '', { timeout: 20_000 });
+        await expect(heading).toHaveText(ONB_COPY.intro.flow[i]?.title ?? '', { timeout: 20_000 });
 
         const iconBox = await iconSvg.boundingBox();
         const headingBox = await heading.boundingBox();
@@ -108,9 +108,11 @@ test.describe('Bench mirror: Onboarding overlap (QA-8, QA-9)', () => {
       // API off-desktop) that Playwright cannot drive headlessly. `testMode`
       // pre-seeds a mock workspace (see useTestModeWorkspace), which makes
       // OnboardingV2's own `hasWorkspace` gate start the wizard directly at
-      // the AI scene — skipping the intro/ChooseStart folder-picker steps
-      // entirely, with no mocking of browser APIs required.
+      // the compliance beat — skipping the intro/ChooseStart folder-picker
+      // steps entirely, with no mocking of browser APIs required.
       await page.goto('/?testMode=true&forceOnboarding=true');
+      await expect(page.getByTestId('onboarding-v2-compliance')).toBeVisible({ timeout: 30_000 });
+      await page.getByTestId('onboarding-v2-continue').click();
       await expect(page.getByTestId('onboarding-v2-ai')).toBeVisible({ timeout: 30_000 });
       await page.getByTestId('onboarding-v2-continue').click();
 

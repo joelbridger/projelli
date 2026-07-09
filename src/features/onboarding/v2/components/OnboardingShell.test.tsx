@@ -18,7 +18,7 @@ const baseProps = {
  * QA-9 — the model-download progress banner used to be mounted as an
  * independent `fixed` layer OUTSIDE this shell, above it in z-index but with
  * no reserved space, so it painted over a scene's own step header ("2.
- * Securely connect your data"). `topBanner` is now rendered INSIDE the
+ * Connect your practice"). `topBanner` is now rendered INSIDE the
  * shell's own flow, before the scrolling scene content, so it always occupies
  * its own space and the scene content is pushed down, never covered.
  */
@@ -27,18 +27,18 @@ describe('OnboardingShell — QA-9 topBanner placement', () => {
     render(
       <OnboardingShell {...baseProps}>
         {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-        <h1>2. Securely connect your data</h1>
+        <h1>2. Connect your practice</h1>
       </OnboardingShell>,
     );
     expect(screen.queryByTestId('qa9-banner')).toBeNull();
-    expect(screen.getByText('2. Securely connect your data')).toBeTruthy();
+    expect(screen.getByText('2. Connect your practice')).toBeTruthy();
   });
 
   it('places topBanner BEFORE the scene content in DOM order, inside the same shell', () => {
     render(
       <OnboardingShell {...baseProps} topBanner={<div data-testid="qa9-banner">Downloading…</div>}>
         {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string */}
-        <h1 data-testid="qa9-heading">2. Securely connect your data</h1>
+        <h1 data-testid="qa9-heading">2. Connect your practice</h1>
       </OnboardingShell>,
     );
     const shell = screen.getByTestId('onboarding-v2');
