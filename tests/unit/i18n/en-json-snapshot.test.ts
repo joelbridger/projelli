@@ -44,6 +44,7 @@ describe('en.json structure snapshot', () => {
     const counts = namespaceCounts(en as Record<string, JsonValue>);
     expect(counts).toMatchInlineSnapshot(`
       {
+        "accounts": 89,
         "ai": 48,
         "analysis": 10,
         "app": 2,
@@ -271,7 +272,10 @@ describe('en.json structure snapshot', () => {
     // +20 = FB2 railchrome: shared rail headers, search toggles, collapse labels,
     //       and rail action menu labels across Ask, Mail, Client Map, Meetings,
     //       Settings, Workflows, and Documents.
-    expect(flat.length).toBe(2025); // FB2 batch: groups, rename affordances, rail chrome labels, brand routing (+38)
+    // +89 = Schwab account opening Track 1: the new review-gated account
+    //      application flow, placeholder application template, delivery
+    //      choices, field labels, and validation/status text.
+    expect(flat.length).toBe(2114); // Schwab account opening Track 1 (+89)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

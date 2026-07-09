@@ -7,6 +7,7 @@ export type AppSurface =
   | 'matters'
   | 'search'
   | 'email'
+  | 'accounts'
   | 'workflows'
   | 'ai-assistant'
   | 'research'

@@ -142,6 +142,7 @@ export const EV_OPEN_CLIENT_SETTINGS             = `${APP_NS}:open-client-settin
 export const EV_OPEN_NEW_GROUP                   = `${APP_NS}:open-new-group`;
 export const EV_OPEN_SETTINGS                    = `${APP_NS}:open-settings`;
 export const EV_OPEN_ACCOUNT                     = `${APP_NS}:open-account`;
+export const EV_OPEN_NEW_ACCOUNT_APPLICATION     = `${APP_NS}:open-new-account-application`;
 export const EV_OPEN_PRIVACY_CENTER              = `${APP_NS}:open-privacy-center`;
 export const EV_OPEN_AUDIT_LOG                   = `${APP_NS}:open-audit-log`;
 export const EV_MATTER_LAUNCH                    = `${APP_NS}:matter-launch`;

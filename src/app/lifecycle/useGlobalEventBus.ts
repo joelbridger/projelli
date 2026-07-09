@@ -22,6 +22,7 @@ import {
   EV_OPEN_NEW_GROUP,
   EV_OPEN_SETTINGS,
   EV_OPEN_ACCOUNT,
+  EV_OPEN_NEW_ACCOUNT_APPLICATION,
   EV_MATTER_LAUNCH,
   EV_OPEN_PRIVACY_CENTER,
 } from '@/config/identity';
@@ -70,6 +71,7 @@ const ALLOWED_SURFACES = new Set([
   'search',
   'files',
   'email',
+  'accounts',
   'meetings',
   'workflows',
   'audit',
@@ -80,6 +82,7 @@ type AllowedSurface =
   | 'search'
   | 'files'
   | 'email'
+  | 'accounts'
   | 'meetings'
   | 'workflows'
   | 'audit'
@@ -132,6 +135,11 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
     const onOpenAccount = (e: Event) => {
       const tab = (e as CustomEvent<{ tab?: string } | null>).detail?.tab;
       ref.current.onOpenAccount(tab);
+    };
+
+    const onOpenNewAccountApplication = () => {
+      ref.current.pushNavigationSnapshot?.();
+      ref.current.setSidebarActiveTab('accounts');
     };
 
     // Matter launch: an explicit surface jumps there; no surface restores the
@@ -277,6 +285,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
     window.addEventListener(EV_OPEN_NEW_GROUP, onOpenNewGroup);
     window.addEventListener(EV_OPEN_SETTINGS, onOpenSettings);
     window.addEventListener(EV_OPEN_ACCOUNT, onOpenAccount);
+    window.addEventListener(EV_OPEN_NEW_ACCOUNT_APPLICATION, onOpenNewAccountApplication);
     window.addEventListener(EV_MATTER_LAUNCH, onMatterLaunch);
     window.addEventListener(EV_OPEN_PRIVACY_CENTER, onOpenPrivacyCenter);
     return () => {
@@ -285,6 +294,7 @@ export function useGlobalEventBus(handlers: GlobalEventBusHandlers): void {
       window.removeEventListener(EV_OPEN_NEW_GROUP, onOpenNewGroup);
       window.removeEventListener(EV_OPEN_SETTINGS, onOpenSettings);
       window.removeEventListener(EV_OPEN_ACCOUNT, onOpenAccount);
+      window.removeEventListener(EV_OPEN_NEW_ACCOUNT_APPLICATION, onOpenNewAccountApplication);
       window.removeEventListener(EV_MATTER_LAUNCH, onMatterLaunch);
       window.removeEventListener(EV_OPEN_PRIVACY_CENTER, onOpenPrivacyCenter);
     };

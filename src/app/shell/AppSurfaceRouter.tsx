@@ -14,6 +14,7 @@ import { MattersHome } from '@/features/matters/MattersHome';
 import { Ask } from '@/features/ask/Ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
+import { NewAccountFlow } from '@/features/accounts';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SurfaceLoadingFallback } from '@/app/shell/common/SurfaceLoadingFallback';
@@ -24,6 +25,16 @@ import { workspacePath } from '@/platform/fs/appPath';
 import { isWorkflowFilePath } from '@/features/workflows/engine/workflowFile';
 import { useEditorStore } from '@/platform/state/editorStore';
 import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWorkflows';
+import {
+  buildAccountApplicationMarkdown,
+  type AccountApplicationDraft,
+} from '@/features/accounts/accountApplication';
+import {
+  exportMarkdownAsPdf,
+  openPrintWindow,
+} from '@/features/documents/pdf-export';
+import { docusignIsConnected } from '@/platform/utils/docusign-commands';
+import i18n from '@/i18n';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
 import {
@@ -50,6 +61,7 @@ import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import type { Matter } from '@/platform/types/matter';
 import {
   EV_OPEN_ACCOUNT,
+  EV_OPEN_ESIGN,
   EV_OPEN_EMAIL,
   SK_FIRM_NAME,
 } from '@/config/identity';
@@ -481,6 +493,31 @@ export function AppSurfaceRouter({
     </LazyBoundary>
   );
 
+  const generateAccountPdf = async (draft: AccountApplicationDraft) => {
+    const printWindow = openPrintWindow();
+    const markdown = buildAccountApplicationMarkdown(draft);
+    await exportMarkdownAsPdf(
+      markdown,
+      `account-application-${draft.accountType}.pdf`,
+      printWindow,
+    );
+    return {
+      status: 'done' as const,
+      message: i18n.t('accounts.pdf-started'),
+    };
+  };
+
+  const createAccountDocusignEnvelope = async (_draft: AccountApplicationDraft) => {
+    const connected = await docusignIsConnected().catch(() => false);
+    window.dispatchEvent(new CustomEvent(EV_OPEN_ESIGN));
+    return {
+      status: 'unavailable' as const,
+      message: connected
+        ? i18n.t('accounts.docusign-create-unavailable')
+        : i18n.t('accounts.docusign-connect-needed'),
+    };
+  };
+
   return (
     <>
       {sidebarActiveTab === 'matters' ? (
@@ -640,6 +677,17 @@ export function AppSurfaceRouter({
               useEditorStore.getState().setActiveTab(target);
             }
           }}
+        />
+      ) : sidebarActiveTab === 'accounts' ? (
+        <NewAccountFlow
+          activeMatter={activeMatter}
+          onBack={() => {
+            setSidebarActiveTab('workflows');
+          }}
+          onGeneratePdf={generateAccountPdf}
+          onCreateDocusignEnvelope={createAccountDocusignEnvelope}
+          onAuditLog={addAuditEntry}
+          workspaceService={workspaceServiceRef.current}
         />
       ) : sidebarActiveTab === 'audit' ? (
         buildActivity({})

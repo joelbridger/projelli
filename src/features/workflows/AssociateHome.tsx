@@ -40,6 +40,7 @@ import {
   Settings,
   AlertTriangle,
   AlertCircle,
+  FileText,
 } from 'lucide-react';
 import { Button, Eyebrow, Card, EmptyState, Callout, IconButton, RailShell, RailShellHeader, TrustNote } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
@@ -58,7 +59,7 @@ import {
   type ConfidentialityMode,
   type EgressProvider,
 } from '@/platform/privacy/egress';
-import { SK_WORKFLOWS_FILTER } from '@/config/identity';
+import { EV_OPEN_NEW_ACCOUNT_APPLICATION, SK_WORKFLOWS_FILTER } from '@/config/identity';
 import { getWorkflowLongDescription, getWorkflowShortDescription } from '@/features/workflows/workflowPresentation';
 
 // ── Prop interface (kept identical to original) ────────────────────────────
@@ -906,6 +907,19 @@ export function AssociateHome({
           Icon={ListChecks}
           iconColor="var(--kp-accent)"
           title={t('spine.nav.workflows')}
+          actions={
+            <Button
+              variant="secondary"
+              size="sm"
+              iconLeft={FileText}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent(EV_OPEN_NEW_ACCOUNT_APPLICATION));
+              }}
+              data-testid="workflows-new-account"
+            >
+              {t('accounts.open-new-account')}
+            </Button>
+          }
         />
       </div>
       <RailShell
