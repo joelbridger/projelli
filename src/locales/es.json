@@ -290,6 +290,82 @@
         "quick-tip-overlay__sourceHash": "202d0cec60790bcf2ed5d4aa5f855c224b6ab01a53f154543f0f763a3e693ec5"
       }
     },
+    "sections": {
+      "workspace": "Espacio de trabajo",
+      "workspace__sourceHash": "87bb59ba2f92f2a5a9f13e021fd58dd14ae5c065b1046146875e6e68d5ebc8b7",
+      "ai": "IA",
+      "ai__sourceHash": "11fb682be0a0233d5fb899721ecfc1827d20f0d2ff2e093310efa61efca8af1c",
+      "privacy": "Privacidad",
+      "privacy__sourceHash": "54a57c3147c49f33de5898b87084ad2b14c4ab308f762454bf92aca907478ad5",
+      "scheduling": "Agenda",
+      "scheduling__sourceHash": "ed5c58303a981baad23206c9296d2afe737e9fcf2c8b579402b9184bf5dc8973",
+      "voice": "Voz",
+      "voice__sourceHash": "87bf2bc08589f0bd4a078db145c34ad5e14b8fda53c3ae65b78601294913df95",
+      "advanced": "Avanzado",
+      "advanced__sourceHash": "9f088dbebd6c3c70a5ddbc2c943b11e4ca9acea5757b0b4f2b32479f0dbb747e",
+      "help": "Ayuda",
+      "help__sourceHash": "b79cac926e0b2e347e72cc91d5174037c9e17ae7733fd7bdb570f71b10cd7bfc"
+    },
+    "scheduling": {
+      "nav-subsection": "Reservas",
+      "nav-subsection__sourceHash": "948e03e7054b919e26cb431e942f90aeeaa3c9e3237745729574d28767e1f5b8",
+      "link": {
+        "title": "Enlace de reserva",
+        "title__sourceHash": "1b095ae2d24171193d86be1888df3c5fe61f9645d6bbd17050d3ebf4fb48d151",
+        "slug-label": "Final del enlace",
+        "slug-label__sourceHash": "fb5b9aa9026ed80c5c989476b1495743eff5ac0f0a5105360d3408f9fe07a3e8",
+        "placeholder-note": "Este es un marcador local. La página pública de reservas se conectará en la siguiente fase.",
+        "placeholder-note__sourceHash": "4711388bda90c6b4c22b53e20a4f35c66205c56cd293dc92f1b7f338aaf7a15e"
+      },
+      "hours": {
+        "title": "Horario laboral",
+        "title__sourceHash": "b9c635214e54995cfd72e0a8e4c31675e9a76dca8bd896cc073de48fa5266dbd",
+        "to": "a",
+        "to__sourceHash": "663ea1bfffe5038f3f0cf667f14c4257eff52d77ce7f2a218f72e9286616ea39",
+        "start-label": "Hora de inicio de {{day}}",
+        "start-label__sourceHash": "8183b031da944fb03006e553038ba57d763b75e19215aa8541d7fe151939daa9",
+        "end-label": "Hora de fin de {{day}}",
+        "end-label__sourceHash": "7111b6b2d8fc1e6b3bb2a586d8e0bf5211e7ea1d1240c46cc34c20416a940ee0"
+      },
+      "weekdays": {
+        "monday": "Lunes",
+        "monday__sourceHash": "6a00dfc1dc867e8454c2c8856e1512d9bf02a76710e3411c0972aec886c76c61",
+        "tuesday": "Martes",
+        "tuesday__sourceHash": "7d8af1de1262f150187d5938bf649d6c35726970685f916d1ec6392a801b9762",
+        "wednesday": "Miércoles",
+        "wednesday__sourceHash": "c0a6cc829cd08735294765c75938a7da2b0f222d52e98bff13cb237cd99deaac",
+        "thursday": "Jueves",
+        "thursday__sourceHash": "fc2662062ffdef9610020183ea2b087c21d71150d78a7c7463be8a9050bd3ac9",
+        "friday": "Viernes",
+        "friday__sourceHash": "e21f3f372a46d4be7b49f6809fc91baefeadae004af06485518e124a142c0271",
+        "saturday": "Sábado",
+        "saturday__sourceHash": "dbe35c7363c2f7ec747b902fb240907fc58ae00b98f107be2d4c7b9cd7f6226e",
+        "sunday": "Domingo",
+        "sunday__sourceHash": "873fef760e5d001ba0a843bf1846713fd92538699f323ef00d51f97a2ad2756c"
+      },
+      "meetings": {
+        "title": "Tipos de reunión",
+        "title__sourceHash": "bea7a788a0982b5857abc7a59a95d516ea32d29b87b299c274d3b894c14335b3",
+        "name-label": "Nombre",
+        "name-label__sourceHash": "dcd1d5223f73b3a965c07e3ff5dbee3eedcfedb806686a05b9b3868a2c3d6d50",
+        "duration-label": "Duración en minutos",
+        "duration-label__sourceHash": "471195f5d126bfed3269497e9fe0350439a259dfd7c29d1230cc99acc28f9a27",
+        "buffer-before-label": "Margen antes",
+        "buffer-before-label__sourceHash": "92d5772b32919d2bdf837e827ed7c3f83f7e9d48099cc114a3a9ec5d6ed4b027",
+        "buffer-after-label": "Margen después",
+        "buffer-after-label__sourceHash": "3acfdce6835b94d9cf375ccc336f36621a3620420b9f53c3f031b53ccdb0cf46"
+      },
+      "rules": {
+        "title": "Reglas de reserva",
+        "title__sourceHash": "1b6f1828521dc59c8b50e2fa8b1a9ffc3d046eb417c25fb403956b22cacbc7c8",
+        "timezone-label": "Zona horaria del asesor",
+        "timezone-label__sourceHash": "266f7e6e1c8df564e343f7194964df8f67028aa3c98b5ee51e8bb45f5401b6fb",
+        "min-notice-label": "Horas mínimas de antelación",
+        "min-notice-label__sourceHash": "a8de82c877e16d7cc73797dff2d89a8e3d338f23ec70c981b9e06dfb9d80a92f",
+        "max-horizon-label": "Máximo de días por adelantado",
+        "max-horizon-label__sourceHash": "5a450eb7ae6a955ae44a00cd1b12828cbda0d986ba2b88171f485a3e7d03987e"
+      }
+    },
     "license": {
       "title": "Licencia",
       "title__sourceHash": "c011d6097bfbc8e936280addcf2e3e7d06ea2223ffd596973191b800a7035c32",
@@ -1502,6 +1578,12 @@
             "title": "OneDrive",
             "description": "Client folders from OneDrive and SharePoint."
           },
+          "calendar": {
+            "title": "Calendario",
+            "title__sourceHash": "d5d0a30b517e3beab07609d7e54c378db5e15066f22280af453f587f7eec7474",
+            "description": "Eventos de Outlook, Google o ICS de solo lectura para preparar reuniones.",
+            "description__sourceHash": "2ac81cc0c98133f254fac2d97c19c2c573769cd93f1c7a84b733867058f8e658"
+          },
           "wealthbox": {
             "title": "Wealthbox",
             "description": "Households and CRM notes from Wealthbox."
@@ -1510,6 +1592,72 @@
             "toggle": "Other email option (IMAP)",
             "title": "Other email",
             "description": "Standard IMAP accounts."
+          }
+        },
+        "badges": {
+          "reads-in": "Lee datos",
+          "reads-in__sourceHash": "0b886d58b53d06e419e99f5b63d7d105849294a8afa4d8290b142bba1d2a6072",
+          "two-way": "Bidireccional",
+          "two-way__sourceHash": "14af917119a7cfe2023795db4bc8ee939d613760d422ab9086373b3149a4ecdc"
+        },
+        "groups": {
+          "now-label": "Conectar ahora",
+          "now-label__sourceHash": "f5e732583fb2ef751e97835ad9c97ef2248319fa3e5ede1d56c997b6329c5a89",
+          "built-label": "También listo, preparado para activarlo en tu firma",
+          "built-label__sourceHash": "dd07ab6e442ae53316db473d449a238705688d0ec8b2d4c815c9a6234ee4ce61",
+          "roadmap-label": "En la hoja de ruta",
+          "roadmap-label__sourceHash": "b502df0c4e56753b4a704b52a96dcb89834e45b04cb2867e8b39693fb868e336",
+          "calendars-note": "Calendly se conecta desde Configuración una vez que hayas terminado la configuración.",
+          "calendars-note__sourceHash": "cb45792f74801e53845904790150770b18a0b82ac302fc677d69967eb9dae1af"
+        },
+        "built": {
+          "salesforce": {
+            "name": "Salesforce",
+            "name__sourceHash": "33a7935db79df2a3bf5ac7ff9f2421015ff61623e005da1cf0cc9e1352c98069",
+            "desc": "CRM: lee clientes y puede escribir notas/tareas de vuelta.",
+            "desc__sourceHash": "8786e207c0744833693e7cf45fc15366d7a4c007653a526e398c6b417b9f4e56"
+          },
+          "redtail": {
+            "name": "Redtail",
+            "name__sourceHash": "96e1821a17d46daf042fb7f0d8a8c816ab03407655d6b7376915836057699432",
+            "desc": "CRM: lee clientes y puede escribir notas/tareas de vuelta.",
+            "desc__sourceHash": "8786e207c0744833693e7cf45fc15366d7a4c007653a526e398c6b417b9f4e56"
+          },
+          "docusign": {
+            "name": "DocuSign",
+            "name__sourceHash": "3dec998a84c39a7da6ff05565c08a5d6aa9d275ed21d76bcfa254865b5df2e8a",
+            "desc": "Lee el estado de sobres y firmas.",
+            "desc__sourceHash": "c601578853435522445f245332034bee1577a49ed5ea58714eb68935f4203d61"
+          },
+          "addepar": {
+            "name": "Addepar",
+            "name__sourceHash": "dd2fe2dfaaea2c5fbe8cc5d41338568f3ed80c540a4ca4c1485940091bb2b805",
+            "desc": "Lee datos de carteras.",
+            "desc__sourceHash": "68a2ab0c7d0d652f9b2e161a39f35aafb4cee4ee5b38758818b778e5ab5e0305"
+          },
+          "box": {
+            "name": "Box",
+            "name__sourceHash": "512fd3c6042cd1d9150d46fa59b5911a1f97b8275d73eb0a841daa31e93bd349",
+            "desc": "Lee tus archivos.",
+            "desc__sourceHash": "a6bc42a9d86906e37174323a661422fae30d65abd90e732fab4fd5a4699eba13"
+          },
+          "sharefile": {
+            "name": "ShareFile",
+            "name__sourceHash": "e97ac48c49d9ec3b4e46a8592d05ecd8d1557174e1f272c43aaf74c378e2b572",
+            "desc": "Lee tus archivos.",
+            "desc__sourceHash": "a6bc42a9d86906e37174323a661422fae30d65abd90e732fab4fd5a4699eba13"
+          },
+          "jotform": {
+            "name": "Jotform",
+            "name__sourceHash": "1c0b0717900a458bc49fd2badea6c596b03d3e4ecf6bab4b2d0b308fb271feb0",
+            "desc": "Lee envíos de formularios.",
+            "desc__sourceHash": "ab1ae7e3ec82b5c468a14a217e10c5a13a534e07f88e687f86dacd909b97d174"
+          },
+          "zocks": {
+            "name": "Zocks",
+            "name__sourceHash": "2b2582f43765daf875dd5d97cc223ad80bc02d048a0b3e73b9263f50bd3ee821",
+            "desc": "Lee notas de reuniones.",
+            "desc__sourceHash": "3dbac4291e19b9af2b3facdcf7b8ba5a5e7cad2305ef4f2c1857718526db99fe"
           }
         },
         "coming-soon-label": "Coming soon",
