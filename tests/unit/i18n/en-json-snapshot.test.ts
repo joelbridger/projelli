@@ -71,6 +71,7 @@ describe('en.json structure snapshot', () => {
         "privacy": 35,
         "quick-open": 1,
         "research": 11,
+        "scheduling": 56,
         "search": 6,
         "settings": 222,
         "shortcuts-overlay": 2,
@@ -275,7 +276,10 @@ describe('en.json structure snapshot', () => {
     //       section label plus booking link, working hours, weekday, meeting
     //       type, and booking-rule copy. Server/public booking copy is not
     //       included yet.
-    expect(flat.length).toBe(2056); // Scheduling Phase 1 local settings copy (+31)
+    // +56 = Calendly-style scheduling Phase 2 advisor surface: top-bar entry,
+    //       rail labels, booking-link actions, local request statuses,
+    //       availability controls, meeting-type panel, and open-slot preview.
+    expect(flat.length).toBe(2112); // Scheduling Phase 2 advisor surface copy (+56)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
