@@ -78,6 +78,32 @@ describe('runWholePracticeAsk', () => {
     expect(r.matches).toHaveLength(0);
     expect(sendMessageMock).not.toHaveBeenCalled();
   });
+  it('uses sample Client Map facts when the sample is the only visible client', async () => {
+    const sample = {
+      id: 'sample',
+      name: 'Sample',
+      client: 'Sample Household',
+      folderPaths: [],
+      createdAt: '2026-01-01T00:00:00.000Z',
+      isSample: true,
+    } as Matter;
+    const sampleMap = emptyClientMap('sample');
+    sampleMap.lastBuiltAt = '2026-07-01T00:00:00.000Z';
+    at(sampleMap.sections, 1).items = [{
+      id: 'sample-i0', text: '529 for grandkids', origin: 'ai', isAssumption: false,
+      sources: [{ kind: 'document', ref: '/w/sample/plan.pdf', snippet: '529 for grandkids' }],
+      updatedAt: '2026-06-01T00:00:00.000Z',
+    }];
+    useMatterStore.setState({ matters: [sample] });
+    useClientMapStore.setState({ maps: { sample: sampleMap } });
+    sendMessageMock.mockResolvedValue({
+      content: '{"answer":"Sample Household mentions a 529.","matches":[{"matterId":"sample","factItemIds":["sample-i0"]}]}',
+      usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 }, cost: 0,
+    });
+    const r = await runWholePracticeAsk('which clients mention 529 plans?', CHAT_ID);
+    expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    expect(at(r.matches, 0).label).toBe('Sample Household - Sample');
+  });
 
   describe('file-access consent gate (cloud provider)', () => {
     beforeEach(() => {

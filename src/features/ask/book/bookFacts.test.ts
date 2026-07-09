@@ -43,6 +43,17 @@ describe('buildBookFactsDigest', () => {
     expect(at(d.clients, 1).facts).toHaveLength(0); // assumption excluded
     expect(d.totalFacts).toBe(1);
   });
+  it('can include sample matters for a sample-only demo book', () => {
+    const matters = [matter('m4', 'Demo', { isSample: true })];
+    const d = buildBookFactsDigest(
+      matters,
+      { m4: mapWith('m4', ['Sample-only follow-up']) },
+      label,
+      { includeSampleMatters: true },
+    );
+    expect(d.clients.map((c) => c.matterId)).toEqual(['m4']);
+    expect(at(d.clients, 0).facts).toHaveLength(1);
+  });
   it('caps facts per client', () => {
     const many = mapWith('m1', Array.from({ length: 60 }, (_, i) => `fact ${String(i)}`));
     const d = buildBookFactsDigest([matter('m1', 'A')], { m1: many }, label);
