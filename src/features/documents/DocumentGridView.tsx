@@ -29,7 +29,7 @@ import { useEditorStore } from '@/platform/state/editorStore';
 import { TrashPanel } from '@/features/documents/TrashPanel';
 import type { TrashRetentionPeriod } from '@/features/documents/TrashPanel';
 import { toAbsolute, toScopedFolderPath } from '@/features/documents/scopeFileTree';
-import { normalize } from '@/platform/rag/matterResolver';
+import { isPathInFolder, normalize } from '@/platform/rag/matterResolver';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { FileNode } from '@/platform/types/workspace';
 
@@ -726,13 +726,21 @@ export function DocumentGridView({
     // falls back to its canonical `docs/` folder — same contract as before.
     // Embedded (per-client): `createFolderFallback` keeps a root-level create
     // inside the client's folder instead of the global workspace (isolation).
-    const parentPath = currentFolderPath ?? createFolderFallback ?? undefined;
+    const resolvedCurrentFolder = currentFolderPath !== null
+      ? toAbsolute(currentFolderPath, rootPath)
+      : null;
+    const parentPath = resolvedCurrentFolder && (
+      !scopeRootFolderPaths ||
+      scopeRootFolderPaths.some((folderPath) => isPathInFolder(resolvedCurrentFolder, folderPath))
+    )
+      ? resolvedCurrentFolder
+      : (createFolderFallback ?? undefined);
     if (onCreateDefaultDocument) {
       onCreateDefaultDocument(parentPath);
     } else if (onCreateDocxAtRoot) {
       onCreateDocxAtRoot(parentPath);
     } else {
-      onCreateFile(currentFolderPath ?? createFolderFallback ?? rootPath ?? '');
+      onCreateFile(parentPath ?? rootPath ?? '');
     }
   }
 
