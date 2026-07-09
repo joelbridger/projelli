@@ -20,7 +20,7 @@ import type { AuditEntry } from '@/platform/types/audit';
 import type { AskScope, AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
 import { NO_EVIDENCE_DECLINE, STILL_IMPORTING_DECLINE } from './askPrompt';
-import { AnswerBlocks } from './AnswerBlocks';
+import { AnswerBlocks, AnswerReceipt } from './AnswerBlocks';
 import { stripBlockMarkers } from './answerBlockMarkers';
 import {
   stalePlanNotices,
@@ -56,6 +56,7 @@ export function TurnBlock({
   onOpenFileAtPath,
   onAuditLog,
   askScope,
+  currentProviderId,
 }: {
   turn: AskTurn;
   turnIdx: number;
@@ -115,10 +116,12 @@ export function TurnBlock({
    */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
   askScope?: AskScope;
+  currentProviderId?: string;
 }) {
   const { t } = useTranslation();
   const isThisTurnSelected = selectedTurnIdx === turnIdx;
   const selectedForThisTurn = isThisTurnSelected ? selected : null;
+  const receiptProviderId = turn.providerId ?? currentProviderId;
 
   // Ask-smart: a completed turn produced by the source-aware agent carries
   // provenance blocks; render those with their labels + per-answer tally instead
@@ -151,6 +154,7 @@ export function TurnBlock({
   // trigger the green banner (and that such an answer shows the uncited
   // warning instead).
   const hasGroundedCitation = turn.citations.some((c) => c.verified);
+  const verifiedCitationCount = turn.citations.filter((c) => c.verified).length;
 
   // A deliberate "I couldn't find that in your files" decline is not an uncited
   // claim — it's the trust behaviour working. Show a calm "this is on purpose"
@@ -215,6 +219,8 @@ export function TurnBlock({
               : {})}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
             {...(onAuditLog !== undefined ? { onAuditLog } : {})}
+            {...(turn.readSources ? { readSources: turn.readSources } : {})}
+            {...(receiptProviderId ? { providerId: receiptProviderId } : {})}
           />
         ) : isPersisted ? (
           // Persisted (loaded history) turns: plain text.
@@ -368,6 +374,18 @@ export function TurnBlock({
               </Callout>
             </div>
           )}
+
+        {!usingBlocks && !isStreaming && turn.answer && (
+          <AnswerReceipt
+            claimsVerified={verifiedCitationCount}
+            citations={turn.citations}
+            {...(turn.readSources ? { readSources: turn.readSources } : {})}
+            {...(receiptProviderId ? { providerId: receiptProviderId } : {})}
+            {...(onOpenSourcesPanel !== undefined
+              ? { onOpenSourcesPanel: () => { onOpenSourcesPanel(turnIdx); } }
+              : {})}
+          />
+        )}
 
         {/* Connector-access: stale exported-plan warning. Shown when a cited
             source is a plan snapshot older than the limit. Treats a stale plan

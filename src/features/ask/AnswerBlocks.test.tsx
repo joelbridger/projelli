@@ -195,4 +195,35 @@ describe('AnswerBlocks — header badge agrees with the live citation verifier (
     });
     expect(screen.queryByTestId('ask-tally-unverified')).toBeNull();
   });
+
+  it('shows the per-answer receipt with verified claims, local sources, and provider route', async () => {
+    const cite = makeCitation({ verified: false });
+    ragVerifyCitationsBatchMock.mockResolvedValue([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+
+    render(
+      <AnswerBlocks
+        blocks={[filesBlock([cite])]}
+        selected={null}
+        onSelect={() => {}}
+        readSources={[
+          {
+            id: 'clients/jane/plan.docx',
+            label: 'plan.docx',
+            path: 'clients/jane/plan.docx',
+            sourceType: 'docx',
+            chunkCount: 1,
+          },
+        ]}
+        providerId="openai"
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+        '1 claim verified against 1 local source; sent direct to OpenAI; nothing to Lantern',
+      );
+    });
+  });
 });

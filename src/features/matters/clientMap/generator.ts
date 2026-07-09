@@ -5,6 +5,7 @@ import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from '@/platform/clientMap/completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
@@ -101,6 +102,7 @@ export async function buildClientMap(
       scope,
       hitCount: totalHits,
       topScore,
+      sources: sourceIdentitiesFromSources([...perSection.flatMap((p) => p.hits), ...askHits]),
     },
   }));
   if (!anyContent || options?.signal?.aborted) {

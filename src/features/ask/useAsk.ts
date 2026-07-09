@@ -39,6 +39,7 @@ import {
 import type { ChatMessage, WorkspaceSource } from '@/platform/types/ai';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import {
   resolveEgress,
   isLocalProvider,
@@ -752,6 +753,7 @@ export function useAsk({
                 ...(demoBlocks ? { blocks: demoBlocks } : {}),
                 groundedFromFiles: true,
                 groundingScope: demoGroundingScope,
+                readSources: sourceIdentitiesFromSources(demo.citations),
               };
               const now = new Date().toISOString();
               addMessage(chatId, { role: 'user', content: q, timestamp: now });
@@ -761,6 +763,7 @@ export function useAsk({
                 timestamp: now,
                 askCitations: demo.citations,
                 askSources: [],
+                askReadSources: sourceIdentitiesFromSources(demo.citations),
                 ...(demoBlocks
                   ? {
                       askBlocks: demoBlocks.map((b) => ({
@@ -917,6 +920,7 @@ export function useAsk({
                 scope: auditScope,
                 hitCount: hits.length,
                 topScore,
+                sources: sourceIdentitiesFromSources(hits),
               },
             })
           );
@@ -1282,6 +1286,7 @@ export function useAsk({
         });
         const fileToolsEnabled = grounding.usedFileContent;
         fileToolsEnabledForAudit = fileToolsEnabled;
+        const readSourcesForPrompt = sourceIdentitiesFromSources(groundingHits);
         // BUG-016: the answer prompt is hardened to refuse fabrication. The model
         // must answer ONLY from the retrieved context, decline with the exact
         // NO_EVIDENCE_DECLINE wording when the context doesn't contain the answer,
@@ -1325,6 +1330,7 @@ export function useAsk({
                 destination: egress.destination,
                 dataLeaves: egress.dataLeaves,
                 scope: buildAuditScope(retrievalScope),
+                readSources: readSourcesForPrompt,
                 // F2.5 — was client file content actually part of this send?
                 fileToolsEnabled,
               },
@@ -1559,6 +1565,8 @@ export function useAsk({
           citations,
           sources,
           ...(blocks ? { blocks } : {}),
+          readSources: readSourcesForPrompt,
+          ...(providerAudit?.providerId ? { providerId: providerAudit.providerId } : {}),
           // F2.5b (Codex P1) — durable "this answer used client file content"
           // marker, from the consent-gated grounding set (not the rendered
           // citations), so a grounded-but-uncited answer is still redacted from
@@ -1611,6 +1619,8 @@ export function useAsk({
           ...(blocks
             ? { askBlocks: blocks.map((b) => ({ kind: b.kind, text: b.text })) }
             : {}),
+          askReadSources: readSourcesForPrompt,
+          ...(providerAudit?.providerId ? { askProviderId: providerAudit.providerId } : {}),
           // F2.5b (Codex P1) — persist the file-grounding marker so history redaction
           // still works after a reload (reconstructTurns restores it).
           // F2.5b (Codex round 5) — persist the grounding decision ALWAYS (true OR

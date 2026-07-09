@@ -39,9 +39,10 @@ import {
   useCitationVerification,
   citationTrustState,
 } from './citationVerification';
-import type { AuditEntry } from '@/platform/types/audit';
+import type { AuditEntry, AuditSourceIdentity } from '@/platform/types/audit';
 import { CitationText } from './CitationText';
 import { TrustNote } from '@/ui/kp';
+import { isLocalProvider, providerDisplayName } from '@/platform/privacy/egress';
 
 const FILES = { fg: '#16654a', bg: '#e6f5ee', border: '#8fc9b0' };
 // B1: a files block whose citations are grounded but NOT verified (post-hoc
@@ -174,6 +175,85 @@ const tallyPillStyle = (tone: {
   color: tone.fg,
 });
 
+function uniqueCitationSourceCount(citations: AnswerCitation[]): number {
+  return new Set(citations.map((c) => c.path ?? c.label)).size;
+}
+
+function answerReceiptText({
+  claimsVerified,
+  sourceCount,
+  providerId,
+}: {
+  claimsVerified: number;
+  sourceCount: number;
+  providerId?: string;
+}): string {
+  const claimWord = claimsVerified === 1 ? 'claim' : 'claims';
+  const sourceWord = sourceCount === 1 ? 'source' : 'sources';
+  const provider = providerId ? providerDisplayName(providerId) : 'your AI provider';
+  const route = providerId && isLocalProvider(providerId)
+    ? `ran on ${provider}; 0 files left this machine`
+    : `sent direct to ${provider}; nothing to Lantern`;
+  return `${String(claimsVerified)} ${claimWord} verified against ${String(sourceCount)} local ${sourceWord}; ${route}`;
+}
+
+export function AnswerReceipt({
+  claimsVerified,
+  citations,
+  readSources,
+  providerId,
+  onOpenSourcesPanel,
+}: {
+  claimsVerified: number;
+  citations: AnswerCitation[];
+  readSources?: AuditSourceIdentity[];
+  providerId?: string;
+  onOpenSourcesPanel?: () => void;
+}) {
+  const sourceCount = readSources && readSources.length > 0
+    ? readSources.length
+    : uniqueCitationSourceCount(citations);
+  const text = answerReceiptText({
+    claimsVerified,
+    sourceCount,
+    ...(providerId ? { providerId } : {}),
+  });
+  const canOpenSources = sourceCount > 0 && onOpenSourcesPanel !== undefined;
+  const content = (
+    <>
+      <ShieldCheck size={13} strokeWidth={2} style={{ flex: 'none', marginTop: 1 }} />
+      <span>{text}</span>
+    </>
+  );
+
+  if (canOpenSources) {
+    return (
+      <button
+        type="button"
+        data-testid="ask-answer-receipt"
+        onClick={onOpenSourcesPanel}
+        title="Show the files the AI read"
+        className="transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
+        style={{
+          ...footerBoxStyle(FILES),
+          width: '100%',
+          textAlign: 'left',
+          cursor: 'pointer',
+          fontFamily: 'var(--font-sans)',
+        }}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <div data-testid="ask-answer-receipt" style={footerBoxStyle(FILES)}>
+      {content}
+    </div>
+  );
+}
+
 export function AnswerBlocks({
   blocks,
   selected,
@@ -181,6 +261,8 @@ export function AnswerBlocks({
   onOpenSourcesPanel,
   onOpenFileAtPath,
   onAuditLog,
+  readSources,
+  providerId,
 }: {
   blocks: AnswerBlock[];
   selected: number | null;
@@ -197,6 +279,10 @@ export function AnswerBlocks({
    *  triggers emits a `citation_verified` audit entry (same as SourcePanel —
    *  the shared store guarantees each citation is checked and audited once). */
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+  /** Local source identities actually included in this answer's prompt. */
+  readSources?: AuditSourceIdentity[];
+  /** Provider used for this answer, captured at answer time when available. */
+  providerId?: string;
 }) {
   const { t } = useTranslation();
   const tally = tallyBlocks(blocks);
@@ -377,6 +463,14 @@ export function AnswerBlocks({
           <span>{t('ask.answer-blocks.nothing-found-note')}</span>
         </div>
       )}
+
+      <AnswerReceipt
+        claimsVerified={trust.verified}
+        citations={allCitations}
+        {...(readSources ? { readSources } : {})}
+        {...(providerId ? { providerId } : {})}
+        {...(onOpenSourcesPanel ? { onOpenSourcesPanel } : {})}
+      />
     </div>
   );
 }

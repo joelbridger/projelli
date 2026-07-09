@@ -77,6 +77,31 @@ beforeEach(() => {
 });
 
 describe('SourcePanel — negative verdicts during an active import (QA-92 round 2)', () => {
+  it('shows the actual local source identities the AI read for the answer', () => {
+    render(
+      <SourcePanel
+        citations={[]}
+        readSources={[
+          {
+            id: 'clients/jane/plan.pdf',
+            label: 'plan.pdf',
+            path: 'clients/jane/plan.pdf',
+            sourceType: 'pdf',
+            locators: ['p. 2'],
+            chunkCount: 2,
+          },
+        ]}
+        selectedN={null}
+        onSelect={() => {}}
+      />,
+    );
+
+    const receipt = screen.getByTestId('source-panel-read-sources');
+    expect(receipt.textContent).toContain('AI read');
+    expect(receipt.textContent).toContain('plan.pdf (p. 2)');
+    expect(receipt.textContent).toContain('2 chunks');
+  });
+
   it('starts long source previews collapsed and expands them without opening the source', () => {
     ragVerifyCitationsBatchMock.mockResolvedValueOnce([
       { verdict: 'verified' } satisfies CitationVerdict,

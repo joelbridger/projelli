@@ -167,6 +167,20 @@ export type AuditScope =
   | { kind: 'allMatters' };
 
 /**
+ * A source identity captured for a retrieval or answer receipt. This records
+ * which local source was read without copying the client text itself.
+ */
+export interface AuditSourceIdentity {
+  id: string;
+  label: string;
+  path: string;
+  sourceType?: string;
+  matterId?: string;
+  locators?: string[];
+  chunkCount: number;
+}
+
+/**
  * Single audit log entry
  */
 export interface AuditEntry {
@@ -416,6 +430,8 @@ export type AuditEvent =
         /** F-510 — per-source diversity cap applied to this retrieval (the
          *  contradiction finder passes 4). Absent = uncapped. */
         perSourceCap?: number;
+        /** B6 — the actual local sources returned by this retrieval. */
+        sources?: AuditSourceIdentity[];
       };
     }
   /**
@@ -468,6 +484,8 @@ export type AuditEvent =
         dataLeaves: boolean;
         /** The active matter scope at send time (for per-matter report assembly). */
         scope?: AuditScope;
+        /** B6 — the local sources actually included in this model request. */
+        readSources?: AuditSourceIdentity[];
         /**
          * F2.5 — whether the AI's READ-class file tools (read/list/search) were
          * enabled for this send. `true` only when the advisor granted file

@@ -69,6 +69,20 @@ describe('ClientMapPanel simplified controls', () => {
     expect(openSource).not.toHaveBeenCalled();
   });
 
+  it('shows a build receipt with source counts and remaining gaps', () => {
+    render(
+      <ClientMapPanel
+        map={makeMap()}
+        onOpenSource={() => {}}
+        onEditItem={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId('clientmap-build-receipt').textContent).toContain(
+      'Built from 0 emails, 0 PDFs; 1 gap; 0 files left this machine',
+    );
+  });
+
   it('puts fact edit and remove actions inside a row menu', async () => {
     render(
       <ClientMapPanel

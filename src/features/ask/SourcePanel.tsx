@@ -3,8 +3,9 @@ import type { KeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Clock, ExternalLink } from 'lucide-react';
 import type { AnswerCitation } from './askHelpers';
-import type { AuditEntry } from '@/platform/types/audit';
+import type { AuditEntry, AuditSourceIdentity } from '@/platform/types/audit';
 import { provenanceBadgeLabel, isStalePlan } from '@/platform/rag/sourceProvenance';
+import { formatSourceIdentity } from '@/platform/audit/sourceCapture';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { EXTERNAL_EXPORT_STALE_DAYS_KEY } from '@/platform/settings/schema';
 import { EV_OPEN_EMAIL, EV_MATTER_LAUNCH } from '@/config/identity';
@@ -352,6 +353,7 @@ function SourceCard({
 
 export function SourcePanel({
   citations,
+  readSources,
   selectedN,
   onSelect,
   onAuditLog,
@@ -363,6 +365,8 @@ export function SourcePanel({
 }: {
   /** All citations for the answer the user is looking at. */
   citations: AnswerCitation[];
+  /** B6 — the local source identities actually included in this answer's prompt. */
+  readSources?: AuditSourceIdentity[];
   /** The currently-highlighted citation number (clicked chip / card). */
   selectedN: number | null;
   /** Select citation n (drives the chip↔card highlight). */
@@ -397,6 +401,9 @@ export function SourcePanel({
   // changes (a new turn, a reload), so a stale persisted `verified` flag can
   // never be shown as a real verdict; the panel always re-checks live.
   const verdicts = useCitationVerification(citations, onAuditLog);
+  const readSourceList = readSources ?? [];
+  const visibleReadSources = readSourceList.slice(0, 6);
+  const hiddenReadSourceCount = Math.max(0, readSourceList.length - visibleReadSources.length);
 
   return (
     <div data-testid="source-panel">
@@ -433,6 +440,76 @@ export function SourcePanel({
           }}
         >
           {headerSuffix}
+        </div>
+      )}
+
+      {readSourceList.length > 0 && (
+        <div
+          data-testid="source-panel-read-sources"
+          style={{
+            marginBottom: 14,
+            padding: '10px 12px',
+            border: '1px solid var(--kp-divider)',
+            borderRadius: 10,
+            background: '#fff',
+            color: 'var(--kp-text-dim)',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              marginBottom: 8,
+              fontSize: 11,
+              fontWeight: 700,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              color: 'var(--kp-text-faint)',
+            }}
+          >
+            <ShieldCheck size={12} strokeWidth={2} style={{ flex: 'none' }} />
+            AI read
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {visibleReadSources.map((source) => (
+              <div
+                key={source.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'baseline',
+                  gap: 6,
+                  minWidth: 0,
+                  fontSize: 12,
+                  lineHeight: 1.35,
+                }}
+              >
+                <span
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    color: 'var(--kp-navy)',
+                    fontWeight: 650,
+                  }}
+                >
+                  {formatSourceIdentity(source)}
+                </span>
+                {source.chunkCount > 1 && (
+                  <span style={{ flex: 'none', color: 'var(--kp-text-faint)', fontSize: 11 }}>
+                    {source.chunkCount} chunks
+                  </span>
+                )}
+              </div>
+            ))}
+            {hiddenReadSourceCount > 0 && (
+              <div style={{ fontSize: 11.5, color: 'var(--kp-text-faint)' }}>
+                +{hiddenReadSourceCount} more
+              </div>
+            )}
+          </div>
         </div>
       )}
 
