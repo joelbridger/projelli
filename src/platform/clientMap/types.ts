@@ -1,5 +1,6 @@
 // src/platform/clientMap/types.ts
 import type { RagHit } from '@/platform/utils/tauri-commands';
+import type { EgressDestination } from '@/platform/privacy/egress';
 
 export type CompletenessLevel = 'thin' | 'getting-there' | 'solid';
 export type ItemOrigin = 'ai' | 'user';
@@ -135,6 +136,12 @@ export interface ClientMap {
   pendingUpdates: ProposedUpdate[];
   lastBuiltAt: string; // ISO 8601, '' when never built
   lastSourceFingerprint: string;
+  /** AI route used by the last successful build. Absent when no AI send ran. */
+  buildEgress?: {
+    provider: string;
+    destination: EgressDestination;
+    dataLeaves: boolean;
+  };
   /** Proposals the user dismissed; suppresses re-proposing them until their
    *  source changes. Optional for back-compat with maps persisted before this. */
   dismissedSignatures?: DismissedSignature[];

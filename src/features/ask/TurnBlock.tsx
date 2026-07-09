@@ -20,7 +20,7 @@ import type { AuditEntry } from '@/platform/types/audit';
 import type { AskScope, AskTurn } from './askHelpers';
 import { CitationText } from './CitationText';
 import { NO_EVIDENCE_DECLINE, STILL_IMPORTING_DECLINE } from './askPrompt';
-import { AnswerBlocks } from './AnswerBlocks';
+import { AnswerBlocks, AnswerReceipt } from './AnswerBlocks';
 import { stripBlockMarkers } from './answerBlockMarkers';
 import {
   stalePlanNotices,
@@ -33,6 +33,10 @@ import {
   ASK_LOCAL_AI_STARTING_MESSAGE,
   ASK_LOCAL_AI_EVALUATING_MESSAGE,
 } from './askTimeout';
+import {
+  useCitationVerification,
+  citationTrustState,
+} from './citationVerification';
 
 /* -------------------------------------------------------------------------- */
 /* TurnBlock — renders a single completed or streaming Q+A pair               */
@@ -125,6 +129,9 @@ export function TurnBlock({
   // of the flat CitationText + single green/uncited attestation. Files-only,
   // demo (files-only), and legacy turns have no blocks and use the flat path.
   const usingBlocks = !isStreaming && !!turn.blocks && turn.blocks.length > 0;
+  const flatCitations = usingBlocks ? [] : turn.citations;
+  const flatVerdicts = useCitationVerification(flatCitations, onAuditLog);
+  const flatTrustStates = flatCitations.map((c) => citationTrustState(c, flatVerdicts));
 
   // Connector-access: surface a deterministic freshness warning (not just the
   // model's prose) when this answer leaned on an exported plan snapshot that is
@@ -150,7 +157,8 @@ export function TurnBlock({
   // is the defense-in-depth that guarantees an unverified citation can never
   // trigger the green banner (and that such an answer shows the uncited
   // warning instead).
-  const hasGroundedCitation = turn.citations.some((c) => c.verified);
+  const verifiedCitationCount = flatTrustStates.filter((state) => state === 'verified').length;
+  const hasGroundedCitation = verifiedCitationCount > 0;
 
   // A deliberate "I couldn't find that in your files" decline is not an uncited
   // claim — it's the trust behaviour working. Show a calm "this is on purpose"
@@ -215,6 +223,9 @@ export function TurnBlock({
               : {})}
             {...(onOpenFileAtPath !== undefined ? { onOpenFileAtPath } : {})}
             {...(onAuditLog !== undefined ? { onAuditLog } : {})}
+            {...(turn.readSources ? { readSources: turn.readSources } : {})}
+            {...(turn.providerId ? { providerId: turn.providerId } : {})}
+            {...(turn.egressDestination ? { egressDestination: turn.egressDestination } : {})}
           />
         ) : isPersisted ? (
           // Persisted (loaded history) turns: plain text.
@@ -368,6 +379,19 @@ export function TurnBlock({
               </Callout>
             </div>
           )}
+
+        {!usingBlocks && !isStreaming && turn.answer && (
+          <AnswerReceipt
+            claimsVerified={verifiedCitationCount}
+            citations={turn.citations}
+            {...(turn.readSources ? { readSources: turn.readSources } : {})}
+            {...(turn.providerId ? { providerId: turn.providerId } : {})}
+            {...(turn.egressDestination ? { egressDestination: turn.egressDestination } : {})}
+            {...(onOpenSourcesPanel !== undefined
+              ? { onOpenSourcesPanel: () => { onOpenSourcesPanel(turnIdx); } }
+              : {})}
+          />
+        )}
 
         {/* Connector-access: stale exported-plan warning. Shown when a cited
             source is a plan snapshot older than the limit. Treats a stale plan

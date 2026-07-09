@@ -175,11 +175,16 @@ describe('buildClientMap', () => {
     retrieveMock.mockResolvedValue([hit('/a.docx', 'fact')]);
     sendMock.mockResolvedValue({ content: JSON.stringify({ items: [] }) });
     const onAuditLog = vi.fn();
-    await buildClientMap('m1', { onAuditLog });
+    const map = await buildClientMap('m1', { onAuditLog });
     const modelCallEntries = onAuditLog.mock.calls
       .map((c) => c[0] as { action?: string })
       .filter((e) => e.action === 'model_call');
     expect(modelCallEntries.length).toBeGreaterThan(0);
+    expect(map.buildEgress).toMatchObject({
+      provider: 'anthropic',
+      destination: 'provider-direct',
+      dataLeaves: true,
+    });
   });
 
   it('still accepts a plain list of gap question strings (defaults them to standing)', async () => {

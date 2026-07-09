@@ -1,6 +1,8 @@
 // AI Chat Types
 
 import type { ConsentScope } from '@/platform/ai/fileAccessConsent';
+import type { AuditSourceIdentity } from '@/platform/types/audit';
+import type { EgressDestination } from '@/platform/privacy/egress';
 
 /**
  * API key configuration for AI providers
@@ -130,6 +132,15 @@ export interface ChatMessage {
    * redaction assumes the widest scope (all clients), the conservative default.
    */
   askGroundingScope?: ConsentScope;
+  /**
+   * B6 — the local source identities whose chunks were actually included in the
+   * Ask prompt for this answer. Text is not copied here; this is the receipt list.
+   */
+  askReadSources?: AuditSourceIdentity[];
+  /** Provider used for this Ask answer, captured at answer time for receipts. */
+  askProviderId?: string;
+  /** Where that Ask answer was actually sent, captured at answer time. */
+  askEgressDestination?: EgressDestination;
   /**
    * M2 — workspace retrieval hits associated with this turn. For
    * user-role messages this is the list of chunks that were retrieved

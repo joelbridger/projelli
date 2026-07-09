@@ -27,6 +27,7 @@ import { composeCrmProvenance } from '@/features/matters/crmProvenance';
 import { useLicense } from '@/platform/hooks/useLicense';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { getRememberedComplianceNoteChoice, setRememberedComplianceNoteChoice } from '@/features/matters/complianceNotePref';
+import { brandText } from '@/config/brandText';
 
 export interface CrmWriteReviewCardProps {
   matterId: string;
@@ -206,6 +207,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   const selectable = items.filter((i) => RETRYABLE_STATUSES.includes(i.status));
   const selectedItems = selectable.filter((i) => !uncheckedIds.has(i.id));
   const selectedIds = selectedItems.map((i) => i.id);
+  const sentCount = items.filter((i) => i.status === 'sent').length;
   const hasBlankFieldBlend = selectedItems.some((i) => i.kind === 'field' && (i.finalValue ?? '').trim() === '');
   const approveDisabled = selectedIds.length === 0 || effectiveHousehold === null || hasBlankFieldBlend;
 
@@ -417,6 +419,31 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                   onFinalValueChange={(value) => { updateFinalValue(item.id, value); }}
                 />
               ))}
+            </div>
+          )}
+
+          {sentCount > 0 && (
+            <div
+              data-testid="crm-write-approval-receipt"
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+                margin: '0 var(--kp-card-pad) var(--kp-space-xs)',
+                padding: '9px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--kp-success-line)',
+                background: 'var(--kp-success-bg)',
+                color: '#0a5c43',
+                fontSize: 'var(--kp-font-2xs)',
+                fontWeight: 650,
+                lineHeight: 1.45,
+              }}
+            >
+              <Check size={13} strokeWidth={3} style={{ flex: 'none', marginTop: 1 }} />
+              <span>
+                {brandText(`Approved ${pluralize(sentCount, 'change')} to Wealthbox; sent direct to Wealthbox; nothing to Lantern.`)}
+              </span>
             </div>
           )}
 

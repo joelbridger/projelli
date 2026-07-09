@@ -39,6 +39,7 @@ import {
 import type { ChatMessage, WorkspaceSource } from '@/platform/types/ai';
 import type { AuditScope } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
+import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import {
   createAuditPairId,
   mustLogAuditPhase,
@@ -49,6 +50,7 @@ import {
   resolveEgress,
   isLocalProvider,
   type ConfidentialityMode,
+  type EgressInfo,
 } from '@/platform/privacy/egress';
 import { runWithEgressAudit, sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import {
@@ -713,6 +715,8 @@ export function useAsk({
           | 'lantern-local';
         model: string;
       } | null = null;
+      let egressForSend: EgressInfo | null = null;
+      let egressDestinationForReceipt: EgressInfo['destination'] | undefined;
       let providerCallStarted = false;
       let failedStage: AskFailureStage = 'setup';
       // F2.5b (Codex P2) — hoisted so the FAILURE audit below can record whether
@@ -759,6 +763,7 @@ export function useAsk({
                 ...(demoBlocks ? { blocks: demoBlocks } : {}),
                 groundedFromFiles: true,
                 groundingScope: demoGroundingScope,
+                readSources: sourceIdentitiesFromSources(demo.citations),
               };
               const now = new Date().toISOString();
               addMessage(chatId, { role: 'user', content: q, timestamp: now });
@@ -768,6 +773,7 @@ export function useAsk({
                 timestamp: now,
                 askCitations: demo.citations,
                 askSources: [],
+                askReadSources: sourceIdentitiesFromSources(demo.citations),
                 ...(demoBlocks
                   ? {
                       askBlocks: demoBlocks.map((b) => ({
@@ -924,6 +930,7 @@ export function useAsk({
                 scope: auditScope,
                 hitCount: hits.length,
                 topScore,
+                sources: sourceIdentitiesFromSources(hits),
               },
             })
           );
@@ -1289,6 +1296,7 @@ export function useAsk({
         });
         const fileToolsEnabled = grounding.usedFileContent;
         fileToolsEnabledForAudit = fileToolsEnabled;
+        const readSourcesForPrompt = sourceIdentitiesFromSources(groundingHits);
         // BUG-016: the answer prompt is hardened to refuse fabrication. The model
         // must answer ONLY from the retrieved context, decline with the exact
         // NO_EVIDENCE_DECLINE wording when the context doesn't contain the answer,
@@ -1312,7 +1320,7 @@ export function useAsk({
               hasEvidence: groundingHits.length > 0,
             });
 
-        const buildEgressEntry = (): AuditEntryInput | null => {
+        const resolveEgressForSend = (): EgressInfo | null => {
           if (!providerAudit) return null;
           const egress = resolveEgress({
             provider: providerAudit.providerId,
@@ -1321,6 +1329,17 @@ export function useAsk({
             hasDemoByokKey: hasDemoByokKey(),
             assuredAvailable: false,
           });
+          // Receipts (B5): remember the route actually used for this send so
+          // the answer's receipt line reflects the real egress, not a guess.
+          egressForSend = egress;
+          egressDestinationForReceipt = egress.destination;
+          return egress;
+        };
+
+        const buildEgressEntry = (): AuditEntryInput | null => {
+          if (!providerAudit) return null;
+          const egress = egressForSend ?? resolveEgressForSend();
+          if (!egress) return null;
           return auditEventToEntry({
             type: 'egress',
             timestamp: new Date().toISOString(),
@@ -1331,6 +1350,7 @@ export function useAsk({
               destination: egress.destination,
               dataLeaves: egress.dataLeaves,
               scope: buildAuditScope(retrievalScope),
+              readSources: readSourcesForPrompt,
               // F2.5 — was client file content actually part of this send?
               fileToolsEnabled,
             },
@@ -1467,6 +1487,7 @@ export function useAsk({
             const sendMessageStreaming = provider.sendMessageStreaming.bind(provider);
             failedStage = 'provider-send';
             providerCallStarted = true;
+            resolveEgressForSend();
             const streamResp = await Promise.race([
               runWithEgressAudit({
                 provider,
@@ -1507,6 +1528,7 @@ export function useAsk({
           } else {
             failedStage = 'provider-send';
             providerCallStarted = true;
+            resolveEgressForSend();
             const resp = await Promise.race([
               sendWithEgressAudit({
                 provider,
@@ -1612,6 +1634,9 @@ export function useAsk({
           citations,
           sources,
           ...(blocks ? { blocks } : {}),
+          readSources: readSourcesForPrompt,
+          ...(providerAudit?.providerId ? { providerId: providerAudit.providerId } : {}),
+          ...(egressDestinationForReceipt ? { egressDestination: egressDestinationForReceipt } : {}),
           // F2.5b (Codex P1) — durable "this answer used client file content"
           // marker, from the consent-gated grounding set (not the rendered
           // citations), so a grounded-but-uncited answer is still redacted from
@@ -1664,6 +1689,9 @@ export function useAsk({
           ...(blocks
             ? { askBlocks: blocks.map((b) => ({ kind: b.kind, text: b.text })) }
             : {}),
+          askReadSources: readSourcesForPrompt,
+          ...(providerAudit?.providerId ? { askProviderId: providerAudit.providerId } : {}),
+          ...(egressDestinationForReceipt ? { askEgressDestination: egressDestinationForReceipt } : {}),
           // F2.5b (Codex P1) — persist the file-grounding marker so history redaction
           // still works after a reload (reconstructTurns restores it).
           // F2.5b (Codex round 5) — persist the grounding decision ALWAYS (true OR

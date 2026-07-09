@@ -47,6 +47,11 @@ import { SourcePanel } from '@/features/ask/SourcePanel';
 import type { AnswerCitation } from '@/features/ask/askHelpers';
 import { skClientMapSourcesCollapsed, skClientMapTab } from '@/config/identity';
 import type { AuditEntry } from '@/platform/types/audit';
+import {
+  formatSourceCountSummary,
+  sourceIdentitiesFromSourceRefs,
+} from '@/platform/audit/sourceCapture';
+import { receiptRouteText } from '@/platform/privacy/receiptText';
 
 // ── Sources column helpers ────────────────────────────────────────────────────
 // Map the Client Map's cited sources (SourceRef) onto the Ask SourcePanel's
@@ -91,6 +96,30 @@ function sourcesForItems(items: ClientMapItem[], matterId: string): AnswerCitati
     }
   }
   return out;
+}
+
+function sourceRefsForClientMap(map: ClientMap): SourceRef[] {
+  const refs: SourceRef[] = [];
+  for (const section of map.sections) {
+    for (const item of section.items) refs.push(...item.sources);
+  }
+  for (const item of map.completeness.know) refs.push(...item.sources);
+  for (const item of map.completeness.assuming) refs.push(...item.sources);
+  return refs;
+}
+
+function clientMapBuildReceiptText(map: ClientMap, gapCount: number): string {
+  const sourceSummary = formatSourceCountSummary(
+    sourceIdentitiesFromSourceRefs(sourceRefsForClientMap(map)),
+  );
+  const gapWord = gapCount === 1 ? 'gap' : 'gaps';
+  const route = map.buildEgress
+    ? receiptRouteText({
+        providerId: map.buildEgress.provider,
+        destination: map.buildEgress.destination,
+      })
+    : '0 files left this machine';
+  return `Built from ${sourceSummary}; ${String(gapCount)} ${gapWord}; ${route}`;
 }
 
 // ── Display strings (variables avoid hardcoded JSX text for the i18n rule) ────
@@ -1368,6 +1397,16 @@ export function ClientMapPanel({
       {/* Right reading pane — left-aligned, breathing reading column (Ask shape) */}
       <div data-testid="clientmap-panel-scroll" style={contentStyle}>
         <div style={contentInnerStyle}>
+          {map.lastBuiltAt !== '' && (
+            <TrustNote
+              data-testid="clientmap-build-receipt"
+              icon={ShieldCheck}
+              style={{ marginBottom: 'var(--kp-space-lg)', fontWeight: 600 }}
+            >
+              {clientMapBuildReceiptText(map, missingCount)}
+            </TrustNote>
+          )}
+
           {activeKey === NEW_KEY ? (
             <AddSectionPanel
               matterId={map.matterId}

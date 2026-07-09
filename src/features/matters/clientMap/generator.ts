@@ -6,6 +6,9 @@ import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from '@/platform/clientMap/completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
+import { resolveEgress } from '@/platform/privacy/egress';
+import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import {
   CORE_SECTION_ORDER, CORE_SECTION_TITLE, emptyClientMap,
 } from '@/platform/clientMap/types';
@@ -99,6 +102,7 @@ export async function buildClientMap(
       scope,
       hitCount: totalHits,
       topScore,
+      sources: sourceIdentitiesFromSources([...perSection.flatMap((p) => p.hits), ...askHits]),
     },
   }));
   if (!anyContent || options?.signal?.aborted) {
@@ -107,13 +111,32 @@ export async function buildClientMap(
 
   const resolvedProvider = await buildResolvedProviderForClientMap();
   const provider = resolvedProvider.provider;
+  let buildEgress: ClientMap['buildEgress'];
+  // Receipts (B5): capture the resolved egress route for the Client Map's
+  // receipt line. The audit rows themselves are written by sendWithEgressAudit
+  // (the egress choke point) immediately before each send - no duplicate
+  // logging here, and a failed/timed-out send still leaves the audit record.
+  const captureBuildEgress = () => {
+    const egress = resolveEgress({
+      provider: resolvedProvider.providerId,
+      mode: getConfidentialityMode(),
+      isDemo: false,
+      assuredAvailable: false,
+    });
+    buildEgress = {
+      provider: egress.provider,
+      destination: egress.destination,
+      dataLeaves: egress.dataLeaves,
+    };
+  };
   const sendClientMapMessage = (
     label: string,
     prompt: string,
     systemPrompt: string,
     maxTokens: number,
-  ) =>
-    sendWithEgressAudit({
+  ) => {
+    captureBuildEgress();
+    return sendWithEgressAudit({
       provider,
       providerId: resolvedProvider.providerId,
       model: resolvedProvider.model,
@@ -128,6 +151,7 @@ export async function buildClientMap(
         metadata: { feature: 'client_map', step: label },
       },
     });
+  };
   const sections: ClientMapSection[] = [];
   for (const { key, hits } of perSection) {
     if (hits.length === 0) { sections.push({ id: key, kind: 'core', key, title: CORE_SECTION_TITLE[key], items: [] }); continue; }
@@ -172,5 +196,6 @@ export async function buildClientMap(
     pendingUpdates: [],
     lastBuiltAt: new Date().toISOString(),
     lastSourceFingerprint: '',
+    ...(buildEgress ? { buildEgress } : {}),
   };
 }

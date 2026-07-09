@@ -42,6 +42,8 @@ import {
   resolveActiveEgressProviderId,
   type ActiveEgressProviderId,
 } from '@/platform/privacy/activeEgressProvider';
+import type { AuditSourceIdentity } from '@/platform/types/audit';
+import type { EgressDestination } from '@/platform/privacy/egress';
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                       */
@@ -240,6 +242,12 @@ export interface AskTurn {
    * can never ride into a cloud send that holds only a single-client grant.
    */
   groundingScope?: ConsentScope;
+  /** B6 — local source identities actually included in this answer's prompt. */
+  readSources?: AuditSourceIdentity[];
+  /** Provider used for this answer, captured at answer time for proof lines. */
+  providerId?: string;
+  /** Where this answer was actually sent, captured at answer time for proof lines. */
+  egressDestination?: EgressDestination;
   isStreaming?: boolean;
   error?: string;
 }
@@ -1432,6 +1440,16 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
           : assistantMsg.askGroundedFromFiles === false
             ? { groundedFromFiles: false }
             : {};
+      const receiptMarker: Pick<AskTurn, 'readSources' | 'providerId' | 'egressDestination'> = {};
+      if (assistantMsg.askReadSources && assistantMsg.askReadSources.length > 0) {
+        receiptMarker.readSources = assistantMsg.askReadSources;
+      }
+      if (assistantMsg.askProviderId) {
+        receiptMarker.providerId = assistantMsg.askProviderId;
+      }
+      if (assistantMsg.askEgressDestination) {
+        receiptMarker.egressDestination = assistantMsg.askEgressDestination;
+      }
       const groundedCitations = (assistantMsg.askCitations ?? [])
         .filter((c) => {
           if (c.path == null) return false;
@@ -1536,6 +1554,7 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
           sources: restoredSources,
           blocks: renum.blocks,
           ...groundedMarker,
+          ...receiptMarker,
         });
         i += 2;
         continue;
@@ -1553,6 +1572,7 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
           citations: groundedCitations,
           sources: restoredSources,
           ...groundedMarker,
+          ...receiptMarker,
         });
       } else {
         // No grounded citations (legacy messages with none persisted, OR a
@@ -1565,6 +1585,7 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
           citations: [],
           sources: [],
           ...groundedMarker,
+          ...receiptMarker,
         });
       }
       i += 2;

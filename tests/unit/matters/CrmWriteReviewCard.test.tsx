@@ -143,6 +143,11 @@ describe('CrmWriteReviewCard', () => {
     expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
       expect.objectContaining({ requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) }),
     );
+    await waitFor(() => {
+      expect(screen.getByTestId('crm-write-approval-receipt').textContent).toContain(
+        `Approved 1 change to Wealthbox; sent direct to Wealthbox; nothing to ${BRAND.name}.`,
+      );
+    });
   });
 
   // Task 9b: optional compliance summary, off by default, riding the same card.

@@ -408,12 +408,21 @@ export function Ask(props: UseAskProps) {
   // The SOURCES column reflects the answer the user is looking at: the turn of
   // the clicked citation, else the most recent turn that has citations.
   const sourceTurnIdx: number | null = (() => {
-    if (openedSourcesTurnIdx !== null && (turns[openedSourcesTurnIdx]?.citations.length ?? 0) > 0) {
+    if (
+      openedSourcesTurnIdx !== null &&
+      (
+        (turns[openedSourcesTurnIdx]?.citations.length ?? 0) > 0 ||
+        (turns[openedSourcesTurnIdx]?.readSources?.length ?? 0) > 0
+      )
+    ) {
       return openedSourcesTurnIdx;
     }
     if (selectedTurnIdx !== null) return selectedTurnIdx;
     for (let i = turns.length - 1; i >= 0; i--) {
-      if ((turns[i]?.citations.length ?? 0) > 0) return i;
+      if (
+        (turns[i]?.citations.length ?? 0) > 0 ||
+        (turns[i]?.readSources?.length ?? 0) > 0
+      ) return i;
     }
     return null;
   })();
@@ -428,8 +437,10 @@ export function Ask(props: UseAskProps) {
   // sources would linger next to the new book-wide answer, looking like its
   // citations when they aren't.
   const sourceCitations = askScope === 'whole-practice' ? [] : (sourceTurn?.citations ?? []);
+  const sourceReadSources = askScope === 'whole-practice' ? [] : (sourceTurn?.readSources ?? []);
   const sourceSelectedN = sourceTurnIdx !== null && selectedTurnIdx === sourceTurnIdx ? selected : null;
   const hasSourceCitations = sourceCitations.length > 0;
+  const hasSourceEvidence = hasSourceCitations || sourceReadSources.length > 0;
 
   const errorBanner = status === 'error' && errorMsg ? (
     <div
@@ -694,7 +705,7 @@ export function Ask(props: UseAskProps) {
         </div>
 
         {/* SOURCES column — hidden until the current answer has citations. */}
-        {autoLayout.showSources && hasSourceCitations && (
+        {autoLayout.showSources && hasSourceEvidence && (
           sourcesExpanded ? (
             <div
               data-testid="ask-sources-pane"
@@ -720,6 +731,7 @@ export function Ask(props: UseAskProps) {
               </div>
               <SourcePanel
                 citations={sourceCitations}
+                readSources={sourceReadSources}
                 selectedN={sourceSelectedN}
                 onSelect={(n) => { selectCitation(sourceTurnIdx ?? turns.length, n); }}
                 {...(props.onAuditLog ? { onAuditLog: props.onAuditLog } : {})}
