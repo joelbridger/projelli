@@ -33,8 +33,14 @@ The "click inside our app → opens at Schwab" magic is Schwab's **Digital Accou
 
 This is a **Jameson + business** task (his relationship, his signature); I prepare the materials so applying is fast.
 
-### Track 3 — Clever paths around the locked door (research in flight)
-`schwab-creative-paths.md` (Codex research running) is ranking: Schwab's public Trader/Developer API (post-TDA), account aggregation (Plaid/Akoya/ByAllAccounts) for Schwab *data* with client consent + no partnership, deep-link/URL-prefill handoff into Schwab's own DAO, and how competitors actually connect. Deliverable: a ranked "start here" list. This may surface a faster path than the full partnership.
+### Track 3 — Clever paths around the locked door (research DONE 2026-07-09)
+Full findings: `coordination/reports/schwab-creative-paths.md`. The honest picture: competitors (Jump, Wealthbox, Redtail) mostly DON'T bypass Schwab — they use the formal OpenView/OAuth partnership + Data Delivery Enrollment. BUT there is a real no-partnership near-term win. The recommended **three-layer** approach:
+
+1. **Schwab Data Connect (the fast win — no Schwab partnership):** pull the client's Schwab holdings, balances, transactions, and positions via an **aggregator (Plaid first; Yodlee/ByAllAccounts for richer advisor data), with the CLIENT's own consent.** This gives Advisor Prep Hero a real "connect your Schwab data" story NOW, without waiting on Schwab. → **Decision for Jameson: shall we add Plaid?** It's a new vendor (has a cost + its own signup), so it's your call — but it's the single fastest way to a live Schwab data story.
+2. **Schwab Prep Packet (Track 1 above):** prefilled Schwab PDFs/checklists locally, marked "advisor must review / client signs through Schwab's approved path."
+3. **Schwab Handoff Mode:** deep-link the advisor into the right Schwab account-opening page with a clean copy/checklist panel alongside — never scrape, auto-submit, or impersonate an approved DAO integration.
+
+Positioning this buys us: *"Connect Schwab data with client permission, prepare the account-opening packet, and hand off to Schwab's own approval flow"* — a real Schwab story today, with the full DAO partnership (Track 2) as the long-game upgrade. Note: RightCapital ships a **file-based Schwab feed** (live 3–5 business days after data-access paperwork) as a lower-bar alternative to the full API partnership — worth evaluating as a middle path.
 
 ## Sequence
 1. Build Track 1 (prefill) now — real competitive feature, ships without anyone's permission.
