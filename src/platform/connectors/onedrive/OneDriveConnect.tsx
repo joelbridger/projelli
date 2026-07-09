@@ -325,7 +325,19 @@ export function OneDriveConnect() {
       // A purge that removed RAG rows announces itself from the BACKEND on the
       // dedicated rag-content-invalidated event, which the citation-verification
       // cache subscribes to — platform must not import features (architecture DAG).
-      const result: OneDriveDisconnectResult = await oneDriveDisconnect(deleteFiles);
+      const result: OneDriveDisconnectResult | null = await oneDriveDisconnect(deleteFiles);
+
+      // Robustness: if the backend returns nothing (e.g. an inconsistent state
+      // where a stale token exists but there's no connection/data to remove),
+      // treat it as a clean disconnect rather than crashing on result.* reads.
+      if (!result) {
+        setDataRemains(false);
+        setDisconnectIncomplete(false);
+        setDisconnectNote(null);
+        setConnected(false);
+        setLastReport(null);
+        return;
+      }
 
       // A clean disconnect: the connection + search index were removed. When the
       // user did NOT opt in to deleting files, those files staying is expected

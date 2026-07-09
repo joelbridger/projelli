@@ -19,7 +19,7 @@ import { useEffect, useState } from 'react';
 import { Check, Info, X } from 'lucide-react';
 
 import { openExternal } from '@/platform/utils/openExternal';
-import type { KeyProvider } from '@/platform/providers/KeychainService';
+import { createKeychainService, type KeyProvider } from '@/platform/providers/KeychainService';
 import { validateApiKeyLive } from '@/platform/providers/apiKeyValidation';
 import { markKeyVerified, clearKeyStatus } from '@/platform/providers/keyVerification';
 import { detectOllama } from '@/platform/providers/OllamaProvider';
@@ -82,6 +82,22 @@ export function AiScene({ onSaveKey, onAdvance, onAiResolved }: AiSceneProps) {
     });
     return () => { cancelled = true; };
   }, []);
+
+  // Restore the saved-key state when the step is re-entered (navigating back to
+  // this scene). Without this, an already-saved key looked disconnected on
+  // return, even though it was still in the keychain — a confusing display bug.
+  useEffect(() => {
+    let cancelled = false;
+    void createKeychainService()
+      .hasKey(provider as KeyProvider)
+      .then((exists) => {
+        if (!cancelled && exists) {
+          setSavedUnverified(true);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [provider]);
 
   const tutorial = PROVIDER_TUTORIALS[provider];
   const providerLabel = PROVIDERS.find((p) => p.id === provider)?.label ?? 'your provider';
