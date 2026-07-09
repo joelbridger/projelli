@@ -23,6 +23,10 @@
 // Env: DESKTOP_CDP_PORT (default 9223 on the bench; set 9444 only when using a local tunnel).
 //      DESKTOP_CDP_HOSTS comma-list is optional; defaults to 127.0.0.1,localhost,[::1].
 import { chromium } from 'playwright';
+import {
+  installLocalOnlyEgressTripwire,
+  localOnlyEgressVerdict,
+} from './robot/fixtures/egressGuard.mjs';
 
 const PORT = process.env.DESKTOP_CDP_PORT || '9223';
 const CDP_HOSTS = (process.env.DESKTOP_CDP_HOSTS || process.env.DESKTOP_CDP_HOST || '127.0.0.1,localhost,[::1]')
@@ -30,6 +34,76 @@ const CDP_HOSTS = (process.env.DESKTOP_CDP_HOSTS || process.env.DESKTOP_CDP_HOST
   .map((host) => host.trim())
   .filter(Boolean);
 const APP_URL_RE = /(?:localhost|127\.0\.0\.1|\[::1\]):5173/;
+
+function byTestId(testId) {
+  return `[data-testid="${String(testId).replace(/"/g, '\\"')}"]`;
+}
+
+async function clickByTestIdIfPresent(page, testId, { timeout = 3000 } = {}) {
+  const locator = page.locator(byTestId(testId)).first();
+  if ((await locator.count().catch(() => 0)) === 0) return false;
+  await locator.click({ timeout });
+  return true;
+}
+
+async function ensureLocalOnlyMode(page) {
+  await page.locator(byTestId('settings-gear')).click({ timeout: 8000 });
+  await page.locator(byTestId('settings-category-ai')).click({ timeout: 8000 });
+  await page.locator(byTestId('confidentiality-mode-local-only')).click({ timeout: 8000 });
+  await page.waitForFunction(
+    () =>
+      document
+        .querySelector('[data-testid="confidentiality-mode-settings"]')
+        ?.getAttribute('data-active-mode') === 'local-only',
+    null,
+    { timeout: 8000 },
+  );
+  return page.locator(byTestId('egress-indicator-label')).first().textContent({ timeout: 3000 }).catch(() => '');
+}
+
+async function revertToCloudMode(page) {
+  await page.locator(byTestId('settings-gear')).click({ timeout: 8000 }).catch(() => {});
+  await page.locator(byTestId('settings-category-ai')).click({ timeout: 8000 }).catch(() => {});
+  await page.locator(byTestId('confidentiality-mode-direct')).click({ timeout: 8000 }).catch(() => {});
+}
+
+async function runLocalOnlyEgressWalk(page) {
+  const localLabel = await ensureLocalOnlyMode(page);
+  const guard = await installLocalOnlyEgressTripwire(page);
+  const walked = [];
+
+  if (await clickByTestIdIfPresent(page, 'spine-nav-search')) {
+    walked.push('Ask');
+    await page
+      .waitForSelector(
+        `${byTestId('ask-composer-input')},${byTestId('hub-ask-input')},${byTestId('egress-indicator-composer')}`,
+        { timeout: 8000 },
+      )
+      .catch(() => {});
+    await clickByTestIdIfPresent(page, 'scope-toggle', { timeout: 2000 }).catch(() => false);
+  }
+
+  if (await clickByTestIdIfPresent(page, 'spine-nav-workflows')) {
+    walked.push('Workflows');
+    await page.waitForTimeout(500);
+  }
+
+  if (await clickByTestIdIfPresent(page, 'spine-nav-matters')) {
+    walked.push('Clients');
+    await page.waitForTimeout(500);
+  }
+
+  const verdict = localOnlyEgressVerdict({ violations: guard.violations });
+  await revertToCloudMode(page);
+
+  return {
+    ok: verdict.ok,
+    localLabel: String(localLabel || '').trim(),
+    walked,
+    violations: verdict.violations,
+    violationCount: verdict.violationCount,
+  };
+}
 
 function httpBase(host) {
   return `http://${host}:${PORT}`;
@@ -135,6 +209,11 @@ try {
         await page.getByText(args[0]).first().waitFor({ timeout: (Number(args[1]) || 15) * 1000 });
         console.log('found: ' + args[0]);
         break;
+      case 'local-only-egress-walk': {
+        const result = await runLocalOnlyEgressWalk(page);
+        console.log(JSON.stringify(result, null, 2));
+        break;
+      }
       default:
         console.error('unknown command: ' + cmd);
         process.exitCode = 2;

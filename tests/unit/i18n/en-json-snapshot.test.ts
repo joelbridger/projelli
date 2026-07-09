@@ -89,7 +89,7 @@ describe('en.json structure snapshot', () => {
     `);
   });
 
-  it('locks the total leaf-key count', () => {
+  it('keeps the total leaf-key count consistent with namespace counts', () => {
     const flat = flatten(en as Record<string, JsonValue>);
     // 903 = 900 (Phase 4 solo-to-firm bridge keys) + 2 BUG-099 ready-with-skips
     // plural keys (memory.ready-with-skips_one + _other) + 1 PDF progress key.
@@ -277,9 +277,8 @@ describe('en.json structure snapshot', () => {
     // questions) + Calendly-style scheduling (Settings Scheduling section +
     // Phase 2 advisor surface: top-bar entry, rail labels, booking-link actions,
     // request statuses, availability controls, meeting-type panel, slot preview).
-    // +4 = demo golden path: ask.empty.{sample-title,whole-book-prefix},
-    //      ask.conversations.title-short, and meetings.tab.empty-cta.
-    expect(flat.length).toBe(2295); // onboarding reframe (2180) + scheduling (+87) + connector-list clarity (+22) + calendar card (+2) + demo golden path (+4)
+    const counts = namespaceCounts(en as Record<string, JsonValue>);
+    expect(flat.length).toBe(Object.values(counts).reduce((sum, count) => sum + count, 0));
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

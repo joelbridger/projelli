@@ -33,6 +33,7 @@ export const CHECKLIST = [
   { id: 'cross-cutting-light-theme', section: 'Cross-cutting', title: 'App theme is Light everywhere visited', liveOnly: false, run: crossCuttingChecks.checkLightTheme },
   { id: 'cross-cutting-console-errors', section: 'Cross-cutting', title: 'No console errors while navigating Client Map / Documents / Settings', liveOnly: false, run: crossCuttingChecks.checkConsoleErrors },
   { id: 'cross-cutting-egress-indicator', section: 'Cross-cutting', title: 'Local-only mode flips the egress indicator correctly, then reverts', liveOnly: false, run: crossCuttingChecks.checkEgressIndicator },
+  { id: 'cross-cutting-local-only-egress-tripwire', section: 'Cross-cutting', title: 'Local-only mode blocks cloud AI egress during a short app walk', liveOnly: false, run: crossCuttingChecks.checkLocalOnlyEgressTripwire },
 ];
 
 // Stubs are pure data, never executed — the runner reports each as STATUS.TODO

@@ -1,7 +1,13 @@
 // scripts/robot/smoke.mjs — end-to-end proof against the Legion bench.
 //
-// Runs the full chain and asserts every verb's proof packet is ok:
+// Runs the currently automated chain and asserts every verb's proof packet is ok:
 //   reset -> open(workspace) -> sweep -> ask -> isolation
+//
+// Demo V1 coverage plan (not all automated yet): this robot must grow into the
+// real Windows done-gate for AI setup, Outlook, OneDrive, Wealthbox, import
+// progress, Ask-during-import, Teams recording, Notice Card, and transcript
+// search. Use `node scripts/robot/smoke.mjs --coverage-plan` to print the
+// machine-readable coverage ledger without touching the bench.
 //
 // DEFAULT (deterministic): restore the FROZEN snapshot (clean, fully-indexed
 // world) and answer Ask from the recorded OpenAI fixture, with an egress guard
@@ -34,6 +40,80 @@ import { runSurfaceSweep } from './verbs/sweep.mjs';
 import { askQuestion } from './verbs/ask.mjs';
 import { verifyIsolation } from './verbs/isolation.mjs';
 import { closeAllReplayServers } from './fixtures/aiReplay.mjs';
+
+export const DEMO_V1_COVERAGE_PLAN = [
+  {
+    id: 'ai-setup-openai',
+    area: 'AI setup',
+    requiredProof: 'ChatGPT/OpenAI can be connected and used for a cited Ask answer.',
+    status: 'planned',
+  },
+  {
+    id: 'ai-setup-local',
+    area: 'AI setup',
+    requiredProof: 'Local AI is installed or ready, and can answer the same seeded Ask question.',
+    status: 'planned',
+  },
+  {
+    id: 'outlook-import',
+    area: 'Outlook',
+    requiredProof: 'Outlook connects/imports and imported mail appears in client-scoped Ask/search.',
+    status: 'planned',
+  },
+  {
+    id: 'onedrive-import',
+    area: 'OneDrive',
+    requiredProof: 'OneDrive connects/imports and imported files appear in client-scoped Ask/search.',
+    status: 'planned',
+  },
+  {
+    id: 'wealthbox-import',
+    area: 'Wealthbox',
+    requiredProof: 'Wealthbox connects/imports, progress counts move, and a client maps to CRM data.',
+    status: 'planned',
+  },
+  {
+    id: 'import-progress',
+    area: 'Import progress',
+    requiredProof: 'The progress screen visibly updates while Outlook, OneDrive, and Wealthbox import.',
+    status: 'planned',
+  },
+  {
+    id: 'ask-during-import',
+    area: 'Ask during import',
+    requiredProof: 'Ask returns cited partial-data answers while an import is still running.',
+    status: 'planned',
+  },
+  {
+    id: 'teams-recording',
+    area: 'Meeting recording',
+    requiredProof: 'A Teams recording starts, shows as recording, stops, and writes the meeting artifact.',
+    status: 'planned',
+  },
+  {
+    id: 'notice-card',
+    area: 'Notice Card',
+    requiredProof: 'The in-meeting Notice Card appears during recording and shows recording is active.',
+    status: 'planned',
+  },
+  {
+    id: 'transcript-search',
+    area: 'Transcript search',
+    requiredProof: 'Transcript text is indexed, searchable, and cited back to the meeting source.',
+    status: 'planned',
+  },
+  {
+    id: 'basic-reset-open-sweep-ask-isolation',
+    area: 'Legacy smoke chain',
+    requiredProof: 'Reset, open workspace, sweep main surfaces, one cited Ask, and matter isolation pass.',
+    status: 'automated',
+  },
+];
+
+if (process.argv.includes('--coverage-plan')) {
+  console.log(JSON.stringify(DEMO_V1_COVERAGE_PLAN, null, 2));
+  process.exit(0);
+}
 
 // Deterministic by default. Live AI is opt-IN only, via ROBOT_SMOKE_LIVE_AI=1 —
 // the smoke must never silently run live (that would skip the fixture + egress

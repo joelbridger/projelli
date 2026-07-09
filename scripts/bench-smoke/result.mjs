@@ -15,6 +15,13 @@ export const STATUS = Object.freeze({
   TODO: 'TODO',
 });
 
+export const OVERALL = Object.freeze({
+  PASS: 'PASS',
+  FAIL: 'FAIL',
+  SETUP_BLOCKED: 'SETUP-BLOCKED',
+  INCOMPLETE: 'INCOMPLETE',
+});
+
 const VALID_STATUSES = new Set(Object.values(STATUS));
 
 /**
@@ -58,11 +65,13 @@ export function summarize(results, meta = {}) {
 
   const failed = results.filter((r) => r.status === STATUS.FAIL);
   const blocked = results.filter((r) => r.status === STATUS.SETUP_BLOCKED);
+  const incomplete = results.filter((r) => r.status === STATUS.TODO || r.status === STATUS.SKIPPED);
 
   let overall;
-  if (failed.length > 0) overall = 'FAIL';
-  else if (blocked.length > 0) overall = 'SETUP-BLOCKED';
-  else overall = 'PASS';
+  if (failed.length > 0) overall = OVERALL.FAIL;
+  else if (blocked.length > 0) overall = OVERALL.SETUP_BLOCKED;
+  else if (incomplete.length > 0) overall = OVERALL.INCOMPLETE;
+  else overall = OVERALL.PASS;
 
   return {
     overall,
@@ -79,11 +88,13 @@ export function summarize(results, meta = {}) {
  * 1 = at least one real FAIL (evidence a feature is broken).
  * 3 = no FAIL, but at least one SETUP-BLOCKED (bench/data wasn't ready — needs
  *     attention, but isn't proof of a break).
- * TODO and SKIPPED never affect the exit code — they're not verdicts.
+ * 4 = no FAIL/SETUP-BLOCKED, but at least one TODO/SKIPPED. This is not green:
+ *     it means the bench did not prove the full checklist yet.
  */
 export function aggregateExitCode(results) {
   if (results.some((r) => r.status === STATUS.FAIL)) return 1;
   if (results.some((r) => r.status === STATUS.SETUP_BLOCKED)) return 3;
+  if (results.some((r) => r.status === STATUS.TODO || r.status === STATUS.SKIPPED)) return 4;
   return 0;
 }
 

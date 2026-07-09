@@ -192,10 +192,7 @@ describe('checkWholePracticeAsk', () => {
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
         elements: [
-          { testid: 'scope-option-whole-practice', tag: 'button' },
-          { testid: 'scope-option-all-matters', tag: 'button' },
-          { testid: 'scope-option-email', tag: 'button' },
-          { testid: 'scope-option-documents', tag: 'button' },
+          { testid: 'scope-toggle', tag: 'button' },
         ],
       }),
       evalJs: vi.fn().mockResolvedValue(true),
@@ -212,19 +209,19 @@ describe('checkWholePracticeAsk', () => {
     });
     const result = await checkWholePracticeAsk({ driver });
     expect(result.status).toBe(STATUS.SETUP_BLOCKED);
-    expect(result.detail).toMatch(/No visible Ask scope controls/);
+    expect(result.detail).toMatch(/No Ask scope toggle/);
   });
 
   it('FAILs when any remaining visible scope control is missing', async () => {
+    const evalJs = vi.fn()
+      .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(JSON.stringify(['scope-option-all-matters', 'scope-option-email']));
     const driver = makeDriver({
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
-        elements: [
-          { testid: 'scope-option-all-matters', tag: 'button' },
-          { testid: 'scope-option-email', tag: 'button' },
-        ],
+        elements: [{ testid: 'scope-toggle', tag: 'button' }],
       }),
-      evalJs: vi.fn().mockResolvedValue(false),
+      evalJs,
     });
     const result = await checkWholePracticeAsk({ driver });
     expect(result.status).toBe(STATUS.FAIL);
@@ -234,38 +231,32 @@ describe('checkWholePracticeAsk', () => {
   it('FAILs when a visible scope click does not update the scope pill', async () => {
     const evalJs = vi.fn()
       .mockResolvedValueOnce(false)
+      .mockResolvedValueOnce(JSON.stringify(['scope-option-all-matters', 'scope-option-email', 'scope-option-documents']))
       .mockResolvedValueOnce('Wrong label');
     const driver = makeDriver({
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
-        elements: [
-          { testid: 'scope-option-all-matters', tag: 'button' },
-          { testid: 'scope-option-email', tag: 'button' },
-          { testid: 'scope-option-documents', tag: 'button' },
-        ],
+        elements: [{ testid: 'scope-toggle', tag: 'button' }],
       }),
       evalJs,
     });
     const result = await checkWholePracticeAsk({ driver });
     expect(result.status).toBe(STATUS.FAIL);
     expect(driver.click).toHaveBeenCalledWith('scope-option-all-matters');
-    expect(result.detail).toMatch(/instead of "All clients"/);
+    expect(result.detail).toMatch(/instead of "All"/);
   });
 
   it('PASSes when whole-practice is hidden and the remaining scopes switch', async () => {
     const evalJs = vi.fn()
       .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce('All clients')
+      .mockResolvedValueOnce(JSON.stringify(['scope-option-all-matters', 'scope-option-email', 'scope-option-documents']))
+      .mockResolvedValueOnce('All')
       .mockResolvedValueOnce('Email')
-      .mockResolvedValueOnce('Documents');
+      .mockResolvedValueOnce('Docs');
     const driver = makeDriver({
       snapshot: vi.fn().mockResolvedValue({
         ok: true,
-        elements: [
-          { testid: 'scope-option-all-matters', tag: 'button' },
-          { testid: 'scope-option-email', tag: 'button' },
-          { testid: 'scope-option-documents', tag: 'button' },
-        ],
+        elements: [{ testid: 'scope-toggle', tag: 'button' }],
       }),
       evalJs,
     });

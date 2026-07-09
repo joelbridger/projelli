@@ -17,6 +17,7 @@
 //
 // Exit codes: 0 = all checks that ran PASSED. 1 = at least one FAIL.
 // 3 = no FAIL, but at least one SETUP-BLOCKED (bench/data wasn't ready).
+// 4 = no FAIL/SETUP-BLOCKED, but TODO/SKIPPED checks remain (not green).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

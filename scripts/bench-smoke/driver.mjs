@@ -155,6 +155,16 @@ export class Driver {
     return { found: true, detail: stdout.trim() };
   }
 
+  async localOnlyEgressWalk() {
+    const { code, stdout, stderr } = await runDesktopDrive(this.target, ['local-only-egress-walk']);
+    if (code !== 0) throw new DriverError(`local-only egress walk failed (exit ${code}): ${stderr || stdout}`);
+    try {
+      return JSON.parse(stdout);
+    } catch (err) {
+      throw new DriverError(`local-only egress walk returned unreadable JSON: ${err.message}; raw=${stdout}`);
+    }
+  }
+
   /** Best-effort: close any modal/overlay left open from a prior session
    * before checks start (a stale dialog's backdrop otherwise intercepts every
    * click meant for the app underneath it). Never throws — a failed dismiss
