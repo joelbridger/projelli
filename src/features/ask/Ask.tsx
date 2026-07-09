@@ -57,11 +57,14 @@ import { ConfirmDialog } from '@/ui/ConfirmDialog';
 import { EV_OPEN_SETTINGS, EV_MATTER_LAUNCH } from '@/config/identity';
 import { dispatchOpenSource } from '@/features/matters/clientMap/openSource';
 import { BookAnswerPanel } from './book/BookAnswerPanel';
-import { runWholePracticeAsk } from './book/wholePracticeAsk';
+import {
+  includeSampleMattersForWholePracticeAsk,
+  resolveWholePracticeAskProvider,
+  runWholePracticeAsk,
+} from './book/wholePracticeAsk';
 import { buildBookFactsDigest } from './book/bookFacts';
 import { getMatters } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import {
   resolveWholePracticeConfirm,
   getRememberedWholePracticeConsent,
@@ -226,7 +229,13 @@ export function Ask(props: UseAskProps) {
       // Decide, from the SAME digest the send uses, whether this cloud send
       // needs the one honest confirm (real client count + real provider).
       // An empty book or a remembered choice skip it up front.
-      const clientCount = buildBookFactsDigest(getMatters(), useClientMapStore.getState().maps).clients.length;
+      const matters = getMatters();
+      const clientCount = buildBookFactsDigest(
+        matters,
+        useClientMapStore.getState().maps,
+        undefined,
+        { includeSampleMatters: includeSampleMattersForWholePracticeAsk(matters) },
+      ).clients.length;
       if (clientCount === 0 || getRememberedWholePracticeConsent()) {
         startBookSend(asked);
         return;
@@ -246,7 +255,7 @@ export function Ask(props: UseAskProps) {
         remembered: getRememberedWholePracticeConsent(),
         resolveProviderId: async () => {
           try {
-            return (await buildResolvedProviderForGlance()).providerId;
+            return (await resolveWholePracticeAskProvider()).providerId;
           } catch {
             return null;
           }
@@ -521,7 +530,7 @@ export function Ask(props: UseAskProps) {
                       variant="secondary"
                       size="sm"
                       data-testid="ask-demo-question"
-                      onClick={() => { void handleAsk(q); }}
+                      onClick={() => { submitQuestion(q); }}
                     >
                       {q}
                     </Button>

@@ -5,13 +5,19 @@
 // cross-matter chunks are never read (see wholePracticeAsk.test.ts's guard).
 import { getMatters } from '@/platform/matter/matterStore';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
-import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import {
+  buildResolvedProviderForGlance,
+  type ResolvedGlanceProvider,
+} from '@/platform/matter/matterAtAGlance';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { isLocalProvider } from '@/platform/privacy/egress';
 import { getFileAccessConsent } from '@/platform/state/aiChatStore';
 import { fileToolsAllowed } from '@/platform/ai/fileAccessConsent';
+import { IS_DEMO } from '@/web-demo/demoModeFlag';
+import { createDemoProvider } from '@/web-demo/demoAIProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import type { AuditEntry } from '@/platform/types/audit';
+import type { Matter } from '@/platform/types/matter';
 import { buildBookFactsDigest, buildBookAskPrompt, parseBookAskResponse, type BookAskResult } from './bookFacts';
 
 export interface WholePracticeAskOptions {
@@ -32,17 +38,37 @@ export class WholePracticeConsentRequiredError extends Error {
   }
 }
 
+export function includeSampleMattersForWholePracticeAsk(matters: Matter[]): boolean {
+  if (IS_DEMO) return true;
+  const visibleMatters = matters.filter((m) => !m.archived);
+  return visibleMatters.length > 0 && visibleMatters.every((m) => m.isSample);
+}
+
+export async function resolveWholePracticeAskProvider(): Promise<ResolvedGlanceProvider> {
+  if (IS_DEMO) {
+    const provider = createDemoProvider();
+    return { provider, providerId: 'anthropic', model: provider.getMetadata().model };
+  }
+  return await buildResolvedProviderForGlance();
+}
+
 export async function runWholePracticeAsk(
   question: string,
   chatId: string,
   options?: WholePracticeAskOptions,
 ): Promise<BookAskResult & { model: string }> {
-  const digest = buildBookFactsDigest(getMatters(), useClientMapStore.getState().maps);
+  const matters = getMatters();
+  const digest = buildBookFactsDigest(
+    matters,
+    useClientMapStore.getState().maps,
+    undefined,
+    { includeSampleMatters: includeSampleMattersForWholePracticeAsk(matters) },
+  );
   if (digest.totalFacts === 0) {
     return { answer: '', matches: [], model: '' };
   }
   const { systemPrompt, userMessage } = buildBookAskPrompt(question, digest);
-  const resolved = await buildResolvedProviderForGlance();
+  const resolved = await resolveWholePracticeAskProvider();
   const sendOpts: Parameters<Provider['sendMessage']>[1] = { systemPrompt, maxTokens: 600 };
   if (options?.signal !== undefined) sendOpts.signal = options.signal;
   // Race guard (same pattern as matterAtAGlance.ts): re-check Local-only AND

@@ -12,16 +12,25 @@ export interface ClientFacts { matterId: string; label: string; facts: BookFact[
 export interface BookFactsDigest { clients: ClientFacts[]; totalFacts: number }
 export interface BookAskMatch { matterId: string; label: string; facts: BookFact[] }
 export interface BookAskResult { answer: string; matches: BookAskMatch[] }
+export interface BuildBookFactsDigestOptions {
+  /**
+   * Real workspaces should keep the onboarding sample out of whole-practice Ask.
+   * Demo/sample-only workspaces need the sample included so the headline book
+   * question has something real to answer from.
+   */
+  includeSampleMatters?: boolean;
+}
 
 export function buildBookFactsDigest(
   matters: Matter[],
   maps: Record<string, ClientMap>,
   labelFor: (m: Matter) => string = matterLabel,
+  options: BuildBookFactsDigestOptions = {},
 ): BookFactsDigest {
   const clients: ClientFacts[] = [];
   let totalFacts = 0;
   for (const m of matters) {
-    if (m.archived || m.isSample) continue;
+    if (m.archived || (m.isSample && !options.includeSampleMatters)) continue;
     const map = maps[m.id];
     if (!map || map.lastBuiltAt === '') continue;
     const facts: BookFact[] = [];
