@@ -91,6 +91,15 @@ docs/
 
 **Read [`strategy/README.md`](strategy/README.md) first** — it lists the 4 current governing docs and the rest of the directory by recency. The older pre-June 23 strategy work is in `archive/`.
 
+## Design — `design/`
+
+Start with these two docs for any UI work after the 2026-07 overhaul:
+
+| File | What it covers |
+|---|---|
+| [DESIGN-SYSTEM-EXPANSION.md](design/DESIGN-SYSTEM-EXPANSION.md) | **Canonical design-system guide**: principles, protected trust rules, cross-app patterns, tokens, and brand rules. |
+| [COMPONENT-LIBRARY.md](design/COMPONENT-LIBRARY.md) | **Component reference** for `src/ui/kp/*` and `SurfaceHeader`: purpose, props, variants, and when to use each primitive. |
+
 ## Archive — `archive/`
 
 Historical documents superseded by current state, kept for reference. Notable sub-areas:

@@ -1,117 +1,326 @@
-# Advisor Prep Hero Design System — Expansion Report
+# Advisor Prep Hero Design System
 
-> Where the design system stands today, what a complete one needs, and a prioritized plan to get there. Written after rolling out the spacing system, in response to "how do we expand and improve this further (shadows, font sizes, etc.)."
+**Updated:** 2026-07-09
+**Scope:** post-2026-07 UI overhaul
+**Status:** canonical design-system guide. The filename is kept so older links to the former "expansion report" still land here.
 
-## ✅ Implementation status (2026-06-15)
-**The full token system is now defined in `globals.css` and the visible foundations are applied across every surface:**
-- **Typography scale** (`--kp-font-*`, `--kp-weight-*`, `--kp-leading-*`) — defined + applied (all ad-hoc font sizes migrated).
-- **Elevation** (`--kp-shadow-1/2/3`) — defined + applied (floating cards/popovers/modals; dense tables stay flat).
-- **Sizing** (`--kp-icon-*`, `--kp-control-*`) + **radius** usage — defined + applied.
-- **Motion** (`--kp-duration-*`, `--kp-ease-*`), **z-index** (`--kp-z-*`), **focus ring** (`--kp-focus-ring`), **border width**, **opacity** — defined and available; broad application is the ongoing polish tail (adopt as components are touched).
-- **Responsive width:** every full-page surface now fills the available width (`flex: 1` on each root) instead of stopping short.
+This doc explains the patterns, principles, tokens, and brand rules that now govern the app. The component-by-component API reference lives in [`COMPONENT-LIBRARY.md`](COMPONENT-LIBRARY.md).
 
-## The mental model (from the research)
+## Sources of Truth
 
-A mature design system is a set of **design tokens** organized in layers:
+- Tokens and component CSS: [`src/styles/globals.css`](../../src/styles/globals.css)
+- Shared components: [`src/ui/kp/`](../../src/ui/kp/)
+- Full-surface header: [`src/ui/SurfaceHeader.tsx`](../../src/ui/SurfaceHeader.tsx)
+- Brand config: [`brand/brand.config.json`](../../brand/brand.config.json), generated into [`src/config/brand.ts`](../../src/config/brand.ts)
+- Brand swap guide: [`brand/README.md`](../../brand/README.md)
+- UX simplification synthesis: [`coordination/reports/ux-simplification-2026-07-08/SYNTHESIS.md`](../../coordination/reports/ux-simplification-2026-07-08/SYNTHESIS.md)
+- Fable follow-up: [`coordination/reports/ux-simplification-2026-07-08/FABLE-ENHANCED.md`](../../coordination/reports/ux-simplification-2026-07-08/FABLE-ENHANCED.md)
 
-- **Primitives** — raw, context-free values (`--kp-space-lg: 24px`, `--kp-navy: #0a2540`). The palette of options.
-- **Semantic** — named by *role*, referencing primitives (`--kp-gutter`, `--kp-surface-gap`). This is where intent lives; you tune the whole app from here.
-- **Component** — per-component, referencing semantics (usually optional for an app this size).
+## Design Principles
 
-A *complete* system covers these categories: **Color · Typography · Spacing · Sizing · Shape (radius) · Border · Elevation (shadow) · Motion · Z-index · Opacity · Focus**. Advisor Prep Hero has a strong start on three of them and is missing or ad-hoc on the rest.
+### 1. One obvious next action
 
-## Where Advisor Prep Hero stands today (audit of `src/styles/globals.css`)
+Each surface should have one clear primary action. Secondary, rare, and destructive actions move into a vertical-dot menu or appear only after hover, focus, selection, or opening a flow.
 
-| Category | Status | Notes |
-|---|---|---|
-| **Color** | ✅ Strong | Full shadcn set + brand (`--kp-navy/pink/blue/grad`) + accessible egress states (`--kp-local/direct/assured/danger`), all WCAG-AA checked. |
-| **Spacing** | ✅ Done | 8pt scale + semantic layout tokens (just shipped). |
-| **Radius** | ◑ Partial | `--radius` + sm/md/lg exist, but components hardcode `borderRadius: 6/8` inline instead of using them. |
-| **Font family** | ✅ | `--font-sans` (Satoshi), `--font-mono`. |
-| **Typography scale** | ✗ Missing | Font sizes/line-heights/weights are ad-hoc inline (`fontSize: 11/12/13/14/16/22`...). No type tokens, no defined hierarchy. |
-| **Elevation / shadow** | ✗ Missing | The UI is almost entirely flat (1px borders). No shadow scale, so no depth hierarchy for cards vs popovers vs modals. |
-| **Sizing (controls/icons)** | ✗ Missing | Button/input heights and icon sizes (14/16/18/22) are ad-hoc per component. |
-| **Motion** | ✗ Mostly missing | Only accordion keyframes + one `prefers-reduced-motion` rule. Durations/easings are ad-hoc. |
-| **Z-index** | ✗ Missing | Modals/popovers/tooltips use ad-hoc z-values → stacking-order risk. |
-| **Border width** | ◑ | Border *color* is tokenized; *width* and the hairline-vs-control distinction aren't. |
-| **Opacity** | ✗ | Disabled/hover opacities (0.45/0.55/0.85) are ad-hoc. |
-| **Focus ring** | ◑ | Added some in the a11y round, but not a single tokenized ring. |
+Primary or risky actions still need words. Do not hide Send, Run, Stop, Mark reviewed, or destructive confirmations behind a bare icon.
 
-**Bottom line:** the foundation (color, brand, spacing) is genuinely good. The gaps that would most improve polish and consistency are, in order: **typography, elevation, sizing, motion**.
+### 2. Flat until something needs a frame
 
----
+Rails, lists, side panels, settings rows, source rows, and metadata should usually be flat rows with light dividers and whitespace. Cards are for repeated items, framed tools, modals, and intentionally raised panels.
 
-## Proposed additions (specific, tailored to Advisor Prep Hero: light theme, Satoshi, professional/legal)
+Do not stack cards inside cards as decoration.
 
-### 1. Typography scale — highest impact
-Anchor a modular scale (~1.2 ratio) at a 14px UI base, with line-heights on the 4px grid. Define **primitive sizes** and **semantic text roles**:
+### 3. One home for each idea
 
-| Role token | Size / line-height | Weight | Use |
-|---|---|---|---|
-| `--kp-text-display` | 28 / 36 | 700 | rare hero numbers |
-| `--kp-text-title` | 22 / 28 | 700 | surface headers (already the de-facto title) |
-| `--kp-text-heading` | 18 / 24 | 600 | section headings |
-| `--kp-text-subheading` | 16 / 24 | 600 | card titles |
-| `--kp-text-body` | 14 / 20 | 400 | default UI text |
-| `--kp-text-body-strong` | 14 / 20 | 600 | emphasized body |
-| `--kp-text-label` | 13 / 16 | 500 | buttons, labels |
-| `--kp-text-caption` | 12 / 16 | 400 | muted/secondary |
-| `--kp-text-eyebrow` | 11 / 16 | 600, +0.06em, uppercase | section eyebrows ("GET STARTED") |
-| `--kp-text-mono` | 13 / 20 | mono | citations, matter numbers, the record |
+If one part of the page already says something, another part should not repeat it. A citation chip proves a source. The top bar owns egress status. Privacy Center owns deep privacy detail. The rail says where the user is.
 
-Line-height ≥ 1.4 for body (readability, dyslexia/low-vision friendly). This replaces ~6 ad-hoc font sizes with a clear hierarchy.
+Repeating the same meaning makes the app feel less trustworthy, even when each individual line is true.
 
-### 2. Elevation / shadow scale — most visible polish
-The app is very flat. A subtle, **navy-tinted** elevation scale (branded depth, not pure black; each level = a sharp "key" + soft "ambient" shadow) adds hierarchy:
+### 4. Trust gets smaller, not weaker
 
-| Token | Value (tinted with navy 10,37,64) | Role |
-|---|---|---|
-| `--kp-shadow-0` | none | flat, border-only (dense tables) |
-| `--kp-shadow-1` | `0 1px 2px rgba(10,37,64,.06), 0 1px 3px rgba(10,37,64,.04)` | resting cards/panels |
-| `--kp-shadow-2` | `0 4px 12px rgba(10,37,64,.08), 0 2px 4px rgba(10,37,64,.05)` | popovers, dropdowns, the matter picker |
-| `--kp-shadow-3` | `0 16px 40px rgba(10,37,64,.16), 0 4px 12px rgba(10,37,64,.08)` | modals, the Data Map |
+The trust story stays. It is shown in the right amount at the right moment:
 
-Recommendation: keep dense tables flat (border only), give floating cards `shadow-1`, and reserve `shadow-2/3` for things that literally float. Test contrast in light mode (shadows are subtle on white — these are tuned for it).
+- Always visible: one tiny egress status in the top bar.
+- At action time: one short `TrustNote` line beside the risky action.
+- On demand: full detail in a tooltip, disclosure, Privacy Center, or dialog.
 
-### 3. Sizing — control heights + icon sizes
+Do not remove load-bearing trust signals. Move repeated explanations closer to the moment they matter.
+
+### 5. Quiet is the default state
+
+Normal-good states should be small or invisible. Failures, blockers, and risk states stay visible. Helper copy should be short, sentence case, and plain.
+
+Use `QuietStatus` for saved, ready, reviewed, connected, and installed states. Use louder patterns only when the user needs to stop or fix something.
+
+## Protected Trust Rules
+
+The overhaul trims noise, not safety. These must not be removed during future simplification work:
+
+- Citations, citation chips, exact quotes, source verification states, stale export warnings, and verified/unverified review counts.
+- Consent and review gates before AI file access, whole-practice sends, email sends, meeting sends, recording, external sharing, destructive actions, and permanent delete.
+- Client isolation, sample status, client-scoped wording, and anything that prevents a client-data mix-up.
+- The single always-visible AI/data destination signal. It can be tiny, but it cannot disappear or be duplicated by a conflicting surface-level pill.
+- Privacy Center, Data Map, privacy reports, and Local-only / BYOK-direct / Assured choices.
+- Importing, indexing, provider, Local AI, trial, and blocker states when they explain why work cannot proceed or why an answer may be incomplete.
+- Recording consent, spoken notice, strict notice quarantine, Notice Card support, local recording status, biometric consent, and voice-profile deletion confirmation.
+- Recoverability: Trash count, restore, permanent delete confirmation, empty-trash confirmation, retention settings, and save-failure escalation.
+- Word review, tracked changes, clean-copy export, and hidden-metadata removal.
+- Created-file links after workflows, because they prove the workflow made a real document.
+
+## Cross-App Patterns
+
+### Unified rail header
+
+**Components:** `RailShell`, `RailShellHeader`, `RailShellActionMenu`, `SearchField`, `IconButton`
+
+Every rail uses the same header order:
+
+1. Title.
+2. Icon-first search.
+3. Create action (`+` or a create menu).
+4. Vertical-dot menu.
+5. Collapse control.
+
+Rail search is always icon-first. It opens on click, stays open while it has text, and collapses on empty blur. There are no count thresholds.
+
+### Full-surface header
+
+**Component:** `SurfaceHeader`
+
+Every full surface uses the same icon + title row height through `--kp-surface-header-row-height`. The icon matches the nav item. The title is full-size. The description is one short line.
+
+Use `SurfaceToolbar` below it when the surface needs search, filters, toggles, or other whole-surface tools.
+
+### Vertical-dot menus everywhere
+
+**Components:** `RailShellActionMenu`, `IconButton`, Radix `DropdownMenu`
+
+Use `MoreVertical` for all app menus. This makes lower-priority actions predictable and keeps calm screens from becoming toolbars.
+
+Destructive actions belong in the menu by default, not as red links sitting in normal rows.
+
+### Trust ladder and single-source egress
+
+**Components:** top-bar egress indicator, `TrustNote`, `Badge`, `CiteChip`
+
+There is one egress source of truth in the top bar. Do not add extra egress pills to surface headers. At action time, use a short `TrustNote`. For source claims, use `CiteChip` with the exact quote.
+
+### Quiet normal states
+
+**Component:** `QuietStatus`
+
+Saved, reviewed, ready, installed, and connected states should be quiet. `QuietStatus state="ok"` with no text renders nothing, which is often the right answer.
+
+Failures use `state="failure"` or a stronger warning/error component when the user needs recovery steps.
+
+### One primary action per surface
+
+**Components:** `Button`, `IconButton`, `RailShellActionMenu`
+
+Use one visible `Button variant="primary"` for the main action. Use `secondary` for helpful but lower-priority actions. Use `ghost` for quiet utility. Use `danger` only inside a clear destructive flow.
+
+### Flat rows and dividers over boxes in boxes
+
+**Components:** `RailShell`, `Card`, `EmptyState`, `Badge`, `Chip`
+
+Use flat rows in rails and side panels. Use light dividers from `--kp-divider`. Use `Card` only when something is a real repeated item, selected object, modal content, or framed tool.
+
+### Compact modes, filters, and scopes
+
+**Components:** `SegmentedToggle`, `FilterToggle`, `FilterPanel`, `Chip`, `CountBadge`
+
+Show one compact mode/scope control. Hide full filter forms behind `FilterToggle`. Show active counts or chips only when they change what the user should do next.
+
+## Tokens
+
+All shared tokens are defined in the `@theme` block of [`src/styles/globals.css`](../../src/styles/globals.css). The app is light-theme first.
+
+### Brand and color
+
+| Token | Current value | Use |
+|---|---:|---|
+| `--kp-navy` | `#2b2d42` | Main text, headings, stable app identity. |
+| `--kp-pink` | `#ef233c` | Brand pink. |
+| `--kp-blue` | `#8d99ae` | Brand blue / softer icon accent. |
+| `--kp-accent` | `#ef233c` | Selection and primary action accent. |
+| `--kp-grad` | pink to blue | Brand gradient where a real brand moment needs it. |
+| `--kp-divider` | navy at 10% | Light hairlines for rails, headers, splits. |
+| `--kp-divider-strong` | navy at 16% | Stronger outlines for controls/cards. |
+| `--kp-accent-soft` | accent at 11% | Active rows and selected pills. |
+| `--kp-accent-softer` | accent at 6% | Hover row tint. |
+| `--kp-text-faint`, `--kp-text-dim` | navy at 70% | Secondary text that still clears contrast. |
+| `--kp-bg-soft` | `#f3f6fb` | Soft panel tint. |
+
+Action colors derive from the accent:
+
+- `--kp-action-bg`
+- `--kp-action-bg-hover`
+- `--kp-action-bg-active`
+- `--kp-action-fg`
+- `--kp-action-border`
+
+**Meaning rule:** accent means selection or primary action. Red/danger means destructive or error only.
+
+Trust/status colors:
+
+| Token group | Meaning |
+|---|---|
+| `--kp-local`, `--kp-local-bg`, `--kp-local-line` | Local-only / sample-local trust state. |
+| `--kp-direct`, `--kp-direct-bg`, `--kp-direct-line` | BYOK/direct provider state. |
+| `--kp-assured`, `--kp-assured-bg`, `--kp-assured-line` | Assured confidentiality state. |
+| `--kp-success`, `--kp-success-bg`, `--kp-success-line` | Success, sparingly. |
+| `--kp-warning`, `--kp-warning-bg`, `--kp-warning-line` | Warning. |
+| `--kp-danger`, `--kp-danger-bg` | Error or destructive. |
+
+### Sidebar color
+
+The sidebar uses the calm light palette:
+
+- `--kp-side-bg`
+- `--kp-side-fg`
+- `--kp-side-fg-dim`
+- `--kp-side-fg-faint`
+- `--kp-side-border`
+- `--kp-side-active-bg`
+- `--kp-side-accent`
+- `--kp-side-edge`
+- `--kp-side-avatar-bg`
+- `--kp-side-logo`
+
+### Spacing
+
 | Token | Value | Use |
-|---|---|---|
-| `--kp-control-sm/md/lg` | 28 / 32 / 40px | consistent button + input heights |
-| `--kp-icon-sm/md/lg/xl` | 14 / 16 / 18 / 22px | the lucide icon sizes (already the common values, just unsystematized) |
+|---|---:|---|
+| `--kp-space-2xs` | `4px` | Icon-to-text and tiny gaps. |
+| `--kp-space-xs` | `8px` | Tight inline gap. |
+| `--kp-space-sm` | `12px` | Small gap. |
+| `--kp-space-md` | `16px` | Default gap / compact padding. |
+| `--kp-space-lg` | `24px` | Comfortable padding and content gaps. |
+| `--kp-space-xl` | `32px` | Page gutter and major gaps. |
+| `--kp-space-2xl` | `48px` | Large section break. |
+| `--kp-space-3xl` | `64px` | Empty states. |
+| `--kp-space-4xl` | `80px` | Extra-large gaps. |
 
-### 4. Motion
+Semantic layout tokens:
+
+| Token | Current role |
+|---|---|
+| `--kp-gutter` | Full-page left/right padding (`32px`). |
+| `--kp-surface-header-pad` | Standard surface header padding. |
+| `--kp-surface-header-row-height` | Equal title-row height across surfaces. Currently `var(--kp-control-md)`. |
+| `--kp-surface-gap` | Space between header divider and content. |
+| `--kp-card-pad` | Padding inside cards and panels. |
+| `--kp-section-gap` | Space between major sections. |
+| `--kp-stack-gap` | Space between related stacked items. |
+| `--kp-tab-strip-height` | Document/editor tab strip height. |
+| `--kp-rail-width` | Standard rail width, `252px`. |
+
+### Typography
+
+Typeface is Satoshi, self-hosted for offline use.
+
 | Token | Value | Use |
-|---|---|---|
-| `--kp-duration-fast/base/slow` | 120 / 200 / 320ms | hover/press · enter-exit · larger transitions |
-| `--kp-ease-standard` | `cubic-bezier(.2,0,0,1)` | most transitions |
-| `--kp-ease-decelerate` | `cubic-bezier(0,0,0,1)` | elements entering |
-| `--kp-ease-accelerate` | `cubic-bezier(.3,0,1,1)` | elements leaving |
+|---|---:|---|
+| `--kp-font-2xs` | `11px` | Eyebrows, tiny badges, rail metadata. |
+| `--kp-font-xs` | `12px` | Small controls, captions. |
+| `--kp-font-sm` | `13px` | Labels, rail row titles. |
+| `--kp-font-md` | `14px` | Default body/UI text. |
+| `--kp-font-lg` | `16px` | Card titles and empty-state titles. |
+| `--kp-font-xl` | `18px` | Section headings. |
+| `--kp-font-2xl` | `22px` | Surface titles. |
+| `--kp-font-3xl` | `28px` | Rare display numbers. |
+| `--kp-rail-row-title-font-size` | `var(--kp-font-sm)` | Rail row title text. |
+| `--kp-rail-row-meta-font-size` | `var(--kp-font-2xs)` | Rail row dates, counts, metadata. |
 
-Keep it calm and quick — this is a professional tool, not a toy. Everything already honors `prefers-reduced-motion` (from the a11y round); extend that rule to cover new transitions.
+Weights: `--kp-weight-regular`, `--kp-weight-medium`, `--kp-weight-semibold`, `--kp-weight-bold`.
 
-### 5. Robustness tokens (lower visual impact, real value)
-- **Z-index scale:** `--kp-z-sticky 10 · dropdown 100 · overlay 1000 · modal 1100 · popover 1200 · toast 1300 · tooltip 1400` — ends ad-hoc stacking bugs.
-- **Focus ring:** one token, `--kp-focus-ring: 0 0 0 2px var(--color-background), 0 0 0 4px var(--kp-navy)` — consistent, accessible, used everywhere.
-- **Border widths:** `--kp-border-hairline 1px` (decorative) vs `--kp-border 1px` (controls, ≥3:1) vs `--kp-border-strong 1.5px` (focus/active).
-- **Opacity:** `--kp-opacity-disabled .45 · muted .65 · hover-overlay .05`.
-- **Radius:** actually *use* the existing `--radius-*` tokens (components hardcode `borderRadius: 6/8` today).
+Line heights: `--kp-leading-tight`, `--kp-leading-snug`, `--kp-leading-normal`, `--kp-leading-relaxed`.
 
----
+Eyebrow tracking: `--kp-tracking-eyebrow` (`0.07em`).
 
-## Recommended rollout (prioritized)
+### Elevation
 
-1. **Typography scale** — define the tokens + semantic text roles, then migrate surfaces (same pattern as spacing). Biggest hierarchy + consistency win.
-2. **Elevation** — add the shadow scale, apply to floating cards/popovers/modals. Biggest "feels polished" win.
-3. **Sizing + radius** — tokenize control heights, icon sizes, and switch hardcoded radii to `--radius-*`.
-4. **Motion** — add duration/easing tokens, standardize transitions.
-5. **Z-index, focus ring, borders, opacity** — robustness + a11y cleanup.
+| Token | Role |
+|---|---|
+| `--kp-shadow-0` | Flat. |
+| `--kp-shadow-1` | Resting cards and panels. |
+| `--kp-shadow-2` | Popovers, dropdowns, pickers. |
+| `--kp-shadow-3` | Modals, overlays, Data Map, slide panels. |
 
-Each step: define tokens in `globals.css`, document here + in a `TYPOGRAPHY.md`/`ELEVATION.md` companion, then roll across surfaces via parallel per-surface passes (the spacing rollout proved this works cleanly). All of it stays light-theme, Satoshi, navy, no em-dashes.
+Use elevation only for things that float or need a real frame.
 
-## A note on scope
-This is the difference between "a token file" and "a design system." Advisor Prep Hero already has the hard part (a coherent brand + accessible color + now spacing). Typography and elevation are the two that will most visibly level up the product; the rest is consistency and robustness. None of it requires new dependencies — it's all CSS custom properties on the existing Tailwind v4 `@theme`.
+### Sizing
 
-## Sources
-- [Typography system design & type scales (Figr)](https://figr.design/blog/typography-system-design) · [Typography tokens with semantic scaling (UX Collective)](https://uxdesign.cc/mastering-typography-in-design-systems-with-semantic-tokens-and-responsive-scaling-6ccd598d9f21) · [Establishing a type scale (Cieden)](https://cieden.com/book/sub-atomic/typography/establishing-a-type-scale)
-- [Elevation foundations (Atlassian)](https://atlassian.design/foundations/elevation) · [Elevation (Fluent 2 — key+ambient)](https://fluent2.microsoft.design/elevation) · [Shadow tokens (Polaris)](https://polaris.shopify.com/design/depth/shadow-tokens) · [Shadow tokens (USWDS)](https://designsystem.digital.gov/design-tokens/shadow/)
-- [Design token taxonomy (Intuit / Nate Baldwin)](https://medium.com/@NateBaldwin/creating-a-flexible-design-token-taxonomy-for-intuits-design-system-81c8ff55c59b) · [Motion tokens (Material 3)](https://m3.material.io/styles/motion/easing-and-duration/tokens-specs) · [Motion (Carbon)](https://carbondesignsystem.com/elements/motion/overview/) · [Naming design tokens (Smashing Magazine)](https://www.smashingmagazine.com/2024/05/naming-best-practices/)
+| Token | Values |
+|---|---|
+| Icon sizes | `--kp-icon-2xs` `10px`, `--kp-icon-xs` `12px`, `--kp-icon-sm` `14px`, `--kp-icon-md` `16px`, `--kp-icon-lg` `18px`, `--kp-icon-xl` `22px`, `--kp-icon-2xl` `32px` |
+| Control heights | `--kp-control-sm` `28px`, `--kp-control-md` `32px`, `--kp-control-lg` `40px` |
+| Icon strokes | `--kp-icon-stroke` `1.75`, `--kp-icon-stroke-decorative` `1.5` |
+
+### Motion, z-index, focus, border, opacity, radius
+
+Motion:
+
+- `--kp-duration-fast`: `120ms`
+- `--kp-duration-base`: `200ms`
+- `--kp-duration-slow`: `320ms`
+- `--kp-ease-standard`
+- `--kp-ease-decelerate`
+- `--kp-ease-accelerate`
+
+Z-index:
+
+- `--kp-z-sticky`: `10`
+- `--kp-z-dropdown`: `100`
+- `--kp-z-overlay`: `1000`
+- `--kp-z-modal`: `1100`
+- `--kp-z-popover`: `1200`
+- `--kp-z-toast`: `1300`
+- `--kp-z-tooltip`: `1400`
+
+Other basics:
+
+- `--kp-focus-ring`
+- `--kp-border-width`
+- `--kp-border-width-strong`
+- `--kp-opacity-disabled`
+- `--kp-opacity-muted`
+- `--radius`, `--radius-sm`, `--radius-md`, `--radius-lg`
+
+## Brand System
+
+The product identity is swappable from one config:
+
+1. Edit [`brand/brand.config.json`](../../brand/brand.config.json).
+2. Replace assets in [`brand/assets/`](../../brand/assets/).
+3. Run `npm run brand:sync`.
+4. Run `npm run brand:check`.
+
+Generated files include [`src/config/brand.ts`](../../src/config/brand.ts) and CSS brand tokens. Do not edit generated brand files by hand.
+
+Visible app text should use brand placeholders in locale strings:
+
+- `{{productName}}`
+- `{{productNameShort}}`
+- `{{productNamePossessive}}`
+- `{{productAiName}}`
+- `{{localAiName}}`
+
+The code fills those from `BRAND`. Do not hard-code the product name in new feature copy.
+
+Do not change `lockedIdentifiers` during a normal brand swap. Those values are behind-the-scenes plumbing for updates, saved keys, app data, licenses, and firm services. Changing them needs a migration plan.
+
+## When Adding a New Feature
+
+1. Start with `SurfaceHeader`.
+2. Add `SurfaceToolbar` only if the whole surface needs tools.
+3. Use `RailShell` for any pick-left/work-right layout.
+4. Pick one primary action.
+5. Put secondary and destructive actions in `MoreVertical` menus.
+6. Use flat rows first.
+7. Add trust with the ladder: top-bar egress, action-time `TrustNote`, full detail on demand.
+8. Use the tokens above; do not add raw colors, radii, shadows, or one-off button sizes.
+
+## Known Ambiguity
+
+`SegmentedToggle` accepts `variant="pill"` and `variant="filled"`, but the current CSS renders both the same way. The current visual behavior is documented in [`COMPONENT-LIBRARY.md`](COMPONENT-LIBRARY.md); Fable should decide later whether separate variant visuals should return.
