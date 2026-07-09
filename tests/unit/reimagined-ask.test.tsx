@@ -31,6 +31,8 @@ vi.mock('@/platform/fs/workspaceStore', () => {
 let mockProfession = 'legal';
 
 vi.mock('@/platform/matter/samples/sampleMatterDemo', () => ({
+  SAMPLE_WHOLE_BOOK_QUESTION: 'Who have I not met with in over a year?',
+  buildSampleWholeBookAnswer: vi.fn().mockReturnValue(null),
   getDemoAnswerForWorkspace: vi.fn().mockReturnValue(null),
   getDemoQuestions: vi.fn().mockImplementation((p: string) => {
     if (p === 'tax') {

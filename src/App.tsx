@@ -1308,7 +1308,14 @@ function AppShell() {
           await writeSampleFiles(service, 'advisor');
           const matter = getOrCreateSampleMatter(root);
           seedSampleClientMap(matter.id);
-          await seedSampleGoldenPath(service, root, matter.id);
+          // Golden-path extras (sample meeting, prep brief, CRM card) are
+          // garnish — a seeding failure must never fail the sample start
+          // itself, so it is caught and logged instead of bubbling.
+          try {
+            await seedSampleGoldenPath(service, root, matter.id);
+          } catch (seedErr) {
+            console.warn('[onboarding] sample golden-path seeding failed (continuing):', seedErr);
+          }
           setSidebarActiveTab('matters');
           // NB: the setup-progress Client Map count intentionally EXCLUDES sample
           // matters (see computeClientMapProgress), so we don't try to report the
