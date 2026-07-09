@@ -72,7 +72,7 @@ describe('en.json structure snapshot', () => {
         "quick-open": 1,
         "research": 11,
         "search": 6,
-        "settings": 191,
+        "settings": 222,
         "shortcuts-overlay": 2,
         "spine": 10,
         "tab-guard": 3,
@@ -271,7 +271,11 @@ describe('en.json structure snapshot', () => {
     // +20 = FB2 railchrome: shared rail headers, search toggles, collapse labels,
     //       and rail action menu labels across Ask, Mail, Client Map, Meetings,
     //       Settings, Workflows, and Documents.
-    expect(flat.length).toBe(2025); // FB2 batch: groups, rename affordances, rail chrome labels, brand routing (+38)
+    // +31 = Calendly-style scheduling Phase 1: Settings gained the Scheduling
+    //       section label plus booking link, working hours, weekday, meeting
+    //       type, and booking-rule copy. Server/public booking copy is not
+    //       included yet.
+    expect(flat.length).toBe(2056); // Scheduling Phase 1 local settings copy (+31)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

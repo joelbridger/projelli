@@ -54,6 +54,7 @@ import { TemplateModelSettings } from '@/features/settings/TemplateModelSettings
 import { PrivacySettings } from '@/features/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
 import { RecordingNoticeSettings } from '@/features/settings/RecordingNoticeSettings';
+import { SchedulingSettings } from '@/features/scheduling/SchedulingSettings';
 import { MemoryFactsSettings } from '@/features/settings/MemoryFactsSettings';
 import { MarketplaceTab } from '@/features/workflows/marketplace/MarketplaceTab';
 import { useTemplateUpdateCount } from '@/features/workflows/useTemplatesMarketplace';
@@ -763,6 +764,29 @@ function PrivacySection(props: SectionProps) {
   );
 }
 
+function SchedulingSection(props: SectionProps) {
+  const { t } = useTranslation();
+  const lowerQ = props.searchQuery.toLowerCase();
+  const schedulingMatch = !props.searchActive
+    || ['schedule', 'scheduling', 'booking', 'availability', 'hours', 'buffer', 'timezone']
+      .some((kw) => lowerQ.includes(kw));
+
+  return (
+    <div data-testid="section-scheduling">
+      <AccordionSection ids={['scheduling-booking']} searchActive={props.searchActive} searchQuery={props.searchQuery}>
+        <SubSection
+          id="scheduling-booking"
+          label={t('settings.scheduling.nav-subsection')}
+          testid="subheader-scheduling"
+          containsMatch={schedulingMatch}
+        >
+          <SchedulingSettings />
+        </SubSection>
+      </AccordionSection>
+    </div>
+  );
+}
+
 function VoiceSection(props: SectionProps) {
   const voiceInputKeys = [
     'voiceEnabled',
@@ -1072,7 +1096,7 @@ export function SettingsContent({
   // in its description, and "language" lands on General rather than Voice.
   const sectionScores = useMemo<Record<SectionCategory, number>>(() => {
     const scores: Record<SectionCategory, number> = {
-      workspace: 0, ai: 0, privacy: 0, voice: 0, advanced: 0, help: 0,
+      workspace: 0, ai: 0, privacy: 0, scheduling: 0, voice: 0, advanced: 0, help: 0,
     };
     const lowerQ = searchQuery.toLowerCase().trim();
     if (!lowerQ) return scores;
@@ -1106,7 +1130,7 @@ export function SettingsContent({
   // Which sections have any match (score > 0).
   const visibleSections = useMemo<Set<SectionCategory>>(() => {
     if (!searchQuery.trim()) {
-      return new Set<SectionCategory>(['workspace', 'ai', 'privacy', 'voice', 'advanced', 'help']);
+      return new Set<SectionCategory>(['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help']);
     }
     const sections = new Set<SectionCategory>();
     (Object.keys(sectionScores) as SectionCategory[]).forEach((sec) => {
@@ -1119,7 +1143,7 @@ export function SettingsContent({
   // current section is already a top match (so typing doesn't yank you around).
   const effectiveSection: SectionCategory = (() => {
     if (!searchActive) return activeSection;
-    const order: SectionCategory[] = ['workspace', 'ai', 'privacy', 'voice', 'advanced', 'help'];
+    const order: SectionCategory[] = ['workspace', 'ai', 'privacy', 'scheduling', 'voice', 'advanced', 'help'];
     const maxScore = Math.max(...order.map((s) => sectionScores[s]));
     if (maxScore <= 0) return activeSection;
     if (sectionScores[activeSection] === maxScore) return activeSection;
@@ -1331,7 +1355,7 @@ export function SettingsContent({
                   )}
                   onClick={(e) => { e.stopPropagation(); setActiveExtraId(null); setActiveSection(sec.id); }}
                   >
-                    <span className="flex-1 truncate">{sec.label}</span>
+                    <span className="flex-1 truncate">{t(`settings.sections.${sec.id}`, sec.label)}</span>
                     {showUpdateBadge && (
                     <Badge
                       variant="neutral"
@@ -1390,6 +1414,8 @@ export function SettingsContent({
               <AiSection {...sectionProps} />
             ) : activeSection === 'privacy' ? (
               <PrivacySection {...sectionProps} />
+            ) : activeSection === 'scheduling' ? (
+              <SchedulingSection {...sectionProps} />
             ) : activeSection === 'voice' ? (
               <VoiceSection {...sectionProps} />
             ) : activeSection === 'advanced' ? (

@@ -4,8 +4,8 @@
  * The Settings modal renders FROM this schema. Adding a new setting later
  * means adding one entry to `SETTINGS_SCHEMA` — no component changes needed.
  *
- * v3.3 — 20 flat categories collapsed into 6 simple sections:
- *   Workspace | AI | Privacy | Voice | Advanced | Help
+ * v3.3 — 20 flat categories collapsed into simple sections:
+ *   Workspace | AI | Privacy | Scheduling | Voice | Advanced | Help
  *
  * Account content (License, Firm, Usage, Connections) moved to a dedicated
  * AccountWindow and is no longer a Settings section.
@@ -21,8 +21,15 @@ import { brandText } from '@/config/brandText';
 
 export type SettingType = 'toggle' | 'select' | 'number' | 'text' | 'shortcut-display';
 
-/** The 6 canonical section ids used in the sidebar nav. */
-export type SectionCategory = 'workspace' | 'ai' | 'privacy' | 'voice' | 'advanced' | 'help';
+/** The canonical section ids used in the sidebar nav. */
+export type SectionCategory =
+  | 'workspace'
+  | 'ai'
+  | 'privacy'
+  | 'scheduling'
+  | 'voice'
+  | 'advanced'
+  | 'help';
 
 /**
  * SettingCategory includes both the 6 new section ids AND every legacy id so
@@ -35,6 +42,7 @@ export type SettingCategory =
   | 'workspace'
   | 'ai'
   | 'privacy'
+  | 'scheduling'
   | 'voice'
   | 'advanced'
   | 'help'
@@ -82,11 +90,12 @@ export interface SettingDefinition {
   action?: SettingAction;
 }
 
-/** The 6 nav sections shown in the sidebar. */
+/** The nav sections shown in the sidebar. */
 export const SETTING_CATEGORIES: { id: SectionCategory; label: string }[] = [
   { id: 'workspace', label: 'Workspace' },
   { id: 'ai',        label: 'AI' },
   { id: 'privacy',   label: 'Privacy' },
+  { id: 'scheduling', label: 'Scheduling' },
   { id: 'voice',     label: 'Voice' },
   { id: 'advanced',  label: 'Advanced' },
   { id: 'help',      label: 'Help' },
@@ -112,6 +121,7 @@ export const CATEGORY_ALIAS_MAP: Readonly<Record<string, SectionCategory>> = {
   'ai-privacy': 'ai',
   // Privacy
   privacy:      'privacy',
+  scheduling:   'scheduling',
   // Account (intercepted by App.tsx; falls back to workspace if Settings ever sees them)
   account:      'workspace',
   license:      'workspace',

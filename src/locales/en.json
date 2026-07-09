@@ -175,6 +175,51 @@
         "quick-tip-overlay": "to show the keyboard shortcuts overlay anywhere in the app."
       }
     },
+    "sections": {
+      "workspace": "Workspace",
+      "ai": "AI",
+      "privacy": "Privacy",
+      "scheduling": "Scheduling",
+      "voice": "Voice",
+      "advanced": "Advanced",
+      "help": "Help"
+    },
+    "scheduling": {
+      "nav-subsection": "Booking",
+      "link": {
+        "title": "Booking link",
+        "slug-label": "Link ending",
+        "placeholder-note": "This is a local placeholder. The public booking page is wired in the next phase."
+      },
+      "hours": {
+        "title": "Working hours",
+        "to": "to",
+        "start-label": "{{day}} start time",
+        "end-label": "{{day}} end time"
+      },
+      "weekdays": {
+        "monday": "Monday",
+        "tuesday": "Tuesday",
+        "wednesday": "Wednesday",
+        "thursday": "Thursday",
+        "friday": "Friday",
+        "saturday": "Saturday",
+        "sunday": "Sunday"
+      },
+      "meetings": {
+        "title": "Meeting types",
+        "name-label": "Name",
+        "duration-label": "Duration minutes",
+        "buffer-before-label": "Buffer before",
+        "buffer-after-label": "Buffer after"
+      },
+      "rules": {
+        "title": "Booking rules",
+        "timezone-label": "Advisor timezone",
+        "min-notice-label": "Minimum notice hours",
+        "max-horizon-label": "Maximum days ahead"
+      }
+    },
     "license": {
       "title": "License",
       "description": "A license keeps AI chat, workflows, and all {{productName}} features running after your trial. Keys are available at <pricingLink>lantern.com</pricingLink>.",
