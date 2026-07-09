@@ -66,7 +66,7 @@ describe('SchedulingHome', () => {
       soloAvatar: null,
       firmName: '',
       firmLogo: null,
-      advisorTimezone: 'UTC',
+      advisorTimezone: 'America/Denver',
     });
     useSchedulingStore.setState({
       bookingSlug: { slug: 'jamie-daines', enabled: true },
@@ -124,6 +124,25 @@ describe('SchedulingHome', () => {
     const firstSlot = screen.getAllByTestId('scheduling-open-slot')[0];
     expect(firstSlot?.textContent).toContain('10:00');
     expect(firstSlot?.textContent).not.toContain('9:00');
+  });
+
+  it('renders next open slots in the advisor timezone instead of UTC', () => {
+    useSchedulingStore.setState({
+      availabilityRule: schedulingRule({
+        workingHours: {
+          ...CLOSED_WEEK,
+          friday: [{ startLocal: '09:00', endLocal: '10:00' }],
+        },
+      }),
+    });
+
+    render(<SchedulingHome />);
+
+    const firstSlotText = screen.getAllByTestId('scheduling-open-slot')[0]?.textContent ?? '';
+    expect(firstSlotText).toContain('Fri, Jul 10');
+    expect(firstSlotText).toContain('9:00 AM');
+    expect(firstSlotText).not.toContain('3:00 PM');
+    expect(firstSlotText).not.toContain('UTC');
   });
 
   it('edits a meeting type from the row menu slide panel', async () => {

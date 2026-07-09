@@ -49,7 +49,6 @@ import {
 
 const BOOKING_LINK_BASE = 'https://book.advisorprephero.com';
 const PREVIEW_SLOT_COUNT = 5;
-const DEFAULT_TIMEZONE = 'UTC';
 
 type SchedulingSection = 'upcoming' | 'availability' | 'meeting-types';
 
@@ -807,7 +806,7 @@ function MeetingTypePanel({
 function NextOpenSlotsCard({ slots, timezone }: { slots: BookableSlot[]; timezone: string }) {
   const { t } = useTranslation();
   return (
-    <Card variant="raised" data-testid="scheduling-next-open-slots">
+    <Card variant="raised" className="self-start" data-testid="scheduling-next-open-slots">
       <div className="flex flex-col gap-3">
         <div>
           <h2 className="m-0 text-[length:var(--kp-font-md)] font-semibold text-[var(--kp-navy)]">
@@ -996,26 +995,54 @@ function numberValue(value: string, min: number): number {
 }
 
 function usableTimezone(timezone: string): string {
+  const fallbackTimezone = browserTimezone();
+  const trimmed = timezone.trim();
+  if (!trimmed) return fallbackTimezone;
   try {
-    new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format(new Date());
-    return timezone;
+    new Intl.DateTimeFormat('en-US', { timeZone: trimmed }).format(new Date());
+    return trimmed;
   } catch {
-    return DEFAULT_TIMEZONE;
+    return fallbackTimezone;
   }
+}
+
+function browserTimezone(): string {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
 }
 
 function formatDateTime(iso: string, timezone: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, {
+  const safeTimezone = usableTimezone(timezone);
+  const dateLabel = new Intl.DateTimeFormat(undefined, {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+    timeZone: safeTimezone,
+  }).format(date);
+  const timeLabel = new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
     minute: '2-digit',
-    timeZone: usableTimezone(timezone),
-    timeZoneName: 'short',
+    timeZone: safeTimezone,
   }).format(date);
+  const abbreviation = shouldShowTimezoneLabel(safeTimezone)
+    ? timezoneAbbreviation(date, safeTimezone)
+    : '';
+  const zoneLabel = abbreviation ? ` ${abbreviation}` : '';
+  return `${dateLabel} · ${timeLabel}${zoneLabel}`;
+}
+
+function shouldShowTimezoneLabel(timezone: string): boolean {
+  return timezone !== browserTimezone();
+}
+
+function timezoneAbbreviation(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    timeZoneName: 'short',
+  }).formatToParts(date);
+  const label = parts.find((part) => part.type === 'timeZoneName')?.value ?? '';
+  return label === 'UTC' || label === 'GMT' ? '' : label;
 }
 
 export default SchedulingHome;
