@@ -11,6 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::commands::audit::AuditState;
@@ -24,7 +25,7 @@ use crate::commands::crm::salesforce::{
     SALESFORCE_TOKEN_ENDPOINT, SalesforceClient, build_salesforce_auth_url,
     exchange_salesforce_code, salesforce_client_id,
 };
-use crate::commands::crm::store::CrmStore;
+use crate::commands::crm::store::{CrmStore, PendingCrmProposal};
 use crate::commands::crm::write::{
     self, CrmWriteError, CrmWriteKind, CrmWriteRequest, WriteReceipt,
 };
@@ -47,11 +48,11 @@ pub struct CrmState {
     /// wait for the browser redirect) without touching sync state. See
     /// `crm_oauth_connect_cancel`.
     pub oauth_cancel: Arc<AtomicBool>,
-    /// Shared across every `crm_create_note`/`crm_create_task` call for the
+    /// Shared across every proposal-approved CRM write call for the
     /// life of the running app — see `write::WriteInFlightGuard` for why this
     /// can't live on the per-call `CrmStore` instead.
     pub write_guard: write::WriteInFlightGuard,
-    /// Count of `crm_create_note`/`crm_create_task` calls currently in
+    /// Count of proposal-approved CRM write calls currently in
     /// flight (POST sent, ledger not yet settled). Disconnect waits for this
     /// to drain to zero before purging, mirroring how it already waits on
     /// `is_syncing` — otherwise a write started just before disconnect could
@@ -171,6 +172,69 @@ pub struct CrmSyncReportDto {
 pub struct CrmSyncStatusDto {
     pub is_syncing: bool,
     pub last_report: Option<CrmSyncReportDto>,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CrmProposalAiSourceDto {
+    pub kind: String,
+    pub date: Option<String>,
+}
+
+/// Renderer DTO for a CRM write proposal. This is allowed to contain proposed
+/// note/task/field content because it only saves into the encrypted Rust CRM
+/// store; it never calls the provider.
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CrmWriteProposalDto {
+    pub id: String,
+    pub kind: String,
+    pub matter_id: String,
+    pub title: String,
+    pub body: String,
+    pub due_date: Option<String>,
+    pub source_ref: String,
+    pub status: Option<String>,
+    pub remote_id: Option<String>,
+    pub error: Option<String>,
+    pub requested_at: Option<String>,
+    pub field: Option<String>,
+    pub existing_value: Option<String>,
+    pub new_value: Option<String>,
+    pub final_value: Option<String>,
+    pub provenance: Option<String>,
+    pub ai_source: Option<CrmProposalAiSourceDto>,
+    pub household_key: Option<String>,
+    pub provider: Option<String>,
+}
+
+/// Proposal record returned to the renderer for the review queue. It includes
+/// the content preview because the database at rest is SQLCipher-encrypted.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct CrmWriteProposalRecordDto {
+    pub id: String,
+    pub kind: String,
+    pub matter_id: String,
+    pub title: String,
+    pub body: String,
+    pub due_date: Option<String>,
+    pub source_ref: String,
+    pub status: String,
+    pub remote_id: Option<String>,
+    pub error: Option<String>,
+    pub requested_at: Option<String>,
+    pub field: Option<String>,
+    pub existing_value: Option<String>,
+    pub new_value: Option<String>,
+    pub final_value: Option<String>,
+    pub provenance: Option<String>,
+    pub ai_source: Option<CrmProposalAiSourceDto>,
+    pub household_key: String,
+    pub provider: String,
+    pub content_hash: String,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 /// Returned by `crm_disconnect` — reports exactly what was purged so the UI
@@ -517,7 +581,7 @@ async fn downgrade_stale_sent_rows_for_workspace(
 
 /// Matter-scoped variant of [`crm_audit_payload_json`] for writes that
 /// originate from (and only affect) one client — the approval-gated CRM
-/// write path (`crm_create_note` / `crm_create_task`), unlike connect/sync/
+/// write path (`crm_approve_write_proposal`), unlike connect/sync/
 /// disconnect which are workspace-wide (`allMatters`).
 fn crm_audit_payload_json_for_matter(
     id: &str,
@@ -623,93 +687,327 @@ async fn append_crm_audit_best_effort_for_matter(
 }
 
 
-/// Push one approval-gated note to the connected CRM and record an audit entry.
-///
-/// The write only happens because the frontend's review card called this
-/// command after an explicit user Approve click — there is no other call
-/// site. `household_key` is resolved by the frontend from the matter's
-/// `crmHouseholdKeys` (the backend does not persist the matter map).
-///
-/// `requested_at` identifies THIS approval event (an ISO timestamp the
-/// frontend generates once, when the user clicks Approve) — see
-/// `CrmWriteRequest`'s doc comment for why the idempotency ledger needs it:
-/// without it, identical content approved on two separate occasions (e.g. a
-/// recurring "Left voicemail" note) would collide into one dedup key
-/// forever, and the second approval would be silently swallowed as a
-/// "duplicate" of the first. The frontend must reuse the SAME value for any
-/// automatic retry of this exact approval, and generate a NEW one for a
-/// fresh approval — even of identical content.
-#[tauri::command]
-pub async fn crm_create_note(
-    app: AppHandle,
-    state: State<'_, CrmState>,
-    matter_id: String,
-    title: String,
-    body: String,
-    source_ref: String,
-    household_key: String,
-    requested_at: String,
-    provider: Option<String>,
-    // E3 (Tier B trust guard): honest provenance line for AI-drafted notes,
-    // composed + localized in the renderer, appended to the note content at
-    // the wire boundary (write::note_content). `None` for advisor-typed notes.
-    provenance: Option<String>,
-) -> Result<WriteReceipt, String> {
-    crm_create_write(
-        app,
-        state,
-        CrmWriteKind::Note,
-        matter_id,
-        title,
-        body,
-        None,
-        source_ref,
-        household_key,
-        requested_at,
-        provider,
-        provenance,
-    )
-    .await
+async fn crm_store_from_state(state: &State<'_, CrmState>) -> Result<CrmStore, String> {
+    let workspace = state
+        .workspace
+        .lock()
+        .await
+        .clone()
+        .ok_or("workspace not set — call crm_set_workspace first")?;
+    CrmStore::open(&workspace).map_err(|e| e.to_string())
 }
 
-/// Push one approval-gated task to the connected CRM and record an audit entry.
-/// See [`crm_create_note`] for the shared write-then-audit contract and the
-/// `requested_at` contract.
+fn proposal_hash_part(h: &mut Sha256, value: Option<&str>) {
+    if let Some(value) = value {
+        h.update(value.as_bytes());
+    }
+    h.update([0u8]);
+}
+
+fn crm_proposal_content_hash(proposal: &PendingCrmProposal) -> String {
+    let mut h = Sha256::new();
+    for part in [
+        Some(proposal.provider.as_str()),
+        Some(proposal.kind.as_str()),
+        Some(proposal.matter_id.as_str()),
+        Some(proposal.household_key.as_str()),
+        Some(proposal.title.as_str()),
+        Some(proposal.body.as_str()),
+        proposal.due_date.as_deref(),
+        Some(proposal.source_ref.as_str()),
+        proposal.requested_at.as_deref(),
+        proposal.field.as_deref(),
+        proposal.existing_value.as_deref(),
+        proposal.new_value.as_deref(),
+        proposal.final_value.as_deref(),
+        proposal.provenance.as_deref(),
+        proposal.ai_source_kind.as_deref(),
+        proposal.ai_source_date.as_deref(),
+    ] {
+        proposal_hash_part(&mut h, part);
+    }
+    hex::encode(h.finalize())
+}
+
+fn validate_crm_proposal_status(status: Option<String>) -> Result<String, String> {
+    let status = status.unwrap_or_else(|| "proposed".to_string());
+    match status.as_str() {
+        "proposed" | "sending" | "sent" | "failed" | "verify_pending" | "stale" => Ok(status),
+        _ => Err("invalid CRM proposal status".to_string()),
+    }
+}
+
+fn crm_proposal_from_dto(dto: CrmWriteProposalDto) -> Result<PendingCrmProposal, String> {
+    let provider = CrmProvider::from_optional(dto.provider.as_deref())?;
+    let kind = match dto.kind.as_str() {
+        "note" | "task" | "field" => dto.kind.clone(),
+        _ => return Err("invalid CRM proposal kind".to_string()),
+    };
+    if dto.id.trim().is_empty() {
+        return Err("CRM proposal id is required".to_string());
+    }
+    if dto.matter_id.trim().is_empty() {
+        return Err("CRM proposal matter id is required".to_string());
+    }
+    if dto.source_ref.trim().is_empty() {
+        return Err("CRM proposal source is required".to_string());
+    }
+
+    let ai_source_kind = dto.ai_source.as_ref().map(|s| s.kind.clone());
+    let ai_source_date = dto.ai_source.as_ref().and_then(|s| s.date.clone());
+    let mut proposal = PendingCrmProposal {
+        proposal_id: dto.id,
+        provider: provider.id().to_string(),
+        kind,
+        matter_id: dto.matter_id,
+        household_key: dto.household_key.unwrap_or_default(),
+        content_hash: String::new(),
+        title: dto.title,
+        body: dto.body,
+        due_date: dto.due_date,
+        source_ref: dto.source_ref,
+        requested_at: dto.requested_at,
+        field: dto.field,
+        existing_value: dto.existing_value,
+        new_value: dto.new_value,
+        final_value: dto.final_value,
+        provenance: dto.provenance,
+        ai_source_kind,
+        ai_source_date,
+        status: validate_crm_proposal_status(dto.status)?,
+        remote_id: dto.remote_id,
+        error: dto.error,
+        created_at: String::new(),
+        updated_at: String::new(),
+    };
+    proposal.content_hash = crm_proposal_content_hash(&proposal);
+    Ok(proposal)
+}
+
+fn crm_proposal_to_dto(proposal: PendingCrmProposal) -> CrmWriteProposalRecordDto {
+    let ai_source = match (proposal.ai_source_kind, proposal.ai_source_date) {
+        (Some(kind), date) => Some(CrmProposalAiSourceDto { kind, date }),
+        (None, _) => None,
+    };
+    CrmWriteProposalRecordDto {
+        id: proposal.proposal_id,
+        kind: proposal.kind,
+        matter_id: proposal.matter_id,
+        title: proposal.title,
+        body: proposal.body,
+        due_date: proposal.due_date,
+        source_ref: proposal.source_ref,
+        status: proposal.status,
+        remote_id: proposal.remote_id,
+        error: proposal.error,
+        requested_at: proposal.requested_at,
+        field: proposal.field,
+        existing_value: proposal.existing_value,
+        new_value: proposal.new_value,
+        final_value: proposal.final_value,
+        provenance: proposal.provenance,
+        ai_source,
+        household_key: proposal.household_key,
+        provider: proposal.provider,
+        content_hash: proposal.content_hash,
+        created_at: proposal.created_at,
+        updated_at: proposal.updated_at,
+    }
+}
+
+fn verify_crm_proposal(proposal: &PendingCrmProposal) -> Result<(), String> {
+    if proposal.status == "sent" {
+        return Err("this CRM proposal was already sent".to_string());
+    }
+    if proposal.created_at.trim().is_empty() {
+        return Err("CRM proposal is missing its creation time".to_string());
+    }
+    let expected = crm_proposal_content_hash(proposal);
+    if expected != proposal.content_hash {
+        return Err("CRM proposal no longer matches its saved approval hash".to_string());
+    }
+    Ok(())
+}
+
 #[tauri::command]
-pub async fn crm_create_task(
-    app: AppHandle,
+pub async fn crm_save_write_proposal(
     state: State<'_, CrmState>,
-    matter_id: String,
-    title: String,
-    description: String,
-    due_date: Option<String>,
-    source_ref: String,
+    proposal: CrmWriteProposalDto,
+) -> Result<CrmWriteProposalRecordDto, String> {
+    let proposal = crm_proposal_from_dto(proposal)?;
+    let store = crm_store_from_state(&state).await?;
+    store
+        .proposal_upsert(&proposal)
+        .map(crm_proposal_to_dto)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_prepare_write_proposal(
+    state: State<'_, CrmState>,
+    proposal_id: String,
     household_key: String,
     requested_at: String,
-    provider: Option<String>,
+    provenance: Option<String>,
+) -> Result<CrmWriteProposalRecordDto, String> {
+    if proposal_id.trim().is_empty() {
+        return Err("CRM proposal id is required".to_string());
+    }
+    if household_key.trim().is_empty() {
+        return Err("this client is not linked to a CRM household".to_string());
+    }
+    write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
+
+    let store = crm_store_from_state(&state).await?;
+    let mut proposal = store
+        .proposal_get(&proposal_id)
+        .map_err(|e| e.to_string())?
+        .ok_or("CRM proposal not found — reopen the client and try again")?;
+    if proposal.status == "sent" {
+        return Err("this CRM proposal was already sent".to_string());
+    }
+    proposal.household_key = household_key;
+    proposal.requested_at = Some(requested_at);
+    let has_provenance = provenance
+        .as_deref()
+        .map(str::trim)
+        .map(|p| !p.is_empty())
+        .unwrap_or(false);
+    if has_provenance {
+        proposal.provenance = provenance;
+    }
+    proposal.status = "sending".to_string();
+    proposal.error = None;
+    proposal.content_hash = crm_proposal_content_hash(&proposal);
+    store
+        .proposal_upsert(&proposal)
+        .map(crm_proposal_to_dto)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_list_write_proposals(
+    state: State<'_, CrmState>,
+) -> Result<Vec<CrmWriteProposalRecordDto>, String> {
+    let store = crm_store_from_state(&state).await?;
+    store
+        .proposal_list_pending()
+        .map(|rows| rows.into_iter().map(crm_proposal_to_dto).collect())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn crm_delete_write_proposal(
+    state: State<'_, CrmState>,
+    proposal_id: String,
+) -> Result<(), String> {
+    if proposal_id.trim().is_empty() {
+        return Ok(());
+    }
+    let store = crm_store_from_state(&state).await?;
+    store
+        .proposal_delete(&proposal_id)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// The only provider-writing CRM command exposed to the renderer. It takes a
+/// proposal id, reloads the encrypted proposal, verifies the saved content hash,
+/// then sends the already-saved content to Wealthbox.
+#[tauri::command]
+pub async fn crm_approve_write_proposal(
+    app: AppHandle,
+    state: State<'_, CrmState>,
+    proposal_id: String,
 ) -> Result<WriteReceipt, String> {
-    crm_create_write(
-        app,
-        state,
-        CrmWriteKind::Task,
-        matter_id,
-        title,
-        description,
-        due_date,
-        source_ref,
-        household_key,
-        requested_at,
-        provider,
-        // Tasks carry no AI-drafted-content provenance line (notes only).
-        None,
-    )
-    .await
+    let mut proposal = {
+        let store = crm_store_from_state(&state).await?;
+        let proposal = store
+            .proposal_get(&proposal_id)
+            .map_err(|e| e.to_string())?
+            .ok_or("CRM proposal not found — reopen the client and try again")?;
+        verify_crm_proposal(&proposal)?;
+        proposal
+    };
+    let requested_at = proposal
+        .requested_at
+        .clone()
+        .ok_or("CRM proposal has not been prepared for approval")?;
+    if proposal.household_key.trim().is_empty() {
+        return Err("this client is not linked to a CRM household".to_string());
+    }
+
+    let proposal_kind = proposal.kind.clone();
+    let receipt = match proposal_kind.as_str() {
+        "note" => {
+            crm_create_write(
+                app,
+                &state,
+                CrmWriteKind::Note,
+                proposal.matter_id.clone(),
+                proposal.title.clone(),
+                proposal.body.clone(),
+                None,
+                proposal.source_ref.clone(),
+                proposal.household_key.clone(),
+                requested_at.clone(),
+                Some(proposal.provider.clone()),
+                proposal.provenance.clone(),
+            )
+            .await
+        }
+        "task" => {
+            crm_create_write(
+                app,
+                &state,
+                CrmWriteKind::Task,
+                proposal.matter_id.clone(),
+                proposal.title.clone(),
+                proposal.body.clone(),
+                proposal.due_date.clone(),
+                proposal.source_ref.clone(),
+                proposal.household_key.clone(),
+                requested_at.clone(),
+                Some(proposal.provider.clone()),
+                None,
+            )
+            .await
+        }
+        "field" => {
+            crm_update_field_from_proposal(
+                app,
+                &state,
+                proposal.matter_id.clone(),
+                proposal.household_key.clone(),
+                proposal.field.clone().unwrap_or_default(),
+                proposal.existing_value.clone().unwrap_or_default(),
+                proposal.new_value.clone().unwrap_or_default(),
+                proposal.final_value.clone().unwrap_or_default(),
+                proposal.source_ref.clone(),
+                requested_at,
+                Some(proposal.provider.clone()),
+            )
+            .await
+        }
+        _ => Err("invalid CRM proposal kind".to_string()),
+    }?;
+
+    proposal.status = "sent".to_string();
+    proposal.remote_id = Some(receipt.remote_id.clone());
+    proposal.error = None;
+    proposal.content_hash = crm_proposal_content_hash(&proposal);
+    let store = crm_store_from_state(&state).await?;
+    store
+        .proposal_upsert(&proposal)
+        .map_err(|e| format!("CRM write sent, but the local proposal status could not be saved: {e}"))?;
+
+    Ok(receipt)
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn crm_create_write(
     app: AppHandle,
-    state: State<'_, CrmState>,
+    state: &State<'_, CrmState>,
     kind: CrmWriteKind,
     matter_id: String,
     title: String,
@@ -841,20 +1139,13 @@ async fn crm_create_write(
     }
 }
 
-/// Push one approval-gated field-level "blend" (Task 9c) to the connected
-/// CRM and record an audit entry. Same approval-gated contract as
-/// [`crm_create_note`]/[`crm_create_task`] — the frontend's 3-column review
-/// card calls this only after an explicit user Approve click.
-///
-/// `existing_value` is what the review card showed the user (fetched at
-/// proposal time); `push_crm_field_update`'s stale-guard re-fetches the
-/// LIVE value at approve time and refuses to write if it no longer matches
-/// — see `CrmWriteError::StaleFieldValue`.
+/// Internal field-level "blend" write. The renderer cannot invoke this with raw
+/// content; `crm_approve_write_proposal` calls it only after loading and
+/// verifying an encrypted pending proposal.
 #[allow(clippy::too_many_arguments)]
-#[tauri::command]
-pub async fn crm_update_field(
+async fn crm_update_field_from_proposal(
     app: AppHandle,
-    state: State<'_, CrmState>,
+    state: &State<'_, CrmState>,
     matter_id: String,
     household_key: String,
     field: String,

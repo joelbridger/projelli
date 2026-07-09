@@ -216,9 +216,11 @@ pub fn run() {
             commands::crm::commands::crm_cancel_sync,
             commands::crm::commands::crm_list_households,
             // Lantern-Plus Wave 2 — approval-gated CRM write-back (Wealthbox first).
-            commands::crm::commands::crm_create_note,
-            commands::crm::commands::crm_create_task,
-            commands::crm::commands::crm_update_field,
+            commands::crm::commands::crm_save_write_proposal,
+            commands::crm::commands::crm_prepare_write_proposal,
+            commands::crm::commands::crm_approve_write_proposal,
+            commands::crm::commands::crm_list_write_proposals,
+            commands::crm::commands::crm_delete_write_proposal,
             // OneDrive / SharePoint document connector (read-only Graph import).
             commands::onedrive::commands::onedrive_set_workspace,
             commands::onedrive::commands::onedrive_connect,

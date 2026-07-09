@@ -95,6 +95,7 @@ import { jotformSetWorkspace } from '@/platform/utils/jotform-commands';
 import { zocksSetWorkspace } from '@/platform/utils/zocks-commands';
 import { addeparSetWorkspace } from '@/platform/utils/addepar-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
+import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
 import { boxSetWorkspace } from '@/platform/utils/box-commands';
 import { sharefileSetWorkspace } from '@/platform/utils/sharefile-commands';
@@ -2151,6 +2152,11 @@ export function useMemoryWiring(
           await crmSetWorkspace(rootPath);
         } catch (err) {
           console.warn('crmSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await useCrmWriteQueueStore.getState().hydrateFromBackend();
+        } catch (err) {
+          console.warn('CRM write queue hydrate failed; continuing workspace setup:', err);
         }
         try {
           await oneDriveSetWorkspace(rootPath);

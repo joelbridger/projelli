@@ -195,7 +195,7 @@ export async function crmCancelSync(provider?: CrmProvider): Promise<void> {
   }
 }
 
-// ── Write path (approval-gated) ──────────────────────────────────────────────
+// ── Write path (Rust-enforced proposal approval) ─────────────────────────────
 
 /** Receipt for a completed (or deduplicated) CRM write. Mirrors the Rust
  *  `WriteReceipt` (camelCase over the wire). */
@@ -204,104 +204,86 @@ export interface CrmWriteReceipt {
   deduped: boolean;
 }
 
-/**
- * Push one approval-gated note to the connected CRM. `householdKey` is the
- * provider-side household/contact id, resolved on the TS side via
- * `buildInverseCrmMap` — the backend does not persist the matter map.
- *
- * The ONLY legitimate call site is the review card's Approve handler — never
- * call this from a background effect or on enqueue.
- */
-export async function crmCreateNote(args: {
+export interface CrmWriteProposalAiSource {
+  kind: 'meeting' | 'document';
+  date?: string;
+}
+
+export type CrmWriteProposalKind = 'note' | 'task' | 'field';
+export type CrmWriteProposalStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
+
+export interface CrmWriteProposalPayload {
+  id: string;
+  kind: CrmWriteProposalKind;
   matterId: string;
   title: string;
   body: string;
+  dueDate?: string;
   sourceRef: string;
-  householdKey: string;
-  /** Identifies the approval event — see `ProposedCrmWrite.requestedAt`'s doc
-   *  comment. Reuse the SAME value for a retry of this exact approval; a
-   *  fresh approval (even of identical content) must pass a new one. */
-  requestedAt: string;
-  provider?: CrmProvider;
-  /** E3 (Tier B trust guard): honest provenance line for an AI-drafted note,
-   *  appended to the note content at the Rust wire boundary. Omit for
-   *  advisor-typed notes. */
+  status?: CrmWriteProposalStatus;
+  remoteId?: string;
+  error?: string;
+  requestedAt?: string;
+  field?: string;
+  existingValue?: string;
+  newValue?: string;
+  finalValue?: string;
   provenance?: string;
-}): Promise<CrmWriteReceipt> {
-  if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
-  const { matterId, title, body, sourceRef, householdKey, requestedAt, provider, provenance } = args;
-  return invoke<CrmWriteReceipt>('crm_create_note', {
-    matterId,
-    title,
-    body,
-    sourceRef,
+  aiSource?: CrmWriteProposalAiSource;
+  householdKey?: string;
+  provider?: CrmProvider;
+}
+
+export interface CrmWriteProposalRecord extends CrmWriteProposalPayload {
+  status: CrmWriteProposalStatus;
+  householdKey: string;
+  provider: CrmProvider;
+  contentHash: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Save/update a proposed CRM write in the encrypted Rust CRM store. This never
+ * sends to the provider; it only keeps the review queue restart-safe without
+ * plaintext localStorage. */
+export async function crmSaveWriteProposal(proposal: CrmWriteProposalPayload): Promise<CrmWriteProposalRecord | null> {
+  if (!isTauri()) return null;
+  return invoke<CrmWriteProposalRecord>('crm_save_write_proposal', { proposal });
+}
+
+/** Attach the selected household + approval timestamp to a saved proposal.
+ * This prepares the Rust-side record so the real approve command only needs
+ * the proposal id. */
+export async function crmPrepareWriteProposal(args: {
+  proposalId: string;
+  householdKey: string;
+  requestedAt: string;
+  provenance?: string;
+}): Promise<CrmWriteProposalRecord | null> {
+  if (!isTauri()) return null;
+  const { proposalId, householdKey, requestedAt, provenance } = args;
+  return invoke<CrmWriteProposalRecord>('crm_prepare_write_proposal', {
+    proposalId,
     householdKey,
     requestedAt,
-    ...(provider ? { provider } : {}),
     ...(provenance ? { provenance } : {}),
   });
 }
 
-/**
- * Push one approval-gated task to the connected CRM. See {@link crmCreateNote}
- * for the shared approval-gating contract.
- */
-export async function crmCreateTask(args: {
-  matterId: string;
-  title: string;
-  description: string;
-  dueDate?: string;
-  sourceRef: string;
-  householdKey: string;
-  /** See {@link crmCreateNote}'s `requestedAt` doc comment. */
-  requestedAt: string;
-  provider?: CrmProvider;
-}): Promise<CrmWriteReceipt> {
+/** The only provider-writing CRM command the renderer should call. The backend
+ * reloads the encrypted proposal by id and verifies its hash before Wealthbox
+ * sees anything. */
+export async function crmApproveWriteProposal(proposalId: string): Promise<CrmWriteReceipt> {
   if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
-  const { matterId, title, description, dueDate, sourceRef, householdKey, requestedAt, provider } = args;
-  return invoke<CrmWriteReceipt>('crm_create_task', {
-    matterId,
-    title,
-    description,
-    dueDate: dueDate ?? null,
-    sourceRef,
-    householdKey,
-    requestedAt,
-    ...(provider ? { provider } : {}),
-  });
+  return invoke<CrmWriteReceipt>('crm_approve_write_proposal', { proposalId });
 }
 
-/**
- * Push one approval-gated field-level blended update to the connected CRM
- * (Task 9c). See {@link crmCreateNote} for the shared approval-gating and
- * `requestedAt` contract. `existingValue`/`newValue` are what the review
- * card showed the advisor for context; `finalValue` is the actual write —
- * the backend re-fetches the live field at approve time and rejects with a
- * stale-value error (never blind-overwrites) if it drifted since the
- * proposal was drafted.
- */
-export async function crmUpdateField(args: {
-  matterId: string;
-  householdKey: string;
-  field: string;
-  existingValue: string;
-  newValue: string;
-  finalValue: string;
-  sourceRef: string;
-  requestedAt: string;
-  provider?: CrmProvider;
-}): Promise<CrmWriteReceipt> {
-  if (!isTauri()) throw new Error('CRM write is only available in the desktop app.');
-  const { matterId, householdKey, field, existingValue, newValue, finalValue, sourceRef, requestedAt, provider } = args;
-  return invoke<CrmWriteReceipt>('crm_update_field', {
-    matterId,
-    householdKey,
-    field,
-    existingValue,
-    newValue,
-    finalValue,
-    sourceRef,
-    requestedAt,
-    ...(provider ? { provider } : {}),
-  });
+export async function crmListWriteProposals(): Promise<CrmWriteProposalRecord[]> {
+  if (!isTauri()) return [];
+  return invoke<CrmWriteProposalRecord[]>('crm_list_write_proposals');
+}
+
+export async function crmDeleteWriteProposal(proposalId: string): Promise<void> {
+  if (!isTauri()) return;
+  await invoke('crm_delete_write_proposal', { proposalId });
 }

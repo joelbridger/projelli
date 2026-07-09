@@ -18,17 +18,25 @@ vi.mock('@/platform/utils/wealthbox-commands', async () => {
   return {
     ...actual,
     crmIsConnected: vi.fn().mockResolvedValue(true),
-    crmCreateNote: vi.fn().mockResolvedValue({ remoteId: '555', deduped: false }),
-    crmCreateTask: vi.fn().mockResolvedValue({ remoteId: '556', deduped: false }),
-    // Task 9c: not a real export yet — see crmWriteQueue.test.ts's RED-phase note.
-    crmUpdateField: vi.fn().mockResolvedValue({ remoteId: '557', deduped: false }),
+    crmSaveWriteProposal: vi.fn().mockResolvedValue(null),
+    crmPrepareWriteProposal: vi.fn().mockResolvedValue(null),
+    crmApproveWriteProposal: vi.fn().mockResolvedValue({ remoteId: '555', deduped: false }),
+    crmListWriteProposals: vi.fn().mockResolvedValue([]),
+    crmDeleteWriteProposal: vi.fn().mockResolvedValue(undefined),
   };
 });
 
 import { CrmWriteReviewCard } from '@/features/matters/CrmWriteReviewCard';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import { crmIsConnected, crmCreateNote, crmUpdateField } from '@/platform/utils/wealthbox-commands';
+import {
+  crmApproveWriteProposal,
+  crmDeleteWriteProposal,
+  crmIsConnected,
+  crmListWriteProposals,
+  crmPrepareWriteProposal,
+  crmSaveWriteProposal,
+} from '@/platform/utils/wealthbox-commands';
 
 function resetStores() {
   useCrmWriteQueueStore.setState({ items: [] });
@@ -41,10 +49,16 @@ beforeEach(() => {
   licenseMock.tier = 'personal'; // default: solo (non-firm)
   vi.mocked(crmIsConnected).mockClear();
   vi.mocked(crmIsConnected).mockResolvedValue(true);
-  vi.mocked(crmCreateNote).mockClear();
-  vi.mocked(crmCreateNote).mockResolvedValue({ remoteId: '555', deduped: false });
-  vi.mocked(crmUpdateField).mockClear();
-  vi.mocked(crmUpdateField).mockResolvedValue({ remoteId: '557', deduped: false });
+  vi.mocked(crmSaveWriteProposal).mockClear();
+  vi.mocked(crmPrepareWriteProposal).mockClear();
+  vi.mocked(crmApproveWriteProposal).mockClear();
+  vi.mocked(crmListWriteProposals).mockClear();
+  vi.mocked(crmDeleteWriteProposal).mockClear();
+  vi.mocked(crmSaveWriteProposal).mockResolvedValue(null);
+  vi.mocked(crmPrepareWriteProposal).mockResolvedValue(null);
+  vi.mocked(crmApproveWriteProposal).mockResolvedValue({ remoteId: '555', deduped: false });
+  vi.mocked(crmListWriteProposals).mockResolvedValue([]);
+  vi.mocked(crmDeleteWriteProposal).mockResolvedValue(undefined);
 });
 
 describe('CrmWriteReviewCard', () => {
@@ -100,6 +114,7 @@ describe('CrmWriteReviewCard', () => {
       body: 'Note body',
       sourceRef: 'doc:notes.docx',
     });
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
 
     render(<CrmWriteReviewCard matterId={m.id} />);
     // QA-42: wait for the CARD ITSELF to render connected — not just for the
@@ -114,14 +129,18 @@ describe('CrmWriteReviewCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
 
     await waitFor(() => {
-      expect(crmCreateNote).toHaveBeenCalledTimes(1);
+      expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1);
     });
-    expect(crmCreateNote).toHaveBeenCalledWith(
-      expect.objectContaining({ householdKey: '12345', matterId: m.id, title: 'Note title', body: 'Note body' }),
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(id);
+    expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ proposalId: id, householdKey: '12345' }),
+    );
+    expect(crmSaveWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ id, matterId: m.id, title: 'Note title', body: 'Note body' }),
     );
     // The queue store (not the card) owns requestedAt generation, but the
     // full click-to-invoke path must still carry it through.
-    expect(crmCreateNote).toHaveBeenCalledWith(
+    expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
       expect.objectContaining({ requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) }),
     );
   });
@@ -155,7 +174,7 @@ describe('CrmWriteReviewCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
 
     await waitFor(() => {
-      expect(crmCreateNote).toHaveBeenCalledTimes(1);
+      expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1);
     });
 
     // The compliance note lands back in the queue as a new PROPOSED item —
@@ -168,7 +187,7 @@ describe('CrmWriteReviewCard', () => {
     });
     // Only the original note was ever sent to Wealthbox — the compliance note
     // itself must NOT have been pushed as part of this same approval.
-    expect(crmCreateNote).toHaveBeenCalledTimes(1);
+    expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1);
   });
 
   it('does not file a compliance note when the toggle is left unchecked', async () => {
@@ -198,7 +217,7 @@ describe('CrmWriteReviewCard', () => {
     expect(screen.getByTestId('file-compliance-note')).not.toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
 
-    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
+    await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });
 
     const items = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
     expect(items.some((i) => i.title.includes('Compliance summary'))).toBe(false);
@@ -251,8 +270,8 @@ describe('CrmWriteReviewCard', () => {
     await waitFor(() => { expect(crmIsConnected).toHaveBeenCalled(); });
     fireEvent.click(screen.getByTestId('crm-write-card-collapsed'));
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
-    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
-    const arg = vi.mocked(crmCreateNote).mock.calls[0]![0] as { provenance?: string };
+    await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });
+    const arg = vi.mocked(crmPrepareWriteProposal).mock.calls[0]![0] as { provenance?: string };
     expect(arg.provenance).toBeTruthy();
     expect(arg.provenance).toContain(BRAND.messaging.redlineAuthor);
     expect(arg.provenance?.toLowerCase()).toContain('meeting');
@@ -308,7 +327,7 @@ describe('CrmWriteReviewCard', () => {
     // Approving the newly-filed compliance note (toggle still ON) must NOT
     // produce a second compliance note about the first one.
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
-    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(2); });
+    await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(2); });
 
     const finalItems = useCrmWriteQueueStore.getState().items.filter((i) => i.matterId === m.id);
     const complianceItems = finalItems.filter((i) => i.title.includes('Compliance summary'));
@@ -386,6 +405,7 @@ describe('CrmWriteReviewCard', () => {
       body: 'Note body',
       sourceRef: 'doc:notes.docx',
     });
+    const id = useCrmWriteQueueStore.getState().items[0]!.id;
 
     render(<CrmWriteReviewCard matterId={m.id} />);
     // QA-42: wait for the CARD ITSELF to render connected — not just for the
@@ -404,8 +424,11 @@ describe('CrmWriteReviewCard', () => {
     expect(screen.queryByTestId('crm-household-redtail:rt-1')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
-    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
-    expect(crmCreateNote).toHaveBeenCalledWith(expect.objectContaining({ householdKey: '12345' }));
+    await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(id);
+    expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ proposalId: id, householdKey: '12345' }),
+    );
   });
 
   // Codex adversarial review catch: a card that queued a write before
@@ -465,6 +488,7 @@ describe('CrmWriteReviewCard', () => {
     useCrmWriteQueueStore.getState().enqueue({
       kind: 'note', matterId: matterB.id, title: 'B note', body: 'B', sourceRef: 'doc:b',
     });
+    const matterBProposalId = useCrmWriteQueueStore.getState().items.find((item) => item.matterId === matterB.id)!.id;
 
     const { rerender } = render(<CrmWriteReviewCard matterId={matterA.id} />);
     // QA-42: wait for the CARD ITSELF to render connected — not just for the
@@ -487,9 +511,12 @@ describe('CrmWriteReviewCard', () => {
 
     fireEvent.click(screen.getByTestId('crm-household-333'));
     fireEvent.click(screen.getByRole('button', { name: /approve 1 change/i }));
-    await waitFor(() => { expect(crmCreateNote).toHaveBeenCalledTimes(1); });
+    await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });
     // The write that actually fired must target B's household, never A's.
-    expect(crmCreateNote).toHaveBeenCalledWith(expect.objectContaining({ householdKey: '333', matterId: matterB.id }));
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(matterBProposalId);
+    expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ proposalId: matterBProposalId, householdKey: '333' }),
+    );
   });
 
   it('shows a connect-first hint, and no approve/edit controls, when Wealthbox is not connected', async () => {
@@ -546,12 +573,9 @@ describe('CrmWriteReviewCard', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Task 9c: field-level blended updates, 3-column review (RED phase — no
-// implementation yet). These fail today because CrmWriteRow has no `field`
-// kind branch at all; the card renders the note/task two-column layout for
-// every item regardless of `kind`. Same-card reuse per the design
-// constitution: no new surface, no new card — the existing rows widen for
-// this one kind.
+// Task 9c: field-level blended updates, 3-column review. Same-card reuse per
+// the design constitution: no new surface, no new card — the existing rows
+// widen for this one kind.
 // ─────────────────────────────────────────────────────────────────────────
 
 function enqueueFieldItem(matterId: string, overrides: Record<string, unknown> = {}) {
@@ -694,7 +718,7 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     expect(screen.getByRole('button', { name: /approve 1 change/i })).toBeDisabled();
   });
 
-  it('Approve enables once the Blended column is filled in and sends via crmUpdateField', async () => {
+  it('Approve enables once the Blended column is filled in and approves the saved field proposal', async () => {
     const m = useMatterStore.getState().createMatter({
       name: 'Henderson',
       client: 'Henderson',
@@ -721,9 +745,12 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     expect(approveBtn).not.toBeDisabled();
     fireEvent.click(approveBtn);
 
-    await waitFor(() => { expect(crmUpdateField).toHaveBeenCalledTimes(1); });
-    expect(crmUpdateField).toHaveBeenCalledWith(
+    await waitFor(() => { expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1); });
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(item.id);
+    expect(crmSaveWriteProposal).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: item.id,
+        kind: 'field',
         matterId: m.id,
         householdKey: '12345',
         field: 'background_information',
@@ -784,7 +811,7 @@ describe('CrmWriteReviewCard — field updates (Task 9c)', () => {
     });
     enqueueFieldItem(m.id);
     enqueueFieldItem(m.id, { title: 'Unrelated note-ish field', sourceRef: 'meeting:2026-07-01' });
-    vi.mocked(crmUpdateField).mockRejectedValueOnce(
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(
       new Error(
         'this field changed in the CRM since the proposal — current value: Robert owns a rental property and a beach condo too.',
       ),
