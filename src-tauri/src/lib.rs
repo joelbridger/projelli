@@ -359,32 +359,35 @@ pub fn run() {
                 )?;
             }
             // The main window is created here (not via `tauri.conf.json`'s
-            // automatic `create: true` path — see `"create": false` there)
-            // so we can pass WebView2 additional browser arguments through
-            // wry's builder API. wry always calls
-            // `CoreWebView2EnvironmentOptions::set_additional_browser_arguments`
-            // with its own default string, which per the WebView2 API takes
-            // precedence over (and silently defeats) the
-            // `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable —
-            // so that env var alone can never open the CDP remote-debugging
-            // port. Reading it here and forwarding it through the builder is
-            // the only way it reaches the browser process. This forwarding is
-            // debug-build-only inside `webview_env::webview_browser_args`: the
-            // cloud/Legion benches run `tauri:dev`, but production builds must
-            // ignore machine-level env vars that could redirect a real user's
-            // WebView2 profile/cache. No-op on macOS/Linux. Default string
-            // mirrors wry's own default exactly, so behavior is unchanged when
-            // the env var is unset.
+            // automatic `create: true` path — see `"create": false` there) so
+            // Windows debug builds can start WebView2 with a CDP debug port.
+            //
+            // Important split:
+            // - Release/non-Windows keeps today's explicit wry args behavior.
+            // - Windows debug creates a WebView2 environment with
+            //   WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS set to the complete shared
+            //   args string. The builder then uses that environment instead of
+            //   passing `AdditionalBrowserArguments`, so WebView2's own env-var
+            //   path opens the CDP port.
             if let Some(window_config) = app.config().app.windows.first() {
-                // The SAME string the Notice Card companion window uses (see
-                // `commands::notice_card`). Both windows MUST pass an identical
-                // args string or the second webview to be created fails with
-                // WebView2 0x8007139F (ERROR_INVALID_STATE). Single source of
-                // truth: `crate::webview_env::webview_browser_args`.
-                let browser_args = crate::webview_env::webview_browser_args();
-                tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
-                    .additional_browser_args(&browser_args)
-                    .build()?;
+                let builder =
+                    tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?;
+
+                #[cfg(all(windows, debug_assertions))]
+                let builder = builder
+                    .with_environment(crate::webview_env::create_debug_webview2_environment()?);
+
+                #[cfg(not(all(windows, debug_assertions)))]
+                let builder = {
+                    // The SAME string the Notice Card companion window uses
+                    // outside Windows debug builds. Both windows MUST pass an
+                    // identical args string or the second webview can fail with
+                    // WebView2 0x8007139F (ERROR_INVALID_STATE).
+                    let browser_args = crate::webview_env::webview_browser_args();
+                    builder.additional_browser_args(&browser_args)
+                };
+
+                builder.build()?;
             }
             // Check the OS-level data subdir (`<data_dir>/lantern`, holding
             // downloaded models + logs) once at startup, before anything
