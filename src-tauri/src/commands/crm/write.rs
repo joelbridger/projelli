@@ -143,13 +143,12 @@ fn normalize_for_readback_compare(s: &str) -> String {
 ///
 /// SCHEMA-EVOLUTION NOTE: this hash formula changed (added `requested_at`)
 /// after `crm_outbound_writes` already existed. That's safe today because
-/// this write-back feature has never shipped — the only caller
-/// (`crm_create_note`/`crm_create_task`) has no frontend wrapper yet (Task
-/// 8/9), so no real workspace anywhere has a ledger row computed under the
-/// pre-`requested_at` formula. If this hash formula changes AGAIN after the
-/// feature ships, that future change needs either a migration for existing
-/// rows or a fallback lookup under the old formula — skipping that then
-/// would let a retry miss its own `sent`/`pending_verify` row and double-post.
+/// this write-back feature had not shipped when the formula changed; the
+/// provider-writing path is now the proposal-approved
+/// `crm_approve_write_proposal`. If this hash formula changes AGAIN after the
+/// feature ships, that future change needs either a migration for existing rows
+/// or a fallback lookup under the old formula — skipping that then would let a
+/// retry miss its own `sent`/`pending_verify` row and double-post.
 /// Build the note content string that actually reaches the CRM: the title as
 /// the first line, the body below it, and — for AI-drafted notes — the honest
 /// provenance line appended below that (E3 trust guard). Kept a pure function
@@ -206,8 +205,8 @@ pub fn dedup_key(req: &CrmWriteRequest) -> String {
 /// sees the live value already equals `final_value` and reports
 /// `deduped: true`) is indistinguishable from a LATER, separate approval
 /// that happens to restore the same value — one wants the SAME audit
-/// entry (no duplicate), the other wants its OWN. See `crm_update_field`'s
-/// audit-key computation.
+/// entry (no duplicate), the other wants its OWN. See the field branch of
+/// `crm_approve_write_proposal`'s audit-key computation.
 #[derive(Debug, Clone)]
 pub struct CrmFieldUpdateRequest {
     pub matter_id: String,
@@ -581,7 +580,7 @@ fn map_http_err(e: anyhow::Error) -> CrmWriteError {
 /// transport-level failure maps to a definite `Http`/`Throttled` error
 /// rather than `VerifyPending`. Using `map_http_err` for reads would let a
 /// transient failure during the field-update stale-guard's preflight GET
-/// propagate as `VerifyPending` — and `crm_update_field` would then
+/// propagate as `VerifyPending` — and the field approval path would then
 /// (wrongly) audit that as "may have been applied", even though no write
 /// was ever attempted.
 fn map_http_err_for_read(e: anyhow::Error) -> CrmWriteError {
@@ -600,8 +599,8 @@ fn map_http_err_for_read(e: anyhow::Error) -> CrmWriteError {
 
 /// Guards against duplicate concurrent sends of the identical write across
 /// SEPARATE command invocations in one running app — e.g. a rapid
-/// double-click on Approve fires two `crm_create_note`/`crm_create_task`
-/// Tauri calls, each of which opens its own fresh `CrmStore`
+/// double-click on Approve fires two `crm_approve_write_proposal` Tauri calls,
+/// each of which opens its own fresh `CrmStore`
 /// (`CrmStore::open(&workspace)` per call). A guard scoped to `CrmStore`
 /// would be invisible to the second call and could not prevent the race, so
 /// this lives on long-lived state instead — `CrmState` in production (one
@@ -2213,7 +2212,7 @@ mod tests {
     /// TDD regression for Wealthbox probe Finding 1 (HTTP 422 on a
     /// due-date-less task, docs/evidence/windows-smoke-2/WEALTHBOX-PROBE.md):
     /// `push_crm_write` — the one orchestration path every real
-    /// `crm_create_task` call and every other write test in this module goes
+    /// proposal-approved task write and every other write test in this module goes
     /// through — must reject before ever reaching the network. `.expect(0)`
     /// makes wiremock itself fail the test if `POST /tasks` is ever hit.
     #[tokio::test]
@@ -2793,7 +2792,7 @@ mod tests {
     /// codex-review round 1 catch: when the PUT succeeds but the CONFIRMATION
     /// read fails (a transient GET failure right after a successful write —
     /// genuinely ambiguous, not a definite failure), this must surface as
-    /// `VerifyPending` specifically. `crm_update_field`'s command wrapper
+    /// `VerifyPending` specifically. The field approval command wrapper
     /// (commands.rs) only special-cases `VerifyPending` to record a "may have
     /// been applied, unconfirmed" audit entry; any other error type falls
     /// through its catch-all and silently skips that audit for a write that

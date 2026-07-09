@@ -3,28 +3,24 @@
 // Holds proposed CRM writes (notes/tasks) drafted from a client's note or
 // meeting until the advisor explicitly approves them via the review card.
 //
-// Persisted (zustand + localStorage, same pattern as fileContextStore /
-// aiChatStore): "AI proposes, user approves" is the product's core promise —
-// a proposal silently vanishing on an app restart breaks it, so un-approved
-// proposals must survive. `reconcileRehydratedItems` (below) restores the
-// queue honestly instead of trusting it blindly: an item stuck mid-send when
-// the app closed had its in-flight call die with it, so it reopens as
-// 'proposed' rather than sitting forever disabled; an item whose matter was
-// deleted in a prior session is DROPPED rather than kept around forever —
-// its only possible display surface is that matter's own (now unreachable)
-// MatterHub, so there is nowhere it could ever be reviewed or dismissed; a
-// completed ('sent') item is also never persisted forward, since it has
-// nothing left to review and the card offers no way to dismiss a done row
-// (see `isPersistableStatus`); and structurally corrupt entries are dropped
-// rather than throwing later when the UI reads `item.kind` / `item.status`.
+// The restart-surviving copy lives in the encrypted Rust CRM store, not
+// browser localStorage. The React/Zustand state below is only the in-memory
+// preview list for the current screen.
 //
 // The ONLY call sites of `approve()` are the review card's Approve button
 // and this file's own tests. Enqueuing never sends anything.
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
-import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
+import {
+  crmApproveWriteProposal,
+  crmDeleteWriteProposal,
+  crmListWriteProposals,
+  crmPrepareWriteProposal,
+  crmSaveWriteProposal,
+  type CrmWriteProposalPayload,
+  type CrmWriteProposalRecord,
+} from '@/platform/utils/wealthbox-commands';
 import { composeFieldBlend, isWritableField } from '@/platform/state/fieldBlend';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { Provider } from '@/platform/providers/Provider';
@@ -50,7 +46,8 @@ export interface ProposedCrmWrite {
    * (and is safely suppressed as) its own earlier attempt, while a later,
    * separate approval of identical content gets a fresh item (and thus a
    * fresh requestedAt) and is never mistaken for a duplicate. See
-   * `crm_create_note`'s doc comment in `src-tauri/src/commands/crm/commands.rs`.
+   * `crm_approve_write_proposal`'s Rust path in
+   * `src-tauri/src/commands/crm/commands.rs`.
    */
   requestedAt?: string;
   /**
@@ -85,6 +82,7 @@ export interface ProposedCrmWrite {
 interface CrmWriteQueueState {
   items: ProposedCrmWrite[];
   enqueue: (item: Omit<ProposedCrmWrite, 'id' | 'status'>) => void;
+  hydrateFromBackend: () => Promise<void>;
   approve: (ids: string[], householdKey: string) => Promise<void>;
   dismiss: (id: string) => void;
   /** Task 9c: the advisor editing a field item's Blended column. `kind:
@@ -163,6 +161,81 @@ function setItemClearingError(id: string, patch: Partial<Omit<ProposedCrmWrite, 
 // The captured group can legitimately contain newlines (it's the live field
 // content), hence the /s flag.
 const STALE_FIELD_VALUE_RE = /this field changed in the CRM since the proposal — current value: (.*)$/s;
+const LEGACY_PLAINTEXT_QUEUE_KEY = 'crm-write-queue-storage';
+
+function itemToProposalPayload(item: ProposedCrmWrite, householdKey?: string): CrmWriteProposalPayload {
+  const payload: CrmWriteProposalPayload = {
+    id: item.id,
+    kind: item.kind,
+    matterId: item.matterId,
+    title: item.title,
+    body: item.body,
+    sourceRef: item.sourceRef,
+    status: item.status,
+  };
+  if (item.dueDate !== undefined) payload.dueDate = item.dueDate;
+  if (item.remoteId !== undefined) payload.remoteId = item.remoteId;
+  if (item.error !== undefined) payload.error = item.error;
+  if (item.requestedAt !== undefined) payload.requestedAt = item.requestedAt;
+  if (item.field !== undefined) payload.field = item.field;
+  if (item.existingValue !== undefined) payload.existingValue = item.existingValue;
+  if (item.newValue !== undefined) payload.newValue = item.newValue;
+  if (item.finalValue !== undefined) payload.finalValue = item.finalValue;
+  if (item.provenance !== undefined) payload.provenance = item.provenance;
+  if (item.aiSource !== undefined) payload.aiSource = item.aiSource;
+  if (householdKey !== undefined) payload.householdKey = householdKey;
+  return payload;
+}
+
+function recordToItem(record: CrmWriteProposalRecord): ProposedCrmWrite {
+  const item: ProposedCrmWrite = {
+    id: record.id,
+    kind: record.kind,
+    matterId: record.matterId,
+    title: record.title,
+    body: record.body,
+    sourceRef: record.sourceRef,
+    // A send that died with the app is not still running after restart.
+    status: record.status === 'sending' ? 'proposed' : record.status,
+  };
+  if (record.dueDate !== undefined) item.dueDate = record.dueDate;
+  if (record.remoteId !== undefined) item.remoteId = record.remoteId;
+  if (record.error !== undefined) item.error = record.error;
+  if (record.requestedAt !== undefined) item.requestedAt = record.requestedAt;
+  if (record.field !== undefined) item.field = record.field;
+  if (record.existingValue !== undefined) item.existingValue = record.existingValue;
+  if (record.newValue !== undefined) item.newValue = record.newValue;
+  if (record.finalValue !== undefined) item.finalValue = record.finalValue;
+  if (record.provenance !== undefined) item.provenance = record.provenance;
+  if (record.aiSource !== undefined) item.aiSource = record.aiSource;
+  return item;
+}
+
+async function persistProposalItem(item: ProposedCrmWrite, householdKey?: string): Promise<void> {
+  await crmSaveWriteProposal(itemToProposalPayload(item, householdKey));
+}
+
+function persistProposalItemBestEffort(item: ProposedCrmWrite, householdKey?: string): void {
+  void persistProposalItem(item, householdKey).catch((err) => {
+    const message = err instanceof Error ? err.message : String(err);
+    setItem(item.id, {
+      status: 'failed',
+      error: `Could not save this CRM proposal securely: ${message}`,
+    });
+  });
+}
+
+function persistProposalItemSilently(item: ProposedCrmWrite, householdKey?: string): void {
+  void persistProposalItem(item, householdKey).catch(() => {
+    // After a confirmed provider write, local cleanup must not turn the UI red.
+  });
+}
+
+function deleteProposalBestEffort(id: string): void {
+  void crmDeleteWriteProposal(id).catch(() => {
+    // Deletion is retried by dismiss/send paths. Never log client proposal text.
+  });
+}
 
 async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<void> {
   // Defense-in-depth: the card is expected to disable Approve while a field
@@ -176,40 +249,20 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
   // Never regenerated per attempt — that would defeat the backend's
   // retry-vs-fresh-approval dedup guarantee (see the field's doc comment).
   const requestedAt = item.requestedAt ?? newRequestedAt();
+  const sendingItem: ProposedCrmWrite = { ...item, status: 'sending', requestedAt };
   setItemClearingError(item.id, { status: 'sending', requestedAt });
   try {
-    const receipt =
-      item.kind === 'note'
-        ? await crmCreateNote({
-            matterId: item.matterId,
-            title: item.title,
-            body: item.body,
-            sourceRef: item.sourceRef,
-            householdKey,
-            requestedAt,
-            // E3: the honest provenance line travels with an AI-drafted note.
-            ...(item.provenance ? { provenance: item.provenance } : {}),
-          })
-        : item.kind === 'task'
-          ? await crmCreateTask({
-              matterId: item.matterId,
-              title: item.title,
-              description: item.body,
-              ...(item.dueDate !== undefined ? { dueDate: item.dueDate } : {}),
-              sourceRef: item.sourceRef,
-              householdKey,
-              requestedAt,
-            })
-          : await crmUpdateField({
-              matterId: item.matterId,
-              householdKey,
-              field: item.field ?? '',
-              existingValue: item.existingValue ?? '',
-              newValue: item.newValue ?? '',
-              finalValue: item.finalValue ?? '',
-              sourceRef: item.sourceRef,
-              requestedAt,
-            });
+    await persistProposalItem(sendingItem, householdKey);
+    await crmPrepareWriteProposal({
+      proposalId: item.id,
+      householdKey,
+      requestedAt,
+      ...(item.provenance ? { provenance: item.provenance } : {}),
+    });
+    const receipt = await crmApproveWriteProposal(item.id);
+    const sentItem: ProposedCrmWrite = { ...sendingItem, status: 'sent', remoteId: receipt.remoteId };
+    persistProposalItemSilently(sentItem, householdKey);
+    deleteProposalBestEffort(item.id);
     setItemClearingError(item.id, { status: 'sent', remoteId: receipt.remoteId });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -234,16 +287,21 @@ async function sendOne(item: ProposedCrmWrite, householdKey: string): Promise<vo
         existingValue: freshExistingValue,
         newValue: item.newValue ?? '',
       });
-      setItem(item.id, {
+      const staleItem: ProposedCrmWrite = {
+        ...sendingItem,
         status: 'stale',
         error: message,
         existingValue: freshExistingValue,
         finalValue: rebuiltFinalValue,
-      });
+      };
+      setItem(item.id, staleItem);
+      persistProposalItemBestEffort(staleItem, householdKey);
       return;
     }
     const status: CrmWriteStatus = message.includes('verification pending') ? 'verify_pending' : 'failed';
-    setItem(item.id, { status, error: message });
+    const failedItem: ProposedCrmWrite = { ...sendingItem, status, error: message };
+    setItem(item.id, failedItem);
+    persistProposalItemBestEffort(failedItem, householdKey);
   }
 }
 
@@ -271,18 +329,9 @@ function isValidPersistedItem(raw: unknown): raw is ProposedCrmWrite {
   );
 }
 
-/** A completed item has nothing left to review or approve — drop it from
- * what gets persisted so it can't come back as a permanent, undismissable
- * "done" card on a future restart (CrmWriteRow renders no Dismiss control
- * for a sent item, since dismissing an in-session confirmation was never a
- * user action worth offering). */
-function isPersistableStatus(status: CrmWriteStatus): boolean {
-  return status !== 'sent';
-}
-
 /**
- * Reconciles a just-rehydrated queue against reality instead of trusting the
- * localStorage snapshot blindly (see the module doc comment above for why).
+ * Reconciles a just-loaded queue against reality instead of trusting the
+ * encrypted snapshot blindly.
  * Reads `useMatterStore` directly (a live, already-hydrated read — the
  * static import above guarantees matterStore's own module code, including
  * its own persist rehydration, has already run by the time this executes).
@@ -292,7 +341,7 @@ function reconcileRehydratedItems(rawItems: unknown): ProposedCrmWrite[] {
   const knownMatterIds = new Set(useMatterStore.getState().matters.map((m) => m.id));
   return items
     .filter(isValidPersistedItem)
-    .filter((item) => isPersistableStatus(item.status))
+    .filter((item) => item.status !== 'sent')
     .filter((item) => {
       // The matter this proposal targets is gone (deleted in a prior
       // session). Its only possible display surface is that matter's own
@@ -311,15 +360,44 @@ function reconcileRehydratedItems(rawItems: unknown): ProposedCrmWrite[] {
     );
 }
 
-export const useCrmWriteQueueStore = create<CrmWriteQueueState>()(
-  persist(
-    (set, get) => ({
+function readLegacyPlaintextQueue(): ProposedCrmWrite[] {
+  if (typeof localStorage === 'undefined') return [];
+  const raw = localStorage.getItem(LEGACY_PLAINTEXT_QUEUE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as { state?: { items?: unknown } };
+    return reconcileRehydratedItems(parsed.state?.items);
+  } catch {
+    return [];
+  }
+}
+
+function clearLegacyPlaintextQueue(): void {
+  if (typeof localStorage === 'undefined') return;
+  localStorage.removeItem(LEGACY_PLAINTEXT_QUEUE_KEY);
+}
+
+export const useCrmWriteQueueStore = create<CrmWriteQueueState>()((set, get) => ({
   items: [],
 
   enqueue: (item) => {
+    const proposed: ProposedCrmWrite = { ...item, id: newId(), status: 'proposed' };
     set((state) => ({
-      items: [...state.items, { ...item, id: newId(), status: 'proposed' }],
+      items: [...state.items, proposed],
     }));
+    persistProposalItemBestEffort(proposed);
+  },
+
+  hydrateFromBackend: async () => {
+    const records = await crmListWriteProposals();
+    const backendItems = reconcileRehydratedItems(records.map(recordToItem));
+    const backendIds = new Set(backendItems.map((item) => item.id));
+    const legacyItems = readLegacyPlaintextQueue().filter((item) => !backendIds.has(item.id));
+    for (const item of legacyItems) {
+      await persistProposalItem(item);
+    }
+    clearLegacyPlaintextQueue();
+    set({ items: [...backendItems, ...legacyItems] });
   },
 
   approve: async (ids, householdKey) => {
@@ -334,15 +412,24 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()(
 
   dismiss: (id) => {
     set((state) => ({ items: state.items.filter((i) => i.id !== id) }));
+    deleteProposalBestEffort(id);
   },
 
   updateFinalValue: (id, finalValue) => {
+    const item = get().items.find((i) => i.id === id);
+    if (!item) return;
+    const updated: ProposedCrmWrite = { ...item, finalValue };
     setItem(id, { finalValue });
+    persistProposalItemBestEffort(updated);
   },
 
   setProvenanceIfUnset: (id, provenance) => {
     const item = get().items.find((i) => i.id === id);
-    if (item && !item.provenance) setItem(id, { provenance });
+    if (item && !item.provenance) {
+      const updated: ProposedCrmWrite = { ...item, provenance };
+      setItem(id, { provenance });
+      persistProposalItemBestEffort(updated);
+    }
   },
 
   enqueueFieldUpdate: async (args) => {
@@ -377,19 +464,4 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()(
       sourceRef: args.sourceRef,
     });
   },
-    }),
-    {
-      name: 'crm-write-queue-storage',
-      version: 1,
-      // Codex review catch: never persist a completed ('sent') item forward —
-      // it has nothing left to review/approve/dismiss, and would otherwise
-      // resurrect as a permanent, undismissable "done" card on Overview
-      // after every future restart.
-      partialize: (state) => ({ items: state.items.filter((i) => isPersistableStatus(i.status)) }),
-      merge: (persistedState, currentState) => ({
-        ...currentState,
-        items: reconcileRehydratedItems((persistedState as { items?: unknown } | undefined)?.items),
-      }),
-    },
-  ),
-);
+}));

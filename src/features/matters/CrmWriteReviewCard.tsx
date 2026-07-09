@@ -221,6 +221,9 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
   function handleApprove() {
     if (effectiveHousehold === null || selectedIds.length === 0) return;
     const household_ = effectiveHousehold;
+    // These ids are also the encrypted Rust proposal ids. The queue store sends
+    // only those ids to the backend approval command; note/task/field content is
+    // loaded and verified on the Rust side before Wealthbox sees anything.
     const approvedIds = selectedIds;
     const shouldFileCompliance = fileComplianceNote;
     // E3: stamp AI-drafted notes with an honest provenance line at the moment

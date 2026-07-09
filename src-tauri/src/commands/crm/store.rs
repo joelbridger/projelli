@@ -113,6 +113,38 @@ pub struct OutboundWrite {
     pub created_at: String,
 }
 
+/// One encrypted pending CRM write proposal. This is the Rust-side replacement
+/// for the old renderer `localStorage` queue: the UI can still render previews,
+/// but the restart-surviving copy lives in SQLCipher.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PendingCrmProposal {
+    pub proposal_id: String,
+    pub provider: String,
+    /// "note" | "task" | "field"
+    pub kind: String,
+    pub matter_id: String,
+    pub household_key: String,
+    pub content_hash: String,
+    pub title: String,
+    pub body: String,
+    pub due_date: Option<String>,
+    pub source_ref: String,
+    pub requested_at: Option<String>,
+    pub field: Option<String>,
+    pub existing_value: Option<String>,
+    pub new_value: Option<String>,
+    pub final_value: Option<String>,
+    pub provenance: Option<String>,
+    pub ai_source_kind: Option<String>,
+    pub ai_source_date: Option<String>,
+    /// UI status: proposed | sending | failed | verify_pending | stale | sent.
+    pub status: String,
+    pub remote_id: Option<String>,
+    pub error: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 /// The one INSERT-or-update statement `upsert_object` and `apply_ingest_batch`
 /// share, so the single-row and batched paths can never drift. Runs against a
 /// `Connection` or a `Transaction` (both deref to `Connection`).
@@ -211,7 +243,36 @@ impl CrmStore {
                created_at    TEXT NOT NULL,
                updated_at    TEXT NOT NULL,
                content_key   TEXT NOT NULL DEFAULT ''
-             );",
+             );
+             CREATE TABLE IF NOT EXISTS crm_write_proposals (
+               proposal_id    TEXT PRIMARY KEY,
+               provider       TEXT NOT NULL,
+               kind           TEXT NOT NULL,
+               matter_id      TEXT NOT NULL,
+               household_key  TEXT NOT NULL DEFAULT '',
+               content_hash   TEXT NOT NULL,
+               title          TEXT NOT NULL,
+               body           TEXT NOT NULL,
+               due_date       TEXT,
+               source_ref     TEXT NOT NULL,
+               requested_at   TEXT,
+               field          TEXT,
+               existing_value TEXT,
+               new_value      TEXT,
+               final_value    TEXT,
+               provenance     TEXT,
+               ai_source_kind TEXT,
+               ai_source_date TEXT,
+               status         TEXT NOT NULL,
+               remote_id      TEXT,
+               error          TEXT,
+               created_at     TEXT NOT NULL,
+               updated_at     TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_crm_write_proposals_matter
+                ON crm_write_proposals(matter_id);
+             CREATE INDEX IF NOT EXISTS idx_crm_write_proposals_status
+                ON crm_write_proposals(status);",
         )?;
         migrate_crm_columns(&conn);
         Ok(Self {
@@ -628,6 +689,122 @@ impl CrmStore {
         Ok(())
     }
 
+    /// Insert/update a pending proposal in the encrypted CRM store. On update,
+    /// `created_at` is preserved so an approval can prove this proposal existed
+    /// before the final approve command.
+    pub fn proposal_upsert(&self, proposal: &PendingCrmProposal) -> Result<PendingCrmProposal> {
+        let c = lock_unpoison(&self.conn);
+        let now = chrono::Utc::now().to_rfc3339();
+        let created_at = if proposal.created_at.trim().is_empty() {
+            now.clone()
+        } else {
+            proposal.created_at.clone()
+        };
+        c.execute(
+            "INSERT INTO crm_write_proposals
+                (proposal_id, provider, kind, matter_id, household_key, content_hash,
+                 title, body, due_date, source_ref, requested_at, field, existing_value,
+                 new_value, final_value, provenance, ai_source_kind, ai_source_date,
+                 status, remote_id, error, created_at, updated_at)
+             VALUES
+                (?1, ?2, ?3, ?4, ?5, ?6,
+                 ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+                 ?14, ?15, ?16, ?17, ?18,
+                 ?19, ?20, ?21, ?22, ?23)
+             ON CONFLICT(proposal_id) DO UPDATE SET
+                provider       = excluded.provider,
+                kind           = excluded.kind,
+                matter_id      = excluded.matter_id,
+                household_key  = excluded.household_key,
+                content_hash   = excluded.content_hash,
+                title          = excluded.title,
+                body           = excluded.body,
+                due_date       = excluded.due_date,
+                source_ref     = excluded.source_ref,
+                requested_at   = excluded.requested_at,
+                field          = excluded.field,
+                existing_value = excluded.existing_value,
+                new_value      = excluded.new_value,
+                final_value    = excluded.final_value,
+                provenance     = excluded.provenance,
+                ai_source_kind = excluded.ai_source_kind,
+                ai_source_date = excluded.ai_source_date,
+                status         = excluded.status,
+                remote_id      = excluded.remote_id,
+                error          = excluded.error,
+                created_at     = crm_write_proposals.created_at,
+                updated_at     = excluded.updated_at",
+            rusqlite::params![
+                &proposal.proposal_id,
+                &proposal.provider,
+                &proposal.kind,
+                &proposal.matter_id,
+                &proposal.household_key,
+                &proposal.content_hash,
+                &proposal.title,
+                &proposal.body,
+                proposal.due_date.as_deref(),
+                &proposal.source_ref,
+                proposal.requested_at.as_deref(),
+                proposal.field.as_deref(),
+                proposal.existing_value.as_deref(),
+                proposal.new_value.as_deref(),
+                proposal.final_value.as_deref(),
+                proposal.provenance.as_deref(),
+                proposal.ai_source_kind.as_deref(),
+                proposal.ai_source_date.as_deref(),
+                &proposal.status,
+                proposal.remote_id.as_deref(),
+                proposal.error.as_deref(),
+                &created_at,
+                &now,
+            ],
+        )?;
+        drop(c);
+        self.proposal_get(&proposal.proposal_id)?
+            .ok_or_else(|| anyhow::anyhow!("pending CRM proposal disappeared after save"))
+    }
+
+    pub fn proposal_get(&self, proposal_id: &str) -> Result<Option<PendingCrmProposal>> {
+        use rusqlite::OptionalExtension;
+        let c = lock_unpoison(&self.conn);
+        Ok(c.query_row(
+            "SELECT proposal_id, provider, kind, matter_id, household_key, content_hash,
+                    title, body, due_date, source_ref, requested_at, field, existing_value,
+                    new_value, final_value, provenance, ai_source_kind, ai_source_date,
+                    status, remote_id, error, created_at, updated_at
+             FROM crm_write_proposals
+             WHERE proposal_id = ?1",
+            [proposal_id],
+            row_to_pending_crm_proposal,
+        )
+        .optional()?)
+    }
+
+    /// Pending proposals only. A sent proposal is not a reviewable row anymore,
+    /// and should never reappear after restart.
+    pub fn proposal_list_pending(&self) -> Result<Vec<PendingCrmProposal>> {
+        let c = lock_unpoison(&self.conn);
+        let mut stmt = c.prepare(
+            "SELECT proposal_id, provider, kind, matter_id, household_key, content_hash,
+                    title, body, due_date, source_ref, requested_at, field, existing_value,
+                    new_value, final_value, provenance, ai_source_kind, ai_source_date,
+                    status, remote_id, error, created_at, updated_at
+             FROM crm_write_proposals
+             WHERE status != 'sent'
+             ORDER BY created_at ASC",
+        )?;
+        let rows = stmt
+            .query_map([], row_to_pending_crm_proposal)?
+            .collect::<rusqlite::Result<Vec<PendingCrmProposal>>>()?;
+        Ok(rows)
+    }
+
+    pub fn proposal_delete(&self, proposal_id: &str) -> Result<usize> {
+        let c = lock_unpoison(&self.conn);
+        Ok(c.execute("DELETE FROM crm_write_proposals WHERE proposal_id = ?1", [proposal_id])?)
+    }
+
     /// Look up an outbound write's ledger row by its content-addressed dedup key.
     pub fn outbound_get(&self, dedup_key: &str) -> Result<Option<OutboundWrite>> {
         use rusqlite::OptionalExtension;
@@ -875,6 +1052,34 @@ fn row_to_crm_object(r: &rusqlite::Row<'_>) -> rusqlite::Result<CrmObjectRow> {
         content_hash: r.get(4)?,
         json: r.get(5)?,
         deleted: deleted_int != 0,
+    })
+}
+
+fn row_to_pending_crm_proposal(r: &rusqlite::Row<'_>) -> rusqlite::Result<PendingCrmProposal> {
+    Ok(PendingCrmProposal {
+        proposal_id: r.get(0)?,
+        provider: r.get(1)?,
+        kind: r.get(2)?,
+        matter_id: r.get(3)?,
+        household_key: r.get(4)?,
+        content_hash: r.get(5)?,
+        title: r.get(6)?,
+        body: r.get(7)?,
+        due_date: r.get(8)?,
+        source_ref: r.get(9)?,
+        requested_at: r.get(10)?,
+        field: r.get(11)?,
+        existing_value: r.get(12)?,
+        new_value: r.get(13)?,
+        final_value: r.get(14)?,
+        provenance: r.get(15)?,
+        ai_source_kind: r.get(16)?,
+        ai_source_date: r.get(17)?,
+        status: r.get(18)?,
+        remote_id: r.get(19)?,
+        error: r.get(20)?,
+        created_at: r.get(21)?,
+        updated_at: r.get(22)?,
     })
 }
 

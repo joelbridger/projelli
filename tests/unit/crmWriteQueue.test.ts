@@ -3,14 +3,12 @@
  *
  * Covers:
  *   - enqueue never triggers a send by itself.
- *   - approve() sends sequentially, marks items sent, dedupes on the receipt.
- *   - approve() maps a note vs task kind to the right wrapper.
+ *   - approve() saves/prepares a proposal, then approves it by proposal id.
  *   - a VerifyPending error string maps to 'verify_pending', not 'failed'.
  *   - a hard failure maps to 'failed' and keeps the error message.
  *   - dismiss() removes an item without sending anything.
- *   - persistence: queued proposals survive a restart (localStorage), with
- *     honest reconciliation (interrupted sends re-open, orphaned matters
- *     expire, corrupt entries are dropped) instead of crashing.
+ *   - hydrateFromBackend restores encrypted backend proposals with honest
+ *     reconciliation instead of trusting stale rows blindly.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -24,32 +22,60 @@ vi.mock('@/platform/matter/matterStore', () => ({
 }));
 
 vi.mock('@/platform/utils/wealthbox-commands', () => ({
-  crmCreateNote: vi.fn().mockResolvedValue({ remoteId: '555', deduped: false }),
-  crmCreateTask: vi.fn().mockResolvedValue({ remoteId: '556', deduped: false }),
-  // Task 9c: field-level blended updates. Not implemented yet — this mock
-  // exists so the RED-phase tests below fail for the right reason (the
-  // store doesn't route kind:'field' to it), not a module-resolution error.
-  crmUpdateField: vi.fn().mockResolvedValue({ remoteId: '557', deduped: false }),
+  crmSaveWriteProposal: vi.fn().mockResolvedValue(null),
+  crmPrepareWriteProposal: vi.fn().mockResolvedValue(null),
+  crmApproveWriteProposal: vi.fn().mockResolvedValue({ remoteId: '555', deduped: false }),
+  crmListWriteProposals: vi.fn().mockResolvedValue([]),
+  crmDeleteWriteProposal: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
-import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
+import {
+  crmApproveWriteProposal,
+  crmDeleteWriteProposal,
+  crmListWriteProposals,
+  crmPrepareWriteProposal,
+  crmSaveWriteProposal,
+  type CrmWriteProposalRecord,
+} from '@/platform/utils/wealthbox-commands';
 import type { Provider } from '@/platform/providers/Provider';
 
 function resetStore() {
   useCrmWriteQueueStore.setState({ items: [] });
 }
 
+function defaultBackendRecord(overrides: Partial<CrmWriteProposalRecord> = {}): CrmWriteProposalRecord {
+  return {
+    id: 'p1',
+    kind: 'note',
+    matterId: 'm1',
+    title: 'Persisted note',
+    body: 'B',
+    sourceRef: 'doc:x',
+    status: 'proposed',
+    householdKey: '',
+    provider: 'wealthbox',
+    contentHash: 'hash',
+    createdAt: '2026-07-09T00:00:00.000Z',
+    updatedAt: '2026-07-09T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   resetStore();
   localStorage.clear();
   mockMatterState.matters = [];
-  vi.mocked(crmCreateNote).mockClear();
-  vi.mocked(crmCreateTask).mockClear();
-  vi.mocked(crmUpdateField).mockClear();
-  vi.mocked(crmCreateNote).mockResolvedValue({ remoteId: '555', deduped: false });
-  vi.mocked(crmCreateTask).mockResolvedValue({ remoteId: '556', deduped: false });
-  vi.mocked(crmUpdateField).mockResolvedValue({ remoteId: '557', deduped: false });
+  vi.mocked(crmSaveWriteProposal).mockClear();
+  vi.mocked(crmPrepareWriteProposal).mockClear();
+  vi.mocked(crmApproveWriteProposal).mockClear();
+  vi.mocked(crmListWriteProposals).mockClear();
+  vi.mocked(crmDeleteWriteProposal).mockClear();
+  vi.mocked(crmSaveWriteProposal).mockResolvedValue(null);
+  vi.mocked(crmPrepareWriteProposal).mockResolvedValue(null);
+  vi.mocked(crmApproveWriteProposal).mockResolvedValue({ remoteId: '555', deduped: false });
+  vi.mocked(crmListWriteProposals).mockResolvedValue([]);
+  vi.mocked(crmDeleteWriteProposal).mockResolvedValue(undefined);
 });
 
 describe('enqueue', () => {
@@ -65,53 +91,65 @@ describe('enqueue', () => {
   it('never triggers a send by itself', async () => {
     useCrmWriteQueueStore.getState().enqueue({ kind: 'note', matterId: 'm2', title: 'T2', body: 'B2', sourceRef: 'doc:y' });
     await new Promise((r) => setTimeout(r, 10));
-    expect(crmCreateNote).not.toHaveBeenCalled();
-    expect(crmCreateTask).not.toHaveBeenCalled();
+    expect(crmPrepareWriteProposal).not.toHaveBeenCalled();
+    expect(crmApproveWriteProposal).not.toHaveBeenCalled();
   });
 });
 
 describe('approve', () => {
-  it('sends sequentially and marks sent', async () => {
+  it('prepares, approves by proposal id, and marks sent', async () => {
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    expect(crmCreateNote).toHaveBeenCalledTimes(1);
-    expect(crmCreateNote).toHaveBeenCalledWith(expect.objectContaining({ householdKey: '12345', matterId: 'm1', title: 'T', body: 'B' }));
+    expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({ proposalId: id, householdKey: '12345' }),
+    );
+    expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1);
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(id);
     const item = useCrmWriteQueueStore.getState().items[0]!;
     expect(item.status).toBe('sent');
     expect(item.remoteId).toBe('555');
   });
 
-  it('routes a task item through crmCreateTask with dueDate', async () => {
+  it('saves a task proposal with dueDate before approving the proposal id', async () => {
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'task', matterId: 'm1', title: 'T', body: 'B', dueDate: '2026-07-15', sourceRef: 'doc:x' });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    expect(crmCreateTask).toHaveBeenCalledWith(
-      expect.objectContaining({ householdKey: '12345', matterId: 'm1', title: 'T', description: 'B', dueDate: '2026-07-15' })
+    expect(crmSaveWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id,
+        kind: 'task',
+        householdKey: '12345',
+        matterId: 'm1',
+        title: 'T',
+        body: 'B',
+        dueDate: '2026-07-15',
+      }),
     );
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(id);
     expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
   });
 
   it('sends multiple approved items one at a time (sequential, not parallel)', async () => {
     const order: string[] = [];
-    vi.mocked(crmCreateNote).mockImplementation(async (args) => {
-      order.push('start:' + args.title);
+    vi.mocked(crmApproveWriteProposal).mockImplementation(async (proposalId) => {
+      order.push('start:' + proposalId);
       await new Promise((r) => setTimeout(r, 5));
-      order.push('end:' + args.title);
-      return { remoteId: 'r-' + args.title, deduped: false };
+      order.push('end:' + proposalId);
+      return { remoteId: 'r-' + proposalId, deduped: false };
     });
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'A', body: 'B', sourceRef: 'doc:a' });
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'B', body: 'B', sourceRef: 'doc:b' });
     const ids = useCrmWriteQueueStore.getState().items.map((i) => i.id);
     await s.approve(ids, '12345');
-    expect(order).toEqual(['start:A', 'end:A', 'start:B', 'end:B']);
+    expect(order).toEqual([`start:${ids[0]}`, `end:${ids[0]}`, `start:${ids[1]}`, `end:${ids[1]}`]);
   });
 
   it('maps a VerifyPending error string to status "verify_pending"', async () => {
-    vi.mocked(crmCreateNote).mockRejectedValueOnce(
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(
       new Error('a previous identical write may have been delivered — verification pending, retry shortly')
     );
     const s = useCrmWriteQueueStore.getState();
@@ -123,7 +161,7 @@ describe('approve', () => {
   });
 
   it('maps a hard failure to status "failed" and records the error message', async () => {
-    vi.mocked(crmCreateNote).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
@@ -138,20 +176,26 @@ describe('approve', () => {
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    expect(crmCreateNote).toHaveBeenCalledWith(
-      expect.objectContaining({ requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) }),
+    expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proposalId: id,
+        requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/),
+      }),
     );
     const item = useCrmWriteQueueStore.getState().items[0]!;
-    expect(item.requestedAt).toBe(vi.mocked(crmCreateNote).mock.calls[0]![0].requestedAt);
+    expect(item.requestedAt).toBe(vi.mocked(crmPrepareWriteProposal).mock.calls[0]![0].requestedAt);
   });
 
-  it('routes a task item through crmCreateTask with a requestedAt too', async () => {
+  it('routes a task item through proposal approval with a requestedAt too', async () => {
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'task', matterId: 'm1', title: 'T', body: 'B', dueDate: '2026-07-15', sourceRef: 'doc:x' });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    expect(crmCreateTask).toHaveBeenCalledWith(
-      expect.objectContaining({ requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/) }),
+    expect(crmPrepareWriteProposal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        proposalId: id,
+        requestedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/),
+      }),
     );
   });
 
@@ -159,7 +203,7 @@ describe('approve', () => {
   // exact same value (so the backend's dedup ledger treats it as the same
   // approval event, not a fresh one) — never regenerate on retry.
   it('reuses the SAME requestedAt when retrying a failed item (approve called again)', async () => {
-    vi.mocked(crmCreateNote).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
@@ -169,14 +213,14 @@ describe('approve', () => {
     const firstRequestedAt = useCrmWriteQueueStore.getState().items[0]!.requestedAt;
     expect(firstRequestedAt).toBeTruthy();
 
-    // Retry: crmCreateNote now succeeds.
+    // Retry: crmApproveWriteProposal now succeeds.
     await s.approve([id], '12345');
     expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
     expect(useCrmWriteQueueStore.getState().items[0]!.requestedAt).toBe(firstRequestedAt);
 
-    expect(crmCreateNote).toHaveBeenCalledTimes(2);
-    const firstCallArgs = vi.mocked(crmCreateNote).mock.calls[0]![0];
-    const secondCallArgs = vi.mocked(crmCreateNote).mock.calls[1]![0];
+    expect(crmApproveWriteProposal).toHaveBeenCalledTimes(2);
+    const firstCallArgs = vi.mocked(crmPrepareWriteProposal).mock.calls[0]![0];
+    const secondCallArgs = vi.mocked(crmPrepareWriteProposal).mock.calls[1]![0];
     expect(secondCallArgs.requestedAt).toBe(firstCallArgs.requestedAt);
   });
 
@@ -241,7 +285,7 @@ describe('approve', () => {
 
   it('sets status "sending" while the request is in flight', async () => {
     let resolveFn!: (v: { remoteId: string; deduped: boolean }) => void;
-    vi.mocked(crmCreateNote).mockReturnValueOnce(new Promise((r) => (resolveFn = r)));
+    vi.mocked(crmApproveWriteProposal).mockReturnValueOnce(new Promise((r) => (resolveFn = r)));
     const s = useCrmWriteQueueStore.getState();
     s.enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
@@ -261,18 +305,14 @@ describe('dismiss', () => {
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     s.dismiss(id);
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(0);
-    expect(crmCreateNote).not.toHaveBeenCalled();
+    expect(crmDeleteWriteProposal).toHaveBeenCalledWith(id);
+    expect(crmApproveWriteProposal).not.toHaveBeenCalled();
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────
-// Task 9c: field-level blended updates (RED phase — no implementation yet).
-// The Rust `crm_update_field` command doesn't exist on this branch; these
-// tests assert the TS contract the store MUST satisfy once it does. They
-// fail today because the store has no `kind: 'field'` branch and
-// `crmUpdateField` isn't a real export — both true failures, not
-// module-resolution noise (the mock above supplies a fake export so vitest
-// can at least import the module and hit the real assertion).
+// Task 9c: field-level blended updates. Field content is saved into the
+// encrypted proposal store first; approval sends only the proposal id.
 // ─────────────────────────────────────────────────────────────────────────
 
 function fieldItem(overrides: Partial<Parameters<typeof useCrmWriteQueueStore.prototype.enqueue>[0]> = {}) {
@@ -301,17 +341,19 @@ describe('field updates (Task 9c)', () => {
     expect(item.finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
   });
 
-  it('approve() on a field item calls crmUpdateField (never crmCreateNote/crmCreateTask)', async () => {
+  it('approve() on a field item saves the field proposal and approves by id', async () => {
+    vi.mocked(crmApproveWriteProposal).mockResolvedValueOnce({ remoteId: '557', deduped: false });
     const s = useCrmWriteQueueStore.getState();
     s.enqueue(fieldItem());
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
 
-    expect(crmUpdateField).toHaveBeenCalledTimes(1);
-    expect(crmCreateNote).not.toHaveBeenCalled();
-    expect(crmCreateTask).not.toHaveBeenCalled();
-    expect(crmUpdateField).toHaveBeenCalledWith(
+    expect(crmApproveWriteProposal).toHaveBeenCalledTimes(1);
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(id);
+    expect(crmSaveWriteProposal).toHaveBeenCalledWith(
       expect.objectContaining({
+        id,
+        kind: 'field',
         matterId: 'm1',
         householdKey: '12345',
         field: 'background_information',
@@ -327,7 +369,7 @@ describe('field updates (Task 9c)', () => {
   });
 
   it('a retry of a failed field item reuses the same requestedAt (same idempotency contract as note/task)', async () => {
-    vi.mocked(crmUpdateField).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(new Error('CRM write failed (HTTP 500)'));
     const s = useCrmWriteQueueStore.getState();
     s.enqueue(fieldItem());
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
@@ -339,8 +381,8 @@ describe('field updates (Task 9c)', () => {
     await s.approve([id], '12345');
     expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
     expect(useCrmWriteQueueStore.getState().items[0]!.requestedAt).toBe(firstRequestedAt);
-    expect(crmUpdateField).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(crmUpdateField).mock.calls[1]![0].requestedAt).toBe(firstRequestedAt);
+    expect(crmApproveWriteProposal).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(crmPrepareWriteProposal).mock.calls[1]![0].requestedAt).toBe(firstRequestedAt);
   });
 
   // The stale-guard: the backend re-fetches the field at approve time and
@@ -348,7 +390,7 @@ describe('field updates (Task 9c)', () => {
   // proposal was drafted. Reuses the SAME verify_pending machinery already
   // built for note/task — sendOne's error-string routing is kind-agnostic.
   it('maps a VerifyPending error on a field item to status "verify_pending"', async () => {
-    vi.mocked(crmUpdateField).mockRejectedValueOnce(
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(
       new Error('a previous identical write may have been delivered — verification pending, retry shortly'),
     );
     const s = useCrmWriteQueueStore.getState();
@@ -363,7 +405,7 @@ describe('field updates (Task 9c)', () => {
   // blind-overwrites — if it drifted since the proposal was drafted. Exact
   // message shape from src-tauri/src/commands/crm/write.rs's Display impl.
   it('parses a real StaleFieldValue rejection into status "stale", refreshes existingValue, and REBUILDS finalValue', async () => {
-    vi.mocked(crmUpdateField).mockRejectedValueOnce(
+    vi.mocked(crmApproveWriteProposal).mockRejectedValueOnce(
       new Error(
         'this field changed in the CRM since the proposal — current value: Robert owns a rental property and a lake house.',
       ),
@@ -394,12 +436,13 @@ describe('field updates (Task 9c)', () => {
   // Defense-in-depth: the card is expected to disable Approve while
   // finalValue is blank, but the store must never fire a network call for a
   // field item with nothing to write even if that guard is somehow bypassed.
-  it('never calls crmUpdateField for a field item whose finalValue is blank', async () => {
+  it('never prepares or approves a field item whose finalValue is blank', async () => {
     const s = useCrmWriteQueueStore.getState();
     s.enqueue(fieldItem({ finalValue: '   ' }));
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    expect(crmUpdateField).not.toHaveBeenCalled();
+    expect(crmPrepareWriteProposal).not.toHaveBeenCalled();
+    expect(crmApproveWriteProposal).not.toHaveBeenCalled();
     expect(useCrmWriteQueueStore.getState().items[0]!.status).not.toBe('sent');
   });
 });
@@ -475,9 +518,10 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
     });
     const id = useCrmWriteQueueStore.getState().items[0]!.id;
     await s.approve([id], '12345');
-    expect(crmUpdateField).toHaveBeenCalledWith(
+    expect(crmSaveWriteProposal).toHaveBeenCalledWith(
       expect.objectContaining({ finalValue: 'Robert owns a rental property.\n\nRetiring spring 2027.' }),
     );
+    expect(crmApproveWriteProposal).toHaveBeenCalledWith(id);
     expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
   });
 
@@ -506,130 +550,53 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
   });
 });
 
-const PERSIST_KEY = 'crm-write-queue-storage';
-
-describe('persistence (P1 — queued proposals must survive an app restart)', () => {
-  it('writes enqueued items to localStorage', () => {
-    useCrmWriteQueueStore.getState().enqueue({ kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x' });
-    const raw = localStorage.getItem(PERSIST_KEY);
-    expect(raw).toBeTruthy();
-    const parsed = JSON.parse(raw!) as { state: { items: unknown[] } };
-    expect(parsed.state.items).toHaveLength(1);
-    expect(parsed.state.items[0]).toMatchObject({ matterId: 'm1', title: 'T', status: 'proposed' });
-  });
-
-  it('restores a pending proposal from localStorage on a fresh module load (simulated app restart)', async () => {
+describe('hydrateFromBackend', () => {
+  it('loads pending encrypted backend proposals into the in-memory queue', async () => {
     mockMatterState.matters = [{ id: 'm1' }];
-    localStorage.setItem(
-      PERSIST_KEY,
-      JSON.stringify({
-        state: {
-          items: [
-            { id: 'x1', kind: 'note', matterId: 'm1', title: 'Persisted note', body: 'B', sourceRef: 'doc:x', status: 'proposed' },
-          ],
-        },
-        version: 1,
-      }),
-    );
-    vi.resetModules();
-    const mod = await import('@/platform/state/crmWriteQueueStore');
-    expect(mod.useCrmWriteQueueStore.getState().items).toHaveLength(1);
-    expect(mod.useCrmWriteQueueStore.getState().items[0]).toMatchObject({ id: 'x1', status: 'proposed' });
-  });
+    vi.mocked(crmListWriteProposals).mockResolvedValueOnce([
+      defaultBackendRecord({ id: 'x1', title: 'Persisted note' }),
+    ]);
 
-  it('reopens an item stuck mid-send (status "sending") as "proposed" on restart — the in-flight call died with the app', async () => {
-    mockMatterState.matters = [{ id: 'm1' }];
-    localStorage.setItem(
-      PERSIST_KEY,
-      JSON.stringify({
-        state: {
-          items: [{ id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'sending' }],
-        },
-        version: 1,
-      }),
-    );
-    vi.resetModules();
-    const mod = await import('@/platform/state/crmWriteQueueStore');
-    expect(mod.useCrmWriteQueueStore.getState().items[0]).toMatchObject({ id: 'x1', status: 'proposed' });
-  });
+    await useCrmWriteQueueStore.getState().hydrateFromBackend();
 
-  // Codex review catch: an "expired" status has nowhere to be displayed —
-  // its only possible surface is that matter's own MatterHub, and a deleted
-  // matter can never be reopened. Marking it 'expired' would strand it in
-  // localStorage forever with no way to see or dismiss it. Drop it instead.
-  it('drops a restored proposal (does not strand it as "expired") when its matter no longer exists', async () => {
-    mockMatterState.matters = []; // matter m1 was deleted in a previous session
-    localStorage.setItem(
-      PERSIST_KEY,
-      JSON.stringify({
-        state: {
-          items: [{ id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'proposed' }],
-        },
-        version: 1,
-      }),
-    );
-    vi.resetModules();
-    const mod = await import('@/platform/state/crmWriteQueueStore');
-    expect(mod.useCrmWriteQueueStore.getState().items).toEqual([]);
-  });
-
-  // Codex review catch: CrmWriteRow renders no Dismiss control for a 'sent'
-  // item (there's nothing left to act on), so a sent item that survived a
-  // restart would become a permanent, undismissable "done" card. Drop it
-  // instead — its job (confirming the send in that session) is already done.
-  it('drops an already-sent item on restart rather than letting it become a permanent undismissable card', async () => {
-    mockMatterState.matters = [{ id: 'm1' }];
-    localStorage.setItem(
-      PERSIST_KEY,
-      JSON.stringify({
-        state: {
-          items: [{ id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'sent', remoteId: '9' }],
-        },
-        version: 1,
-      }),
-    );
-    vi.resetModules();
-    const mod = await import('@/platform/state/crmWriteQueueStore');
-    expect(mod.useCrmWriteQueueStore.getState().items).toEqual([]);
-  });
-
-  it('never writes a sent item to localStorage in the first place', () => {
-    useCrmWriteQueueStore.setState({
-      items: [
-        { id: 'x1', kind: 'note', matterId: 'm1', title: 'T', body: 'B', sourceRef: 'doc:x', status: 'sent', remoteId: '9' },
-        { id: 'x2', kind: 'note', matterId: 'm1', title: 'T2', body: 'B2', sourceRef: 'doc:y', status: 'proposed' },
-      ],
+    expect(crmListWriteProposals).toHaveBeenCalledTimes(1);
+    expect(useCrmWriteQueueStore.getState().items).toHaveLength(1);
+    expect(useCrmWriteQueueStore.getState().items[0]).toMatchObject({
+      id: 'x1',
+      title: 'Persisted note',
+      status: 'proposed',
     });
-    const raw = localStorage.getItem(PERSIST_KEY);
-    const parsed = JSON.parse(raw!) as { state: { items: { id: string }[] } };
-    expect(parsed.state.items.map((i) => i.id)).toEqual(['x2']);
   });
 
-  it('drops structurally corrupt persisted entries instead of crashing', async () => {
+  it('reopens an item stuck mid-send as "proposed" because the old app process died', async () => {
     mockMatterState.matters = [{ id: 'm1' }];
-    localStorage.setItem(
-      PERSIST_KEY,
-      JSON.stringify({
-        state: {
-          items: [
-            { id: 'x1', kind: 'note', matterId: 'm1', title: 'Good', body: 'B', sourceRef: 'doc:x', status: 'proposed' },
-            { id: 'x2', kind: 'bogus', matterId: 'm1' }, // corrupted/unknown shape
-            null,
-            'not an object',
-          ],
-        },
-        version: 1,
-      }),
-    );
-    vi.resetModules();
-    const mod = await import('@/platform/state/crmWriteQueueStore');
-    expect(mod.useCrmWriteQueueStore.getState().items).toHaveLength(1);
-    expect(mod.useCrmWriteQueueStore.getState().items[0]).toMatchObject({ id: 'x1' });
+    vi.mocked(crmListWriteProposals).mockResolvedValueOnce([
+      defaultBackendRecord({ id: 'x1', status: 'sending' }),
+    ]);
+
+    await useCrmWriteQueueStore.getState().hydrateFromBackend();
+
+    expect(useCrmWriteQueueStore.getState().items[0]).toMatchObject({ id: 'x1', status: 'proposed' });
   });
 
-  it('does not crash when localStorage holds no persisted state at all (fresh install)', async () => {
-    vi.resetModules();
-    const mod = await import('@/platform/state/crmWriteQueueStore');
-    expect(mod.useCrmWriteQueueStore.getState().items).toEqual([]);
+  it('drops sent proposals and proposals for deleted matters during backend hydration', async () => {
+    mockMatterState.matters = [{ id: 'm1' }];
+    vi.mocked(crmListWriteProposals).mockResolvedValueOnce([
+      defaultBackendRecord({ id: 'sent', matterId: 'm1', status: 'sent', remoteId: '9' }),
+      defaultBackendRecord({ id: 'orphaned', matterId: 'missing' }),
+      defaultBackendRecord({ id: 'kept', matterId: 'm1' }),
+    ]);
+
+    await useCrmWriteQueueStore.getState().hydrateFromBackend();
+
+    expect(useCrmWriteQueueStore.getState().items.map((item) => item.id)).toEqual(['kept']);
+  });
+
+  it('handles a fresh backend with no saved proposals', async () => {
+    vi.mocked(crmListWriteProposals).mockResolvedValueOnce([]);
+
+    await useCrmWriteQueueStore.getState().hydrateFromBackend();
+
+    expect(useCrmWriteQueueStore.getState().items).toEqual([]);
   });
 });
