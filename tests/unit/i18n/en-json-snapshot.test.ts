@@ -71,8 +71,9 @@ describe('en.json structure snapshot', () => {
         "privacy": 35,
         "quick-open": 1,
         "research": 11,
+        "scheduling": 56,
         "search": 6,
-        "settings": 191,
+        "settings": 222,
         "shortcuts-overlay": 2,
         "spine": 10,
         "tab-guard": 3,
@@ -271,10 +272,12 @@ describe('en.json structure snapshot', () => {
     // +20 = FB2 railchrome: shared rail headers, search toggles, collapse labels,
     //       and rail action menu labels across Ask, Mail, Client Map, Meetings,
     //       Settings, Workflows, and Documents.
-    // +155 = onboarding reframe: V2 intro, start choice, compliance beat,
-    //       AI provider setup, connector copy, firm-progress labels, and
-    //       example questions now live in i18n instead of the copy helper.
-    expect(flat.length).toBe(2180); // Onboarding reframe moved V2 copy into i18n (+155)
+    // Merged demo build = onboarding reframe (V2 intro, start choice, compliance
+    // beat, AI provider setup, connector copy, firm-progress labels, example
+    // questions) + Calendly-style scheduling (Settings Scheduling section +
+    // Phase 2 advisor surface: top-bar entry, rail labels, booking-link actions,
+    // request statuses, availability controls, meeting-type panel, slot preview).
+    expect(flat.length).toBe(2267); // onboarding reframe (2180) + scheduling keys (+87)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

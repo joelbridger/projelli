@@ -13,12 +13,12 @@ function settingsNavButtons() {
 }
 
 describe('SettingsContent', () => {
-  it('renders the page header, six left-rail sections, content area, and actions menu', () => {
+  it('renders the page header, seven left-rail sections, content area, and actions menu', () => {
     render(<SettingsContent variant="page" />);
 
     expect(screen.getByTestId('settings-content')).toHaveAttribute('data-variant', 'page');
     expect(screen.getByTestId('settings-surface-header')).toBeInTheDocument();
-    expect(settingsNavButtons()).toHaveLength(6);
+    expect(settingsNavButtons()).toHaveLength(7);
     expect(screen.getByTestId('settings-content-scroll')).toBeInTheDocument();
 
     fireEvent.pointerDown(screen.getByTestId('settings-actions-menu'), { button: 0, ctrlKey: false });
@@ -35,6 +35,7 @@ describe('SettingsContent', () => {
     ['memory', 'section-ai'],
     ['ai-privacy', 'section-ai'],
     ['privacy', 'section-privacy'],
+    ['scheduling', 'section-scheduling'],
     ['voice', 'section-voice'],
     ['shortcuts', 'section-help'],
     ['marketplace', 'section-advanced'],

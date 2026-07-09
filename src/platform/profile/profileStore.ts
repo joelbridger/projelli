@@ -15,10 +15,12 @@ interface ProfileState {
   soloAvatar: string | null; // data URL
   firmName: string;
   firmLogo: string | null; // data URL
+  advisorTimezone: string;
   setSoloName: (name: string) => void;
   setSoloAvatar: (dataUrl: string | null) => void;
   setFirmName: (name: string) => void;
   setFirmLogo: (dataUrl: string | null) => void;
+  setAdvisorTimezone: (timezone: string) => void;
 }
 
 export const useProfileStore = create<ProfileState>()(
@@ -28,10 +30,12 @@ export const useProfileStore = create<ProfileState>()(
       soloAvatar: null,
       firmName: '',
       firmLogo: null,
+      advisorTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
       setSoloName: (soloName) => { set({ soloName }); },
       setSoloAvatar: (soloAvatar) => { set({ soloAvatar }); },
       setFirmName: (firmName) => { set({ firmName }); },
       setFirmLogo: (firmLogo) => { set({ firmLogo }); },
+      setAdvisorTimezone: (advisorTimezone) => { set({ advisorTimezone }); },
     }),
     { name: SK_PROFILE },
   ),

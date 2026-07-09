@@ -38,6 +38,7 @@ export const SETTINGS_GROUP_SEARCH: Record<string, { section: SectionCategory; k
   'aip-memory':     { section: 'ai',         keywords: ['memory', 'facts', 'remember', 'context', 'recall'] },
   'privacy-core':   { section: 'privacy',    keywords: ['privacy', 'telemetry', 'tracking', 'analytics', 'anonymous', 'opt out', 'confidential', 'privileged', 'egress', 'network', 'local only', 'data map'] },
   'privacy-recording': { section: 'privacy', keywords: ['recording', 'notice', 'meeting', 'consent', 'strict', 'spoken notice', 'notice card'] },
+  'scheduling-booking': { section: 'scheduling', keywords: ['scheduling', 'booking', 'calendar link', 'availability', 'working hours', 'meeting type', 'buffer', 'minimum notice', 'timezone'] },
   'voice-input':    { section: 'voice',      keywords: ['voice', 'microphone', 'speech to text', 'dictation', 'transcribe', 'transcription', 'push to talk'] },
   'voice-tts':      { section: 'voice',      keywords: ['voice', 'text to speech', 'read aloud', 'narration', 'pronunciation', 'spoken language'] },
   'adv-extensions': { section: 'advanced',   keywords: ['extension', 'extensions', 'plugin', 'plugins', 'marketplace', 'integration', 'integrations', 'connector', 'claude desktop', 'template model', 'add on', 'addon'] },

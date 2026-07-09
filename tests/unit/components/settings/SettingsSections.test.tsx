@@ -30,6 +30,7 @@ describe('resolveSection / CATEGORY_ALIAS_MAP', () => {
     ['memory', 'ai'],
     ['ai-privacy', 'ai'],
     ['privacy', 'privacy'],
+    ['scheduling', 'scheduling'],
     ['voice', 'voice'],
     ['advanced', 'advanced'],
     ['help', 'help'],
@@ -68,14 +69,15 @@ describe('SettingsModal nav', () => {
     { id: 'workspace', label: 'Workspace' },
     { id: 'ai', label: 'AI' },
     { id: 'privacy', label: 'Privacy' },
+    { id: 'scheduling', label: 'Scheduling' },
     { id: 'voice', label: 'Voice' },
     { id: 'advanced', label: 'Advanced' },
     { id: 'help', label: 'Help' },
   ];
 
-  it('renders exactly six standard nav buttons', () => {
+  it('renders exactly seven standard nav buttons', () => {
     renderModal();
-    expect(navButtons()).toHaveLength(6);
+    expect(navButtons()).toHaveLength(7);
   });
 
   for (const { id, label } of sections) {
@@ -92,6 +94,7 @@ describe('SettingsModal deep-link aliases', () => {
     ['memory', 'section-ai'],
     ['ai-privacy', 'section-ai'],
     ['privacy', 'section-privacy'],
+    ['scheduling', 'section-scheduling'],
     ['integrations', 'section-workspace'],
     ['license', 'section-workspace'],
     ['firm', 'section-workspace'],

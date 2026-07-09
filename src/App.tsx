@@ -45,7 +45,8 @@ import { LazyBoundary } from '@/ui/LazyBoundary';
 
 import { AppLogo } from '@/ui/brand/AppLogo';
 import { Button } from '@/ui/button';
-import { Command } from 'lucide-react';
+import { IconButton } from '@/ui/kp';
+import { CalendarDays, Command } from 'lucide-react';
 import { TrialBanner } from '@/features/account/trial';
 import { hasCompletedOnboarding } from '@/features/onboarding';
 // FirstRunOverlay renders the live 4-step OnboardingV2 flow.
@@ -541,6 +542,12 @@ function AppShell() {
     },
     [pushNavigationSnapshot, sidebarActiveTab]
   );
+  const openSchedulingPage = useCallback(() => {
+    if (sidebarActiveTab !== 'scheduling') {
+      pushNavigationSnapshot();
+    }
+    setSidebarActiveTab('scheduling');
+  }, [pushNavigationSnapshot, sidebarActiveTab]);
   const handleAppBack = useCallback(() => {
     const snapshot = popNavigationEntry();
     if (!snapshot) return;
@@ -1917,6 +1924,15 @@ function AppShell() {
               Center + Activity Log as sections (see AppSurfaceRouter). The
               egress controls stay in the TrustBar; Email + Documents stay
               reachable from the Client Map's per-client quick actions. */}
+          <IconButton
+            icon={CalendarDays}
+            label={t('scheduling.surface.topbar-label')}
+            size="sm"
+            variant={sidebarActiveTab === 'scheduling' ? 'secondary' : 'ghost'}
+            aria-current={sidebarActiveTab === 'scheduling' ? 'page' : undefined}
+            data-testid="scheduling-topbar-button"
+            onClick={openSchedulingPage}
+          />
           <SettingsGearButton
             active={sidebarActiveTab === 'settings'}
             onOpenSettings={() => {

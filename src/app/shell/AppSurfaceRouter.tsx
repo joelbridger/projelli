@@ -14,6 +14,7 @@ import { MattersHome } from '@/features/matters/MattersHome';
 import { Ask } from '@/features/ask/Ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
+import { SchedulingHome } from '@/features/scheduling/SchedulingHome';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 import { MainPanel } from '@/app/shell/layout/MainPanel';
 import { SurfaceLoadingFallback } from '@/app/shell/common/SurfaceLoadingFallback';
@@ -656,6 +657,8 @@ export function AppSurfaceRouter({
             />
           )}
         </LazyBoundary>
+      ) : sidebarActiveTab === 'scheduling' ? (
+        <SchedulingHome />
       ) : sidebarActiveTab === 'settings' ? (
         // Full-page Settings surface — the SAME content as the quick modal
         // (5-section nav, search, accordion sub-sections, Export/Import/Reset),

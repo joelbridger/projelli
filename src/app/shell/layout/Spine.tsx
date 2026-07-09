@@ -54,6 +54,7 @@ type SpineTab =
   | 'workflows'
   | 'audit'
   | 'email'
+  | 'scheduling'
   | 'settings'
   | 'privacy';
 
@@ -66,6 +67,7 @@ interface SpineProps {
   trashContent?: React.ReactNode;
   mattersContent?: React.ReactNode;
   emailContent?: React.ReactNode | undefined;
+  schedulingContent?: React.ReactNode | undefined;
   settingsContent?: React.ReactNode | undefined;
   privacyContent?: React.ReactNode | undefined;
   activeTab?: string | undefined;
@@ -83,6 +85,7 @@ export function Spine({
   auditContent,
   mattersContent,
   emailContent,
+  schedulingContent,
   settingsContent,
   privacyContent,
   activeTab = 'matters',
@@ -159,6 +162,7 @@ export function Spine({
     files: fileTreeContent,
     search: searchContent,
     email: emailContent,
+    scheduling: schedulingContent,
     workflows: workflowContent,
     audit: auditContent,
     privacy: privacyContent,

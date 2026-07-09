@@ -12,5 +12,6 @@ export type AppSurface =
   | 'research'
   | 'audit'
   | 'privacy'
+  | 'scheduling'
   | 'settings'
   | 'trash';
