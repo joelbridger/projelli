@@ -19,8 +19,8 @@ vi.mock('@/platform/utils/mail-commands', async (importOriginal) => {
   };
 });
 
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  readFile: vi.fn(async () => new Uint8Array([4, 5, 6])),
+vi.mock('@/platform/fs/tauriFsPlugin', () => ({
+  readTauriFile: vi.fn(async () => new Uint8Array([4, 5, 6])),
 }));
 
 import { MeetingEntry } from '@/features/meetings/MeetingEntry';

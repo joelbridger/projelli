@@ -34,8 +34,8 @@ vi.mock('@/platform/fs/pathResolve', () => ({
 }));
 
 const readFileMock = vi.fn();
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  readFile: (...args: unknown[]) => readFileMock(...args),
+vi.mock('@/platform/fs/tauriFsPlugin', () => ({
+  readTauriFile: (...args: unknown[]) => readFileMock(...args),
 }));
 
 import { applyLetterheadIfConfigured } from '@/platform/utils/docx-io';

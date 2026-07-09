@@ -49,8 +49,8 @@ vi.mock('@tauri-apps/plugin-dialog', () => ({
   save: (...args: unknown[]) => saveDialogMock(...args),
 }));
 const readFileMock = vi.fn();
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  readFile: (...args: unknown[]) => readFileMock(...args),
+vi.mock('@/platform/fs/tauriFsPlugin', () => ({
+  readTauriFile: (...args: unknown[]) => readFileMock(...args),
 }));
 const saveFileMock = vi.fn();
 vi.mock('@/platform/utils/saveFile', () => ({
