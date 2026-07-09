@@ -1,5 +1,11 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-09 ~01:20 — DEMO PREP + JUMP-PARITY PLANNING (coordinator-12)
+
+- DEMO (tonight): Legion clean-slated (all AI keys deleted via app keychain + all localStorage cleared) → boots to the restored intro (3 blue-illustration cards, red brand accents) + clean ChooseStart. Connector logos (M365/Gmail/OneDrive/Wealthbox) shipped to connect step. Notice Card now shows "⏺ Recording · Advisor Prep Hero" ({product} token, brand-swappable). Rail widths unified (one --kp-rail-width token). All on lp/ux-simplify-v1, shipped to Legion (v4), verified clean+live. Legion left PRISTINE for Jameson.
+- ⭐ NOTICE CARD: default name template changed to show the product name (was advisor-name only). Jameson wanted "recorded by Advisor Prep Hero" visible.
+- JUMP PARITY (Jameson wants to compete head-on): plan published (jameworld.com/claudereports "Beating Jump"). Calendly clone: ~60% of plumbing exists (calendar READ, email send, UTC times); MISSING = calendar WRITE + scopes (ReadWrite, users reconnect) + meeting-link creation + booking domain (all net-new). KEY DECISION for Jameson: where the public booking page lives (rec: Option A privacy-preserving on the firm backend api.lanternplatform.app, stores only busy/free + slug, never client data). Schwab account-opening: prefill-paperwork half buildable NOW (docx engine + CRM + DocuSign exist); one-click-Schwab = DAO behind Schwab approved-partner program (~1yr relationship/security/legal). Research saved in coordination/reports/{calendly-build-seams,schwab-integration-research,jump-parity-plan}.md.
+- AWAITING JAMESON: (1) Calendly hosting decision A vs B → then I build; (2) go on Schwab prefill build + partner-application drafting; (3) still-open: approve-all on the v2 UI preview; assured-routing lane (built, gated); intro cards blue-vs-red.
 ## UPDATE 2026-07-09 — FB2 COMPLETE: preview v2 live on the Legion @ de6a46cd (coordinator-12)
 
 - All 7 FB2 lanes merged; gate: 7,108 tests + all guards green (final run: locale-only delta after full pass). Gallery v2 at the same artifact URL. Legion verified serving v2 (new-client dialog + APH logo probed).
