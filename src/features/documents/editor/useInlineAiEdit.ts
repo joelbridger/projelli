@@ -25,6 +25,7 @@ import {
 import { buildEditSystemPrompt } from '@/features/documents/editor/aiEdit/editPrompt';
 import type { DiffHunk, HunkResolution } from '@/features/documents/editor/aiEdit/types';
 import type { Provider } from '@/platform/providers/Provider';
+import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 
@@ -194,6 +195,7 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
         // We could show a toast here; for now just abort gracefully.
         return;
       }
+      const sendMessageStreaming = provider.sendMessageStreaming.bind(provider);
 
       const meta = provider.getMetadata();
       const modelId = `${meta.providerId ?? meta.name ?? 'unknown'}/${meta.model}`;
@@ -221,12 +223,18 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
       abortRef.current = controller;
 
       try {
-        await provider.sendMessageStreaming(instruction, {
-          systemPrompt,
-          signal: controller.signal,
-          onChunk: (chunk) => {
-            setSessionProposed((prev) => prev + chunk);
-          },
+        await runWithEgressAudit({
+          provider,
+          providerId: meta.providerId ?? 'unknown',
+          model: meta.model,
+          operation: () =>
+            sendMessageStreaming(instruction, {
+              systemPrompt,
+              signal: controller.signal,
+              onChunk: (chunk) => {
+                setSessionProposed((prev) => prev + chunk);
+              },
+            }),
         });
       } catch {
         // Silent: the UI still shows whatever streamed up to the abort

@@ -1,6 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
 import { meetingNoteFromTranscript, formatCitationsForDisplay } from '@/features/meetings/meetingNoteTemplate';
-import type { Provider } from '@/platform/providers/Provider';
 
 const transcript = {
   segments: [
@@ -53,27 +52,35 @@ describe('meeting note template', () => {
   // QA-31: run() must forward a caller-supplied AbortSignal to sendMessage so
   // the notes-timeout watchdog can actually cancel a stalled provider call,
   // not just orphan it.
-  it('forwards an AbortSignal to provider.sendMessage when one is supplied', async () => {
-    const sendMessage = vi.fn(async () => ({ content: '- Wants a 529 [t:341000]' }));
-    const provider = { sendMessage } as unknown as Provider;
+  it('forwards an AbortSignal to the audited sender when one is supplied', async () => {
+    const send = vi.fn(async () => ({
+      content: '- Wants a 529 [t:341000]',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      cost: 0,
+      model: 'test',
+    }));
     const controller = new AbortController();
     await meetingNoteFromTranscript.run({
       transcript,
       clientName: 'The Hendersons',
-      provider,
+      send,
       signal: controller.signal,
     });
-    expect(sendMessage).toHaveBeenCalledWith(
+    expect(send).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ signal: controller.signal }),
     );
   });
 
-  it('omits signal from sendMessage options when none is supplied', async () => {
-    const sendMessage = vi.fn(async () => ({ content: '- Wants a 529 [t:341000]' }));
-    const provider = { sendMessage } as unknown as Provider;
-    await meetingNoteFromTranscript.run({ transcript, clientName: 'The Hendersons', provider });
-    const [, opts] = sendMessage.mock.calls[0] as unknown as [string, Record<string, unknown>];
+  it('omits signal from sender options when none is supplied', async () => {
+    const send = vi.fn(async () => ({
+      content: '- Wants a 529 [t:341000]',
+      usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+      cost: 0,
+      model: 'test',
+    }));
+    await meetingNoteFromTranscript.run({ transcript, clientName: 'The Hendersons', send });
+    const [, opts] = send.mock.calls[0] as unknown as [string, Record<string, unknown>];
     expect('signal' in opts).toBe(false);
   });
 });

@@ -27,7 +27,6 @@ import { persist } from 'zustand/middleware';
 import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
 import { composeFieldBlend, isWritableField } from '@/platform/state/fieldBlend';
 import { useMatterStore } from '@/platform/matter/matterStore';
-import type { Provider } from '@/platform/providers/Provider';
 
 export type CrmWriteStatus = 'proposed' | 'sending' | 'sent' | 'failed' | 'verify_pending' | 'stale';
 
@@ -111,12 +110,10 @@ interface CrmWriteQueueState {
       newValue: string;
       sourceRef: string;
     } & (
-      | { provider?: undefined; onBeforeProviderCall?: undefined }
-      // Codex review catch (P2): onBeforeProviderCall is REQUIRED whenever a
-      // provider is passed — mirrors composeFieldBlend's own constraint, so
-      // the required egress-audit hook can't be silently dropped at this
-      // (the real) entry point either. See fieldBlend.ts's doc comment.
-      | { provider: Provider; onBeforeProviderCall: (prompt: string) => void }
+      | { send?: undefined }
+      // Codex review catch (P2): this must be an audited send function, not a
+      // raw provider, so the required egress receipt can't be silently skipped.
+      | { send: (prompt: string) => Promise<string> }
     ),
   ) => Promise<void>;
 }
@@ -352,13 +349,12 @@ export const useCrmWriteQueueStore = create<CrmWriteQueueState>()(
     if (!isWritableField(args.field)) {
       throw new Error(`"${args.field}" is not a writable Wealthbox field yet.`);
     }
-    const finalValue = args.provider
+    const finalValue = args.send
       ? await composeFieldBlend({
           field: args.field,
           existingValue: args.existingValue,
           newValue: args.newValue,
-          provider: args.provider,
-          onBeforeProviderCall: args.onBeforeProviderCall,
+          send: args.send,
         })
       : await composeFieldBlend({
           field: args.field,

@@ -28,6 +28,8 @@ import type {
   Provider,
   StructuredOutputOptions,
 } from '@/platform/providers/Provider';
+import { runWithEgressAudit, type EgressAuditLogger } from '@/platform/privacy/sendWithEgressAudit';
+import type { AuditScope } from '@/platform/types/audit';
 
 /** How many messages between checkpoints (both roles counted). */
 export const EXTRACTION_WINDOW = 10;
@@ -173,6 +175,13 @@ export function buildExtractionPrompt(messages: ChatMessage[]): string {
 export async function runExtraction(
   provider: Provider,
   messages: ChatMessage[],
+  audit: {
+    providerId: string;
+    model?: string;
+    scope?: AuditScope;
+    onAuditLog?: EgressAuditLogger;
+    chatId?: string;
+  },
 ): Promise<ProposedFact[]> {
   // Slice to the last window so long chats don't blow up the token
   // budget. Always include at least the trigger-window size so there's
@@ -189,10 +198,24 @@ export async function runExtraction(
     maxTokens: 512,
   };
   try {
-    const result = await provider.structuredOutput<ExtractionResult>(
-      prompt,
-      opts,
-    );
+    const result = await runWithEgressAudit<ExtractionResult>({
+      provider,
+      providerId: audit.providerId,
+      ...(audit.model ? { model: audit.model } : {}),
+      ...(audit.scope ? { scope: audit.scope } : {}),
+      ...(audit.onAuditLog ? { onAuditLog: audit.onAuditLog } : {}),
+      operation: () => provider.structuredOutput<ExtractionResult>(prompt, opts),
+      modelCall: (output) => ({
+        action: 'model_call',
+        description: `Fact extraction to ${audit.model ?? provider.getMetadata().model}`,
+        model: audit.model ?? provider.getMetadata().model,
+        inputs: { promptLength: prompt.length },
+        outputs: { factCount: Array.isArray(output.facts) ? output.facts.length : 0 },
+        userDecision: 'auto',
+        metadata: { feature: 'fact_extraction', ...(audit.chatId ? { chatId: audit.chatId } : {}) },
+        provider: audit.providerId,
+      }),
+    });
     if (!result || !Array.isArray(result.facts)) return [];
     const proposed: ProposedFact[] = [];
     for (const f of result.facts) {

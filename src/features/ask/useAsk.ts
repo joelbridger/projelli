@@ -44,6 +44,7 @@ import {
   isLocalProvider,
   type ConfidentialityMode,
 } from '@/platform/privacy/egress';
+import { runWithEgressAudit, sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import {
   fileToolsAllowed,
   resolveWorkspaceRetrieval,
@@ -1443,30 +1444,37 @@ export function useAsk({
         });
         try {
           if (typeof provider.sendMessageStreaming === 'function') {
+            const sendMessageStreaming = provider.sendMessageStreaming.bind(provider);
             failedStage = 'provider-send';
             providerCallStarted = true;
             const streamResp = await Promise.race([
-              provider.sendMessageStreaming(q, {
-                systemPrompt,
-                // lp/localai-patience (round 2) — align the provider's whole-
-                // request timeout with the UI first-token budget for local sends.
-                ...(providerRequestTimeoutMs !== undefined
-                  ? { requestTimeoutMs: providerRequestTimeoutMs }
-                  : {}),
-                onChunk: (chunk) => {
-                  if (abort.signal.aborted) return;
-                  watchdog.markProgress();
-                  setAnswerStalled(false);
-                  // lp/localai-patience — the first token means eval is done and
-                  // generation has begun; drop the calm "reading your documents"
-                  // state so the streamed answer replaces the spinner.
-                  setLocalEvaluating(false);
-                  answerText += chunk;
-                  setStreamingTurn((prev) =>
-                    prev ? { ...prev, answer: answerText } : prev
-                  );
-                },
-                signal: abort.signal,
+              runWithEgressAudit({
+                provider,
+                providerId: providerAudit.providerId,
+                model: providerAudit.model,
+                operation: () =>
+                  sendMessageStreaming(q, {
+                    systemPrompt,
+                    // lp/localai-patience (round 2) — align the provider's whole-
+                    // request timeout with the UI first-token budget for local sends.
+                    ...(providerRequestTimeoutMs !== undefined
+                      ? { requestTimeoutMs: providerRequestTimeoutMs }
+                      : {}),
+                    onChunk: (chunk) => {
+                      if (abort.signal.aborted) return;
+                      watchdog.markProgress();
+                      setAnswerStalled(false);
+                      // lp/localai-patience — the first token means eval is done and
+                      // generation has begun; drop the calm "reading your documents"
+                      // state so the streamed answer replaces the spinner.
+                      setLocalEvaluating(false);
+                      answerText += chunk;
+                      setStreamingTurn((prev) =>
+                        prev ? { ...prev, answer: answerText } : prev
+                      );
+                    },
+                    signal: abort.signal,
+                  }),
               }),
               stallPromise,
             ]);
@@ -1477,19 +1485,37 @@ export function useAsk({
             failedStage = 'provider-send';
             providerCallStarted = true;
             const resp = await Promise.race([
-              provider.sendMessage(q, {
-                systemPrompt,
-                // lp/localai-patience (round 2) — same alignment for the non-
-                // streaming path (local sends only; cloud keeps its default).
-                ...(providerRequestTimeoutMs !== undefined
-                  ? { requestTimeoutMs: providerRequestTimeoutMs }
-                  : {}),
+              sendWithEgressAudit({
+                provider,
+                providerId: providerAudit.providerId,
+                model: providerAudit.model,
+                prompt: q,
+                options: {
+                  systemPrompt,
+                  // lp/localai-patience (round 2) — same alignment for the non-
+                  // streaming path (local sends only; cloud keeps its default).
+                  ...(providerRequestTimeoutMs !== undefined
+                    ? { requestTimeoutMs: providerRequestTimeoutMs }
+                    : {}),
+                },
+                ...(onAuditLog ? { onAuditLog } : {}),
+                scope: buildAuditScope(retrievalScope),
+                fileToolsEnabled,
+                isDemo: IS_DEMO,
+                hasDemoByokKey: hasDemoByokKey(),
+                modelCall: {
+                  description: `Search question to ${providerAudit.model}`,
+                  inputs: { promptLength: q.length },
+                  outputs: (response) => ({ contentLength: response.content.length }),
+                  metadata: { chatId, askScope },
+                },
               }),
               stallPromise,
             ]);
+            if (isVerifiableProvider(providerAudit.providerId)) {
+              markKeyVerified(providerAudit.providerId);
+            }
             answerText = resp.content;
-            emitSuccessfulEgress();
-            emitModelCall(answerText.length, resp.usage, resp.cost);
           }
         } finally {
           watchdog.cancel();

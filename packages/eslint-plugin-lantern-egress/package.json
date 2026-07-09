@@ -1,0 +1,17 @@
+{
+  "name": "eslint-plugin-lantern-egress",
+  "version": "0.1.0",
+  "description": "Custom ESLint rule that flags non-streaming provider sends which bypass the shared egress audit wrapper.",
+  "license": "MIT",
+  "private": true,
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "src"
+  ],
+  "peerDependencies": {
+    "eslint": ">=8.0.0"
+  }
+}

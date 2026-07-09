@@ -7,11 +7,11 @@
  */
 import type { TranscriptFile } from '@/platform/types/meeting';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
-import { meetingNoteFromTranscript, formatCitationsForDisplay } from './meetingNoteTemplate';
-import { matterLabel } from '@/platform/rag/matterResolver';
-import { useMatterStore } from '@/platform/matter/matterStore';
-import type { Provider } from '@/platform/providers/Provider';
-import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
+import { formatCitationsForDisplay } from './meetingNoteTemplate';
+import {
+  generateMeetingNoteMarkdown,
+  type ResolvedMeetingNotesProvider,
+} from './meetingNotesAi';
 
 /** The one-segment pseudo-transcript a dictated note becomes — citations are
  *  all `[t:0]`, which is acceptable since there's only ever one source. */
@@ -53,7 +53,7 @@ export async function dictationToMeeting(
   matterId: string,
   matterFolder: string,
   recordedAt: string,
-  resolveProvider: () => Promise<{ provider: Provider }> = buildResolvedProviderForGlance,
+  resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>,
 ): Promise<DictationMeetingFolder> {
   const transcript = buildPseudoTranscript(noteText, matterId, recordedAt);
   const folderName = `${recordedAt.slice(0, 10)}-dictated-${String(Date.parse(recordedAt) || 0)}`;
@@ -61,11 +61,12 @@ export async function dictationToMeeting(
 
   await ws.writeFile(`${meetingDir}/transcript.json`, JSON.stringify(transcript, null, 2));
 
-  const matter = useMatterStore.getState().matters.find((m) => m.id === matterId);
-  const clientName = matter ? matterLabel(matter) : matterId;
   try {
-    const { provider } = await resolveProvider();
-    const markdown = await meetingNoteFromTranscript.run({ transcript, clientName, provider });
+    const markdown = await generateMeetingNoteMarkdown({
+      transcript,
+      matterId,
+      ...(resolveProvider ? { resolveProvider } : {}),
+    });
     const { markdownToDocxBytes, applyLetterheadIfConfigured } = await import('@/platform/utils/docx-io');
     // Same advisor-facing invariant as meetingStore's recording path: raw
     // [t:ms] tokens never reach notes.docx. 'omit' (not a timestamp) because

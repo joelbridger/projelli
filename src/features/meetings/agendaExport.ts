@@ -7,10 +7,9 @@
 
 import type { Provider } from '@/platform/providers/Provider';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
-import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { AuditService } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import type { AuditEntry } from '@/platform/types/audit';
 import type { GeneratedBrief } from './generateBrief';
 
 // codex-review (wave-1c self-review round 2, P2): this direct
@@ -20,6 +19,19 @@ import type { GeneratedBrief } from './generateBrief';
 // workflows') sink generateBrief.ts uses, for consistency within this
 // feature area.
 const agendaAudit = new AuditService('workflows');
+function onAgendaAuditLog(entry: Omit<AuditEntry, 'id' | 'timestamp'>): void {
+  agendaAudit.log(entry.action, entry.description, {
+    ...(entry.model !== undefined ? { model: entry.model } : {}),
+    inputs: entry.inputs,
+    outputs: entry.outputs,
+    ...(entry.userDecision !== undefined ? { userDecision: entry.userDecision } : {}),
+    metadata: entry.metadata,
+    ...(entry.tokensIn !== undefined ? { tokensIn: entry.tokensIn } : {}),
+    ...(entry.tokensOut !== undefined ? { tokensOut: entry.tokensOut } : {}),
+    ...(entry.costUsd !== undefined ? { costUsd: entry.costUsd } : {}),
+    ...(entry.provider !== undefined ? { provider: entry.provider } : {}),
+  });
+}
 
 const REQUIRED_SECTIONS = [
   '## Topics to cover',
@@ -86,45 +98,21 @@ export async function agendaMarkdownFromBrief(
     providerId = resolved.providerId;
   }
   try {
-    // Re-check right before the send (matterAtAGlance's gold pattern): the
-    // provider was resolved above, possibly after awaiting keychain reads,
-    // so a Local-only flip mid-resolve must not slip this client's brief to
-    // the cloud anyway.
-    assertLocalOnlyAllowsSend(providerId);
-    // Trust-fixes finding #1: log egress IMMEDIATELY BEFORE the send, not
-    // only a model_call entry after success — a timeout or provider error
-    // previously left no trace that this client's brief left the machine.
-    const egress = resolveEgress({
-      provider: providerId,
-      mode: getConfidentialityMode(),
-      isDemo: false,
-      assuredAvailable: false,
-    });
-    agendaAudit.append({
-      type: 'egress',
-      timestamp: new Date().toISOString(),
-      payload: {
-        provider: egress.provider,
-        model: provider.getMetadata().model,
-        mode: getConfidentialityMode(),
-        destination: egress.destination,
-        dataLeaves: egress.dataLeaves,
-        // Coordinator review catch: without scope, this send only ever
-        // showed up in the all-matters Activity Log view, never in this
-        // client's own confidentiality report.
-        scope: { kind: 'matter', matterId: opts.matterId },
+    const model = provider.getMetadata().model;
+    const res = await sendWithEgressAudit({
+      provider,
+      providerId,
+      model,
+      prompt: `Client: ${opts.clientLabel}\nMeeting: ${opts.eventTitle}\n<internal_brief>\n${brief.markdown}\n</internal_brief>`,
+      options: { systemPrompt: SYSTEM_PROMPT, maxTokens: 700 },
+      onAuditLog: onAgendaAuditLog,
+      scope: { kind: 'matter', matterId: opts.matterId },
+      modelCall: {
+        description: `Agenda rewrite for ${opts.eventTitle}`,
+        inputs: { eventTitle: opts.eventTitle },
+        outputs: (response) => ({ contentLength: response.content.length }),
+        metadata: { feature: 'meeting_agenda', provider: providerId },
       },
-    });
-    const res = await provider.sendMessage(
-      `Client: ${opts.clientLabel}\nMeeting: ${opts.eventTitle}\n<internal_brief>\n${brief.markdown}\n</internal_brief>`,
-      { systemPrompt: SYSTEM_PROMPT, maxTokens: 700 }
-    );
-    agendaAudit.log('model_call', `Agenda rewrite for ${opts.eventTitle}`, {
-      model: provider.getMetadata().model,
-      inputs: { eventTitle: opts.eventTitle },
-      outputs: { contentLength: res.content.length },
-      userDecision: 'auto',
-      metadata: { feature: 'meeting_agenda', provider: providerId },
     });
     const md = res.content.trim();
     const wellFormed = REQUIRED_SECTIONS.every((s) => md.includes(s));

@@ -28,6 +28,7 @@ const baseOpts: CompressionOptions = {
   keepRecentTurns: 2,
   batchTokenTarget: 10_000,
   fastProvider: mockProvider(),
+  sendSummary: (provider, prompt, options) => provider.sendMessage(prompt, options),
 };
 
 describe('estimateTokens', () => {

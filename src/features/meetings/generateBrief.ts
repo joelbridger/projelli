@@ -203,6 +203,7 @@ async function generateBriefBullets(
     }),
   );
   try {
+    // eslint-disable-next-line lantern-egress/no-direct-provider-send -- inline guard above calls assertLocalOnlyAllowsSend and writes the custom egress receipt before this structured call.
     const result = await provider.structuredOutput<{ bullets?: unknown }>(prompt, {
       schema: BULLET_SCHEMA,
       systemPrompt: BULLET_SYSTEM_PROMPT,

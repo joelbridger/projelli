@@ -8,6 +8,7 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { isLocalProvider } from '@/platform/privacy/egress';
+import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import { getFileAccessConsent } from '@/platform/state/aiChatStore';
 import { fileToolsAllowed } from '@/platform/ai/fileAccessConsent';
 import type { Provider } from '@/platform/providers/Provider';
@@ -55,19 +56,20 @@ export async function runWholePracticeAsk(
       throw new WholePracticeConsentRequiredError();
     }
   }
-  const response = await resolved.provider.sendMessage(userMessage, sendOpts);
-  options?.onAuditLog?.({
-    action: 'model_call',
-    description: `Whole-practice question to ${resolved.model} (summaries only, ${String(digest.clients.length)} clients)`,
+  const response = await sendWithEgressAudit({
+    provider: resolved.provider,
+    providerId: resolved.providerId,
     model: resolved.model,
-    inputs: { question, clients: digest.clients.length, facts: digest.totalFacts },
-    outputs: { contentLength: response.content.length },
-    userDecision: 'auto',
-    metadata: { feature: 'whole_practice_ask', scope: 'summaries-only' },
-    tokensIn: response.usage.inputTokens,
-    tokensOut: response.usage.outputTokens,
-    costUsd: response.cost,
-    provider: resolved.providerId,
+    prompt: userMessage,
+    options: sendOpts,
+    ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
+    scope: { kind: 'allMatters' },
+    modelCall: {
+      description: `Whole-practice question to ${resolved.model} (summaries only, ${String(digest.clients.length)} clients)`,
+      inputs: { question, clients: digest.clients.length, facts: digest.totalFacts },
+      outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+      metadata: { feature: 'whole_practice_ask', scope: 'summaries-only' },
+    },
   });
   const parsed = parseBookAskResponse(response.content, digest);
   return { ...parsed, model: resolved.model };

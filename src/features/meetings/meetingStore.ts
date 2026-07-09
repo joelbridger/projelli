@@ -21,13 +21,15 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlance';
-import { matterLabel } from '@/platform/rag/matterResolver';
 import { MemoryService } from '@/platform/rag/MemoryService';
 import {
-  meetingNoteFromTranscript,
   formatCitationsForDisplay,
 } from '@/features/meetings/meetingNoteTemplate';
+import {
+  generateMeetingNoteMarkdown,
+  MeetingNotesLocalOnlyError,
+  type ResolvedMeetingNotesProvider,
+} from '@/features/meetings/meetingNotesAi';
 import { withMeetingNotesTimeout, isMeetingNotesTimeoutError } from '@/features/meetings/meetingNotesTimeout';
 import {
   LocalOnlyEgressError,
@@ -224,7 +226,7 @@ interface MeetingState {
   dismissWriteFailure: () => void;
   startRecording: (matterId: string, opts: StartOpts) => Promise<void>;
   stopRecording: (opts?: {
-    resolveProvider?: () => ReturnType<typeof buildResolvedProviderForGlance>;
+    resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>;
   }) => Promise<void>;
   /** Polls the REAL backend recording status (elapsed time + any chunk-write
    *  failure) every second — called by RecordPill's own timer. QA-35: this
@@ -370,7 +372,8 @@ function classifyNotesError(err: unknown): MeetingNotesError['kind'] {
   if (
     err instanceof LocalOnlyEgressError ||
     err instanceof LocalOnlyExternalError ||
-    err instanceof ConfidentialityChoiceRequiredError
+    err instanceof ConfidentialityChoiceRequiredError ||
+    err instanceof MeetingNotesLocalOnlyError
   ) {
     return 'gate-blocked';
   }
@@ -581,7 +584,7 @@ async function indexMeetingFile(
 async function tryGenerateNotes(
   meetingDir: string,
   matterId: string,
-  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance>
+  resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>
 ): Promise<void> {
   const ws = activeWorkspaceService;
   if (!ws) return;
@@ -596,13 +599,13 @@ async function tryGenerateNotes(
     return;
   }
   try {
-    const matter = useMatterStore
-      .getState()
-      .matters.find((m) => m.id === matterId);
-    const clientName = matter ? matterLabel(matter) : matterId;
-    const { provider } = await resolveProvider();
     const markdown = await withMeetingNotesTimeout((signal) =>
-      meetingNoteFromTranscript.run({ transcript, clientName, provider, signal })
+      generateMeetingNoteMarkdown({
+        transcript,
+        matterId,
+        signal,
+        ...(resolveProvider ? { resolveProvider } : {}),
+      })
     );
     const { markdownToDocxBytes, applyLetterheadIfConfigured } =
       await import('@/platform/utils/docx-io');
@@ -636,7 +639,7 @@ const inFlightNotesGenerations = new Map<string, Promise<void>>();
 function generateNotesSerialized(
   meetingDir: string,
   matterId: string,
-  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance>
+  resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>
 ): Promise<void> {
   const existing = inFlightNotesGenerations.get(meetingDir);
   if (existing) return existing;
@@ -656,7 +659,7 @@ function generateNotesSerialized(
 export async function retryMeetingNotes(
   meetingDir: string,
   matterId: string,
-  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance> = buildResolvedProviderForGlance
+  resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>
 ): Promise<void> {
   useMeetingStore.setState((s) => ({ processingCount: s.processingCount + 1 }));
   try {
@@ -678,7 +681,7 @@ export async function retryMeetingTranscript(
   meetingDir: string,
   workspaceRoot: string,
   matterId: string,
-  resolveProvider: () => ReturnType<typeof buildResolvedProviderForGlance> = buildResolvedProviderForGlance
+  resolveProvider?: () => Promise<ResolvedMeetingNotesProvider>
 ): Promise<void> {
   useMeetingStore.setState((s) => ({ processingCount: s.processingCount + 1 }));
   try {
@@ -953,7 +956,7 @@ async function runPostStopPipeline(
   matterId: string,
   activeConsent: StartOpts | null,
   durationMs: number | undefined,
-  resolveProvider: (() => ReturnType<typeof buildResolvedProviderForGlance>) | undefined
+  resolveProvider: (() => Promise<ResolvedMeetingNotesProvider>) | undefined
 ): Promise<void> {
   useMeetingStore.setState((s) => ({ processingCount: s.processingCount + 1 }));
   try {
@@ -1030,7 +1033,7 @@ async function runPostStopPipeline(
       await generateNotesSerialized(
         meetingDir,
         matterId,
-        resolveProvider ?? buildResolvedProviderForGlance
+        resolveProvider
       );
     }
   } finally {

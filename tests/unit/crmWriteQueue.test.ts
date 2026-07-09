@@ -34,7 +34,6 @@ vi.mock('@/platform/utils/wealthbox-commands', () => ({
 
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 import { crmCreateNote, crmCreateTask, crmUpdateField } from '@/platform/utils/wealthbox-commands';
-import type { Provider } from '@/platform/providers/Provider';
 
 function resetStore() {
   useCrmWriteQueueStore.setState({ items: [] });
@@ -430,10 +429,8 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
     expect(useCrmWriteQueueStore.getState().items).toHaveLength(0);
   });
 
-  it('computes finalValue via the narrative-merge path with a provider', async () => {
-    const sendMessage = vi.fn().mockResolvedValue({ content: 'Merged text.' });
-    const provider = { sendMessage } as unknown as Provider;
-    const onBeforeProviderCall = vi.fn();
+  it('computes finalValue via the narrative-merge path with an audited sender', async () => {
+    const send = vi.fn().mockResolvedValue('Merged text.');
     const s = useCrmWriteQueueStore.getState();
     await s.enqueueFieldUpdate({
       matterId: 'm1',
@@ -442,11 +439,9 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
       existingValue: 'A',
       newValue: 'B',
       sourceRef: 'meeting:2026-06-30',
-      provider,
-      onBeforeProviderCall,
+      send,
     });
-    expect(onBeforeProviderCall).toHaveBeenCalledTimes(1);
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(send).toHaveBeenCalledTimes(1);
     expect(useCrmWriteQueueStore.getState().items[0]!.finalValue).toBe('Merged text.');
   });
 
@@ -481,13 +476,8 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
     expect(useCrmWriteQueueStore.getState().items[0]!.status).toBe('sent');
   });
 
-  // Codex review catch (P2): enqueueFieldUpdate is the real production entry
-  // point (composeFieldBlend itself is not reachable from outside this
-  // store), so it must fail closed the same way if a JS/Tauri boundary
-  // bypasses the type constraint.
-  it('rejects at runtime, without enqueueing anything, if the audit hook is bypassed with a provider', async () => {
+  it('ignores a raw provider-shaped object and never calls provider.sendMessage', async () => {
     const sendMessage = vi.fn().mockResolvedValue({ content: 'should never be sent' });
-    const provider = { sendMessage } as unknown as Provider;
     const s = useCrmWriteQueueStore.getState();
     const bypassed = {
       matterId: 'm1',
@@ -496,13 +486,11 @@ describe('enqueueFieldUpdate (Task 9c)', () => {
       existingValue: 'A',
       newValue: 'B',
       sourceRef: 'meeting:2026-06-30',
-      provider,
+      provider: { sendMessage },
     };
-    await expect(
-      s.enqueueFieldUpdate(bypassed as unknown as Parameters<typeof s.enqueueFieldUpdate>[0]),
-    ).rejects.toThrow(/onBeforeProviderCall is required/);
+    await s.enqueueFieldUpdate(bypassed as unknown as Parameters<typeof s.enqueueFieldUpdate>[0]);
     expect(sendMessage).not.toHaveBeenCalled();
-    expect(useCrmWriteQueueStore.getState().items).toHaveLength(0);
+    expect(useCrmWriteQueueStore.getState().items[0]!.finalValue).toBe('A\n\nB');
   });
 });
 

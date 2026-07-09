@@ -40,14 +40,16 @@ describe('safeJsonParse', () => {
     await expect(safeJsonParse(makeResponse('{not valid json'))).rejects.toBeInstanceOf(ApiResponseParseError);
   });
 
-  it('preserves the full raw body on the thrown error for diagnostics', async () => {
-    const body = '{"incomplete": ';
+  it('redacts the raw body on the thrown error for diagnostics', async () => {
+    const body = '{"client":"Diane private fact","incomplete": ';
     try {
       await safeJsonParse(makeResponse(body));
       expect.fail('Should have thrown');
     } catch (err) {
       expect(err).toBeInstanceOf(ApiResponseParseError);
-      expect((err as ApiResponseParseError).rawBody).toBe(body);
+      expect((err as ApiResponseParseError).rawBody).toContain('redacted');
+      expect((err as ApiResponseParseError).rawBody).not.toContain('Diane private fact');
+      expect((err as ApiResponseParseError).toDiagnostic()).not.toContain('Diane private fact');
     }
   });
 

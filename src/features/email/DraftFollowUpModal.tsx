@@ -232,6 +232,7 @@ export function DraftFollowUpModal({
         });
         const prompt = buildFollowUpPrompt({ noteName, noteContent });
         if (superseded()) return;
+        // eslint-disable-next-line lantern-egress/no-direct-provider-send -- inline guard above calls assertLocalOnlyAllowsSend and writes the email-specific egress receipt before this structured call.
         const response = await provider.structuredOutput<RawDraftResponse>(
           prompt,
           draftStructuredOutputOptions,

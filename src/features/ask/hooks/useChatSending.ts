@@ -24,6 +24,7 @@ import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScop
 import type { AuditEntry, AuditScope, CitationVerdict } from '@/platform/types/audit';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
+import { runWithEgressAudit, sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Provider } from '@/platform/providers/Provider';
 import { createProvider, isLocalProviderId } from '@/platform/providers/providerFactory';
@@ -304,7 +305,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
   } = deps;
   const bypassNextContextLimitRef = useRef(false);
 
-  const buildFastProvider = useCallback((): import('@/platform/providers/Provider').Provider | null => {
+  const buildFastProvider = useCallback((): { provider: import('@/platform/providers/Provider').Provider; providerId: string; model: string } | null => {
     // The provider this chat actually targets (never a hidden cloud fallback
     // when the embedded local model is ready — see effectiveChatProvider).
     // Key-aware so a no-key chat resolves to 'none' (not a fabricated cloud one).
@@ -325,9 +326,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // Use the chat's ACTUAL local engine for compression so a Lantern Local
       // AI chat isn't silently rerouted to the user's Ollama daemon (which may
       // not even be running). Both stay fully on-device.
-      return chatProvider === 'lantern-local'
+      const provider = chatProvider === 'lantern-local'
         ? createProvider({ provider: 'lantern-local' })
         : createProvider({ provider: 'ollama' });
+      return { provider, providerId: chatProvider, model: provider.getMetadata().model };
     }
     // Personal-install choice gate (Task 1.3 fix): compression is cloud generation;
     // block it until the user has made an explicit confidentiality choice.
@@ -341,12 +343,18 @@ export function useChatSending(deps: UseChatSendingDeps) {
     // shared factory. The "fast" model ids are pinned here (compression wants a
     // cheap/quick model, not the chat's main model).
     switch (chatProvider) {
-      case 'anthropic':
-        return createProvider({ provider: 'anthropic', apiKey: apiKey.key, model: 'claude-3-5-haiku-latest' });
-      case 'openai':
-        return createProvider({ provider: 'openai', apiKey: apiKey.key, model: 'gpt-4o-mini' });
-      case 'google':
-        return createProvider({ provider: 'google', apiKey: apiKey.key, model: 'gemini-1.5-flash' });
+      case 'anthropic': {
+        const provider = createProvider({ provider: 'anthropic', apiKey: apiKey.key, model: 'claude-3-5-haiku-latest' });
+        return { provider, providerId: 'anthropic', model: provider.getMetadata().model };
+      }
+      case 'openai': {
+        const provider = createProvider({ provider: 'openai', apiKey: apiKey.key, model: 'gpt-4o-mini' });
+        return { provider, providerId: 'openai', model: provider.getMetadata().model };
+      }
+      case 'google': {
+        const provider = createProvider({ provider: 'google', apiKey: apiKey.key, model: 'gemini-1.5-flash' });
+        return { provider, providerId: 'google', model: provider.getMetadata().model };
+      }
       default:
         // Ollama and unknown providers cannot compress.
         return null;
@@ -359,8 +367,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
       // buildFastProvider() can throw ConfidentialityChoiceRequiredError (Task 1.3).
       // Building inside the try surfaces it as a clean inline message instead of an
       // uncaught rejection.
-      const fastProvider = buildFastProvider();
-      if (!fastProvider) {
+      const fastResolved = buildFastProvider();
+      if (!fastResolved) {
         // Surface error to user: Ollama-only or no API key.
         addMessage(chatId, {
           role: 'assistant',
@@ -371,10 +379,29 @@ export function useChatSending(deps: UseChatSendingDeps) {
         return;
       }
       const tokensBefore = estimateMessagesTokens(currentMessages);
+      const compressionScope: AuditScope = activeMatter
+        ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
+        : { kind: 'allMatters' };
       const result = await compressMessages(currentMessages, {
         keepRecentTurns,
         batchTokenTarget: 10_000,
-        fastProvider,
+        fastProvider: fastResolved.provider,
+        sendSummary: (provider, prompt, options, batchIndex) =>
+          sendWithEgressAudit({
+            provider,
+            providerId: fastResolved.providerId,
+            model: fastResolved.model,
+            prompt,
+            options,
+            ...(onAuditLog ? { onAuditLog } : {}),
+            scope: compressionScope,
+            modelCall: {
+              description: `Chat compression batch to ${fastResolved.model}`,
+              inputs: { chatId, batchIndex, promptLength: prompt.length },
+              outputs: (response) => ({ contentLength: response.content.length }),
+              metadata: { chatId, feature: 'chat_compression', batchIndex },
+            },
+          }),
       });
       const tokensAfter = result.resultingTokens;
       if (onSave) {
@@ -401,7 +428,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
       });
     }
     setCompressionModalOpen(false);
-  }, [sessions, chatId, chatData, buildFastProvider, keepRecentTurns, onSave, onAuditLog, addMessage]);
+  }, [sessions, chatId, chatData, buildFastProvider, keepRecentTurns, onSave, onAuditLog, addMessage, activeMatter]);
 
   const handleSendMessage = useCallback(async () => {
     if ((!inputValue.trim() && pendingAttachments.length === 0) || isLoading) return;
@@ -1635,21 +1662,27 @@ export function useChatSending(deps: UseChatSendingDeps) {
             // the actual network send.
             assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
             providerCallAttempted = true;
-            streamingResponse = await provider.sendMessageStreaming!(userMessage.content, {
-              systemPrompt,
-              maxTokens: 4096,
-              onChunk: (chunk: string) => {
-                streamingAuditState.receivedChunk = true;
-                accumulated += chunk;
-                // Buffer locally (component state, not the Zustand store)
-                // and flush at most once per animation frame. The store
-                // gets exactly one write for this turn, once the stream
-                // finishes (or is aborted) — see the `finally` below and
-                // the citation-verification commit further down.
-                flusher.push(accumulated);
-              },
-              signal: abortController.signal,
-              ...(attachmentBytes ? { attachmentBytes } : {}),
+            streamingResponse = await runWithEgressAudit({
+              provider,
+              providerId: provider.getMetadata().providerId ?? chatProvider,
+              model: effectiveChatModel,
+              operation: () =>
+                provider.sendMessageStreaming!(userMessage.content, {
+                  systemPrompt,
+                  maxTokens: 4096,
+                  onChunk: (chunk: string) => {
+                    streamingAuditState.receivedChunk = true;
+                    accumulated += chunk;
+                    // Buffer locally (component state, not the Zustand store)
+                    // and flush at most once per animation frame. The store
+                    // gets exactly one write for this turn, once the stream
+                    // finishes (or is aborted) — see the `finally` below and
+                    // the citation-verification commit further down.
+                    flusher.push(accumulated);
+                  },
+                  signal: abortController.signal,
+                  ...(attachmentBytes ? { attachmentBytes } : {}),
+                }),
             });
           } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
@@ -1732,17 +1765,34 @@ export function useChatSending(deps: UseChatSendingDeps) {
           abortControllerRef.current = abortController;
           // Race guard (defense-in-depth): re-check the mode immediately before
           // the actual send (the top-of-send check predates the awaits above).
-          assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
           providerCallAttempted = true;
-          const response = await provider.sendMessage(userMessage.content, {
-            systemPrompt,
-            maxTokens: 4096,
-            signal: abortController.signal,
-            ...(attachmentBytes ? { attachmentBytes } : {}),
+          const response = await sendWithEgressAudit({
+            provider,
+            providerId: provider.getMetadata().providerId ?? chatProvider,
+            model: effectiveChatModel,
+            prompt: userMessage.content,
+            options: {
+              systemPrompt,
+              maxTokens: 4096,
+              signal: abortController.signal,
+              ...(attachmentBytes ? { attachmentBytes } : {}),
+            },
+            ...(onAuditLog ? { onAuditLog } : {}),
+            scope: activeMatter
+              ? { kind: 'matter', matterId: activeMatter.id, matterName: matterLabel(activeMatter) }
+              : { kind: 'allMatters' },
+            fileToolsEnabled: fileToolsRegisteredForSend,
+            isDemo: IS_DEMO,
+            assuredAvailable: Boolean(assuredRoute),
+            modelCall: {
+              description: `Chat message to ${effectiveChatModel}`,
+              inputs: { promptLength: userMessage.content.length },
+              outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+              metadata: { chatId, streamed: false },
+            },
           });
 
           providerSendCompletedOrCancelledAfterEgress = true;
-          emitSuccessfulEgressAudit();
           emitSuccessfulAttachmentAudits();
 
           // Q3 — record cost for the chip + Q4 audit entry immediately after
@@ -1754,20 +1804,6 @@ export function useChatSending(deps: UseChatSendingDeps) {
             outputTokens: response.usage.outputTokens,
             provider: chatProvider,
           });
-          onAuditLog?.({
-            action: 'model_call',
-            description: `Chat message to ${effectiveChatModel}`,
-            model: effectiveChatModel,
-            inputs: { promptLength: userMessage.content.length },
-            outputs: { contentLength: response.content.length },
-            userDecision: 'auto',
-            metadata: { chatId, streamed: false },
-            tokensIn: response.usage.inputTokens,
-            tokensOut: response.usage.outputTokens,
-            costUsd: response.cost,
-            provider: chatProvider,
-          });
-
           // WS-B/C — verify the citations in the answer against the local
           // store BEFORE presenting them. Verified sources are marked safe;
           // any citation that doesn't verify flags its source in the UI. Shares

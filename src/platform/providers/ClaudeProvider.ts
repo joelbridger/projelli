@@ -290,7 +290,7 @@ export class ClaudeProvider implements Provider {
       toolCount: request.tools?.length ?? 0,
       toolNames: request.tools?.map(t => t.name) ?? [],
       hasSystem: !!request.system,
-      systemPreview: request.system?.slice(0, 150),
+      systemLength: request.system?.length ?? 0,
       messageCount: request.messages.length,
     });
 

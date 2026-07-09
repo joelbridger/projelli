@@ -5,9 +5,7 @@ import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
 import { deriveCompleteness } from '@/platform/clientMap/completeness';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
-import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import {
   CORE_SECTION_ORDER, CORE_SECTION_TITLE, emptyClientMap,
 } from '@/platform/clientMap/types';
@@ -109,60 +107,37 @@ export async function buildClientMap(
 
   const resolvedProvider = await buildResolvedProviderForClientMap();
   const provider = resolvedProvider.provider;
-  // Trust-fixes finding #1: egress must be recorded IMMEDIATELY BEFORE the
-  // send, not only after a successful response, so a timeout or provider
-  // error still leaves an egress record in the Activity Log. model_call is a
-  // separate follow-up entry logged after the response comes back.
-  const emitEgressAudit = () => {
-    const egress = resolveEgress({
-      provider: resolvedProvider.providerId,
-      mode: getConfidentialityMode(),
-      isDemo: false,
-      assuredAvailable: false,
-    });
-    options?.onAuditLog?.(auditEventToEntry({
-      type: 'egress',
-      timestamp: new Date().toISOString(),
-      payload: {
-        provider: egress.provider,
-        model: resolvedProvider.model,
-        mode: getConfidentialityMode(),
-        destination: egress.destination,
-        dataLeaves: egress.dataLeaves,
-        scope,
-      },
-    }));
-  };
-  const emitModelCallAudit = (
+  const sendClientMapMessage = (
     label: string,
-    response: { content: string; usage?: { inputTokens?: number; outputTokens?: number }; cost?: number },
-  ) => {
-    options?.onAuditLog?.({
-      action: 'model_call',
-      description: `Client Map ${label} to ${resolvedProvider.model}`,
+    prompt: string,
+    systemPrompt: string,
+    maxTokens: number,
+  ) =>
+    sendWithEgressAudit({
+      provider,
+      providerId: resolvedProvider.providerId,
       model: resolvedProvider.model,
-      inputs: { matterId, step: label },
-      outputs: { contentLength: response.content.length },
-      userDecision: 'auto',
-      metadata: { feature: 'client_map', step: label },
-      tokensIn: response.usage?.inputTokens ?? 0,
-      tokensOut: response.usage?.outputTokens ?? 0,
-      costUsd: response.cost ?? 0,
-      provider: resolvedProvider.providerId,
+      prompt,
+      options: { systemPrompt, maxTokens },
+      ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
+      scope,
+      modelCall: {
+        description: `Client Map ${label} to ${resolvedProvider.model}`,
+        inputs: { matterId, step: label },
+        outputs: (response) => ({ contentLength: response.content.length }),
+        metadata: { feature: 'client_map', step: label },
+      },
     });
-  };
   const sections: ClientMapSection[] = [];
   for (const { key, hits } of perSection) {
     if (hits.length === 0) { sections.push({ id: key, kind: 'core', key, title: CORE_SECTION_TITLE[key], items: [] }); continue; }
     const ctx = buildWorkspaceContextBlock(hits);
-    // Race guard (Ask's gold pattern): re-check the CURRENT mode AFTER all awaits,
-    // immediately before each send — a flip to Local-only mid-build must never
-    // send this client's context to the cloud. Re-checked per section because the
-    // prior section's await is itself a window for the mode to change.
-    assertLocalOnlyAllowsSend(resolvedProvider.providerId);
-    emitEgressAudit();
-    const res = await provider.sendMessage('Build this section.', { systemPrompt: sectionPrompt(CORE_SECTION_TITLE[key], ctx), maxTokens: 500 });
-    emitModelCallAudit(key, res);
+    const res = await sendClientMapMessage(
+      key,
+      'Build this section.',
+      sectionPrompt(CORE_SECTION_TITLE[key], ctx),
+      500,
+    );
     sections.push({
       id: key,
       kind: 'core',
@@ -177,14 +152,12 @@ export async function buildClientMap(
   let ask: GapQuestion[] = [];
   if (askHits.length > 0) {
     const ctx = buildWorkspaceContextBlock(askHits);
-    // Same race guard immediately before the gap-questions send.
-    assertLocalOnlyAllowsSend(resolvedProvider.providerId);
-    emitEgressAudit();
-    const res = await provider.sendMessage('List the gap questions.', {
-      systemPrompt: `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. For each question name the section its answer belongs to: one of ${SECTION_NAME_LIST}. ${ctx} Return ONLY JSON (no fences): {"questions":[{"text":"...","section":"money"}]}. No em dashes.`,
-      maxTokens: 400,
-    });
-    emitModelCallAudit('gap_questions', res);
+    const res = await sendClientMapMessage(
+      'gap_questions',
+      'List the gap questions.',
+      `Given this client context, list up to 5 short questions whose answers are missing and that you would need to ask the client. For each question name the section its answer belongs to: one of ${SECTION_NAME_LIST}. ${ctx} Return ONLY JSON (no fences): {"questions":[{"text":"...","section":"money"}]}. No em dashes.`,
+      400,
+    );
     ask = parseGapQuestions(res.content);
   }
 

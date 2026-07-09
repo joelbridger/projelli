@@ -21,6 +21,7 @@ import {
   isLocalOnlyModeFailClosed,
 } from '@/platform/privacy/localOnlyGuard';
 import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import { Card, CardContent } from '@/ui/card';
@@ -130,7 +131,18 @@ export function RunOnAllButton({
     const settled = await Promise.allSettled(
       active.map(async (p) => {
         const started = Date.now();
-        const response = await p.provider.sendMessage(prompt);
+        const response = await sendWithEgressAudit({
+          provider: p.provider,
+          providerId: p.id,
+          model: p.provider.getMetadata().model,
+          prompt,
+          modelCall: {
+            description: `Run on all request to ${p.label}`,
+            inputs: { promptLength: prompt.length },
+            outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+            metadata: { feature: 'run_on_all', providerLabel: p.label },
+          },
+        });
         return {
           providerId: p.id,
           label: p.label,

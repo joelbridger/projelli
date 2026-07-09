@@ -19,6 +19,7 @@
 //   - Pasted text separated by `---`
 
 import type { Provider, OutputSchema } from '@/platform/providers/Provider';
+import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 
 export interface Theme {
   name: string;
@@ -167,10 +168,17 @@ Source: ${transcript.source}
 Transcript:
 ${transcript.content}
 `;
-  const result = await provider.structuredOutput<TranscriptSummary>(prompt, {
-    schema: TRANSCRIPT_SCHEMA,
-    systemPrompt:
-      'You are a customer research analyst. Return only concrete, evidence-based findings sourced from the transcript text.',
+  const metadata = provider.getMetadata();
+  const result = await runWithEgressAudit<TranscriptSummary>({
+    provider,
+    providerId: metadata.providerId ?? 'unknown',
+    model: metadata.model,
+    operation: () =>
+      provider.structuredOutput<TranscriptSummary>(prompt, {
+        schema: TRANSCRIPT_SCHEMA,
+        systemPrompt:
+          'You are a customer research analyst. Return only concrete, evidence-based findings sourced from the transcript text.',
+      }),
   });
   return { ...result, source: transcript.source };
 }
@@ -206,10 +214,17 @@ Use this pre-digested data:
 ${body}
 `;
 
-  return provider.structuredOutput<MultiInterviewSynthesisResult>(prompt, {
-    schema: SYNTHESIS_SCHEMA,
-    systemPrompt:
-      'You are a senior product researcher. Identify patterns across interviews and surface both consensus and genuine contradictions.',
+  const metadata = provider.getMetadata();
+  return runWithEgressAudit<MultiInterviewSynthesisResult>({
+    provider,
+    providerId: metadata.providerId ?? 'unknown',
+    model: metadata.model,
+    operation: () =>
+      provider.structuredOutput<MultiInterviewSynthesisResult>(prompt, {
+        schema: SYNTHESIS_SCHEMA,
+        systemPrompt:
+          'You are a senior product researcher. Identify patterns across interviews and surface both consensus and genuine contradictions.',
+      }),
   });
 }
 
