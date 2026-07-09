@@ -6,6 +6,7 @@
  * stored, so there is a single source of truth (the calendar's join URL).
  */
 import type { NoticeCardPlatform } from './noticeCardTypes';
+import { BRAND } from '@/config/brand';
 
 /**
  * Per-platform maximum length for a guest display name. Teams and Zoom both
@@ -115,7 +116,7 @@ export function rewriteTeamsJoinUrl(joinUrl: string | undefined | null): string 
   return `${u.origin}/v2/?meetingjoin=true#${route}`;
 }
 
-const DEFAULT_NAME_TEMPLATE = '⏺ Recording Notice — {advisor}';
+const DEFAULT_NAME_TEMPLATE = '⏺ Recording · {product}';
 
 /**
  * Build the guest display name shown in the participant list. The `{advisor}`
@@ -131,7 +132,10 @@ export function buildDisplayName(
 ): string {
   const tmpl = template.trim() || DEFAULT_NAME_TEMPLATE;
   const advisor = advisorFirstName.trim();
-  let name = tmpl.replace(/\{advisor\}/g, advisor).trim();
+  let name = tmpl
+    .replace(/\{advisor\}/g, advisor)
+    .replace(/\{product\}/g, BRAND.name)
+    .trim();
   // Collapse a dangling separator left by an empty advisor name
   // (e.g. "Recording Notice — " → "Recording Notice").
   name = name.replace(/[—\-·:]\s*$/u, '').trim();

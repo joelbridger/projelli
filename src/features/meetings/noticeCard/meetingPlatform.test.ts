@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { BRAND } from '@/config/brand';
 import {
   detectPlatform,
   buildDisplayName,
@@ -60,10 +61,17 @@ describe('buildDisplayName', () => {
     );
   });
 
-  it('falls back to a sane default when the template is blank', () => {
+  it('fills the {product} token with the brand product name', () => {
+    expect(buildDisplayName('⏺ Recording · {product}', '', 'teams')).toBe(
+      `⏺ Recording · ${BRAND.name}`,
+    );
+  });
+
+  it('falls back to a brand-aware default when the template is blank', () => {
+    // The default names the product so the meeting sees who is recording.
     const name = buildDisplayName('', 'Sarah', 'teams');
-    expect(name).toContain('Sarah');
-    expect(name).toContain('Recording Notice');
+    expect(name).toContain(BRAND.name);
+    expect(name.startsWith('⏺')).toBe(true);
   });
 
   it('trims to the per-platform length guard without cutting mid-token ugliness', () => {

@@ -19,8 +19,8 @@ describe('resolveNoticeCardEnabled', () => {
 
 describe('resolveNoticeCardNameTemplate', () => {
   it('defaults to the honest recording-notice template', () => {
-    expect(resolveNoticeCardNameTemplate(get({}))).toContain('{advisor}');
-    expect(resolveNoticeCardNameTemplate(get({}))).toContain('Recording Notice');
+    expect(resolveNoticeCardNameTemplate(get({}))).toContain('{product}');
+    expect(resolveNoticeCardNameTemplate(get({}))).toContain('Recording');
   });
   it('returns a firm override', () => {
     expect(resolveNoticeCardNameTemplate(get({ 'meetings.noticeCardNameTemplate': 'Rec — {advisor}' }))).toBe(
@@ -28,7 +28,7 @@ describe('resolveNoticeCardNameTemplate', () => {
     );
   });
   it('falls back to the default for a blank override', () => {
-    expect(resolveNoticeCardNameTemplate(get({ 'meetings.noticeCardNameTemplate': '   ' }))).toContain('{advisor}');
+    expect(resolveNoticeCardNameTemplate(get({ 'meetings.noticeCardNameTemplate': '   ' }))).toContain('{product}');
   });
 });
 

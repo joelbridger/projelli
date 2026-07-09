@@ -2473,7 +2473,7 @@
       "settings-heading": "Notice Card",
       "settings-advanced-summary": "Advanced recording notice",
       "settings-enabled-label": "Offer Notice Card",
-      "settings-name-label": "Notice Card name (use {advisor} for your first name)",
+      "settings-name-label": "Notice Card name (use {product} for the app, {advisor} for your first name)",
       "settings-name-placeholder": "Recording Notice - {advisor}",
       "settings-evidence-label": "Strict proof",
       "settings-evidence-either": "Either a spoken notice or full-meeting card presence",

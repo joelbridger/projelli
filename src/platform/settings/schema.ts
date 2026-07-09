@@ -639,9 +639,9 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'privacy',
     label: 'Notice Card name',
     description:
-      'The name the Notice Card shows in the participant list. Use {advisor} for your first name. The leading recording symbol makes it clear at a glance, even camera-off.',
+      'The name the Notice Card shows in the participant list. Use {product} for the app name and {advisor} for your first name. The leading recording symbol makes it clear at a glance, even camera-off.',
     type: 'text',
-    defaultValue: 'Recording Notice - {advisor}',
+    defaultValue: '⏺ Recording · {product}',
   },
   {
     // What satisfies the Strict policy: verbal notice OR full-duration card

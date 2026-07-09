@@ -7,7 +7,7 @@ import { DEFAULT_EVIDENCE_RULE } from './noticeCardEvidence';
 
 type Getter = (key: string) => unknown;
 
-const DEFAULT_NAME_TEMPLATE = '⏺ Recording Notice — {advisor}';
+const DEFAULT_NAME_TEMPLATE = '⏺ Recording · {product}';
 
 /** Firm default for offering the card (pre-check). Defaults to enabled. */
 export function resolveNoticeCardEnabled(getSetting: Getter): boolean {
