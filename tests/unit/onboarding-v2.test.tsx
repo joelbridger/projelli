@@ -283,16 +283,20 @@ describe('ConnectScene mounts real connectors', () => {
     h.progress = null;
   });
 
-  it('renders the Microsoft 365 + OneDrive + Wealthbox connectors, and reveals Gmail/IMAP', () => {
+  it('renders the primary branded connectors, and reveals IMAP as the extra email option', () => {
     renderFlow();
     goToAi();
     clickContinue(); // -> connect
     expect(screen.getByTestId('mail-connect-stub')).toBeTruthy();
+    expect(screen.getByTestId('mail-gmail-stub')).toBeTruthy();
     expect(screen.getByTestId('onedrive-stub')).toBeTruthy();
     expect(screen.getByTestId('wealthbox-stub')).toBeTruthy();
-    expect(screen.queryByTestId('mail-gmail-stub')).toBeNull();
+    expect(screen.getByAltText('Microsoft Outlook logo')).toBeTruthy();
+    expect(screen.getByLabelText('Gmail logo')).toBeTruthy();
+    expect(screen.getByAltText('OneDrive logo')).toBeTruthy();
+    expect(screen.getByAltText('Wealthbox logo')).toBeTruthy();
+    expect(screen.queryByTestId('mail-imap-stub')).toBeNull();
     fireEvent.click(screen.getByTestId('connect-more-email'));
-    expect(screen.getByTestId('mail-gmail-stub')).toBeTruthy();
     expect(screen.getByTestId('mail-imap-stub')).toBeTruthy();
   });
 });

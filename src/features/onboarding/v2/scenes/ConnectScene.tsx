@@ -14,8 +14,8 @@
  * fake connections.
  */
 
-import { useState } from 'react';
-import { Lock, Monitor, EyeOff, ChevronDown, FileDown } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { Lock, Monitor, EyeOff, ChevronDown, FileDown, Mail } from 'lucide-react';
 
 import { MailConnect } from '@/platform/connectors/email/MailConnect';
 import { MailGmailConnect } from '@/platform/connectors/email/MailGmailConnect';
@@ -26,6 +26,7 @@ import { WealthboxConnect } from '@/platform/connectors/crm/WealthboxConnect';
 import { SecurityPill } from '../components/SecurityPill';
 import { ONB_COPY, ONB_COMING_SOON_LOGOS } from '../copy';
 import { InfoHelp } from '@/ui/InfoHelp';
+import { ConnectorLogo, type ConnectorBrand } from './connectorLogos';
 
 const PILL_ICONS = [Lock, Monitor, EyeOff] as const;
 
@@ -44,20 +45,43 @@ export function ConnectScene() {
       </div>
 
       {/* Real connectors */}
-      <div className="mt-8 grid w-full max-w-[920px] grid-cols-1 gap-4 text-left md:grid-cols-2">
-        <div data-testid="connect-m365">
+      <div className="mt-8 grid w-full max-w-[960px] grid-cols-1 gap-4 text-left md:grid-cols-2">
+        <ConnectorCard
+          testId="connect-m365"
+          brand="m365"
+          title="Microsoft 365 / Outlook"
+          description="Email from Outlook and Microsoft 365."
+        >
           <MailConnect />
-        </div>
-        <div data-testid="connect-wealthbox">
-          <WealthboxConnect />
-        </div>
-        <div data-testid="connect-onedrive">
+        </ConnectorCard>
+        <ConnectorCard
+          testId="connect-gmail"
+          brand="gmail"
+          title="Gmail"
+          description="Email from your Google account."
+        >
+          <MailGmailConnect />
+        </ConnectorCard>
+        <ConnectorCard
+          testId="connect-onedrive"
+          brand="onedrive"
+          title="OneDrive"
+          description="Client folders from OneDrive and SharePoint."
+        >
           <OneDriveConnect />
-        </div>
+        </ConnectorCard>
+        <ConnectorCard
+          testId="connect-wealthbox"
+          brand="wealthbox"
+          title="Wealthbox"
+          description="Households and CRM notes from Wealthbox."
+        >
+          <WealthboxConnect />
+        </ConnectorCard>
       </div>
 
-      {/* More email options (Gmail / IMAP) */}
-      <div className="mt-4 w-full max-w-[920px] text-left">
+      {/* More email options (IMAP) */}
+      <div className="mt-4 w-full max-w-[960px] text-left">
         <button
           type="button"
           onClick={() => { setMoreEmail((v) => !v); }}
@@ -66,15 +90,26 @@ export function ConnectScene() {
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--kp-accent)] hover:underline"
         >
           <ChevronDown className={`h-4 w-4 transition-transform ${moreEmail ? 'rotate-180' : ''}`} aria-hidden="true" />
-          More email options (Gmail, IMAP)
+          Other email option (IMAP)
         </button>
         {moreEmail ? (
-          <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div data-testid="connect-gmail">
-              <MailGmailConnect />
-            </div>
-            <div data-testid="connect-imap">
-              <MailImapConnect />
+          <div className="mt-3 max-w-[470px]">
+            <div
+              data-testid="connect-imap"
+              className="rounded-lg border border-[var(--kp-divider)] bg-white p-4 text-left shadow-[var(--kp-shadow-1)]"
+            >
+              <div className="flex items-start gap-3 border-b border-[var(--kp-divider)] pb-4">
+                <div className="flex h-11 w-11 flex-none items-center justify-center rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] text-[var(--kp-text-dim)]">
+                  <Mail className="h-5 w-5" strokeWidth={1.75} aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-[var(--kp-navy)]">Other email</div>
+                  <div className="mt-1 text-xs leading-snug text-[var(--kp-text-dim)]">Standard IMAP accounts.</div>
+                </div>
+              </div>
+              <div className="mt-4 min-w-0 [&>section]:!m-0 [&>section]:!border-0 [&>section]:!bg-transparent [&>section]:!p-0 [&>section]:!shadow-none [&_h3]:sr-only">
+                <MailImapConnect />
+              </div>
             </div>
           </div>
         ) : null}
@@ -85,7 +120,7 @@ export function ConnectScene() {
           just connected — it is NOT an integration with those tools. */}
       <div
         data-testid="connect-works-with-exports"
-        className="mt-8 w-full max-w-[760px] rounded-[20px] border border-[rgba(var(--kp-navy-rgb),0.10)] bg-[var(--kp-bg-soft,#f1f5f9)] p-6 text-left"
+        className="mt-8 w-full max-w-[760px] rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] p-6 text-left"
       >
         <div className="flex items-start gap-3">
           <div className="mt-0.5 flex h-9 w-9 flex-none items-center justify-center rounded-full bg-white shadow-sm">
@@ -101,9 +136,9 @@ export function ConnectScene() {
       </div>
 
       {/* Coming soon */}
-      <div className="mt-8 w-full max-w-[760px] rounded-[20px] border border-[rgba(var(--kp-navy-rgb),0.08)] bg-white/80 p-6">
-        <div className="text-xs font-bold tracking-[0.08em] text-[#5b6b80]">{C.comingSoonLabel}</div>
-        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-60">
+      <div className="mt-8 w-full max-w-[760px] rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] p-5">
+        <div className="text-xs font-bold tracking-[0.08em] text-[var(--kp-text-faint)]">{C.comingSoonLabel}</div>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-55 grayscale">
           {ONB_COMING_SOON_LOGOS.map((logo) => (
             <ComingSoonLogo key={logo.name} name={logo.name} file={logo.file} />
           ))}
@@ -113,11 +148,45 @@ export function ConnectScene() {
   );
 }
 
+function ConnectorCard({
+  testId,
+  brand,
+  title,
+  description,
+  children,
+}: {
+  testId: string;
+  brand: ConnectorBrand;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      data-testid={testId}
+      className="rounded-lg border border-[var(--kp-divider)] bg-white p-4 shadow-[var(--kp-shadow-1)]"
+    >
+      <div className="flex items-start gap-3 border-b border-[var(--kp-divider)] pb-4">
+        <div className="flex h-11 w-24 flex-none items-center justify-center rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] px-2">
+          <ConnectorLogo brand={brand} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-[var(--kp-navy)]">{title}</div>
+          <div className="mt-1 text-xs leading-snug text-[var(--kp-text-dim)]">{description}</div>
+        </div>
+      </div>
+      <div className="mt-4 min-w-0 [&>section]:!m-0 [&>section]:!border-0 [&>section]:!bg-transparent [&>section]:!p-0 [&>section]:!shadow-none [&_h3]:sr-only">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ComingSoonLogo({ name, file }: { name: string; file: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
     return (
-      <span className="rounded-full bg-[#f5f7fb] px-3 py-1 text-xs font-medium text-[#8a93a3]">{name}</span>
+      <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[var(--kp-text-faint)]">{name}</span>
     );
   }
   return (
@@ -125,7 +194,7 @@ function ComingSoonLogo({ name, file }: { name: string; file: string }) {
       src={`/onboarding/logos/${file}`}
       alt={name}
       title={name}
-      className="h-7 w-auto object-contain grayscale"
+      className="h-6 w-auto object-contain"
       onError={() => { setFailed(true); }}
     />
   );

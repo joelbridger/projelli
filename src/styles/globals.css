@@ -90,6 +90,13 @@
   --kp-success: #059669; --kp-success-bg: #e6f5ee; --kp-success-line: #8fc9b0;
   --kp-warning: #b45309; --kp-warning-bg: #fbf0e2; --kp-warning-line: #e3bf8a;
 
+  /* Connector logo paint. These are brand marks, not app theme colours. */
+  --connector-gmail-blue: #4285f4;
+  --connector-gmail-green: #34a853;
+  --connector-gmail-red: #ea4335;
+  --connector-gmail-yellow: #fbbc04;
+  --connector-gmail-surface: #f2f4f7;
+
   /* ---- Spacing scale — 8-point grid (4px base unit). Use these tokens, never raw px. ---- */
   --kp-space-2xs: 4px;   /* hairline gaps, icon-to-text */
   --kp-space-xs:  8px;   /* tight inline gap */
