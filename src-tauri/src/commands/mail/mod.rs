@@ -475,6 +475,45 @@ mod tests {
         MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
     }
 
+    #[test]
+    fn vector_rebuild_marker_skips_missing_store_and_bypasses_stale_latch() {
+        use super::{
+            mark_rag_backfill_needed_after_vector_rebuild, MARKED_THIS_SESSION,
+            RAG_BACKFILL_NEEDED_KEY,
+        };
+        use std::sync::atomic::Ordering;
+        let key = [0x24u8; 32];
+
+        let no_mail = tempfile::TempDir::new().unwrap();
+        MARKED_THIS_SESSION.store(true, Ordering::SeqCst);
+        assert!(!EncryptedMailStore::db_path(no_mail.path()).exists());
+        assert_eq!(
+            mark_rag_backfill_needed_after_vector_rebuild(no_mail.path(), &key).unwrap(),
+            false
+        );
+        assert!(
+            !EncryptedMailStore::db_path(no_mail.path()).exists(),
+            "missing mail store must not be created just to plant a marker"
+        );
+
+        let dir = tempfile::TempDir::new().unwrap();
+        let store = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+        store.delete_meta(RAG_BACKFILL_NEEDED_KEY).unwrap();
+        MARKED_THIS_SESSION.store(true, Ordering::SeqCst);
+
+        assert_eq!(
+            mark_rag_backfill_needed_after_vector_rebuild(dir.path(), &key).unwrap(),
+            true
+        );
+        assert_eq!(
+            store.get_meta(RAG_BACKFILL_NEEDED_KEY).unwrap().as_deref(),
+            Some("1"),
+            "a vector rebuild must persist the marker even when the session latch was stale"
+        );
+
+        MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
+    }
+
     /// The pure end-of-pass policy: the marker survives ONLY a model
     /// regression; terminal (non-model) failures never pin it.
     #[test]
