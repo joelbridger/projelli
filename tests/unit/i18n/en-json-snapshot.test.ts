@@ -47,7 +47,7 @@ describe('en.json structure snapshot', () => {
         "ai": 48,
         "analysis": 10,
         "app": 2,
-        "ask": 132,
+        "ask": 135,
         "audio": 1,
         "chat": 12,
         "citation": 3,
@@ -63,7 +63,7 @@ describe('en.json structure snapshot', () => {
         "marketplace": 14,
         "matter": 322,
         "media": 100,
-        "meetings": 256,
+        "meetings": 257,
         "memory": 6,
         "model-download": 9,
         "onboarding": 248,
@@ -277,7 +277,9 @@ describe('en.json structure snapshot', () => {
     // questions) + Calendly-style scheduling (Settings Scheduling section +
     // Phase 2 advisor surface: top-bar entry, rail labels, booking-link actions,
     // request statuses, availability controls, meeting-type panel, slot preview).
-    expect(flat.length).toBe(2291); // onboarding reframe (2180) + scheduling (+87) + connector-list clarity keys (+22) + onboarding calendar card (+2)
+    // +4 = demo golden path: ask.empty.{sample-title,whole-book-prefix},
+    //      ask.conversations.title-short, and meetings.tab.empty-cta.
+    expect(flat.length).toBe(2295); // onboarding reframe (2180) + scheduling (+87) + connector-list clarity (+22) + calendar card (+2) + demo golden path (+4)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {

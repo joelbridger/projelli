@@ -751,6 +751,18 @@ export function ClientMeetingsTab({ matterId, matterFolder, workspaceService, in
                 icon={Mic}
                 title={t('meetings.tab.empty-title')}
                 body={t('meetings.tab.empty-body')}
+                actions={(
+                  <Button
+                    data-testid="client-meetings-empty-record"
+                    size="sm"
+                    variant="primary"
+                    iconLeft={Mic}
+                    onClick={handleRecordClick}
+                    disabled={recording}
+                  >
+                    {t('meetings.tab.empty-cta')}
+                  </Button>
+                )}
                 data-testid="client-meetings-empty"
               />
             )}

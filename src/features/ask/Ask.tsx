@@ -64,6 +64,7 @@ import {
 } from './book/wholePracticeAsk';
 import { buildBookFactsDigest } from './book/bookFacts';
 import { getMatters } from '@/platform/matter/matterStore';
+import { SAMPLE_WHOLE_BOOK_QUESTION } from '@/platform/matter/samples/sampleMatterDemo';
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import {
   resolveWholePracticeConfirm,
@@ -74,6 +75,7 @@ import { WholePracticeSendConfirm } from './book/WholePracticeSendConfirm';
 import type { BookAskResult } from './book/bookFacts';
 import { settleBookSubmission } from './book/bookSubmission';
 import { composerIsBusy } from './askHelpers';
+import { buildSampleWholeBookAnswer } from './book/sampleWholeBookAnswer';
 
 /* -------------------------------------------------------------------------- */
 /* Main component                                                               */
@@ -222,50 +224,63 @@ export function Ask(props: UseAskProps) {
     });
   };
 
+  const submitWholePracticeQuestion = (q?: string) => {
+    const asked = (q ?? question).trim();
+    if (!asked) return;
+    // Decide, from the SAME digest the send uses, whether this cloud send
+    // needs the one honest confirm (real client count + real provider).
+    // An empty book or a remembered choice skip it up front.
+    const matters = getMatters();
+    const clientCount = buildBookFactsDigest(
+      matters,
+      useClientMapStore.getState().maps,
+      undefined,
+      { includeSampleMatters: includeSampleMattersForWholePracticeAsk(matters) },
+    ).clients.length;
+    if (clientCount === 0 || getRememberedWholePracticeConsent()) {
+      startBookSend(asked);
+      return;
+    }
+    // Resolve the ACTUAL provider the send will use (respects Local-only and
+    // the no-cloud-key local fallback), NOT the cached UI value — otherwise a
+    // stale "local" display could skip the confirm while the real send goes
+    // to the cloud. The resolution is async, so tie it to a request token:
+    // if the advisor switches chat/workspace or submits again before it
+    // settles, the stale completion is DROPPED — a superseded question must
+    // never open a confirm (or, on Continue, send) against a different client
+    // set (coordinator + Codex review). The chatId-change effect and each new
+    // submit both bump bookRequestIdRef, so the token check covers both.
+    const myToken = ++bookRequestIdRef.current;
+    void resolveWholePracticeConfirm({
+      clientCount,
+      remembered: getRememberedWholePracticeConsent(),
+      resolveProviderId: async () => {
+        try {
+          return (await resolveWholePracticeAskProvider()).providerId;
+        } catch {
+          return null;
+        }
+      },
+      isCurrent: () => bookRequestIdRef.current === myToken,
+      onConfirm: (decision) => {
+        setBookConfirm({ asked, clientCount: decision.clientCount, providerName: decision.providerName });
+      },
+      onSendNow: () => { startBookSend(asked); },
+    });
+  };
+  const showSampleWholeBookAnswer = () => {
+    if (!activeMatter) return;
+    setAskScope('whole-practice');
+    setQuestion('');
+    setBookLoading(false);
+    setBookError(null);
+    bookAbortRef.current?.abort();
+    bookRequestIdRef.current += 1;
+    setBookResult(buildSampleWholeBookAnswer(activeMatter));
+  };
   const submitQuestion = (q?: string) => {
     if (askScope === 'whole-practice') {
-      const asked = (q ?? question).trim();
-      if (!asked) return;
-      // Decide, from the SAME digest the send uses, whether this cloud send
-      // needs the one honest confirm (real client count + real provider).
-      // An empty book or a remembered choice skip it up front.
-      const matters = getMatters();
-      const clientCount = buildBookFactsDigest(
-        matters,
-        useClientMapStore.getState().maps,
-        undefined,
-        { includeSampleMatters: includeSampleMattersForWholePracticeAsk(matters) },
-      ).clients.length;
-      if (clientCount === 0 || getRememberedWholePracticeConsent()) {
-        startBookSend(asked);
-        return;
-      }
-      // Resolve the ACTUAL provider the send will use (respects Local-only and
-      // the no-cloud-key local fallback), NOT the cached UI value — otherwise a
-      // stale "local" display could skip the confirm while the real send goes
-      // to the cloud. The resolution is async, so tie it to a request token:
-      // if the advisor switches chat/workspace or submits again before it
-      // settles, the stale completion is DROPPED — a superseded question must
-      // never open a confirm (or, on Continue, send) against a different client
-      // set (coordinator + Codex review). The chatId-change effect and each new
-      // submit both bump bookRequestIdRef, so the token check covers both.
-      const myToken = ++bookRequestIdRef.current;
-      void resolveWholePracticeConfirm({
-        clientCount,
-        remembered: getRememberedWholePracticeConsent(),
-        resolveProviderId: async () => {
-          try {
-            return (await resolveWholePracticeAskProvider()).providerId;
-          } catch {
-            return null;
-          }
-        },
-        isCurrent: () => bookRequestIdRef.current === myToken,
-        onConfirm: (decision) => {
-          setBookConfirm({ asked, clientCount: decision.clientCount, providerName: decision.providerName });
-        },
-        onSendNow: () => { startBookSend(asked); },
-      });
+      submitWholePracticeQuestion(q);
       return;
     }
     void handleAsk(q);
@@ -292,6 +307,18 @@ export function Ask(props: UseAskProps) {
           ? t('ask.composer.placeholder-client', { name: matterLabel(activeMatter) })
           : t('ask.composer.placeholder-all-entity', { entity: entityLabel.other });
   const composerAriaLabel = t('ask.composer.aria-label', { entity: entityLabel.one });
+  const suggestedQuestions =
+    isSampleMatter || IS_DEMO
+      ? [
+          { label: demoQuestions[0], question: demoQuestions[0], kind: 'client' as const },
+          { label: demoQuestions[3], question: demoQuestions[3], kind: 'client' as const },
+          {
+            label: t('ask.empty.whole-book-prefix', { question: SAMPLE_WHOLE_BOOK_QUESTION }),
+            question: SAMPLE_WHOLE_BOOK_QUESTION,
+            kind: 'whole-practice' as const,
+          },
+        ]
+      : [];
 
   // Conversations-rail grouping. A session belongs to the active client when its
   // id is exactly "ask-<matterId>" or a timestamped variant "ask-<matterId>-…";
@@ -486,8 +513,8 @@ export function Ask(props: UseAskProps) {
             overflow: 'hidden',
           }}
         >
-          {/* The conversation scroll area. Empty center (no heading, no example
-              pills) when there are no turns — matches the demo Ask. */}
+          {/* The conversation scroll area. Empty sample threads show guaranteed
+              starter questions so the first demo is not a blank canvas. */}
           <div
             data-testid="ask-thread-scroll"
             style={{
@@ -501,11 +528,7 @@ export function Ask(props: UseAskProps) {
               minWidth: 0,
             }}
           >
-            {/* Demo-only intro (empty thread): sets the two-trust-modes
-                expectation and the "negative space" positioning before the first
-                question, then gets out of the way. Demo-scoped so the desktop
-                Ask stays the clean empty surface the design system specifies. */}
-            {IS_DEMO && turns.length === 0 && !streamingTurn && (
+            {(IS_DEMO || isSampleMatter) && turns.length === 0 && !streamingTurn && (
               <div
                 data-testid="ask-demo-intro"
                 style={{
@@ -519,20 +542,37 @@ export function Ask(props: UseAskProps) {
                   maxWidth: 680,
                 }}
               >
+                <span>{t('ask.empty.sample-title')}</span>
                 <span>{t('ask.demo-intro.body')}</span>
-                {/* Suggested questions — one click each. The last one is about
-                    something the files don't cover, so it shows Ask declining
-                    ("I couldn't find anything…") instead of guessing. */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 'var(--kp-space-xs)', marginTop: 'var(--kp-space-xs)' }}>
-                  {demoQuestions.map((q) => (
+                  {suggestedQuestions.map((item) => (
                     <Button
-                      key={q}
+                      key={`${item.kind}:${item.question}`}
                       variant="secondary"
                       size="sm"
                       data-testid="ask-demo-question"
-                      onClick={() => { submitQuestion(q); }}
+                      style={{
+                        height: 'auto',
+                        minHeight: 30,
+                        maxWidth: 320,
+                        whiteSpace: 'normal',
+                        textAlign: 'left',
+                        lineHeight: 1.25,
+                      }}
+                      onClick={() => {
+                        if (item.kind === 'whole-practice') {
+                          setAskScope('whole-practice');
+                          if (isSampleMatter && activeMatter && item.question === SAMPLE_WHOLE_BOOK_QUESTION) {
+                            showSampleWholeBookAnswer();
+                          } else {
+                            submitWholePracticeQuestion(item.question);
+                          }
+                          return;
+                        }
+                        void handleAsk(item.question);
+                      }}
                     >
-                      {q}
+                      {item.label}
                     </Button>
                   ))}
                 </div>

@@ -1,4 +1,4 @@
-import { Building2, User, ChevronRight } from 'lucide-react';
+import { Building2, User } from 'lucide-react';
 import { useProfileStore } from '@/platform/profile/profileStore';
 import { useFirm } from '@/platform/hooks/useFirm';
 
@@ -126,7 +126,6 @@ export function AccountIdentity({ collapsed = false, onOpen }: AccountIdentityPr
           {name}
         </span>
       </span>
-      <ChevronRight size={15} strokeWidth={2} style={{ flex: 'none', opacity: 0.5 }} />
     </button>
   );
 }

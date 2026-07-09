@@ -1572,6 +1572,10 @@
     "demo-intro": {
       "body": "Answers are cited to these files. Click a citation to open the source."
     },
+    "empty": {
+      "sample-title": "Try one of these sample questions.",
+      "whole-book-prefix": "Whole book: {{question}}"
+    },
     "indexing": {
       "notice": "Index documents for cited answers.",
       "enable": "Enable"
@@ -1598,6 +1602,7 @@
     },
     "conversations": {
       "title": "Conversations",
+      "title-short": "Chats",
       "show": "Show conversations",
       "hide": "Hide conversations",
       "new-question": "New question",
@@ -2558,6 +2563,7 @@
       "no-results": "No meetings found.",
       "empty-title": "No meetings yet",
       "empty-body": "Recordings, notes, and transcripts stay with this client.",
+      "empty-cta": "Record a meeting",
       "notes-pending": "notes pending",
       "notes-failed": "notes couldn't be written",
       "recording-incomplete": "recording didn't finish saving",

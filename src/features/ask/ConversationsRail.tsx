@@ -248,7 +248,7 @@ export function ConversationsRail({
       style={{ ...railBase, width: 'var(--kp-rail-width)' }}
     >
       <RailShellHeader
-        title={t('ask.conversations.title')}
+        title={t('ask.conversations.title-short')}
         search={{
           value: query,
           onChange: setQuery,

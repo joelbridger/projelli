@@ -38,6 +38,7 @@ describe('ConversationsRail', () => {
   it('renders group headings and one item per session', () => {
     renderRail();
     expect(screen.getByTestId('conversations-rail')).toBeInTheDocument();
+    expect(screen.getByText('Chats')).toBeInTheDocument();
     expect(screen.getByText('This client')).toBeInTheDocument();
     expect(screen.getByText('Other')).toBeInTheDocument();
     expect(screen.getAllByTestId('rail-conversation-item').length).toBe(3);

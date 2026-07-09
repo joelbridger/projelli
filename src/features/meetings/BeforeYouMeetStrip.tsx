@@ -55,7 +55,11 @@ export function BeforeYouMeetStrip({ matterId }: { matterId: string }) {
 
   const today = localDay();
   const todays: MeetingBrief[] = Object.values(briefs)
-    .filter((b) => b.matterId === matterId && b.day === today)
+    .filter((b) => {
+      if (b.matterId !== matterId) return false;
+      if (b.day === today) return true;
+      return matter?.isSample === true && b.isSample === true;
+    })
     .sort((a, b) => a.eventId.localeCompare(b.eventId));
 
   if (todays.length === 0) return null;

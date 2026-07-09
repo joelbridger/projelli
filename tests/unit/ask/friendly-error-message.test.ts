@@ -81,6 +81,17 @@ describe('friendlyErrorMessage', () => {
     expect(msg).toMatch(/search your files|still be setting up/i);
   });
 
+  it('does not promise recovery for browser-only private file search', () => {
+    const msg = friendlyErrorMessage('Private file search is only available in the desktop app.', {
+      mode: 'direct',
+      failedStage: 'retrieval',
+      reachedProvider: false,
+    });
+    expect(msg).not.toMatch(/try again in a moment|still be setting up/i);
+    expect(msg).toMatch(/desktop app/i);
+    expect(msg).toMatch(/sample questions/i);
+  });
+
   it('offers a "search by keyword instead" fallback on a generic cloud failure', () => {
     const msg = friendlyErrorMessage('socket hang up', {
       mode: 'direct',

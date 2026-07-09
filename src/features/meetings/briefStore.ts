@@ -23,6 +23,8 @@ export interface MeetingBrief {
   bullets?: MeetingBriefBullet[];
   generatedAt: string;
   stale: boolean;
+  /** Demo-only briefs can stay visible when the sample client is opened on a later day. */
+  isSample?: boolean;
   error?: string;
   /** The calendar event's title, captured at enqueue time — Task 17b's
    *  agenda export needs it and shouldn't have to re-fetch the event just
