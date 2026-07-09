@@ -2,6 +2,7 @@
 // RUN-LOG.md: light theme, console-error cleanliness, egress indicator.
 import { STATUS, makeResult } from '../result.mjs';
 import { withGuard, requireSnapshot, findByText, clickElement, openSettingsAiPrivacy } from './_util.mjs';
+import { localOnlyEgressVerdict } from '../../robot/fixtures/egressGuard.mjs';
 
 const SECTION = 'Cross-cutting';
 
@@ -78,7 +79,9 @@ export const checkEgressIndicator = withGuard('cross-cutting-egress-indicator', 
   }
 
   await clickElement(driver, localOnlyToggle);
-  const isolated = await driver.waitFor('outside connections are blocked', 10);
+  const localLabel = await driver.evalJs(
+    "(() => document.querySelector('[data-testid=\"egress-indicator-label\"]')?.textContent?.trim() || '')()"
+  );
   const shot = await driver.captureScreenshot('cross-cutting-egress-local-only');
 
   // Always try to revert to the recommended default, even if the assertion
@@ -86,12 +89,12 @@ export const checkEgressIndicator = withGuard('cross-cutting-egress-indicator', 
   const cloudToggle = findByText(await requireSnapshot(driver), /cloud ai.*your account/i);
   if (cloudToggle) await clickElement(driver, cloudToggle).catch(() => {});
 
-  if (!isolated.found) {
+  if (!/using local ai|on your machine|local ai/i.test(String(localLabel))) {
     return makeResult({
       id: 'cross-cutting-egress-indicator',
       section: SECTION,
       status: STATUS.FAIL,
-      detail: 'Switched to Local-only but the egress indicator never showed the "outside connections are blocked" message.',
+      detail: `Switched to Local-only but egress-indicator-label did not show local AI. Saw: ${JSON.stringify(localLabel)}.`,
       screenshots: [shot],
     });
   }
@@ -100,7 +103,29 @@ export const checkEgressIndicator = withGuard('cross-cutting-egress-indicator', 
     id: 'cross-cutting-egress-indicator',
     section: SECTION,
     status: STATUS.PASS,
-    detail: 'Local-only mode correctly flips the egress indicator; reverted to Cloud AI (recommended default) afterward.',
+    detail: `Local-only mode correctly flips egress-indicator-label to ${JSON.stringify(localLabel)}; reverted to Cloud AI (recommended default) afterward.`,
     screenshots: [shot],
+  });
+});
+
+export const checkLocalOnlyEgressTripwire = withGuard('cross-cutting-local-only-egress-tripwire', SECTION, async ({ driver }) => {
+  const probe = await driver.localOnlyEgressWalk();
+  const verdict = localOnlyEgressVerdict({ violations: probe?.violations ?? [] });
+  const walked = Array.isArray(probe?.walked) && probe.walked.length > 0 ? probe.walked.join(', ') : 'no feature surfaces';
+
+  if (!verdict.ok) {
+    return makeResult({
+      id: 'cross-cutting-local-only-egress-tripwire',
+      section: SECTION,
+      status: STATUS.FAIL,
+      detail: `Local-only tripwire caught ${verdict.violationCount} cloud AI request(s) while walking ${walked}: ${verdict.violations.join(', ')}`,
+    });
+  }
+
+  return makeResult({
+    id: 'cross-cutting-local-only-egress-tripwire',
+    section: SECTION,
+    status: STATUS.PASS,
+    detail: `Local-only tripwire saw zero cloud AI requests while walking ${walked}; indicator label was ${JSON.stringify(probe?.localLabel ?? '')}.`,
   });
 });

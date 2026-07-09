@@ -13,7 +13,8 @@
  * native run.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { gunzipSync } from 'node:zlib';
 import { resolve } from 'node:path';
 import { createOCREngine, type OCREngine } from 'tesseract-wasm';
@@ -22,14 +23,25 @@ import { createOCREngine, type OCREngine } from 'tesseract-wasm';
 const WIDTH = 720;
 const HEIGHT = 100;
 const PLANTED_FRAGMENT = 'scanned pages locally';
+const WASM_PATH = resolve(process.cwd(), 'public/ocr/tesseract-core.wasm');
+const MODEL_PATH = resolve(process.cwd(), 'public/ocr/eng.traineddata');
+
+function ensureOcrAssets() {
+  if (existsSync(WASM_PATH) && existsSync(MODEL_PATH)) return;
+  execFileSync(process.execPath, ['scripts/copy-build-assets.mjs'], {
+    cwd: process.cwd(),
+    stdio: 'pipe',
+  });
+}
 
 describe('vendored tesseract-wasm engine (real recognition)', () => {
   let engine: OCREngine | null = null;
 
   beforeAll(async () => {
-    const wasm = readFileSync(resolve(process.cwd(), 'public/ocr/tesseract-core.wasm'));
+    ensureOcrAssets();
+    const wasm = readFileSync(WASM_PATH);
     engine = await createOCREngine({ wasmBinary: wasm });
-    const model = readFileSync(resolve(process.cwd(), 'public/ocr/eng.traineddata'));
+    const model = readFileSync(MODEL_PATH);
     // Re-wrap with this realm's Uint8Array: under the jsdom environment the
     // inlined lib.js type-checks against jsdom's intrinsics, which a Node
     // Buffer (Node-realm Uint8Array) fails.

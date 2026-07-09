@@ -20,7 +20,7 @@ function stub({ id, section, title, planRef, acceptance }) {
         id,
         section,
         status: STATUS.TODO,
-        detail: `Not wired up yet — see ${planRef}. Acceptance to check once this wave has bench-drivable UI: ${acceptance}`,
+        detail: `P0 STUB, NOT GREEN: this check is not wired to the bench yet — see ${planRef}. Acceptance to prove before declaring the feature done: ${acceptance}`,
       }),
   };
 }
@@ -28,7 +28,7 @@ function stub({ id, section, title, planRef, acceptance }) {
 export const WAVE_3_STUBS = [
   stub({
     id: 'wave3-capture-start-stop',
-    section: 'Wave 3 — Local meeting capture (STUB)',
+    section: 'Wave 3 — Local meeting capture (P0 STUB)',
     title: 'Start/stop a local meeting recording from the app UI',
     planRef: 'docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 1, Task 4)',
     acceptance:
@@ -36,7 +36,7 @@ export const WAVE_3_STUBS = [
   }),
   stub({
     id: 'wave3-capture-crash-recovery',
-    section: 'Wave 3 — Local meeting capture (STUB)',
+    section: 'Wave 3 — Local meeting capture (P0 STUB)',
     title: 'An orphaned capture session is detected and recovered on next launch',
     planRef: 'docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 5)',
     acceptance:
@@ -44,7 +44,7 @@ export const WAVE_3_STUBS = [
   }),
   stub({
     id: 'wave3-capture-session-manifest',
-    section: 'Wave 3 — Local meeting capture (STUB)',
+    section: 'Wave 3 — Local meeting capture (P0 STUB)',
     title: 'A finished capture produces a playable stereo audio.wav + manifest',
     planRef: 'docs/plans/lantern-plus/2026-07-02-wave-3-meeting-capture.md (Task 2)',
     acceptance:

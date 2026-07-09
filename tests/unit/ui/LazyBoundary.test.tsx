@@ -10,7 +10,10 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import { LazyBoundary } from '@/ui/LazyBoundary';
 
-afterEach(cleanup);
+afterEach(() => {
+  vi.restoreAllMocks();
+  cleanup();
+});
 
 describe('LazyBoundary', () => {
   it('renders the lazily-loaded component once import() resolves', async () => {

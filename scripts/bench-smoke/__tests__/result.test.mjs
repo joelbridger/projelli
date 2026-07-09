@@ -57,9 +57,9 @@ describe('summarize', () => {
     expect(summarize(results).counts).toMatchObject({ PASS: 2, TODO: 1, FAIL: 0 });
   });
 
-  it('TODO/SKIPPED-only results still summarize to PASS overall', () => {
+  it('TODO/SKIPPED-only results summarize to INCOMPLETE, not PASS', () => {
     const results = [makeResult({ id: 'a', section: 'S', status: STATUS.TODO, detail: 'stub' })];
-    expect(summarize(results).overall).toBe('PASS');
+    expect(summarize(results).overall).toBe('INCOMPLETE');
   });
 });
 
@@ -80,12 +80,12 @@ describe('aggregateExitCode', () => {
     expect(aggregateExitCode([makeResult({ id: 'a', section: 'S', status: STATUS.SETUP_BLOCKED, detail: 'blocked' })])).toBe(3);
   });
 
-  it('TODO/SKIPPED never affect the exit code', () => {
+  it('is 4 when TODO/SKIPPED remain but nothing failed or blocked', () => {
     const results = [
       makeResult({ id: 'a', section: 'S', status: STATUS.TODO, detail: 'stub' }),
       makeResult({ id: 'b', section: 'S', status: STATUS.SKIPPED, detail: 'skipped' }),
     ];
-    expect(aggregateExitCode(results)).toBe(0);
+    expect(aggregateExitCode(results)).toBe(4);
   });
 });
 

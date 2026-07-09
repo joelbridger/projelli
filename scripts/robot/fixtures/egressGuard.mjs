@@ -47,9 +47,34 @@ export const LIVE_AI_PATTERNS = [
   '**/api/google/**',
   // Provider API shapes — catch any UNANTICIPATED host
   '**/v1/chat/completions',
+  '**/v1/responses',
   '**/v1/messages',
+  '**/v1/embeddings',
+  '**/v1/audio/transcriptions',
+  '**/v1/audio/speech',
+  '**/v1/images/**',
+  '**/v1/models',
   '**/v1beta/**',
 ];
+
+export const WHOLE_APP_CLOUD_AI_PATTERNS = [
+  ...LIVE_AI_PATTERNS,
+  // Common cloud model gateway host shapes. Localhost is allowed by the route
+  // handler below so local llama/Ollama traffic is not treated as cloud egress.
+  '**/openrouter.ai/**',
+  '**/api.mistral.ai/**',
+  '**/api.cohere.ai/**',
+  '**/api.perplexity.ai/**',
+];
+
+export function isLocalUrl(url) {
+  try {
+    const u = new URL(String(url || ''));
+    return ['localhost', '127.0.0.1', '::1', '[::1]'].includes(u.hostname);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Install the tripwire on `page`. Call this BEFORE installAIReplay so the replay
@@ -58,12 +83,16 @@ export const LIVE_AI_PATTERNS = [
  * @param {import('playwright').Page} page
  * @returns {Promise<{ violations: string[], count: number, ok: () => boolean, report: () => object }>}
  */
-export async function installEgressGuard(page) {
+export async function installEgressGuard(page, { patterns = LIVE_AI_PATTERNS, allowLocal = true } = {}) {
   const violations = [];
-  for (const pattern of LIVE_AI_PATTERNS) {
+  for (const pattern of patterns) {
     await page.route(pattern, async (route) => {
       let url = '';
       try { url = route.request().url(); } catch { /* ignore */ }
+      if (allowLocal && isLocalUrl(url)) {
+        await route.continue().catch(() => {});
+        return;
+      }
       violations.push(url);
       await route.abort('blockedbyclient').catch(() => {});
     });
@@ -74,6 +103,19 @@ export async function installEgressGuard(page) {
     ok() { return violations.length === 0; },
     report() { return { egressViolations: violations.length, urls: violations.slice(0, 10) }; },
   };
+}
+
+/**
+ * Whole-app local-only tripwire. Use after switching the app into
+ * "On this computer only" mode, before exercising every AI-capable feature.
+ * Verdict is stricter than deterministic replay: no fixture needs to be served;
+ * the proof is simply zero cloud AI egress anywhere in the app.
+ */
+export async function installLocalOnlyEgressTripwire(page) {
+  return installEgressGuard(page, {
+    patterns: WHOLE_APP_CLOUD_AI_PATTERNS,
+    allowLocal: true,
+  });
 }
 
 /**
@@ -90,5 +132,14 @@ export function egressVerdict({ served = 0, violations = [] } = {}) {
     violationCount: list.length,
     violations: list.slice(0, 10),
     ok: list.length === 0 && served >= 1,
+  };
+}
+
+export function localOnlyEgressVerdict({ violations = [] } = {}) {
+  const list = Array.isArray(violations) ? violations : [];
+  return {
+    violationCount: list.length,
+    violations: list.slice(0, 10),
+    ok: list.length === 0,
   };
 }

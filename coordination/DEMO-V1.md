@@ -23,6 +23,24 @@ Draft-emails-with-AI (was in Jameson's earlier verbal list, NOT in the graphic).
 ## The loop to green
 winsmoke scorecard → for every BROKEN/CANT-TEST step, spawn a fix immediately (Codex/worker) → re-test that step → repeat until all 6 GREEN. Then a clean 3× demo dry-run on real Windows.
 
+## Robot coverage plan
+
+`scripts/robot/smoke.mjs` is the real Windows done-gate. A green demo run must cover this whole list, not just the older reset/open/sweep/Ask/isolation chain.
+
+The bench smoke also includes a real Local-only privacy tripwire: it switches the app to **On this computer only**, installs the whole-app cloud-AI blocker before walking Ask/Workflows/Clients, and fails the run if any cloud AI URL is touched.
+
+| Demo area | Robot proof required | Current automation status |
+|---|---|---|
+| AI setup | Open AI setup, prove OpenAI/ChatGPT is connected or can be connected, prove Local AI is installed/ready, then ask with both. | Planned: older smoke only asks once through the seeded provider path. |
+| Outlook | Connect/import Outlook mail and prove imported mail appears in client-scoped Ask/search. | Planned. |
+| OneDrive | Connect/import OneDrive files and prove imported files appear in client-scoped Ask/search. | Planned. |
+| Wealthbox | Connect/import Wealthbox households, show household import counts, and prove one client maps to imported CRM data. | Partly covered by bench-smoke Wave 2 queue checks; Demo V1 needs full connect/import proof. |
+| Import progress | While Outlook/OneDrive/Wealthbox import, prove the progress screen updates instead of waiting silently. | Planned. |
+| Ask during import | Ask a question while import is still running and prove partial data can be cited without waiting for the full import to finish. | Planned. |
+| Meeting recording | Start and stop a Teams meeting recording, then prove the meeting artifact exists. | Planned; current bench has P0 stubs that now count as incomplete, not green. |
+| Notice Card | During the Teams recording, prove the in-meeting Notice Card is visible and says recording is active. | Planned. |
+| Transcript search | After recording/transcription, ask/search for transcript content and prove citations open the transcript/notes source. | Planned. |
+
 ## Demo-specific things to verify/likely-fix (beyond the trust-breakers already merged)
 - **Progress screen** clearly shows import progress (step 3) — most likely gap.
 - **Ask-as-it-comes-in** (step 4) — can you query partially-imported data?

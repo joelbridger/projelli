@@ -152,16 +152,17 @@ describe('openSmokeClientOverview', () => {
 
 describe('openSmokeClientNote', () => {
   it('switches to Tree view first, then double-clicks the filename and waits for the docx toolbar text', async () => {
-    const driver = { clickByText: vi.fn(), doubleClickByText: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: true }) };
+    const driver = { click: vi.fn(), doubleClickByText: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: true }) };
     await openSmokeClientNote(driver, { fileName: 'Meeting Notes.docx', waitForText: 'Draft follow-up' });
-    expect(driver.clickByText).toHaveBeenCalledWith('Tree');
+    expect(driver.click).toHaveBeenCalledWith('docs-view-tree');
+    expect(driver.waitFor).toHaveBeenCalledWith('Meeting Notes.docx', 5);
     expect(driver.doubleClickByText).toHaveBeenCalledWith('Meeting Notes.docx');
     expect(driver.waitFor).toHaveBeenCalledWith('Draft follow-up', 10);
   });
 
-  it('still opens the note when the Tree/Grid toggle is not present (clickByText throws)', async () => {
+  it('still opens the note when the Tree/Grid toggle is not present', async () => {
     const driver = {
-      clickByText: vi.fn().mockRejectedValue(new DriverError('no matching element')),
+      click: vi.fn().mockRejectedValue(new DriverError('no matching element')),
       doubleClickByText: vi.fn(),
       waitFor: vi.fn().mockResolvedValue({ found: true }),
     };
@@ -170,7 +171,7 @@ describe('openSmokeClientNote', () => {
   });
 
   it('throws a DriverError when the docx toolbar never appears', async () => {
-    const driver = { clickByText: vi.fn(), doubleClickByText: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: false, error: 'timed out' }) };
+    const driver = { click: vi.fn(), doubleClickByText: vi.fn(), waitFor: vi.fn().mockResolvedValue({ found: false, error: 'timed out' }) };
     await expect(openSmokeClientNote(driver, { fileName: 'x.docx' })).rejects.toThrow(DriverError);
   });
 });
