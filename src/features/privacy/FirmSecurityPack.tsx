@@ -1,6 +1,6 @@
 /**
- * FirmSecurityPack — one-click "security overview" a solo lawyer can hand to
- * their firm's IT department or General Counsel to get Lantern approved.
+ * FirmSecurityPack — one-click "security overview" an advisor can hand to
+ * their firm's CCO or compliance officer to get Lantern approved.
  *
  * ACCURACY IS THE WHOLE POINT. Every claim mirrors the real architecture and
  * the canonical facts in `src/platform/privacy/egress.ts`. No marketing
@@ -16,7 +16,7 @@
 
 /*
  * This is a single long-form trust document whose exact English wording is the
- * product (it is printed and handed to a firm's IT / GC). Disable the
+ * product (it is printed and handed to a firm's CCO / compliance officer). Disable the
  * hardcoded-string rule for this file only.
  */
 /* eslint-disable lantern-i18n/no-hardcoded-string */
@@ -250,7 +250,7 @@ function usePrint(printableId: string) {
       return;
     }
 
-    doc.title = 'Lantern security overview for IT / General Counsel';
+    doc.title = 'Lantern security overview for CCO / compliance officer';
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -302,11 +302,11 @@ export function FirmSecurityPackContent() {
   return (
     <div id={PRINTABLE_ID} data-testid="firm-security-pack-content">
       <h1 className="text-lg font-semibold mb-1">
-        Lantern security overview for your firm&apos;s IT / General Counsel
+        Lantern security overview for your firm&apos;s CCO / compliance officer
       </h1>
       <p className="sub text-sm text-muted-foreground mb-4">
         This is a plain-English summary of how Lantern handles your client
-        data, written so your security and ethics reviewers can evaluate it
+        data, written so your CCO or compliance officer can evaluate it
         quickly. Every claim here matches how the software actually works. If
         something isn&apos;t finished yet, I say so.
       </p>

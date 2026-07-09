@@ -921,7 +921,7 @@
         "flow": {
           "connect": {
             "title": "Connect your practice",
-            "body": "Files, email, and CRM stay on your machine."
+            "body": "Files stay on your machine. Email and CRM are read directly from your accounts."
           },
           "client-map": {
             "title": "It builds a Client Map",
@@ -932,7 +932,7 @@
             "body": "Answers come with sources you can open."
           }
         },
-        "trust-line": "Your client data never touches our servers, the cloud, or any AI's training. Ever.",
+        "trust-line": "Your files stay on your computer. Cloud AI goes straight to your own provider account, not through us.",
         "help-line": "You can reopen this walkthrough anytime from Help.",
         "cta": "Go!"
       },
@@ -945,7 +945,7 @@
           "help": "Land in a populated practice: the Hendricks Household, with real documents and a ready Client Map, so you can ask a cited question in your first minute.",
           "bullet-1": "A worked household you can explore",
           "bullet-2": "A filled, cited Client Map",
-          "bullet-3": "Nothing leaves your computer",
+          "bullet-3": "No real client data needed",
           "loading": "Setting up",
           "cta": "Use the sample"
         },
@@ -954,7 +954,7 @@
           "help": "Choose a folder for your practice. In the next steps you can connect your email, files, and Wealthbox so {{productName}} builds Client Maps from your real clients.",
           "bullet-1": "Pick where your practice lives",
           "bullet-2": "Import email, files, and Wealthbox next",
-          "bullet-3": "Your data stays on your machine",
+          "bullet-3": "Your files stay on your machine, not ours",
           "loading": "Opening",
           "cta": "Choose my folder"
         },
@@ -963,8 +963,8 @@
       "compliance": {
         "headline": "Why you can use this when you can't use ChatGPT",
         "body": "Most firms do not allow client files in public chat tools. {{productName}} is built so the files stay under your control.",
-        "point-1": "Your files stay on your computer. The AI reads them locally.",
-        "point-2": "When you use a cloud AI, it's your account and your key. We never see your data, and the provider doesn't train on it.",
+        "point-1": "Your files stay on your computer. {{productName}} searches them locally before any AI request is sent.",
+        "point-2": "When you use cloud AI, your question and needed context go straight to your own provider account, not through {{productName}} servers.",
         "point-3": "You get a simple security one-pager to hand to the person who reviews new tools.",
         "cta": "For your compliance officer",
         "modal-title": "Compliance & Security",
@@ -973,7 +973,7 @@
       },
       "ai": {
         "headline": "1. Bring your own AI",
-        "mode-note": "Either way, your client files stay on your machine. Cloud AI sends questions to your own AI account. On-device AI keeps even the questions on this computer.",
+        "mode-note": "Either way, your source files stay on your machine. Cloud AI sends your question and needed context to your own AI account. On-device AI keeps even the question on this computer.",
         "providers": {
           "openai": "ChatGPT (OpenAI)",
           "anthropic": "Claude (Anthropic)",
@@ -981,10 +981,10 @@
         },
         "cloud": {
           "title": "Use ChatGPT, Claude, or Gemini",
-          "bullet-1": "Your client files stay on your machine",
-          "bullet-2": "Questions go from your computer to your own AI account",
-          "bullet-3": "{{productName}} never sees your key, prompts, or client data",
-          "bullet-4": "Paid API usage is not used for training",
+          "bullet-1": "Your source files stay on your machine",
+          "bullet-2": "Questions and needed context go from your computer to your own AI account",
+          "bullet-3": "{{productName}} servers never see your key, prompts, or client data",
+          "bullet-4": "Training controls live in your AI provider account",
           "bullet-5": "Pay the AI provider directly for what you use",
           "what-link": "What is this?",
           "pick-label": "Pick your provider, then get your key",
@@ -1028,7 +1028,7 @@
         },
         "pay-modal": {
           "title": "Pay as you go, with your own key",
-          "body": "You get an API key from the AI company you pick: ChatGPT, Claude, or Gemini. You pay them directly, only for what you actually use, usually a few cents per question. {{productName}} never charges you for AI, and never sees your key or your data.",
+          "body": "You get an API key from the AI company you pick: ChatGPT, Claude, or Gemini. You pay them directly, only for what you actually use, usually a few cents per question. {{productName}} never charges you for AI. Your prompts go straight from your machine to that provider, not through {{productName}} servers.",
           "got": "Got it"
         },
         "local-modal": {
@@ -1041,8 +1041,8 @@
         "headline": "2. Connect your practice",
         "pills": {
           "encrypted": "Encrypted in transit",
-          "device": "Stays on your device",
-          "private": "{{productName}} never sees your data"
+          "device": "Files stay on your device",
+          "private": "{{productName}} servers never see your data"
         },
         "cards": {
           "m365": {
@@ -1056,6 +1056,10 @@
           "onedrive": {
             "title": "OneDrive",
             "description": "Client folders from OneDrive and SharePoint."
+          },
+          "calendar": {
+            "title": "Calendar",
+            "description": "Read-only Outlook, Google, or ICS events for meeting prep."
           },
           "wealthbox": {
             "title": "Wealthbox",
@@ -1075,7 +1079,7 @@
           "now-label": "Connect now",
           "built-label": "Also built, ready to switch on for your firm",
           "roadmap-label": "On the roadmap",
-          "calendars-note": "Calendly and your calendar connect from Settings once you're set up."
+          "calendars-note": "Calendly connects from Settings once you're set up."
         },
         "built": {
           "salesforce": {
@@ -1177,7 +1181,7 @@
       "welcome": {
         "title": "Welcome to {{productName}}",
         "subtitle": "The private place your practice lives, that answers you back.",
-        "body-1": "{{productName}} keeps your clients' files, documents, and email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
+        "body-1": "{{productName}} keeps your clients' files, documents, and imported email on your own machine. Ask a question across your whole practice and get back a cited answer you can verify. Your files stay real files in a folder you control.",
         "body-2": "Setup takes about 2 minutes. I'll help you pick a folder for your work, connect your AI provider account (optional), and run your first workflow.",
         "step-1": "Step 1. Pick a folder for your work",
         "step-2": "Step 2. Connect your AI provider account (optional)",
@@ -1187,7 +1191,7 @@
       "workspace": {
         "title": "Pick a folder for your work",
         "subtitle": "Your client files stay on your machine, in a folder you control.",
-        "body-1": "This is where your client work will live: real Word documents, PDFs, and notes in a normal folder on your hard drive. Nothing is uploaded anywhere. Pick a location that's easy to find and easy to back up.",
+        "body-1": "This is where your client work will live: real Word documents, PDFs, and notes in a normal folder on your hard drive. Nothing is uploaded to our servers. Pick a location that's easy to find and easy to back up.",
         "body-2": "Pro tip: a folder inside Dropbox, iCloud, or OneDrive syncs across devices, but that also means your files sit with that provider. For client-confidential work, keep the folder local.",
         "common-choices": "Common choices:",
         "icloud-path": "~/iCloud Drive/{{productName}}",
@@ -1197,7 +1201,7 @@
       "apikey": {
         "title": "Add an AI provider key",
         "subtitle": "Optional, but you'll need one to use the AI features.",
-        "body-1": "{{productName}} is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain and never leave your computer.",
+        "body-1": "{{productName}} is a \"bring your own key\" tool. You sign up with an AI provider directly and paste their account key here. Your keys are stored in your operating system's secure keychain, never sent to us, and used from your computer when it talks to your provider.",
         "body-2": "The fastest way to get started is with <s>Anthropic Claude</s>:",
         "step-go-to": "Go to <a>console.anthropic.com</a>",
         "step-signup": "Sign up (free, $5 in credits to start)",
