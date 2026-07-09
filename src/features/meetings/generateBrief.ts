@@ -16,6 +16,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { AuditService, auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress } from '@/platform/privacy/egress';
+import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import type { Provider } from '@/platform/providers/Provider';
 import type { OutputSchema } from '@/platform/providers/Provider';
@@ -202,7 +203,13 @@ async function generateBriefBullets(
       },
     }),
   );
+  // Re-check the Local-only switch immediately before this second cloud call —
+  // the guarded WorkflowEngine send above is not enough if the mode flipped
+  // mid-generation (review fix: the comment below used to claim this guard
+  // existed when it did not).
+  assertLocalOnlyAllowsSend(providerId);
   try {
+    // eslint-disable-next-line lantern-egress/no-direct-provider-send -- assertLocalOnlyAllowsSend is called above and the custom egress receipt is written before this structured call.
     const result = await provider.structuredOutput<{ bullets?: unknown }>(prompt, {
       schema: BULLET_SCHEMA,
       systemPrompt: BULLET_SYSTEM_PROMPT,

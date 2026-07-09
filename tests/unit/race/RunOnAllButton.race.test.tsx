@@ -17,6 +17,7 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
   return {
     ...real,
     assertCloudGenerationAllowed: vi.fn(),
+    assertLocalOnlyAllowsSend: vi.fn(),
     assertLocalOnlyAllowsExternal: vi.fn(),
     isLocalOnlyModeFailClosed: vi.fn(() => false),
   };

@@ -341,7 +341,7 @@ describe('Lantern 3.0 audit provenance events', () => {
     expect(payload['scope']).toMatchObject({ kind: 'matter', matterId: m.id });
   });
 
-  it('does not log successful egress when the provider send fails', async () => {
+  it('logs attempted egress before send and failed egress when the provider send fails', async () => {
     mocks.retrieve.mockResolvedValue([]);
     mocks.sendMessage.mockRejectedValue(new Error('provider offline'));
 
@@ -357,7 +357,7 @@ describe('Lantern 3.0 audit provenance events', () => {
       expect(msgs.some((m) => m.role === 'assistant' && m.isError)).toBe(true);
     });
 
-    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
     expect(eventsOfType(logged, 'egress_failed')).toHaveLength(1);
   });
 
@@ -521,7 +521,7 @@ describe('Lantern 3.0 audit provenance events', () => {
       expect(msgs.some((m) => m.role === 'assistant' && m.isError)).toBe(true);
     });
 
-    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
     expect(eventsOfType(logged, 'attachment_sent_to_provider')).toHaveLength(0);
     expect(eventsOfType(logged, 'egress_failed')).toHaveLength(1);
   });

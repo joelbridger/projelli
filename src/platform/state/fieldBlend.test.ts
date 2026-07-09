@@ -7,32 +7,22 @@
  *     replace, no AI call.
  *   - narrative (free text, e.g. Wealthbox's `background_information`):
  *     finalValue = an AI-composed merge that keeps every existing fact and
- *     folds in the new information, via a caller-supplied Provider; a
+ *     folds in the new information, via a caller-supplied audited send
+ *     function; a
  *     deterministic `existing + "\n\n" + new` fallback when no provider is
  *     configured, so the store never silently drops content for lack of a
  *     configured AI key.
  *
- * NOT tested here: the real egress-audit entry (resolveEgress + AuditService,
- * per DraftFollowUpModal.tsx's pattern) — that's the CALLER's responsibility.
- * This module only guarantees the SEAM exists (`onBeforeProviderCall` fires
- * before any provider.sendMessage), so the real wiring can hook in without
- * this pure function reaching into React hooks / global confidentiality state.
+ * NOT tested here: the real egress-audit entry — that's the caller's
+ * responsibility. This pure function only accepts an already-audited sender.
  */
 
 import { describe, expect, it, vi } from 'vitest';
 import { composeFieldBlend, isNarrativeField, WEALTHBOX_NARRATIVE_FIELDS } from './fieldBlend';
-import type { Provider } from '@/platform/providers/Provider';
 
-// Returns the mock alongside the provider (rather than letting callers pull
-// `provider.sendMessage` back off the object) — referencing a vi.fn() as an
-// object METHOD trips @typescript-eslint/unbound-method on every assertion.
-function fakeProvider(response: string) {
-  const sendMessage = vi.fn().mockResolvedValue({ content: response });
-  const provider = {
-    getMetadata: () => ({ id: 'fake', name: 'Fake', model: 'fake-model' }) as never,
-    sendMessage,
-  } as unknown as Provider;
-  return { provider, sendMessage };
+function fakeSender(response: string) {
+  const send = vi.fn().mockResolvedValue(response);
+  return { send };
 }
 
 describe('isNarrativeField', () => {
@@ -51,19 +41,16 @@ describe('isNarrativeField', () => {
 });
 
 describe('composeFieldBlend — scalar fields', () => {
-  it('replaces outright with the new value, never calling a provider', async () => {
-    const { provider, sendMessage } = fakeProvider('should not be used');
-    const onBeforeProviderCall = vi.fn();
+  it('replaces outright with the new value, never calling the sender', async () => {
+    const { send } = fakeSender('should not be used');
     const finalValue = await composeFieldBlend({
       field: 'risk_tolerance',
       existingValue: 'Moderate',
       newValue: 'Aggressive',
-      provider,
-      onBeforeProviderCall,
+      send,
     });
     expect(finalValue).toBe('Aggressive');
-    expect(sendMessage).not.toHaveBeenCalled();
-    expect(onBeforeProviderCall).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('replaces outright even when no provider is configured', async () => {
@@ -76,19 +63,18 @@ describe('composeFieldBlend — scalar fields', () => {
   });
 });
 
-describe('composeFieldBlend — narrative fields, provider configured', () => {
-  it('sends a merge instruction to the provider and returns its response verbatim', async () => {
-    const { provider, sendMessage } = fakeProvider('Robert owns a rental property. Retiring spring 2027.');
+describe('composeFieldBlend — narrative fields, audited sender configured', () => {
+  it('sends a merge instruction to the audited sender and returns its response verbatim', async () => {
+    const { send } = fakeSender('Robert owns a rental property. Retiring spring 2027.');
     const finalValue = await composeFieldBlend({
       field: 'background_information',
       existingValue: 'Robert owns a rental property.',
       newValue: 'Retiring spring 2027.',
-      provider,
-      onBeforeProviderCall: vi.fn(),
+      send,
     });
     expect(finalValue).toBe('Robert owns a rental property. Retiring spring 2027.');
-    expect(sendMessage).toHaveBeenCalledTimes(1);
-    const call = sendMessage.mock.calls[0];
+    expect(send).toHaveBeenCalledTimes(1);
+    const call = send.mock.calls[0];
     expect(call).toBeDefined();
     const prompt: string = typeof call?.[0] === 'string' ? call[0] : '';
     expect(prompt).toContain('Merge the new information into the existing text');
@@ -97,34 +83,15 @@ describe('composeFieldBlend — narrative fields, provider configured', () => {
     expect(prompt).toContain('Retiring spring 2027.');
   });
 
-  it('calls onBeforeProviderCall before provider.sendMessage (egress-audit seam)', async () => {
-    const order: string[] = [];
-    const { provider, sendMessage } = fakeProvider('merged');
-    sendMessage.mockImplementation(() => {
-      order.push('sendMessage');
-      return Promise.resolve({ content: 'merged' } as never);
-    });
-    await composeFieldBlend({
-      field: 'background_information',
-      existingValue: 'A',
-      newValue: 'B',
-      provider,
-      onBeforeProviderCall: () => { order.push('onBeforeProviderCall'); },
-    });
-    expect(order).toEqual(['onBeforeProviderCall', 'sendMessage']);
-  });
-
-  it('does not call onBeforeProviderCall for a scalar field (no provider call happens)', async () => {
-    const onBeforeProviderCall = vi.fn();
-    const { provider } = fakeProvider('unused');
+  it('does not call the sender for a scalar field', async () => {
+    const { send } = fakeSender('unused');
     await composeFieldBlend({
       field: 'risk_tolerance',
       existingValue: 'Moderate',
       newValue: 'Aggressive',
-      provider,
-      onBeforeProviderCall,
+      send,
     });
-    expect(onBeforeProviderCall).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
   });
 });
 
@@ -145,20 +112,5 @@ describe('composeFieldBlend — narrative fields, no provider configured', () =>
       newValue: 'Retiring spring 2027.',
     });
     expect(finalValue).toBe('Retiring spring 2027.');
-  });
-});
-
-// Codex review catch (P2): the type requires onBeforeProviderCall whenever a
-// provider is passed, but Tauri invoke args (and any other JS boundary) are
-// NOT type-checked at runtime — the seam that stops an unlogged AI action
-// from sending confidential CRM text must fail closed, not just rely on TS.
-describe('composeFieldBlend — fails closed if the audit hook is bypassed at runtime', () => {
-  it('throws rather than call the provider when onBeforeProviderCall is missing at runtime', async () => {
-    const { provider, sendMessage } = fakeProvider('should never be sent');
-    const bypassed = { field: 'background_information', existingValue: 'A', newValue: 'B', provider };
-    await expect(composeFieldBlend(bypassed as unknown as Parameters<typeof composeFieldBlend>[0])).rejects.toThrow(
-      /onBeforeProviderCall is required/,
-    );
-    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

@@ -41,8 +41,8 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
       order.push('send');
       return Promise.reject(new Error('simulated timeout'));
     });
-    const appendSpy = vi.spyOn(AuditService.prototype, 'append').mockImplementation((event) => {
-      if (event.type === 'egress') order.push('egress-audit');
+    const logSpy = vi.spyOn(AuditService.prototype, 'log').mockImplementation((action) => {
+      if (action === 'egress') order.push('egress-audit');
     });
 
     const md = await agendaMarkdownFromBrief(
@@ -53,7 +53,7 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
     // Errors degrade to the deterministic fallback rather than throwing.
     expect(md).toBe(fallbackAgenda('- Talk about the Roth conversion.', 'Q3 review'));
     expect(order).toEqual(['egress-audit', 'send']);
-    appendSpy.mockRestore();
+    logSpy.mockRestore();
   });
 
   it('records the real resolved providerId in the egress audit for the default (non-injected) provider path', async () => {
@@ -69,8 +69,10 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
       model: 'claude-sonnet-4-6',
     });
     let loggedProvider: string | undefined;
-    const appendSpy = vi.spyOn(AuditService.prototype, 'append').mockImplementation((event) => {
-      if (event.type === 'egress') loggedProvider = event.payload.provider;
+    const logSpy = vi.spyOn(AuditService.prototype, 'log').mockImplementation((action, _description, options) => {
+      if (action === 'egress') {
+        loggedProvider = options.metadata?.['provider'] as string | undefined;
+      }
     });
 
     await agendaMarkdownFromBrief(
@@ -79,7 +81,7 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
     );
 
     expect(loggedProvider).toBe('anthropic');
-    appendSpy.mockRestore();
+    logSpy.mockRestore();
   });
 
   it('includes the matter scope in the egress audit entry, so the send appears in that client\'s confidentiality report', async () => {
@@ -88,8 +90,10 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
     // specific client's own confidentiality report.
     const sendMessage = vi.fn().mockResolvedValue({ content: 'irrelevant, malformed on purpose' });
     let loggedScope: unknown;
-    const appendSpy = vi.spyOn(AuditService.prototype, 'append').mockImplementation((event) => {
-      if (event.type === 'egress') loggedScope = event.payload.scope;
+    const logSpy = vi.spyOn(AuditService.prototype, 'log').mockImplementation((action, _description, options) => {
+      if (action === 'egress') {
+        loggedScope = options.metadata?.['scope'];
+      }
     });
 
     await agendaMarkdownFromBrief(
@@ -103,7 +107,7 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
     );
 
     expect(loggedScope).toEqual({ kind: 'matter', matterId: 'matter_johnson_123' });
-    appendSpy.mockRestore();
+    logSpy.mockRestore();
   });
 
   it('still logs a model_call entry after a successful send', async () => {

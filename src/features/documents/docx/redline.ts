@@ -32,6 +32,7 @@ import type {
 import type { OutputSchema, Provider } from '@/platform/providers/Provider';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, type ConfidentialityMode } from '@/platform/privacy/egress';
+import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { BRAND } from '@/config/brand';
 
@@ -246,8 +247,9 @@ export function normalizeEdits(raw: unknown): DocxAiEdit[] {
 
 /**
  * Ask the model for a redline edit list. Pure of any engine/DOM mutation — it
- * only builds the prompt, calls the provider's `structuredOutput`, and returns
- * normalized edits. The caller applies them via the batch engine command.
+ * only builds the prompt, calls the provider through the egress guard, and
+ * returns normalized edits. The caller applies them via the batch engine
+ * command.
  *
  * @throws if the provider call itself fails (network/auth/etc.). A well-formed
  *   but empty response yields `[]` (no edits), which is a valid "nothing to do".
@@ -256,17 +258,36 @@ export async function requestRedlineEdits(
   provider: Provider,
   instruction: string,
   doc: DocumentJson,
+  auditContext: RedlineEgressAuditContext,
   selection?: ParagraphSelection,
   options?: { signal?: AbortSignal },
 ): Promise<DocxAiEdit[]> {
   const paragraphs = extractIndexedParagraphs(doc);
   const prompt = buildRedlinePrompt(instruction, paragraphs, selection);
-  const raw = await provider.structuredOutput<unknown>(prompt, {
-    schema: REDLINE_SCHEMA,
-    systemPrompt: REDLINE_SYSTEM_PROMPT,
-    temperature: 0,
-    maxTokens: 4096,
-    ...(options?.signal ? { signal: options.signal } : {}),
+  const model = auditContext.model ?? provider.getMetadata().model;
+  const raw = await runWithEgressAudit<unknown>({
+    provider,
+    providerId: auditContext.providerId,
+    model,
+    mode: auditContext.mode,
+    ...(auditContext.scope !== undefined ? { scope: auditContext.scope } : {}),
+    ...(auditContext.isDemo !== undefined ? { isDemo: auditContext.isDemo } : {}),
+    ...(auditContext.assuredAvailable !== undefined
+      ? { assuredAvailable: auditContext.assuredAvailable }
+      : {}),
+    operation: () => {
+      auditContext.onAuditLog?.(buildRedlineEgressAuditEntry({
+        ...auditContext,
+        model,
+      }));
+      return provider.structuredOutput<unknown>(prompt, {
+        schema: REDLINE_SCHEMA,
+        systemPrompt: REDLINE_SYSTEM_PROMPT,
+        temperature: 0,
+        maxTokens: 4096,
+        ...(options?.signal ? { signal: options.signal } : {}),
+      });
+    },
   });
   return normalizeEdits(raw);
 }
@@ -328,9 +349,5 @@ export async function requestRedlineEditsWithAudit(
   selection?: ParagraphSelection,
   options?: { signal?: AbortSignal },
 ): Promise<DocxAiEdit[]> {
-  auditContext.onAuditLog?.(buildRedlineEgressAuditEntry({
-    ...auditContext,
-    model: auditContext.model ?? provider.getMetadata().model,
-  }));
-  return requestRedlineEdits(provider, instruction, doc, selection, options);
+  return requestRedlineEdits(provider, instruction, doc, auditContext, selection, options);
 }

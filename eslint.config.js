@@ -8,6 +8,7 @@ import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
 const lanternI18n = require('./packages/eslint-plugin-lantern-i18n/src/index.js');
 const lanternAsync = require('./packages/eslint-plugin-lantern-async/src/index.js');
+const lanternEgress = require('./packages/eslint-plugin-lantern-egress/src/index.js');
 
 // Env-gated severity: warn locally so devs see the signal without blocking
 // every save, but error in CI so a hardcoded string can't sneak into main.
@@ -31,6 +32,7 @@ export default tseslint.config(
       'react-hooks': reactHooks,
       'react-refresh': reactRefresh,
       'lantern-i18n': lanternI18n,
+      'lantern-egress': lanternEgress,
     },
     rules: {
       ...reactHooks.configs.recommended.rules,
@@ -48,6 +50,7 @@ export default tseslint.config(
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
       'lantern-i18n/no-hardcoded-string': i18nSeverity,
+      'lantern-egress/no-direct-provider-send': 'error',
     },
   },
   // no-silent-failure is scoped to user-facing surfaces only (features +

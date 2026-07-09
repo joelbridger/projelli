@@ -47,7 +47,7 @@ export function sanitizeForPrompt(content: string): string {
   // model and let untrusted content escape its envelope.
   const TAG_GROUP =
     'system|instruction|override|ignore|prompt|context|tool|function|' +
-    'memory|workspace_context|open_files|incoming_email|retrieved_context|source_note';
+    'memory|workspace_context|open_files|conversation_history|incoming_email|retrieved_context|source_note';
   sanitized = sanitized.replace(new RegExp(`<(${TAG_GROUP})(?:\\s[^>]*)?>`, 'gi'), '[$1]');
   sanitized = sanitized.replace(new RegExp(`</(${TAG_GROUP})\\s*>`, 'gi'), '[/$1]');
 

@@ -3,6 +3,7 @@
 
 import type { Provider, StructuredOutputOptions, OutputSchema } from '@/platform/providers/Provider';
 import type { Contradiction } from './ContradictionDetector';
+import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 
 /**
  * A synthesized document combining multiple sources
@@ -147,7 +148,8 @@ Maintain objectivity and don't favor any source without justification.`,
       temperature: 0.3,
     };
 
-    const result = await this.provider.structuredOutput<{
+    const metadata = this.provider.getMetadata();
+    const result = await runWithEgressAudit<{
       title: string;
       content: string;
       sections: Array<{
@@ -165,7 +167,31 @@ Maintain objectivity and don't favor any source without justification.`,
       }>;
       unresolvedContradictions: string[];
       confidence: number;
-    }>(prompt, structuredOptions);
+    }>({
+      provider: this.provider,
+      providerId: metadata.providerId ?? 'unknown',
+      model: metadata.model,
+      operation: () =>
+        this.provider.structuredOutput<{
+          title: string;
+          content: string;
+          sections: Array<{
+            heading: string;
+            content: string;
+            sourceAgreement: string;
+            citations: string[];
+            notes?: string;
+          }>;
+          resolvedContradictions: Array<{
+            contradictionId: string;
+            resolution: string;
+            rationale: string;
+            preferredSource?: string;
+          }>;
+          unresolvedContradictions: string[];
+          confidence: number;
+        }>(prompt, structuredOptions),
+    });
 
     return {
       id: `synthesis_${Date.now()}`,

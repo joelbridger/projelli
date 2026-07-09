@@ -66,8 +66,7 @@ import {
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
+import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import {
   emailMatterScope,
   effectiveModeForDestination,
@@ -358,56 +357,29 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
         `Subject: ${sanitizeForPrompt(message.subject)}\n\n` +
         `Body:\n${sanitizeForPrompt(stripResidualTags(message.body))}\n</incoming_email>\n\n` +
         `Write a clear, professional reply. Return only the reply text, no subject line or headers.`;
-      // Audit gap fix (2026-07-01 security eval): record this egress BEFORE the
-      // send, mirroring redline.ts's `requestRedlineEditsWithAudit` — the record
-      // must exist even if the model call itself fails. Uses the shared 'egress'
-      // action type (not a bespoke one) so this draft is picked up by the same
-      // confidentiality report every other AI send feeds. `providerId` (not
-      // `provider.getMetadata().providerId`, which only the local providers set)
-      // so a real cloud send is never mislabeled 'unknown' in that report.
-      // `assuredAvailable` comes from the ACTUAL resolved route (independent
-      // reviewer catch): the app's confidentiality-mode SETTING can read
-      // 'assured' while no managed key is configured yet, in which case the
-      // real send falls back to BYOK-direct — resolveEgress must be told that,
-      // not just handed the raw mode, or the log would claim "Assured" for a
-      // request that plainly went out with the user's own key.
-      //
-      // Force mode:'assured' whenever assuredAvailable is true, rather than a
-      // fresh getConfidentialityMode() read (independent reviewer catch, P3 —
-      // a race): the setting can change during resolveEmailProvider's
-      // keychain awaits, but `provider` is already built with the assured
-      // route baked in by then, and that's what the real send uses regardless
-      // of what the live setting says a moment later. Forcing the mode here
-      // keeps resolveEgress's own assured-branch condition
-      // (`mode === 'assured' && assuredAvailable`) from ever disagreeing with
-      // the frozen `assuredAvailable` this entry is about to log.
-      const egress = resolveEgress({
-        provider: providerId,
-        mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
-        assuredAvailable,
-      });
       const scope = emailMatterScope(filedMatterId, filedMatter?.name);
-      const auditEntry = auditEventToEntry({
-        type: 'egress',
-        timestamp: new Date().toISOString(),
-        payload: {
-          provider: egress.provider,
-          model: provider.getMetadata().model,
-          // The EFFECTIVE mode (independent reviewer catch, P1) — derived from
-          // where the request actually went, not the raw setting. See
-          // effectiveModeForDestination's comment for why email specifically
-          // needs this (its fallbacks are normal operation, not an error path).
-          mode: effectiveModeForDestination(egress.destination),
-          destination: egress.destination,
-          dataLeaves: egress.dataLeaves,
-          ...(scope ? { scope } : {}),
+      const response = await sendWithEgressAudit({
+        provider,
+        providerId,
+        model: provider.getMetadata().model,
+        prompt,
+        mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
+        auditMode: (egress) => effectiveModeForDestination(egress.destination),
+        assuredAvailable,
+        onAuditLog: (entry) => {
+          logEmailAuditEntry({
+            ...entry,
+            metadata: { ...entry.metadata, messageId: message.id },
+          });
+        },
+        ...(scope ? { scope } : {}),
+        modelCall: {
+          description: `Drafted an email reply with AI`,
+          inputs: { messageId: message.id },
+          outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+          metadata: { feature: 'email_draft', messageId: message.id },
         },
       });
-      logEmailAuditEntry({
-        ...auditEntry,
-        metadata: { ...auditEntry.metadata, messageId: message.id },
-      });
-      const response = await provider.sendMessage(prompt);
       // QA-53: the viewer may have switched to a different email while the model
       // ran — drop A's draft rather than dropping it into B's reply box.
       if (messageRef.current?.id !== targetId) return;

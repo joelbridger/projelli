@@ -10,6 +10,14 @@ vi.mock('@/platform/utils/docx-io', () => ({
   applyLetterheadIfConfigured: vi.fn(async (b: ArrayBuffer) => b),
 }));
 
+vi.mock('@/platform/privacy/sendWithEgressAudit', () => ({
+  sendWithEgressAudit: vi.fn(async (opts: {
+    provider: { sendMessage: (prompt: string, options?: unknown) => Promise<unknown> };
+    prompt: string;
+    options?: unknown;
+  }) => opts.provider.sendMessage(opts.prompt, opts.options)),
+}));
+
 import { buildPseudoTranscript, dictationMeetingWriteSet, dictationToMeeting } from '@/features/meetings/dictationToMeeting';
 import { meetingNoteFromTranscript } from '@/features/meetings/meetingNoteTemplate';
 import { stripVoiceNoteFrontmatter } from '@/features/meetings/FileAsMeetingDialog';
@@ -60,7 +68,7 @@ describe('dictationToMeeting', () => {
       'm-1',
       '/ws/Clients/Hendersons',
       '2026-07-02T17:00:00Z',
-      async () => ({ provider: provider as never }),
+      async () => ({ provider: provider as never, providerId: 'test-local', model: 'test-model' }),
     );
     expect(docxMarkdownSpy).toHaveBeenCalledTimes(1);
     const written = docxMarkdownSpy.mock.calls[0]?.[0] as string;

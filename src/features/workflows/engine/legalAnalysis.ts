@@ -19,6 +19,7 @@
  */
 
 import type { Provider, OutputSchema } from '@/platform/providers/Provider';
+import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import type {
   AnalyzeStepConfig,
   ContradictionAnalysisResult,
@@ -420,10 +421,17 @@ export async function runContradictionAnalysis(
   // Treat the model's structured output as UNTRUSTED: it may omit required
   // fields despite the schema, so we re-validate at the boundary rather than
   // trust the declared type.
-  const raw = (await provider.structuredOutput<RawContradictionResult>(
-    prompt,
-    structuredOpts,
-  )) as Partial<RawContradictionResult> | null | undefined;
+  const metadata = provider.getMetadata();
+  const raw = (await runWithEgressAudit<RawContradictionResult>({
+    provider,
+    providerId: metadata.providerId ?? 'unknown',
+    model: metadata.model,
+    operation: () =>
+      provider.structuredOutput<RawContradictionResult>(
+        prompt,
+        structuredOpts,
+      ),
+  })) as Partial<RawContradictionResult> | null | undefined;
 
   const rawFindings: Partial<RawContradictionFinding>[] = Array.isArray(raw?.findings)
     ? raw.findings

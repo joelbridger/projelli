@@ -12,7 +12,8 @@
  *
  * THE CONTRACT: any module that BOTH pulls client file content from the local
  * index (`MemoryService.retrieve(`) AND sends onward to an AI provider
- * (`sendMessageStreaming` / `.sendMessage(`) is a "file-content sender". Every
+ * (`sendMessageStreaming` / `.sendMessage(` / `sendWithEgressAudit(`) is a
+ * "file-content sender". Every
  * such module must be CONSCIOUSLY CLASSIFIED here as exactly one of:
  *
  *   - AMBIENT_MUST_GATE — a free-form conversational surface whose retrieval is
@@ -49,7 +50,7 @@ const repoRoot = join(__dirname, '..');
 /** A module is a "file-content sender" when it BOTH retrieves file content AND
  *  sends to a provider. Both must be present in the same module. */
 const RETRIEVE_RE = /MemoryService\.retrieve\s*\(/;
-const SEND_RE = /sendMessageStreaming|\.sendMessage\s*\(/;
+const SEND_RE = /sendMessageStreaming|\.sendMessage\s*\(|sendWithEgressAudit\s*\(|runWithEgressAudit\s*\(/;
 /** Presence of the consent gate: the ambient-retrieval decision function or the
  *  core predicate, imported from the shared fileAccessConsent module. */
 const GATE_RE = /resolveWorkspaceRetrieval|fileToolsAllowed/;

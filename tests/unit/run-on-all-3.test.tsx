@@ -25,6 +25,7 @@ vi.mock('@/platform/privacy/localOnlyGuard', async (orig) => {
   return {
     ...real,
     assertCloudGenerationAllowed: vi.fn(),
+    assertLocalOnlyAllowsSend: vi.fn(),
     ConfidentialityChoiceRequiredError: real.ConfidentialityChoiceRequiredError,
   };
 });
@@ -134,7 +135,7 @@ describe('RunOnAllButton (Q15)', () => {
       expect(openai.sendMessage).toHaveBeenCalledTimes(1);
       expect(gemini.sendMessage).toHaveBeenCalledTimes(1);
     });
-    expect(claude.sendMessage).toHaveBeenCalledWith('hello everyone');
+    expect(claude.sendMessage).toHaveBeenCalledWith('hello everyone', undefined);
 
     // ComparisonView renders one column per provider.
     await waitFor(() => {

@@ -22,6 +22,38 @@ export function redactUrl(text: string): string {
   return text.replace(/([?&]key=)[^&\s"')]*/gi, '$1REDACTED');
 }
 
+const RAW_PROVIDER_BODY_DEBUG_KEY = 'lantern_debug_provider_raw_bodies';
+
+function rawProviderBodyDebugEnabled(): boolean {
+  try {
+    return (
+      import.meta.env.DEV &&
+      typeof localStorage !== 'undefined' &&
+      localStorage.getItem(RAW_PROVIDER_BODY_DEBUG_KEY) === 'true'
+    );
+  } catch {
+    return false;
+  }
+}
+
+function redactProviderBody(rawBody: string): string {
+  if (rawProviderBodyDebugEnabled()) {
+    return rawBody
+      .replace(/sk-[A-Za-z0-9_-]{20,}/g, 'sk-***REDACTED***')
+      .replace(/AIza[0-9A-Za-z_-]{30,}/g, 'AIza***REDACTED***');
+  }
+  return `[provider response body redacted; ${String(rawBody.length)} chars]`;
+}
+
+function requestIdFromHeaders(headers: Headers): string | undefined {
+  return (
+    headers.get('request-id') ??
+    headers.get('x-request-id') ??
+    headers.get('cf-ray') ??
+    undefined
+  );
+}
+
 /**
  * Get the appropriate base URL for a provider's API.
  * In development, routes through Vite proxy to bypass CORS.
@@ -153,23 +185,33 @@ export function parseApiError(
 
 /**
  * Custom error thrown when a JSON response body fails to parse.
- * Carries the full raw body and parse error for diagnostic display.
+ * Carries only redacted body diagnostics by default.
  */
 export class ApiResponseParseError extends Error {
   rawBody: string;
   parseErrorMessage: string;
   bodyLength: number;
+  status: number;
+  requestId?: string;
 
-  constructor(rawBody: string, parseErrorMessage: string) {
-    const preview = rawBody.slice(0, 80);
+  constructor(
+    rawBody: string,
+    parseErrorMessage: string,
+    meta?: { status?: number; requestId?: string },
+  ) {
+    const redacted = redactProviderBody(rawBody);
     super(
       `Could not parse API response (${parseErrorMessage}). ` +
-      `Body length: ${rawBody.length} chars. Preview: "${preview}${rawBody.length > 80 ? '...' : ''}"`
+      `Status: ${String(meta?.status ?? 0)}. ` +
+      `Request id: ${meta?.requestId ?? 'unknown'}. ` +
+      `Body length: ${String(rawBody.length)} chars. Preview: "${redacted}"`
     );
     this.name = 'ApiResponseParseError';
-    this.rawBody = rawBody;
+    this.rawBody = redacted;
     this.parseErrorMessage = parseErrorMessage;
     this.bodyLength = rawBody.length;
+    this.status = meta?.status ?? 0;
+    if (meta?.requestId) this.requestId = meta.requestId;
   }
 
   /**
@@ -181,15 +223,13 @@ export class ApiResponseParseError extends Error {
     lines.push('=== Lantern API Parse Error Diagnostic ===');
     lines.push(`Time: ${new Date().toISOString()}`);
     lines.push(`Parse error: ${this.parseErrorMessage}`);
+    lines.push(`HTTP status: ${String(this.status)}`);
+    lines.push(`Request id: ${this.requestId ?? 'unknown'}`);
     lines.push(`Body length: ${this.bodyLength} chars`);
     lines.push('');
-    lines.push('--- FULL RAW BODY ---');
-    // Redact anything resembling API keys
-    const redacted = this.rawBody
-      .replace(/sk-[A-Za-z0-9_-]{20,}/g, 'sk-***REDACTED***')
-      .replace(/AIza[0-9A-Za-z_-]{30,}/g, 'AIza***REDACTED***');
-    lines.push(redacted);
-    lines.push('--- END BODY ---');
+    lines.push('--- BODY PREVIEW ---');
+    lines.push(this.rawBody);
+    lines.push('--- END BODY PREVIEW ---');
     return lines.join('\n');
   }
 }
@@ -202,8 +242,7 @@ export class ApiResponseParseError extends Error {
  * browser's native Response.json(). The text-then-parse approach
  * works identically in both environments.
  *
- * Throws ApiResponseParseError on parse failure, which carries the
- * full raw body for diagnostic display in the UI.
+ * Throws ApiResponseParseError on parse failure, with redacted diagnostics.
  */
 export async function safeJsonParse<T>(response: Response): Promise<T> {
   const rawText = await response.text();
@@ -221,10 +260,18 @@ export async function safeJsonParse<T>(response: Response): Promise<T> {
     return JSON.parse(text) as T;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : 'Unknown parse error';
-    console.error('[safeJsonParse] Parse failed:', errMsg);
-    console.error('[safeJsonParse] Raw body length:', rawText.length);
-    console.error('[safeJsonParse] Cleaned body length:', text.length);
-    console.error('[safeJsonParse] FULL raw response body:', rawText);
-    throw new ApiResponseParseError(rawText, errMsg);
+    const requestId = requestIdFromHeaders(response.headers);
+    console.error('[safeJsonParse] Parse failed:', {
+      error: errMsg,
+      status: response.status,
+      requestId: requestId ?? 'unknown',
+      rawBodyLength: rawText.length,
+      cleanedBodyLength: text.length,
+      preview: redactProviderBody(rawText),
+    });
+    throw new ApiResponseParseError(rawText, errMsg, {
+      status: response.status,
+      ...(requestId ? { requestId } : {}),
+    });
   }
 }

@@ -13,7 +13,7 @@
  * buildPrompt/run directly as part of the automatic stopRecording pipeline.
  */
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
-import type { Provider } from '@/platform/providers/Provider';
+import type { ProviderResponse, SendOptions } from '@/platform/providers/Provider';
 import type { TranscriptFile } from '@/platform/types/meeting';
 
 export const MEETING_NOTE_TEMPLATE_ID = 'meeting-note-from-transcript';
@@ -74,7 +74,7 @@ export function formatCitationsForDisplay(
 }
 
 export interface MeetingNoteRunInput extends MeetingNotePromptInput {
-  provider: Provider;
+  send: (prompt: string, options: SendOptions) => Promise<ProviderResponse>;
   /** QA-31 — forwarded to sendMessage so meetingStore's notes-timeout
    *  watchdog (withMeetingNotesTimeout) can actually cancel a stalled call
    *  instead of just orphaning it. */
@@ -89,7 +89,7 @@ export interface MeetingNoteRunInput extends MeetingNotePromptInput {
  */
 async function run(input: MeetingNoteRunInput): Promise<string> {
   const prompt = buildPrompt(input);
-  const response = await input.provider.sendMessage(prompt, {
+  const response = await input.send(prompt, {
     systemPrompt:
       'You are a financial advisory practice management assistant drafting a meeting note from a transcript. ' +
       'You never invent facts not present in the transcript, and every bullet ends with its [t:<ms>] citation token.',

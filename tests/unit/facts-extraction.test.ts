@@ -117,24 +117,25 @@ describe('runExtraction — error-silent-skip', () => {
     content: `turn ${i}`,
     timestamp: '2026-04-16T00:00:00.000Z',
   }));
+  const AUDIT = { providerId: 'ollama', model: 'mock' };
 
   it('returns an empty array when the provider throws', async () => {
     const provider = makeProvider(() => {
       throw new Error('rate limited');
     });
-    const proposals = await runExtraction(provider, MESSAGES);
+    const proposals = await runExtraction(provider, MESSAGES, AUDIT);
     expect(proposals).toEqual([]);
   });
 
   it('returns an empty array when the provider returns schema-mismatched JSON', async () => {
     const provider = makeProvider(() => ({ wrong: 'shape' }));
-    const proposals = await runExtraction(provider, MESSAGES);
+    const proposals = await runExtraction(provider, MESSAGES, AUDIT);
     expect(proposals).toEqual([]);
   });
 
   it('returns an empty array when the provider returns null', async () => {
     const provider = makeProvider(() => null);
-    const proposals = await runExtraction(provider, MESSAGES);
+    const proposals = await runExtraction(provider, MESSAGES, AUDIT);
     expect(proposals).toEqual([]);
   });
 
@@ -142,7 +143,7 @@ describe('runExtraction — error-silent-skip', () => {
     const provider = makeProvider(() => ({
       facts: [{ text: '' }, { text: '   ' }, { text: 'real fact' }],
     }));
-    const proposals = await runExtraction(provider, MESSAGES);
+    const proposals = await runExtraction(provider, MESSAGES, AUDIT);
     expect(proposals).toHaveLength(1);
     expect(proposals[0]?.text).toBe('real fact');
   });
@@ -157,7 +158,7 @@ describe('runExtraction — error-silent-skip', () => {
         { text: 'e' },
       ],
     }));
-    const proposals = await runExtraction(provider, MESSAGES);
+    const proposals = await runExtraction(provider, MESSAGES, AUDIT);
     expect(proposals).toHaveLength(3);
   });
 
@@ -165,7 +166,7 @@ describe('runExtraction — error-silent-skip', () => {
     const provider = makeProvider(() => ({
       facts: [{ text: '  has a dog named Scout  ' }],
     }));
-    const proposals = await runExtraction(provider, MESSAGES);
+    const proposals = await runExtraction(provider, MESSAGES, AUDIT);
     expect(proposals[0]?.text).toBe('has a dog named Scout');
   });
 });

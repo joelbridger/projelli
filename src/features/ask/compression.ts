@@ -11,7 +11,7 @@
  */
 
 import type { ChatMessage } from '@/platform/types/ai';
-import type { Provider } from '@/platform/providers/Provider';
+import type { Provider, ProviderResponse, SendOptions } from '@/platform/providers/Provider';
 
 /** Approximate 4 chars per token. Good enough for meter + batching. */
 export function estimateTokens(text: string): number {
@@ -30,6 +30,13 @@ export interface CompressionOptions {
   batchTokenTarget: number;
   /** Provider to use for summarization. If null, compression is skipped. */
   fastProvider: Provider | null;
+  /** Audited send seam. Required so compression cannot bypass egress checks. */
+  sendSummary: (
+    provider: Provider,
+    prompt: string,
+    options: SendOptions,
+    batchIndex: number,
+  ) => Promise<ProviderResponse>;
 }
 
 export interface CompressedResult {
@@ -117,9 +124,12 @@ export async function compressMessages(
 
     const userPrompt = `Here is a segment of conversation to summarize:\n\n${batchText}`;
 
-    const summaryResponse = await opts.fastProvider.sendMessage(userPrompt, {
-      systemPrompt: SUMMARIZATION_PROMPT,
-    });
+    const summaryResponse = await opts.sendSummary(
+      opts.fastProvider,
+      userPrompt,
+      { systemPrompt: SUMMARIZATION_PROMPT },
+      summaryMessages.length,
+    );
 
     const summaryContent = summaryResponse.content ?? '';
     const summaryTimestamp = new Date().toISOString();

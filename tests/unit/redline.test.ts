@@ -16,10 +16,18 @@ import {
   normalizeEdits,
   paragraphPlainRunText,
   requestRedlineEdits,
+  type RedlineEgressAuditContext,
 } from '@/features/documents/docx/redline';
 import type { DocumentJson } from '@/platform/types/docx';
 import type { Provider } from '@/platform/providers/Provider';
 import { createProvider } from '@/platform/providers/providerFactory';
+
+const REDLINE_AUDIT: RedlineEgressAuditContext = {
+  providerId: 'ollama',
+  model: 'mock',
+  mode: 'direct',
+  fileName: 'unit-test.docx',
+};
 
 function sampleDoc(): DocumentJson {
   return {
@@ -167,7 +175,7 @@ describe('redline — requestRedlineEdits (provider translation)', () => {
     });
     const provider = { structuredOutput } as unknown as Provider;
 
-    const edits = await requestRedlineEdits(provider, 'change venue to NY', sampleDoc());
+    const edits = await requestRedlineEdits(provider, 'change venue to NY', sampleDoc(), REDLINE_AUDIT);
 
     // Provider called once with our schema + redline system prompt + temp 0.
     expect(structuredOutput).toHaveBeenCalledTimes(1);
@@ -188,7 +196,7 @@ describe('redline — requestRedlineEdits (provider translation)', () => {
     const provider = { structuredOutput } as unknown as Provider;
     const controller = new AbortController();
 
-    await requestRedlineEdits(provider, 'stop if cancelled', sampleDoc(), undefined, {
+    await requestRedlineEdits(provider, 'stop if cancelled', sampleDoc(), REDLINE_AUDIT, undefined, {
       signal: controller.signal,
     });
 
@@ -200,7 +208,7 @@ describe('redline — requestRedlineEdits (provider translation)', () => {
     const provider = {
       structuredOutput: vi.fn().mockResolvedValue({ edits: [] }),
     } as unknown as Provider;
-    expect(await requestRedlineEdits(provider, 'nothing to do', sampleDoc())).toEqual([]);
+    expect(await requestRedlineEdits(provider, 'nothing to do', sampleDoc(), REDLINE_AUDIT)).toEqual([]);
   });
 });
 
@@ -243,7 +251,11 @@ describe('redline — local (Ollama) routing (the honesty guarantee)', () => {
 
     // The construction point DocxEditor uses for a local redline. No API key.
     const provider = createProvider({ provider: 'ollama', model: 'llama3.2:3b' });
-    const edits = await requestRedlineEdits(provider, 'change venue to NY', sampleDoc());
+    const edits = await requestRedlineEdits(provider, 'change venue to NY', sampleDoc(), {
+      ...REDLINE_AUDIT,
+      providerId: 'ollama',
+      model: 'llama3.2:3b',
+    });
 
     // The edit list came back normalized.
     expect(edits).toEqual([

@@ -19,7 +19,7 @@ import { KeychainService } from '@/platform/providers/KeychainService';
 import { createProvider } from '@/platform/providers/providerFactory';
 import { resolveLocalGenerationProvider } from '@/platform/providers/resolveLocalProvider';
 import type { Provider } from '@/platform/providers/Provider';
-import { isLocalOnlyMode, assertCloudGenerationAllowed, assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
+import { isLocalOnlyMode, assertCloudGenerationAllowed } from '@/platform/privacy/localOnlyGuard';
 import type { RagHit, RetrievalScope } from '@/platform/utils/tauri-commands';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import {
@@ -35,8 +35,7 @@ import {
 } from '@/platform/profile/professionModel';
 import type { ClientMap } from '@/platform/clientMap/types';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
-import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
+import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // Re-export types consumed by callers so they don't need to reach into
@@ -317,49 +316,20 @@ Rules:
   if (options?.signal !== undefined) {
     sendOpts.signal = options.signal;
   }
-  // Race guard (Ask's gold pattern): buildResolvedProviderForGlance checks the
-  // mode only at its START, then awaits keychain reads. Re-check the CURRENT mode
-  // here — AFTER all awaits, immediately before the send — so a flip to Local-only
-  // mid-resolve can never send this client's context to the cloud. Throws for a
-  // cloud provider in Local-only; a resolved local provider (ollama) passes.
-  assertLocalOnlyAllowsSend(resolvedProvider.providerId);
-  // Trust-fixes finding #1: log egress IMMEDIATELY BEFORE the send, not only
-  // after a successful response, so a timeout or provider error still leaves
-  // an egress record in the Activity Log.
-  const egress = resolveEgress({
-    provider: resolvedProvider.providerId,
-    mode: getConfidentialityMode(),
-    isDemo: false,
-    assuredAvailable: false,
-  });
-  options?.onAuditLog?.(auditEventToEntry({
-    type: 'egress',
-    timestamp: new Date().toISOString(),
-    payload: {
-      provider: egress.provider,
-      model: resolvedProvider.model,
-      mode: getConfidentialityMode(),
-      destination: egress.destination,
-      dataLeaves: egress.dataLeaves,
-      scope,
-    },
-  }));
-  const response = await provider.sendMessage(
-    'Summarize this client for the advisor.',
-    sendOpts,
-  );
-  options?.onAuditLog?.({
-    action: 'model_call',
-    description: `At-a-glance summary to ${resolvedProvider.model}`,
+  const response = await sendWithEgressAudit({
+    provider,
+    providerId: resolvedProvider.providerId,
     model: resolvedProvider.model,
-    inputs: { matterId },
-    outputs: { contentLength: response.content.length },
-    userDecision: 'auto',
-    metadata: { feature: 'at_a_glance' },
-    tokensIn: response.usage.inputTokens,
-    tokensOut: response.usage.outputTokens,
-    costUsd: response.cost,
-    provider: resolvedProvider.providerId,
+    prompt: 'Summarize this client for the advisor.',
+    options: sendOpts,
+    ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
+    scope,
+    modelCall: {
+      description: `At-a-glance summary to ${resolvedProvider.model}`,
+      inputs: { matterId },
+      outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+      metadata: { feature: 'at_a_glance' },
+    },
   });
 
   if (options?.signal?.aborted) {

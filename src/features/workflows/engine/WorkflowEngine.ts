@@ -27,6 +27,7 @@ import {
   resolveEgress,
   type ConfidentialityMode,
 } from '@/platform/privacy/egress';
+import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 import {
   runContradictionAnalysis,
   type RetrieveFn,
@@ -455,14 +456,31 @@ export class WorkflowEngine {
     prompt: string,
     options?: SendOptions,
   ): Promise<ProviderResponse> {
-    // Race guard (defense-in-depth; cloud providers also fail-closed centrally):
-    // the workflow's pre-run gate can be far in the past for long workflows, so
-    // re-check the mode immediately before each provider send.
-    assertLocalOnlyAllowsSend(this.provider.getMetadata().providerId ?? 'unknown');
-    this.emitEgressAudit(step);
-    const response = await this.provider.sendMessage(prompt, options);
-    this.emitModelCallAudit(step, callKind, prompt, response);
-    return response;
+    return sendWithEgressAudit({
+      provider: this.provider,
+      providerId: this.audit?.providerId ?? this.provider.getMetadata().providerId ?? 'unknown',
+      model: this.audit?.model ?? this.provider.getMetadata().model,
+      prompt,
+      ...(options ? { options } : {}),
+      ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
+      ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
+      modelCall: {
+        description: `Workflow ${callKind} step to ${this.audit?.model ?? this.provider.getMetadata().model}`,
+        inputs: { promptLength: prompt.length, stepId: step.id, callKind },
+        outputs: (response) => ({ contentLength: response.content.length }),
+        metadata: {
+          feature: 'workflow',
+          runId: this.execution?.runId,
+          workflowId: this.execution?.template.id,
+          workflowName: this.execution?.template.name,
+          stepId: step.id,
+          stepName: step.name,
+          callKind,
+          provider: this.audit?.providerId,
+          ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
+        },
+      },
+    });
   }
 
   private auditedProvider(step: WorkflowStep, callKind: 'analyze'): Provider {
@@ -495,6 +513,7 @@ export class WorkflowEngine {
       structuredOutput: async <T,>(prompt: string, options: StructuredOutputOptions) => {
         assertLocalOnlyAllowsSend(base.getMetadata().providerId ?? 'unknown');
         this.emitEgressAudit(step);
+        // eslint-disable-next-line lantern-egress/no-direct-provider-send -- auditedProvider checks Local-only and writes the workflow egress receipt immediately before this structured call.
         const response = await base.structuredOutput<T>(prompt, options);
         this.emitModelCallAudit(step, callKind, prompt, response);
         return response;

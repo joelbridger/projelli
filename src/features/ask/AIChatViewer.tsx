@@ -513,7 +513,13 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
               ? { model: OPENAI_DEFAULT_MODEL }
               : {}),
         });
-        const proposals = await runExtraction(provider, messages);
+        const proposals = await runExtraction(provider, messages, {
+          providerId: chatProvider,
+          model: provider.getMetadata().model,
+          scope: { kind: 'matter', matterId: extractionMatterId },
+          ...(onAuditLog ? { onAuditLog } : {}),
+          chatId,
+        });
         extractionStateRef.current = markCheckpointRan(
           extractionStateRef.current,
           count,
@@ -564,7 +570,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
         extractionInFlightRef.current = false;
       }
     })();
-  }, [messages, isLoading, apiKeys, effectiveProvider, chatData.provider, chatData.model, chatId]);
+  }, [messages, isLoading, apiKeys, effectiveProvider, chatData.provider, chatData.model, chatId, onAuditLog]);
 
   // Clear proposed facts + reset extraction state when the chat switches.
   useEffect(() => {

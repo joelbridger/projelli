@@ -3,6 +3,7 @@
 
 import type { DocSummary } from '@/platform/types/analysis';
 import type { Provider, StructuredOutputOptions, OutputSchema } from '@/platform/providers/Provider';
+import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 
 /**
  * Schema for DocSummary validation
@@ -110,11 +111,18 @@ Parse any [src:ID] references as citations.`,
       temperature: 0.2,
     };
 
-    // Generate structured summary
-    const result = await this.provider.structuredOutput<Omit<DocSummary, 'doc_id'>>(
-      prompt,
-      structuredOptions
-    );
+    // Generate structured summary through the shared egress guard.
+    const metadata = this.provider.getMetadata();
+    const result = await runWithEgressAudit<Omit<DocSummary, 'doc_id'>>({
+      provider: this.provider,
+      providerId: metadata.providerId ?? 'unknown',
+      model: metadata.model,
+      operation: () =>
+        this.provider.structuredOutput<Omit<DocSummary, 'doc_id'>>(
+          prompt,
+          structuredOptions,
+        ),
+    });
 
     // Create full summary with doc_id
     const summary: DocSummary = {
