@@ -1,5 +1,13 @@
 # Lantern-Plus Coordination STATUS
 
+## UPDATE 2026-07-09 ~02:00 — DEMO BUGS FIXED + JUMP-PARITY PHASE 1 BUILDS DONE (coordinator-12)
+
+- DEMO BUGS (Jameson hit on clean-slate walkthrough, FIXED + shipped to Legion v5): (1) OneDrive disconnect crash "cannot read properties of null" → null-guard in OneDriveConnect.tsx (backend null result = clean disconnect). (2) Anthropic key showed disconnected after nav-back → NOT real loss; AiScene never re-checked keychain on remount → added mount hasKey() restore. Both @lp/ux-simplify-v1, 23 tests green.
+- CLEAN SLATE root cause: OneDrive/M365 token was under the OLD "keepance-docs-ms" keychain service (pre-rename), not "lantern-" — earlier wipes missed it. Cleared keepance-{docs-ms,mail-ms,mail-gmail,crm,calendar} tokens + AI keys + localStorage via app keychain_delete over CDP. Legion restarted clean; connect step now truly empty. Local AI left "ready" per Jameson (no live download tonight).
+- NOTICE CARD name = "⏺ Recording · Advisor Prep Hero" ({product} token). Rail widths unified.
+- JUMP PARITY: Calendly nav CONFIRMED (top-bar calendar icon → full screen w/ standard rail+content). Phase 1 builds DONE on isolated feature branches (NOT in the preview): feat/calendly-scheduling @37df6661 (availability domain + slot math, 12 tests), feat/schwab-prefill @e802d32d (8 account-type field maps + prefill flow, typecheck clean). UX plan + design-system-alignment doc: docs/plans/calendly-scheduling-{plan,UX-plan}.md.
+- SCHWAB CREATIVE PATH approved → applying to ALL gated connectors (Redtail/Salesforce/Orion/etc.); connector-strategy research RUNNING. Design-system-docs refresh RUNNING (were stale pre-overhaul). Schwab partnership drafts in docs/partnerships/.
+- AWAITING JAMESON: Calendly Option-A build go (planned, P1 done); Plaid go/no-go (fast Schwab-data win); UI preview approve-all; assured-routing merge; intro cards blue-vs-red (left balanced).
 ## UPDATE 2026-07-09 ~01:20 — DEMO PREP + JUMP-PARITY PLANNING (coordinator-12)
 
 - DEMO (tonight): Legion clean-slated (all AI keys deleted via app keychain + all localStorage cleared) → boots to the restored intro (3 blue-illustration cards, red brand accents) + clean ChooseStart. Connector logos (M365/Gmail/OneDrive/Wealthbox) shipped to connect step. Notice Card now shows "⏺ Recording · Advisor Prep Hero" ({product} token, brand-swappable). Rail widths unified (one --kp-rail-width token). All on lp/ux-simplify-v1, shipped to Legion (v4), verified clean+live. Legion left PRISTINE for Jameson.
