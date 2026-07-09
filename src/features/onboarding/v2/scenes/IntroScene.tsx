@@ -52,7 +52,7 @@ export function IntroScene({ onGo }: IntroSceneProps) {
               >
                 {item.title}
               </div>
-              <div className="mt-2 min-h-[2.5rem] text-center text-xs leading-snug text-[#5b6b80]">
+              <div className="mt-2 min-h-[2.5rem] text-center text-xs leading-snug text-[var(--kp-text-dim)]">
                 {item.body}
               </div>
             </div>
@@ -72,7 +72,7 @@ export function IntroScene({ onGo }: IntroSceneProps) {
         </div>
       </div>
 
-      <p className="kp-onbv2-rise mt-4 text-xs font-medium text-[#6f7b8f]" style={{ animationDelay: '0.7s' }}>
+      <p className="kp-onbv2-rise mt-4 text-xs font-medium text-[var(--kp-text-faint)]" style={{ animationDelay: '0.7s' }}>
         {intro.helpLine}
       </p>
 

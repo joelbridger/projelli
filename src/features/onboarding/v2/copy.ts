@@ -193,6 +193,50 @@ export function getOnboardingV2Copy(t: unknown = defaultTranslate) {
           description: text(t, 'connect.cards.imap.description'),
         },
       },
+      badges: {
+        readsIn: text(t, 'connect.badges.reads-in'),
+        twoWay: text(t, 'connect.badges.two-way'),
+      },
+      groups: {
+        nowLabel: text(t, 'connect.groups.now-label'),
+        builtLabel: text(t, 'connect.groups.built-label'),
+        roadmapLabel: text(t, 'connect.groups.roadmap-label'),
+        calendarsNote: text(t, 'connect.groups.calendars-note'),
+      },
+      built: {
+        salesforce: {
+          name: text(t, 'connect.built.salesforce.name'),
+          desc: text(t, 'connect.built.salesforce.desc'),
+        },
+        redtail: {
+          name: text(t, 'connect.built.redtail.name'),
+          desc: text(t, 'connect.built.redtail.desc'),
+        },
+        docusign: {
+          name: text(t, 'connect.built.docusign.name'),
+          desc: text(t, 'connect.built.docusign.desc'),
+        },
+        addepar: {
+          name: text(t, 'connect.built.addepar.name'),
+          desc: text(t, 'connect.built.addepar.desc'),
+        },
+        box: {
+          name: text(t, 'connect.built.box.name'),
+          desc: text(t, 'connect.built.box.desc'),
+        },
+        sharefile: {
+          name: text(t, 'connect.built.sharefile.name'),
+          desc: text(t, 'connect.built.sharefile.desc'),
+        },
+        jotform: {
+          name: text(t, 'connect.built.jotform.name'),
+          desc: text(t, 'connect.built.jotform.desc'),
+        },
+        zocks: {
+          name: text(t, 'connect.built.zocks.name'),
+          desc: text(t, 'connect.built.zocks.desc'),
+        },
+      },
       comingSoonLabel: text(t, 'connect.coming-soon-label'),
       worksWith: {
         title: text(t, 'connect.works-with.title'),
@@ -263,14 +307,10 @@ export const ONB_COPY = getOnboardingV2Copy();
  * Files live under /public/onboarding/logos.
  */
 export const ONB_COMING_SOON_LOGOS: readonly { name: string; file: string }[] = [
-  { name: 'Redtail', file: 'redtail.svg' },
-  { name: 'Salesforce', file: 'salesforce.svg' },
   { name: 'eMoney', file: 'emoney.svg' },
   { name: 'MoneyGuidePro', file: 'moneyguidepro.svg' },
   { name: 'Holistiplan', file: 'holistiplan.png' },
   { name: 'Orion', file: 'orion.svg' },
   { name: 'Tamarac', file: 'tamarac.svg' },
-  { name: 'Addepar', file: 'addepar.svg' },
   { name: 'Nitrogen', file: 'nitrogen.svg' },
-  { name: 'DocuSign', file: 'docusign.svg' },
 ];

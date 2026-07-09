@@ -69,7 +69,7 @@ export function ComplianceScene() {
                 setOpen(false);
               }}
               aria-label={C.nav.close}
-              className="absolute right-5 top-5 text-[#9aa4b4] hover:text-[var(--kp-navy)]"
+              className="absolute right-5 top-5 text-[var(--kp-text-faint)] hover:text-[var(--kp-navy)]"
             >
               <X className="h-6 w-6" />
             </button>

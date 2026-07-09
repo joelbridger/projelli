@@ -1,15 +1,39 @@
-export type ConnectorBrand = 'gmail' | 'm365' | 'onedrive' | 'wealthbox';
+export type ConnectorBrand =
+  | 'gmail'
+  | 'm365'
+  | 'onedrive'
+  | 'wealthbox'
+  | 'salesforce'
+  | 'redtail'
+  | 'docusign'
+  | 'addepar'
+  | 'box'
+  | 'sharefile'
+  | 'jotform'
+  | 'zocks';
 
-const CONNECTOR_LOGOS: Record<Exclude<ConnectorBrand, 'gmail'>, { alt: string; src: string }> = {
+const CONNECTOR_LOGOS: Partial<Record<Exclude<ConnectorBrand, 'gmail'>, { alt: string; src: string }>> = {
   m365: { alt: 'Microsoft Outlook logo', src: '/onboarding/logos/outlook.svg' },
   onedrive: { alt: 'OneDrive logo', src: '/onboarding/logos/onedrive.svg' },
   wealthbox: { alt: 'Wealthbox logo', src: '/onboarding/logos/wealthbox.svg' },
+  salesforce: { alt: 'Salesforce logo', src: '/onboarding/logos/salesforce.svg' },
+  redtail: { alt: 'Redtail logo', src: '/onboarding/logos/redtail.svg' },
+  docusign: { alt: 'DocuSign logo', src: '/onboarding/logos/docusign.svg' },
+  addepar: { alt: 'Addepar logo', src: '/onboarding/logos/addepar.svg' },
 };
 
-export function ConnectorLogo({ brand }: { brand: ConnectorBrand }) {
+export function ConnectorLogo({ brand, label }: { brand: ConnectorBrand; label?: string }) {
   if (brand === 'gmail') return <GmailLogo />;
 
   const logo = CONNECTOR_LOGOS[brand];
+  if (!logo) {
+    return (
+      <span className="text-center text-[11px] font-bold leading-tight text-[var(--kp-text-dim)]">
+        {label ?? brand}
+      </span>
+    );
+  }
+
   return (
     <img
       src={logo.src}

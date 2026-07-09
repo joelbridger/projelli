@@ -1059,7 +1059,7 @@
           },
           "wealthbox": {
             "title": "Wealthbox",
-            "description": "Households and CRM notes from Wealthbox."
+            "description": "Reads your contacts, households, notes, tasks and calendar in to build the Client Map, and can write notes and tasks back to Wealthbox, with your approval. It never deletes anything."
           },
           "imap": {
             "toggle": "Other email option (IMAP)",
@@ -1067,10 +1067,54 @@
             "description": "Standard IMAP accounts."
           }
         },
+        "badges": {
+          "reads-in": "Reads in",
+          "two-way": "Two-way"
+        },
+        "groups": {
+          "now-label": "Connect now",
+          "built-label": "Also built, ready to switch on for your firm",
+          "roadmap-label": "On the roadmap",
+          "calendars-note": "Calendly and your calendar connect from Settings once you're set up."
+        },
+        "built": {
+          "salesforce": {
+            "name": "Salesforce",
+            "desc": "CRM: reads clients in, can write notes/tasks back."
+          },
+          "redtail": {
+            "name": "Redtail",
+            "desc": "CRM: reads clients in, can write notes/tasks back."
+          },
+          "docusign": {
+            "name": "DocuSign",
+            "desc": "Sees envelope/signature status."
+          },
+          "addepar": {
+            "name": "Addepar",
+            "desc": "Reads portfolio data."
+          },
+          "box": {
+            "name": "Box",
+            "desc": "Reads your files."
+          },
+          "sharefile": {
+            "name": "ShareFile",
+            "desc": "Reads your files."
+          },
+          "jotform": {
+            "name": "Jotform",
+            "desc": "Reads form submissions."
+          },
+          "zocks": {
+            "name": "Zocks",
+            "desc": "Reads meeting notes."
+          }
+        },
         "coming-soon-label": "Coming soon",
         "works-with": {
           "title": "Start with CRM, email, and files",
-          "body": "{{productName}} starts with the places your practice already keeps client work: CRM notes, email, OneDrive or SharePoint folders, PDFs, and Word files. If tools like RightCapital, Holistiplan, DocuSign, or Jump save reports into those places, {{productName}} reads the saved files there and cites them in answers.",
+          "body": "Most of what matters is already in your CRM, email and files, and {{productName}} reads it right there. It can also read plan reports or notes you save from other tools, but your CRM and email are the main sources.",
           "disclaimer": "{{productName}} reads saved files and notes. It is not an official integration with those tools, and their names belong to their owners."
         }
       },

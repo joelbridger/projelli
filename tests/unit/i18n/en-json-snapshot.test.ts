@@ -66,7 +66,7 @@ describe('en.json structure snapshot', () => {
         "meetings": 256,
         "memory": 6,
         "model-download": 9,
-        "onboarding": 224,
+        "onboarding": 246,
         "plugins": 4,
         "privacy": 35,
         "quick-open": 1,
@@ -277,7 +277,7 @@ describe('en.json structure snapshot', () => {
     // questions) + Calendly-style scheduling (Settings Scheduling section +
     // Phase 2 advisor surface: top-bar entry, rail labels, booking-link actions,
     // request statuses, availability controls, meeting-type panel, slot preview).
-    expect(flat.length).toBe(2267); // onboarding reframe (2180) + scheduling keys (+87)
+    expect(flat.length).toBe(2289); // onboarding reframe (2180) + scheduling (+87) + connector-list clarity keys (+22)
   });
 
   it('every namespace key follows lowercase kebab-case', () => {
