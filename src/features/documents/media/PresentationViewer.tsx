@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
+import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 
 import { PDFViewer } from '@/features/documents/media/PDFViewer';
 import { Button } from '@/ui/button';
@@ -55,8 +56,7 @@ const PDF_MIME = 'application/pdf';
  * other PDF source.
  */
 async function readPdfAsDataUrl(pdfPath: string): Promise<string> {
-  const { readFile } = await import('@tauri-apps/plugin-fs');
-  const bytes = await readFile(pdfPath);
+  const bytes = await readTauriFile(pdfPath);
   const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   let binary = '';
   for (let i = 0; i < view.length; i++) {

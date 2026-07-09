@@ -37,6 +37,7 @@ import type { TFunction } from 'i18next';
 import { markdownToDocxBytes, applyLetterheadIfConfigured, extractDocxText } from '@/platform/utils/docx-io';
 import { docxConvertToPdf } from '@/platform/utils/docx-commands';
 import { useMatterStore } from '@/platform/matter/matterStore';
+import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 
 export interface MeetingEntryProps {
   matterId: string;
@@ -482,8 +483,7 @@ export function MeetingEntry({ matterId, meetingDir, folderName, clientName, wor
         const finalBytes = await buildSummaryDocxBytes();
         await ws.writeFileBinary(tempDocxPath, toExactArrayBuffer(finalBytes));
         const pdfSource = await docxConvertToPdf(tempDocxPath);
-        const { readFile } = await import('@tauri-apps/plugin-fs');
-        const pdfBytes = await readFile(pdfSource);
+        const pdfBytes = await readTauriFile(pdfSource);
         const pdfPath = await uniqueExportPath(tempStem, 'pdf');
         await ws.writeFileBinary(pdfPath, toExactArrayBuffer(pdfBytes));
         return pdfPath;

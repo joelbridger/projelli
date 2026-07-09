@@ -29,6 +29,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 import {
   AlertTriangle,
   Check,
@@ -1511,8 +1512,7 @@ export function DocxEditor({
       // Convert the saved .docx to PDF (LibreOffice) -> temp path, then let the
       // user choose where to save the PDF (read bytes, write via saveFile).
       const pdfPath = await docxConvertToPdf(srcPath);
-      const { readFile } = await import('@tauri-apps/plugin-fs');
-      const bytes = await readFile(pdfPath);
+      const bytes = await readTauriFile(pdfPath);
       const { saveFile } = await import('@/platform/utils/saveFile');
       const saved = await saveFile(bytes, {
         suggestedName: `${exportStem}.pdf`,

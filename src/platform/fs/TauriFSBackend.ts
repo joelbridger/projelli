@@ -5,59 +5,16 @@ import type { FSBackend, FileStat, SetRootPathOptions } from './types';
 import { FileOperationError } from './types';
 import type { FileNode } from '@/platform/types/workspace';
 import { WORKSPACE_DATA_DIR } from '@/config/identity';
-
-// Tauri fs plugin types (imported dynamically to avoid browser errors)
-interface TauriFsModule {
-  readTextFile(path: string, options?: { baseDir?: number }): Promise<string>;
-  readFile(path: string, options?: { baseDir?: number }): Promise<Uint8Array>;
-  writeTextFile(path: string, contents: string, options?: { baseDir?: number }): Promise<void>;
-  writeFile(path: string, contents: Uint8Array, options?: { baseDir?: number }): Promise<void>;
-  exists(path: string, options?: { baseDir?: number }): Promise<boolean>;
-  remove(path: string, options?: { baseDir?: number; recursive?: boolean }): Promise<void>;
-  rename(oldPath: string, newPath: string): Promise<void>;
-  copyFile(source: string, destination: string): Promise<void>;
-  mkdir(path: string, options?: { baseDir?: number; recursive?: boolean }): Promise<void>;
-  readDir(path: string, options?: { baseDir?: number }): Promise<DirEntry[]>;
-  stat(path: string, options?: { baseDir?: number }): Promise<FileInfo>;
-  lstat(path: string, options?: { baseDir?: number }): Promise<FileInfo>;
-}
-
-interface DirEntry {
-  name: string;
-  isDirectory: boolean;
-  isFile: boolean;
-  isSymlink: boolean;
-}
-
-interface FileInfo {
-  isFile: boolean;
-  isDirectory: boolean;
-  isSymlink: boolean;
-  size: number;
-  readonly: boolean;
-  fileType: 'file' | 'dir' | 'symlink' | 'other';
-  mtime: number | null;
-  atime: number | null;
-  ctime: number | null;
-}
+import {
+  getTauriFsModule,
+  type TauriFsModule,
+} from './tauriFsPlugin';
 
 /**
  * Check if running in Tauri environment
  */
 export function isTauriEnvironment(): boolean {
   return typeof window !== 'undefined' && '__TAURI__' in window;
-}
-
-/**
- * Get the Tauri fs module (dynamically imported)
- */
-async function getTauriFsModule(): Promise<TauriFsModule> {
-  if (!isTauriEnvironment()) {
-    throw new Error('TauriFSBackend is only available in Tauri environment');
-  }
-  // Dynamic import to avoid bundling issues in browser
-  const fs = await import('@tauri-apps/plugin-fs');
-  return fs as unknown as TauriFsModule;
 }
 
 /**
@@ -510,10 +467,10 @@ export class TauriFSBackend implements FSBackend {
     }
   }
 
-  async resolveSymlink(path: string): Promise<string> {
+  resolveSymlink(path: string): Promise<string> {
     // Tauri doesn't have a direct readlink function
     // For now, return the path as-is (symlinks are blocked by security layer anyway)
-    return path;
+    return Promise.resolve(path);
   }
 }
 

@@ -74,7 +74,7 @@ Three stores are encrypted at rest on your device, each with its own independent
 
 - **Email store**: SQLCipher-encrypted database at `<workspace>/.keepance/`, key service `keepance-mail-enc`.
 - **Audit log**: separate SQLCipher-encrypted, append-only database at `<workspace>/.keepance/audit-enc.db`, key service `keepance-audit-enc`.
-- **Vector store (retrieval index) chunk text**: encrypted with AES-256-GCM (a fresh random 12-byte nonce per value and a 16-byte authentication tag that detects tampering), key service `keepance-vectors-enc`.
+- **Vector store (retrieval index) chunk text**: encrypted with AES-256-GCM (a fresh random 12-byte nonce per value and a 16-byte authentication tag that detects tampering), key service `keepance-vectors-enc`. Vector embeddings remain local derived data and are not document text, but they are not currently tied to the encrypted-vault lock lifecycle.
 
 The three keys are cryptographically independent: compromising or rotating one does not affect the others.
 
@@ -118,6 +118,7 @@ On activation the app calls `licenses.keepance.com` with your license key and a 
 | Imported email | `<workspace>/.keepance/` SQLCipher DB | Yes (SQLCipher, key in keychain) | Until you delete | You, via the app; not readable without the key |
 | Audit log | `<workspace>/.keepance/audit-enc.db` SQLCipher | Yes (SQLCipher, separate key) | Append-only; until you delete the store | You, via the app; not readable without the key |
 | Vector store: chunk text | Local vector DB | Yes (AES-256-GCM, key in keychain) | Until re-indexed or deleted | You, via the app; not readable without the key |
+| Vector store: embeddings | Local vector DB | No (local derived data, not document text) | Until re-indexed or deleted | Anyone with raw access to the device file |
 | Vector store: matter_id and privilege labels | Local vector DB | **No (plaintext on purpose, for query)** | Until re-indexed or deleted | Anyone with raw access to the device file |
 | AI provider API keys | OS keychain | Yes (OS-managed) | Until you remove them | You / OS account; gated by the OS |
 | Prompt + response (BYOK cloud) | Not stored by Advisor Prep Hero; sent to your AI provider | In transit: TLS | Determined by your AI provider account terms | Your AI provider (per your account) |
@@ -134,7 +135,9 @@ A risk committee should weigh these. None is hidden in the marketing.
 
 1. **Cloud AI providers see your prompts (BYOK cloud mode).** This is unavoidable for any product that uses a cloud model, including Advisor Prep Hero. The prompt goes to the provider you chose, under your account and its terms. Mitigations: use a local model for the most sensitive work; enable zero-data-retention / no-training on your provider account; rely on matter isolation and privilege exclusion to control what ever gets into a prompt in the first place.
 
-2. **Plaintext metadata in the vector store.** The chunk text is encrypted, but `matter_id` and the privilege label are stored in plaintext because they must be queryable to enforce isolation before the search runs. Someone with raw access to the device's vector-store file could learn which matters exist and their identifiers, even though they could not read the chunk contents. This is a deliberate trade-off for correct isolation. Mitigation: full-disk encryption on the device.
+2. **Local derived data in the vector store.** The chunk text is encrypted, but embeddings, `matter_id`, and the privilege label are stored in plaintext because they must be queryable to enforce isolation and semantic search before results are returned. Someone with raw access to the device's vector-store file could learn that local derived search data exists and could inspect matter identifiers, even though they could not read the chunk contents. This is a deliberate trade-off for correct isolation and fast retrieval. Mitigation: full-disk encryption on the device.
+
+   TODO before scale: decide whether vaulted workspaces must lock/wipe/rebuild vector embeddings with the vault lifecycle, or offer "encrypted index only / no semantic index" for vaulted workspaces. Until then, marketing must say "chunk text is encrypted; embeddings are local derived search data" rather than implying the vault lock covers vectors.
 
 3. **Plain files are only as protected as the device.** Workspace documents and chat files are plaintext on disk by design (they are your files, in your folder). Their confidentiality depends on your operating-system account security and full-disk encryption. Advisor Prep Hero's at-rest encryption of the email/audit/vector stores supplements this; it does not replace device hardening.
 

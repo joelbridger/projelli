@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { FileNode, RecentWorkspace } from '@/platform/types/workspace';
 import { isTauriEnvironment } from './BackendFactory';
 import { SK_RECENT_WORKSPACES } from '@/config/identity';
+import { getTauriFsModule } from './tauriFsPlugin';
 
 const MAX_RECENT_WORKSPACES = 10;
 
@@ -61,7 +62,7 @@ async function pruneMissingRecentWorkspaces(workspaces: RecentWorkspace[]): Prom
   if (!isTauriEnvironment()) return workspaces;
 
   try {
-    const fs = await import('@tauri-apps/plugin-fs');
+    const fs = await getTauriFsModule();
     const checks = await Promise.all(workspaces.map(async (workspace) => {
       try {
         return (await fs.exists(workspace.path)) ? workspace : null;
@@ -246,7 +247,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
       // Persist to localStorage
       try {
         persistRecentWorkspaces(updated);
-        console.log(`[RecentWorkspaces] Saved ${updated.length} recent workspaces, latest: ${workspace.name}`);
+        console.log(`[RecentWorkspaces] Saved ${String(updated.length)} recent workspaces, latest: ${workspace.name}`);
       } catch (error) {
         console.error('Failed to save recent workspaces:', error);
       }
@@ -280,7 +281,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
 
   loadRecentWorkspaces: () => {
     const stored = localStorage.getItem(SK_RECENT_WORKSPACES);
-    console.log(`[RecentWorkspaces] Loading from localStorage, found: ${!!stored}`);
+    console.log(`[RecentWorkspaces] Loading from localStorage, found: ${String(stored !== null)}`);
     if (stored) {
       try {
         const workspaces = JSON.parse(stored) as Array<{ path: string; name: string; lastOpened: string }>;
@@ -294,15 +295,19 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => ({
         } catch (error) {
           console.error('Failed to save recent workspaces:', error);
         }
-        void pruneMissingRecentWorkspaces(restored).then((pruned) => {
-          if (pruned.length === restored.length) return;
-          set({ recentWorkspaces: pruned });
-          try {
-            persistRecentWorkspaces(pruned);
-          } catch (error) {
-            console.error('Failed to save recent workspaces:', error);
-          }
-        });
+        void pruneMissingRecentWorkspaces(restored)
+          .then((pruned) => {
+            if (pruned.length === restored.length) return;
+            set({ recentWorkspaces: pruned });
+            try {
+              persistRecentWorkspaces(pruned);
+            } catch (error) {
+              console.error('Failed to save recent workspaces:', error);
+            }
+          })
+          .catch((error: unknown) => {
+            console.error('Failed to prune missing recent workspaces:', error);
+          });
       } catch (error) {
         console.error('Failed to load recent workspaces:', error);
         set({ recentWorkspacesLoaded: true });

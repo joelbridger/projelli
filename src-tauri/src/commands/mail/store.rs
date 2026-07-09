@@ -420,15 +420,15 @@ pub trait MailStore: Send + Sync {
     fn get_cursor(&self, folder_id: &str) -> Result<Option<String>>;
     /// Persist a per-folder cursor (upserts on conflict).
     fn set_cursor(&self, folder_id: &str, cursor: &str) -> Result<()>;
-    /// Browse / keyword-search email metadata. NEVER decrypts a blob — all
-    /// matching is done against the plaintext columns stored in the SQLCipher DB.
+    /// Browse / keyword-search email metadata. NEVER decrypts a blob — matching
+    /// uses searchable columns inside the encrypted SQLCipher DB.
     fn list_messages(&self, q: &MailListQuery) -> Result<MailListPage>;
     /// BUG-013: the DURABLE per-message matter override (a manual "file to
     /// matter"), or `None` when the message has no manual filing. This is the
     /// source of truth that survives re-sync/re-index — unlike the RAG index,
     /// which a re-sync re-stamps from the folder mapping. Sync resolves this
     /// BEFORE indexing so a manual filing wins over the folder default.
-    /// Default: no override store (the legacy plaintext store never holds one);
+    /// Default: no override store (legacy/test stores never hold one);
     /// `EncryptedMailStore` persists it in the `meta` table.
     fn get_message_matter(&self, _id: &str) -> Result<Option<String>> {
         Ok(None)

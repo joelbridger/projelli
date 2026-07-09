@@ -13,8 +13,10 @@ vi.mock('@/platform/fs/BackendFactory', () => ({
   isTauriEnvironment: mockIsTauriEnvironment,
 }));
 
-vi.mock('@tauri-apps/plugin-fs', () => ({
-  exists: mockFsExists,
+vi.mock('@/platform/fs/tauriFsPlugin', () => ({
+  getTauriFsModule: vi.fn(async () => ({
+    exists: mockFsExists,
+  })),
 }));
 
 beforeEach(() => {
