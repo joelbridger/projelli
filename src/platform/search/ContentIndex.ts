@@ -30,6 +30,12 @@ import { isBinaryFile } from '@/platform/utils/file-utils';
  *  sane when a user opens a 50 MB transcript. ~200k chars ≈ 50k tokens. */
 const MAX_INDEX_CHARS = 200_000;
 
+/** Keep renderer indexing from launching hundreds of reads/extractions at once. */
+const MAX_INDEX_CONCURRENCY = 4;
+
+/** Stored only for snippets. The full text is indexed, not stored in results. */
+const MAX_SNIPPET_SOURCE_CHARS = 8_000;
+
 /** Max number of results we surface to the UI. Anything beyond this is
  *  rarely useful and costs render time in the results list. */
 const DEFAULT_RESULT_LIMIT = 30;
@@ -53,6 +59,12 @@ export interface ContentSearchResult {
   score: number;
   /** The term that produced the snippet (for highlight). */
   matchedTerm: string;
+}
+
+interface ContentIndexStoredFields {
+  path: string;
+  name: string;
+  snippetSource?: string;
 }
 
 /** Extensions we're willing to index. Mirrors `extractForAI`'s branches,
@@ -88,6 +100,32 @@ function walkTree(tree: FileNode[], out: FileNode[] = []): FileNode[] {
   return out;
 }
 
+function snippetSource(content: string): string {
+  return content.replace(/\s+/g, ' ').trim().slice(0, MAX_SNIPPET_SOURCE_CHARS);
+}
+
+async function collectWithConcurrency(
+  service: WorkspaceService,
+  nodes: FileNode[]
+): Promise<Array<ContentIndexDocument | null>> {
+  const results: Array<ContentIndexDocument | null> = Array.from({ length: nodes.length }, () => null);
+  let nextIndex = 0;
+  const workerCount = Math.min(MAX_INDEX_CONCURRENCY, nodes.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < nodes.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const node = nodes[index];
+      if (node) {
+        results[index] = await collectDocument(service, node);
+      }
+    }
+  }));
+
+  return results;
+}
+
 /**
  * Build a new MiniSearch index pre-configured for our schema.
  *
@@ -98,7 +136,13 @@ function walkTree(tree: FileNode[], out: FileNode[] = []): FileNode[] {
 export function createIndex(): MiniSearch<ContentIndexDocument> {
   return new MiniSearch<ContentIndexDocument>({
     fields: ['name', 'content'],
-    storeFields: ['path', 'name', 'content'],
+    storeFields: ['path', 'name', 'snippetSource'],
+    extractField: (document, fieldName) => {
+      if (fieldName === 'snippetSource') {
+        return snippetSource(document.content);
+      }
+      return document[fieldName as keyof ContentIndexDocument];
+    },
     searchOptions: {
       boost: { name: 2 },
       prefix: true,
@@ -108,8 +152,79 @@ export function createIndex(): MiniSearch<ContentIndexDocument> {
   });
 }
 
+async function collectDocument(
+  service: WorkspaceService,
+  node: FileNode
+): Promise<ContentIndexDocument | null> {
+  if (node.type !== 'file') return null;
+  try {
+    const ext = node.extension?.toLowerCase()
+      ?? node.name.split('.').pop()?.toLowerCase()
+      ?? '';
+    let content = '';
+
+    if (isPlainTextIndexable(node.name)) {
+      const raw = await service.readFile(node.path);
+      content = raw.slice(0, MAX_INDEX_CHARS);
+    } else if (!isBinaryFile(node.name)) {
+      // Unknown non-binary extension — try readFile as text.
+      try {
+        const raw = await service.readFile(node.path);
+        content = raw.slice(0, MAX_INDEX_CHARS);
+      } catch {
+        return null;
+      }
+    } else if (!BINARY_INDEX_EXTRACTABLE_EXTS.has(ext)) {
+      // Binary with no extractable text (image/audio/video/archive/iso/dmg/
+      // font/sqlite/parquet/exe/…). Skip BEFORE the full-file read + base64
+      // so a large binary can't spike memory only for extractForAI to return
+      // null. (Pre-broadening this path was already a no-op for these; now
+      // we just don't do the wasted work first.)
+      return null;
+    } else {
+      // Binary we CAN extract text from (docx/xlsx/xls/pptx): use
+      // extractForAI via a data URL. We need the binary bytes first.
+      const buf = await service.readFileBinary(node.path);
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i] ?? 0);
+      }
+      const b64 = typeof btoa === 'function'
+        ? btoa(binary)
+        : Buffer.from(binary, 'binary').toString('base64');
+      const mime = {
+        docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        rtf: 'application/rtf',
+      }[ext] ?? 'application/octet-stream';
+      const dataUrl = `data:${mime};base64,${b64}`;
+      const extracted = await extractForAI({
+        path: node.path,
+        name: node.name,
+        extension: ext,
+        content: dataUrl,
+      });
+      if (!extracted) return null;
+      content = extracted.extractedText.slice(0, MAX_INDEX_CHARS);
+    }
+
+    if (!content.trim()) return null;
+
+    return {
+      id: node.path,
+      path: node.path,
+      name: node.name,
+      content,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Load + extract text for a set of files in parallel, returning one
+ * Load + extract text for a set of files with a small queue, returning one
  * ContentIndexDocument per file that actually produced readable text.
  * Failures (binary formats that can't be extracted in-browser, read errors,
  * empty content) are skipped silently.
@@ -118,75 +233,7 @@ export async function collectDocuments(
   service: WorkspaceService,
   nodes: FileNode[]
 ): Promise<ContentIndexDocument[]> {
-  const results = await Promise.all(
-    nodes.map(async (node) => {
-      if (node.type !== 'file') return null;
-      try {
-        const ext = node.extension?.toLowerCase()
-          ?? node.name.split('.').pop()?.toLowerCase()
-          ?? '';
-        let content = '';
-
-        if (isPlainTextIndexable(node.name)) {
-          const raw = await service.readFile(node.path);
-          content = raw.slice(0, MAX_INDEX_CHARS);
-        } else if (!isBinaryFile(node.name)) {
-          // Unknown non-binary extension — try readFile as text.
-          try {
-            const raw = await service.readFile(node.path);
-            content = raw.slice(0, MAX_INDEX_CHARS);
-          } catch {
-            return null;
-          }
-        } else if (!BINARY_INDEX_EXTRACTABLE_EXTS.has(ext)) {
-          // Binary with no extractable text (image/audio/video/archive/iso/dmg/
-          // font/sqlite/parquet/exe/…). Skip BEFORE the full-file read + base64
-          // so a large binary can't spike memory only for extractForAI to return
-          // null. (Pre-broadening this path was already a no-op for these; now
-          // we just don't do the wasted work first.)
-          return null;
-        } else {
-          // Binary we CAN extract text from (docx/xlsx/xls/pptx): use
-          // extractForAI via a data URL. We need the binary bytes first.
-          const buf = await service.readFileBinary(node.path);
-          const bytes = new Uint8Array(buf);
-          let binary = '';
-          for (let i = 0; i < bytes.length; i += 1) {
-            binary += String.fromCharCode(bytes[i]!);
-          }
-          const b64 = typeof btoa === 'function'
-            ? btoa(binary)
-            : Buffer.from(binary, 'binary').toString('base64');
-          const mime = {
-            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-            rtf: 'application/rtf',
-          }[ext] ?? 'application/octet-stream';
-          const dataUrl = `data:${mime};base64,${b64}`;
-          const extracted = await extractForAI({
-            path: node.path,
-            name: node.name,
-            extension: ext,
-            content: dataUrl,
-          });
-          if (!extracted) return null;
-          content = extracted.extractedText.slice(0, MAX_INDEX_CHARS);
-        }
-
-        if (!content.trim()) return null;
-
-        return {
-          id: node.path,
-          path: node.path,
-          name: node.name,
-          content,
-        };
-      } catch {
-        return null;
-      }
-    })
-  );
+  const results = await collectWithConcurrency(service, nodes);
   return results.filter((r): r is ContentIndexDocument => r !== null);
 }
 
@@ -247,10 +294,10 @@ export function searchIndex(
   const trimmed = query.trim();
   if (!trimmed) return [];
   const limit = opts.limit ?? DEFAULT_RESULT_LIMIT;
-  const raw = index.search(trimmed) as (MiniSearchResult & ContentIndexDocument)[];
+  const raw = index.search(trimmed) as (MiniSearchResult & ContentIndexStoredFields)[];
   return raw.slice(0, limit).map((r) => {
-    const terms = (r.terms ?? []) as string[];
-    const content = r.content ?? '';
+    const terms = r.terms;
+    const content = r.snippetSource ?? '';
     const { snippet, matchedTerm } = buildSnippet(content, terms);
     return {
       path: r.path,

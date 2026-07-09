@@ -66,9 +66,9 @@ pub fn apply_page(store: &dyn MailStore, workspace_root: &Path, folder_id: &str,
             let abs = workspace_root.join(&rel);
             if let Some(p) = abs.parent() { std::fs::create_dir_all(p)?; }
             std::fs::write(&abs, to_markdown(&msg))?;
-            // Legacy Phase-1 plaintext path (removed by migrate_plaintext).
-            // Searchable columns are populated here too so apply_page + a
-            // plaintext store can also benefit from list_messages.
+            // Legacy Phase-1 import helper. Production sync uses apply_page_enc
+            // with EncryptedMailStore; this path remains only for migration/test
+            // coverage of old Mail/*.md artifacts.
             let snippet_source = match msg.body_content_type {
                 BodyContentType::Html =>
                     crate::commands::mail::normalize::html_to_text(&msg.body_text),
@@ -479,10 +479,9 @@ mod tests {
 
     #[test]
     fn apply_page_plaintext_original_still_exists_for_sqlitestore() {
-        // The original Phase 1 behavior: SqliteMailStore + apply_page (not enc)
-        // still writes Mail/*.md plaintext. This test guards against accidentally
-        // removing the non-encrypted path. The encrypted path (apply_page_enc)
-        // is tested separately above.
+        // Legacy Phase 1 behavior: apply_page writes Mail/*.md artifacts so
+        // migration coverage can keep proving those old files are cleaned up.
+        // Production sync uses apply_page_enc + EncryptedMailStore.
         let store = FakeStore::default();
         let dir = tempfile::TempDir::new().unwrap();
         let page = serde_json::json!({ "value": [

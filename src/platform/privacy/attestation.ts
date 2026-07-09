@@ -2,6 +2,8 @@
 // recorded, what was deleted when — from the hash-chained audit log + the
 // per-client consent ledgers. Output is a real .docx (Word-native rule).
 
+import { readTauriTextFile, writeTauriFile } from '@/platform/fs/tauriFsPlugin';
+
 export interface ConsentReportRow { client: string; confirmedAt: string; mode: string; scope: string; note: string }
 export interface EventRow { timestamp: string; description: string }
 export interface AttestationInput {
@@ -85,20 +87,17 @@ export async function exportAttestationDocx(workspaceRoot: string): Promise<stri
     }
   }
 
-  // Consent ledgers: one JSON per matter folder (Wave 3 Task 13). Read
-  // directly via the Tauri fs plugin — the same call TauriFSBackend makes
-  // under the hood — since consent-ledger reads happen outside any component
-  // that holds a WorkspaceService instance.
+  // Consent ledgers: one JSON per matter folder (Wave 3 Task 13). Read through
+  // the guarded Tauri fs wrapper since this helper has no WorkspaceService.
   const { getMatters } = await import('@/platform/matter/matterStore');
   const { toWorkspaceRelativeFolder } = await import('@/platform/rag/matterResolver');
-  const fs = await import('@tauri-apps/plugin-fs');
   const consent: ConsentReportRow[] = [];
   for (const m of getMatters()) {
     for (const folder of m.folderPaths) {
       const rel = toWorkspaceRelativeFolder(folder, workspaceRoot);
       if (!rel) continue;
       try {
-        const raw = await fs.readTextFile(`${workspaceRoot}/${rel}/Meetings/.consent-ledger.json`);
+        const raw = await readTauriTextFile(`${workspaceRoot}/${rel}/Meetings/.consent-ledger.json`);
         const parsed = JSON.parse(raw) as { entries?: Array<{ mode?: string; scope?: string; confirmedAt?: string; note?: string }> };
         for (const c of parsed.entries ?? []) {
           consent.push({ client: m.client, confirmedAt: c.confirmedAt ?? '', mode: c.mode ?? '', scope: c.scope ?? '', note: c.note ?? '' });
@@ -130,6 +129,6 @@ export async function exportAttestationDocx(workspaceRoot: string): Promise<stri
   const fileName = `Attestation Report ${new Date().toISOString().slice(0, 10)}.docx`;
   const bytes = await markdownToDocxBytes(md, fileName);
   const outPath = `${workspaceRoot}/${fileName}`;
-  await fs.writeFile(outPath, bytes);
+  await writeTauriFile(outPath, bytes);
   return outPath;
 }

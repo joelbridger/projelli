@@ -141,9 +141,14 @@ pub fn build_batch(
 
     // WS-VEC: encrypt each chunk's text at rest; store as a hex blob in the text
     // column. Embeddings (the `vector` column) are computed from plaintext by the
-    // caller and stay unencrypted — similarity needs them. Propagate encrypt
-    // errors (never silently store an empty string with encrypted=true, which
-    // would be a permanently-unrecoverable chunk).
+    // caller and stay unencrypted because LanceDB needs queryable floats for
+    // similarity. They are local derived data, not document text, but they are not
+    // currently tied to the encrypted-vault lock lifecycle. Pre-scale decision:
+    // either lock/wipe/rebuild vectors with the vault, or market them plainly as a
+    // local derived index protected by device security. Do not imply vault lock
+    // covers vectors until that lifecycle is implemented.
+    // Propagate encrypt errors (never silently store an empty string with
+    // encrypted=true, which would be a permanently-unrecoverable chunk).
     let mut encrypted_texts: Vec<String> = Vec::with_capacity(rows.len());
     for (c, _) in rows.iter() {
         let blob = encrypt_with_key(c.text.as_bytes(), key)
@@ -739,4 +744,3 @@ pub async fn upsert_grouped(
         .with_context(|| format!("atomic grouped re-index merge_insert failed for {}", path))?;
     Ok(count)
 }
-

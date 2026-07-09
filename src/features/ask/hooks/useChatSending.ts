@@ -115,6 +115,12 @@ import { sendDiagnosticEvent } from '@/platform/utils/diagnostics';
 import { EV_TRASH_CHANGED } from '@/config/identity';
 import { brandText } from '@/config/brandText';
 
+export function fileSearchQueryToRegex(query: string): RegExp {
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const wildcardPattern = escaped.replace(/\\\*/g, '.*').replace(/\\\?/g, '.');
+  return new RegExp(wildcardPattern, 'i');
+}
+
 export interface UseChatSendingDeps {
   // Props forwarded from AIChatViewer.
   chatData: AIChatFile;
@@ -1227,15 +1233,14 @@ export function useChatSending(deps: UseChatSendingDeps) {
               }
             }
             case 'search_files': {
-              const query = params['query'] as string;
+              const query = String(params['query'] ?? '');
               try {
                 const fileTree = await workspaceServiceRef.current.getFileTree();
                 const searchResults: Array<{ name: string; path: string; type: string }> = [];
+                const regex = fileSearchQueryToRegex(query);
                 const searchNode = (nodes: any[], parentPath = '') => {
                   for (const node of nodes) {
                     const nodePath = parentPath ? `${parentPath}/${node.name}` : node.name;
-                    const pattern = query.replace(/\*/g, '.*').replace(/\?/g, '.');
-                    const regex = new RegExp(pattern, 'i');
                     if (regex.test(node.name)) searchResults.push({ name: node.name, path: nodePath, type: node.type });
                     if (node.children) searchNode(node.children, nodePath);
                   }

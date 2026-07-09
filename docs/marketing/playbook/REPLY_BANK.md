@@ -54,7 +54,7 @@ Pro includes one year of updates. Lifetime includes updates forever. Both tiers 
 
 ### Q10. "What happens if Advisor Prep Hero shuts down?"
 
-Your files keep working. Every chat in Advisor Prep Hero is a real Markdown file on your disk. Open it in any text editor, any other Markdown app, any other AI tool. The memory index is a LanceDB table in `.keepance/vectors/`, which any other LanceDB-compatible tool can read. Your API keys live in your OS keychain, which Advisor Prep Hero just reads from. I wrote the app so that if I disappeared tomorrow, the only thing you'd lose is updates.
+Your files keep working. Every chat in Advisor Prep Hero is a real Markdown file on your disk. Open it in any text editor, any other Markdown app, any other AI tool. The memory index is a local LanceDB table in `.keepance/vectors/`: chunk text is encrypted, while the embedding vectors are local derived search data that stay on your device. Your API keys live in your OS keychain, which Advisor Prep Hero just reads from. I wrote the app so that if I disappeared tomorrow, the only thing you'd lose is updates.
 
 ### Q11. "Is there a trial?"
 
@@ -74,7 +74,7 @@ Binary size and native performance. Tauri 2 uses the OS's built-in webview (WebV
 
 ### Q14. "Why LanceDB for the memory index?"
 
-LanceDB runs in-process, zero ops, disk-based, and it's built on Apache Arrow so the embedding vectors sit next to the text chunks in one columnar format. fastembed-rs ships the e5-small-v2 ONNX model (384-dim, ~80MB), which is small enough to bundle and fast enough that indexing a 1000-file workspace takes under a minute. The alternatives (Chroma, Qdrant, Weaviate) all require running a separate service, which violates the local-first guardrail.
+LanceDB runs in-process, zero ops, disk-based, and it's built on Apache Arrow so the local embedding vectors sit next to encrypted text chunks in one columnar format. fastembed-rs ships the e5-small-v2 ONNX model (384-dim, ~80MB), which is small enough to bundle and fast enough that indexing a 1000-file workspace takes under a minute. The alternatives (Chroma, Qdrant, Weaviate) all require running a separate service, which violates the local-first guardrail.
 
 ### Q15. "How does the MCP server work?"
 

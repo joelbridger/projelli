@@ -108,6 +108,11 @@ pub async fn rag_set_workspace(
 /// `UNASSIGNED_MATTER` sentinel — NEVER null/empty (a null matter is a
 /// confidentiality hazard). The matter-assignment UI (a separate task) passes a
 /// real id here; the file watcher passes `None` until then.
+///
+/// Vault note: indexing may run over files read while the vault is unlocked, but
+/// the resulting vector embeddings are not currently locked/wiped with the vault.
+/// Keep marketing wording honest until the vector-store lifecycle is wired to
+/// vault lock/unlock (or semantic indexing is disabled for vaulted workspaces).
 #[tauri::command]
 pub async fn rag_index_file(
     state: State<'_, RagState>,

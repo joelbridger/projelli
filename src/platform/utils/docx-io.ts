@@ -34,6 +34,7 @@ import {
 
 import type { ContradictionAnalysisResult, ContradictionFinding } from '@/platform/types/workflow';
 import { BRAND } from '@/config/brand';
+import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 
 import { dataUrlToArrayBuffer } from './spreadsheet-io';
 
@@ -1364,7 +1365,7 @@ export async function applyLetterheadIfConfigured(bytes: Uint8Array): Promise<Ui
 
   try {
     // Resolve a workspace-relative template path to absolute (mirrors the
-    // docx command wrappers), then read its bytes via the Tauri fs plugin.
+    // docx command wrappers), then read its bytes via the guarded Tauri fs wrapper.
     const { useWorkspaceStore } = await import('@/platform/fs/workspaceStore');
     const { resolveWorkspacePath } = await import('@/platform/fs/pathResolve');
     const rootPath = useWorkspaceStore.getState().rootPath;
@@ -1372,8 +1373,7 @@ export async function applyLetterheadIfConfigured(bytes: Uint8Array): Promise<Ui
       ? resolveWorkspacePath(rootPath, templatePath)
       : templatePath;
 
-    const fs = await import('@tauri-apps/plugin-fs');
-    const templateBytes = await fs.readFile(absoluteTemplatePath);
+    const templateBytes = await readTauriFile(absoluteTemplatePath);
 
     const { docxApplyLetterhead } = await import('@/platform/utils/docx-commands');
     const mergedB64 = await docxApplyLetterhead(

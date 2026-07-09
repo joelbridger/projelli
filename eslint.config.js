@@ -50,6 +50,32 @@ export default tseslint.config(
       'lantern-i18n/no-hardcoded-string': i18nSeverity,
     },
   },
+  // Tauri grants broad filesystem capability at runtime. Keep raw plugin-fs
+  // access behind one wrapper so normal app code goes through WorkspaceService.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: ['src/platform/fs/tauriFsPlugin.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@tauri-apps/plugin-fs',
+              message: 'Use @/platform/fs/tauriFsPlugin or WorkspaceService instead of direct plugin-fs access.',
+            },
+          ],
+        },
+      ],
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: 'ImportExpression[source.value="@tauri-apps/plugin-fs"]',
+          message: 'Use @/platform/fs/tauriFsPlugin or WorkspaceService instead of direct plugin-fs access.',
+        },
+      ],
+    },
+  },
   // no-silent-failure is scoped to user-facing surfaces only (features +
   // platform), not lib/ui/app — that's where a swallowed failure turns into
   // a wrong or stuck state a real user hits. Separate block so it layers

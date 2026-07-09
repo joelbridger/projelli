@@ -16,6 +16,7 @@ import type { PromptOptions } from '@/platform/hooks/usePromptDialog';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
 import type { UndoToastController } from '@/app/shell/common/UndoToast';
+import { readTauriFile } from '@/platform/fs/tauriFsPlugin';
 
 export interface UseFileImportOptions {
   rootPath: string | null;
@@ -122,7 +123,6 @@ export function useFileImport({
       const paths = Array.isArray(selected) ? selected : [selected];
       if (paths.length === 0) return;
 
-      const { readFile } = await import('@tauri-apps/plugin-fs');
       const readBinary = (p: string) =>
         service.readFileBinary
           ? service.readFileBinary(p)
@@ -134,7 +134,7 @@ export function useFileImport({
         targetFolder: folderPath ?? rootPath,
         paths,
         readBytes: async (p) => {
-          const u8 = await readFile(p);
+          const u8 = await readTauriFile(p);
           const buf = new ArrayBuffer(u8.byteLength);
           new Uint8Array(buf).set(u8);
           return buf;

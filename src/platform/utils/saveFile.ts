@@ -2,6 +2,7 @@
 // Supports both browser (File System Access API) and Tauri (dialog plugin)
 
 import { isTauriEnvironment } from '@/platform/fs/BackendFactory';
+import { writeTauriFile, writeTauriTextFile } from '@/platform/fs/tauriFsPlugin';
 
 export interface SaveFileOptions {
   /**
@@ -36,10 +37,9 @@ export async function saveFile(
   const isTauri = isTauriEnvironment();
 
   if (isTauri) {
-    // Tauri mode: Use dialog plugin + fs plugin
+    // Tauri mode: use dialog plugin + the guarded fs wrapper.
     try {
       const { save } = await import('@tauri-apps/plugin-dialog');
-      const { writeFile, writeTextFile } = await import('@tauri-apps/plugin-fs');
 
       // Show save dialog
       const saveOptions: { defaultPath?: string; filters?: Array<{ name: string; extensions: string[] }> } = {};
@@ -68,10 +68,10 @@ export async function saveFile(
 
       // Write file
       if (typeof content === 'string') {
-        await writeTextFile(filePath, content);
+        await writeTauriTextFile(filePath, content);
       } else {
         const uint8Array = content instanceof Uint8Array ? content : new Uint8Array(content);
-        await writeFile(filePath, uint8Array);
+        await writeTauriFile(filePath, uint8Array);
       }
 
       return filePath;
