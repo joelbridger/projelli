@@ -359,12 +359,12 @@
       ],
       "videos": [
         {
-          "file": "ask-cited-answer-1080.mp4",
+          "file": "ask-cited-answer-crisp.mp4",
           "title": "Ask: a cited answer from the client's own files",
           "description": "See an advisor ask a client question, get a clear answer, and check the source behind it."
         },
         {
-          "file": "client-map-1080.mp4",
+          "file": "client-map-crisp.mp4",
           "title": "The Client Map builds itself",
           "description": "See scattered client files turn into a useful, living picture of the household."
         }
