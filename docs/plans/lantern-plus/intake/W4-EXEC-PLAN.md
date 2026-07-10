@@ -120,10 +120,13 @@ Each brief written to `docs/plans/lantern-plus/intake/briefs/w4-<n>-<slug>.md` r
 - [x] **Lane 1 — Tier 1 client classifier — MERGED `84eca119`.** Built + adversarial review (2 async races + dead-code conflict rule + blocking-UX, all fixed in one round) + verified (vitest 136, Playwright 22/22, tsc, gate:changed 7350). Exports `classifyObservedKind` for Lane 2 reuse.
 - [x] **Privacy fix (out-of-band P1): strip plaintext `matter_id` from relay-create payload — MERGED `4083f321`.** Boundary test asserts the real POST /intake body carries no matter_id.
 - [x] **Lane 2 — advisor doc reader + classifier — MERGED `3b1ac804`.** Adversarial review caught a P0 cross-client symlink escape (+ 4 P2s), fixed in one round + a 4-item eslint gate-fix. Path confinement now resolves every component and enforces the client-folder boundary, fail-closed. Verified vitest 149 / gate:changed 4026 / tsc / eslint.
-- [ ] Lane 3 — extraction proposals + approval — BUILDING (Codex, `lp/intake-w4-extraction`, private cargo target `intake-w4-3`). **Option C:** engine + store + accept + audit + Rust `document_extraction_proposals` table + standalone review panel; NO OnboardingTab mount (deferred until w56 lands its OnboardingTab rewrite); click-to-run (no `useIntakeInboxSync` edit).
+- [x] **Lane 3 — extraction proposals + approval — MERGED `b39e5e85`.** Engine + encrypted `document_extraction_proposals` queue + propose-then-approve accept + audit + standalone panel (Option C, no OnboardingTab mount). Adversarial review found 5 P1s (all fixed): restricted-scanner incl reason, native contract enforcement (compromised-renderer defense), amount-to-cited-quote match, conflict TOCTOU, matter-scoped get; plus an egress-audit wrap the eslint gate caught. Verified vitest 146 / Rust 16 / tsc / eslint / contracts.
+- [x] **Out-of-band: egress P1 — MERGED `c539c2db`.** Link-fragment never reaches a model; AI email-classification OFF by default (en/de/es disclosure).
 - [ ] OnboardingTab mount follow-up (after w56 lands its OnboardingTab rewrite — coordinator to ping)
-- [ ] Lane 4 — fixtures + gates
+- [ ] Lane 4 — fixtures + gates — BUILDING (Codex, `lp/intake-w4-fixtures`)
 - [ ] Wave-end full gate + gate-fix round
 - [ ] `WORKER-DONE: lp/intake`
+
+**Recurring friction logged:** every Codex lane claimed eslint-clean but the baseline-regression `eslint-gate.mjs` found new findings — a gate-fix per lane (caught in verification). Several were substantive (Lane 3's egress-audit bypass). Future briefs must force `node scripts/eslint-gate.mjs` output in the report.
 
 **Cargo:** per-lane `CARGO_TARGET_DIR` (velocity pattern) — Lane 3 uses `/mnt/devcache/cargo-targets/intake-w4-3`, no cross-lane lock; every cargo wrapped in `timeout 1200`.
