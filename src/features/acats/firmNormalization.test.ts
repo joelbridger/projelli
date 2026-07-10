@@ -38,6 +38,15 @@ describe('ACATS delivering firm normalization', () => {
     });
   });
 
+  it('never lets a short generic fragment false-match a longer alias (codex-review, 2026-07-10)', () => {
+    // "the vanguard group" and "pershing llc" both contain these fragments,
+    // so a reverse `alias.includes(cleaned)` match would wrongly normalize
+    // them to Vanguard/Pershing before the real firm name is ever read.
+    expect(normalizeDeliveringFirmName('The')).toMatchObject({ canonicalKey: 'unknown' });
+    expect(normalizeDeliveringFirmName('LLC')).toMatchObject({ canonicalKey: 'unknown' });
+    expect(normalizeDeliveringFirmName('Investments')).toMatchObject({ canonicalKey: 'unknown' });
+  });
+
   it('ships with the first firms named in the plan', () => {
     const keys = DELIVERING_FIRM_NORMALIZATION_TABLE.map((firm) => firm.canonicalKey);
     expect(keys).toEqual(

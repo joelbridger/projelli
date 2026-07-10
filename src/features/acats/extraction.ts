@@ -201,11 +201,19 @@ function findAccountNumber(
   pages: AcatsStatementTextPage[],
   sourcePath: string,
 ): ExtractedField<string> | undefined {
+  // No trailing `\b` here: `#`/`.` are non-word characters, so a boundary
+  // assertion right after them fails to match common statement shapes like
+  // "Account #:" (codex-review, 2026-07-10) where punctuation immediately follows.
   const located = findFirstLine(pages, (line) =>
-    /\baccount\s*(number|#|no\.?)\b/i.test(line) && /\d/.test(line),
+    /\baccount\s*(?:number|#|no\.?)/i.test(line) && /\d/.test(line),
   );
   if (!located) return undefined;
-  const match = located.line.match(/\baccount\s*(?:number|#|no\.?)\s*[:#]?\s*([A-Za-z0-9*Xx][A-Za-z0-9*Xx\- ]{2,28})/i);
+  // The captured value excludes spaces: PDF text is flattened, so a line like
+  // "Account Number: 1234 Account Title: ..." would otherwise let the greedy
+  // class swallow into the next label ("1234 Account"). Real account numbers
+  // and masked placeholders never contain internal spaces, so excluding them
+  // naturally stops the match at the number itself (codex-review, 2026-07-10).
+  const match = located.line.match(/\baccount\s*(?:number|#|no\.?)\s*[:#]?\s*([A-Za-z0-9*Xx][A-Za-z0-9*Xx-]{2,19})\b/i);
   const value = (match?.[1] ?? '')
     .replace(/\b(statement|type|title)\b.*$/i, '')
     .trim();

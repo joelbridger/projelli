@@ -92,7 +92,13 @@ export function normalizeDeliveringFirmName(name: string): NormalizedDeliveringF
 
   for (const entry of DELIVERING_FIRM_NORMALIZATION_TABLE) {
     const aliases = [entry.displayName, ...entry.aliases].map(normalizeText);
-    if (aliases.some((alias) => cleaned.includes(alias) || alias.includes(cleaned))) {
+    // Only match when the statement text CONTAINS the full alias, never the
+    // reverse. `alias.includes(cleaned)` let a short generic fragment like
+    // "the" or "llc" false-positive against a longer alias (e.g. "the
+    // vanguard group" contains "the"), poisoning the draft with the wrong
+    // delivering firm before the real firm line was ever reached
+    // (codex-review, 2026-07-10).
+    if (aliases.some((alias) => cleaned.includes(alias))) {
       return {
         canonicalKey: entry.canonicalKey,
         displayName: entry.displayName,

@@ -72,6 +72,42 @@ describe('ACATS statement extraction', () => {
     expect(bank.looksLikeBrokerageStatement).toBe(false);
   });
 
+  it('extracts the account number from an "Account #:" line (codex-review, 2026-07-10)', () => {
+    const draft = extractAcatsDraftFromTextPages({
+      id: 'draft-hash-format',
+      matterId: 'matter-1',
+      sourcePath: 'Clients/Hendricks/statement.pdf',
+      pages: [
+        {
+          pageNumber: 1,
+          text: 'Wells Fargo Advisors\nAccount #: 5551234\nAccount Title: Jamie Daines',
+          extraction: 'native-pdf',
+        },
+      ],
+      now: NOW,
+    });
+
+    expect(draft.deliveringAccount.accountNumber?.value).toBe('5551234');
+  });
+
+  it('does not swallow the next label when PDF text is flattened onto one line (codex-review, 2026-07-10)', () => {
+    const draft = extractAcatsDraftFromTextPages({
+      id: 'draft-flattened',
+      matterId: 'matter-1',
+      sourcePath: 'Clients/Hendricks/statement.pdf',
+      pages: [
+        {
+          pageNumber: 1,
+          text: 'Wells Fargo Advisors Account Number: 1234 Account Title: Jamie Daines',
+          extraction: 'native-pdf',
+        },
+      ],
+      now: NOW,
+    });
+
+    expect(draft.deliveringAccount.accountNumber?.value).toBe('1234');
+  });
+
   it('extracts a clean native-PDF brokerage statement with page citations', () => {
     const draft = extractAcatsDraftFromTextPages({
       id: 'draft-clean',
