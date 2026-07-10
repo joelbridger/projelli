@@ -1,14 +1,16 @@
 # Vendor-Credential Applications Checklist (Wave 0 paperwork track)
 
 These are HUMAN/PAPERWORK tasks, not code tasks. They run in parallel with all
-engineering waves (calendar time, not build time). File all three NOW.
+engineering waves (calendar time, not build time). File the first three NOW.
+RightCapital and Holistiplan are partner-access asks for planned write-back
+sockets; they are not shipping connectors yet.
 
 All three connectors are already built: CONNECTORS.md lists them under
 "Code-complete, gated on vendor credentials" (docs/reference/CONNECTORS.md:190).
 The code compiles, is registered, and has UI; each needs exactly one vendor
 credential injected via an env var at build time to go live.
 
-Shared facts for every application:
+Shared facts for the already-built connector applications:
 - Applicant / legal entity: Jameson S Daines (sole proprietor, no LLC/DBA).
 - Contact email for vendor correspondence: developers@keepance.com
   (replies via the keepance-send CLI; it BCCs Jameson).
@@ -102,6 +104,94 @@ Shared facts for every application:
   schedule the 20-call Go-Live exercise (can be scripted against the demo
   env) before any customer-facing use.
 
+## 4. RightCapital - partner/API access for approval-gated planning writes
+
+- Status in code: NOT BUILT as a live connector. Wave 1 only adds a generic
+  write-back engine and mock socket. RightCapital is a placeholder logo only
+  until partner access and sandbox docs exist.
+- Credential the future code needs: unknown until RightCapital confirms the
+  partner API and OAuth/client-registration requirements.
+- Where to apply: ask RightCapital for the partner/API program application
+  path. Public pages confirm partner integrations exist, but not a self-serve
+  developer portal for Lantern.
+- Shared facts to paste:
+  - Product name: Lantern, unless Jameson has a different final
+    advisor-facing brand before submission.
+  - Contact email: developers@keepance.com
+  - Description: "Lantern is a desktop app for financial advisors. It keeps
+    client data local-first and encrypted on the advisor's device. It drafts
+    updates to advisor systems from meeting notes, intake answers, and client
+    documents, but nothing is sent until the advisor reviews and approves it.
+    Every approved external write gets a receipt."
+  - Privacy note: "Lantern does not store client content on Lantern servers.
+    Any hosted relay component is ciphertext-only."
+- Ask RightCapital for:
+  1. Partner/API program application path.
+  2. Sandbox advisor account.
+  3. OAuth/client-registration requirements.
+  4. Endpoint docs for household search/read.
+  5. Endpoint docs for income read/create/update.
+  6. Endpoint docs for expenses/goals/family, for later.
+  7. Explicit yes/no on account type changes and new account/manual-account creation.
+  8. Rate limits.
+  9. Webhook/change-log support, if any.
+  10. App review/security questionnaire requirements.
+- Plain ask: "We are building an approval-gated RightCapital write-back from
+  advisor-reviewed meeting/intake facts. Our first target is income updates
+  only. Do you offer partner API access for reading existing household income
+  records and creating/updating approved income records? We also need to know
+  whether account type changes or new account additions are supported, or
+  whether those are outside your partner API."
+- NEEDS JAMESON: submitting any partner request in his name; signing any
+  partner/API/security agreement; confirming final brand name before sending.
+- On receipt: capture sandbox/docs in the lane tracker before any live code.
+  Do not add a customer-facing connector or honesty card until a real shipping
+  connector exists.
+
+## 5. Holistiplan - Public API access for approved tax document flow
+
+- Status in code: NOT BUILT as a live connector. Wave 1 only adds a generic
+  write-back engine and mock socket. Holistiplan is a placeholder logo only
+  until API access and sandbox docs exist.
+- Credential the future code needs: OAuth 2.0 Client Credentials with `read
+  write` scope, once Holistiplan approves access.
+- Where to apply: email support@holistiplan.com for Public API access.
+- Shared facts to paste:
+  - Product name: Lantern, unless Jameson has a different final
+    advisor-facing brand before submission.
+  - Contact email: developers@keepance.com
+  - Description: "Lantern is a desktop app for financial advisors. It keeps
+    client data local-first and encrypted on the advisor's device. It drafts
+    updates to advisor systems from meeting notes, intake answers, and client
+    documents, but nothing is sent until the advisor reviews and approves it.
+    Every approved external write gets a receipt."
+  - Privacy note: "Lantern does not store client content on Lantern servers.
+    Any hosted relay component is ciphertext-only."
+- Ask Holistiplan for:
+  1. Public API access approval.
+  2. OAuth client credentials.
+  3. Sandbox or test firm.
+  4. Endpoint docs for household/client create/read/update.
+  5. Endpoint docs for tax document upload.
+  6. Endpoint docs for report listing/download.
+  7. Exact list of report types available through API.
+  8. File size/type limits.
+  9. Rate limits.
+  10. Webhooks or polling guidance for report readiness.
+  11. Security questionnaire requirements.
+- Plain ask: "We are building an approval-gated Holistiplan socket for
+  advisors. The first version would let an advisor select tax documents
+  already stored in Lantern, approve sending them to Holistiplan, then pull
+  resulting reports back into the client's Lantern folder. Do your Public API
+  endpoints support creating/matching households and clients, uploading tax
+  documents, and retrieving generated reports? We would like sandbox access
+  and exact endpoint docs."
+- NEEDS JAMESON: submitting the API access request in his name; accepting
+  Holistiplan API terms; confirming final brand name before sending.
+- On receipt: store credentials only in CI/keychain-backed paths after the
+  live connector wave exists. Do not add a customer-facing connector or
+  honesty card until a real shipping connector exists.
+
 ---
 
 ## Contrast case (no application needed)
@@ -117,5 +207,7 @@ keepance-crm-wealthbox). Nothing to file.
 | Redtail | | | | |
 | Salesforce | | | | |
 | DocuSign | | | | |
+| RightCapital | | | | |
+| Holistiplan | | | | |
 
 Update this table as each step completes; note blockers inline.
