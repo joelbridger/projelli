@@ -4009,6 +4009,31 @@
         "low": "Baja"
       }
     },
+    "quarantine": {
+      "title": "El correo necesita una revisión cuidadosa",
+      "channel-label": "Correo normal. No está cifrado de extremo a extremo.",
+      "open-original": "Abrir correo original",
+      "original-email": "Correo original",
+      "reviewed": "Correo original abierto. Elige cada destino tú mismo antes de archivarlo.",
+      "client": "Cliente",
+      "request": "Solicitud de incorporación",
+      "item": "Elemento abierto",
+      "attachment": "Archivo adjunto",
+      "choose-client": "Elegir un cliente",
+      "choose-request": "Elegir una solicitud de incorporación",
+      "choose-item": "Elegir un elemento abierto",
+      "choose-attachment": "Elegir un archivo adjunto",
+      "attachment-number": "Archivo adjunto {{count}}",
+      "onboarding-request": "Solicitud de incorporación activa",
+      "confirm-file": "Confirmar y archivar manualmente",
+      "dismiss": "Descartar como no incorporación",
+      "load-error": "No se pudo cargar el correo en cuarentena.",
+      "open-error": "No se pudo abrir el correo original.",
+      "file-error": "No se pudo archivar este correo manualmente.",
+      "dismiss-error": "No se pudo descartar este correo.",
+      "banner-count_one": "{{count}} correo necesita revisión",
+      "banner-count_other": "{{count}} correos necesitan revisión"
+    },
     "link": {
       "title": "Estado del enlace",
       "local-note": "Esto muestra lo que este dispositivo registró por última vez sobre el enlace seguro de este cliente. Es posible que aquí no aparezca un cambio hecho en otro dispositivo.",

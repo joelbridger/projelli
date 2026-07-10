@@ -4009,6 +4009,31 @@
         "low": "Niedrig"
       }
     },
+    "quarantine": {
+      "title": "E-Mail braucht Ihre sorgfältige Prüfung",
+      "channel-label": "Normale E-Mail. Nicht Ende-zu-Ende verschlüsselt.",
+      "open-original": "Original-E-Mail öffnen",
+      "original-email": "Original-E-Mail",
+      "reviewed": "Original-E-Mail geöffnet. Wählen Sie jedes Ziel selbst, bevor Sie etwas ablegen.",
+      "client": "Kunde",
+      "request": "Onboarding-Anfrage",
+      "item": "Offenes Element",
+      "attachment": "Anhang",
+      "choose-client": "Kunden auswählen",
+      "choose-request": "Onboarding-Anfrage auswählen",
+      "choose-item": "Offenes Element auswählen",
+      "choose-attachment": "Anhang auswählen",
+      "attachment-number": "Anhang {{count}}",
+      "onboarding-request": "Aktive Onboarding-Anfrage",
+      "confirm-file": "Manuell bestätigen und ablegen",
+      "dismiss": "Als kein Onboarding verwerfen",
+      "load-error": "Quarantänisierte E-Mail konnte nicht geladen werden.",
+      "open-error": "Original-E-Mail konnte nicht geöffnet werden.",
+      "file-error": "Diese E-Mail konnte nicht manuell abgelegt werden.",
+      "dismiss-error": "Diese E-Mail konnte nicht verworfen werden.",
+      "banner-count_one": "{{count}} E-Mail braucht Prüfung",
+      "banner-count_other": "{{count}} E-Mails brauchen Prüfung"
+    },
     "link": {
       "title": "Linkstatus",
       "local-note": "Dies zeigt, was dieses Gerät zuletzt über den sicheren Link dieses Kunden gespeichert hat. Eine Änderung auf einem anderen Gerät wird hier möglicherweise nicht angezeigt.",

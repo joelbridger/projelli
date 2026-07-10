@@ -24,6 +24,7 @@ import {
 } from '@/platform/intake/types';
 import { LinkLifecyclePanel } from './LinkLifecyclePanel';
 import { EmailReplyProposalCard } from './EmailReplyProposalCard';
+import { EmailReplyQuarantinePanel } from './EmailReplyQuarantinePanel';
 
 export interface OnboardingTabProps {
   matterId: string;
@@ -337,6 +338,7 @@ export function OnboardingTab({
                 });
               }}
             />
+            <EmailReplyQuarantinePanel matterId={matterId} advisorId={advisorId} />
             {intake.items.map((item) => (
               <div
                 key={item.itemId}

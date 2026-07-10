@@ -12,6 +12,8 @@ export interface IntakeProvenanceSummary {
   label: string;
   at: string;
   enteredBy?: string;
+  confirmedBy?: string;
+  verification?: 'client_stated' | 'document_verified' | 'advisor_confirmed';
 }
 
 export interface IntakeChecklistState {
@@ -30,6 +32,16 @@ export interface IntakeReceivedItem {
   factId?: string;
   receivedAt: string;
   provenance: IntakeProvenanceSummary;
+}
+
+/** Non-sensitive proof that a quarantined attachment was saved to this target. */
+export interface EmailReplyManualFileReceipt {
+  quarantineId: string;
+  targetMatterId: string;
+  targetRequestId: string;
+  targetItemId: string;
+  filePath: string;
+  completedAt: string;
 }
 
 export interface IntakeFlag {
@@ -61,6 +73,7 @@ export interface IntakeRecord {
   checklistVersion: number;
   items: IntakeChecklistState[];
   receivedItems: IntakeReceivedItem[];
+  emailReplyManualFileReceipts?: EmailReplyManualFileReceipt[];
   flags: IntakeFlag[];
   knownSessionIds: string[];
   knownSubmissionIds: string[];
@@ -79,6 +92,7 @@ interface IntakeStoreState {
   hasIntakeForMatter: (matterId: string) => boolean;
   updateItem: (intakeId: string, item: IntakeChecklistState) => void;
   addReceivedItem: (intakeId: string, item: IntakeReceivedItem) => void;
+  recordEmailReplyManualFileReceipt: (intakeId: string, receipt: EmailReplyManualFileReceipt) => void;
   addFlag: (intakeId: string, flag: IntakeFlag) => void;
   rememberSession: (intakeId: string, sessionId: string) => void;
   rememberSubmission: (intakeId: string, submissionId: string) => void;
@@ -101,6 +115,9 @@ function intakeRecordWithDefaults(record: IntakeRecord): IntakeRecord {
     ...record,
     items: Array.isArray(record.items) ? record.items : [],
     receivedItems: Array.isArray(record.receivedItems) ? record.receivedItems : [],
+    emailReplyManualFileReceipts: Array.isArray(record.emailReplyManualFileReceipts)
+      ? record.emailReplyManualFileReceipts
+      : [],
     flags: Array.isArray(record.flags) ? record.flags : [],
     knownSessionIds: Array.isArray(record.knownSessionIds) ? record.knownSessionIds : [],
     knownSubmissionIds: Array.isArray(record.knownSubmissionIds) ? record.knownSubmissionIds : [],
@@ -195,6 +212,31 @@ export const useIntakeStore = create<IntakeStoreState>()(
             [intakeId]: {
               ...current,
               receivedItems: dedupeById(current.receivedItems, item),
+            },
+          },
+        };
+      }),
+      recordEmailReplyManualFileReceipt: (intakeId, receipt) => set((state) => {
+        const current = state.intakesById[intakeId];
+        if (!current) return {};
+        const receipts = current.emailReplyManualFileReceipts ?? [];
+        const existing = receipts.find(
+          (candidate) =>
+            candidate.quarantineId === receipt.quarantineId &&
+            candidate.targetMatterId === receipt.targetMatterId &&
+            candidate.targetRequestId === receipt.targetRequestId &&
+            candidate.targetItemId === receipt.targetItemId,
+        );
+        if (existing) {
+          if (existing.filePath === receipt.filePath) return {};
+          throw new Error('This quarantined email target already has a different saved file.');
+        }
+        return {
+          intakesById: {
+            ...state.intakesById,
+            [intakeId]: {
+              ...current,
+              emailReplyManualFileReceipts: [...receipts, receipt],
             },
           },
         };
