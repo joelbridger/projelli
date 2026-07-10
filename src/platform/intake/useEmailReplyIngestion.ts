@@ -1,0 +1,208 @@
+import { useEffect } from 'react';
+import { isTauri } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+
+import {
+  MAIL_SYNC_EVENT,
+  mailGetMessage,
+  mailListMessages,
+  type MailListItem,
+  type MailListPage,
+  type MailSyncProgress,
+  type MailView,
+} from '@/platform/utils/mail-commands';
+
+import {
+  matchEmailReply,
+  type EmailReplyIntakeState,
+} from './emailReplyMatcher';
+import type {
+  EmailReplyCandidate,
+  EmailReplyMailInput,
+  EmailReplyQuarantine,
+} from './emailReplyTypes';
+import { useIntakeStore, type IntakeChecklistState } from './intakeStore';
+import {
+  classifyEmailReplyCandidate,
+  summarizeEmailReplyConfidence,
+} from './emailReplyClassifier';
+import {
+  emailReplyProposalSave,
+  emailReplyQuarantineSave,
+  stableEmailReplyId,
+  type EmailReplyProposalItem,
+} from './emailReplyProposalStore';
+
+export interface EmailReplyIngestionDeps {
+  listMessages?: typeof mailListMessages;
+  getMessage?: typeof mailGetMessage;
+  saveProposal?: typeof emailReplyProposalSave;
+  saveQuarantine?: typeof emailReplyQuarantineSave;
+  now?: Date;
+  limit?: number;
+}
+
+function mailInputFromMessage(item: MailListItem, view: MailView): EmailReplyMailInput {
+  return {
+    id: view.id || item.id,
+    provider: view.provider ?? item.provider,
+    account: view.account ?? item.account,
+    receivedDateTime: view.date ?? item.receivedDateTime,
+    from: view.from || item.fromName,
+    fromAddr: item.fromAddr || view.from,
+    authResult: view.authResult,
+    threadId: view.threadId,
+    hasAttachments: view.hasAttachments,
+    attachmentsUnsupported: view.attachmentsUnsupported,
+    attachments: view.attachments,
+  };
+}
+
+function openItemsForCandidate(
+  candidate: EmailReplyCandidate
+): IntakeChecklistState[] {
+  const intake = useIntakeStore.getState().intakesById[candidate.matchedRequestId];
+  if (!intake) return [];
+  const targetIds = new Set(candidate.targetOpenItemIds);
+  return intake.items.filter((item) => targetIds.has(item.itemId));
+}
+
+function fallbackRows(openItems: IntakeChecklistState[]): EmailReplyProposalItem[] {
+  const item = openItems[0];
+  if (!item) return [];
+  return [
+    {
+      id: `review-${item.itemId}`,
+      kind: 'body_fact',
+      itemId: item.itemId,
+      label: item.label,
+      confidence: 'low',
+      reasoning: 'This authenticated email belongs to this open request, but the item match is not clear.',
+      checkedByDefault: false,
+    },
+  ];
+}
+
+async function enqueueCandidate(
+  candidate: EmailReplyCandidate,
+  view: MailView,
+  deps: Required<Pick<EmailReplyIngestionDeps, 'saveProposal'>>
+): Promise<void> {
+  const openItems = openItemsForCandidate(candidate);
+  const classified = await classifyEmailReplyCandidate({
+    candidate,
+    openItems,
+    bodyText: view.body,
+  });
+  const items = classified.length > 0 ? classified : fallbackRows(openItems);
+  if (items.length === 0) return;
+  await deps.saveProposal({
+    proposalId: stableEmailReplyId('proposal', candidate),
+    messageId: candidate.messageId,
+    provider: candidate.provider,
+    account: candidate.account,
+    received: candidate.received,
+    sender: candidate.sender,
+    authResult: candidate.authResult,
+    threadId: candidate.threadId,
+    matchedMatterId: candidate.matchedMatterId,
+    matchedRequestId: candidate.matchedRequestId,
+    targetOpenItemIds: candidate.targetOpenItemIds,
+    attachmentRefs: candidate.attachments,
+    items,
+    confidence: summarizeEmailReplyConfidence(items),
+  });
+}
+
+async function enqueueQuarantine(
+  quarantine: EmailReplyQuarantine,
+  deps: Required<Pick<EmailReplyIngestionDeps, 'saveQuarantine'>>
+): Promise<void> {
+  await deps.saveQuarantine({
+    quarantineId: stableEmailReplyId('quarantine', quarantine),
+    messageId: quarantine.messageId,
+    provider: quarantine.provider,
+    account: quarantine.account,
+    received: quarantine.received,
+    sender: quarantine.sender,
+    authResult: quarantine.authResult,
+    threadId: quarantine.threadId,
+    reason: quarantine.reason,
+    ...(quarantine.matchedMatterId
+      ? { matchedMatterId: quarantine.matchedMatterId }
+      : {}),
+    ...(quarantine.matchedRequestId
+      ? { matchedRequestId: quarantine.matchedRequestId }
+      : {}),
+  });
+}
+
+export async function processEmailReplyMessages(
+  deps: EmailReplyIngestionDeps = {}
+): Promise<void> {
+  const listMessages = deps.listMessages ?? mailListMessages;
+  const getMessage = deps.getMessage ?? mailGetMessage;
+  const saveProposal = deps.saveProposal ?? emailReplyProposalSave;
+  const saveQuarantine = deps.saveQuarantine ?? emailReplyQuarantineSave;
+  const now = deps.now ?? new Date();
+  const page: MailListPage = await listMessages({
+    sortBy: 'date',
+    sortDesc: true,
+    limit: deps.limit ?? 200,
+    offset: 0,
+  });
+  const intakeState: EmailReplyIntakeState = {
+    intakesById: useIntakeStore.getState().intakesById,
+  };
+  if (Object.keys(intakeState.intakesById).length === 0) return;
+
+  for (const item of page.items) {
+    try {
+      const view = await getMessage(item.id);
+      const result = matchEmailReply(mailInputFromMessage(item, view), intakeState, now);
+      if (result.kind === 'candidate') {
+        await enqueueCandidate(result, view, { saveProposal });
+      } else if (result.kind === 'quarantine') {
+        await enqueueQuarantine(result, { saveQuarantine });
+      }
+    } catch (error) {
+      console.warn('[useEmailReplyIngestion] Could not process synced mail:', error);
+    }
+  }
+}
+
+export function useEmailReplyIngestion(): void {
+  useEffect(() => {
+    if (!isTauri()) return;
+    let running = false;
+    let disposed = false;
+    const run = (): void => {
+      if (running || disposed) return;
+      running = true;
+      void processEmailReplyMessages()
+        .catch((error: unknown) => {
+          console.warn('[useEmailReplyIngestion] Email reply ingestion failed:', error);
+        })
+        .finally(() => {
+          running = false;
+        });
+    };
+    let unlisten: (() => void) | undefined;
+    listen<MailSyncProgress>(MAIL_SYNC_EVENT, (event) => {
+      if (event.payload.status === 'done') run();
+    })
+      .then((un) => {
+        if (disposed) un();
+        else unlisten = un;
+      })
+      .catch((error: unknown) => {
+        console.warn('[useEmailReplyIngestion] Could not listen for mail sync:', error);
+      });
+    window.addEventListener('focus', run);
+    return () => {
+      disposed = true;
+      window.removeEventListener('focus', run);
+      if (unlisten) unlisten();
+    };
+  }, []);
+}

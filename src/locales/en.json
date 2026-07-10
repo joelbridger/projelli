@@ -105,6 +105,29 @@
       "no-facts": "No facts received yet.",
       "view-in-folder": "View in folder"
     },
+    "emailReply": {
+      "title": "Email replies waiting",
+      "channel-label": "Email reply. Not end-to-end encrypted.",
+      "helper": "This came through your mailbox, not the secure link. Review it before filing.",
+      "source-line": "From {{sender}}",
+      "review": "Review",
+      "review-title": "Review email reply",
+      "select-row": "Select this email reply item",
+      "body-note": "Email text",
+      "confirm-sensitive": "I reviewed this masked sensitive fact",
+      "accept-selected": "Accept selected",
+      "cancel": "Cancel",
+      "load-error": "Could not load email replies.",
+      "accept-error": "Could not accept this email reply.",
+      "partial-error": "Some items were saved, but one item needs another look.",
+      "banner-count_one": "{{count}} email reply",
+      "banner-count_other": "{{count}} email replies",
+      "confidence": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      }
+    },
     "link": {
       "title": "Link status",
       "local-note": "This shows what this device last recorded about the client's secure link. A change made on another device may not show here.",

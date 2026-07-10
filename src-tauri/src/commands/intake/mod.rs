@@ -1,8 +1,9 @@
 pub mod store;
 
 use store::{
-    EncryptedAuditSink, IntakeFactInput, IntakeFactsStore, MaskedClientFact,
-    RevealedClientFact,
+    EmailReplyProposalInput, EmailReplyProposalRecord, EmailReplyQuarantineInput,
+    EmailReplyQuarantineRecord, EncryptedAuditSink, IntakeFactInput, IntakeFactsStore,
+    MaskedClientFact, RevealedClientFact,
 };
 use tauri::{Manager, State};
 
@@ -93,6 +94,102 @@ pub async fn intake_fact_purge(
         let store = IntakeFactsStore::open(&ws)?;
         let audit = EncryptedAuditSink::new(ws);
         store.purge(&matter_id, &fact_id, &audit)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_save_proposal(
+    state: State<'_, IntakeState>,
+    input: EmailReplyProposalInput,
+) -> Result<Option<EmailReplyProposalRecord>, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<Option<EmailReplyProposalRecord>> {
+            let store = IntakeFactsStore::open(&ws)?;
+            store.enqueue_email_reply_proposal(input)
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_save_quarantine(
+    state: State<'_, IntakeState>,
+    input: EmailReplyQuarantineInput,
+) -> Result<Option<EmailReplyQuarantineRecord>, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<Option<EmailReplyQuarantineRecord>> {
+            let store = IntakeFactsStore::open(&ws)?;
+            store.enqueue_email_reply_quarantine(input)
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_list_proposals(
+    state: State<'_, IntakeState>,
+    matter_id: Option<String>,
+) -> Result<Vec<EmailReplyProposalRecord>, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<EmailReplyProposalRecord>> {
+        let store = IntakeFactsStore::open(&ws)?;
+        store.list_email_reply_proposals(matter_id.as_deref())
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_get_proposal(
+    state: State<'_, IntakeState>,
+    proposal_id: String,
+) -> Result<EmailReplyProposalRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<EmailReplyProposalRecord> {
+        let store = IntakeFactsStore::open(&ws)?;
+        store.get_email_reply_proposal(&proposal_id)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_set_proposal_status(
+    state: State<'_, IntakeState>,
+    proposal_id: String,
+    status: String,
+    error: Option<String>,
+) -> Result<EmailReplyProposalRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<EmailReplyProposalRecord> {
+        let store = IntakeFactsStore::open(&ws)?;
+        store.set_email_reply_proposal_status(&proposal_id, &status, error.as_deref())
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_list_quarantines(
+    state: State<'_, IntakeState>,
+    matter_id: Option<String>,
+) -> Result<Vec<EmailReplyQuarantineRecord>, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<EmailReplyQuarantineRecord>> {
+        let store = IntakeFactsStore::open(&ws)?;
+        store.list_email_reply_quarantines(matter_id.as_deref())
     })
     .await
     .map_err(|e| format!("join: {e}"))?

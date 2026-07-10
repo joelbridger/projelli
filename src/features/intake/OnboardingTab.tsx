@@ -23,6 +23,7 @@ import {
   type FactValue,
 } from '@/platform/intake/types';
 import { LinkLifecyclePanel } from './LinkLifecyclePanel';
+import { EmailReplyProposalCard } from './EmailReplyProposalCard';
 
 export interface OnboardingTabProps {
   matterId: string;
@@ -217,6 +218,10 @@ export function OnboardingTab({
     await navigator.clipboard.writeText(link);
   };
 
+  const reloadFacts = async () => {
+    setFacts(await intakeFactList(matterId));
+  };
+
   const saveManualFact = async () => {
     const value = manualRawValue.trim();
     if (!value) return;
@@ -322,6 +327,16 @@ export function OnboardingTab({
           </div>
 
           <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
+            <EmailReplyProposalCard
+              matterId={matterId}
+              advisorId={advisorId}
+              onAccepted={() => {
+                setRevealed({});
+                void reloadFacts().catch((error: unknown) => {
+                  handleAsyncError(error, 'Could not load facts.');
+                });
+              }}
+            />
             {intake.items.map((item) => (
               <div
                 key={item.itemId}

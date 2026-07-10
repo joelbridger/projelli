@@ -3983,6 +3983,29 @@
       "no-facts": "Aún no se han recibido datos.",
       "view-in-folder": "Ver en la carpeta"
     },
+    "emailReply": {
+      "title": "Respuestas por correo pendientes",
+      "channel-label": "Respuesta por correo. No está cifrada de extremo a extremo.",
+      "helper": "Esto llegó por tu buzón, no por el enlace seguro. Revísalo antes de archivarlo.",
+      "source-line": "De {{sender}}",
+      "review": "Revisar",
+      "review-title": "Revisar respuesta por correo",
+      "select-row": "Seleccionar este elemento de respuesta por correo",
+      "body-note": "Texto del correo",
+      "confirm-sensitive": "Revisé este dato sensible enmascarado",
+      "accept-selected": "Aceptar seleccionados",
+      "cancel": "Cancelar",
+      "load-error": "No se pudieron cargar las respuestas por correo.",
+      "accept-error": "No se pudo aceptar esta respuesta por correo.",
+      "partial-error": "Algunos elementos se guardaron, pero un elemento necesita revisión.",
+      "banner-count_one": "{{count}} respuesta por correo",
+      "banner-count_other": "{{count}} respuestas por correo",
+      "confidence": {
+        "high": "Alta",
+        "medium": "Media",
+        "low": "Baja"
+      }
+    },
     "link": {
       "title": "Estado del enlace",
       "local-note": "Esto muestra lo que este dispositivo registró por última vez sobre el enlace seguro de este cliente. Es posible que aquí no aparezca un cambio hecho en otro dispositivo.",

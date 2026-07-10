@@ -30,6 +30,7 @@ export interface OnboardingBoardRowProps {
   onOpenLinkSignals?: (row: OnboardingRow) => void;
   renderNudgeSlot?: (row: OnboardingRow) => ReactNode;
   renderLinkSignals?: (row: OnboardingRow) => ReactNode;
+  renderEmailReplySignals?: (row: OnboardingRow) => ReactNode;
 }
 
 function stopAction(event: MouseEvent<HTMLButtonElement>): void {
@@ -65,6 +66,7 @@ export function OnboardingBoardRow({
   onOpenLinkSignals,
   renderNudgeSlot,
   renderLinkSignals,
+  renderEmailReplySignals,
 }: OnboardingBoardRowProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -351,6 +353,9 @@ export function OnboardingBoardRow({
         ) : null}
         {renderLinkSignals ? (
           <div style={{ marginTop: 8 }}>{renderLinkSignals(row)}</div>
+        ) : null}
+        {renderEmailReplySignals ? (
+          <div style={{ marginTop: 8 }}>{renderEmailReplySignals(row)}</div>
         ) : null}
       </div>
 
