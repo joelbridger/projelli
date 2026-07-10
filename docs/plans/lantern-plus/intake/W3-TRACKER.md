@@ -6,7 +6,7 @@
 ## Lane status
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
-| 1 | ingest+match (Rust+TS) | `~/lp-w3-1` | `lp/intake-w3-1` | DONE-EXIT:0 | lead PASS (security core) | codex-review: 1 P1 + 1 P2 → FIXED `4dc20449` | — | **FIX DONE — awaiting lead verify+merge** (fresh session) |
+| 1 | ingest+match (Rust+TS) | `~/lp-w3-1` | `lp/intake-w3-1` | DONE-EXIT:0 | lead PASS (security core) | codex-review: 1 P1 + 1 P2 → FIXED `4dc20449` | in `f61c249f` | **MERGED** |
 | 2 | proposal cards + accept | `~/lp-w3-2` | `lp/intake-w3-2` | — | — | — | — | queued (brief TO WRITE) — after Lane 1 |
 | 3 | quarantine path | `~/lp-w3-3` | `lp/intake-w3-3` | — | — | — | — | queued (brief TO WRITE) — last |
 
