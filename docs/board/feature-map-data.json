@@ -96,13 +96,13 @@
      "features": [
       {
        "name": "One private link the client opens on their phone — no account, no app",
-       "status": "planned",
+       "status": "building",
        "note": "the headline feature · locked end to end, so only you and the client can ever read it",
        "hero": true
       },
       {
        "name": "The starter form",
-       "status": "planned",
+       "status": "building",
        "note": "birth date, Social Security number, driver's license photos, spending, income"
       },
       {
@@ -121,7 +121,7 @@
       },
       {
        "name": "Never ask a client the same question twice",
-       "status": "planned",
+       "status": "building",
        "note": "intake answers flow into Schwab paperwork, account transfers, RightCapital"
       }
      ],
@@ -138,15 +138,15 @@
       },
       {
        "name": "Onboarding tab on each in-progress client",
-       "status": "planned"
+       "status": "building"
       },
       {
        "name": "Welcome journey that sets client expectations",
-       "status": "planned"
+       "status": "building"
       },
       {
        "name": "Account-transfer autopilot (the ACATS paperwork)",
-       "status": "planned"
+       "status": "building"
       }
      ]
     }
@@ -470,7 +470,7 @@
       },
       {
        "name": "Send updates to RightCapital / Holistiplan",
-       "status": "planned"
+       "status": "building"
       }
      ]
     },
@@ -502,7 +502,7 @@
      "features": [
       {
        "name": "An honesty card for every connection",
-       "status": "planned",
+       "status": "building",
        "note": "spells out exactly what each connected tool can see and touch"
       }
      ]
