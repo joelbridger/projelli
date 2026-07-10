@@ -18,6 +18,11 @@ if command -v node >/dev/null 2>&1; then
     || { echo "✗ board-data.json is invalid — fix it before deploying"; exit 1; }
 fi
 
-cp "$SRC"/*.html "$SRC/board-data.json" "$DEST/"
+for j in "$SRC"/*.json; do
+  node -e "JSON.parse(require('fs').readFileSync('$j','utf8'))" \
+    && echo "✓ $(basename "$j") is valid JSON" \
+    || { echo "✗ $(basename "$j") is invalid — fix it before deploying"; exit 1; }
+done
+cp "$SRC"/*.html "$SRC"/*.json "$DEST/"
 echo "✓ Published to $DEST"
 echo "  View (logged in): https://board.jameworld.com"

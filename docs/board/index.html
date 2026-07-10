@@ -377,7 +377,7 @@
         var tiles = (d.sections||[]).map(function(s){
           return '<button class="tile" data-goto="'+s.id+'"><span class="t-top"><span class="t-emoji">'+(s.icon||'•')+'</span>'+esc(s.title)+'</span>'+chip(TONE[s.id]||'info',s.status)+'</button>';
         }).join('');
-        var currentReport = '<div class="reslinks"><h3><span class="mark res"></span>Current report</h3><div class="reslist"><a class="reslink" href="night-review.html" target="_blank" rel="noopener">🌙 Night Review — full current snapshot (2026-07-09) →</a></div></div>';
+        var currentReport = '<div class="reslinks"><h3><span class="mark res"></span>Current report</h3><div class="reslist"><a class="reslink" href="feature-map.html" target="_blank" rel="noopener">🗺️ Lantern Feature Map — every pillar, feature, and status →</a><a class="reslink" href="night-review.html" target="_blank" rel="noopener">🌙 Night Review — full current snapshot (2026-07-09) →</a></div></div>';
         panelsHtml += '<div class="panel" data-tab="overview">'+currentReport+'<div class="glance-grid">'+tiles+'</div>'
           +'<p class="ov-note">Tap any tile, or use the tabs above, to jump to a section.</p></div>';
       } else {

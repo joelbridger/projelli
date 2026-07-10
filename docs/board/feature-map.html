@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lantern Feature Map</title>
+<style>
+  :root{
+    --navy:#16294b; --navy-soft:#27406b; --accent:#2f6df0;
+    --bg:#f6f7f9; --bg-soft:#eceef2; --card:#ffffff; --line:#e3e6eb;
+    --ink:#1c2433; --ink-soft:#5a6577; --ink-mute:#8a93a3;
+    /* Status palette — reserved, icon + label always beside color */
+    --shipped:#0b7a4b; --shipped-bg:#e7f5ee;
+    --building:#9a5b00; --building-bg:#fdf2e0;
+    --planned:#4a5d80; --planned-bg:#eaeef6;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); line-height:1.45}
+  .wrap{max-width:1240px; margin:0 auto; padding:0 20px}
+
+  header.hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-soft) 100%); color:#fff; padding:34px 0 24px}
+  .hero h1{font-size:26px; letter-spacing:.2px; display:flex; align-items:center; gap:12px}
+  .hero h1 .logo{width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.14);display:inline-flex;align-items:center;justify-content:center;font-size:18px}
+  .hero p{margin-top:6px; color:#c9d4e8; font-size:14.5px; max-width:760px}
+  .hero .meta{margin-top:14px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; font-size:13px}
+  .hero .meta a{color:#cfe0ff}
+  .counts{display:flex; gap:8px; flex-wrap:wrap}
+  .count{background:rgba(255,255,255,.10); border:1px solid rgba(255,255,255,.16); border-radius:999px; padding:4px 12px; color:#e7eefb; font-weight:600; font-size:12.5px}
+
+  /* Legend + filters (one row, sticky) */
+  nav.filters{position:sticky; top:0; z-index:5; background:rgba(246,247,249,.92); backdrop-filter:saturate(140%) blur(8px); border-bottom:1px solid var(--line)}
+  nav.filters .wrap{display:flex; gap:8px; align-items:center; padding:10px 20px; flex-wrap:wrap}
+  .chip{font:inherit; font-size:13px; font-weight:600; border:1px solid var(--line); background:var(--card); color:var(--ink-soft); border-radius:999px; padding:6px 13px; cursor:pointer; display:inline-flex; align-items:center; gap:7px}
+  .chip:hover{border-color:#c9cfd9}
+  .chip.active{background:var(--navy); border-color:var(--navy); color:#fff}
+  .chip .dot{width:9px; height:9px; border-radius:50%}
+  .chip .glyph{font-size:11px; line-height:1}
+  .legend-note{margin-left:auto; font-size:12.5px; color:var(--ink-mute)}
+
+  /* The map */
+  main{padding:26px 0 40px}
+  .grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(360px,1fr)); gap:18px}
+  section.pillar{background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; box-shadow:0 1px 2px rgba(22,41,75,.05); break-inside:avoid}
+  .pillar header{padding:15px 18px 12px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,#fbfcfe, #f4f6fa)}
+  .pillar h2{font-size:16.5px; color:var(--navy); display:flex; align-items:center; gap:10px}
+  .pillar h2 .icon{width:30px;height:30px;border-radius:8px;background:var(--navy);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:15px;flex:none}
+  .pillar .tagline{margin-top:4px; font-size:13px; color:var(--ink-soft)}
+  .pillar .mini{margin-top:8px; display:flex; gap:6px}
+  .mini b{font-size:11.5px; font-weight:700; border-radius:6px; padding:2px 8px}
+  .mini .m-shipped{color:var(--shipped); background:var(--shipped-bg)}
+  .mini .m-building{color:var(--building); background:var(--building-bg)}
+  .mini .m-planned{color:var(--planned); background:var(--planned-bg)}
+
+  /* Metro-spine feature rows */
+  ul.features{list-style:none; padding:10px 18px 16px 18px; position:relative}
+  ul.features::before{content:""; position:absolute; left:29px; top:14px; bottom:18px; width:2px; background:var(--bg-soft); border-radius:2px}
+  li.feat{position:relative; display:flex; gap:12px; align-items:flex-start; padding:7px 6px 7px 0; border-radius:8px}
+  li.feat:hover{background:#f7f9fc}
+  .stop{position:relative; z-index:1; flex:none; width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; border:2px solid; background:#fff; margin-top:1px}
+  .s-shipped .stop{color:var(--shipped); border-color:var(--shipped); background:var(--shipped-bg)}
+  .s-building .stop{color:var(--building); border-color:var(--building); background:var(--building-bg)}
+  .s-planned .stop{color:var(--planned); border-color:var(--planned); background:var(--planned-bg)}
+  .feat .body{min-width:0}
+  .feat .name{font-size:14px; font-weight:600; color:var(--ink)}
+  .s-planned .name{color:#3e4c66}
+  .feat .note{font-size:12.5px; color:var(--ink-mute); margin-top:1px}
+  .feat .badge{display:none; font-size:10.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; border-radius:5px; padding:1.5px 6px; margin-left:8px; vertical-align:1px}
+  .s-building .badge{display:inline-block; color:var(--building); background:var(--building-bg)}
+  .s-planned .badge{display:inline-block; color:var(--planned); background:var(--planned-bg)}
+
+  body.f-shipped li.feat:not(.s-shipped),
+  body.f-building li.feat:not(.s-building),
+  body.f-planned li.feat:not(.s-planned){opacity:.22}
+  body.f-shipped .pillar.none-shipped, body.f-building .pillar.none-building, body.f-planned .pillar.none-planned{opacity:.35}
+
+  footer{border-top:1px solid var(--line); background:var(--card)}
+  footer .wrap{padding:16px 20px 22px; font-size:13px; color:var(--ink-soft)}
+  footer code{background:var(--bg-soft); border-radius:5px; padding:1px 6px; font-size:12px}
+  .error{background:#fdeaea; border:1px solid #f2c4c4; color:#8a2222; border-radius:10px; padding:14px 16px; margin:20px 0}
+
+  @media print{ nav.filters{display:none} .grid{grid-template-columns:repeat(2,1fr)} body{background:#fff} }
+</style>
+</head>
+<body>
+<header class="hero">
+  <div class="wrap">
+    <h1><span class="logo">🗺️</span> Lantern Feature Map</h1>
+    <p>Every core capability of Lantern in one picture: the pillars of the product, what each one contains, and how far along it is. The single source of truth for "what does Lantern do?"</p>
+    <div class="meta">
+      <div class="counts" id="counts"></div>
+      <span class="legend-note" id="updated"></span>
+    </div>
+  </div>
+</header>
+
+<nav class="filters">
+  <div class="wrap" role="group" aria-label="Filter by status">
+    <button class="chip active" data-f="all">All features</button>
+    <button class="chip" data-f="shipped"><span class="dot" style="background:var(--shipped)"></span><span class="glyph">✓</span> Shipped</button>
+    <button class="chip" data-f="building"><span class="dot" style="background:var(--building)"></span><span class="glyph">◐</span> Building</button>
+    <button class="chip" data-f="planned"><span class="dot" style="background:var(--planned)"></span><span class="glyph">○</span> Planned</button>
+    <span class="legend-note">✓ shipped &nbsp;·&nbsp; ◐ building / hardening &nbsp;·&nbsp; ○ planned &nbsp;—&nbsp; status always shown as icon + label, not color alone</span>
+  </div>
+</nav>
+
+<main>
+  <div class="wrap">
+    <div class="grid" id="map"></div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <b>How this stays current:</b> the content lives in <code>feature-map-data.json</code> next to this page (inside the Lantern project at <code>docs/board/</code>). Add or move a feature there, set its <code>status</code>, then run <code>bash docs/board/deploy.sh</code>. The page renders whatever the data file says — no design work needed to update it.
+  </div>
+</footer>
+
+<script>
+var GLYPH={shipped:'✓', building:'◐', planned:'○'};
+var LABEL={shipped:'Shipped', building:'Building', planned:'Planned'};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.json();}).then(function(d){
+  var tot={shipped:0,building:0,planned:0};
+  var map=document.getElementById('map');
+  (d.pillars||[]).forEach(function(p){
+    var c={shipped:0,building:0,planned:0};
+    var rows=(p.features||[]).map(function(f){
+      var st=(f.status||'planned'); c[st]=(c[st]||0)+1; tot[st]=(tot[st]||0)+1;
+      return '<li class="feat s-'+esc(st)+'"><span class="stop" title="'+LABEL[st]+'" aria-label="'+LABEL[st]+'">'+GLYPH[st]+'</span>'+
+        '<span class="body"><span class="name">'+esc(f.name)+'<span class="badge">'+LABEL[st]+'</span></span>'+
+        (f.note?'<div class="note">'+esc(f.note)+'</div>':'')+'</span></li>';
+    }).join('');
+    var mini='';
+    if(c.shipped)mini+='<b class="m-shipped">✓ '+c.shipped+'</b>';
+    if(c.building)mini+='<b class="m-building">◐ '+c.building+'</b>';
+    if(c.planned)mini+='<b class="m-planned">○ '+c.planned+'</b>';
+    var noneCls=['shipped','building','planned'].filter(function(s){return !c[s];}).map(function(s){return 'none-'+s;}).join(' ');
+    map.insertAdjacentHTML('beforeend',
+      '<section class="pillar '+noneCls+'"><header><h2><span class="icon">'+esc(p.icon||'●')+'</span>'+esc(p.name)+'</h2>'+
+      '<div class="tagline">'+esc(p.tagline||'')+'</div><div class="mini">'+mini+'</div></header>'+
+      '<ul class="features">'+rows+'</ul></section>');
+  });
+  document.getElementById('counts').innerHTML=
+    '<span class="count">✓ '+tot.shipped+' shipped</span><span class="count">◐ '+tot.building+' building</span><span class="count">○ '+tot.planned+' planned</span>';
+  document.getElementById('updated').textContent='Last updated '+(d.updated||'');
+}).catch(function(e){
+  document.getElementById('map').innerHTML='<div class="error">Could not load the map ('+esc(e.message)+'). Check that <code>feature-map-data.json</code> sits next to this page.</div>';
+});
+document.querySelectorAll('.chip').forEach(function(b){
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('active');});
+    b.classList.add('active');
+    document.body.className = b.dataset.f==='all' ? '' : 'f-'+b.dataset.f;
+  });
+});
+</script>
+</body>
+</html>
