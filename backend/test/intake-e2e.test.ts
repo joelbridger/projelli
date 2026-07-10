@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 
-import { createAdvisorIntake } from "../../src/platform/intake/createIntake.ts";
+import { createAdvisorIntake, type AdvisorIntakeChecklist } from "../../src/platform/intake/createIntake.ts";
 import { deriveAuthToken, derivePageKey } from "../../src/platform/intake/intakeCrypto.ts";
 import { IntakeRelayClient } from "../../src/platform/intake/IntakeRelayClient.ts";
 import { b64ToBytes } from "../../src/platform/intake/pageSeal.ts";
@@ -9,6 +9,7 @@ import { IntakeSyncClient, type IntakeInboxPage, type IntakeInboxSubmission } fr
 import { openPageJson } from "../../intake-page/src/pageCrypto.ts";
 import { RelayClient } from "../../intake-page/src/relayClient.ts";
 import { submitAnswer } from "../../intake-page/src/submission.ts";
+import { normalizeFirm } from "../../intake-page/src/App.tsx";
 
 import {
   allDurableValues,
@@ -147,6 +148,14 @@ describe("intake real page to relay to advisor flow", () => {
         intakeHost: "https://forms.example.test",
         expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
         checklist,
+        clientFirstName: "Sarah",
+        firm: {
+          name: "North Star Advice",
+          accent: "#ef233c",
+          advisor_name: "Dana",
+          advisor_email: "dana@example.test",
+          next_steps: ["Dana will review what you sent."],
+        },
         relay: new IntakeRelayClient({ baseUrl: ctx.base, seatToken: advisor.seatToken }),
       });
       expect(ctx.store.getIntake("e2e-intake")).not.toBeNull();
@@ -158,8 +167,20 @@ describe("intake real page to relay to advisor flow", () => {
 
       const clientRelay = new RelayClient("e2e-intake", authToken.tokenB64);
       const bundleResponse = await clientRelay.fetchBundle();
-      const openedChecklist = await openPageJson<FormRequest>(pageKey, bundleResponse.checklist_ciphertext_b64);
+      const openedChecklist = await openPageJson<AdvisorIntakeChecklist>(pageKey, bundleResponse.checklist_ciphertext_b64);
       expect(openedChecklist.items.map((item) => item.item_id)).toEqual(["item-ssn", "item-license"]);
+      // The desktop producer's sealed checklist is read through the real page
+      // normalizer, so a producer/page contract mismatch cannot blank the page.
+      expect(normalizeFirm(openedChecklist.firm)).toMatchObject({
+        name: "North Star Advice",
+        accent: "#ef233c",
+        next_steps: ["Dana will review what you sent."],
+      });
+      expect(() => normalizeFirm(undefined)).not.toThrow();
+      expect(normalizeFirm(undefined)).toMatchObject({
+        name: "Advisor Prep Hero",
+        next_steps: [],
+      });
 
       const ssnValue = "123-45-6789";
       const privateFileName = "sarah-license-front-private.png";

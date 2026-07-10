@@ -54,6 +54,7 @@ import type { RequestItem } from '@/platform/intake/types';
 import {
   buildNewHouseholdRequest,
   defaultNewHouseholdItems,
+  NEW_HOUSEHOLD_NEXT_STEPS,
 } from '@/features/intake/newHouseholdTemplate';
 import {
   deriveNewClientFolderPath,
@@ -105,7 +106,8 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const upsertIntake = useIntakeStore((s) => s.upsertIntake);
   const seatToken = useFirmStore((s) => s.seatToken);
   const accessToken = useFirmStore((s) => s.accessToken);
-  const firmName = useFirmStore((s) => s.session?.org?.name ?? BRAND.name);
+  const firmSession = useFirmStore((s) => s.session);
+  const firmName = firmSession?.org?.name ?? BRAND.name;
   const rootPath = useWorkspaceStore((s) => s.rootPath);
 
   const [name, setName] = useState('');
@@ -262,6 +264,14 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         intakeHost: intakeHost(),
         expiresAt,
         checklist,
+        clientFirstName: firstName(displayName),
+        firm: {
+          name: firmName,
+          accent: BRAND.colors.accent,
+          advisor_name: firmSession?.email.split('@')[0] ?? 'Your advisor',
+          advisor_email: firmSession?.email ?? BRAND.urls.supportEmail,
+          next_steps: [...NEW_HOUSEHOLD_NEXT_STEPS],
+        },
         relay,
       });
 

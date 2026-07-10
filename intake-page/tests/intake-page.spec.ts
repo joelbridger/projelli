@@ -39,7 +39,7 @@ interface RelayHarness {
 }
 
 interface RelaySetupOptions {
-  checklist?: IntakeChecklist;
+  checklist?: IntakeChecklist | Omit<IntakeChecklist, 'firm'>;
   finalized?: string[];
 }
 
@@ -395,6 +395,18 @@ test('boots, decrypts the bundle, and renders the firm from sealed data', async 
   await expect(page.getByRole('heading', { name: 'Hi Sarah. Welcome to Journey Beyond Wealth.' })).toBeVisible();
   await expect(page.getByText('This page locks your information on your device.')).toBeVisible();
   await expect(page.getByText('Lantern secure intake')).not.toBeVisible();
+});
+
+test('opens an older link that has no firm branding', async ({ page }) => {
+  const checklist = sampleChecklist();
+  const { firm: _firm, ...legacyChecklist } = checklist;
+  const relay = await setupRelay(page, { checklist: legacyChecklist });
+
+  await page.goto(relay.url);
+
+  await expect(page.getByRole('heading', { name: 'Hi Sarah. Welcome to Advisor Prep Hero.' })).toBeVisible();
+  const accent = await page.locator('.page-shell').first().evaluate((element) => (element as HTMLElement).style.getPropertyValue('--accent'));
+  expect(accent).toBe('#2f7d62');
 });
 
 test('submits five client items as sealed chunks and sealed manifests', async ({ page }) => {

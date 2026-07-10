@@ -18,6 +18,7 @@ import {
   MAX_INTAKE_CHUNK_BYTES,
   MAX_INTAKE_STATE_BYTES,
 } from "../src/lib/intake.ts";
+import { handleSaveIntakeState } from "../src/routes/intake.ts";
 import { buildServeOptions, type SyncSocketData } from "../src/server.ts";
 
 const servers: Array<Bun.Server<SyncSocketData>> = [];
@@ -304,6 +305,85 @@ describe("intake mailbox storage", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("intake regeneration", () => {
+  test("rejects a pre-regeneration state write without replacing the re-sealed state", async () => {
+    const ctx = makeServer();
+    const advisor = seedAdvisor(ctx.store);
+    const { intakeId, authToken } = await createIntake(ctx, advisor.seatToken, {
+      checklist: "old-checklist",
+      state: "old-state",
+    });
+
+    const normalSave = await publicJson(ctx, `/intake/${intakeId}/state`, authToken, "PUT", {
+      ciphertext_b64: b64("same-generation-state"),
+    });
+    expect(normalSave.status).toBe(200);
+
+    // The handler authenticates before it waits for this request body. Hold the
+    // body open, regenerate the link, then let the old request finish.
+    const stream = new TransformStream<Uint8Array, Uint8Array>();
+    const staleSave = handleSaveIntakeState(
+      new Request(`${ctx.base}/intake/${intakeId}/state`, {
+        method: "PUT",
+        headers: { authorization: `Bearer ${authToken}`, "content-type": "application/json" },
+        body: stream.readable,
+      }),
+      ctx.store,
+      intakeId,
+      "127.0.0.1",
+    );
+
+    const regenerated = await advisorJson(ctx, `/intake/${intakeId}/regenerate`, advisor.seatToken, "POST", {
+      token_b64: "new-link-token",
+      checklist_ciphertext_b64: b64("new-checklist"),
+      state_ciphertext_b64: b64("new-state"),
+    });
+    expect(regenerated.status).toBe(200);
+
+    const writer = stream.writable.getWriter();
+    await writer.write(new TextEncoder().encode(JSON.stringify({ ciphertext_b64: b64("old-key-state") })));
+    await writer.close();
+    expect((await parse(await staleSave)).status).toBe(409);
+
+    const newBundle = await publicJson(ctx, `/intake/${intakeId}/bundle`, "new-link-token", "GET");
+    expect(newBundle.status).toBe(200);
+    expect(newBundle.body.checklist_ciphertext_b64).toBe(b64("new-checklist"));
+    expect(newBundle.body.state_ciphertext_b64).toBe(b64("new-state"));
+  });
+
+  test("re-seals a revoked link, keeps received submissions, and rejects the old token", async () => {
+    const ctx = makeServer();
+    const advisor = seedAdvisor(ctx.store);
+    const { intakeId, authToken } = await createIntake(ctx, advisor.seatToken, {
+      checklist: "old-checklist",
+      state: "old-state",
+    });
+    expect((await uploadChunk(ctx, intakeId, authToken, "item-tax", "submission-keep", 0, new Uint8Array([7, 8, 9]))).status).toBe(201);
+    expect((await submitItem(ctx, intakeId, authToken, "item-tax", "submission-keep")).status).toBe(201);
+    expect((await advisorJson(ctx, `/intake/${intakeId}/revoke`, advisor.seatToken, "POST")).status).toBe(200);
+
+    const regenerated = await advisorJson(ctx, `/intake/${intakeId}/regenerate`, advisor.seatToken, "POST", {
+      token_b64: "new-link-token",
+      checklist_ciphertext_b64: b64("new-checklist"),
+      state_ciphertext_b64: b64("new-state"),
+    });
+    expect(regenerated.status).toBe(200);
+    expect(regenerated.body.ok).toBe(true);
+
+    expect((await publicJson(ctx, `/intake/${intakeId}/bundle`, authToken, "GET")).status).toBe(410);
+    const newBundle = await publicJson(ctx, `/intake/${intakeId}/bundle`, "new-link-token", "GET");
+    expect(newBundle.status).toBe(200);
+    expect(newBundle.body.checklist_ciphertext_b64).toBe(b64("new-checklist"));
+    expect(newBundle.body.state_ciphertext_b64).toBe(b64("new-state"));
+    expect(newBundle.body.finalized_item_ids).toEqual(["item-tax"]);
+
+    const inbox = await advisorJson(ctx, `/intake/${intakeId}/inbox`, advisor.seatToken, "GET");
+    expect(inbox.status).toBe(200);
+    expect(inbox.body.submissions).toHaveLength(1);
+    expect(inbox.body.submissions[0].submission_id).toBe("submission-keep");
   });
 });
 
