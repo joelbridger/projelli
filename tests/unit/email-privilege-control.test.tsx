@@ -31,6 +31,7 @@ vi.mock('@/platform/utils/mail-commands', () => ({
 import { EmailViewer } from '@/features/email/EmailViewer';
 import { usePrivilegeStore } from '@/platform/firm/privilegeStore';
 import type { MailView } from '@/platform/utils/mail-commands';
+import { MISSING_MAIL_AUTH_RESULT } from '@/platform/intake/emailReplyTypes';
 
 function sampleMessage(overrides: Partial<MailView> = {}): MailView {
   return {
@@ -42,8 +43,11 @@ function sampleMessage(overrides: Partial<MailView> = {}): MailView {
     date: '2026-05-01T14:30:00Z',
     provider: 'm365',
     account: null,
+    threadId: null,
+    authResult: MISSING_MAIL_AUTH_RESULT,
     body: 'Confirming May 14. The closing is at 10am.',
     hasAttachments: false,
+    attachmentsUnsupported: false,
     attachments: [],
     ...overrides,
   };
