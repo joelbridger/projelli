@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Copy,
   Eye,
   ExternalLink,
-  RefreshCcw,
-  RotateCw,
   Save,
   Trash2,
-  XCircle,
 } from 'lucide-react';
 
 import { Button } from '@/ui/button';
@@ -26,6 +22,7 @@ import {
   type FactKind,
   type FactValue,
 } from '@/platform/intake/types';
+import { LinkLifecyclePanel } from './LinkLifecyclePanel';
 
 export interface OnboardingTabProps {
   matterId: string;
@@ -163,14 +160,10 @@ export function OnboardingTab({
   const { t } = useTranslation();
   const [facts, setFacts] = useState<MaskedClientFact[]>([]);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
-  const [copied, setCopied] = useState(false);
   const [manualKind, setManualKind] = useState<FactKind>('ssn');
   const [manualSubject, setManualSubject] = useState('primary');
   const [manualRawValue, setManualRawValue] = useState('');
   const [manualSaving, setManualSaving] = useState(false);
-  const [pendingAction, setPendingAction] = useState<
-    'extend' | 'revoke' | 'regenerate' | null
-  >(null);
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
@@ -215,42 +208,13 @@ export function OnboardingTab({
   };
 
   const copyLink = async () => {
-    setActionError('');
-    try {
-      const link =
-        intake.link ??
-        (await reconstructAdvisorIntakeLink({
-          intakeId: intake.intakeId,
-          publicKeyRawB64: intake.publicKeyRawB64 ?? '',
-        }));
-      await navigator.clipboard.writeText(link);
-      setCopied(true);
-      window.setTimeout(() => {
-        setCopied(false);
-      }, 1600);
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Could not copy this link.'
-      );
-    }
-  };
-
-  const runLinkAction = async (
-    action: 'extend' | 'revoke' | 'regenerate',
-    fn: ((intakeId: string) => Promise<void> | void) | undefined
-  ) => {
-    if (!fn) return;
-    setActionError('');
-    setPendingAction(action);
-    try {
-      await fn(intake.intakeId);
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Link update failed.'
-      );
-    } finally {
-      setPendingAction(null);
-    }
+    const link =
+      intake.link ??
+      (await reconstructAdvisorIntakeLink({
+        intakeId: intake.intakeId,
+        publicKeyRawB64: intake.publicKeyRawB64 ?? '',
+      }));
+    await navigator.clipboard.writeText(link);
   };
 
   const saveManualFact = async () => {
@@ -420,116 +384,13 @@ export function OnboardingTab({
         </section>
 
         <aside style={{ display: 'grid', gap: 12, minWidth: 0 }}>
-          <section
-            style={{
-              border: '1px solid var(--kp-divider)',
-              borderRadius: 8,
-              background: 'var(--kp-surface-card)',
-              padding: 14,
-            }}
-          >
-            <h3
-              style={{
-                margin: 0,
-                fontSize: 14,
-                fontWeight: 800,
-                color: 'var(--kp-navy)',
-              }}
-            >
-              Link controls
-            </h3>
-            <p
-              style={{
-                margin: '5px 0 12px',
-                color: 'var(--color-muted-foreground)',
-                fontSize: 12,
-              }}
-            >
-              {t('intake.onboarding.link-expiry', {
-                date: formatDate(intake.expiresAt),
-              })}
-            </p>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 8,
-              }}
-            >
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  void copyLink().catch((error: unknown) => {
-                    handleAsyncError(error, 'Could not copy this link.');
-                  });
-                }}
-              >
-                <Copy className="mr-2 h-4 w-4" aria-hidden />
-                {copied ? 'Copied' : 'Copy'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={pendingAction != null}
-                onClick={() => {
-                  void runLinkAction('extend', onExtend).catch(
-                    (error: unknown) => {
-                      handleAsyncError(error, 'Link update failed.');
-                    }
-                  );
-                }}
-              >
-                <RotateCw className="mr-2 h-4 w-4" aria-hidden />
-                {pendingAction === 'extend' ? 'Extending' : 'Extend'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={pendingAction != null}
-                onClick={() => {
-                  void runLinkAction('regenerate', onRegenerate).catch(
-                    (error: unknown) => {
-                      handleAsyncError(error, 'Link update failed.');
-                    }
-                  );
-                }}
-              >
-                <RefreshCcw className="mr-2 h-4 w-4" aria-hidden />
-                {pendingAction === 'regenerate' ? 'Making link' : 'Regenerate'}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={pendingAction != null}
-                onClick={() => {
-                  void runLinkAction('revoke', onRevoke).catch(
-                    (error: unknown) => {
-                      handleAsyncError(error, 'Link update failed.');
-                    }
-                  );
-                }}
-              >
-                <XCircle className="mr-2 h-4 w-4" aria-hidden />
-                {pendingAction === 'revoke' ? 'Turning off' : 'Turn off'}
-              </Button>
-            </div>
-            {actionError ? (
-              <p
-                style={{
-                  margin: '10px 0 0',
-                  color: 'var(--kp-danger)',
-                  fontSize: 12,
-                }}
-              >
-                {actionError}
-              </p>
-            ) : null}
-          </section>
+          <LinkLifecyclePanel
+            intake={intake}
+            onCopyLink={copyLink}
+            {...(onExtend ? { onExtend } : {})}
+            {...(onRegenerate ? { onRegenerate } : {})}
+            {...(onRevoke ? { onRevoke } : {})}
+          />
 
           <section
             style={{
@@ -549,6 +410,17 @@ export function OnboardingTab({
             >
               Received facts
             </h3>
+            {actionError ? (
+              <p
+                style={{
+                  margin: '8px 0 0',
+                  color: 'var(--kp-danger)',
+                  fontSize: 12,
+                }}
+              >
+                {actionError}
+              </p>
+            ) : null}
             <div
               style={{
                 marginTop: 10,
