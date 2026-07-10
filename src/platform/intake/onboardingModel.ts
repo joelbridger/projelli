@@ -15,6 +15,7 @@ export type LinkSignalKind =
   | 'new_device'
   | 'duplicate'
   | 'integrity_mismatch'
+  | 'routing_failed'
   | 'regenerate_available';
 
 export interface LinkSignal {
@@ -150,6 +151,13 @@ export function deriveLinkSignals(
           at: flag.at,
           dismissible: true,
         }];
+      case 'routing_failed':
+        return [{
+          kind: 'routing_failed',
+          severity: 'attention',
+          at: flag.at,
+          dismissible: false,
+        }];
       case 'integrity_mismatch':
         return [{
           kind: 'integrity_mismatch',
@@ -163,7 +171,18 @@ export function deriveLinkSignals(
     }
   });
 
-  return [linkSignal, ...flagSignals];
+  const regenerateSignal: LinkSignal[] =
+    (linkSignal.kind === 'expired' || linkSignal.kind === 'revoked') &&
+    (receivedItems(intake.items).length > 0 || intake.receivedItems.length > 0)
+      ? [{
+          kind: 'regenerate_available',
+          severity: 'info',
+          at: intake.expiresAt,
+          dismissible: false,
+        }]
+      : [];
+
+  return [linkSignal, ...regenerateSignal, ...flagSignals];
 }
 
 export function deriveNudgeEligibility(

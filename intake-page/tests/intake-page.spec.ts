@@ -404,16 +404,18 @@ test('submits five client items as sealed chunks and sealed manifests', async ({
   await completeAll(page);
 
   await expect(page.getByRole('heading', { name: "That's everything for now." })).toBeVisible();
-  expect(relay.submits.map((submit) => submit.item_id)).toEqual(['dob', 'ssn', 'license', 'income', 'spending']);
+  expect(relay.submits.map((submit) => submit.item_id)).toEqual(['dob', 'ssn', 'license', 'license', 'income', 'spending']);
   expect(relay.chunks.length).toBeGreaterThanOrEqual(6);
 
   const dob = await openSubmittedPayload(relay, 'dob');
   expect(JSON.parse(dob.chunks[0] ?? '{}')).toMatchObject({ item_id: 'dob', value: '1960-02-03' });
 
-  const license = await openSubmittedPayload(relay, 'license');
-  expect(license.manifestFileNames).toEqual(['front.jpg', 'back.jpg']);
-  expect(license.chunks.join('\n')).toContain('front-image');
-  expect(license.chunks.join('\n')).toContain('back-image');
+  const licenseFront = await openSubmittedPayload(relay, 'license', 0);
+  expect(licenseFront.manifestFileNames).toEqual(['front.jpg']);
+  expect(licenseFront.chunks.join('\n')).toBe('front-image');
+  const licenseBack = await openSubmittedPayload(relay, 'license', 1);
+  expect(licenseBack.manifestFileNames).toEqual(['back.jpg']);
+  expect(licenseBack.chunks.join('\n')).toBe('back-image');
 
   expect(relay.stateWrites.length).toBeGreaterThanOrEqual(5);
 });

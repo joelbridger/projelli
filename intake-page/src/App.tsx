@@ -325,30 +325,50 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
     setNotice(null);
     try {
       const pending = resume.pending_uploads?.[itemToSubmit.item_id];
-      const resumeSubmissionId = itemToSubmit.t === 'doc_upload' && !replacingItemId ? pending?.submission_id : undefined;
-      const resumeContentKeyB64 = itemToSubmit.t === 'doc_upload' && !replacingItemId ? pending?.content_key_b64 : undefined;
-      await submitAnswer({
-        intakeId,
-        intakePubRaw,
-        item: itemToSubmit,
-        payload,
-        relay,
-        resumeSubmissionId,
-        resumeContentKeyB64,
-        onPendingUpload: async (pendingUpload) => {
-          if (itemToSubmit.t !== 'doc_upload') return;
-          try {
-            await saveResume({
-              pending_uploads: {
-                ...resume.pending_uploads,
-                [itemToSubmit.item_id]: pendingUpload,
-              },
-            });
-          } catch {
-            setNotice('The upload started. Keep this page open until it finishes.');
-          }
-        },
-      });
+      const selectedFiles = itemToSubmit.t === 'doc_upload' && payload.kind === 'files'
+        ? payload.files
+        : null;
+      const submitSinglePayload = async (
+        singlePayload: AnswerPayload,
+        allowResume: boolean,
+      ): Promise<void> => {
+        const resumeSubmissionId = itemToSubmit.t === 'doc_upload' && allowResume && !replacingItemId
+          ? pending?.submission_id
+          : undefined;
+        const resumeContentKeyB64 = itemToSubmit.t === 'doc_upload' && allowResume && !replacingItemId
+          ? pending?.content_key_b64
+          : undefined;
+        await submitAnswer({
+          intakeId,
+          intakePubRaw,
+          item: itemToSubmit,
+          payload: singlePayload,
+          relay,
+          resumeSubmissionId,
+          resumeContentKeyB64,
+          onPendingUpload: async (pendingUpload) => {
+            if (itemToSubmit.t !== 'doc_upload') return;
+            try {
+              await saveResume({
+                pending_uploads: {
+                  ...resume.pending_uploads,
+                  [itemToSubmit.item_id]: pendingUpload,
+                },
+              });
+            } catch {
+              setNotice('The upload started. Keep this page open until it finishes.');
+            }
+          },
+        });
+      };
+
+      if (selectedFiles && selectedFiles.length > 1) {
+        for (const file of selectedFiles) {
+          await submitSinglePayload({ kind: 'files', files: [file] }, false);
+        }
+      } else {
+        await submitSinglePayload(payload, true);
+      }
 
       const nextLocal = new Set(localSubmitted);
       nextLocal.add(itemToSubmit.item_id);

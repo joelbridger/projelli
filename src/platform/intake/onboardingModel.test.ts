@@ -144,6 +144,40 @@ describe('onboardingModel', () => {
     });
   });
 
+  it('adds regenerate_available when an inactive link already has received client items', () => {
+    expect(deriveLinkSignals(intake({
+      expiresAt: '2026-07-09T12:00:00.000Z',
+      items: [
+        { itemId: 'income', label: 'Income', state: 'received' },
+        { itemId: 'ssn', label: 'SSN', state: 'not_started' },
+      ],
+    }), now, cfg).map((signal) => signal.kind)).toEqual([
+      'expired',
+      'regenerate_available',
+    ]);
+
+    expect(deriveLinkSignals(intake({
+      status: 'revoked',
+      items: [{ itemId: 'income', label: 'Income', state: 'not_started' }],
+      receivedItems: [{
+        itemId: 'license',
+        label: "Driver's license",
+        filePath: '/clients/Sarah/license.jpg',
+        receivedAt: '2026-07-10T00:00:00.000Z',
+        provenance: { channel: 'intake_link', label: 'provided by client', at: '2026-07-10T00:00:00.000Z' },
+      }],
+    }), now, cfg).map((signal) => signal.kind)).toEqual([
+      'revoked',
+      'regenerate_available',
+    ]);
+
+    expect(deriveLinkSignals(intake({
+      expiresAt: '2026-07-09T12:00:00.000Z',
+      items: [{ itemId: 'ssn', label: 'SSN', state: 'not_started' }],
+      receivedItems: [],
+    }), now, cfg).map((signal) => signal.kind)).toEqual(['expired']);
+  });
+
   it('applies nudge cadence, max-unanswered call suggestion, reset on client activity, and next sequence', () => {
     expect(deriveNudgeEligibility(intake(), now, cfg)).toMatchObject({
       eligible: true,

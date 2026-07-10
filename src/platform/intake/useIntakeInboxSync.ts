@@ -24,6 +24,7 @@ import {
   FACT_KIND_SENSITIVITY,
   type FactKind,
   type FactValue,
+  type GuidedQuestionResponseFormat,
 } from './types';
 import {
   useIntakeStore,
@@ -87,6 +88,10 @@ function isFactKind(value: unknown): value is FactKind {
   return typeof value === 'string' && value in FACT_KIND_SENSITIVITY;
 }
 
+function hasOwn(value: Record<string, unknown>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(value, key);
+}
+
 function factKindForSubmission(
   body: Record<string, unknown>,
   submission: RoutedIntakeSubmission,
@@ -100,12 +105,116 @@ function factKindForSubmission(
   return null;
 }
 
-function factValue(kind: FactKind, raw: unknown): FactValue {
-  if (kind === 'dob') return { t: 'date', v: String(raw) };
-  if ((kind === 'income_annual' || kind === 'spending_monthly') && typeof raw === 'number') {
-    return { t: 'money', v: { amount: raw, currency: 'USD' } };
+function isGuidedQuestionResponseFormat(
+  value: unknown,
+): value is GuidedQuestionResponseFormat {
+  return (
+    value === 'number' ||
+    value === 'money' ||
+    value === 'range' ||
+    value === 'text' ||
+    value === 'choice'
+  );
+}
+
+function responseFormatForSubmission(
+  body: Record<string, unknown>,
+  kind: FactKind,
+): GuidedQuestionResponseFormat | null {
+  if (isGuidedQuestionResponseFormat(body['response_format'])) {
+    return body['response_format'];
   }
-  return { t: 'string', v: String(raw) };
+  if (kind === 'income_annual' || kind === 'spending_monthly') return 'money';
+  return null;
+}
+
+function numberFromUnknown(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().replace(/[$€£¥,\s]/gu, '');
+  if (!/^-?(?:\d+|\d*\.\d+)$/u.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function stringFromUnknown(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  try {
+    const json = JSON.stringify(value);
+    if (typeof json === 'string') return json;
+  } catch {
+    return '[unserializable answer]';
+  }
+  return '[unserializable answer]';
+}
+
+function currencyFromRecord(record: Record<string, unknown>): string {
+  const currency = record['currency'];
+  return typeof currency === 'string' && currency.trim()
+    ? currency.trim().toUpperCase()
+    : 'USD';
+}
+
+function moneyValue(raw: unknown): FactValue | null {
+  const directAmount = numberFromUnknown(raw);
+  if (directAmount !== null) {
+    return { t: 'money', v: { amount: directAmount, currency: 'USD' } };
+  }
+  const record = objectRecord(raw);
+  if (!record) return null;
+  const amount = numberFromUnknown(record['amount']);
+  if (amount === null) return null;
+  return { t: 'money', v: { amount, currency: currencyFromRecord(record) } };
+}
+
+function rangeValue(raw: unknown): FactValue | null {
+  const record = objectRecord(raw);
+  if (!record) return null;
+  const min = numberFromUnknown(record['min']);
+  const max = numberFromUnknown(record['max']);
+  if (min === null && max === null) return null;
+  const value: Extract<FactValue, { t: 'range' }>['v'] = {};
+  if (min !== null) value.min = min;
+  if (max !== null) value.max = max;
+  const unit = record['unit'];
+  if (typeof unit === 'string' && unit.trim()) value.unit = unit.trim();
+  const currency = record['currency'];
+  if (typeof currency === 'string' && currency.trim()) value.currency = currency.trim().toUpperCase();
+  return { t: 'range', v: value };
+}
+
+function guidedUnknownValue(raw: unknown): FactValue | null {
+  const record = objectRecord(raw);
+  if (record?.['mode'] !== 'unknown') return null;
+  return { t: 'string', v: "I don't know yet" };
+}
+
+function factValue(
+  kind: FactKind,
+  raw: unknown,
+  body: Record<string, unknown>,
+): FactValue {
+  if (kind === 'dob') return { t: 'date', v: stringFromUnknown(raw) };
+  const format = responseFormatForSubmission(body, kind);
+  const unknown = guidedUnknownValue(raw);
+  if (unknown) return unknown;
+  if (format === 'range') {
+    const range = rangeValue(raw);
+    if (range) return range;
+  }
+  if (kind === 'income_annual' || kind === 'spending_monthly' || format === 'money') {
+    const money = moneyValue(raw);
+    if (money) return money;
+    const range = rangeValue(raw);
+    if (range) return range;
+  }
+  if (format === 'range') {
+    return { t: 'string', v: stringFromUnknown(raw) };
+  }
+  return { t: 'string', v: stringFromUnknown(raw) };
 }
 
 function currentChecklistItem(
@@ -119,14 +228,72 @@ function currentChecklistItem(
   };
 }
 
+function markSubmissionNeedsFollowup(
+  submission: RoutedIntakeSubmission,
+  intake: IntakeRecord,
+  message: string,
+): void {
+  const item = currentChecklistItem(intake, submission.itemId);
+  const store = useIntakeStore.getState();
+  store.updateItem(submission.intakeId, {
+    ...item,
+    state: 'needs_followup',
+  });
+  store.addFlag(submission.intakeId, {
+    id: `submission:${submission.submissionId}:routing_failed`,
+    kind: 'routing_failed',
+    itemId: submission.itemId,
+    submissionId: submission.submissionId,
+    message,
+    at: submission.submittedAt,
+  });
+}
+
+function failNeedsFollowup(
+  submission: RoutedIntakeSubmission,
+  intake: IntakeRecord,
+  message: string,
+): never {
+  markSubmissionNeedsFollowup(submission, intake, message);
+  throw new Error(message);
+}
+
+function submissionAnswer(
+  body: Record<string, unknown>,
+): { ok: true; raw: unknown } | { ok: false } {
+  if (hasOwn(body, 'value')) return { ok: true, raw: body['value'] };
+  if (hasOwn(body, 'answer')) return { ok: true, raw: body['answer'] };
+  return { ok: false };
+}
+
 async function routeJsonSubmission(
   submission: RoutedIntakeSubmission,
   options: RouteIntakeSubmissionOptions,
 ): Promise<IntakeRouteResult> {
   const body = objectRecord(decodeJsonSubmission(submission));
-  if (!body || !('value' in body)) return {};
+  if (!body) {
+    failNeedsFollowup(
+      submission,
+      options.intake,
+      'This client answer could not be filed safely.',
+    );
+  }
+  const answer = submissionAnswer(body);
+  if (!answer.ok) {
+    failNeedsFollowup(
+      submission,
+      options.intake,
+      'This client answer could not be filed safely.',
+    );
+  }
   const kind = factKindForSubmission(body, submission);
-  if (!kind) return {};
+  if (!kind) {
+    failNeedsFollowup(
+      submission,
+      options.intake,
+      'This client answer could not be filed safely.',
+    );
+  }
   const subject = typeof body['subject'] === 'string' && body['subject'].trim()
     ? body['subject'].trim()
     : 'primary';
@@ -134,7 +301,7 @@ async function routeJsonSubmission(
     matter_id: options.intake.matterId,
     subject,
     kind,
-    value: factValue(kind, body['value']),
+    value: factValue(kind, answer.raw, body),
     sensitivity: FACT_KIND_SENSITIVITY[kind],
     provenance: {
       channel: 'intake_link',
@@ -150,6 +317,13 @@ async function routeFileSubmission(
   submission: RoutedIntakeSubmission,
   options: RouteIntakeSubmissionOptions,
 ): Promise<IntakeRouteResult> {
+  if (submission.manifest.file_names.length > 1) {
+    failNeedsFollowup(
+      submission,
+      options.intake,
+      'This client file package contains multiple files and could not be filed safely.',
+    );
+  }
   if (!options.workspaceService) {
     throw new Error('A workspace must be open before intake documents can be filed.');
   }
@@ -201,6 +375,13 @@ export async function routeIntakeSubmission(
   const result = submission.manifest.content_type === 'application/json'
     ? await routeJsonSubmission(submission, options)
     : await routeFileSubmission(submission, options);
+  if (!result.factId && !result.filePath) {
+    failNeedsFollowup(
+      submission,
+      options.intake,
+      'This client submission could not be filed safely.',
+    );
+  }
   markSubmissionReceived(submission, options.intake, result);
   return result;
 }

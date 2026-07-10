@@ -1,6 +1,7 @@
 import { getFirmApiBase } from '@/platform/firm/firmConfig';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import type { IntakeInboxPage, IntakeInboxSubmission } from './IntakeSyncClient';
+import type { ChunkUpload } from './intakeContract';
 
 export interface IntakeCreateRequest {
   intake_id: string;
@@ -35,7 +36,27 @@ interface IntakeRelayInboxResponse {
   cursor: number;
   latest_cursor: number;
   has_more: boolean;
-  submissions: IntakeInboxSubmission[];
+  submissions: IntakeRelayInboxSubmission[];
+}
+
+interface IntakeRelayBlobRef {
+  blob_id: number;
+  index: number;
+  size: number;
+}
+
+interface IntakeRelayInboxSubmission extends Omit<IntakeInboxSubmission, 'chunks'> {
+  chunk_count: number;
+  blobs: IntakeRelayBlobRef[];
+}
+
+function bytesToB64(bytes: Uint8Array): string {
+  let bin = '';
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
 }
 
 export class IntakeRelayClient {
@@ -49,36 +70,90 @@ export class IntakeRelayClient {
     this.accessToken = options.accessToken ?? null;
   }
 
+  private authHeaders(hasBody = false): Record<string, string> {
+    const headers: Record<string, string> = { 'X-Seat-Token': this.seatToken };
+    if (this.accessToken) headers['Authorization'] = `Bearer ${this.accessToken}`;
+    if (hasBody) headers['Content-Type'] = 'application/json';
+    return headers;
+  }
+
+  private async responseError(res: Response): Promise<Error> {
+    let text = '';
+    try {
+      text = await res.text();
+    } catch (error) {
+      console.warn(
+        '[IntakeRelayClient] Failed to read error response body:',
+        error
+      );
+    }
+    return new Error(
+      text || `Intake relay request failed with HTTP ${String(res.status)}.`
+    );
+  }
+
   private async request<T>(
     path: string,
     init: { method: string; body?: unknown }
   ): Promise<T> {
     const fetchFn = await getCorsSafeFetch({ signalEgress: false });
-    const headers: Record<string, string> = { 'X-Seat-Token': this.seatToken };
-    if (this.accessToken)
-      headers['Authorization'] = `Bearer ${this.accessToken}`;
-    if (init.body !== undefined) headers['Content-Type'] = 'application/json';
     const res = await fetchFn(`${this.baseUrl}${path}`, {
       method: init.method,
-      headers,
+      headers: this.authHeaders(init.body !== undefined),
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     });
     if (!res.ok) {
-      let text = '';
-      try {
-        text = await res.text();
-      } catch (error) {
-        console.warn(
-          '[IntakeRelayClient] Failed to read error response body:',
-          error
-        );
-      }
-      throw new Error(
-        text || `Intake relay request failed with HTTP ${String(res.status)}.`
-      );
+      throw await this.responseError(res);
     }
     const text = await res.text();
     return (text ? JSON.parse(text) : { ok: true }) as T;
+  }
+
+  private async fetchBlobCiphertextB64(
+    intakeId: string,
+    blobId: number
+  ): Promise<string> {
+    const fetchFn = await getCorsSafeFetch({ signalEgress: false });
+    const res = await fetchFn(
+      `${this.baseUrl}/intake/${encodeURIComponent(intakeId)}/blob/${encodeURIComponent(String(blobId))}`,
+      {
+        method: 'GET',
+        headers: this.authHeaders(),
+      }
+    );
+    if (!res.ok) throw await this.responseError(res);
+    // LANE0-FIX-BLOB-ASSEMBLE
+    return bytesToB64(new Uint8Array(await res.arrayBuffer()));
+  }
+
+  private async assembleInboxSubmission(
+    submission: IntakeRelayInboxSubmission
+  ): Promise<IntakeInboxSubmission> {
+    const chunks: ChunkUpload[] = await Promise.all(
+      [...submission.blobs]
+        .sort((a, b) => a.index - b.index)
+        .map(async (blob) => ({
+          intake_id: submission.intake_id,
+          item_id: submission.item_id,
+          submission_id: submission.submission_id,
+          index: blob.index,
+          ciphertext_b64: await this.fetchBlobCiphertextB64(
+            submission.intake_id,
+            blob.blob_id
+          ),
+        }))
+    );
+    return {
+      cursor: submission.cursor,
+      intake_id: submission.intake_id,
+      item_id: submission.item_id,
+      submission_id: submission.submission_id,
+      submitted_at: submission.submitted_at,
+      manifest_ciphertext_b64: submission.manifest_ciphertext_b64,
+      wrapped_content_key_b64: submission.wrapped_content_key_b64,
+      chunks,
+      ...(submission.session_id ? { session_id: submission.session_id } : {}),
+    };
   }
 
   createIntake(body: IntakeCreateRequest): Promise<IntakeCreateResponse> {
@@ -128,7 +203,7 @@ export class IntakeRelayClient {
     sinceCursor: number
   ): Promise<IntakeInboxPage> {
     const page = await this.request<IntakeRelayInboxResponse>(
-      `/intake/${encodeURIComponent(intakeId)}/inbox?since=${encodeURIComponent(String(sinceCursor))}`,
+      `/intake/${encodeURIComponent(intakeId)}/inbox?cursor=${encodeURIComponent(String(sinceCursor))}`,
       {
         method: 'GET',
       }
@@ -136,7 +211,11 @@ export class IntakeRelayClient {
     return {
       cursor: page.cursor,
       has_more: page.has_more,
-      submissions: page.submissions,
+      submissions: await Promise.all(
+        page.submissions.map((submission) =>
+          this.assembleInboxSubmission(submission)
+        )
+      ),
     };
   }
 

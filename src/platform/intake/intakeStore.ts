@@ -34,7 +34,13 @@ export interface IntakeReceivedItem {
 
 export interface IntakeFlag {
   id: string;
-  kind: 'duplicate' | 'new_device' | 'integrity_mismatch' | 'stale_overwrite' | 'vault_off_nudge';
+  kind:
+    | 'duplicate'
+    | 'new_device'
+    | 'integrity_mismatch'
+    | 'routing_failed'
+    | 'stale_overwrite'
+    | 'vault_off_nudge';
   itemId?: string;
   submissionId?: string;
   message: string;

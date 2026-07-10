@@ -52,12 +52,16 @@ async function buildChunks(item: RequestItem, payload: AnswerPayload): Promise<{
   contentType: string;
 }> {
   if (payload.kind === 'files') {
-    const chunkGroups = await Promise.all(payload.files.map((file, index) => fileToChunks(file, index)));
-    const firstType = payload.files.find((file) => file.type)?.type;
+    if (payload.files.length !== 1) {
+      throw new Error('File upload submissions must contain exactly one file.');
+    }
+    const file = payload.files[0];
+    if (!file) throw new Error('File upload submission is missing its file.');
+    const chunks = await fileToChunks(file, 0);
     return {
-      chunks: chunkGroups.flat(),
-      fileNames: payload.files.map((file) => file.name),
-      contentType: firstType || 'application/octet-stream',
+      chunks,
+      fileNames: [file.name],
+      contentType: file.type || 'application/octet-stream',
     };
   }
 
