@@ -18,6 +18,13 @@
 - **Alternative:** Wave-2 UI-only on the existing store; treat live-sync as a separate follow-up (faster, hollow board).
 - **Status:** surfaced to coordinator; proceeding on the recommended path (Lane 0 = live-sync + contract + model) unless redirected. Lane 0 dispatch held briefly for the window.
 
+## ✅ WAVE 2 COMPLETE — all 4 lanes merged + wired + gate-green + pushed (`lp/intake` @ `6989e929`, 2026-07-10)
+Full `npm run gate`: all TS steps GREEN (typecheck, typecheck:tests, i18n completeness, vitest **7266 passed / 4 skipped**, ESLint gate, token/handle guards, tauri contracts, architecture-boundaries incl. the new `intake->email` edge) + cargo `--workspace` green **except the known baseline flake** `commands::mail::tests::backfill_marker_set_is_idempotent_and_clearable` (`Some("1")` vs `None` under parallel cargo — **passes in isolation**, pre-existing, NOT intake). backend `bun test` **214/0** (cross-lane E2E + standing privacy-proof). `HEAD == origin/lp/intake`, tree clean.
+- Lane 0 contract+live-sync `cc1db61a` (fix: 2 P1 contract breaks — blob-fetch + guided-answer/multi-file data loss). Lane 1 board `79be59fd` (fix: 4 P2 incl. primary-action tab overwrite). Lane 2 link `ec7897d9` (codex-review clean; privacy rule held — no relay change). Lane 3 nudge `2f413f34` (fix: 3 P1 not-reachable — link reconstruction, App audit emitter) + board wiring `b91e05d6`.
+- **Every lane: lead diff review + one `codex-review --base lp/intake` adversarial pass; findings batched into ONE fix round per lane. The adversarial pass earned its keep on EVERY lane** — it caught the deepest integration bugs the lead + scoped tests missed (the "each half fakes the other half" class, exactly the Wave-1 lesson). The cross-lane E2E (`onboarding-e2e.test.tsx`) + redaction tests are the standing guarantee.
+- Nudge = `mailSaveDraft` only (never sends — test-enforced). Link signals local-only (no relay probe telemetry — privacy hardening preserved). Client email now persisted. Board reachable + live via the wired inbox sync.
+- **BENCH still BLOCKED by the coordinator** (Legion demo indexing) — not run. UI-spec §5 screenshots + the V10 bench are post-WORKER-DONE, coordinator-gated.
+
 ## Board slot API — how Lanes 2/3 wire in at merge (LEAD does this in MattersHome)
 `OnboardingBoard` (Lane 1, `377be8b4`) exposes props: `onOpenNudge`, `onOpenLinkSignals`, `onReviewItems`, `onCopyLink`, `renderNudgeSlot(row)`, `renderLinkSignals(row)`. Currently mounted in `MattersHome` with only `onNewClient`. At merge:
 - **Lane 2 (link):** pass `renderLinkSignals={(row)=><LinkSignalBadge signals={row.linkSignals}/>}` + `onOpenLinkSignals`. (Lane 2 also mounts `LinkLifecyclePanel` in `OnboardingTab` itself.)
