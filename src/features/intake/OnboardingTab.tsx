@@ -357,9 +357,9 @@ export function OnboardingTab({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => { void Promise.resolve(onShareWithTeam(intake.intakeId)).catch((error: unknown) => handleAsyncError(error, 'Could not share this intake with the team.')); }}
+              onClick={() => { void Promise.resolve(onShareWithTeam(intake.intakeId)).catch((error: unknown) => { handleAsyncError(error, 'Could not share this intake with the team.'); }); }}
             >
-              Share with team
+              {t('intake.onboarding.share-with-team')}
             </Button>
           ) : null}
 

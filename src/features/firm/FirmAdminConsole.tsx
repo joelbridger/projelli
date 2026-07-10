@@ -81,7 +81,7 @@ function generateTempPassword(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
   const arr = new Uint8Array(16);
   crypto.getRandomValues(arr);
-  return Array.from(arr, (b) => chars[b % chars.length]!).join('');
+  return Array.from(arr, (b) => chars.charAt(b % chars.length)).join('');
 }
 
 // ── VG-6a — persisted device-set fingerprints for the auto-republish poll ───
@@ -275,7 +275,7 @@ export function FirmAdminConsole() {
         .map((entry) => ({
           intake_id: entry.intake.intakeId,
           matter_id: entry.firmMatterId,
-          key_epoch: matterEpochById.get(entry.firmMatterId)!,
+          key_epoch: matterEpochById.get(entry.firmMatterId) ?? 0,
         }));
       const intakeRes = await autoRepublishHeldIntakeKeys(getClient(), heldIntakes, intakeFpRef.current, { firmEntitled: true });
       if (cancelled) return;

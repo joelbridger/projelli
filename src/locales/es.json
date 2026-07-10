@@ -4003,6 +4003,7 @@
     },
     "onboarding": {
       "no-link": "Aún no se ha creado un enlace de incorporación para este cliente.",
+      "share-with-team": "Compartir con el equipo",
       "activity-count": "{{completed}} de {{total}} elementos tienen actividad.",
       "link-expiry": "Este enlace funciona hasta {{date}}. Puede ampliarlo o desactivarlo cuando quiera.",
       "no-facts": "Aún no se han recibido datos.",

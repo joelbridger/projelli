@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
 import { createAdvisorIntake, type CreateAdvisorIntakeOptions } from './createIntake';
 
 function options(overrides: Partial<CreateAdvisorIntakeOptions> = {}): CreateAdvisorIntakeOptions {
@@ -15,18 +16,21 @@ function options(overrides: Partial<CreateAdvisorIntakeOptions> = {}): CreateAdv
       items: [],
     },
     clientFirstName: 'Sarah',
-    firm: { name: 'North Star', accent: '#123456', advisor_name: 'Ada', advisor_email: 'ada@test.invalid', next_steps: [] },
+    firm: { name: 'North Star', accent: '#123456', advisor_name: 'Ada', advisor_email: 'ada@test.invalid', next_steps: [], journey: DEFAULT_WELCOME_JOURNEY },
     relay: { createIntake: vi.fn().mockResolvedValue({ ok: true }) },
   };
   return { ...base, ...overrides };
 }
 
 describe('createAdvisorIntake team sharing', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+  });
 
   it('creates a local-only intake without attempting a team-key publish', async () => {
     const input = options();
-    await expect(createAdvisorIntake(input)).resolves.toMatchObject({ link: expect.any(String) });
+    const result = await createAdvisorIntake(input);
+    expect(typeof result.link).toBe('string');
     expect(input.relay.createIntake).toHaveBeenCalledOnce();
   });
 

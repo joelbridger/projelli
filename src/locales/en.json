@@ -125,6 +125,7 @@
     },
     "onboarding": {
       "no-link": "No onboarding link has been created for this client yet.",
+      "share-with-team": "Share with team",
       "activity-count": "{{completed}} of {{total}} items have activity.",
       "link-expiry": "This link works until {{date}}. You can extend or turn it off anytime.",
       "no-facts": "No facts received yet.",
