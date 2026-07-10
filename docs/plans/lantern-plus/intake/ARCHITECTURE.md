@@ -50,7 +50,7 @@ Per intake, created on the advisor's machine at compose time:
 
 **Write-only property (the design's backbone):** typed secrets and documents are sealed with a fresh content key wrapped only to the intake public key. The resume state (encrypted with `k_page`, which any link holder has) contains **only** item completion flags, display confirmations, and the client's first name. Therefore: a leaked or forwarded link can see progress and submit items, but can never read back a submitted SSN or download a license scan. The client page tells the client this plainly.
 
-**What a link holder can see and do (the exact list, kept minimal by design):** the firm's name and branding; the checklist item labels; the client's first name; per-item done/not-done flags; generic confirmations ("Social Security number provided", "2 photos provided" — the resume state stores **no last-4 and no file names**; those confirmations render only in the live session from memory); and the ability to submit new values for open items. They can never read a submitted value or document. Overwrites of already-completed items are flagged to the advisor as anomalies.
+**What a link holder can see and do (the exact list, kept minimal by design):** the firm's name and branding; the checklist item labels; the client's first name; per-item done/not-done flags; generic confirmations ("Social Security number provided", "2 photos provided" — the resume state stores **no last-4 and no file names**; those confirmations render only in the live session from memory); any outbound prefill values the advisor explicitly chose to include (later waves; tiered and previewed, never restricted facts — §9a); and the ability to submit new values for open items. They can never read a submitted value or document. Overwrites of already-completed items are flagged to the advisor as anomalies.
 
 **Resume state is cosmetic, never authoritative — for the client page too:** because any link holder can rewrite `k_page`-sealed state, nothing trusted may derive from it on either side. The advisor app derives all truth (item states, provenance, values) exclusively from finalized sealed submissions. The client page derives **done/not-done from the relay's own finalization records** (the server already knows which items have a finalized submission — that's §3 metadata it holds regardless), so a forged resume state cannot mark items done and quietly derail the real client's flow; the resume state carries only harmless display details (current position, draft non-sensitive text, generic confirmations).
 
@@ -156,7 +156,7 @@ An "instant AI on the client page" variant would require routing plaintext throu
 | T1 | **Relay compromise / subpoena / insider** reads stored data | Gets ciphertext, token hashes, and §3's metadata list. No keys, no plaintext, no client names. This is the core guarantee and it is structural, not policy. |
 | T2 | **Relay actively malicious: substitutes keys** | Out of the key path — the sealing key arrives via the link fragment, never from the relay (§2). |
 | T3 | **Relay actively malicious: serves poisoned page JS** | The residual trust root, stated honestly (also RISKS.md §3): a malicious intake host could serve JS that exfiltrates plaintext typed *from that session onward*. This means the E2EE guarantee is conditional on page integrity, and every claim we publish must be worded accordingly (RISKS.md §2). Mitigations, required from Wave 1: static host serves only the audited self-contained bundle; versioned builds with **published hashes and a deploy-time integrity check** (the deploy fails if the served bundle's hash differs from the signed manifest); CSP pinning `connect-src` to the relay origin only (exfiltration would need the relay itself to cooperate); reproducible-build verification on the roadmap. Equal-or-better than every "secure portal" competitor, which holds server-readable plaintext as its normal operating mode. |
-| T4 | **Link leaked / forwarded / guessed** | Guessing: 256-bit fragment secrets and unguessable ids; uniform 410s (including wrong-token, §3) prevent oracle probing. Leak: the holder gets exactly the §2 list — firm name, item labels, client first name, done flags, generic confirmations, and the ability to submit — never a submitted value, never last-4, never file names. Advisor one-click revoke + regenerate; anomalies (item overwrites after completion) flag on the board. |
+| T4 | **Link leaked / forwarded / guessed** | Guessing: 256-bit fragment secrets and unguessable ids; uniform 410s (including wrong-token, §3) prevent oracle probing. Leak: the holder gets exactly the §2 list — firm name, item labels, client first name, done flags, generic confirmations, any advisor-opted outbound prefills (§9a; never restricted facts), and the ability to submit — never a submitted value, never last-4, never file names. Advisor one-click revoke + regenerate; anomalies (item overwrites after completion) flag on the board. |
 | T5 | **Client device malware / shoulder-surfing** | Out of scope, stated honestly — identical exposure to typing an SSN anywhere. Masked input reduces shoulder-surfing; we never persist plaintext to the device (no localStorage of answers, memory only). |
 | T6 | **Advisor machine compromise** | Equivalent to today's posture for everything else in the app; keychain-held keys, vault at rest, audit trail. Intake adds no new class of exposure. |
 | T7 | **Wrong-recipient send** (advisor texts the wrong person) | The link opens with the intended client's first name on it ("Hi Sarah") — a human-visible tripwire; write-only means a wrong recipient can inject noise but read nothing; revoke + regenerate recovers. |
@@ -208,6 +208,7 @@ The engine's unit is a **form request**; onboarding intake is one kind of it. Th
 ```ts
 interface FormRequest {
   request_id: string;             // == the intake_id of §2-§3; one E2EE link per request
+  schema_version: number;         // from Wave 1; later waves evolve additively
   matter_id: string;
   kind: 'onboarding' | 'standing';        // v1 ships 'onboarding'; the field exists from Wave 1
   blueprint_ref?: string;         // firm template, imported-PDF map, or (later) built form
@@ -219,12 +220,28 @@ type RequestItem =
   | { t: 'typed_field'; ... } | { t: 'doc_upload'; ... }
   | { t: 'guided_question'; ... } | { t: 'readonly_card'; ... }
   | { t: 'pdf_fill';               // later wave: imported AcroForm field map;
-      pdf_ref: string;             // fields render as ordinary items on the page,
-      field_map: PdfFieldMap;      // prefill from ClientFacts by fact kind,
-      prefill: Record<string, string /* fact_id */> }  // filled PDF regenerated + sealed client-side
+      pdf_ref: string;             // fields render as ordinary items on the page;
+      field_map: PdfFieldMap;      // filled PDF regenerated + sealed client-side
+      prefill: PdfPrefill[] }
   | { t: 'signature';              // later wave: the sign stage
       grade: 'docusign' | 'native_clicksign' };
+
+type PrefillMode = 'blank' | 'hidden_confirm' | 'visible_prefill';
+interface PdfPrefill {
+  field_id: string;
+  fact_id?: string;                // provenance on the advisor side
+  fact_kind: FactKind;
+  sensitivity: 'restricted' | 'confidential' | 'standard';
+  mode: PrefillMode;               // restricted → never 'visible_prefill' (enforced in types + tests)
+  value_page_ciphertext?: string;  // present only for 'visible_prefill' — the page renders values
+}                                  // from this, never from a fact_id it cannot resolve
+
+// FormRequest carries schema_version from Wave 1. Waves 7-10 are expected to evolve the
+// schema ADDITIVELY (new item types, new fields) — "forward-compatible" means no migration
+// of existing data and no breaking rewrites, not that the Wave 1 types are final.
 ```
+
+**Prefill respects the leaked-link model (§2), with tiered modes:** anything prefilled to the client page necessarily becomes readable to any link holder (it ships under `k_page` so the page can render it). So the promise splits in two — **submitted payloads are write-only, always; outbound prefills are link-visible, by construction** — and prefill is tiered accordingly: `standard` facts may prefill automatically; `confidential` facts (address, DOB) prefill only on explicit advisor opt-in with a preview of exactly what ships; `restricted` facts (SSN, DL data) **never** prefill outbound — the page shows "already on file with [Firm] — confirm it's still right, or replace it" with no value and no fragment of it. Secrets flow client → advisor, never advisor → link.
 
 Two honesty rules the schema encodes:
 - **PDF fill stays inside the E2EE envelope** — parsing the AcroForm map happens on the advisor's machine at import; the client page receives the sealed map, renders mapped fields as normal items, regenerates the filled PDF locally (pdf-lib class tooling, in-browser), and seals it like any payload. Prefilled values come from `ClientFact`s and each carries its `fact_id` (ask-once, auditable).
