@@ -131,7 +131,7 @@ export function phoneFactValue(
   }
   if (kind === 'dob') return { t: 'date', v: stringValue(answer) };
   const isGuidedRangeAnswer = item.t === 'guided_question'
-    && (answer !== null && typeof answer !== 'string')
+    && typeof answer !== 'string'
     && (answer.mode === 'range' || answer.min !== undefined || answer.max !== undefined);
   const usesGuidedRange = isGuidedRangeAnswer || (
     item.t === 'guided_question'

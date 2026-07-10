@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/ui/button';
 import {
@@ -75,6 +76,7 @@ export function PhoneWalkthrough({
   onClose,
   onCompleted,
 }: PhoneWalkthroughProps) {
+  const { t } = useTranslation();
   const liveIntake = useIntakeStore((state) => state.intakesById[intake.intakeId]) ?? intake;
   const requestItems = liveIntake.requestItems ?? fallbackItems(liveIntake);
   const walkthrough = useMemo(
@@ -153,11 +155,13 @@ export function PhoneWalkthrough({
         }
         const fileNames = phoneUploadFileNames(files);
         const paths = await Promise.all(files.map(async (file, fileIndex) => {
+          const fileName = fileNames[fileIndex];
+          if (!fileName) throw new Error(t('intake.phone.file-name-error'));
           const bytes = new Uint8Array(await file.arrayBuffer());
           return fileIntakeDocument({
             workspaceService,
             matterFolderPath,
-            fileName: fileNames[fileIndex]!,
+            fileName,
             bytes,
           });
         }));
@@ -215,52 +219,52 @@ export function PhoneWalkthrough({
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
       <DialogContent data-testid="phone-walkthrough" className="max-w-xl bg-[var(--kp-surface-card)]">
         <DialogHeader>
-          <DialogTitle>Phone walkthrough</DialogTitle>
+          <DialogTitle>{t('intake.phone.title')}</DialogTitle>
           <DialogDescription>
-            Step {index + 1} of {walkthrough.length}. Enter this with {liveIntake.clientFirstName} on the call.
+            {t('intake.phone.step-description', { step: String(index + 1), total: String(walkthrough.length), client: liveIntake.clientFirstName })}
           </DialogDescription>
         </DialogHeader>
-        <div className="h-2 overflow-hidden rounded-full bg-[var(--kp-bg-soft)]" aria-label={`Progress ${index + 1} of ${walkthrough.length}`}>
-          <div className="h-full bg-primary transition-all" style={{ width: `${((index + 1) / walkthrough.length) * 100}%` }} />
+        <div className="h-2 overflow-hidden rounded-full bg-[var(--kp-bg-soft)]" aria-label={t('intake.phone.progress', { step: String(index + 1), total: String(walkthrough.length) })}>
+          <div className="h-full bg-primary transition-all" style={{ width: `${String(((index + 1) / walkthrough.length) * 100)}%` }} />
         </div>
         <section className="grid gap-3 rounded-lg border border-[var(--kp-divider)] bg-background p-4">
           <div className="flex items-center gap-2">
             <h3 className="m-0 text-base font-bold text-[var(--kp-navy)]">{current.item.label}</h3>
-            {current.completed ? <span className="rounded-full bg-[var(--kp-success-bg)] px-2 py-1 text-xs font-bold text-[var(--kp-success-text)]">Already provided</span> : null}
+            {current.completed ? <span className="rounded-full bg-[var(--kp-success-bg)] px-2 py-1 text-xs font-bold text-[var(--kp-success-text)]">{t('intake.phone.already-provided')}</span> : null}
           </div>
           {current.item.help_text ? <p className="m-0 text-sm text-muted-foreground">{current.item.help_text}</p> : null}
           {current.item.t === 'guided_question' ? <p className="m-0 text-sm text-[var(--kp-navy)]">{current.item.prompt}</p> : null}
           {current.item.t === 'readonly_card' ? <p className="m-0 text-sm text-[var(--kp-navy)]">{current.item.body}</p> : null}
           {current.item.t === 'doc_upload' ? (
             <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">
-              Choose document
-              <input aria-label="Choose document" type="file" multiple={(uploadRules?.maxFiles ?? 1) > 1} accept={current.item.accepted_mime_types?.join(',')} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
+              {t('intake.phone.choose-document')}
+              <input aria-label={t('intake.phone.choose-document')} type="file" multiple={(uploadRules?.maxFiles ?? 1) > 1} accept={current.item.accepted_mime_types?.join(',')} onChange={(event) => { setFiles(Array.from(event.target.files ?? [])); }} />
             </label>
           ) : null}
           {isGuidedQuestion ? (
             <div className="grid gap-2 sm:grid-cols-3">
-              <Button type="button" variant={isAmount ? 'secondary' : 'outline'} aria-pressed={isAmount} onClick={() => setGuidedAnswerMode('amount')}>Enter an amount</Button>
-              <Button type="button" variant={isRange ? 'secondary' : 'outline'} aria-pressed={isRange} onClick={() => setGuidedAnswerMode('range')}>Choose a range</Button>
-              <Button type="button" variant={guidedAnswerMode === 'unknown' ? 'secondary' : 'outline'} aria-pressed={guidedAnswerMode === 'unknown'} onClick={() => setGuidedAnswerMode('unknown')}>I don&apos;t know yet</Button>
+              <Button type="button" variant={isAmount ? 'secondary' : 'outline'} aria-pressed={isAmount} onClick={() => { setGuidedAnswerMode('amount'); }}>{t('intake.phone.enter-amount')}</Button>
+              <Button type="button" variant={isRange ? 'secondary' : 'outline'} aria-pressed={isRange} onClick={() => { setGuidedAnswerMode('range'); }}>{t('intake.phone.choose-range')}</Button>
+              <Button type="button" variant={guidedAnswerMode === 'unknown' ? 'secondary' : 'outline'} aria-pressed={guidedAnswerMode === 'unknown'} onClick={() => { setGuidedAnswerMode('unknown'); }}>{t('intake.phone.unknown-answer')}</Button>
             </div>
           ) : null}
           {current.item.t !== 'doc_upload' && current.item.t !== 'readonly_card' && (!isGuidedQuestion || isAmount) ? (
             <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">
-              {isGuidedQuestion ? 'Amount' : inputName}
-              <input aria-label={isGuidedQuestion ? 'Amount' : inputName} type={inputType} value={answer} placeholder={current.item.t === 'typed_field' ? current.item.placeholder : undefined} onChange={(event) => setAnswer(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" />
+              {isGuidedQuestion ? t('intake.phone.amount') : inputName}
+              <input aria-label={isGuidedQuestion ? t('intake.phone.amount') : inputName} type={inputType} value={answer} placeholder={current.item.t === 'typed_field' ? current.item.placeholder : undefined} onChange={(event) => { setAnswer(event.target.value); }} className="h-10 rounded-md border border-input bg-background px-3" />
             </label>
           ) : null}
           {isRange ? (
             <div className="grid grid-cols-2 gap-3">
-              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">Low amount<input aria-label="Low amount" value={rangeMin} onChange={(event) => setRangeMin(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" /></label>
-              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">High amount<input aria-label="High amount" value={rangeMax} onChange={(event) => setRangeMax(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" /></label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">{t('intake.phone.low-amount')}<input aria-label={t('intake.phone.low-amount')} value={rangeMin} onChange={(event) => { setRangeMin(event.target.value); }} className="h-10 rounded-md border border-input bg-background px-3" /></label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">{t('intake.phone.high-amount')}<input aria-label={t('intake.phone.high-amount')} value={rangeMax} onChange={(event) => { setRangeMax(event.target.value); }} className="h-10 rounded-md border border-input bg-background px-3" /></label>
             </div>
           ) : null}
           {error ? <p role="alert" className="m-0 text-sm text-destructive">{error}</p> : null}
         </section>
         <div className="flex flex-wrap justify-between gap-2">
-          <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => move(-1)} disabled={index === 0 || saving}>Back</Button><Button type="button" variant="ghost" onClick={() => move(1)} disabled={index === walkthrough.length - 1 || saving}>Skip for now</Button></div>
-          <Button type="button" onClick={() => { void saveAndContinue(); }} disabled={saving}>{current.canReplace ? 'Replace and continue' : 'Save and continue'}</Button>
+          <div className="flex gap-2"><Button type="button" variant="outline" onClick={() => { move(-1); }} disabled={index === 0 || saving}>{t('intake.phone.back')}</Button><Button type="button" variant="ghost" onClick={() => { move(1); }} disabled={index === walkthrough.length - 1 || saving}>{t('intake.phone.skip-for-now')}</Button></div>
+          <Button type="button" onClick={() => { void saveAndContinue().catch((cause: unknown) => { setError(cause instanceof Error ? cause.message : t('intake.phone.save-error')); }); }} disabled={saving}>{current.canReplace ? t('intake.phone.replace-and-continue') : t('intake.phone.save-and-continue')}</Button>
         </div>
       </DialogContent>
     </Dialog>

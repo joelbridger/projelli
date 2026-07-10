@@ -3981,7 +3981,29 @@
       "activity-count": "{{completed}} de {{total}} elementos tienen actividad.",
       "link-expiry": "Este enlace funciona hasta {{date}}. Puede ampliarlo o desactivarlo cuando quiera.",
       "no-facts": "Aún no se han recibido datos.",
-      "view-in-folder": "Ver en la carpeta"
+      "view-in-folder": "Ver en la carpeta",
+      "phone-call-title": "¿Está en una llamada con {{client}}?",
+      "phone-call-description": "Repasen juntos la misma lista, paso a paso.",
+      "start-phone-walkthrough": "Iniciar guía por teléfono"
+    },
+    "phone": {
+      "title": "Guía por teléfono",
+      "step-description": "Paso {{step}} de {{total}}. Complete esto con {{client}} durante la llamada.",
+      "progress": "Progreso {{step}} de {{total}}",
+      "already-provided": "Ya se proporcionó",
+      "choose-document": "Elegir documento",
+      "enter-amount": "Ingresar un importe",
+      "choose-range": "Elegir un rango",
+      "unknown-answer": "Aún no lo sé",
+      "amount": "Importe",
+      "low-amount": "Importe menor",
+      "high-amount": "Importe mayor",
+      "back": "Atrás",
+      "skip-for-now": "Omitir por ahora",
+      "replace-and-continue": "Reemplazar y continuar",
+      "save-and-continue": "Guardar y continuar",
+      "save-error": "No se pudo guardar este elemento.",
+      "file-name-error": "No se pudo preparar el nombre de este documento."
     },
     "email-reply": {
       "title": "Respuestas por correo pendientes",

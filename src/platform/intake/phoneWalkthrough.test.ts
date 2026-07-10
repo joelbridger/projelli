@@ -25,10 +25,16 @@ const items: RequestItem[] = [
     required: true, subject: 'household', prompt: 'Monthly spending', response_format: 'range',
   },
 ];
-const dob = items[0]!;
-const ssn = items[1]!;
-const income = items[2]!;
-const spending = items[3]!;
+function itemAt(index: number): RequestItem {
+  const item = items[index];
+  if (!item) throw new Error(`Missing phone walkthrough test item at index ${String(index)}.`);
+  return item;
+}
+
+const dob = itemAt(0);
+const ssn = itemAt(1);
+const income = itemAt(2);
+const spending = itemAt(3);
 
 describe('phone walkthrough model', () => {
   it('keeps checklist order and marks link-provided items done but replaceable', () => {

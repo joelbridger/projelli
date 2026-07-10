@@ -7,6 +7,7 @@ import { intakeFactUpsert } from '@/platform/intake/factsStore';
 import { fileIntakeDocument } from '@/platform/intake/intakeFiling';
 import type { IntakeRecord } from '@/platform/intake/intakeStore';
 import type { RequestItem } from '@/platform/intake/types';
+import { WorkspaceService } from '@/platform/fs/WorkspaceService';
 
 vi.mock('@/platform/intake/factsStore', () => ({
   intakeFactUpsert: vi.fn(() => Promise.resolve({ fact_id: 'fact-phone-1' })),
@@ -50,23 +51,27 @@ describe('PhoneWalkthrough', () => {
     fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '1950-01-02' } });
     fireEvent.click(screen.getByRole('button', { name: /(?:Save|Replace) and continue/ }));
 
-    await waitFor(() => expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => { expect(intakeFactUpsert).toHaveBeenCalledTimes(1); });
+    const [factWrite] = vi.mocked(intakeFactUpsert).mock.calls[0] ?? [];
+    expect(factWrite).toMatchObject({
       kind: 'dob', value: { t: 'date', v: '1950-01-02' },
-      provenance: expect.objectContaining({ channel: 'phone_walkthrough', entered_by: 'advisor-1' }),
-    })));
+      provenance: { channel: 'phone_walkthrough', entered_by: 'advisor-1' },
+    });
   });
 
   it('masks SSN input and routes it as restricted', async () => {
     render(<PhoneWalkthrough matterId="matter-1" intake={intake()} advisorId="advisor-1" initialItemId="ssn" onClose={vi.fn()} />);
 
-    const ssn = screen.getByLabelText('Social Security number') as HTMLInputElement;
-    expect(ssn.type).toBe('password');
+    const ssn = screen.getByLabelText('Social Security number');
+    expect(ssn.getAttribute('type')).toBe('password');
     fireEvent.change(ssn, { target: { value: '123456789' } });
     fireEvent.click(screen.getByRole('button', { name: /(?:Save|Replace) and continue/ }));
 
-    await waitFor(() => expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      sensitivity: 'restricted', provenance: expect.objectContaining({ channel: 'phone_walkthrough' }),
-    })));
+    await waitFor(() => { expect(intakeFactUpsert).toHaveBeenCalledTimes(1); });
+    const [factWrite] = vi.mocked(intakeFactUpsert).mock.calls[0] ?? [];
+    expect(factWrite).toMatchObject({
+      sensitivity: 'restricted', provenance: { channel: 'phone_walkthrough' },
+    });
   });
 
   it('updates the shared checklist after phone income is completed', async () => {
@@ -78,10 +83,9 @@ describe('PhoneWalkthrough', () => {
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '120000' } });
     fireEvent.click(screen.getByRole('button', { name: /(?:Save|Replace) and continue/ }));
 
-    await waitFor(() => expect(useIntakeStore.getState().intakesById['intake-1']?.items.find((item) => item.itemId === 'income')).toMatchObject({
-      state: 'received',
-      provenance: expect.objectContaining({ channel: 'phone_walkthrough', label: 'entered by you on a call' }),
-    }));
+    await waitFor(() => { expect(useIntakeStore.getState().intakesById['intake-1']?.items.find((item) => item.itemId === 'income')).toMatchObject({
+      state: 'received', provenance: { channel: 'phone_walkthrough', label: 'entered by you on a call' },
+    }); });
   });
 
   it('lets an advisor choose amount, range, or unknown for every guided question', async () => {
@@ -89,8 +93,10 @@ describe('PhoneWalkthrough', () => {
       t: 'guided_question', item_id: 'spending', label: 'Spending', help_text: '',
       required: true, subject: 'household', prompt: 'Monthly spending', response_format: 'range',
     };
+    const incomeItem = requestItems.find((item) => item.item_id === 'income');
+    if (!incomeItem) throw new Error('Expected income test item.');
     const incomeRecord = intake({
-      requestItems: [requestItems[2]!],
+      requestItems: [incomeItem],
       items: [{ itemId: 'income', label: 'Income', state: 'not_started' }],
     });
     useIntakeStore.getState().upsertIntake(incomeRecord);
@@ -100,9 +106,9 @@ describe('PhoneWalkthrough', () => {
     fireEvent.change(screen.getByLabelText('Low amount'), { target: { value: '100000' } });
     fireEvent.change(screen.getByLabelText('High amount'), { target: { value: '140000' } });
     fireEvent.click(screen.getByRole('button', { name: /(?:Save|Replace) and continue/ }));
-    await waitFor(() => expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => { expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
       value: { t: 'range', v: { min: 100000, max: 140000, currency: 'USD' } },
-    })));
+    })); });
 
     const spendingRecord = intake({
       intakeId: 'intake-2', requestItems: [spending],
@@ -113,15 +119,15 @@ describe('PhoneWalkthrough', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Enter an amount' }));
     fireEvent.change(screen.getByLabelText('Amount'), { target: { value: '5000' } });
     fireEvent.click(screen.getByRole('button', { name: /(?:Save|Replace) and continue/ }));
-    await waitFor(() => expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => { expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
       value: { t: 'money', v: { amount: 5000, currency: 'USD' } },
-    })));
+    })); });
 
     fireEvent.click(screen.getByRole('button', { name: "I don't know yet" }));
     fireEvent.click(screen.getByRole('button', { name: /(?:Save|Replace) and continue/ }));
-    await waitFor(() => expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => { expect(intakeFactUpsert).toHaveBeenCalledWith(expect.objectContaining({
       value: { t: 'string', v: "I don't know yet" },
-    })));
+    })); });
   });
 
   it('does not file or complete an incomplete or over-limit document selection', async () => {
@@ -136,14 +142,14 @@ describe('PhoneWalkthrough', () => {
     useIntakeStore.getState().upsertIntake(record);
     render(<PhoneWalkthrough
       matterId="matter-1" intake={record} advisorId="advisor-1" onClose={vi.fn()}
-      workspaceService={{ writeFileBinary: vi.fn() } as never} matterFolderPath="/workspace/Sarah"
+      workspaceService={new WorkspaceService()} matterFolderPath="/workspace/Sarah"
     />);
 
     const file = new File(['front'], 'license-front.jpg', { type: 'image/jpeg' });
     fireEvent.change(screen.getByLabelText('Choose document'), { target: { files: [file] } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
 
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Choose both sides'));
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toContain('Choose both sides'); });
     expect(fileIntakeDocument).not.toHaveBeenCalled();
     expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]?.state).toBe('not_started');
 
@@ -152,7 +158,7 @@ describe('PhoneWalkthrough', () => {
     fireEvent.change(screen.getByLabelText('Choose document'), { target: { files: [file, back, extra] } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
 
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('Choose no more than 2 files'));
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toContain('Choose no more than 2 files'); });
     expect(fileIntakeDocument).not.toHaveBeenCalled();
   });
 
@@ -168,7 +174,7 @@ describe('PhoneWalkthrough', () => {
     useIntakeStore.getState().upsertIntake(record);
     render(<PhoneWalkthrough
       matterId="matter-1" intake={record} advisorId="advisor-1" onClose={vi.fn()}
-      workspaceService={{ writeFileBinary: vi.fn() } as never} matterFolderPath="/workspace/Sarah"
+      workspaceService={new WorkspaceService()} matterFolderPath="/workspace/Sarah"
     />);
 
     fireEvent.change(screen.getByLabelText('Choose document'), {
@@ -176,13 +182,13 @@ describe('PhoneWalkthrough', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
 
-    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('under 2 bytes'));
+    await waitFor(() => { expect(screen.getByRole('alert').textContent).toContain('under 2 bytes'); });
     expect(fileIntakeDocument).not.toHaveBeenCalled();
     expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]?.state).toBe('not_started');
   });
 
   it('files duplicate names at distinct onboarding paths before completing the document item', async () => {
-    vi.mocked(fileIntakeDocument).mockImplementation(async ({ fileName }) => (
+    vi.mocked(fileIntakeDocument).mockImplementation(({ fileName }) => Promise.resolve(
       `/workspace/Sarah/Requests/onboarding/${fileName}`
     ));
     const license: RequestItem = {
@@ -196,7 +202,7 @@ describe('PhoneWalkthrough', () => {
     useIntakeStore.getState().upsertIntake(record);
     render(<PhoneWalkthrough
       matterId="matter-1" intake={record} advisorId="advisor-1" onClose={vi.fn()}
-      workspaceService={{ writeFileBinary: vi.fn() } as never} matterFolderPath="/workspace/Sarah"
+      workspaceService={new WorkspaceService()} matterFolderPath="/workspace/Sarah"
     />);
 
     const front = new File(['front'], 'license.jpg', { type: 'image/jpeg' });
@@ -204,7 +210,7 @@ describe('PhoneWalkthrough', () => {
     fireEvent.change(screen.getByLabelText('Choose document'), { target: { files: [front, back] } });
     fireEvent.click(screen.getByRole('button', { name: 'Save and continue' }));
 
-    await waitFor(() => expect(fileIntakeDocument).toHaveBeenCalledTimes(2));
+    await waitFor(() => { expect(fileIntakeDocument).toHaveBeenCalledTimes(2); });
     const filedNames = vi.mocked(fileIntakeDocument).mock.calls.map(([options]) => options.fileName);
     expect(new Set(filedNames).size).toBe(2);
     expect(filedNames).toEqual(['license.jpg', 'license-2.jpg']);

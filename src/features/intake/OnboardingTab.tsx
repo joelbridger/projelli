@@ -359,13 +359,13 @@ export function OnboardingTab({
             }}
           >
             <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--kp-navy)' }}>
-              On a call with {intake.clientFirstName}?
+              {t('intake.onboarding.phone-call-title', { client: intake.clientFirstName })}
             </h3>
             <p style={{ margin: '6px 0 10px', fontSize: 12, color: 'var(--color-muted-foreground)' }}>
-              Work through the same checklist together, one step at a time.
+              {t('intake.onboarding.phone-call-description')}
             </p>
-            <Button type="button" onClick={() => setPhoneWalkthroughOpen(true)}>
-              Start phone walkthrough
+            <Button type="button" onClick={() => { setPhoneWalkthroughOpen(true); }}>
+              {t('intake.onboarding.start-phone-walkthrough')}
             </Button>
           </section>
 
@@ -558,7 +558,7 @@ export function OnboardingTab({
           advisorId={advisorId}
           workspaceService={workspaceService}
           matterFolderPath={matterFolderPath}
-          onClose={() => setPhoneWalkthroughOpen(false)}
+          onClose={() => { setPhoneWalkthroughOpen(false); }}
           onCompleted={() => {
             setRevealed({});
             void reloadFacts().catch((error: unknown) => {
