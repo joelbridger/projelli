@@ -12,7 +12,7 @@
 
 export const meta = {
   title: 'The Client Map',
-  viewport: { width: 1280, height: 800 },
+  viewport: { width: 1920, height: 1080 },
 };
 
 export default async function run(engine, { page }) {
@@ -26,14 +26,20 @@ export default async function run(engine, { page }) {
   await engine.waitForTestId('clientmap-tab-household', { timeout: 20000 });
   await engine.hold(900);
 
-  await engine.caption('The Client Map: everything known about a household.', 2100);
+  await engine.caption(
+    'The Client Map: everything known about a household.',
+    2100
+  );
   await engine.clearCaption();
 
   // The trust line: built from their files, nothing leaves the machine.
   const receipt = page.getByTestId('clientmap-build-receipt').first();
   if (await receipt.count()) {
     await engine.moveTo(receipt).catch(() => {});
-    await engine.caption('Built from their own emails and files. Nothing leaves your computer.', 2400);
+    await engine.caption(
+      'Built from their own emails and files. Nothing leaves your computer.',
+      2400
+    );
     await engine.hold(500);
     await engine.clearCaption();
   }

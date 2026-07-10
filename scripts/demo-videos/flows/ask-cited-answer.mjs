@@ -14,7 +14,7 @@
 
 export const meta = {
   title: 'Ask a question, get a cited answer',
-  viewport: { width: 1280, height: 800 },
+  viewport: { width: 1920, height: 1080 },
 };
 
 const ROTH_QUESTION = 'What did we decide about the Roth conversion?';
@@ -23,7 +23,10 @@ export default async function run(engine, { page }) {
   // Land in the sample household's private workspace (opens on its Client Map).
   await engine.goto('/?testMode=true&seedSample=1');
   await engine.hold(1200);
-  await engine.caption('This is the Hendricks household, a sample client.', 1900);
+  await engine.caption(
+    'This is the Hendricks household, a sample client.',
+    1900
+  );
   await engine.clearCaption();
 
   // Open Ask.
@@ -35,7 +38,10 @@ export default async function run(engine, { page }) {
 
   // The app offers ready-made questions; pick the Roth conversion one.
   await engine.caption('The app suggests real questions you can ask.', 1900);
-  const rothBtn = page.getByTestId('ask-demo-question').filter({ hasText: /Roth/i }).first();
+  const rothBtn = page
+    .getByTestId('ask-demo-question')
+    .filter({ hasText: /Roth/i })
+    .first();
   await engine.moveTo(rothBtn);
   await engine.clearCaption();
   await engine.click(rothBtn);
@@ -43,7 +49,9 @@ export default async function run(engine, { page }) {
   // Answer appears, grounded in the household's own files.
   await engine.caption('It answers only from their own files.', 1500);
   await engine.waitForTestId('ask-answer-receipt', { timeout: 20000 });
-  await page.getByTestId('ask-cited-attestation').first()
+  await page
+    .getByTestId('ask-cited-attestation')
+    .first()
     .waitFor({ state: 'visible', timeout: 6000 })
     .catch(() => {});
   await engine.hold(1300);
@@ -51,7 +59,9 @@ export default async function run(engine, { page }) {
 
   // Point at a citation on the answer.
   await engine.caption('Every claim carries a source.', 1500);
-  await engine.moveTo(page.getByTestId('ask-citation-chip-1').first()).catch(() => {});
+  await engine
+    .moveTo(page.getByTestId('ask-citation-chip-1').first())
+    .catch(() => {});
   await engine.hold(800);
   await engine.clearCaption();
 
