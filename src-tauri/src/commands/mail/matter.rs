@@ -14,6 +14,21 @@ tokio::task_local! {
     static FORCE_LANCEDB_RETAG_FAILURE: ();
 }
 
+#[cfg(test)]
+tokio::task_local! {
+    /// Test-only rendezvous immediately after recovery has observed its first
+    /// pending-marker snapshot. This lets the regression test put a newer
+    /// filing all the way through its durable/RAG/marker-clear sequence before
+    /// recovery takes the shared filing lock.
+    static REPAIR_AFTER_PENDING_READ: std::sync::Arc<RepairAfterPendingRead>;
+}
+
+#[cfg(test)]
+struct RepairAfterPendingRead {
+    observed: tokio::sync::Notify,
+    resume: tokio::sync::Notify,
+}
+
 /// Resolve the matter id for a folder from the supplied mapping. Folder-level
 /// entries (matching provider+account+folder) take precedence over account-level
 /// entries (matching provider+account with an empty folder). Falls back to
@@ -612,8 +627,41 @@ pub async fn mail_repair_pending_rag_retags(
     .map_err(|e| format!("read pending RAG repairs join: {e}"))?
     .map_err(|e| format!("read pending RAG repairs: {e}"))?;
     let marked_count = pending.len() as u32;
+
+    #[cfg(test)]
+    if let Ok(rendezvous) = REPAIR_AFTER_PENDING_READ.try_with(std::sync::Arc::clone) {
+        rendezvous.observed.notify_one();
+        rendezvous.resume.notified().await;
+    }
+
+    // The first snapshot above is only a work list. A newer filing may finish
+    // between that snapshot and this point, so never write from it directly.
+    // Holding the exact same lock as normal filing makes this re-read, the RAG
+    // write, and its matching marker clear one indivisible filing sequence.
+    let _retag_guard = state.retag_lock.lock().await;
+    let ws_for_current_targets = workspace.clone();
+    let current_targets = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
+        if !EncryptedMailStore::db_path(&ws_for_current_targets).exists() {
+            return Ok(Vec::new());
+        }
+        EncryptedMailStore::open(&ws_for_current_targets)?.pending_rag_retags_at_current_target()
+    })
+    .await
+    .map_err(|e| format!("re-read current RAG repair targets join: {e}"))?
+    .map_err(|e| format!("re-read current RAG repair targets: {e}"))?;
+    let current_by_id: BTreeMap<String, String> = current_targets.into_iter().collect();
+    let current_work: Vec<(String, String)> = pending
+        .into_iter()
+        .filter(|(message_id, initial_target)| {
+            current_by_id.get(message_id) == Some(initial_target)
+        })
+        .collect();
+
+    // If a target changed, do not overwrite it with the old snapshot. Its
+    // current marker remains for the newer filing; if it was already cleared,
+    // there is deliberately nothing left for this recovery pass to do.
     let workspace_for_retag = workspace.clone();
-    let outcome = attempt_pending_rag_repairs(group_pending_rag_retags(pending), move |target, ids| {
+    let outcome = attempt_pending_rag_repairs(group_pending_rag_retags(current_work), move |target, ids| {
         retag_mail_paths_in_workspace(workspace_for_retag.clone(), ids, target)
     })
     .await;
@@ -800,19 +848,41 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn late_a_retag_rechecks_durable_b_and_cannot_overwrite_completed_b() {
+    async fn repair_snapshot_of_a_cannot_overwrite_a_newer_completed_b_filing() {
         let dir = tempfile::TempDir::new().unwrap();
         let app = test_app_for_workspace(dir.path()).await;
         let store = EncryptedMailStore::open(dir.path()).unwrap();
         let ids = vec!["one".to_string()];
         // A has committed but has not yet reached LanceDB.
         store.set_message_matter_batch_with_pending_rag_retag(&ids, "matter-a").unwrap();
-        // B is filed and completes while A is still in flight.
-        store.set_message_matter_batch_with_pending_rag_retag(&ids, "matter-b").unwrap();
-        assert_eq!(mail_repair_pending_rag_retags(app.state::<MailState>()).await.unwrap(), 1);
-        // The late A attempt re-reads the durable target immediately before any
-        // vector write. B's clear means there is no A write left to perform.
-        assert!(store.pending_rag_retags_at_current_target().unwrap().is_empty());
+
+        // This is a real in-flight overlap, not sequential setup: repair has
+        // read A's marker and is paused before it takes the filing lock. B then
+        // completes its public filing path, including its RAG write and marker
+        // clear, before repair is allowed to resume.
+        let rendezvous = Arc::new(RepairAfterPendingRead {
+            observed: tokio::sync::Notify::new(),
+            resume: tokio::sync::Notify::new(),
+        });
+        let repair = REPAIR_AFTER_PENDING_READ.scope(
+            rendezvous.clone(),
+            mail_repair_pending_rag_retags(app.state::<MailState>()),
+        );
+        tokio::pin!(repair);
+        tokio::select! {
+            _ = rendezvous.observed.notified() => {}
+            result = &mut repair => panic!("repair finished before the overlap: {result:?}"),
+        }
+
+        assert_eq!(
+            mail_retag_messages_matter(
+                app.state::<MailState>(), ids.clone(), "matter-b".to_string(), None,
+            ).await.unwrap(),
+            1
+        );
+        rendezvous.resume.notify_one();
+        assert_eq!(repair.await.unwrap(), 1);
+
         let conn = crate::commands::rag::store::open_connection(dir.path()).await.unwrap();
         let table = conn.open_table(crate::commands::rag::store::TABLE_NAME).execute().await.unwrap();
         let key = crate::commands::rag::crypto::get_or_create_master_key().unwrap();
