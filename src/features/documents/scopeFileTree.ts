@@ -212,12 +212,17 @@ export function scopeFileTreeToFolders(
   // Resolve each matter's folders (dropping empties + out-of-root garbage, which
   // must never participate in ownership) without mutating the input matters.
   // Only consulted in the ownership-aware branch below.
-  const resolvedMatters: Matter[] = (matters ?? []).map((m) => ({
-    ...m,
-    folderPaths: m.folderPaths
+  const resolvedMatters: Matter[] = (matters ?? []).map((m) => {
+    const resolvedFolderPaths = m.folderPaths
       .map((f) => (f ? resolveScopeFolderInRoot(f, workspaceRoot) : null))
-      .filter((f): f is string => f !== null),
-  }));
+      .filter((f): f is string => f !== null);
+    return {
+      ...m,
+      folderPaths: m.id === scopeMatterId
+        ? [...resolvedFolderPaths, ...absFolders]
+        : resolvedFolderPaths,
+    };
+  });
 
   function prune(node: FileNode): FileNode | null {
     // Compare the node in the SAME absolute space as the matters' folderPaths

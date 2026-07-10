@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveClientDocumentFolderPaths,
   shouldBackfillClientDocumentFolder,
+  shouldPersistExistingClientDocumentFolder,
 } from '@/app/shell/clientDocumentFolderPaths';
 import type { Matter } from '@/platform/types/matter';
+import type { FileNode } from '@/platform/types/workspace';
 
 function matter(overrides: Partial<Matter>): Matter {
   return {
@@ -14,6 +16,10 @@ function matter(overrides: Partial<Matter>): Matter {
     createdAt: '2026-07-09T00:00:00.000Z',
     ...overrides,
   };
+}
+
+function folder(path: string, children: FileNode[] = []): FileNode {
+  return { id: path, name: path.split('/').pop() ?? path, path, type: 'folder', children };
 }
 
 describe('client document folder derivation', () => {
@@ -64,5 +70,37 @@ describe('client document folder derivation', () => {
       workspaceRoot: null,
     })).toEqual([]);
     expect(shouldBackfillClientDocumentFolder(m, [])).toBe(false);
+  });
+
+  it('marks a derived client folder for saving when that folder already exists in the file tree', () => {
+    const m = matter({
+      name: 'Sutton, Karen & Ronald',
+      client: 'Sutton, Karen & Ronald',
+      folderPaths: [],
+    });
+    const resolved = resolveClientDocumentFolderPaths({
+      matter: m,
+      matters: [m],
+      workspaceRoot: '/ws',
+    });
+
+    expect(resolved).toEqual(['/ws/Sutton, Karen & Ronald']);
+    expect(shouldPersistExistingClientDocumentFolder(
+      m,
+      resolved,
+      [folder('Sutton, Karen & Ronald')],
+      '/ws',
+    )).toBe(true);
+  });
+
+  it('does not mark a derived client folder for saving when the folder is not on disk yet', () => {
+    const m = matter({ folderPaths: [] });
+    const resolved = resolveClientDocumentFolderPaths({
+      matter: m,
+      matters: [m],
+      workspaceRoot: '/ws',
+    });
+
+    expect(shouldPersistExistingClientDocumentFolder(m, resolved, [], '/ws')).toBe(false);
   });
 });
