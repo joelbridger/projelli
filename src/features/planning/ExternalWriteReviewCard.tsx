@@ -79,7 +79,7 @@ export function ExternalWriteReviewCard({ matterId }: ExternalWriteReviewCardPro
       variant="raised"
       style={{
         padding: 16,
-        background: '#fff',
+        background: 'var(--kp-surface-card)',
         border: '1px solid var(--color-border)',
         borderRadius: 8,
       }}
@@ -259,8 +259,8 @@ function StatusLine({ item, message }: { item: ProposedExternalWrite; message: s
         padding: '7px 9px',
         borderRadius: 6,
         border: `1px solid ${ok ? 'var(--kp-success-line)' : 'var(--kp-warning-line)'}`,
-        background: ok ? 'var(--kp-success-bg)' : '#fff',
-        color: ok ? 'var(--kp-success-text)' : '#7a4a1a',
+        background: ok ? 'var(--kp-success-bg)' : 'var(--kp-surface-card)',
+        color: ok ? 'var(--kp-success-text)' : 'var(--kp-warning)',
         fontSize: 'var(--kp-font-2xs)',
         fontWeight: 650,
       }}
@@ -299,7 +299,7 @@ function rowStyle(status: ProposedExternalWrite['status']): React.CSSProperties 
     gap: 10,
     padding: 12,
     borderRadius: 8,
-    background: status === 'sent' ? 'var(--kp-success-bg)' : needsAttention ? 'var(--kp-warning-bg)' : '#fff',
+    background: status === 'sent' ? 'var(--kp-success-bg)' : needsAttention ? 'var(--kp-warning-bg)' : 'var(--kp-surface-card)',
     border: `1px solid ${status === 'sent' ? 'var(--kp-success-line)' : needsAttention ? 'var(--kp-warning-line)' : 'var(--color-border)'}`,
   };
 }
@@ -333,7 +333,7 @@ const columnBoxStyle: React.CSSProperties = {
   fontSize: 'var(--kp-font-xs)',
   lineHeight: 1.45,
   color: 'var(--kp-navy)',
-  background: 'var(--kp-bg-soft, #f8f9fb)',
+  background: 'var(--kp-bg-soft)',
   border: '1px solid var(--color-border)',
   borderRadius: 6,
   padding: '8px 9px',
@@ -363,7 +363,7 @@ const inputStyle: React.CSSProperties = {
   padding: '5px 7px',
   fontSize: 'var(--kp-font-xs)',
   color: 'var(--kp-navy)',
-  background: '#fff',
+  background: 'var(--kp-surface-card)',
 };
 
 export function ExternalWriteReviewFixture() {

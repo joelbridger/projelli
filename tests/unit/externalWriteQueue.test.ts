@@ -167,9 +167,25 @@ describe('externalWriteQueueStore', () => {
   });
 
   it('blocks send for an unmatched Holistiplan target instead of sending to a placeholder (codex-review, 2026-07-10)', async () => {
-    const id = useExternalWriteQueueStore.getState().enqueueHolistiplanUpload(
-      holistiplanProposal({ holistiplanHouseholdId: undefined, holistiplanClientId: undefined }),
-    );
+    // exactOptionalPropertyTypes forbids `holistiplanHouseholdId: undefined` on
+    // a Partial<> override, so build the "neither field set" case directly
+    // instead of trying to unset the helper's default household id.
+    const unmatched: HolistiplanUploadProposal = {
+      target: 'holistiplan',
+      kind: 'tax_document_upload',
+      matterId: 'm1',
+      documents: [
+        {
+          documentRef: 'Clients/Henderson/2025-return.pdf',
+          displayName: '2025 tax return',
+          taxYear: 2025,
+          documentKind: 'tax_return',
+          source: 'client_folder',
+        },
+      ],
+      sourceRef: 'client-folder:tax-return',
+    };
+    const id = useExternalWriteQueueStore.getState().enqueueHolistiplanUpload(unmatched);
 
     await useExternalWriteQueueStore.getState().approve([id]);
 
