@@ -49,7 +49,7 @@ import {
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
-import { OnboardingBoardContainer } from '@/features/intake/OnboardingBoardContainer';
+import { RequestsBoardContainer } from '@/features/intake/RequestsBoardContainer';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import {
   mailIsConnected,
@@ -1089,7 +1089,7 @@ export function MattersHome({
         }}
       >
         {clientsHomeView === 'board' ? (
-          <OnboardingBoardContainer onNewClient={openNewClient} />
+          <RequestsBoardContainer onNewClient={openNewClient} />
         ) : activeMatters.length === 0 && archivedMatters.length === 0 ? (
           <MattersEmptyState
             entityOne={entityLabel.one}
