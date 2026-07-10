@@ -7,7 +7,7 @@
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
 | 1 | ingest+match (Rust+TS) | `~/lp-w3-1` | `lp/intake-w3-1` | DONE-EXIT:0 | lead PASS (security core) | codex-review: 1 P1 + 1 P2 → FIXED `4dc20449` | in `f61c249f` | **MERGED** |
-| 2 | proposal cards + accept | `~/lp-w3-2` | `lp/intake-w3-2` | DONE-EXIT:0 | lead PASS | codex-review: 2 P1 + 2 P2 | `c72a9618` (pre-fix) | FIX ROUND running (`briefs/w3-2-fix.md`) |
+| 2 | proposal cards + accept | `~/lp-w3-2` | `lp/intake-w3-2` | DONE-EXIT:0 | lead PASS | codex-review: 2 P1 + 2 P2 → fixed (2 fix rounds + lint) | in `670752e2` | **MERGED** (pending cargo gate + push) |
 | 3 | quarantine path | `~/lp-w3-3` | `lp/intake-w3-3` | — | — | — | — | queued — last |
 
 ## Open questions — all 12 RESOLVED in `W3-EXEC-PLAN.md` §0
@@ -32,6 +32,7 @@ Lead verify PASS: vitest 136/136 (src/features/intake + src/platform/intake), ts
   - **[P2] unfileable body rows selectable** → dead un-clearable proposal (no dismiss). Fix: non-selectable/manual + add dismiss.
   - **[P2] classifier model path unreachable in prod** (`useEmailReplyIngestion` never passes modelConfidence). Fix: wire the provider (untrusted body sanitized; model chooses no id/path).
   - The adversarial pass again caught what the lead diff-read missed (esp. the void-emitter defeating `mustLog`). cargo runs at merge gate.
+- **Fix round 1 (`bf3ce399`):** P1-A ✅ (App.tsx now registers `addAuditEntry` promise via `setIntakeEmailReplyAuditEmitter`; `mustLog` awaits + throws if unregistered — verified by lead), P1-B ✅ (durable per-row completion, retry skips done rows), P2-C ✅ (dismiss + non-selectable unfilable rows). BUT introduced a RED eslint gate: **[P1 privacy] `lantern-egress/no-direct-provider-send`** — the P2-D classifier model call bypassed the egress-audit wrapper (must go through `sendWithEgressAudit`) — plus test-file type-safety lint. → **Fix round 2 running** (`briefs/w3-2-fix2.md`): route the classifier through `sendWithEgressAudit`, fix lint properly (no baseline update).
 
 ## Lanes 2 & 3 — briefs to write (scoped in W3-EXEC-PLAN §3)
 - Lane 2 (`briefs/w3-2-proposal-cards.md`): proposal card/row/modal, accept path (audit intent → file via the new persist command / fact via `intakeFactUpsert(channel:'email_reply')` → checklist tick → outcome; partial-failure), durable proposal queue in SQLCipher, masked restricted previews, confidence tiers from auth, reuse `CrmWriteReviewCard`/`crmWriteQueueStore`.
