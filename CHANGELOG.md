@@ -164,6 +164,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **Intake test fixtures aligned to the `MailView`/`MailAttachmentRef` shape.**
+  The email-reply-gate commit made `MailView.threadId`/`.authResult` required
+  and added required `filename`/`kind` to `MailAttachmentRef`; three mail test
+  fixture builders (`email-privilege-control.test.tsx`,
+  `mail/EmailViewer.audit.test.tsx`, `mail/EmailViewer.test.tsx`) still built
+  the old shape, breaking `npm run typecheck:tests`. Found running the W1
+  bench runbook's preflight gate.
+- **Intake staging deploy's header check no longer false-positives on
+  edge-injected headers.** `findThirdPartyOriginTokens` (`infra/intake/headers.mjs`)
+  scanned every raw response header for `https://` tokens, including
+  Cloudflare's own `Report-To`/`NEL` telemetry that any Tunnel-proxied deploy
+  always carries — the dry-run path (loopback, no CDS in front) never
+  exercised this, so it only tripped on a real staging publish. Scoped the
+  scan to the headers the app actually sets; also fixed `relayOrigin` being
+  validated but never added to the allowlist.
 - **Theme light-lock: the app can no longer come up dark unprompted after a
   restart.** (Legion 3× demo dry-run, Run 2: the persisted Theme value read
   "dark" at boot even though Light had been explicitly selected all through
