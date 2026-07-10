@@ -20,6 +20,14 @@ function b64ToBytes(value: string): Uint8Array {
   return Uint8Array.from(raw, (char) => char.charCodeAt(0));
 }
 function json(body: unknown): Response { return new Response(JSON.stringify(body), { status: 200 }); }
+function pathnameOf(url: RequestInfo | URL): string {
+  if (typeof url === 'string') return new URL(url).pathname;
+  if (url instanceof URL) return url.pathname;
+  return new URL(url.url).pathname;
+}
+function bodyStringOf(init: RequestInit | undefined): string {
+  return typeof init?.body === 'string' ? init.body : '';
+}
 
 async function sealed(input: {
   intakeId: string; itemId: string; submissionId: string; publicKeyRaw: Uint8Array;
@@ -56,8 +64,8 @@ describe('standing request receiver-owned contract', () => {
     const createdBodies: string[] = [];
     const intakeId = 'standing-1';
     fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
-      const path = new URL(typeof url === 'string' ? url : url.toString()).pathname;
-      if (path === '/intake') { createdBodies.push(String(init?.body)); return Promise.resolve(json({ ok: true, intake_id: intakeId })); }
+      const path = pathnameOf(url);
+      if (path === '/intake') { createdBodies.push(bodyStringOf(init)); return Promise.resolve(json({ ok: true, intake_id: intakeId })); }
       return Promise.resolve(json({ ok: true }));
     });
     const bundle = await createAdvisorIntake({
@@ -73,20 +81,23 @@ describe('standing request receiver-owned contract', () => {
     expect(createdBodies[0]).not.toContain('matter-secret');
     expect(createdBodies[0]).not.toContain('income_annual');
     expect(createdBodies[0]).not.toContain('household');
-    const record = useIntakeStore.getState().intakesById[intakeId]!;
+    const record = useIntakeStore.getState().intakesById[intakeId];
+    if (!record) throw new Error('Expected the standing intake record to exist.');
     expect(record.requestItems?.map((item) => item.item_id)).toEqual(expect.arrayContaining([expect.stringMatching(/^ri_/u), expect.stringMatching(/^ri_/u)]));
-    const jsonItem = record.requestItems!.find((item) => item.t === 'guided_question')!;
-    const fileItem = record.requestItems!.find((item) => item.t === 'doc_upload')!;
+    const requestItems = record.requestItems ?? [];
+    const jsonItem = requestItems.find((item) => item.t === 'guided_question');
+    const fileItem = requestItems.find((item) => item.t === 'doc_upload');
+    if (!jsonItem || !fileItem) throw new Error('Expected both a guided_question and a doc_upload item.');
     const one = await sealed({ intakeId, itemId: jsonItem.item_id, submissionId: 'answer', publicKeyRaw: bundle.publicKeyRaw, contentType: 'application/json', fileNames: [], plaintext: enc.encode(JSON.stringify({ answer: { amount: 91000, currency: 'USD' } })), cursor: 1, blobId: 11 });
     const two = await sealed({ intakeId, itemId: fileItem.item_id, submissionId: 'file', publicKeyRaw: bundle.publicKeyRaw, contentType: 'application/pdf', fileNames: ['return.pdf'], plaintext: enc.encode('pdf'), cursor: 2, blobId: 12 });
     const blobs = new Map([[11, one.blob], [12, two.blob]]);
     const acks: string[] = [];
     fetchMock.mockImplementation((url: RequestInfo | URL, init?: RequestInit) => {
-      const parsed = new URL(typeof url === 'string' ? url : url.toString());
-      if (parsed.pathname.endsWith('/inbox')) return Promise.resolve(json({ cursor: 2, has_more: false, submissions: [one.envelope, two.envelope] }));
-      const match = parsed.pathname.match(/\/blob\/(\d+)$/u);
+      const path = pathnameOf(url);
+      if (path.endsWith('/inbox')) return Promise.resolve(json({ cursor: 2, has_more: false, submissions: [one.envelope, two.envelope] }));
+      const match = path.match(/\/blob\/(\d+)$/u);
       if (match) return Promise.resolve(new Response(blobs.get(Number(match[1])), { status: 200 }));
-      if (parsed.pathname.endsWith('/ack')) { acks.push(...((JSON.parse(String(init?.body)) as { submission_ids: string[] }).submission_ids)); return Promise.resolve(json({ ok: true })); }
+      if (path.endsWith('/ack')) { acks.push(...((JSON.parse(bodyStringOf(init)) as { submission_ids: string[] }).submission_ids)); return Promise.resolve(json({ ok: true })); }
       return Promise.resolve(json({ ok: true }));
     });
     const facts: unknown[] = []; const paths: string[] = [];
@@ -95,7 +106,12 @@ describe('standing request receiver-owned contract', () => {
       loadPrivateKey: () => Promise.resolve(bundle.privateKey), hasSubmission: () => Promise.resolve(false), rememberSubmission: () => Promise.resolve(), isKnownSession: () => Promise.resolve(true), rememberSession: () => Promise.resolve(), flagSubmission: () => Promise.resolve(),
       routeSubmission: (submission) => routeIntakeSubmission(submission, { intake: record, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never,
         upsertFact: (input) => { facts.push(input); return Promise.resolve({ fact_id: 'fact', matter_id: input.matter_id, subject: input.subject, kind: input.kind, sensitivity: input.sensitivity, display_value: 'x', provenance: input.provenance, verification: input.verification, status: 'active' as const }); },
-        fileDocument: (input) => { paths.push(`/workspace/Sarah/Requests/${input.requestSlug}/${input.fileName}`); return Promise.resolve(paths[paths.length - 1]!); },
+        fileDocument: (input) => {
+          const slug = input.requestSlug ?? 'onboarding';
+          const path = `/workspace/Sarah/Requests/${slug}/${input.fileName}`;
+          paths.push(path);
+          return Promise.resolve(path);
+        },
       }),
     });
     await expect(sync.syncOnce()).resolves.toMatchObject({ routed: 2, acked: 2 });

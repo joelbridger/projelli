@@ -114,7 +114,10 @@ export async function createAdvisorIntake(
       checklist_version: 1,
     });
   } catch (error) {
-    try { await options.relay.revokeIntake?.(options.intakeId); } catch { /* best-effort cleanup */ }
+    try {
+      await options.relay.revokeIntake?.(options.intakeId);
+    } catch { // eslint-disable-line lantern-async/no-silent-failure -- best-effort revoke during already-failed-creation cleanup; the original error is rethrown below regardless.
+    }
     await clearIntakeSecrets(options.intakeId);
     useIntakeStore.getState().removeIntake(options.intakeId);
     throw error;

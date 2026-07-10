@@ -524,8 +524,10 @@ describe('useIntakeInboxSync wiring helpers', () => {
     })).rejects.toThrow(/JSON/iu);
     const fact = intake();
     useIntakeStore.getState().upsertIntake(fact);
+    const reloaded = useIntakeStore.getState().intakesById['intake-1'];
+    if (!reloaded) throw new Error('missing intake');
     await expect(routeIntakeSubmission(routedSubmission(null, { contentType: 'application/pdf', fileNames: ['x.pdf'], plaintextBytes: [enc.encode('x')] }), {
-      intake: useIntakeStore.getState().intakesById['intake-1']!, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never,
+      intake: reloaded, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never,
     })).rejects.toThrow(/file/iu);
   });
 });

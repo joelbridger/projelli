@@ -74,6 +74,6 @@ describe('createAdvisorIntake team sharing', () => {
   });
 
   it('validates pdf and signature item lists directly', () => {
-    expect(() => assertSendableRequest([{ t: 'pdf_fill', item_id: 'pdf', label: 'PDF', help_text: '', required: true, subject: 'primary', pdf_ref: 'x', field_map: {}, prefill: [] }])).toThrow(/pdf_fill/iu);
+    expect(() => { assertSendableRequest([{ t: 'pdf_fill', item_id: 'pdf', label: 'PDF', help_text: '', required: true, subject: 'primary', pdf_ref: 'x', field_map: {}, prefill: [] }]); }).toThrow(/pdf_fill/iu);
   });
 });
