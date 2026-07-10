@@ -3,8 +3,9 @@
 **From:** the Wave 1 lead (Opus 4.8) session, 2026-07-10. **Reason:** Wave 1 DONE; context heavy; coordinator authorized a handoff before Wave 2.
 **Read this + `W1-TRACKER.md` (the full record) + `W2-PREP.md` (the Wave 2 spec) to continue.**
 
-## 1. Where things stand (Wave 1 = DONE)
-- Branch **`lp/intake` @ `fd9692cb`**, pushed, `HEAD == origin/lp/intake`, tree clean.
+## 1. Where things stand (Wave 1 = DONE, incl. the coordinator's hardening round)
+- Branch **`lp/intake` @ `604dafdb`**, pushed, `HEAD == origin/lp/intake`, tree clean. (Was `fd9692cb`; the coordinator's independent Wave-1 pass then found 6 issues — 3 P1 incl. 2 wire-contract breaks — all fixed + the E2E test added + re-gated, merge `67962a45`.)
+- **BIGGEST LESSON (Wave 2, apply from day one):** per-lane tests that MOCK the other side let two wire-contract breaks ship green (createIntake sent `token_b64` the relay didn't accept; the page called a `/chunks` route the relay never exposed). The fix was a TRUE end-to-end integration test (`backend/test/intake-e2e.test.ts`) that boots the real relay + real client crypto/submit + real advisor sync over real HTTP, no wire mocks. **For Wave 2, build the cross-lane E2E test EARLY (before merging the last lane), not after** — it's the only thing that proves the C↔B↔D contract actually connects. Also: the coordinator's independent adversarial pass is worth its weight — expect one and budget a hardening round after your own WORKER-DONE.
 - All 5 Wave-1 lanes merged (A contracts+crypto `2942df73`, B relay `e828148e`, C client-page `f782a768`, D advisor-side `9a6990d5`, E hosting `b977b8cc`+`a639cd0e`), each lead-reviewed + one Codex adversarial pass; ~21 findings fixed + regression-tested; the C↔D page-seal + C↔E same-origin cross-lane bugs caught and reconciled.
 - **Full `npm run gate` GREEN** (vitest 7208/0, cargo `--workspace`, typecheck, typecheck:tests, i18n completeness, eslint gate, token/handle guards). backend `bun test` 211/0 (incl. standing privacy-proof). intake-page Playwright+axe 13/13.
 - Docs folded in: W2-PREP, W7-PREP, W1-BENCH-RUNBOOK, INTAKE-IT-PACK. Bench Hard Stops reviewed — compatible.
