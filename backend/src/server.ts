@@ -10,7 +10,7 @@
  * headers (the desktop webview calls from tauri://localhost).
  */
 
-import { config } from "./lib/config.ts";
+import { clientIpFromPeer, config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
 import { json, error, preflight, startRateLimitGc } from "./lib/http.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
@@ -123,7 +123,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       const url = new URL(req.url);
       const path = url.pathname;
       const method = req.method;
-      const ip = srv.requestIP(req)?.address ?? "unknown";
+      const ip = clientIpFromPeer(srv.requestIP(req)?.address, req.headers.get("x-forwarded-for"));
 
       if (method === "OPTIONS") return preflight();
 
@@ -322,6 +322,7 @@ maybeBootstrap(store);
 startRateLimitGc();
 startSyncTicketGc();
 startSsoStateGc();
+startIntakeRetentionSweep(store);
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 
@@ -360,3 +361,19 @@ async function maybeBootstrap(store: Store): Promise<void> {
 }
 
 export { server };
+
+/**
+ * A single-instance relay can sweep locally. Run once at boot and daily after
+ * that; the database operation only deletes expired mailbox rows and cascades
+ * their opaque ciphertext. The log intentionally contains a count, not ids.
+ */
+function startIntakeRetentionSweep(store: Store): ReturnType<typeof setInterval> {
+  const sweep = () => {
+    const result = store.purgeExpiredIntakeCiphertext();
+    if (result.deleted_intakes > 0) console.info(`[intake-retention] deleted ${result.deleted_intakes} expired mailbox(es)`);
+  };
+  sweep();
+  const timer = setInterval(sweep, 24 * 60 * 60 * 1000);
+  if (typeof timer.unref === "function") timer.unref();
+  return timer;
+}

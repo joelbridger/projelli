@@ -6,13 +6,15 @@ import type { AccessTokenClaims, SeatTokenClaims } from "./types.ts";
 
 export const MAX_INTAKE_STATE_BYTES = 64 * 1024;
 export const MAX_INTAKE_CHECKLIST_BYTES = 512 * 1024;
+/** 4 MiB keeps each SQLite write bounded while allowing 25 chunks per 100 MiB file. */
 export const MAX_INTAKE_CHUNK_BYTES = 4 * 1024 * 1024;
+/** One large statement/video scan is enough for onboarding; larger files belong in a deliberate hand-off flow. */
 export const MAX_INTAKE_FILE_BYTES = 100 * 1024 * 1024;
+/** A household intake can carry several documents, but one link must not become unbounded relay storage. */
 export const MAX_INTAKE_TOTAL_BYTES = 500 * 1024 * 1024;
-// A generous per-intake finalization ceiling. Chunk/submission bytes already
-// bound storage; this bounds row count so a link holder cannot fill the table
-// with endless tiny finalizations. A real household intake has well under 100.
-export const MAX_INTAKE_SUBMISSIONS = 5000;
+// A real household intake has well under 100 finalizations. This generous
+// ceiling still prevents a link holder from filling the table with tiny rows.
+export const MAX_INTAKE_SUBMISSIONS = 500;
 
 const DECOY_INTAKE_TOKEN_HASH = hmacHash("lantern-intake-decoy-token-v1");
 const NEUTRAL_INTAKE_GONE = { error: "intake_unavailable" };
@@ -116,14 +118,14 @@ export function authorizePublicIntake(
 
 export function publicIntakeRateLimit(ip: string, intakeId: string): Response | null {
   const byIp = rateLimit(ip, "intake_public_ip", {
-    max: config.relayRateLimitMax,
-    windowSeconds: config.relayRateLimitWindowSeconds,
+    max: config.intakePublicIpRateLimitMax,
+    windowSeconds: config.intakePublicIpRateLimitWindowSeconds,
   });
   if (!byIp.ok) return error("rate_limited", 429, `Try again in ${byIp.retryAfter}s`);
 
   const byIntake = rateLimit(intakeId, "intake_public_intake", {
-    max: config.relayRateLimitMax,
-    windowSeconds: config.relayRateLimitWindowSeconds,
+    max: config.intakePublicIntakeRateLimitMax,
+    windowSeconds: config.intakePublicIntakeRateLimitWindowSeconds,
   });
   if (!byIntake.ok) return error("rate_limited", 429, `Try again in ${byIntake.retryAfter}s`);
   return null;
