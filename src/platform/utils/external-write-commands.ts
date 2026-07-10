@@ -2,6 +2,17 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 export type ExternalWriteTarget = 'wealthbox' | 'rightcapital' | 'holistiplan';
 
+// ── Writeback event constants ───────────────────────────────────────────────
+
+/**
+ * Tauri event emitted by `append_writeback_audit_must_for_matter` after a
+ * writeback audit entry is successfully written to the encrypted store.
+ * Payload is an `AuditEntryRecord` (camelCase JSON). The frontend listener in
+ * `useWorkspaceLifecycle.ts` uses this to push the entry into the live
+ * `auditEntries` React state without requiring a workspace re-open.
+ */
+export const WRITEBACK_AUDIT_APPENDED_EVENT = 'writeback-audit-appended';
+
 export type ExternalWriteStatus =
   | 'proposed'
   | 'sending'

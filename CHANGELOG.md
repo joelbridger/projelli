@@ -165,6 +165,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **Writeback audit rows now appear in the Activity Log immediately.** The
+  frontend now listens for the Rust `writeback-audit-appended` event and
+  prepends the parsed audit entry into the live `auditEntries` state with the
+  same duplicate-by-id guard and cleanup behavior as the existing CRM audit
+  listener. Files modified: `src/platform/utils/external-write-commands.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.test.ts`.
 - **Writeback approval audit trail.** External write approvals now append a
   must-save intent audit row before any vendor socket send and a matching
   outcome row after success or delivery-unconfirmed results, with distinct
