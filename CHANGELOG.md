@@ -167,6 +167,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **ACATS approval/export audit rows now use the live Activity Log writer.** Approval and Schwab Prep Packet export now fail closed if the app cannot save the required audit row, the row appears in the visible Activity Log immediately, and the review draft is locked while approval auditing is in flight so the saved audit snapshot cannot drift from the final approved draft.
 - **ACATS review audit and account-number safety.** Statements with more than one distinct delivering account number now keep the first value but lower confidence and block approval until the advisor acknowledges the warning; approving an ACATS draft and exporting the Schwab Prep Packet now require a durable audit row with only masked account numbers in the log description. Files modified: `src/features/acats/extraction.ts`, `src/features/acats/acatsReviewStore.ts`, `src/features/acats/AcatsReviewScreen.tsx`, `src/features/acats/schwabPrepPacket.ts`, `src/features/acats/audit.ts`, `src/platform/types/audit.ts`, `src/platform/audit/AuditService.ts`, `src/features/audit/auditHomeHelpers.ts`.
+- **Writeback audit rows now appear in the Activity Log immediately.** The
+  frontend now listens for the Rust `writeback-audit-appended` event and
+  prepends the parsed audit entry into the live `auditEntries` state with the
+  same duplicate-by-id guard and cleanup behavior as the existing CRM audit
+  listener. Files modified: `src/platform/utils/external-write-commands.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.test.ts`.
+- **Writeback approval audit trail.** External write approvals now append a
+  must-save intent audit row before any vendor socket send and a matching
+  outcome row after success or delivery-unconfirmed results, with distinct
+  ambiguous outcome ids and no raw vendor payload JSON in audit descriptions.
+  Files modified: `src-tauri/src/commands/writeback/commands.rs`.
 - **Theme light-lock: the app can no longer come up dark unprompted after a
   restart.** (Legion 3× demo dry-run, Run 2: the persisted Theme value read
   "dark" at boot even though Light had been explicitly selected all through
