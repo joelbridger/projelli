@@ -105,7 +105,14 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 ### W6e device-marker (coordinator-added post-batch-2) — the leaked-link "new device" flag, wired end-to-end
 Coordinator directed (after WORKER-DONE draft): the per-session new-device indicator MUST function (designed leaked-link mitigation), not just be described. Scope: client mints a stable per-browser marker → sealed INSIDE the manifest ciphertext (egress standard: never plaintext to the relay — per INTAKE-EGRESS-AUDIT.md linkability verdicts) → advisor reads it from the DECRYPTED manifest → existing new_device board chip fires. Removes the dead plaintext `SubmissionEnvelope.session_id` leak path. TS-only (no Rust/backend logic). Cross-side contract + privacy-proof tests. Building.
 
-## ✅ WAVES 5+6 (7 lanes) MERGED + pushed (origin/lp/intake-w56 @ 6a9b7af7); W6e device-marker in flight
+## ✅ WAVES 5+6 COMPLETE — 8 lanes merged + pushed (origin/lp/intake-w56 @ 2faf5132)
+
+**8 lanes:** W5c key-sharing · W5a phone-mode · W5b welcome-journey · W6c it-pack · W6a kpi-strip · W6b relay-hardening · W6d a11y-audit · **W6e device-marker** (coordinator-added leaked-link flag).
+**Final full-tree gate (8 lanes):** tsc 0 · typecheck:tests 0 · backend typecheck 0 · lint "No ESLint regression" · i18n complete · wire-contracts + TS↔Rust command-contracts pass · brand/identity/parity/provider/consent/case pass · **backend bun 226/226** · **frontend vitest 519/519** (74 files) · **intake-page playwright 25/25** · **cargo check GREEN** (Rust compiles against the tree) · cargo test (intake+mail Rust) on private CARGO_TARGET_DIR (shared dir untouched, per coordinator).
+**Every lane's adversarial codex-review found real bugs** (key-sharing 2 rounds: matter-key AAD backward-compat regression + ack data-loss; kpi dead completion metric; relay per-IP-bucket collapse behind proxy; a11y progress-dot state race; device-marker localStorage-blocked page break). All fixed + tested. Independent verify repeatedly caught what Codex self-reported as green.
+**Coordinator-gated (post-merge):** two-advisor decrypt (W5c), real-device a11y (W6d), relay soak (W6b) — scheduled with the Track-2 bench window after the practice milestone.
+
+## (superseded) 7-lane checkpoint @ 6a9b7af7
 
 **Final full-tree gate (all 7 lanes):** tsc 0 err · typecheck:tests 0 err · backend typecheck 0 err · lint "No ESLint regression" · i18n completeness ✅ · wire-contracts ✅ · TS↔Rust command-contracts ✅ · provider/consent/case/brand/identity/parity ✅ · **backend bun 226/226** · **frontend vitest 517/517** (73 files, changed areas).
 **Cargo:** ZERO Rust/Cargo/src-tauri files changed across all 7 lanes (git-confirmed) → Rust binary byte-identical to lp/intake; TS↔Rust contract check passes. Full cargo recompile intentionally NOT forced (no coverage of these lanes + 2 concurrent Rust builds on the box = earlyoom kill risk). Can run on a private target later if belt-and-suspenders wanted.
