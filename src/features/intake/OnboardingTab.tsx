@@ -18,6 +18,7 @@ import { reconstructAdvisorIntakeLink } from '@/platform/intake/advisorIntakeLin
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { LinkLifecyclePanel } from './LinkLifecyclePanel';
 import { EmailReplyProposalCard } from './EmailReplyProposalCard';
+import { DocumentExtractionReviewPanel } from './DocumentExtractionReviewPanel';
 import { EmailReplyQuarantinePanel } from './EmailReplyQuarantinePanel';
 import { PhoneWalkthrough } from './PhoneWalkthrough';
 
@@ -282,6 +283,16 @@ export function OnboardingTab({
               }}
             />
             <EmailReplyQuarantinePanel matterId={matterId} advisorId={advisorId} />
+            <DocumentExtractionReviewPanel
+              matterId={matterId}
+              advisorId={advisorId}
+              onAccepted={() => {
+                setRevealed({});
+                void reloadFacts().catch((error: unknown) => {
+                  handleAsyncError(error, 'Could not load facts.');
+                });
+              }}
+            />
             {intake.items.map((item) => (
               <div
                 key={item.itemId}
