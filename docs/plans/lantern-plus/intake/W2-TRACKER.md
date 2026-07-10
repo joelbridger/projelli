@@ -7,7 +7,7 @@
 
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
-| 0 | contract-model + live-sync | `~/lp-w2-0` | `lp/intake-w2-0` | DONE-EXIT:0 | lead PASS + 3 findings | codex-review: 4 findings (2 P1 lead missed) | `4a4729c2` (pre-fix) | FIX ROUND running (`briefs/w2-0-fix.md`) |
+| 0 | contract-model + live-sync | `~/lp-w2-0` | `lp/intake-w2-0` | DONE-EXIT:0 | lead PASS + 3 findings | codex-review: 4 findings (2 P1 lead missed) | in `cc1db61a` | **MERGED** |
 | 1 | board-ui | `~/lp-w2-1` | `lp/intake-w2-1` | — | — | — | — | queued (after Lane 0) |
 | 2 | link-lifecycle | `~/lp-w2-2` | `lp/intake-w2-2` | — | — | — | — | queued (after Lane 0) |
 | 3 | nudges + E2E | `~/lp-w2-3` | `lp/intake-w2-3` | — | — | — | — | queued (last) |
