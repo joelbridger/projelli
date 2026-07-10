@@ -1,6 +1,6 @@
 {
  "updated": "2026-07-10",
- "version": 2,
+ "version": 3,
  "flywheel": "Everything you send and produce lands back in the client's file \u2014 the map gets smarter with every step.",
  "stages": [
   {
@@ -10,45 +10,61 @@
    "icon": "\ud83d\udd0c",
    "story": "One-time setup: plug in the tools the firm already uses.",
    "arrow": "your data starts flowing in",
-   "features": [
+   "groups": [
     {
-     "name": "Outlook/M365, Gmail, IMAP email connectors",
-     "status": "shipped"
+     "label": "Live today",
+     "features": [
+      {
+       "name": "Outlook/M365, Gmail, IMAP email connectors",
+       "status": "shipped",
+       "hero": true
+      },
+      {
+       "name": "Calendar connectors (Outlook, Google, ICS)",
+       "status": "shipped"
+      },
+      {
+       "name": "OneDrive / SharePoint",
+       "status": "shipped"
+      },
+      {
+       "name": "Wealthbox CRM (read)",
+       "status": "shipped"
+      },
+      {
+       "name": "Calendly connector (import events)",
+       "status": "shipped"
+      },
+      {
+       "name": "Recognized RightCapital / Jump exports",
+       "status": "shipped",
+       "note": "honest provenance"
+      }
+     ]
     },
     {
-     "name": "Calendar connectors (Outlook, Google, ICS)",
-     "status": "shipped"
+     "label": "Unlocking (vendor keys)",
+     "features": [
+      {
+       "name": "DocuSign, Salesforce, Redtail",
+       "status": "building",
+       "note": "awaiting vendor credentials"
+      },
+      {
+       "name": "Addepar, Box, Jotform, ShareFile, Zocks",
+       "status": "building",
+       "note": "gated on vendor credentials"
+      }
+     ]
     },
     {
-     "name": "OneDrive / SharePoint",
-     "status": "shipped"
-    },
-    {
-     "name": "Wealthbox CRM (read)",
-     "status": "shipped"
-    },
-    {
-     "name": "Calendly connector (import events)",
-     "status": "shipped"
-    },
-    {
-     "name": "Recognized RightCapital / Jump exports",
-     "status": "shipped",
-     "note": "honest provenance"
-    },
-    {
-     "name": "DocuSign, Salesforce, Redtail",
-     "status": "building",
-     "note": "awaiting vendor credentials"
-    },
-    {
-     "name": "Addepar, Box, Jotform, ShareFile, Zocks",
-     "status": "building",
-     "note": "gated on vendor credentials"
-    },
-    {
-     "name": "Clio, iManage/NetDocuments, Office add-ins",
-     "status": "planned"
+     "label": "On the roadmap",
+     "features": [
+      {
+       "name": "Clio, iManage/NetDocuments, Office add-ins",
+       "status": "planned"
+      }
+     ]
     }
    ]
   },
@@ -59,57 +75,74 @@
    "icon": "\ud83d\udeaa",
    "story": "A household says yes. Lantern Intake gets their whole life into the practice.",
    "arrow": "their documents and answers arrive",
-   "features": [
+   "groups": [
     {
-     "name": "New client creation, auto-foldered documents",
-     "status": "shipped",
-     "note": "fixed this week"
+     "label": "Working today",
+     "features": [
+      {
+       "name": "New client creation, auto-foldered documents",
+       "status": "shipped",
+       "note": "fixed this week"
+      }
+     ]
     },
     {
-     "name": "One-link E2EE intake, no account, mobile-first",
-     "status": "planned",
-     "note": "flagship"
+     "label": "Lantern Intake \u2014 the flagship plan",
+     "features": [
+      {
+       "name": "One-link E2EE intake, no account, mobile-first",
+       "status": "planned",
+       "note": "flagship",
+       "hero": true
+      },
+      {
+       "name": "Magic form v1",
+       "status": "planned",
+       "note": "DOB, SSN, DL scans, spending, income"
+      },
+      {
+       "name": "Email-native fallback intake",
+       "status": "planned",
+       "note": "reply to email, auto-checked off"
+      },
+      {
+       "name": "Phone-walkthrough mode",
+       "status": "planned"
+      },
+      {
+       "name": "Document Detective",
+       "status": "planned",
+       "note": "AI flags missing statements live"
+      },
+      {
+       "name": "Ask-once prefill",
+       "status": "planned",
+       "note": "intake answers feed Schwab, ACATS, RightCapital"
+      }
+     ]
     },
     {
-     "name": "Magic form v1",
-     "status": "planned",
-     "note": "DOB, SSN, DL scans, spending, income"
-    },
-    {
-     "name": "Onboarding board",
-     "status": "planned",
-     "note": "progress, days-stalled, nudges"
-    },
-    {
-     "name": "Onboarding tab for in-process clients",
-     "status": "planned"
-    },
-    {
-     "name": "Email-native fallback intake",
-     "status": "planned",
-     "note": "reply to email, auto-checked off"
-    },
-    {
-     "name": "Phone-walkthrough mode",
-     "status": "planned"
-    },
-    {
-     "name": "Ask-once prefill",
-     "status": "planned",
-     "note": "intake answers feed Schwab, ACATS, RightCapital"
-    },
-    {
-     "name": "Document Detective",
-     "status": "planned",
-     "note": "AI flags missing statements live"
-    },
-    {
-     "name": "Welcome journey / expectation-setting",
-     "status": "planned"
-    },
-    {
-     "name": "ACATS transfer autopilot",
-     "status": "planned"
+     "label": "Running the process",
+     "features": [
+      {
+       "name": "Onboarding board",
+       "status": "planned",
+       "note": "progress, days-stalled, nudges",
+       "hero": true
+      },
+      {
+       "name": "Onboarding tab for in-process clients",
+       "status": "planned"
+      },
+      {
+       "name": "Welcome journey / expectation-setting",
+       "status": "planned"
+      },
+      {
+       "name": "ACATS transfer autopilot",
+       "status": "planned"
+      }
+     ]
     }
    ]
   },
@@ -120,46 +153,62 @@
    "icon": "\ud83d\uddfa\ufe0f",
    "story": "Everything lands in the right household, gets read, and becomes a living Client Map.",
    "arrow": "you walk into the meeting prepared",
-   "features": [
+   "groups": [
     {
-     "name": "Client & household hub",
-     "status": "shipped"
+     "label": "The Client Map",
+     "features": [
+      {
+       "name": "Auto-built cited Client Map (docs, email, connectors)",
+       "status": "shipped",
+       "hero": true
+      },
+      {
+       "name": "Client Map templates by profession",
+       "status": "shipped"
+      },
+      {
+       "name": "Guided interview to fill map gaps",
+       "status": "shipped"
+      },
+      {
+       "name": "Compliance / privilege notes on client",
+       "status": "shipped"
+      }
+     ]
     },
     {
-     "name": "Auto-built cited Client Map (docs, email, connectors)",
-     "status": "shipped"
+     "label": "Everything in its place",
+     "features": [
+      {
+       "name": "Client & household hub",
+       "status": "shipped"
+      },
+      {
+       "name": "Client-scoped folder/account mapping",
+       "status": "shipped"
+      },
+      {
+       "name": "Bulk actions & bulk client assignment",
+       "status": "shipped"
+      }
+     ]
     },
     {
-     "name": "Client Map templates by profession",
-     "status": "shipped"
-    },
-    {
-     "name": "Guided interview to fill map gaps",
-     "status": "shipped"
-    },
-    {
-     "name": "Compliance / privilege notes on client",
-     "status": "shipped"
-    },
-    {
-     "name": "Client-scoped folder/account mapping",
-     "status": "shipped"
-    },
-    {
-     "name": "Bulk actions & bulk client assignment",
-     "status": "shipped"
-    },
-    {
-     "name": "OCR for scanned PDFs",
-     "status": "shipped"
-    },
-    {
-     "name": "Full-text + semantic search",
-     "status": "shipped"
-    },
-    {
-     "name": "Encrypted local mail store",
-     "status": "shipped"
+     "label": "Every file understood",
+     "features": [
+      {
+       "name": "OCR for scanned PDFs",
+       "status": "shipped"
+      },
+      {
+       "name": "Full-text + semantic search",
+       "status": "shipped"
+      },
+      {
+       "name": "Encrypted local mail store",
+       "status": "shipped"
+      }
+     ]
     }
    ]
   },
@@ -170,37 +219,53 @@
    "icon": "\ud83d\udcc5",
    "story": "Scheduling, prep, and capture wrap around every client meeting.",
    "arrow": "what was said becomes part of the file",
-   "features": [
+   "groups": [
     {
-     "name": "Booking-link scheduling page",
-     "status": "building",
-     "note": "public page needs go-ahead"
+     "label": "Before the meeting",
+     "features": [
+      {
+       "name": "Auto \"before you meet\" prep briefs",
+       "status": "shipped",
+       "hero": true
+      },
+      {
+       "name": "Auto pre-meeting brief workflow",
+       "status": "shipped",
+       "note": "runs headlessly"
+      },
+      {
+       "name": "Booking-link scheduling page",
+       "status": "building",
+       "note": "public page needs go-ahead"
+      }
+     ]
     },
     {
-     "name": "Auto \"before you meet\" prep briefs",
-     "status": "shipped"
+     "label": "In the meeting",
+     "features": [
+      {
+       "name": "Auto-join & transcript capture",
+       "status": "shipped"
+      },
+      {
+       "name": "Recording consent tracking",
+       "status": "shipped",
+       "note": "state-law aware"
+      },
+      {
+       "name": "Speaker / voiceprint identification",
+       "status": "shipped"
+      }
+     ]
     },
     {
-     "name": "Auto pre-meeting brief workflow",
-     "status": "shipped",
-     "note": "runs headlessly"
-    },
-    {
-     "name": "Auto-join & transcript capture",
-     "status": "shipped"
-    },
-    {
-     "name": "Recording consent tracking",
-     "status": "shipped",
-     "note": "state-law aware"
-    },
-    {
-     "name": "Speaker / voiceprint identification",
-     "status": "shipped"
-    },
-    {
-     "name": "Meeting notes send/file to client",
-     "status": "shipped"
+     "label": "After the meeting",
+     "features": [
+      {
+       "name": "Meeting notes send/file to client",
+       "status": "shipped"
+      }
+     ]
     }
    ]
   },
@@ -211,44 +276,60 @@
    "icon": "\ud83d\udcac",
    "story": "Questions get cited answers from the client's file \u2014 or the whole practice.",
    "arrow": "answers turn into real work",
-   "features": [
+   "groups": [
     {
-     "name": "Cited AI chat over workspace + connectors",
-     "status": "shipped"
+     "label": "The answer",
+     "features": [
+      {
+       "name": "Cited AI chat over workspace + connectors",
+       "status": "shipped",
+       "hero": true
+      },
+      {
+       "name": "Whole-practice Ask (cross-client)",
+       "status": "shipped"
+      },
+      {
+       "name": "Source panel with verified citations",
+       "status": "shipped"
+      }
+     ]
     },
     {
-     "name": "Whole-practice Ask (cross-client)",
-     "status": "shipped"
+     "label": "Honesty built in",
+     "features": [
+      {
+       "name": "Answer receipts (what left your machine)",
+       "status": "shipped",
+       "note": "landed this week"
+      },
+      {
+       "name": "Honest \"no source\" labeling",
+       "status": "shipped"
+      },
+      {
+       "name": "Confidentiality-aware answer routing",
+       "status": "shipped",
+       "note": "local / direct / assured"
+      },
+      {
+       "name": "Stale-plan warnings on recognized exports",
+       "status": "shipped"
+      }
+     ]
     },
     {
-     "name": "Source panel with verified citations",
-     "status": "shipped"
-    },
-    {
-     "name": "Confidentiality-aware answer routing",
-     "status": "shipped",
-     "note": "local / direct / assured"
-    },
-    {
-     "name": "Answer receipts (what left your machine)",
-     "status": "shipped",
-     "note": "landed this week"
-    },
-    {
-     "name": "Honest \"no source\" labeling",
-     "status": "shipped"
-    },
-    {
-     "name": "Stale-plan warnings on recognized exports",
-     "status": "shipped"
-    },
-    {
-     "name": "Saved AI chats as files",
-     "status": "shipped"
-    },
-    {
-     "name": "Cost / usage dashboard",
-     "status": "shipped"
+     "label": "Working with answers",
+     "features": [
+      {
+       "name": "Saved AI chats as files",
+       "status": "shipped"
+      },
+      {
+       "name": "Cost / usage dashboard",
+       "status": "shipped"
+      }
+     ]
     }
    ]
   },
@@ -259,76 +340,98 @@
    "icon": "\ud83d\udcc4",
    "story": "Plans, letters, reviews \u2014 Word-native documents, drafted and redlined with AI.",
    "arrow": "finished work goes back out",
-   "features": [
+   "groups": [
     {
-     "name": "In-house OOXML .docx engine",
-     "status": "shipped",
-     "note": "tracked changes"
+     "label": "Word-native editing",
+     "features": [
+      {
+       "name": "In-house OOXML .docx engine",
+       "status": "shipped",
+       "note": "tracked changes",
+       "hero": true
+      },
+      {
+       "name": "AI redline (propose, accept/reject)",
+       "status": "shipped"
+      },
+      {
+       "name": "Version history",
+       "status": "shipped",
+       "note": "binary-safe for .docx"
+      }
+     ]
     },
     {
-     "name": "AI redline (propose, accept/reject)",
-     "status": "shipped"
+     "label": "Lantern Forms \u2014 new plan",
+     "features": [
+      {
+       "name": "Form builder (create fillable forms)",
+       "status": "planned",
+       "note": "Lantern Forms: build a form, send to any client",
+       "hero": true
+      },
+      {
+       "name": "Fill & sign imported PDF forms",
+       "status": "planned",
+       "note": "firm templates or downloads, e.g. Schwab"
+      },
+      {
+       "name": "E-signature on forms (DocuSign)",
+       "status": "planned",
+       "note": "connector code-complete, awaiting credentials"
+      }
+     ]
     },
     {
-     "name": "Form builder (create fillable forms)",
-     "status": "planned",
-     "note": "Lantern Forms: build a form, send to any client"
+     "label": "Workflows & templates",
+     "features": [
+      {
+       "name": "Advisor workflow template pack",
+       "status": "shipped"
+      },
+      {
+       "name": "Legal / Tax / Consulting packs",
+       "status": "shipped"
+      },
+      {
+       "name": "Custom & duplicated templates",
+       "status": "shipped"
+      },
+      {
+       "name": "Template marketplace",
+       "status": "shipped"
+      },
+      {
+       "name": "Chain builder for multi-step workflows",
+       "status": "shipped"
+      },
+      {
+       "name": "Export to Word / PowerPoint",
+       "status": "shipped"
+      }
+     ]
     },
     {
-     "name": "Fill & sign imported PDF forms",
-     "status": "planned",
-     "note": "firm templates or downloads, e.g. Schwab"
-    },
-    {
-     "name": "E-signature on forms (DocuSign)",
-     "status": "planned",
-     "note": "connector code-complete, awaiting credentials"
-    },
-    {
-     "name": "Advisor workflow template pack",
-     "status": "shipped"
-    },
-    {
-     "name": "Legal / Tax / Consulting packs",
-     "status": "shipped"
-    },
-    {
-     "name": "Custom & duplicated templates",
-     "status": "shipped"
-    },
-    {
-     "name": "Template marketplace",
-     "status": "shipped"
-    },
-    {
-     "name": "Chain builder for multi-step workflows",
-     "status": "shipped"
-    },
-    {
-     "name": "Export to Word / PowerPoint",
-     "status": "shipped"
-    },
-    {
-     "name": "Version history",
-     "status": "shipped",
-     "note": "binary-safe for .docx"
-    },
-    {
-     "name": "File tree, trash, restore",
-     "status": "shipped"
-    },
-    {
-     "name": "Quick-open fuzzy file search",
-     "status": "shipped"
-    },
-    {
-     "name": "Markdown/text/JSON utility editor",
-     "status": "shipped"
-    },
-    {
-     "name": "Spreadsheet / presentation viewers",
-     "status": "shipped",
-     "note": "slides preview-only"
+     "label": "Files & utilities",
+     "features": [
+      {
+       "name": "File tree, trash, restore",
+       "status": "shipped"
+      },
+      {
+       "name": "Quick-open fuzzy file search",
+       "status": "shipped"
+      },
+      {
+       "name": "Markdown/text/JSON utility editor",
+       "status": "shipped"
+      },
+      {
+       "name": "Spreadsheet / presentation viewers",
+       "status": "shipped",
+       "note": "slides preview-only"
+      }
+     ]
     }
    ]
   },
@@ -339,43 +442,59 @@
    "icon": "\ud83d\udce4",
    "story": "Approved updates flow to the CRM, custodian paperwork, email, and planning tools.",
    "arrow": "",
-   "features": [
+   "groups": [
     {
-     "name": "CRM write-back review card",
-     "status": "shipped",
-     "note": "approval-gated, backend-verified"
+     "label": "To the CRM & custodian",
+     "features": [
+      {
+       "name": "CRM write-back review card",
+       "status": "shipped",
+       "note": "approval-gated, backend-verified",
+       "hero": true
+      },
+      {
+       "name": "Schwab account-opening prefill",
+       "status": "building",
+       "note": "approved program"
+      },
+      {
+       "name": "RightCapital / Holistiplan write-back sockets",
+       "status": "planned"
+      }
+     ]
     },
     {
-     "name": "Reply drafting & send",
-     "status": "shipped"
+     "label": "To the client",
+     "features": [
+      {
+       "name": "Reply drafting & send",
+       "status": "shipped"
+      },
+      {
+       "name": "AI follow-up draft assist",
+       "status": "shipped"
+      },
+      {
+       "name": "Form requests to existing clients",
+       "status": "planned",
+       "note": "send, track, returned into the client file"
+      },
+      {
+       "name": "Cited email search & browse",
+       "status": "shipped",
+       "note": "find it before you send it"
+      }
+     ]
     },
     {
-     "name": "AI follow-up draft assist",
-     "status": "shipped"
-    },
-    {
-     "name": "Form requests to existing clients",
-     "status": "planned",
-     "note": "send, track, returned into the client file"
-    },
-    {
-     "name": "Cited email search & browse",
-     "status": "shipped",
-     "note": "find it before you send it"
-    },
-    {
-     "name": "Schwab account-opening prefill",
-     "status": "building",
-     "note": "approved program"
-    },
-    {
-     "name": "RightCapital / Holistiplan write-back sockets",
-     "status": "planned"
-    },
-    {
-     "name": "Integration Honesty Cards",
-     "status": "planned",
-     "note": "exactly what each connector touches"
+     "label": "Trust in every write",
+     "features": [
+      {
+       "name": "Integration Honesty Cards",
+       "status": "planned",
+       "note": "exactly what each connector touches"
+      }
+     ]
     }
    ]
   }
