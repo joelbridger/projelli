@@ -22,6 +22,11 @@
 - **Sidecar binaries gap (fixed in lp-intake + lp-w1-D):** fresh `lp-*` worktrees lack `src-tauri/binaries/*` (piper/espeak/ggml/llama — gitignored). Cargo build script fails `resource path binaries/piper-... doesn't exist`. Fix: `cp -a ~/lp-ux-integrate/src-tauri/binaries/. <worktree>/src-tauri/binaries/`. (Same class as the OCR-wasm gap.)
 - **Baseline cargo flake (pre-existing, NOT intake):** `commands::mail::tests::backfill_marker_set_is_idempotent_and_clearable` fails under the parallel `cargo test --workspace` run (leaked marker state: `Some("1")` vs `None`) but **passes in isolation** (`--test-threads=1 --exact`). Treat as a known baseline flake; when Lane D's cargo runs, re-run this one in isolation if it appears — it is not a Lane D regression (Lane D adds new `commands::intake` tests).
 
+## Cross-lane integration seams (VERIFY at D/E review + Legion bench)
+- **C↔D page-seal format:** Lane C `intake-page/src/pageCrypto.ts` seals the k_page checklist/state as `[1B ver=1][12B IV][AES-GCM ct+tag]`, NO AAD, base64. Lane D (advisor mint + regenerate re-seal) MUST produce byte-identical output or the page can't decrypt the bundle. VERIFY at Lane D review; if they differ, unify into one shared helper (ideally promote to `src/platform/intake`). (Both currently duplicate the format — Lane A only shared the item-chunk seal, which has AAD; the page seal was not a Lane A export.)
+- **C↔E same-origin relay:** Lane C `relayClient.ts` uses RELATIVE URLs (`/intake/...`) → same-origin only (correct, keeps CSP `connect-src 'self'`, no CORS). This REQUIRES Lane E to serve the page AND reverse-proxy `/intake/*` to the relay on the same origin. VERIFY at Lane E review; if E deploys page + relay as separate origins without a proxy, the relative URLs break (reconcile: same-origin proxy, or configured relay base + CSP pin).
+- **Lane C cleanliness:** committed `intake-page/dist/` and `intake-page/test-results/` (build output) — gitignore or `git rm` before/at merge.
+
 ## Pending sync (coordinator note, 2026-07-10)
 - Pull `docs/plans/lantern-plus/intake/W2-PREP.md` + `docs/trust/it-pack/INTAKE-IT-PACK.md` from `lp/ux-simplify-v1` (`f9228650`) into `lp/intake` at the next clean sync point — AFTER the Wave 1 lanes merge (avoid stirring base drift into in-flight lane merges). Fold in during Wave 1 wrap.
 
