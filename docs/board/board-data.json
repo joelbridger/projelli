@@ -1,17 +1,17 @@
 {
   "meta": {
-    "title": "Lantern — Project Board",
-    "subtitle": "The private, local-first client-intelligence app for financial advisors — internal build board",
-    "framing": "Jameson = Board of Directors  ·  Claude = CEO reporting in",
+    "title": "Lantern \u2014 Project Board",
+    "subtitle": "The private, local-first client-intelligence app for financial advisors \u2014 internal build board",
+    "framing": "Jameson = Board of Directors  \u00b7  Claude = CEO reporting in",
     "lastUpdated": "July 9, 2026",
-    "headline": "NEW (2026-07-09) — THE WEDGE IS COMPLIANCE. Live advisor research (design-partner onboarding, 2026-07-08) confirmed the real buying gate: an advisor cannot put client data into ChatGPT, and compliance approval comes BEFORE any interest in features. Lantern's local-first architecture IS the answer to that #1 pain — so the pitch now leads with it: 'The AI you're actually allowed to use with client data.' Everything about the client stays on the advisor's own machine; answers come with citations. Current thrust: (1) a polished Compliance & Security pack an advisor can hand straight to their compliance officer (the gate-opener), (2) a reframed onboarding that leads with the compliance answer, (3) closing Jump feature-parity where it matters — calendar/scheduling + account-opening prefill — as a simple, AI-first app, NOT a 'connect 60 things' note-taker. Go-to-market is design-partner-led and XYPN-approved-list first. This refines the 2026-06-29 'compete head-on as the leading, simple, AI-first advisor app' stance (still in force); it does NOT retreat to a niche.",
+    "headline": "NEW (2026-07-09) \u2014 THE WEDGE IS COMPLIANCE. Live advisor research (design-partner onboarding, 2026-07-08) confirmed the real buying gate: an advisor cannot put client data into ChatGPT, and compliance approval comes BEFORE any interest in features. Lantern's local-first architecture IS the answer to that #1 pain \u2014 so the pitch now leads with it: 'The AI you're actually allowed to use with client data.' Everything about the client stays on the advisor's own machine; answers come with citations. Current thrust: (1) a polished Compliance & Security pack an advisor can hand straight to their compliance officer (the gate-opener), (2) a reframed onboarding that leads with the compliance answer, (3) closing Jump feature-parity where it matters \u2014 calendar/scheduling + account-opening prefill \u2014 as a simple, AI-first app, NOT a 'connect 60 things' note-taker. Go-to-market is design-partner-led and XYPN-approved-list first. This refines the 2026-06-29 'compete head-on as the leading, simple, AI-first advisor app' stance (still in force); it does NOT retreat to a niche.",
     "updateRule": "High bar: a Claude session only updates this for a MAJOR decision, a validated insight, a strategy shift, or a real milestone. Routine work never touches it. Jameson maintains it freely."
   },
   "sections": [
     {
       "id": "strategy",
       "title": "Strategy & Vision",
-      "icon": "🧭",
+      "icon": "\ud83e\udded",
       "status": "Compliance-led, competing head-on",
       "now": "Compliance is now the wedge: live advisor research on 2026-07-08 showed the first buying gate is 'can we use it?' before 'what does it do?' Lantern leads with 'The AI you're actually allowed to use with client data': local-first, cited answers, and client files kept on the advisor's own machine. Lantern is the internal name for the platform; advisors see the product as **Advisor Prep Hero** (advisorprephero.com). The 2026-06-29 stance still holds: compete head-on with Jump as a simple, powerful, AI-first advisor app, not a note-taker; start with solo and small fee-only RIAs; make local-first the proof, not a slogan.",
       "decisions": [
@@ -33,19 +33,19 @@
       ],
       "links": [
         {
-          "label": "🌙 Night Review — full current snapshot (2026-07-09)",
+          "label": "\ud83c\udf19 Night Review \u2014 full current snapshot (2026-07-09)",
           "doc": "night-review.html"
         },
         {
-          "label": "🧭 Product Strategy — vision, personas, metrics, prioritization, roadmap",
+          "label": "\ud83e\udded Product Strategy \u2014 vision, personas, metrics, prioritization, roadmap",
           "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-product-strategy.html"
         },
         {
-          "label": "🛠️ Re-Aim Build Brief — the technical legal→advisor plan",
+          "label": "\ud83d\udee0\ufe0f Re-Aim Build Brief \u2014 the technical legal\u2192advisor plan",
           "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html"
         },
         {
-          "label": "📣 CEO Brief — getting & keeping paying advisors",
+          "label": "\ud83d\udce3 CEO Brief \u2014 getting & keeping paying advisors",
           "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-ceo-brief-get-keep-customers.html"
         }
       ]
@@ -53,9 +53,9 @@
     {
       "id": "competitive",
       "title": "Competitive & Market",
-      "icon": "♟️",
+      "icon": "\u265f\ufe0f",
       "status": "Head-on, compliance-led",
-      "now": "The market read is now sharper: Lantern competes head-on with Jump, but not by becoming a bigger note-taker or a “connect 60 things” hub. The opening is a simple AI-first product that an advisor can actually get approved to use with client data, backed by local-first architecture and citations.",
+      "now": "The market read is now sharper: Lantern competes head-on with Jump, but not by becoming a bigger note-taker or a \u201cconnect 60 things\u201d hub. The opening is a simple AI-first product that an advisor can actually get approved to use with client data, backed by local-first architecture and citations.",
       "decisions": [
         "Keep the 2026-06-29 head-on stance: be the leading simple advisor AI, not a niche retreat and not a note-taking clone.",
         "Close Jump parity where it matters for the buyer: scheduling/calendar and account-opening prefill, while keeping the product simpler and more AI-first.",
@@ -63,19 +63,19 @@
         "Keep connector breadth honest: live connection, export folder, and prepare-and-handoff are all valid modes; do not promise blocked partner integrations as if they are already live."
       ],
       "insights": [
-        "Jameson’s firsthand Jump read remains useful: Jump has adoption, but its AI is scattered in the product and still tied to notes, forms, and workflows.",
-        "The advisor research validates the compliance difference: the default blocked tool in the advisor’s mind is ChatGPT with client data.",
-        "Jump’s XYPN path is a clue, not trivia. Trusted-list access can be more important than ordinary marketing for small RIAs.",
+        "Jameson\u2019s firsthand Jump read remains useful: Jump has adoption, but its AI is scattered in the product and still tied to notes, forms, and workflows.",
+        "The advisor research validates the compliance difference: the default blocked tool in the advisor\u2019s mind is ChatGPT with client data.",
+        "Jump\u2019s XYPN path is a clue, not trivia. Trusted-list access can be more important than ordinary marketing for small RIAs.",
         "Schwab and other custodian integrations have two layers: useful prepare/prefill work can happen now, while true one-click partner integrations require long approval paths.",
         "FutureVault and other vault-style tools remain market intel, but the current product is an AI-first client intelligence app, not a document vault."
       ],
       "links": [
         {
-          "label": "🌙 Night Review — latest competitive and build snapshot",
+          "label": "\ud83c\udf19 Night Review \u2014 latest competitive and build snapshot",
           "doc": "night-review.html"
         },
         {
-          "label": "⚔️ FutureVault — archived competitor read",
+          "label": "\u2694\ufe0f FutureVault \u2014 archived competitor read",
           "doc": "proof-sprint-futurevault.html"
         }
       ]
@@ -83,8 +83,8 @@
     {
       "id": "compliance",
       "title": "Compliance & Security",
-      "icon": "🛡️",
-      "status": "The gate-opener — pack drafted",
+      "icon": "\ud83d\udee1\ufe0f",
+      "status": "The gate-opener \u2014 pack drafted",
       "now": "Compliance approval is the first buying gate. Lantern's local-first design is the structural answer: client files stay on the advisor's machine by default, the firm controls which AI provider and key are used, and the advisor gets a pack they can hand to their compliance officer. The SEC/RIA research says the concrete bar is the 2024 Reg S-P amendments; there is no explicit AI-software rule, but vendor review, safeguards, incident response, and recordkeeping still matter. The target reviewer pattern is a CCO or an outside consultant such as Synergy Compliance.",
       "decisions": [
         "Build a polished CCO-facing Compliance & Security pack and keep it as the onboarding gate-opener; the draft lives under docs/partnerships/compliance-pack/ in the Lantern app repo.",
@@ -103,11 +103,11 @@
       ],
       "links": [
         {
-          "label": "🛡️ Compliance & Security Pack — hand this to the compliance officer",
+          "label": "\ud83d\udee1\ufe0f Compliance & Security Pack \u2014 hand this to the compliance officer",
           "doc": "compliance-pack.html"
         },
         {
-          "label": "📋 SEC/RIA compliance research — current review context inside the night review",
+          "label": "\ud83d\udccb SEC/RIA compliance research \u2014 current review context inside the night review",
           "doc": "night-review.html"
         }
       ]
@@ -115,34 +115,34 @@
     {
       "id": "roadmap",
       "title": "Roadmap",
-      "icon": "🗺️",
+      "icon": "\ud83d\uddfa\ufe0f",
       "type": "roadmap",
       "status": "Compliance reframe + Jump parity",
       "now": "The current roadmap is the July 9 push: show the compliance-led onboarding, close the few Jump-parity gaps that matter for the demo, and keep the release path reliable. Anything stale, speculative, or already shipped moves out of the active plan.",
       "lanes": [
         {
-          "label": "SHIPPED — demo and UI foundation",
+          "label": "SHIPPED \u2014 demo and UI foundation",
           "tone": "good",
           "items": [
             "Two full UI feedback rounds shipped; preview v2 is live on the Legion with 7,108 tests plus guards green.",
-            "Swappable brand system restored Advisor Prep Hero; Notice Card product branding now shows “⏺ Recording · Advisor Prep Hero.”",
-            "Clean-slate demo state verified on the Legion, including cleared old keychain tokens and local storage while leaving local AI ready by Jameson’s choice.",
+            "Swappable brand system restored Advisor Prep Hero; Notice Card product branding now shows \u201c\u23fa Recording \u00b7 Advisor Prep Hero.\u201d",
+            "Clean-slate demo state verified on the Legion, including cleared old keychain tokens and local storage while leaving local AI ready by Jameson\u2019s choice.",
             "Unified rail widths, restored intro visuals, connector logos in the connect step, and the add-client flow/groups passed review.",
             "R17 deep-test fixes landed for the documents tab, local-AI download plus citations, Outlook reconnect, and OneDrive import."
           ]
         },
         {
-          "label": "IN FLIGHT — compliance story + Jump parity",
+          "label": "IN FLIGHT \u2014 compliance story + Jump parity",
           "tone": "warn",
           "items": [
-            "Reframed onboarding on feat/onboarding-reframe: compliance-led hero, ComplianceScene, “For your compliance officer” CTA, consumer provider names, shield icon, and re-findable tour. Built and gate green, not merged; present first.",
+            "Reframed onboarding on feat/onboarding-reframe: compliance-led hero, ComplianceScene, \u201cFor your compliance officer\u201d CTA, consumer provider names, shield icon, and re-findable tour. Built and gate green, not merged; present first.",
             "Calendar/scheduling on feat/calendly-scheduling: availability engine, top-bar calendar surface, booking-link card, availability, meeting types, and live slot preview. Timezone polish is in flight.",
             "Schwab account-opening prefill on feat/schwab-prefill: Phase 1 has 8 account-type field maps and a prefill flow; typecheck is clean.",
             "Compliance & Security pack plus compliance video script are the active gate-opening collateral."
           ]
         },
         {
-          "label": "NEXT / GATED — needs Jameson or final release call",
+          "label": "NEXT / GATED \u2014 needs Jameson or final release call",
           "tone": "info",
           "items": [
             "Show the reframed onboarding and calendar visuals, then merge them to the preview if Jameson approves.",
@@ -156,7 +156,7 @@
       ],
       "links": [
         {
-          "label": "🌙 Night Review — full current snapshot (2026-07-09)",
+          "label": "\ud83c\udf19 Night Review \u2014 full current snapshot (2026-07-09)",
           "doc": "night-review.html"
         }
       ]
@@ -164,7 +164,7 @@
     {
       "id": "engineering",
       "title": "Engineering",
-      "icon": "⚙️",
+      "icon": "\u2699\ufe0f",
       "status": "Feature-parity push + release hardening",
       "now": "The app is functionally solid on Windows after bench testing; current engineering is closing the Jump gaps that matter and hardening the release path. The active build thrust is calendar write/scopes/booking domain, Schwab account-opening prefill through 8 account-type field maps, and the final signed installer path after Tauri version alignment.",
       "decisions": [
@@ -172,7 +172,7 @@
         "Calendar booking should use Option A: a privacy-preserving public booking page that stores only safe availability data such as advisor slug, bookable windows, and busy/free snapshots, never client files or notes.",
         "Calendar parity needs new write permissions, user reconnect, event creation/update commands, meeting-link creation, and a booking model; existing calendar support is read-only.",
         "Schwab parity starts with useful prefilled paperwork and handoff, while the one-click Schwab Digital Account Opening path remains a long partner-approval track.",
-        "Connector strategy shifts from “blocked” to three honest modes: live connection, export folder, and prepare-and-handoff."
+        "Connector strategy shifts from \u201cblocked\u201d to three honest modes: live connection, export folder, and prepare-and-handoff."
       ],
       "insights": [
         "Existing pieces help the booking work: Outlook/Google/iCloud calendar read, email send, UTC time handling, and the firm backend all exist; availability rules and public booking are the missing pieces.",
@@ -183,11 +183,11 @@
       ],
       "links": [
         {
-          "label": "🌙 Night Review — current engineering snapshot",
+          "label": "\ud83c\udf19 Night Review \u2014 current engineering snapshot",
           "doc": "night-review.html"
         },
         {
-          "label": "🛠️ Re-Aim Build Brief — domain mapping, reuse/relabel/drop, workstreams",
+          "label": "\ud83d\udee0\ufe0f Re-Aim Build Brief \u2014 domain mapping, reuse/relabel/drop, workstreams",
           "doc": "https://jameworld.com/claudereports/r/2026-06-23-keepance-reaim-legal-to-advisors.html"
         }
       ]
@@ -195,7 +195,7 @@
     {
       "id": "design",
       "title": "Design & UX",
-      "icon": "🎨",
+      "icon": "\ud83c\udfa8",
       "status": "Overhaul shipped; design system refreshed",
       "now": "Two rounds of feedback overhaul shipped, and the app is simpler, clearer, and back on the Advisor Prep Hero brand. The design system docs were refreshed after the overhaul. The onboarding reframe is not a new visual direction; it keeps the liked screens and changes the story so compliance comes before setup.",
       "decisions": [
@@ -216,7 +216,7 @@
     {
       "id": "marketing",
       "title": "Marketing",
-      "icon": "📣",
+      "icon": "\ud83d\udce3",
       "status": "Compliance-led GTM",
       "now": "Marketing now leads with the compliance answer, not generic AI value. The public promise is Advisor Prep Hero as 'The AI you're actually allowed to use with client data,' backed by local-first architecture, cited answers, and the CCO pack. The scalable channel target is the XYPN approved list, with design-partner proof, herd-adoption logos, Microsoft-adjacent trust, and compliance-consultant confidence.",
       "decisions": [
@@ -236,7 +236,7 @@
     {
       "id": "sales",
       "title": "Sales",
-      "icon": "🤝",
+      "icon": "\ud83e\udd1d",
       "status": "Design-partner-led",
       "now": "Sales is founder-led and proof-led. Start with the design partner, turn that into a live firm conversation, then use peer referrals and XYPN-style trust paths. The first sale is not a checkout-page problem; it is a permission, compliance, and live-demo problem.",
       "decisions": [
@@ -254,11 +254,11 @@
       ],
       "links": [
         {
-          "label": "🛡️ Compliance & Security Pack — CCO follow-up",
+          "label": "\ud83d\udee1\ufe0f Compliance & Security Pack \u2014 CCO follow-up",
           "doc": "compliance-pack.html"
         },
         {
-          "label": "🌙 Night Review — current sales and demo context",
+          "label": "\ud83c\udf19 Night Review \u2014 current sales and demo context",
           "doc": "night-review.html"
         }
       ]
@@ -266,12 +266,12 @@
     {
       "id": "growth",
       "title": "Growth & Traction",
-      "icon": "📈",
+      "icon": "\ud83d\udcc8",
       "status": "Pre-traction; better wedge",
       "now": "Growth remains pre-revenue and near-zero traction, but the wedge is sharper: advisors want AI they are allowed to use with client data. The current growth plan is not a funnel. It is design-partner learning, compliance approval, firm proof, peer references, and XYPN-style distribution.",
       "decisions": [
         "North Star: weekly active advisors who ran a real client workflow.",
-        "First growth loop: design partner → firm approval → peer referrals → advisor group and XYPN trust paths.",
+        "First growth loop: design partner \u2192 firm approval \u2192 peer referrals \u2192 advisor group and XYPN trust paths.",
         "Build a logo/reference wall only after real firms adopt; do not fake herd safety.",
         "Validate demand through real advisor workflows and compliance conversations before widening traffic."
       ],
@@ -285,28 +285,28 @@
     {
       "id": "testing",
       "title": "Testing",
-      "icon": "🧪",
+      "icon": "\ud83e\uddea",
       "type": "testing",
       "status": "7,108 tests green; Windows bench active",
       "now": "Current evidence: 7,108 tests plus guards green on the UI preview, real-Windows bench QA on the Legion, and the signed-installer pipeline validated. The R17 deep test covered onboarding, all three cloud AI providers, local AI, connectors, real file search, and real cited answers; four bugs were found and fixed. The final signed installer still waits on the pending Tauri version-align fix.",
       "platforms": [
         {
           "os": "Linux",
-          "icon": "🐧",
+          "icon": "\ud83d\udc27",
           "status": "Automated gate green",
           "tone": "good",
           "detail": "The build machine runs the large automated suite. The latest UI preview passed 7,108 tests plus the guard checks, which means the codebase is broadly healthy before it goes to the real Windows bench."
         },
         {
           "os": "Windows",
-          "icon": "🪟",
+          "icon": "\ud83e\ude9f",
           "status": "Bench-verified; final signed cut pending",
           "tone": "warn",
           "detail": "The Legion laptop is the real customer-style check. Clean-slate demo prep, R17 deep testing, connector flows, real file search, and cited answers were driven there. Found bugs were fixed; the remaining release blocker is the final signed-installer/version-align cut."
         },
         {
           "os": "Mac",
-          "icon": "🍎",
+          "icon": "\ud83c\udf4e",
           "status": "Spot-check still needed",
           "tone": "gap",
           "detail": "Mac remains a secondary release confidence check. Keep Windows first because the advisor demo and most advisor environments run there; use the M1 bench before any broad Mac claim."
@@ -316,10 +316,10 @@
     {
       "id": "demo",
       "type": "demo",
-      "icon": "🎬",
+      "icon": "\ud83c\udfac",
       "title": "Demo",
       "status": "Clean-slate design-partner path",
-      "now": "The current demo is the clean-slate Legion walkthrough for the design partner. The 2026-07-08 live walkthrough happened and drove the compliance reframe. The aha path is now: connect AI, import/connect practice data, watch progress, search, get a cited answer, and start a meeting with “⏺ Recording · Advisor Prep Hero” visible in the Notice Card.",
+      "now": "The current demo is the clean-slate Legion walkthrough for the design partner. The 2026-07-08 live walkthrough happened and drove the compliance reframe. The aha path is now: connect AI, import/connect practice data, watch progress, search, get a cited answer, and start a meeting with \u201c\u23fa Recording \u00b7 Advisor Prep Hero\u201d visible in the Notice Card.",
       "intro": "What it proves: Advisor Prep Hero is the private AI an advisor can explain to a compliance officer, then use on real client files to get cited answers and meeting prep without handing the client file pile to Lantern servers.",
       "steps": [
         {
@@ -346,7 +346,7 @@
         {
           "n": "4",
           "title": "Ask, cite, and enter the meeting",
-          "do": "Ask a real pre-meeting question, open the cited source, then show the meeting surface with “⏺ Recording · Advisor Prep Hero” in the Notice Card.",
+          "do": "Ask a real pre-meeting question, open the cited source, then show the meeting surface with \u201c\u23fa Recording \u00b7 Advisor Prep Hero\u201d in the Notice Card.",
           "say": "This is the core loop: ask the client file a question, verify the source, and walk into the meeting already oriented.",
           "proves": "The product delivers the simple AI-first value: cited answers from client records, in the advisor workflow."
         }
@@ -355,7 +355,7 @@
         "Use the clean Legion state for the design-partner demo; old tokens and localStorage were cleared so the first-run path is real.",
         "Lead with the compliance pack before the advisor gets nervous about AI keys.",
         "Use consumer names for AI providers: ChatGPT, Claude, and Gemini.",
-        "End on a cited answer and the meeting Notice Card. That is the strongest “this is useful and allowed” moment."
+        "End on a cited answer and the meeting Notice Card. That is the strongest \u201cthis is useful and allowed\u201d moment."
       ],
       "videos": [
         {
@@ -373,12 +373,12 @@
     {
       "id": "finance",
       "title": "Finance & Metrics",
-      "icon": "💰",
+      "icon": "\ud83d\udcb0",
       "status": "Pre-revenue; pricing open",
       "now": "Keep the numbers honest: Lantern is still pre-revenue with near-zero traction. The current strategy exists because that was true. Pricing remains an open advisor-market question, and the first cohort should test a serious annual tier rather than inherit old pricing by default. The North Star is weekly active advisors who ran a real client workflow.",
       "decisions": [
         "Do not invent traction. Treat the business as pre-revenue until real advisors pay or sign.",
-        "Test higher advisor pricing; the source docs note advisors commonly spend thousands per year on software, so too-low pricing can signal “not serious.”",
+        "Test higher advisor pricing; the source docs note advisors commonly spend thousands per year on software, so too-low pricing can signal \u201cnot serious.\u201d",
         "Keep the data guarantee: customers keep access to their files; paid features and updates can be gated, but their data is not hostage.",
         "Defer SOC 2 spend until a real deal says it is the condition for signing."
       ],
@@ -392,7 +392,7 @@
     {
       "id": "questions",
       "title": "Jameson's Questions",
-      "icon": "❓",
+      "icon": "\u2753",
       "type": "questions",
       "status": "Current go/no-go calls",
       "now": "These are the decisions actually waiting on Jameson now. They are about what goes live, what gets merged, and which go-to-market path to open next; routine build details stay with the AI team.",
@@ -450,30 +450,30 @@
     {
       "id": "persondev",
       "type": "persondev",
-      "icon": "🌱",
+      "icon": "\ud83c\udf31",
       "title": "Personal Development",
       "status": "active",
-      "now": "Jameson's founder-development plan as a checklist. Spend free time on what actually moves Lantern — getting customers and understanding advisors first, then founder craft, then focus and energy.",
-      "intro": "Vetted books, courses, and hands-on moves, prioritized for Lantern. Tick things off as you go — your progress saves automatically in this browser. The deeper 'browse more' libraries are linked at the bottom. The reading is the warm-up; the hands-on moves are the game.",
+      "now": "Jameson's founder-development plan as a checklist. Spend free time on what actually moves Lantern \u2014 getting customers and understanding advisors first, then founder craft, then focus and energy.",
+      "intro": "Vetted books, courses, and hands-on moves, prioritized for Lantern. Tick things off as you go \u2014 your progress saves automatically in this browser. The deeper 'browse more' libraries are linked at the bottom. The reading is the warm-up; the hands-on moves are the game.",
       "groups": [
         {
-          "label": "Do these first — the 3 hands-on moves",
-          "note": "These beat any amount of reading. You have a real advisory firm to learn from — use it.",
+          "label": "Do these first \u2014 the 3 hands-on moves",
+          "note": "These beat any amount of reading. You have a real advisory firm to learn from \u2014 use it.",
           "items": [
             {
               "id": "pd-move-shadow",
               "text": "Shadow your wife's firm: map how their documents & compliance actually work",
-              "note": "Exercises 1–2 · your product spec + first customer chat in one"
+              "note": "Exercises 1\u20132 \u00b7 your product spec + first customer chat in one"
             },
             {
               "id": "pd-move-interviews",
               "text": "Run a 10-advisor discovery sprint (workflow-research calls, not demos)",
-              "note": "Exercise 3 · read The Mom Test first"
+              "note": "Exercise 3 \u00b7 read The Mom Test first"
             },
             {
               "id": "pd-move-paidask",
               "text": "Make the paid design-partner ask to your 3 warmest advisors",
-              "note": "Exercise 6 · $500–$1,500 for 90 days — a real 'yes' is the only honest proof"
+              "note": "Exercise 6 \u00b7 $500\u2013$1,500 for 90 days \u2014 a real 'yes' is the only honest proof"
             }
           ]
         },
@@ -493,25 +493,25 @@
           ]
         },
         {
-          "label": "Getting customers — essentials",
+          "label": "Getting customers \u2014 essentials",
           "note": "Tied #1 priority.",
           "items": [
             {
               "id": "pd-cust-momtest",
-              "text": "Read The Mom Test — Rob Fitzpatrick",
-              "note": "~$15 · how to get honest answers from advisors",
+              "text": "Read The Mom Test \u2014 Rob Fitzpatrick",
+              "note": "~$15 \u00b7 how to get honest answers from advisors",
               "link": "https://www.momtestbook.com/"
             },
             {
               "id": "pd-cust-obviously",
-              "text": "Read Obviously Awesome (+ Sales Pitch) — April Dunford",
-              "note": "~$20 · make advisors instantly 'get' Lantern",
+              "text": "Read Obviously Awesome (+ Sales Pitch) \u2014 April Dunford",
+              "note": "~$20 \u00b7 make advisors instantly 'get' Lantern",
               "link": "https://www.aprildunford.com/books"
             },
             {
               "id": "pd-cust-foundingsales",
-              "text": "Work through Founding Sales — Pete Kazanjy",
-              "note": "free online · selling for non-salespeople",
+              "text": "Work through Founding Sales \u2014 Pete Kazanjy",
+              "note": "free online \u00b7 selling for non-salespeople",
               "link": "https://www.foundingsales.com/"
             },
             {
@@ -523,25 +523,25 @@
           ]
         },
         {
-          "label": "The advisor world — essentials",
+          "label": "The advisor world \u2014 essentials",
           "note": "Tied #1 priority.",
           "items": [
             {
               "id": "pd-adv-kitces",
-              "text": "Live inside Kitces — the blog + AdvisorTech map",
-              "note": "free · how advisors think and shop for software",
+              "text": "Live inside Kitces \u2014 the blog + AdvisorTech map",
+              "note": "free \u00b7 how advisors think and shop for software",
               "link": "https://www.kitces.com/"
             },
             {
               "id": "pd-adv-rules",
               "text": "Read the 2 rules Lantern exists for (Books-and-Records + Reg S-P)",
-              "note": "free · start with the Reg S-P Small Entity guide",
+              "note": "free \u00b7 start with the Reg S-P Small Entity guide",
               "link": "https://www.sec.gov/files/rules/final/2024/regulation-s-p-small-entity-compliance-guide.pdf"
             },
             {
               "id": "pd-adv-veres",
-              "text": "Read Bob Veres — A History of the Financial Planning Profession",
-              "note": "~$25 · why advisors think the way they do",
+              "text": "Read Bob Veres \u2014 A History of the Financial Planning Profession",
+              "note": "~$25 \u00b7 why advisors think the way they do",
               "link": "https://bobveres.com/a-behind-the-scenes-history-of-the-financial-planning-profession/"
             },
             {
@@ -557,25 +557,25 @@
             {
               "id": "pd-found-yc",
               "text": "Work through Y Combinator Startup School",
-              "note": "free course · your business-school-in-a-weekend",
+              "note": "free course \u00b7 your business-school-in-a-weekend",
               "link": "https://www.startupschool.org/"
             },
             {
               "id": "pd-found-lean",
-              "text": "Read The Lean Startup — Eric Ries",
-              "note": "~$15 · build to learn first, not to polish",
+              "text": "Read The Lean Startup \u2014 Eric Ries",
+              "note": "~$15 \u00b7 build to learn first, not to polish",
               "link": "https://theleanstartup.com/"
             },
             {
               "id": "pd-found-zerotoone",
-              "text": "Read Zero to One — Peter Thiel",
-              "note": "~$15 · own a small market completely first",
+              "text": "Read Zero to One \u2014 Peter Thiel",
+              "note": "~$15 \u00b7 own a small market completely first",
               "link": "https://www.penguinrandomhouse.com/books/234730/zero-to-one-by-peter-thiel-with-blake-masters/"
             },
             {
               "id": "pd-found-pg",
               "text": "Read Paul Graham's essays",
-              "note": "free · start with 'Do Things that Don't Scale'",
+              "note": "free \u00b7 start with 'Do Things that Don't Scale'",
               "link": "https://paulgraham.com/articles.html"
             }
           ]
@@ -585,26 +585,26 @@
           "items": [
             {
               "id": "pd-focus-deepwork",
-              "text": "Read Deep Work — Cal Newport",
-              "note": "~$15 · turn weekend blocks into real focus",
+              "text": "Read Deep Work \u2014 Cal Newport",
+              "note": "~$15 \u00b7 turn weekend blocks into real focus",
               "link": "https://calnewport.com/deep-work-rules-for-focused-success-in-a-distracted-world/"
             },
             {
               "id": "pd-focus-indistractable",
-              "text": "Read Indistractable — Nir Eyal",
-              "note": "~$15 · the direct fix for the YouTube pull",
+              "text": "Read Indistractable \u2014 Nir Eyal",
+              "note": "~$15 \u00b7 the direct fix for the YouTube pull",
               "link": "https://www.nirandfar.com/indistractable/"
             },
             {
               "id": "pd-focus-atomic",
-              "text": "Read Atomic Habits — James Clear",
-              "note": "~$15 · keep showing up between the big blocks",
+              "text": "Read Atomic Habits \u2014 James Clear",
+              "note": "~$15 \u00b7 keep showing up between the big blocks",
               "link": "https://jamesclear.com/atomic-habits"
             },
             {
               "id": "pd-focus-rhythm",
               "text": "Set your weekly weekend operating rhythm",
-              "note": "Exercise 7 · so the time actually gets used"
+              "note": "Exercise 7 \u00b7 so the time actually gets used"
             }
           ]
         },
@@ -614,27 +614,27 @@
           "items": [
             {
               "id": "pd-wk-1",
-              "text": "Weekend 1 — Read The Mom Test; skim Kitces 'Start Here' + the AdvisorTech map; set your weekly rhythm"
+              "text": "Weekend 1 \u2014 Read The Mom Test; skim Kitces 'Start Here' + the AdvisorTech map; set your weekly rhythm"
             },
             {
               "id": "pd-wk-2",
-              "text": "Weekend 2 — Shadow your wife's firm; do the document/compliance map + software inventory"
+              "text": "Weekend 2 \u2014 Shadow your wife's firm; do the document/compliance map + software inventory"
             },
             {
               "id": "pd-wk-3",
-              "text": "Weekend 3 — Read Obviously Awesome; draft Lantern's positioning + one-page story"
+              "text": "Weekend 3 \u2014 Read Obviously Awesome; draft Lantern's positioning + one-page story"
             },
             {
               "id": "pd-wk-4",
-              "text": "Weekend 4 — Read the Reg S-P guide; skim Books-and-Records; build your advisor interview list"
+              "text": "Weekend 4 \u2014 Read the Reg S-P guide; skim Books-and-Records; build your advisor interview list"
             },
             {
               "id": "pd-wk-5",
-              "text": "Weekend 5 — Run the first 5 discovery interviews; read Founding Sales alongside"
+              "text": "Weekend 5 \u2014 Run the first 5 discovery interviews; read Founding Sales alongside"
             },
             {
               "id": "pd-wk-6",
-              "text": "Weekend 6 — Finish interviews; do the reverse-demo test; make the paid design-partner ask"
+              "text": "Weekend 6 \u2014 Finish interviews; do the reverse-demo test; make the paid design-partner ask"
             }
           ]
         }
@@ -649,48 +649,48 @@
     {
       "id": "archive",
       "title": "Archive",
-      "icon": "🗄️",
-      "status": "Superseded — kept for reference",
+      "icon": "\ud83d\uddc4\ufe0f",
+      "status": "Superseded \u2014 kept for reference",
       "now": "This holds older direction and companion docs that are no longer the active plan but still contain useful market thinking. The 2026-06-28 Strategic Advisor Memo is archived here as caution and competitor context, not as current direction. Current direction is the July 9 compliance wedge plus the June 29 head-on advisor-AI stance.",
       "decisions": [
         "Keep superseded strategic material visible so lessons are not lost, but do not let it override the current board direction.",
-        "Treat the old “retreat to a narrow wedge” counsel as market intel. It is superseded by the head-on Jump stance and the compliance-led reframe.",
+        "Treat the old \u201cretreat to a narrow wedge\u201d counsel as market intel. It is superseded by the head-on Jump stance and the compliance-led reframe.",
         "Use archived proof-sprint docs and answered-question pages as references, not as active next steps."
       ],
       "insights": [
         "Strategic Advisor Memo summary: the older memo argued for narrowing to one bulletproof job and testing demand with real advisors instead of building indefinitely. That discipline remains useful.",
         "The memo warned that privacy alone might be permission to try, not the whole reason to buy. The July 8 research updates that: compliance permission is now the first buying gate and should lead the pitch.",
-        "The memo’s strongest still-useful loop was pre-meeting prep: point at client files, build a cited Client Map, ask a question, and draft or start the review work.",
-        "The memo warned about the build trap. That still matters: AI can build, but Jameson’s rare work is customer learning, design judgment, and business calls.",
+        "The memo\u2019s strongest still-useful loop was pre-meeting prep: point at client files, build a cited Client Map, ask a question, and draft or start the review work.",
+        "The memo warned about the build trap. That still matters: AI can build, but Jameson\u2019s rare work is customer learning, design judgment, and business calls.",
         "The proof-sprint materials remain useful for demo discipline, trust-sheet thinking, FutureVault context, Windows-vs-Mac, and AI operating ideas."
       ],
       "links": [
         {
-          "label": "📊 CEO Evaluation — archived full project read",
+          "label": "\ud83d\udcca CEO Evaluation \u2014 archived full project read",
           "doc": "keepance-ceo-evaluation.html"
         },
         {
-          "label": "⚔️ FutureVault proof sprint — archived competitor reference",
+          "label": "\u2694\ufe0f FutureVault proof sprint \u2014 archived competitor reference",
           "doc": "proof-sprint-futurevault.html"
         },
         {
-          "label": "🎯 Proof sprint demo session plan — archived",
+          "label": "\ud83c\udfaf Proof sprint demo session plan \u2014 archived",
           "doc": "proof-sprint-session-plan.html"
         },
         {
-          "label": "🔒 Proof sprint trust sheet — archived",
+          "label": "\ud83d\udd12 Proof sprint trust sheet \u2014 archived",
           "doc": "proof-sprint-trust-sheet.html"
         },
         {
-          "label": "📞 Cold-call guide — archived scripts and objections",
+          "label": "\ud83d\udcde Cold-call guide \u2014 archived scripts and objections",
           "doc": "cold-call-guide.html"
         },
         {
-          "label": "🤖 AI opportunities answer — archived",
+          "label": "\ud83e\udd16 AI opportunities answer \u2014 archived",
           "doc": "q-ai-opportunities.html"
         },
         {
-          "label": "🖥️ Windows vs. Mac answer — archived",
+          "label": "\ud83d\udda5\ufe0f Windows vs. Mac answer \u2014 archived",
           "doc": "q-platform-windows-vs-mac.html"
         }
       ]
