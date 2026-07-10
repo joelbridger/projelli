@@ -1,0 +1,59 @@
+# Lantern Intake — Risks, Compliance Notes, and Claims Discipline
+**Author:** dedicated Intake design session (Fable 5), 2026-07-10.
+**Purpose:** the honest register — what regulators and IT gatekeepers will ask, where the design's real weak points are, and the sentences we must never say. Not legal advice; flag anything here that needs real counsel before customer-facing use.
+
+---
+
+## 1. Regulatory framing (Reg S-P and friends)
+
+- **The firm is the regulated entity; Lantern is a service provider.** RIAs sit under Reg S-P's Safeguards Rule (and the 2024 amendments, whose compliance dates for smaller firms land ~Dec 2025/June 2026 — i.e., NOW for our ICP): written policies for safeguarding customer information, incident response programs, and customer breach notification. Our story must be framed as *helping the firm meet its obligations*, never as taking them over.
+- **What our architecture honestly contributes:** client PII collected through the link is end-to-end encrypted; a compromise of Lantern's server cannot expose readable client data (ARCHITECTURE.md §8 T1). Under breach-notification analyses, encrypted-beyond-provider-reach data is a categorically better position. Say exactly that — no more.
+- **SSN-specific expectations:** several states (MA 201 CMR 17.00 is the strictest model) explicitly require encryption of SSNs in transit and at rest. We exceed the requirement (encrypted in transit, at rest, AND from the service provider itself). The email fallback is the exception — see §5.
+- **Books and records (Advisers Act 204-2):** advisors may be *required* to retain records we might casually delete. Retention controls must always be firm-decided; we never auto-delete by our own policy alone (matches QUESTIONS #4 recommendation). Deletion actions get audit rows.
+- **What to prepare for the IT gatekeeper (AlphaOne-type reviewers):** the honest-metadata list (ARCHITECTURE.md §3), the key-model one-pager, subprocessor list (hosting provider for the relay + static page), access-log retention (24h), and the incident-response posture. This slots into the existing IT-gatekeeper pack effort.
+
+## 2. Claims discipline — sentences we must never say
+
+- **Never claim SOC 2 certification** (we have none). Approved framing: "Lantern has not completed a SOC 2 audit. Here is our architecture instead, which removes the server from the trust equation for client data: [honest posture]." If a firm requires SOC 2 as a hard gate, that is a sales fact to record, not a claim to fudge.
+- Never "bank-level security," "military-grade," "zero-knowledge" (the relay does see metadata — §3 of ARCHITECTURE.md — so "zero-knowledge" would be false), or "HIPAA/GLBA compliant" (compliance is the firm's property, not a product feature).
+- Never describe the email fallback as encrypted end to end (§5).
+- Never "we can't be breached." Approved: "a breach of our server cannot expose your clients' readable data."
+- The client-page privacy explainer, the marketing site, and the IT pack must all use the SAME carefully worded claims — one source of truth, reviewed once, reused everywhere.
+
+## 3. The hosted component — the real weak point, named
+
+The E2EE guarantee has one residual trust root: **the JavaScript we serve to the client's browser** (ARCHITECTURE.md §8 T3). If the intake host were compromised and served poisoned code, that code could exfiltrate what a client types *from that session onward*. This is true of every web-delivered E2EE product (Proton, Bitwarden web vault); we adopt the same honest posture:
+- Minimal, self-contained, versioned page bundle; published build hashes; CSP `connect-src` pinned to the relay origin; no third-party origins at all, ever (one analytics script would break the whole story).
+- The bar this sets operationally: the intake page's deploy pipeline is security-sensitive infrastructure. Deploy access, integrity checks, and change review at the same rigor as the relay itself. No CDN rewriting, no tag managers, nothing injected.
+- We say it out loud in the IT pack (reviewers respect the honesty and will find it anyway), while noting the comparison point: every "secure portal" competitor holds server-readable plaintext as its *normal operating mode*, which is strictly worse than our worst case.
+- Roadmap noted, not promised: reproducible builds / signed-page verification.
+
+## 4. Driver's license scans
+
+- DL scans are identity documents: store only in the vault-encrypted client folder, masked thumbnails in UI, no OCR output of DL numbers into any plaintext store (extracted DL fields are `restricted` facts, same handling as SSN).
+- Some states regulate retention/use of scanned IDs (anti-fraud statutes aimed at retailers, e.g., limits on retaining scanned barcode data). Advisory onboarding for identity verification is a legitimate purpose, but: collect front/back images only, never barcode-parse for extra fields we didn't ask consent for, and keep the per-client delete control visible (QUESTIONS #4).
+- We do no biometric processing (no face matching). State biometric statutes (BIPA-style) are therefore out of scope — keep it that way; any future "verify identity by selfie" idea re-opens this section.
+
+## 5. The email fallback is a different lock — never blur it
+
+- Email replies are as private as the firm's email, no more. Provenance chips mark every email-sourced item; the privacy explainer states it; marketing never implies the E2EE applies to the email door.
+- Mis-filing is this feature's catastrophic failure (someone else's SSN in the wrong client's folder). The deterministic gate (sender must match the client on file, active intake only, open items only) runs BEFORE any AI, and nothing files without advisor confirmation — this is a hard product rule (PRODUCT-DESIGN.md §7), and Wave 3's adversarial review explicitly attacks it (spoofed senders, look-alike addresses).
+- Inbound email is untrusted content: extraction prompts must treat message bodies as data, not instructions (prompt-injection discipline per the repo's security rules).
+
+## 6. Phishing surface
+
+Intake links train clients to click a link and type an SSN — the exact behavior phishers want. Mitigations, all cheap, all v1: the link always arrives personally from the advisor's own email/phone (never a Lantern-branded blast); one consistent domain forever (QUESTIONS #3); the page greets by first name and shows the firm brand; the privacy explainer includes "how to know this page is really from your advisor: it came from [advisor] directly, and the address is always <domain>"; firms get a one-paragraph client-education blurb in the welcome template. Accept honestly: we cannot stop a determined spoof of a *different* domain — no web product can — but we avoid creating habits that make it easier (no urgency language in nudges, nudges always reference specifics only the real firm knows).
+
+## 7. Abuse, availability, and data-handling residuals
+
+- **Public endpoint abuse:** the relay's intake routes are the product's only unauthenticated-ish surface (bearer `t_auth`). Rate limits, size caps, per-intake quotas, uniform 410s (ARCHITECTURE.md §3, §8 T9), and a kill switch per intake and globally (feature flag) for incident response.
+- **SQLite blob growth:** license scans and statements make the relay's single SQLite file grow fast. Ack-deletes-ciphertext plus expiry-plus-grace cleanup bounds it; watch disk on the relay host; a move to file-backed blob storage is an implementation escape hatch that changes nothing about the crypto.
+- **Malicious uploads:** inert-bytes handling, no server parsing (structurally impossible — server can't decrypt), advisor-side sniffing and sandboxed extraction (ARCHITECTURE.md §8 T8).
+- **Client-side data residue:** the page keeps plaintext in memory only; no localStorage of answers; masked inputs; `Referrer-Policy: no-referrer`; fragment never sent. Browser autofill/password managers may offer to remember typed values — set the standard `autocomplete` hints to discourage retention on SSN fields.
+- **Accessibility as a compliance-adjacent risk:** our ICP's clients skew older; an inaccessible intake page is both a business failure and an ADA exposure for the firm. WCAG-conscious build from Wave 1; formal audit in Wave 6.
+
+## 8. Honest unknowns (to validate, not assume)
+
+- One firm (the design partner) validates the "clients will type SSNs into an E2EE page" premise. The brief locks it for v1 — good — but the 3-5 additional advisor validation chats recommended in the pain analysis should confirm it before we scale marketing claims around it.
+- Reg S-P amendment interpretations for small RIAs are young; have counsel sanity-check the IT-pack language before it goes to a real gatekeeper.
+- Whether firms will accept relay-side deletion-on-ack (some may *want* a server-side copy for continuity) — surfaced as a setting question only if real firms push back; default stays minimize.
