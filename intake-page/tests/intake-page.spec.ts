@@ -443,6 +443,29 @@ test('keeps one browser marker across page opens, seals it in each manifest, and
   }
 });
 
+test('keeps submitting when browser storage is blocked', async ({ page }) => {
+  await page.addInitScript(() => {
+    const storageError = new DOMException('Browser storage is unavailable.', 'SecurityError');
+    Storage.prototype.getItem = () => {
+      throw storageError;
+    };
+    Storage.prototype.setItem = () => {
+      throw storageError;
+    };
+  });
+  const relay = await setupRelay(page);
+
+  await page.goto(relay.url);
+  await expect(page.getByRole('heading', { name: 'Welcome, Sarah.' })).toBeVisible();
+  await startChecklist(page);
+  await completeDob(page);
+
+  const submitted = await openSubmittedPayload(relay, 'dob');
+  expect(submitted.manifestSessionId).toMatch(/^[a-f0-9-]{32,}$/iu);
+  expect(JSON.stringify(relay.submits)).not.toContain(submitted.manifestSessionId!);
+  expect(JSON.stringify(relay.chunks)).not.toContain(submitted.manifestSessionId!);
+});
+
 test('opens an older link that has no firm branding', async ({ page }) => {
   const checklist = sampleChecklist();
   const { firm: _firm, ...legacyChecklist } = checklist;

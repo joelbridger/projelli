@@ -12,6 +12,7 @@ import {
 import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
 import {
   IntakeSyncClient,
+  type IntakeSubmissionFlag,
   type IntakeInboxSubmission,
 } from './IntakeSyncClient';
 
@@ -408,7 +409,7 @@ describe('IntakeSyncClient', () => {
         knownSessions.add(sessionId);
         return Promise.resolve();
       }),
-      flagSubmission: vi.fn((flag) => {
+      flagSubmission: vi.fn((flag: IntakeSubmissionFlag) => {
         if (flag.kind === 'new_device') flags.push(flag.submissionId);
         return Promise.resolve();
       }),
