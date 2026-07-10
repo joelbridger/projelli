@@ -78,7 +78,7 @@ function savedAuditEntry(entry: AuditEntryInput): AuditEntry {
 }
 
 function installSavedAuditEmitter() {
-  const emitter = vi.fn(async (entry: AuditEntryInput) => savedAuditEntry(entry));
+  const emitter = vi.fn((entry: AuditEntryInput) => Promise.resolve(savedAuditEntry(entry)));
   setMatterAuditEmitterAsync(emitter);
   return emitter;
 }

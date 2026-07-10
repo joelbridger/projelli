@@ -277,10 +277,18 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
   const approveDraft = useAcatsReviewStore((state) => state.approveDraft);
   const isApprovingDraft = useAcatsReviewStore((state) => state.isApprovingDraft);
   const [approvalError, setApprovalError] = useState<string | null>(null);
+  // Adjust state during render instead of in an effect (react.dev's own
+  // guidance for "reset state when a prop changes"): clears the stale
+  // approval error the instant a different draft is passed in, without an
+  // extra effect-triggered re-render cascade.
+  const [lastDraftId, setLastDraftId] = useState(draft.id);
+  if (draft.id !== lastDraftId) {
+    setLastDraftId(draft.id);
+    setApprovalError(null);
+  }
 
   useEffect(() => {
     setDraft(draft);
-    setApprovalError(null);
   }, [draft, setDraft]);
 
   const activeDraft = reviewDraft ?? draft;
@@ -416,6 +424,7 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
           data-testid="acats-approve"
           disabled={!ready || isApprovingDraft}
           iconLeft={ClipboardCheck}
+          // eslint-disable-next-line lantern-async/no-silent-failure -- handleApproveDraft has its own try/catch and surfaces the failure via approvalError below
           onClick={() => { void handleApproveDraft(); }}
         >
           {isApprovingDraft ? 'Saving approval...' : 'Approve draft'}

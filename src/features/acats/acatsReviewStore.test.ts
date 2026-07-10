@@ -70,7 +70,7 @@ function savedAuditEntry(entry: AuditEntryInput): AuditEntry {
 }
 
 function installSavedAuditEmitter() {
-  const emitter = vi.fn(async (entry: AuditEntryInput) => savedAuditEntry(entry));
+  const emitter = vi.fn((entry: AuditEntryInput) => Promise.resolve(savedAuditEntry(entry)));
   setMatterAuditEmitterAsync(emitter);
   return emitter;
 }
@@ -125,13 +125,10 @@ describe('ACATS review store', () => {
     expect(useAcatsReviewStore.getState().isReadyForApproval()).toBe(true);
     await useAcatsReviewStore.getState().approveDraft();
     expect(useAcatsReviewStore.getState().draft?.reviewStatus).toBe('approved');
-    expect(auditSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        action: 'acats.approve',
-        description: expect.stringContaining('matter matter-1'),
-        userDecision: 'approved',
-      }),
-    );
+    const auditedEntry = auditSpy.mock.calls[0]?.[0];
+    expect(auditedEntry?.action).toBe('acats.approve');
+    expect(auditedEntry?.userDecision).toBe('approved');
+    expect(auditedEntry?.description).toContain('matter matter-1');
   });
 
   it('logs approval through the async Activity Log emitter with only a masked account number', async () => {
