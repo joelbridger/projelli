@@ -129,6 +129,28 @@ describe('intakeStore persistence', () => {
     expect(record).not.toHaveProperty('link');
     expect(JSON.stringify(migrated)).not.toContain('#v1.');
   });
+
+  it('upgrades a real v2-shaped onboarding blob into the receiver-owned checklist contract', () => {
+    const migrated = migratePersistedIntakeState({
+      intakesById: {
+        'intake-v2': {
+          intakeId: 'intake-v2', matterId: 'matter-1', clientFirstName: 'Sarah', firmName: 'North Star',
+          status: 'active', expiresAt: '2026-08-09T00:00:00.000Z', checklistVersion: 1,
+          items: [
+            { itemId: 'ssn', label: 'Social Security number', state: 'not_started' },
+            { itemId: 'income', label: 'Income', state: 'not_started' },
+          ],
+          receivedItems: [], flags: [], knownSessionIds: [], knownSubmissionIds: [], nudges: [],
+        },
+      },
+    }, 2);
+    const record = migrated.intakesById['intake-v2'];
+    expect(record).toMatchObject({ kind: 'onboarding', requestSlug: 'onboarding' });
+    expect(record?.requestItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ item_id: 'ssn', fact_kind: 'ssn', subject: 'primary' }),
+      expect.objectContaining({ item_id: 'income', subject: 'household', response_format: 'money' }),
+    ]));
+  });
 });
 
 describe('intakeStore actions', () => {
@@ -203,5 +225,16 @@ describe('intakeStore actions', () => {
       'submission-1',
       'submission-2',
     ]);
+  });
+
+  it('returns all client requests while the compatibility selector stays onboarding-only', () => {
+    useIntakeStore.getState().resetForTests();
+    useIntakeStore.getState().upsertIntake(baseRecord());
+    useIntakeStore.getState().upsertIntake({
+      ...baseRecord(), intakeId: 'standing-1', kind: 'standing', requestTitle: 'Tax return', requestSlug: 'tax-return-a1',
+    });
+    expect(useIntakeStore.getState().getIntakesForMatter('matter-1').map((record) => record.intakeId))
+      .toEqual(['intake-1', 'standing-1']);
+    expect(useIntakeStore.getState().getIntakeForMatter('matter-1')?.intakeId).toBe('intake-1');
   });
 });

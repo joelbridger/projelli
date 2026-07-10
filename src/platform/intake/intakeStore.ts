@@ -5,6 +5,8 @@ import { SK_INTAKES } from '@/config/identity';
 import type { IntakeNudgeAttempt } from './nudgeTypes';
 import type { Tier1WarningReason } from './documentDetectiveTypes';
 import type { RequestItem } from './types';
+import { defaultNewHouseholdItems } from '@/features/intake/newHouseholdTemplate';
+import type { FormRequestKind } from './types';
 
 export type IntakeItemState = 'not_started' | 'provided' | 'received' | 'accepted' | 'needs_followup' | 'not_needed';
 export type IntakeStatus = 'draft' | 'active' | 'revoked' | 'expired' | 'completed';
@@ -56,6 +58,7 @@ export interface IntakeFlag {
     | 'new_device'
     | 'integrity_mismatch'
     | 'routing_failed'
+    | 'shared_intake_setup_required'
     | 'stale_overwrite'
     | 'vault_off_nudge';
   itemId?: string;
@@ -67,6 +70,11 @@ export interface IntakeFlag {
 export interface IntakeRecord {
   intakeId: string;
   matterId: string;
+  /** Legacy records without this field are migrated as onboarding. */
+  kind?: FormRequestKind;
+  blueprintRef?: string;
+  requestTitle?: string;
+  requestSlug?: string;
   clientFirstName: string;
   clientEmail?: string;
   clientPhone?: string;
@@ -98,8 +106,11 @@ export interface IntakeRecord {
 interface IntakeStoreState {
   intakesById: Record<string, IntakeRecord>;
   upsertIntake: (record: IntakeRecord) => void;
+  removeIntake: (intakeId: string) => void;
   updateIntake: (intakeId: string, patch: Partial<IntakeRecord>) => void;
   getIntakeForMatter: (matterId: string) => IntakeRecord | null;
+  /** All requests for a client, ordered by creation then id for deterministic displays. */
+  getIntakesForMatter: (matterId: string) => IntakeRecord[];
   hasIntakeForMatter: (matterId: string) => boolean;
   updateItem: (intakeId: string, item: IntakeChecklistState) => void;
   addReceivedItem: (intakeId: string, item: IntakeReceivedItem) => void;
@@ -133,6 +144,9 @@ function intakeRecordWithDefaults(record: IntakeRecord): IntakeRecord {
     knownSessionIds: Array.isArray(record.knownSessionIds) ? record.knownSessionIds : [],
     knownSubmissionIds: Array.isArray(record.knownSubmissionIds) ? record.knownSubmissionIds : [],
     nudges: Array.isArray(record.nudges) ? record.nudges : [],
+    kind: record.kind ?? 'onboarding',
+    requestTitle: record.requestTitle ?? 'New client onboarding',
+    requestSlug: record.requestSlug ?? 'onboarding',
   };
 }
 
@@ -168,9 +182,48 @@ export function sanitizePersistedIntakeState(
 
 export function migratePersistedIntakeState(
   persistedState: unknown,
-  _version: number,
+  version: number,
 ): PersistedIntakeState {
-  return sanitizePersistedIntakeState(persistedState);
+  const sanitized = sanitizePersistedIntakeState(persistedState);
+  if (version >= 3) return sanitized;
+  const templateById = new Map(defaultNewHouseholdItems().map((item) => [item.item_id, item]));
+  return {
+    intakesById: Object.fromEntries(Object.entries(sanitized.intakesById).map(([id, raw]) => {
+      const record = intakeRecordWithDefaults(raw);
+      const unresolved = !Array.isArray(record.requestItems)
+        ? record.items.filter((item) => !templateById.has(item.itemId))
+        : [];
+      const flags = unresolved.length === 0 ? record.flags : [
+        ...record.flags,
+        ...unresolved.map((item) => ({
+          id: `migration:${record.intakeId}:${item.itemId}:integrity_mismatch`,
+          kind: 'integrity_mismatch' as const,
+          itemId: item.itemId,
+          message: 'This legacy intake item could not be safely matched to its original checklist.',
+          at: record.createdAt ?? new Date(0).toISOString(),
+        })),
+      ];
+      return [id, {
+        ...record,
+        kind: 'onboarding' as const,
+        requestTitle: record.requestTitle ?? 'New client onboarding',
+        requestSlug: 'onboarding',
+        ...(Array.isArray(record.requestItems) ? {} : {
+          requestItems: record.items
+            .map((item) => legacyTemplateItem(templateById.get(item.itemId)))
+            .filter((item): item is RequestItem => item !== undefined),
+        }),
+        flags,
+      }];
+    })),
+  };
+}
+
+function legacyTemplateItem(item: RequestItem | undefined): RequestItem | undefined {
+  if (!item || item.t !== 'guided_question' || item.fact_kind) return item;
+  if (item.item_id === 'income') return { ...item, fact_kind: 'income_annual' };
+  if (item.item_id === 'spending') return { ...item, fact_kind: 'spending_monthly' };
+  return item;
 }
 
 function dedupeById<T extends { id?: string; itemId?: string; submissionId?: string }>(
@@ -191,6 +244,10 @@ export const useIntakeStore = create<IntakeStoreState>()(
       upsertIntake: (record) => set((state) => ({
         intakesById: { ...state.intakesById, [record.intakeId]: intakeRecordWithDefaults(record) },
       })),
+      removeIntake: (intakeId) => set((state) => {
+        const { [intakeId]: _removed, ...intakesById } = state.intakesById;
+        return { intakesById };
+      }),
       updateIntake: (intakeId, patch) => set((state) => {
         const current = state.intakesById[intakeId];
         if (!current) return {};
@@ -201,8 +258,11 @@ export const useIntakeStore = create<IntakeStoreState>()(
           },
         };
       }),
+      getIntakesForMatter: (matterId) => Object.values(get().intakesById)
+        .filter((record) => record.matterId === matterId)
+        .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? '') || a.intakeId.localeCompare(b.intakeId)),
       getIntakeForMatter: (matterId) =>
-        Object.values(get().intakesById).find((record) => record.matterId === matterId) ?? null,
+        get().getIntakesForMatter(matterId).find((record) => (record.kind ?? 'onboarding') === 'onboarding') ?? null,
       hasIntakeForMatter: (matterId) =>
         Object.values(get().intakesById).some((record) => record.matterId === matterId),
       updateItem: (intakeId, item) => set((state) => {
@@ -326,7 +386,7 @@ export const useIntakeStore = create<IntakeStoreState>()(
     }),
     {
       name: SK_INTAKES,
-      version: 2,
+      version: 3,
       migrate: migratePersistedIntakeState,
       merge: (persistedState, currentState) => ({
         ...currentState,

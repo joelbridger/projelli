@@ -23,6 +23,7 @@ import {
   type IntakeChecklistState,
   type IntakeRecord,
 } from './intakeStore';
+import { assertRequestSlug } from './requestIdentity';
 
 export interface EmailReplyAcceptResult {
   status: 'accepted' | 'partial' | 'failed';
@@ -69,8 +70,8 @@ export function safeEmailReplyMessageSegment(messageId: string): string {
   return safe || `message_${fallbackHash(messageId)}`;
 }
 
-export function emailReplyAttachmentDestination(messageId: string): string {
-  return `Requests/onboarding/email-replies/${safeEmailReplyMessageSegment(messageId)}`;
+export function emailReplyAttachmentDestination(requestSlug: string, messageId: string): string {
+  return `Requests/${assertRequestSlug(requestSlug)}/email-replies/${safeEmailReplyMessageSegment(messageId)}`;
 }
 
 function currentChecklistItem(
@@ -213,7 +214,7 @@ export async function acceptEmailReplyProposal(
           proposal.account,
           proposal.messageId,
           row.attachment.id,
-          emailReplyAttachmentDestination(proposal.messageId),
+          emailReplyAttachmentDestination(requireRequestSlug(proposal.matchedRequestId), proposal.messageId),
           row.attachment.filename || row.attachment.name
         );
         await markRowCompleted({
@@ -286,6 +287,12 @@ export async function acceptEmailReplyProposal(
   }
 
   return { status, filePaths, factIds, errors };
+}
+
+function requireRequestSlug(requestId: string): string {
+  const intake = useIntakeStore.getState().intakesById[requestId];
+  if (!intake?.requestSlug) throw new Error('This email reply is not matched to a safe request folder.');
+  return intake.requestSlug;
 }
 
 export async function dismissEmailReplyProposal(

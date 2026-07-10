@@ -218,7 +218,7 @@ export async function manualFileQuarantinedEmail(
         quarantine.account,
         quarantine.messageId,
         attachment.id,
-        emailReplyAttachmentDestination(quarantine.messageId),
+        emailReplyAttachmentDestination(requireRequestSlug(intake), quarantine.messageId),
         attachment.filename || attachment.name,
       );
       filePath = saved.path;
@@ -266,6 +266,11 @@ export async function manualFileQuarantinedEmail(
     );
     throw error;
   }
+}
+
+function requireRequestSlug(intake: IntakeRecord): string {
+  if (!intake.requestSlug) throw new Error('Choose a real request with a safe local folder.');
+  return intake.requestSlug;
 }
 
 export async function dismissQuarantinedEmail(

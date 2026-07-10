@@ -305,6 +305,12 @@
           "body": "The app could not place one received item into the client checklist.",
           "action": "Review the intake inbox and route the item by hand."
         },
+        "shared-intake-setup-required": {
+          "badge": "Shared intake setup needed",
+          "title": "This device needs shared intake setup",
+          "body": "A teammate's device received a client response but does not yet have this request's checklist.",
+          "action": "Finish shared intake setup before filing this response."
+        },
         "regenerate-available": {
           "badge": "New link available",
           "title": "You can make a fresh link",

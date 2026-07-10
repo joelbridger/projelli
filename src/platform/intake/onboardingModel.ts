@@ -4,6 +4,7 @@ import type {
   IntakeStatus,
 } from './intakeStore';
 import type { OnboardingConfig } from './nudgeTypes';
+import type { FormRequestKind } from './types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -16,6 +17,7 @@ export type LinkSignalKind =
   | 'duplicate'
   | 'integrity_mismatch'
   | 'routing_failed'
+  | 'shared_intake_setup_required'
   | 'regenerate_available';
 
 export interface LinkSignal {
@@ -38,11 +40,11 @@ export interface NudgeEligibility {
   daysUntilEligible?: number;
 }
 
-export interface OnboardingRow {
+export interface RequestRow {
   matterId: string;
   requestId: string;
   clientFirstName: string;
-  kind: 'onboarding';
+  kind: FormRequestKind;
   requiredCount: number;
   receivedCount: number;
   missingItemIds: string[];
@@ -56,6 +58,8 @@ export interface OnboardingRow {
   nudgeEligibility: NudgeEligibility;
   sortBucket: number;
 }
+
+export type OnboardingRow = RequestRow & { kind: 'onboarding' };
 
 function parseTimeMs(value: string | undefined): number | null {
   if (!value) return null;
@@ -162,6 +166,13 @@ export function deriveLinkSignals(
           at: flag.at,
           dismissible: false,
         }];
+      case 'shared_intake_setup_required':
+        return [{
+          kind: 'shared_intake_setup_required',
+          severity: 'attention',
+          at: flag.at,
+          dismissible: false,
+        }];
       case 'integrity_mismatch':
         return [{
           kind: 'integrity_mismatch',
@@ -253,11 +264,11 @@ export function deriveNudgeEligibility(
   };
 }
 
-export function deriveOnboardingRow(
+export function deriveRequestRow(
   intake: IntakeRecord,
   now: Date,
   cfg: OnboardingConfig,
-): OnboardingRow {
+): RequestRow {
   const requiredItems = intake.items.filter((item) => item.state !== 'not_needed');
   const missing = missingItems(requiredItems);
   const received = receivedItems(requiredItems);
@@ -277,7 +288,7 @@ export function deriveOnboardingRow(
     matterId: intake.matterId,
     requestId: intake.intakeId,
     clientFirstName: intake.clientFirstName,
-    kind: 'onboarding',
+    kind: intake.kind ?? 'onboarding',
     requiredCount: requiredItems.length,
     receivedCount: received.length,
     missingItemIds: missing.map((item) => item.itemId),
@@ -291,6 +302,18 @@ export function deriveOnboardingRow(
     nudgeEligibility,
     sortBucket,
   };
+}
+
+export function deriveOnboardingRow(
+  intake: IntakeRecord,
+  now: Date,
+  cfg: OnboardingConfig,
+): OnboardingRow {
+  const row = deriveRequestRow(intake, now, cfg);
+  if (row.kind !== 'onboarding') {
+    throw new Error('deriveOnboardingRow only accepts onboarding requests.');
+  }
+  return { ...row, kind: 'onboarding' };
 }
 
 export function sortOnboardingRows(rows: OnboardingRow[]): OnboardingRow[] {

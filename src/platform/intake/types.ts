@@ -114,6 +114,8 @@ export interface GuidedQuestionRequestItem extends Omit<RequestItemBase, 't'> {
   prompt: string;
   response_format: GuidedQuestionResponseFormat;
   choices?: Array<{ value: string; label: string }>;
+  /** Optional for legacy onboarding items; new request items set this when they write a fact. */
+  fact_kind?: FactKind;
 }
 
 export interface ReadonlyCardRequestItem extends Omit<RequestItemBase, 't'> {
