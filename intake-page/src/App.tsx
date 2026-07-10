@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
@@ -290,7 +290,7 @@ function LoadingScreen(): JSX.Element {
     <main className="page-shell">
       <section className="panel" aria-live="polite">
         <p className="eyebrow">Secure intake</p>
-        <h1>Opening your page.</h1>
+        <h1 tabIndex={-1}>Opening your page.</h1>
         <p>Please keep this tab open.</p>
       </section>
     </main>
@@ -302,7 +302,7 @@ function FallbackScreen(): JSX.Element {
     <main className="page-shell">
       <section className="panel">
         <p className="eyebrow">Secure intake</p>
-        <h1>Use another way to send this</h1>
+        <h1 tabIndex={-1}>Use another way to send this</h1>
         <p>Your browser cannot open this secure page.</p>
         <div className="fallback-list">
           <p>If this is a photo or file, reply to your advisor&apos;s email with it.</p>
@@ -318,7 +318,7 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
     <main className="page-shell">
       <section className="panel">
         <p className="eyebrow">Secure intake</p>
-        <h1>We could not open this page.</h1>
+        <h1 tabIndex={-1}>We could not open this page.</h1>
         <p>{message}</p>
         <button className="primary-button" type="button" onClick={onRetry}>
           Try again
@@ -338,6 +338,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   const actionItems = useMemo(() => checklist.items.filter(isActionable), [checklist.items]);
   const doneIds = useMemo(() => new Set([...finalizedItemIds, ...localSubmitted]), [finalizedItemIds, localSubmitted]);
@@ -431,6 +432,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       const nextId = nextIncomplete(nextDone);
       setReplacingItemId(null);
       setCurrentItemId(nextId);
+      setNotice(`${itemToSubmit.label} provided${confirmation ? ` ${confirmation}` : '.'}`);
       await saveResume({
         current_item_id: nextId,
         completion_flags: { ...(resume.completion_flags ?? {}), [itemToSubmit.item_id]: true },
@@ -452,14 +454,18 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
     await saveResume({ current_item_id: nextId, skipped_item_ids: Array.from(nextSkipped) });
   }
 
-  if (privacyOpen) {
-    return <PrivacyScreen checklist={checklist} firm={firm} onBack={() => setPrivacyOpen(false)} />;
-  }
-
   const journeyState = resume.journey_state;
   const statusState = journeyState && journeyState !== 'not_started' && journeyState !== 'in_progress'
     ? journeyState
     : null;
+
+  useEffect(() => {
+    contentRef.current?.querySelector<HTMLHeadingElement>('h1')?.focus();
+  }, [currentItemId, privacyOpen, statusState, allDone, replacingItemId]);
+
+  if (privacyOpen) {
+    return <PrivacyScreen checklist={checklist} firm={firm} onBack={() => setPrivacyOpen(false)} />;
+  }
 
   return (
     <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
@@ -468,7 +474,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         <span>{firm.name}</span>
       </div>
 
-      <ProgressDots items={actionItems} currentId={currentItemId} doneIds={doneIds} onGoTo={setCurrentItemId} />
+      <ProgressDots items={actionItems} currentId={currentItemId} doneIds={doneIds} onGoTo={(id) => void moveTo(id)} />
 
       {notice ? (
         <p className="notice" role="status">
@@ -476,6 +482,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         </p>
       ) : null}
 
+      <div ref={contentRef}>
       {statusState ? (
         <JourneyStatusScreen checklist={checklist} firm={firm} resume={resume} state={statusState} />
       ) : currentItemId === 'completion' || allDone ? (
@@ -506,6 +513,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       ) : (
         <ErrorScreen message="This checklist item could not be found." onRetry={() => window.location.reload()} />
       )}
+      </div>
     </main>
   );
 }
@@ -522,24 +530,32 @@ function ProgressDots({
   onGoTo: (id: string) => void;
 }): JSX.Element {
   return (
-    <nav className="progress-dots" aria-label="Checklist progress">
-      {items.map((item, index) => {
-        const done = doneIds.has(item.item_id);
-        const current = currentId === item.item_id;
-        const label = `${item.label} ${done ? 'provided' : current ? 'current' : 'to do'}`;
-        return (
-          <button
-            key={item.item_id}
-            type="button"
-            className={`dot ${done ? 'done' : ''} ${current ? 'current' : ''}`}
-            aria-label={label}
-            onClick={() => onGoTo(item.item_id)}
-          >
-            <span aria-hidden="true">{done ? String(index + 1) : ''}</span>
-          </button>
-        );
-      })}
-    </nav>
+    <>
+      <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+        {currentId === 'completion'
+          ? `Checklist complete. ${String(doneIds.size)} of ${String(items.length)} items provided.`
+          : `Checklist progress: item ${String(Math.max(1, items.findIndex((item) => item.item_id === currentId) + 1))} of ${String(items.length)}.`}
+      </p>
+      <nav className="progress-dots" aria-label="Checklist progress">
+        {items.map((item, index) => {
+          const done = doneIds.has(item.item_id);
+          const current = currentId === item.item_id;
+          const label = `${item.label} ${done ? 'provided' : current ? 'current' : 'to do'}`;
+          return (
+            <button
+              key={item.item_id}
+              type="button"
+              className={`dot ${done ? 'done' : ''} ${current ? 'current' : ''}`}
+              aria-label={label}
+              aria-current={current ? 'step' : undefined}
+              onClick={() => onGoTo(item.item_id)}
+            >
+              <span aria-hidden="true">{done ? String(index + 1) : ''}</span>
+            </button>
+          );
+        })}
+      </nav>
+    </>
   );
 }
 
@@ -559,7 +575,7 @@ function WelcomeScreen({
   return (
     <section className="panel">
       <p className="eyebrow">Secure intake</p>
-      <h1>{journeyText(firm.journey.welcome.headline, checklist, firm)}</h1>
+      <h1 tabIndex={-1}>{journeyText(firm.journey.welcome.headline, checklist, firm)}</h1>
       <p>{journeyText(firm.journey.welcome.intro, checklist, firm)}</p>
       <p>{journeyText(firm.journey.welcome.return_note, checklist, firm)}</p>
       <p>
@@ -578,11 +594,17 @@ function WelcomeScreen({
 
 function PrivacyScreen({ checklist, firm, onBack }: { checklist: IntakeChecklist; firm: IntakeFirm; onBack: () => void }): JSX.Element {
   const accent = firm.accent;
+  const headingRef = useRef<HTMLHeadingElement>(null);
+
+  useEffect(() => {
+    headingRef.current?.focus();
+  }, []);
+
   return (
     <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
       <section className="panel">
         <p className="eyebrow">Secure intake</p>
-        <h1>{journeyText(DEFAULT_WELCOME_JOURNEY.privacy.heading, checklist, firm)}</h1>
+        <h1 ref={headingRef} tabIndex={-1}>{journeyText(DEFAULT_WELCOME_JOURNEY.privacy.heading, checklist, firm)}</h1>
         {DEFAULT_WELCOME_JOURNEY.privacy.body.map((line) => <p key={line}>{journeyText(line, checklist, firm)}</p>)}
         <p className="provider-line">{journeyText(DEFAULT_WELCOME_JOURNEY.privacy.footer, checklist, firm)}</p>
         <button className="secondary-button" type="button" onClick={onBack}>
@@ -613,8 +635,8 @@ function ProvidedScreen({
   return (
     <section className="panel">
       <p className="eyebrow">{local ? 'Provided by you just now' : 'Provided'}</p>
-      <h1>{item.label}</h1>
-      <p className="provided-line">Provided ✓ {confirmation ?? ''}</p>
+      <h1 tabIndex={-1}>{item.label}</h1>
+      <p className="provided-line" role="status">Provided ✓ {confirmation ?? ''}</p>
       {phoneCompleted ? <p>{phoneLabel}</p> : null}
       <div className="button-row">
         <button className="secondary-button" type="button" onClick={onReplace}>
@@ -633,7 +655,7 @@ function CompletionScreen({ checklist, firm, resume }: { checklist: IntakeCheckl
   return (
     <section className="panel">
       <p className="eyebrow">{firm.name}</p>
-      <h1>{journeyText(journey.completion.heading, checklist, firm)}</h1>
+      <h1 tabIndex={-1}>{journeyText(journey.completion.heading, checklist, firm)}</h1>
       {journeyText(journey.completion.body, checklist, firm).split('\n\n').map((line) => <p key={line}>{line}</p>)}
       <h2>{journey.completion.section_heading}</h2>
       <p>{journeyText(journey.completion.nothing_needed, checklist, firm)}</p>
@@ -649,12 +671,12 @@ function ResumeBanner({ checklist, firm, resume }: { checklist: IntakeChecklist;
   if (!resume.current_item_id || resume.current_item_id === 'welcome') return null;
   const state = resume.journey_state === 'not_started' ? 'not_started' : 'in_progress';
   const copy = firm.journey.resume[state];
-  return <section className="panel resume-banner"><h2>{journeyText(copy.heading, checklist, firm)}</h2><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={resume.current_milestone_id ?? 'information_needed'} compact /></section>;
+  return <section className="panel resume-banner"><p className="resume-heading">{journeyText(copy.heading, checklist, firm)}</p><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={resume.current_milestone_id ?? 'information_needed'} compact /></section>;
 }
 
 function JourneyStatusScreen({ checklist, firm, resume, state }: { checklist: IntakeChecklist; firm: IntakeFirm; resume: ResumeState; state: Exclude<NonNullable<ResumeState['journey_state']>, 'not_started' | 'in_progress'> }): JSX.Element {
   const copy = firm.journey.resume[state];
-  return <section className="panel"><p className="eyebrow">{firm.name}</p><h1>{journeyText(copy.heading, checklist, firm)}</h1><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={state === 'signature_ready' ? 'signature_or_transfer' : state === 'active_client' ? 'active_client' : state} /><TeamBlock checklist={checklist} firm={firm} /><HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} /><section className="help-block"><h2>{firm.journey.welcome.help_heading}</h2><p>{firm.journey.help_contact_label}</p></section></section>;
+  return <section className="panel"><p className="eyebrow">{firm.name}</p><h1 tabIndex={-1}>{journeyText(copy.heading, checklist, firm)}</h1><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={state === 'signature_ready' ? 'signature_or_transfer' : state === 'active_client' ? 'active_client' : state} /><TeamBlock checklist={checklist} firm={firm} /><HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} /><section className="help-block"><h2>{firm.journey.welcome.help_heading}</h2><p>{firm.journey.help_contact_label}</p></section></section>;
 }
 
 function JourneyTimeline({ journey, currentId, compact = false }: { journey: WelcomeJourney; currentId: string; compact?: boolean }): JSX.Element {
@@ -697,7 +719,7 @@ function ItemInputScreen({
   if (item.t === 'guided_question') return <GuidedQuestionScreen item={item} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
   return (
     <section className="panel">
-      <h1>{item.label}</h1>
+      <h1 tabIndex={-1}>{item.label}</h1>
       <p>This item is not ready on this page yet.</p>
       <button className="secondary-button" type="button" onClick={onSkip}>
         Skip for now
@@ -726,6 +748,8 @@ function TypedFieldScreen({
   const cleanSsn = value.replace(/\D/g, '');
   const parsedNumber = isNumeric ? parseClientNumber(value) : null;
   const numberError = isNumeric && value.trim().length > 0 && parsedNumber === null ? 'Enter a number, like 90,000.' : null;
+  const helpId = `${item.item_id}-help`;
+  const errorId = `${item.item_id}-error`;
   const disabled = busy || (isSsn ? cleanSsn.length !== 9 : isNumeric ? parsedNumber === null : value.trim().length === 0);
   const autocomplete = isSsn ? 'new-password' : item.input === 'date' ? 'bday' : 'off';
 
@@ -742,9 +766,8 @@ function TypedFieldScreen({
   return (
     <section className="panel">
       <p className="eyebrow">{firmName}</p>
-      <h1>{item.label}</h1>
-      <p>{item.help_text}</p>
-      {isSsn ? <p className="format-help">Enter 9 digits. This field is hidden as you type.</p> : null}
+      <h1 tabIndex={-1}>{item.label}</h1>
+      <p id={helpId}>{item.help_text}{isSsn ? ' Enter 9 digits. This field is hidden as you type.' : ''}</p>
       <label className="field-label" htmlFor={item.item_id}>
         {item.label}
       </label>
@@ -757,11 +780,14 @@ function TypedFieldScreen({
         autoCorrect="off"
         spellCheck={false}
         placeholder={item.placeholder}
+        aria-describedby={numberError ? `${helpId} ${errorId}` : helpId}
+        aria-invalid={Boolean(numberError)}
+        required={item.required}
         value={value}
         onChange={(event) => setValue(event.target.value)}
       />
       {numberError ? (
-        <p className="format-help" role="alert">
+        <p id={errorId} className="format-help" role="alert">
           {numberError}
         </p>
       ) : null}
@@ -791,6 +817,7 @@ function DocUploadScreen({
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
   const selectedCount = files.filter(Boolean).length;
   const disabled = busy || selectedCount < rules.requiredSlots || Boolean(fileError);
+  const fileErrorId = `${item.item_id}-file-error`;
 
   useEffect(() => {
     let cancelled = false;
@@ -835,7 +862,7 @@ function DocUploadScreen({
   return (
     <section className="panel">
       <p className="eyebrow">Document upload</p>
-      <h1>{item.label}</h1>
+      <h1 tabIndex={-1}>{item.label}</h1>
       <p>{item.help_text}</p>
       {rules.requiredSlots === 2 ? (
         <div className="framing-guide">
@@ -849,7 +876,7 @@ function DocUploadScreen({
         </p>
       ) : null}
       {fileError ? (
-        <p className="format-help" role="alert">
+        <p id={fileErrorId} className="format-help" role="alert">
           {fileError}
         </p>
       ) : null}
@@ -870,6 +897,8 @@ function DocUploadScreen({
                 type="file"
                 accept={(item.accepted_mime_types ?? ['image/*']).join(',')}
                 capture="environment"
+                aria-describedby={fileError ? fileErrorId : undefined}
+                aria-invalid={Boolean(fileError)}
                 onChange={(event) => updateFile(index, event.target.files)}
               />
               <input
@@ -878,6 +907,8 @@ function DocUploadScreen({
                 aria-label={`Choose ${slotName} file`}
                 type="file"
                 accept={(item.accepted_mime_types ?? ['image/*']).join(',')}
+                aria-describedby={fileError ? fileErrorId : undefined}
+                aria-invalid={Boolean(fileError)}
                 onChange={(event) => updateFile(index, event.target.files)}
               />
               <div className="button-row">
@@ -923,6 +954,7 @@ function GuidedQuestionScreen({
     (mode === 'range' && ((low.trim().length > 0 && parsedLow === null) || (high.trim().length > 0 && parsedHigh === null)))
       ? 'Enter a number, like 90,000.'
       : null;
+  const errorId = `${item.item_id}-error`;
   const disabled =
     busy ||
     !mode ||
@@ -945,7 +977,7 @@ function GuidedQuestionScreen({
   return (
     <section className="panel">
       <p className="eyebrow">Question</p>
-      <h1>{item.label}</h1>
+      <h1 tabIndex={-1}>{item.label}</h1>
       <p>{item.prompt}</p>
       <p>{item.help_text}</p>
       <div className="choice-grid">
@@ -969,6 +1001,8 @@ function GuidedQuestionScreen({
             className="text-input"
             inputMode="decimal"
             autoComplete="off"
+            aria-describedby={numberError ? errorId : undefined}
+            aria-invalid={Boolean(numberError)}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
           />
@@ -979,15 +1013,15 @@ function GuidedQuestionScreen({
           <label className="field-label" htmlFor={`${item.item_id}-low`}>
             Low amount
           </label>
-          <input id={`${item.item_id}-low`} className="text-input" inputMode="decimal" value={low} onChange={(event) => setLow(event.target.value)} />
+          <input id={`${item.item_id}-low`} className="text-input" inputMode="decimal" aria-describedby={numberError ? errorId : undefined} aria-invalid={Boolean(numberError)} value={low} onChange={(event) => setLow(event.target.value)} />
           <label className="field-label" htmlFor={`${item.item_id}-high`}>
             High amount
           </label>
-          <input id={`${item.item_id}-high`} className="text-input" inputMode="decimal" value={high} onChange={(event) => setHigh(event.target.value)} />
+          <input id={`${item.item_id}-high`} className="text-input" inputMode="decimal" aria-describedby={numberError ? errorId : undefined} aria-invalid={Boolean(numberError)} value={high} onChange={(event) => setHigh(event.target.value)} />
         </div>
       ) : null}
       {numberError ? (
-        <p className="format-help" role="alert">
+        <p id={errorId} className="format-help" role="alert">
           {numberError}
         </p>
       ) : null}

@@ -18,6 +18,7 @@
 
 html {
   min-height: 100%;
+  overflow-wrap: anywhere;
 }
 
 body {
@@ -36,6 +37,11 @@ label {
 }
 
 button,
+input {
+  max-width: 100%;
+}
+
+button,
 .file-button {
   min-height: 3rem;
 }
@@ -44,7 +50,7 @@ button,
   width: min(100%, 44rem);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 1rem;
+  padding: clamp(0.5rem, 4vw, 1rem);
 }
 
 .brand-line {
@@ -69,7 +75,7 @@ button,
   border-radius: 8px;
   background: var(--panel);
   box-shadow: 0 16px 40px rgba(30, 43, 32, 0.08);
-  padding: clamp(1.25rem, 4vw, 2.25rem);
+  padding: clamp(0.75rem, 4vw, 2.25rem);
 }
 
 .panel h1 {
@@ -114,14 +120,15 @@ button,
   min-height: 2.75rem;
   border: 2px solid var(--border);
   border-radius: 999px;
-  color: #ffffff;
+  color: #172019;
   background: #ffffff;
   cursor: pointer;
 }
 
 .dot.done {
   border-color: var(--accent);
-  background: var(--accent);
+  background: #edf5ee;
+  background: color-mix(in srgb, var(--accent) 16%, #ffffff);
 }
 
 .dot.current {
@@ -143,7 +150,8 @@ button,
 
 .text-input:focus {
   border-color: var(--accent);
-  outline: 3px solid rgba(47, 125, 98, 0.22);
+  outline: 3px solid #172019;
+  outline-offset: 2px;
 }
 
 .field-label {
@@ -179,13 +187,15 @@ button,
 
 .primary-button {
   border: 2px solid var(--accent);
-  color: #ffffff;
-  background: var(--accent);
+  color: #172019;
+  background: #edf5ee;
+  background: color-mix(in srgb, var(--accent) 16%, #ffffff);
 }
 
 .primary-button:hover,
 .primary-button:focus {
-  background: var(--accent-strong);
+  background: #dcebdd;
+  background: color-mix(in srgb, var(--accent) 25%, #ffffff);
 }
 
 .primary-button:disabled,
@@ -198,6 +208,11 @@ button,
   border: 2px solid var(--accent);
   color: var(--accent-strong);
   background: #ffffff;
+}
+
+:where(button, input, label, [tabindex="-1"]):focus-visible {
+  outline: 3px solid #172019;
+  outline-offset: 3px;
 }
 
 .quiet-button,
@@ -236,7 +251,8 @@ button,
 
 .choice-button[aria-pressed="true"] {
   border-color: var(--accent);
-  background: rgba(47, 125, 98, 0.12);
+  background: #edf5ee;
+  background: color-mix(in srgb, var(--accent) 16%, #ffffff);
 }
 
 .range-grid {
@@ -298,7 +314,7 @@ button,
 .journey-timeline h2,
 .team-block h2,
 .help-block h2,
-.resume-banner h2 {
+.resume-banner .resume-heading {
   margin: 0 0 0.45rem;
   color: #172019;
   font-size: 1rem;
@@ -376,5 +392,16 @@ button,
 
   .button-row {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
   }
 }
