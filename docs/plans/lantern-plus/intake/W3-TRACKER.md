@@ -6,7 +6,7 @@
 ## Lane status
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
-| 1 | ingest+match (Rust+TS) | `~/lp-w3-1` | `lp/intake-w3-1` | dispatched | — | — | — | BUILDING (blocker) |
+| 1 | ingest+match (Rust+TS) | `~/lp-w3-1` | `lp/intake-w3-1` | DONE-EXIT:0 | lead PASS (security core sound) | codex-review: 1 P1 + 1 P2 | `354db44a` (pre-fix) | FIX ROUND running (`briefs/w3-1-fix.md`) |
 | 2 | proposal cards + accept | `~/lp-w3-2` | `lp/intake-w3-2` | — | — | — | — | queued (brief TO WRITE) — after Lane 1 |
 | 3 | quarantine path | `~/lp-w3-3` | `lp/intake-w3-3` | — | — | — | — | queued (brief TO WRITE) — last |
 
@@ -15,6 +15,12 @@ Headlines: Q1 sender source = `IntakeRecord.clientEmail` (primary only; no per-m
 
 ## Security focus (this wave)
 Mis-filing attacks are THE risk: spoofed sender, look-alike/plus-alias/display-name-only address, replies vs completed/revoked intakes, untrusted email body (prompt-injection). The deterministic gate (Lane 1) runs BEFORE any AI/file write; failed/missing auth or ambiguity → quarantine (no confidence tier, no preselect, no one-click). Every `codex-review` adversarial pass MUST focus on mis-filing.
+
+## Lane 1 review — lead verify + adversarial pass
+Lead verify: vitest 90/90 (src/platform/intake), tsc clean, eslint-gate clean. Lead read the SECURITY CORE closely — sound + fail-closed: matcher runs sender-match → auth gate (missing/fail → quarantine, never candidate) → active-request → attachment-metadata → thread-tie/ambiguity → open-items; `emailAuthResult` requires DMARC pass + aligned + (DKIM or SPF pass); `emailAddressMatch` IDNA-normalizes domain + exact compare + look-alike detection. codex-review (mis-filing focus) found 2 real issues the lead missed (batched into `briefs/w3-1-fix.md`):
+- **[P1] M365 Graph sync doesn't fetch `internetMessageHeaders`** → every Outlook message stored `authResult source: missing` → matcher quarantines ALL M365 replies → feature quarantine-only for the primary provider. Fix (Rust): `$select`/fetch the auth headers so DMARC-passing Outlook replies yield `dmarc: pass`.
+- **[P2] sender parse trusts first `<...>`, ignores trailing** → `Evil <sarah@x> <attacker@evil>` parses as sarah → spoof-gate bypass when only display `from` available. Fix (TS): fail closed on extra angle text.
+- Lead-noted (safe, optional): local-part compared case-sensitively → fail-closed false-negative.
 
 ## Lanes 2 & 3 — briefs to write (scoped in W3-EXEC-PLAN §3)
 - Lane 2 (`briefs/w3-2-proposal-cards.md`): proposal card/row/modal, accept path (audit intent → file via the new persist command / fact via `intakeFactUpsert(channel:'email_reply')` → checklist tick → outcome; partial-failure), durable proposal queue in SQLCipher, masked restricted previews, confidence tiers from auth, reuse `CrmWriteReviewCard`/`crmWriteQueueStore`.
