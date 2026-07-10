@@ -30,7 +30,7 @@ export default async function run(engine, { page }) {
   const receipt = page.getByTestId('clientmap-build-receipt').first();
   if (await receipt.count()) {
     await engine.caption(
-      'Built from their own emails and files. Nothing leaves your computer.',
+      'Built from their files. It stays on your computer.',
       2400
     );
     await engine.clearCaption();

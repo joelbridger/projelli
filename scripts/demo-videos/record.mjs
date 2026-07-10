@@ -98,8 +98,9 @@ const captureSize = {
   width: viewport.width * deviceScaleFactor,
   height: viewport.height * deviceScaleFactor,
 };
-// 16:10 at a 1080px height preserves the original layout's aspect ratio.
-const outputSize = { width: 1728, height: 1080 };
+// Keep every native HiDPI pixel through the finished encode. Fullscreen
+// playback should show the real 2x capture, not a downscaled derivative.
+const outputSize = captureSize;
 if (
   meta.viewport &&
   (meta.viewport.width !== viewport.width ||
@@ -264,8 +265,9 @@ concatLines.push(
 );
 fs.writeFileSync(manifestPath, `${concatLines.join('\n')}\n`);
 
-// Downsample the genuine 2x capture once, using Lanczos, for crisp UI lines.
-const vf = `scale=${outputSize.width}:${outputSize.height}:flags=lanczos,fps=30,format=yuv420p`;
+// Preserve the native HiDPI dimensions. The frame-rate conversion is the only
+// video filter; yuv420p keeps broad browser/device compatibility.
+const vf = 'fps=30,format=yuv420p';
 
 function ffmpeg(args, label) {
   const r = spawnSync(
@@ -280,8 +282,8 @@ function ffmpeg(args, label) {
 }
 
 console.log('  transcoding…');
-// CRF 18 protects small type and 1px UI borders. faststart lets browsers begin
-// playing before they have downloaded the whole file.
+// CRF 16 and High profile keep small type and 1px UI borders exceptionally
+// clean. faststart lets browsers begin playing before downloading the file.
 ffmpeg(
   [
     '-f',
@@ -295,7 +297,11 @@ ffmpeg(
     '-c:v',
     'libx264',
     '-crf',
-    '18',
+    '16',
+    '-profile:v',
+    'high',
+    '-level:v',
+    '5.0',
     '-preset',
     'slow',
     '-movflags',
@@ -313,7 +319,7 @@ ffmpeg(
     '-i',
     manifestPath,
     '-vf',
-    `scale=${outputSize.width}:${outputSize.height}:flags=lanczos,fps=30`,
+    'fps=30',
     '-c:v',
     'libvpx-vp9',
     '-b:v',

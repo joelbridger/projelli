@@ -37,7 +37,7 @@ Never record real client data or rely on a personal AI key for a demo take.
 
 | Place | What it is |
 |---|---|
-| `scripts/demo-videos/record.mjs` | The one command that records and converts a video. It keeps the original 1280×800 app layout, captures it at 2560×1600 pixels, then makes a crisp 1728×1080 (16:10) MP4. |
+| `scripts/demo-videos/record.mjs` | The one command that records and converts a video. It keeps the original 1280×800 app layout, captures it at 2560×1600 pixels, and keeps every one of those pixels in the finished MP4. |
 | `scripts/demo-videos/engine/DemoEngine.mjs` | The small set of actions a flow can use: move, click, type, wait, and show a caption. |
 | `scripts/demo-videos/engine/overlay.js` | The visible cursor, click ripple, and large caption pill. |
 | `scripts/demo-videos/flows/` | One small script for each story the video tells. |
@@ -91,9 +91,9 @@ This is the whole loop. Do it for every new or changed video.
 # Record both web-ready formats. Add DEMO_DEBUG=1 only if a take has dead time.
 node scripts/demo-videos/record.mjs ask-cited-answer --output ask-cited-answer-crisp
 
-# Confirm the finished MP4 is really 1728×1080, H.264, and 30 frames per second.
+# Confirm the finished MP4 is really 2560×1600, H.264 High profile, and 30 frames per second.
 ffprobe -v error -select_streams v:0 \
-  -show_entries stream=codec_name,width,height,avg_frame_rate \
+  -show_entries stream=codec_name,profile,width,height,avg_frame_rate \
   -show_entries format=duration,size -of default=nw=1 \
   scripts/demo-videos/output/ask-cited-answer-crisp.mp4
 
@@ -121,9 +121,9 @@ bigger just to chase a higher-resolution file: that shrinks the interface
 itself. The recorder checks the raw frame pixels before converting. If a browser
 ever caps a raw frame, do not publish it; use a full-resolution capture path.
 
-The encoder downscales that 2× source once with Lanczos to **1728×1080**. This
-is 16:10, the same shape as the original layout. The finished MP4 is H.264 at
-CRF 18 so small text and fine UI lines stay clean.
+The encoder keeps the full **2560×1600** source. The finished MP4 is H.264
+High profile at CRF 16, so fullscreen text and fine interface lines stay
+pristine. The larger file is intentional.
 
 For every approval, inspect both ordinary frames and close-up crops of text and
 thin interface lines. For example:
@@ -151,14 +151,15 @@ use to `scripts/demo-videos/output/`.
 
 Before accepting a take, check every item below.
 
-- The raw recording is 2560×1600, and the finished MP4 is 1728×1080 at 30fps
-  with `h264` in `ffprobe`.
+- The raw recording and finished MP4 are both 2560×1600 at 30fps. `ffprobe`
+  reports H.264 High profile at CRF 16.
 - The app is in its light theme from the first frame to the last.
 - The visible cursor is present, moves smoothly, and lands on the thing the
   real app action changes. Clicks have a small ripple.
-- Captions are huge (56px in the original 1280×800 layout, about twice the
-  former size in the finished film), white on a dark pill, easy to read at a
-  glance, and have generous padding.
+- Captions are huge (48px in the original 1280×800 layout), white on a soft
+  dark pill (`rgba(17, 24, 39, 0.76)`), easy to read at a glance, and have
+  generous padding. The panel is centered and 80% of the frame wide, so
+  the wording normally sits on one or two comfortable lines.
 - A caption never hides a useful control, result, source, or part of the
   story. Move the caption timing or simplify the step if it does.
 - The words are short, plain, and use client/household language. No em dashes.
@@ -167,8 +168,8 @@ Before accepting a take, check every item below.
 - Six extracted frames and zoomed crops of text/UI regions have been visually
   reviewed. They show a legible huge caption, visible cursor, crisp light
   interface, and meaningful moments from across the whole video.
-- The file is web-reasonable. The MP4 uses H.264 with CRF 18, which protects
-  clean text and fine UI lines in a short help video.
+- The larger file is expected. The MP4 uses H.264 High profile at CRF 16,
+  preserving clean text and fine UI lines for fullscreen playback.
 
 ## Put an approved video on the private board
 

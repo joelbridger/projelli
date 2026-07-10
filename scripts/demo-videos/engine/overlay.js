@@ -68,14 +68,17 @@
     // visible while the narration is on screen.
     bottom: '24px',
     transform: 'translateX(-50%) translateY(12px)',
-    maxWidth: '1180px',
+    // Wide enough for the large narration to breathe, while leaving a clear
+    // margin around the frame. With the horizontal padding below this lands at
+    // exactly 80% of the 1280px recording layout.
+    maxWidth: '960px',
     padding: '18px 32px',
     borderRadius: '18px',
-    background: 'rgba(17, 24, 39, 0.92)',
+    background: 'rgba(17, 24, 39, 0.76)',
     color: '#ffffff',
-    // At the 1728px final render this is about twice the old on-screen size,
-    // so it remains huge without becoming a screen-sized wall of words.
-    font: "600 56px/1.18 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    // At the 2560px final render this remains huge, but it gives ordinary
+    // sentences room to land on one or two calm lines.
+    font: "600 48px/1.18 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     textAlign: 'center',
     letterSpacing: '0',
     zIndex: '2147483646',

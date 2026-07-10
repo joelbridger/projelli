@@ -37,8 +37,8 @@ The engine does four things:
    pointer, so we paint our own arrow that glides smoothly to each target and
    shows a little click ripple. The drawn cursor sits exactly where the real
    click lands, so what you see and what happens always match.
-3. **Shows captions** — a large, high-contrast dark bar at the bottom that
-   narrates each step in plain language.
+3. **Shows captions** — a large, soft dark bar at the bottom that narrates
+   each step in plain language.
 4. **Records to video** and converts it to a clean MP4 (works everywhere) and a
    WebM (small, good for the web) with `ffmpeg`.
 
@@ -166,11 +166,12 @@ export default async function run(engine, { page }) {
 
 ## Quality bar
 
-- Original 1280×800 layout captured at 2560×1600 HiDPI, then scaled with Lanczos
-  to a crisp 1728×1080 (16:10) MP4; light theme always, smooth eased cursor,
+- Original 1280×800 layout captured and encoded at its full 2560×1600 HiDPI
+  size (H.264 High profile, CRF 16); light theme always, smooth eased cursor,
   click ripples.
-- Captions are 56px with a dark, high-contrast pill and roomy padding. Keep
-  them short enough to stay on one or two lines and clear of meaningful UI.
+- Captions are 48px with a soft dark pill (`rgba(17, 24, 39, 0.76)`) and roomy
+  padding. The centered panel is 80% of the layout width, so short wording
+  stays on one or two comfortable lines and clear of meaningful UI.
 - No dead time. If a video runs long, `DEMO_DEBUG=1` prints which step stalled;
   targets that aren't ready fast are skipped rather than freezing the frame.
 - Captions: plain household language, short, no jargon, no em dashes, no time

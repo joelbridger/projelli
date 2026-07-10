@@ -24,7 +24,7 @@ export default async function run(engine, { page }) {
   await engine.goto('/?testMode=true&seedSample=1');
   await engine.hold(1200);
   await engine.caption(
-    'This is the Hendricks household, a sample client.',
+    'Meet the Hendricks sample household.',
     1900
   );
   await engine.clearCaption();
