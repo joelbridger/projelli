@@ -7,7 +7,7 @@
 
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
-| 0 | contract-model + live-sync | `~/lp-w2-0` | `lp/intake-w2-0` | — | — | — | — | **BLOCKED on coordinator scope call** |
+| 0 | contract-model + live-sync | `~/lp-w2-0` | `lp/intake-w2-0` | DONE-EXIT:0 | lead PASS + 3 findings | codex-review: 4 findings (2 P1 lead missed) | `4a4729c2` (pre-fix) | FIX ROUND running (`briefs/w2-0-fix.md`) |
 | 1 | board-ui | `~/lp-w2-1` | `lp/intake-w2-1` | — | — | — | — | queued (after Lane 0) |
 | 2 | link-lifecycle | `~/lp-w2-2` | `lp/intake-w2-2` | — | — | — | — | queued (after Lane 0) |
 | 3 | nudges + E2E | `~/lp-w2-3` | `lp/intake-w2-3` | — | — | — | — | queued (last) |
@@ -28,6 +28,19 @@ See `W2-EXEC-PLAN.md` §0 — all 7 resolved from grounded Wave-1 code. Headline
 
 ## Gate-fix round (budgeted, after Lane 3)
 Scoped vitest misses: ESLint (`lantern-async/no-silent-failure`, `lantern-i18n/no-hardcoded-string`), token-guard (hex→tokens), i18n locale parity (en→de/es + snapshot inventory/counts), architecture-boundaries (new feature→feature edges). Normal, not a surprise.
+
+## Lane 0 review findings (lead — batch with codex-review into ONE fix round)
+Independent verify PASS: vitest 50/50 (src/platform/intake), tsc clean, baseline eslint-gate clean, tree clean. Codex's green claim confirmed. But the lead diff review found real cross-lane contract breaks (the #1 Wave-1 lesson — per-lane tests mocked the other side):
+- **[P1 CONTRACT BREAK] inbox cursor param:** `IntakeRelayClient.fetchInbox` sends `?since=<n>`, but the relay `parseCursor` (`backend/src/routes/intake.ts`) reads `?cursor=`, defaulting to 0 → the relay IGNORES the client cursor and returns from 0 on every 30s poll (re-pulls/re-decrypts all submissions; server pagination cursor dead). Dedup prevents double-filing but it's wrong + wasteful. Fix: send `?cursor=`; fix the test that asserts `since=`.
+- **[P1 CONTRACT BREAK / silent data loss] guided-question facts dropped:** the client page (`intake-page/src/submission.ts`) seals typed_field answers as `{...,value,display_value}` but guided_question answers as `{...,answer}` (NO `value`). `routeJsonSubmission` guards on `!('value' in body)` → returns `{}` for guided questions → **income + spending (standard-template guided_questions) are never stored as facts, yet the item is marked `received`.** Fix: handle BOTH `value` (typed) and `answer` (guided) bodies; map guided `answer`→FactValue by response_format (money/range/text) + item_id→kind (income→income_annual, spending→spending_monthly); and if a typed/guided submission can't be stored, do NOT mark it cleanly received (flag it) — no silent loss.
+- **[P2] `regenerate_available` unreachable:** the `LinkSignalKind` is declared but `deriveLinkSignals` never emits it → Lane 2 can't surface "regenerate available." Fix: emit it when status expired/revoked AND received items exist.
+- **[ADD — Wave-1 lesson] pull the cross-lane contract test into THIS fix round:** a `src/platform/intake` test that constructs the TWO real client-page body shapes (typed `value` + guided `answer`, matching `intake-page/src/submission.ts`) and routes them through `routeIntakeSubmission`, asserting dob/ssn/income/spending facts AND a file all land + correct item states + `lastClientActivityAt` stamped. This locks the C↔sync contract at the foundation (would have caught the two P1s).
+
+### codex-review (adversarial) — 4 findings, batched into the fix round. Caught 2 P1s the lead missed:
+- **[P1 — lead MISSED, most severe] inbox returns BLOB IDS, not inline chunks:** the relay `handleIntakeInbox` envelope has `blobs:{blob_id,index,size}[]`, and ciphertext must be fetched from `GET /intake/:id/blob/:blob_id`. `fetchInbox` just cast the response → `submission.chunks` undefined → `decryptAndVerify` throws `integrity_mismatch` → **the whole live sync fails against the real relay; nothing ever files.** Fix: fetch each blob (raw bytes, base64) + assemble `ChunkUpload[]`.
+- **[P1 — lead MISSED] multi-file uploads concatenated/lost:** `SealedManifest` has `file_names[]` + flat `chunk_count` but NO per-file boundary (the client's `fileIndex`/`filePart` is dropped at the wire). `routeFileSubmission` uses `file_names[0]` + `concatBytes(ALL)` → driver's-license front+back become one corrupt file, 2nd lost, then acked. **Robust fix chosen: client submits ONE file per submission** for doc_upload (intake-page — no wire/crypto change, no risk to the Wave-1 E2E contract) + advisor guard (if file_names>1, flag+don't ack, never concat). This is a Wave-1-surfaced defect (sync was never wired before Lane 0).
+- **[P1] guided-answer drop** + **[P2] cursor param** — same as the lead's findings (both confirmed).
+- **LESSON reaffirmed:** the mandatory adversarial pass earned its keep — it found the two deepest contract breaks the lead's read missed. Never skip it.
 
 ## Log
 - **2026-07-10:** Wave 2 kicked off. Read W1-LEAD-HANDOFF + W1-TRACKER + W2-PREP + WAVE-PLAN/PRODUCT-DESIGN §4/§8. Grounded all 7 open questions in the shipped Wave-1 code. Wrote `W2-EXEC-PLAN.md` + 4 briefs (`w2-0..3`). **Discovered the live advisor sync loop is unmounted** → surfaced the Lane-0 scope decision to the coordinator; proceeding on the recommended (fold-in) path. Environment: `~/lp-intake` already has node_modules + sidecar binaries (main worktree).
