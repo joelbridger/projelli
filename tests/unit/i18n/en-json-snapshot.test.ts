@@ -56,7 +56,7 @@ describe('en.json structure snapshot', () => {
         "entity-label": 50,
         "file-import": 3,
         "firm": 143,
-        "intake": 5,
+        "intake": 41,
         "layout": 40,
         "local-ai-download": 9,
         "local-ai-settings": 8,

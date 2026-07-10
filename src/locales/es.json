@@ -3982,6 +3982,48 @@
       "link-expiry": "Este enlace funciona hasta {{date}}. Puede ampliarlo o desactivarlo cuando quiera.",
       "no-facts": "Aún no se han recibido datos.",
       "view-in-folder": "Ver en la carpeta"
+    },
+    "board": {
+      "title": "Incorporación",
+      "new-client": "Nuevo cliente",
+      "view-toggle-aria": "Vista de clientes",
+      "view-list": "Lista",
+      "view-board": "Tablero",
+      "empty": {
+        "title": "No hay solicitudes de incorporación activas",
+        "body": "Cree un nuevo cliente para enviarle su lista segura."
+      },
+      "row": {
+        "stalled_one": "DETENIDO {{count}} día",
+        "stalled_other": "DETENIDO {{count}} días",
+        "no-activity": "Aún no hay actividad del cliente",
+        "last-activity-today": "hoy",
+        "days-ago_one": "hace {{count}} día",
+        "days-ago_other": "hace {{count}} días",
+        "next-review_one": "revisar {{count}} elemento nuevo",
+        "next-review_other": "revisar {{count}} elementos nuevos",
+        "next-call": "sugerir una llamada",
+        "next-nudge-ready": "recordatorio listo",
+        "next-nudge-awaiting": "recordatorio pendiente de aprobación",
+        "next-complete": "completo",
+        "next-progress": "{{received}} de {{total}}",
+        "stalled-badge": "Detenido",
+        "progress-aria": "Progreso de incorporación de {{client}}",
+        "progress-text": "{{received}} de {{total}}",
+        "complete": "completo",
+        "missing-heading": "Falta",
+        "missing-more_one": "+{{count}} más",
+        "missing-more_other": "+{{count}} más",
+        "missing-none": "No falta nada",
+        "open-aria": "Abrir incorporación de {{client}}",
+        "actions-aria": "Acciones de incorporación de {{client}}",
+        "open-action": "Abrir",
+        "review-action": "Revisar",
+        "nudge-action": "Recordar",
+        "copy-link-action": "Copiar enlace",
+        "copy-link-copied": "Copiado",
+        "link-signals-action": "Señales"
+      }
     }
   }
 }

@@ -104,6 +104,48 @@
       "link-expiry": "This link works until {{date}}. You can extend or turn it off anytime.",
       "no-facts": "No facts received yet.",
       "view-in-folder": "View in folder"
+    },
+    "board": {
+      "title": "Onboarding",
+      "new-client": "New client",
+      "view-toggle-aria": "Client view",
+      "view-list": "List",
+      "view-board": "Board",
+      "empty": {
+        "title": "No active onboarding requests",
+        "body": "Start a new client to send their secure checklist."
+      },
+      "row": {
+        "stalled_one": "STALLED {{count}} day",
+        "stalled_other": "STALLED {{count}} days",
+        "no-activity": "No client activity yet",
+        "last-activity-today": "today",
+        "days-ago_one": "{{count}} day ago",
+        "days-ago_other": "{{count}} days ago",
+        "next-review_one": "review {{count}} new item",
+        "next-review_other": "review {{count}} new items",
+        "next-call": "suggest a call",
+        "next-nudge-ready": "nudge ready",
+        "next-nudge-awaiting": "nudge awaiting approval",
+        "next-complete": "complete",
+        "next-progress": "{{received}} of {{total}}",
+        "stalled-badge": "Stalled",
+        "progress-aria": "Onboarding progress for {{client}}",
+        "progress-text": "{{received}} of {{total}}",
+        "complete": "complete",
+        "missing-heading": "Missing",
+        "missing-more_one": "+{{count}} more",
+        "missing-more_other": "+{{count}} more",
+        "missing-none": "Nothing missing",
+        "open-aria": "Open {{client}} onboarding",
+        "actions-aria": "Onboarding actions for {{client}}",
+        "open-action": "Open",
+        "review-action": "Review",
+        "nudge-action": "Nudge",
+        "copy-link-action": "Copy link",
+        "copy-link-copied": "Copied",
+        "link-signals-action": "Signals"
+      }
     }
   },
   "layout": {
