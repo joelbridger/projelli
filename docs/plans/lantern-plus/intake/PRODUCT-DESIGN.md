@@ -17,7 +17,7 @@ It answers, in one flow, the pains that are killing deals today: no secure singl
 
 1. **One link, no account, no portal.** The client never creates a login. The link is theirs, branded as the firm, with their name on it.
 2. **A conversation, not a form.** One item at a time, plain words, progress always visible, "I don't know" is always a legal answer.
-3. **Write-only for secrets.** Once a client submits their SSN or a license scan, even they can't re-view it on the page (they see "Provided, ending in 1234"). A leaked link can never read back what was already given.
+3. **Write-only for secrets.** Once a client submits their SSN or a license scan, even they can't re-view it on the page (they see the last-4 confirmation only in the moment; after that, simply "Provided"). A clear "Replace this answer" path exists for corrections. A leaked link can never read back what was already given — not the value, not the last-4, not even a file name.
 4. **Ask once, never re-ask.** Everything collected becomes a structured client fact with provenance. Downstream paperwork (Schwab forms, ACATS, RightCapital) prefills from it. The firm never asks the client for their SSN twice.
 5. **AI proposes, the advisor approves.** Every AI action (matching an emailed document to a checklist item, extracting income from a statement, drafting a nudge) follows house rules: propose-then-approve, receipts, audit rows.
 6. **Honest by construction.** The page tells the client, in one sentence, what the firm can honestly say: "This page encrypts your information on your device. Only [Firm] can read it." No claim we can't back in the architecture doc.
@@ -55,7 +55,7 @@ The client sees only: to do / done / "we'll help with this one." The advisor see
 
 ### The v1 default template ("New household") — Jameson's locked field set
 
-1. Welcome card (firm intro, what this is, how long it takes: "about 10 minutes plus a few documents")
+1. Welcome card (firm intro, what this is, what it takes: "seven short steps and a few documents; stop anytime and pick up where you left off")
 2. Date of birth — typed field
 3. Social Security number — typed field, write-only, masked
 4. Driver's license — document upload, two slots (front, back), camera-first on mobile
@@ -149,8 +149,8 @@ Opens link (their name in the URL preview and on the page)
    ▼
 Welcome card
    "Hi Sarah. Welcome to Journey Beyond Wealth. Dana asked us to
-    collect a few things so your accounts can be set up. This takes
-    about 10 minutes. You can stop anytime and pick up where you left off."
+    collect a few things so your accounts can be set up. It's seven
+    short steps. You can stop anytime and pick up where you left off."
    [privacy line] "This page locks your information on your device.
     Only Journey Beyond Wealth can unlock it. Learn how →"
    ▼
@@ -172,9 +172,10 @@ Design decisions that carry the experience:
 - **One item per screen.** The wall-of-fields is the portal failure mode (P1). Each screen is one ask, one sentence of why ("Schwab requires this to open your accounts"), one input.
 - **"I don't know" is a first-class button, not a failure.** It advances progress, tells the advisor gently, and — where documents could answer it — offers "or upload something and we'll figure it out together." This is the direct answer to P4's second half (the info is genuinely hard to track down).
 - **Save/resume is automatic and invisible.** Progress saves after every item (encrypted; see ARCHITECTURE.md). Reopening the same link on any device resumes at the next incomplete item. No password, no "session expired."
-- **Write-only confirmation for secrets.** After submitting the SSN: "Provided ✓ (ending in 1234)". The full value is never displayed again on the client page, and cannot be — the page no longer has it (sealed to the firm). Same for license scans: after upload, a checkmark and the file name, no re-preview after the session ends. This is both the security story and a trust signal we say out loud on the privacy page.
+- **Write-only confirmation for secrets.** After submitting the SSN: "Provided ✓ (ending in 1234)" — the last-4 shows only in that session, from memory. On any later visit the item just says "Provided ✓", because the page genuinely no longer has anything to show (sealed to the firm; nothing sensitive is saved in the resume state, not even last-4 or file names). Same for license scans: a checkmark, no re-preview. This is both the security story and a trust signal we say out loud on the privacy page.
+- **Corrections are a designed path, not a shrug.** Every completed item has a quiet "Replace this answer" action: it reopens the input, the client submits fresh, and the advisor sees the new value supersede the old with both kept in the record. Mistyped SSNs happen; the fix has to be one obvious tap.
 - **The privacy line links to a one-screen plain-language explainer** (the client-facing sibling of the Data Map): what encrypts where, what the firm sees, what Lantern-the-company can never see. IT gatekeepers (G1) get the technical version; clients get this one.
-- **Old or locked-down browser** (no WebCrypto, no JS): the page detects it and degrades honestly: "This browser can't open a secure page. Reply to Dana's email instead and she'll take care of it." — which is literally true, because the email-native fallback exists (section 7). No dead ends.
+- **Old or locked-down browser** (no WebCrypto, no JS): the page detects it and degrades honestly, and it routes by sensitivity: for documents, "Reply to Dana's email with a photo instead and she'll take care of it" (the email-native fallback, section 7); for the Social Security number, "Give Dana a quick call and she'll fill it in with you" (phone mode) — we never nudge the most sensitive value into the least protected channel. No dead ends either way.
 - **Completion is hospitality, not a receipt.** The what-happens-next page is firm-authored from a template (steps, rough timeline, photos/names of who they'll talk to). It converts the paperwork chase into the beginning of the relationship (P7).
 
 Copy rules for everything client-facing: short sentences, no jargon, no em dashes, second person, the firm's name (never Lantern's) front and center. Lantern appears once, in the privacy explainer footer, as the technology provider.
@@ -210,9 +211,11 @@ On accept: items filed to the client's folder, checklist ticks,
 **Matching rules (deterministic gate before any AI):**
 
 1. **Sender identity:** the reply's from-address must match the client's email on file for an active intake (or a household member's). No match → the email is never treated as intake material; nothing happens.
-2. **Active intake exists** for that client. Completed/revoked intakes don't match.
-3. Only then does classification run: attachment type detection + content classification against the *open* checklist items only (a license upload can't match an already-accepted license item; it becomes "possible update" instead, flagged separately).
-4. **Confidence tiers:** high (auto-checked in the proposal, one-click accept), medium (pre-selected but shows its reasoning line), low (listed unchecked). Nothing is ever filed without the advisor's accept — the confirmation step is the product, not a speed bump, because a silently mis-filed SSN is the one mistake this feature can never make.
+2. **Sender authenticity:** the message must pass email authentication (DKIM/SPF with DMARC alignment, as recorded by the advisor's mail provider). A from-address is trivially forgeable without it. Failed or missing authentication → the proposal is capped at low confidence and carries an unmissable warning ("this email did not prove it came from Sarah's account"), with one-click-accept disabled.
+3. **Thread preference:** a reply in a thread the advisor actually sent (matching message IDs to the original intake email or a nudge) ranks above an out-of-the-blue message from the same address.
+4. **Active intake exists** for that client. Completed/revoked intakes don't match.
+5. Only then does classification run: attachment type detection + content classification against the *open* checklist items only (a license upload can't match an already-accepted license item; it becomes "possible update" instead, flagged separately).
+6. **Confidence tiers:** high (auto-checked in the proposal, one-click accept), medium (pre-selected but shows its reasoning line), low (listed unchecked, warnings shown). Nothing is ever filed without the advisor's accept — the confirmation step is the product, not a speed bump, because a silently mis-filed SSN is the one mistake this feature can never make.
 
 **Honest boundary, stated in the advisor UI and the firm's client-privacy explainer:** email replies are as private as the firm's email is — they do not get the end-to-end encryption of the link. The checklist item's provenance chip says "by email" so the firm always knows which channel each item used. We never pretend both doors have the same lock; advisors whose firm uses secure email (like Bracket, per the field research) keep that benefit.
 
@@ -268,7 +271,7 @@ Every accepted item and fact feeds the client's map immediately. The intake tab 
 | Case | Behavior |
 |---|---|
 | Link opened on two devices | Both work; per-item last-write-wins; advisor sees both provenance rows. No lockout — the failure mode we refuse is a locked-out client. |
-| Link forwarded / leaked | Holder can see progress labels and submit items; can NOT read any provided secret (write-only design). Advisor can kill the link in one click; ARCHITECTURE.md §6 covers rotation. |
+| Link forwarded / leaked | Holder sees exactly: firm name, item labels, the client's first name, and done/not-done flags — no values, no last-4, no file names (ARCHITECTURE.md §2 has the precise list). They can submit items, which flags as an anomaly if the item was already complete. Advisor kills the link in one click; ARCHITECTURE.md §6 covers rotation. |
 | Client stops mid-upload | Chunked upload resumes on next visit; item shows "upload didn't finish" on reopen, one tap to resume. |
 | Advisor offline for days | Client experience unaffected (items queue encrypted on the relay). Board catches up on next launch; nothing is lost. |
 | Expired link opened | Friendly page: "This link has expired. [Firm] can send you a fresh one." + the advisor sees "client tried an expired link" on the board (that's a hot lead signal, not an error). |

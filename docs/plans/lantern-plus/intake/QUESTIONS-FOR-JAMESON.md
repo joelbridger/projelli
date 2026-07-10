@@ -4,7 +4,7 @@ Only the calls that genuinely need you. One at a time is fine. Each comes with m
 ---
 
 **1. Can a client re-view their own answers after submitting them?**
-My recommendation: **no for the sensitive ones**. Once a client submits their Social Security number or license photos, the page only ever shows "Provided, ending in 1234." Even they can't pull it back up. Why: if a link gets forwarded or leaks, whoever has it can see progress but can never read the SSN or download the license. It also makes our privacy story very easy to say out loud. The small cost: a client who mistypes can't check what they typed; they just resubmit (which is easy).
+My recommendation: **no for the sensitive ones**. Once a client submits their Social Security number or license photos, the page shows the "ending in 1234" confirmation only in that moment, and afterward just "Provided." Even they can't pull it back up. Why: if a link gets forwarded or leaks, whoever has it can see progress but can never read the SSN or download the license. It also makes our privacy story very easy to say out loud. Mistakes are covered by a designed path: every completed item has a clear "Replace this answer" button that reopens it, so a mistyped number is one tap to fix.
 
 **2. Which pricing tier gets Intake?**
 My recommendation: **all paid tiers**, with the multi-advisor parts (a whole firm sharing one client's onboarding) reserved for the Firm tier. Why: Intake is the front door of the whole product story and our best demo moment; gating it would starve adoption exactly where solo advisors feel the pain most. The board can revisit once real usage exists.
@@ -16,7 +16,7 @@ My recommendation: **one neutral, professional Lantern-owned address** (for exam
 My recommendation: **keep them, encrypted, in the client's folder by default, with a one-click "delete scans" control per client and a firm-wide auto-delete setting** (for example, delete 90 days after onboarding completes) that firms can turn on. Why: firms differ here and some genuinely need the scans later, but a visible retention control is exactly the kind of honesty our IT-gatekeeper story is built on. I did not pick auto-delete as the default because silently disappearing client records is the scarier failure for an advisor.
 
 **5. One link per household, or one per person?**
-My recommendation: **one link per household for v1.** Inside the checklist, items are labeled per person ("Lena's Social Security number"). Why: couples share the burden naturally ("you do the license photos, I'll do the numbers"), and one link means one thing to lose track of. Per-person links (needed if spouses keep secrets from each other, which is real but rare at onboarding) can come later without redesign.
+My recommendation: **one link per household for v1.** Inside the checklist, items are labeled per person ("Lena's Social Security number"). Why: couples share the burden naturally ("you do the license photos, I'll do the numbers"), and one link means one thing to lose track of. The honest tradeoff to know about: anyone holding the household link (a spouse, an adult child helping out) can see which of the other person's items are done and can submit answers for them — though never read anything submitted, not even partial digits (the design hides those from everyone after the moment of entry). Per-person links (for households that keep finances separate, which is real but rare at onboarding) can come later without redesign.
 
 ---
 

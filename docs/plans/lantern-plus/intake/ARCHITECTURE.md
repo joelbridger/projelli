@@ -6,7 +6,7 @@
 
 ## 0. The one-paragraph design
 
-The intake link is a **capability URL**: everything secret rides in the URL fragment, which browsers never send to servers. The client's browser encrypts each answer and document **to the advisor's public key** (which also rides in the fragment, so the server is never in the key path) using the exact sealing construction the firm relay already uses for matter keys. The relay stores ciphertext blobs plus minimal routing metadata and can decrypt nothing. The advisor's desktop app holds the only private key (OS keychain), pulls ciphertext down, decrypts locally, files documents into the client's folder (vault-encrypted at rest), and writes typed secrets into an encrypted facts store. The sentence we get to say honestly: *your client's Social Security number is encrypted in their browser and can only be decrypted on your computer; the server only ever carries sealed envelopes.*
+The intake link is a **capability URL**: everything secret rides in the URL fragment, which browsers never send to servers. The client's browser encrypts each answer and document **to the intake public key** (created by the advisor's desktop; it also rides in the fragment, so the server is never in the key path) using the same sealing construction the firm relay already uses for matter keys. The relay stores opaque bytes plus minimal routing metadata; an honest client sends only ciphertext, and the relay holds no key to read anything. The advisor's desktop app holds the only private key (OS keychain), pulls ciphertext down, decrypts locally, files documents into the client's folder (vault-encrypted at rest), and writes typed secrets into an encrypted facts store. The sentence we get to say honestly: *your client's Social Security number is encrypted in their browser and can only be decrypted on your computer; the server holds no key to read anything.* (Claims wording rules: RISKS.md §2.)
 
 ---
 
@@ -14,7 +14,7 @@ The intake link is a **capability URL**: everything secret rides in the URL frag
 
 **Reused as-is (client-side crypto, all WebCrypto, browser-compatible):**
 - AES-256-GCM blob sealing with versioned wire format `[1B version][12B IV][ct+tag]` and AAD binding — `src/platform/firm/matterCrypto.ts:10-11,47-49,99-103`.
-- ECDH P-256 + HKDF-SHA256 + AES-256-GCM key wrapping, wire format `[version][65B ephemeral P-256 pubkey][16B salt][12B IV][ct+tag]`, epoch/context bound into HKDF info and GCM AAD — `src/platform/firm/keyWrap.ts:1-34,137-143`. **This is the sealing primitive the client page uses to encrypt to the advisor.** It already runs outside Tauri (plain WebCrypto).
+- ECDH P-256 + HKDF-SHA256 + AES-256-GCM key wrapping, wire format `[version][65B ephemeral P-256 pubkey][16B salt][12B IV][ct+tag]`, epoch/context bound into HKDF info and GCM AAD — `src/platform/firm/keyWrap.ts:1-34,137-143`. **Same construction, sibling implementation:** the existing functions hardcode matter-key context strings and unwrap via the local device key, so intake gets its own wrapper module reusing the construction and wire format with intake-specific HKDF info + AAD (`intake/item/v1`) and intake-keychain unwrap — with its own round-trip and cross-context tamper tests (a matter-context wrap must never unwrap under an intake context, and vice versa). It runs outside Tauri (plain WebCrypto).
 - OS-keychain storage pattern (`com.lantern.<domain>.<id>` services) — `src/platform/firm/firmKeychain.ts:29-43`; vault VMK precedent for keychain-held master secrets — `src-tauri/src/commands/vault/mod.rs:42-64`.
 - Ciphertext-only relay discipline: server treats blobs as opaque bytes, size cap is the only shape check — `backend/src/routes/matters.ts:28-30`, `backend/src/lib/matters.ts:14-17`.
 - Capability-token precedent: single-use, short-lived, HMAC-hashed-at-rest sync tickets — `backend/src/lib/syncTickets.ts`, `backend/src/routes/matters.ts:359-428`. Refresh tokens and license keys are likewise stored only as SHA-256 HMAC hashes (`backend/src/lib/crypto.ts:163-173`) — the intake link token follows the same rule.
@@ -46,9 +46,15 @@ Per intake, created on the advisor's machine at compose time:
 
 **The link:** `https://<intake-host>/i/<intake_id>#v1.<base64(s)>.<base64(advisor P-256 public key, 65B)>` — roughly 160 characters. The fragment is never transmitted in HTTP requests, never logged by the server, and never appears in referrers (the page sets `Referrer-Policy: no-referrer`).
 
-**Why the public key rides in the fragment:** if the page fetched the advisor's public key from the relay, a malicious or compromised relay could substitute its own key and read every submission. With the key in the fragment, the relay is out of the key path entirely; the trust root shifts to the served JavaScript (addressed honestly in §8 and RISKS.md).
+**Why the public key rides in the fragment:** if the page fetched the intake public key from the relay, a malicious or compromised relay could substitute its own key and read every submission. With the key in the fragment, the relay is out of the key path entirely; the trust root shifts to the served JavaScript (addressed honestly in §8 and RISKS.md).
 
-**Write-only property (the design's backbone):** typed secrets and documents are sealed with a fresh content key wrapped only to the advisor. The resume state (encrypted with `k_page`, which any link holder has) contains **only** item completion flags, display confirmations (SSN last-4, file names as the client typed them), and the client's first name. Therefore: a leaked or forwarded link can see progress and submit or overwrite items, but can never read back a submitted SSN or download a license scan. The client page tells the client this plainly.
+**Write-only property (the design's backbone):** typed secrets and documents are sealed with a fresh content key wrapped only to the intake public key. The resume state (encrypted with `k_page`, which any link holder has) contains **only** item completion flags, display confirmations, and the client's first name. Therefore: a leaked or forwarded link can see progress and submit items, but can never read back a submitted SSN or download a license scan. The client page tells the client this plainly.
+
+**What a link holder can see and do (the exact list, kept minimal by design):** the firm's name and branding; the checklist item labels; the client's first name; per-item done/not-done flags; generic confirmations ("Social Security number provided", "2 photos provided" — the resume state stores **no last-4 and no file names**; those confirmations render only in the live session from memory); and the ability to submit new values for open items. They can never read a submitted value or document. Overwrites of already-completed items are flagged to the advisor as anomalies.
+
+**Resume state is cosmetic, never authoritative:** because any link holder can rewrite `k_page`-sealed state, the advisor app derives all truth (item states, provenance, values) exclusively from finalized sealed submissions; the resume state only drives client-page rendering. A forged state can confuse the forger's own screen, nothing else.
+
+**Replay protection:** every submission carries a client-generated random `submission_id` inside the sealed manifest and in plaintext metadata; the relay rejects duplicate `submission_id`s per intake, and the advisor sync dedupes by `(item_id, submission_id)` and flags any replayed or out-of-order ciphertext (a stale submission re-posted later can only ever appear as a flagged duplicate, never silently replace a newer answer — the facts store's supersede chain orders by advisor-verified receipt, not by claimed timestamps).
 
 **Multi-advisor firms:** v1 decrypts on the creating advisor's machine only. Wave 5 wraps the intake private key to the matter's member devices using the existing `wrapped_matter_keys` machinery (`backend/src/routes/matterKeys.ts:30-148`, `src/platform/firm/matterKeyService.ts`) and, matching the vault's escrow precedent (`vaultClient.ts:272-302`), to org-admin devices — so a departed advisor's in-flight intakes are recoverable by the firm. Until then, the failure mode is honest: if the creating advisor's machine is lost, in-flight submissions are unreadable and the intake is re-sent (facts already synced down are unaffected).
 
@@ -78,9 +84,9 @@ New route group `routes/intake.ts` beside the existing groups in `backend/src/se
 | `GET /intake/:id/bundle` | sealed checklist + sealed resume state + `checklist_version` (the page's boot call) |
 | `PUT /intake/:id/state` | save sealed resume state (small cap, ~64 KiB) |
 | `POST /intake/:id/item/:item_id/chunk` | upload one ciphertext chunk (≤4 MiB per chunk — comfortably inside SQLite blob handling; server enforces per-intake total cap, default 500 MiB) |
-| `POST /intake/:id/item/:item_id/submit` | finalize an item: sealed manifest (file names, chunk hashes, content type live *inside* the ciphertext) + the wrapped content key; server marks prior chunks bound |
+| `POST /intake/:id/item/:item_id/submit` | finalize an item: sealed manifest (file names, chunk hashes, content type, `submission_id` live *inside* the ciphertext) + plaintext `submission_id` + the wrapped content key; server marks prior chunks bound and rejects duplicate `submission_id`s |
 
-Expired or revoked intakes answer every public call with the same neutral 410 — the revoked page must leak nothing, not even whether the id ever existed (uniform response for unknown ids too).
+Expired, revoked, unknown, and wrong-token requests all answer with the same neutral 410 after the same constant-time token check — a probe must not be able to distinguish "wrong token on a live intake" from "no such intake," or the id space becomes an oracle.
 
 **What the server unavoidably sees (the honest list, for the Data Map and the IT pack):**
 - `intake_id`; the creating seat/org identity; creation, expiry, revocation timestamps.
@@ -96,9 +102,9 @@ Expired or revoked intakes answer every public call with the same neutral 410 �
 
 The page is a self-contained static SPA (no third-party origins, no CDN, no analytics; CSP `default-src 'none'` plus its own bundle and the relay API; `Referrer-Policy: no-referrer`). Hosting rides the same rail as the Calendly plan's public booking page (one static-host + relay-API pattern for both client-facing surfaces).
 
-Boot: parse fragment → derive `k_page`, `t_auth` → fetch bundle → decrypt checklist + state → render. Per item submit: fresh AES-256 content key → encrypt payload (typed value as a small JSON blob; files as 4 MiB chunks, each `[version][IV][ct+tag]` with AAD `intake:<id>:item:<item_id>:chunk:<n>` so chunks can't be reordered or transplanted) → wrap content key to the advisor public key (`keyWrap.ts` construction, context string `intake/item/v1` in HKDF info + AAD) → upload chunks, then submit manifest + wrapped key → **discard the content key and plaintext**; update the sealed resume state with the completion flag + display confirmation only.
+Boot: parse fragment → derive `k_page`, `t_auth` → fetch bundle → decrypt checklist + state → render. Per item submit: fresh AES-256 content key → encrypt payload (typed value as a small JSON blob; files as 4 MiB chunks, each `[version][IV][ct+tag]` with AAD `intake:<id>:item:<item_id>:submission:<sid>:chunk:<n>` so chunks can't be reordered, transplanted across items or intakes, or mixed between submissions) → wrap content key to the intake public key (the intake sibling of the `keyWrap.ts` construction, §1) → upload chunks, then submit manifest + wrapped key → **discard the content key and plaintext**; update the sealed resume state with the completion flag + a generic confirmation only (no last-4, no file names — §2).
 
-The page **can**: render the checklist, resume progress on any device with the link, show last-4/file-name confirmations, run Tier-1 Document Detective locally (text extraction + keyword rules on the user's own document, in their own browser — nothing leaves the device unencrypted).
+The page **can**: render the checklist, resume progress on any device with the link, show in-session confirmations (last-4 renders from memory during the submitting session only), run Tier-1 Document Detective locally (text extraction + keyword rules on the user's own document, in their own browser — nothing leaves the device unencrypted).
 The page **cannot**: read back any submitted secret (it holds no unwrap key), see other clients or the advisor's workspace, or reach any origin but the relay.
 
 **Old browsers:** feature-detect WebCrypto (`crypto.subtle`, P-256 ECDH) at boot; on failure, show the honest fallback ("reply to [advisor]'s email instead") — no degraded-crypto mode, ever. Every 2020+ evergreen browser and iOS/Android system browser passes.
@@ -128,7 +134,7 @@ Sync-down (in `src/platform/intake/IntakeSyncClient.ts`, modeled on `MatterSyncC
 - **Revocation:** instant server-side kill (`status=revoked`); uniform neutral page. Received items are unaffected.
 - **Regeneration:** new `s` (new `t_auth`, new `k_page`) for the same intake and the same keypair; the old link dies. Used for "I think I forwarded it somewhere weird" and for un-revoking. Because submissions are sealed to the keypair, not to `s`, nothing already received needs rewrapping; the resume state is re-sealed to the new `k_page` by the advisor app at regeneration time.
 - **Resume:** the link is the resume token. State saves after every item; any device with the link resumes at the next incomplete item.
-- **Opened twice / two devices:** allowed; per-item last-write-wins with both provenance rows kept advisor-side. No sessions, no lockouts.
+- **Opened twice / two devices:** allowed; when one item receives multiple sealed submissions, the advisor side keeps every one with its provenance and resolves through the facts store's supersede chain (advisor-visible, never a silent overwrite). No sessions, no lockouts.
 - **Partial uploads:** chunks are individually durable; the manifest-submit finalizes. A dead upload resumes at the missing chunk (the page asks the relay which chunk indexes exist — count only, no content).
 
 ---
@@ -149,8 +155,8 @@ An "instant AI on the client page" variant would require routing plaintext throu
 |---|---|---|
 | T1 | **Relay compromise / subpoena / insider** reads stored data | Gets ciphertext, token hashes, and §3's metadata list. No keys, no plaintext, no client names. This is the core guarantee and it is structural, not policy. |
 | T2 | **Relay actively malicious: substitutes keys** | Out of the key path — the sealing key arrives via the link fragment, never from the relay (§2). |
-| T3 | **Relay actively malicious: serves poisoned page JS** | The residual trust root, stated honestly (also RISKS.md §3): a malicious intake host could serve JS that exfiltrates plaintext. Mitigations: page and API on separate concerns (static host serves only the audited bundle), self-contained versioned builds with published hashes, CSP pinning `connect-src` to the relay origin only (exfiltration would need the relay itself to cooperate), reproducible-build verification on the roadmap. Equal-or-better than every "secure portal" competitor, which holds server-readable plaintext outright. |
-| T4 | **Link leaked / forwarded / guessed** | Guessing: 256-bit fragment secrets and unguessable ids; uniform 410s prevent oracle probing. Leak: holder can view progress labels and submit items, cannot read any submitted secret (write-only, §2), cannot learn the client's identity beyond the first name in the sealed state they can decrypt with the leaked fragment. Advisor one-click revoke + regenerate; anomalies (new item overwrites after completion) flag on the board. |
+| T3 | **Relay actively malicious: serves poisoned page JS** | The residual trust root, stated honestly (also RISKS.md §3): a malicious intake host could serve JS that exfiltrates plaintext typed *from that session onward*. This means the E2EE guarantee is conditional on page integrity, and every claim we publish must be worded accordingly (RISKS.md §2). Mitigations, required from Wave 1: static host serves only the audited self-contained bundle; versioned builds with **published hashes and a deploy-time integrity check** (the deploy fails if the served bundle's hash differs from the signed manifest); CSP pinning `connect-src` to the relay origin only (exfiltration would need the relay itself to cooperate); reproducible-build verification on the roadmap. Equal-or-better than every "secure portal" competitor, which holds server-readable plaintext as its normal operating mode. |
+| T4 | **Link leaked / forwarded / guessed** | Guessing: 256-bit fragment secrets and unguessable ids; uniform 410s (including wrong-token, §3) prevent oracle probing. Leak: the holder gets exactly the §2 list — firm name, item labels, client first name, done flags, generic confirmations, and the ability to submit — never a submitted value, never last-4, never file names. Advisor one-click revoke + regenerate; anomalies (item overwrites after completion) flag on the board. |
 | T5 | **Client device malware / shoulder-surfing** | Out of scope, stated honestly — identical exposure to typing an SSN anywhere. Masked input reduces shoulder-surfing; we never persist plaintext to the device (no localStorage of answers, memory only). |
 | T6 | **Advisor machine compromise** | Equivalent to today's posture for everything else in the app; keychain-held keys, vault at rest, audit trail. Intake adds no new class of exposure. |
 | T7 | **Wrong-recipient send** (advisor texts the wrong person) | The link opens with the intended client's first name on it ("Hi Sarah") — a human-visible tripwire; write-only means a wrong recipient can inject noise but read nothing; revoke + regenerate recovers. |
@@ -170,8 +176,12 @@ interface ClientFact {
   fact_id: string;
   matter_id: string;              // locked identifier, never renamed
   subject: string;                // household member key ("primary", "spouse", or person id)
-  kind: FactKind;                 // 'dob' | 'ssn' | 'income_annual' | 'spending_monthly'
-                                  // | 'drivers_license' | 'address' | 'employer' | ... (extensible registry)
+  kind: FactKind;                 // versioned registry, defined in full in Wave 1 even where not yet
+                                  // collected: 'dob' | 'ssn' | 'income_annual' | 'spending_monthly'
+                                  // | 'drivers_license' | 'address' | 'citizenship' | 'employer'
+                                  // | 'beneficiary' | ... — the Schwab prefill mapping needs address,
+                                  // citizenship, and beneficiaries, so those registry entries (and their
+                                  // sensitivity tiers) are locked now; intake merely populates them later
   value: FactValue;               // typed union: { t:'date'|'string'|'money'|'range'|'doc_ref', v: ... }
   sensitivity: 'restricted'       // SSN, full DL data: SQLCipher only, masked UI, audited reveal
              | 'confidential'     // income, spending, DOB
@@ -205,3 +215,5 @@ Rules: append-only with supersede chains (an SSN correction is a new fact supers
 | Relay down | Client page fails politely and preserves typed-but-unsubmitted input in memory; retry with backoff; nothing sensitive persisted client-side. |
 | Crash between decrypt and local write | No ack sent → relay re-delivers on next sync (§5 ack-last rule). |
 | Duplicate submission of one item | Server versions per item; advisor sees both with timestamps; facts store supersede chain resolves (§9). |
+| Replayed ciphertext (old submission re-posted) | Relay rejects duplicate `submission_id`s; advisor sync flags replays and never lets a stale submission silently replace a newer answer (§2). |
+| Forged resume state (link holder rewrites it) | Cosmetic only — advisor truth derives solely from sealed submissions (§2); worst case is a confused rendering on the forger's own screen. |

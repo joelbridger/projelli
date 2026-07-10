@@ -16,6 +16,8 @@
 
 - **Never claim SOC 2 certification** (we have none). Approved framing: "Lantern has not completed a SOC 2 audit. Here is our architecture instead, which removes the server from the trust equation for client data: [honest posture]." If a firm requires SOC 2 as a hard gate, that is a sales fact to record, not a claim to fudge.
 - Never "bank-level security," "military-grade," "zero-knowledge" (the relay does see metadata — §3 of ARCHITECTURE.md — so "zero-knowledge" would be false), or "HIPAA/GLBA compliant" (compliance is the firm's property, not a product feature).
+- **The client-page headline ("this page locks your information on your device; only [Firm] can unlock it") is permitted ONLY while the Wave 1 page-integrity gates hold** (published build hashes + deploy-time integrity verification, ARCHITECTURE.md §8 T3), and the linked privacy explainer must state the condition honestly: the promise depends on the page you received being the genuine one, and here is how we protect that. If the integrity gates ever lapse, the headline overclaims and must change — this pairing is a standing claims-discipline rule, not a launch detail.
+- Say "the honest client sends only ciphertext; the server holds no key to read anything" rather than "the server only ever stores ciphertext" — the relay cannot verify that arbitrary bytes are encrypted, and our own privacy-proof test is scoped to honest-client behavior. Precision here is cheap and reviewers notice.
 - Never describe the email fallback as encrypted end to end (§5).
 - Never "we can't be breached." Approved: "a breach of our server cannot expose your clients' readable data."
 - The client-page privacy explainer, the marketing site, and the IT pack must all use the SAME carefully worded claims — one source of truth, reviewed once, reused everywhere.
@@ -23,7 +25,7 @@
 ## 3. The hosted component — the real weak point, named
 
 The E2EE guarantee has one residual trust root: **the JavaScript we serve to the client's browser** (ARCHITECTURE.md §8 T3). If the intake host were compromised and served poisoned code, that code could exfiltrate what a client types *from that session onward*. This is true of every web-delivered E2EE product (Proton, Bitwarden web vault); we adopt the same honest posture:
-- Minimal, self-contained, versioned page bundle; published build hashes; CSP `connect-src` pinned to the relay origin; no third-party origins at all, ever (one analytics script would break the whole story).
+- Minimal, self-contained, versioned page bundle; published build hashes **plus a deploy-time integrity check that fails the deploy on any mismatch — a Wave 1 gate, not a roadmap item**; CSP `connect-src` pinned to the relay origin; no third-party origins at all, ever (one analytics script would break the whole story).
 - The bar this sets operationally: the intake page's deploy pipeline is security-sensitive infrastructure. Deploy access, integrity checks, and change review at the same rigor as the relay itself. No CDN rewriting, no tag managers, nothing injected.
 - We say it out loud in the IT pack (reviewers respect the honesty and will find it anyway), while noting the comparison point: every "secure portal" competitor holds server-readable plaintext as its *normal operating mode*, which is strictly worse than our worst case.
 - Roadmap noted, not promised: reproducible builds / signed-page verification.
@@ -37,7 +39,8 @@ The E2EE guarantee has one residual trust root: **the JavaScript we serve to the
 ## 5. The email fallback is a different lock — never blur it
 
 - Email replies are as private as the firm's email, no more. Provenance chips mark every email-sourced item; the privacy explainer states it; marketing never implies the E2EE applies to the email door.
-- Mis-filing is this feature's catastrophic failure (someone else's SSN in the wrong client's folder). The deterministic gate (sender must match the client on file, active intake only, open items only) runs BEFORE any AI, and nothing files without advisor confirmation — this is a hard product rule (PRODUCT-DESIGN.md §7), and Wave 3's adversarial review explicitly attacks it (spoofed senders, look-alike addresses).
+- Mis-filing is this feature's catastrophic failure (someone else's SSN in the wrong client's folder). The deterministic gate (sender matches the client on file AND the message passes DKIM/DMARC authentication AND an active intake with open items exists, in-thread replies preferred) runs BEFORE any AI; authentication failures cap at low confidence with a visible warning and no one-click accept; and nothing files without advisor confirmation — hard product rules (PRODUCT-DESIGN.md §7). Wave 3's adversarial review explicitly attacks them (spoofed From headers, look-alike addresses, forwarded-thread tricks).
+- The WebCrypto-fallback path routes by sensitivity (documents → email; SSN → phone walkthrough) precisely so the fallback never funnels the most sensitive value into the weakest channel (PRODUCT-DESIGN.md §6).
 - Inbound email is untrusted content: extraction prompts must treat message bodies as data, not instructions (prompt-injection discipline per the repo's security rules).
 
 ## 6. Phishing surface
