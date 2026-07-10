@@ -38,3 +38,12 @@
 - Verify architecture claims against the REAL code in ~/lp-ux-integrate (e.g., confirm what the relay actually supports today; name files). No hand-waving.
 - Keep the Intake identity subordinate to the app's: it is how data enters the private intelligence layer; the Client Map should visibly begin growing from intake facts (that is the demo moment).
 - When completely done: commit your docs on a branch `plan/intake-design` in ~/lantern-plus, push, then print exactly: `WORKER-DONE: plan/intake-design` followed by a 10-line evidence summary (files, codex-review rounds, open questions count).
+
+## ADDENDUM 1 (2026-07-10, Jameson direct — SCOPE WIDENING, design around this)
+Jameson's wife clarified: the firm needs forms not only at onboarding but as a FLEXIBLE, STANDING system for EXISTING clients too. Requirements, in his words distilled:
+- Advisors create work for existing clients that requires the client to fill out forms for various things, any time in the relationship.
+- Form sources, all three: (a) the firm's existing templates; (b) forms downloaded from custodians and vendors (e.g. Schwab PDFs — assume fillable AcroForm PDFs and flat scanned PDFs both); (c) forms CREATED inside Lantern itself (a form builder).
+- Fill AND sign: e-signature integrated (DocuSign named explicitly; our DocuSign connector is code-complete awaiting credentials).
+- Send through Lantern, client completes, and the result comes BACK through Lantern into the client's file (tracked, filed, feeding the Client Map).
+
+DESIGN IMPLICATION — restructure, don't bolt on: the intake checklist engine should be designed as a GENERAL "form request" primitive (any client, any form source, fill+sign+return via the same E2EE link machinery, tracked on a requests board), with ONBOARDING INTAKE as its flagship packaged application. The onboarding board is then a filtered view of a more general request tracker. Design the primitive's schema and the E2EE flow ONCE so both use cases ride it. Include in your deliverables: the form-source pipeline (template import, PDF AcroForm fill mapping, Lantern-native form builder — builder can be a later wave), the e-sign stage (DocuSign for custodian-grade signing; note whether a native lightweight click-to-sign is worth a later wave for firm-internal forms), and where returned forms land in the client folder. Keep wave 1 unchanged in spirit (smallest honest E2EE slice) but make its schema forward-compatible with general form requests.
