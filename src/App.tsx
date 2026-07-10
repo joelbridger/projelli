@@ -1604,11 +1604,12 @@ function AppShell() {
   }, [emitAuditEntry]);
 
   useEffect(() => {
-    setIntakeEmailReplyAuditEmitter(emitAuditEntry);
+    // Email-reply filing waits for this promise before any file or fact write.
+    setIntakeEmailReplyAuditEmitter(addAuditEntry);
     return () => {
       setIntakeEmailReplyAuditEmitter(null);
     };
-  }, [emitAuditEntry]);
+  }, [addAuditEntry]);
 
   // Handle save audio recording (extracted to useAudioRecording)
   const { handleSaveAudioRecording } = useAudioRecording({

@@ -5,10 +5,12 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/ui/button';
 import {
   acceptEmailReplyProposal,
+  dismissEmailReplyProposal,
   type EmailReplyAcceptResult,
 } from '@/platform/intake/emailReplyAccept';
 import {
   emailReplyProposalList,
+  isEmailReplyProposalItemSelectable,
   type EmailReplyProposalRecord,
 } from '@/platform/intake/emailReplyProposalStore';
 import { EmailReplyProposalRow } from './EmailReplyProposalRow';
@@ -23,7 +25,7 @@ export interface EmailReplyProposalCardProps {
 function defaultSelectedIds(proposal: EmailReplyProposalRecord): Set<string> {
   return new Set(
     proposal.items
-      .filter((row) => row.checkedByDefault)
+      .filter((row) => row.checkedByDefault && isEmailReplyProposalItemSelectable(row))
       .map((row) => row.id)
   );
 }
@@ -39,6 +41,7 @@ export function EmailReplyProposalCard({
   const [restrictedByProposal, setRestrictedByProposal] = useState<Record<string, Set<string>>>({});
   const [reviewProposalId, setReviewProposalId] = useState<string | null>(null);
   const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const reviewProposal = useMemo(
@@ -140,6 +143,39 @@ export function EmailReplyProposalCard({
         acceptError instanceof Error
           ? acceptError.message
           : t('intake.emailReply.accept-error')
+      );
+    });
+  };
+
+  const dismiss = async (proposal: EmailReplyProposalRecord) => {
+    setDismissingId(proposal.proposalId);
+    setError('');
+    try {
+      await dismissEmailReplyProposal({
+        proposalId: proposal.proposalId,
+        advisorId,
+      });
+      setProposals((current) =>
+        current.filter((candidate) => candidate.proposalId !== proposal.proposalId)
+      );
+      setReviewProposalId(null);
+    } catch (dismissError: unknown) {
+      setError(
+        dismissError instanceof Error
+          ? dismissError.message
+          : t('intake.emailReply.dismiss-error')
+      );
+    } finally {
+      setDismissingId(null);
+    }
+  };
+
+  const dismissFromUi = (proposal: EmailReplyProposalRecord): void => {
+    void dismiss(proposal).catch((dismissError: unknown) => {
+      setError(
+        dismissError instanceof Error
+          ? dismissError.message
+          : t('intake.emailReply.dismiss-error')
       );
     });
   };
@@ -272,11 +308,26 @@ export function EmailReplyProposalCard({
                 />
               ))}
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={
+                  acceptingId === proposal.proposalId ||
+                  dismissingId === proposal.proposalId
+                }
+                onClick={() => {
+                  dismissFromUi(proposal);
+                }}
+              >
+                {t('intake.emailReply.dismiss')}
+              </Button>
               <Button
                 type="button"
                 disabled={
-                  acceptingId === proposal.proposalId || selectedIds.size === 0
+                  acceptingId === proposal.proposalId ||
+                  dismissingId === proposal.proposalId ||
+                  selectedIds.size === 0
                 }
                 onClick={() => {
                   acceptFromUi(proposal);
@@ -308,10 +359,14 @@ export function EmailReplyProposalCard({
           onAccept={() => {
             acceptFromUi(reviewProposal);
           }}
+          onDismiss={() => {
+            dismissFromUi(reviewProposal);
+          }}
           onClose={() => {
             setReviewProposalId(null);
           }}
           accepting={acceptingId === reviewProposal.proposalId}
+          dismissing={dismissingId === reviewProposal.proposalId}
         />
       ) : null}
     </section>

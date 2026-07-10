@@ -4,7 +4,7 @@ import type { EmailReplyProposalRecord } from './emailReplyProposalStore';
 
 export type EmailReplyAuditEmitter = (
   entry: Omit<AuditEntry, 'id' | 'timestamp'>
-) => void | Promise<void>;
+) => Promise<void>;
 
 let activeEmailReplyAuditEmitter: EmailReplyAuditEmitter | null = null;
 
@@ -18,7 +18,7 @@ export function logIntakeEmailReplyAudit(
   entry: Omit<AuditEntry, 'id' | 'timestamp'>
 ): Promise<void> | undefined {
   if (!activeEmailReplyAuditEmitter) return undefined;
-  return Promise.resolve(activeEmailReplyAuditEmitter(entry));
+  return activeEmailReplyAuditEmitter(entry);
 }
 
 export async function mustLogIntakeEmailReplyAudit(
@@ -51,10 +51,11 @@ export function buildEmailReplyAuditEntry(input: {
     | 'matchedRequestId'
   >;
   phase: 'intent' | 'outcome';
+  operation?: 'accept' | 'dismiss';
   auditPairId: string;
   advisorId: string;
   itemIds: string[];
-  status: 'intent' | 'accepted' | 'partial' | 'failed' | 'refused';
+  status: 'intent' | 'accepted' | 'partial' | 'failed' | 'refused' | 'dismissed';
   filePaths?: string[];
   factIds?: string[];
   error?: string;
@@ -62,7 +63,11 @@ export function buildEmailReplyAuditEntry(input: {
   return {
     action: 'intake_email_reply',
     description:
-      input.phase === 'intent'
+      input.operation === 'dismiss' && input.phase === 'intent'
+        ? 'Email intake reply dismissal started. Source: normal email. Channel: email reply.'
+        : input.operation === 'dismiss'
+          ? 'Email intake reply dismissed. Source: normal email. Channel: email reply.'
+          : input.phase === 'intent'
         ? 'Email intake reply review started. Source: normal email. Channel: email reply.'
         : `Email intake reply review finished with status ${input.status}. Source: normal email. Channel: email reply.`,
     model: undefined,
@@ -81,7 +86,12 @@ export function buildEmailReplyAuditEntry(input: {
       factIds: input.factIds ?? [],
       ...(input.error ? { error: input.error } : {}),
     },
-    userDecision: input.phase === 'intent' ? 'approved' : 'auto',
+    userDecision:
+      input.phase === 'intent'
+        ? input.operation === 'dismiss'
+          ? 'rejected'
+          : 'approved'
+        : 'auto',
     metadata: {
       auditEventType: 'intake_email_reply',
       phase: input.phase,
@@ -89,6 +99,7 @@ export function buildEmailReplyAuditEntry(input: {
       proposalId: input.proposal.proposalId,
       advisorId: input.advisorId,
       channel: 'email_reply',
+      operation: input.operation ?? 'accept',
       e2ee: false,
     },
   };

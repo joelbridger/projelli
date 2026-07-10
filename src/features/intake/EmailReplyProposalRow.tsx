@@ -1,7 +1,10 @@
 import { AlertTriangle, FileText } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-import type { EmailReplyProposalItem } from '@/platform/intake/emailReplyProposalStore';
+import {
+  isEmailReplyProposalItemSelectable,
+  type EmailReplyProposalItem,
+} from '@/platform/intake/emailReplyProposalStore';
 
 export interface EmailReplyProposalRowProps {
   row: EmailReplyProposalItem;
@@ -26,6 +29,7 @@ export function EmailReplyProposalRow({
 }: EmailReplyProposalRowProps) {
   const { t } = useTranslation();
   const restricted = row.bodyFact?.sensitivity === 'restricted';
+  const selectable = isEmailReplyProposalItemSelectable(row);
   return (
     <div
       data-testid="email-reply-proposal-row"
@@ -43,6 +47,7 @@ export function EmailReplyProposalRow({
         aria-label={t('intake.emailReply.select-row')}
         type="checkbox"
         checked={checked}
+        disabled={!selectable}
         onChange={() => {
           onToggle(row.id);
         }}
@@ -98,6 +103,18 @@ export function EmailReplyProposalRow({
             }}
           >
             {row.reasoning}
+          </div>
+        ) : null}
+        {!selectable ? (
+          <div
+            style={{
+              marginTop: 5,
+              color: 'var(--kp-warning)',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            {t('intake.emailReply.needs-manual-review')}
           </div>
         ) : null}
         {restricted ? (

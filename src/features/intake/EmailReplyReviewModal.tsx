@@ -12,8 +12,10 @@ export interface EmailReplyReviewModalProps {
   onToggle: (id: string) => void;
   onRestrictedApprove: (id: string, approved: boolean) => void;
   onAccept: () => void;
+  onDismiss: () => void;
   onClose: () => void;
   accepting: boolean;
+  dismissing: boolean;
 }
 
 export function EmailReplyReviewModal({
@@ -23,8 +25,10 @@ export function EmailReplyReviewModal({
   onToggle,
   onRestrictedApprove,
   onAccept,
+  onDismiss,
   onClose,
   accepting,
+  dismissing,
 }: EmailReplyReviewModalProps) {
   const { t } = useTranslation();
   return (
@@ -114,8 +118,16 @@ export function EmailReplyReviewModal({
           </Button>
           <Button
             type="button"
+            variant="outline"
+            onClick={onDismiss}
+            disabled={accepting || dismissing}
+          >
+            {t('intake.emailReply.dismiss')}
+          </Button>
+          <Button
+            type="button"
             onClick={onAccept}
-            disabled={accepting || selectedIds.size === 0}
+            disabled={accepting || dismissing || selectedIds.size === 0}
           >
             {t('intake.emailReply.accept-selected')}
           </Button>

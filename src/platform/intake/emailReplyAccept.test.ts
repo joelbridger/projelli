@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setIntakeEmailReplyAuditEmitter } from './emailReplyAudit';
 import {
   acceptEmailReplyProposal,
+  dismissEmailReplyProposal,
   emailReplyAttachmentDestination,
   safeEmailReplyMessageSegment,
 } from './emailReplyAccept';
@@ -60,6 +61,7 @@ function proposal(overrides: Partial<EmailReplyProposalRecord> = {}): EmailReply
     attachmentRefs: [],
     confidence: 'high',
     status: 'pending',
+    completedRows: [],
     createdAt: now,
     updatedAt: now,
     items: [
@@ -111,7 +113,7 @@ describe('emailReplyAccept', () => {
 
   it('writes intent before any attachment effect and then ticks the checklist', async () => {
     const events: string[] = [];
-    setIntakeEmailReplyAuditEmitter((entry) => {
+    setIntakeEmailReplyAuditEmitter(async (entry) => {
       events.push(`audit:${String(entry.metadata['phase'])}`);
     });
     const persistAttachment = vi.fn().mockImplementation(
@@ -140,6 +142,7 @@ describe('emailReplyAccept', () => {
       now: new Date('2026-07-10T10:00:00.000Z'),
       getProposal: () => Promise.resolve(proposal()),
       persistAttachment,
+      markRowCompleted: vi.fn().mockResolvedValue(proposal()),
       setProposalStatus,
     });
 
@@ -158,7 +161,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('refuses every write when the intent audit fails', async () => {
-    setIntakeEmailReplyAuditEmitter((entry) => {
+    setIntakeEmailReplyAuditEmitter(async (entry) => {
       if (entry.metadata['phase'] === 'intent') throw new Error('audit down');
     });
     const persistAttachment = vi.fn();
@@ -186,8 +189,28 @@ describe('emailReplyAccept', () => {
     );
   });
 
+  it('refuses every write when no durable intent audit emitter is registered', async () => {
+    const persistAttachment = vi.fn();
+    const upsertFact = vi.fn();
+
+    await expect(
+      acceptEmailReplyProposal({
+        proposalId: 'proposal-1',
+        selectedRowIds: ['att-row', 'ssn-row'],
+        approvedRestrictedRowIds: ['ssn-row'],
+        advisorId: 'advisor-1',
+        getProposal: () => Promise.resolve(proposal()),
+        persistAttachment,
+        upsertFact,
+      })
+    ).rejects.toThrow(/audit is not available/iu);
+
+    expect(persistAttachment).not.toHaveBeenCalled();
+    expect(upsertFact).not.toHaveBeenCalled();
+  });
+
   it('requires explicit approval before writing a restricted body-derived fact', async () => {
-    setIntakeEmailReplyAuditEmitter(() => undefined);
+    setIntakeEmailReplyAuditEmitter(async () => undefined);
     const upsertFact = vi.fn();
     const setProposalStatus = vi.fn();
 
@@ -211,7 +234,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('writes email_reply fact provenance after explicit approval', async () => {
-    setIntakeEmailReplyAuditEmitter(() => undefined);
+    setIntakeEmailReplyAuditEmitter(async () => undefined);
     const upsertFact = vi.fn().mockImplementation((input: IntakeFactUpsertInput) =>
       Promise.resolve({
         fact_id: 'fact-ssn',
@@ -234,6 +257,7 @@ describe('emailReplyAccept', () => {
       now: new Date('2026-07-10T10:00:00.000Z'),
       getProposal: () => Promise.resolve(proposal()),
       upsertFact,
+      markRowCompleted: vi.fn().mockResolvedValue(proposal()),
       setProposalStatus: vi.fn(),
     });
 
@@ -260,7 +284,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('keeps the proposal unresolved after a partial failure', async () => {
-    setIntakeEmailReplyAuditEmitter(() => undefined);
+    setIntakeEmailReplyAuditEmitter(async () => undefined);
     const persistAttachment = vi.fn().mockResolvedValue({
       path: 'Requests/onboarding/email-replies/msg_.._evil/license.pdf',
       filename: 'license.pdf',
@@ -278,6 +302,7 @@ describe('emailReplyAccept', () => {
       getProposal: () => Promise.resolve(proposal()),
       persistAttachment,
       upsertFact,
+      markRowCompleted: vi.fn().mockResolvedValue(proposal()),
       setProposalStatus,
     });
 
@@ -291,8 +316,137 @@ describe('emailReplyAccept', () => {
     );
   });
 
+  it('records each completed row and only retries the rows that failed', async () => {
+    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    let currentProposal = proposal();
+    const persistAttachment = vi.fn().mockResolvedValue({
+      path: 'Requests/onboarding/email-replies/msg_.._evil/license.pdf',
+      filename: 'license.pdf',
+      contentType: 'application/pdf',
+      byteSize: 10,
+    });
+    const upsertFact = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('fact store down'))
+      .mockResolvedValue({
+        fact_id: 'fact-ssn',
+        matter_id: 'matter-1',
+        subject: 'primary',
+        kind: 'ssn',
+        sensitivity: 'restricted',
+        display_value: '•••-••-6789',
+        provenance: {},
+        verification: 'advisor_confirmed',
+        status: 'active' as const,
+      });
+    const markRowCompleted = vi.fn().mockImplementation(
+      (input: {
+        completion: { rowId: string; filePath?: string; factId?: string };
+      }) => {
+        currentProposal = {
+          ...currentProposal,
+          completedRows: [
+            ...currentProposal.completedRows,
+            {
+              rowId: input.completion.rowId,
+              ...(input.completion.filePath
+                ? { filePath: input.completion.filePath }
+                : {}),
+              ...(input.completion.factId ? { factId: input.completion.factId } : {}),
+            },
+          ],
+        };
+        return Promise.resolve(currentProposal);
+      }
+    );
+
+    const first = await acceptEmailReplyProposal({
+      proposalId: 'proposal-1',
+      selectedRowIds: ['att-row', 'ssn-row'],
+      approvedRestrictedRowIds: ['ssn-row'],
+      advisorId: 'advisor-1',
+      getProposal: () => Promise.resolve(currentProposal),
+      persistAttachment,
+      upsertFact,
+      markRowCompleted,
+      setProposalStatus: vi.fn(),
+    });
+    const retry = await acceptEmailReplyProposal({
+      proposalId: 'proposal-1',
+      selectedRowIds: ['att-row', 'ssn-row'],
+      approvedRestrictedRowIds: ['ssn-row'],
+      advisorId: 'advisor-1',
+      getProposal: () => Promise.resolve(currentProposal),
+      persistAttachment,
+      upsertFact,
+      markRowCompleted,
+      setProposalStatus: vi.fn(),
+    });
+
+    expect(first.status).toBe('partial');
+    expect(retry.status).toBe('accepted');
+    expect(persistAttachment).toHaveBeenCalledTimes(1);
+    expect(upsertFact).toHaveBeenCalledTimes(2);
+    expect(markRowCompleted).toHaveBeenCalledTimes(2);
+    expect(markRowCompleted.mock.calls.map(([input]) => input.completion.rowId)).toEqual([
+      'att-row',
+      'ssn-row',
+    ]);
+  });
+
+  it('does not accept a body row that has no writable value', async () => {
+    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    const upsertFact = vi.fn();
+
+    await expect(
+      acceptEmailReplyProposal({
+        proposalId: 'proposal-1',
+        selectedRowIds: ['manual-row'],
+        advisorId: 'advisor-1',
+        getProposal: () =>
+          Promise.resolve(
+            proposal({
+              items: [
+                {
+                  id: 'manual-row',
+                  kind: 'body_fact',
+                  itemId: 'license',
+                  label: "Driver's license",
+                  confidence: 'low',
+                  checkedByDefault: false,
+                },
+              ],
+            })
+          ),
+        upsertFact,
+      })
+    ).rejects.toThrow(/choose at least one/iu);
+
+    expect(upsertFact).not.toHaveBeenCalled();
+  });
+
+  it('dismisses a proposal and records the advisor decision', async () => {
+    const events: string[] = [];
+    setIntakeEmailReplyAuditEmitter(async (entry) => {
+      events.push(`${String(entry.metadata['phase'])}:${String(entry.outputs['status'])}`);
+    });
+    const setProposalStatus = vi.fn().mockResolvedValue(
+      proposal({ status: 'dismissed' })
+    );
+
+    await dismissEmailReplyProposal({
+      proposalId: 'proposal-1',
+      advisorId: 'advisor-1',
+      getProposal: () => Promise.resolve(proposal()),
+      setProposalStatus,
+    });
+
+    expect(setProposalStatus).toHaveBeenCalledWith('proposal-1', 'dismissed');
+    expect(events).toEqual(['intent:intent', 'outcome:dismissed']);
+  });
+
   it('never lets body text control the destination path', async () => {
-    setIntakeEmailReplyAuditEmitter(() => undefined);
+    setIntakeEmailReplyAuditEmitter(async () => undefined);
     const persistAttachment = vi.fn().mockResolvedValue({
       path: 'Requests/onboarding/email-replies/msg_.._evil/license.pdf',
       filename: 'license.pdf',
@@ -319,6 +473,7 @@ describe('emailReplyAccept', () => {
         );
       },
       persistAttachment,
+      markRowCompleted: vi.fn().mockResolvedValue(proposal()),
       setProposalStatus: vi.fn(
         (
           _proposalId: string,

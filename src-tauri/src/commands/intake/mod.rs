@@ -1,9 +1,9 @@
 pub mod store;
 
 use store::{
-    EmailReplyProposalInput, EmailReplyProposalRecord, EmailReplyQuarantineInput,
-    EmailReplyQuarantineRecord, EncryptedAuditSink, IntakeFactInput, IntakeFactsStore,
-    MaskedClientFact, RevealedClientFact,
+    EmailReplyProposalInput, EmailReplyProposalRecord, EmailReplyProposalRowCompletion,
+    EmailReplyQuarantineInput, EmailReplyQuarantineRecord, EncryptedAuditSink, IntakeFactInput,
+    IntakeFactsStore, MaskedClientFact, RevealedClientFact,
 };
 use tauri::{Manager, State};
 
@@ -158,6 +158,22 @@ pub async fn intake_email_reply_get_proposal(
     tokio::task::spawn_blocking(move || -> anyhow::Result<EmailReplyProposalRecord> {
         let store = IntakeFactsStore::open(&ws)?;
         store.get_email_reply_proposal(&proposal_id)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_mark_row_completed(
+    state: State<'_, IntakeState>,
+    proposal_id: String,
+    completion: EmailReplyProposalRowCompletion,
+) -> Result<EmailReplyProposalRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<EmailReplyProposalRecord> {
+        let store = IntakeFactsStore::open(&ws)?;
+        store.mark_email_reply_proposal_row_completed(&proposal_id, completion)
     })
     .await
     .map_err(|e| format!("join: {e}"))?

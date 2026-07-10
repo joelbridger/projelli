@@ -14,6 +14,7 @@ vi.mock('@/platform/intake/emailReplyProposalStore', async (importOriginal) => {
 
 vi.mock('@/platform/intake/emailReplyAccept', () => ({
   acceptEmailReplyProposal: vi.fn(),
+  dismissEmailReplyProposal: vi.fn(),
 }));
 
 const { emailReplyProposalList } = await import('@/platform/intake/emailReplyProposalStore');
@@ -43,6 +44,7 @@ function proposal(): EmailReplyProposalRecord {
     attachmentRefs: [],
     confidence: 'high',
     status: 'pending',
+    completedRows: [],
     createdAt: now,
     updatedAt: now,
     items: [
@@ -121,6 +123,9 @@ describe('EmailReplyProposalCard', () => {
     expect(firstCheck.checked).toBe(true);
     expect(secondCheck.checked).toBe(true);
     expect(thirdCheck.checked).toBe(false);
+    expect(thirdCheck.disabled).toBe(true);
+    expect(screen.getByText('Needs manual review. There is nothing safe to file from this email text.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toBeTruthy();
   });
 
   it('opens the review modal from the card', async () => {

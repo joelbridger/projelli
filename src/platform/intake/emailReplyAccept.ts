@@ -7,7 +7,9 @@ import {
 } from './emailReplyAudit';
 import {
   emailReplyProposalGetForAccept,
+  emailReplyProposalMarkRowCompleted,
   emailReplyProposalSetStatus,
+  isEmailReplyProposalItemSelectable,
   type EmailReplyProposalItem,
   type EmailReplyProposalRecord,
 } from './emailReplyProposalStore';
@@ -38,6 +40,14 @@ export interface AcceptEmailReplyProposalOptions {
   getProposal?: (proposalId: string) => Promise<EmailReplyProposalRecord>;
   persistAttachment?: typeof mailPersistAttachment;
   upsertFact?: (input: IntakeFactUpsertInput) => Promise<MaskedClientFact>;
+  setProposalStatus?: typeof emailReplyProposalSetStatus;
+  markRowCompleted?: typeof emailReplyProposalMarkRowCompleted;
+}
+
+export interface DismissEmailReplyProposalOptions {
+  proposalId: string;
+  advisorId: string;
+  getProposal?: (proposalId: string) => Promise<EmailReplyProposalRecord>;
   setProposalStatus?: typeof emailReplyProposalSetStatus;
 }
 
@@ -117,7 +127,13 @@ function selectedRows(
   selectedRowIds: string[]
 ): EmailReplyProposalItem[] {
   const selected = new Set(selectedRowIds);
-  return proposal.items.filter((item) => selected.has(item.id));
+  const completed = new Set(proposal.completedRows.map((row) => row.rowId));
+  return proposal.items.filter(
+    (item) =>
+      selected.has(item.id) &&
+      !completed.has(item.id) &&
+      isEmailReplyProposalItemSelectable(item)
+  );
 }
 
 function statusFor(errors: string[], successes: number): EmailReplyAcceptResult['status'] {
@@ -167,7 +183,7 @@ export async function acceptEmailReplyProposal(
   const auditPairId = emailReplyAuditPairId(proposal.proposalId);
   const itemIds = rows.map((row) => row.itemId);
 
-  // W3-LANE2-ACCEPT-INTENT-FIRST
+  // W3-LANE2-FIX-AUDIT-BLOCKS
   await mustLogIntakeEmailReplyAudit(
     buildEmailReplyAuditEntry({
       proposal,
@@ -185,6 +201,8 @@ export async function acceptEmailReplyProposal(
   const approvedRestricted = new Set(options.approvedRestrictedRowIds ?? []);
   const persistAttachment = options.persistAttachment ?? mailPersistAttachment;
   const upsertFact = options.upsertFact ?? intakeFactUpsert;
+  const markRowCompleted =
+    options.markRowCompleted ?? emailReplyProposalMarkRowCompleted;
 
   for (const row of rows) {
     try {
@@ -198,6 +216,10 @@ export async function acceptEmailReplyProposal(
           emailReplyAttachmentDestination(proposal.messageId),
           row.attachment.filename || row.attachment.name
         );
+        await markRowCompleted({
+          proposalId: proposal.proposalId,
+          completion: { rowId: row.id, filePath: saved.path, completedAt: at },
+        });
         filePaths.push(saved.path);
         markEmailReplyAccepted({
           proposal,
@@ -221,6 +243,10 @@ export async function acceptEmailReplyProposal(
             at,
           })
         );
+        await markRowCompleted({
+          proposalId: proposal.proposalId,
+          completion: { rowId: row.id, factId: fact.fact_id, completedAt: at },
+        });
         factIds.push(fact.fact_id);
         markEmailReplyAccepted({
           proposal,
@@ -260,4 +286,41 @@ export async function acceptEmailReplyProposal(
   }
 
   return { status, filePaths, factIds, errors };
+}
+
+export async function dismissEmailReplyProposal(
+  options: DismissEmailReplyProposalOptions
+): Promise<void> {
+  const proposal = await (options.getProposal ?? emailReplyProposalGetForAccept)(
+    options.proposalId
+  );
+  const auditPairId = emailReplyAuditPairId(proposal.proposalId);
+  const itemIds = proposal.items.map((row) => row.itemId);
+
+  await mustLogIntakeEmailReplyAudit(
+    buildEmailReplyAuditEntry({
+      proposal,
+      phase: 'intent',
+      operation: 'dismiss',
+      auditPairId,
+      advisorId: options.advisorId,
+      itemIds,
+      status: 'intent',
+    })
+  );
+  await (options.setProposalStatus ?? emailReplyProposalSetStatus)(
+    proposal.proposalId,
+    'dismissed'
+  );
+  await mustLogIntakeEmailReplyAudit(
+    buildEmailReplyAuditEntry({
+      proposal,
+      phase: 'outcome',
+      operation: 'dismiss',
+      auditPairId,
+      advisorId: options.advisorId,
+      itemIds,
+      status: 'dismissed',
+    })
+  );
 }

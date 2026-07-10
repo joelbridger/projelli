@@ -28,6 +28,23 @@ export interface EmailReplyProposalItem {
   bodyFact?: EmailReplyBodyFactProposal;
 }
 
+/** A row can only be selected when the app has a safe, writable effect for it. */
+export function isEmailReplyProposalItemSelectable(
+  item: EmailReplyProposalItem
+): boolean {
+  return item.kind === 'attachment'
+    ? Boolean(item.attachment)
+    : Boolean(item.bodyFact?.value);
+}
+
+/** Durable receipt for one row that has already been filed. */
+export interface EmailReplyProposalRowCompletion {
+  rowId: string;
+  filePath?: string;
+  factId?: string;
+  completedAt?: string;
+}
+
 export interface EmailReplyProposalInput {
   proposalId: string;
   messageId: string;
@@ -47,6 +64,7 @@ export interface EmailReplyProposalInput {
 
 export interface EmailReplyProposalRecord extends EmailReplyProposalInput {
   status: EmailReplyProposalStatus;
+  completedRows: EmailReplyProposalRowCompletion[];
   error?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -178,6 +196,7 @@ export async function emailReplyProposalSave(
     ...input,
     items: stripBodyFields(input.items) as EmailReplyProposalItem[],
     status: 'pending',
+    completedRows: [],
     createdAt: at,
     updatedAt: at,
   };
@@ -262,6 +281,42 @@ export async function emailReplyProposalSetStatus(
     updatedAt: nowIso(),
   };
   proposals.set(proposalId, next);
+  return maskProposal(next);
+}
+
+export async function emailReplyProposalMarkRowCompleted(input: {
+  proposalId: string;
+  completion: EmailReplyProposalRowCompletion;
+}): Promise<EmailReplyProposalRecord> {
+  if (isTauri()) {
+    return invoke<EmailReplyProposalRecord>(
+      'intake_email_reply_mark_row_completed',
+      input
+    );
+  }
+  const proposal = proposals.get(input.proposalId);
+  if (!proposal) throw new Error('Email reply proposal not found.');
+  const existing = proposal.completedRows.find(
+    (completion) => completion.rowId === input.completion.rowId
+  );
+  if (existing) {
+    if (
+      existing.filePath === input.completion.filePath &&
+      existing.factId === input.completion.factId
+    ) {
+      return maskProposal(proposal);
+    }
+    throw new Error('Email reply row already has a different completion receipt.');
+  }
+  if (!input.completion.filePath && !input.completion.factId) {
+    throw new Error('Email reply completion needs a saved file or fact.');
+  }
+  const next: EmailReplyProposalRecord = {
+    ...proposal,
+    completedRows: [...proposal.completedRows, input.completion],
+    updatedAt: nowIso(),
+  };
+  proposals.set(input.proposalId, next);
   return maskProposal(next);
 }
 

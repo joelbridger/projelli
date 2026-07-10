@@ -2,6 +2,9 @@ import { useEffect } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
+import { resolveEmailProvider } from '@/features/email/resolveEmailProvider';
+import type { Provider } from '@/platform/providers/Provider';
+
 import {
   MAIL_SYNC_EVENT,
   mailGetMessage,
@@ -24,6 +27,7 @@ import type {
 import { useIntakeStore, type IntakeChecklistState } from './intakeStore';
 import {
   classifyEmailReplyCandidate,
+  sanitizeEmailReplyBodyForClassification,
   summarizeEmailReplyConfidence,
 } from './emailReplyClassifier';
 import {
@@ -38,9 +42,29 @@ export interface EmailReplyIngestionDeps {
   getMessage?: typeof mailGetMessage;
   saveProposal?: typeof emailReplyProposalSave;
   saveQuarantine?: typeof emailReplyQuarantineSave;
+  resolveEmailProvider?: () => Promise<EmailReplyClassificationProvider>;
   now?: Date;
   limit?: number;
 }
+
+export interface EmailReplyClassificationProvider {
+  provider: Pick<Provider, 'structuredOutput'>;
+}
+
+const EMAIL_REPLY_CONFIDENCE_SCHEMA = {
+  type: 'object' as const,
+  properties: {
+    confidence: {
+      type: 'string' as const,
+      description: 'One of high, medium, or low.',
+    },
+    reasoning: {
+      type: 'string' as const,
+      description: 'A short explanation based only on the supplied email and open-item list.',
+    },
+  },
+  required: ['confidence'],
+};
 
 function mailInputFromMessage(item: MailListItem, view: MailView): EmailReplyMailInput {
   return {
@@ -86,13 +110,41 @@ function fallbackRows(openItems: IntakeChecklistState[]): EmailReplyProposalItem
 async function enqueueCandidate(
   candidate: EmailReplyCandidate,
   view: MailView,
-  deps: Required<Pick<EmailReplyIngestionDeps, 'saveProposal'>>
+  deps: Required<
+    Pick<EmailReplyIngestionDeps, 'saveProposal' | 'resolveEmailProvider'>
+  >
 ): Promise<void> {
   const openItems = openItemsForCandidate(candidate);
+  // Email bodies are untrusted data before either the deterministic matcher or
+  // the optional model sees them. The model only returns a confidence label.
+  const bodyText = sanitizeEmailReplyBodyForClassification(view.body ?? '');
+  let modelConfidence:
+    | ((prompt: string) => Promise<unknown>)
+    | undefined;
+  if (bodyText) {
+    try {
+      const resolved = await deps.resolveEmailProvider();
+      modelConfidence = async (prompt) => {
+        try {
+          return await resolved.provider.structuredOutput(prompt, {
+            schema: EMAIL_REPLY_CONFIDENCE_SCHEMA,
+            temperature: 0,
+            maxTokens: 180,
+          });
+        } catch {
+          return null;
+        }
+      };
+    } catch {
+      // A mailbox reply must remain reviewable even without a configured model.
+      modelConfidence = undefined;
+    }
+  }
   const classified = await classifyEmailReplyCandidate({
     candidate,
     openItems,
-    bodyText: view.body,
+    bodyText,
+    ...(modelConfidence ? { modelConfidence } : {}),
   });
   const items = classified.length > 0 ? classified : fallbackRows(openItems);
   if (items.length === 0) return;
@@ -144,6 +196,7 @@ export async function processEmailReplyMessages(
   const getMessage = deps.getMessage ?? mailGetMessage;
   const saveProposal = deps.saveProposal ?? emailReplyProposalSave;
   const saveQuarantine = deps.saveQuarantine ?? emailReplyQuarantineSave;
+  const resolveProvider = deps.resolveEmailProvider ?? resolveEmailProvider;
   const now = deps.now ?? new Date();
   const page: MailListPage = await listMessages({
     sortBy: 'date',
@@ -161,7 +214,10 @@ export async function processEmailReplyMessages(
       const view = await getMessage(item.id);
       const result = matchEmailReply(mailInputFromMessage(item, view), intakeState, now);
       if (result.kind === 'candidate') {
-        await enqueueCandidate(result, view, { saveProposal });
+        await enqueueCandidate(result, view, {
+          saveProposal,
+          resolveEmailProvider: resolveProvider,
+        });
       } else if (result.kind === 'quarantine') {
         await enqueueQuarantine(result, { saveQuarantine });
       }

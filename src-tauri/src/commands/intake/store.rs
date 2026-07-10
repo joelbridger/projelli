@@ -127,6 +127,15 @@ pub struct EmailReplyProposalInput {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct EmailReplyProposalRowCompletion {
+    pub row_id: String,
+    pub file_path: Option<String>,
+    pub fact_id: Option<String>,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct EmailReplyProposalRecord {
     pub proposal_id: String,
     pub message_id: String,
@@ -141,6 +150,7 @@ pub struct EmailReplyProposalRecord {
     pub target_open_item_ids: Vec<String>,
     pub attachment_refs: Vec<Value>,
     pub items: Vec<Value>,
+    pub completed_rows: Vec<EmailReplyProposalRowCompletion>,
     pub confidence: String,
     pub status: String,
     pub error: Option<String>,
@@ -423,6 +433,7 @@ fn row_to_email_reply_proposal(
     let target_open_item_ids_json: String = row.get(10)?;
     let attachment_refs_json: String = row.get(11)?;
     let items_json: String = row.get(12)?;
+    let completed_rows_json: String = row.get(13)?;
     Ok(EmailReplyProposalRecord {
         proposal_id: row.get(0)?,
         message_id: row.get(1)?,
@@ -437,11 +448,12 @@ fn row_to_email_reply_proposal(
         target_open_item_ids: serde_json::from_str(&target_open_item_ids_json).unwrap_or_default(),
         attachment_refs: serde_json::from_str(&attachment_refs_json).unwrap_or_default(),
         items: serde_json::from_str(&items_json).unwrap_or_default(),
-        confidence: row.get(13)?,
-        status: row.get(14)?,
-        error: row.get(15)?,
-        created_at: row.get(16)?,
-        updated_at: row.get(17)?,
+        completed_rows: serde_json::from_str(&completed_rows_json).unwrap_or_default(),
+        confidence: row.get(14)?,
+        status: row.get(15)?,
+        error: row.get(16)?,
+        created_at: row.get(17)?,
+        updated_at: row.get(18)?,
     })
 }
 
@@ -522,6 +534,7 @@ impl IntakeFactsStore {
                 target_open_item_ids_json TEXT NOT NULL,
                 attachment_refs_json     TEXT NOT NULL,
                 items_json               TEXT NOT NULL,
+                completed_rows_json      TEXT NOT NULL DEFAULT '[]',
                 confidence               TEXT NOT NULL,
                 status                   TEXT NOT NULL,
                 error                    TEXT,
@@ -550,6 +563,7 @@ impl IntakeFactsStore {
              CREATE INDEX IF NOT EXISTS idx_email_reply_quarantines_matter_status
                 ON email_reply_quarantines(matched_matter_id, status);",
         )?;
+        migrate_email_reply_proposal_columns(&conn);
         Ok(Self {
             conn: std::sync::Mutex::new(conn),
             workspace_root: workspace_root.to_path_buf(),
@@ -776,8 +790,8 @@ impl IntakeFactsStore {
             .query_row(
                 "SELECT proposal_id, message_id, provider, account, received, sender,
                         auth_result_json, thread_id, matched_matter_id, matched_request_id,
-                        target_open_item_ids_json, attachment_refs_json, items_json, confidence,
-                        status, error, created_at, updated_at
+                        target_open_item_ids_json, attachment_refs_json, items_json,
+                        completed_rows_json, confidence, status, error, created_at, updated_at
                  FROM email_reply_proposals WHERE message_key = ?1",
                 params![key],
                 row_to_email_reply_proposal,
@@ -793,10 +807,10 @@ impl IntakeFactsStore {
             "INSERT INTO email_reply_proposals
                 (proposal_id, message_key, message_id, provider, account, received, sender,
                  auth_result_json, thread_id, matched_matter_id, matched_request_id,
-                 target_open_item_ids_json, attachment_refs_json, items_json, confidence,
-                 status, error, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                     'pending', NULL, ?16, ?16)",
+                 target_open_item_ids_json, attachment_refs_json, items_json,
+                 completed_rows_json, confidence, status, error, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
+                     'pending', NULL, ?17, ?17)",
             params![
                 input.proposal_id,
                 key,
@@ -812,6 +826,7 @@ impl IntakeFactsStore {
                 serde_json::to_string(&input.target_open_item_ids)?,
                 serde_json::to_string(&input.attachment_refs)?,
                 serde_json::to_string(&scrub_proposal_items_for_storage(input.items))?,
+                "[]",
                 input.confidence,
                 now,
             ],
@@ -819,8 +834,8 @@ impl IntakeFactsStore {
         let inserted = tx.query_row(
             "SELECT proposal_id, message_id, provider, account, received, sender,
                     auth_result_json, thread_id, matched_matter_id, matched_request_id,
-                    target_open_item_ids_json, attachment_refs_json, items_json, confidence,
-                    status, error, created_at, updated_at
+                    target_open_item_ids_json, attachment_refs_json, items_json,
+                    completed_rows_json, confidence, status, error, created_at, updated_at
              FROM email_reply_proposals WHERE proposal_id = ?1",
             params![input.proposal_id],
             row_to_email_reply_proposal,
@@ -904,15 +919,15 @@ impl IntakeFactsStore {
         let conn = lock_unpoison(&self.conn);
         let sql_all = "SELECT proposal_id, message_id, provider, account, received, sender,
                     auth_result_json, thread_id, matched_matter_id, matched_request_id,
-                    target_open_item_ids_json, attachment_refs_json, items_json, confidence,
-                    status, error, created_at, updated_at
+                    target_open_item_ids_json, attachment_refs_json, items_json,
+                    completed_rows_json, confidence, status, error, created_at, updated_at
              FROM email_reply_proposals
              WHERE status = 'pending'
              ORDER BY created_at ASC";
         let sql_matter = "SELECT proposal_id, message_id, provider, account, received, sender,
                     auth_result_json, thread_id, matched_matter_id, matched_request_id,
-                    target_open_item_ids_json, attachment_refs_json, items_json, confidence,
-                    status, error, created_at, updated_at
+                    target_open_item_ids_json, attachment_refs_json, items_json,
+                    completed_rows_json, confidence, status, error, created_at, updated_at
              FROM email_reply_proposals
              WHERE status = 'pending' AND matched_matter_id = ?1
              ORDER BY created_at ASC";
@@ -937,14 +952,78 @@ impl IntakeFactsStore {
         conn.query_row(
             "SELECT proposal_id, message_id, provider, account, received, sender,
                     auth_result_json, thread_id, matched_matter_id, matched_request_id,
-                    target_open_item_ids_json, attachment_refs_json, items_json, confidence,
-                    status, error, created_at, updated_at
+                    target_open_item_ids_json, attachment_refs_json, items_json,
+                    completed_rows_json, confidence, status, error, created_at, updated_at
              FROM email_reply_proposals WHERE proposal_id = ?1",
             params![proposal_id],
             row_to_email_reply_proposal,
         )
         .optional()?
         .ok_or_else(|| anyhow::anyhow!("email reply proposal not found"))
+    }
+
+    pub fn mark_email_reply_proposal_row_completed(
+        &self,
+        proposal_id: &str,
+        mut completion: EmailReplyProposalRowCompletion,
+    ) -> Result<EmailReplyProposalRecord> {
+        if completion.file_path.is_none() && completion.fact_id.is_none() {
+            bail!("email reply completion needs a saved file or fact");
+        }
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        let mut record = tx
+            .query_row(
+                "SELECT proposal_id, message_id, provider, account, received, sender,
+                        auth_result_json, thread_id, matched_matter_id, matched_request_id,
+                        target_open_item_ids_json, attachment_refs_json, items_json,
+                        completed_rows_json, confidence, status, error, created_at, updated_at
+                 FROM email_reply_proposals WHERE proposal_id = ?1",
+                params![proposal_id],
+                row_to_email_reply_proposal,
+            )
+            .optional()?
+            .ok_or_else(|| anyhow::anyhow!("email reply proposal not found"))?;
+        if record.status != "pending" {
+            bail!("email reply proposal is no longer pending");
+        }
+        let row_exists = record.items.iter().any(|item| {
+            item.get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| id == completion.row_id)
+        });
+        if !row_exists {
+            bail!("email reply proposal row not found");
+        }
+        if let Some(existing) = record
+            .completed_rows
+            .iter()
+            .find(|existing| existing.row_id == completion.row_id)
+        {
+            if existing.file_path == completion.file_path && existing.fact_id == completion.fact_id
+            {
+                tx.commit()?;
+                return Ok(masked_email_reply_proposal(record));
+            }
+            bail!("email reply row already has a different completion receipt");
+        }
+        if completion.completed_at.is_none() {
+            completion.completed_at = Some(now_iso());
+        }
+        record.completed_rows.push(completion);
+        record.updated_at = now_iso();
+        tx.execute(
+            "UPDATE email_reply_proposals
+             SET completed_rows_json = ?2, updated_at = ?3
+             WHERE proposal_id = ?1",
+            params![
+                proposal_id,
+                serde_json::to_string(&record.completed_rows)?,
+                &record.updated_at,
+            ],
+        )?;
+        tx.commit()?;
+        Ok(masked_email_reply_proposal(record))
     }
 
     pub fn set_email_reply_proposal_status(
@@ -967,8 +1046,8 @@ impl IntakeFactsStore {
             .query_row(
                 "SELECT proposal_id, message_id, provider, account, received, sender,
                         auth_result_json, thread_id, matched_matter_id, matched_request_id,
-                        target_open_item_ids_json, attachment_refs_json, items_json, confidence,
-                        status, error, created_at, updated_at
+                        target_open_item_ids_json, attachment_refs_json, items_json,
+                        completed_rows_json, confidence, status, error, created_at, updated_at
                  FROM email_reply_proposals WHERE proposal_id = ?1",
                 params![proposal_id],
                 row_to_email_reply_proposal,
@@ -1008,6 +1087,15 @@ impl IntakeFactsStore {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
+}
+
+/// Add durable per-row completion receipts for proposals created before this
+/// field existed. SQLite has no `ADD COLUMN IF NOT EXISTS`.
+fn migrate_email_reply_proposal_columns(conn: &Connection) {
+    let _ = conn.execute(
+        "ALTER TABLE email_reply_proposals ADD COLUMN completed_rows_json TEXT NOT NULL DEFAULT '[]'",
+        [],
+    );
 }
 
 #[cfg(test)]
@@ -1339,5 +1427,51 @@ mod tests {
             .list_email_reply_proposals(Some("matter-1"))
             .unwrap()
             .is_empty());
+    }
+
+    #[test]
+    fn email_reply_proposal_completion_receipt_survives_a_retry() {
+        let (_dir, store) = store();
+        store
+            .enqueue_email_reply_proposal(proposal_input("msg-1"))
+            .unwrap();
+
+        let marked = store
+            .mark_email_reply_proposal_row_completed(
+                "proposal-msg-1",
+                EmailReplyProposalRowCompletion {
+                    row_id: "row-1".into(),
+                    file_path: Some("Requests/onboarding/email-replies/msg-1/license.pdf".into()),
+                    fact_id: None,
+                    completed_at: Some("2026-07-10T11:00:00.000Z".into()),
+                },
+            )
+            .unwrap();
+        assert_eq!(marked.completed_rows.len(), 1);
+        assert_eq!(
+            marked.completed_rows[0].file_path.as_deref(),
+            Some("Requests/onboarding/email-replies/msg-1/license.pdf")
+        );
+
+        let retried = store
+            .mark_email_reply_proposal_row_completed(
+                "proposal-msg-1",
+                EmailReplyProposalRowCompletion {
+                    row_id: "row-1".into(),
+                    file_path: Some("Requests/onboarding/email-replies/msg-1/license.pdf".into()),
+                    fact_id: None,
+                    completed_at: None,
+                },
+            )
+            .unwrap();
+        assert_eq!(retried.completed_rows.len(), 1);
+        assert_eq!(
+            store
+                .get_email_reply_proposal("proposal-msg-1")
+                .unwrap()
+                .completed_rows
+                .len(),
+            1
+        );
     }
 }
