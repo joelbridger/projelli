@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/ui/button';
@@ -81,9 +81,11 @@ export function RequestFromClientDialog({
   const [resolution, setResolution] = useState<AskOnceResolution | null>(null);
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
+  const draftGeneration = useRef(0);
 
   useEffect(() => {
     if (!open) return;
+    draftGeneration.current += 1;
     setStep('picker');
     setSelectedBlueprint(null);
     setDraftItems([]);
@@ -93,6 +95,7 @@ export function RequestFromClientDialog({
   }, [open]);
 
   const blockedItem = unsupportedItem(draftItems);
+  const hasNoVisibleItems = resolution?.visibleItems.length === 0;
   const suppressedLabels = useMemo(() => {
     if (!resolution) return [];
     const labels = new Map(draftItems.map((item) => [item.item_id, item.label]));
@@ -104,6 +107,7 @@ export function RequestFromClientDialog({
 
   const selectBlueprint = (blueprint: RequestBlueprint) => {
     const copy = copyRequestBlueprint(blueprint);
+    draftGeneration.current += 1;
     setSelectedBlueprint(copy);
     setDraftItems(copy.items);
     setResolution(null);
@@ -112,30 +116,35 @@ export function RequestFromClientDialog({
   };
 
   const updateItem = (itemId: string, patch: Partial<RequestItem>) => {
+    draftGeneration.current += 1;
     setDraftItems((items) => items.map((item) => item.item_id === itemId ? { ...item, ...patch } as RequestItem : item));
     setResolution(null);
   };
 
   const removeItem = (itemId: string) => {
+    draftGeneration.current += 1;
     setDraftItems((items) => items.filter((item) => item.item_id !== itemId));
     setResolution(null);
   };
 
   const reviewRequest = async () => {
     if (!selectedBlueprint) return;
+    const reviewGeneration = draftGeneration.current;
     setError('');
     try {
       assertValidRequestBlueprint({ ...selectedBlueprint, items: draftItems });
       const matches = await intakeFactMatchList(matterId);
+      if (reviewGeneration !== draftGeneration.current) return;
       setResolution(resolveAskOnce(draftItems, matches));
       setStep('review');
     } catch (cause) {
+      if (reviewGeneration !== draftGeneration.current) return;
       setError(cause instanceof Error ? cause.message : 'This request could not be reviewed.');
     }
   };
 
   const sendRequest = async () => {
-    if (!selectedBlueprint || !resolution || blockedItem || sending) return;
+    if (!selectedBlueprint || !resolution || resolution.visibleItems.length === 0 || blockedItem || sending) return;
     setError('');
     setSending(true);
     try {
@@ -273,7 +282,11 @@ export function RequestFromClientDialog({
           ) : null}
           {step === 'review' ? (
             // eslint-disable-next-line lantern-async/no-silent-failure -- sendRequest catches and surfaces every failure via setError; this call cannot itself reject.
-            <Button type="button" disabled={Boolean(blockedItem) || sending} onClick={() => { void sendRequest(); }}>
+            <Button
+              type="button"
+              disabled={hasNoVisibleItems || Boolean(blockedItem) || sending}
+              onClick={() => { void sendRequest(); }}
+            >
               {sending ? 'Sending…' : 'Send request'}
             </Button>
           ) : null}

@@ -30,6 +30,14 @@ const annualReview: RequestBlueprint = {
   ],
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
 describe('RequestFromClientDialog', () => {
   it('edits a blueprint, suppresses an on-file fact, and sends a filtered standing request', async () => {
     vi.mocked(intakeFactMatchList).mockResolvedValue([
@@ -94,5 +102,58 @@ describe('RequestFromClientDialog', () => {
     expect(await screen.findByText(/This item type isn.t supported yet/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Send request' }).hasAttribute('disabled')).toBe(true);
     expect(issueRequest).not.toHaveBeenCalled();
+  });
+
+  it('does not send a request when ask-once suppresses every item', async () => {
+    vi.mocked(intakeFactMatchList).mockResolvedValue([
+      { subject: 'household', kind: 'income_annual', status: 'active' },
+    ]);
+    const issueRequest = vi.fn();
+    const onlyKnownFact: RequestBlueprint = {
+      ...annualReview,
+      blueprintId: 'income-only',
+      label: 'Income only',
+      items: [annualReview.items[0]!],
+    };
+
+    render(
+      <RequestFromClientDialog
+        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
+        blueprints={[onlyKnownFact]} issueRequest={issueRequest}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /income only/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
+
+    expect(await screen.findByText('Nothing needs to be requested right now.')).toBeTruthy();
+    const sendButton = screen.getByRole('button', { name: 'Send request' });
+    expect(sendButton.hasAttribute('disabled')).toBe(true);
+    fireEvent.click(sendButton);
+    expect(issueRequest).not.toHaveBeenCalled();
+  });
+
+  it('ignores an ask-once review that finishes after the advisor changes the draft', async () => {
+    const matches = deferred<Awaited<ReturnType<typeof intakeFactMatchList>>>();
+    vi.mocked(intakeFactMatchList).mockReturnValue(matches.promise);
+
+    render(
+      <RequestFromClientDialog
+        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
+        blueprints={[annualReview]} issueRequest={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /annual review/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
+    const labels = screen.getAllByLabelText('Label');
+    fireEvent.change(labels[0]!, { target: { value: 'Updated annual income' } });
+    matches.resolve([{ subject: 'household', kind: 'income_annual', status: 'active' }]);
+    await matches.promise;
+    await Promise.resolve();
+
+    expect(screen.getByDisplayValue('Updated annual income')).toBeTruthy();
+    expect(screen.queryByLabelText('Request review')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Send request' })).toBeNull();
   });
 });
