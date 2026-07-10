@@ -32,6 +32,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **External write socket foundation for planning tools.**
+  - Added the Wave 0 vendor-access checklist entries for RightCapital and
+    Holistiplan, without shipping honesty cards or live connector UI yet.
+  - Added a generic approval-gated external write ledger and engine for future
+    RightCapital/Holistiplan planning writes. The new path saves a proposal
+    first, sends only after advisor approval, writes the pending ledger row
+    before any mock socket apply, blocks stale updates, verifies by readback,
+    and keeps raw vendor response bodies out of logs. Current sockets are
+    injectable mock implementations only, with no real vendor URLs or
+    credentials.
+  - Added a parallel TypeScript proposal queue plus fixture-backed planning
+    review card for RightCapital income updates and Holistiplan send copy. The
+    fixture screen is not routed into the app yet, so nothing user-facing can
+    send to a real vendor in this slice.
+  - Files:
+    `docs/plans/lantern-plus/vendor-applications-checklist.md`,
+    `src-tauri/src/commands/writeback/{commands,engine,holistiplan,mod,model,rightcapital,store}.rs`,
+    `src-tauri/src/commands/mod.rs`, `src-tauri/src/identity.rs`,
+    `src-tauri/src/lib.rs`,
+    `src/platform/state/externalWriteQueueStore.ts`,
+    `src/platform/utils/external-write-commands.ts`,
+    `src/features/planning/ExternalWriteReviewCard.tsx`,
+    `src/features/planning/externalWriteFixtures.ts`,
+    `tests/unit/externalWriteQueue.test.ts`,
+    `tests/unit/planning/ExternalWriteReviewCard.test.tsx`.
 - **Add-client overhaul + client groups (FB2 clientux lane).**
   - **Calm one-field create.** Adding a client is now a small modal with just a
     display name (`NewClientDialog`); on create you land inside the new client's

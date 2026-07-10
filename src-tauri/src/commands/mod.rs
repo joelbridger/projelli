@@ -27,6 +27,8 @@ pub mod audit;
 pub mod addepar;
 // Wealthbox CRM connector (Phase 1A) — CRM RAG ingestion bridge.
 pub mod crm;
+// Lantern-Plus Track 2 — approval-gated external write-back sockets.
+pub mod writeback;
 // Read-only DocuSign connector — completed envelopes + signing audit trail.
 pub mod docusign;
 // Read-only Jotform connector — intake/KYC submissions into client memory.

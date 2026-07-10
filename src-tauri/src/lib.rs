@@ -17,9 +17,9 @@ pub mod identity;
 // per-request sidecars both satisfy via appropriate no-ops.
 pub mod sidecars;
 // Cross-cutting utilities (process helpers, etc.).
-pub mod util;
 #[cfg(debug_assertions)]
 mod dev_bridge;
+pub mod util;
 // Shared WebView2 additional-browser-args string used by EVERY webview window
 // (main + Notice Card companion). Centralized so the windows are byte-identical,
 // which is what prevents the 0x8007139F (ERROR_INVALID_STATE) crash when a
@@ -225,6 +225,13 @@ pub fn run() {
             commands::crm::commands::crm_approve_write_proposal,
             commands::crm::commands::crm_list_write_proposals,
             commands::crm::commands::crm_delete_write_proposal,
+            // Lantern-Plus Track 2 — generic approval-gated writeback engine.
+            commands::writeback::commands::external_write_set_workspace,
+            commands::writeback::commands::external_write_save_proposal,
+            commands::writeback::commands::external_write_prepare_proposal,
+            commands::writeback::commands::external_write_approve_proposal,
+            commands::writeback::commands::external_write_list_proposals,
+            commands::writeback::commands::external_write_delete_proposal,
             // OneDrive / SharePoint document connector (read-only Graph import).
             commands::onedrive::commands::onedrive_set_workspace,
             commands::onedrive::commands::onedrive_connect,
@@ -422,6 +429,8 @@ pub fn run() {
             commands::mail::manage_state(app);
             // Plan 1B.4 — manage CRM state (active workspace + sync flag + last report).
             commands::crm::commands::manage_state(app);
+            // Lantern-Plus Track 2 — approval-gated external writeback state.
+            commands::writeback::commands::manage_state(app);
             // OneDrive / SharePoint connector state.
             commands::onedrive::commands::manage_state(app);
             // Box connector state.
