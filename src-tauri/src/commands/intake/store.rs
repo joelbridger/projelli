@@ -160,6 +160,45 @@ pub struct EmailReplyProposalRecord {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalInput {
+    pub proposal_id: String,
+    pub stable_key: String,
+    pub matter_id: String,
+    pub request_id: String,
+    pub intake_id: String,
+    pub item_id: Option<String>,
+    pub source_path: String,
+    pub items: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalRowCompletion {
+    pub row_id: String,
+    pub fact_id: String,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalRecord {
+    pub proposal_id: String,
+    pub stable_key: String,
+    pub matter_id: String,
+    pub request_id: String,
+    pub intake_id: String,
+    pub item_id: Option<String>,
+    pub source_path: String,
+    pub items: Vec<Value>,
+    pub completed_rows: Vec<DocumentExtractionProposalRowCompletion>,
+    pub status: String,
+    pub error: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct EmailReplyQuarantineInput {
     pub quarantine_id: String,
     pub message_id: String,
@@ -486,6 +525,60 @@ fn masked_email_reply_proposal(record: EmailReplyProposalRecord) -> EmailReplyPr
     }
 }
 
+fn row_to_document_extraction_proposal(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<DocumentExtractionProposalRecord> {
+    let items_json: String = row.get(7)?;
+    let completed_rows_json: String = row.get(8)?;
+    Ok(DocumentExtractionProposalRecord {
+        proposal_id: row.get(0)?,
+        stable_key: row.get(1)?,
+        matter_id: row.get(2)?,
+        request_id: row.get(3)?,
+        intake_id: row.get(4)?,
+        item_id: row.get(5)?,
+        source_path: row.get(6)?,
+        items: serde_json::from_str(&items_json).unwrap_or_default(),
+        completed_rows: serde_json::from_str(&completed_rows_json).unwrap_or_default(),
+        status: row.get(9)?,
+        error: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+    })
+}
+
+fn masked_document_extraction_item(item: &Value) -> Value {
+    let mut out = item.clone();
+    let kind = out.get("kind").and_then(Value::as_str).unwrap_or_default();
+    let sensitivity = out
+        .get("sensitivity")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if let Some(value) = out.get("value") {
+        out["displayValue"] = Value::String(mask_value(kind, value, sensitivity));
+    }
+    if let Some(source) = out.get_mut("source").and_then(Value::as_object_mut) {
+        source.insert("snippet".to_string(), Value::String(String::new()));
+    }
+    if let Some(object) = out.as_object_mut() {
+        object.remove("value");
+    }
+    out
+}
+
+fn masked_document_extraction_proposal(
+    record: DocumentExtractionProposalRecord,
+) -> DocumentExtractionProposalRecord {
+    DocumentExtractionProposalRecord {
+        items: record
+            .items
+            .iter()
+            .map(masked_document_extraction_item)
+            .collect(),
+        ..record
+    }
+}
+
 impl IntakeFactsStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
         crate::commands::data_dir::workspace_data_dir(workspace_root).join("intake-facts-enc.db")
@@ -561,7 +654,24 @@ impl IntakeFactsStore {
                 updated_at               TEXT NOT NULL
             );
              CREATE INDEX IF NOT EXISTS idx_email_reply_quarantines_matter_status
-                ON email_reply_quarantines(matched_matter_id, status);",
+                ON email_reply_quarantines(matched_matter_id, status);
+             CREATE TABLE IF NOT EXISTS document_extraction_proposals (
+                proposal_id TEXT PRIMARY KEY,
+                stable_key TEXT NOT NULL UNIQUE,
+                matter_id TEXT NOT NULL,
+                request_id TEXT NOT NULL,
+                intake_id TEXT NOT NULL,
+                item_id TEXT,
+                source_path TEXT NOT NULL,
+                items_json TEXT NOT NULL,
+                completed_rows_json TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL,
+                error TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_document_extraction_proposals_matter_status
+                ON document_extraction_proposals(matter_id, status);",
         )?;
         migrate_email_reply_proposal_columns(&conn);
         Ok(Self {
@@ -1057,6 +1167,114 @@ impl IntakeFactsStore {
         Ok(masked_email_reply_proposal(record))
     }
 
+    pub fn enqueue_document_extraction_proposal(
+        &self,
+        input: DocumentExtractionProposalInput,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        let existing: Option<DocumentExtractionProposalRecord> = tx.query_row(
+            "SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE stable_key = ?1",
+            params![input.stable_key], row_to_document_extraction_proposal).optional()?;
+        if let Some(record) = existing {
+            tx.commit()?;
+            return Ok(masked_document_extraction_proposal(record));
+        }
+        let now = now_iso();
+        tx.execute("INSERT INTO document_extraction_proposals (proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, '[]', 'pending', NULL, ?9, ?9)", params![input.proposal_id, input.stable_key, input.matter_id, input.request_id, input.intake_id, input.item_id, input.source_path, serde_json::to_string(&input.items)?, now])?;
+        let record = tx.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1", params![input.proposal_id], row_to_document_extraction_proposal)?;
+        tx.commit()?;
+        Ok(masked_document_extraction_proposal(record))
+    }
+
+    pub fn list_document_extraction_proposals(
+        &self,
+        matter_id: Option<&str>,
+    ) -> Result<Vec<DocumentExtractionProposalRecord>> {
+        let conn = lock_unpoison(&self.conn);
+        let sql = "SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE status = 'pending'";
+        let records = if let Some(matter_id) = matter_id {
+            let mut stmt =
+                conn.prepare(&format!("{sql} AND matter_id = ?1 ORDER BY created_at ASC"))?;
+            let rows = stmt
+                .query_map(params![matter_id], row_to_document_extraction_proposal)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        } else {
+            let mut stmt = conn.prepare(&format!("{sql} ORDER BY created_at ASC"))?;
+            let rows = stmt
+                .query_map([], row_to_document_extraction_proposal)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+        Ok(records
+            .into_iter()
+            .map(masked_document_extraction_proposal)
+            .collect())
+    }
+
+    pub fn get_document_extraction_proposal(
+        &self,
+        proposal_id: &str,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        let conn = lock_unpoison(&self.conn);
+        conn.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1", params![proposal_id], row_to_document_extraction_proposal).optional()?.ok_or_else(|| anyhow::anyhow!("document extraction proposal not found"))
+    }
+
+    pub fn mark_document_extraction_proposal_row_completed(
+        &self,
+        proposal_id: &str,
+        mut completion: DocumentExtractionProposalRowCompletion,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        let mut record = tx.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1", params![proposal_id], row_to_document_extraction_proposal).optional()?.ok_or_else(|| anyhow::anyhow!("document extraction proposal not found"))?;
+        if record.status != "pending" {
+            bail!("document extraction proposal is no longer pending");
+        }
+        if !record.items.iter().any(|item| {
+            item.get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| id == completion.row_id)
+        }) {
+            bail!("document extraction proposal row not found");
+        }
+        if let Some(existing) = record
+            .completed_rows
+            .iter()
+            .find(|row| row.row_id == completion.row_id)
+        {
+            if existing.fact_id == completion.fact_id {
+                tx.commit()?;
+                return Ok(masked_document_extraction_proposal(record));
+            }
+            bail!("document extraction row already has a different completion receipt");
+        }
+        if completion.completed_at.is_none() {
+            completion.completed_at = Some(now_iso());
+        }
+        record.completed_rows.push(completion);
+        record.updated_at = now_iso();
+        tx.execute("UPDATE document_extraction_proposals SET completed_rows_json = ?2, updated_at = ?3 WHERE proposal_id = ?1", params![proposal_id, serde_json::to_string(&record.completed_rows)?, record.updated_at])?;
+        tx.commit()?;
+        Ok(masked_document_extraction_proposal(record))
+    }
+
+    pub fn set_document_extraction_proposal_status(
+        &self,
+        proposal_id: &str,
+        status: &str,
+        error: Option<&str>,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        if !matches!(status, "pending" | "accepted" | "dismissed") {
+            bail!("invalid proposal status");
+        }
+        let conn = lock_unpoison(&self.conn);
+        if conn.execute("UPDATE document_extraction_proposals SET status = ?2, error = ?3, updated_at = ?4 WHERE proposal_id = ?1", params![proposal_id, status, error, now_iso()])? == 0 { bail!("document extraction proposal not found"); }
+        let record = conn.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1", params![proposal_id], row_to_document_extraction_proposal)?;
+        Ok(masked_document_extraction_proposal(record))
+    }
+
     pub fn list_email_reply_quarantines(
         &self,
         matter_id: Option<&str>,
@@ -1250,6 +1468,60 @@ mod tests {
             matched_matter_id: Some("matter-1".into()),
             matched_request_id: Some("intake-1".into()),
         }
+    }
+
+    fn document_extraction_input() -> DocumentExtractionProposalInput {
+        DocumentExtractionProposalInput {
+            proposal_id: "document-proposal-1".into(),
+            stable_key: "matter-1\u{1f}request-1\u{1f}intake-1\u{1f}Clients/A/income.pdf".into(),
+            matter_id: "matter-1".into(),
+            request_id: "request-1".into(),
+            intake_id: "intake-1".into(),
+            item_id: Some("income".into()),
+            source_path: "Clients/A/income.pdf".into(),
+            items: vec![json!({
+                "id": "income-row", "subject": "primary", "kind": "income_annual",
+                "value": { "t": "money", "v": { "amount": 120000, "currency": "USD" } },
+                "displayValue": "USD 120000", "sensitivity": "confidential",
+                "source": { "kind": "document", "path": "Clients/A/income.pdf", "page": 2, "snippet": "Annual income: $120,000" },
+                "confidence": "high", "reason": "Printed total.", "checkedByDefault": true
+            })],
+        }
+    }
+
+    #[test]
+    fn document_extraction_enqueue_is_idempotent_and_list_masks_review_text() {
+        let (_dir, store) = store();
+        let first = store
+            .enqueue_document_extraction_proposal(document_extraction_input())
+            .unwrap();
+        let mut duplicate = document_extraction_input();
+        duplicate.proposal_id = "different-id".into();
+        let second = store
+            .enqueue_document_extraction_proposal(duplicate)
+            .unwrap();
+        assert_eq!(first.proposal_id, second.proposal_id);
+        let listed = store
+            .list_document_extraction_proposals(Some("matter-1"))
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        let listed_json = serde_json::to_string(&listed).unwrap();
+        assert!(!listed_json.contains("Annual income: $120,000"));
+        assert!(listed[0].items[0].get("value").is_none());
+        let review = store
+            .get_document_extraction_proposal("document-proposal-1")
+            .unwrap();
+        assert_eq!(
+            review.items[0]["source"]["snippet"],
+            "Annual income: $120,000"
+        );
+        store
+            .set_document_extraction_proposal_status("document-proposal-1", "dismissed", None)
+            .unwrap();
+        assert!(store
+            .list_document_extraction_proposals(Some("matter-1"))
+            .unwrap()
+            .is_empty());
     }
 
     #[test]
