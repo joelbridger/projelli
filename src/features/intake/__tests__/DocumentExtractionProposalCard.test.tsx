@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DocumentExtractionProposalCard } from '../DocumentExtractionProposalCard';
 import { clearInMemoryDocumentExtractionQueuesForTests, documentExtractionProposalSave, documentExtractionStableKey, stableDocumentExtractionProposalId } from '@/platform/intake/documentExtractionProposalStore';
-import { clearInMemoryFactsForTests, intakeFactList } from '@/platform/intake/factsStore';
+import { clearInMemoryFactsForTests, intakeFactList, intakeFactUpsert } from '@/platform/intake/factsStore';
 
 const ids = { matterId: 'matter-1', requestId: 'request-1', intakeId: 'intake-1', sourcePath: 'Clients/A/budget.pdf' };
 describe('DocumentExtractionProposalCard', () => {
@@ -23,5 +23,18 @@ describe('DocumentExtractionProposalCard', () => {
     const checks = screen.getAllByRole('checkbox', { name: 'Select document fact' }) as HTMLInputElement[];
     expect(checks[0]?.checked).toBe(true);
     expect(checks[1]?.checked).toBe(false);
+  });
+  it('leaves a conflicting row unchecked and requires an explicit resolution', async () => {
+    await intakeFactUpsert({ matter_id: 'matter-1', subject: 'primary', kind: 'income_annual', value: { t: 'money', v: { amount: 100000, currency: 'USD' } }, sensitivity: 'confidential', provenance: { channel: 'manual', source_ref: 'test', entered_by: 'advisor-1', confirmed_by: 'advisor-1', at: '2026-07-10T00:00:00.000Z' }, verification: 'advisor_confirmed' });
+    render(<DocumentExtractionProposalCard matterId="matter-1" advisorId="advisor-1" />);
+    await screen.findByText('Facts found in documents');
+    fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+    await screen.findByTestId('document-extraction-conflict');
+    const checks = screen.getAllByRole('checkbox', { name: 'Select document fact' }) as HTMLInputElement[];
+    expect(checks[0]?.checked).toBe(false);
+    expect(checks[0]?.disabled).toBe(true);
+    expect((screen.getByRole('radio', { name: 'Replace it with the proposed amount' }) as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByRole('radio', { name: 'Replace it with the proposed amount' }));
+    expect(checks[0]?.checked).toBe(true);
   });
 });

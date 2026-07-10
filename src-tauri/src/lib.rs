@@ -243,6 +243,7 @@ pub fn run() {
             commands::intake::intake_document_extraction_save_proposal,
             commands::intake::intake_document_extraction_list_proposals,
             commands::intake::intake_document_extraction_get_proposal,
+            commands::intake::intake_document_extraction_accept_row,
             commands::intake::intake_document_extraction_mark_row_completed,
             commands::intake::intake_document_extraction_set_proposal_status,
             commands::intake::intake_email_reply_list_quarantines,

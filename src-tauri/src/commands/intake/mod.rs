@@ -1,6 +1,7 @@
 pub mod store;
 
 use store::{
+    DocumentExtractionProposalAcceptInput, DocumentExtractionProposalAcceptResult,
     DocumentExtractionProposalInput, DocumentExtractionProposalRecord,
     DocumentExtractionProposalRowCompletion, EmailReplyProposalInput, EmailReplyProposalRecord,
     EmailReplyProposalRowCompletion, EmailReplyQuarantineInput, EmailReplyQuarantineRecord,
@@ -233,12 +234,33 @@ pub async fn intake_document_extraction_list_proposals(
 #[tauri::command]
 pub async fn intake_document_extraction_get_proposal(
     state: State<'_, IntakeState>,
+    matter_id: String,
     proposal_id: String,
 ) -> Result<DocumentExtractionProposalRecord, String> {
     let ws = workspace(&state).await?;
     tokio::task::spawn_blocking(
         move || -> anyhow::Result<DocumentExtractionProposalRecord> {
-            IntakeFactsStore::open(&ws)?.get_document_extraction_proposal(&proposal_id)
+            let store = IntakeFactsStore::open(&ws)?;
+            let audit = EncryptedAuditSink::new(ws);
+            store.get_document_extraction_proposal(&matter_id, &proposal_id, &audit)
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_document_extraction_accept_row(
+    state: State<'_, IntakeState>,
+    input: DocumentExtractionProposalAcceptInput,
+) -> Result<DocumentExtractionProposalAcceptResult, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<DocumentExtractionProposalAcceptResult> {
+            let store = IntakeFactsStore::open(&ws)?;
+            let audit = EncryptedAuditSink::new(ws);
+            store.accept_document_extraction_proposal_row(input, &audit)
         },
     )
     .await

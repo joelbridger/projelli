@@ -1,6 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
-import { maskFactValue } from './factsStore';
+import { intakeFactList, intakeFactUpsert, maskFactValue, type MaskedClientFact } from './factsStore';
 import type { FactKind, FactValue, Sensitivity } from './types';
 import type { IntakeDocumentSourceRef } from './documentExtractionTypes';
 
@@ -36,6 +36,21 @@ export interface DocumentExtractionProposalRowCompletion {
   rowId: string;
   factId: string;
   completedAt?: string;
+}
+
+export interface DocumentExtractionProposalAcceptRowInput {
+  proposalId: string;
+  matterId: string;
+  rowId: string;
+  amount: number;
+  expectedActiveFactId: string | null;
+  expectedActiveFactChecked: boolean;
+  advisorId: string;
+}
+
+export interface DocumentExtractionProposalAcceptRowResult {
+  fact: MaskedClientFact;
+  proposal: DocumentExtractionProposalRecord;
 }
 
 export interface DocumentExtractionProposalRecord extends DocumentExtractionProposalInput {
@@ -102,11 +117,33 @@ export async function documentExtractionProposalList(matterId?: string): Promise
 }
 
 /** This is deliberately unmasked: it is called only after the advisor opens a review panel. */
-export async function documentExtractionProposalGetForAccept(proposalId: string): Promise<DocumentExtractionProposalRecord> {
-  if (isTauri()) return invoke<DocumentExtractionProposalRecord>('intake_document_extraction_get_proposal', { proposalId });
+export async function documentExtractionProposalGetForAccept(proposalId: string, matterId: string): Promise<DocumentExtractionProposalRecord> {
+  if (isTauri()) return invoke<DocumentExtractionProposalRecord>('intake_document_extraction_get_proposal', { proposalId, matterId });
   const record = proposals.get(proposalId);
-  if (!record) throw new Error('Document extraction proposal not found.');
+  if (!record || record.matterId !== matterId) throw new Error('Document extraction proposal not found.');
   return record;
+}
+
+function documentExtractionMoney(row: DocumentExtractionProposalItem): Extract<FactValue, { t: 'money' }> {
+  if (row.kind !== 'income_annual' && row.kind !== 'spending_monthly') throw new Error('Document extraction fact kind is outside the allowed contract.');
+  if (!row.value || row.value.t !== 'money' || !Number.isFinite(row.value.v.amount) || row.value.v.amount < 0 || !/^[A-Z]{3}$/u.test(row.value.v.currency)) throw new Error('Document extraction value is outside the allowed contract.');
+  return row.value;
+}
+
+/** Browser fallback mirrors the native row-accept contract used by the desktop app. */
+export async function documentExtractionProposalAcceptRow(input: DocumentExtractionProposalAcceptRowInput): Promise<DocumentExtractionProposalAcceptRowResult> {
+  if (isTauri()) return invoke<DocumentExtractionProposalAcceptRowResult>('intake_document_extraction_accept_row', { input });
+  if (!Number.isFinite(input.amount) || input.amount < 0 || !input.expectedActiveFactChecked) throw new Error('Document extraction approval is outside the allowed contract.');
+  const proposal = await documentExtractionProposalGetForAccept(input.proposalId, input.matterId);
+  if (proposal.status !== 'pending') throw new Error('Document extraction proposal is no longer pending.');
+  const row = proposal.items.find((candidate) => candidate.id === input.rowId);
+  if (!row || proposal.completedRows.some((completion) => completion.rowId === input.rowId)) throw new Error('Document extraction proposal row not found.');
+  const money = documentExtractionMoney(row);
+  const active = (await intakeFactList(proposal.matterId)).find((fact) => fact.subject === 'primary' && fact.kind === row.kind && fact.status === 'active');
+  if ((active?.fact_id ?? null) !== input.expectedActiveFactId) throw new Error('The active fact changed while this review was open. Reopen the review before approving this row.');
+  const fact = await intakeFactUpsert({ matter_id: proposal.matterId, subject: 'primary', kind: row.kind, value: { t: 'money', v: { amount: input.amount, currency: money.v.currency } }, sensitivity: 'confidential', provenance: { channel: 'doc_extraction', source_ref: `document:v1:${proposal.sourcePath}:${row.source.page ?? 1}`, entered_by: input.advisorId, confirmed_by: input.advisorId, at: nowIso() }, verification: 'document_verified' });
+  const updated = await documentExtractionProposalMarkRowCompleted({ proposalId: proposal.proposalId, completion: { rowId: row.id, factId: fact.fact_id } });
+  return { fact, proposal: updated };
 }
 
 export async function documentExtractionProposalSetStatus(proposalId: string, status: DocumentExtractionProposalStatus, error?: string): Promise<DocumentExtractionProposalRecord> {
