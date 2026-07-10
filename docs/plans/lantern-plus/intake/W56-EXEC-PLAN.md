@@ -94,10 +94,10 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 
 | Lane | Brief | Built | Reviewed | codex-review | Fixed | Merged (sha) | Gate |
 |---|---|---|---|---|---|---|---|
-| W5c key-sharing | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W5a phone-mode | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W5b welcome-journey | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6c it-pack | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W5c key-sharing | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W5a phone-mode | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W5b welcome-journey | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W6c it-pack | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
 | W6a kpi-strip | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
 | W6b relay-hardening | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
 | W6d a11y-audit | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
