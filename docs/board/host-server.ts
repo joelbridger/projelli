@@ -46,6 +46,123 @@ app.use("*", async (c, next) => {
   return c.redirect("https://jameworld.com", 302);
 });
 
+// ── Feature-map comments (family feedback pinned to the whiteboard) ─────────
+// Stored as one JSON file on disk; all routes sit behind the login gate above.
+const COMMENTS_FILE = "./data/feature-map-comments.json";
+
+type MapComment = {
+  id: string;
+  x: number;
+  y: number;
+  text: string;
+  author: string;
+  postedBy?: string; // verified login username (audit; author is just a display name)
+  ts: string;
+};
+
+async function readComments(): Promise<MapComment[]> {
+  try {
+    const f = Bun.file(COMMENTS_FILE);
+    if (!(await f.exists())) return [];
+    const data = (await f.json()) as unknown;
+    return Array.isArray(data) ? (data as MapComment[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function writeComments(list: MapComment[]): Promise<void> {
+  await Bun.write(COMMENTS_FILE, JSON.stringify(list, null, 1));
+}
+
+// Serialize all read-modify-write mutations so two simultaneous posts/deletes
+// can't clobber each other's write (verified live: two parallel DELETEs lost one).
+let commentsQueue: Promise<unknown> = Promise.resolve();
+function withCommentsQueue<T>(fn: () => Promise<T>): Promise<T> {
+  const run = commentsQueue.then(fn, fn);
+  commentsQueue = run.catch(() => undefined);
+  return run;
+}
+
+// Verified username from the (already-validated) login cookie — recorded on
+// every comment so a typed display name can't silently impersonate someone.
+async function verifiedUsername(token: string | undefined): Promise<string> {
+  if (!token) return "";
+  const secret = process.env.JWT_SECRET;
+  if (!secret) return "";
+  try {
+    const p = (await verify(token, secret, "HS256")) as unknown as { username?: string };
+    return typeof p.username === "string" ? p.username : "";
+  } catch {
+    return "";
+  }
+}
+
+// CSRF guard for mutating routes: the login cookie is domain-wide, so require
+// the request to actually come from a jameworld.com page (fetch sends Origin).
+function sameSiteOrigin(c: { req: { header: (n: string) => string | undefined } }): boolean {
+  const origin = c.req.header("origin") ?? "";
+  if (!origin) return true; // same-origin fetches may omit Origin; cross-site POSTs never do
+  try {
+    const h = new URL(origin).hostname;
+    return h === "jameworld.com" || h.endsWith(".jameworld.com");
+  } catch {
+    return false;
+  }
+}
+
+app.get("/api/feature-map/comments", async (c) => {
+  return c.json(await readComments());
+});
+
+app.post("/api/feature-map/comments", async (c) => {
+  if (!sameSiteOrigin(c)) return c.json({ error: "forbidden" }, 403);
+  let body: { x?: unknown; y?: unknown; text?: unknown; author?: unknown };
+  try {
+    body = await c.req.json();
+  } catch {
+    return c.json({ error: "bad json" }, 400);
+  }
+  const x = Number(body.x);
+  const y = Number(body.y);
+  const text = String(body.text ?? "").trim().slice(0, 2000);
+  const author = String(body.author ?? "").trim().slice(0, 60) || "Anonymous";
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !text) {
+    return c.json({ error: "need x, y and text" }, 400);
+  }
+  const postedBy = await verifiedUsername(getCookie(c, "auth_token"));
+  const item = await withCommentsQueue(async () => {
+    const list = await readComments();
+    const it: MapComment = {
+      id: `c_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      x,
+      y,
+      text,
+      author,
+      postedBy,
+      ts: new Date().toISOString(),
+    };
+    list.push(it);
+    await writeComments(list);
+    return it;
+  });
+  return c.json(item, 201);
+});
+
+app.delete("/api/feature-map/comments/:id", async (c) => {
+  if (!sameSiteOrigin(c)) return c.json({ error: "forbidden" }, 403);
+  const id = c.req.param("id");
+  const found = await withCommentsQueue(async () => {
+    const list = await readComments();
+    const next = list.filter((it) => it.id !== id);
+    if (next.length === list.length) return false;
+    await writeComments(next);
+    return true;
+  });
+  if (!found) return c.json({ error: "not found" }, 404);
+  return c.json({ ok: true });
+});
+
 // Serve the static dashboard files.
 app.use("*", serveStatic({ root: "./public" }));
 app.get("*", serveStatic({ path: "./public/index.html" }));
