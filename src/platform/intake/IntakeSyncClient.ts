@@ -18,7 +18,6 @@ export interface IntakeInboxSubmission {
   manifest_ciphertext_b64: string;
   wrapped_content_key_b64: string;
   chunks: ChunkUpload[];
-  session_id?: string;
 }
 
 export interface IntakeInboxPage {
@@ -54,7 +53,6 @@ export interface RoutedIntakeSubmission {
   submittedAt: string;
   manifest: SealedManifest;
   plaintextBytes: Uint8Array[];
-  sessionId?: string;
 }
 
 export interface IntakeRouteResult {
@@ -165,11 +163,6 @@ export class IntakeSyncClient {
     submission: IntakeInboxSubmission,
   ): Promise<IntakeProcessSubmissionResult> {
     const totals = { routed: 0, acked: 0, duplicates: 0, rejected: 0 };
-    const sessionId = submission.session_id;
-    if (sessionId && !(await this.isKnownSession(submission.intake_id, sessionId))) {
-      await this.flagSubmission(flagFromSubmission(submission, 'new_device', 'Submission came from a new device.'));
-    }
-
     let routed: RoutedIntakeSubmission;
     try {
       routed = await this.decryptAndVerify(submission);
@@ -183,6 +176,11 @@ export class IntakeSyncClient {
       );
       totals.rejected += 1;
       return totals;
+    }
+
+    const sessionId = routed.manifest.session_id;
+    if (sessionId && !(await this.isKnownSession(submission.intake_id, sessionId))) {
+      await this.flagSubmission(flagFromSubmission(submission, 'new_device', 'Submission came from a new device.'));
     }
 
     if (await this.hasSubmission(routed.manifest.submission_id)) {
@@ -280,7 +278,6 @@ export class IntakeSyncClient {
       submittedAt: submission.submitted_at,
       manifest: openedManifest.manifest,
       plaintextBytes,
-      ...(submission.session_id ? { sessionId: submission.session_id } : {}),
     };
   }
 }

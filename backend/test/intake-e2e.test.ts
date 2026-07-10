@@ -58,7 +58,6 @@ class HttpInboxRelay {
         manifest_ciphertext_b64: string;
         wrapped_content_key_b64: string;
         submitted_at: string;
-        session_id?: string;
         blobs: Array<{ blob_id: number; index: number; size: number }>;
       }>;
     };
@@ -89,7 +88,6 @@ class HttpInboxRelay {
         manifest_ciphertext_b64: submission.manifest_ciphertext_b64,
         wrapped_content_key_b64: submission.wrapped_content_key_b64,
         chunks,
-        ...(submission.session_id ? { session_id: submission.session_id } : {}),
       });
     }
 
@@ -184,13 +182,16 @@ describe("intake real page to relay to advisor flow", () => {
 
       const ssnValue = "123-45-6789";
       const privateFileName = "sarah-license-front-private.png";
+      const sessionMarkerA = "session-marker-private-a";
+      const sessionMarkerB = "session-marker-private-b";
       const documentBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4, 5, 6]);
-      await submitAnswer({
+      const firstSubmission = await submitAnswer({
         intakeId: "e2e-intake",
         intakePubRaw: bundle.publicKeyRaw,
         item: typedItem,
         payload: { kind: "typed", value: ssnValue, display_value: "ends in 6789" },
         relay: clientRelay,
+        sessionId: sessionMarkerA,
       });
       await submitAnswer({
         intakeId: "e2e-intake",
@@ -201,12 +202,21 @@ describe("intake real page to relay to advisor flow", () => {
           files: [new File([documentBytes], privateFileName, { type: "image/png" })],
         },
         relay: clientRelay,
+        sessionId: sessionMarkerA,
+      });
+      const thirdSubmission = await submitAnswer({
+        intakeId: "e2e-intake",
+        intakePubRaw: bundle.publicKeyRaw,
+        item: typedItem,
+        payload: { kind: "typed", value: "987-65-4321", display_value: "ends in 4321" },
+        relay: clientRelay,
+        sessionId: sessionMarkerB,
       });
 
       expect(recorder.requests.some((req) => req.includes("/item/item-ssn/chunks?submission_id="))).toBe(true);
       expect(recorder.requests.some((req) => req.includes("/item/item-license/chunks?submission_id="))).toBe(true);
 
-      const forbidden = [ssnValue, privateFileName, typedItem.label, fileItem.label];
+      const forbidden = [ssnValue, privateFileName, typedItem.label, fileItem.label, sessionMarkerA, sessionMarkerB];
       const durableBeforeSync = allDurableValues(ctx.store);
       const requestSurface = recorder.requests.join("\n");
       for (const plaintext of forbidden) {
@@ -219,15 +229,19 @@ describe("intake real page to relay to advisor flow", () => {
         manifestFileNames: string[];
         plaintextBytes: Uint8Array[];
       }> = [];
+      const knownSessions = new Set<string>();
+      const flags: string[] = [];
       const sync = new IntakeSyncClient({
         relay: new HttpInboxRelay(ctx.base, advisor.seatToken),
         loadPrivateKey: async () => bundle.privateKey,
         hasSubmission: async () => false,
         rememberSubmission: async () => {},
-        isKnownSession: async () => true,
-        rememberSession: async () => {},
+        isKnownSession: async (_intakeId, sessionId) => knownSessions.has(sessionId),
+        rememberSession: async (_intakeId, sessionId) => {
+          knownSessions.add(sessionId);
+        },
         flagSubmission: async (flag) => {
-          throw new Error(`unexpected intake flag: ${flag.kind} ${flag.reason}`);
+          if (flag.kind === "new_device") flags.push(flag.submissionId);
         },
         routeSubmission: async (submission) => {
           routed.push({
@@ -240,8 +254,10 @@ describe("intake real page to relay to advisor flow", () => {
       });
 
       const result = await sync.syncOnce();
-      expect(result.routed).toBe(2);
-      expect(result.acked).toBe(2);
+      expect(result.routed).toBe(3);
+      expect(result.acked).toBe(3);
+      expect(flags).toEqual([firstSubmission.submissionId, thirdSubmission.submissionId]);
+      expect(knownSessions).toEqual(new Set([sessionMarkerA, sessionMarkerB]));
 
       const typed = routed.find((entry) => entry.itemId === "item-ssn");
       expect(typed).toBeDefined();

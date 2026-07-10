@@ -300,6 +300,7 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
 
 async function openSubmittedPayload(harness: RelayHarness, itemId: string, index = 0): Promise<{
   manifestFileNames: string[];
+  manifestSessionId?: string;
   chunks: string[];
   submissionId: string;
 }> {
@@ -328,6 +329,7 @@ async function openSubmittedPayload(harness: RelayHarness, itemId: string, index
   }
   return {
     manifestFileNames: openedManifest.manifest.file_names,
+    manifestSessionId: openedManifest.manifest.session_id,
     chunks: openedChunks,
     submissionId: submit.submission_id,
   };
@@ -406,6 +408,62 @@ test('boots, decrypts the bundle, and renders the firm from sealed data', async 
   await expect(page.getByText('Lantern secure intake')).not.toBeVisible();
   await expect(page.getByText('Information needed')).toBeVisible();
   await expect(page.getByText('Only Journey Beyond Wealth can unlock what you send.')).toBeVisible();
+});
+
+test('keeps one browser marker across page opens, seals it in each manifest, and changes it in a fresh browser', async ({ page, browser }) => {
+  const firstRelay = await setupRelay(page);
+  await page.goto(firstRelay.url);
+  await startChecklist(page);
+  await completeDob(page);
+  const first = await openSubmittedPayload(firstRelay, 'dob');
+  expect(first.manifestSessionId).toMatch(/^[a-f0-9-]{32,}$/iu);
+  expect(JSON.stringify(firstRelay.submits)).not.toContain(first.manifestSessionId!);
+  expect(JSON.stringify(firstRelay.chunks)).not.toContain(first.manifestSessionId!);
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeVisible();
+  await completeSsn(page);
+  const second = await openSubmittedPayload(firstRelay, 'ssn');
+  expect(second.manifestSessionId).toBe(first.manifestSessionId);
+
+  const freshContext = await browser.newContext();
+  try {
+    const freshPage = await freshContext.newPage();
+    const freshRelay = await setupRelay(freshPage);
+    await freshPage.goto(`http://127.0.0.1:4178${freshRelay.url}`);
+    await startChecklist(freshPage);
+    await completeDob(freshPage);
+    const fresh = await openSubmittedPayload(freshRelay, 'dob');
+    expect(fresh.manifestSessionId).toMatch(/^[a-f0-9-]{32,}$/iu);
+    expect(fresh.manifestSessionId).not.toBe(first.manifestSessionId);
+    expect(JSON.stringify(freshRelay.submits)).not.toContain(fresh.manifestSessionId!);
+    expect(JSON.stringify(freshRelay.chunks)).not.toContain(fresh.manifestSessionId!);
+  } finally {
+    await freshContext.close();
+  }
+});
+
+test('keeps submitting when browser storage is blocked', async ({ page }) => {
+  await page.addInitScript(() => {
+    const storageError = new DOMException('Browser storage is unavailable.', 'SecurityError');
+    Storage.prototype.getItem = () => {
+      throw storageError;
+    };
+    Storage.prototype.setItem = () => {
+      throw storageError;
+    };
+  });
+  const relay = await setupRelay(page);
+
+  await page.goto(relay.url);
+  await expect(page.getByRole('heading', { name: 'Welcome, Sarah.' })).toBeVisible();
+  await startChecklist(page);
+  await completeDob(page);
+
+  const submitted = await openSubmittedPayload(relay, 'dob');
+  expect(submitted.manifestSessionId).toMatch(/^[a-f0-9-]{32,}$/iu);
+  expect(JSON.stringify(relay.submits)).not.toContain(submitted.manifestSessionId!);
+  expect(JSON.stringify(relay.chunks)).not.toContain(submitted.manifestSessionId!);
 });
 
 test('opens an older link that has no firm branding', async ({ page }) => {

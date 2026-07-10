@@ -401,7 +401,8 @@ function isSealedManifest(value: unknown): value is SealedManifest {
     typeof candidate.content_type !== 'string' ||
     !isStringArray(candidate.file_names) ||
     !isStringArray(candidate.chunk_hashes) ||
-    typeof candidate.chunk_count !== 'number'
+    typeof candidate.chunk_count !== 'number' ||
+    (candidate.session_id !== undefined && typeof candidate.session_id !== 'string')
   ) {
     return false;
   }
