@@ -98,9 +98,15 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 | W5a phone-mode | ✅ | ✅ 14/14 | ✅ 4 findings + gatefix | ✅ done | ✅ green | ☐ merging | ☐ |
 | W5b welcome-journey | ✅ | ✅ 44/44 | ✅ 4 findings + gatefix | ✅ done | ⏳ verify | ☐ merging | ☐ |
 | W6c it-pack | ✅ | ✅ 255/255 | ✅ 2 findings | ✅ done | ✅ MERGED 3afd4da6 | ⏳ push | ⏳ |
-| W6a kpi-strip | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6b relay-hardening | ✅ (+expiry-cleanup) | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6d a11y-audit | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W6a kpi-strip | ✅ | ✅ 7/7 | ✅ 1 P1 | 🔨 fixing | ☐ | ☐ | ☐ |
+| W6b relay-hardening | ✅ (+expiry-cleanup) | ✅ bun 222/222 | ✅ 2 P1 + P2 | 🔨 fixing | ☐ | ☐ | ☐ |
+| W6d a11y-audit | ✅ | ✅ build+22 pw | ✅ 1 P2 | 🔨 fixing | ☐ | ☐ | ☐ |
+
+### Batch-2 review findings (round 1)
+- **W6a kpi-strip [P1]:** completion metrics keyed on `status:'completed'`/`completedAt` that the lifecycle never sets → permanent 0% completion. Fix: derive completion from checklist item states.
+- **W6b relay-hardening [P1×2 + P2]:** (1) `expires_at` stored un-normalized → lexicographic purge compare misses RFC-2822 dates (retention silently fails) → normalize to ISO on write; (2) behind Caddy-on-loopback `requestIP()` is 127.0.0.1 → all clients share one per-IP bucket → derive client IP from trusted-proxy XFF; (3) 120-req/60s IP limit 429s a legit 500MiB upload → size it to max upload. + folded a **HeadersInit** backend-typecheck fix inherited from the merged key-sharing test file.
+- **W6d a11y [P2]:** the new clickable progress dots race overlapping whole-state PUTs → stale snapshot clobbers newer state → serialize the writes.
+- **Latent base issue found:** `backend/test/intake-keys.test.ts` (from merged key-sharing) fails `bun run typecheck` on `HeadersInit` — backend *typecheck* was never run on the merged tree (only bun tests). Fixed via the relay-hardening round; base backend node_modules now symlinked for the final gate.
 
 ### BATCH 1 COMPLETE — merged + integrated + pushed (origin/lp/intake-w56 @ eef70602)
 All 4 lanes (W5c key-sharing, W5a phone-mode, W5b welcome-journey, W6c it-pack) merged --no-ff, serial. Merged-tree gate caught a real cross-lane type break (journey required on IntakeFirm vs key-sharing test fixture) + 3 baseline-drift lint findings — all fixed. Final merged-tree: tsc/typecheck:tests/lint("no regression")/i18n/contracts clean; **backend 218/218; frontend 508/508**. Every lane's adversarial codex-review found real bugs (key-sharing needed 2 review rounds; the 2nd caught a matter-key backward-compat regression + ack data-loss). BATCH 2 dispatched off this tip.
