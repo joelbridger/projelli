@@ -9,6 +9,7 @@ import {
   deriveLinkSignals,
   deriveNudgeEligibility,
   deriveOnboardingRow,
+  deriveRequestRow,
   sortOnboardingRows,
   type OnboardingRow,
 } from './onboardingModel';
@@ -40,6 +41,13 @@ function intake(overrides: Partial<IntakeRecord> = {}): IntakeRecord {
 }
 
 describe('onboardingModel', () => {
+  it('derives the same generic row shape for standing and onboarding requests', () => {
+    expect(deriveRequestRow(intake(), now, cfg).kind).toBe('onboarding');
+    expect(deriveRequestRow(intake({ kind: 'standing', requestTitle: 'Tax review', requestSlug: 'tax-review-a1' }), now, cfg))
+      .toMatchObject({ kind: 'standing', requestId: 'intake-1' });
+    expect(() => deriveOnboardingRow(intake({ kind: 'standing' }), now, cfg)).toThrow(/onboarding/iu);
+  });
+
   it('derives missing, received, pending review, and stall math from labels and timestamps', () => {
     const row = deriveOnboardingRow(intake({
       lastClientActivityAt: '2026-07-04T12:00:00.000Z',

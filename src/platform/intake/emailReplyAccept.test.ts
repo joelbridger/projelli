@@ -491,7 +491,7 @@ describe('emailReplyAccept', () => {
     });
 
     expect(persistAttachment.mock.calls[0]?.[4]).toBe(
-      emailReplyAttachmentDestination('msg/../evil')
+      emailReplyAttachmentDestination('onboarding', 'msg/../evil')
     );
     expect(safeEmailReplyMessageSegment('msg/../evil')).toBe('msg_.._evil');
     expect(persistAttachment.mock.calls[0]?.[4]).not.toContain('hacked');

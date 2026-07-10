@@ -28,7 +28,9 @@ import {
   type FactKind,
   type FactValue,
   type GuidedQuestionResponseFormat,
+  type RequestItem,
 } from './types';
+import { factKindForPhoneItem } from './phoneWalkthrough';
 import {
   useIntakeStore,
   type IntakeChecklistState,
@@ -88,48 +90,12 @@ function objectRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function isFactKind(value: unknown): value is FactKind {
-  return typeof value === 'string' && value in FACT_KIND_SENSITIVITY;
-}
-
 function hasOwn(value: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
-function factKindForSubmission(
-  body: Record<string, unknown>,
-  submission: RoutedIntakeSubmission,
-): FactKind | null {
-  if (isFactKind(body['fact_kind'])) return body['fact_kind'];
-  const itemId = typeof body['item_id'] === 'string' ? body['item_id'] : submission.itemId;
-  if (isFactKind(itemId)) return itemId;
-  if (itemId === 'income') return 'income_annual';
-  if (itemId === 'spending') return 'spending_monthly';
-  if (itemId === 'license') return 'drivers_license';
-  return null;
-}
-
-function isGuidedQuestionResponseFormat(
-  value: unknown,
-): value is GuidedQuestionResponseFormat {
-  return (
-    value === 'number' ||
-    value === 'money' ||
-    value === 'range' ||
-    value === 'text' ||
-    value === 'choice'
-  );
-}
-
-function responseFormatForSubmission(
-  body: Record<string, unknown>,
-  kind: FactKind,
-): GuidedQuestionResponseFormat | null {
-  if (isGuidedQuestionResponseFormat(body['response_format'])) {
-    return body['response_format'];
-  }
-  if (kind === 'income_annual' || kind === 'spending_monthly') return 'money';
-  return null;
+function responseFormatForItem(item: RequestItem): GuidedQuestionResponseFormat | null {
+  return item.t === 'guided_question' ? item.response_format : null;
 }
 
 function numberFromUnknown(value: unknown): number | null {
@@ -199,23 +165,22 @@ function guidedUnknownValue(raw: unknown): FactValue | null {
 function factValue(
   kind: FactKind,
   raw: unknown,
-  body: Record<string, unknown>,
+  responseFormat: GuidedQuestionResponseFormat | null,
 ): FactValue {
   if (kind === 'dob') return { t: 'date', v: stringFromUnknown(raw) };
-  const format = responseFormatForSubmission(body, kind);
   const unknown = guidedUnknownValue(raw);
   if (unknown) return unknown;
-  if (format === 'range') {
+  if (responseFormat === 'range') {
     const range = rangeValue(raw);
     if (range) return range;
   }
-  if (kind === 'income_annual' || kind === 'spending_monthly' || format === 'money') {
+  if (kind === 'income_annual' || kind === 'spending_monthly' || responseFormat === 'money') {
     const money = moneyValue(raw);
     if (money) return money;
     const range = rangeValue(raw);
     if (range) return range;
   }
-  if (format === 'range') {
+  if (responseFormat === 'range') {
     return { t: 'string', v: stringFromUnknown(raw) };
   }
   return { t: 'string', v: stringFromUnknown(raw) };
@@ -236,6 +201,7 @@ function markSubmissionNeedsFollowup(
   submission: RoutedIntakeSubmission,
   intake: IntakeRecord,
   message: string,
+  kind: IntakeFlag['kind'] = 'routing_failed',
 ): void {
   const item = currentChecklistItem(intake, submission.itemId);
   const store = useIntakeStore.getState();
@@ -244,8 +210,8 @@ function markSubmissionNeedsFollowup(
     state: 'needs_followup',
   });
   store.addFlag(submission.intakeId, {
-    id: `submission:${submission.submissionId}:routing_failed`,
-    kind: 'routing_failed',
+    id: `submission:${submission.submissionId}:${kind}`,
+    kind,
     itemId: submission.itemId,
     submissionId: submission.submissionId,
     message,
@@ -257,9 +223,38 @@ function failNeedsFollowup(
   submission: RoutedIntakeSubmission,
   intake: IntakeRecord,
   message: string,
+  kind: IntakeFlag['kind'] = 'routing_failed',
 ): never {
-  markSubmissionNeedsFollowup(submission, intake, message);
+  markSubmissionNeedsFollowup(submission, intake, message, kind);
   throw new Error(message);
+}
+
+function contractItemOrFail(
+  submission: RoutedIntakeSubmission,
+  intake: IntakeRecord,
+): RequestItem {
+  if (submission.intakeId !== intake.intakeId) {
+    return failNeedsFollowup(submission, intake, 'This submission belongs to a different request.', 'integrity_mismatch');
+  }
+  if (!intake.requestItems) {
+    return failNeedsFollowup(submission, intake, 'This request is missing its sealed routing contract.', 'integrity_mismatch');
+  }
+  const item = intake.requestItems.find((candidate) => candidate.item_id === submission.itemId);
+  if (!item) return failNeedsFollowup(submission, intake, 'This submission does not match a request item.', 'integrity_mismatch');
+  return item;
+}
+
+function rejectConflictingBodyMetadata(
+  body: Record<string, unknown>, item: RequestItem, kind: FactKind | null,
+  submission: RoutedIntakeSubmission, intake: IntakeRecord,
+): void {
+  if (
+    (hasOwn(body, 'fact_kind') && body['fact_kind'] !== kind) ||
+    (hasOwn(body, 'subject') && body['subject'] !== item.subject) ||
+    (hasOwn(body, 'response_format') && body['response_format'] !== responseFormatForItem(item))
+  ) {
+    failNeedsFollowup(submission, intake, 'This answer conflicts with the request it was sent for.', 'integrity_mismatch');
+  }
 }
 
 function submissionAnswer(
@@ -275,6 +270,10 @@ async function routeJsonSubmission(
   options: RouteIntakeSubmissionOptions,
 ): Promise<IntakeRouteResult> {
   const body = objectRecord(decodeJsonSubmission(submission));
+  const item = contractItemOrFail(submission, options.intake);
+  if (item.t !== 'typed_field' && item.t !== 'guided_question') {
+    failNeedsFollowup(submission, options.intake, 'This request item does not accept a JSON answer.', 'integrity_mismatch');
+  }
   if (!body) {
     failNeedsFollowup(
       submission,
@@ -290,7 +289,7 @@ async function routeJsonSubmission(
       'This client answer could not be filed safely.',
     );
   }
-  const kind = factKindForSubmission(body, submission);
+  const kind = factKindForPhoneItem(item);
   if (!kind) {
     failNeedsFollowup(
       submission,
@@ -298,14 +297,13 @@ async function routeJsonSubmission(
       'This client answer could not be filed safely.',
     );
   }
-  const subject = typeof body['subject'] === 'string' && body['subject'].trim()
-    ? body['subject'].trim()
-    : 'primary';
+  rejectConflictingBodyMetadata(body, item, kind, submission, options.intake);
+  const subject = item.subject;
   const fact = await (options.upsertFact ?? intakeFactUpsert)({
     matter_id: options.intake.matterId,
     subject,
     kind,
-    value: factValue(kind, answer.raw, body),
+    value: factValue(kind, answer.raw, responseFormatForItem(item)),
     sensitivity: FACT_KIND_SENSITIVITY[kind],
     provenance: {
       channel: 'intake_link',
@@ -321,23 +319,41 @@ async function routeFileSubmission(
   submission: RoutedIntakeSubmission,
   options: RouteIntakeSubmissionOptions,
 ): Promise<IntakeRouteResult> {
-  if (submission.manifest.file_names.length > 1) {
+  const contractItem = contractItemOrFail(submission, options.intake);
+  if (contractItem.t !== 'doc_upload') {
+    failNeedsFollowup(submission, options.intake, 'This request item does not accept a file.', 'integrity_mismatch');
+  }
+  if (submission.manifest.content_type === 'application/json') {
+    failNeedsFollowup(submission, options.intake, 'A file request received a JSON answer.', 'integrity_mismatch');
+  }
+  if (contractItem.accepted_mime_types?.length && !contractItem.accepted_mime_types.includes(submission.manifest.content_type)) {
+    failNeedsFollowup(submission, options.intake, 'This file type is not allowed for the request item.', 'integrity_mismatch');
+  }
+  if (submission.manifest.file_names.length > (contractItem.max_files ?? 1)) {
     failNeedsFollowup(
       submission,
       options.intake,
       'This client file package contains multiple files and could not be filed safely.',
     );
   }
+  const bytes = concatBytes(submission.plaintextBytes);
+  if (contractItem.max_bytes !== undefined && bytes.byteLength > contractItem.max_bytes) {
+    failNeedsFollowup(submission, options.intake, 'This file is larger than the request allows.', 'integrity_mismatch');
+  }
   if (!options.workspaceService) {
     throw new Error('A workspace must be open before intake documents can be filed.');
+  }
+  if (!options.intake.requestSlug) {
+    failNeedsFollowup(submission, options.intake, 'This request is missing its safe local folder.', 'integrity_mismatch');
   }
   const item = currentChecklistItem(options.intake, submission.itemId);
   const fileName = submission.manifest.file_names[0] ?? `${item.label}.bin`;
   const filePath = await (options.fileDocument ?? fileIntakeDocument)({
     workspaceService: options.workspaceService,
     matterFolderPath: options.matterFolderPath,
+    requestSlug: options.intake.requestSlug,
     fileName,
-    bytes: concatBytes(submission.plaintextBytes),
+    bytes,
   });
   return { filePath };
 }
@@ -389,9 +405,19 @@ export async function routeIntakeSubmission(
   submission: RoutedIntakeSubmission,
   options: RouteIntakeSubmissionOptions,
 ): Promise<IntakeRouteResult> {
-  const result = submission.manifest.content_type === 'application/json'
-    ? await routeJsonSubmission(submission, options)
-    : await routeFileSubmission(submission, options);
+  const item = contractItemOrFail(submission, options.intake);
+  if (options.intake.knownSubmissionIds.includes(submission.submissionId)) {
+    failNeedsFollowup(submission, options.intake, 'This submission was already filed.', 'integrity_mismatch');
+  }
+  const result = item.t === 'typed_field' || item.t === 'guided_question'
+    ? submission.manifest.content_type === 'application/json'
+      ? await routeJsonSubmission(submission, options)
+      : failNeedsFollowup(submission, options.intake, 'A fact request received a file.', 'integrity_mismatch')
+    : item.t === 'doc_upload'
+      ? submission.manifest.content_type !== 'application/json'
+        ? await routeFileSubmission(submission, options)
+        : failNeedsFollowup(submission, options.intake, 'A file request received a JSON answer.', 'integrity_mismatch')
+      : failNeedsFollowup(submission, options.intake, 'This request item cannot receive submissions.', 'integrity_mismatch');
   if (!result.factId && !result.filePath) {
     failNeedsFollowup(
       submission,
@@ -430,9 +456,9 @@ async function syncOneIntake(
   const syncClient = new IntakeSyncClient({
     relay: bindIntakeRelayInbox(relayClient, intake.intakeId),
     loadPrivateKey: loadRequiredPrivateKey,
-    hasSubmission: (submissionId) => Promise.resolve(
-      useIntakeStore.getState().intakesById[intake.intakeId]?.knownSubmissionIds.includes(submissionId) ?? false,
-    ),
+    // Let the receiver-owned router inspect duplicates after decryption. The
+    // old fast path acknowledged them before the contract could reject them.
+    hasSubmission: () => Promise.resolve(false),
     rememberSubmission: (submissionId) => {
       useIntakeStore.getState().rememberSubmission(intake.intakeId, submissionId);
       return Promise.resolve();

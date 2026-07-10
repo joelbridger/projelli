@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
-import { createAdvisorIntake, type CreateAdvisorIntakeOptions } from './createIntake';
+import { assertSendableRequest, createAdvisorIntake, type CreateAdvisorIntakeOptions } from './createIntake';
+import { loadIntakeLinkSecret } from './intakeKeychain';
+import { useIntakeStore } from './intakeStore';
 
 function options(overrides: Partial<CreateAdvisorIntakeOptions> = {}): CreateAdvisorIntakeOptions {
   const base: CreateAdvisorIntakeOptions = {
@@ -25,6 +27,7 @@ function options(overrides: Partial<CreateAdvisorIntakeOptions> = {}): CreateAdv
 describe('createAdvisorIntake team sharing', () => {
   beforeEach(() => {
     localStorage.clear();
+    useIntakeStore.getState().resetForTests();
   });
 
   it('creates a local-only intake without attempting a team-key publish', async () => {
@@ -39,5 +42,26 @@ describe('createAdvisorIntake team sharing', () => {
     const input = options({ matterId: 'firm-matter-id', publishTeamKey });
     await createAdvisorIntake(input);
     expect(publishTeamKey).toHaveBeenCalledWith('intake-team-share-test', 'firm-matter-id');
+  });
+
+  it('rejects unsupported actionable items before saving secrets or creating a relay record', async () => {
+    const input = options({ checklist: { ...options().checklist, items: [{ t: 'signature', item_id: 'sign', label: 'Sign', help_text: '', required: true, subject: 'primary', grade: 'native_clicksign' }] } });
+    await expect(createAdvisorIntake(input)).rejects.toThrow(/signature/iu);
+    expect(input.relay.createIntake).not.toHaveBeenCalled();
+    await expect(loadIntakeLinkSecret(input.intakeId)).resolves.toBeNull();
+    expect(useIntakeStore.getState().intakesById[input.intakeId]).toBeUndefined();
+  });
+
+  it('cleans local secret and draft when relay creation fails, and tries to revoke the remote id', async () => {
+    const revokeIntake = vi.fn().mockResolvedValue({ ok: true });
+    const input = options({ relay: { createIntake: vi.fn().mockRejectedValue(new Error('offline')), revokeIntake } });
+    await expect(createAdvisorIntake(input)).rejects.toThrow('offline');
+    await expect(loadIntakeLinkSecret(input.intakeId)).resolves.toBeNull();
+    expect(useIntakeStore.getState().intakesById[input.intakeId]).toBeUndefined();
+    expect(revokeIntake).toHaveBeenCalledWith(input.intakeId);
+  });
+
+  it('validates pdf and signature item lists directly', () => {
+    expect(() => assertSendableRequest([{ t: 'pdf_fill', item_id: 'pdf', label: 'PDF', help_text: '', required: true, subject: 'primary', pdf_ref: 'x', field_map: {}, prefill: [] }])).toThrow(/pdf_fill/iu);
   });
 });

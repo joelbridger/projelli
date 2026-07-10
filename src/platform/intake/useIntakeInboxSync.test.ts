@@ -13,6 +13,15 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 const enc = new TextEncoder();
 
 function intake(overrides: Partial<IntakeRecord> = {}): IntakeRecord {
+  const items = overrides.items ?? [{ itemId: 'ssn', label: 'Social Security number', state: 'not_started' }];
+  const requestItems = overrides.requestItems ?? items.map((item) => {
+    if (item.itemId === 'income') return { t: 'guided_question' as const, item_id: item.itemId, label: item.label, help_text: '', required: true, subject: 'household', prompt: '', response_format: 'money' as const, fact_kind: 'income_annual' as const };
+    if (item.itemId === 'spending') return { t: 'guided_question' as const, item_id: item.itemId, label: item.label, help_text: '', required: true, subject: 'household', prompt: '', response_format: 'range' as const, fact_kind: 'spending_monthly' as const };
+    if (item.itemId === 'license') return { t: 'doc_upload' as const, item_id: item.itemId, label: item.label, help_text: '', required: true, subject: 'primary', max_files: 1 };
+    if (item.itemId === 'income-support') return { t: 'doc_upload' as const, item_id: item.itemId, label: item.label, help_text: '', required: true, subject: 'primary' };
+    if (item.itemId === 'mystery') return { t: 'readonly_card' as const, item_id: item.itemId, label: item.label, help_text: '', required: false, subject: 'primary', body: '' };
+    return { t: 'typed_field' as const, item_id: item.itemId, label: item.label, help_text: '', required: true, subject: 'primary', fact_kind: 'ssn' as const, input: 'text' as const };
+  });
   return {
     intakeId: 'intake-1',
     matterId: 'matter-1',
@@ -21,7 +30,11 @@ function intake(overrides: Partial<IntakeRecord> = {}): IntakeRecord {
     status: 'active',
     expiresAt: '2026-08-09T00:00:00.000Z',
     checklistVersion: 1,
-    items: [{ itemId: 'ssn', label: 'Social Security number', state: 'not_started' }],
+    kind: 'onboarding',
+    requestTitle: 'New client onboarding',
+    requestSlug: 'onboarding',
+    requestItems,
+    items,
     receivedItems: [],
     flags: [],
     knownSessionIds: [],
@@ -244,7 +257,6 @@ describe('useIntakeInboxSync wiring helpers', () => {
     await expect(routeIntakeSubmission(routedSubmission({
       item_id: 'income',
       item_type: 'guided_question',
-      subject: 'Sarah',
       answer: { mode: 'amount', amount: 90000, currency: 'USD' },
     }, {
       itemId: 'income',
@@ -262,7 +274,6 @@ describe('useIntakeInboxSync wiring helpers', () => {
     await expect(routeIntakeSubmission(routedSubmission({
       item_id: 'spending',
       item_type: 'guided_question',
-      subject: 'Sarah',
       answer: { mode: 'range', min: 4500, max: 5200, currency: 'USD' },
     }, {
       itemId: 'spending',
@@ -312,7 +323,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
       matterFolderPath: '/workspace/Sarah',
       workspaceService: null,
       upsertFact,
-    })).rejects.toThrow(/could not be filed/iu);
+    })).rejects.toThrow(/cannot receive submissions/iu);
 
     expect(upsertFact).not.toHaveBeenCalled();
     const stored = useIntakeStore.getState().intakesById['intake-1'];
@@ -323,7 +334,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     expect(stored?.receivedItems).toEqual([]);
     expect(stored?.flags).toEqual([
       expect.objectContaining({
-        kind: 'routing_failed',
+        kind: 'integrity_mismatch',
         itemId: 'mystery',
         submissionId: 'submission-mystery',
       }),
@@ -366,5 +377,36 @@ describe('useIntakeInboxSync wiring helpers', () => {
         submissionId: 'submission-license',
       }),
     ]);
+  });
+
+  it('rejects body metadata that conflicts with the saved request contract', async () => {
+    useIntakeStore.getState().upsertIntake(intake());
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    if (!current) throw new Error('missing intake');
+    const upsertFact = vi.fn();
+    await expect(routeIntakeSubmission(routedSubmission({ value: '123', fact_kind: 'dob', subject: 'other', response_format: 'money' }), {
+      intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: null, upsertFact,
+    })).rejects.toThrow(/conflicts/iu);
+    expect(upsertFact).not.toHaveBeenCalled();
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'integrity_mismatch' }),
+    ]));
+  });
+
+  it('rejects a file for a fact and JSON for an upload without filing either', async () => {
+    useIntakeStore.getState().upsertIntake(intake({
+      items: [{ itemId: 'upload', label: 'Upload', state: 'not_started' }],
+      requestItems: [{ t: 'doc_upload', item_id: 'upload', label: 'Upload', help_text: '', required: true, subject: 'primary', accepted_mime_types: ['application/pdf'], max_files: 1, max_bytes: 10 }],
+    }));
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    if (!current) throw new Error('missing intake');
+    await expect(routeIntakeSubmission(routedSubmission({ value: 'nope' }, { itemId: 'upload' }), {
+      intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never,
+    })).rejects.toThrow(/JSON/iu);
+    const fact = intake();
+    useIntakeStore.getState().upsertIntake(fact);
+    await expect(routeIntakeSubmission(routedSubmission(null, { contentType: 'application/pdf', fileNames: ['x.pdf'], plaintextBytes: [enc.encode('x')] }), {
+      intake: useIntakeStore.getState().intakesById['intake-1']!, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never,
+    })).rejects.toThrow(/file/iu);
   });
 });

@@ -77,6 +77,15 @@ function intakeRecord(): IntakeRecord {
     status: 'active',
     expiresAt: '2026-08-09T00:00:00.000Z',
     checklistVersion: 1,
+    kind: 'onboarding', requestTitle: 'New client onboarding', requestSlug: 'onboarding',
+    requestItems: [
+      { t: 'typed_field', item_id: 'dob', label: 'Date of birth', help_text: '', required: true, subject: 'primary', fact_kind: 'dob', input: 'date' },
+      { t: 'typed_field', item_id: 'ssn', label: 'Social Security number', help_text: '', required: true, subject: 'primary', fact_kind: 'ssn', input: 'ssn' },
+      { t: 'guided_question', item_id: 'income', label: 'Income', help_text: '', required: true, subject: 'household', prompt: '', response_format: 'money', fact_kind: 'income_annual' },
+      { t: 'guided_question', item_id: 'spending', label: 'Spending', help_text: '', required: true, subject: 'household', prompt: '', response_format: 'money', fact_kind: 'spending_monthly' },
+      { t: 'doc_upload', item_id: 'license', label: "Driver's license", help_text: '', required: true, subject: 'primary', accepted_mime_types: ['image/jpeg'] },
+      { t: 'readonly_card', item_id: 'mystery', label: 'Mystery question', help_text: '', required: false, subject: 'primary', body: '' },
+    ],
     items: [
       { itemId: 'dob', label: 'Date of birth', state: 'not_started' },
       { itemId: 'ssn', label: 'Social Security number', state: 'not_started' },
@@ -180,33 +189,28 @@ describe('intake client to relay to advisor inbox contract', () => {
     const typedDobBody = {
       item_id: 'dob',
       item_type: 'typed_field',
-      subject: 'Sarah',
       value: '1960-02-03',
       display_value: '1960-02-03',
     };
     const typedSsnBody = {
       item_id: 'ssn',
       item_type: 'typed_field',
-      subject: 'Sarah',
       value: '123456789',
       display_value: undefined,
     };
     const guidedIncomeBody = {
       item_id: 'income',
       item_type: 'guided_question',
-      subject: 'Sarah',
       answer: { mode: 'amount', amount: 90000, currency: 'USD' },
     };
     const guidedSpendingBody = {
       item_id: 'spending',
       item_type: 'guided_question',
-      subject: 'Sarah',
       answer: { mode: 'amount', amount: 4200, currency: 'USD' },
     };
     const unstorableBody = {
       item_id: 'mystery',
       item_type: 'typed_field',
-      subject: 'Sarah',
       value: 'keep this visible for retry',
     };
 

@@ -795,9 +795,6 @@ function ItemInputScreen({
     <section className="panel">
       <h1 tabIndex={-1}>{item.label}</h1>
       <p>This item is not ready on this page yet.</p>
-      <button className="secondary-button" type="button" onClick={onSkip}>
-        Skip for now
-      </button>
     </section>
   );
 }

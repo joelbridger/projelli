@@ -101,6 +101,7 @@ export function factKindForPhoneItem(item: RequestItem): FactKind | null {
   if (item.t === 'typed_field') return item.fact_kind;
   if (item.t === 'doc_upload') return item.item_id === 'drivers_license' ? 'drivers_license' : null;
   if (item.t !== 'guided_question') return null;
+  if (item.fact_kind) return item.fact_kind;
   if (item.item_id === 'income') return 'income_annual';
   if (item.item_id === 'spending') return 'spending_monthly';
   return null;
