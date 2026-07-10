@@ -1,86 +1,19 @@
+import { instantiateRequestBlueprint } from '@/platform/intake/blueprintFactory';
+import {
+  NEW_HOUSEHOLD_BLUEPRINT as NEW_HOUSEHOLD_REQUEST_BLUEPRINT,
+  NEW_HOUSEHOLD_NEXT_STEPS as DEFAULT_NEW_HOUSEHOLD_NEXT_STEPS,
+} from '@/platform/intake/defaultBlueprints';
+import { copyRequestBlueprint } from '@/platform/intake/blueprintValidation';
 import type { FormRequest, RequestItem } from '@/platform/intake/types';
-import { DEFAULT_WELCOME_JOURNEY } from './welcomeJourneyDefaults';
 
-export const NEW_HOUSEHOLD_BLUEPRINT = 'new_household_v1';
-export const NEW_HOUSEHOLD_NEXT_STEP =
-  'Your advisor reviews each item and follows up only if something needs a second look.';
-export const NEW_HOUSEHOLD_NEXT_STEPS = [
-  NEW_HOUSEHOLD_NEXT_STEP,
-];
+/** Kept for callers of the existing New Client flow. */
+export const NEW_HOUSEHOLD_BLUEPRINT = NEW_HOUSEHOLD_REQUEST_BLUEPRINT.blueprintId;
+export const NEW_HOUSEHOLD_NEXT_STEP = DEFAULT_NEW_HOUSEHOLD_NEXT_STEPS[0]
+  ?? 'Your advisor reviews each item and follows up only if something needs a second look.';
+export const NEW_HOUSEHOLD_NEXT_STEPS = [...DEFAULT_NEW_HOUSEHOLD_NEXT_STEPS];
 
 export function defaultNewHouseholdItems(): RequestItem[] {
-  return [
-    {
-      t: 'readonly_card',
-      item_id: 'welcome',
-      label: 'Welcome',
-      help_text: '',
-      required: false,
-      subject: 'household',
-      body: `${DEFAULT_WELCOME_JOURNEY.welcome.intro}\n\n${DEFAULT_WELCOME_JOURNEY.welcome.return_note}`,
-    },
-    {
-      t: 'typed_field',
-      item_id: 'dob',
-      label: 'Date of birth',
-      help_text: 'Use month, day, and year.',
-      required: true,
-      subject: 'primary',
-      fact_kind: 'dob',
-      input: 'date',
-    },
-    {
-      t: 'typed_field',
-      item_id: 'ssn',
-      label: 'Social Security number',
-      help_text: 'This is write-only. It is masked after you enter it.',
-      required: true,
-      subject: 'primary',
-      fact_kind: 'ssn',
-      input: 'ssn',
-      placeholder: '•••-••-••••',
-    },
-    {
-      t: 'doc_upload',
-      item_id: 'drivers_license',
-      label: "Driver's license",
-      help_text: 'Upload the front and back. Phone photos are fine.',
-      required: true,
-      subject: 'primary',
-      accepted_mime_types: ['image/jpeg', 'image/png', 'application/pdf'],
-      max_files: 2,
-      max_bytes: 100 * 1024 * 1024,
-    },
-    {
-      t: 'guided_question',
-      item_id: 'income',
-      label: 'Income',
-      help_text: "Share a number, a range, or say you don't know. You can add a pay stub or last year's tax return.",
-      required: true,
-      subject: 'household',
-      prompt: 'What is your annual household income?',
-      response_format: 'money',
-    },
-    {
-      t: 'guided_question',
-      item_id: 'spending',
-      label: 'Spending',
-      help_text: 'A rough monthly guess is genuinely useful. You refine this together.',
-      required: true,
-      subject: 'household',
-      prompt: 'About how much does your household spend each month?',
-      response_format: 'range',
-    },
-    {
-      t: 'readonly_card',
-      item_id: 'next',
-      label: 'What happens next',
-      help_text: '',
-      required: false,
-      subject: 'household',
-      body: DEFAULT_WELCOME_JOURNEY.completion.body,
-    },
-  ];
+  return copyRequestBlueprint(NEW_HOUSEHOLD_REQUEST_BLUEPRINT).items;
 }
 
 export function buildNewHouseholdRequest(args: {
@@ -88,12 +21,11 @@ export function buildNewHouseholdRequest(args: {
   matterId: string;
   items?: RequestItem[];
 }): FormRequest {
-  return {
-    request_id: args.requestId,
-    schema_version: 1,
-    matter_id: args.matterId,
+  return instantiateRequestBlueprint({
+    blueprint: NEW_HOUSEHOLD_REQUEST_BLUEPRINT,
+    requestId: args.requestId,
+    matterId: args.matterId,
     kind: 'onboarding',
-    blueprint_ref: NEW_HOUSEHOLD_BLUEPRINT,
     items: args.items ?? defaultNewHouseholdItems(),
-  };
+  });
 }
