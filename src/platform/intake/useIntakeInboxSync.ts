@@ -32,6 +32,7 @@ import {
   type IntakeFlag,
   type IntakeRecord,
 } from './intakeStore';
+import type { Tier1WarningReason } from './documentDetectiveTypes';
 
 const DEFAULT_SYNC_INTERVAL_MS = 30_000;
 
@@ -350,6 +351,18 @@ function markSubmissionReceived(
     at: submission.submittedAt,
   };
   const store = useIntakeStore.getState();
+  // This is sealed client-supplied context, not advisor-side classification or
+  // verification. Keep only the non-sensitive "kept despite warning" signal
+  // for the Onboarding surface. Never persist document text or observed values.
+  const keptWarning = submission.manifest.document_detective?.find(
+    (entry) => entry.kept_anyway && entry.warning_reason !== undefined,
+  );
+  const receivedWarning = keptWarning === undefined
+    ? {}
+    : {
+        keptWarnedFile: true,
+        keptWarnedFileReason: keptWarning.warning_reason as Tier1WarningReason,
+      };
   store.updateItem(submission.intakeId, {
     ...item,
     state: 'received',
@@ -364,6 +377,7 @@ function markSubmissionReceived(
     provenance,
     ...(result.factId ? { factId: result.factId } : {}),
     ...(result.filePath ? { filePath: result.filePath } : {}),
+    ...receivedWarning,
   });
   store.setLastClientActivity(submission.intakeId, submission.submittedAt);
 }

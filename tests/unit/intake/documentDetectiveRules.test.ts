@@ -121,4 +121,20 @@ describe('classifyTier1', () => {
       kind: 'ira_statement',
     });
   });
+
+  it('exports the detected license side with the observed kind for advisor-side reuse', () => {
+    expect(classifyObservedKind('Driver license class restrictions', 'license.jpg')).toMatchObject({
+      kind: 'drivers_license',
+      side: 'front',
+    });
+  });
+
+  it('does not turn a tax return with a generic address into a driver license', () => {
+    expect(classifyObservedKind('Form 1040 adjusted gross income mailing address', 'return.pdf')).toMatchObject({
+      kind: 'tax_return',
+    });
+    expect(classifyObservedKind('Mailing address', 'letter.pdf')).toMatchObject({
+      kind: 'unknown',
+    });
+  });
 });

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 
 import { SK_INTAKES } from '@/config/identity';
 import type { IntakeNudgeAttempt } from './nudgeTypes';
+import type { Tier1WarningReason } from './documentDetectiveTypes';
 
 export type IntakeItemState = 'not_started' | 'provided' | 'received' | 'accepted' | 'needs_followup' | 'not_needed';
 export type IntakeStatus = 'draft' | 'active' | 'revoked' | 'expired' | 'completed';
@@ -30,6 +31,9 @@ export interface IntakeReceivedItem {
   label: string;
   filePath?: string;
   factId?: string;
+  /** Client-supplied Tier 1 context only. It is not advisor-side verification. */
+  keptWarnedFile?: boolean;
+  keptWarnedFileReason?: Tier1WarningReason;
   receivedAt: string;
   provenance: IntakeProvenanceSummary;
 }

@@ -92,37 +92,79 @@ const GENERIC_FINANCE_KINDS: readonly DocumentKind[] = [
   'credit_card_statement',
 ];
 
+const STRONG_FRONT_LICENSE_SIGNALS = new Set<string>([
+  'driver license',
+  'identification card',
+  'license no',
+  'dl no',
+]);
+
+const STRONG_BACK_LICENSE_SIGNALS = new Set<string>(['pdf417', 'aamva', 'barcode']);
+
 function signalsIn(text: string, signals: readonly string[]): string[] {
   return signals.filter((signal) => text.includes(signal));
+}
+
+function detectedSide(text: string): { side: LicenseSide; evidence: string[] } {
+  const front = signalsIn(text, FRONT_SIGNALS);
+  const back = signalsIn(text, BACK_SIGNALS);
+  if (front.length > 0 && back.length === 0) return { side: 'front', evidence: front };
+  if (back.length > 0 && front.length === 0) return { side: 'back', evidence: back };
+  return { side: 'unknown', evidence: [...front, ...back] };
+}
+
+function sideHasStrongLicenseEvidence(side: LicenseSide, evidence: readonly string[]): boolean {
+  if (side === 'back') {
+    return evidence.some((signal) => STRONG_BACK_LICENSE_SIGNALS.has(signal)) || evidence.length >= 2;
+  }
+  if (side === 'front') {
+    return evidence.some((signal) => STRONG_FRONT_LICENSE_SIGNALS.has(signal)) || evidence.length >= 2;
+  }
+  return false;
 }
 
 /**
  * Finds the document kind from readable file text only. The filename remains
  * deliberately weak metadata: it can never by itself create a client warning.
  */
-export function classifyObservedKind(text: string, _filename = ''): { kind: DocumentKind; evidence: string[] } {
+export function classifyObservedKind(
+  text: string,
+  _filename = '',
+): { kind: DocumentKind; side?: LicenseSide; evidence: string[] } {
   const normalizedText = text.toLowerCase();
+  const sideResult = detectedSide(normalizedText);
   const matches = Object.entries(DOCUMENT_SIGNALS)
     .map(([kind, signals]) => ({ kind: kind as DocumentKind, evidence: signalsIn(normalizedText, signals) }))
     .filter((match) => match.evidence.length > 0);
 
-  if (matches.length === 0) return { kind: 'unknown', evidence: [] };
-  if (matches.length === 1) return matches[0] as { kind: DocumentKind; evidence: string[] };
+  const result = (() => {
+    if (matches.length === 0) return { kind: 'unknown' as DocumentKind, evidence: [] as string[] };
+    if (matches.length === 1) return matches[0] as { kind: DocumentKind; evidence: string[] };
 
-  const kinds = new Set(matches.map((match) => match.kind));
-  const onlyKinds = (allowed: readonly DocumentKind[]): boolean => matches.every((match) => allowed.includes(match.kind));
-  const taxReturn = matches.find((match) => match.kind === 'tax_return');
-  if (taxReturn && onlyKinds(['tax_return', ...GENERIC_FINANCE_KINDS])) {
-    return taxReturn as { kind: DocumentKind; evidence: string[] };
-  }
-  if (kinds.has('ira_statement') && kinds.has('brokerage_statement') && onlyKinds(['ira_statement', 'brokerage_statement'])) {
-    return matches.find((match) => match.kind === 'ira_statement') as { kind: DocumentKind; evidence: string[] };
-  }
-  const license = matches.find((match) => match.kind === 'drivers_license');
-  if (license && license.evidence.length >= 2 && onlyKinds(['drivers_license', ...GENERIC_FINANCE_KINDS])) {
-    return license as { kind: DocumentKind; evidence: string[] };
-  }
-  return { kind: 'unknown', evidence: [] };
+    const kinds = new Set(matches.map((match) => match.kind));
+    const onlyKinds = (allowed: readonly DocumentKind[]): boolean => matches.every((match) => allowed.includes(match.kind));
+    const taxReturn = matches.find((match) => match.kind === 'tax_return');
+    if (taxReturn && onlyKinds(['tax_return', ...GENERIC_FINANCE_KINDS])) {
+      return taxReturn as { kind: DocumentKind; evidence: string[] };
+    }
+    if (kinds.has('ira_statement') && kinds.has('brokerage_statement') && onlyKinds(['ira_statement', 'brokerage_statement'])) {
+      return matches.find((match) => match.kind === 'ira_statement') as { kind: DocumentKind; evidence: string[] };
+    }
+    const license = matches.find((match) => match.kind === 'drivers_license');
+    if (license && license.evidence.length >= 2 && onlyKinds(['drivers_license', ...GENERIC_FINANCE_KINDS])) {
+      return license as { kind: DocumentKind; evidence: string[] };
+    }
+    return { kind: 'unknown' as DocumentKind, evidence: [] as string[] };
+  })();
+
+  const kind = result.kind === 'unknown' && sideHasStrongLicenseEvidence(sideResult.side, sideResult.evidence)
+    ? 'drivers_license'
+    : result.kind;
+  return {
+    kind,
+    ...(sideResult.side !== 'unknown' ? { side: sideResult.side } : {}),
+    evidence: [...result.evidence, ...sideResult.evidence],
+  };
 }
 
 function expectedDocument(input: Tier1ClassifyInput): { expected?: ExpectedDocument; allowed: DocumentKind[] } {
@@ -144,26 +186,17 @@ function expectedDocument(input: Tier1ClassifyInput): { expected?: ExpectedDocum
   return { expected, allowed };
 }
 
-function detectedSide(text: string): { side: LicenseSide; evidence: string[] } {
-  const front = signalsIn(text, FRONT_SIGNALS);
-  const back = signalsIn(text, BACK_SIGNALS);
-  if (front.length > 0 && back.length === 0) return { side: 'front', evidence: front };
-  if (back.length > 0 && front.length === 0) return { side: 'back', evidence: back };
-  return { side: 'unknown', evidence: [...front, ...back] };
-}
-
 export function classifyTier1(input: Tier1ClassifyInput): Tier1Classification {
   const text = input.file.textSample?.toLowerCase().trim() ?? '';
   if (!text) return { verdict: 'unknown', evidence: [] };
 
   const observedResult = classifyObservedKind(text, input.file.name);
-  const sideResult = detectedSide(text);
-  const observed = observedResult.kind === 'unknown' && sideResult.side !== 'unknown' ? 'drivers_license' : observedResult.kind;
-  const evidence = [...observedResult.evidence, ...sideResult.evidence];
+  const observed = observedResult.kind;
+  const evidence = observedResult.evidence;
   if (observed === 'unknown') return { verdict: 'unknown', evidence };
 
   const { expected, allowed } = expectedDocument(input);
-  const side = sideResult.side === 'unknown' ? undefined : sideResult.side;
+  const side = observedResult.side;
 
   if (expected?.kind === 'drivers_license') {
     if (observed !== 'drivers_license') {

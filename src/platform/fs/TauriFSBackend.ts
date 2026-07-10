@@ -467,10 +467,11 @@ export class TauriFSBackend implements FSBackend {
     }
   }
 
-  resolveSymlink(path: string): Promise<string> {
-    // Tauri doesn't have a direct readlink function
-    // For now, return the path as-is (symlinks are blocked by security layer anyway)
-    return Promise.resolve(path);
+  resolveSymlink(_path: string): Promise<string> {
+    // The filesystem plugin exposes lstat but no realpath/readlink. Returning
+    // the input here would falsely claim a link had been resolved, so callers
+    // with a security boundary must fail closed instead.
+    return Promise.reject(new Error('Tauri filesystem plugin cannot resolve symlink targets safely.'));
   }
 }
 
