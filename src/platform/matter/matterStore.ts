@@ -445,6 +445,9 @@ interface MatterState {
    */
   clientMapHubTab: ClientMapHubTab | null;
   setClientMapHubTab: (tab: ClientMapHubTab | null) => void;
+  /** One-shot request target used when a board row opens a client with several requests. */
+  clientMapHubRequestId: string | null;
+  setClientMapHubRequestId: (requestId: string | null) => void;
 
   /**
    * Ephemeral one-shot request to open a SPECIFIC meeting (and seek its
@@ -1586,6 +1589,8 @@ export const useMatterStore = create<MatterState>()(
       setClientMapHubId: (id) => set({ clientMapHubId: id }),
       clientMapHubTab: null,
       setClientMapHubTab: (tab) => set({ clientMapHubTab: tab }),
+      clientMapHubRequestId: null,
+      setClientMapHubRequestId: (requestId) => set({ clientMapHubRequestId: requestId }),
       pendingMeetingOpen: null,
       setPendingMeetingOpen: (req) => set({ pendingMeetingOpen: req }),
     }),

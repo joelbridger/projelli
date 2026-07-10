@@ -27,6 +27,7 @@ export interface OnboardingBoardRowProps {
   onCopyLink: (row: OnboardingRow) => Promise<void> | void;
   canCopyLink?: boolean;
   onOpenNudge?: (row: OnboardingRow) => void;
+  hideNudgeAction?: boolean;
   onOpenLinkSignals?: (row: OnboardingRow) => void;
   renderNudgeSlot?: (row: OnboardingRow) => ReactNode;
   renderLinkSignals?: (row: OnboardingRow) => ReactNode;
@@ -63,6 +64,7 @@ export function OnboardingBoardRow({
   onCopyLink,
   canCopyLink = true,
   onOpenNudge,
+  hideNudgeAction = false,
   onOpenLinkSignals,
   renderNudgeSlot,
   renderLinkSignals,
@@ -396,19 +398,21 @@ export function OnboardingBoardRow({
         >
           {t('intake.board.row.review-action')}
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft={Bell}
-          disabled={!row.isStalled || !hasNudgeAction}
-          data-testid={`onboarding-row-nudge-${row.requestId}`}
-          onClick={(event) => {
-            stopAction(event);
-            onOpenNudge?.(row);
-          }}
-        >
-          {t('intake.board.row.nudge-action')}
-        </Button>
+        {!hideNudgeAction ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            iconLeft={Bell}
+            disabled={!row.isStalled || !hasNudgeAction}
+            data-testid={`onboarding-row-nudge-${row.requestId}`}
+            onClick={(event) => {
+              stopAction(event);
+              onOpenNudge?.(row);
+            }}
+          >
+            {t('intake.board.row.nudge-action')}
+          </Button>
+        ) : null}
         <Button
           variant="secondary"
           size="sm"

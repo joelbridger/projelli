@@ -25,6 +25,13 @@ import { PhoneWalkthrough } from './PhoneWalkthrough';
 export interface OnboardingTabProps {
   matterId: string;
   intake: IntakeRecord | null;
+  /** The generalized Requests tab supplies each request's local display title. */
+  title?: string;
+  testId?: string;
+  /** Matter-wide inbox panels are rendered once by the Requests tab, per matter. */
+  showMatterSignals?: boolean;
+  /** Lets the Requests tab refresh every request card after a matter-wide acceptance. */
+  factsRefreshVersion?: number;
   advisorId?: string;
   onExtend?: (intakeId: string) => Promise<void> | void;
   onRevoke?: (intakeId: string) => Promise<void> | void;
@@ -128,6 +135,10 @@ function factProvenanceLabel(channel: string): string {
 export function OnboardingTab({
   matterId,
   intake,
+  title,
+  testId = 'onboarding-tab',
+  showMatterSignals = true,
+  factsRefreshVersion = 0,
   advisorId = 'advisor',
   onExtend,
   onRevoke,
@@ -159,7 +170,7 @@ export function OnboardingTab({
     return () => {
       cancelled = true;
     };
-  }, [matterId, intake?.receivedItems.length]);
+  }, [factsRefreshVersion, matterId, intake?.receivedItems.length]);
 
   const completedCount = useMemo(
     () =>
@@ -200,7 +211,7 @@ export function OnboardingTab({
 
   return (
     <div
-      data-testid="onboarding-tab"
+      data-testid={testId}
       style={{
         flex: 1,
         minHeight: 0,
@@ -235,7 +246,7 @@ export function OnboardingTab({
                   color: 'var(--kp-navy)',
                 }}
               >
-                Onboarding
+                {title ?? intake.requestTitle ?? (intake.kind === 'standing' ? 'Client request' : 'Onboarding')}
               </h2>
               <p
                 style={{
@@ -272,27 +283,31 @@ export function OnboardingTab({
           </div>
 
           <div style={{ marginTop: 16, display: 'grid', gap: 8 }}>
-            <EmailReplyProposalCard
-              matterId={matterId}
-              advisorId={advisorId}
-              onAccepted={() => {
-                setRevealed({});
-                void reloadFacts().catch((error: unknown) => {
-                  handleAsyncError(error, 'Could not load facts.');
-                });
-              }}
-            />
-            <EmailReplyQuarantinePanel matterId={matterId} advisorId={advisorId} />
-            <DocumentExtractionReviewPanel
-              matterId={matterId}
-              advisorId={advisorId}
-              onAccepted={() => {
-                setRevealed({});
-                void reloadFacts().catch((error: unknown) => {
-                  handleAsyncError(error, 'Could not load facts.');
-                });
-              }}
-            />
+            {showMatterSignals ? (
+              <>
+                <EmailReplyProposalCard
+                  matterId={matterId}
+                  advisorId={advisorId}
+                  onAccepted={() => {
+                    setRevealed({});
+                    void reloadFacts().catch((error: unknown) => {
+                      handleAsyncError(error, 'Could not load facts.');
+                    });
+                  }}
+                />
+                <EmailReplyQuarantinePanel matterId={matterId} advisorId={advisorId} />
+                <DocumentExtractionReviewPanel
+                  matterId={matterId}
+                  advisorId={advisorId}
+                  onAccepted={() => {
+                    setRevealed({});
+                    void reloadFacts().catch((error: unknown) => {
+                      handleAsyncError(error, 'Could not load facts.');
+                    });
+                  }}
+                />
+              </>
+            ) : null}
             {intake.items.map((item) => (
               <div
                 key={item.itemId}
