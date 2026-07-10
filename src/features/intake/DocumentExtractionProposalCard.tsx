@@ -64,10 +64,10 @@ export function DocumentExtractionProposalCard({ matterId, advisorId, onAccepted
       return next;
     });
     setAmounts((current) => {
-      const next = { ...current };
       const row = review?.items.find((candidate) => candidate.id === rowId);
-      if (resolution === 'keep') delete next[rowId];
-      else if (resolution === 'replace' && row?.value?.t === 'money') next[rowId] = String(row.value.v.amount);
+      if (resolution === 'keep') return Object.fromEntries(Object.entries(current).filter(([key]) => key !== rowId));
+      const next = { ...current };
+      if (resolution === 'replace' && row?.value?.t === 'money') next[rowId] = String(row.value.v.amount);
       else if (resolution === 'edit') next[rowId] = '';
       return next;
     });

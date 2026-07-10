@@ -5,6 +5,9 @@ import type { DocumentExtractionProposalRecord } from './documentExtractionPropo
 export type DocumentExtractionAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => Promise<void>;
 let activeEmitter: DocumentExtractionAuditEmitter | null = null;
 export function setIntakeDocumentExtractionAuditEmitter(emitter: DocumentExtractionAuditEmitter | null): void { activeEmitter = emitter; }
+export function logIntakeDocumentExtractionAudit(entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<void> | undefined {
+  return activeEmitter?.(entry);
+}
 export async function mustLogIntakeDocumentExtractionAudit(entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<void> {
   if (!activeEmitter) throw new Error('Document extraction audit is not available.');
   await activeEmitter({ ...entry, metadata: { ...entry.metadata, auditMustPersist: true } });

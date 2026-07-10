@@ -18,7 +18,8 @@ function factInput(proposal: DocumentExtractionProposalRecord, row: DocumentExtr
   return { matter_id: proposal.matterId, subject: 'primary', kind: row.kind, value, sensitivity: 'confidential', provenance: { channel: 'doc_extraction', source_ref: docSourceRefToString(row.source), entered_by: advisorId, confirmed_by: advisorId, at }, verification: 'document_verified' };
 }
 function validatedMoneyValue(row: DocumentExtractionProposalItem, value: import('./types').FactValue): Extract<import('./types').FactValue, { t: 'money' }> {
-  if (!isDocumentExtractionProposalItemSelectable(row) || row.kind !== 'income_annual' && row.kind !== 'spending_monthly' || value.t !== 'money' || !Number.isFinite(value.v.amount) || value.v.amount < 0 || !/^[A-Z]{3}$/u.test(value.v.currency) || row.value?.t !== 'money' || value.v.currency !== row.value.v.currency) throw new Error('Document extraction approval must use a non-negative money amount for the selected row.');
+  const proposedValue = row.value;
+  if (!isDocumentExtractionProposalItemSelectable(row) || value.t !== 'money' || !Number.isFinite(value.v.amount) || value.v.amount < 0 || !/^[A-Z]{3}$/u.test(value.v.currency) || !proposedValue || proposedValue.t !== 'money' || value.v.currency !== proposedValue.v.currency) throw new Error('Document extraction approval must use a non-negative money amount for the selected row.');
   return value;
 }
 function valuesForAccept(proposal: DocumentExtractionProposalRecord, rows: DocumentExtractionProposalItem[], finalValues: Record<string, import('./types').FactValue> | undefined): Map<string, Extract<import('./types').FactValue, { t: 'money' }> > {
@@ -28,7 +29,11 @@ function valuesForAccept(proposal: DocumentExtractionProposalRecord, rows: Docum
     if (!row || !selected.has(rowId)) throw new Error('Document extraction approval includes an unselected or unknown row.');
     validatedMoneyValue(row, value);
   }
-  return new Map(rows.map((row) => [row.id, validatedMoneyValue(row, finalValues?.[row.id] ?? row.value!)]));
+  return new Map(rows.map((row) => {
+    const value = finalValues?.[row.id] ?? row.value;
+    if (!value) throw new Error('Document extraction approval must include a value for every selected row.');
+    return [row.id, validatedMoneyValue(row, value)];
+  }));
 }
 export async function acceptDocumentExtractionProposal(options: AcceptDocumentExtractionProposalOptions): Promise<DocumentExtractionAcceptResult> {
   const getProposal = options.getProposal ?? ((proposalId: string) => {
@@ -45,7 +50,8 @@ export async function acceptDocumentExtractionProposal(options: AcceptDocumentEx
   const upsert = options.upsertFact ?? intakeFactUpsert; const complete = options.markRowCompleted ?? documentExtractionProposalMarkRowCompleted;
   for (const row of rows) {
     try {
-      const value = values.get(row.id)!;
+      const value = values.get(row.id);
+      if (!value) throw new Error('Document extraction approval lost a selected row value.');
       const expectedActiveFactId = options.expectedActiveFactIds?.[row.id];
       if (!options.upsertFact) {
         const accepted = await (options.acceptRow ?? documentExtractionProposalAcceptRow)({ proposalId: proposal.proposalId, matterId: proposal.matterId, rowId: row.id, amount: value.v.amount, expectedActiveFactId: expectedActiveFactId ?? null, expectedActiveFactChecked: Object.prototype.hasOwnProperty.call(options.expectedActiveFactIds ?? {}, row.id), advisorId: options.advisorId });

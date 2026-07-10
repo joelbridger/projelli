@@ -5,9 +5,18 @@ import { clearInMemoryDocumentExtractionQueuesForTests, documentExtractionPropos
 import { clearInMemoryFactsForTests, intakeFactList, intakeFactUpsert } from '@/platform/intake/factsStore';
 
 const ids = { matterId: 'matter-1', requestId: 'request-1', intakeId: 'intake-1', sourcePath: 'Clients/A/budget.pdf' };
+
+function checkboxInputs(): HTMLInputElement[] {
+  const elements = screen.getAllByRole('checkbox', { name: 'Select document fact' });
+  const inputs = elements.filter((element): element is HTMLInputElement => element instanceof HTMLInputElement);
+  if (inputs.length !== elements.length) throw new Error('Document fact controls must be checkbox inputs.');
+  return inputs;
+}
+
 describe('DocumentExtractionProposalCard', () => {
   beforeEach(async () => {
-    clearInMemoryDocumentExtractionQueuesForTests(); clearInMemoryFactsForTests();
+    clearInMemoryDocumentExtractionQueuesForTests();
+    clearInMemoryFactsForTests();
     await documentExtractionProposalSave({ proposalId: stableDocumentExtractionProposalId(ids), stableKey: documentExtractionStableKey(ids), ...ids, items: [
       { id: 'high', subject: 'primary', kind: 'income_annual', value: { t: 'money', v: { amount: 120000, currency: 'USD' } }, displayValue: 'USD 120000', sensitivity: 'confidential', source: { kind: 'document', path: ids.sourcePath, page: 1, snippet: 'Annual income: $120,000', extraction: 'text' }, confidence: 'high', reason: 'Printed total.', checkedByDefault: true },
       { id: 'medium', subject: 'primary', kind: 'spending_monthly', value: { t: 'money', v: { amount: 3000, currency: 'USD' } }, displayValue: 'USD 3000', sensitivity: 'confidential', source: { kind: 'document', path: ids.sourcePath, page: 2, snippet: 'Monthly spending: $3,000', extraction: 'text' }, confidence: 'medium', reason: 'Printed total.', checkedByDefault: false },
@@ -18,9 +27,11 @@ describe('DocumentExtractionProposalCard', () => {
     await screen.findByText('Facts found in documents');
     expect(await intakeFactList('matter-1')).toHaveLength(0);
     fireEvent.click(screen.getByRole('button', { name: 'Review' }));
-    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Review document facts' })).toBeTruthy());
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: 'Review document facts' })).toBeTruthy();
+    });
     expect(screen.getAllByTestId('document-extraction-citation')[0]?.textContent).toContain('Page 1');
-    const checks = screen.getAllByRole('checkbox', { name: 'Select document fact' }) as HTMLInputElement[];
+    const checks = checkboxInputs();
     expect(checks[0]?.checked).toBe(true);
     expect(checks[1]?.checked).toBe(false);
   });
@@ -30,11 +41,13 @@ describe('DocumentExtractionProposalCard', () => {
     await screen.findByText('Facts found in documents');
     fireEvent.click(screen.getByRole('button', { name: 'Review' }));
     await screen.findByTestId('document-extraction-conflict');
-    const checks = screen.getAllByRole('checkbox', { name: 'Select document fact' }) as HTMLInputElement[];
+    const checks = checkboxInputs();
     expect(checks[0]?.checked).toBe(false);
     expect(checks[0]?.disabled).toBe(true);
-    expect((screen.getByRole('radio', { name: 'Replace it with the proposed amount' }) as HTMLInputElement).checked).toBe(false);
-    fireEvent.click(screen.getByRole('radio', { name: 'Replace it with the proposed amount' }));
+    const replace = screen.getByRole('radio', { name: 'Replace it with the proposed amount' });
+    if (!(replace instanceof HTMLInputElement)) throw new Error('Conflict controls must be radio inputs.');
+    expect(replace.checked).toBe(false);
+    fireEvent.click(replace);
     expect(checks[0]?.checked).toBe(true);
   });
 });
