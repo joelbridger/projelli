@@ -116,10 +116,11 @@ Each brief written to `docs/plans/lantern-plus/intake/briefs/w4-<n>-<slug>.md` r
 
 ## §7. Status ledger (updated as lanes land)
 
-- [ ] Prep merge: land velocity fast-gates (`gate:changed` / `test:contracts`) onto `lp/intake` — *pending coordinator OK (COORDINATOR line raised).*
-- [ ] Lane 1 — Tier 1 client classifier
-- [ ] Lane 2 — advisor doc reader + classifier
-- [ ] Lane 3 — extraction proposals + approval
+- [x] Prep merge: velocity fast-gates landed + `tsconfig.contract.json` fixed for the real intake tree (`fdb86a9e`); `test:contracts` + `gate:changed` green. Patch handed to w56 lead.
+- [x] **Lane 1 — Tier 1 client classifier — MERGED `84eca119`.** Built + adversarial review (2 async races + dead-code conflict rule + blocking-UX, all fixed in one round) + verified (vitest 136, Playwright 22/22, tsc, gate:changed 7350). Exports `classifyObservedKind` for Lane 2 reuse.
+- [ ] Privacy fix (out-of-band P1): strip plaintext `matter_id` from relay-create payload — BUILDING (Codex, `lp/intake-w4-privacy-matterid`).
+- [ ] Lane 2 — advisor doc reader + classifier — BUILDING (Codex, `lp/intake-w4-doc-core`, off merged Lane 1 tip, imports `classifyObservedKind`).
+- [ ] Lane 3 — extraction proposals + approval (needs Lane 2; cargo — coordinate with w56)
 - [ ] Lane 4 — fixtures + gates
 - [ ] Wave-end full gate + gate-fix round
 - [ ] `WORKER-DONE: lp/intake`
