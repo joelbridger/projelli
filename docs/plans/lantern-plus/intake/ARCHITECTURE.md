@@ -201,6 +201,37 @@ interface ClientFact {
 
 Rules: append-only with supersede chains (an SSN correction is a new fact superseding the old — the audit story writes itself); one active fact per `(matter_id, subject, kind)`; every consumer (prefill, CRM write, map item) records the `fact_id` it used, which is what makes "ask once, never re-ask" auditable end to end. Downstream consumers read through one accessor (`platform/intake/factsStore.ts`) that enforces masking policy by sensitivity tier — features never query SQLCipher directly.
 
+### 9a. The form-request primitive (Addendum 1: one schema for onboarding AND standing requests)
+
+The engine's unit is a **form request**; onboarding intake is one kind of it. The `intake` wire namespace (endpoints §3, tables, keychain services) is the primitive's stable name — like `matter`, it never renames as the user-facing surface generalizes.
+
+```ts
+interface FormRequest {
+  request_id: string;             // == the intake_id of §2-§3; one E2EE link per request
+  matter_id: string;
+  kind: 'onboarding' | 'standing';        // v1 ships 'onboarding'; the field exists from Wave 1
+  blueprint_ref?: string;         // firm template, imported-PDF map, or (later) built form
+  items: RequestItem[];
+  // link/key/lifecycle state exactly as §2 and §6 — properties of the primitive
+}
+
+type RequestItem =
+  | { t: 'typed_field'; ... } | { t: 'doc_upload'; ... }
+  | { t: 'guided_question'; ... } | { t: 'readonly_card'; ... }
+  | { t: 'pdf_fill';               // later wave: imported AcroForm field map;
+      pdf_ref: string;             // fields render as ordinary items on the page,
+      field_map: PdfFieldMap;      // prefill from ClientFacts by fact kind,
+      prefill: Record<string, string /* fact_id */> }  // filled PDF regenerated + sealed client-side
+  | { t: 'signature';              // later wave: the sign stage
+      grade: 'docusign' | 'native_clicksign' };
+```
+
+Two honesty rules the schema encodes:
+- **PDF fill stays inside the E2EE envelope** — parsing the AcroForm map happens on the advisor's machine at import; the client page receives the sealed map, renders mapped fields as normal items, regenerates the filled PDF locally (pdf-lib class tooling, in-browser), and seals it like any payload. Prefilled values come from `ClientFact`s and each carries its `fact_id` (ask-once, auditable).
+- **The DocuSign sign stage exits the E2EE envelope by design** — a document sent for custodian-grade signature transits DocuSign's cloud, because that is the rail custodians accept. The flow marks this boundary explicitly (audit row + Integration Honesty Card); the native click-to-sign grade (firm-internal forms, later) stays E2EE end to end.
+
+**Returned artifacts:** Wave 1 files land under the client folder's `Onboarding/`; the general engine lands under `Requests/<request-slug>/` (filled PDFs, signed envelopes, uploads), each write audited, each extracted answer becoming a `ClientFact` with `source_ref` into the request.
+
 ---
 
 ## 10. Failure modes (explicit)

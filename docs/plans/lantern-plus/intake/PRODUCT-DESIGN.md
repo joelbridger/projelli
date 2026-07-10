@@ -13,6 +13,27 @@ It answers, in one flow, the pains that are killing deals today: no secure singl
 
 **Identity rule (board stance):** Intake is not a forms product. It is the front door of the private intelligence layer. The demo moment is not "look, a form" — it is the Client Map visibly growing as intake items arrive.
 
+## 1a. The primitive underneath: form requests (Addendum 1 scope)
+
+Jameson's design partner clarified that the need is not onboarding-only: the firm asks existing clients to fill out forms **throughout the relationship** — custodian paperwork, updated suitability forms, firm questionnaires. So the engine underneath Intake is designed once as a general primitive:
+
+> **A form request** = the advisor asks one client to complete one bundle of items, through one secure link (the same E2EE machinery), tracked to completion, with the results landing in the client's file and feeding the Client Map.
+
+**Onboarding Intake is the flagship packaged application of that primitive** — a form request built from the "New household" blueprint, wrapped in the welcome/what-happens-next hospitality and pinned to the Onboarding view of the board. Everything in this document about the client link experience, save/resume, write-only secrets, provenance, nudges, email fallback, and phone mode is a property of the *primitive*, and therefore works identically for a standing request sent in year three of the relationship.
+
+**Where requests come from (three form sources):**
+1. **Firm templates (blueprints)** — saved item sets the firm composes once and reuses ("Annual review packet", "New household"). This is what v1 ships.
+2. **Imported vendor/custodian PDFs** — the advisor drops in a Schwab (or any vendor) PDF. Fillable AcroForm PDFs are parsed into a field map; mapped fields become normal checklist items on the client page (one at a time, same experience), prefilled from existing client facts wherever we already know the answer (ask once, made visible); the filled PDF is regenerated and sealed like any other payload. Flat scanned PDFs get an honest degraded path (advisor-side field overlay, or attach-print-sign-photograph) rather than a fake one.
+3. **Lantern-native form builder** — compose custom items beyond the built-in types. Deliberately a later wave, and deliberately constrained (items in a request, not a general survey tool — the JotForm-ification guard).
+
+**The sign stage.** A request can end in a signature:
+- **Custodian-grade: DocuSign** (connector code-complete, credential-gated). Honesty rule: a document routed through DocuSign transits DocuSign's cloud — that is what custodians accept and expect, and the Integration Honesty Card says it plainly rather than implying the E2EE story covers it.
+- **Firm-internal lightweight click-to-sign** (later wave, worth building): typed-name + affirmation + audit row, E2EE-preserving end to end, for the firm's own forms where a custodian isn't dictating the signing rail.
+
+**The board generalizes.** The tracker is a **requests board**: every open request, per client, what's missing, days stalled, nudge queue. **Onboarding is its flagship filtered view** (and the default view while onboarding is a client's only activity). The per-client tab likewise shows all of that client's requests, with the onboarding request pinned first while active.
+
+v1 build order is unchanged: the onboarding checklist ships first (Wave 1), on schemas already shaped as form requests so the standing-request surfaces, PDF pipeline, and sign stage bolt onto the same engine instead of forking it (WAVE-PLAN.md Waves 7–10).
+
 ### Design principles
 
 1. **One link, no account, no portal.** The client never creates a login. The link is theirs, branded as the firm, with their name on it.
@@ -29,7 +50,8 @@ It answers, in one flow, the pains that are killing deals today: no secure singl
 
 | Object | What it is | Lives where |
 |---|---|---|
-| **Intake** | One onboarding effort for one client: a checklist, a link, a status. A client has at most one active intake. | Attached to the client (internally the matter; `matter_id` on the wire, never renamed) |
+| **Form request** | The primitive (§1a): one bundle of items asked of one client through one E2EE link, tracked to completion. Types today: onboarding intake; later: standing requests, PDF fill, sign-offs. | Attached to the client (internally the matter; `matter_id` on the wire, never renamed) |
+| **Intake** | The flagship form request: the onboarding bundle from the New household blueprint, wrapped in the welcome journey. A client has at most one active intake. | A form request with `kind: onboarding` |
 | **Checklist item** | One ask. Has a type (typed field, document upload, question), a friendly label, help text, required/optional, and a state. | Inside the intake |
 | **Intake link** | The URL the client opens. Carries the decryption-free secret in the fragment (see ARCHITECTURE.md). Can be expired, revoked, regenerated. | Generated on the advisor machine |
 | **Client fact** | A structured, provenance-carrying answer (DOB, SSN, income figure...). The "ask once" layer. | Advisor machine, encrypted at rest |
@@ -41,6 +63,7 @@ It answers, in one flow, the pains that are killing deals today: no secure singl
 - **Document upload** — camera capture or file pick; can require multiple sides/parts (license front AND back is one item with two slots, not two items).
 - **Guided question** — a soft-structured ask like monthly spending: offers a number, a range picker ("roughly between..."), or "I don't know yet."
 - **Read-only step** — a welcome or what-happens-next card (used at start and end; no input).
+- *(Later waves, same engine — §1a:)* **PDF fill** — mapped fields from an imported AcroForm PDF, presented as the same one-at-a-time items, prefilled from known facts; and **Signature** — the sign stage (DocuSign, or native click-to-sign for firm-internal forms).
 
 ### Item states
 
@@ -134,6 +157,7 @@ The tab shows:
 3. **Received items** — each decrypted item as it landed: typed facts masked by default (SSN shows •••-••-1234; reveal is click-to-view and writes an audit row), documents as files already filed in the client's folder with a "view in folder" jump.
 4. **"I don't know" flags** — soft cards: "Lena marked spending as unsure. Suggestion: the statement she uploaded may be enough to estimate it. [Run extraction]" (AI moment, section 9).
 5. **Start phone walkthrough** — enters phone mode (section 8) for this checklist.
+5a. **Request from client** (post-v1, §1a) — the same tab is where standing form requests for existing clients start: pick a blueprint or import a PDF, tweak items, send a link. The onboarding request is just the first row in what becomes the client's request history.
 6. **Activity trail** — the intake's audit view in plain language: sent, opened, item provided, nudge sent, item accepted. Every AI action shows its receipt here.
 
 When the last required item is accepted, the tab offers **Finish onboarding**: marks the intake complete, archives the link, and shows the "what fed the Client Map" summary — the demo moment: *8 facts and 5 documents now power this client's map.*
@@ -295,8 +319,8 @@ Every accepted item and fact feeds the client's map immediately. The intake tab 
 
 ## 12. What v1 deliberately is not
 
-- Not a general form builder (no conditional logic, no arbitrary field grid, no public templates gallery).
-- Not e-signature (DocuSign bundling arrives with the paperwork stage; see WAVE-PLAN.md composition with the Schwab-prefill and Calendly tracks).
+- Not yet the general form-request surfaces (standing requests for existing clients, imported PDF fill, the sign stage, the native builder) — those are Waves 7–10 riding the same engine (§1a); v1 ships the onboarding application on forward-compatible schemas.
+- Not e-signature in v1 (the DocuSign sign stage arrives with the paperwork waves; see WAVE-PLAN.md).
 - Not a client portal (no login, no performance dashboards, no document browsing for clients — one checklist, then done).
 - Not SMS-sending, not physical-mail mode, not the voice agent (grab-bag items 5 and 6 stay parked).
 - Not multi-firm white-label domains (firm branding on our intake domain first; custom domains are a later conversation).

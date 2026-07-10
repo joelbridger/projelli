@@ -55,7 +55,15 @@ Intake links train clients to click a link and type an SSN — the exact behavio
 - **Client-side data residue:** the page keeps plaintext in memory only; no localStorage of answers; masked inputs; `Referrer-Policy: no-referrer`; fragment never sent. Browser autofill/password managers may offer to remember typed values — set the standard `autocomplete` hints to discourage retention on SSN fields.
 - **Accessibility as a compliance-adjacent risk:** our ICP's clients skew older; an inaccessible intake page is both a business failure and an ADA exposure for the firm. WCAG-conscious build from Wave 1; formal audit in Wave 6.
 
-## 8. Honest unknowns (to validate, not assume)
+## 8. The general form-request surface (Addendum 1 additions)
+
+- **The DocuSign boundary must never be blurred.** A signed envelope transits DocuSign's cloud; the E2EE story stops at that handoff. The flow marks it (audit row, Integration Honesty Card, plain sentence in the advisor UI). Marketing that implies the sign stage is end-to-end encrypted would be false — same discipline as the email fallback (§5).
+- **Native click-to-sign is legally real but narrower than it looks.** ESIGN/UETA generally honor click-to-sign with intent + attribution + record retention (our audit rows are strong here), but custodians and many counterparties dictate their own signing rails and will not accept it. Scope it to firm-internal forms only, and have counsel glance at the affirmation wording before it ships (Wave 9's assessment covers this).
+- **Custodian PDF reuse:** firms fill the custodian's own forms as clients of the custodian — normal use. We do not redistribute vendor forms, ship a form library, or pre-bundle Schwab PDFs; the firm imports its own copies. Keep it that way and the IP question stays boring.
+- **Field-map mistakes are the PDF pipeline's mis-filing analog.** A mis-mapped field could put an SSN into a visible or low-sensitivity slot. Mitigations: sensitivity is inherited from the fact kind (mapping a `restricted` kind forces restricted handling), the map editor previews exactly what the client will see, and Wave 8's adversarial review attacks the mapping. Prefill previews show the advisor every prefilled value before send.
+- **Builder scope creep is a board-stance risk, not just a product one.** The moment the builder grows conditional logic, public galleries, or non-client audiences, we are building JotForm and diluting the identity. The constraint (items in a request, sent to a client, period) is written into Wave 10's goal and should be defended in review.
+
+## 9. Honest unknowns (to validate, not assume)
 
 - One firm (the design partner) validates the "clients will type SSNs into an E2EE page" premise. The brief locks it for v1 — good — but the 3-5 additional advisor validation chats recommended in the pain analysis should confirm it before we scale marketing claims around it.
 - Reg S-P amendment interpretations for small RIAs are young; have counsel sanity-check the IT-pack language before it goes to a real gatekeeper.

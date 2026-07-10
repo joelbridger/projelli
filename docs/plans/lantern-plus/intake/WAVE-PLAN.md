@@ -20,8 +20,12 @@
 | 4 | Document Detective (both tiers) + income/spending extraction | M | Yes |
 | 5 | Phone-walkthrough mode + welcome journey + multi-advisor key sharing/escrow | M | Yes |
 | 6 | Onboarding analytics + hardening + IT-gatekeeper pack integration | S–M | Yes |
+| 7 | Standing form requests for existing clients (Addendum 1): request composer from the client page, blueprints, requests-board generalization | M | Yes |
+| 8 | Custodian/vendor PDF pipeline: AcroForm import → field map → fact-prefill → client-side fill + seal; honest flat-scan path | L | Yes |
+| 9 | The sign stage: DocuSign envelope from a completed request (credential-gated) + native click-to-sign assessment for firm-internal forms | M | Yes |
+| 10 | Lantern-native form builder (constrained: items in a request, never a survey tool) | M | Yes |
 
-Dependencies: 2–6 all sit on Wave 1's rails. 3 and 4 share the extraction/proposal card patterns (build 3 before 4). 5 and 6 are independent of 3–4.
+Dependencies: 2–6 all sit on Wave 1's rails. 3 and 4 share the extraction/proposal card patterns (build 3 before 4). 5 and 6 are independent of 3–4. Waves 7–10 (the Addendum 1 generalization) sit on Wave 1's forward-compatible `FormRequest` schema and Wave 2's board; 8–10 are independent of each other after 7, except 9 consumes 8's filled PDFs when both exist. DocuSign credentials (Jameson's vendor task) gate Wave 9's ship, not its build.
 
 ---
 
@@ -30,7 +34,7 @@ Dependencies: 2–6 all sit on Wave 1's rails. 3 and 4 share the extraction/prop
 **Goal:** an advisor presses New client, sends a link; the client completes DOB, SSN, license front/back, income, spending on their phone; everything round-trips E2EE; files land in the client's folder, typed facts in the encrypted store, and the checklist state shows on the client's page.
 
 **Lanes (Codex, parallelizable after Lane A lands contracts):**
-- **A. Contracts + crypto core** (TS, the only lane other lanes wait on): `src/platform/intake/types.ts` (`ClientFact` with the full versioned fact-kind registry — ARCHITECTURE.md §9 verbatim, including the not-yet-collected Schwab-needed kinds), link fragment codec, HKDF derivations, and the **intake sibling wrapper** of the `keyWrap.ts`/`matterCrypto.ts` constructions (the existing functions hardcode matter contexts and device-key unwrap; intake gets its own module with `intake/*` HKDF info + AAD and intake-keychain unwrap). Pure functions, exhaustive vitest round-trip + tamper tests (wrong AAD, cross-context wrap/unwrap must fail both directions, chunk reorder/transplant across items/intakes/submissions must fail, duplicate `submission_id` rejected, and the replay-relabel case: same ciphertext re-posted under a new plaintext `submission_id` must be rejected on the sealed-vs-plaintext id mismatch).
+- **A. Contracts + crypto core** (TS, the only lane other lanes wait on): `src/platform/intake/types.ts` (`ClientFact` with the full versioned fact-kind registry — ARCHITECTURE.md §9 verbatim, including the not-yet-collected Schwab-needed kinds — **and the `FormRequest`/`RequestItem` schema of §9a with `kind` and the later item types declared now**, so Waves 7–10 extend rather than migrate), link fragment codec, HKDF derivations, and the **intake sibling wrapper** of the `keyWrap.ts`/`matterCrypto.ts` constructions (the existing functions hardcode matter contexts and device-key unwrap; intake gets its own module with `intake/*` HKDF info + AAD and intake-keychain unwrap). Pure functions, exhaustive vitest round-trip + tamper tests (wrong AAD, cross-context wrap/unwrap must fail both directions, chunk reorder/transplant across items/intakes/submissions must fail, duplicate `submission_id` rejected, and the replay-relabel case: same ciphertext re-posted under a new plaintext `submission_id` must be rejected on the sealed-vs-plaintext id mismatch).
 - **B. Relay** (backend TS): `backend/src/routes/intake.ts` + tables + rate limiting + caps + uniform-410 semantics + ack-deletes-ciphertext, per ARCHITECTURE.md §3. Bun tests including the standing privacy-proof test.
 - **C. Client page** (new static SPA workspace, e.g. `intake-page/`): mobile-first checklist UI per PRODUCT-DESIGN.md §6 (one item per screen, camera-first capture, masked SSN entry, "I don't know", replace-this-answer, save/resume, write-only confirmations, WebCrypto feature gate with sensitivity-routed fallback, completion page v0). Light theme, firm name + accent from the sealed checklist. Playwright suite **including an automated accessibility pass (axe) — older clients are the target user, so WCAG basics gate Wave 1, not Wave 6.**
 - **D. Advisor-side** (TS + a little Rust): compose flow on the New client path (`NewClientDialog` extension + minimal checklist editor with the locked template), link mint (keychain writes), **link controls (copy again / extend / revoke / regenerate — the leaked-link answer must ship with the first link ever sent)**, `IntakeSyncClient` (inbox → unwrap → route → ack-last, replay/duplicate flagging), SQLCipher facts store (new `src-tauri/src/commands/intake/` following the CRM store pattern), files → `WorkspaceService` → client folder, Onboarding tab v0 on `MatterHub` (`HUB_TABS` + checklist state list with provenance chips + masked facts + reveal-audits).
@@ -70,13 +74,37 @@ Dependencies: 2–6 all sit on Wave 1's rails. 3 and 4 share the extraction/prop
 
 **Gate:** gate + codex review; accessibility pass evidence; a soak/abuse test against a staged relay.
 
+## Wave 7 — standing form requests (the Addendum 1 generalization ships)
+
+**Goal:** "Request from client" on any client page: pick a firm blueprint (saved item sets, the New household template becomes the first blueprint), tweak, send — the same E2EE link, nudges, provenance, and filing now serving year-three asks. The board becomes the **requests board** with Onboarding as its flagship filtered view; the per-client tab lists all requests. Returned artifacts land under `Requests/<request-slug>/`.
+
+**Gate:** gate + codex review; bench: send a standing request to a fixture client, complete it, verify filing + board state alongside an active onboarding.
+
+## Wave 8 — custodian/vendor PDF pipeline
+
+**Goal:** advisor imports a fillable PDF (Schwab-style AcroForm): advisor-side parse → field map editor (map fields to fact kinds and item types) → prefill from `ClientFact`s (each prefilled value carries its fact_id) → client page renders mapped fields as ordinary one-at-a-time items → filled PDF regenerated client-side and sealed (ARCHITECTURE.md §9a — the document never leaves the E2EE envelope). Flat scanned PDFs get the honest path only: advisor-side overlay or attach-print-sign-photograph; no pretend-parsing.
+
+**Gate:** gate + codex review with a field-mapping attack prompt (mis-mapped SSN into a visible field, prefill leaking a restricted fact into a low-sensitivity item); bench: real Schwab PDF round trip on the Legion; privacy-proof test extended to pdf_fill payloads.
+
+## Wave 9 — the sign stage
+
+**Goal:** a request can end in a signature. DocuSign grade: a completed/filled document becomes a DocuSign envelope (connector is code-complete, credential-gated — build against sandbox, ship when Jameson's vendor task lands), with the E2EE-exit boundary marked by an audit row and stated on the Integration Honesty Card. Native click-to-sign assessment: scope the E2EE-preserving typed-name + affirmation + audit grade for firm-internal forms and recommend build/skip with evidence (worth building only if design-partner firms actually have internal-only signing needs).
+
+**Gate:** gate + codex review; DocuSign sandbox round trip; honesty-card copy reviewed against RISKS.md §2 claims discipline.
+
+## Wave 10 — the native form builder (constrained)
+
+**Goal:** compose custom items beyond the built-ins — inside a request, never a standalone survey product (the JotForm-ification guard, board stance). Item palette = the existing types + labels/help text/validation; saved as firm blueprints; no conditional logic in the first cut.
+
+**Gate:** gate + codex review; UI-spec §5 evidence; a blueprint authored by a non-engineer (Jameson) in the bench session without docs.
+
 ---
 
 ## Composition with the sibling plans (the Onboarding OS chain)
 
 - **Calendly plan** (`docs/plans/calendly-scheduling-plan.md`): booking is the step *before* intake. Composition hook (post-Wave-2): a completed booking for a new prospect offers "start onboarding" → New client + intake compose. Shared rail: the public static page + relay pattern (its `book.<domain>` page and our intake page are siblings; keep headers/CSP/hosting conventions identical).
 - **Schwab-prefill plan** (`docs/plans/schwab-account-opening-plan.md`): the paperwork stage *after* intake. Its prefill mapping (plan step 2) consumes `ClientFact` rows with the fact_id recorded per filled field — that is "ask once" made real. The contract work happens in Wave 1 Lane A: the fact-kind registry is defined in full there (including `address`, `citizenship`, `beneficiary` — kinds Schwab needs that v1 intake doesn't collect yet), it is versioned, and prefill consumers read restricted facts only through the accessor's masking-and-audit policy. Schwab's plan consumes the registry; it does not define it.
-- **DocuSign** (code-complete connector, credential-gated): collect (Intake) → prefill (Schwab plan) → sign (DocuSign) becomes the one-pipeline story once vendor credentials land.
+- **DocuSign** (code-complete connector, credential-gated): collect (Intake) → prefill (Schwab plan) → sign (Wave 9) becomes the one-pipeline story once vendor credentials land. The Schwab-prefill plan's filled-PDF delivery and Wave 8's client-side PDF fill are the same field-map machinery pointed at two fillers (advisor-side vs client-side) — build the map format once, in Wave 8's design, and hand it to the Schwab lane.
 
 ## VERIFY-LIVE register (program level)
 
