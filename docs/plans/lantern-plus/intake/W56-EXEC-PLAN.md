@@ -98,9 +98,12 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 | W5a phone-mode | ✅ | ✅ 14/14 | ✅ 4 findings + gatefix | ✅ done | ✅ green | ☐ merging | ☐ |
 | W5b welcome-journey | ✅ | ✅ 44/44 | ✅ 4 findings + gatefix | ✅ done | ⏳ verify | ☐ merging | ☐ |
 | W6c it-pack | ✅ | ✅ 255/255 | ✅ 2 findings | ✅ done | ✅ MERGED 3afd4da6 | ⏳ push | ⏳ |
-| W6a kpi-strip | ✅ brief | ☐ (after W5a) | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6b relay-hardening | ✅ brief (+expiry-cleanup) | ☐ (after W5c) | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6d a11y-audit | ✅ brief | ☐ (after W5b) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W6a kpi-strip | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W6b relay-hardening | ✅ (+expiry-cleanup) | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W6d a11y-audit | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### BATCH 1 COMPLETE — merged + integrated + pushed (origin/lp/intake-w56 @ eef70602)
+All 4 lanes (W5c key-sharing, W5a phone-mode, W5b welcome-journey, W6c it-pack) merged --no-ff, serial. Merged-tree gate caught a real cross-lane type break (journey required on IntakeFirm vs key-sharing test fixture) + 3 baseline-drift lint findings — all fixed. Final merged-tree: tsc/typecheck:tests/lint("no regression")/i18n/contracts clean; **backend 218/218; frontend 508/508**. Every lane's adversarial codex-review found real bugs (key-sharing needed 2 review rounds; the 2nd caught a matter-key backward-compat regression + ack data-loss). BATCH 2 dispatched off this tip.
 
 **Note (memory governance):** `gate-changed.sh` triggers a Rust (lancedb) compile that earlyoom kills under concurrent Codex load. For frontend-only lanes use scoped checks (tsc + typecheck:tests + scoped vitest + lint:gate + test:contracts, NO cargo). Full `npm run gate` (with cargo) runs SERIAL, alone, before WORKER-DONE.
 
