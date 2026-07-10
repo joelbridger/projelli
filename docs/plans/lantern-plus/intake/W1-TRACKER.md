@@ -38,8 +38,11 @@ Codex adversarial on Lane E: [P1] `log` directive inside a Caddy `handle` block 
 - **C↔E FILE COLLISION (must reconcile at merge):** Lane E created a placeholder shell `intake-page/src/{app.js,index.html,styles.css}` (it had no real page to deploy). It COLLIDES with Lane C's real SPA (`intake-page/src/styles.css` is a direct overlap; C uses `App.tsx`+`intake-page/index.html`). **Merge plan:** merge C first (real page); when merging E, DROP E's `intake-page/src/app.js` + `intake-page/src/index.html`, keep C's `styles.css`, keep ALL of E's `infra/intake/*` + `intake-page/deploy/README.md` + root `package.json` script + `tests/security/intake-hosting.test.ts`; then repoint E's `build-static-bundle.mjs`/`manifest.mjs`/`verify-served-bundle.mjs` at C's real Vite `intake-page/dist` output instead of the placeholder shell.
 - **Lane C cleanliness:** committed `intake-page/dist/` and `intake-page/test-results/` (build output) — gitignore or `git rm` before/at merge.
 
-## Pending sync (coordinator note, 2026-07-10)
-- Pull `docs/plans/lantern-plus/intake/W2-PREP.md` + `docs/trust/it-pack/INTAKE-IT-PACK.md` from `lp/ux-simplify-v1` (`f9228650`) into `lp/intake` at the next clean sync point — AFTER the Wave 1 lanes merge (avoid stirring base drift into in-flight lane merges). Fold in during Wave 1 wrap.
+## Pending sync (coordinator notes, 2026-07-10) — fold in at Wave 1 wrap (AFTER lanes merge)
+- Pull `W2-PREP.md` + `docs/trust/it-pack/INTAKE-IT-PACK.md` from `lp/ux-simplify-v1` (`f9228650`).
+- Merge docs branch `lp/docs-w7prep` (W7-PREP.md — schema-readiness verdict for Wave 7).
+- Merge docs branch `lp/docs-w1bench` (W1-BENCH-RUNBOOK.md — the post-WORKER-DONE bench script). **REVIEW its "Hard Stops" section against this exec plan's gates before printing WORKER-DONE.**
+- All docs-only, coordinator-reviewed, branched off lp/intake → clean merges.
 
 ## Bench needs (for the Legion runner, AFTER WORKER-DONE)
 - V6: complete all 5 items incl. camera uploads on a phone-sized browser against the staged relay; verify decrypt-and-file on desktop; screenshot.
