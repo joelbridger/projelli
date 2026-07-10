@@ -65,12 +65,20 @@ function buf(bytes: Uint8Array): Uint8Array {
   return new Uint8Array(bytes);
 }
 
+// Must match the shared @/platform/intake/pageSeal format byte-for-byte,
+// including the GCM AAD, or the page cannot decrypt these fixtures.
+const PAGE_BLOB_AAD = new TextEncoder().encode('intake/page/blob/v1');
+
 async function sealPageJson(key: CryptoKey, value: unknown): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(PAGE_IV_BYTES));
   const plaintext = new TextEncoder().encode(JSON.stringify(value));
   const ciphertext = new Uint8Array(
     await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: buf(iv) as unknown as BufferSource },
+      {
+        name: 'AES-GCM',
+        iv: buf(iv) as unknown as BufferSource,
+        additionalData: buf(PAGE_BLOB_AAD) as unknown as BufferSource,
+      },
       key,
       buf(plaintext) as unknown as BufferSource,
     ),

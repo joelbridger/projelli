@@ -1,5 +1,22 @@
+// Client page seal/open for the k_page-encrypted checklist + resume state.
+//
+// This MUST stay byte-for-byte identical to the advisor-side sealer at
+// src/platform/intake/pageSeal.ts — same wire format AND the same GCM AAD
+// ('intake/page/blob/v1') — or the advisor's sealed bundle cannot be decrypted
+// by this page (and vice versa). Kept as a page-local copy (rather than a shared
+// import) so the static intake-page bundle stays self-contained and its dev
+// server does not pull the main app's src tree. If you change one, change both.
+// (Wave 1 follow-up: promote to one shared module once the bundling seam allows.)
+
 const VERSION = 1;
 const IV_BYTES = 12;
+const PAGE_BLOB_AAD = new TextEncoder().encode('intake/page/blob/v1');
+
+function getSubtle(): SubtleCrypto {
+  const subtle = (globalThis.crypto as Crypto | undefined)?.subtle;
+  if (!subtle) throw new Error('WebCrypto SubtleCrypto is not available.');
+  return subtle;
+}
 
 function buf(bytes: Uint8Array): Uint8Array {
   if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) return bytes;
@@ -30,8 +47,12 @@ export async function sealPageJson(key: CryptoKey, value: unknown): Promise<stri
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const plaintext = new TextEncoder().encode(JSON.stringify(value));
   const ciphertext = new Uint8Array(
-    await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv: buf(iv) as unknown as BufferSource },
+    await getSubtle().encrypt(
+      {
+        name: 'AES-GCM',
+        iv: buf(iv) as unknown as BufferSource,
+        additionalData: buf(PAGE_BLOB_AAD) as unknown as BufferSource,
+      },
       key,
       buf(plaintext) as unknown as BufferSource,
     ),
@@ -50,8 +71,12 @@ export async function openPageJson<T>(key: CryptoKey, blobB64: string): Promise<
   const iv = raw.subarray(1, 1 + IV_BYTES);
   const ciphertext = raw.subarray(1 + IV_BYTES);
   const plaintext = new Uint8Array(
-    await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: buf(iv) as unknown as BufferSource },
+    await getSubtle().decrypt(
+      {
+        name: 'AES-GCM',
+        iv: buf(iv) as unknown as BufferSource,
+        additionalData: buf(PAGE_BLOB_AAD) as unknown as BufferSource,
+      },
       key,
       buf(ciphertext) as unknown as BufferSource,
     ),

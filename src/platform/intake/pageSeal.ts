@@ -1,3 +1,6 @@
+// Advisor-side seal/open for the k_page checklist + resume state.
+// MUST stay byte-for-byte identical (incl. the GCM AAD 'intake/page/blob/v1')
+// to the client page copy at intake-page/src/pageCrypto.ts. Change one, change both.
 const VERSION = 1;
 const IV_BYTES = 12;
 const PAGE_BLOB_AAD = new TextEncoder().encode('intake/page/blob/v1');
