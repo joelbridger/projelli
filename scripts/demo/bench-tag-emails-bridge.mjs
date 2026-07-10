@@ -181,7 +181,7 @@ function stageArray(varName, rows) {
 
 function startTagExecutor() {
   const js =
-    "(()=>{const I=window.__TAURI__?.core?.invoke||window.__TAURI__?.invoke,P=Array.isArray(window.__TAGPLAN)?window.__TAGPLAN:[],R=o=>{window.__TAGRESULT={...window.__TAGRESULT,...o,updatedAt:new Date().toISOString()}},F=(e,x)=>{const r=window.__TAGRESULT;r.failureCount++;if(r.failures.length<100)r.failures.push({messageId:e?.messageId,matterId:e?.matterId,error:String(x?.message||x).slice(0,240)})};window.__TAGRESULT={done:false,total:P.length,processed:0,newlyTagged:0,alreadyOk:0,failureCount:0,failures:[],startedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};if(!I){R({done:true,error:'Tauri invoke bridge is not available'});return window.__TAGRESULT}(async()=>{for(const e of P){try{let c=null;try{const v=await I('mail_get_message',{id:e.messageId});c=v?.matterId||v?.matter_id||null}catch(_){}await I('mail_retag_message_matter',{messageId:e.messageId,matterId:e.matterId});if(c===e.matterId)window.__TAGRESULT.alreadyOk++;else window.__TAGRESULT.newlyTagged++}catch(x){F(e,x)}window.__TAGRESULT.processed++;if(window.__TAGRESULT.processed%10===0)R({})}R({done:true})})().catch(x=>R({done:true,error:String(x?.message||x).slice(0,500)}));return{started:true,total:P.length}})()";
+    "(()=>{const I0=window.__TAURI__?.core?.invoke||window.__TAURI__?.invoke,I=(c,a)=>Promise.race([I0(c,a),new Promise((_,rj)=>setTimeout(()=>rj(new Error('invoke timeout 30s: '+c)),30000))]),P=Array.isArray(window.__TAGPLAN)?window.__TAGPLAN:[],R=o=>{window.__TAGRESULT={...window.__TAGRESULT,...o,updatedAt:new Date().toISOString()}},F=(e,x)=>{const r=window.__TAGRESULT;r.failureCount++;if(r.failures.length<100)r.failures.push({messageId:e?.messageId,matterId:e?.matterId,error:String(x?.message||x).slice(0,240)})};window.__TAGRESULT={done:false,total:P.length,processed:0,newlyTagged:0,alreadyOk:0,failureCount:0,failures:[],startedAt:new Date().toISOString(),updatedAt:new Date().toISOString()};if(!I){R({done:true,error:'Tauri invoke bridge is not available'});return window.__TAGRESULT}(async()=>{for(const e of P){try{let c=null;try{const v=await I('mail_get_message',{id:e.messageId});c=v?.matterId||v?.matter_id||null}catch(_){}await I('mail_retag_message_matter',{messageId:e.messageId,matterId:e.matterId});if(c===e.matterId)window.__TAGRESULT.alreadyOk++;else window.__TAGRESULT.newlyTagged++}catch(x){F(e,x)}window.__TAGRESULT.processed++;if(window.__TAGRESULT.processed%10===0)R({})}R({done:true})})().catch(x=>R({done:true,error:String(x?.message||x).slice(0,500)}));return{started:true,total:P.length}})()";
   return bridgeEval(js);
 }
 
@@ -205,7 +205,7 @@ async function pollTagResult(total) {
 async function listMatterCountViaBridge(matterId) {
   const varName = bridgeVarName('MATTERCOUNT');
   const matterMapJs =
-    "(()=>{try{const p=JSON.parse(localStorage.getItem('keepance:matters')||'{}'),ms=Array.isArray(p?.state?.matters)?p.state.matters:Array.isArray(p?.matters)?p.matters:[],out=[];for(const m of ms){if(m?.id==='unassigned')continue;for(const k of Array.isArray(m?.mailFolderPaths)?m.mailFolderPaths:[]){const s=String(k||''),a=s.indexOf('/');if(a<=0)continue;const provider=s.slice(0,a),rest=s.slice(a+1),b=rest.indexOf('/'),account=b<0?rest:rest.slice(0,b),folderId=b<0?'':rest.slice(b+1);if(provider&&account)out.push({provider,account,folderId,matterId:String(m.id||'')})}}return out}catch(e){return[]}})()";
+    "(()=>{try{const p=JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>/^(lantern|keepance):matters/.test(k))||'lantern:matters')||'{}'),ms=Array.isArray(p?.state?.matters)?p.state.matters:Array.isArray(p?.matters)?p.matters:[],out=[];for(const m of ms){if(m?.id==='unassigned')continue;for(const k of Array.isArray(m?.mailFolderPaths)?m.mailFolderPaths:[]){const s=String(k||''),a=s.indexOf('/');if(a<=0)continue;const provider=s.slice(0,a),rest=s.slice(a+1),b=rest.indexOf('/'),account=b<0?rest:rest.slice(0,b),folderId=b<0?'':rest.slice(b+1);if(provider&&account)out.push({provider,account,folderId,matterId:String(m.id||'')})}}return out}catch(e){return[]}})()";
   const js = `(()=>{const v='${varName}',I=window.__TAURI__?.core?.invoke||window.__TAURI__?.invoke;window[v]={done:false};if(!I){window[v]={done:true,ok:false,error:'Tauri invoke bridge is not available'};return true;}I('mail_list_messages_by_matter',{matterId:${JSON.stringify(matterId)},matterMap:${matterMapJs},query:{sortBy:'date',sortDesc:true,limit:1,offset:0}}).then(x=>{window[v]={done:true,ok:true,result:Number(x?.total??0)}}).catch(e=>{window[v]={done:true,ok:false,error:String(e?.message||e)}});return true;})()`;
   bridgeEval(js);
   return pollWindowResult(varName, { timeoutMs: 60_000 });
@@ -230,7 +230,7 @@ try {
   const [roster, mattersRaw] = await Promise.all([
     loadRoster(),
     Promise.resolve(
-      bridgeEval("localStorage.getItem('keepance:matters')||''", {
+      bridgeEval("localStorage.getItem(Object.keys(localStorage).find(k=>/^(lantern|keepance):matters/.test(k))||'lantern:matters')||''", {
         timeoutSec: 8,
       })
     ),
