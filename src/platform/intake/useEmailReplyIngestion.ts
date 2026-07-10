@@ -121,7 +121,7 @@ async function enqueueCandidate(
   const openItems = openItemsForCandidate(candidate);
   // Email bodies are untrusted data before either the deterministic matcher or
   // the optional model sees them. The model only returns a confidence label.
-  const bodyText = sanitizeEmailReplyBodyForClassification(view.body ?? '');
+  const bodyText = sanitizeEmailReplyBodyForClassification(view.body);
   let modelConfidence:
     | ((prompt: string) => Promise<unknown>)
     | undefined;
