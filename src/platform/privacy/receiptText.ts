@@ -10,11 +10,15 @@ import {
 export function receiptRouteText({
   providerId,
   destination,
+  isDemoAnswer,
 }: {
   providerId?: EgressProvider;
   destination?: EgressDestination;
+  isDemoAnswer?: boolean;
 }): string {
-  if (!providerId) return 'source-grounded demo answer';
+  if (!providerId) {
+    return isDemoAnswer ? 'source-grounded demo answer' : 'answer from your AI engine';
+  }
 
   const provider = providerDisplayName(providerId);
   if (destination === 'local' || (!destination && isLocalProvider(providerId))) {

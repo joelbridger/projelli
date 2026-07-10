@@ -196,12 +196,40 @@ describe('TurnBlock — honest receipts for flat legacy/demo answers', () => {
     );
   });
 
-  it('does not invent a provider when the turn did not record one', () => {
+  it('uses a neutral route when a real turn did not record a provider', () => {
+    const oldTurn: AskTurn = {
+      question: 'What is in the sample?',
+      answer: 'The sample says Sarah is the primary contact.',
+      citations: [],
+      sources: [],
+    };
+
+    render(
+      <TurnBlock
+        {...baseProps}
+        turn={oldTurn}
+        isStreaming={false}
+      />,
+    );
+
+    expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+      'answer from your AI engine',
+    );
+    expect(screen.getByTestId('ask-answer-receipt').textContent).not.toContain(
+      'demo answer',
+    );
+    expect(screen.getByTestId('ask-answer-receipt').textContent).not.toContain(
+      'sent direct to',
+    );
+  });
+
+  it('keeps the demo route for built-in canned sample answers', () => {
     const demoTurn: AskTurn = {
       question: 'What is in the sample?',
       answer: 'The sample says Sarah is the primary contact.',
       citations: [],
       sources: [],
+      isDemoAnswer: true,
     };
 
     render(

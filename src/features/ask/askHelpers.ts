@@ -248,6 +248,8 @@ export interface AskTurn {
   providerId?: string;
   /** Where this answer was actually sent, captured at answer time for proof lines. */
   egressDestination?: EgressDestination;
+  /** True only for built-in canned sample answers; missing provider is not enough. */
+  isDemoAnswer?: boolean;
   isStreaming?: boolean;
   error?: string;
 }
@@ -1440,7 +1442,7 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
           : assistantMsg.askGroundedFromFiles === false
             ? { groundedFromFiles: false }
             : {};
-      const receiptMarker: Pick<AskTurn, 'readSources' | 'providerId' | 'egressDestination'> = {};
+      const receiptMarker: Pick<AskTurn, 'readSources' | 'providerId' | 'egressDestination' | 'isDemoAnswer'> = {};
       if (assistantMsg.askReadSources && assistantMsg.askReadSources.length > 0) {
         receiptMarker.readSources = assistantMsg.askReadSources;
       }
@@ -1449,6 +1451,9 @@ export function reconstructTurns(messages: ChatMessage[]): AskTurn[] {
       }
       if (assistantMsg.askEgressDestination) {
         receiptMarker.egressDestination = assistantMsg.askEgressDestination;
+      }
+      if (assistantMsg.askIsDemoAnswer) {
+        receiptMarker.isDemoAnswer = true;
       }
       const groundedCitations = (assistantMsg.askCitations ?? [])
         .filter((c) => {

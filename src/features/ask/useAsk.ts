@@ -764,6 +764,7 @@ export function useAsk({
                 groundedFromFiles: true,
                 groundingScope: demoGroundingScope,
                 readSources: sourceIdentitiesFromSources(demo.citations),
+                isDemoAnswer: true,
               };
               const now = new Date().toISOString();
               addMessage(chatId, { role: 'user', content: q, timestamp: now });
@@ -774,6 +775,7 @@ export function useAsk({
                 askCitations: demo.citations,
                 askSources: [],
                 askReadSources: sourceIdentitiesFromSources(demo.citations),
+                askIsDemoAnswer: true,
                 ...(demoBlocks
                   ? {
                       askBlocks: demoBlocks.map((b) => ({
