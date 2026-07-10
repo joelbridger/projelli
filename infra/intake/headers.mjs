@@ -98,12 +98,31 @@ export function parseCsp(csp) {
   return directives;
 }
 
+// Headers this app actually sets and is responsible for. A real deploy is
+// fetched through whatever edge/CDN sits in front of it (Cloudflare adds its
+// own Report-To/NEL telemetry headers on every proxied response); those are
+// not under app control and carry no page secrets, so scanning them for
+// "third-party origins" would false-positive on every real deployment. Only
+// the headers we author can leak data via an attacker-controlled connect-src
+// or similar, so that's the only surface worth checking here.
+const OWNED_HEADER_NAMES = new Set(
+  [
+    'Content-Security-Policy',
+    'Referrer-Policy',
+    'X-Content-Type-Options',
+    'X-Frame-Options',
+    'Permissions-Policy',
+    'Cross-Origin-Opener-Policy',
+    'Cross-Origin-Resource-Policy',
+  ].map((name) => name.toLowerCase())
+);
+
 export function findThirdPartyOriginTokens(headers, relayOrigin) {
-  normalizeOrigin(relayOrigin);
-  const allowedOrigins = new Set();
+  const allowedOrigins = new Set([normalizeOrigin(relayOrigin)]);
   const found = [];
 
   for (const [name, value] of Object.entries(headers ?? {})) {
+    if (!OWNED_HEADER_NAMES.has(name.toLowerCase())) continue;
     const matches = String(value).matchAll(/\bhttps?:\/\/[^\s;'",)]+/giu);
     for (const match of matches) {
       const token = match[0];
