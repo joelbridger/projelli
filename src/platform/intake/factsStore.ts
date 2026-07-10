@@ -2,6 +2,19 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import type { ClientFact, FactKind, FactValue, Sensitivity } from './types';
 
+/**
+ * The deliberately value-free fact shape used by request composition.
+ *
+ * This is separate from the advisor fact list because the composer only needs
+ * to know whether a matching active fact exists. It must never receive a fact
+ * value, an identifier, provenance, or sensitivity metadata.
+ */
+export interface FactMatchEntry {
+  subject: string;
+  kind: FactKind;
+  status: ClientFact['status'];
+}
+
 export interface IntakeFactUpsertInput extends Omit<
   ClientFact,
   'fact_id' | 'status' | 'superseded_by'
@@ -137,6 +150,39 @@ export async function intakeFactList(
   return Array.from(browserFacts.values())
     .filter((fact) => fact.matter_id === matterId && fact.status === 'active')
     .map(toMasked);
+}
+
+/**
+ * List only active fact mappings for ask-once request composition.
+ *
+ * Do not implement this in terms of intakeFactList: that accessor exposes
+ * display_value for normal-sensitivity facts. This function deliberately
+ * reads the underlying source and projects only the three safe fields.
+ */
+export async function intakeFactMatchList(
+  matterId: string
+): Promise<FactMatchEntry[]> {
+  if (isTauri()) {
+    const facts = await invoke<Array<Pick<ClientFact, 'subject' | 'kind' | 'status'>>>(
+      'intake_fact_list',
+      { matterId },
+    );
+    return facts
+      .filter((fact) => fact.status === 'active')
+      .map((fact) => ({
+        subject: fact.subject,
+        kind: fact.kind,
+        status: fact.status,
+      }));
+  }
+
+  return Array.from(browserFacts.values())
+    .filter((fact) => fact.matter_id === matterId && fact.status === 'active')
+    .map((fact) => ({
+      subject: fact.subject,
+      kind: fact.kind,
+      status: fact.status,
+    }));
 }
 
 export async function intakeFactReveal(

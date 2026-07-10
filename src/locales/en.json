@@ -371,6 +371,14 @@
         "link-signals-action": "Signals"
       }
     },
+    "requestFromClient": {
+      "noBlueprints": "No request blueprints are available yet.",
+      "willBeSent": "Will be sent",
+      "nothingNeeded": "Nothing needs to be requested right now.",
+      "alreadyOnFile": "Already on file",
+      "alreadyOnFileRow": "{{label}}: Already on file, won’t be asked.",
+      "unsupportedItem": "This item type isn’t supported yet — remove it to send this request."
+    },
     "nudge": {
       "based-on": "Based on missing items as of {{date}}",
       "blocked": {
