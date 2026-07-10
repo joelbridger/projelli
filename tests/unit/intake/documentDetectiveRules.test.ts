@@ -121,4 +121,11 @@ describe('classifyTier1', () => {
       kind: 'ira_statement',
     });
   });
+
+  it('exports the detected license side with the observed kind for advisor-side reuse', () => {
+    expect(classifyObservedKind('Driver license class restrictions', 'license.jpg')).toMatchObject({
+      kind: 'drivers_license',
+      side: 'front',
+    });
+  });
 });
