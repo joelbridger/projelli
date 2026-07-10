@@ -1,4 +1,9 @@
-# Lantern Intake — Wave 3 Lead Handoff (mid-wave, Lane 1 in flight)
+# Lantern Intake — Wave 3 Lead Handoff (mid-wave)
+
+> **⏱️ CURRENT STATE (updated — supersedes §1 below; see `W3-TRACKER.md` for full detail):**
+> Same session continued past the earlier handoff (coordinator directed "continue"). **Lane 1 (ingest+match) MERGED `f61c249f`. Lane 2 (proposal cards + accept) MERGED + pushed `2038e5e5`** (2 P1 + 2 P2 fixed + a gate-fix round for arch-boundary + i18n-kebab + an exactOptional type fix — the pre-push FULL vitest catches what scoped tests miss; budget for it). **Lane 3 (quarantine — the LAST lane) is BUILDING now** via Codex in `~/lp-w3-3` (branch `lp/intake-w3-3`); log `/tmp/claude-1000/-home-jameson-lp-intake/73a13555-9703-4f92-85f1-e2c3fb0a7c6d/scratchpad/w3-3.log`, phrase `W3-LANE3-MANUAL-ONLY`. **origin/lp/intake @ `07ae0aae`+ (pushed through Lane 2).** After Lane 3: verify + `codex-review` (mis-filing focus) + fix round + merge + FULL gate + push, then a final gate-fix sweep, then `WORKER-DONE: lp/intake`. **NOTE: the coordinator lands bench-preflight fixes on lp/intake in parallel — re-check `git rev-parse HEAD` before every operation (HEAD can move under you).**
+
+## (historical, superseded) Wave 3 Lead Handoff (mid-wave, Lane 1 in flight)
 
 **From:** the Wave 2 lead (Opus 4.8) session, 2026-07-10. **Reason:** context ceiling reached mid-Wave-3; Wave 3 is security-critical and a fresh session reviews it with fresh eyes.
 **Read this + `W3-TRACKER.md` + `W3-EXEC-PLAN.md` (§0 = 12 questions resolved) + `W3-PREP.md` (the spec + matcher acceptance criteria) to continue.**
