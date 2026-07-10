@@ -39,6 +39,10 @@ export interface SourceRef {
   citationId?: string;
   /** Display locator label (page/paragraph), if known. */
   locator?: string;
+  /** How the source text was read. OCR sources disclose scan confidence. */
+  extraction?: 'text' | 'ocr';
+  /** Mean OCR word confidence (0-100), absent for native text. */
+  extractionConfidence?: number;
 }
 
 export interface ClientMapItem {

@@ -12,12 +12,19 @@ import {
 } from '../../src/platform/intake/intakeCrypto';
 import { buildLinkFragment } from '../../src/platform/intake/intakeLink';
 import { openPageJson } from '../../src/platform/intake/pageSeal';
-import type { BundleResponse, ChunkUpload, StateBlob, SubmitManifest } from '../../src/platform/intake/intakeContract';
+import type {
+  BundleResponse,
+  ChunkUpload,
+  DocumentDetectiveManifestEntry,
+  StateBlob,
+  SubmitManifest,
+} from '../../src/platform/intake/intakeContract';
 import type { FormRequest } from '../../src/platform/intake/types';
 import type { WelcomeJourney } from '../../src/features/intake/welcomeJourneyDefaults';
 
 const PAGE_BLOB_VERSION = 1;
 const PAGE_IV_BYTES = 12;
+const TEST_ORIGIN = `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? '4178'}`;
 
 interface IntakeChecklist extends FormRequest {
   client_first_name: string;
@@ -147,7 +154,7 @@ function sampleChecklist(): IntakeChecklist {
         help_text: 'Please send the front and back.',
         required: true,
         subject: 'Sarah',
-        accepted_mime_types: ['image/jpeg', 'image/png'],
+        accepted_mime_types: ['image/jpeg', 'image/png', 'text/plain'],
         max_files: 2,
       },
       {
@@ -220,10 +227,10 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
   page.on('request', (request: Request) => {
     const url = new URL(request.url());
     if (url.protocol === 'data:' || url.protocol === 'about:') return;
-    if (url.origin !== 'http://127.0.0.1:4178') externalRequests.push(request.url());
+    if (url.origin !== TEST_ORIGIN) externalRequests.push(request.url());
   });
 
-  await page.route('http://127.0.0.1:4178/intake/**', async (route: Route) => {
+  await page.route(`${TEST_ORIGIN}/intake/**`, async (route: Route) => {
     const request = route.request();
     const url = new URL(request.url());
     const authHeader = request.headers().authorization;
@@ -301,6 +308,7 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
 async function openSubmittedPayload(harness: RelayHarness, itemId: string, index = 0): Promise<{
   manifestFileNames: string[];
   manifestSessionId?: string;
+  documentDetective: DocumentDetectiveManifestEntry[] | undefined;
   chunks: string[];
   submissionId: string;
 }> {
@@ -330,6 +338,7 @@ async function openSubmittedPayload(harness: RelayHarness, itemId: string, index
   return {
     manifestFileNames: openedManifest.manifest.file_names,
     manifestSessionId: openedManifest.manifest.session_id,
+    documentDetective: openedManifest.manifest.document_detective,
     chunks: openedChunks,
     submissionId: submit.submission_id,
   };
@@ -354,6 +363,30 @@ async function completeSsn(page: Page, value = '123-45-6789'): Promise<void> {
   await page.getByRole('button', { name: 'Save and continue' }).click();
   await expect(page.getByRole('heading', { name: "Driver's license" })).toBeVisible();
 }
+
+async function openLicenseScreen(page: Page): Promise<void> {
+  await startChecklist(page);
+  await completeDob(page);
+  await completeSsn(page);
+}
+
+const TAX_RETURN_FIXTURE = {
+  name: 'return.txt',
+  mimeType: 'text/plain',
+  buffer: Buffer.from('Form 1040 adjusted gross income'),
+};
+
+const LICENSE_FRONT_FIXTURE = {
+  name: 'front.txt',
+  mimeType: 'text/plain',
+  buffer: Buffer.from('Driver license class restrictions'),
+};
+
+const LICENSE_BACK_FIXTURE = {
+  name: 'back.txt',
+  mimeType: 'text/plain',
+  buffer: Buffer.from('PDF417 AAMVA DAQ barcode'),
+};
 
 async function completeLicense(page: Page): Promise<void> {
   await page.getByLabel('License front photo').setInputFiles({
@@ -502,6 +535,161 @@ test('submits five client items as sealed chunks and sealed manifests', async ({
   expect(licenseBack.chunks.join('\n')).toBe('back-image');
 
   expect(relay.stateWrites.length).toBeGreaterThanOrEqual(5);
+});
+
+test('warns before a tax return is selected for a driver license', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+
+  await expect(page.getByRole('alert')).toContainText("This looks like a tax return, but this request asks for a driver's license.");
+  await expectNoSeriousAxeViolations(page);
+});
+
+test('holds submission only while a selected file is being checked, then shows the settled warning', async ({ page }) => {
+  await page.addInitScript(() => {
+    const nativeText = Blob.prototype.text;
+    Blob.prototype.text = async function delayedText(): Promise<string> {
+      const value = await nativeText.call(this);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      return value;
+    };
+  });
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License back photo').setInputFiles({
+    name: 'back.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('back-image'),
+  });
+  await expect(page.getByText('Checking your file...')).toHaveCount(0);
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+
+  await expect(page.getByText('Checking your file...')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+  expect(relay.submits.filter((submit) => submit.item_id === 'license')).toHaveLength(0);
+
+  await expect(page.getByRole('alert')).toContainText("This looks like a tax return, but this request asks for a driver's license.");
+  await expect(page.getByText('Checking your file...')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
+});
+
+test('keeps the latest file classification when a client changes a file while checking', async ({ page }) => {
+  await page.addInitScript(() => {
+    const nativeText = Blob.prototype.text;
+    Blob.prototype.text = async function delayedTaxReturn(): Promise<string> {
+      const value = await nativeText.call(this);
+      if (value.includes('Form 1040')) await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      return value;
+    };
+  });
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await page.getByLabel('License front photo').setInputFiles(LICENSE_FRONT_FIXTURE);
+
+  await expect(page.getByText('Checking your file...')).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('front ready')).toBeVisible();
+});
+
+test('warns when a driver license back is selected for the front slot', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(LICENSE_BACK_FIXTURE);
+
+  await expect(page.getByRole('alert')).toContainText("This looks like the back of a driver's license, but this spot is for the front.");
+});
+
+test('warns when both driver license slots look like the front', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(LICENSE_FRONT_FIXTURE);
+  await page.getByLabel('License back photo').setInputFiles(LICENSE_FRONT_FIXTURE);
+
+  await expect(page.getByRole('alert')).toContainText("This looks like another front side of a driver's license.");
+});
+
+test('clears a warning when the client chooses a different file', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await expect(page.getByRole('alert')).toBeVisible();
+  await page.getByRole('button', { name: 'Choose a different file' }).click();
+
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('front needed')).toBeVisible();
+});
+
+test('keeps an advised upload, seals the override, and keeps warning details off relay and resume data', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License back photo').setInputFiles({
+    name: 'back.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('back-image'),
+  });
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await page.getByRole('button', { name: 'Keep this file anyway' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
+  const sealedFront = await openSubmittedPayload(relay, 'license', 0);
+  expect(sealedFront.documentDetective).toEqual([
+    expect.objectContaining({
+      tier: 'tier1',
+      slot_index: 0,
+      warning_reason: 'wrong_doc',
+      expected: 'drivers_license',
+      observed: 'tax_return',
+      kept_anyway: true,
+    }),
+  ]);
+
+  const relayBodies = JSON.stringify({ chunks: relay.chunks, submits: relay.submits, state: relay.stateWrites });
+  expect(relayBodies).not.toContain('wrong_doc');
+  expect(relayBodies).not.toContain('drivers_license');
+  expect(relayBodies).not.toContain('tax_return');
+  await expect(page.locator('body')).not.toContainText('tax return');
+  await expect(page.locator('body')).not.toContainText("driver's license");
+});
+
+test('keeps a warned file and submits it with one click once every slot is ready', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License back photo').setInputFiles({
+    name: 'back.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('back-image'),
+  });
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Keep this file anyway' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
+  await expectSubmitCount(relay, 'license', 2);
+  const sealedFront = await openSubmittedPayload(relay, 'license', 0);
+  expect(sealedFront.documentDetective).toEqual([
+    expect.objectContaining({ warning_reason: 'wrong_doc', kept_anyway: true }),
+  ]);
 });
 
 test('resumes at the next incomplete item after a full reload', async ({ page }) => {
@@ -763,7 +951,7 @@ test('treats upload max files as a limit and rejects oversize files', async ({ p
 
 test('old browsers see the sensitivity-routed fallback and no relay call', async ({ page }) => {
   let relayCalls = 0;
-  await page.route('http://127.0.0.1:4178/intake/**', async (route) => {
+  await page.route(`${TEST_ORIGIN}/intake/**`, async (route) => {
     relayCalls += 1;
     await route.fulfill({ status: 500, body: 'should not be called' });
   });

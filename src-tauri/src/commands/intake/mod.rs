@@ -1,9 +1,11 @@
 pub mod store;
 
 use store::{
-    EmailReplyProposalInput, EmailReplyProposalRecord, EmailReplyProposalRowCompletion,
-    EmailReplyQuarantineInput, EmailReplyQuarantineRecord, EncryptedAuditSink, IntakeFactInput,
-    IntakeFactsStore, MaskedClientFact, RevealedClientFact,
+    DocumentExtractionProposalAcceptInput, DocumentExtractionProposalAcceptResult,
+    DocumentExtractionProposalInput, DocumentExtractionProposalRecord,
+    DocumentExtractionProposalRowCompletion, EmailReplyProposalInput, EmailReplyProposalRecord,
+    EmailReplyProposalRowCompletion, EmailReplyQuarantineInput, EmailReplyQuarantineRecord,
+    EncryptedAuditSink, IntakeFactInput, IntakeFactsStore, MaskedClientFact, RevealedClientFact,
 };
 use tauri::{Manager, State};
 
@@ -192,6 +194,115 @@ pub async fn intake_email_reply_set_proposal_status(
         let store = IntakeFactsStore::open(&ws)?;
         store.set_email_reply_proposal_status(&proposal_id, &status, error.as_deref())
     })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_document_extraction_save_proposal(
+    state: State<'_, IntakeState>,
+    input: DocumentExtractionProposalInput,
+) -> Result<DocumentExtractionProposalRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<DocumentExtractionProposalRecord> {
+            IntakeFactsStore::open(&ws)?.enqueue_document_extraction_proposal(input)
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_document_extraction_list_proposals(
+    state: State<'_, IntakeState>,
+    matter_id: Option<String>,
+) -> Result<Vec<DocumentExtractionProposalRecord>, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<Vec<DocumentExtractionProposalRecord>> {
+            IntakeFactsStore::open(&ws)?.list_document_extraction_proposals(matter_id.as_deref())
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_document_extraction_get_proposal(
+    state: State<'_, IntakeState>,
+    matter_id: String,
+    proposal_id: String,
+) -> Result<DocumentExtractionProposalRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<DocumentExtractionProposalRecord> {
+            let store = IntakeFactsStore::open(&ws)?;
+            let audit = EncryptedAuditSink::new(ws);
+            store.get_document_extraction_proposal(&matter_id, &proposal_id, &audit)
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_document_extraction_accept_row(
+    state: State<'_, IntakeState>,
+    input: DocumentExtractionProposalAcceptInput,
+) -> Result<DocumentExtractionProposalAcceptResult, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<DocumentExtractionProposalAcceptResult> {
+            let store = IntakeFactsStore::open(&ws)?;
+            let audit = EncryptedAuditSink::new(ws);
+            store.accept_document_extraction_proposal_row(input, &audit)
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_document_extraction_mark_row_completed(
+    state: State<'_, IntakeState>,
+    proposal_id: String,
+    completion: DocumentExtractionProposalRowCompletion,
+) -> Result<DocumentExtractionProposalRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<DocumentExtractionProposalRecord> {
+            IntakeFactsStore::open(&ws)?
+                .mark_document_extraction_proposal_row_completed(&proposal_id, completion)
+        },
+    )
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_document_extraction_set_proposal_status(
+    state: State<'_, IntakeState>,
+    proposal_id: String,
+    status: String,
+    error: Option<String>,
+) -> Result<DocumentExtractionProposalRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(
+        move || -> anyhow::Result<DocumentExtractionProposalRecord> {
+            IntakeFactsStore::open(&ws)?.set_document_extraction_proposal_status(
+                &proposal_id,
+                &status,
+                error.as_deref(),
+            )
+        },
+    )
     .await
     .map_err(|e| format!("join: {e}"))?
     .map_err(|e| e.to_string())

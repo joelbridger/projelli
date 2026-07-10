@@ -125,6 +125,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'email.draft_saved': Save,
   intake_nudge: Save,
   intake_email_reply: Save,
+  intake_doc_extraction: Save,
   external_export_consent: ShieldCheck,
   // Marketplace template lifecycle.
   template_installed_from_marketplace: FilePlus,
@@ -209,6 +210,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   'email.draft_saved': 'Draft Saved',
   intake_nudge: 'Intake Nudge',
   intake_email_reply: 'Email Reply Intake',
+  intake_doc_extraction: 'Document Fact Review',
   external_export_consent: 'Exported-Report Consent',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'Template Installed',
@@ -293,6 +295,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'email.draft_saved': 'text-sky-600 dark:text-sky-400',
   intake_nudge: 'text-sky-600 dark:text-sky-400',
   intake_email_reply: 'text-sky-600 dark:text-sky-400',
+  intake_doc_extraction: 'text-sky-600 dark:text-sky-400',
   external_export_consent: 'text-sky-600 dark:text-sky-400',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'text-green-600 dark:text-green-400',

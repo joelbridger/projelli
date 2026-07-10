@@ -127,6 +127,9 @@ export async function submitAnswer(options: SubmitAnswerOptions): Promise<{ subm
     chunk_hashes: chunkHashes,
     chunk_count: chunks.length,
     session_id: options.sessionId,
+    ...(options.payload.kind === 'files' && options.payload.document_detective?.length
+      ? { document_detective: options.payload.document_detective }
+      : {}),
   };
   const integrity = verifySubmissionIntegrity(submissionId, manifest, chunkSidBindings);
   if (!integrity.ok) throw new Error(`Submission integrity failed: ${integrity.reason}`);

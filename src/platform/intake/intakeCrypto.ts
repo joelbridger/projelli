@@ -392,6 +392,48 @@ function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
 }
 
+const DOCUMENT_DETECTIVE_MAX_ENTRIES = 100;
+const DOCUMENT_DETECTIVE_MAX_SLOT_INDEX = 1_000_000;
+const DOCUMENT_DETECTIVE_REASONS = new Set([
+  'wrong_doc',
+  'wrong_side_of_license',
+  'duplicate_license_side',
+  'unsupported_or_unreadable',
+]);
+const DOCUMENT_DETECTIVE_KINDS = new Set([
+  'drivers_license',
+  'tax_return',
+  'pay_stub',
+  'bank_statement',
+  'brokerage_statement',
+  'ira_statement',
+  'credit_card_statement',
+  'other_financial',
+  'unknown',
+]);
+const DOCUMENT_DETECTIVE_EXPECTED = new Set([...DOCUMENT_DETECTIVE_KINDS, 'front', 'back']);
+const DOCUMENT_DETECTIVE_SIDES = new Set(['front', 'back', 'unknown']);
+
+function isDocumentDetectiveEntry(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const entry = value as Record<string, unknown>;
+  if (
+    entry['tier'] !== 'tier1' ||
+    typeof entry['slot_index'] !== 'number' ||
+    !Number.isSafeInteger(entry['slot_index']) ||
+    entry['slot_index'] < 0 ||
+    entry['slot_index'] > DOCUMENT_DETECTIVE_MAX_SLOT_INDEX ||
+    typeof entry['kept_anyway'] !== 'boolean'
+  ) {
+    return false;
+  }
+  if (entry['warning_reason'] !== undefined && (typeof entry['warning_reason'] !== 'string' || !DOCUMENT_DETECTIVE_REASONS.has(entry['warning_reason']))) return false;
+  if (entry['expected'] !== undefined && (typeof entry['expected'] !== 'string' || !DOCUMENT_DETECTIVE_EXPECTED.has(entry['expected']))) return false;
+  if (entry['observed'] !== undefined && (typeof entry['observed'] !== 'string' || !DOCUMENT_DETECTIVE_KINDS.has(entry['observed']))) return false;
+  if (entry['side'] !== undefined && (typeof entry['side'] !== 'string' || !DOCUMENT_DETECTIVE_SIDES.has(entry['side']))) return false;
+  return true;
+}
+
 function isSealedManifest(value: unknown): value is SealedManifest {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Partial<SealedManifest>;
@@ -413,6 +455,14 @@ function isSealedManifest(value: unknown): value is SealedManifest {
   // downstream loops would trust.
   if (!Number.isSafeInteger(candidate.chunk_count) || candidate.chunk_count < 0) return false;
   if (candidate.chunk_hashes.length !== candidate.chunk_count) return false;
+  if (
+    candidate.document_detective !== undefined &&
+    (!Array.isArray(candidate.document_detective) ||
+      candidate.document_detective.length > DOCUMENT_DETECTIVE_MAX_ENTRIES ||
+      !candidate.document_detective.every(isDocumentDetectiveEntry))
+  ) {
+    return false;
+  }
   return true;
 }
 

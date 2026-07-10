@@ -40,6 +40,7 @@ function routedSubmission(
     contentType: string;
     fileNames: string[];
     plaintextBytes: Uint8Array[];
+    documentDetective: RoutedIntakeSubmission['manifest']['document_detective'];
   }> = {},
 ): RoutedIntakeSubmission {
   const itemId = overrides.itemId ?? 'ssn';
@@ -57,6 +58,7 @@ function routedSubmission(
       file_names: overrides.fileNames ?? [],
       chunk_hashes: ['hash'],
       chunk_count: plaintextBytes.length,
+      ...(overrides.documentDetective === undefined ? {} : { document_detective: overrides.documentDetective }),
     },
     plaintextBytes,
   };
@@ -188,6 +190,38 @@ describe('useIntakeInboxSync wiring helpers', () => {
     expect(stored.lastClientActivityAt).toBe('2026-07-10T10:00:00.000Z');
     expect(JSON.stringify(stored)).not.toContain('123-45-6789');
     expect(JSON.stringify(stored)).not.toContain('6789');
+  });
+
+  it('keeps a client-supplied warned-file signal without treating it as verification', async () => {
+    useIntakeStore.getState().upsertIntake(intake({
+      items: [{ itemId: 'income-support', label: 'Income support', state: 'not_started' }],
+    }));
+    const fileDocument = vi.fn().mockResolvedValue('/workspace/Sarah/Requests/onboarding/income.pdf');
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    expect(current).toBeDefined();
+    if (!current) throw new Error('Expected the intake to be in the store.');
+
+    await routeIntakeSubmission(routedSubmission(null, {
+      itemId: 'income-support',
+      submissionId: 'submission-warned-file',
+      contentType: 'application/pdf',
+      fileNames: ['income.pdf'],
+      plaintextBytes: [enc.encode('pdf-bytes')],
+      documentDetective: [{ tier: 'tier1', slot_index: 0, warning_reason: 'wrong_doc', kept_anyway: true }],
+    }), {
+      intake: current,
+      matterFolderPath: '/workspace/Sarah',
+      workspaceService: {} as never,
+      fileDocument,
+    });
+
+    const received = useIntakeStore.getState().intakesById['intake-1']?.receivedItems[0];
+    expect(received).toMatchObject({
+      keptWarnedFile: true,
+      keptWarnedFileReason: 'wrong_doc',
+    });
+    expect(received?.provenance).not.toHaveProperty('verification');
+    expect(JSON.stringify(received)).not.toContain('pdf-bytes');
   });
 
   it('routes guided answer bodies into money and range facts', async () => {

@@ -357,5 +357,13 @@ describe('nudge engine', () => {
     });
     expect(inputValue('nudge-review-to')).toBe('sarah@example.test');
     expect(inputValue('nudge-review-subject')).toBe('A few onboarding items for North Star Planning');
+
+    const prompt: unknown = structuredOutputMock.mock.calls[0]?.[0];
+    if (typeof prompt !== 'string') throw new Error('Expected the nudge rewrite prompt.');
+    // A fragment-bearing intake URL is a client-page capability. It must never
+    // cross the provider boundary, even though the final advisor draft includes it.
+    expect(prompt).toContain('Required link: [intake link]');
+    expect(prompt).not.toContain('#safe-link');
+    expect(prompt).not.toMatch(/https?:\/\/[^\s]+\/i\/[^\s#]+#[^\s]+/u);
   });
 });

@@ -105,6 +105,7 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import { setIntakeNudgeAuditEmitter } from '@/platform/intake/nudgeAudit';
 import { setIntakeEmailReplyAuditEmitter } from '@/platform/intake/emailReplyAudit';
+import { setIntakeDocumentExtractionAuditEmitter } from '@/platform/intake/documentExtractionAudit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   getOrCreateSampleMatter,
@@ -1608,6 +1609,13 @@ function AppShell() {
     setIntakeEmailReplyAuditEmitter(addAuditEntry);
     return () => {
       setIntakeEmailReplyAuditEmitter(null);
+    };
+  }, [addAuditEntry]);
+
+  useEffect(() => {
+    setIntakeDocumentExtractionAuditEmitter(addAuditEntry);
+    return () => {
+      setIntakeDocumentExtractionAuditEmitter(null);
     };
   }, [addAuditEntry]);
 

@@ -522,6 +522,12 @@
         "title": "Where your data lives and who can see it",
         "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
+      },
+      "email-reply-ai": {
+        "title": "Clasificación de respuestas de correo con IA",
+        "description": "Desactivado de forma predeterminada. Cuando se activa, {{productName}} envía el texto de las respuestas de correo autenticadas de los clientes al proveedor de IA configurado por su firma para ayudar a relacionar un elemento de incorporación. Actívelo solo cuando su firma apruebe ese uso compartido.",
+        "enabled": "Activado",
+        "off": "Desactivado"
       }
     },
     "mcp": {
@@ -4056,6 +4062,37 @@
         "medium": "Media",
         "low": "Baja"
       }
+    },
+    "document-extraction": {
+      "title": "Datos encontrados en documentos",
+      "helper": "Revisa primero la página y la cita. Los datos solo se guardan cuando los apruebas.",
+      "proposed-count_one": "{{count}} dato propuesto de un documento archivado",
+      "proposed-count_other": "{{count}} datos propuestos de un documento archivado",
+      "review": "Revisar",
+      "review-title": "Revisar datos del documento",
+      "review-helper": "Nada cambia hasta que apruebes una fila marcada.",
+      "select-row": "Seleccionar dato del documento",
+      "income-annual": "Ingreso anual",
+      "spending-monthly": "Gasto mensual",
+      "proposed-value": "Propuesto: {{value}}",
+      "citation": "Página {{page}}: “{{quote}}”",
+      "conflict-helper": "Dato activo existente: {{value}}. Elige qué hacer antes de aprobar.",
+      "conflict-choice-label": "Elige cómo resolver este conflicto",
+      "conflict-keep": "Conservar el dato existente",
+      "conflict-replace": "Reemplazarlo con el importe propuesto",
+      "conflict-edit": "Escribir un importe distinto",
+      "final-amount": "Importe final",
+      "cancel": "Cancelar",
+      "dismiss": "Descartar",
+      "approve-checked": "Aprobar marcados",
+      "load-error": "No se pudieron cargar los datos del documento.",
+      "open-error": "No se pudo abrir la revisión del documento.",
+      "accept-error": "No se pudieron aprobar los datos del documento.",
+      "dismiss-error": "No se pudieron descartar los datos del documento.",
+      "partial-error": "Algunos datos todavía necesitan revisión.",
+      "amount-required": "Escribe un importe final antes de aprobar este dato.",
+      "amount-invalid": "El importe final debe ser cero o mayor.",
+      "confidence": { "high": "Alta", "medium": "Media", "low": "Baja" }
     },
     "quarantine": {
       "title": "El correo necesita una revisión cuidadosa",

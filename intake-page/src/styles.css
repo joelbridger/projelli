@@ -285,6 +285,26 @@ button,
   padding: 1rem;
 }
 
+.document-warning {
+  margin-top: 1rem;
+  border: 1px solid #d8b86a;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #59420b;
+  background: #fff9e8;
+}
+
+.document-warning p,
+.kept-anyway {
+  margin: 0;
+}
+
+.kept-anyway {
+  margin-top: 0.75rem;
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
 .file-button {
   display: grid;
   place-items: center;

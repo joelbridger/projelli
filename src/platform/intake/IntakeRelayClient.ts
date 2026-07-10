@@ -5,7 +5,6 @@ import type { ChunkUpload } from './intakeContract';
 
 export interface IntakeCreateRequest {
   intake_id: string;
-  matter_id: string;
   auth_token: string;
   expires_at: string;
   checklist_ciphertext_b64: string;

@@ -157,6 +157,11 @@ describe("intake real page to relay to advisor flow", () => {
         relay: new IntakeRelayClient({ baseUrl: ctx.base, seatToken: advisor.seatToken }),
       });
       expect(ctx.store.getIntake("e2e-intake")).not.toBeNull();
+      const createRequest = recorder.requests.find((request) => request.startsWith("POST /intake\n"));
+      expect(createRequest).toBeDefined();
+      const createPayload = JSON.parse(createRequest!.split("\n", 2)[1]!) as Record<string, unknown>;
+      expect(createPayload).not.toHaveProperty("matter_id");
+      expect(createPayload).not.toHaveProperty("matterId");
 
       const linkSecret = b64ToBytes(bundle.linkSecretB64);
       const pageKey = await derivePageKey(linkSecret);

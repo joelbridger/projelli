@@ -4,6 +4,8 @@ import { listen } from '@tauri-apps/api/event';
 
 import type { Provider } from '@/platform/providers/Provider';
 import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY } from '@/platform/settings/schema';
 
 import {
   MAIL_SYNC_EVENT,
@@ -118,13 +120,16 @@ async function enqueueCandidate(
   }
 ): Promise<void> {
   const openItems = openItemsForCandidate(candidate);
-  // Email bodies are untrusted data before either the deterministic matcher or
-  // the optional model sees them. The model only returns a confidence label.
+  // Email bodies are untrusted data. The deterministic matcher is always local.
+  // A firm must explicitly opt in before any email text is offered to a model.
   const bodyText = sanitizeEmailReplyBodyForClassification(view.body);
+  const aiClassificationEnabled = useSettingsStore
+    .getState()
+    .getSetting<boolean>(EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY);
   let modelConfidence:
     | ((prompt: string) => Promise<unknown>)
     | undefined;
-  if (bodyText && deps.resolveEmailProvider) {
+  if (aiClassificationEnabled && bodyText && deps.resolveEmailProvider) {
     try {
       const resolved = await deps.resolveEmailProvider();
       modelConfidence = async (prompt) => {

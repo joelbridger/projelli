@@ -179,6 +179,37 @@
         "low": "Low"
       }
     },
+    "document-extraction": {
+      "title": "Facts found in documents",
+      "helper": "Review the page and quote first. Facts are saved only when you approve them.",
+      "proposed-count_one": "{{count}} proposed fact from a filed document",
+      "proposed-count_other": "{{count}} proposed facts from a filed document",
+      "review": "Review",
+      "review-title": "Review document facts",
+      "review-helper": "Nothing changes until you approve a checked row.",
+      "select-row": "Select document fact",
+      "income-annual": "Annual income",
+      "spending-monthly": "Monthly spending",
+      "proposed-value": "Proposed: {{value}}",
+      "citation": "Page {{page}}: “{{quote}}”",
+      "conflict-helper": "Existing active fact: {{value}}. Choose what to do before approving.",
+      "conflict-choice-label": "Choose how to resolve this conflict",
+      "conflict-keep": "Keep the existing fact",
+      "conflict-replace": "Replace it with the proposed amount",
+      "conflict-edit": "Enter a different amount",
+      "final-amount": "Final amount",
+      "cancel": "Cancel",
+      "dismiss": "Dismiss",
+      "approve-checked": "Approve checked",
+      "load-error": "Could not load document facts.",
+      "open-error": "Could not open document review.",
+      "accept-error": "Could not approve document facts.",
+      "dismiss-error": "Could not dismiss document facts.",
+      "partial-error": "Some facts still need review.",
+      "amount-required": "Enter a final amount before approving this fact.",
+      "amount-invalid": "The final amount must be zero or more.",
+      "confidence": { "high": "High", "medium": "Medium", "low": "Low" }
+    },
     "quarantine": {
       "title": "Email needs your careful review",
       "channel-label": "Normal email. Not end-to-end encrypted.",
@@ -599,6 +630,12 @@
         "title": "Where your data lives and who can see it",
         "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open Data Map"
+      },
+      "email-reply-ai": {
+        "title": "AI email reply classification",
+        "description": "Off by default. When enabled, {{productName}} sends the text of authenticated client email replies to your firm's configured AI provider to help match an onboarding item. Turn this on only when your firm approves that sharing.",
+        "enabled": "Enabled",
+        "off": "Off"
       }
     },
     "mcp": {

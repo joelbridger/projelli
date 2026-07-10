@@ -3,6 +3,7 @@ use rand::RngCore;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
@@ -152,6 +153,64 @@ pub struct EmailReplyProposalRecord {
     pub items: Vec<Value>,
     pub completed_rows: Vec<EmailReplyProposalRowCompletion>,
     pub confidence: String,
+    pub status: String,
+    pub error: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalInput {
+    pub proposal_id: String,
+    pub stable_key: String,
+    pub matter_id: String,
+    pub request_id: String,
+    pub intake_id: String,
+    pub item_id: Option<String>,
+    pub source_path: String,
+    pub items: Vec<Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalRowCompletion {
+    pub row_id: String,
+    pub fact_id: String,
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalAcceptInput {
+    pub proposal_id: String,
+    pub matter_id: String,
+    pub row_id: String,
+    pub amount: f64,
+    pub expected_active_fact_id: Option<String>,
+    pub expected_active_fact_checked: bool,
+    pub advisor_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalAcceptResult {
+    pub fact: MaskedClientFact,
+    pub proposal: DocumentExtractionProposalRecord,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DocumentExtractionProposalRecord {
+    pub proposal_id: String,
+    pub stable_key: String,
+    pub matter_id: String,
+    pub request_id: String,
+    pub intake_id: String,
+    pub item_id: Option<String>,
+    pub source_path: String,
+    pub items: Vec<Value>,
+    pub completed_rows: Vec<DocumentExtractionProposalRowCompletion>,
     pub status: String,
     pub error: Option<String>,
     pub created_at: String,
@@ -347,6 +406,189 @@ fn scrub_proposal_items_for_storage(items: Vec<Value>) -> Vec<Value> {
         .collect()
 }
 
+const DOCUMENT_EXTRACTION_ALLOWED_KINDS: [&str; 2] = ["income_annual", "spending_monthly"];
+
+fn document_extraction_stable_key(input: &DocumentExtractionProposalInput) -> String {
+    format!(
+        "{}\u{1f}{}\u{1f}{}\u{1f}{}",
+        input.matter_id, input.request_id, input.intake_id, input.source_path
+    )
+}
+
+fn document_extraction_proposal_id(stable_key: &str) -> String {
+    let digest = Sha256::digest(stable_key.as_bytes());
+    format!(
+        "document_extraction_proposal_{}",
+        hex::encode(&digest[..12])
+    )
+}
+
+fn contains_restricted_document_data(value: &str) -> bool {
+    let lower = value.to_lowercase();
+    let compact: String = lower
+        .chars()
+        .filter(|character| character.is_alphanumeric())
+        .collect();
+    if [
+        "acct", "account", "routing", "license", "licence", "ssn", "taxid",
+    ]
+    .iter()
+    .any(|label| compact.contains(label))
+    {
+        return true;
+    }
+    let mut digits = 0;
+    let mut separator_allowed = false;
+    for character in lower.chars() {
+        if character.is_ascii_digit() {
+            digits += 1;
+            separator_allowed = true;
+            if digits >= 9 {
+                return true;
+            }
+        } else if separator_allowed && matches!(character, ' ' | '-') {
+            separator_allowed = false;
+        } else {
+            digits = 0;
+            separator_allowed = false;
+        }
+    }
+    false
+}
+
+fn money_value(value: &Value) -> Result<(f64, String)> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| anyhow::anyhow!("document extraction value must be an object"))?;
+    if object.get("t").and_then(Value::as_str) != Some("money") {
+        bail!("document extraction value must be money");
+    }
+    let money = object
+        .get("v")
+        .and_then(Value::as_object)
+        .ok_or_else(|| anyhow::anyhow!("document extraction money value is missing"))?;
+    let amount = money
+        .get("amount")
+        .and_then(Value::as_f64)
+        .ok_or_else(|| anyhow::anyhow!("document extraction money amount is invalid"))?;
+    let currency = money
+        .get("currency")
+        .and_then(Value::as_str)
+        .ok_or_else(|| anyhow::anyhow!("document extraction currency is invalid"))?;
+    if !amount.is_finite()
+        || amount < 0.0
+        || currency.len() != 3
+        || !currency
+            .chars()
+            .all(|character| character.is_ascii_uppercase())
+    {
+        bail!("document extraction money value is outside the allowed contract");
+    }
+    Ok((amount, currency.to_string()))
+}
+
+fn document_extraction_display_value(amount: f64, currency: &str) -> String {
+    format!("{currency} {amount}")
+}
+
+fn rebuild_document_extraction_items(
+    input: &DocumentExtractionProposalInput,
+) -> Result<Vec<Value>> {
+    if input.matter_id.is_empty()
+        || input.request_id.is_empty()
+        || input.intake_id.is_empty()
+        || input.source_path.is_empty()
+        || input.source_path.split('/').any(|part| part == "..")
+    {
+        bail!("document extraction identifiers or source path are invalid");
+    }
+    input
+        .items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| {
+            let object = item
+                .as_object()
+                .ok_or_else(|| anyhow::anyhow!("document extraction item must be an object"))?;
+            let kind = object
+                .get("kind")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("document extraction kind is missing"))?;
+            if !DOCUMENT_EXTRACTION_ALLOWED_KINDS.contains(&kind) {
+                bail!("document extraction fact kind is outside the allowed contract");
+            }
+            if let Some(sensitivity) = object.get("sensitivity").and_then(Value::as_str) {
+                if sensitivity != "confidential" {
+                    bail!("document extraction sensitivity is outside the allowed contract");
+                }
+            }
+            let (amount, currency) = money_value(
+                object
+                    .get("value")
+                    .ok_or_else(|| anyhow::anyhow!("document extraction value is missing"))?,
+            )?;
+            let source = object
+                .get("source")
+                .and_then(Value::as_object)
+                .ok_or_else(|| anyhow::anyhow!("document extraction source is missing"))?;
+            if source.get("kind").and_then(Value::as_str) != Some("document")
+                || source.get("path").and_then(Value::as_str) != Some(input.source_path.as_str())
+            {
+                bail!("document extraction source is outside the allowed contract");
+            }
+            let page = source
+                .get("page")
+                .and_then(Value::as_u64)
+                .filter(|page| *page > 0)
+                .ok_or_else(|| anyhow::anyhow!("document extraction source page is invalid"))?;
+            let snippet = source
+                .get("snippet")
+                .and_then(Value::as_str)
+                .ok_or_else(|| anyhow::anyhow!("document extraction source quote is missing"))?;
+            let reason = object
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("Printed total found in document.");
+            if snippet.is_empty()
+                || snippet.len() > 220
+                || reason.len() > 240
+                || contains_restricted_document_data(snippet)
+                || contains_restricted_document_data(reason)
+            {
+                bail!("document extraction contains restricted data");
+            }
+            let confidence = match object.get("confidence").and_then(Value::as_str) {
+                Some("high") => "high",
+                Some("medium") => "medium",
+                _ => "low",
+            };
+            let mut rebuilt_source = serde_json::Map::new();
+            rebuilt_source.insert("kind".to_string(), Value::String("document".to_string()));
+            rebuilt_source.insert("path".to_string(), Value::String(input.source_path.clone()));
+            rebuilt_source.insert("page".to_string(), Value::Number(page.into()));
+            rebuilt_source.insert("snippet".to_string(), Value::String(snippet.to_string()));
+            if let Some(extraction) = source.get("extraction").and_then(Value::as_str) {
+                rebuilt_source.insert(
+                    "extraction".to_string(),
+                    Value::String(extraction.to_string()),
+                );
+            }
+            Ok(json!({
+                "id": format!("document_extraction_row_{index}"),
+                "subject": "primary",
+                "kind": kind,
+                "value": { "t": "money", "v": { "amount": amount, "currency": currency } },
+                "displayValue": document_extraction_display_value(amount, &currency),
+                "sensitivity": "confidential",
+                "source": Value::Object(rebuilt_source),
+                "confidence": confidence,
+                "reason": reason,
+                "checkedByDefault": confidence == "high"
+            }))
+        })
+        .collect()
+}
+
 fn masked_proposal_item(item: &Value) -> Value {
     let mut out = item.clone();
     let Some(body_fact) = out.get_mut("bodyFact").and_then(Value::as_object_mut) else {
@@ -486,6 +728,60 @@ fn masked_email_reply_proposal(record: EmailReplyProposalRecord) -> EmailReplyPr
     }
 }
 
+fn row_to_document_extraction_proposal(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<DocumentExtractionProposalRecord> {
+    let items_json: String = row.get(7)?;
+    let completed_rows_json: String = row.get(8)?;
+    Ok(DocumentExtractionProposalRecord {
+        proposal_id: row.get(0)?,
+        stable_key: row.get(1)?,
+        matter_id: row.get(2)?,
+        request_id: row.get(3)?,
+        intake_id: row.get(4)?,
+        item_id: row.get(5)?,
+        source_path: row.get(6)?,
+        items: serde_json::from_str(&items_json).unwrap_or_default(),
+        completed_rows: serde_json::from_str(&completed_rows_json).unwrap_or_default(),
+        status: row.get(9)?,
+        error: row.get(10)?,
+        created_at: row.get(11)?,
+        updated_at: row.get(12)?,
+    })
+}
+
+fn masked_document_extraction_item(item: &Value) -> Value {
+    let mut out = item.clone();
+    let kind = out.get("kind").and_then(Value::as_str).unwrap_or_default();
+    let sensitivity = out
+        .get("sensitivity")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    if let Some(value) = out.get("value") {
+        out["displayValue"] = Value::String(mask_value(kind, value, sensitivity));
+    }
+    if let Some(source) = out.get_mut("source").and_then(Value::as_object_mut) {
+        source.insert("snippet".to_string(), Value::String(String::new()));
+    }
+    if let Some(object) = out.as_object_mut() {
+        object.remove("value");
+    }
+    out
+}
+
+fn masked_document_extraction_proposal(
+    record: DocumentExtractionProposalRecord,
+) -> DocumentExtractionProposalRecord {
+    DocumentExtractionProposalRecord {
+        items: record
+            .items
+            .iter()
+            .map(masked_document_extraction_item)
+            .collect(),
+        ..record
+    }
+}
+
 impl IntakeFactsStore {
     pub fn db_path(workspace_root: &Path) -> PathBuf {
         crate::commands::data_dir::workspace_data_dir(workspace_root).join("intake-facts-enc.db")
@@ -561,7 +857,24 @@ impl IntakeFactsStore {
                 updated_at               TEXT NOT NULL
             );
              CREATE INDEX IF NOT EXISTS idx_email_reply_quarantines_matter_status
-                ON email_reply_quarantines(matched_matter_id, status);",
+                ON email_reply_quarantines(matched_matter_id, status);
+             CREATE TABLE IF NOT EXISTS document_extraction_proposals (
+                proposal_id TEXT PRIMARY KEY,
+                stable_key TEXT NOT NULL UNIQUE,
+                matter_id TEXT NOT NULL,
+                request_id TEXT NOT NULL,
+                intake_id TEXT NOT NULL,
+                item_id TEXT,
+                source_path TEXT NOT NULL,
+                items_json TEXT NOT NULL,
+                completed_rows_json TEXT NOT NULL DEFAULT '[]',
+                status TEXT NOT NULL,
+                error TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS idx_document_extraction_proposals_matter_status
+                ON document_extraction_proposals(matter_id, status);",
         )?;
         migrate_email_reply_proposal_columns(&conn);
         Ok(Self {
@@ -1057,6 +1370,250 @@ impl IntakeFactsStore {
         Ok(masked_email_reply_proposal(record))
     }
 
+    pub fn enqueue_document_extraction_proposal(
+        &self,
+        input: DocumentExtractionProposalInput,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        let stable_key = document_extraction_stable_key(&input);
+        let proposal_id = document_extraction_proposal_id(&stable_key);
+        let items = rebuild_document_extraction_items(&input)?;
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        let existing: Option<DocumentExtractionProposalRecord> = tx.query_row(
+            "SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE stable_key = ?1",
+            params![stable_key], row_to_document_extraction_proposal).optional()?;
+        if let Some(record) = existing {
+            tx.commit()?;
+            return Ok(masked_document_extraction_proposal(record));
+        }
+        let now = now_iso();
+        tx.execute("INSERT INTO document_extraction_proposals (proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, '[]', 'pending', NULL, ?9, ?9)", params![proposal_id, stable_key, input.matter_id, input.request_id, input.intake_id, input.item_id, input.source_path, serde_json::to_string(&items)?, now])?;
+        let record = tx.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1", params![proposal_id], row_to_document_extraction_proposal)?;
+        tx.commit()?;
+        Ok(masked_document_extraction_proposal(record))
+    }
+
+    pub fn list_document_extraction_proposals(
+        &self,
+        matter_id: Option<&str>,
+    ) -> Result<Vec<DocumentExtractionProposalRecord>> {
+        let conn = lock_unpoison(&self.conn);
+        let sql = "SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE status = 'pending'";
+        let records = if let Some(matter_id) = matter_id {
+            let mut stmt =
+                conn.prepare(&format!("{sql} AND matter_id = ?1 ORDER BY created_at ASC"))?;
+            let rows = stmt
+                .query_map(params![matter_id], row_to_document_extraction_proposal)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        } else {
+            let mut stmt = conn.prepare(&format!("{sql} ORDER BY created_at ASC"))?;
+            let rows = stmt
+                .query_map([], row_to_document_extraction_proposal)?
+                .collect::<rusqlite::Result<Vec<_>>>()?;
+            rows
+        };
+        Ok(records
+            .into_iter()
+            .map(masked_document_extraction_proposal)
+            .collect())
+    }
+
+    pub fn get_document_extraction_proposal(
+        &self,
+        matter_id: &str,
+        proposal_id: &str,
+        audit: &dyn IntakeAuditSink,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        let conn = lock_unpoison(&self.conn);
+        let record = conn.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1 AND matter_id = ?2", params![proposal_id, matter_id], row_to_document_extraction_proposal).optional()?.ok_or_else(|| anyhow::anyhow!("document extraction proposal not found"))?;
+        audit.append(audit_entry(
+            "intake_document_extraction_reveal",
+            "Document extraction proposal opened for review.",
+            &record.matter_id,
+            None,
+            "outcome",
+            &format!("document_extraction_reveal_{}", record.proposal_id),
+        ))?;
+        Ok(record)
+    }
+
+    pub fn accept_document_extraction_proposal_row(
+        &self,
+        input: DocumentExtractionProposalAcceptInput,
+        audit: &dyn IntakeAuditSink,
+    ) -> Result<DocumentExtractionProposalAcceptResult> {
+        if !input.amount.is_finite() || input.amount < 0.0 || !input.expected_active_fact_checked {
+            bail!("document extraction approval is outside the allowed contract");
+        }
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        let mut proposal = tx.query_row(
+            "SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1 AND matter_id = ?2",
+            params![input.proposal_id, input.matter_id],
+            row_to_document_extraction_proposal,
+        ).optional()?.ok_or_else(|| anyhow::anyhow!("document extraction proposal not found"))?;
+        if proposal.status != "pending" {
+            bail!("document extraction proposal is no longer pending");
+        }
+        if proposal
+            .completed_rows
+            .iter()
+            .any(|row| row.row_id == input.row_id)
+        {
+            bail!("document extraction row is already complete");
+        }
+        let row = proposal
+            .items
+            .iter()
+            .find(|item| item.get("id").and_then(Value::as_str) == Some(input.row_id.as_str()))
+            .ok_or_else(|| anyhow::anyhow!("document extraction proposal row not found"))?;
+        let kind = row
+            .get("kind")
+            .and_then(Value::as_str)
+            .filter(|kind| DOCUMENT_EXTRACTION_ALLOWED_KINDS.contains(kind))
+            .ok_or_else(|| {
+                anyhow::anyhow!("document extraction fact kind is outside the allowed contract")
+            })?;
+        let (_, currency) = money_value(
+            row.get("value")
+                .ok_or_else(|| anyhow::anyhow!("document extraction value is missing"))?,
+        )?;
+        if row.get("subject").and_then(Value::as_str) != Some("primary")
+            || row.get("sensitivity").and_then(Value::as_str) != Some("confidential")
+        {
+            bail!("document extraction row is outside the allowed contract");
+        }
+        let source = row
+            .get("source")
+            .and_then(Value::as_object)
+            .ok_or_else(|| anyhow::anyhow!("document extraction source is missing"))?;
+        if source.get("kind").and_then(Value::as_str) != Some("document")
+            || source.get("path").and_then(Value::as_str) != Some(proposal.source_path.as_str())
+        {
+            bail!("document extraction source is outside the allowed contract");
+        }
+        let active_old: Option<String> = tx.query_row(
+            "SELECT fact_id FROM client_facts WHERE matter_id = ?1 AND subject = 'primary' AND kind = ?2 AND status = 'active'",
+            params![proposal.matter_id, kind],
+            |row| row.get(0),
+        ).optional()?;
+        if active_old != input.expected_active_fact_id {
+            bail!("The active fact changed while this review was open. Reopen the review before approving this row.");
+        }
+        let fact_id = new_fact_id();
+        let pair_id = format!("document_extraction_fact_{fact_id}");
+        audit.append(audit_entry(
+            "intake_document_extraction_accept",
+            "Document extraction approval received; filing to local facts store.",
+            &proposal.matter_id,
+            Some(&fact_id),
+            "intent",
+            &pair_id,
+        ))?;
+        if let Some(old_id) = active_old {
+            tx.execute("UPDATE client_facts SET status = 'superseded', superseded_by = ?1 WHERE fact_id = ?2", params![fact_id, old_id])?;
+        }
+        let source_ref = format!(
+            "document:v1:{}:{}",
+            proposal.source_path,
+            source.get("page").and_then(Value::as_u64).unwrap_or(1)
+        );
+        let provenance = json!({ "channel": "doc_extraction", "source_ref": source_ref, "entered_by": input.advisor_id, "confirmed_by": input.advisor_id, "at": now_iso() });
+        let value = json!({ "t": "money", "v": { "amount": input.amount, "currency": currency } });
+        let created_at = now_iso();
+        tx.execute("INSERT INTO client_facts (fact_id, matter_id, subject, kind, value_json, sensitivity, provenance_json, verification, status, superseded_by, created_at) VALUES (?1, ?2, 'primary', ?3, ?4, 'confidential', ?5, 'document_verified', 'active', NULL, ?6)", params![fact_id, proposal.matter_id, kind, serde_json::to_string(&value)?, serde_json::to_string(&provenance)?, created_at])?;
+        proposal
+            .completed_rows
+            .push(DocumentExtractionProposalRowCompletion {
+                row_id: input.row_id,
+                fact_id: fact_id.clone(),
+                completed_at: Some(now_iso()),
+            });
+        proposal.updated_at = now_iso();
+        tx.execute("UPDATE document_extraction_proposals SET completed_rows_json = ?2, updated_at = ?3 WHERE proposal_id = ?1", params![proposal.proposal_id, serde_json::to_string(&proposal.completed_rows)?, proposal.updated_at])?;
+        audit.append(audit_entry(
+            "intake_document_extraction_accept",
+            "Document extraction fact filed locally.",
+            &proposal.matter_id,
+            Some(&fact_id),
+            "outcome",
+            &pair_id,
+        ))?;
+        tx.commit()?;
+        let fact = masked(&ClientFactRow {
+            fact_id,
+            matter_id: proposal.matter_id.clone(),
+            subject: "primary".to_string(),
+            kind: kind.to_string(),
+            value_json: serde_json::to_string(&value)?,
+            sensitivity: "confidential".to_string(),
+            provenance_json: serde_json::to_string(&provenance)?,
+            verification: "document_verified".to_string(),
+            status: "active".to_string(),
+            superseded_by: None,
+            created_at,
+        })?;
+        Ok(DocumentExtractionProposalAcceptResult {
+            fact,
+            proposal: masked_document_extraction_proposal(proposal),
+        })
+    }
+
+    pub fn mark_document_extraction_proposal_row_completed(
+        &self,
+        proposal_id: &str,
+        mut completion: DocumentExtractionProposalRowCompletion,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        let mut conn = lock_unpoison(&self.conn);
+        let tx = conn.transaction()?;
+        let mut record = tx.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1", params![proposal_id], row_to_document_extraction_proposal).optional()?.ok_or_else(|| anyhow::anyhow!("document extraction proposal not found"))?;
+        if record.status != "pending" {
+            bail!("document extraction proposal is no longer pending");
+        }
+        if !record.items.iter().any(|item| {
+            item.get("id")
+                .and_then(Value::as_str)
+                .is_some_and(|id| id == completion.row_id)
+        }) {
+            bail!("document extraction proposal row not found");
+        }
+        if let Some(existing) = record
+            .completed_rows
+            .iter()
+            .find(|row| row.row_id == completion.row_id)
+        {
+            if existing.fact_id == completion.fact_id {
+                tx.commit()?;
+                return Ok(masked_document_extraction_proposal(record));
+            }
+            bail!("document extraction row already has a different completion receipt");
+        }
+        if completion.completed_at.is_none() {
+            completion.completed_at = Some(now_iso());
+        }
+        record.completed_rows.push(completion);
+        record.updated_at = now_iso();
+        tx.execute("UPDATE document_extraction_proposals SET completed_rows_json = ?2, updated_at = ?3 WHERE proposal_id = ?1", params![proposal_id, serde_json::to_string(&record.completed_rows)?, record.updated_at])?;
+        tx.commit()?;
+        Ok(masked_document_extraction_proposal(record))
+    }
+
+    pub fn set_document_extraction_proposal_status(
+        &self,
+        proposal_id: &str,
+        status: &str,
+        error: Option<&str>,
+    ) -> Result<DocumentExtractionProposalRecord> {
+        if !matches!(status, "pending" | "accepted" | "dismissed") {
+            bail!("invalid proposal status");
+        }
+        let conn = lock_unpoison(&self.conn);
+        if conn.execute("UPDATE document_extraction_proposals SET status = ?2, error = ?3, updated_at = ?4 WHERE proposal_id = ?1", params![proposal_id, status, error, now_iso()])? == 0 { bail!("document extraction proposal not found"); }
+        let record = conn.query_row("SELECT proposal_id, stable_key, matter_id, request_id, intake_id, item_id, source_path, items_json, completed_rows_json, status, error, created_at, updated_at FROM document_extraction_proposals WHERE proposal_id = ?1", params![proposal_id], row_to_document_extraction_proposal)?;
+        Ok(masked_document_extraction_proposal(record))
+    }
+
     pub fn list_email_reply_quarantines(
         &self,
         matter_id: Option<&str>,
@@ -1250,6 +1807,149 @@ mod tests {
             matched_matter_id: Some("matter-1".into()),
             matched_request_id: Some("intake-1".into()),
         }
+    }
+
+    fn document_extraction_input() -> DocumentExtractionProposalInput {
+        DocumentExtractionProposalInput {
+            proposal_id: "document-proposal-1".into(),
+            stable_key: "matter-1\u{1f}request-1\u{1f}intake-1\u{1f}Clients/A/income.pdf".into(),
+            matter_id: "matter-1".into(),
+            request_id: "request-1".into(),
+            intake_id: "intake-1".into(),
+            item_id: Some("income".into()),
+            source_path: "Clients/A/income.pdf".into(),
+            items: vec![json!({
+                "id": "income-row", "subject": "primary", "kind": "income_annual",
+                "value": { "t": "money", "v": { "amount": 120000, "currency": "USD" } },
+                "displayValue": "USD 120000", "sensitivity": "confidential",
+                "source": { "kind": "document", "path": "Clients/A/income.pdf", "page": 2, "snippet": "Annual income: $120,000" },
+                "confidence": "high", "reason": "Printed total.", "checkedByDefault": true
+            })],
+        }
+    }
+
+    #[test]
+    fn document_extraction_enqueue_is_idempotent_and_list_masks_review_text() {
+        let (_dir, store) = store();
+        let audit = VecAudit::default();
+        let first = store
+            .enqueue_document_extraction_proposal(document_extraction_input())
+            .unwrap();
+        let mut duplicate = document_extraction_input();
+        duplicate.proposal_id = "different-id".into();
+        let second = store
+            .enqueue_document_extraction_proposal(duplicate)
+            .unwrap();
+        assert_eq!(first.proposal_id, second.proposal_id);
+        let listed = store
+            .list_document_extraction_proposals(Some("matter-1"))
+            .unwrap();
+        assert_eq!(listed.len(), 1);
+        let listed_json = serde_json::to_string(&listed).unwrap();
+        assert!(!listed_json.contains("Annual income: $120,000"));
+        assert!(listed[0].items[0].get("value").is_none());
+        let review = store
+            .get_document_extraction_proposal("matter-1", &first.proposal_id, &audit)
+            .unwrap();
+        assert_eq!(
+            review.items[0]["source"]["snippet"],
+            "Annual income: $120,000"
+        );
+        store
+            .set_document_extraction_proposal_status(&first.proposal_id, "dismissed", None)
+            .unwrap();
+        assert!(store
+            .list_document_extraction_proposals(Some("matter-1"))
+            .unwrap()
+            .is_empty());
+    }
+
+    #[test]
+    fn document_extraction_rebuilds_the_contract_and_refuses_off_contract_values() {
+        let (_dir, store) = store();
+        let accepted = store
+            .enqueue_document_extraction_proposal(document_extraction_input())
+            .unwrap();
+        assert_ne!(accepted.proposal_id, "document-proposal-1");
+        let review = store
+            .get_document_extraction_proposal(
+                "matter-1",
+                &accepted.proposal_id,
+                &VecAudit::default(),
+            )
+            .unwrap();
+        assert_eq!(review.items[0]["id"], "document_extraction_row_0");
+        assert_eq!(review.items[0]["subject"], "primary");
+        assert_eq!(review.items[0]["sensitivity"], "confidential");
+
+        let mut non_money = document_extraction_input();
+        non_money.source_path = "Clients/A/non-money.pdf".into();
+        non_money.items[0]["source"]["path"] = json!("Clients/A/non-money.pdf");
+        non_money.items[0]["value"] = json!({ "t": "string", "v": "120000" });
+        assert!(store
+            .enqueue_document_extraction_proposal(non_money)
+            .is_err());
+
+        let mut disallowed_kind = document_extraction_input();
+        disallowed_kind.source_path = "Clients/A/disallowed.pdf".into();
+        disallowed_kind.items[0]["source"]["path"] = json!("Clients/A/disallowed.pdf");
+        disallowed_kind.items[0]["kind"] = json!("ssn");
+        assert!(store
+            .enqueue_document_extraction_proposal(disallowed_kind)
+            .is_err());
+
+        let mut renderer_sensitivity = document_extraction_input();
+        renderer_sensitivity.source_path = "Clients/A/restricted.pdf".into();
+        renderer_sensitivity.items[0]["source"]["path"] = json!("Clients/A/restricted.pdf");
+        renderer_sensitivity.items[0]["sensitivity"] = json!("restricted");
+        assert!(store
+            .enqueue_document_extraction_proposal(renderer_sensitivity)
+            .is_err());
+        assert_eq!(
+            store
+                .list_document_extraction_proposals(Some("matter-1"))
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn document_extraction_review_is_matter_scoped_and_accept_rechecks_active_fact() {
+        let (_dir, store) = store();
+        let audit = VecAudit::default();
+        let proposal = store
+            .enqueue_document_extraction_proposal(document_extraction_input())
+            .unwrap();
+        assert!(store
+            .get_document_extraction_proposal("matter-2", &proposal.proposal_id, &audit)
+            .is_err());
+        let review = store
+            .get_document_extraction_proposal("matter-1", &proposal.proposal_id, &audit)
+            .unwrap();
+        assert_eq!(review.items.len(), 1);
+
+        let mut current = input_for_subject("current-income", "primary", "120000");
+        current.kind = "income_annual".into();
+        current.sensitivity = "confidential".into();
+        current.value = json!({ "t": "money", "v": { "amount": 110000, "currency": "USD" } });
+        store.upsert_fact(current, &audit).unwrap();
+        let result = store.accept_document_extraction_proposal_row(
+            DocumentExtractionProposalAcceptInput {
+                proposal_id: proposal.proposal_id,
+                matter_id: "matter-1".into(),
+                row_id: "document_extraction_row_0".into(),
+                amount: 120000.0,
+                expected_active_fact_id: None,
+                expected_active_fact_checked: true,
+                advisor_id: "advisor-1".into(),
+            },
+            &audit,
+        );
+        assert!(result.is_err());
+        let active = store.list_masked("matter-1").unwrap();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].fact_id, "current-income");
     }
 
     #[test]

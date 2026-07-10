@@ -1,3 +1,5 @@
+import type { DocumentKind } from './documentDetectiveTypes';
+
 export type FactKind =
   | 'dob'
   | 'ssn'
@@ -101,6 +103,8 @@ export interface DocUploadRequestItem extends Omit<RequestItemBase, 't'> {
   accepted_mime_types?: string[];
   max_files?: number;
   max_bytes?: number;
+  expected_doc_types?: DocumentKind[];
+  expected_license_slots?: Array<'front' | 'back'>;
 }
 
 export type GuidedQuestionResponseFormat = 'number' | 'money' | 'range' | 'text' | 'choice';
