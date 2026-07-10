@@ -246,7 +246,9 @@ export async function processEmailReplyMessages(
       if (result.kind === 'candidate') {
         await enqueueCandidate(result, view, {
           saveProposal,
-          resolveEmailProvider: deps.resolveEmailProvider,
+          ...(deps.resolveEmailProvider
+            ? { resolveEmailProvider: deps.resolveEmailProvider }
+            : {}),
         });
       } else if (result.kind === 'quarantine') {
         await enqueueQuarantine(result, { saveQuarantine });
@@ -267,7 +269,9 @@ export function useEmailReplyIngestion(
     const run = (): void => {
       if (running || disposed) return;
       running = true;
-      void processEmailReplyMessages({ resolveEmailProvider })
+      void processEmailReplyMessages(
+        resolveEmailProvider ? { resolveEmailProvider } : {}
+      )
         .catch((error: unknown) => {
           console.warn('[useEmailReplyIngestion] Email reply ingestion failed:', error);
         })
