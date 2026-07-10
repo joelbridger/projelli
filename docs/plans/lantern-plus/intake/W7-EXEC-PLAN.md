@@ -116,14 +116,14 @@ No cargo claim step — Wave 7 has no Rust changes. If `npm run gate` still runs
 
 ## 5. Status ledger
 
-- [ ] Grounding pass complete — this document.
-- [ ] Lane 1 brief written — `briefs/w7-1-core.md`.
-- [ ] Lane 2 brief written — `briefs/w7-2-composer.md`.
-- [ ] Lane 3 brief written — `briefs/w7-3-requests-ui.md`.
-- [ ] Lane 4 brief written — `briefs/w7-4-contracts.md`.
-- [ ] Coordinator build go received.
-- [ ] Lane 1 — MERGED `<sha>`
-- [ ] Lane 2 — MERGED `<sha>`
+- [x] Grounding pass complete — this document.
+- [x] Lane 1 brief written — `briefs/w7-1-core.md`.
+- [x] Lane 2 brief written — `briefs/w7-2-composer.md`.
+- [x] Lane 3 brief written — `briefs/w7-3-requests-ui.md`.
+- [x] Lane 4 brief written — `briefs/w7-4-contracts.md`.
+- [x] Coordinator build go received.
+- [x] **Lane 1 — MERGED `49358ccf`** (build `60f18b88`, fix round `24fff23e` for 2 P1 + 2 P2 findings from lead review + mandatory `codex-review`, gate-fix `b6906a2d` for 7 eslint baseline findings). `getIntakesForMatter`, `IntakeRecord.requestItems`/`kind`/`requestSlug`/`requestTitle`/`blueprintRef`, `assertSendableRequest`, `createRequestSlug`/`assertRequestSlug`/`createOpaqueItemHandle` (`requestIdentity.ts`), `deriveRequestRow`, `GuidedQuestionRequestItem.fact_kind?` all shipped. Scoped suite: 237/237 green, tsc clean, eslint-gate clean.
+- [ ] Lane 2 — blueprints + composer (next to dispatch)
 - [ ] Lane 3 — MERGED `<sha>`
 - [ ] Lane 4 — MERGED `<sha>`
 - [ ] Wave-end full gate green
