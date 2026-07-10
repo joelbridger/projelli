@@ -14,6 +14,9 @@ import { useFileBackupStore } from '@/platform/fs/fileBackupStore';
 import { useFileContextStore } from '@/platform/state/fileContextStore';
 import { useTemplatesMarketplaceStore } from '@/features/workflows/templatesMarketplaceStore';
 import { seedDemoClients } from '@/app/lifecycle/seedDemoClients';
+import { getOrCreateSampleMatter } from '@/platform/matter/matterStore';
+import { seedSampleClientMap } from '@/platform/matter/samples/sampleClientMap';
+import { useProfessionStore } from '@/platform/profile/professionStore';
 import { buildOpenFilesPromptBlock } from '@/features/ask/AIChatViewer';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { FileNode } from '@/platform/types/workspace';
@@ -42,6 +45,22 @@ export function useTestModeWorkspace(options: UseTestModeWorkspaceOptions): void
       // the normal E2E path (which expects an empty workspace) is untouched.
       if (window.location.search.includes('seedDemo')) {
         seedDemoClients();
+      }
+
+      // Dev/preview-only: activate the built-in advisor SAMPLE matter (the
+      // Hendricks household) so the demo-video engine can record the Ask
+      // "cited answer, no key" flow. The sample matter is the ONLY matter for
+      // which Ask serves its hand-authored, cited demo answers offline (see
+      // the demo branch in useAsk.ts, gated on SAMPLE_MATTER_ID + no cloud
+      // key). We reuse the exact functions the onboarding "Try a sample" path
+      // uses — nothing is reinvented. Gated by ?seedSample so the normal E2E
+      // path (empty workspace) is untouched.
+      if (window.location.search.includes('seedSample')) {
+        useProfessionStore.getState().setProfession('advisor');
+        const sampleMatter = getOrCreateSampleMatter('/test-workspace');
+        // seedSampleClientMap also sets the sample matter active + opens its
+        // Client Map hub, so first render lands on a filled, cited map.
+        seedSampleClientMap(sampleMatter.id);
       }
 
       // Pre-load 2 demo tabs for testing
