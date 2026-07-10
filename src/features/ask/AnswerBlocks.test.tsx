@@ -261,7 +261,38 @@ describe('AnswerBlocks — header badge agrees with the live citation verifier (
     });
   });
 
-  it('does not invent a provider for source-grounded demo answers', async () => {
+  it('keeps the demo label only when the turn is marked as a canned sample answer', async () => {
+    const cite = makeCitation({ verified: false });
+    ragVerifyCitationsBatchMock.mockResolvedValue([
+      { verdict: 'verified' } satisfies CitationVerdict,
+    ]);
+
+    render(
+      <AnswerBlocks
+        blocks={[filesBlock([cite])]}
+        selected={null}
+        onSelect={() => {}}
+        readSources={[
+          {
+            id: 'clients/jane/plan.docx',
+            label: 'plan.docx',
+            path: 'clients/jane/plan.docx',
+            sourceType: 'docx',
+            chunkCount: 1,
+          },
+        ]}
+        isDemoAnswer
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+        '1 claim verified against 1 local source; source-grounded demo answer',
+      );
+    });
+  });
+
+  it('uses a neutral route when a real turn is missing old provider metadata', async () => {
     const cite = makeCitation({ verified: false });
     ragVerifyCitationsBatchMock.mockResolvedValue([
       { verdict: 'verified' } satisfies CitationVerdict,
@@ -286,8 +317,11 @@ describe('AnswerBlocks — header badge agrees with the live citation verifier (
 
     await waitFor(() => {
       expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
-        '1 claim verified against 1 local source; source-grounded demo answer',
+        '1 claim verified against 1 local source; answer from your AI engine',
       );
     });
+    expect(screen.getByTestId('ask-answer-receipt').textContent).not.toContain(
+      'demo answer',
+    );
   });
 });

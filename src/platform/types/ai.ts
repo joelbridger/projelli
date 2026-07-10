@@ -141,6 +141,8 @@ export interface ChatMessage {
   askProviderId?: string;
   /** Where that Ask answer was actually sent, captured at answer time. */
   askEgressDestination?: EgressDestination;
+  /** True only for built-in canned sample answers. Missing provider alone is not demo proof. */
+  askIsDemoAnswer?: boolean;
   /**
    * M2 — workspace retrieval hits associated with this turn. For
    * user-role messages this is the list of chunks that were retrieved

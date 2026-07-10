@@ -226,6 +226,7 @@ export function TurnBlock({
             {...(turn.readSources ? { readSources: turn.readSources } : {})}
             {...(turn.providerId ? { providerId: turn.providerId } : {})}
             {...(turn.egressDestination ? { egressDestination: turn.egressDestination } : {})}
+            {...(turn.isDemoAnswer ? { isDemoAnswer: turn.isDemoAnswer } : {})}
           />
         ) : isPersisted ? (
           // Persisted (loaded history) turns: plain text.
@@ -387,6 +388,7 @@ export function TurnBlock({
             {...(turn.readSources ? { readSources: turn.readSources } : {})}
             {...(turn.providerId ? { providerId: turn.providerId } : {})}
             {...(turn.egressDestination ? { egressDestination: turn.egressDestination } : {})}
+            {...(turn.isDemoAnswer ? { isDemoAnswer: turn.isDemoAnswer } : {})}
             {...(onOpenSourcesPanel !== undefined
               ? { onOpenSourcesPanel: () => { onOpenSourcesPanel(turnIdx); } }
               : {})}

@@ -22,6 +22,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { Ask } from '@/features/ask/Ask';
 import { BLOCK_MARKERS } from '@/features/ask/answerBlockMarkers';
 import type { RagHit } from '@/platform/utils/tauri-commands';
+import { BRAND } from '@/config/brand';
 
 const h = vi.hoisted(() => ({
   answer: { text: '' },
@@ -161,6 +162,19 @@ describe('Ask-smart (source-aware advisor agent)', () => {
     expect(screen.queryByTestId('ask-uncited-warning')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ask-cited-attestation')).not.toBeInTheDocument();
     expect(screen.queryByTestId('ask-citation-chip-1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('ask-answer-receipt').textContent).toContain(
+      `0 claims verified against 0 local sources; sent direct to Anthropic; nothing to ${BRAND.name}`,
+    );
+    expect(screen.getByTestId('ask-answer-receipt').textContent).not.toContain(
+      'source-grounded demo answer',
+    );
+
+    const assistantCalls = h.addMessage.mock.calls
+      .map((c) => c[1] as { role: string; askProviderId?: string; askEgressDestination?: string })
+      .filter((m) => m.role === 'assistant');
+    const msg = assistantCalls[assistantCalls.length - 1]!;
+    expect(msg.askProviderId).toBe('anthropic');
+    expect(msg.askEgressDestination).toBe('provider-direct');
   });
 
   it('grounding net holds in smart mode: a fabricated citation in a general block never becomes a chip', async () => {

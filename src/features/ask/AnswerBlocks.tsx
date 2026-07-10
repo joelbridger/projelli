@@ -185,17 +185,20 @@ function answerReceiptText({
   sourceCount,
   providerId,
   egressDestination,
+  isDemoAnswer,
 }: {
   claimsVerified: number;
   sourceCount: number;
   providerId?: string;
   egressDestination?: EgressDestination;
+  isDemoAnswer?: boolean;
 }): string {
   const claimWord = claimsVerified === 1 ? 'claim' : 'claims';
   const sourceWord = sourceCount === 1 ? 'source' : 'sources';
   const route = receiptRouteText({
     ...(providerId ? { providerId } : {}),
     ...(egressDestination ? { destination: egressDestination } : {}),
+    ...(isDemoAnswer ? { isDemoAnswer } : {}),
   });
   return `${String(claimsVerified)} ${claimWord} verified against ${String(sourceCount)} local ${sourceWord}; ${route}`;
 }
@@ -206,6 +209,7 @@ export function AnswerReceipt({
   readSources,
   providerId,
   egressDestination,
+  isDemoAnswer,
   onOpenSourcesPanel,
 }: {
   claimsVerified: number;
@@ -213,6 +217,7 @@ export function AnswerReceipt({
   readSources?: AuditSourceIdentity[];
   providerId?: string;
   egressDestination?: EgressDestination;
+  isDemoAnswer?: boolean;
   onOpenSourcesPanel?: () => void;
 }) {
   const sourceCount = readSources && readSources.length > 0
@@ -223,6 +228,7 @@ export function AnswerReceipt({
     sourceCount,
     ...(providerId ? { providerId } : {}),
     ...(egressDestination ? { egressDestination } : {}),
+    ...(isDemoAnswer ? { isDemoAnswer } : {}),
   });
   const canOpenSources = sourceCount > 0 && onOpenSourcesPanel !== undefined;
   const content = (
@@ -270,6 +276,7 @@ export function AnswerBlocks({
   readSources,
   providerId,
   egressDestination,
+  isDemoAnswer,
 }: {
   blocks: AnswerBlock[];
   selected: number | null;
@@ -292,6 +299,8 @@ export function AnswerBlocks({
   providerId?: string;
   /** Where this answer was actually sent, captured at answer time when available. */
   egressDestination?: EgressDestination;
+  /** True only for built-in sample answers. Missing provider alone is not demo proof. */
+  isDemoAnswer?: boolean;
 }) {
   const { t } = useTranslation();
   const tally = tallyBlocks(blocks);
@@ -479,6 +488,7 @@ export function AnswerBlocks({
         {...(readSources ? { readSources } : {})}
         {...(providerId ? { providerId } : {})}
         {...(egressDestination ? { egressDestination } : {})}
+        {...(isDemoAnswer ? { isDemoAnswer } : {})}
         {...(onOpenSourcesPanel ? { onOpenSourcesPanel } : {})}
       />
     </div>
