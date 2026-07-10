@@ -321,9 +321,37 @@ function statusFromError(message: string): ExternalWriteStatus {
   return 'failed';
 }
 
+// Blocks a send instead of quietly doing the wrong thing (codex-review,
+// 2026-07-10). Two cases the engine's own dedup/stale checks cannot catch
+// because they never reach the backend as a mismatch:
+//   - an unmatched Holistiplan target: itemSubjectKey() falls back to a
+//     placeholder string that is non-empty (so the backend's own
+//     subject_key validation passes), sending the write to nowhere real.
+//   - more than one document on a Holistiplan upload: only the first
+//     document is ever turned into a write (see holistiplanOperation), so
+//     approving would report "sent" after uploading just one of several.
+function blockingSendGuard(item: ProposedExternalWrite): string | undefined {
+  if (item.proposalType === 'holistiplan_upload') {
+    if (itemSubjectKey(item) === 'unmatched-holistiplan-target') {
+      return 'Link this proposal to a Holistiplan household or client before sending.';
+    }
+    if (item.data.documents.length > 1) {
+      return 'Multi-document Holistiplan uploads are not yet supported by this socket. Split into one approval per document.';
+    }
+  }
+  return undefined;
+}
+
 async function sendOne(item: ProposedExternalWrite): Promise<void> {
   const requestedAt = item.requestedAt ?? newRequestedAt();
   const sendingItem = { ...item, status: 'sending' as const, requestedAt };
+  const blocked = blockingSendGuard(item);
+  if (blocked) {
+    const blockedItem = { ...sendingItem, status: 'failed' as const, error: blocked };
+    setItem(item.id, blockedItem);
+    persistProposalItemBestEffort(blockedItem);
+    return;
+  }
   setItemClearingError(item.id, { status: 'sending', requestedAt });
   try {
     await externalWriteSaveProposal(itemToPayload(sendingItem));

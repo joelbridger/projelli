@@ -20,7 +20,11 @@ vi.mock('@/platform/utils/external-write-commands', async () => {
   };
 });
 
-import { useExternalWriteQueueStore, type RightCapitalIncomeProposal } from '@/platform/state/externalWriteQueueStore';
+import {
+  useExternalWriteQueueStore,
+  type HolistiplanUploadProposal,
+  type RightCapitalIncomeProposal,
+} from '@/platform/state/externalWriteQueueStore';
 import {
   externalWriteApproveProposal,
   externalWriteDeleteProposal,
@@ -58,6 +62,26 @@ function proposal(overrides: Partial<RightCapitalIncomeProposal> = {}): RightCap
       notes: 'Approved income update.',
     },
     sourceRef: 'meeting:income',
+    ...overrides,
+  };
+}
+
+function holistiplanProposal(overrides: Partial<HolistiplanUploadProposal> = {}): HolistiplanUploadProposal {
+  return {
+    target: 'holistiplan',
+    kind: 'tax_document_upload',
+    matterId: 'm1',
+    holistiplanHouseholdId: 'hp-household-1',
+    documents: [
+      {
+        documentRef: 'Clients/Henderson/2025-return.pdf',
+        displayName: '2025 tax return',
+        taxYear: 2025,
+        documentKind: 'tax_return',
+        source: 'client_folder',
+      },
+    ],
+    sourceRef: 'client-folder:tax-return',
     ...overrides,
   };
 }
@@ -140,6 +164,51 @@ describe('externalWriteQueueStore', () => {
     const secondId = useExternalWriteQueueStore.getState().enqueueRightCapitalIncome(proposal({ sourceRef: 'meeting:income-2' }));
     await useExternalWriteQueueStore.getState().approve([secondId]);
     expect(useExternalWriteQueueStore.getState().items[1]?.status).toBe('stale');
+  });
+
+  it('blocks send for an unmatched Holistiplan target instead of sending to a placeholder (codex-review, 2026-07-10)', async () => {
+    const id = useExternalWriteQueueStore.getState().enqueueHolistiplanUpload(
+      holistiplanProposal({ holistiplanHouseholdId: undefined, holistiplanClientId: undefined }),
+    );
+
+    await useExternalWriteQueueStore.getState().approve([id]);
+
+    expect(externalWriteApproveProposal).not.toHaveBeenCalled();
+    expect(useExternalWriteQueueStore.getState().items[0]).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('Link this proposal'),
+    });
+  });
+
+  it('blocks send for a multi-document Holistiplan upload instead of only sending the first document (codex-review, 2026-07-10)', async () => {
+    const id = useExternalWriteQueueStore.getState().enqueueHolistiplanUpload(
+      holistiplanProposal({
+        documents: [
+          {
+            documentRef: 'Clients/Henderson/2025-return.pdf',
+            displayName: '2025 tax return',
+            taxYear: 2025,
+            documentKind: 'tax_return',
+            source: 'client_folder',
+          },
+          {
+            documentRef: 'Clients/Henderson/2025-w2.pdf',
+            displayName: '2025 W-2',
+            taxYear: 2025,
+            documentKind: 'w2',
+            source: 'client_folder',
+          },
+        ],
+      }),
+    );
+
+    await useExternalWriteQueueStore.getState().approve([id]);
+
+    expect(externalWriteApproveProposal).not.toHaveBeenCalled();
+    expect(useExternalWriteQueueStore.getState().items[0]).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('Multi-document'),
+    });
   });
 
   it('dismiss removes the item without sending it', () => {
