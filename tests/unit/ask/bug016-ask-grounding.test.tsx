@@ -175,9 +175,10 @@ describe('BUG-016 — Ask grounding', () => {
     h.verifyCitations.mockReset();
     h.answer.text = '';
     h.retrieve.mockResolvedValue([]);
-    h.verifyCitations.mockImplementation((citations?: unknown[]) =>
-      Promise.resolve((citations ?? []).map(() => ({ verdict: 'verified' })))
-    );
+    h.verifyCitations.mockImplementation((...args: unknown[]) => {
+      const citations = Array.isArray(args[0]) ? args[0] : [];
+      return Promise.resolve(citations.map(() => ({ verdict: 'verified' })));
+    });
     // Pin Files-only mode: this suite tests the strict cited-or-decline grounding
     // net, which is exactly Files-only mode's contract. (Smart mode is the
     // default and is covered in ask-smart-agent.test.tsx.)

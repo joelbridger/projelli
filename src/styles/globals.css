@@ -43,6 +43,7 @@
   --kp-text-faint: rgba(var(--kp-navy-rgb),0.70);      /* faint subtitles (surface descriptions) — 0.70 clears WCAG AA 4.5:1 on white AND on --kp-accent-soft (ConversationsRail's active-row background), where 0.68 only cleared by a 0.018 margin (4.518:1) */
   --kp-text-dim: rgba(var(--kp-navy-rgb),0.70);        /* dim secondary body text — 0.70 clears WCAG AA 4.5:1 on white with headroom above --kp-text-faint */
   --kp-bg-soft: #f3f6fb;                         /* soft panel tint (e.g. the Ask source panel) */
+  --kp-surface-card: #fff;                       /* raised/outlined cards on the light app canvas */
 
   /* ACTION style — the single light-blue treatment for primary buttons + active
      selections (matches the active tabs / left nav). NO dark navy fills anymore;
@@ -88,6 +89,7 @@
   --kp-assured: #1b5e86; --kp-assured-bg: #e1eef6; --kp-assured-line: #8fbedb;
   --kp-danger: #b02a1f; --kp-danger-bg: #f6e2df;
   --kp-success: #059669; --kp-success-bg: #e6f5ee; --kp-success-line: #8fc9b0;
+  --kp-success-text: #0a5c43;
   --kp-warning: #b45309; --kp-warning-bg: #fbf0e2; --kp-warning-line: #e3bf8a;
 
   /* Connector logo paint. These are brand marks, not app theme colours. */

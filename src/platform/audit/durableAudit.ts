@@ -9,7 +9,7 @@ export function createAuditPairId(prefix: string): string {
     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
       ? crypto.randomUUID()
       : Math.random().toString(36).slice(2, 11);
-  return `${prefix}_${Date.now()}_${random}`;
+  return `${prefix}_${String(Date.now())}_${random}`;
 }
 
 export function withDurableAuditPhase(

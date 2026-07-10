@@ -65,10 +65,10 @@ export function shouldPersistExistingClientDocumentFolder(
   fileTree: FileNode[],
   workspaceRoot: string | null | undefined,
 ): matter is Matter {
-  return Boolean(
+  return (
     shouldBackfillClientDocumentFolder(matter, resolvedFolderPaths) &&
-      resolvedFolderPaths.every((folderPath) =>
-        treeContainsFolderPath(fileTree, folderPath, workspaceRoot),
-      ),
+    resolvedFolderPaths.every((folderPath) =>
+      treeContainsFolderPath(fileTree, folderPath, workspaceRoot),
+    )
   );
 }

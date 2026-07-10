@@ -213,7 +213,7 @@ async function persistProposalItem(item: ProposedCrmWrite, householdKey?: string
 }
 
 function persistProposalItemBestEffort(item: ProposedCrmWrite, householdKey?: string): void {
-  void persistProposalItem(item, householdKey).catch((err) => {
+  void persistProposalItem(item, householdKey).catch((err: unknown) => {
     const message = err instanceof Error ? err.message : String(err);
     setItem(item.id, {
       status: 'failed',
@@ -223,14 +223,16 @@ function persistProposalItemBestEffort(item: ProposedCrmWrite, householdKey?: st
 }
 
 function persistProposalItemSilently(item: ProposedCrmWrite, householdKey?: string): void {
-  void persistProposalItem(item, householdKey).catch(() => {
+  void persistProposalItem(item, householdKey).catch((error: unknown) => {
     // After a confirmed provider write, local cleanup must not turn the UI red.
+    console.warn('[crmWriteQueueStore] Could not persist sent CRM proposal state:', error);
   });
 }
 
 function deleteProposalBestEffort(id: string): void {
-  void crmDeleteWriteProposal(id).catch(() => {
+  void crmDeleteWriteProposal(id).catch((error: unknown) => {
     // Deletion is retried by dismiss/send paths. Never log client proposal text.
+    console.warn('[crmWriteQueueStore] Could not delete CRM proposal record:', error);
   });
 }
 

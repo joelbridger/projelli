@@ -1569,24 +1569,30 @@ function AppShell() {
     },
     []
   );
+  const emitAuditEntry = useCallback(
+    (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
+      void addAuditEntry(entry);
+    },
+    [addAuditEntry]
+  );
 
   useEffect(() => {
-    setMatterAuditEmitter(addAuditEntry);
+    setMatterAuditEmitter(emitAuditEntry);
     return () => {
       setMatterAuditEmitter(null);
     };
-  }, [addAuditEntry]);
+  }, [emitAuditEntry]);
 
   // EmailViewer's only parent (MainPanel.tsx) isn't wired with an onAuditLog
   // prop, so it reaches the live Activity Log / confidentiality report the
   // same way the matter store does above: App registers its main audit
   // emitter, EmailViewer calls it directly for AI-draft egress + outbound send.
   useEffect(() => {
-    setEmailAuditEmitter(addAuditEntry);
+    setEmailAuditEmitter(emitAuditEntry);
     return () => {
       setEmailAuditEmitter(null);
     };
-  }, [addAuditEntry]);
+  }, [emitAuditEntry]);
 
   // Handle save audio recording (extracted to useAudioRecording)
   const { handleSaveAudioRecording } = useAudioRecording({
@@ -1635,7 +1641,7 @@ function AppShell() {
     completeRun,
     openTab,
     setFileTree,
-    addAuditEntry,
+    addAuditEntry: emitAuditEntry,
     workspaceServiceRef,
     templatesMetadataReaderRef,
     templatesMarketplaceServiceRef,
@@ -2100,7 +2106,7 @@ function AppShell() {
           handleEmptyTrash={handleEmptyTrash}
           handleTrashRetentionChange={handleTrashRetentionChange}
           refreshFileTree={refreshFileTree}
-          addAuditEntry={addAuditEntry}
+          addAuditEntry={emitAuditEntry}
           handleRequestApiKeySetup={handleRequestApiKeySetup}
           handleInterviewSubmit={handleInterviewSubmit}
           handleInterviewCancel={handleInterviewCancel}
@@ -2143,7 +2149,7 @@ function AppShell() {
       />
 
       <AppDialogs
-        addAuditEntry={addAuditEntry}
+        addAuditEntry={emitAuditEntry}
         matterManagerOpen={matterManagerOpen}
         setMatterManagerOpen={setMatterManagerOpen}
         clientSettingsMatterId={clientSettingsMatterId}

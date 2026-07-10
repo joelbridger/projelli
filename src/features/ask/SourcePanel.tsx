@@ -451,7 +451,7 @@ export function SourcePanel({
             padding: '10px 12px',
             border: '1px solid var(--kp-divider)',
             borderRadius: 10,
-            background: '#fff',
+            background: 'var(--kp-surface-card)',
             color: 'var(--kp-text-dim)',
           }}
         >

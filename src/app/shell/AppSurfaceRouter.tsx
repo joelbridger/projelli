@@ -171,7 +171,7 @@ type BuildDocumentsHomeOptions = {
   embedded?: boolean;
   scopeFolderPaths?: string[];
   scopeMatterId?: string;
-  ensureScopeFolder?: () => void;
+  ensureScopeFolderMatterId?: string;
 };
 
 function ClientDocumentsSurface({
@@ -179,16 +179,12 @@ function ClientDocumentsSurface({
   matters,
   rootPath,
   fileTree,
-  workspaceServiceRef,
-  setFileTree,
   renderDocumentsHome,
 }: {
   hubMatter: Matter | null;
   matters: Matter[];
   rootPath: string | null | undefined;
   fileTree: FileNode[];
-  workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
-  setFileTree: (tree: FileNode[]) => void;
   renderDocumentsHome: (opts: BuildDocumentsHomeOptions) => ReactNode;
 }) {
   const scopeFolderPaths = useMemo(
@@ -215,29 +211,13 @@ function ClientDocumentsSurface({
     useMatterStore.getState().setFolderPaths(matterId, scopeFolderPaths);
   }, [matterId, scopeFolderPaths, shouldPersistExistingFolder]);
 
-  const ensureScopeFolder = shouldBackfillClientDocumentFolder(hubMatter, scopeFolderPaths)
-    ? () => {
-        const folderPath = scopeFolderPaths[0];
-        useMatterStore.getState().setFolderPaths(hubMatter.id, scopeFolderPaths);
-        if (folderPath && workspaceServiceRef.current) {
-          void workspaceServiceRef.current
-            .mkdir(folderPath)
-            .then(() => workspaceServiceRef.current?.getFileTree())
-            .then((tree) => {
-              if (tree) setFileTree(tree);
-            })
-            .catch((error: unknown) => {
-              console.warn('[AppSurfaceRouter] could not create client document folder:', error);
-            });
-        }
-      }
-    : undefined;
-
   return renderDocumentsHome({
     embedded: true,
     scopeFolderPaths,
     ...(matterId ? { scopeMatterId: matterId } : {}),
-    ...(ensureScopeFolder ? { ensureScopeFolder } : {}),
+    ...(matterId && shouldBackfillClientDocumentFolder(hubMatter, scopeFolderPaths)
+      ? { ensureScopeFolderMatterId: matterId }
+      : {}),
   });
 }
 
@@ -421,7 +401,7 @@ export function AppSurfaceRouter({
       onFileOpen={handleFileOpen}
       onCreateFile={handleCreateFile}
       onCreateFolder={(parentPath) => {
-        opts.ensureScopeFolder?.();
+        ensureScopeFolderForDocumentsHome(opts);
         handleCreateFolder(parentPath);
       }}
       onRename={handleRename}
@@ -430,15 +410,15 @@ export function AppSurfaceRouter({
       onMove={handleMove}
       onDownload={handleDownload}
       onCreateDefaultDocument={(parentPath) => {
-        opts.ensureScopeFolder?.();
+        ensureScopeFolderForDocumentsHome(opts);
         handleCreateDefaultDocument(parentPath);
       }}
       onImportFiles={(folderPath) => {
-        opts.ensureScopeFolder?.();
+        ensureScopeFolderForDocumentsHome(opts);
         return handleImportFiles(folderPath);
       }}
       onCreateDocxAtRoot={(parentPath) => {
-        opts.ensureScopeFolder?.();
+        ensureScopeFolderForDocumentsHome(opts);
         return handleCreateDocxAtRoot(parentPath);
       }}
       onCreateTextFileAtRoot={handleCreateTextFileAtRoot}
@@ -460,6 +440,24 @@ export function AppSurfaceRouter({
       mainPanelContent={documentsMainPanel()}
     />
   );
+
+  function ensureScopeFolderForDocumentsHome(opts: BuildDocumentsHomeOptions): void {
+    if (!opts.ensureScopeFolderMatterId || !opts.scopeFolderPaths) return;
+    const folderPath = opts.scopeFolderPaths[0];
+    useMatterStore.getState().setFolderPaths(opts.ensureScopeFolderMatterId, opts.scopeFolderPaths);
+    const workspaceService = workspaceServiceRef.current;
+    if (folderPath && workspaceService) {
+      void workspaceService
+        .mkdir(folderPath)
+        .then(() => workspaceService.getFileTree())
+        .then((tree) => {
+          setFileTree(tree);
+        })
+        .catch((error: unknown) => {
+          console.warn('[AppSurfaceRouter] could not create client document folder:', error);
+        });
+    }
+  }
 
   const buildEmailWorkspace = (opts: {
     embedded?: boolean;
@@ -590,8 +588,6 @@ export function AppSurfaceRouter({
                 matters={useMatterStore.getState().matters}
                 rootPath={rootPath}
                 fileTree={fileTree}
-                workspaceServiceRef={workspaceServiceRef}
-                setFileTree={setFileTree}
                 renderDocumentsHome={buildDocumentsHome}
               />
             )

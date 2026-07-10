@@ -1637,7 +1637,7 @@ export function useAsk({
           sources,
           ...(blocks ? { blocks } : {}),
           readSources: readSourcesForPrompt,
-          ...(providerAudit?.providerId ? { providerId: providerAudit.providerId } : {}),
+          providerId: providerAudit.providerId,
           ...(egressDestinationForReceipt ? { egressDestination: egressDestinationForReceipt } : {}),
           // F2.5b (Codex P1) — durable "this answer used client file content"
           // marker, from the consent-gated grounding set (not the rendered
@@ -1692,7 +1692,7 @@ export function useAsk({
             ? { askBlocks: blocks.map((b) => ({ kind: b.kind, text: b.text })) }
             : {}),
           askReadSources: readSourcesForPrompt,
-          ...(providerAudit?.providerId ? { askProviderId: providerAudit.providerId } : {}),
+          askProviderId: providerAudit.providerId,
           ...(egressDestinationForReceipt ? { askEgressDestination: egressDestinationForReceipt } : {}),
           // F2.5b (Codex P1) — persist the file-grounding marker so history redaction
           // still works after a reload (reconstructTurns restores it).
