@@ -12,10 +12,10 @@
     --shipped:#0b7a4b; --shipped-bg:#e7f5ee;
     --building:#9a5b00; --building-bg:#fdf2e0;
     --planned:#4a5d80; --planned-bg:#eaeef6;
-    --flow:#b9c6dd; --stagew:330px;
+    --flow:#b9c6dd; --stagew:345px;
   }
   *{box-sizing:border-box; margin:0; padding:0}
-  body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); line-height:1.45}
+  body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; background:var(--bg); color:var(--ink); line-height:1.5}
   .wrap{max-width:1400px; margin:0 auto; padding:0 20px}
 
   header.hero{background:linear-gradient(160deg,var(--navy) 0%,var(--navy-soft) 100%); color:#fff; padding:30px 0 20px}
@@ -36,7 +36,7 @@
   .scrollhint{margin-left:auto; font-size:12.5px; color:var(--ink-mute)}
 
   /* ============ THE FLOW ============ */
-  main{padding:24px 0 40px}
+  main{padding:30px 0 46px}
   .flowscroller{overflow-x:auto; padding:8px 20px 4px; scrollbar-width:thin}
   .flow{position:relative; display:flex; align-items:stretch; gap:0; width:max-content; margin:0 auto; padding-top:64px}
 
@@ -47,7 +47,7 @@
 
   .stagecol{display:flex; flex-direction:column; width:var(--stagew); flex:none}
   section.stage{background:var(--card); border:1px solid var(--line); border-radius:14px; box-shadow:0 1px 2px rgba(22,41,75,.05); flex:1; display:flex; flex-direction:column}
-  .stage header{padding:14px 16px 11px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,#fbfcfe,#f4f6fa); border-radius:14px 14px 0 0}
+  .stage header{padding:16px 16px 14px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,#fbfcfe,#f4f6fa); border-radius:14px 14px 0 0}
   .stage h2{font-size:15.5px; color:var(--navy); display:flex; align-items:center; gap:9px}
   .stage h2 .num{flex:none; width:26px; height:26px; border-radius:50%; background:var(--navy); color:#fff; font-size:13px; font-weight:800; display:inline-flex; align-items:center; justify-content:center}
   .stage h2 .picto{font-size:16px}
@@ -58,9 +58,9 @@
   .mini .m-building{color:var(--building); background:var(--building-bg)}
   .mini .m-planned{color:var(--planned); background:var(--planned-bg)}
 
-  ul.features{list-style:none; padding:8px 14px 14px; position:relative; flex:1}
+  ul.features{list-style:none; padding:12px 16px 18px; position:relative; flex:1}
   ul.features::before{content:none}
-  li.feat{position:relative; display:flex; gap:10px; align-items:flex-start; padding:5.5px 4px 5.5px 0; border-radius:8px}
+  li.feat{position:relative; display:flex; gap:10px; align-items:flex-start; padding:8px 4px 8px 0; border-radius:8px}
   li.feat:hover{background:#f7f9fc}
   .stop{position:relative; z-index:1; flex:none; width:21px; height:21px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; border:2px solid; background:#fff; margin-top:1px}
   .s-shipped .stop{color:var(--shipped); border-color:var(--shipped); background:var(--shipped-bg)}
@@ -68,11 +68,11 @@
   .s-planned .stop{color:var(--planned); border-color:var(--planned); background:var(--planned-bg)}
   .feat .name{font-size:13.2px; font-weight:600; color:var(--ink)}
   .s-planned .name{color:#41506b}
-  .feat .note{font-size:12px; color:var(--ink-mute); margin-top:0}
+  .feat .note{font-size:12px; color:var(--ink-mute); margin-top:2px}
   .feat .badge{display:none; font-size:9.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; border-radius:5px; padding:1px 5px; margin-left:7px; vertical-align:1px}
-  li.group{list-style:none; position:relative; margin:9px 0 3px; padding-left:0}
+  li.group{list-style:none; position:relative; margin:9px 0 6px; padding-left:0}
   li.group:first-child{margin-top:2px}
-  li.group{border-top:1px solid var(--line); padding-top:10px; margin-top:12px}
+  li.group{border-top:1px solid var(--line); padding-top:15px; margin-top:18px}
   li.group:first-child{border-top:none; padding-top:0; margin-top:2px}
   li.group .glabel{display:block; font-size:14px; font-weight:700; color:var(--ink); background:none; padding:0}
   li.feat.hero .stop{width:26px; height:26px; font-size:12.5px; border-width:2.5px; margin-left:-2.5px}
@@ -91,14 +91,14 @@
   .conn .alabel{position:absolute; top:calc(50% + 12px); width:104px; text-align:center; font-size:10.8px; color:var(--ink-soft); line-height:1.3; background:var(--bg); border:1px solid var(--line); border-radius:9px; padding:3px 6px}
 
   /* foundation rail */
-  .foundation{margin:26px 20px 0; }
+  .foundation{margin:36px 20px 0; }
   .rail{max-width:1400px; margin:0 auto; background:linear-gradient(180deg,#1d3357,#16294b); border-radius:14px; color:#fff; overflow:hidden; border:1px solid #0f1f3a}
   .rail .ties{height:10px; background:repeating-linear-gradient(90deg, rgba(255,255,255,.25) 0 2px, transparent 2px 46px)}
-  .rail .inner{display:flex; gap:18px; align-items:flex-start; padding:16px 20px 18px; flex-wrap:wrap}
+  .rail .inner{display:flex; gap:18px; align-items:flex-start; padding:20px 20px 22px; flex-wrap:wrap}
   .rail h2{font-size:15.5px; display:flex; gap:9px; align-items:center; flex:none; max-width:250px; flex-direction:column; align-items:flex-start}
   .rail h2 .t{display:flex; gap:8px; align-items:center}
   .rail .story{font-size:12.5px; color:#b7c6e2; font-weight:400; font-style:italic; margin-top:4px}
-  .rail ul{list-style:none; display:flex; flex-wrap:wrap; gap:7px 9px; flex:1; min-width:300px}
+  .rail ul{list-style:none; display:flex; flex-wrap:wrap; gap:10px 10px; flex:1; min-width:300px}
   .rail li{display:inline-flex; align-items:center; gap:7px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:5px 12px 5px 7px; font-size:12.5px; font-weight:600}
   .rail li .stop{width:18px; height:18px; font-size:9px; border-width:2px}
   .rail li .note{font-weight:400; color:#a9b9d6; font-size:11.5px}
