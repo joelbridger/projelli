@@ -3,6 +3,12 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
 import type { DocUploadRequestItem, GuidedQuestionRequestItem, RequestItem, TypedFieldRequestItem } from '@/platform/intake/types';
+import {
+  DEFAULT_WELCOME_JOURNEY,
+  resolveWelcomeMergeFields,
+  sanitizeWelcomeJourney,
+  type WelcomeJourney,
+} from '@/features/intake/welcomeJourneyDefaults';
 
 import { openPageJson, sealPageJson } from './pageCrypto';
 import { RelayClient } from './relayClient';
@@ -127,7 +133,28 @@ export function normalizeFirm(firm: IntakeChecklist['firm'] | undefined): Intake
     next_steps: Array.isArray(firm?.next_steps)
       ? firm.next_steps.filter((step): step is string => typeof step === 'string' && step.trim().length > 0)
       : [],
+    journey: sanitizeWelcomeJourney(firm?.journey ?? DEFAULT_WELCOME_JOURNEY),
   };
+}
+
+function journeyFields(checklist: IntakeChecklist, firm: IntakeFirm, handoffPerson?: string): Record<string, string> {
+  const advisorFirstName = firm.advisor_name.split(/\s+/u)[0] || 'Your advisor';
+  return {
+    client_first_name: checklist.client_first_name,
+    firm_name: firm.name,
+    advisor_first_name: advisorFirstName,
+    advisor_full_name: firm.advisor_name,
+    support_first_name: advisorFirstName,
+    support_full_name: firm.advisor_name,
+    help_contact_label: firm.journey.help_contact_label,
+    primary_next_item: checklist.items.find(isActionable)?.label ?? 'the first checklist item',
+    paperwork_label: 'account paperwork',
+    new_team_member_full_name: handoffPerson ?? advisorFirstName,
+  };
+}
+
+function journeyText(text: string, checklist: IntakeChecklist, firm: IntakeFirm, handoffPerson?: string): string {
+  return resolveWelcomeMergeFields(text, journeyFields(checklist, firm, handoffPerson));
 }
 
 function parseClientNumber(raw: string): number | null {
@@ -318,6 +345,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const allDone = actionItems.every((item) => doneIds.has(item.item_id) || skipped.has(item.item_id));
   const item = checklist.items.find((entry) => entry.item_id === currentItemId);
   const firm = useMemo(() => normalizeFirm(checklist.firm), [checklist.firm]);
+  const journey = firm.journey;
   const accent = firm.accent;
 
   async function saveResume(next: ResumeState): Promise<void> {
@@ -425,8 +453,13 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   }
 
   if (privacyOpen) {
-    return <PrivacyScreen firm={firm} onBack={() => setPrivacyOpen(false)} />;
+    return <PrivacyScreen checklist={checklist} firm={firm} onBack={() => setPrivacyOpen(false)} />;
   }
+
+  const journeyState = resume.journey_state;
+  const statusState = journeyState && journeyState !== 'not_started' && journeyState !== 'in_progress'
+    ? journeyState
+    : null;
 
   return (
     <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
@@ -443,8 +476,10 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         </p>
       ) : null}
 
-      {currentItemId === 'completion' || allDone ? (
-        <CompletionScreen firm={firm} />
+      {statusState ? (
+        <JourneyStatusScreen checklist={checklist} firm={firm} resume={resume} state={statusState} />
+      ) : currentItemId === 'completion' || allDone ? (
+        <CompletionScreen checklist={checklist} firm={firm} resume={resume} />
       ) : item?.t === 'readonly_card' ? (
         <WelcomeScreen checklist={checklist} firm={firm} item={item} onLearn={() => setPrivacyOpen(true)} onStart={() => void moveTo(nextIncomplete())} />
       ) : item && doneIds.has(item.item_id) && replacingItemId !== item.item_id ? (
@@ -452,11 +487,13 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           item={item}
           local={localSubmitted.has(item.item_id)}
           confirmation={sessionConfirmations[item.item_id]}
+          phoneCompleted={resume.phone_completed_item_ids?.includes(item.item_id) ?? false}
+          phoneLabel={journeyText(journey.phone_walkthrough_label, checklist, firm)}
           onReplace={() => setReplacingItemId(item.item_id)}
           onContinue={() => void moveTo(nextIncomplete())}
         />
       ) : item ? (
-        <ItemInputScreen
+        <><ResumeBanner checklist={checklist} firm={firm} resume={resume} /><ItemInputScreen
           key={`${item.item_id}:${replacingItemId ?? 'new'}`}
           item={item}
           firmName={firm.name}
@@ -465,7 +502,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           busy={busyItemId === item.item_id}
           onSubmit={(payload, confirmation) => void handleSubmit(item, payload, confirmation)}
           onSkip={() => void handleSkip(item)}
-        />
+        /></>
       ) : (
         <ErrorScreen message="This checklist item could not be found." onRetry={() => window.location.reload()} />
       )}
@@ -522,34 +559,32 @@ function WelcomeScreen({
   return (
     <section className="panel">
       <p className="eyebrow">Secure intake</p>
-      <h1>{`Hi ${checklist.client_first_name}. Welcome to ${firm.name}.`}</h1>
-      <p>{item.help_text || (item.t === 'readonly_card' ? item.body : '')}</p>
+      <h1>{journeyText(firm.journey.welcome.headline, checklist, firm)}</h1>
+      <p>{journeyText(firm.journey.welcome.intro, checklist, firm)}</p>
+      <p>{journeyText(firm.journey.welcome.return_note, checklist, firm)}</p>
       <p>
-        This page locks your information on your device. Only {firm.name} can unlock it.{' '}
+        This page locks your information on your device. Only {firm.name} can unlock what you send.{' '}
         <button className="link-button" type="button" onClick={onLearn}>
           Learn how →
         </button>
       </p>
       <button className="primary-button" type="button" onClick={onStart}>
-        Start
+        {firm.journey.welcome.primary_action}
       </button>
+      <JourneyTimeline journey={firm.journey} currentId="welcome" />
     </section>
   );
 }
 
-function PrivacyScreen({ firm, onBack }: { firm: IntakeFirm; onBack: () => void }): JSX.Element {
+function PrivacyScreen({ checklist, firm, onBack }: { checklist: IntakeChecklist; firm: IntakeFirm; onBack: () => void }): JSX.Element {
   const accent = firm.accent;
   return (
     <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
       <section className="panel">
-        <p className="eyebrow">How this stays private</p>
-        <h1>Your answers lock before they leave this device.</h1>
-        <p>Your browser locks each answer before it sends anything.</p>
-        <p>{firm.name} has the key to unlock it.</p>
-        <p>Lantern holds the sealed package. Lantern cannot read your answers.</p>
-        <p>Email replies use your firm&apos;s email. They are not protected by this page.</p>
-        <p>This promise depends on the real Lantern page being sent to you. Your advisor sends it directly.</p>
-        <p className="provider-line">Lantern is the technology provider.</p>
+        <p className="eyebrow">Secure intake</p>
+        <h1>{journeyText(DEFAULT_WELCOME_JOURNEY.privacy.heading, checklist, firm)}</h1>
+        {DEFAULT_WELCOME_JOURNEY.privacy.body.map((line) => <p key={line}>{journeyText(line, checklist, firm)}</p>)}
+        <p className="provider-line">{journeyText(DEFAULT_WELCOME_JOURNEY.privacy.footer, checklist, firm)}</p>
         <button className="secondary-button" type="button" onClick={onBack}>
           Back
         </button>
@@ -562,12 +597,16 @@ function ProvidedScreen({
   item,
   local,
   confirmation,
+  phoneCompleted,
+  phoneLabel,
   onReplace,
   onContinue,
 }: {
   item: RequestItem;
   local: boolean;
   confirmation?: string;
+  phoneCompleted: boolean;
+  phoneLabel: string;
   onReplace: () => void;
   onContinue: () => void;
 }): JSX.Element {
@@ -576,6 +615,7 @@ function ProvidedScreen({
       <p className="eyebrow">{local ? 'Provided by you just now' : 'Provided'}</p>
       <h1>{item.label}</h1>
       <p className="provided-line">Provided ✓ {confirmation ?? ''}</p>
+      {phoneCompleted ? <p>{phoneLabel}</p> : null}
       <div className="button-row">
         <button className="secondary-button" type="button" onClick={onReplace}>
           Replace this answer
@@ -588,19 +628,49 @@ function ProvidedScreen({
   );
 }
 
-function CompletionScreen({ firm }: { firm: IntakeFirm }): JSX.Element {
+function CompletionScreen({ checklist, firm, resume }: { checklist: IntakeChecklist; firm: IntakeFirm; resume: ResumeState }): JSX.Element {
+  const journey = firm.journey;
   return (
     <section className="panel">
       <p className="eyebrow">{firm.name}</p>
-      <h1>That&apos;s everything for now.</h1>
-      <p>Here&apos;s what happens next.</p>
-      <ol className="next-list">
-        {firm.next_steps.map((step) => (
-          <li key={step}>{step}</li>
-        ))}
-      </ol>
+      <h1>{journeyText(journey.completion.heading, checklist, firm)}</h1>
+      {journeyText(journey.completion.body, checklist, firm).split('\n\n').map((line) => <p key={line}>{line}</p>)}
+      <h2>{journey.completion.section_heading}</h2>
+      <p>{journeyText(journey.completion.nothing_needed, checklist, firm)}</p>
+      <JourneyTimeline journey={journey} currentId={resume.current_milestone_id ?? 'reviewing'} />
+      <TeamBlock checklist={checklist} firm={firm} />
+      <HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} />
+      <section className="help-block"><h2>{journey.welcome.help_heading}</h2><p>{journey.help_contact_label}</p></section>
     </section>
   );
+}
+
+function ResumeBanner({ checklist, firm, resume }: { checklist: IntakeChecklist; firm: IntakeFirm; resume: ResumeState }): JSX.Element | null {
+  if (!resume.current_item_id || resume.current_item_id === 'welcome') return null;
+  const state = resume.journey_state === 'not_started' ? 'not_started' : 'in_progress';
+  const copy = firm.journey.resume[state];
+  return <section className="panel resume-banner"><h2>{journeyText(copy.heading, checklist, firm)}</h2><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={resume.current_milestone_id ?? 'information_needed'} compact /></section>;
+}
+
+function JourneyStatusScreen({ checklist, firm, resume, state }: { checklist: IntakeChecklist; firm: IntakeFirm; resume: ResumeState; state: Exclude<NonNullable<ResumeState['journey_state']>, 'not_started' | 'in_progress'> }): JSX.Element {
+  const copy = firm.journey.resume[state];
+  return <section className="panel"><p className="eyebrow">{firm.name}</p><h1>{journeyText(copy.heading, checklist, firm)}</h1><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={state === 'signature_ready' ? 'signature_or_transfer' : state === 'active_client' ? 'active_client' : state} /><TeamBlock checklist={checklist} firm={firm} /><HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} /><section className="help-block"><h2>{firm.journey.welcome.help_heading}</h2><p>{firm.journey.help_contact_label}</p></section></section>;
+}
+
+function JourneyTimeline({ journey, currentId, compact = false }: { journey: WelcomeJourney; currentId: string; compact?: boolean }): JSX.Element {
+  const visible = journey.timeline.filter((step) => step.visible);
+  return <section className={compact ? 'journey-timeline compact' : 'journey-timeline'} aria-label="What happens next"><h2>{compact ? journey.active_checklist.timeline_label : journey.welcome.timeline_heading}</h2><ol>{visible.map((step) => <li key={step.id} className={step.id === currentId ? 'current' : ''}><strong>{step.label}</strong><span>{step.description}</span>{step.id === currentId ? <em>Next move: {step.owner}</em> : null}</li>)}</ol></section>;
+}
+
+function TeamBlock({ checklist, firm }: { checklist: IntakeChecklist; firm: IntakeFirm }): JSX.Element {
+  const people = firm.journey.people.filter((person) => person.id === 'lead_advisor' ? Boolean(firm.advisor_name.trim()) : Boolean(person.name?.trim()));
+  if (people.length === 0) return <></>;
+  return <section className="team-block"><h2>{firm.journey.welcome.team_heading}</h2><p>{firm.journey.welcome.team_intro}</p>{people.map((person) => { const name = person.name?.trim() || journeyText('[advisor_full_name]', checklist, firm); const initials = person.initials ?? name.split(/\s+/u).map((part) => part[0] ?? '').join('').slice(0, 2).toUpperCase(); return <article key={person.id} className="team-person"><span className="team-avatar" aria-hidden="true">{initials}</span><strong>{name}</strong><span>{person.role}</span><p>{journeyText(person.ask_about, checklist, firm)}</p>{person.contact ? <p>{person.contact}</p> : null}</article>; })}</section>;
+}
+
+function HandoffNotice({ checklist, firm, handoffPerson }: { checklist: IntakeChecklist; firm: IntakeFirm; handoffPerson?: string }): JSX.Element | null {
+  if (!handoffPerson?.trim()) return null;
+  return <section className="help-block"><h2>{journeyText(firm.journey.handoff.heading, checklist, firm, handoffPerson)}</h2><p>{journeyText(firm.journey.handoff.body, checklist, firm, handoffPerson)}</p></section>;
 }
 
 function ItemInputScreen({

@@ -13,6 +13,7 @@ import {
 import { buildLinkFragment } from '../../src/platform/intake/intakeLink';
 import type { BundleResponse, ChunkUpload, StateBlob, SubmitManifest } from '../../src/platform/intake/intakeContract';
 import type { FormRequest } from '../../src/platform/intake/types';
+import type { WelcomeJourney } from '../../src/features/intake/welcomeJourneyDefaults';
 
 const PAGE_BLOB_VERSION = 1;
 const PAGE_IV_BYTES = 12;
@@ -25,6 +26,7 @@ interface IntakeChecklist extends FormRequest {
     advisor_name: string;
     advisor_email: string;
     next_steps: string[];
+    journey?: WelcomeJourney;
   };
 }
 
@@ -41,6 +43,7 @@ interface RelayHarness {
 interface RelaySetupOptions {
   checklist?: IntakeChecklist | Omit<IntakeChecklist, 'firm'>;
   finalized?: string[];
+  resume?: Record<string, unknown>;
 }
 
 function bytesToB64(bytes: Uint8Array): string {
@@ -202,6 +205,7 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
     current_item_id: 'welcome',
     completion_flags: {},
     confirmations: {},
+    ...options.resume,
   });
   const finalizedItemIds = new Set(options.finalized ?? []);
   const chunks: ChunkUpload[] = [];
@@ -325,7 +329,7 @@ async function openSubmittedPayload(harness: RelayHarness, itemId: string, index
 }
 
 async function startChecklist(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Start' }).click();
+  await page.getByRole('button', { name: 'Continue secure checklist' }).click();
 }
 
 async function expectSubmitCount(relay: RelayHarness, itemId: string, count: number): Promise<void> {
@@ -369,7 +373,7 @@ async function completeIncome(page: Page): Promise<void> {
 async function completeSpending(page: Page): Promise<void> {
   await page.getByRole('button', { name: "I don't know yet" }).click();
   await page.getByRole('button', { name: 'Save and continue' }).click();
-  await expect(page.getByRole('heading', { name: "That's everything for now." })).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Thanks, Sarah. You've sent the information we need to start." })).toBeVisible();
 }
 
 async function completeAll(page: Page): Promise<void> {
@@ -392,9 +396,11 @@ test('boots, decrypts the bundle, and renders the firm from sealed data', async 
 
   await page.goto(relay.url);
 
-  await expect(page.getByRole('heading', { name: 'Hi Sarah. Welcome to Journey Beyond Wealth.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome, Sarah.' })).toBeVisible();
   await expect(page.getByText('This page locks your information on your device.')).toBeVisible();
   await expect(page.getByText('Lantern secure intake')).not.toBeVisible();
+  await expect(page.getByText('Information needed')).toBeVisible();
+  await expect(page.getByText('Only Journey Beyond Wealth can unlock what you send.')).toBeVisible();
 });
 
 test('opens an older link that has no firm branding', async ({ page }) => {
@@ -404,7 +410,7 @@ test('opens an older link that has no firm branding', async ({ page }) => {
 
   await page.goto(relay.url);
 
-  await expect(page.getByRole('heading', { name: 'Hi Sarah. Welcome to Advisor Prep Hero.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome, Sarah.' })).toBeVisible();
   const accent = await page.locator('.page-shell').first().evaluate((element) => (element as HTMLElement).style.getPropertyValue('--accent'));
   expect(accent).toBe('#2f7d62');
 });
@@ -415,7 +421,10 @@ test('submits five client items as sealed chunks and sealed manifests', async ({
 
   await completeAll(page);
 
-  await expect(page.getByRole('heading', { name: "That's everything for now." })).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Thanks, Sarah. You've sent the information we need to start." })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What happens next' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your team' })).toBeVisible();
+  await expect(page.locator('body')).not.toContainText('—');
   expect(relay.submits.map((submit) => submit.item_id)).toEqual(['dob', 'ssn', 'license', 'license', 'income', 'spending']);
   expect(relay.chunks.length).toBeGreaterThanOrEqual(6);
 
@@ -441,9 +450,43 @@ test('resumes at the next incomplete item after a full reload', async ({ page })
   await expectSubmitCount(relay, 'dob', 1);
   await page.reload();
 
+  await expect(page.getByRole('heading', { name: 'Welcome back, Sarah.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeVisible();
   await page.getByRole('button', { name: /Date of birth.*provided/i }).click();
   await expect(page.getByText('Provided ✓')).toBeVisible();
+});
+
+test('shows the reviewing state from sealed resume data', async ({ page }) => {
+  const relay = await setupRelay(page, {
+    resume: { current_item_id: 'income', journey_state: 'reviewing', current_milestone_id: 'reviewing' },
+  });
+  await page.goto(relay.url);
+
+  await expect(page.getByRole('heading', { name: "We're reviewing what you shared." })).toBeVisible();
+  await expect(page.getByText('You do not need to do anything right now. Dana will reach out if anything is missing.')).toBeVisible();
+  await expect(page.getByText('Your team')).toBeVisible();
+});
+
+test('only shows the configured lead advisor when the other team slots are empty', async ({ page }) => {
+  const relay = await setupRelay(page, {
+    resume: { current_item_id: 'income', journey_state: 'reviewing', current_milestone_id: 'reviewing' },
+  });
+  await page.goto(relay.url);
+
+  await expect(page.locator('.team-person')).toHaveCount(1);
+  await expect(page.locator('.team-person')).toContainText('Dana');
+  await expect(page.locator('.team-person')).not.toContainText('Client service associate');
+});
+
+test('shows the sealed staff handoff notice on the completion screen', async ({ page }) => {
+  const relay = await setupRelay(page, {
+    finalized: ['dob', 'ssn', 'license', 'income', 'spending'],
+    resume: { current_item_id: 'completion', handoff_person_name: 'Priya Shah' },
+  });
+  await page.goto(relay.url);
+
+  await expect(page.getByRole('heading', { name: 'Your team has been updated.' })).toBeVisible();
+  await expect(page.getByText('Priya Shah can help with uploads, signatures, and scheduling.')).toBeVisible();
 });
 
 test('resumes past items that the server already finalized', async ({ page }) => {
@@ -464,7 +507,7 @@ test('ignores hostile accent colors and makes no third-party request', async ({ 
 
   await page.goto(relay.url);
 
-  await expect(page.getByRole('heading', { name: 'Hi Sarah. Welcome to Journey Beyond Wealth.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Welcome, Sarah.' })).toBeVisible();
   const accent = await page.locator('.page-shell').first().evaluate((element) => (element as HTMLElement).style.getPropertyValue('--accent'));
   expect(accent).toBe('#2f7d62');
   expect(relay.externalRequests).toEqual([]);
@@ -586,7 +629,7 @@ test('treats upload max files as a limit and rejects oversize files', async ({ p
   await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
   await page.getByRole('button', { name: 'Save and continue' }).click();
 
-  await expect(page.getByRole('heading', { name: "That's everything for now." })).toBeVisible();
+  await expect(page.getByRole('heading', { name: "Thanks, Sarah. You've sent the information we need to start." })).toBeVisible();
   const upload = await openSubmittedPayload(relay, 'tax_statements');
   expect(upload.manifestFileNames).toEqual(['statement.pdf']);
 });

@@ -3976,6 +3976,31 @@
     }
   },
   "intake": {
+    "journey": {
+      "title": "Willkommensablauf",
+      "description": "Wird über den einen sicheren Onboarding-Link dieses Kunden angezeigt.",
+      "save-firm-default": "Als Firmengrundeinstellung speichern",
+      "welcome-headline": "Willkommensüberschrift",
+      "welcome-introduction": "Willkommenseinleitung",
+      "team-introduction": "Teameinleitung",
+      "help-contact": "Hilfe-Kontakt",
+      "completion-headline": "Abschlussüberschrift",
+      "completion-copy": "Abschlusstext",
+      "nothing-needed-copy": "Text für nichts erforderlich",
+      "paperwork-pending-copy": "Text für ausstehende Unterlagen",
+      "timeline": "Zeitplan",
+      "milestone-label": "Bezeichnung für {{milestone}}",
+      "milestone-description": "Beschreibung für {{milestone}}",
+      "milestone-owner": "Verantwortlich für {{milestone}}",
+      "show-milestone": "Diesen Meilenstein anzeigen",
+      "team": "Ihr Team",
+      "person-name": "Name von {{person}}",
+      "person-title": "Titel von {{person}}",
+      "person-initials": "Initialen von {{person}}",
+      "person-ask-about": "{{person}} fragen zu",
+      "person-contact": "Kontakt von {{person}}",
+      "security-note": "Die Sicherheitserklärung bleibt fest, damit jeder Kunde dasselbe ehrliche Versprechen erhält."
+    },
     "onboarding": {
       "no-link": "Für diesen Kunden wurde noch kein Onboarding-Link erstellt.",
       "activity-count": "{{completed}} von {{total}} Elementen weisen Aktivität auf.",

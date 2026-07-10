@@ -1,4 +1,5 @@
 import type { FormRequest, RequestItem } from '@/platform/intake/types';
+import { DEFAULT_WELCOME_JOURNEY } from './welcomeJourneyDefaults';
 
 export const NEW_HOUSEHOLD_BLUEPRINT = 'new_household_v1';
 export const NEW_HOUSEHOLD_NEXT_STEP =
@@ -16,7 +17,7 @@ export function defaultNewHouseholdItems(): RequestItem[] {
       help_text: '',
       required: false,
       subject: 'household',
-      body: 'Seven short steps and a few documents. Stop anytime and pick up where you left off.',
+      body: `${DEFAULT_WELCOME_JOURNEY.welcome.intro}\n\n${DEFAULT_WELCOME_JOURNEY.welcome.return_note}`,
     },
     {
       t: 'typed_field',
@@ -77,7 +78,7 @@ export function defaultNewHouseholdItems(): RequestItem[] {
       help_text: '',
       required: false,
       subject: 'household',
-      body: NEW_HOUSEHOLD_NEXT_STEP,
+      body: DEFAULT_WELCOME_JOURNEY.completion.body,
     },
   ];
 }

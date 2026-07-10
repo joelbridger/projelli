@@ -3976,6 +3976,31 @@
     }
   },
   "intake": {
+    "journey": {
+      "title": "Recorrido de bienvenida",
+      "description": "Se muestra en el único enlace seguro de incorporación de este cliente.",
+      "save-firm-default": "Guardar como ajuste predeterminado de la firma",
+      "welcome-headline": "Titular de bienvenida",
+      "welcome-introduction": "Introducción de bienvenida",
+      "team-introduction": "Introducción del equipo",
+      "help-contact": "Contacto de ayuda",
+      "completion-headline": "Titular de finalización",
+      "completion-copy": "Texto de finalización",
+      "nothing-needed-copy": "Texto de nada necesario",
+      "paperwork-pending-copy": "Texto de documentación pendiente",
+      "timeline": "Cronología",
+      "milestone-label": "Etiqueta de {{milestone}}",
+      "milestone-description": "Descripción de {{milestone}}",
+      "milestone-owner": "Responsable de {{milestone}}",
+      "show-milestone": "Mostrar este hito",
+      "team": "Tu equipo",
+      "person-name": "Nombre de {{person}}",
+      "person-title": "Cargo de {{person}}",
+      "person-initials": "Iniciales de {{person}}",
+      "person-ask-about": "Preguntar a {{person}} sobre",
+      "person-contact": "Contacto de {{person}}",
+      "security-note": "La explicación de seguridad se mantiene fija para que cada cliente reciba la misma promesa honesta."
+    },
     "onboarding": {
       "no-link": "Aún no se ha creado un enlace de incorporación para este cliente.",
       "activity-count": "{{completed}} de {{total}} elementos tienen actividad.",

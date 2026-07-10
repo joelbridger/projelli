@@ -2,6 +2,7 @@ import type { OnboardingRow } from './onboardingModel';
 import type { IntakeRecord } from './intakeStore';
 import type { OnboardingConfig } from './nudgeTypes';
 import { reconstructAdvisorIntakeLink } from './advisorIntakeLink';
+import { renderWelcomeJourneyEmail } from '@/features/intake/welcomeJourneyDefaults';
 
 export interface NudgeDraftConfig extends OnboardingConfig {
   now?: Date;
@@ -24,6 +25,11 @@ export interface BuiltNudgeDraft {
 }
 
 type TemplateKind = 'gentle' | 'helpful' | 'call';
+
+// TODO(W5b-followup): connect the other approved milestone starters in
+// WELCOME_JOURNEY_EMAILS to their board events. They already use this draft
+// shape and the existing advisor-approval rail; this lane wires welcome and
+// stalled-item reminders without adding a second send path.
 
 export const NUDGE_LINK_UNAVAILABLE_ERROR =
   'Regenerate the onboarding link before saving a nudge. The app could not rebuild a working client link.';
@@ -56,6 +62,24 @@ function templateSubject(kind: TemplateKind, firmName: string): string {
     default:
       return `A few onboarding items for ${firmName}`;
   }
+}
+
+function renderApprovedReminder(input: {
+  clientFirstName: string;
+  advisorFirstName: string;
+  supportFirstName: string;
+  firmName: string;
+  missingItemLabels: string[];
+  intakeLink: string;
+}): { subject: string; body: string } {
+  return renderWelcomeJourneyEmail('gentle_reminder', {
+    client_first_name: input.clientFirstName,
+    advisor_first_name: input.advisorFirstName,
+    support_first_name: input.supportFirstName,
+    firm_name: input.firmName,
+    missing_items_sentence: input.missingItemLabels.join(', '),
+    secure_link: input.intakeLink,
+  });
 }
 
 function renderCallBody(input: {
@@ -232,8 +256,16 @@ export function buildNudgeDraft(
   const intakeLink = cleanLine(cfg.intakeLink ?? intake.link, '');
   if (!intakeLink) throw nudgeLinkUnavailableError();
   const kind = chooseTemplate(sequence, row.nudgeEligibility.suggestCall);
-  const subject = templateSubject(kind, firmName);
-  const bodyText = enforceNudgeBodyInvariants(renderBody(kind, {
+  const approvedReminder = kind === 'gentle' ? renderApprovedReminder({
+    clientFirstName,
+    advisorFirstName,
+    supportFirstName: advisorFirstName,
+    firmName,
+    missingItemLabels,
+    intakeLink,
+  }) : null;
+  const subject = approvedReminder?.subject ?? templateSubject(kind, firmName);
+  const bodyText = enforceNudgeBodyInvariants(approvedReminder?.body ?? renderBody(kind, {
     clientFirstName,
     advisorFirstName,
     firmName,
