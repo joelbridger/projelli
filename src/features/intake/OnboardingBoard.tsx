@@ -2,12 +2,10 @@ import { useCallback, useMemo, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ClipboardList, Plus } from 'lucide-react';
 
-import {
-  EV_MATTER_LAUNCH,
-  EV_OPEN_MATTER_MANAGER,
-} from '@/config/identity';
+import { EV_MATTER_LAUNCH, EV_OPEN_MATTER_MANAGER } from '@/config/identity';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
+import { reconstructAdvisorIntakeLink } from '@/platform/intake/advisorIntakeLink';
 import {
   deriveOnboardingRow,
   sortOnboardingRows,
@@ -47,44 +45,36 @@ export function OnboardingBoard({
   const { t } = useTranslation();
   const intakesById = useIntakeStore((state) => state.intakesById);
   const setClientMapHubTab = useMatterStore(
-    (state) => state.setClientMapHubTab,
+    (state) => state.setClientMapHubTab
   );
   const handleNewClient = onNewClient ?? defaultNewClient;
 
   const activeIntakes = useMemo(
     () =>
-      Object.values(intakesById).filter(
-        (intake) => intake.status === 'active',
-      ),
-    [intakesById],
+      Object.values(intakesById).filter((intake) => intake.status === 'active'),
+    [intakesById]
   );
 
-  const rows = useMemo(
-    () => {
-      const effectiveNow = now ?? new Date();
-      return sortOnboardingRows(
-        activeIntakes.map((intake) =>
-          deriveOnboardingRow(
-            intake,
-            effectiveNow,
-            DEFAULT_ONBOARDING_CONFIG,
-          ),
-        ),
-      );
-    },
-    [activeIntakes, now],
-  );
+  const rows = useMemo(() => {
+    const effectiveNow = now ?? new Date();
+    return sortOnboardingRows(
+      activeIntakes.map((intake) =>
+        deriveOnboardingRow(intake, effectiveNow, DEFAULT_ONBOARDING_CONFIG)
+      )
+    );
+  }, [activeIntakes, now]);
 
   const openRow = useCallback(
     (row: OnboardingRow) => {
-      setClientMapHubTab('onboarding');
       window.dispatchEvent(
         new CustomEvent(EV_MATTER_LAUNCH, {
           detail: { matterId: row.matterId, surface: 'matters' },
-        }),
+        })
       );
+      // LANE1-FIX-ROW-LAUNCH: the app listener picks the client during dispatch and defaults the hub to Overview, so the board selects Onboarding after that listener returns.
+      setClientMapHubTab('onboarding');
     },
-    [setClientMapHubTab],
+    [setClientMapHubTab]
   );
 
   const reviewRow = useCallback(
@@ -95,17 +85,37 @@ export function OnboardingBoard({
       }
       openRow(row);
     },
-    [onReviewItems, openRow],
+    [onReviewItems, openRow]
   );
 
   const copyLink = useCallback(
-    (row: OnboardingRow) => {
-      if (onCopyLink) return onCopyLink(row);
-      const link = intakesById[row.requestId]?.link;
-      if (!link || typeof navigator === 'undefined') return undefined;
-      return navigator.clipboard.writeText(link);
+    async (row: OnboardingRow) => {
+      if (onCopyLink) {
+        await onCopyLink(row);
+        return;
+      }
+      const intake = intakesById[row.requestId];
+      if (!intake) throw new Error('No intake link is available.');
+      const clipboard = (
+        navigator as unknown as {
+          clipboard?: { writeText?: (text: string) => Promise<void> };
+        }
+      ).clipboard;
+      if (!clipboard?.writeText) {
+        throw new Error('Clipboard is not available.');
+      }
+      const link =
+        intake.link ??
+        (intake.publicKeyRawB64
+          ? await reconstructAdvisorIntakeLink({
+              intakeId: intake.intakeId,
+              publicKeyRawB64: intake.publicKeyRawB64,
+            })
+          : null);
+      if (!link) throw new Error('No intake link is available.');
+      await clipboard.writeText(link);
     },
-    [intakesById, onCopyLink],
+    [intakesById, onCopyLink]
   );
 
   return (
@@ -169,6 +179,11 @@ export function OnboardingBoard({
               onOpen={openRow}
               onReviewItems={reviewRow}
               onCopyLink={copyLink}
+              canCopyLink={Boolean(
+                onCopyLink ||
+                intakesById[row.requestId]?.link ||
+                intakesById[row.requestId]?.publicKeyRawB64
+              )}
               {...(onOpenNudge ? { onOpenNudge } : {})}
               {...(onOpenLinkSignals ? { onOpenLinkSignals } : {})}
               {...(renderNudgeSlot ? { renderNudgeSlot } : {})}

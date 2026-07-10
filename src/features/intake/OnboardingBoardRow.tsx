@@ -25,6 +25,7 @@ export interface OnboardingBoardRowProps {
   onOpen: (row: OnboardingRow) => void;
   onReviewItems: (row: OnboardingRow) => void;
   onCopyLink: (row: OnboardingRow) => Promise<void> | void;
+  canCopyLink?: boolean;
   onOpenNudge?: (row: OnboardingRow) => void;
   onOpenLinkSignals?: (row: OnboardingRow) => void;
   renderNudgeSlot?: (row: OnboardingRow) => ReactNode;
@@ -36,14 +37,17 @@ function stopAction(event: MouseEvent<HTMLButtonElement>): void {
 }
 
 function rowShouldHandleKey(event: KeyboardEvent<HTMLDivElement>): boolean {
-  return event.key === 'Enter' || event.key === ' ';
+  return (
+    event.target === event.currentTarget &&
+    (event.key === 'Enter' || event.key === ' ')
+  );
 }
 
 function progressPercent(row: OnboardingRow): number {
   if (row.requiredCount <= 0) return 100;
   return Math.max(
     0,
-    Math.min(100, Math.round((row.receivedCount / row.requiredCount) * 100)),
+    Math.min(100, Math.round((row.receivedCount / row.requiredCount) * 100))
   );
 }
 
@@ -56,6 +60,7 @@ export function OnboardingBoardRow({
   onOpen,
   onReviewItems,
   onCopyLink,
+  canCopyLink = true,
   onOpenNudge,
   onOpenLinkSignals,
   renderNudgeSlot,
@@ -65,9 +70,11 @@ export function OnboardingBoardRow({
   const [copied, setCopied] = useState(false);
   const shownMissing = row.missingItemLabels.slice(0, MAX_MISSING_LABELS);
   const hiddenMissingCount = safeCount(
-    row.missingItemLabels.length - shownMissing.length,
+    row.missingItemLabels.length - shownMissing.length
   );
   const pct = progressPercent(row);
+  const hasNudgeAction = Boolean(onOpenNudge || renderNudgeSlot);
+  const hasLinkSignalsAction = Boolean(onOpenLinkSignals || renderLinkSignals);
 
   const activityLabel = useMemo(() => {
     if (row.isStalled) {
@@ -112,24 +119,23 @@ export function OnboardingBoardRow({
   ]);
 
   const handleCopy = () => {
-    const result = onCopyLink(row);
-    if (result instanceof Promise) {
-      result
-        .then(() => {
-          setCopied(true);
-          window.setTimeout(() => {
-            setCopied(false);
-          }, 1600);
-        })
-        .catch((error: unknown) => {
-          console.error('Failed to copy onboarding link:', error);
-        });
+    let result: Promise<void> | void;
+    try {
+      result = onCopyLink(row);
+    } catch (error) {
+      console.error('Failed to copy onboarding link:', error);
       return;
     }
-    setCopied(true);
-    window.setTimeout(() => {
-      setCopied(false);
-    }, 1600);
+    void Promise.resolve(result)
+      .then(() => {
+        setCopied(true);
+        window.setTimeout(() => {
+          setCopied(false);
+        }, 1600);
+      })
+      .catch((error: unknown) => {
+        console.error('Failed to copy onboarding link:', error);
+      });
   };
 
   const rowAccent = row.isStalled
@@ -155,7 +161,8 @@ export function OnboardingBoardRow({
       }}
       style={{
         display: 'grid',
-        gridTemplateColumns: 'minmax(160px, 0.9fr) minmax(170px, 1.1fr) minmax(120px, 0.7fr) minmax(170px, 0.9fr) auto',
+        gridTemplateColumns:
+          'minmax(160px, 0.9fr) minmax(170px, 1.1fr) minmax(120px, 0.7fr) minmax(170px, 0.9fr) auto',
         gap: 'var(--kp-space-md)',
         alignItems: 'center',
         padding: '16px 18px 16px 14px',
@@ -388,7 +395,7 @@ export function OnboardingBoardRow({
           variant="secondary"
           size="sm"
           iconLeft={Bell}
-          disabled={!row.isStalled}
+          disabled={!row.isStalled || !hasNudgeAction}
           data-testid={`onboarding-row-nudge-${row.requestId}`}
           onClick={(event) => {
             stopAction(event);
@@ -401,6 +408,7 @@ export function OnboardingBoardRow({
           variant="secondary"
           size="sm"
           iconLeft={Copy}
+          disabled={!canCopyLink}
           data-testid={`onboarding-row-copy-link-${row.requestId}`}
           onClick={(event) => {
             stopAction(event);
@@ -415,6 +423,7 @@ export function OnboardingBoardRow({
           variant="secondary"
           size="sm"
           iconLeft={Info}
+          disabled={!hasLinkSignalsAction}
           data-testid={`onboarding-row-link-signals-${row.requestId}`}
           onClick={(event) => {
             stopAction(event);
