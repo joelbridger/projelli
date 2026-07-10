@@ -116,6 +116,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const seatToken = useFirmStore((s) => s.seatToken);
   const accessToken = useFirmStore((s) => s.accessToken);
   const firmSession = useFirmStore((s) => s.session);
+  const firmId = firmSession?.org?.org_id;
   const firmName = firmSession?.org?.name ?? BRAND.name;
   const rootPath = useWorkspaceStore((s) => s.rootPath);
 
@@ -149,7 +150,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       setPhone('');
       setStep('details');
       setItems(defaultNewHouseholdItems());
-      const firmDefault = loadFirmWelcomeJourneyDefault();
+      const firmDefault = loadFirmWelcomeJourneyDefault(firmId);
       setWelcomeJourney(copyWelcomeJourney(firmDefault ?? DEFAULT_WELCOME_JOURNEY));
       setHasFirmWelcomeDefault(Boolean(firmDefault));
       setSentLink('');
@@ -166,7 +167,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       };
     }
     return undefined;
-  }, [open]);
+  }, [firmId, open]);
 
   const canReview = name.trim() !== '' && items.length > 0;
   const emailHref = useMemo(() => {
@@ -504,7 +505,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
                 <WhatHappensNextEditor
                   value={welcomeJourney}
                   onChange={setWelcomeJourney}
-                  onSaveDefault={(next) => { saveFirmWelcomeJourneyDefault(next); setWelcomeJourney(next); setHasFirmWelcomeDefault(true); }}
+                  {...(firmId ? { onSaveDefault: (next: WelcomeJourney) => { saveFirmWelcomeJourneyDefault(firmId, next); setWelcomeJourney(next); setHasFirmWelcomeDefault(true); } } : {})}
                 />
               </div>
             </details>

@@ -115,16 +115,26 @@ export function copyWelcomeJourney(value: WelcomeJourney = DEFAULT_WELCOME_JOURN
 }
 
 const FIRM_DEFAULT_STORAGE_KEY = 'lantern.intake.welcome-journey.v1';
+const JOURNEY_OWNERS: JourneyOwner[] = ['client', 'firm', 'advisor', 'staff', 'custodian', 'signing provider', 'outside signature path'];
 
-export function loadFirmWelcomeJourneyDefault(): WelcomeJourney | null {
+function firmDefaultStorageKey(firmId: string | null | undefined): string | null {
+  const normalized = firmId?.trim();
+  return normalized ? `${FIRM_DEFAULT_STORAGE_KEY}.${encodeURIComponent(normalized)}` : null;
+}
+
+export function loadFirmWelcomeJourneyDefault(firmId: string | null | undefined): WelcomeJourney | null {
+  const storageKey = firmDefaultStorageKey(firmId);
+  if (!storageKey) return null;
   try {
-    const raw = localStorage.getItem(FIRM_DEFAULT_STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     return raw ? sanitizeWelcomeJourney(JSON.parse(raw) as WelcomeJourney) : null;
   } catch { return null; }
 }
 
-export function saveFirmWelcomeJourneyDefault(value: WelcomeJourney): void {
-  localStorage.setItem(FIRM_DEFAULT_STORAGE_KEY, JSON.stringify(sanitizeWelcomeJourney(value)));
+export function saveFirmWelcomeJourneyDefault(firmId: string | null | undefined, value: WelcomeJourney): void {
+  const storageKey = firmDefaultStorageKey(firmId);
+  if (!storageKey) return;
+  localStorage.setItem(storageKey, JSON.stringify(sanitizeWelcomeJourney(value)));
 }
 
 /** Privacy and account rules are product promises, never firm custom fields. */
@@ -132,7 +142,25 @@ export function sanitizeWelcomeJourney(value: WelcomeJourney): WelcomeJourney {
   const next = copyWelcomeJourney(value);
   next.privacy = copyWelcomeJourney(DEFAULT_WELCOME_JOURNEY).privacy;
   next.phone_walkthrough_label = DEFAULT_WELCOME_JOURNEY.phone_walkthrough_label;
+  repairWelcomeJourneyTimeline(next);
   return next;
+}
+
+/** A client must always see at least one next step and the person responsible for it. */
+function repairWelcomeJourneyTimeline(journey: WelcomeJourney): void {
+  if (journey.timeline.length === 0) {
+    journey.timeline = [copyWelcomeJourney(DEFAULT_WELCOME_JOURNEY).timeline[0]!];
+  }
+
+  for (const step of journey.timeline) {
+    if (!step.visible || JOURNEY_OWNERS.includes(step.owner)) continue;
+    step.owner = DEFAULT_WELCOME_JOURNEY.timeline.find((candidate) => candidate.id === step.id)?.owner ?? 'firm';
+  }
+
+  if (journey.timeline.some((step) => step.visible && JOURNEY_OWNERS.includes(step.owner))) return;
+  const first = journey.timeline[0]!;
+  first.visible = true;
+  first.owner = DEFAULT_WELCOME_JOURNEY.timeline.find((candidate) => candidate.id === first.id)?.owner ?? 'firm';
 }
 
 export function hasForbiddenWelcomeJourneyCopy(value: WelcomeJourney): string[] {

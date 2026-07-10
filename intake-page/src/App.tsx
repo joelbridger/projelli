@@ -6,6 +6,7 @@ import type { DocUploadRequestItem, GuidedQuestionRequestItem, RequestItem, Type
 import {
   DEFAULT_WELCOME_JOURNEY,
   resolveWelcomeMergeFields,
+  sanitizeWelcomeJourney,
   type WelcomeJourney,
 } from '@/features/intake/welcomeJourneyDefaults';
 
@@ -132,7 +133,7 @@ export function normalizeFirm(firm: IntakeChecklist['firm'] | undefined): Intake
     next_steps: Array.isArray(firm?.next_steps)
       ? firm.next_steps.filter((step): step is string => typeof step === 'string' && step.trim().length > 0)
       : [],
-    journey: firm?.journey ?? DEFAULT_WELCOME_JOURNEY,
+    journey: sanitizeWelcomeJourney(firm?.journey ?? DEFAULT_WELCOME_JOURNEY),
   };
 }
 
@@ -476,7 +477,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       ) : null}
 
       {statusState ? (
-        <JourneyStatusScreen checklist={checklist} firm={firm} state={statusState} />
+        <JourneyStatusScreen checklist={checklist} firm={firm} resume={resume} state={statusState} />
       ) : currentItemId === 'completion' || allDone ? (
         <CompletionScreen checklist={checklist} firm={firm} resume={resume} />
       ) : item?.t === 'readonly_card' ? (
@@ -638,6 +639,7 @@ function CompletionScreen({ checklist, firm, resume }: { checklist: IntakeCheckl
       <p>{journeyText(journey.completion.nothing_needed, checklist, firm)}</p>
       <JourneyTimeline journey={journey} currentId={resume.current_milestone_id ?? 'reviewing'} />
       <TeamBlock checklist={checklist} firm={firm} />
+      <HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} />
       <section className="help-block"><h2>{journey.welcome.help_heading}</h2><p>{journey.help_contact_label}</p></section>
     </section>
   );
@@ -650,9 +652,9 @@ function ResumeBanner({ checklist, firm, resume }: { checklist: IntakeChecklist;
   return <section className="panel resume-banner"><h2>{journeyText(copy.heading, checklist, firm)}</h2><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={resume.current_milestone_id ?? 'information_needed'} compact /></section>;
 }
 
-function JourneyStatusScreen({ checklist, firm, state }: { checklist: IntakeChecklist; firm: IntakeFirm; state: Exclude<NonNullable<ResumeState['journey_state']>, 'not_started' | 'in_progress'> }): JSX.Element {
+function JourneyStatusScreen({ checklist, firm, resume, state }: { checklist: IntakeChecklist; firm: IntakeFirm; resume: ResumeState; state: Exclude<NonNullable<ResumeState['journey_state']>, 'not_started' | 'in_progress'> }): JSX.Element {
   const copy = firm.journey.resume[state];
-  return <section className="panel"><p className="eyebrow">{firm.name}</p><h1>{journeyText(copy.heading, checklist, firm)}</h1><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={state === 'signature_ready' ? 'signature_or_transfer' : state === 'active_client' ? 'active_client' : state} /><TeamBlock checklist={checklist} firm={firm} /><section className="help-block"><h2>{firm.journey.welcome.help_heading}</h2><p>{firm.journey.help_contact_label}</p></section></section>;
+  return <section className="panel"><p className="eyebrow">{firm.name}</p><h1>{journeyText(copy.heading, checklist, firm)}</h1><p>{journeyText(copy.body, checklist, firm)}</p><JourneyTimeline journey={firm.journey} currentId={state === 'signature_ready' ? 'signature_or_transfer' : state === 'active_client' ? 'active_client' : state} /><TeamBlock checklist={checklist} firm={firm} /><HandoffNotice checklist={checklist} firm={firm} handoffPerson={resume.handoff_person_name} /><section className="help-block"><h2>{firm.journey.welcome.help_heading}</h2><p>{firm.journey.help_contact_label}</p></section></section>;
 }
 
 function JourneyTimeline({ journey, currentId, compact = false }: { journey: WelcomeJourney; currentId: string; compact?: boolean }): JSX.Element {
@@ -661,9 +663,14 @@ function JourneyTimeline({ journey, currentId, compact = false }: { journey: Wel
 }
 
 function TeamBlock({ checklist, firm }: { checklist: IntakeChecklist; firm: IntakeFirm }): JSX.Element {
-  const people = firm.journey.people;
+  const people = firm.journey.people.filter((person) => person.id === 'lead_advisor' ? Boolean(firm.advisor_name.trim()) : Boolean(person.name?.trim()));
   if (people.length === 0) return <></>;
-  return <section className="team-block"><h2>{firm.journey.welcome.team_heading}</h2><p>{firm.journey.welcome.team_intro}</p>{people.map((person) => { const name = person.name ?? journeyText(person.id === 'lead_advisor' ? '[advisor_full_name]' : '[support_full_name]', checklist, firm); const initials = person.initials ?? name.split(/\s+/u).map((part) => part[0] ?? '').join('').slice(0, 2).toUpperCase(); return <article key={person.id} className="team-person"><span className="team-avatar" aria-hidden="true">{initials}</span><strong>{name}</strong><span>{person.role}</span><p>{journeyText(person.ask_about, checklist, firm)}</p>{person.contact ? <p>{person.contact}</p> : null}</article>; })}</section>;
+  return <section className="team-block"><h2>{firm.journey.welcome.team_heading}</h2><p>{firm.journey.welcome.team_intro}</p>{people.map((person) => { const name = person.name?.trim() || journeyText('[advisor_full_name]', checklist, firm); const initials = person.initials ?? name.split(/\s+/u).map((part) => part[0] ?? '').join('').slice(0, 2).toUpperCase(); return <article key={person.id} className="team-person"><span className="team-avatar" aria-hidden="true">{initials}</span><strong>{name}</strong><span>{person.role}</span><p>{journeyText(person.ask_about, checklist, firm)}</p>{person.contact ? <p>{person.contact}</p> : null}</article>; })}</section>;
+}
+
+function HandoffNotice({ checklist, firm, handoffPerson }: { checklist: IntakeChecklist; firm: IntakeFirm; handoffPerson?: string }): JSX.Element | null {
+  if (!handoffPerson?.trim()) return null;
+  return <section className="help-block"><h2>{journeyText(firm.journey.handoff.heading, checklist, firm, handoffPerson)}</h2><p>{journeyText(firm.journey.handoff.body, checklist, firm, handoffPerson)}</p></section>;
 }
 
 function ItemInputScreen({

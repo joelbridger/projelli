@@ -17,7 +17,7 @@ export function WhatHappensNextEditor({ value, onChange, onSaveDefault }: { valu
     const step = next.timeline[index];
     if (!step) return;
     Object.assign(step, { [field]: nextValue });
-    onChange(next);
+    onChange(sanitizeWelcomeJourney(next));
   };
   const updatePerson = (index: number, field: 'name' | 'role' | 'initials' | 'ask_about' | 'contact', nextValue: string) => {
     const next = sanitizeWelcomeJourney(value);

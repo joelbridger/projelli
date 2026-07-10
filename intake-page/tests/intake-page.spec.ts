@@ -13,6 +13,7 @@ import {
 import { buildLinkFragment } from '../../src/platform/intake/intakeLink';
 import type { BundleResponse, ChunkUpload, StateBlob, SubmitManifest } from '../../src/platform/intake/intakeContract';
 import type { FormRequest } from '../../src/platform/intake/types';
+import type { WelcomeJourney } from '../../src/features/intake/welcomeJourneyDefaults';
 
 const PAGE_BLOB_VERSION = 1;
 const PAGE_IV_BYTES = 12;
@@ -25,6 +26,7 @@ interface IntakeChecklist extends FormRequest {
     advisor_name: string;
     advisor_email: string;
     next_steps: string[];
+    journey?: WelcomeJourney;
   };
 }
 
@@ -463,6 +465,28 @@ test('shows the reviewing state from sealed resume data', async ({ page }) => {
   await expect(page.getByRole('heading', { name: "We're reviewing what you shared." })).toBeVisible();
   await expect(page.getByText('You do not need to do anything right now. Dana will reach out if anything is missing.')).toBeVisible();
   await expect(page.getByText('Your team')).toBeVisible();
+});
+
+test('only shows the configured lead advisor when the other team slots are empty', async ({ page }) => {
+  const relay = await setupRelay(page, {
+    resume: { current_item_id: 'income', journey_state: 'reviewing', current_milestone_id: 'reviewing' },
+  });
+  await page.goto(relay.url);
+
+  await expect(page.locator('.team-person')).toHaveCount(1);
+  await expect(page.locator('.team-person')).toContainText('Dana');
+  await expect(page.locator('.team-person')).not.toContainText('Client service associate');
+});
+
+test('shows the sealed staff handoff notice on the completion screen', async ({ page }) => {
+  const relay = await setupRelay(page, {
+    finalized: ['dob', 'ssn', 'license', 'income', 'spending'],
+    resume: { current_item_id: 'completion', handoff_person_name: 'Priya Shah' },
+  });
+  await page.goto(relay.url);
+
+  await expect(page.getByRole('heading', { name: 'Your team has been updated.' })).toBeVisible();
+  await expect(page.getByText('Priya Shah can help with uploads, signatures, and scheduling.')).toBeVisible();
 });
 
 test('resumes past items that the server already finalized', async ({ page }) => {

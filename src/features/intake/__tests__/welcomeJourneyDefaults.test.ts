@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  copyWelcomeJourney,
   DEFAULT_WELCOME_JOURNEY,
   WELCOME_JOURNEY_EMAILS,
   hasForbiddenWelcomeJourneyCopy,
+  loadFirmWelcomeJourneyDefault,
+  saveFirmWelcomeJourneyDefault,
 } from '../welcomeJourneyDefaults';
 
 describe('welcome journey defaults', () => {
@@ -29,5 +32,16 @@ describe('welcome journey defaults', () => {
     expect(hasForbiddenWelcomeJourneyCopy(DEFAULT_WELCOME_JOURNEY)).toEqual([]);
     expect(WELCOME_JOURNEY_EMAILS).toHaveLength(14);
     expect(WELCOME_JOURNEY_EMAILS.flatMap((template) => [template.subject, template.body]).join('\n')).not.toMatch(/\[(?:ssn|license_number|account_number|exact_balance)\]/iu);
+  });
+
+  it('never shares a saved default from one firm with another firm', () => {
+    localStorage.clear();
+    const firmAJourney = copyWelcomeJourney();
+    firmAJourney.welcome.headline = 'Welcome from firm A, [client_first_name].';
+
+    saveFirmWelcomeJourneyDefault('firm-a', firmAJourney);
+
+    expect(loadFirmWelcomeJourneyDefault('firm-a')?.welcome.headline).toBe('Welcome from firm A, [client_first_name].');
+    expect(loadFirmWelcomeJourneyDefault('firm-b')).toBeNull();
   });
 });
