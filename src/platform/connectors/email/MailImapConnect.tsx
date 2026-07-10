@@ -5,6 +5,7 @@ import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { brandText } from '@/config/brandText';
+import { IntegrationHonestyCard } from '@/features/settings/IntegrationHonestyCard';
 
 export function MailImapConnect() {
   useMailSync();
@@ -58,6 +59,7 @@ export function MailImapConnect() {
   return (
     <section className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
       <h3 className="text-sm font-semibold text-slate-900">Other email (IMAP)</h3>
+      <IntegrationHonestyCard connectorId="email" />
       <p className="mt-1 text-sm text-slate-600">
         Works with Gmail (via a{' '}
         <a
@@ -99,7 +101,7 @@ export function MailImapConnect() {
                 type="text"
                 placeholder="imap.gmail.com"
                 value={host}
-                onChange={(e) => setHost(e.target.value)}
+                onChange={(e) => { setHost(e.target.value); }}
                 required
                 className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
               />
@@ -114,7 +116,7 @@ export function MailImapConnect() {
                 min={1}
                 max={65535}
                 value={port}
-                onChange={(e) => setPort(Number(e.target.value))}
+                onChange={(e) => { setPort(Number(e.target.value)); }}
                 required
                 className="w-20 rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
               />
@@ -129,7 +131,7 @@ export function MailImapConnect() {
               type="text"
               placeholder="you@example.com"
               value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              onChange={(e) => { setUsername(e.target.value); }}
               required
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
             />
@@ -143,7 +145,7 @@ export function MailImapConnect() {
               type="password"
               placeholder="App password (Gmail and Outlook require one)"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => { setPassword(e.target.value); }}
               required
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
             />
