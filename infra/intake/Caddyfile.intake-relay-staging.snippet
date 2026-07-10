@@ -3,6 +3,13 @@
 # and hardening headers expected for that service.
 
     @intake_relay_staging host intake-relay-staging.lanternplatform.app
+    log @intake_relay_staging {
+        output file /var/log/caddy/intake-relay-staging.access.log {
+            roll_keep 1
+            roll_keep_for 24h
+        }
+    }
+
     handle @intake_relay_staging {
         reverse_proxy 127.0.0.1:5195
 
@@ -14,9 +21,5 @@
             Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(), battery=(), camera=(), display-capture=(), document-domain=(), encrypted-media=(), fullscreen=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), midi=(), payment=(), publickey-credentials-get=(), usb=(), xr-spatial-tracking=()"
             Access-Control-Allow-Origin "https://intake-staging.lanternplatform.app"
             Vary "Origin"
-        }
-
-        log {
-            output file /var/log/caddy/intake-relay-staging.access.log
         }
     }

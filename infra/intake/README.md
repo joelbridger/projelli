@@ -4,8 +4,9 @@ Status: staged pipeline only. Nothing here deploys production, and there is no
 production command in this folder.
 
 This lane owns the static-page hosting rail and the deploy-time integrity gate.
-Lane B owns the relay routes. Lane C owns the real client page. The small page
-under `intake-page/src/` is only a staging shell so this rail can be tested now.
+Lane B owns the relay routes. Lane C owns the real client page in
+`intake-page/`. The staging pipeline builds that real Vite app before signing
+and publishing it.
 
 ## Hosts
 
@@ -14,8 +15,10 @@ under `intake-page/src/` is only a staging shell so this rail can be tested now.
 | Intake page | `https://intake-staging.lanternplatform.app` | Static bundle only. |
 | Intake relay | `https://intake-relay-staging.lanternplatform.app` | Reverse proxy to Lane B relay on loopback. |
 
-The page CSP pins `connect-src` to the relay origin only. No CDN, font host,
-analytics host, tag manager, or other third-party origin is allowed.
+The page reaches the relay through its own origin at `/intake/*`, which Caddy
+reverse-proxies to the staging relay backend. The page CSP pins `connect-src` to
+`'self'` only. No CDN, font host, analytics host, tag manager, or other
+third-party origin is allowed.
 
 ## Required Environment
 
@@ -45,17 +48,20 @@ clearly say staging, stage, or test.
 
 ## What The Deploy Does
 
-1. Copies `intake-page/src/` into `intake-page/dist/staging/releases/<version>/`.
-2. Replaces the relay-origin and CSP placeholders.
-3. Hashes every page asset with SHA-256.
-4. Writes `manifest.json` with every asset hash, one top-level bundle hash, and
+1. Runs `npm --prefix intake-page run build`, producing the real compiled Vite
+   app in `intake-page/dist`.
+2. Copies `intake-page/dist/` into `dist/intake-staging/releases/<version>/`.
+3. Replaces any remaining relay-origin and CSP placeholders.
+4. Hashes every page asset with SHA-256.
+5. Writes `manifest.json` with every asset hash, one top-level bundle hash, and
    an Ed25519 signature.
-5. For real staging, copies that release into the staging web root.
-6. Fetches the served candidate version at `/_releases/<version>/` and verifies
-   every served byte before `current` is repointed.
-7. Repoints `current`, fetches the served `manifest.json` and every served asset
+6. For real staging, copies that release into the staging web root.
+7. Fetches the served candidate version at `/_releases/<version>/` and verifies
+   every served byte, version, and bundle hash before `current` is repointed.
+8. Repoints `current`, fetches the served `manifest.json` and every served asset
    again, and rolls back `current` if the final check fails.
-8. Exits non-zero if any served byte differs from the signed manifest.
+9. Exits non-zero if any served byte, version, or bundle hash differs from the
+   just-built signed release.
 
 That final step is the Wave 1 gate from `ARCHITECTURE.md` T3 and `RISKS.md`
 section 3. A changed bundle must fail the deploy, not warn.
@@ -64,7 +70,7 @@ section 3. A changed bundle must fail the deploy, not warn.
 
 The static page must serve these security headers:
 
-- `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src https://intake-relay-staging.lanternplatform.app; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; worker-src 'self'; manifest-src 'self'`
+- `Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; object-src 'none'; worker-src 'self'; manifest-src 'self'`
 - `Referrer-Policy: no-referrer`
 - `X-Content-Type-Options: nosniff`
 - `X-Frame-Options: DENY`
@@ -72,6 +78,7 @@ The static page must serve these security headers:
 
 The relay staging block carries the same no-referrer, no-sniff, no-frame, and
 permissions hardening. It also allows CORS from the staging page origin only.
+Both page and relay access logs are configured with about 24 hours of retention.
 
 ## Fragment Logging Check
 
@@ -86,7 +93,7 @@ npm run intake:fragment-check
 VERIFY-LIVE note: after the real staging hosts exist, check both Caddy access-log
 files while opening a URL with a test fragment. The logged request should show
 only the path, never the fragment. Keep access-log retention at 24 hours for the
-relay, matching the intake architecture.
+page and relay, matching the intake architecture.
 
 ## Staging Config Files
 

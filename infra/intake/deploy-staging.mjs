@@ -159,6 +159,8 @@ async function verifyDryRunBundle(result, relayOrigin) {
       baseUrl: dryRunServer.baseUrl,
       relayOrigin,
       publicKeyPem,
+      expectedVersion: result.version,
+      expectedBundleHash: result.bundleHash,
     });
   } finally {
     await new Promise((resolve) => dryRunServer.server.close(resolve));
@@ -202,6 +204,8 @@ export async function deployStaging(rawOptions = {}) {
   const candidateVerification = await verifyServedBundle({
     baseUrl: urlJoin(options.stagingBaseUrl, `_releases/${build.version}/`),
     relayOrigin,
+    expectedVersion: build.version,
+    expectedBundleHash: build.bundleHash,
   });
   const previousCurrentTarget = currentTarget(options.stagingWebRoot);
   const activate = activateRelease(
@@ -213,6 +217,8 @@ export async function deployStaging(rawOptions = {}) {
     verification = await verifyServedBundle({
       baseUrl: options.stagingBaseUrl,
       relayOrigin,
+      expectedVersion: build.version,
+      expectedBundleHash: build.bundleHash,
     });
   } catch (err) {
     restoreCurrent(options.stagingWebRoot, previousCurrentTarget);
