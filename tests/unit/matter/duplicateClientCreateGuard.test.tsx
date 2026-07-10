@@ -9,11 +9,23 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import { setMatterAuditEmitter, useMatterStore } from '@/platform/matter/matterStore';
 
 const auditMocks = vi.hoisted(() => ({
   append: vi.fn(),
+}));
+const intakeMocks = vi.hoisted(() => ({
+  createAdvisorIntake: vi.fn(async () => ({
+    link: 'https://forms.example.test/i/intake-1#secret',
+    tokenB64: 'token',
+    linkSecretB64: 'secret',
+    publicKeyRaw: new Uint8Array(65),
+    privateKey: {} as CryptoKey,
+    checklistCiphertextB64: 'checklist',
+    stateCiphertextB64: 'state',
+    intakeId: 'intake-1',
+  })),
 }));
 
 vi.mock('@/platform/utils/mail-commands', () => ({
@@ -89,6 +101,22 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
   getCorsSafeFetch: async () => vi.fn(),
 }));
 
+vi.mock('@/platform/firm/firmStore', () => ({
+  useFirmStore: (sel: (s: {
+    seatToken: string;
+    accessToken: string;
+    session: { org: { name: string } };
+  }) => unknown) => sel({
+    seatToken: 'seat-test',
+    accessToken: 'access-test',
+    session: { org: { name: 'North Star Planning' } },
+  }),
+}));
+
+vi.mock('@/platform/intake/createIntake', () => ({
+  createAdvisorIntake: intakeMocks.createAdvisorIntake,
+}));
+
 // getActiveWorkspaceService is called by ensureClientFolderOnDisk (fire-and-forget
 // disk write) — return null so it no-ops cleanly in this DOM-only test.
 vi.mock('@/platform/fs/activeWorkspaceService', () => ({
@@ -100,6 +128,7 @@ import { NewClientDialog } from '@/features/matters/NewClientDialog';
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null });
   auditMocks.append.mockClear();
+  intakeMocks.createAdvisorIntake.mockClear();
   setMatterAuditEmitter(auditMocks.append);
 }
 
@@ -108,11 +137,13 @@ function resetStore() {
 describe('NewClientDialog — QA-24: Create is idempotent under rapid re-clicks', () => {
   beforeEach(resetStore);
 
-  it('firing the create handler 3 times in the SAME commit (no re-render between them) creates only ONE matter', () => {
+  it('firing the create-link handler 3 times in the SAME commit creates only ONE matter', async () => {
     render(<NewClientDialog open={true} onOpenChange={() => undefined} />);
 
     const nameInput = screen.getByTestId('new-client-name');
     fireEvent.change(nameInput, { target: { value: 'Klutz Test Client' } });
+    fireEvent.click(screen.getByTestId('new-client-next'));
+    fireEvent.click(screen.getByTestId('new-client-review'));
 
     const createButton = screen.getByTestId('new-client-create');
     // A real fast triple-click can dispatch all three click events before React
@@ -125,10 +156,12 @@ describe('NewClientDialog — QA-24: Create is idempotent under rapid re-clicks'
       fireEvent.click(createButton);
     });
 
+    await waitFor(() => expect(useMatterStore.getState().matters).toHaveLength(1));
     expect(useMatterStore.getState().matters).toHaveLength(1);
+    expect(intakeMocks.createAdvisorIntake).toHaveBeenCalledOnce();
   });
 
-  it('creating with Enter also creates exactly one matter', () => {
+  it('pressing Enter on the name step advances without creating a matter', () => {
     render(<NewClientDialog open={true} onOpenChange={() => undefined} />);
 
     const nameInput = screen.getByTestId('new-client-name');
@@ -138,6 +171,7 @@ describe('NewClientDialog — QA-24: Create is idempotent under rapid re-clicks'
       fireEvent.keyDown(nameInput, { key: 'Enter' });
     });
 
-    expect(useMatterStore.getState().matters).toHaveLength(1);
+    expect(screen.getByText('Compose onboarding checklist')).toBeInTheDocument();
+    expect(useMatterStore.getState().matters).toHaveLength(0);
   });
 });

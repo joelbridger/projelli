@@ -17,10 +17,17 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreVertical } from 'lucide-react';
+import { ClipboardList, Lock, FileText, Mail, Clock, Loader2, Map, Mic, MoreVertical } from 'lucide-react';
 import { ClientMeetingsTab } from '@/features/meetings/ClientMeetingsTab';
+import { OnboardingTab } from '@/features/intake/OnboardingTab';
 import { isTauri } from '@tauri-apps/api/core';
 import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID, type ClientMapHubTab } from '@/platform/matter/matterStore';
+import { useIntakeStore } from '@/platform/intake/intakeStore';
+import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
+import { loadIntakeLinkSecret, updateIntakeLinkSecret } from '@/platform/intake/intakeKeychain';
+import { regenerateIntakeLink } from '@/platform/intake/intakeLifecycle';
+import { b64ToBytes } from '@/platform/intake/pageSeal';
+import { useFirmStore } from '@/platform/firm/firmStore';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { Badge, IconButton, QuietStatus, SlidePanel } from '@/ui/kp';
@@ -92,6 +99,7 @@ type HubTab = ClientMapHubTab;
 
 const HUB_TABS: { id: HubTab; Icon: typeof FileText }[] = [
   { id: 'overview', Icon: Map },
+  { id: 'onboarding', Icon: ClipboardList },
   { id: 'documents', Icon: FileText },
   { id: 'email', Icon: Mail },
   { id: 'meetings', Icon: Mic },
@@ -103,6 +111,8 @@ function hubTabLabel(id: HubTab, t: (key: string) => string): string {
   switch (id) {
     case 'overview':
       return t('spine.nav.client-map');
+    case 'onboarding':
+      return 'Onboarding';
     case 'documents':
       return t('matter.hub.tab-documents');
     case 'email':
@@ -133,6 +143,17 @@ function formatClientMapUpdated(
   }));
 }
 
+function intakeHost(): string {
+  const env = (import.meta as { env?: { VITE_INTAKE_HOST?: string } }).env?.VITE_INTAKE_HOST;
+  return (env && env.trim()) || 'https://forms.lanternplatform.app';
+}
+
+function addDaysIso(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString();
+}
+
 // ── MatterHub ──────────────────────────────────────────────────────────────
 
 export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, renderEmail, renderActivity, workspaceService }: MatterHubProps) {
@@ -151,6 +172,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
   const matters = useMatters();
   const matter = matters.find((m) => m.id === matterId) ?? null;
+  const intake = useIntakeStore((s) => s.getIntakeForMatter(matterId));
+  const updateIntake = useIntakeStore((s) => s.updateIntake);
+  const seatToken = useFirmStore((s) => s.seatToken);
+  const accessToken = useFirmStore((s) => s.accessToken);
+  const advisorId = useFirmStore((s) => s.session?.userId ?? 'advisor');
+  const visibleHubTabs = intake ? HUB_TABS : HUB_TABS.filter((tab) => tab.id !== 'onboarding');
   const isPrivileged = useActiveMatterPrivileged();
   const entityLabel = useEntityLabel();
   // The per-tab AI-status pill (same as Ask / Workflows) — the single, deduped
@@ -262,6 +289,56 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
   const handleOpenSource = useCallback((ref: SourceRef) => {
     dispatchOpenSource(matterId, ref);
   }, [matterId]);
+
+  const makeIntakeRelay = useCallback(() => {
+    if (!seatToken) throw new Error('Sign in and activate this machine before changing an onboarding link.');
+    return new IntakeRelayClient({ seatToken, accessToken });
+  }, [accessToken, seatToken]);
+
+  const handleExtendIntake = useCallback(async (intakeId: string) => {
+    const expiresAt = addDaysIso(30);
+    await makeIntakeRelay().extendIntake(intakeId, expiresAt);
+    updateIntake(intakeId, { expiresAt, status: 'active' });
+  }, [makeIntakeRelay, updateIntake]);
+
+  const handleRevokeIntake = useCallback(async (intakeId: string) => {
+    await makeIntakeRelay().revokeIntake(intakeId);
+    updateIntake(intakeId, { status: 'revoked' });
+  }, [makeIntakeRelay, updateIntake]);
+
+  const handleRegenerateIntake = useCallback(async (intakeId: string) => {
+    const current = useIntakeStore.getState().intakesById[intakeId];
+    if (!current?.publicKeyRawB64 || !current.checklistCiphertextB64 || !current.stateCiphertextB64) {
+      throw new Error('This link is missing its saved encrypted checklist.');
+    }
+    const oldSecretB64 = await loadIntakeLinkSecret(intakeId);
+    if (!oldSecretB64) throw new Error('This link is missing its saved secret.');
+    const regenerated = await regenerateIntakeLink({
+      intakeId,
+      intakeHost: intakeHost(),
+      publicKeyRaw: b64ToBytes(current.publicKeyRawB64),
+      checklistCiphertextB64: current.checklistCiphertextB64,
+      stateCiphertextB64: current.stateCiphertextB64,
+      oldLinkSecret: b64ToBytes(oldSecretB64),
+    });
+    await updateIntakeLinkSecret(intakeId, regenerated.linkSecretB64);
+    try {
+      await makeIntakeRelay().regenerateIntake(intakeId, {
+        token_b64: regenerated.tokenB64,
+        checklist_ciphertext_b64: regenerated.checklistCiphertextB64,
+        state_ciphertext_b64: regenerated.stateCiphertextB64,
+      });
+    } catch (error) {
+      await updateIntakeLinkSecret(intakeId, oldSecretB64);
+      throw error;
+    }
+    updateIntake(intakeId, {
+      link: regenerated.link,
+      status: 'active',
+      checklistCiphertextB64: regenerated.checklistCiphertextB64,
+      stateCiphertextB64: regenerated.stateCiphertextB64,
+    });
+  }, [makeIntakeRelay, updateIntake]);
 
   const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
     void (async () => {
@@ -511,7 +588,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
                 </DropdownMenuContent>
               </DropdownMenu>
               <div role="tablist" aria-label={t('matter.hub.sections-aria')} data-testid="hub-subtab-bar" style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0, flexWrap: 'wrap' }}>
-                {HUB_TABS.map(({ id }) => {
+                {visibleHubTabs.map(({ id }) => {
                   const active = subTab === id;
                   return (
                     <button
@@ -711,6 +788,19 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
         {subTab === 'documents' && (
           <div data-testid="hub-subtab-panel-documents" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             {renderDocuments ? renderDocuments(matter) : <SubTabUnavailable label={t('matter.hub.tab-documents')} />}
+          </div>
+        )}
+
+        {subTab === 'onboarding' && (
+          <div data-testid="hub-subtab-panel-onboarding" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <OnboardingTab
+              matterId={matterId}
+              intake={intake}
+              advisorId={advisorId}
+              onExtend={handleExtendIntake}
+              onRevoke={handleRevokeIntake}
+              onRegenerate={handleRegenerateIntake}
+            />
           </div>
         )}
 

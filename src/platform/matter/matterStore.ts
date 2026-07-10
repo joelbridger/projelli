@@ -83,7 +83,7 @@ export const SAMPLE_MATTER_ID = 'matter_sample_garcia_v_meridian';
 
 /** The Client Map hub's sub-tabs. A one-shot `clientMapHubTab` request lets the
  *  client-list quick-actions open the hub on a SPECIFIC sub-tab. */
-export type ClientMapHubTab = 'overview' | 'documents' | 'email' | 'meetings' | 'activity';
+export type ClientMapHubTab = 'overview' | 'onboarding' | 'documents' | 'email' | 'meetings' | 'activity';
 
 /** Generate a stable matter id. Uses crypto.randomUUID when available. */
 function newMatterId(): string {
