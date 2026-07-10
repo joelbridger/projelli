@@ -96,6 +96,8 @@ import { zocksSetWorkspace } from '@/platform/utils/zocks-commands';
 import { addeparSetWorkspace } from '@/platform/utils/addepar-commands';
 import { crmSetWorkspace } from '@/platform/utils/wealthbox-commands';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { externalWriteSetWorkspace } from '@/platform/utils/external-write-commands';
+import { useExternalWriteQueueStore } from '@/platform/state/externalWriteQueueStore';
 import { oneDriveSetWorkspace } from '@/platform/utils/onedrive-commands';
 import { boxSetWorkspace } from '@/platform/utils/box-commands';
 import { sharefileSetWorkspace } from '@/platform/utils/sharefile-commands';
@@ -2157,6 +2159,20 @@ export function useMemoryWiring(
           await useCrmWriteQueueStore.getState().hydrateFromBackend();
         } catch (err) {
           console.warn('CRM write queue hydrate failed; continuing workspace setup:', err);
+        }
+        // Best-effort: tell the writeback backend which workspace to use so
+        // the external-write ledger (RightCapital/Holistiplan planning
+        // sockets, Wave 1) reads/writes the right encrypted DB. Optional and
+        // individually caught for the same reason as every connector above.
+        try {
+          await externalWriteSetWorkspace(rootPath);
+        } catch (err) {
+          console.warn('externalWriteSetWorkspace failed; continuing workspace setup:', err);
+        }
+        try {
+          await useExternalWriteQueueStore.getState().hydrateFromBackend();
+        } catch (err) {
+          console.warn('External write queue hydrate failed; continuing workspace setup:', err);
         }
         try {
           await oneDriveSetWorkspace(rootPath);

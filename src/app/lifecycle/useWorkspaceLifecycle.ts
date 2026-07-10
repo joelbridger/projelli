@@ -34,6 +34,7 @@ import type {
   AuditIntegrityVerdict,
 } from '@/platform/utils/tauri-commands';
 import { CRM_AUDIT_APPENDED_EVENT } from '@/platform/utils/wealthbox-commands';
+import { WRITEBACK_AUDIT_APPENDED_EVENT } from '@/platform/utils/external-write-commands';
 import type { TrashedItem, TrashStats } from '@/platform/history/TrashService';
 import type { SourceCard } from '@/features/ask/types/research';
 import type { AIChatFile } from '@/platform/types/ai';
@@ -53,6 +54,39 @@ import { useAppNavigationStore } from '@/platform/state/appNavigationStore';
 // still be allowed to open.
 const WORKSPACE_OPEN_TIMEOUT_MS = 30_000;
 const WORKSPACE_OPEN_LABEL = 'Opening the workspace';
+
+function parseAuditEntryRecord(rec: AuditEntryRecord): AuditEntry {
+  // payloadJson is a full AuditEntry (the same shape the encrypted store
+  // persists). Parse it and trust the record's summary columns for the indexed
+  // fields — mirrors AuditService.recordToEntry. Always end with a metadata
+  // OBJECT so the Activity Log's `metadata['scope']` read can never hit undefined.
+  try {
+    const parsed = JSON.parse(rec.payloadJson) as Partial<AuditEntry>;
+    return {
+      ...(parsed as AuditEntry),
+      id: rec.id,
+      timestamp: rec.timestamp,
+      action: rec.action as AuditActionType,
+      description: rec.description,
+      metadata:
+        parsed.metadata && typeof parsed.metadata === 'object'
+          ? parsed.metadata
+          : {},
+    };
+  } catch {
+    return {
+      id: rec.id,
+      timestamp: rec.timestamp,
+      action: rec.action as AuditActionType,
+      description: rec.description,
+      model: undefined,
+      inputs: {},
+      outputs: {},
+      userDecision: undefined,
+      metadata: {},
+    };
+  }
+}
 
 export interface UseWorkspaceLifecycleOptions {
   workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
@@ -495,66 +529,51 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
   //
   // Root cause addressed: `append_crm_audit_best_effort` writes correctly to
   // the SQLCipher DB, but the Activity Log reads from in-memory React state
-  // that is only populated at workspace hydration.  This listener bridges the
-  // gap for the current session.
+  // that is only populated at workspace hydration. The writeback backend has
+  // the same shape: its audit row is durable, but the current-session Activity
+  // Log needs the live event to see it. These listeners bridge that gap.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window)) return;
 
-    let unlisten: (() => void) | null = null;
+    let unlistenCrm: (() => void) | null = null;
+    let unlistenWriteback: (() => void) | null = null;
     // Guards the race where this effect tears down before `listen()` resolves: if
     // we've already cleaned up, immediately call the unlisten we get back so the
     // listener never leaks past the effect's lifetime.
     let cancelled = false;
+    const handleAuditAppended = (event: { payload: AuditEntryRecord }) => {
+      const entry = parseAuditEntryRecord(event.payload);
+      // Prepend newest-first, but DEDUPE by id: the same entry can arrive both via
+      // this event and via the once-on-open DB read (or a StrictMode double-invoke),
+      // and it must never appear twice in the Activity Log.
+      setAuditEntries((prev) =>
+        prev.some((e) => e.id === entry.id) ? prev : [entry, ...prev]
+      );
+    };
+
     import('@tauri-apps/api/event')
       .then(({ listen }) => {
-        listen<AuditEntryRecord>(CRM_AUDIT_APPENDED_EVENT, (event) => {
-          const rec = event.payload;
-          // payloadJson is a full AuditEntry (the same shape the encrypted store
-          // persists). Parse it and trust the record's summary columns for the indexed
-          // fields — mirrors AuditService.recordToEntry. Always end with a metadata
-          // OBJECT so the Activity Log's `metadata['scope']` read can never hit undefined.
-          let entry: AuditEntry;
-          try {
-            const parsed = JSON.parse(rec.payloadJson) as Partial<AuditEntry>;
-            entry = {
-              ...(parsed as AuditEntry),
-              id: rec.id,
-              timestamp: rec.timestamp,
-              action: rec.action as AuditActionType,
-              description: rec.description,
-              metadata:
-                parsed.metadata && typeof parsed.metadata === 'object'
-                  ? parsed.metadata
-                  : {},
-            };
-          } catch {
-            entry = {
-              id: rec.id,
-              timestamp: rec.timestamp,
-              action: rec.action as AuditActionType,
-              description: rec.description,
-              model: undefined,
-              inputs: {},
-              outputs: {},
-              userDecision: undefined,
-              metadata: {},
-            };
-          }
-          // Prepend newest-first, but DEDUPE by id: the same entry can arrive both via
-          // this event and via the once-on-open DB read (or a StrictMode double-invoke),
-          // and it must never appear twice in the Activity Log.
-          setAuditEntries((prev) =>
-            prev.some((e) => e.id === entry.id) ? prev : [entry, ...prev]
-          );
-        })
-          .then((fn) => {
-            if (cancelled) fn();
-            else unlisten = fn;
-          })
-          .catch(() => {
-            /* best-effort — non-fatal if listener setup fails */
-          });
+        const listenForAuditEvent = (
+          eventName: string,
+          setUnlisten: (fn: () => void) => void
+        ) => {
+          listen<AuditEntryRecord>(eventName, handleAuditAppended)
+            .then((fn) => {
+              if (cancelled) fn();
+              else setUnlisten(fn);
+            })
+            .catch(() => {
+              /* best-effort — non-fatal if listener setup fails */
+            });
+        };
+
+        listenForAuditEvent(CRM_AUDIT_APPENDED_EVENT, (fn) => {
+          unlistenCrm = fn;
+        });
+        listenForAuditEvent(WRITEBACK_AUDIT_APPENDED_EVENT, (fn) => {
+          unlistenWriteback = fn;
+        });
       })
       .catch(() => {
         /* best-effort */
@@ -562,7 +581,8 @@ export function useWorkspaceLifecycle(options: UseWorkspaceLifecycleOptions) {
 
     return () => {
       cancelled = true;
-      unlisten?.();
+      unlistenCrm?.();
+      unlistenWriteback?.();
     };
   }, [setAuditEntries]);
 

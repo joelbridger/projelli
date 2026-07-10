@@ -10,12 +10,25 @@
  * stay safe.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { createRef } from 'react';
+import type { AuditEntry } from '@/platform/types/audit';
+import type { AuditEntryRecord } from '@/platform/utils/tauri-commands';
 
-const { createFSBackendMock, initializeMock } = vi.hoisted(() => ({
+type TauriEventHandler = (event: { payload: unknown }) => void;
+
+const {
+  createFSBackendMock,
+  initializeMock,
+  listenMock,
+  eventHandlers,
+  unlistenMocks,
+} = vi.hoisted(() => ({
   createFSBackendMock: vi.fn(),
   initializeMock: vi.fn(),
+  listenMock: vi.fn(),
+  eventHandlers: new Map<string, TauriEventHandler>(),
+  unlistenMocks: new Map<string, () => void>(),
 }));
 
 vi.mock('@/platform/fs/BackendFactory', () => ({
@@ -24,6 +37,10 @@ vi.mock('@/platform/fs/BackendFactory', () => ({
 
 vi.mock('@/platform/fs/WorkspaceService', () => ({
   createWorkspaceService: () => ({ initialize: initializeMock }),
+}));
+
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: listenMock,
 }));
 
 import {
@@ -35,6 +52,10 @@ import {
   useAppNavigationStore,
   type AppNavigationSnapshot,
 } from '@/platform/state/appNavigationStore';
+import { CRM_AUDIT_APPENDED_EVENT } from '@/platform/utils/wealthbox-commands';
+import { WRITEBACK_AUDIT_APPENDED_EVENT } from '@/platform/utils/external-write-commands';
+
+type AuditEntriesUpdate = AuditEntry[] | ((prev: AuditEntry[]) => AuditEntry[]);
 
 function makeOptions(): UseWorkspaceLifecycleOptions {
   return {
@@ -58,6 +79,79 @@ function makeOptions(): UseWorkspaceLifecycleOptions {
     confirm: vi.fn().mockResolvedValue(true),
   };
 }
+
+function installTauriWindowMarker(): void {
+  Object.defineProperty(window, '__TAURI_INTERNALS__', {
+    value: {},
+    configurable: true,
+  });
+}
+
+function makeAuditRecord(id: string, action: string): AuditEntryRecord {
+  const timestamp = '2026-07-10T00:00:00.000Z';
+  const description = `${action} audit row`;
+  const payload = {
+    id,
+    timestamp,
+    action,
+    description,
+    model: undefined,
+    inputs: { proposalId: 'proposal-1' },
+    outputs: { receiptRef: 'receipt-1' },
+    userDecision: undefined,
+    metadata: {
+      scope: { kind: 'matter', matterId: 'matter-1' },
+      source: 'writeback-backend',
+    },
+  };
+
+  return {
+    id,
+    timestamp,
+    action,
+    description,
+    payloadJson: JSON.stringify(payload),
+  };
+}
+
+function attachAuditEntriesState(options: UseWorkspaceLifecycleOptions): {
+  state: { entries: AuditEntry[] };
+  setAuditEntries: ReturnType<typeof vi.fn>;
+} {
+  const state: { entries: AuditEntry[] } = { entries: [] };
+  const setAuditEntries = vi.fn((next: AuditEntriesUpdate) => {
+    state.entries =
+      typeof next === 'function' ? next(state.entries) : next;
+  });
+  options.setAuditEntries = setAuditEntries as never;
+  return { state, setAuditEntries };
+}
+
+function emitAuditEvent(eventName: string, payload: AuditEntryRecord): void {
+  const handler = eventHandlers.get(eventName);
+  expect(handler).toBeDefined();
+  handler?.({ payload });
+}
+
+beforeEach(() => {
+  listenMock.mockReset();
+  eventHandlers.clear();
+  unlistenMocks.clear();
+  if (typeof window !== 'undefined') {
+    Reflect.deleteProperty(window, '__TAURI_INTERNALS__');
+    Reflect.deleteProperty(window, '__TAURI__');
+  }
+  listenMock.mockImplementation(
+    (eventName: string, handler: TauriEventHandler) => {
+      eventHandlers.set(eventName, handler);
+      const unlisten: () => void = vi.fn(() => {
+        eventHandlers.delete(eventName);
+      });
+      unlistenMocks.set(eventName, unlisten);
+      return Promise.resolve(unlisten);
+    }
+  );
+});
 
 describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
   beforeEach(() => {
@@ -155,5 +249,116 @@ describe('useWorkspaceLifecycle — handleOpenRecentProject (QA-33)', () => {
     });
 
     expect(useAppNavigationStore.getState().stack).toHaveLength(0);
+  });
+});
+
+describe('useWorkspaceLifecycle — live audit events', () => {
+  it('pushes writeback audit rows into the live Activity Log and keeps the CRM listener wired', async () => {
+    installTauriWindowMarker();
+    const options = makeOptions();
+    const { state } = attachAuditEntriesState(options);
+
+    const { unmount } = renderHook(() => useWorkspaceLifecycle(options));
+
+    await waitFor(() => {
+      expect(listenMock).toHaveBeenCalledWith(
+        CRM_AUDIT_APPENDED_EVENT,
+        expect.any(Function)
+      );
+      expect(listenMock).toHaveBeenCalledWith(
+        WRITEBACK_AUDIT_APPENDED_EVENT,
+        expect.any(Function)
+      );
+    });
+
+    const writebackRecord = makeAuditRecord(
+      'writeback-audit-1',
+      'external_write.upsert_income'
+    );
+    act(() => {
+      emitAuditEvent(WRITEBACK_AUDIT_APPENDED_EVENT, writebackRecord);
+    });
+
+    expect(state.entries).toHaveLength(1);
+    expect(state.entries[0]).toMatchObject({
+      id: 'writeback-audit-1',
+      description: 'external_write.upsert_income audit row',
+      metadata: {
+        scope: { kind: 'matter', matterId: 'matter-1' },
+        source: 'writeback-backend',
+      },
+    });
+
+    act(() => {
+      emitAuditEvent(WRITEBACK_AUDIT_APPENDED_EVENT, writebackRecord);
+    });
+    expect(state.entries).toHaveLength(1);
+
+    const crmRecord = makeAuditRecord('crm-audit-1', 'wealthbox.sync');
+    act(() => {
+      emitAuditEvent(CRM_AUDIT_APPENDED_EVENT, crmRecord);
+    });
+    expect(state.entries.map((entry) => entry.id)).toEqual([
+      'crm-audit-1',
+      'writeback-audit-1',
+    ]);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    unmount();
+
+    expect(unlistenMocks.get(CRM_AUDIT_APPENDED_EVENT)).toHaveBeenCalledTimes(
+      1
+    );
+    expect(
+      unlistenMocks.get(WRITEBACK_AUDIT_APPENDED_EVENT)
+    ).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up both audit listeners if the hook unmounts before listener setup resolves', async () => {
+    installTauriWindowMarker();
+    const options = makeOptions();
+    attachAuditEntriesState(options);
+    const pending: Array<{
+      resolve: (fn: () => void) => void;
+      unlisten: () => void;
+    }> = [];
+
+    listenMock.mockImplementation(
+      (eventName: string, handler: TauriEventHandler) => {
+        eventHandlers.set(eventName, handler);
+        const unlisten: () => void = vi.fn(() => {
+          eventHandlers.delete(eventName);
+        });
+        return new Promise<() => void>((resolve) => {
+          pending.push({ resolve, unlisten });
+        });
+      }
+    );
+
+    const { unmount } = renderHook(() => useWorkspaceLifecycle(options));
+
+    await waitFor(() => {
+      expect(listenMock).toHaveBeenCalledWith(
+        CRM_AUDIT_APPENDED_EVENT,
+        expect.any(Function)
+      );
+      expect(listenMock).toHaveBeenCalledWith(
+        WRITEBACK_AUDIT_APPENDED_EVENT,
+        expect.any(Function)
+      );
+    });
+
+    unmount();
+    for (const { resolve, unlisten } of pending) {
+      resolve(unlisten);
+    }
+
+    await waitFor(() => {
+      expect(pending).toHaveLength(2);
+      expect(pending[0]?.unlisten).toHaveBeenCalledTimes(1);
+      expect(pending[1]?.unlisten).toHaveBeenCalledTimes(1);
+    });
   });
 });

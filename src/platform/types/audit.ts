@@ -82,6 +82,9 @@ export type AuditActionType =
   // permits storing + AI-processing exported reports/notes recognized from
   // outside tools (RightCapital, Jump). A defensible, timestamped record.
   | 'external_export_consent'
+  // ACATS transfer review and Schwab prep export.
+  | 'acats.approve'
+  | 'acats.export'
   // Marketplace template lifecycle (mirrors the AuditEvent variants below).
   | 'template_installed_from_marketplace'
   | 'template_uninstalled'

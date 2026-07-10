@@ -107,6 +107,7 @@ import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   getOrCreateSampleMatter,
   setMatterAuditEmitter,
+  setMatterAuditEmitterAsync,
   useMatterStore,
   useActiveMatter,
   useMatters,
@@ -1512,7 +1513,7 @@ function AppShell() {
   // persisted row and the on-screen row describe the same event. Append-only on
   // both sides: we only ever prepend a new entry.
   const addAuditEntry = useCallback(
-    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => {
+    async (entry: Omit<AuditEntry, 'id' | 'timestamp'>): Promise<AuditEntry> => {
       const options = {
         ...(entry.model !== undefined ? { model: entry.model } : {}),
         inputs: entry.inputs,
@@ -1544,7 +1545,7 @@ function AppShell() {
         } catch {
           // The action audit already persisted; integrity refresh is best-effort UI.
         }
-        return;
+        return newEntry;
       }
       const { entry: newEntry, persisted } =
         auditServiceRef.current.logDurablePending(
@@ -1566,6 +1567,7 @@ function AppShell() {
         })
         .then(setAuditIntegrity)
         .catch(() => undefined);
+      return newEntry;
     },
     []
   );
@@ -1578,10 +1580,12 @@ function AppShell() {
 
   useEffect(() => {
     setMatterAuditEmitter(emitAuditEntry);
+    setMatterAuditEmitterAsync(addAuditEntry);
     return () => {
       setMatterAuditEmitter(null);
+      setMatterAuditEmitterAsync(null);
     };
-  }, [emitAuditEntry]);
+  }, [addAuditEntry, emitAuditEntry]);
 
   // EmailViewer's only parent (MainPanel.tsx) isn't wired with an onAuditLog
   // prop, so it reaches the live Activity Log / confidentiality report the

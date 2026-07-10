@@ -32,6 +32,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Integration Honesty Cards in Account Connections.** Shipping connectors now show an in-app card with exactly what each connector reads, writes, can never touch, how writes are gated, and the last verified date.
+  - Added typed card data with structural parity tests against the markdown trust cards.
+  - Wired card triggers into Wealthbox, Microsoft 365 email, Gmail, IMAP email, OneDrive/SharePoint, and Calendly connection panels.
+  - Files modified: `src/platform/connectors/integrationHonestyCards.ts`, `src/platform/connectors/IntegrationHonestyCard.tsx`, `src/platform/connectors/crm/WealthboxConnect.tsx`, `src/platform/connectors/email/MailConnect.tsx`, `src/platform/connectors/email/MailGmailConnect.tsx`, `src/platform/connectors/email/MailImapConnect.tsx`, `src/platform/connectors/onedrive/OneDriveConnect.tsx`, `src/platform/connectors/calendly/CalendlyConnect.tsx`, `src/platform/connectors/integrationHonestyCards.test.ts`, `src/platform/connectors/IntegrationHonestyCard.test.tsx`, `tests/unit/connectors/integration-honesty-card-triggers.test.tsx`.
+- **ACATS Transfer Autopilot Waves A-C + D-lite.** Added the standalone ACATS
+  draft schema, delivering-firm normalization, statement classifier/extractor,
+  advisor review store, review UI, and Schwab Prep Packet `.docx` export. The
+  feature stays local-only, masks account numbers outside review, blocks
+  approval until required fields and warnings are handled, and does not depend
+  on the sibling Schwab prefill branch. Files:
+  `src/features/acats/{types,firmNormalization,format,extraction,reviewRules,acatsReviewStore,AcatsReviewScreen,schwabPrepPacket,index}.ts*`
+  plus focused ACATS tests in `src/features/acats/*.test.ts*`.
+- **External write socket foundation for planning tools.**
+  - Added the Wave 0 vendor-access checklist entries for RightCapital and
+    Holistiplan, without shipping honesty cards or live connector UI yet.
+  - Added a generic approval-gated external write ledger and engine for future
+    RightCapital/Holistiplan planning writes. The new path saves a proposal
+    first, sends only after advisor approval, writes the pending ledger row
+    before any mock socket apply, blocks stale updates, verifies by readback,
+    and keeps raw vendor response bodies out of logs. Current sockets are
+    injectable mock implementations only, with no real vendor URLs or
+    credentials.
+  - Added a parallel TypeScript proposal queue plus fixture-backed planning
+    review card for RightCapital income updates and Holistiplan send copy. The
+    fixture screen is not routed into the app yet, so nothing user-facing can
+    send to a real vendor in this slice.
+  - Files:
+    `docs/plans/lantern-plus/vendor-applications-checklist.md`,
+    `src-tauri/src/commands/writeback/{commands,engine,holistiplan,mod,model,rightcapital,store}.rs`,
+    `src-tauri/src/commands/mod.rs`, `src-tauri/src/identity.rs`,
+    `src-tauri/src/lib.rs`,
+    `src/platform/state/externalWriteQueueStore.ts`,
+    `src/platform/utils/external-write-commands.ts`,
+    `src/features/planning/ExternalWriteReviewCard.tsx`,
+    `src/features/planning/externalWriteFixtures.ts`,
+    `tests/unit/externalWriteQueue.test.ts`,
+    `tests/unit/planning/ExternalWriteReviewCard.test.tsx`.
 - **Add-client overhaul + client groups (FB2 clientux lane).**
   - **Calm one-field create.** Adding a client is now a small modal with just a
     display name (`NewClientDialog`); on create you land inside the new client's
@@ -128,6 +165,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **ACATS approval/export audit rows now use the live Activity Log writer.** Approval and Schwab Prep Packet export now fail closed if the app cannot save the required audit row, the row appears in the visible Activity Log immediately, and the review draft is locked while approval auditing is in flight so the saved audit snapshot cannot drift from the final approved draft.
+- **ACATS review audit and account-number safety.** Statements with more than one distinct delivering account number now keep the first value but lower confidence and block approval until the advisor acknowledges the warning; approving an ACATS draft and exporting the Schwab Prep Packet now require a durable audit row with only masked account numbers in the log description. Files modified: `src/features/acats/extraction.ts`, `src/features/acats/acatsReviewStore.ts`, `src/features/acats/AcatsReviewScreen.tsx`, `src/features/acats/schwabPrepPacket.ts`, `src/features/acats/audit.ts`, `src/platform/types/audit.ts`, `src/platform/audit/AuditService.ts`, `src/features/audit/auditHomeHelpers.ts`.
+- **Writeback audit rows now appear in the Activity Log immediately.** The
+  frontend now listens for the Rust `writeback-audit-appended` event and
+  prepends the parsed audit entry into the live `auditEntries` state with the
+  same duplicate-by-id guard and cleanup behavior as the existing CRM audit
+  listener. Files modified: `src/platform/utils/external-write-commands.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.ts`,
+  `src/app/lifecycle/useWorkspaceLifecycle.test.ts`.
+- **Writeback approval audit trail.** External write approvals now append a
+  must-save intent audit row before any vendor socket send and a matching
+  outcome row after success or delivery-unconfirmed results, with distinct
+  ambiguous outcome ids and no raw vendor payload JSON in audit descriptions.
+  Files modified: `src-tauri/src/commands/writeback/commands.rs`.
 - **Theme light-lock: the app can no longer come up dark unprompted after a
   restart.** (Legion 3× demo dry-run, Run 2: the persisted Theme value read
   "dark" at boot even though Light had been explicitly selected all through
