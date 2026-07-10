@@ -8,10 +8,22 @@ export interface NormalizedEmailAddress {
 function extractAddress(raw: string): string | null {
   const trimmed = raw.trim();
   if (!trimmed) return null;
-  const angle = trimmed.match(/<([^<>]+)>/u);
-  if (angle?.[1]) return angle[1].trim();
-  if (/[<>]/u.test(trimmed)) return null;
-  return trimmed;
+  const firstOpen = trimmed.indexOf('<');
+  const firstClose = trimmed.indexOf('>');
+  if (firstOpen === -1 && firstClose === -1) return trimmed;
+  // W3-LANE1-FIX-SENDER-FAILCLOSED
+  if (firstOpen === -1 || firstClose === -1) return null;
+  if (
+    firstOpen !== trimmed.lastIndexOf('<') ||
+    firstClose !== trimmed.lastIndexOf('>') ||
+    firstClose < firstOpen
+  ) {
+    return null;
+  }
+  if (trimmed.slice(firstClose + 1).trim()) return null;
+  const address = trimmed.slice(firstOpen + 1, firstClose).trim();
+  if (!address) return null;
+  return address;
 }
 
 function normalizeDomain(domain: string): string | null {

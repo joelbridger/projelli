@@ -29,6 +29,8 @@ pub struct GraphClient {
     http: reqwest::Client,
 }
 
+const GRAPH_MESSAGE_SELECT_FIELDS: &str = "id,conversationId,internetMessageId,subject,receivedDateTime,from,toRecipients,ccRecipients,hasAttachments,body,internetMessageHeaders";
+
 impl GraphClient {
     pub fn new(token: String) -> Self {
         Self::new_with_base(token, "https://graph.microsoft.com".into())
@@ -244,9 +246,10 @@ impl GraphClient {
     /// next/delta link. Returns the absolute URL to GET first.
     pub fn delta_start_url(&self, folder_id: &str) -> String {
         format!(
-            "{}/v1.0/me/mailFolders/{}/messages/delta",
+            "{}/v1.0/me/mailFolders/{}/messages/delta?$select={}",
             self.base,
-            enc_path_segment(folder_id)
+            enc_path_segment(folder_id),
+            GRAPH_MESSAGE_SELECT_FIELDS
         )
     }
 
@@ -996,6 +999,83 @@ mod tests {
         assert_eq!(ids, vec!["INBOX_ID", "SENT_ID"]);
     }
 
+    #[tokio::test]
+    async fn fetch_changes_preserves_graph_auth_headers_from_delta_items() {
+        use crate::commands::mail::model::{MailAuthSource, MailAuthVerdict};
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
+            .and(query_param("$select", GRAPH_MESSAGE_SELECT_FIELDS))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "value": [
+                    {
+                        "id": "pass-msg",
+                        "subject": "Signed reply",
+                        "internetMessageHeaders": [
+                            {
+                                "name": "Authentication-Results",
+                                "value": "mx.outlook.com; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=pass header.from=example.com"
+                            }
+                        ],
+                        "body": { "contentType": "text", "content": "ok" }
+                    },
+                    {
+                        "id": "fail-msg",
+                        "subject": "Failed reply",
+                        "internetMessageHeaders": [
+                            {
+                                "name": "Authentication-Results",
+                                "value": "mx.outlook.com; dkim=pass header.d=example.com; spf=pass smtp.mailfrom=example.com; dmarc=fail header.from=example.com"
+                            }
+                        ],
+                        "body": { "contentType": "text", "content": "bad" }
+                    },
+                    {
+                        "id": "missing-msg",
+                        "subject": "No auth reply",
+                        "body": { "contentType": "text", "content": "missing" }
+                    }
+                ],
+                "@odata.deltaLink": "https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=done"
+            })))
+            .mount(&server)
+            .await;
+
+        let provider = GraphProvider::new_with_base("AT".into(), server.uri());
+        let page = provider
+            .fetch_changes(
+                &RemoteFolder {
+                    id: "inbox".to_string(),
+                    display_name: "Inbox".to_string(),
+                },
+                &Cursor::Backfill,
+            )
+            .await
+            .expect("fetch changes");
+
+        assert_eq!(page.messages.len(), 3);
+        assert_eq!(page.messages[0].id, "pass-msg");
+        assert_eq!(page.messages[0].auth_result.dkim, MailAuthVerdict::Pass);
+        assert_eq!(page.messages[0].auth_result.spf, MailAuthVerdict::Pass);
+        assert_eq!(page.messages[0].auth_result.dmarc, MailAuthVerdict::Pass);
+        assert_eq!(page.messages[0].auth_result.source, MailAuthSource::Graph);
+        assert!(page.messages[0].auth_result.aligned);
+
+        assert_eq!(page.messages[1].id, "fail-msg");
+        assert_eq!(page.messages[1].auth_result.dmarc, MailAuthVerdict::Fail);
+        assert!(!page.messages[1].auth_result.aligned);
+
+        assert_eq!(page.messages[2].id, "missing-msg");
+        assert_eq!(page.messages[2].auth_result.dkim, MailAuthVerdict::None);
+        assert_eq!(page.messages[2].auth_result.spf, MailAuthVerdict::None);
+        assert_eq!(page.messages[2].auth_result.dmarc, MailAuthVerdict::None);
+        assert_eq!(page.messages[2].auth_result.source, MailAuthSource::Missing);
+        assert!(!page.messages[2].auth_result.aligned);
+    }
+
     #[test]
     fn retry_after_header_wins() {
         assert_eq!(retry_delay(Some("10"), 0), Duration::from_secs(10));
@@ -1023,9 +1103,17 @@ mod tests {
         let client = GraphClient::new_with_base("AT".into(), "https://g".into());
         // Normal base64url ids pass through unchanged.
         let safe = client.delta_start_url("AQMkAD-0_abc");
-        assert!(
-            safe.ends_with("/mailFolders/AQMkAD-0_abc/messages/delta"),
-            "got {safe}"
+        let parsed_safe = reqwest::Url::parse(&safe).expect("safe url");
+        assert_eq!(
+            parsed_safe.path(),
+            "/v1.0/me/mailFolders/AQMkAD-0_abc/messages/delta"
+        );
+        assert_eq!(
+            parsed_safe
+                .query_pairs()
+                .find(|(key, _)| key == "$select")
+                .map(|(_, value)| value.into_owned()),
+            Some(GRAPH_MESSAGE_SELECT_FIELDS.to_string())
         );
         // A traversal/escape attempt is neutralized (no raw `/` or `..` survives).
         let evil = client.delta_start_url("../../etc");

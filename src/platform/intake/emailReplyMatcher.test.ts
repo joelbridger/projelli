@@ -130,6 +130,9 @@ describe('emailAddressMatch', () => {
     expect(
       emailAddressMatch('Sarah Okafor <sarah@example.com>', 'sarah@example.com')
     ).toBe(true);
+    expect(emailAddressMatch('sarah@example.com', 'sarah@example.com')).toBe(
+      true
+    );
     expect(
       emailAddressMatch(
         'Sarah Okafor <sarah.okafor@example.com>',
@@ -156,6 +159,15 @@ describe('emailAddressMatch', () => {
     ).toBe(true);
     expect(parseEmailAddress('not an email')).toBeNull();
     expect(parseEmailAddress('sarah@@example.com')).toBeNull();
+  });
+
+  it('fails closed when a display sender contains extra angle addresses', () => {
+    expect(
+      emailAddressMatch(
+        'Evil <sarah@example.com> <attacker@evil.example>',
+        'sarah@example.com'
+      )
+    ).toBe(false);
   });
 });
 
