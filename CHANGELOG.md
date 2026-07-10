@@ -165,6 +165,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **Writeback approval audit trail.** External write approvals now append a
+  must-save intent audit row before any vendor socket send and a matching
+  outcome row after success or delivery-unconfirmed results, with distinct
+  ambiguous outcome ids and no raw vendor payload JSON in audit descriptions.
+  Files modified: `src-tauri/src/commands/writeback/commands.rs`.
 - **Theme light-lock: the app can no longer come up dark unprompted after a
   restart.** (Legion 3× demo dry-run, Run 2: the persisted Theme value read
   "dark" at boot even though Light had been explicitly selected all through
