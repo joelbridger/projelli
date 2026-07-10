@@ -24,6 +24,15 @@ interface LocatedLine {
   line: string;
 }
 
+interface AccountNumberCandidate {
+  located: LocatedLine;
+  value: string;
+  normalized: string;
+}
+
+export const ACATS_MULTIPLE_ACCOUNT_NUMBERS_WARNING =
+  'Multiple account numbers found on statement - confirm the correct one';
+
 export interface AcatsStatementClassification {
   looksLikeBrokerageStatement: boolean;
   deliveringFirm?: ExtractedField<string>;
@@ -95,6 +104,48 @@ function findFirstLine(
   matcher: (line: string) => boolean,
 ): LocatedLine | undefined {
   return linesForPages(pages).find(({ line }) => matcher(line));
+}
+
+function normalizeAccountNumberCandidate(value: string): string {
+  return value
+    .replace(/[^A-Za-z0-9*Xx]/g, '')
+    .replace(/[*Xx]/g, 'X')
+    .toUpperCase();
+}
+
+function accountNumberCandidateFromLine(located: LocatedLine): AccountNumberCandidate | undefined {
+  if (!/\baccount\s*(?:number|#|no\.?)/i.test(located.line) || !/\d/.test(located.line)) {
+    return undefined;
+  }
+  // The captured value excludes spaces: PDF text is flattened, so a line like
+  // "Account Number: 1234 Account Title: ..." would otherwise let the greedy
+  // class swallow into the next label ("1234 Account"). Real account numbers
+  // and masked placeholders never contain internal spaces, so excluding them
+  // naturally stops the match at the number itself (codex-review, 2026-07-10).
+  // No trailing `\b` in the account-label group: `#`/`.` are non-word
+  // characters, so a boundary right after them fails on "Account #:".
+  const match = located.line.match(
+    /\baccount\s*(?:number|#|no\.?)\s*[:#]?\s*([A-Za-z0-9*Xx][A-Za-z0-9*Xx-]{2,19})\b/i,
+  );
+  const value = (match?.[1] ?? '')
+    .replace(/\b(statement|type|title)\b.*$/i, '')
+    .trim();
+  if (!value || !/\d/.test(value)) return undefined;
+  const normalized = normalizeAccountNumberCandidate(value);
+  if (!normalized) return undefined;
+  return { located, value, normalized };
+}
+
+function distinctAccountNumberCandidates(pages: AcatsStatementTextPage[]): AccountNumberCandidate[] {
+  const seen = new Set<string>();
+  const candidates: AccountNumberCandidate[] = [];
+  for (const located of linesForPages(pages)) {
+    const candidate = accountNumberCandidateFromLine(located);
+    if (!candidate || seen.has(candidate.normalized)) continue;
+    seen.add(candidate.normalized);
+    candidates.push(candidate);
+  }
+  return candidates;
 }
 
 function allText(pages: AcatsStatementTextPage[]): string {
@@ -201,24 +252,11 @@ function findAccountNumber(
   pages: AcatsStatementTextPage[],
   sourcePath: string,
 ): ExtractedField<string> | undefined {
-  // No trailing `\b` here: `#`/`.` are non-word characters, so a boundary
-  // assertion right after them fails to match common statement shapes like
-  // "Account #:" (codex-review, 2026-07-10) where punctuation immediately follows.
-  const located = findFirstLine(pages, (line) =>
-    /\baccount\s*(?:number|#|no\.?)/i.test(line) && /\d/.test(line),
-  );
-  if (!located) return undefined;
-  // The captured value excludes spaces: PDF text is flattened, so a line like
-  // "Account Number: 1234 Account Title: ..." would otherwise let the greedy
-  // class swallow into the next label ("1234 Account"). Real account numbers
-  // and masked placeholders never contain internal spaces, so excluding them
-  // naturally stops the match at the number itself (codex-review, 2026-07-10).
-  const match = located.line.match(/\baccount\s*(?:number|#|no\.?)\s*[:#]?\s*([A-Za-z0-9*Xx][A-Za-z0-9*Xx-]{2,19})\b/i);
-  const value = (match?.[1] ?? '')
-    .replace(/\b(statement|type|title)\b.*$/i, '')
-    .trim();
-  if (!value || !/\d/.test(value)) return undefined;
-  return extractedField(value, isMaskedAccountNumber(value) ? 0.45 : 0.93, sourcePath, located);
+  const candidates = distinctAccountNumberCandidates(pages);
+  const first = candidates[0];
+  if (!first) return undefined;
+  const confidence = candidates.length > 1 || isMaskedAccountNumber(first.value) ? 0.45 : 0.93;
+  return extractedField(first.value, confidence, sourcePath, first.located);
 }
 
 function findAccountTitle(
@@ -528,6 +566,9 @@ export function buildAcatsDraftWarnings(
   }
   if (isMaskedAccountNumber(draft.deliveringAccount.accountNumber?.value)) {
     warnings.add('Account number is masked');
+  }
+  if (distinctAccountNumberCandidates(pages).length > 1) {
+    warnings.add(ACATS_MULTIPLE_ACCOUNT_NUMBERS_WARNING);
   }
   if (hasReceivingRegistrationMismatch(draft)) {
     warnings.add('Account title does not match the receiving Schwab account title');

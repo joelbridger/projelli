@@ -1,5 +1,5 @@
 /* eslint-disable lantern-i18n/no-hardcoded-string */
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   Check,
@@ -259,14 +259,29 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
   const getBlockingItems = useAcatsReviewStore((state) => state.blockingItems);
   const isReadyForApproval = useAcatsReviewStore((state) => state.isReadyForApproval);
   const approveDraft = useAcatsReviewStore((state) => state.approveDraft);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+  const [isApproving, setIsApproving] = useState(false);
 
   useEffect(() => {
     setDraft(draft);
+    setApprovalError(null);
   }, [draft, setDraft]);
 
   const activeDraft = reviewDraft ?? draft;
   const blockingItems = getBlockingItems();
   const ready = isReadyForApproval();
+
+  async function handleApproveDraft(): Promise<void> {
+    setApprovalError(null);
+    setIsApproving(true);
+    try {
+      await approveDraft();
+    } catch {
+      setApprovalError('The audit log could not be saved, so this draft was not approved. Try again.');
+    } finally {
+      setIsApproving(false);
+    }
+  }
 
   return (
     <div
@@ -385,13 +400,22 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
         </div>
         <Button
           data-testid="acats-approve"
-          disabled={!ready}
+          disabled={!ready || isApproving}
           iconLeft={ClipboardCheck}
-          onClick={() => { approveDraft(); }}
+          onClick={() => { void handleApproveDraft(); }}
         >
-          Approve draft
+          {isApproving ? 'Saving approval...' : 'Approve draft'}
         </Button>
       </div>
+      {approvalError ? (
+        <div
+          role="alert"
+          data-testid="acats-approval-error"
+          className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800"
+        >
+          {approvalError}
+        </div>
+      ) : null}
     </div>
   );
 }

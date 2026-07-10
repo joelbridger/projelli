@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  ACATS_MULTIPLE_ACCOUNT_NUMBERS_WARNING,
   buildAcatsDraftWarnings,
   classifyAcatsStatementPages,
   extractAcatsDraftFromPdfBytes,
@@ -106,6 +107,47 @@ describe('ACATS statement extraction', () => {
     });
 
     expect(draft.deliveringAccount.accountNumber?.value).toBe('1234');
+  });
+
+  it('lowers confidence and warns when a statement has two different account numbers', () => {
+    const draft = extractAcatsDraftFromTextPages({
+      id: 'draft-multiple-accounts',
+      matterId: 'matter-1',
+      sourcePath: 'Clients/Hendricks/household-statement.pdf',
+      pages: [
+        { pageNumber: 1, text: cleanNativeStatement, extraction: 'native-pdf' },
+        {
+          pageNumber: 2,
+          text: 'Account Number: 9999-0000\nAccount Title: Jamie Daines IRA\nHoldings',
+          extraction: 'native-pdf',
+        },
+      ],
+      now: NOW,
+    });
+
+    expect(draft.deliveringAccount.accountNumber?.value).toBe('1234-5678');
+    expect(draft.deliveringAccount.accountNumber?.confidence).toBeLessThan(0.7);
+    expect(draft.warnings).toContain(ACATS_MULTIPLE_ACCOUNT_NUMBERS_WARNING);
+  });
+
+  it('does not warn when the same account number is printed more than once', () => {
+    const draft = extractAcatsDraftFromTextPages({
+      id: 'draft-repeated-account',
+      matterId: 'matter-1',
+      sourcePath: 'Clients/Hendricks/repeated-statement.pdf',
+      pages: [
+        { pageNumber: 1, text: cleanNativeStatement, extraction: 'native-pdf' },
+        {
+          pageNumber: 2,
+          text: 'Account No. 12345678\nAccount Title: Jamie Daines and Taylor Daines JTWROS',
+          extraction: 'native-pdf',
+        },
+      ],
+      now: NOW,
+    });
+
+    expect(draft.deliveringAccount.accountNumber?.confidence).toBe(0.93);
+    expect(draft.warnings).not.toContain(ACATS_MULTIPLE_ACCOUNT_NUMBERS_WARNING);
   });
 
   it('extracts a clean native-PDF brokerage statement with page citations', () => {

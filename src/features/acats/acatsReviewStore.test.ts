@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AuditService } from '@/platform/audit/AuditService';
+import type { AuditEntry } from '@/platform/types/audit';
 import { useAcatsReviewStore } from './acatsReviewStore';
 import { getAcatsReviewBlockingItems } from './reviewRules';
 import type { AcatsTransferDraft } from './types';
@@ -56,12 +58,45 @@ function draft(overrides: Partial<AcatsTransferDraft> = {}): AcatsTransferDraft 
   };
 }
 
+function savedAuditEntry(description = 'saved'): AuditEntry {
+  return {
+    id: 'audit-1',
+    timestamp: '2026-07-10T12:00:00.000Z',
+    action: 'acats.approve',
+    description,
+    model: undefined,
+    inputs: {},
+    outputs: {},
+    userDecision: 'approved',
+    metadata: { auditPersistenceStatus: 'saved' },
+  };
+}
+
+function confirmReadyDraft(): void {
+  for (const key of [
+    'deliveringFirm.name',
+    'deliveringAccount.accountNumber',
+    'deliveringAccount.accountTitle',
+    'deliveringAccount.registrationType',
+    'sourceStatementDate',
+    'instruction.transferType',
+  ]) {
+    useAcatsReviewStore.getState().confirmField(key);
+  }
+  useAcatsReviewStore.getState().setTransferType('full');
+  useAcatsReviewStore.getState().acknowledgeWarning('Account number is masked');
+}
+
 describe('ACATS review store', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
     useAcatsReviewStore.getState().resetAcatsReview();
   });
 
-  it('blocks approval until critical fields are confirmed and warnings acknowledged', () => {
+  it('blocks approval until critical fields are confirmed and warnings acknowledged', async () => {
+    const auditSpy = vi
+      .spyOn(AuditService.prototype, 'mustLogDurable')
+      .mockResolvedValue(savedAuditEntry('approved'));
     useAcatsReviewStore.getState().setDraft(draft());
 
     expect(useAcatsReviewStore.getState().isReadyForApproval()).toBe(false);
@@ -69,22 +104,42 @@ describe('ACATS review store', () => {
       expect.arrayContaining(['Confirm delivering firm', 'Acknowledge warning: Account number is masked']),
     );
 
-    for (const key of [
-      'deliveringFirm.name',
-      'deliveringAccount.accountNumber',
-      'deliveringAccount.accountTitle',
-      'deliveringAccount.registrationType',
-      'sourceStatementDate',
-      'instruction.transferType',
-    ]) {
-      useAcatsReviewStore.getState().confirmField(key);
-    }
-    useAcatsReviewStore.getState().setTransferType('full');
-    useAcatsReviewStore.getState().acknowledgeWarning('Account number is masked');
+    confirmReadyDraft();
 
     expect(useAcatsReviewStore.getState().isReadyForApproval()).toBe(true);
-    useAcatsReviewStore.getState().approveDraft();
+    await useAcatsReviewStore.getState().approveDraft();
     expect(useAcatsReviewStore.getState().draft?.reviewStatus).toBe('approved');
+    expect(auditSpy).toHaveBeenCalledWith(
+      'acats.approve',
+      expect.stringContaining('matter matter-1'),
+      expect.objectContaining({ userDecision: 'approved' }),
+    );
+  });
+
+  it('logs approval with a masked account number and never the full number in the description', async () => {
+    const auditSpy = vi
+      .spyOn(AuditService.prototype, 'mustLogDurable')
+      .mockResolvedValue(savedAuditEntry('approved'));
+    useAcatsReviewStore.getState().setDraft(draft());
+    confirmReadyDraft();
+
+    await useAcatsReviewStore.getState().approveDraft();
+
+    const call = auditSpy.mock.calls[0];
+    expect(call?.[0]).toBe('acats.approve');
+    expect(call?.[1]).toContain('Wells Fargo Advisors');
+    expect(call?.[1]).toContain('****5678');
+    expect(call?.[1]).not.toContain('1234-5678');
+  });
+
+  it('does not approve the draft when the durable audit row cannot be saved', async () => {
+    vi.spyOn(AuditService.prototype, 'mustLogDurable').mockRejectedValue(new Error('audit failed'));
+    useAcatsReviewStore.getState().setDraft(draft());
+    confirmReadyDraft();
+
+    await expect(useAcatsReviewStore.getState().approveDraft()).rejects.toThrow('audit failed');
+
+    expect(useAcatsReviewStore.getState().draft?.reviewStatus).toBe('needs_review');
   });
 
   it('records advisor edits with original extracted values still recoverable', () => {

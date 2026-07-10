@@ -165,6 +165,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `useAsk.localTrim.test.ts`.
 
 ### Fixed
+- **ACATS review audit and account-number safety.** Statements with more than one distinct delivering account number now keep the first value but lower confidence and block approval until the advisor acknowledges the warning; approving an ACATS draft and exporting the Schwab Prep Packet now require a durable audit row with only masked account numbers in the log description. Files modified: `src/features/acats/extraction.ts`, `src/features/acats/acatsReviewStore.ts`, `src/features/acats/AcatsReviewScreen.tsx`, `src/features/acats/schwabPrepPacket.ts`, `src/features/acats/audit.ts`, `src/platform/types/audit.ts`, `src/platform/audit/AuditService.ts`, `src/features/audit/auditHomeHelpers.ts`.
 - **Theme light-lock: the app can no longer come up dark unprompted after a
   restart.** (Legion 3× demo dry-run, Run 2: the persisted Theme value read
   "dark" at boot even though Light had been explicitly selected all through

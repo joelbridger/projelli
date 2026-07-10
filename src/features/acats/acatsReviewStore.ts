@@ -5,6 +5,7 @@ import {
   type AcatsAcknowledgedWarnings,
   type AcatsConfirmedFields,
 } from './reviewRules';
+import { auditAcatsDraftApproval } from './audit';
 import type {
   AcatsAssetAction,
   AcatsRegistrationType,
@@ -28,7 +29,7 @@ interface AcatsReviewState {
   unacknowledgeWarning: (warning: string) => void;
   setTransferType: (transferType: AcatsTransferType) => void;
   setAssetAction: (assetIndex: number, action: AcatsAssetAction) => void;
-  approveDraft: () => void;
+  approveDraft: () => Promise<void>;
   blockingItems: () => string[];
   isReadyForApproval: () => boolean;
   resetAcatsReview: () => void;
@@ -214,13 +215,17 @@ export const useAcatsReviewStore = create<AcatsReviewState>((set, get) => ({
       };
     });
   },
-  approveDraft: () => {
-    set((state) => {
-      if (!isAcatsDraftReadyForApproval(state)) return state;
-      if (!state.draft) return state;
+  approveDraft: async () => {
+    const state = get();
+    if (!isAcatsDraftReadyForApproval(state) || !state.draft) return;
+    const draftToApprove = cloneDraft(state.draft);
+    await auditAcatsDraftApproval(draftToApprove);
+    set((latestState) => {
+      if (!latestState.draft || latestState.draft.id !== draftToApprove.id) return latestState;
+      if (!isAcatsDraftReadyForApproval(latestState)) return latestState;
       return {
         draft: {
-          ...cloneDraft(state.draft),
+          ...cloneDraft(latestState.draft),
           reviewStatus: 'approved',
         },
       };
