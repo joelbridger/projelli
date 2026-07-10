@@ -133,6 +133,8 @@ import { MattersHome } from '@/features/matters/MattersHome';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { AuditHome } from '@/features/audit/AuditHome';
 import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
+import { deriveAuthToken } from '@/platform/intake/intakeCrypto';
+import { b64ToBytes } from '@/platform/intake/pageSeal';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null, pendingMeetingOpen: null });
@@ -670,6 +672,61 @@ describe('MatterHub — sub-tab workspace', () => {
       expect(screen.getByText('relay refused bundle')).toBeInTheDocument();
     });
     expect(intakeLinkActionSpies.updateIntakeLinkSecret).not.toHaveBeenCalled();
+    const stored = useIntakeStore.getState().intakesById['intake-regenerate'];
+    expect(stored?.link).toBe('https://forms.example.test/i/intake-regenerate#old-secret');
+    expect(stored?.checklistCiphertextB64).toBe('old-checklist');
+    expect(stored?.stateCiphertextB64).toBe('old-state');
+  });
+
+  it('restores the old relay bundle when saving the new local link secret keeps failing', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Rollback Regenerate Co',
+      client: 'Rollback Regenerate Co',
+    });
+    const record = makeIntakeForMatter(matter.id);
+    useIntakeStore.getState().upsertIntake(record);
+    useFirmStore.setState({ seatToken: 'seat-token', accessToken: 'access-token' });
+    intakeLinkActionSpies.loadIntakeLinkSecret.mockResolvedValue('AQIDBA==');
+    intakeLinkActionSpies.regenerateIntakeLink.mockResolvedValue({
+      link: 'https://forms.example.test/i/intake-regenerate#new-secret',
+      tokenB64: 'new-token',
+      linkSecretB64: 'new-secret-b64',
+      checklistCiphertextB64: 'new-checklist',
+      stateCiphertextB64: 'new-state',
+    });
+    intakeLinkActionSpies.relayRegenerateIntake.mockResolvedValue({ ok: true });
+    intakeLinkActionSpies.updateIntakeLinkSecret.mockRejectedValue(new Error('secure storage unavailable'));
+    const oldToken = (await deriveAuthToken(b64ToBytes('AQIDBA=='))).tokenB64;
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+    fireEvent.click(screen.getByTestId('hub-subtab-onboarding'));
+    fireEvent.click(await screen.findByTestId('link-action-regenerate'));
+
+    await waitFor(() => {
+      expect(intakeLinkActionSpies.relayRegenerateIntake).toHaveBeenCalledTimes(2);
+    });
+    expect(intakeLinkActionSpies.updateIntakeLinkSecret).toHaveBeenCalledTimes(3);
+    expect(intakeLinkActionSpies.relayRegenerateIntake).toHaveBeenNthCalledWith(
+      1,
+      'intake-regenerate',
+      {
+        token_b64: 'new-token',
+        checklist_ciphertext_b64: 'new-checklist',
+        state_ciphertext_b64: 'new-state',
+      },
+    );
+    expect(intakeLinkActionSpies.relayRegenerateIntake).toHaveBeenNthCalledWith(
+      2,
+      'intake-regenerate',
+      {
+        token_b64: oldToken,
+        checklist_ciphertext_b64: 'old-checklist',
+        state_ciphertext_b64: 'old-state',
+      },
+    );
+    await waitFor(() => {
+      expect(screen.getByText(/The previous link was restored and still works/u)).toBeInTheDocument();
+    });
     const stored = useIntakeStore.getState().intakesById['intake-regenerate'];
     expect(stored?.link).toBe('https://forms.example.test/i/intake-regenerate#old-secret');
     expect(stored?.checklistCiphertextB64).toBe('old-checklist');
