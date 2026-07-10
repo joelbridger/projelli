@@ -37,7 +37,7 @@ Never record real client data or rely on a personal AI key for a demo take.
 
 | Place | What it is |
 |---|---|
-| `scripts/demo-videos/record.mjs` | The one command that records and converts a video. It keeps the original 1280×800 app layout, captures it at 2560×1600 pixels, then makes a crisp 1728×1080 (16:10) MP4. |
+| `scripts/demo-videos/record.mjs` | The one command that records and converts a video. It keeps the original 1280×800 app layout, follows Chromium's live compositor at 60fps, and delivers a 2560×1600 MP4. |
 | `scripts/demo-videos/engine/DemoEngine.mjs` | The small set of actions a flow can use: move, click, type, wait, and show a caption. |
 | `scripts/demo-videos/engine/overlay.js` | The visible cursor, click ripple, and large caption pill. |
 | `scripts/demo-videos/flows/` | One small script for each story the video tells. |
@@ -65,14 +65,19 @@ export default async function run(engine, { page }) {
   await engine.hold(1000); // Let the app settle before the story begins.
 
   // Say one simple thing, then show it with a real click.
-  await engine.caption('Open one client to see the full picture.', 1800);
-  await engine.clickTestId('spine-client-row-matter_demo_brennan');
+  const clientRow = page.getByTestId('spine-client-row-matter_demo_brennan');
+  await engine.caption('Open one client to see the full picture.', 1800, {
+    target: clientRow,
+  });
+  await engine.click(clientRow);
   await engine.clearCaption();
 
   // Wait for the result rather than guessing how long it takes.
   await engine.waitForTestId('clientmap-tab-household');
   const source = page.getByTestId('clientmap-source-link').first();
-  await engine.caption('Every fact links back to its source.', 1800);
+  await engine.caption('Every fact links back to its source.', 1800, {
+    target: source,
+  });
   await engine.moveTo(source); // Point without clicking when that is clearer.
   await engine.hold(700);
   await engine.clearCaption();
@@ -81,7 +86,18 @@ export default async function run(engine, { page }) {
 
 Keep captions plain. Say “household” or “client,” not internal names. Do not
 use em dashes. Do not promise a speed you have not measured. A good caption is
-one simple sentence, and it should fit on one or two lines in the large pill.
+one short, simple sentence, and it must fit on one line in the large pill.
+
+### Caption placement
+
+Every caption must name its active target with the third `caption()` argument:
+`{ target: locator }`. The recorder checks the target's centre before the
+caption appears. If it is in the bottom 40% of the frame, the pill goes at
+top-center, about 8% from the top. Otherwise it goes at bottom-center, about
+6% from the bottom. A beat without a target uses the visible cursor's current
+destination. The pill glides between edges only when a new caption begins;
+never move it in the middle of a caption. This keeps the narration from
+ghosting over the control, answer, or source it is explaining.
 
 ## Record, inspect, and verify
 
@@ -91,9 +107,9 @@ This is the whole loop. Do it for every new or changed video.
 # Record both web-ready formats. Add DEMO_DEBUG=1 only if a take has dead time.
 node scripts/demo-videos/record.mjs ask-cited-answer --output ask-cited-answer-crisp
 
-# Confirm the finished MP4 is really 1728×1080, H.264, and 30 frames per second.
+# Confirm the finished MP4 is really 2560×1600, H.264 High profile, and 60 frames per second.
 ffprobe -v error -select_streams v:0 \
-  -show_entries stream=codec_name,width,height,avg_frame_rate \
+  -show_entries stream=codec_name,profile,width,height,avg_frame_rate \
   -show_entries format=duration,size -of default=nw=1 \
   scripts/demo-videos/output/ask-cited-answer-crisp.mp4
 
@@ -110,20 +126,28 @@ Open and look at all six frame images. Do the same for `client-map`. The tool
 review must be visual: do not call a video “done” just because a command
 finished. If a frame is not useful, adjust the flow or overlay and record again.
 Use `--headed` to watch a take live and `--keep-raw` to keep the original
-full-density Playwright frames while debugging.
+Chromium compositor frames while debugging.
 
 ### The sharp-layout rule
 
-The browser viewport is always **1280×800** with `deviceScaleFactor: 2`. That
-means the app keeps its original comfortable size while direct Playwright frame
-capture receives a real **2560×1600** HiDPI image. Never make the viewport
+The browser viewport is always **1280×800** with `deviceScaleFactor: 2`, so the
+app keeps its original comfortable size. Chromium's live screencast emits that
+same comfortable layout at CSS-pixel size, then the recorder uses a high-quality
+Lanczos scale to make the board's **2560×1600** MP4. Never make the viewport
 bigger just to chase a higher-resolution file: that shrinks the interface
-itself. The recorder checks the raw frame pixels before converting. If a browser
-ever caps a raw frame, do not publish it; use a full-resolution capture path.
+itself. The recorder checks that raw frames are the complete 1280×800 layout
+before converting.
 
-The encoder downscales that 2× source once with Lanczos to **1728×1080**. This
-is 16:10, the same shape as the original layout. The finished MP4 is H.264 at
-CRF 18 so small text and fine UI lines stay clean.
+The cursor and all page animation are recorded from Chromium's compositor at
+**60fps**. The recorder rejects a take unless it receives a six-frame burst
+with gaps small enough for 60fps motion; simply converting a low-frame-rate
+recording to 60fps is never acceptable. The cursor overlay itself uses
+`requestAnimationFrame`, so each captured animation frame has a fresh cursor
+position.
+
+The encoder keeps the full **2560×1600** source. The finished MP4 is H.264
+High profile at CRF 16 and **60fps**, so fullscreen text, fine interface lines,
+and cursor motion stay crisp. The larger file is intentional.
 
 For every approval, inspect both ordinary frames and close-up crops of text and
 thin interface lines. For example:
@@ -151,24 +175,31 @@ use to `scripts/demo-videos/output/`.
 
 Before accepting a take, check every item below.
 
-- The raw recording is 2560×1600, and the finished MP4 is 1728×1080 at 30fps
-  with `h264` in `ffprobe`.
+- The raw compositor recording is the complete 1280×800 layout and the
+  finished MP4 is 2560×1600 at 60fps. `ffprobe` reports H.264 High profile at
+  CRF 16. The recorder report includes a verified six-frame 60fps burst.
 - The app is in its light theme from the first frame to the last.
 - The visible cursor is present, moves smoothly, and lands on the thing the
   real app action changes. Clicks have a small ripple.
-- Captions are huge (56px in the original 1280×800 layout, about twice the
-  former size in the finished film), white on a dark pill, easy to read at a
-  glance, and have generous padding.
-- A caption never hides a useful control, result, source, or part of the
-  story. Move the caption timing or simplify the step if it does.
+- Captions are large (44px in the original 1280×800 layout), white on a
+  visibly translucent dark pill (`rgba(17, 24, 39, 0.68)`), easy to read at a
+  glance, and have generous padding. The panel is centered and 82% of the
+  frame wide. Captions must be short enough to remain one line; the overlay
+  deliberately prevents wrapping so a too-long caption is obvious and must be
+  rewritten before recording.
+- Every caption names its active target. Targets in the lower 40% use the
+  top-center pill; all other targets use bottom-center. A caption never hides
+  the control, result, source, or part of the story it explains.
 - The words are short, plain, and use client/household language. No em dashes.
 - The pace has no long frozen waits. Give people time to read and notice a
   result, but remove dead air.
 - Six extracted frames and zoomed crops of text/UI regions have been visually
-  reviewed. They show a legible huge caption, visible cursor, crisp light
-  interface, and meaningful moments from across the whole video.
-- The file is web-reasonable. The MP4 uses H.264 with CRF 18, which protects
-  clean text and fine UI lines in a short help video.
+  reviewed. They show a legible one-line caption, visible cursor, crisp light
+  interface, and meaningful moments from across the whole video. Also inspect
+  a six-frame consecutive burst during one cursor glide: its positions must
+  advance in small, even steps, proving the motion is genuinely smooth.
+- The larger file is expected. The MP4 uses H.264 High profile at CRF 16,
+  preserving clean text and fine UI lines for fullscreen playback.
 
 ## Put an approved video on the private board
 

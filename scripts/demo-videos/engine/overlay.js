@@ -63,25 +63,31 @@
   Object.assign(caption.style, {
     position: 'fixed',
     left: '50%',
-    // The flows clear the pill before an action or reveal. Keeping it in the
-    // lower edge leaves the main result, source links, and Client Map facts
-    // visible while the narration is on screen.
-    bottom: '24px',
-    transform: 'translateX(-50%) translateY(12px)',
-    maxWidth: '1180px',
+    // The engine chooses the safe edge for every beat: captions describing a
+    // target in the lower 40% sit at the top, and all others sit at the
+    // bottom. `top` is the single animated anchor so an edge change is smooth.
+    top: '94%',
+    transform: 'translateX(-50%) translateY(calc(-100% + 12px))',
+    // A single generous line, about 82% of the frame including its padding.
+    // Captions are deliberately kept short in flows so this never becomes a
+    // two-line block over the product.
+    width: '82%',
+    maxWidth: '1050px',
+    boxSizing: 'border-box',
+    whiteSpace: 'nowrap',
     padding: '18px 32px',
     borderRadius: '18px',
-    background: 'rgba(17, 24, 39, 0.92)',
+    background: 'rgba(17, 24, 39, 0.68)',
     color: '#ffffff',
-    // At the 1728px final render this is about twice the old on-screen size,
-    // so it remains huge without becoming a screen-sized wall of words.
-    font: "600 56px/1.18 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    // At the 2560px final render this remains huge while leaving room for a
+    // calm, single-line sentence.
+    font: "600 44px/1.18 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     textAlign: 'center',
     letterSpacing: '0',
     zIndex: '2147483646',
     pointerEvents: 'none',
     opacity: '0',
-    transition: 'opacity 320ms ease, transform 320ms ease',
+    transition: 'opacity 320ms ease, top 320ms ease, transform 320ms ease',
     boxShadow: '0 8px 30px rgba(0,0,0,0.28)',
   });
 
@@ -179,14 +185,22 @@
     setTimeout(() => r.remove(), 520);
   }
 
-  function showCaption(text) {
+  function captionTransform(position, offset = 0) {
+    return position === 'top'
+      ? `translateX(-50%) translateY(${offset}px)`
+      : `translateX(-50%) translateY(calc(-100% + ${offset}px))`;
+  }
+
+  function showCaption(text, position = 'bottom') {
     caption.textContent = text;
+    caption.style.top = position === 'top' ? '8%' : '94%';
     caption.style.opacity = '1';
-    caption.style.transform = 'translateX(-50%) translateY(0)';
+    caption.style.transform = captionTransform(position);
   }
   function hideCaption() {
     caption.style.opacity = '0';
-    caption.style.transform = 'translateX(-50%) translateY(12px)';
+    const position = parseFloat(caption.style.top || '94') < 50 ? 'top' : 'bottom';
+    caption.style.transform = captionTransform(position, position === 'top' ? -12 : 12);
   }
 
   render();

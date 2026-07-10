@@ -48,10 +48,20 @@ export class DemoEngine {
 
   // ---- narration -------------------------------------------------------
 
-  /** Show a caption, then hold so the viewer can read it. */
-  async caption(text, holdMs = 1400) {
+  /**
+   * Show a caption beside its active target, then hold so it can be read.
+   * A target in the lower 40% of the frame sends the pill to top-center;
+   * everything else uses bottom-center. If a beat has no target, use the
+   * cursor's current destination instead.
+   */
+  async caption(text, holdMs = 1400, { target } = {}) {
     await this._ready();
-    await this.page.evaluate((t) => window.__demo.showCaption(t), text);
+    const position = await this._captionPosition(target);
+    await this.page.evaluate(
+      ({ text: captionText, position: captionPosition }) =>
+        window.__demo.showCaption(captionText, captionPosition),
+      { text, position },
+    );
     await this.hold(holdMs);
   }
 
@@ -80,6 +90,22 @@ export class DemoEngine {
       if (!box) throw new Error('target has no bounding box (not visible?)');
       return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
     });
+  }
+
+  async _captionPosition(target) {
+    let y;
+    if (target) {
+      // Do not scroll a page just to place narration: the target should
+      // already be visible for the beat it describes. Falling back to the
+      // cursor keeps an introductory caption useful if a target is late.
+      const box = await target.boundingBox().catch(() => null);
+      if (box) y = box.y + box.height / 2;
+    }
+    if (typeof y !== 'number') {
+      y = await this.page.evaluate(() => window.__demo.pos().y);
+    }
+    const height = await this.page.evaluate(() => window.innerHeight);
+    return y >= height * 0.6 ? 'top' : 'bottom';
   }
 
   // ---- motion ----------------------------------------------------------

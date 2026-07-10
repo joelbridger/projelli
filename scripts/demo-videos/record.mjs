@@ -31,7 +31,11 @@ const FLOWS_DIR = path.join(__dirname, 'flows');
 const OUTPUT_DIR = path.join(__dirname, 'output');
 const RAW_DIR = path.join(OUTPUT_DIR, '.raw');
 const OVERLAY = path.join(__dirname, 'engine', 'overlay.js');
-const RAW_FPS = 25;
+// The compositor is asked for every painted frame.  60 is not a cosmetic
+// encode setting: a take is rejected if Chrome did not actually deliver close
+// to 60 distinct frames per second while the flow ran.
+const RECORDING_FPS = 60;
+const MAX_60FPS_FRAME_GAP_MS = 28;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -98,8 +102,11 @@ const captureSize = {
   width: viewport.width * deviceScaleFactor,
   height: viewport.height * deviceScaleFactor,
 };
-// 16:10 at a 1080px height preserves the original layout's aspect ratio.
-const outputSize = { width: 1728, height: 1080 };
+// The compositor stream is CSS-pixel sized. It is later upscaled with Lanczos
+// solely to retain the established board-video dimensions; smooth motion is
+// more important here than an expensive PNG stream that drops a third of the
+// animation frames.
+const outputSize = captureSize;
 if (
   meta.viewport &&
   (meta.viewport.width !== viewport.width ||
@@ -141,47 +148,77 @@ await page.addInitScript({ path: OVERLAY });
 // larger canvas on Chromium. That creates a technically big video with a
 // visibly shrunken app. Direct Playwright screenshots honor deviceScaleFactor,
 // so these are genuine 2560x1600 HiDPI frames of the 1280x800 layout.
-function startFullDensityCapture() {
+async function startFullDensityCapture() {
   const framesDir = fs.mkdtempSync(path.join(RAW_DIR, `${outputName}-`));
   const frames = [];
   let active = true;
   let frameNumber = 0;
-  const intervalMs = 1000 / RAW_FPS;
+  const cdp = await context.newCDPSession(page);
+  let writeQueue = Promise.resolve();
+  let firstTimestamp = null;
+  let lastTimestamp = null;
 
-  const task = (async () => {
-    let nextFrameAt = performance.now();
-    while (active) {
-      const file = path.join(
-        framesDir,
-        `frame-${String(frameNumber++).padStart(6, '0')}.png`
-      );
-      try {
-        await page.screenshot({ path: file, type: 'png' });
-        frames.push({ file, capturedAt: performance.now() });
-      } catch (error) {
-        // Chromium can reject one screenshot while a just-created page is
-        // loading fonts. A missed frame is preferable to abandoning a take.
-        if (!active) break;
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        continue;
-      }
-      nextFrameAt += intervalMs;
-      const waitMs = nextFrameAt - performance.now();
-      if (waitMs > 0)
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-    }
-  })();
+  // Page.screencastFrame comes directly from Chromium's compositor.  Unlike a
+  // loop of Playwright screenshots, it follows every requestAnimationFrame
+  // paint, so the visible cursor and the captured film share one 60fps clock.
+  cdp.on('Page.screencastFrame', ({ data, metadata, sessionId }) => {
+    if (!active) return;
+    const timestamp = Number(metadata?.timestamp);
+    const capturedAt = Number.isFinite(timestamp)
+      ? timestamp * 1000
+      : performance.now();
+    const file = path.join(
+      framesDir,
+      `frame-${String(frameNumber++).padStart(6, '0')}.png`
+    );
+    if (firstTimestamp === null) firstTimestamp = capturedAt;
+    lastTimestamp = capturedAt;
+    frames.push({ file, capturedAt });
+    // Ack immediately so Chromium can keep painting; queue the disk writes so
+    // a slow disk never turns the cursor into a coarse slideshow.
+    cdp.send('Page.screencastFrameAck', { sessionId }).catch(() => {});
+    const image = Buffer.from(data, 'base64');
+    writeQueue = writeQueue.then(() => fs.promises.writeFile(file, image));
+  });
+  await cdp.send('Page.startScreencast', {
+    // High-quality JPEG is dramatically lighter than PNG for a compositor
+    // stream and is what lets Chromium keep up with requestAnimationFrame.
+    // The final H.264 encode remains at CRF 16.
+    format: 'jpeg',
+    quality: 100,
+    maxWidth: viewport.width,
+    maxHeight: viewport.height,
+    everyNthFrame: 1,
+  });
 
   return {
     async stop() {
       active = false;
-      await task;
-      return { frames, framesDir };
+      await cdp.send('Page.stopScreencast').catch(() => {});
+      await writeQueue;
+      await cdp.detach().catch(() => {});
+      const elapsedSeconds =
+        firstTimestamp !== null && lastTimestamp !== null
+          ? Math.max((lastTimestamp - firstTimestamp) / 1000, 0)
+          : 0;
+      const capturedFps = elapsedSeconds > 0 ? (frames.length - 1) / elapsedSeconds : 0;
+      const timingPath = path.join(framesDir, 'capture-timing.json');
+      fs.writeFileSync(
+        timingPath,
+        JSON.stringify({
+          capturedFps,
+          frames: frames.map(({ file, capturedAt }) => ({
+            file: path.basename(file),
+            capturedAt,
+          })),
+        }),
+      );
+      return { frames, framesDir, capturedFps, timingPath };
     },
   };
 }
 
-const capture = startFullDensityCapture();
+const capture = await startFullDensityCapture();
 
 const engine = new DemoEngine(page, { baseURL });
 
@@ -201,6 +238,33 @@ await browser.close();
 
 if (captured.frames.length < 2) {
   console.error('✗ not enough full-density frames were captured.');
+  process.exit(1);
+}
+function bestSixFrameBurst(frames) {
+  let best = null;
+  for (let i = 0; i <= frames.length - 6; i += 1) {
+    const deltas = Array.from({ length: 5 }, (_, j) =>
+      frames[i + j + 1].capturedAt - frames[i + j].capturedAt,
+    );
+    const maxGap = Math.max(...deltas);
+    const minGap = Math.min(...deltas);
+    const mean = deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length;
+    const evenness = Math.max(...deltas.map((delta) => Math.abs(delta - mean)));
+    const candidate = { start: i, deltas, maxGap, minGap, mean, evenness };
+    if (!best || candidate.maxGap < best.maxGap ||
+      (candidate.maxGap === best.maxGap && candidate.evenness < best.evenness)) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+const burst = bestSixFrameBurst(captured.frames);
+if (!burst || burst.maxGap > MAX_60FPS_FRAME_GAP_MS) {
+  console.error(
+    `✗ Chromium never delivered a six-frame 60fps burst (best gap ${burst?.maxGap?.toFixed(1) ?? '?'}ms; need ≤${MAX_60FPS_FRAME_GAP_MS}ms).`
+  );
+  console.error(`  Raw frames were kept at ${captured.framesDir}.`);
   process.exit(1);
 }
 if (failed) {
@@ -233,15 +297,15 @@ function dimensionsOf(file) {
   return { width, height };
 }
 
-// Refuse to turn a capped Playwright recording into a misleading "crisp"
-// deliverable. The raw file must contain the actual 2x pixels first.
+// Chromium's screencast API emits CSS-pixel frames (the original comfortable
+// app layout) rather than device pixels. Refuse any unexpected crop or cap.
 const rawDimensions = dimensionsOf(captured.frames[0].file);
 if (
-  rawDimensions.width !== captureSize.width ||
-  rawDimensions.height !== captureSize.height
+  rawDimensions.width !== viewport.width ||
+  rawDimensions.height !== viewport.height
 ) {
   console.error(
-    `✗ Recorder produced ${rawDimensions.width}x${rawDimensions.height}, expected ${captureSize.width}x${captureSize.height}.`
+    `✗ Recorder produced ${rawDimensions.width}x${rawDimensions.height}, expected ${viewport.width}x${viewport.height}.`
   );
   console.error(`  Full-density frames were kept at ${captured.framesDir}.`);
   process.exit(1);
@@ -254,7 +318,7 @@ for (let i = 0; i < captured.frames.length; i += 1) {
   const next = captured.frames[i + 1];
   concatLines.push(`file '${frame.file.replace(/'/g, "'\\\\''")}'`);
   concatLines.push(
-    `duration ${((next?.capturedAt - frame.capturedAt || 1000 / RAW_FPS) / 1000).toFixed(6)}`
+    `duration ${((next?.capturedAt - frame.capturedAt || 1000 / RECORDING_FPS) / 1000).toFixed(6)}`
   );
 }
 // concat uses the duration of a frame only when the following frame exists.
@@ -264,8 +328,9 @@ concatLines.push(
 );
 fs.writeFileSync(manifestPath, `${concatLines.join('\n')}\n`);
 
-// Downsample the genuine 2x capture once, using Lanczos, for crisp UI lines.
-const vf = `scale=${outputSize.width}:${outputSize.height}:flags=lanczos,fps=30,format=yuv420p`;
+// Preserve the native HiDPI dimensions. The frame-rate conversion is the only
+// video filter; yuv420p keeps broad browser/device compatibility.
+const vf = `fps=${RECORDING_FPS},scale=${outputSize.width}:${outputSize.height}:flags=lanczos,format=yuv420p`;
 
 function ffmpeg(args, label) {
   const r = spawnSync(
@@ -280,8 +345,8 @@ function ffmpeg(args, label) {
 }
 
 console.log('  transcoding…');
-// CRF 18 protects small type and 1px UI borders. faststart lets browsers begin
-// playing before they have downloaded the whole file.
+// CRF 16 and High profile keep small type and 1px UI borders exceptionally
+// clean. faststart lets browsers begin playing before downloading the file.
 ffmpeg(
   [
     '-f',
@@ -295,7 +360,11 @@ ffmpeg(
     '-c:v',
     'libx264',
     '-crf',
-    '18',
+    '16',
+    '-profile:v',
+    'high',
+    '-level:v',
+    '5.0',
     '-preset',
     'slow',
     '-movflags',
@@ -313,7 +382,7 @@ ffmpeg(
     '-i',
     manifestPath,
     '-vf',
-    `scale=${outputSize.width}:${outputSize.height}:flags=lanczos,fps=30`,
+    `fps=${RECORDING_FPS},scale=${outputSize.width}:${outputSize.height}:flags=lanczos`,
     '-c:v',
     'libvpx-vp9',
     '-b:v',
@@ -361,6 +430,10 @@ function durationOf(file) {
 
 const secs = ((Date.now() - t0) / 1000).toFixed(1);
 console.log(`\n✓ done in ${secs}s`);
+console.log(`  capture: ${captured.capturedFps.toFixed(1)}fps from Chromium compositor`);
+console.log(
+  `  smoothest six-frame burst: ${burst.deltas.map((delta) => delta.toFixed(1)).join(', ')}ms`,
+);
 if (fs.existsSync(mp4Out))
   console.log(`  MP4:  ${mp4Out}  (${durationOf(mp4Out)}, ${mp4Dimensions.width}x${mp4Dimensions.height})`);
 if (fs.existsSync(webmOut)) console.log(`  WEBM: ${webmOut}`);
