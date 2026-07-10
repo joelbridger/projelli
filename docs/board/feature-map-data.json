@@ -1,6 +1,6 @@
 {
  "updated": "2026-07-10",
- "version": 5,
+ "version": 6,
  "flywheel": "Everything you send and produce lands back in the client's file — the map gets smarter with every step.",
  "stages": [
   {
@@ -98,17 +98,20 @@
        "name": "One private link the client opens on their phone — no account, no app",
        "status": "building",
        "note": "the headline feature · locked end to end, so only you and the client can ever read it",
-       "hero": true
+       "hero": true,
+       "statusNote": "built; final check on a real computer is running now"
       },
       {
        "name": "The starter form",
        "status": "building",
-       "note": "birth date, Social Security number, driver's license photos, spending, income"
+       "note": "birth date, Social Security number, driver's license photos, spending, income",
+       "statusNote": "built; same real-computer check"
       },
       {
        "name": "Works over plain email too",
-       "status": "planned",
-       "note": "a client can just reply to an email; items check themselves off"
+       "status": "building",
+       "note": "a client can just reply to an email; items check themselves off",
+       "statusNote": "being built right now"
       },
       {
        "name": "Fill it in together over the phone",
@@ -122,7 +125,8 @@
       {
        "name": "Never ask a client the same question twice",
        "status": "building",
-       "note": "intake answers flow into Schwab paperwork, account transfers, RightCapital"
+       "note": "intake answers flow into Schwab paperwork, account transfers, RightCapital",
+       "statusNote": "the ask-once foundation is built; the paperwork flows plug in next"
       }
      ],
      "visionLabel": "Lantern Intake — the flagship"
@@ -132,13 +136,15 @@
      "features": [
       {
        "name": "Onboarding board",
-       "status": "planned",
+       "status": "building",
        "note": "who's in progress, who's stalled, gentle reminders",
-       "hero": true
+       "hero": true,
+       "statusNote": "built with the reminder engine; real-computer check next"
       },
       {
        "name": "Onboarding tab on each in-progress client",
-       "status": "building"
+       "status": "building",
+       "statusNote": "first version built"
       },
       {
        "name": "Welcome journey that sets client expectations",
@@ -146,7 +152,8 @@
       },
       {
        "name": "Account-transfer autopilot (the ACATS paperwork)",
-       "status": "building"
+       "status": "building",
+       "statusNote": "built and on the main code line"
       }
      ]
     }
@@ -470,7 +477,8 @@
       },
       {
        "name": "Send updates to RightCapital / Holistiplan",
-       "status": "building"
+       "status": "building",
+       "statusNote": "foundation built and on the main code line"
       }
      ]
     },
@@ -503,7 +511,8 @@
       {
        "name": "An honesty card for every connection",
        "status": "building",
-       "note": "spells out exactly what each connected tool can see and touch"
+       "note": "spells out exactly what each connected tool can see and touch",
+       "statusNote": "built and on the main code line"
       }
      ]
     }
@@ -552,7 +561,8 @@
    },
    {
     "name": "Answer pack for a firm's IT and compliance reviewers",
-    "status": "planned"
+    "status": "building",
+    "statusNote": "written; gets wired into the app soon"
    }
   ]
  }

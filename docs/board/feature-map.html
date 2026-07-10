@@ -9,14 +9,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,640&family=Albert+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --paper:#faf9f6; --dot:#dcd7cc;
+    --paper:#faf9f6; --dot:#e9e5dc;
     --card:#ffffff; --line:#e7e2d8; --line-soft:#efebe2;
     --ink:#292520; --ink-soft:#6f6a60; --ink-mute:#98917f;
     --gold:#c07c18; --gold-soft:#f7ead2;
     --live:#177a53; --live-bg:#e5f3ec;
     --build:#a26400; --build-bg:#faf0dc;
     --plan:#67788f; --plan-bg:#eceff4;
-    --flow:#cfc8b8;
+    --flow:#ded7c7;
     --serif:"Fraunces",Georgia,serif;
     --sans:"Albert Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
   }
@@ -29,14 +29,14 @@
   #viewport.panning{cursor:grabbing}
   #world{position:absolute; top:0; left:0; transform-origin:0 0;
     background-image:radial-gradient(circle, var(--dot) 1.4px, transparent 1.5px);
-    background-size:34px 34px}
+    background-size:42px 42px}
   #arrows{position:absolute; top:0; left:0; overflow:visible; pointer-events:none}
 
   /* ── floating chrome ───────────────────────────────────── */
   .hud{position:fixed; z-index:20; font-size:13px}
   .hud-top{top:18px; left:20px; right:20px; display:flex; align-items:flex-start; gap:14px; flex-wrap:wrap; pointer-events:none}
   .hud-top>*{pointer-events:auto}
-  .titlecard{background:rgba(255,255,255,.9); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:16px; padding:14px 18px 13px; box-shadow:0 10px 30px rgba(41,37,32,.08); max-width:430px}
+  .titlecard{background:rgba(255,255,255,.9); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:16px; padding:14px 18px 13px; box-shadow:0 4px 18px rgba(41,37,32,.05); max-width:430px}
   .titlecard h1{font-family:var(--serif); font-weight:640; font-size:21px; letter-spacing:.1px; display:flex; align-items:center; gap:9px}
   .titlecard p{margin-top:4px; color:var(--ink-soft); font-size:12.8px; line-height:1.45}
   .titlecard .counts{margin-top:9px; display:flex; gap:6px; flex-wrap:wrap}
@@ -44,13 +44,13 @@
   .count.c-live{color:var(--live); background:var(--live-bg); border-color:#cfe7db}
   .count.c-build{color:var(--build); background:var(--build-bg); border-color:#eeddb9}
   .count.c-plan{color:var(--plan); background:var(--plan-bg); border-color:#dbe1ea}
-  .filters{display:flex; gap:7px; flex-wrap:wrap; background:rgba(255,255,255,.9); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px; padding:6px; box-shadow:0 10px 30px rgba(41,37,32,.08); height:fit-content}
+  .filters{display:flex; gap:7px; flex-wrap:wrap; background:rgba(255,255,255,.9); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px; padding:6px; box-shadow:0 4px 18px rgba(41,37,32,.05); height:fit-content}
   .chip{font:inherit; font-size:12.5px; font-weight:600; border:none; background:transparent; color:var(--ink-soft); border-radius:999px; padding:7px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:7px}
   .chip:hover{background:#f3f0e9}
   .chip.active{background:var(--ink); color:#fff}
   .chip .dot{width:8px; height:8px; border-radius:50%}
   .hud-hint{position:fixed; top:18px; right:20px; z-index:20; color:var(--ink-mute); font-size:12px; background:rgba(255,255,255,.75); backdrop-filter:blur(8px); border:1px solid var(--line-soft); border-radius:999px; padding:6px 13px}
-  .hud-zoom{bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:2px; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px; padding:5px; box-shadow:0 12px 34px rgba(41,37,32,.12)}
+  .hud-zoom{bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:2px; background:rgba(255,255,255,.92); backdrop-filter:blur(10px); border:1px solid var(--line); border-radius:999px; padding:5px; box-shadow:0 6px 22px rgba(41,37,32,.08)}
   .hud-zoom button{font:inherit; font-size:15px; font-weight:600; width:34px; height:34px; border:none; background:transparent; color:var(--ink); border-radius:999px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center}
   .hud-zoom button:hover{background:#f3f0e9}
   .hud-zoom .pct{min-width:52px; text-align:center; font-size:12.5px; font-weight:600; color:var(--ink-soft); font-variant-numeric:tabular-nums}
@@ -59,7 +59,7 @@
   .updated{position:fixed; bottom:22px; right:20px; z-index:20; color:var(--ink-mute); font-size:11.5px}
 
   /* ── stage cards ───────────────────────────────────────── */
-  .stagecard{position:absolute; width:330px; background:var(--card); border:1px solid var(--line); border-radius:18px; box-shadow:0 14px 40px rgba(41,37,32,.07), 0 2px 6px rgba(41,37,32,.04)}
+  .stagecard{position:absolute; width:330px; background:var(--card); border:1px solid var(--line-soft); border-radius:14px; box-shadow:0 4px 18px rgba(41,37,32,.04)}
   .stagecard header{padding:18px 18px 14px; border-bottom:1px solid var(--line-soft)}
   .kicker{font-size:10.5px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:var(--gold)}
   .stagecard h2{font-family:var(--serif); font-weight:640; font-size:19px; margin-top:5px; display:flex; gap:9px; align-items:baseline}
@@ -70,7 +70,7 @@
   li.group:first-child{border-top:none; padding-top:0; margin-top:2px}
   li.group .glabel{font-size:13.5px; font-weight:700; color:var(--ink)}
   li.feat{display:flex; gap:10px; align-items:flex-start; padding:8px 2px 8px 0; border-radius:10px; transition:opacity .25s}
-  .stop{flex:none; width:21px; height:21px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; border:2px solid; background:#fff; margin-top:1px}
+  .stop{flex:none; width:18px; height:18px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:9.5px; font-weight:800; border:1.5px solid; background:#fff; margin-top:2px}
   .s-shipped .stop{color:var(--live); border-color:var(--live); background:var(--live-bg)}
   .s-building .stop{color:var(--build); border-color:var(--build); background:var(--build-bg)}
   .s-planned .stop{color:var(--plan); border-color:var(--plan); background:var(--plan-bg)}
@@ -78,9 +78,9 @@
   .s-planned .name{color:#4d5a70}
   .feat .note{font-size:11.8px; color:var(--ink-mute); margin-top:2px; line-height:1.45}
   .feat .badge{display:none; font-size:9.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; border-radius:5px; padding:1px 6px; margin-left:7px; vertical-align:1px}
-  .s-building .badge{display:inline-block; color:var(--build); background:var(--build-bg)}
-  .s-planned .badge{display:inline-block; color:var(--plan); background:var(--plan-bg)}
-  li.feat.hero{background:linear-gradient(135deg,#fffdf8,#fdf6e8); border:1px solid #f0e3c6; border-radius:12px; padding:10px 10px 10px 8px; margin:2px 0}
+  .s-building .badge{display:inline-block; color:var(--build); background:transparent; border:1px solid #e5cfa2}
+  .s-planned .badge{display:inline-block; color:var(--plan); background:transparent; border:1px solid #ccd4e0}
+  li.feat.hero{border-left:3px solid var(--gold); border-radius:2px; padding:8px 4px 8px 10px; margin:2px 0}
   li.feat.hero .name{font-size:14.2px; font-weight:750}
   li.feat.hero .star{color:var(--gold); font-size:12px; margin-left:6px}
   li.feat.sub{padding-left:8px}
@@ -88,17 +88,17 @@
   li.feat.sub .name{font-weight:500; font-size:12.7px}
 
   /* arrow labels */
-  .alabel{position:absolute; transform:translate(-50%,-50%); background:#fffdf9; border:1px solid var(--line); color:var(--ink-soft); border-radius:999px; padding:4px 12px; font-size:11.3px; white-space:nowrap; box-shadow:0 4px 14px rgba(41,37,32,.06)}
+  .alabel{position:absolute; transform:translate(-50%,-50%); background:#fffdf9; border:1px solid var(--line); color:var(--ink-soft); border-radius:999px; padding:4px 12px; font-size:11.3px; white-space:nowrap; box-shadow:none}
   .alabel.fly{color:var(--gold); border-color:#ecd9b4; background:#fffaf0; max-width:520px; white-space:normal; text-align:center; line-height:1.4}
 
   /* ── foundation band ───────────────────────────────────── */
-  .foundation{position:absolute; background:linear-gradient(170deg,#2a2620,#39332a); border-radius:20px; color:#fff; padding:22px 26px; box-shadow:0 18px 50px rgba(41,37,32,.18)}
+  .foundation{position:absolute; background:#fdfcf9; border:1px solid var(--line-soft); border-radius:14px; color:var(--ink); padding:22px 26px; box-shadow:0 4px 18px rgba(41,37,32,.04)}
   .foundation h2{font-family:var(--serif); font-weight:640; font-size:18px; display:flex; gap:9px; align-items:center}
-  .foundation .story{font-size:12.6px; color:#cbc2b2; margin-top:5px}
+  .foundation .story{font-size:12.6px; color:var(--ink-soft); margin-top:5px}
   .foundation ul{list-style:none; display:flex; flex-wrap:wrap; gap:10px; margin-top:15px}
-  .foundation li{display:inline-flex; align-items:center; gap:8px; background:rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:6px 14px 6px 8px; font-size:12.4px; font-weight:600; transition:opacity .25s}
+  .foundation li{display:inline-flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--line-soft); border-radius:999px; padding:6px 14px 6px 8px; font-size:12.4px; font-weight:600; transition:opacity .25s}
   .foundation li .stop{width:18px; height:18px; font-size:9px; border-width:2px}
-  .foundation li .note{font-weight:400; color:#b3a992; font-size:11.3px}
+  .foundation li .note{font-weight:400; color:var(--ink-mute); font-size:11.3px}
 
   body.f-shipped li.feat:not(.s-shipped), body.f-building li.feat:not(.s-building), body.f-planned li.feat:not(.s-planned),
   body.f-shipped .foundation li:not(.s-shipped), body.f-building .foundation li:not(.s-building), body.f-planned .foundation li:not(.s-planned){opacity:.14}
