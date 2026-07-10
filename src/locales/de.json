@@ -3983,6 +3983,84 @@
       "no-facts": "Noch keine Angaben erhalten.",
       "view-in-folder": "Im Ordner anzeigen"
     },
+    "link": {
+      "title": "Linkstatus",
+      "local-note": "Dies zeigt, was Ihre App bereits über den sicheren Link dieses Kunden weiß.",
+      "status-heading": "Aktueller Link",
+      "controls-heading": "Linksteuerung",
+      "signals-heading": "Linkhinweise",
+      "no-signals": "Keine Linkhinweise sichtbar.",
+      "copy-again": "Erneut kopieren",
+      "copied": "Kopiert",
+      "extend": "Verlängern",
+      "extending": "Wird verlängert",
+      "regenerate": "Neu erstellen",
+      "regenerating": "Link wird erstellt",
+      "turn-off": "Deaktivieren",
+      "turning-off": "Wird deaktiviert",
+      "error-copy": "Dieser Link konnte nicht kopiert werden.",
+      "error-update": "Die Linkänderung ist fehlgeschlagen.",
+      "expiry": "Funktioniert bis {{date}}",
+      "updated": "Aktualisiert am {{date}}",
+      "details-label": "Details",
+      "next-label": "Nächster Schritt:",
+      "signal": {
+        "active": {
+          "badge": "Link aktiv",
+          "title": "Dieser Kundenlink ist aktiv",
+          "body": "Der Kunde oder Haushalt kann den sicheren Checklisten-Link weiterhin verwenden.",
+          "action": "Kopieren Sie ihn erneut, wenn der Kunde ihn braucht."
+        },
+        "expires-soon": {
+          "badge": "Link läuft bald ab",
+          "title": "Dieser Kundenlink nähert sich seinem Enddatum",
+          "body": "Der Link ist noch verwendbar, liegt aber nahe am gespeicherten Datum dieser Anfrage.",
+          "action": "Verlängern Sie ihn, wenn der Haushalt noch Elemente senden muss."
+        },
+        "expired": {
+          "badge": "Link abgelaufen",
+          "title": "Dieser Kundenlink ist abgelaufen",
+          "body": "Das gespeicherte Enddatum ist vorbei, daher braucht der Haushalt mehr Zeit oder einen frischen Link.",
+          "action": "Verlängern oder erstellen Sie den Link neu."
+        },
+        "revoked": {
+          "badge": "Link deaktiviert",
+          "title": "Dieser Kundenlink ist deaktiviert",
+          "body": "Der alte Link nimmt keine Kundeneinreichungen mehr an.",
+          "action": "Erstellen Sie den Link neu, wenn der Haushalt weitere Elemente senden soll."
+        },
+        "new-device": {
+          "badge": "Neues Gerät",
+          "title": "Für diesen Kundenlink wurde ein neues Gerät gesehen",
+          "body": "Die App hat ein anderes Gerätekennzeichen für diese Anfrage bemerkt.",
+          "action": "Prüfen Sie die erhaltenen Elemente, bevor Sie sie annehmen."
+        },
+        "duplicate": {
+          "badge": "Duplikat erhalten",
+          "title": "Eine doppelte Einreichung wurde erhalten",
+          "body": "Die App hat dieselbe Einreichungsmarkierung mehr als einmal gesehen.",
+          "action": "Prüfen Sie die Kundenelemente und behalten Sie nur die gewünschte Version."
+        },
+        "integrity-mismatch": {
+          "badge": "Einreichung prüfen",
+          "title": "Ein erhaltenes Paket muss geprüft werden",
+          "body": "Die App konnte ein erhaltenes Paket nicht sicher dieser Kundenanfrage zuordnen.",
+          "action": "Nehmen Sie dieses Paket nicht an, bis der Kunde es erneut sendet."
+        },
+        "routing-failed": {
+          "badge": "Zuordnung nötig",
+          "title": "Ein erhaltenes Element muss zugeordnet werden",
+          "body": "Die App konnte ein erhaltenes Element nicht in der Kundencheckliste ablegen.",
+          "action": "Prüfen Sie den Intake-Eingang und ordnen Sie das Element manuell zu."
+        },
+        "regenerate-available": {
+          "badge": "Neuer Link verfügbar",
+          "title": "Sie können einen frischen Link erstellen",
+          "body": "Für diesen Haushalt kann ein frischer sicherer Link erstellt werden, ohne bereits erhaltene Elemente zu verlieren.",
+          "action": "Erstellen Sie den Link neu, wenn der Haushalt fortfahren soll."
+        }
+      }
+    },
     "board": {
       "title": "Onboarding",
       "new-client": "Neuer Kunde",

@@ -3983,6 +3983,84 @@
       "no-facts": "Aún no se han recibido datos.",
       "view-in-folder": "Ver en la carpeta"
     },
+    "link": {
+      "title": "Estado del enlace",
+      "local-note": "Esto muestra lo que su app ya sabe sobre el enlace seguro de este cliente.",
+      "status-heading": "Enlace actual",
+      "controls-heading": "Controles del enlace",
+      "signals-heading": "Notas del enlace",
+      "no-signals": "No hay notas del enlace visibles.",
+      "copy-again": "Copiar de nuevo",
+      "copied": "Copiado",
+      "extend": "Ampliar",
+      "extending": "Ampliando",
+      "regenerate": "Regenerar",
+      "regenerating": "Creando enlace",
+      "turn-off": "Desactivar",
+      "turning-off": "Desactivando",
+      "error-copy": "No se pudo copiar este enlace.",
+      "error-update": "No se pudo actualizar el enlace.",
+      "expiry": "Funciona hasta {{date}}",
+      "updated": "Actualizado el {{date}}",
+      "details-label": "Detalles",
+      "next-label": "Siguiente paso:",
+      "signal": {
+        "active": {
+          "badge": "Enlace activo",
+          "title": "Este enlace del cliente está activo",
+          "body": "El cliente o el hogar aún puede usar el enlace seguro de la lista.",
+          "action": "Cópielo de nuevo si el cliente lo necesita."
+        },
+        "expires-soon": {
+          "badge": "El enlace vence pronto",
+          "title": "Este enlace del cliente está cerca de su fecha final",
+          "body": "El enlace aún se puede usar, pero está cerca de la fecha guardada en esta solicitud.",
+          "action": "Amplíelo si el hogar todavía necesita enviar elementos."
+        },
+        "expired": {
+          "badge": "Enlace vencido",
+          "title": "Este enlace del cliente venció",
+          "body": "La fecha final guardada ya pasó, así que el hogar necesita más tiempo o un enlace nuevo.",
+          "action": "Amplíe o regenere el enlace."
+        },
+        "revoked": {
+          "badge": "Enlace desactivado",
+          "title": "Este enlace del cliente está desactivado",
+          "body": "El enlace anterior ya no acepta envíos del cliente.",
+          "action": "Regénere el enlace cuando el hogar deba enviar más elementos."
+        },
+        "new-device": {
+          "badge": "Dispositivo nuevo",
+          "title": "Se vio un dispositivo nuevo para este enlace del cliente",
+          "body": "La app notó una etiqueta de dispositivo distinta para esta solicitud.",
+          "action": "Revise los elementos recibidos antes de aceptarlos."
+        },
+        "duplicate": {
+          "badge": "Duplicado recibido",
+          "title": "Se recibió un envío duplicado",
+          "body": "La app vio el mismo marcador de envío más de una vez.",
+          "action": "Revise los elementos del cliente y conserve solo la versión que quiera."
+        },
+        "integrity-mismatch": {
+          "badge": "Revisar envío",
+          "title": "Un paquete recibido necesita revisión",
+          "body": "La app no pudo vincular con seguridad un paquete recibido con esta solicitud del cliente.",
+          "action": "No acepte ese paquete hasta que el cliente lo envíe de nuevo."
+        },
+        "routing-failed": {
+          "badge": "Falta ubicar",
+          "title": "Un elemento recibido necesita ubicación",
+          "body": "La app no pudo colocar un elemento recibido en la lista del cliente.",
+          "action": "Revise la bandeja de incorporación y ubique el elemento manualmente."
+        },
+        "regenerate-available": {
+          "badge": "Nuevo enlace disponible",
+          "title": "Puede crear un enlace nuevo",
+          "body": "Se puede crear un enlace seguro nuevo para este hogar sin perder los elementos ya recibidos.",
+          "action": "Regénere el enlace si el hogar debe continuar."
+        }
+      }
+    },
     "board": {
       "title": "Incorporación",
       "new-client": "Nuevo cliente",

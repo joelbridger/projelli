@@ -105,6 +105,84 @@
       "no-facts": "No facts received yet.",
       "view-in-folder": "View in folder"
     },
+    "link": {
+      "title": "Link status",
+      "local-note": "This shows what your app already knows about this client's secure link.",
+      "status-heading": "Current link",
+      "controls-heading": "Link controls",
+      "signals-heading": "Link notes",
+      "no-signals": "No link notes showing.",
+      "copy-again": "Copy again",
+      "copied": "Copied",
+      "extend": "Extend",
+      "extending": "Extending",
+      "regenerate": "Regenerate",
+      "regenerating": "Making link",
+      "turn-off": "Turn off",
+      "turning-off": "Turning off",
+      "error-copy": "Could not copy this link.",
+      "error-update": "Link update failed.",
+      "expiry": "Works until {{date}}",
+      "updated": "Updated {{date}}",
+      "details-label": "Details",
+      "next-label": "Next:",
+      "signal": {
+        "active": {
+          "badge": "Link active",
+          "title": "This client link is active",
+          "body": "The client or household can still use the secure checklist link.",
+          "action": "Copy it again if the client needs it."
+        },
+        "expires-soon": {
+          "badge": "Link expiring soon",
+          "title": "This client link is close to its end date",
+          "body": "The link is still usable, but it is near the date saved on this request.",
+          "action": "Extend it if the household still needs to send items."
+        },
+        "expired": {
+          "badge": "Link expired",
+          "title": "This client link has expired",
+          "body": "The saved end date has passed, so the household needs more time or a fresh link.",
+          "action": "Extend or regenerate the link."
+        },
+        "revoked": {
+          "badge": "Link turned off",
+          "title": "This client link is turned off",
+          "body": "The old link no longer accepts client submissions.",
+          "action": "Regenerate the link when the household should send more items."
+        },
+        "new-device": {
+          "badge": "New device",
+          "title": "A new device was seen for this client link",
+          "body": "The app noticed a different device label for this request.",
+          "action": "Review the received items before accepting them."
+        },
+        "duplicate": {
+          "badge": "Duplicate received",
+          "title": "A duplicate submission was received",
+          "body": "The app saw the same submission marker more than once.",
+          "action": "Review the client items and keep only the version you want."
+        },
+        "integrity-mismatch": {
+          "badge": "Check submission",
+          "title": "A received package needs checking",
+          "body": "The app could not safely match one received package to this client request.",
+          "action": "Do not accept that package until the client sends it again."
+        },
+        "routing-failed": {
+          "badge": "Routing needed",
+          "title": "One received item needs routing",
+          "body": "The app could not place one received item into the client checklist.",
+          "action": "Review the intake inbox and route the item by hand."
+        },
+        "regenerate-available": {
+          "badge": "New link available",
+          "title": "You can make a fresh link",
+          "body": "A fresh secure link can be made for this household without losing items already received.",
+          "action": "Regenerate the link if the household should continue."
+        }
+      }
+    },
     "board": {
       "title": "Onboarding",
       "new-client": "New client",
