@@ -486,6 +486,28 @@ export class WorkspaceService {
   }
 
   /**
+   * Check a workspace path without following its final link. Callers that have
+   * a tighter boundary than the workspace root, such as a single client
+   * folder, use this before reading content.
+   */
+  async isSymlink(path: string): Promise<boolean> {
+    this.ensureInitialized();
+    const validatedPath = this.pathValidator!.validatePath(path);
+    return this.backend!.isSymlink(this.toBackendPath(validatedPath));
+  }
+
+  /**
+   * Resolve a link for callers that must verify the target against a boundary
+   * narrower than the workspace root. Backends that cannot resolve a link must
+   * fail closed rather than returning the input path as a pretend target.
+   */
+  async resolveSymlink(path: string): Promise<string> {
+    this.ensureInitialized();
+    const validatedPath = this.pathValidator!.validatePath(path);
+    return this.backend!.resolveSymlink(this.toBackendPath(validatedPath));
+  }
+
+  /**
    * List workspace recursively as a tree
    */
   async getFileTree(opts?: { fresh?: boolean }): Promise<FileNode[]> {

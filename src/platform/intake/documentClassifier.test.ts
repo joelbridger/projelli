@@ -12,7 +12,11 @@ const matterFolderPath = '/workspace/Clients/Sarah Household';
 const documentPath = `${matterFolderPath}/Requests/onboarding/2025-tax-return.pdf`;
 
 function workspace(bytes = new Uint8Array([1, 2, 3])) {
-  return { readFileBinary: vi.fn().mockResolvedValue(bytes.buffer) };
+  return {
+    readFileBinary: vi.fn().mockResolvedValue(bytes.buffer),
+    isSymlink: vi.fn().mockResolvedValue(false),
+    resolveSymlink: vi.fn(),
+  };
 }
 
 describe('advisor-side intake document reader and classifier', () => {
@@ -134,6 +138,38 @@ describe('advisor-side intake document reader and classifier', () => {
     expect(service.readFileBinary).not.toHaveBeenCalled();
   });
 
+  it('refuses a link in one client folder that resolves into another before reading bytes', async () => {
+    const service = workspace();
+    const linkedPath = `${matterFolderPath}/Requests/onboarding/other-client-return.pdf`;
+    service.isSymlink.mockImplementation(async (path: string) => path === linkedPath);
+    service.resolveSymlink.mockResolvedValue('/workspace/Clients/Other Household/secret.pdf');
+
+    await expect(readIntakeDocument({
+      path: linkedPath,
+      matterFolderPath,
+      workspaceService: service,
+    })).rejects.toThrow(/stay inside the client folder/iu);
+
+    expect(service.readFileBinary).not.toHaveBeenCalled();
+  });
+
+  it('refuses an excessively large scanned PDF without attempting OCR for every claimed page', async () => {
+    const ocrPageImage = vi.fn();
+    const readResult = await readIntakeDocument({
+      path: `${matterFolderPath}/Requests/onboarding/hostile-scan.pdf`,
+      matterFolderPath,
+      workspaceService: workspace(),
+      dependencies: {
+        extractPdfText: vi.fn().mockResolvedValue({ encrypted: false, scanned: true, pageCount: 10_000, pages: [] }),
+        isOcrEngineAvailable: () => true,
+        ocrPageImage,
+      },
+    });
+
+    expect(readResult).toEqual({ status: 'unreadable', reason: 'needs_advisor_view' });
+    expect(ocrPageImage).toHaveBeenCalledTimes(0);
+  });
+
   it('round-trips compact source locations and formats a Client Map source', () => {
     const source = {
       kind: 'document' as const,
@@ -143,7 +179,7 @@ describe('advisor-side intake document reader and classifier', () => {
       extraction: 'text' as const,
     };
     const compact = docSourceRefToString(source);
-    expect(compact).toBe(`document:${documentPath}#page=2`);
+    expect(compact.startsWith('document:v1:')).toBe(true);
     expect(docSourceRefFromString(compact)).toEqual({
       kind: 'document', path: documentPath, page: 2, snippet: '',
     });
@@ -152,6 +188,41 @@ describe('advisor-side intake document reader and classifier', () => {
       ref: documentPath,
       locator: 'p. 2',
       snippet: 'Adjusted gross income appears on this page.',
+      extraction: 'text',
+    });
+  });
+
+  it('round-trips paths containing a literal page-looking fragment and rejects malformed source refs', () => {
+    const source = {
+      kind: 'document' as const,
+      path: `${matterFolderPath}/Reports/report#page=2.pdf`,
+      page: 7,
+      snippet: '',
+      extraction: 'text' as const,
+    };
+
+    expect(docSourceRefFromString(docSourceRefToString(source))).toEqual({
+      kind: 'document', path: source.path, page: 7, snippet: '',
+    });
+    expect(docSourceRefFromString('document:report#page=2')).toBeNull();
+    expect(docSourceRefFromString('document:v1:not-encoded-json')).toBeNull();
+  });
+
+  it('preserves a low-confidence OCR warning when converting a document source for the UI', () => {
+    expect(docSourceRefToUi({
+      kind: 'document',
+      path: `${matterFolderPath}/Requests/onboarding/noisy-scan.pdf`,
+      page: 3,
+      snippet: 'Noisy text',
+      extraction: 'ocr',
+      confidence: 42,
+    })).toEqual({
+      kind: 'document',
+      ref: `${matterFolderPath}/Requests/onboarding/noisy-scan.pdf`,
+      locator: 'p. 3 (low-confidence scan)',
+      snippet: 'Noisy text',
+      extraction: 'ocr',
+      extractionConfidence: 42,
     });
   });
 });

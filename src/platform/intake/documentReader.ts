@@ -13,6 +13,9 @@ import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { DocumentReadResult } from './documentExtractionTypes';
 
 const PDF_MIME_TYPE = 'application/pdf';
+/** Keep a malicious scan from tying up the local OCR engine indefinitely. */
+export const MAX_OCR_PAGES = 40;
+export const MAX_OCR_INPUT_BYTES = 50 * 1024 * 1024;
 
 export interface DocumentReaderDependencies {
   extractPdfText: (bytes: Uint8Array) => Promise<PdfExtractionResult>;
@@ -33,7 +36,7 @@ const defaultDependencies: DocumentReaderDependencies = {
 export interface ReadIntakeDocumentOptions {
   path: string;
   matterFolderPath: string;
-  workspaceService: Pick<WorkspaceService, 'readFileBinary'>;
+  workspaceService: Pick<WorkspaceService, 'readFileBinary' | 'isSymlink' | 'resolveSymlink'>;
   /** Prefer the sealed upload's content type when it is still available. */
   mimeType?: string;
   /** Test seam. Production always uses local PDF.js and the local OCR engine. */
@@ -53,9 +56,9 @@ function isAbsolutePath(path: string): boolean {
 }
 
 /**
- * Enforces the tighter client-folder boundary before the workspace service is
- * called. WorkspaceService then performs its own root and symlink checks,
- * including rejecting a symlink inside this folder that points somewhere else.
+ * Enforces the lexical client-folder boundary before any filesystem work.
+ * A separate resolved-path check below protects this boundary from links that
+ * remain inside the workspace but point at another client's files.
  */
 export function assertPathWithinMatterFolder(path: string, matterFolderPath: string): void {
   if (!path || !matterFolderPath || hasTraversalSegment(path) || hasTraversalSegment(matterFolderPath)) {
@@ -77,6 +80,80 @@ export function assertPathWithinMatterFolder(path: string, matterFolderPath: str
   }
 }
 
+function splitPathForLinkWalk(path: string): { root: string; segments: string[] } {
+  const normalized = normalizedPath(path);
+  const windowsRoot = /^[a-z]:\//iu.exec(normalized)?.[0];
+  if (windowsRoot) {
+    return { root: windowsRoot, segments: normalized.slice(windowsRoot.length).split('/').filter(Boolean) };
+  }
+  if (normalized.startsWith('//')) {
+    return { root: '//', segments: normalized.slice(2).split('/').filter(Boolean) };
+  }
+  if (normalized.startsWith('/')) {
+    return { root: '/', segments: normalized.slice(1).split('/').filter(Boolean) };
+  }
+  return { root: '', segments: normalized.split('/').filter(Boolean) };
+}
+
+function appendPath(base: string, segment: string): string {
+  if (!base) return segment;
+  if (base.endsWith('/')) return `${base}${segment}`;
+  return `${base}/${segment}`;
+}
+
+function parentPath(path: string): string {
+  const normalized = normalizedPath(path);
+  const index = normalized.lastIndexOf('/');
+  if (index < 0) return '';
+  if (index === 0) return '/';
+  return normalized.slice(0, index);
+}
+
+function resolveRelativeLinkTarget(linkPath: string, target: string): string {
+  if (isAbsolutePath(target)) return normalizedPath(target);
+  return appendPath(parentPath(linkPath), target);
+}
+
+/**
+ * Walk every existing path component without following it implicitly. When a
+ * component is a link, resolve its real target and continue from that target.
+ * This makes the client folder, rather than just the workspace root, the final
+ * containment boundary. A backend that cannot resolve a link safely fails
+ * closed, so no bytes are read on an uncertain boundary.
+ */
+async function resolvePathForMatterBoundary(
+  path: string,
+  workspaceService: Pick<WorkspaceService, 'isSymlink' | 'resolveSymlink'>,
+): Promise<string> {
+  const { root, segments } = splitPathForLinkWalk(path);
+  let current = root;
+  for (const segment of segments) {
+    current = appendPath(current, segment);
+    if (await workspaceService.isSymlink(current)) {
+      const target = await workspaceService.resolveSymlink(current);
+      const resolved = resolveRelativeLinkTarget(current, target);
+      if (!resolved || normalizedPath(resolved) === normalizedPath(current)) {
+        throw new Error('Document path must stay inside the client folder.');
+      }
+      current = resolved;
+    }
+  }
+  return current;
+}
+
+async function assertResolvedPathWithinMatterFolder(
+  path: string,
+  matterFolderPath: string,
+  workspaceService: Pick<WorkspaceService, 'isSymlink' | 'resolveSymlink'>,
+): Promise<void> {
+  const resolvedMatterFolder = await resolvePathForMatterBoundary(matterFolderPath, workspaceService);
+  // A client-folder alias is not a stable isolation boundary. Refuse it even
+  // if it happens to resolve inside the workspace.
+  assertPathWithinMatterFolder(resolvedMatterFolder, matterFolderPath);
+  const resolvedPath = await resolvePathForMatterBoundary(path, workspaceService);
+  assertPathWithinMatterFolder(resolvedPath, resolvedMatterFolder);
+}
+
 function inferredMimeType(path: string): string | null {
   const lower = path.toLowerCase();
   if (lower.endsWith('.pdf')) return PDF_MIME_TYPE;
@@ -96,6 +173,14 @@ async function readScannedPdf(
   pageCount: number,
   dependencies: DocumentReaderDependencies,
 ): Promise<DocumentReadResult> {
+  if (
+    !Number.isSafeInteger(pageCount) ||
+    pageCount < 1 ||
+    pageCount > MAX_OCR_PAGES ||
+    bytes.byteLength > MAX_OCR_INPUT_BYTES
+  ) {
+    return unreadable('needs_advisor_view');
+  }
   const pages: Extract<DocumentReadResult, { status: 'read' }>['pages'] = [];
   try {
     // Rasterize and OCR one page at a time. renderPdfPageToPng releases its
@@ -120,6 +205,7 @@ async function readScannedPdf(
 
 export async function readIntakeDocument(options: ReadIntakeDocumentOptions): Promise<DocumentReadResult> {
   assertPathWithinMatterFolder(options.path, options.matterFolderPath);
+  await assertResolvedPathWithinMatterFolder(options.path, options.matterFolderPath, options.workspaceService);
   const dependencies = { ...defaultDependencies, ...options.dependencies };
   const mimeType = options.mimeType?.toLowerCase() ?? inferredMimeType(options.path);
 

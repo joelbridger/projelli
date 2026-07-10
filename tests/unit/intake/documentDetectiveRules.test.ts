@@ -128,4 +128,13 @@ describe('classifyTier1', () => {
       side: 'front',
     });
   });
+
+  it('does not turn a tax return with a generic address into a driver license', () => {
+    expect(classifyObservedKind('Form 1040 adjusted gross income mailing address', 'return.pdf')).toMatchObject({
+      kind: 'tax_return',
+    });
+    expect(classifyObservedKind('Mailing address', 'letter.pdf')).toMatchObject({
+      kind: 'unknown',
+    });
+  });
 });

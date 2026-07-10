@@ -92,6 +92,15 @@ const GENERIC_FINANCE_KINDS: readonly DocumentKind[] = [
   'credit_card_statement',
 ];
 
+const STRONG_FRONT_LICENSE_SIGNALS = new Set<string>([
+  'driver license',
+  'identification card',
+  'license no',
+  'dl no',
+]);
+
+const STRONG_BACK_LICENSE_SIGNALS = new Set<string>(['pdf417', 'aamva', 'barcode']);
+
 function signalsIn(text: string, signals: readonly string[]): string[] {
   return signals.filter((signal) => text.includes(signal));
 }
@@ -102,6 +111,16 @@ function detectedSide(text: string): { side: LicenseSide; evidence: string[] } {
   if (front.length > 0 && back.length === 0) return { side: 'front', evidence: front };
   if (back.length > 0 && front.length === 0) return { side: 'back', evidence: back };
   return { side: 'unknown', evidence: [...front, ...back] };
+}
+
+function sideHasStrongLicenseEvidence(side: LicenseSide, evidence: readonly string[]): boolean {
+  if (side === 'back') {
+    return evidence.some((signal) => STRONG_BACK_LICENSE_SIGNALS.has(signal)) || evidence.length >= 2;
+  }
+  if (side === 'front') {
+    return evidence.some((signal) => STRONG_FRONT_LICENSE_SIGNALS.has(signal)) || evidence.length >= 2;
+  }
+  return false;
 }
 
 /**
@@ -138,7 +157,7 @@ export function classifyObservedKind(
     return { kind: 'unknown' as DocumentKind, evidence: [] as string[] };
   })();
 
-  const kind = result.kind === 'unknown' && sideResult.side !== 'unknown'
+  const kind = result.kind === 'unknown' && sideHasStrongLicenseEvidence(sideResult.side, sideResult.evidence)
     ? 'drivers_license'
     : result.kind;
   return {
