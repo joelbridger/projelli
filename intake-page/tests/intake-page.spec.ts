@@ -11,6 +11,7 @@ import {
   unwrapContentKey,
 } from '../../src/platform/intake/intakeCrypto';
 import { buildLinkFragment } from '../../src/platform/intake/intakeLink';
+import { openPageJson } from '../../src/platform/intake/pageSeal';
 import type { BundleResponse, ChunkUpload, StateBlob, SubmitManifest } from '../../src/platform/intake/intakeContract';
 import type { FormRequest } from '../../src/platform/intake/types';
 import type { WelcomeJourney } from '../../src/features/intake/welcomeJourneyDefaults';
@@ -36,6 +37,7 @@ interface RelayHarness {
   chunks: ChunkUpload[];
   submits: SubmitManifest[];
   stateWrites: StateBlob[];
+  readPersistedResume: () => Promise<Record<string, unknown>>;
   externalRequests: string[];
   finalizedItemIds: Set<string>;
 }
@@ -44,6 +46,7 @@ interface RelaySetupOptions {
   checklist?: IntakeChecklist | Omit<IntakeChecklist, 'firm'>;
   finalized?: string[];
   resume?: Record<string, unknown>;
+  stateWriteGate?: (state: StateBlob) => Promise<void>;
 }
 
 function bytesToB64(bytes: Uint8Array): string {
@@ -242,8 +245,9 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
 
     if (request.method() === 'PUT' && url.pathname === `/intake/${intakeId}/state`) {
       const body = (await request.postDataJSON()) as StateBlob;
-      stateCiphertext = body.ciphertext_b64;
       stateWrites.push(body);
+      await options.stateWriteGate?.(body);
+      stateCiphertext = body.ciphertext_b64;
       await route.fulfill({ status: 204 });
       return;
     }
@@ -288,6 +292,7 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
     chunks,
     submits,
     stateWrites,
+    readPersistedResume: () => openPageJson<Record<string, unknown>>(pageKey, stateCiphertext),
     externalRequests,
     finalizedItemIds,
   };
@@ -458,6 +463,51 @@ test('resumes at the next incomplete item after a full reload', async ({ page })
   await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeVisible();
   await page.getByRole('button', { name: /Date of birth.*provided/i }).click();
   await expect(page.getByText('Provided ✓')).toBeVisible();
+});
+
+test('serializes rapid state saves so the newer progress and completion state wins', async ({ page }) => {
+  let releaseFirstWrite: (() => void) | undefined;
+  let firstWriteStarted!: () => void;
+  const firstStateWriteStarted = new Promise<void>((resolve) => {
+    firstWriteStarted = resolve;
+  });
+  let holdFirstWrite = true;
+  const relay = await setupRelay(page, {
+    stateWriteGate: async () => {
+      if (!holdFirstWrite) return;
+      holdFirstWrite = false;
+      firstWriteStarted();
+      await new Promise<void>((resolve) => {
+        releaseFirstWrite = resolve;
+      });
+    },
+  });
+  await page.goto(relay.url);
+
+  // Starting the checklist begins one save and holds its response. Completing
+  // the first answer, then using a progress dot, creates newer saves while that
+  // older one is still pending.
+  await startChecklist(page);
+  await firstStateWriteStarted;
+  await completeDob(page);
+  await expectSubmitCount(relay, 'dob', 1);
+  await page.getByRole('button', { name: 'Income to do' }).click();
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
+
+  // The second logical update stays in the queue until the older request has
+  // settled, so the server cannot receive out-of-order whole-state PUTs.
+  expect(relay.stateWrites).toHaveLength(1);
+  releaseFirstWrite?.();
+  await expect.poll(() => relay.stateWrites.length).toBe(3);
+
+  const persisted = await relay.readPersistedResume();
+  expect(persisted).toMatchObject({
+    current_item_id: 'income',
+    completion_flags: { dob: true },
+  });
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
 });
 
 test('shows the reviewing state from sealed resume data', async ({ page }) => {

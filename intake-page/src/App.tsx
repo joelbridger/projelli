@@ -220,7 +220,9 @@ function mergeResume(base: ResumeState, next: ResumeState): ResumeState {
     ...next,
     completion_flags: { ...base.completion_flags, ...next.completion_flags },
     confirmations: { ...base.confirmations, ...next.confirmations },
-    pending_uploads: { ...base.pending_uploads, ...next.pending_uploads },
+    // Callers provide a complete pending-upload map so that a completed upload
+    // can remove its own resume record without removing another upload's record.
+    pending_uploads: next.pending_uploads ?? base.pending_uploads ?? {},
     skipped_item_ids: next.skipped_item_ids ?? base.skipped_item_ids ?? [],
   };
 }
@@ -339,6 +341,8 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const [busyItemId, setBusyItemId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const resumeRef = useRef<ResumeState>(props.resume);
+  const stateWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
 
   const actionItems = useMemo(() => checklist.items.filter(isActionable), [checklist.items]);
   const doneIds = useMemo(() => new Set([...finalizedItemIds, ...localSubmitted]), [finalizedItemIds, localSubmitted]);
@@ -349,11 +353,25 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const journey = firm.journey;
   const accent = firm.accent;
 
-  async function saveResume(next: ResumeState): Promise<void> {
-    const merged = mergeResume(resume, next);
+  function saveResume(next: ResumeState | ((current: ResumeState) => ResumeState)): Promise<void> {
+    // React state updates are asynchronous. Keep the authoritative local copy in
+    // a ref so a second action always builds on the first action, even before a
+    // render has happened.
+    const update = typeof next === 'function' ? next(resumeRef.current) : next;
+    const merged = mergeResume(resumeRef.current, update);
+    resumeRef.current = merged;
     setResume(merged);
-    const ciphertext = await sealPageJson(pageKey, merged);
-    await relay.saveState({ ciphertext_b64: ciphertext });
+
+    // Whole-state PUTs must never overlap. Otherwise a delayed older request can
+    // arrive after a newer one and replace its progress, completion, or upload
+    // resume data. Each queued entry is a complete snapshot, so the final write
+    // is always the newest state.
+    const write = stateWriteQueueRef.current.catch(() => undefined).then(async () => {
+      const ciphertext = await sealPageJson(pageKey, merged);
+      await relay.saveState({ ciphertext_b64: ciphertext });
+    });
+    stateWriteQueueRef.current = write;
+    return write;
   }
 
   function nextIncomplete(doneOverride = doneIds, skippedOverride = skipped): string {
@@ -398,12 +416,12 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           onPendingUpload: async (pendingUpload) => {
             if (itemToSubmit.t !== 'doc_upload') return;
             try {
-              await saveResume({
+              await saveResume((current) => ({
                 pending_uploads: {
-                  ...resume.pending_uploads,
+                  ...current.pending_uploads,
                   [itemToSubmit.item_id]: pendingUpload,
                 },
-              });
+              }));
             } catch {
               setNotice('The upload started. Keep this page open until it finishes.');
             }
@@ -427,17 +445,19 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       if (confirmation) {
         setSessionConfirmations((existing) => ({ ...existing, [itemToSubmit.item_id]: confirmation }));
       }
-      const nextPending = { ...(resume.pending_uploads ?? {}) };
-      delete nextPending[itemToSubmit.item_id];
       const nextId = nextIncomplete(nextDone);
       setReplacingItemId(null);
       setCurrentItemId(nextId);
       setNotice(`${itemToSubmit.label} provided${confirmation ? ` ${confirmation}` : '.'}`);
-      await saveResume({
-        current_item_id: nextId,
-        completion_flags: { ...(resume.completion_flags ?? {}), [itemToSubmit.item_id]: true },
-        confirmations: { ...(resume.confirmations ?? {}), [itemToSubmit.item_id]: 'Provided' },
-        pending_uploads: nextPending,
+      await saveResume((current) => {
+        const nextPending = { ...(current.pending_uploads ?? {}) };
+        delete nextPending[itemToSubmit.item_id];
+        return {
+          current_item_id: nextId,
+          completion_flags: { ...(current.completion_flags ?? {}), [itemToSubmit.item_id]: true },
+          confirmations: { ...(current.confirmations ?? {}), [itemToSubmit.item_id]: 'Provided' },
+          pending_uploads: nextPending,
+        };
       });
     } catch {
       setNotice('We could not reach the secure mailbox. Your answer is still here. Try again.');
