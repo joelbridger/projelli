@@ -8,7 +8,10 @@ import {
   emailReplyProposalList,
   emailReplyQuarantineList,
 } from './emailReplyProposalStore';
-import { setIntakeEmailReplyAuditEmitter } from './emailReplyAudit';
+import {
+  setIntakeEmailReplyAuditEmitter,
+  type EmailReplyAuditEmitter,
+} from './emailReplyAudit';
 import { processEmailReplyMessages } from './useEmailReplyIngestion';
 
 const authPass = {
@@ -151,26 +154,24 @@ describe('useEmailReplyIngestion', () => {
       reasoning: 'The reply clearly names the open item.',
     } as const;
     const structuredOutputCalls: Parameters<Provider['structuredOutput']>[] = [];
-    const structuredOutput: Provider['structuredOutput'] = async <T>(
+    const structuredOutput: Provider['structuredOutput'] = <T>(
       prompt: string,
       options: StructuredOutputOptions,
     ): Promise<T> => {
       structuredOutputCalls.push([prompt, options]);
-      return confidenceResponse as T;
+      return Promise.resolve(confidenceResponse as T);
     };
     const getMetadata: Provider['getMetadata'] = () => ({ model: 'test-email-model' });
     const provider: Provider = {
       getMetadata,
-      sendMessage: async () => {
-        throw new Error('The classifier test does not send a chat message.');
-      },
+      sendMessage: () => Promise.reject(new Error('The classifier test does not send a chat message.')),
       structuredOutput,
       formatAttachmentForRequest: () => {
         throw new Error('The classifier test does not use attachments.');
       },
       supportsAttachment: () => false,
     };
-    const auditSpy = vi.fn();
+    const auditSpy = vi.fn<EmailReplyAuditEmitter>().mockResolvedValue(undefined);
     setIntakeEmailReplyAuditEmitter(auditSpy);
     const resolveEmailProvider = vi.fn().mockResolvedValue({
       provider,
@@ -197,7 +198,7 @@ describe('useEmailReplyIngestion', () => {
       metadata: expect.objectContaining({
         auditEventType: 'egress',
         scope: { kind: 'matter', matterId: 'matter-1' },
-      }),
+      }) as unknown as Record<string, unknown>,
     }));
     const [saved] = await emailReplyProposalList('matter-1');
     expect(saved?.items[0]?.confidence).toBe('high');

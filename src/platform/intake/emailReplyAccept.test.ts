@@ -114,8 +114,9 @@ describe('emailReplyAccept', () => {
 
   it('writes intent before any attachment effect and then ticks the checklist', async () => {
     const events: string[] = [];
-    setIntakeEmailReplyAuditEmitter(async (entry) => {
+    setIntakeEmailReplyAuditEmitter((entry) => {
       events.push(`audit:${String(entry.metadata['phase'])}`);
+      return Promise.resolve();
     });
     const persistAttachment = vi.fn().mockImplementation(
       (
@@ -162,9 +163,11 @@ describe('emailReplyAccept', () => {
   });
 
   it('refuses every write when the intent audit fails', async () => {
-    setIntakeEmailReplyAuditEmitter(async (entry) => {
-      if (entry.metadata['phase'] === 'intent') throw new Error('audit down');
-    });
+    setIntakeEmailReplyAuditEmitter((entry) =>
+      entry.metadata['phase'] === 'intent'
+        ? Promise.reject(new Error('audit down'))
+        : Promise.resolve()
+    );
     const persistAttachment = vi.fn();
     const upsertFact = vi.fn();
 
@@ -211,7 +214,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('requires explicit approval before writing a restricted body-derived fact', async () => {
-    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    setIntakeEmailReplyAuditEmitter(() => Promise.resolve());
     const upsertFact = vi.fn();
     const setProposalStatus = vi.fn();
 
@@ -235,7 +238,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('writes email_reply fact provenance after explicit approval', async () => {
-    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    setIntakeEmailReplyAuditEmitter(() => Promise.resolve());
     const upsertFact = vi.fn().mockImplementation((input: IntakeFactUpsertInput) =>
       Promise.resolve({
         fact_id: 'fact-ssn',
@@ -285,7 +288,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('keeps the proposal unresolved after a partial failure', async () => {
-    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    setIntakeEmailReplyAuditEmitter(() => Promise.resolve());
     const persistAttachment = vi.fn().mockResolvedValue({
       path: 'Requests/onboarding/email-replies/msg_.._evil/license.pdf',
       filename: 'license.pdf',
@@ -318,7 +321,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('records each completed row and only retries the rows that failed', async () => {
-    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    setIntakeEmailReplyAuditEmitter(() => Promise.resolve());
     let currentProposal = proposal();
     const persistAttachment = vi.fn().mockResolvedValue({
       path: 'Requests/onboarding/email-replies/msg_.._evil/license.pdf',
@@ -399,7 +402,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('does not accept a body row that has no writable value', async () => {
-    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    setIntakeEmailReplyAuditEmitter(() => Promise.resolve());
     const upsertFact = vi.fn();
 
     await expect(
@@ -431,8 +434,9 @@ describe('emailReplyAccept', () => {
 
   it('dismisses a proposal and records the advisor decision', async () => {
     const events: string[] = [];
-    setIntakeEmailReplyAuditEmitter(async (entry) => {
+    setIntakeEmailReplyAuditEmitter((entry) => {
       events.push(`${String(entry.metadata['phase'])}:${String(entry.outputs['status'])}`);
+      return Promise.resolve();
     });
     const setProposalStatus = vi.fn().mockResolvedValue(
       proposal({ status: 'dismissed' })
@@ -450,7 +454,7 @@ describe('emailReplyAccept', () => {
   });
 
   it('never lets body text control the destination path', async () => {
-    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    setIntakeEmailReplyAuditEmitter(() => Promise.resolve());
     const persistAttachment = vi.fn().mockResolvedValue({
       path: 'Requests/onboarding/email-replies/msg_.._evil/license.pdf',
       filename: 'license.pdf',
