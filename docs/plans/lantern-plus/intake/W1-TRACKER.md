@@ -7,15 +7,15 @@
 
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
-| A | contracts-crypto | `~/lp-w1-A` | `lp/intake-w1-A` | dispatched | — | — | — | BUILDING |
-| B | relay | — | — | blocked on A | — | — | — | WAITING |
-| C | client-page | — | — | blocked on A | — | — | — | WAITING |
-| D | advisor-side | — | — | blocked on A | — | — | — | WAITING |
-| E | hosting | — | — | blocked on A | — | — | — | WAITING |
+| A | contracts-crypto | `~/lp-w1-A` | `lp/intake-w1-A` | DONE-EXIT:0 | PASS (lead read) | PASS + 3 hardenings folded | in `2942df73` | **MERGED** |
+| B | relay | `~/lp-w1-B` | `lp/intake-w1-B` | building | — | — | — | BUILDING |
+| C | client-page | `~/lp-w1-C` | `lp/intake-w1-C` | building | — | — | — | BUILDING |
+| D | advisor-side | — | — | pending gate (cargo serialize) | — | — | — | QUEUED |
+| E | hosting | `~/lp-w1-E` | `lp/intake-w1-E` | building | — | — | — | BUILDING |
 
 ## Gate evidence (filled at each merge)
 
-_(none yet)_
+- **Lane A:** independent `npx vitest run src/platform/intake` → 25/25 passed; `tsc --noEmit` + `typecheck:tests` + `eslint src/platform/intake` clean. Adversarial pass: codex gpt-5.5 xhigh, `codex-review --base lp/intake` → 1 formal P2 (weak link secret) + 2 manifest-validation gaps, all folded (commit `cb9a9e95`). Full `npm run gate` on merged `lp/intake` running (warms cargo for Lane D).
 
 ## Bench needs (for the Legion runner, AFTER WORKER-DONE)
 - V6: complete all 5 items incl. camera uploads on a phone-sized browser against the staged relay; verify decrypt-and-file on desktop; screenshot.
