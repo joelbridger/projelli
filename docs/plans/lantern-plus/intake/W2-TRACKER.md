@@ -10,7 +10,7 @@
 | 0 | contract-model + live-sync | `~/lp-w2-0` | `lp/intake-w2-0` | DONE-EXIT:0 | lead PASS + 3 findings | codex-review: 4 findings (2 P1 lead missed) | in `cc1db61a` | **MERGED** |
 | 1 | board-ui | `~/lp-w2-1` | `lp/intake-w2-1` | DONE-EXIT:0 | lead PASS | codex-review: 4 P2 (real primary-action break) + fix | in `79be59fd` | **MERGED** |
 | 2 | link-lifecycle | `~/lp-w2-2` | `lp/intake-w2-2` | DONE-EXIT:0 | lead PASS | codex-review: CLEAN | in `b479c2c9`+wire `ec7897d9` | **MERGED + wired + pushed** |
-| 3 | nudges + E2E | `~/lp-w2-3` | `lp/intake-w2-3` | DONE-EXIT:0 | lead PASS | codex-review: 3 P1 (not reachable in prod) | `c7a085e4` (pre-fix) | FIX ROUND running (`briefs/w2-3-fix.md`) |
+| 3 | nudges + E2E | `~/lp-w2-3` | `lp/intake-w2-3` | DONE-EXIT:0 | lead PASS | codex-review: 3 P1 (not reachable) + fix | in `2f413f34` +wire `b91e05d6` | **MERGED + wired** |
 
 ## 🟡 OPEN COORDINATOR DECISION (2026-07-10) — scope of Lane 0
 **Discovery:** Wave 1 built `IntakeSyncClient` (advisor inbox→decrypt→file→store) as a fully-tested class, and the relay exposes the `/intake/:id/inbox` + `/ack` routes — but **nothing in the running app constructs or polls it.** `IntakeRelayClient` has no `fetchInbox`/`ack` method; no live poller is mounted; the sample/demo workspace seeds no intake record. So in the running app today, client submissions land in the relay mailbox and are never pulled down — the store never updates from real data. The board/nudges/link-lifecycle all read that store → **hollow without a live data source.**
