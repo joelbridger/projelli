@@ -47,6 +47,13 @@ Codex adversarial (gpt-5.5) found 4 (3 P1): [P1] `intakeStore` partialize persis
 - Merge docs branch `lp/docs-w1bench` (W1-BENCH-RUNBOOK.md — the post-WORKER-DONE bench script). **REVIEW its "Hard Stops" section against this exec plan's gates before printing WORKER-DONE.**
 - All docs-only, coordinator-reviewed, branched off lp/intake → clean merges.
 
+## Wave 1 COMPLETE — all 5 lanes merged (2026-07-10)
+All lanes merged into `lp/intake` with lead review + one codex adversarial pass each; every finding fixed + regression-tested; cross-lane seams reconciled:
+- A contracts+crypto `2942df73` (+3 hardenings). B relay `e828148e` (+3 findings). C client-page `f782a768` (+6 findings). D advisor-side `9a6990d5` (+4 findings) + C↔D pageSeal AAD unified `c1209ead`. E hosting `b977b8cc`+`a639cd0e` (+4 findings, collision reconciled, C↔E same-origin proxy + `connect-src 'self'`). Architecture-boundary `matters->intake` edge declared `6ccfb900`.
+- Docs folded in: W2-PREP, W7-PREP, W1-BENCH-RUNBOOK, INTAKE-IT-PACK (`21c63cf8`).
+- **Bench runbook Hard Stops reviewed — fully compatible.** Its same-origin/`connect-src 'self'`/fragment-never-logged requirements match the C↔E reconciliation; the `intake:headers:test` / `intake:integrity:test` / `intake:fragment-check` scripts it expects all exist in package.json.
+- Test evidence (independent, per lane): crypto vitest 25/25; backend bun 211; intake-page playwright+axe 13/13; advisor vitest 35/35 + cargo store 6/6; E security vitest 6/6. Final full `npm run gate` + backend `bun test` running before push + WORKER-DONE.
+
 ## Bench needs (for the Legion runner, AFTER WORKER-DONE)
 - V6: complete all 5 items incl. camera uploads on a phone-sized browser against the staged relay; verify decrypt-and-file on desktop; screenshot.
 - V7: real iOS Safari + Android Chrome camera capture.
