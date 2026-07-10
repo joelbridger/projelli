@@ -64,7 +64,7 @@ export function EmailReplyProposalCard({
         });
       })
       .catch((loadError: unknown) => {
-        setError(loadError instanceof Error ? loadError.message : t('intake.emailReply.load-error'));
+        setError(loadError instanceof Error ? loadError.message : t('intake.email-reply.load-error'));
       });
   };
 
@@ -122,7 +122,7 @@ export function EmailReplyProposalCard({
           current.filter((candidate) => candidate.proposalId !== proposal.proposalId)
         );
       } else {
-        setError(t('intake.emailReply.partial-error'));
+        setError(t('intake.email-reply.partial-error'));
         load();
       }
       setReviewProposalId(null);
@@ -130,7 +130,7 @@ export function EmailReplyProposalCard({
       setError(
         acceptError instanceof Error
           ? acceptError.message
-          : t('intake.emailReply.accept-error')
+          : t('intake.email-reply.accept-error')
       );
     } finally {
       setAcceptingId(null);
@@ -142,7 +142,7 @@ export function EmailReplyProposalCard({
       setError(
         acceptError instanceof Error
           ? acceptError.message
-          : t('intake.emailReply.accept-error')
+          : t('intake.email-reply.accept-error')
       );
     });
   };
@@ -163,7 +163,7 @@ export function EmailReplyProposalCard({
       setError(
         dismissError instanceof Error
           ? dismissError.message
-          : t('intake.emailReply.dismiss-error')
+          : t('intake.email-reply.dismiss-error')
       );
     } finally {
       setDismissingId(null);
@@ -175,7 +175,7 @@ export function EmailReplyProposalCard({
       setError(
         dismissError instanceof Error
           ? dismissError.message
-          : t('intake.emailReply.dismiss-error')
+          : t('intake.email-reply.dismiss-error')
       );
     });
   };
@@ -218,7 +218,7 @@ export function EmailReplyProposalCard({
                 color: 'var(--kp-navy)',
               }}
             >
-              {t('intake.emailReply.title')}
+              {t('intake.email-reply.title')}
             </h3>
             <span
               data-testid="email-reply-non-e2ee-label"
@@ -236,7 +236,7 @@ export function EmailReplyProposalCard({
               }}
             >
               <ShieldAlert aria-hidden size={13} />
-              {t('intake.emailReply.channel-label')}
+              {t('intake.email-reply.channel-label')}
             </span>
           </div>
           <p
@@ -246,7 +246,7 @@ export function EmailReplyProposalCard({
               fontSize: 12,
             }}
           >
-            {t('intake.emailReply.helper')}
+            {t('intake.email-reply.helper')}
           </p>
         </div>
       </div>
@@ -279,7 +279,7 @@ export function EmailReplyProposalCard({
               }}
             >
               <div style={{ color: 'var(--kp-navy)', fontSize: 13, fontWeight: 800 }}>
-                {t('intake.emailReply.source-line', { sender: proposal.sender })}
+                {t('intake.email-reply.source-line', { sender: proposal.sender })}
               </div>
               <Button
                 type="button"
@@ -289,7 +289,7 @@ export function EmailReplyProposalCard({
                   setReviewProposalId(proposal.proposalId);
                 }}
               >
-                {t('intake.emailReply.review')}
+                {t('intake.email-reply.review')}
               </Button>
             </div>
             <div style={{ display: 'grid', gap: 8 }}>
@@ -320,7 +320,7 @@ export function EmailReplyProposalCard({
                   dismissFromUi(proposal);
                 }}
               >
-                {t('intake.emailReply.dismiss')}
+                {t('intake.email-reply.dismiss')}
               </Button>
               <Button
                 type="button"
@@ -333,7 +333,7 @@ export function EmailReplyProposalCard({
                   acceptFromUi(proposal);
                 }}
               >
-                {t('intake.emailReply.accept-selected')}
+                {t('intake.email-reply.accept-selected')}
               </Button>
             </div>
           </div>

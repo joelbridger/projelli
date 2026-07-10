@@ -35,7 +35,7 @@ export function EmailReplyReviewModal({
     <div
       role="dialog"
       aria-modal="true"
-      aria-label={t('intake.emailReply.review-title')}
+      aria-label={t('intake.email-reply.review-title')}
       style={{
         position: 'fixed',
         inset: 0,
@@ -75,7 +75,7 @@ export function EmailReplyReviewModal({
                 fontWeight: 800,
               }}
             >
-              {t('intake.emailReply.review-title')}
+              {t('intake.email-reply.review-title')}
             </h3>
             <p
               style={{
@@ -84,7 +84,7 @@ export function EmailReplyReviewModal({
                 fontSize: 12,
               }}
             >
-              {t('intake.emailReply.source-line', {
+              {t('intake.email-reply.source-line', {
                 sender: proposal.sender,
               })}
             </p>
@@ -114,7 +114,7 @@ export function EmailReplyReviewModal({
           }}
         >
           <Button type="button" variant="outline" onClick={onClose}>
-            {t('intake.emailReply.cancel')}
+            {t('intake.email-reply.cancel')}
           </Button>
           <Button
             type="button"
@@ -122,14 +122,14 @@ export function EmailReplyReviewModal({
             onClick={onDismiss}
             disabled={accepting || dismissing}
           >
-            {t('intake.emailReply.dismiss')}
+            {t('intake.email-reply.dismiss')}
           </Button>
           <Button
             type="button"
             onClick={onAccept}
             disabled={accepting || dismissing || selectedIds.size === 0}
           >
-            {t('intake.emailReply.accept-selected')}
+            {t('intake.email-reply.accept-selected')}
           </Button>
         </div>
       </div>

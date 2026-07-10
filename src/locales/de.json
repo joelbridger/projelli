@@ -3983,7 +3983,7 @@
       "no-facts": "Noch keine Angaben erhalten.",
       "view-in-folder": "Im Ordner anzeigen"
     },
-    "emailReply": {
+    "email-reply": {
       "title": "E-Mail-Antworten warten",
       "channel-label": "E-Mail-Antwort. Nicht Ende-zu-Ende verschlüsselt.",
       "helper": "Dies kam über Ihr Postfach, nicht über den sicheren Link. Prüfen Sie es vor dem Ablegen.",

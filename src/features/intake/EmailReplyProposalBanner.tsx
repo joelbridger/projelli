@@ -26,7 +26,7 @@ export function EmailReplyProposalBanner({ count }: EmailReplyProposalBannerProp
       }}
     >
       <Mail aria-hidden size={14} />
-      {t('intake.emailReply.banner-count', { count })}
+      {t('intake.email-reply.banner-count', { count })}
     </div>
   );
 }

@@ -3983,7 +3983,7 @@
       "no-facts": "Aún no se han recibido datos.",
       "view-in-folder": "Ver en la carpeta"
     },
-    "emailReply": {
+    "email-reply": {
       "title": "Respuestas por correo pendientes",
       "channel-label": "Respuesta por correo. No está cifrada de extremo a extremo.",
       "helper": "Esto llegó por tu buzón, no por el enlace seguro. Revísalo antes de archivarlo.",

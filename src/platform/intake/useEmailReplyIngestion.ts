@@ -2,7 +2,6 @@ import { useEffect } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
-import { resolveEmailProvider } from '@/features/email/resolveEmailProvider';
 import type { Provider } from '@/platform/providers/Provider';
 import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 
@@ -114,9 +113,9 @@ function fallbackRows(openItems: IntakeChecklistState[]): EmailReplyProposalItem
 async function enqueueCandidate(
   candidate: EmailReplyCandidate,
   view: MailView,
-  deps: Required<
-    Pick<EmailReplyIngestionDeps, 'saveProposal' | 'resolveEmailProvider'>
-  >
+  deps: Pick<EmailReplyIngestionDeps, 'saveProposal' | 'resolveEmailProvider'> & {
+    saveProposal: typeof emailReplyProposalSave;
+  }
 ): Promise<void> {
   const openItems = openItemsForCandidate(candidate);
   // Email bodies are untrusted data before either the deterministic matcher or
@@ -125,7 +124,7 @@ async function enqueueCandidate(
   let modelConfidence:
     | ((prompt: string) => Promise<unknown>)
     | undefined;
-  if (bodyText) {
+  if (bodyText && deps.resolveEmailProvider) {
     try {
       const resolved = await deps.resolveEmailProvider();
       modelConfidence = async (prompt) => {
@@ -228,7 +227,6 @@ export async function processEmailReplyMessages(
   const getMessage = deps.getMessage ?? mailGetMessage;
   const saveProposal = deps.saveProposal ?? emailReplyProposalSave;
   const saveQuarantine = deps.saveQuarantine ?? emailReplyQuarantineSave;
-  const resolveProvider = deps.resolveEmailProvider ?? resolveEmailProvider;
   const now = deps.now ?? new Date();
   const page: MailListPage = await listMessages({
     sortBy: 'date',
@@ -248,7 +246,7 @@ export async function processEmailReplyMessages(
       if (result.kind === 'candidate') {
         await enqueueCandidate(result, view, {
           saveProposal,
-          resolveEmailProvider: resolveProvider,
+          resolveEmailProvider: deps.resolveEmailProvider,
         });
       } else if (result.kind === 'quarantine') {
         await enqueueQuarantine(result, { saveQuarantine });
@@ -259,7 +257,9 @@ export async function processEmailReplyMessages(
   }
 }
 
-export function useEmailReplyIngestion(): void {
+export function useEmailReplyIngestion(
+  { resolveEmailProvider }: Pick<EmailReplyIngestionDeps, 'resolveEmailProvider'> = {}
+): void {
   useEffect(() => {
     if (!isTauri()) return;
     let running = false;
@@ -267,7 +267,7 @@ export function useEmailReplyIngestion(): void {
     const run = (): void => {
       if (running || disposed) return;
       running = true;
-      void processEmailReplyMessages()
+      void processEmailReplyMessages({ resolveEmailProvider })
         .catch((error: unknown) => {
           console.warn('[useEmailReplyIngestion] Email reply ingestion failed:', error);
         })
@@ -292,5 +292,5 @@ export function useEmailReplyIngestion(): void {
       window.removeEventListener('focus', run);
       if (unlisten) unlisten();
     };
-  }, []);
+  }, [resolveEmailProvider]);
 }
