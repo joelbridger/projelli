@@ -47,6 +47,7 @@ import {
   handleGetIntakeBlob,
   handleIntakeBundle,
   handleIntakeInbox,
+  handleListUploadedIntakeChunks,
   handleReplaceIntakeChecklist,
   handleRevokeIntake,
   handleSaveIntakeState,
@@ -175,7 +176,10 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           if (ii.rest === "extend" && method === "POST") return await handleExtendIntake(req, store, ii.id);
           if (ii.rest === "bundle" && method === "GET") return handleIntakeBundle(req, store, ii.id, ip);
           if (ii.rest === "state" && method === "PUT") return await handleSaveIntakeState(req, store, ii.id, ip);
-          const item = ii.rest.match(/^item\/([^/]+)\/(chunk|submit)$/);
+          const item = ii.rest.match(/^item\/([^/]+)\/(chunk|chunks|submit)$/);
+          if (item && item[2] === "chunks" && method === "GET") {
+            return handleListUploadedIntakeChunks(req, store, ii.id, decodeURIComponent(item[1]!), ip);
+          }
           if (item && item[2] === "chunk" && method === "POST") {
             return await handleUploadIntakeChunk(req, store, ii.id, decodeURIComponent(item[1]!), ip);
           }

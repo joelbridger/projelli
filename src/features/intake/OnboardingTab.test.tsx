@@ -102,8 +102,8 @@ describe('OnboardingTab', () => {
     fireEvent.click(await screen.findByLabelText('Purge fact'));
 
     await waitFor(() => {
-      expect(intakeFactPurge).toHaveBeenCalledWith('fact-1');
+      expect(intakeFactPurge).toHaveBeenCalledWith('matter-1', 'fact-1');
     });
-    expect(intakeFactPurge).not.toHaveBeenCalledWith('matter-1', 'ssn');
+    expect(intakeFactPurge).not.toHaveBeenCalledWith('matter-2', 'fact-1');
   });
 });

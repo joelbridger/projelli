@@ -9,6 +9,7 @@ import {
   wrapContentKey,
   type SealedManifest,
 } from '@/platform/intake/intakeCrypto';
+import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
 import {
   IntakeSyncClient,
   type IntakeInboxSubmission,
@@ -24,6 +25,10 @@ async function sealedSubmission(
     sessionId: string;
     manifestSubmissionId: string;
     chunkSubmissionId: string;
+    chunkIntakeId: string;
+    chunkItemId: string;
+    chunkIndex: number;
+    manifestChunkHashes: string[];
     payload: unknown;
   }> = {}
 ): Promise<{ submission: IntakeInboxSubmission; privateKey: CryptoKey }> {
@@ -32,6 +37,9 @@ async function sealedSubmission(
   const submissionId = overrides.submissionId ?? 'submission-1';
   const manifestSubmissionId = overrides.manifestSubmissionId ?? submissionId;
   const chunkSubmissionId = overrides.chunkSubmissionId ?? submissionId;
+  const chunkIntakeId = overrides.chunkIntakeId ?? intakeId;
+  const chunkItemId = overrides.chunkItemId ?? itemId;
+  const chunkIndex = overrides.chunkIndex ?? 0;
   const { privateKey, publicKeyRaw } = await generateIntakeKeypair();
   const contentKeyB64 = await generateContentKey();
   const contentKey = await importContentKey(contentKeyB64);
@@ -43,14 +51,15 @@ async function sealedSubmission(
     value: { t: 'string', v: '123-45-6789' },
     verification: 'client_stated',
   };
+  const payloadBytes = enc.encode(JSON.stringify(payload));
   const chunk = await sealItemChunk(
     contentKey,
-    enc.encode(JSON.stringify(payload)),
+    payloadBytes,
     {
-      intakeId,
-      itemId,
+      intakeId: chunkIntakeId,
+      itemId: chunkItemId,
       submissionId: chunkSubmissionId,
-      index: 0,
+      index: chunkIndex,
     }
   );
   const manifest: SealedManifest = {
@@ -58,7 +67,9 @@ async function sealedSubmission(
     item_id: itemId,
     content_type: 'application/vnd.lantern.intake.fact+json',
     file_names: [],
-    chunk_hashes: ['sha256-test'],
+    chunk_hashes: overrides.manifestChunkHashes ?? [
+      await hashPlaintextChunk(payloadBytes),
+    ],
     chunk_count: 1,
   };
   const manifestCiphertext = await sealManifest(contentKey, manifest, {
@@ -80,10 +91,10 @@ async function sealedSubmission(
       wrapped_content_key_b64: wrapped,
       chunks: [
         {
-          intake_id: intakeId,
-          item_id: itemId,
+          intake_id: chunkIntakeId,
+          item_id: chunkItemId,
           submission_id: chunkSubmissionId,
-          index: 0,
+          index: chunkIndex,
           ciphertext_b64: chunk,
         },
       ],
@@ -180,6 +191,115 @@ describe('IntakeSyncClient', () => {
         submissionId: 'submission-1',
       })
     );
+  });
+
+  it('flags chunks transplanted from another item before routing or acking', async () => {
+    const built = await sealedSubmission({
+      chunkItemId: 'other-item',
+    });
+    const relay = {
+      fetchInbox: vi.fn(() =>
+        Promise.resolve({
+          cursor: 7,
+          has_more: false,
+          submissions: [built.submission],
+        })
+      ),
+      ackSubmission: vi.fn(() => Promise.resolve()),
+    };
+    const routeSubmission = vi.fn(() => Promise.resolve({ factId: 'fact-1' }));
+    const flagSubmission = vi.fn(() => Promise.resolve());
+
+    const sync = new IntakeSyncClient({
+      relay,
+      loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(false)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      rememberSession: vi.fn(() => Promise.resolve()),
+      flagSubmission,
+      routeSubmission,
+    });
+
+    const result = await sync.syncOnce();
+
+    expect(result.rejected).toBe(1);
+    expect(routeSubmission).not.toHaveBeenCalled();
+    expect(relay.ackSubmission).not.toHaveBeenCalled();
+    expect(flagSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'integrity_mismatch',
+        submissionId: 'submission-1',
+      })
+    );
+  });
+
+  it('flags out-of-range chunk indexes before routing or acking', async () => {
+    const built = await sealedSubmission({
+      chunkIndex: 1,
+    });
+    const relay = {
+      fetchInbox: vi.fn(() =>
+        Promise.resolve({
+          cursor: 7,
+          has_more: false,
+          submissions: [built.submission],
+        })
+      ),
+      ackSubmission: vi.fn(() => Promise.resolve()),
+    };
+    const routeSubmission = vi.fn(() => Promise.resolve({ factId: 'fact-1' }));
+
+    const sync = new IntakeSyncClient({
+      relay,
+      loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(false)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      rememberSession: vi.fn(() => Promise.resolve()),
+      flagSubmission: vi.fn(() => Promise.resolve()),
+      routeSubmission,
+    });
+
+    const result = await sync.syncOnce();
+
+    expect(result.rejected).toBe(1);
+    expect(routeSubmission).not.toHaveBeenCalled();
+    expect(relay.ackSubmission).not.toHaveBeenCalled();
+  });
+
+  it('flags chunk hash mismatches before routing or acking', async () => {
+    const built = await sealedSubmission({
+      manifestChunkHashes: ['definitely-not-the-real-hash'],
+    });
+    const relay = {
+      fetchInbox: vi.fn(() =>
+        Promise.resolve({
+          cursor: 7,
+          has_more: false,
+          submissions: [built.submission],
+        })
+      ),
+      ackSubmission: vi.fn(() => Promise.resolve()),
+    };
+    const routeSubmission = vi.fn(() => Promise.resolve({ factId: 'fact-1' }));
+
+    const sync = new IntakeSyncClient({
+      relay,
+      loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(false)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      rememberSession: vi.fn(() => Promise.resolve()),
+      flagSubmission: vi.fn(() => Promise.resolve()),
+      routeSubmission,
+    });
+
+    const result = await sync.syncOnce();
+
+    expect(result.rejected).toBe(1);
+    expect(routeSubmission).not.toHaveBeenCalled();
+    expect(relay.ackSubmission).not.toHaveBeenCalled();
   });
 
   it('flags duplicate and new-device submissions instead of overwriting silently', async () => {

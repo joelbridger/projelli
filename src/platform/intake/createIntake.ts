@@ -31,7 +31,7 @@ export async function createAdvisorIntake(
   await options.relay.createIntake({
     intake_id: options.intakeId,
     matter_id: options.matterId,
-    token_b64: bundle.tokenB64,
+    auth_token: bundle.tokenB64,
     expires_at: options.expiresAt,
     checklist_ciphertext_b64: bundle.checklistCiphertextB64,
     state_ciphertext_b64: bundle.stateCiphertextB64,

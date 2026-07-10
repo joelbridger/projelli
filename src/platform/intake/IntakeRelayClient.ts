@@ -4,7 +4,7 @@ import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 export interface IntakeCreateRequest {
   intake_id: string;
   matter_id: string;
-  token_b64: string;
+  auth_token: string;
   expires_at: string;
   checklist_ciphertext_b64: string;
   state_ciphertext_b64: string;

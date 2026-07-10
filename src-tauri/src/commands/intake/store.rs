@@ -413,6 +413,19 @@ impl IntakeFactsStore {
         .ok_or_else(|| anyhow::anyhow!("fact not found"))
     }
 
+    fn get_row_for_matter(&self, matter_id: &str, fact_id: &str) -> Result<ClientFactRow> {
+        let conn = lock_unpoison(&self.conn);
+        conn.query_row(
+            "SELECT fact_id, matter_id, subject, kind, value_json, sensitivity, provenance_json,
+                    verification, status, superseded_by, created_at
+             FROM client_facts WHERE matter_id = ?1 AND fact_id = ?2",
+            params![matter_id, fact_id],
+            row_to_fact,
+        )
+        .optional()?
+        .ok_or_else(|| anyhow::anyhow!("fact not found"))
+    }
+
     pub fn get_masked(&self, fact_id: &str) -> Result<MaskedClientFact> {
         masked(&self.get_row(fact_id)?)
     }
@@ -434,10 +447,11 @@ impl IntakeFactsStore {
 
     pub fn reveal_fact(
         &self,
+        matter_id: &str,
         fact_id: &str,
         audit: &dyn IntakeAuditSink,
     ) -> Result<RevealedClientFact> {
-        let row = self.get_row(fact_id)?;
+        let row = self.get_row_for_matter(matter_id, fact_id)?;
         audit.append(audit_entry(
             "intake_fact_reveal",
             "Restricted intake fact revealed.",
@@ -463,8 +477,8 @@ impl IntakeFactsStore {
         })
     }
 
-    pub fn purge(&self, fact_id: &str, audit: &dyn IntakeAuditSink) -> Result<Vec<String>> {
-        let row = self.get_row(fact_id)?;
+    pub fn purge(&self, matter_id: &str, fact_id: &str, audit: &dyn IntakeAuditSink) -> Result<Vec<String>> {
+        let row = self.get_row_for_matter(matter_id, fact_id)?;
         let pair_id = format!("purge_{fact_id}");
         audit.append(audit_entry(
             "intake_fact_purge",
@@ -476,7 +490,10 @@ impl IntakeFactsStore {
         ))?;
         let mut conn = lock_unpoison(&self.conn);
         let tx = conn.transaction()?;
-        tx.execute("DELETE FROM client_facts WHERE fact_id = ?1", params![fact_id])?;
+        tx.execute(
+            "DELETE FROM client_facts WHERE matter_id = ?1 AND fact_id = ?2",
+            params![matter_id, fact_id],
+        )?;
         tx.commit()?;
         Ok(vec![row.fact_id])
     }
@@ -565,7 +582,7 @@ mod tests {
         store.upsert_fact(input("fact-1", "123-45-6789"), &audit).unwrap();
         let before = audit.entries.lock().unwrap().len();
 
-        let revealed = store.reveal_fact("fact-1", &audit).unwrap();
+        let revealed = store.reveal_fact("matter-1", "fact-1", &audit).unwrap();
 
         assert_eq!(revealed.value, json!({ "t": "string", "v": "123-45-6789" }));
         assert_eq!(audit.entries.lock().unwrap().len(), before + 1);
@@ -592,7 +609,7 @@ mod tests {
         store.upsert_fact(input("fact-1", "123-45-6789"), &audit).unwrap();
         let before = audit.entries.lock().unwrap().len();
 
-        let purged = store.purge("fact-1", &audit).unwrap();
+        let purged = store.purge("matter-1", "fact-1", &audit).unwrap();
 
         assert_eq!(purged, vec!["fact-1".to_string()]);
         assert!(store.list_masked("matter-1").unwrap().is_empty());
@@ -609,7 +626,7 @@ mod tests {
             .unwrap();
         let before = audit.entries.lock().unwrap().len();
 
-        let purged = store.purge("fact-1", &audit).unwrap();
+        let purged = store.purge("matter-1", "fact-1", &audit).unwrap();
 
         assert_eq!(purged, vec!["fact-1".to_string()]);
         let remaining = store.list_masked("matter-1").unwrap();
@@ -617,5 +634,26 @@ mod tests {
         assert_eq!(remaining[0].fact_id, "fact-2");
         assert_eq!(remaining[0].subject, "spouse");
         assert_eq!(audit.entries.lock().unwrap().len(), before + 1);
+    }
+
+    #[test]
+    fn wrong_matter_cannot_reveal_or_purge_a_fact() {
+        let (_dir, store) = store();
+        let audit = VecAudit::default();
+        store.upsert_fact(input("fact-1", "123-45-6789"), &audit).unwrap();
+        let before = audit.entries.lock().unwrap().len();
+
+        assert!(store.reveal_fact("matter-2", "fact-1", &audit).is_err());
+        assert!(store.purge("matter-2", "fact-1", &audit).is_err());
+
+        assert_eq!(audit.entries.lock().unwrap().len(), before);
+        assert_eq!(store.list_masked("matter-1").unwrap().len(), 1);
+        assert_eq!(
+            store
+                .reveal_fact("matter-1", "fact-1", &audit)
+                .unwrap()
+                .value,
+            json!({ "t": "string", "v": "123-45-6789" })
+        );
     }
 }
