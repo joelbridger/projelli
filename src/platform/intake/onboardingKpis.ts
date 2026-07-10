@@ -1,5 +1,5 @@
 import type { IntakeRecord } from './intakeStore';
-import type { OnboardingRow } from './onboardingModel';
+import { isReceivedChecklistItem, type OnboardingRow } from './onboardingModel';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -22,10 +22,25 @@ function round(value: number, decimalPlaces: number): number {
   return Math.round((value + Number.EPSILON) * factor) / factor;
 }
 
-function completedDurationInDays(record: IntakeRecord): number | null {
-  if (record.status !== 'completed') return null;
+function isChecklistComplete(record: IntakeRecord): boolean {
+  const requiredItems = record.items.filter((item) => item.state !== 'not_needed');
+  return requiredItems.length > 0 && requiredItems.every(isReceivedChecklistItem);
+}
+
+function latestAcceptedItemTime(record: IntakeRecord): number | null {
+  const acceptedItemTimes = record.items
+    .filter((item) => item.state === 'accepted')
+    .map((item) => parseTimeMs(item.provenance?.at))
+    .filter((time): time is number => time != null);
+  return acceptedItemTimes.length > 0 ? Math.max(...acceptedItemTimes) : null;
+}
+
+function completedDurationInDays(record: IntakeRecord, row?: OnboardingRow): number | null {
   const createdAt = parseTimeMs(record.createdAt);
-  const completedAt = parseTimeMs(record.completedAt);
+  const completedAt =
+    (record.status === 'completed' ? parseTimeMs(record.completedAt) : null) ??
+    latestAcceptedItemTime(record) ??
+    parseTimeMs(row?.lastActivityAt);
   if (createdAt == null || completedAt == null || completedAt < createdAt) return null;
   return (completedAt - createdAt) / DAY_MS;
 }
@@ -38,10 +53,16 @@ export function computeOnboardingKpis(
   rows: OnboardingRow[],
   records: IntakeRecord[],
 ): OnboardingKpis {
-  const completedCount = records.filter((record) => record.status === 'completed').length;
-  const activeCount = records.filter((record) => record.status === 'active').length;
-  const completionDurations = records
-    .map(completedDurationInDays)
+  const rowsByRequestId = new Map(rows.map((row) => [row.requestId, row]));
+  const completedRecords = records.filter(
+    (record) => record.status === 'completed' || isChecklistComplete(record),
+  );
+  const completedCount = completedRecords.length;
+  const activeCount = records.filter(
+    (record) => record.status === 'active' && !isChecklistComplete(record),
+  ).length;
+  const completionDurations = completedRecords
+    .map((record) => completedDurationInDays(record, rowsByRequestId.get(record.intakeId)))
     .filter((duration): duration is number => duration != null);
   const totalIntakes = completedCount + activeCount;
 

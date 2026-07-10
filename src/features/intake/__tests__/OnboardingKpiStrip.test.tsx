@@ -30,6 +30,7 @@ describe('OnboardingKpiStrip', () => {
     expect(screen.getByText('3.5 days')).toBeTruthy();
     expect(screen.getByText('2')).toBeTruthy();
     expect(screen.getByText('67%')).toBeTruthy();
+    expect(screen.queryByText('No completed onboardings yet')).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 

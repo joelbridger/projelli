@@ -50,6 +50,69 @@ function record(overrides: Partial<IntakeRecord> = {}): IntakeRecord {
 }
 
 describe('computeOnboardingKpis', () => {
+  it('derives completion and duration from every required received or accepted item', () => {
+    const kpis = computeOnboardingKpis([], [
+      record({
+        createdAt: '2026-07-01T00:00:00.000Z',
+        items: [
+          {
+            itemId: 'license',
+            label: "Driver's license",
+            state: 'accepted',
+            provenance: {
+              channel: 'intake_link',
+              label: 'Provided by client',
+              at: '2026-07-03T00:00:00.000Z',
+            },
+          },
+          {
+            itemId: 'income',
+            label: 'Income statement',
+            state: 'accepted',
+            provenance: {
+              channel: 'email_reply',
+              label: 'Confirmed by advisor',
+              at: '2026-07-05T00:00:00.000Z',
+            },
+          },
+        ],
+      }),
+      record({
+        intakeId: 'still-open',
+        items: [
+          { itemId: 'license', label: "Driver's license", state: 'accepted' },
+          { itemId: 'income', label: 'Income statement', state: 'not_started' },
+        ],
+      }),
+    ]);
+
+    expect(kpis).toMatchObject({
+      avgDaysToComplete: 4,
+      completionRate: 0.5,
+      completedCount: 1,
+      activeCount: 1,
+    });
+  });
+
+  it('keeps a partial checklist active and leaves the average empty', () => {
+    const kpis = computeOnboardingKpis([], [
+      record({
+        items: [
+          { itemId: 'license', label: "Driver's license", state: 'accepted' },
+          { itemId: 'income', label: 'Income statement', state: 'not_started' },
+        ],
+      }),
+    ]);
+
+    expect(kpis).toMatchObject({
+      avgDaysToComplete: null,
+      completionRate: 0,
+      completedCount: 0,
+      activeCount: 1,
+    });
+    expect(Number.isNaN(kpis.completionRate)).toBe(false);
+  });
+
   it('averages days to complete from completed intakes with known timestamps', () => {
     const kpis = computeOnboardingKpis([], [
       record({
