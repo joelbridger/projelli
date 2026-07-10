@@ -68,7 +68,12 @@ import {
   parseMailFolderKey,
 } from '@/platform/rag/matterResolver';
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
-import { mailBackfillRag, mailRetagFolderMatter } from '@/platform/utils/mail-commands';
+import {
+  mailBackfillRag,
+  mailListPendingRagRetags,
+  mailRepairPendingRagRetags,
+  mailRetagFolderMatter,
+} from '@/platform/utils/mail-commands';
 import {
   resolvePrivilegeForSource,
   usePrivilegeStore,
@@ -1172,6 +1177,52 @@ export function restoreFolderHolds(workspaceRoot: string | null | undefined): vo
  * Mail and file hits are governed independently: a MAIL-store suspicion never hides
  * files, and a FOLDER-store suspicion never hides mail.
  */
+// Durable mail filing markers live in SQLCipher, not localStorage. Until we have
+// read them for the current workspace, hold mail conservatively; afterwards we
+// hold just their exact source ids. This closes the short startup window where a
+// stale RAG row could otherwise be retrieved before repair starts.
+let pendingMailRagRetagWorkspace: string | null = null;
+let pendingMailRagRetagLoading = false;
+let pendingMailRagRetagSourceIds = new Set<string>();
+
+function beginPendingMailRagRetagHold(workspaceRoot: string): void {
+  pendingMailRagRetagWorkspace = workspaceRoot;
+  pendingMailRagRetagLoading = true;
+  pendingMailRagRetagSourceIds = new Set();
+}
+
+async function refreshPendingMailRagRetagHold(
+  workspaceIdentity: WorkspaceIdentitySnapshot,
+): Promise<boolean> {
+  const workspaceRoot = workspaceIdentity.rootPath;
+  if (!workspaceRoot) return false;
+  try {
+    const pending = await mailListPendingRagRetags();
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
+    pendingMailRagRetagWorkspace = workspaceRoot;
+    pendingMailRagRetagSourceIds = new Set(pending.map((entry) => entry.sourceId));
+    pendingMailRagRetagLoading = false;
+    return true;
+  } catch {
+    // Keep the conservative all-mail hold: an unreadable durable marker store
+    // must never be interpreted as "no sources are pending".
+    return false;
+  }
+}
+
+async function repairPendingMailRagRetags(
+  workspaceIdentity: WorkspaceIdentitySnapshot,
+): Promise<void> {
+  // The hold is already active before this command runs. A failed repair leaves
+  // it intact; a successful repair re-reads SQLCipher before releasing sources.
+  try {
+    await mailRepairPendingRagRetags();
+  } catch {
+    return;
+  }
+  await refreshPendingMailRagRetagHold(workspaceIdentity);
+}
+
 export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
   if (pendingDeletedMatterHydrationSuspect()) return true;
   const { rootPath: liveRoot } = useWorkspaceStore.getState();
@@ -1191,6 +1242,12 @@ export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
     (hit.sourceId ?? '').startsWith('mail:') ||
     hit.path.startsWith('mail:');
   if (isMail) {
+    if (pendingMailRagRetagLoading) return true;
+    if (
+      pendingMailRagRetagWorkspace === liveRoot &&
+      ([hit.sourceId, hit.path].filter(Boolean) as string[])
+        .some((id) => pendingMailRagRetagSourceIds.has(id))
+    ) return true;
     // R8 (F2): a corrupt mail-retag store can't say WHICH matters lost their hold, so
     // fail closed on ALL mail until the boot mail retag reconverges every tag.
     if (isAllMailHeld()) return true;
@@ -1599,6 +1656,11 @@ export async function startFullIndex(
       // downloading, from the local encrypted bodies. No-ops fast when the
       // backfill marker is absent (the common case).
       await mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
+      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
+      // A committed manual filing may have survived a crash or a failed vector
+      // write. Its exact sources were held before startup; repair them before
+      // normal folder healing can make search available again.
+      await repairPendingMailRagRetags(workspaceIdentity);
       if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
       // QA-44 (Codex round 3): re-apply every mapped mail folder's matter on
       // boot — the mail mirror of `retagExistingMatterFolderPaths` below. Heals a
@@ -2140,8 +2202,10 @@ export function useMemoryWiring(
         // Optional connectors — every one of these is best-effort and
         // individually caught, so a failure here can never again take down
         // the file watcher / live indexing installed above.
+        beginPendingMailRagRetagHold(rootPath);
         try {
           await mailSetWorkspace(rootPath);
+          await refreshPendingMailRagRetagHold(workspaceIdentity);
         } catch (err) {
           console.warn('mailSetWorkspace failed; continuing workspace setup:', err);
         }

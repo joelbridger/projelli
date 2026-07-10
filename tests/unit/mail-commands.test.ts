@@ -84,6 +84,15 @@ describe('mail-commands', () => {
     expect(count).toBe(3);
   });
 
+  it('mailRetagMessagesMatter sends one batch IPC request', async () => {
+    (invoke as any).mockResolvedValue(513);
+    const { mailRetagMessagesMatter } = await import('@/platform/utils/mail-commands');
+    await expect(mailRetagMessagesMatter(['one', 'two'], 'matter_a')).resolves.toBe(513);
+    expect(invoke).toHaveBeenCalledWith('mail_retag_messages_matter', {
+      messageIds: ['one', 'two'], matterId: 'matter_a',
+    });
+  });
+
   it('mailConnectedAccounts lists connected accounts', async () => {
     (invoke as any).mockResolvedValue([{ provider: 'm365', account: 'default', label: 'Microsoft 365' }]);
     const { mailConnectedAccounts } = await import('@/platform/utils/mail-commands');

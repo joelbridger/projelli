@@ -58,6 +58,18 @@ pub fn decrypt_with_key(blob: &[u8], key: &[u8; KEY_LEN]) -> Result<Vec<u8>> {
 /// Get the master key from the OS keychain, creating and storing it on first call.
 /// Returns the 32-byte key as a fixed-size array.
 pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
+    // Headless test/CI runs have no unlocked desktop keyring. This mirrors the
+    // vector-store override and is only used when the caller explicitly sets
+    // a fixed 32-byte test key.
+    if let Ok(hex) = std::env::var("LANTERN_HEADLESS_TEST_MAIL_MASTER_KEY_HEX") {
+        let bytes = hex::decode(hex.trim()).context("decode headless test mail master key hex")?;
+        if bytes.len() != KEY_LEN {
+            anyhow::bail!("headless test mail master key has wrong length: {}", bytes.len());
+        }
+        let mut k = [0u8; KEY_LEN];
+        k.copy_from_slice(&bytes);
+        return Ok(k);
+    }
     let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_KEY)
         .context("keychain entry")?;
     match entry.get_password() {

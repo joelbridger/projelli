@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, Loader2, FolderInput } from 'lucide-react';
 import { SearchField, Dropdown } from '@/ui/kp';
 import { useMatters } from '@/platform/matter/matterStore';
-import { mailRetagMessageMatter } from '@/platform/utils/mail-commands';
+import { mailRetagMessagesMatter } from '@/platform/utils/mail-commands';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useTranslation } from 'react-i18next';
 
@@ -89,7 +89,7 @@ export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: Bu
               setFileError(null);
               void (async () => {
                 try {
-                  await Promise.all(Array.from(selectedIds).map((id) => mailRetagMessageMatter(id, matterId)));
+                  await mailRetagMessagesMatter(Array.from(selectedIds), matterId);
                   setFiling(null);
                   onOpenChange(false);
                   onDone();

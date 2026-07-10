@@ -11,7 +11,7 @@
 
 use anyhow::{Context, Result};
 use crate::util::sync::lock_unpoison;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
@@ -993,6 +993,71 @@ impl EncryptedMailStore {
         }
         tx.commit()?;
         Ok(())
+    }
+
+    /// Return each repair marker at its latest durable filing target. The read
+    /// and marker update share one SQLite transaction, so a stale retry can
+    /// never select an older target for its next vector-table write.
+    pub fn pending_rag_retags_at_current_target(&self) -> Result<Vec<(String, String)>> {
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let pending: Vec<String> = {
+            let mut stmt = tx.prepare(
+                "SELECT key FROM meta WHERE key LIKE 'v1:pending_rag_retag:%' ORDER BY key",
+            )?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        let mut current = Vec::with_capacity(pending.len());
+        for pending_key in pending {
+            let message_id = pending_key
+                .trim_start_matches("v1:pending_rag_retag:")
+                .to_string();
+            let target: Option<String> = tx.query_row(
+                "SELECT value FROM meta WHERE key = ?1",
+                [message_matter_key(&message_id)],
+                |row| row.get(0),
+            ).optional()?;
+            match target {
+                Some(target) => {
+                    tx.execute(
+                        "UPDATE meta SET value = ?2 WHERE key = ?1",
+                        rusqlite::params![pending_key, target],
+                    )?;
+                    current.push((message_id, target));
+                }
+                None => {
+                    tx.execute("DELETE FROM meta WHERE key = ?1", [pending_key])?;
+                }
+            }
+        }
+        tx.commit()?;
+        Ok(current)
+    }
+
+    /// Clear a marker only if the marker and durable filing still match the
+    /// target just written. A newer re-file therefore cannot lose its marker.
+    pub fn clear_pending_rag_retag_batch_if_current(
+        &self,
+        message_ids: &[String],
+        matter_id: &str,
+    ) -> Result<usize> {
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let mut cleared = 0;
+        for id in message_ids {
+            cleared += tx.execute(
+                "DELETE FROM meta
+                 WHERE key = ?1 AND value = ?2
+                   AND EXISTS (
+                     SELECT 1 FROM meta AS filing
+                     WHERE filing.key = ?3 AND filing.value = ?2
+                   )",
+                rusqlite::params![pending_rag_retag_key(id), matter_id, message_matter_key(id)],
+            )?;
+        }
+        tx.commit()?;
+        Ok(cleared)
     }
 
     pub fn pending_rag_retags(&self) -> Result<Vec<(String, String)>> {

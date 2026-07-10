@@ -6,6 +6,14 @@ use tauri::State;
 
 const MAX_MAIL_RETAG_MESSAGE_IDS: usize = 1024;
 
+#[cfg(test)]
+tokio::task_local! {
+    /// Test-only seam that makes the production RAG write path execute a real
+    /// LanceDB update with an invalid predicate. It proves the public command's
+    /// durable-marker recovery when LanceDB itself rejects a write.
+    static FORCE_LANCEDB_RETAG_FAILURE: ();
+}
+
 /// Resolve the matter id for a folder from the supplied mapping. Folder-level
 /// entries (matching provider+account+folder) take precedence over account-level
 /// entries (matching provider+account with an empty folder). Falls back to
@@ -296,6 +304,17 @@ async fn retag_mail_paths_in_workspace(
         .execute()
         .await
         .map_err(|e| format!("open table: {e}"))?;
+    #[cfg(test)]
+    if FORCE_LANCEDB_RETAG_FAILURE.try_with(|_| ()).is_ok() {
+        return table
+            .update()
+            .only_if("this is deliberately invalid LanceDB SQL")
+            .column("matter_id", "'forced-failure'")
+            .execute()
+            .await
+            .map(|_| 0)
+            .map_err(|e| format!("injected LanceDB update failure: {e}"));
+    }
     let key = crate::commands::rag::crypto::get_or_create_master_key()
         .map_err(|e| format!("vectors key: {e}"))?;
     crate::commands::rag::store::retag_matter_for_paths(&table, &paths, &matter_id, &key)
@@ -313,7 +332,7 @@ async fn clear_repaired_rag_markers(
     tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
         let store = EncryptedMailStore::open(&workspace)?;
         for (matter_id, message_ids) in repaired {
-            store.clear_pending_rag_retag_batch(&message_ids, &matter_id)?;
+            store.clear_pending_rag_retag_batch_if_current(&message_ids, &matter_id)?;
         }
         Ok(())
     })
@@ -330,6 +349,9 @@ async fn mail_retag_messages_matter_core(
 ) -> Result<u32, String> {
     crate::commands::rag::store::validate_matter_id(&matter_id)
         .map_err(|e| format!("invalid matter id: {e}"))?;
+    // A filing owns its durable update, vector mirror and marker clear from
+    // end to end. Without this, late A can overwrite completed B.
+    let _retag_guard = state.retag_lock.lock().await;
     let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
     if expected_workspace != workspace {
         return Err("mail_retag_messages_matter: workspace changed; refusing stale batch".to_string());
@@ -353,8 +375,21 @@ async fn mail_retag_messages_matter_core(
     .map_err(|e| format!("persist matter filing join: {e}"))?
     .map_err(|e| format!("persist matter filing: {e}"))?;
 
-    let mut grouped = BTreeMap::new();
-    grouped.insert(matter_id, ids.clone());
+    // Re-read durable targets immediately before the vector write. This also
+    // advances any stale marker to the newest durable matter in one SQL txn.
+    let ws_for_targets = workspace.clone();
+    let current_targets = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
+        EncryptedMailStore::open(&ws_for_targets)?.pending_rag_retags_at_current_target()
+    })
+    .await
+    .map_err(|e| format!("read current RAG repair targets join: {e}"))?
+    .map_err(|e| format!("read current RAG repair targets: {e}"))?;
+    let selected: HashSet<&str> = ids.iter().map(String::as_str).collect();
+    let grouped = group_pending_rag_retags(
+        current_targets.into_iter()
+            .filter(|(id, _)| selected.contains(id.as_str()))
+            .collect(),
+    );
     let workspace_for_retag = workspace.clone();
     let outcome = attempt_pending_rag_repairs(grouped, move |target, repair_ids| {
         retag_mail_paths_in_workspace(workspace_for_retag.clone(), repair_ids, target)
@@ -379,7 +414,7 @@ async fn mail_retag_messages_matter_core(
 /// files use. Called by the frontend when a mail folder's matter mapping
 /// changes, so already-indexed mail picks up the new scope immediately. An empty
 /// `folder_id` re-tags every folder in the account (an account-level mapping).
-/// Returns the number of messages re-tagged. No-op (Ok(0)) when memory/index has
+/// Returns the number of RAG rows actually re-tagged. No-op (Ok(0)) when memory/index has
 /// nothing for those messages yet. QA-44 (R7-2): FAILS if ANY message's re-tag
 /// errors, so a partial re-tag never reports success (see `summarize_mail_retag`).
 ///
@@ -421,6 +456,10 @@ pub async fn mail_retag_folder_matter(
             ));
         }
     }
+    // Coordinate with manual filings and repair. A folder re-tag that began
+    // before a manual B filing must finish before B's durable/RAG pair, never
+    // overwrite B after it has completed.
+    let _retag_guard = state.retag_lock.lock().await;
 
     // List the message ids for this folder + each message's durable per-message
     // matter override, from the encrypted metadata store (one open).
@@ -473,20 +512,15 @@ pub async fn mail_retag_folder_matter(
     // Preserve manual overrides, but update each effective target once per
     // 512 paths rather than once per message.
     let grouped = group_mail_retag_paths(ids_and_overrides, &matter_id);
-    let mut retagged_messages = 0u32;
+    let mut retagged_rows = 0u32;
     for (effective_matter, paths) in grouped {
-        retagged_messages += crate::commands::rag::store::count_paths_requiring_matter_retag(
+        retagged_rows += crate::commands::rag::store::retag_matter_for_paths(
             &table, &paths, &effective_matter, &vec_key,
         )
         .await
-        .map_err(|e| format!("count batched RAG matter re-tag: {e}"))?;
-        crate::commands::rag::store::retag_matter_for_paths(
-            &table, &paths, &effective_matter, &vec_key,
-        )
-        .await
-        .map_err(|e| format!("batched RAG matter re-tag: {e}"))?;
+        .map_err(|e| format!("batched RAG matter re-tag: {e}"))? as u32;
     }
-    Ok(retagged_messages)
+    Ok(retagged_rows)
 }
 
 /// File messages to a matter in one durable transaction and bounded vector-table
@@ -497,16 +531,17 @@ pub async fn mail_retag_messages_matter(
     state: State<'_, MailState>,
     message_ids: Vec<String>,
     matter_id: String,
-    expected_workspace: String,
+    expected_workspace: Option<String>,
 ) -> Result<u32, String> {
-    if expected_workspace.is_empty() {
-        return Err("expected_workspace is required".to_string());
-    }
+    let expected_workspace = match expected_workspace.filter(|workspace| !workspace.is_empty()) {
+        Some(workspace) => std::path::PathBuf::from(workspace),
+        None => state.workspace.lock().await.clone().ok_or("workspace not set")?,
+    };
     mail_retag_messages_matter_core(
         state.inner(),
         message_ids,
         matter_id,
-        std::path::PathBuf::from(expected_workspace),
+        expected_workspace,
     )
     .await
 }
@@ -537,13 +572,14 @@ pub async fn mail_retag_message_matter(
 pub async fn mail_list_pending_rag_retags(
     state: State<'_, MailState>,
 ) -> Result<Vec<PendingMailRagRetag>, String> {
+    let _retag_guard = state.retag_lock.lock().await;
     let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
     tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<PendingMailRagRetag>> {
         if !EncryptedMailStore::db_path(&workspace).exists() {
             return Ok(Vec::new());
         }
         Ok(EncryptedMailStore::open(&workspace)?
-            .pending_rag_retags()?
+            .pending_rag_retags_at_current_target()?
             .into_iter()
             .map(|(message_id, matter_id)| PendingMailRagRetag {
                 source_id: format!("mail:{message_id}"),
@@ -570,7 +606,7 @@ pub async fn mail_repair_pending_rag_retags(
         if !EncryptedMailStore::db_path(&ws_for_read).exists() {
             return Ok(Vec::new());
         }
-        EncryptedMailStore::open(&ws_for_read)?.pending_rag_retags()
+        EncryptedMailStore::open(&ws_for_read)?.pending_rag_retags_at_current_target()
     })
     .await
     .map_err(|e| format!("read pending RAG repairs join: {e}"))?
@@ -631,6 +667,58 @@ pub async fn mail_clear_matter_filings(
 mod tests {
     use super::*;
     use crate::commands::mail::store::MailRecord;
+    use crate::commands::rag::chunker::Chunk;
+    use crate::commands::rag::store::PRIVILEGE_NONE;
+    use arrow_array::RecordBatchIterator;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::{Arc, Once};
+    use tauri::Manager;
+
+    static HEADLESS_TEST_KEYS: Once = Once::new();
+
+    fn configure_headless_test_keys() {
+        HEADLESS_TEST_KEYS.call_once(|| {
+            std::env::set_var("LANTERN_HEADLESS_TEST_MAIL_MASTER_KEY_HEX", "11".repeat(32));
+            std::env::set_var("LANTERN_HEADLESS_TEST_VECTORS_MASTER_KEY_HEX", "22".repeat(32));
+        });
+    }
+
+    async fn test_app_for_workspace(workspace: &std::path::Path) -> tauri::App<tauri::test::MockRuntime> {
+        configure_headless_test_keys();
+        let app = tauri::test::mock_builder()
+            .manage(MailState {
+                workspace: tokio::sync::Mutex::new(Some(workspace.to_path_buf())),
+                retag_lock: tokio::sync::Mutex::new(()),
+                cancel: Arc::new(AtomicBool::new(false)),
+                is_syncing: Arc::new(AtomicBool::new(false)),
+                oauth_cancel: Arc::new(AtomicBool::new(false)),
+                gmail_oauth_cancel: Arc::new(AtomicBool::new(false)),
+            })
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let store = EncryptedMailStore::open(workspace).unwrap();
+        store.upsert(&MailRecord {
+            id: "one".to_string(), folder_id: "inbox".to_string(),
+            internet_message_id: None, relative_path: ".lantern/mail/blobs/one.enc".to_string(),
+            received_date_time: None, provider: "m365".to_string(), account: "default".to_string(),
+            subject: String::new(), from_addr: String::new(), from_name: String::new(),
+            snippet: String::new(), has_attachments: false,
+        }).unwrap();
+        let key = crate::commands::rag::crypto::get_or_create_master_key().unwrap();
+        let conn = crate::commands::rag::store::open_connection(workspace).await.unwrap();
+        let table = crate::commands::rag::store::open_or_create_table(&conn).await.unwrap();
+        let rows = vec![(
+            Chunk { path: "mail:one".to_string(), paragraph_index: 0, text: "test".to_string(), start_offset: 0, end_offset: 4, locator: None },
+            vec![0.0; crate::commands::rag::embedder::EMBEDDING_DIM],
+        )];
+        let batch = crate::commands::rag::store::build_batch_mail(
+            &rows, &key, crate::commands::rag::store::UNASSIGNED_MATTER, PRIVILEGE_NONE,
+        ).unwrap();
+        let schema = batch.schema();
+        table.add(Box::new(RecordBatchIterator::new(vec![Ok(batch)], schema)))
+            .execute().await.unwrap();
+        app
+    }
 
     // QA-44 (R7-2) — the per-message fold that decides whether a mail folder
     // re-tag SUCCEEDED. `Ok` from the command durably discharges the fail-closed
@@ -694,54 +782,41 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn forced_rag_failure_keeps_durable_filings_marked_and_repair_retries_exact_ids() {
+    async fn public_batch_command_keeps_marker_when_real_lancedb_write_fails_then_repairs() {
         let dir = tempfile::TempDir::new().unwrap();
-        let key = [0x33u8; 32];
-        let store = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
-        for id in ["one", "two"] {
-            store
-                .upsert(&MailRecord {
-                    id: id.to_string(),
-                    folder_id: "inbox".to_string(),
-                    internet_message_id: None,
-                    relative_path: format!(".lantern/mail/blobs/{id}.enc"),
-                    received_date_time: None,
-                    provider: "m365".to_string(),
-                    account: "default".to_string(),
-                    subject: String::new(),
-                    from_addr: String::new(),
-                    from_name: String::new(),
-                    snippet: String::new(),
-                    has_attachments: false,
-                })
-                .unwrap();
-        }
-        let ids = vec!["one".to_string(), "two".to_string()];
-        store
-            .set_message_matter_batch_with_pending_rag_retag(&ids, "matter-acme")
-            .unwrap();
-
-        let failed = attempt_pending_rag_repairs(group_pending_rag_retags(store.pending_rag_retags().unwrap()),
-            |_matter, _ids| async { Err("forced LanceDB failure".to_string()) },
-        )
-        .await;
-        assert!(failed.repaired.is_empty());
-        assert_eq!(failed.failures[0].1, ids);
+        let app = test_app_for_workspace(dir.path()).await;
+        let failure = FORCE_LANCEDB_RETAG_FAILURE.scope((), async {
+            mail_retag_messages_matter(
+                app.state::<MailState>(), vec!["one".to_string()], "matter-acme".to_string(), None,
+            ).await
+        }).await;
+        assert!(failure.unwrap_err().contains("injected LanceDB update failure"));
+        let store = EncryptedMailStore::open(dir.path()).unwrap();
         assert_eq!(store.get_message_matter("one").unwrap().as_deref(), Some("matter-acme"));
-        assert_eq!(store.pending_rag_retags().unwrap().len(), 2, "failed RAG leaves both source markers");
+        assert_eq!(store.pending_rag_retags().unwrap(), vec![("one".to_string(), "matter-acme".to_string())]);
 
-        let repaired = attempt_pending_rag_repairs(group_pending_rag_retags(store.pending_rag_retags().unwrap()),
-            |matter, repair_ids| async move {
-                assert_eq!(matter, "matter-acme");
-                assert_eq!(repair_ids, vec!["one".to_string(), "two".to_string()]);
-                Ok(2)
-            },
-        )
-        .await;
-        assert_eq!(repaired.repaired, vec![("matter-acme".to_string(), vec!["one".to_string(), "two".to_string()])]);
-        for (matter_id, repair_ids) in repaired.repaired {
-            store.clear_pending_rag_retag_batch(&repair_ids, &matter_id).unwrap();
-        }
+        assert_eq!(mail_repair_pending_rag_retags(app.state::<MailState>()).await.unwrap(), 1);
+        assert!(store.pending_rag_retags().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn late_a_retag_rechecks_durable_b_and_cannot_overwrite_completed_b() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let app = test_app_for_workspace(dir.path()).await;
+        let store = EncryptedMailStore::open(dir.path()).unwrap();
+        let ids = vec!["one".to_string()];
+        // A has committed but has not yet reached LanceDB.
+        store.set_message_matter_batch_with_pending_rag_retag(&ids, "matter-a").unwrap();
+        // B is filed and completes while A is still in flight.
+        store.set_message_matter_batch_with_pending_rag_retag(&ids, "matter-b").unwrap();
+        assert_eq!(mail_repair_pending_rag_retags(app.state::<MailState>()).await.unwrap(), 1);
+        // The late A attempt re-reads the durable target immediately before any
+        // vector write. B's clear means there is no A write left to perform.
+        assert!(store.pending_rag_retags_at_current_target().unwrap().is_empty());
+        let conn = crate::commands::rag::store::open_connection(dir.path()).await.unwrap();
+        let table = conn.open_table(crate::commands::rag::store::TABLE_NAME).execute().await.unwrap();
+        let key = crate::commands::rag::crypto::get_or_create_master_key().unwrap();
+        assert_eq!(crate::commands::rag::store::matter_for_path(&table, "mail:one", &key).await.unwrap().as_deref(), Some("matter-b"));
         assert!(store.pending_rag_retags().unwrap().is_empty());
     }
 }

@@ -432,6 +432,34 @@ export async function mailRetagMessageMatter(
   await invoke('mail_retag_message_matter', { messageId, matterId });
 }
 
+/** File selected messages in one bounded desktop request. The backend performs
+ * one durable transaction and at most one LanceDB table update per 512 ids. */
+export async function mailRetagMessagesMatter(
+  messageIds: string[],
+  matterId: string,
+): Promise<number> {
+  if (!isTauri()) return messageIds.length;
+  return invoke<number>('mail_retag_messages_matter', { messageIds, matterId });
+}
+
+export interface PendingMailRagRetag {
+  messageId: string;
+  sourceId: string;
+  matterId: string;
+}
+
+/** Exact mail sources held out of search until their durable filing is mirrored. */
+export async function mailListPendingRagRetags(): Promise<PendingMailRagRetag[]> {
+  if (!isTauri()) return [];
+  return invoke<PendingMailRagRetag[]>('mail_list_pending_rag_retags');
+}
+
+/** Retry only mail sources whose durable filing still has a pending RAG mirror. */
+export async function mailRepairPendingRagRetags(): Promise<number> {
+  if (!isTauri()) return 0;
+  return invoke<number>('mail_repair_pending_rag_retags');
+}
+
 /** Clear every email's "filed to this matter" tag for a matter being deleted
  *  (BUG-042), so the emails don't resurface on the next sync tagged with a
  *  matter that no longer exists. Returns how many filings were cleared.
