@@ -230,7 +230,9 @@ describe("intake real page to relay to advisor flow", () => {
       const file = routed.find((entry) => entry.itemId === "item-license");
       expect(file).toBeDefined();
       expect(file!.manifestFileNames).toEqual([privateFileName]);
-      expect(Array.from(file!.plaintextBytes[0])).toEqual(Array.from(documentBytes));
+      const fileChunk = file!.plaintextBytes[0];
+      expect(fileChunk).toBeDefined();
+      expect(Array.from(fileChunk!)).toEqual(Array.from(documentBytes));
 
       expect(ctx.store.countIntakeChunks("e2e-intake")).toBe(0);
       const emptyInbox = await fetchJson(`${ctx.base}/intake/e2e-intake/inbox?cursor=0`, {

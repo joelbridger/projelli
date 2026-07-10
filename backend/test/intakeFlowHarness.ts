@@ -104,7 +104,7 @@ export function installMemoryLocalStorage(): () => void {
 export function recordRequestsForBase(base: string): { requests: string[]; restore: () => void } {
   const previousFetch = globalThis.fetch;
   const requests: string[] = [];
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+  globalThis.fetch = (async (input: Request | string | URL, init?: RequestInit) => {
     const url =
       typeof input === "string"
         ? input

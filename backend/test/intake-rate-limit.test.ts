@@ -6,14 +6,21 @@ import { Store } from "../src/lib/db.ts";
 import { handleIntakeBundle } from "../src/routes/intake.ts";
 import { seedAdvisor } from "./intakeFlowHarness.ts";
 
+// `config` is typed `as const` (readonly) but the runtime object is mutable; this
+// test tunes the rate limits down to trigger throttling deterministically.
+const mutableRateLimitConfig = config as {
+  relayRateLimitMax: number;
+  relayRateLimitWindowSeconds: number;
+};
+
 const originalLimit = {
-  max: config.relayRateLimitMax,
-  windowSeconds: config.relayRateLimitWindowSeconds,
+  max: mutableRateLimitConfig.relayRateLimitMax,
+  windowSeconds: mutableRateLimitConfig.relayRateLimitWindowSeconds,
 };
 
 afterEach(() => {
-  config.relayRateLimitMax = originalLimit.max;
-  config.relayRateLimitWindowSeconds = originalLimit.windowSeconds;
+  mutableRateLimitConfig.relayRateLimitMax = originalLimit.max;
+  mutableRateLimitConfig.relayRateLimitWindowSeconds = originalLimit.windowSeconds;
 });
 
 function bearer(token: string): Request {
@@ -25,8 +32,8 @@ function bearer(token: string): Request {
 
 describe("public intake probe throttling", () => {
   test("repeated unknown-id probes are rate-limited before auth returns the neutral 410", () => {
-    config.relayRateLimitMax = 2;
-    config.relayRateLimitWindowSeconds = 60;
+    mutableRateLimitConfig.relayRateLimitMax = 2;
+    mutableRateLimitConfig.relayRateLimitWindowSeconds = 60;
     const store = new Store(":memory:");
     const ip = `unknown-probe-${crypto.randomUUID()}`;
 
@@ -36,8 +43,8 @@ describe("public intake probe throttling", () => {
   });
 
   test("repeated wrong-token probes are rate-limited before auth returns the neutral 410", () => {
-    config.relayRateLimitMax = 2;
-    config.relayRateLimitWindowSeconds = 60;
+    mutableRateLimitConfig.relayRateLimitMax = 2;
+    mutableRateLimitConfig.relayRateLimitWindowSeconds = 60;
     const store = new Store(":memory:");
     const advisor = seedAdvisor(store);
     store.createIntake({
