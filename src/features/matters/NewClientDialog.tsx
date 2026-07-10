@@ -286,6 +286,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         link: bundle.link,
         expiresAt,
         checklistVersion: 1,
+        requestItems: checklist.items,
         items: checklist.items.map((item) => ({
           itemId: item.item_id,
           label: item.label,

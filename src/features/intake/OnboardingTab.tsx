@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Eye,
   ExternalLink,
-  Save,
   Trash2,
 } from 'lucide-react';
 
@@ -13,18 +12,14 @@ import {
   intakeFactList,
   intakeFactPurge,
   intakeFactReveal,
-  intakeFactUpsert,
   type MaskedClientFact,
 } from '@/platform/intake/factsStore';
 import { reconstructAdvisorIntakeLink } from '@/platform/intake/advisorIntakeLink';
-import {
-  FACT_KIND_SENSITIVITY,
-  type FactKind,
-  type FactValue,
-} from '@/platform/intake/types';
+import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { LinkLifecyclePanel } from './LinkLifecyclePanel';
 import { EmailReplyProposalCard } from './EmailReplyProposalCard';
 import { EmailReplyQuarantinePanel } from './EmailReplyQuarantinePanel';
+import { PhoneWalkthrough } from './PhoneWalkthrough';
 
 export interface OnboardingTabProps {
   matterId: string;
@@ -34,37 +29,8 @@ export interface OnboardingTabProps {
   onRevoke?: (intakeId: string) => Promise<void> | void;
   onRegenerate?: (intakeId: string) => Promise<void> | void;
   onOpenFile?: (path: string) => void;
-}
-
-const MANUAL_FACT_KINDS: FactKind[] = [
-  'ssn',
-  'dob',
-  'income_annual',
-  'spending_monthly',
-  'drivers_license',
-];
-
-function manualFactLabel(kind: FactKind): string {
-  switch (kind) {
-    case 'dob':
-      return 'Date of birth';
-    case 'ssn':
-      return 'Social Security number';
-    case 'income_annual':
-      return 'Annual income';
-    case 'spending_monthly':
-      return 'Monthly spending';
-    case 'drivers_license':
-      return "Driver's license";
-    default:
-      return kind;
-  }
-}
-
-function manualValue(kind: FactKind, raw: string): FactValue {
-  const value = raw.trim();
-  if (kind === 'dob') return { t: 'date', v: value };
-  return { t: 'string', v: value };
+  workspaceService?: WorkspaceService | null | undefined;
+  matterFolderPath?: string | undefined;
 }
 
 function formatDate(value: string): string {
@@ -150,6 +116,13 @@ function ProvenanceChip({
   );
 }
 
+function factProvenanceLabel(channel: string): string {
+  if (channel === 'phone_walkthrough') return 'entered by you on a call';
+  if (channel === 'manual') return 'manual';
+  if (channel === 'email_reply') return 'from email reply';
+  return 'typed by client';
+}
+
 export function OnboardingTab({
   matterId,
   intake,
@@ -158,14 +131,13 @@ export function OnboardingTab({
   onRevoke,
   onRegenerate,
   onOpenFile,
+  workspaceService,
+  matterFolderPath,
 }: OnboardingTabProps) {
   const { t } = useTranslation();
   const [facts, setFacts] = useState<MaskedClientFact[]>([]);
   const [revealed, setRevealed] = useState<Record<string, string>>({});
-  const [manualKind, setManualKind] = useState<FactKind>('ssn');
-  const [manualSubject, setManualSubject] = useState('primary');
-  const [manualRawValue, setManualRawValue] = useState('');
-  const [manualSaving, setManualSaving] = useState(false);
+  const [phoneWalkthroughOpen, setPhoneWalkthroughOpen] = useState(false);
   const [actionError, setActionError] = useState('');
 
   useEffect(() => {
@@ -221,37 +193,6 @@ export function OnboardingTab({
 
   const reloadFacts = async () => {
     setFacts(await intakeFactList(matterId));
-  };
-
-  const saveManualFact = async () => {
-    const value = manualRawValue.trim();
-    if (!value) return;
-    setManualSaving(true);
-    setActionError('');
-    try {
-      await intakeFactUpsert({
-        matter_id: matterId,
-        subject: manualSubject.trim() || 'primary',
-        kind: manualKind,
-        value: manualValue(manualKind, value),
-        sensitivity: FACT_KIND_SENSITIVITY[manualKind],
-        provenance: {
-          channel: 'manual',
-          entered_by: advisorId,
-          at: new Date().toISOString(),
-        },
-        verification: 'advisor_confirmed',
-      });
-      setManualRawValue('');
-      setRevealed({});
-      setFacts(await intakeFactList(matterId));
-    } catch (error) {
-      setActionError(
-        error instanceof Error ? error.message : 'Could not save the fact.'
-      );
-    } finally {
-      setManualSaving(false);
-    }
   };
 
   return (
@@ -417,6 +358,25 @@ export function OnboardingTab({
               padding: 14,
             }}
           >
+            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, color: 'var(--kp-navy)' }}>
+              On a call with {intake.clientFirstName}?
+            </h3>
+            <p style={{ margin: '6px 0 10px', fontSize: 12, color: 'var(--color-muted-foreground)' }}>
+              Work through the same checklist together, one step at a time.
+            </p>
+            <Button type="button" onClick={() => setPhoneWalkthroughOpen(true)}>
+              Start phone walkthrough
+            </Button>
+          </section>
+
+          <section
+            style={{
+              border: '1px solid var(--kp-divider)',
+              borderRadius: 8,
+              background: 'var(--kp-surface-card)',
+              padding: 14,
+            }}
+          >
             <h3
               style={{
                 margin: 0,
@@ -438,116 +398,6 @@ export function OnboardingTab({
                 {actionError}
               </p>
             ) : null}
-            <div
-              style={{
-                marginTop: 10,
-                border: '1px solid var(--kp-warning-line)',
-                borderRadius: 8,
-                background: 'var(--kp-warning-bg)',
-                padding: 10,
-                display: 'grid',
-                gap: 8,
-              }}
-            >
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
-                  gap: 8,
-                }}
-              >
-                <label
-                  style={{
-                    display: 'grid',
-                    gap: 4,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--kp-warning)',
-                  }}
-                >
-                  Fact
-                  <select
-                    value={manualKind}
-                    onChange={(event) => {
-                      setManualKind(event.target.value as FactKind);
-                    }}
-                    style={{
-                      height: 32,
-                      border: '1px solid var(--kp-warning-line)',
-                      borderRadius: 6,
-                      padding: '0 8px',
-                      background: 'var(--kp-surface-card)',
-                    }}
-                  >
-                    {MANUAL_FACT_KINDS.map((kind) => (
-                      <option key={kind} value={kind}>
-                        {manualFactLabel(kind)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label
-                  style={{
-                    display: 'grid',
-                    gap: 4,
-                    fontSize: 12,
-                    fontWeight: 700,
-                    color: 'var(--kp-warning)',
-                  }}
-                >
-                  Person
-                  <input
-                    value={manualSubject}
-                    onChange={(event) => {
-                      setManualSubject(event.target.value);
-                    }}
-                    style={{
-                      height: 32,
-                      border: '1px solid var(--kp-warning-line)',
-                      borderRadius: 6,
-                      padding: '0 8px',
-                      background: 'var(--kp-surface-card)',
-                    }}
-                  />
-                </label>
-              </div>
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) auto',
-                  gap: 8,
-                }}
-              >
-                <input
-                  value={manualRawValue}
-                  onChange={(event) => {
-                    setManualRawValue(event.target.value);
-                  }}
-                  placeholder="Type while you are on the phone"
-                  style={{
-                    height: 34,
-                    border: '1px solid var(--kp-warning-line)',
-                    borderRadius: 6,
-                    padding: '0 9px',
-                    background: 'var(--kp-surface-card)',
-                  }}
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={manualSaving || !manualRawValue.trim()}
-                  onClick={() => {
-                    void saveManualFact().catch((error: unknown) => {
-                      handleAsyncError(error, 'Could not save the fact.');
-                    });
-                  }}
-                >
-                  <Save className="mr-2 h-4 w-4" aria-hidden />
-                  Save
-                </Button>
-              </div>
-            </div>
             <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
               {facts.length === 0 ? (
                 <p
@@ -648,11 +498,7 @@ export function OnboardingTab({
                     <div style={{ marginTop: 6 }}>
                       <ProvenanceChip
                         channel={fact.provenance.channel}
-                        label={
-                          fact.provenance.channel === 'manual'
-                            ? 'manual'
-                            : 'typed by client'
-                        }
+                        label={factProvenanceLabel(fact.provenance.channel)}
                       />
                     </div>
                   </div>
@@ -705,6 +551,22 @@ export function OnboardingTab({
           ) : null}
         </aside>
       </div>
+      {phoneWalkthroughOpen ? (
+        <PhoneWalkthrough
+          matterId={matterId}
+          intake={intake}
+          advisorId={advisorId}
+          workspaceService={workspaceService}
+          matterFolderPath={matterFolderPath}
+          onClose={() => setPhoneWalkthroughOpen(false)}
+          onCompleted={() => {
+            setRevealed({});
+            void reloadFacts().catch((error: unknown) => {
+              handleAsyncError(error, 'Could not load facts.');
+            });
+          }}
+        />
+      ) : null}
     </div>
   );
 }
