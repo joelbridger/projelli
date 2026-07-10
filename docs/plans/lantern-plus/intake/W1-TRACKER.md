@@ -10,8 +10,8 @@
 | A | contracts-crypto | `~/lp-w1-A` | `lp/intake-w1-A` | DONE-EXIT:0 | PASS (lead read) | PASS + 3 hardenings folded | in `2942df73` | **MERGED** |
 | B | relay | `~/lp-w1-B` | `lp/intake-w1-B` | DONE-EXIT:0 | PASS (lead read) | PASS + 3 findings fixed | in `e828148e` | **MERGED** |
 | C | client-page | `~/lp-w1-C` | `lp/intake-w1-C` | DONE-EXIT:0 | PASS (lead read) | PASS + 6 findings fixed | in `f782a768` | **MERGED** |
-| D | advisor-side | `~/lp-w1-D` | `lp/intake-w1-D` | building | — | — | — | BUILDING (only cargo lane) |
-| E | hosting | `~/lp-w1-E` | `lp/intake-w1-E` | building | — | — | — | BUILDING |
+| D | advisor-side | `~/lp-w1-D` | `lp/intake-w1-D` | DONE-EXIT:0 | PASS (lead read) | PASS + 4 fixed + C↔D pageSeal reconciled | in `9a6990d5` (+`c1209ead`) | **MERGED** |
+| E | hosting | `~/lp-w1-E` | `lp/intake-w1-E` | DONE-EXIT:0 | PASS (lead read) | PASS, 4 findings + collision | — | RECONCILE-MERGE NEXT (LAST) |
 
 ## Gate evidence (filled at each merge)
 
