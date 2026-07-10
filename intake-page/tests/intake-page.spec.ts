@@ -38,6 +38,11 @@ interface RelayHarness {
   finalizedItemIds: Set<string>;
 }
 
+interface RelaySetupOptions {
+  checklist?: IntakeChecklist;
+  finalized?: string[];
+}
+
 function bytesToB64(bytes: Uint8Array): string {
   let bin = '';
   const chunk = 0x8000;
@@ -155,20 +160,42 @@ function sampleChecklist(): IntakeChecklist {
   };
 }
 
-async function setupRelay(page: Page, finalized: string[] = []): Promise<RelayHarness> {
+function genericUploadChecklist(maxBytes = 4): IntakeChecklist {
+  const base = sampleChecklist();
+  return {
+    ...base,
+    items: [
+      base.items[0],
+      {
+        t: 'doc_upload',
+        item_id: 'tax_statements',
+        label: 'Tax statements',
+        help_text: 'Upload one or more files if you have them ready.',
+        required: true,
+        subject: 'Sarah',
+        accepted_mime_types: ['application/pdf'],
+        max_files: 3,
+        max_bytes: maxBytes,
+      },
+    ],
+  };
+}
+
+async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupOptions = []): Promise<RelayHarness> {
+  const options = Array.isArray(finalizedOrOptions) ? { finalized: finalizedOrOptions } : finalizedOrOptions;
   const intakeId = `intake-${Math.random().toString(16).slice(2)}`;
   const secret = crypto.getRandomValues(new Uint8Array(32));
   const { privateKey, publicKeyRaw } = await generateIntakeKeypair();
   const fragment = buildLinkFragment(bytesToB64(secret), publicKeyRaw);
   const pageKey = await derivePageKey(secret);
   const auth = await deriveAuthToken(secret);
-  const checklistCiphertext = await sealPageJson(pageKey, sampleChecklist());
+  const checklistCiphertext = await sealPageJson(pageKey, options.checklist ?? sampleChecklist());
   let stateCiphertext = await sealPageJson(pageKey, {
     current_item_id: 'welcome',
     completion_flags: {},
     confirmations: {},
   });
-  const finalizedItemIds = new Set(finalized);
+  const finalizedItemIds = new Set(options.finalized ?? []);
   const chunks: ChunkUpload[] = [];
   const submits: SubmitManifest[] = [];
   const stateWrites: StateBlob[] = [];
@@ -293,14 +320,20 @@ async function startChecklist(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Start' }).click();
 }
 
+async function expectSubmitCount(relay: RelayHarness, itemId: string, count: number): Promise<void> {
+  await expect.poll(() => relay.submits.filter((submit) => submit.item_id === itemId).length).toBe(count);
+}
+
 async function completeDob(page: Page, value = '1960-02-03'): Promise<void> {
   await page.getByLabel('Date of birth', { exact: true }).fill(value);
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeVisible();
 }
 
 async function completeSsn(page: Page, value = '123-45-6789'): Promise<void> {
   await page.getByLabel('Social Security number', { exact: true }).fill(value);
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: "Driver's license" })).toBeVisible();
 }
 
 async function completeLicense(page: Page): Promise<void> {
@@ -315,17 +348,20 @@ async function completeLicense(page: Page): Promise<void> {
     buffer: Buffer.from('back-image'),
   });
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
 }
 
 async function completeIncome(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'Enter an amount' }).click();
   await page.getByLabel('Yearly amount').fill('90000');
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Spending' })).toBeVisible();
 }
 
 async function completeSpending(page: Page): Promise<void> {
   await page.getByRole('button', { name: "I don't know yet" }).click();
   await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: "That's everything for now." })).toBeVisible();
 }
 
 async function completeAll(page: Page): Promise<void> {
@@ -380,11 +416,55 @@ test('resumes at the next incomplete item after a full reload', async ({ page })
 
   await startChecklist(page);
   await completeDob(page);
+  await expectSubmitCount(relay, 'dob', 1);
   await page.reload();
 
   await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeVisible();
   await page.getByRole('button', { name: /Date of birth.*provided/i }).click();
   await expect(page.getByText('Provided ✓')).toBeVisible();
+});
+
+test('resumes past items that the server already finalized', async ({ page }) => {
+  const relay = await setupRelay(page, { finalized: ['dob'] });
+  await page.goto(relay.url);
+
+  await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeVisible();
+  await completeSsn(page);
+
+  await expect(page.getByRole('heading', { name: "Driver's license" })).toBeVisible();
+  await expectSubmitCount(relay, 'ssn', 1);
+});
+
+test('ignores hostile accent colors and makes no third-party request', async ({ page }) => {
+  const checklist = sampleChecklist();
+  checklist.firm.accent = 'url(https://evil.example/pixel)';
+  const relay = await setupRelay(page, { checklist });
+
+  await page.goto(relay.url);
+
+  await expect(page.getByRole('heading', { name: 'Hi Sarah. Welcome to Journey Beyond Wealth.' })).toBeVisible();
+  const accent = await page.locator('.page-shell').first().evaluate((element) => (element as HTMLElement).style.getPropertyValue('--accent'));
+  expect(accent).toBe('#2f7d62');
+  expect(relay.externalRequests).toEqual([]);
+});
+
+test('requires exactly nine SSN digits before saving', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+
+  await startChecklist(page);
+  await completeDob(page);
+
+  await page.getByLabel('Social Security number', { exact: true }).fill('123-45-678');
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+  expect(relay.submits.filter((submit) => submit.item_id === 'ssn')).toHaveLength(0);
+
+  await page.getByLabel('Social Security number', { exact: true }).fill('123-45-6789');
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+
+  await expect(page.getByRole('heading', { name: "Driver's license" })).toBeVisible();
+  await expectSubmitCount(relay, 'ssn', 1);
 });
 
 test('does not keep an SSN or last four digits after reload', async ({ page }) => {
@@ -430,6 +510,63 @@ test('replace answer creates a fresh submission id', async ({ page }) => {
   const dobSubmissions = relay.submits.filter((submit) => submit.item_id === 'dob');
   expect(dobSubmissions).toHaveLength(2);
   expect(dobSubmissions[1]?.submission_id).not.toBe(first);
+});
+
+test('accepts comma-formatted amounts and rejects text amounts', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+
+  await startChecklist(page);
+  await completeDob(page);
+  await completeSsn(page);
+  await completeLicense(page);
+
+  await page.getByRole('button', { name: 'Enter an amount' }).click();
+  await page.getByLabel('Yearly amount').fill('abc');
+  await expect(page.getByText('Enter a number, like 90,000.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+  expect(relay.submits.filter((submit) => submit.item_id === 'income')).toHaveLength(0);
+
+  await page.getByLabel('Yearly amount').fill('90,000');
+  await expect(page.getByText('Enter a number, like 90,000.')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Spending' })).toBeVisible();
+  const income = await openSubmittedPayload(relay, 'income');
+  expect(JSON.parse(income.chunks[0] ?? '{}')).toMatchObject({
+    answer: { mode: 'amount', amount: 90000, currency: 'USD' },
+  });
+});
+
+test('treats upload max files as a limit and rejects oversize files', async ({ page }) => {
+  const relay = await setupRelay(page, { checklist: genericUploadChecklist(4) });
+  await page.goto(relay.url);
+
+  await startChecklist(page);
+  await expect(page.getByRole('heading', { name: 'Tax statements' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+
+  await page.getByLabel('Choose file 1 file').setInputFiles({
+    name: 'too-large.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('12345'),
+  });
+  await expect(page.getByText('This file is too large. Choose a file under 4 bytes.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+  expect(relay.submits.filter((submit) => submit.item_id === 'tax_statements')).toHaveLength(0);
+
+  await page.getByLabel('Choose file 1 file').setInputFiles({
+    name: 'statement.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('1234'),
+  });
+  await expect(page.getByText('This file is too large. Choose a file under 4 bytes.')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+
+  await expect(page.getByRole('heading', { name: "That's everything for now." })).toBeVisible();
+  const upload = await openSubmittedPayload(relay, 'tax_statements');
+  expect(upload.manifestFileNames).toEqual(['statement.pdf']);
 });
 
 test('old browsers see the sensitivity-routed fallback and no relay call', async ({ page }) => {

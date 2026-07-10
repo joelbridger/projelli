@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 
 import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
@@ -31,8 +31,113 @@ const EMPTY_RESUME: ResumeState = {
   pending_uploads: {},
 };
 
+const DEFAULT_ACCENT = '#2f7d62';
+const PAGE_FILE_MAX_BYTES = 100 * 1024 * 1024;
+const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/iu;
+const SAFE_NAMED_COLORS = new Set([
+  'black',
+  'blue',
+  'gray',
+  'green',
+  'grey',
+  'navy',
+  'orange',
+  'purple',
+  'red',
+  'teal',
+  'white',
+  'yellow',
+]);
+
 function isActionable(item: RequestItem): boolean {
   return item.t === 'typed_field' || item.t === 'doc_upload' || item.t === 'guided_question';
+}
+
+function isFiniteNumberToken(token: string): boolean {
+  return /^-?(?:\d+|\d*\.\d+)$/u.test(token) && Number.isFinite(Number(token));
+}
+
+function isCssPercent(token: string): boolean {
+  if (!token.endsWith('%')) return false;
+  const value = token.slice(0, -1);
+  return isFiniteNumberToken(value) && Number(value) >= 0 && Number(value) <= 100;
+}
+
+function isRgbChannel(token: string): boolean {
+  if (isCssPercent(token)) return true;
+  if (!isFiniteNumberToken(token)) return false;
+  const value = Number(token);
+  return value >= 0 && value <= 255;
+}
+
+function isAlphaChannel(token: string): boolean {
+  if (isCssPercent(token)) return true;
+  if (!isFiniteNumberToken(token)) return false;
+  const value = Number(token);
+  return value >= 0 && value <= 1;
+}
+
+function isHueChannel(token: string): boolean {
+  const value = token.replace(/(?:deg|grad|rad|turn)$/iu, '');
+  return isFiniteNumberToken(value);
+}
+
+function splitCssFunctionArgs(value: string, name: string): string[] | null {
+  const match = value.match(new RegExp(`^${name}\\(([^()]*)\\)$`, 'iu'));
+  if (!match) return null;
+  const parts = match[1].split(',').map((part) => part.trim());
+  if (parts.some((part) => part.length === 0)) return null;
+  return parts;
+}
+
+function isSafeRgbColor(value: string): boolean {
+  const parts = splitCssFunctionArgs(value, 'rgba?');
+  if (!parts || (parts.length !== 3 && parts.length !== 4)) return false;
+  return parts.slice(0, 3).every(isRgbChannel) && (parts.length === 3 || isAlphaChannel(parts[3]));
+}
+
+function isSafeHslColor(value: string): boolean {
+  const parts = splitCssFunctionArgs(value, 'hsla?');
+  if (!parts || (parts.length !== 3 && parts.length !== 4)) return false;
+  return isHueChannel(parts[0]) && isCssPercent(parts[1]) && isCssPercent(parts[2]) && (parts.length === 3 || isAlphaChannel(parts[3]));
+}
+
+function safeAccentColor(accent: string): string {
+  const value = accent.trim();
+  if (HEX_COLOR_RE.test(value)) return value;
+  const lower = value.toLowerCase();
+  if (SAFE_NAMED_COLORS.has(lower)) return lower;
+  if (isSafeRgbColor(lower) || isSafeHslColor(lower)) return value;
+  return DEFAULT_ACCENT;
+}
+
+function parseClientNumber(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const normalized = trimmed.replace(/[$€£¥,\s]/gu, '');
+  if (!/^-?(?:\d+|\d*\.\d+)$/u.test(normalized)) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatByteLimit(bytes: number): string {
+  if (bytes >= 1024 * 1024) {
+    const mb = bytes / (1024 * 1024);
+    return `${Number.isInteger(mb) ? String(mb) : mb.toFixed(1)} MB`;
+  }
+  if (bytes >= 1024) {
+    const kb = bytes / 1024;
+    return `${Number.isInteger(kb) ? String(kb) : kb.toFixed(1)} KB`;
+  }
+  return `${String(bytes)} bytes`;
+}
+
+function getUploadRules(item: DocUploadRequestItem): { slotCount: number; requiredSlots: number; maxBytes: number } {
+  const requiredSlots = item.label.toLowerCase().includes('license') ? 2 : 1;
+  const requestedMaxFiles = item.max_files ?? requiredSlots;
+  const slotCount = Math.max(requiredSlots, requestedMaxFiles);
+  const maxBytes = Math.min(item.max_bytes ?? PAGE_FILE_MAX_BYTES, PAGE_FILE_MAX_BYTES);
+  return { slotCount, requiredSlots, maxBytes };
 }
 
 function getIntakeIdFromPath(): string | null {
@@ -193,6 +298,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const skipped = useMemo(() => new Set(resume.skipped_item_ids ?? []), [resume.skipped_item_ids]);
   const allDone = actionItems.every((item) => doneIds.has(item.item_id) || skipped.has(item.item_id));
   const item = checklist.items.find((entry) => entry.item_id === currentItemId);
+  const accent = useMemo(() => safeAccentColor(checklist.firm.accent), [checklist.firm.accent]);
 
   async function saveResume(next: ResumeState): Promise<void> {
     const merged = mergeResume(resume, next);
@@ -247,12 +353,14 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       const nextLocal = new Set(localSubmitted);
       nextLocal.add(itemToSubmit.item_id);
       setLocalSubmitted(nextLocal);
+      const nextDone = new Set(doneIds);
+      nextDone.add(itemToSubmit.item_id);
       if (confirmation) {
         setSessionConfirmations((existing) => ({ ...existing, [itemToSubmit.item_id]: confirmation }));
       }
       const nextPending = { ...(resume.pending_uploads ?? {}) };
       delete nextPending[itemToSubmit.item_id];
-      const nextId = nextIncomplete(nextLocal);
+      const nextId = nextIncomplete(nextDone);
       setReplacingItemId(null);
       setCurrentItemId(nextId);
       await saveResume({
@@ -281,7 +389,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   }
 
   return (
-    <main className="page-shell" style={{ '--accent': checklist.firm.accent } as React.CSSProperties}>
+    <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
       <div className="brand-line">
         <span className="brand-mark" aria-hidden="true" />
         <span>{checklist.firm.name}</span>
@@ -388,8 +496,9 @@ function WelcomeScreen({
 }
 
 function PrivacyScreen({ checklist, onBack }: { checklist: IntakeChecklist; onBack: () => void }): JSX.Element {
+  const accent = safeAccentColor(checklist.firm.accent);
   return (
-    <main className="page-shell" style={{ '--accent': checklist.firm.accent } as React.CSSProperties}>
+    <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
       <section className="panel">
         <p className="eyebrow">How this stays private</p>
         <h1>Your answers lock before they leave this device.</h1>
@@ -500,13 +609,20 @@ function TypedFieldScreen({
 }): JSX.Element {
   const [value, setValue] = useState('');
   const isSsn = item.input === 'ssn';
+  const isNumeric = item.input === 'money' || item.input === 'number';
   const inputType = item.input === 'date' ? 'date' : isSsn ? 'password' : item.input === 'money' || item.input === 'number' ? 'text' : 'text';
   const cleanSsn = value.replace(/\D/g, '');
-  const disabled = busy || (isSsn ? cleanSsn.length < 4 : value.trim().length === 0);
+  const parsedNumber = isNumeric ? parseClientNumber(value) : null;
+  const numberError = isNumeric && value.trim().length > 0 && parsedNumber === null ? 'Enter a number, like 90,000.' : null;
+  const disabled = busy || (isSsn ? cleanSsn.length !== 9 : isNumeric ? parsedNumber === null : value.trim().length === 0);
   const autocomplete = isSsn ? 'new-password' : item.input === 'date' ? 'bday' : 'off';
 
   function submit(): void {
-    const payloadValue = isSsn ? cleanSsn : item.input === 'money' || item.input === 'number' ? Number(value) : value;
+    if (isSsn && cleanSsn.length !== 9) return;
+    if (isNumeric && parsedNumber === null) return;
+    let payloadValue: string | number = value;
+    if (isSsn) payloadValue = cleanSsn;
+    if (isNumeric && parsedNumber !== null) payloadValue = parsedNumber;
     const confirmation = isSsn ? `(ending in ${cleanSsn.slice(-4)})` : undefined;
     onSubmit({ kind: 'typed', value: payloadValue, display_value: isSsn ? undefined : value }, confirmation);
   }
@@ -532,6 +648,11 @@ function TypedFieldScreen({
         value={value}
         onChange={(event) => setValue(event.target.value)}
       />
+      {numberError ? (
+        <p className="format-help" role="alert">
+          {numberError}
+        </p>
+      ) : null}
       <ActionButtons busy={busy} disabled={disabled} onSubmit={submit} onSkip={onSkip} />
     </section>
   );
@@ -552,10 +673,12 @@ function DocUploadScreen({
   onSubmit: (payload: AnswerPayload) => void;
   onSkip: () => void;
 }): JSX.Element {
-  const slotCount = item.max_files ?? (item.label.toLowerCase().includes('license') ? 2 : 1);
-  const [files, setFiles] = useState<Array<File | undefined>>(() => Array.from({ length: slotCount }));
+  const rules = useMemo(() => getUploadRules(item), [item]);
+  const [files, setFiles] = useState<Array<File | undefined>>(() => Array.from({ length: rules.slotCount }));
+  const [fileError, setFileError] = useState<string | null>(null);
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
-  const disabled = busy || files.some((file) => !file);
+  const selectedCount = files.filter(Boolean).length;
+  const disabled = busy || selectedCount < rules.requiredSlots || Boolean(fileError);
 
   useEffect(() => {
     let cancelled = false;
@@ -576,6 +699,16 @@ function DocUploadScreen({
 
   function updateFile(index: number, fileList: FileList | null): void {
     const file = fileList?.[0];
+    if (file && file.size > rules.maxBytes) {
+      setFiles((existing) => {
+        const next = [...existing];
+        next[index] = undefined;
+        return next;
+      });
+      setFileError(`This file is too large. Choose a file under ${formatByteLimit(rules.maxBytes)}.`);
+      return;
+    }
+    setFileError(null);
     setFiles((existing) => {
       const next = [...existing];
       next[index] = file;
@@ -592,24 +725,32 @@ function DocUploadScreen({
       <p className="eyebrow">Document upload</p>
       <h1>{item.label}</h1>
       <p>{item.help_text}</p>
-      <div className="framing-guide">
-        <strong>Photo guide</strong>
-        <p>Use a flat surface. Get all four corners. Front first, back second.</p>
-      </div>
+      {rules.requiredSlots === 2 ? (
+        <div className="framing-guide">
+          <strong>Photo guide</strong>
+          <p>Use a flat surface. Get all four corners. Front first, back second.</p>
+        </div>
+      ) : null}
       {pendingUpload ? (
         <p className="notice">
           Your upload did not finish. We found {String(uploadedCount ?? 0)} uploaded parts. Choose the photos again to finish.
         </p>
       ) : null}
+      {fileError ? (
+        <p className="format-help" role="alert">
+          {fileError}
+        </p>
+      ) : null}
       <div className="upload-slots">
-        {Array.from({ length: slotCount }).map((_, index) => {
-          const slotName = slotCount === 2 ? (index === 0 ? 'front' : 'back') : `file ${String(index + 1)}`;
+        {Array.from({ length: rules.slotCount }).map((_, index) => {
+          const isLicenseSide = rules.requiredSlots === 2 && index < 2;
+          const slotName = isLicenseSide ? (index === 0 ? 'front' : 'back') : `file ${String(index + 1)}`;
           const captureId = `${item.item_id}-${slotName}-capture`;
           const fileId = `${item.item_id}-${slotName}-file`;
-          const ariaName = slotCount === 2 ? `License ${slotName} photo` : `${item.label} file`;
+          const ariaName = isLicenseSide ? `License ${slotName} photo` : `${item.label} ${slotName}`;
           return (
             <div className="upload-slot" key={slotName}>
-              <p>{slotCount === 2 ? `${slotName[0].toUpperCase()}${slotName.slice(1)} side` : item.label}</p>
+              <p>{isLicenseSide ? `${slotName[0].toUpperCase()}${slotName.slice(1)} side` : item.label}</p>
               <input
                 id={captureId}
                 className="sr-only"
@@ -635,7 +776,9 @@ function DocUploadScreen({
                   Choose a file
                 </label>
               </div>
-              <p className="ready-line">{files[index] ? `${slotName} ready` : `${slotName} needed`}</p>
+              <p className="ready-line">
+                {files[index] ? `${slotName} ready` : index < rules.requiredSlots ? `${slotName} needed` : `${slotName} optional`}
+              </p>
             </div>
           );
         })}
@@ -660,20 +803,30 @@ function GuidedQuestionScreen({
   const [amount, setAmount] = useState('');
   const [low, setLow] = useState('');
   const [high, setHigh] = useState('');
+  const parsedAmount = parseClientNumber(amount);
+  const parsedLow = parseClientNumber(low);
+  const parsedHigh = parseClientNumber(high);
+  const numberError =
+    (mode === 'amount' && amount.trim().length > 0 && parsedAmount === null) ||
+    (mode === 'range' && ((low.trim().length > 0 && parsedLow === null) || (high.trim().length > 0 && parsedHigh === null)))
+      ? 'Enter a number, like 90,000.'
+      : null;
   const disabled =
     busy ||
     !mode ||
-    (mode === 'amount' && !amount.trim()) ||
-    (mode === 'range' && (!low.trim() || !high.trim()));
+    (mode === 'amount' && parsedAmount === null) ||
+    (mode === 'range' && (parsedLow === null || parsedHigh === null));
   const amountLabel = item.item_id.toLowerCase().includes('spending') ? 'Monthly amount' : 'Yearly amount';
 
   function submit(): void {
+    if (mode === 'amount' && parsedAmount === null) return;
+    if (mode === 'range' && (parsedLow === null || parsedHigh === null)) return;
     const answer =
       mode === 'unknown'
         ? { mode: 'unknown' }
         : mode === 'range'
-          ? { mode: 'range', min: Number(low), max: Number(high), currency: 'USD' }
-          : { mode: 'amount', amount: Number(amount), currency: 'USD' };
+          ? { mode: 'range', min: parsedLow, max: parsedHigh, currency: 'USD' }
+          : { mode: 'amount', amount: parsedAmount, currency: 'USD' };
     onSubmit({ kind: 'guided', answer });
   }
 
@@ -720,6 +873,11 @@ function GuidedQuestionScreen({
           </label>
           <input id={`${item.item_id}-high`} className="text-input" inputMode="decimal" value={high} onChange={(event) => setHigh(event.target.value)} />
         </div>
+      ) : null}
+      {numberError ? (
+        <p className="format-help" role="alert">
+          {numberError}
+        </p>
       ) : null}
       <ActionButtons busy={busy} disabled={disabled} onSubmit={submit} onSkip={onSkip} />
     </section>
