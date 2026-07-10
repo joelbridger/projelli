@@ -11,6 +11,7 @@ import {
   MAX_INTAKE_CHUNK_BYTES,
   MAX_INTAKE_FILE_BYTES,
   MAX_INTAKE_STATE_BYTES,
+  MAX_INTAKE_SUBMISSIONS,
   MAX_INTAKE_TOTAL_BYTES,
   neutralIntakeGone,
   publicIntakeRateLimit,
@@ -286,7 +287,7 @@ export async function handleUploadIntakeChunk(
 
   const currentFileBytes = store.sumIntakeSubmissionBytes(intakeId, itemId, read.body.submission_id);
   if (currentFileBytes + ciphertext.bytes.byteLength > MAX_INTAKE_FILE_BYTES) return error("file_too_large", 413);
-  const currentTotalBytes = store.sumIntakeBytes(intakeId);
+  const currentTotalBytes = store.sumIntakeBytes(intakeId) + store.sumIntakeSubmissionStoredBytes(intakeId);
   if (currentTotalBytes + ciphertext.bytes.byteLength > MAX_INTAKE_TOTAL_BYTES) return error("intake_too_large", 413);
 
   const saved = store.appendIntakeChunk({
@@ -296,7 +297,7 @@ export async function handleUploadIntakeChunk(
     index: read.body.index,
     ciphertext: ciphertext.bytes,
   });
-  if (!saved.ok) return error("duplicate_chunk", 409);
+  if (!saved.ok) return error(saved.reason, 409);
   return json(
     {
       ok: true,
@@ -333,6 +334,16 @@ export async function handleSubmitIntakeItem(
   if (!manifest.ok) return error(manifest.code, manifest.status);
   const wrappedKey = decodeB64(read.body.wrapped_content_key_b64, MAX_SUBMIT_REQUEST_BYTES);
   if (!wrappedKey.ok) return error(wrappedKey.code, wrappedKey.status);
+
+  // Finalization rows persist manifest + wrapped-key bytes independently of
+  // chunks, so a link holder could otherwise grow the DB without bound by
+  // posting endless fresh submission_ids. Count these bytes toward the intake
+  // quota and cap the finalization row count.
+  if (store.countIntakeSubmissions(intakeId) >= MAX_INTAKE_SUBMISSIONS) return error("intake_too_large", 413);
+  const storedBytes = store.sumIntakeBytes(intakeId) + store.sumIntakeSubmissionStoredBytes(intakeId);
+  if (storedBytes + manifest.bytes.byteLength + wrappedKey.bytes.byteLength > MAX_INTAKE_TOTAL_BYTES) {
+    return error("intake_too_large", 413);
+  }
 
   const finalized = store.finalizeIntakeSubmission({
     intake_id: intakeId,

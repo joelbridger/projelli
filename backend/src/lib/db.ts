@@ -1173,9 +1173,19 @@ export class Store {
     submission_id: string;
     index: number;
     ciphertext: Uint8Array;
-  }): { ok: true; chunk: IntakeChunkRecord } | { ok: false; reason: "duplicate_chunk" } {
+  }): { ok: true; chunk: IntakeChunkRecord } | { ok: false; reason: "duplicate_chunk" | "submission_finalized" } {
     const now = this.nowIso();
     const txn = this.db.transaction(() => {
+      // Once a submission is finalized (manifest + chunk_count recorded), its
+      // chunk set is frozen. Accepting more chunks afterward would let a retry
+      // or a malicious link holder change the blob list behind a recorded
+      // chunk_count, producing stale inbox envelopes that fail the advisor-side
+      // integrity check.
+      const finalized = this.db
+        .query(`SELECT 1 FROM intake_submissions WHERE intake_id = ? AND submission_id = ? LIMIT 1`)
+        .get(input.intake_id, input.submission_id);
+      if (finalized) return { ok: false as const, reason: "submission_finalized" as const };
+
       const existing = this.db
         .query(
           `SELECT * FROM intake_chunks
@@ -1238,6 +1248,30 @@ export class Store {
   sumIntakeBytes(intakeId: string): number {
     const r = this.db
       .query(`SELECT COALESCE(SUM(size), 0) AS n FROM intake_chunks WHERE intake_id = ?`)
+      .get(intakeId) as { n: number };
+    return r.n;
+  }
+
+  /**
+   * Bytes stored in finalization rows (manifest + wrapped content key) for an
+   * intake. These persist independently of chunks (a submit with a fresh
+   * submission_id and no chunks still stores a manifest + wrapped key), so they
+   * must be counted toward the per-intake quota or a link holder could grow the
+   * relay database without bound by posting endless finalizations.
+   */
+  sumIntakeSubmissionStoredBytes(intakeId: string): number {
+    const r = this.db
+      .query(
+        `SELECT COALESCE(SUM(LENGTH(manifest_ciphertext) + LENGTH(wrapped_content_key)), 0) AS n
+         FROM intake_submissions WHERE intake_id = ?`,
+      )
+      .get(intakeId) as { n: number };
+    return r.n;
+  }
+
+  countIntakeSubmissions(intakeId: string): number {
+    const r = this.db
+      .query(`SELECT COUNT(*) AS n FROM intake_submissions WHERE intake_id = ?`)
       .get(intakeId) as { n: number };
     return r.n;
   }

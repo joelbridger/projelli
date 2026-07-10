@@ -9,6 +9,10 @@ export const MAX_INTAKE_CHECKLIST_BYTES = 512 * 1024;
 export const MAX_INTAKE_CHUNK_BYTES = 4 * 1024 * 1024;
 export const MAX_INTAKE_FILE_BYTES = 100 * 1024 * 1024;
 export const MAX_INTAKE_TOTAL_BYTES = 500 * 1024 * 1024;
+// A generous per-intake finalization ceiling. Chunk/submission bytes already
+// bound storage; this bounds row count so a link holder cannot fill the table
+// with endless tiny finalizations. A real household intake has well under 100.
+export const MAX_INTAKE_SUBMISSIONS = 5000;
 
 const DECOY_INTAKE_TOKEN_HASH = hmacHash("lantern-intake-decoy-token-v1");
 const NEUTRAL_INTAKE_GONE = { error: "intake_unavailable" };
@@ -78,7 +82,14 @@ export function authorizeAdvisorIntake(
   if (!advisor.ok) return advisor;
 
   const intake = store.getIntake(intakeId);
-  if (!intake || intake.org_id !== advisor.identity.org_id) {
+  // v1: only the CREATING advisor may act on an intake. Same-org is not enough —
+  // the intake private key lives only on the creator's machine, so a coworker
+  // could never read submissions, but a bare org check would still let them
+  // ack (delete ciphertext before the creator syncs) or revoke the link.
+  // Multi-advisor sharing/escrow is Wave 5 (wrapped_matter_keys). Return the
+  // same neutral 404 for "not yours" and "does not exist" so a coworker cannot
+  // probe which intake ids exist.
+  if (!intake || intake.org_id !== advisor.identity.org_id || intake.user_id !== advisor.identity.user_id) {
     return { ok: false, resp: error("intake_not_found", 404) };
   }
   return { ok: true, identity: advisor.identity, intake };
