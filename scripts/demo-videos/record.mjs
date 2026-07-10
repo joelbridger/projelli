@@ -40,14 +40,20 @@ const hasFlag = (name) => process.argv.includes(name);
 const flowName = process.argv[2];
 if (!flowName || flowName.startsWith('--')) {
   const avail = fs.existsSync(FLOWS_DIR)
-    ? fs.readdirSync(FLOWS_DIR).filter((f) => f.endsWith('.mjs')).map((f) => f.replace(/\.mjs$/, ''))
+    ? fs
+        .readdirSync(FLOWS_DIR)
+        .filter((f) => f.endsWith('.mjs'))
+        .map((f) => f.replace(/\.mjs$/, ''))
     : [];
   console.error('Usage: node scripts/demo-videos/record.mjs <flow-name>');
   console.error('Available flows:', avail.length ? avail.join(', ') : '(none)');
   process.exit(1);
 }
 
-const baseURL = arg('--base', process.env.DEMO_BASE_URL || 'http://localhost:5173');
+const baseURL = arg(
+  '--base',
+  process.env.DEMO_BASE_URL || 'http://localhost:5173'
+);
 
 // Verify the dev server is up so failures are obvious, not mysterious.
 try {
@@ -55,7 +61,9 @@ try {
   if (!res.ok) throw new Error(`status ${res.status}`);
 } catch (e) {
   console.error(`\n✗ Dev server not reachable at ${baseURL}.`);
-  console.error(`  Start it first:  npm run dev   (in ${path.resolve(__dirname, '../..')})\n`);
+  console.error(
+    `  Start it first:  npm run dev   (in ${path.resolve(__dirname, '../..')})\n`
+  );
   process.exit(1);
 }
 
@@ -68,17 +76,35 @@ const flowMod = await import(pathToFileURL(flowPath).href);
 const run = flowMod.default;
 const meta = flowMod.meta || {};
 if (typeof run !== 'function') {
-  console.error(`✗ flows/${flowName}.mjs must export a default async function.`);
+  console.error(
+    `✗ flows/${flowName}.mjs must export a default async function.`
+  );
   process.exit(1);
 }
 
-const viewport = meta.viewport || { width: 1280, height: 800 };
+// Every published demo uses the same full-HD canvas. Keeping this in the
+// runner (rather than trusting each flow) prevents a new flow from quietly
+// producing an old, soft 1280px recording.
+const viewport = { width: 1920, height: 1080 };
+if (
+  meta.viewport &&
+  (meta.viewport.width !== viewport.width ||
+    meta.viewport.height !== viewport.height)
+) {
+  console.warn(
+    `  ! Ignoring ${flowName}'s viewport metadata; demos are always ${viewport.width}x${viewport.height}.`
+  );
+}
 fs.mkdirSync(RAW_DIR, { recursive: true });
 
-console.log(`\n▶ Recording flow "${flowName}"  (${viewport.width}x${viewport.height})`);
+console.log(
+  `\n▶ Recording flow "${flowName}"  (${viewport.width}x${viewport.height})`
+);
 const t0 = Date.now();
 
-const { DemoEngine } = await import(pathToFileURL(path.join(__dirname, 'engine', 'DemoEngine.mjs')).href);
+const { DemoEngine } = await import(
+  pathToFileURL(path.join(__dirname, 'engine', 'DemoEngine.mjs')).href
+);
 
 const browser = await chromium.launch({ headless: !hasFlag('--headed') });
 const context = await browser.newContext({
@@ -91,7 +117,8 @@ const page = await context.newPage();
 // the default 30s (which reads as dead air in the final video).
 page.setDefaultTimeout(4000);
 page.on('console', (m) => {
-  if (m.type() === 'error') console.log('  [page.error]', m.text().slice(0, 160));
+  if (m.type() === 'error')
+    console.log('  [page.error]', m.text().slice(0, 160));
 });
 
 // Inject the on-screen cursor + caption overlay on every navigation.
@@ -127,31 +154,88 @@ if (failed) {
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 const mp4Out = path.join(OUTPUT_DIR, `${flowName}.mp4`);
 const webmOut = path.join(OUTPUT_DIR, `${flowName}.webm`);
+// Explicitly scale and set a broadly compatible pixel format on both output
+// formats. The Playwright capture is already 1920x1080; Lanczos keeps this
+// step crisp if an upstream browser ever gives us a slightly different size.
 const vf = `scale=${viewport.width}:${viewport.height}:flags=lanczos,fps=30,format=yuv420p`;
 
 function ffmpeg(args, label) {
-  const r = spawnSync('ffmpeg', ['-y', '-hide_banner', '-loglevel', 'error', ...args], {
-    stdio: ['ignore', 'inherit', 'inherit'],
-  });
+  const r = spawnSync(
+    'ffmpeg',
+    ['-y', '-hide_banner', '-loglevel', 'error', ...args],
+    {
+      stdio: ['ignore', 'inherit', 'inherit'],
+    }
+  );
   if (r.status !== 0) console.error(`  ✗ ffmpeg (${label}) failed`);
   return r.status === 0;
 }
 
 console.log('  transcoding…');
-ffmpeg(['-i', rawPath, '-vf', vf, '-c:v', 'libx264', '-crf', '20', '-preset', 'slow', '-movflags', '+faststart', mp4Out], 'mp4');
-ffmpeg(['-i', rawPath, '-vf', `scale=${viewport.width}:${viewport.height}:flags=lanczos,fps=30`, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '32', '-row-mt', '1', webmOut], 'webm');
+// CRF 23 is the web-ready master: visibly clean at 1080p without making a
+// short help video unnecessarily heavy. faststart lets browsers begin playing
+// before they have downloaded the whole file.
+ffmpeg(
+  [
+    '-i',
+    rawPath,
+    '-vf',
+    vf,
+    '-c:v',
+    'libx264',
+    '-crf',
+    '23',
+    '-preset',
+    'slow',
+    '-movflags',
+    '+faststart',
+    mp4Out,
+  ],
+  'mp4'
+);
+ffmpeg(
+  [
+    '-i',
+    rawPath,
+    '-vf',
+    `scale=${viewport.width}:${viewport.height}:flags=lanczos,fps=30`,
+    '-c:v',
+    'libvpx-vp9',
+    '-b:v',
+    '0',
+    '-crf',
+    '32',
+    '-row-mt',
+    '1',
+    webmOut,
+  ],
+  'webm'
+);
 
 if (!hasFlag('--keep-raw')) fs.rmSync(rawPath, { force: true });
 
 // Probe duration for the report.
 function durationOf(file) {
-  const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', file], { encoding: 'utf8' });
+  const r = spawnSync(
+    'ffprobe',
+    [
+      '-v',
+      'error',
+      '-show_entries',
+      'format=duration',
+      '-of',
+      'default=nw=1:nk=1',
+      file,
+    ],
+    { encoding: 'utf8' }
+  );
   const s = parseFloat((r.stdout || '').trim());
   return Number.isFinite(s) ? `${s.toFixed(1)}s` : '?';
 }
 
 const secs = ((Date.now() - t0) / 1000).toFixed(1);
 console.log(`\n✓ done in ${secs}s`);
-if (fs.existsSync(mp4Out)) console.log(`  MP4:  ${mp4Out}  (${durationOf(mp4Out)})`);
+if (fs.existsSync(mp4Out))
+  console.log(`  MP4:  ${mp4Out}  (${durationOf(mp4Out)})`);
 if (fs.existsSync(webmOut)) console.log(`  WEBM: ${webmOut}`);
 console.log('');

@@ -48,7 +48,7 @@
   const path = document.createElementNS(NS, 'path');
   path.setAttribute(
     'd',
-    'M6 4 L6 22 L11 17.5 L14 24 L17.5 22.5 L14.5 16 L21 16 Z',
+    'M6 4 L6 22 L11 17.5 L14 24 L17.5 22.5 L14.5 16 L21 16 Z'
   );
   path.setAttribute('fill', '#111827');
   path.setAttribute('stroke', '#ffffff');
@@ -63,16 +63,21 @@
   Object.assign(caption.style, {
     position: 'fixed',
     left: '50%',
-    bottom: '48px',
+    // This deliberately reserves the bottom input/control area. At 1080p it
+    // sits in the open lower part of the workspace, above the controls that a
+    // viewer may need to see, rather than covering them.
+    bottom: '140px',
     transform: 'translateX(-50%) translateY(12px)',
-    maxWidth: '760px',
-    padding: '13px 22px',
-    borderRadius: '12px',
+    maxWidth: '1280px',
+    padding: '20px 34px',
+    borderRadius: '16px',
     background: 'rgba(17, 24, 39, 0.92)',
     color: '#ffffff',
-    font: "500 17px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    // This is intentionally large. A demo should be understandable at a
+    // glance when embedded in a help page or watched across a desk.
+    font: "600 38px/1.32 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     textAlign: 'center',
-    letterSpacing: '0.1px',
+    letterSpacing: '0',
     zIndex: '2147483646',
     pointerEvents: 'none',
     opacity: '0',
@@ -163,7 +168,8 @@
       pointerEvents: 'none',
       transform: 'scale(0.4)',
       opacity: '0.9',
-      transition: 'transform 480ms cubic-bezier(0.2,0.7,0.3,1), opacity 480ms ease',
+      transition:
+        'transform 480ms cubic-bezier(0.2,0.7,0.3,1), opacity 480ms ease',
     });
     (document.body || document.documentElement).appendChild(r);
     requestAnimationFrame(() => {

@@ -37,8 +37,8 @@ The engine does four things:
    pointer, so we paint our own arrow that glides smoothly to each target and
    shows a little click ripple. The drawn cursor sits exactly where the real
    click lands, so what you see and what happens always match.
-3. **Shows captions** — a small dark bar at the bottom that narrates each step
-   in plain language.
+3. **Shows captions** — a large, high-contrast dark bar at the bottom that
+   narrates each step in plain language.
 4. **Records to video** and converts it to a clean MP4 (works everywhere) and a
    WebM (small, good for the web) with `ffmpeg`.
 
@@ -122,7 +122,7 @@ scripts/demo-videos/
 A flow exports a default async function and optional `meta`:
 
 ```js
-export const meta = { title: 'My feature', viewport: { width: 1280, height: 800 } };
+export const meta = { title: 'My feature', viewport: { width: 1920, height: 1080 } };
 
 export default async function run(engine, { page }) {
   await engine.goto('/?testMode=true&seedDemo=1');
@@ -165,7 +165,9 @@ export default async function run(engine, { page }) {
 
 ## Quality bar
 
-- 1280×800, light theme always, smooth eased cursor, click ripples.
+- 1920×1080 (full HD), light theme always, smooth eased cursor, click ripples.
+- Captions are 38px with a dark, high-contrast pill and roomy padding. Keep
+  them short enough to stay on one or two lines and clear of meaningful UI.
 - No dead time. If a video runs long, `DEMO_DEBUG=1` prints which step stalled;
   targets that aren't ready fast are skipped rather than freezing the frame.
 - Captions: plain household language, short, no jargon, no em dashes, no time
