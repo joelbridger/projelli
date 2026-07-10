@@ -17,6 +17,13 @@ import {
   publicIntakeRateLimit,
   verifyAdvisorSeat,
 } from "../lib/intake.ts";
+import {
+  recordIntakePayloadRejected,
+  recordIntakeRateLimited,
+  recordIntakeUnauthorized,
+  recordPublicIntakeRequest,
+  type PublicIntakeEndpoint,
+} from "../lib/intakeTelemetry.ts";
 
 /** A neutral response for firm key/inbox access, avoiding an intake-id oracle. */
 function intakeNotFound(): Response {
@@ -73,9 +80,30 @@ async function readJsonWithCap<T>(req: Request, maxBytes: number): Promise<ReadR
   const len = Number(req.headers.get("content-length") ?? "0");
   if (Number.isFinite(len) && len > maxBytes) return { ok: false, tooLarge: true };
   try {
-    const text = await req.text();
-    if (text.length > maxBytes) return { ok: false, tooLarge: true };
-    return { ok: true, body: JSON.parse(text) as T };
+    // Do not use req.text(): a forged/missing Content-Length would make it
+    // buffer the entire body before we noticed the cap. Stop reading as soon
+    // as the byte limit is crossed instead.
+    const reader = req.body?.getReader();
+    if (!reader) return { ok: false, tooLarge: false };
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        return { ok: false, tooLarge: true };
+      }
+      chunks.push(value);
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return { ok: true, body: JSON.parse(new TextDecoder().decode(bytes)) as T };
   } catch {
     return { ok: false, tooLarge: false };
   }
@@ -110,6 +138,33 @@ function ensureBodyMatchesEndpoint(
 
 function b64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString("base64");
+}
+
+/**
+ * The order here is security-sensitive: rate-limit without consulting storage,
+ * then perform the constant-time capability check, and only then let a handler
+ * touch its request body. The same limiter is applied to known and unknown ids
+ * so its 429 response cannot reveal whether a link exists.
+ */
+function gatePublicIntake(
+  req: Request,
+  store: Store,
+  intakeId: string,
+  ip: string,
+  endpoint: PublicIntakeEndpoint,
+): { ok: true; intake: NonNullable<ReturnType<Store["getIntake"]>>; token: string } | { ok: false; resp: Response } {
+  recordPublicIntakeRequest(endpoint);
+  const limited = publicIntakeRateLimit(ip, intakeId);
+  if (limited) {
+    recordIntakeRateLimited();
+    return { ok: false, resp: limited };
+  }
+  const auth = authorizePublicIntake(req, store, intakeId);
+  if (!auth.ok) {
+    recordIntakeUnauthorized();
+    return auth;
+  }
+  return auth;
 }
 
 function submissionEnvelope(store: Store, row: IntakeSubmissionRecord): SubmissionEnvelope & {
@@ -399,9 +454,7 @@ export async function handleExtendIntake(req: Request, store: Store, intakeId: s
 // ---------------------------------------------------------------------------
 
 export function handleIntakeBundle(req: Request, store: Store, intakeId: string, ip: string): Response {
-  const limited = publicIntakeRateLimit(ip, intakeId);
-  if (limited) return limited;
-  const auth = authorizePublicIntake(req, store, intakeId);
+  const auth = gatePublicIntake(req, store, intakeId, ip, "bundle");
   if (!auth.ok) return auth.resp;
 
   const bundle = store.getIntakeBundle(intakeId);
@@ -416,15 +469,19 @@ export function handleIntakeBundle(req: Request, store: Store, intakeId: string,
 }
 
 export async function handleSaveIntakeState(req: Request, store: Store, intakeId: string, ip: string): Promise<Response> {
-  const limited = publicIntakeRateLimit(ip, intakeId);
-  if (limited) return limited;
-  const auth = authorizePublicIntake(req, store, intakeId);
+  const auth = gatePublicIntake(req, store, intakeId, ip, "state");
   if (!auth.ok) return auth.resp;
 
   const read = await readJsonWithCap<StateBlob>(req, MAX_STATE_REQUEST_BYTES);
-  if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
+  if (!read.ok) {
+    if (read.tooLarge) recordIntakePayloadRejected();
+    return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
+  }
   const state = decodeB64(read.body.ciphertext_b64, MAX_INTAKE_STATE_BYTES);
-  if (!state.ok) return error(state.code, state.status);
+  if (!state.ok) {
+    if (state.status === 413) recordIntakePayloadRejected();
+    return error(state.code, state.status);
+  }
   if (!store.setIntakeState(intakeId, state.bytes, auth.intake.generation)) {
     return error("stale_state", 409);
   }
@@ -438,25 +495,35 @@ export async function handleUploadIntakeChunk(
   itemId: string,
   ip: string,
 ): Promise<Response> {
-  const limited = publicIntakeRateLimit(ip, intakeId);
-  if (limited) return limited;
-  const auth = authorizePublicIntake(req, store, intakeId);
+  const auth = gatePublicIntake(req, store, intakeId, ip, "chunk");
   if (!auth.ok) return auth.resp;
 
   const read = await readJsonWithCap<ChunkUpload>(req, MAX_CHUNK_REQUEST_BYTES);
-  if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
+  if (!read.ok) {
+    if (read.tooLarge) recordIntakePayloadRejected();
+    return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
+  }
   const mismatch = ensureBodyMatchesEndpoint(read.body, intakeId, itemId);
   if (mismatch) return mismatch;
   if (!isNonEmptyString(itemId, 256) || !isNonEmptyString(read.body.submission_id, 256)) return error("missing_fields", 400);
   if (!Number.isInteger(read.body.index) || read.body.index < 0) return error("invalid_index", 400);
 
   const ciphertext = decodeB64(read.body.ciphertext_b64, MAX_INTAKE_CHUNK_BYTES);
-  if (!ciphertext.ok) return error(ciphertext.code, ciphertext.status);
+  if (!ciphertext.ok) {
+    if (ciphertext.status === 413) recordIntakePayloadRejected();
+    return error(ciphertext.code, ciphertext.status);
+  }
 
   const currentFileBytes = store.sumIntakeSubmissionBytes(intakeId, itemId, read.body.submission_id);
-  if (currentFileBytes + ciphertext.bytes.byteLength > MAX_INTAKE_FILE_BYTES) return error("file_too_large", 413);
+  if (currentFileBytes + ciphertext.bytes.byteLength > MAX_INTAKE_FILE_BYTES) {
+    recordIntakePayloadRejected();
+    return error("file_too_large", 413);
+  }
   const currentTotalBytes = store.sumIntakeBytes(intakeId) + store.sumIntakeSubmissionStoredBytes(intakeId);
-  if (currentTotalBytes + ciphertext.bytes.byteLength > MAX_INTAKE_TOTAL_BYTES) return error("intake_too_large", 413);
+  if (currentTotalBytes + ciphertext.bytes.byteLength > MAX_INTAKE_TOTAL_BYTES) {
+    recordIntakePayloadRejected();
+    return error("intake_too_large", 413);
+  }
 
   const saved = store.appendIntakeChunk({
     intake_id: intakeId,
@@ -487,9 +554,7 @@ export function handleListUploadedIntakeChunks(
   itemId: string,
   ip: string,
 ): Response {
-  const limited = publicIntakeRateLimit(ip, intakeId);
-  if (limited) return limited;
-  const auth = authorizePublicIntake(req, store, intakeId);
+  const auth = gatePublicIntake(req, store, intakeId, ip, "chunks");
   if (!auth.ok) return auth.resp;
 
   const submissionId = new URL(req.url).searchParams.get("submission_id");
@@ -506,29 +571,40 @@ export async function handleSubmitIntakeItem(
   itemId: string,
   ip: string,
 ): Promise<Response> {
-  const limited = publicIntakeRateLimit(ip, intakeId);
-  if (limited) return limited;
-  const auth = authorizePublicIntake(req, store, intakeId);
+  const auth = gatePublicIntake(req, store, intakeId, ip, "submit");
   if (!auth.ok) return auth.resp;
 
   const read = await readJsonWithCap<SubmitManifest>(req, MAX_SUBMIT_REQUEST_BYTES);
-  if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
+  if (!read.ok) {
+    if (read.tooLarge) recordIntakePayloadRejected();
+    return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
+  }
   const mismatch = ensureBodyMatchesEndpoint(read.body, intakeId, itemId);
   if (mismatch) return mismatch;
   if (!isNonEmptyString(itemId, 256) || !isNonEmptyString(read.body.submission_id, 256)) return error("missing_fields", 400);
 
   const manifest = decodeB64(read.body.manifest_ciphertext_b64, MAX_SUBMIT_REQUEST_BYTES);
-  if (!manifest.ok) return error(manifest.code, manifest.status);
+  if (!manifest.ok) {
+    if (manifest.status === 413) recordIntakePayloadRejected();
+    return error(manifest.code, manifest.status);
+  }
   const wrappedKey = decodeB64(read.body.wrapped_content_key_b64, MAX_SUBMIT_REQUEST_BYTES);
-  if (!wrappedKey.ok) return error(wrappedKey.code, wrappedKey.status);
+  if (!wrappedKey.ok) {
+    if (wrappedKey.status === 413) recordIntakePayloadRejected();
+    return error(wrappedKey.code, wrappedKey.status);
+  }
 
   // Finalization rows persist manifest + wrapped-key bytes independently of
   // chunks, so a link holder could otherwise grow the DB without bound by
   // posting endless fresh submission_ids. Count these bytes toward the intake
   // quota and cap the finalization row count.
-  if (store.countIntakeSubmissions(intakeId) >= MAX_INTAKE_SUBMISSIONS) return error("intake_too_large", 413);
+  if (store.countIntakeSubmissions(intakeId) >= MAX_INTAKE_SUBMISSIONS) {
+    recordIntakePayloadRejected();
+    return error("intake_too_large", 413);
+  }
   const storedBytes = store.sumIntakeBytes(intakeId) + store.sumIntakeSubmissionStoredBytes(intakeId);
   if (storedBytes + manifest.bytes.byteLength + wrappedKey.bytes.byteLength > MAX_INTAKE_TOTAL_BYTES) {
+    recordIntakePayloadRejected();
     return error("intake_too_large", 413);
   }
 

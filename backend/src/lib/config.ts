@@ -144,6 +144,16 @@ export const config = {
   relayRateLimitMax: num("RELAY_RATE_LIMIT_MAX", 600),
   relayRateLimitWindowSeconds: num("RELAY_RATE_LIMIT_WINDOW_SECONDS", 60),
 
+  // Public intake links are unauthenticated until their capability token is
+  // checked. A normal upload is at most 25 chunks/file, so 120 requests/minute
+  // gives a real client room to resume while stopping a single-IP flood. The
+  // higher per-link cap stops a distributed flood without punishing a household
+  // using several devices on one link.
+  intakePublicIpRateLimitMax: num("INTAKE_PUBLIC_IP_RATE_LIMIT_MAX", 120),
+  intakePublicIpRateLimitWindowSeconds: num("INTAKE_PUBLIC_IP_RATE_LIMIT_WINDOW_SECONDS", 60),
+  intakePublicIntakeRateLimitMax: num("INTAKE_PUBLIC_LINK_RATE_LIMIT_MAX", 600),
+  intakePublicIntakeRateLimitWindowSeconds: num("INTAKE_PUBLIC_LINK_RATE_LIMIT_WINDOW_SECONDS", 60),
+
   // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
   // The cap bounds abuse; the timeout severs a hung provider connection so a
   // stuck request can't pin server memory indefinitely (nothing is buffered, but

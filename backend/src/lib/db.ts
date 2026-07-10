@@ -42,6 +42,10 @@ import type {
 } from "./types.ts";
 import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured-types.ts";
 
+/** Ciphertext is retained for an advisor's offline catch-up window, then removed. */
+export const INTAKE_EXPIRY_CIPHERTEXT_GRACE_DAYS = 30;
+export const INTAKE_EXPIRY_CIPHERTEXT_GRACE_MS = INTAKE_EXPIRY_CIPHERTEXT_GRACE_DAYS * 24 * 60 * 60 * 1000;
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS orgs (
   org_id              TEXT PRIMARY KEY,
@@ -1551,6 +1555,18 @@ export class Store {
     });
     txn.immediate();
     return { deleted_chunks: deletedChunks, wiped_submissions: wipedSubmissions };
+  }
+
+  /**
+   * Remove an expired mailbox after its 30-day offline-sync grace window.
+   * Deleting the intake row deliberately cascades to chunks, manifests, wrapped
+   * keys, and the page's sealed checklist/state. No content or client traffic
+   * data is inspected or retained by this maintenance pass.
+   */
+  purgeExpiredIntakeCiphertext(nowMs = Date.now()): { deleted_intakes: number } {
+    const cutoff = new Date(nowMs - INTAKE_EXPIRY_CIPHERTEXT_GRACE_MS).toISOString();
+    const result = this.db.query(`DELETE FROM intakes WHERE expires_at <= ?`).run(cutoff);
+    return { deleted_intakes: result.changes };
   }
 
   // ===========================================================================

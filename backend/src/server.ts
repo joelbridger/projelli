@@ -322,6 +322,7 @@ maybeBootstrap(store);
 startRateLimitGc();
 startSyncTicketGc();
 startSsoStateGc();
+startIntakeRetentionSweep(store);
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 
@@ -360,3 +361,19 @@ async function maybeBootstrap(store: Store): Promise<void> {
 }
 
 export { server };
+
+/**
+ * A single-instance relay can sweep locally. Run once at boot and daily after
+ * that; the database operation only deletes expired mailbox rows and cascades
+ * their opaque ciphertext. The log intentionally contains a count, not ids.
+ */
+function startIntakeRetentionSweep(store: Store): ReturnType<typeof setInterval> {
+  const sweep = () => {
+    const result = store.purgeExpiredIntakeCiphertext();
+    if (result.deleted_intakes > 0) console.info(`[intake-retention] deleted ${result.deleted_intakes} expired mailbox(es)`);
+  };
+  sweep();
+  const timer = setInterval(sweep, 24 * 60 * 60 * 1000);
+  if (typeof timer.unref === "function") timer.unref();
+  return timer;
+}
