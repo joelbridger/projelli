@@ -7,7 +7,7 @@ import type { DocUploadRequestItem, GuidedQuestionRequestItem, RequestItem, Type
 import { openPageJson, sealPageJson } from './pageCrypto';
 import { RelayClient } from './relayClient';
 import { submitAnswer } from './submission';
-import type { AnswerPayload, IntakeChecklist, ResumeState } from './types';
+import type { AnswerPayload, IntakeChecklist, IntakeFirm, ResumeState } from './types';
 
 type LoadState =
   | { status: 'checking' | 'loading' }
@@ -32,6 +32,7 @@ const EMPTY_RESUME: ResumeState = {
 };
 
 const DEFAULT_ACCENT = '#2f7d62';
+const DEFAULT_FIRM_NAME = 'Advisor Prep Hero';
 const PAGE_FILE_MAX_BYTES = 100 * 1024 * 1024;
 const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/iu;
 const SAFE_NAMED_COLORS = new Set([
@@ -102,13 +103,31 @@ function isSafeHslColor(value: string): boolean {
   return isHueChannel(parts[0]) && isCssPercent(parts[1]) && isCssPercent(parts[2]) && (parts.length === 3 || isAlphaChannel(parts[3]));
 }
 
-function safeAccentColor(accent: string): string {
+function safeAccentColor(accent: unknown): string {
+  if (typeof accent !== 'string') return DEFAULT_ACCENT;
   const value = accent.trim();
   if (HEX_COLOR_RE.test(value)) return value;
   const lower = value.toLowerCase();
   if (SAFE_NAMED_COLORS.has(lower)) return lower;
   if (isSafeRgbColor(lower) || isSafeHslColor(lower)) return value;
   return DEFAULT_ACCENT;
+}
+
+function safeText(value: unknown, fallback = ''): string {
+  return typeof value === 'string' && value.trim() ? value.trim() : fallback;
+}
+
+export function normalizeFirm(firm: IntakeChecklist['firm'] | undefined): IntakeFirm {
+  // W1-BENCH-FIX-FIRM-NORMALIZE
+  return {
+    name: safeText(firm?.name, DEFAULT_FIRM_NAME),
+    accent: safeAccentColor(firm?.accent),
+    advisor_name: safeText(firm?.advisor_name, 'Your advisor'),
+    advisor_email: safeText(firm?.advisor_email),
+    next_steps: Array.isArray(firm?.next_steps)
+      ? firm.next_steps.filter((step): step is string => typeof step === 'string' && step.trim().length > 0)
+      : [],
+  };
 }
 
 function parseClientNumber(raw: string): number | null {
@@ -298,7 +317,8 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   const skipped = useMemo(() => new Set(resume.skipped_item_ids ?? []), [resume.skipped_item_ids]);
   const allDone = actionItems.every((item) => doneIds.has(item.item_id) || skipped.has(item.item_id));
   const item = checklist.items.find((entry) => entry.item_id === currentItemId);
-  const accent = useMemo(() => safeAccentColor(checklist.firm.accent), [checklist.firm.accent]);
+  const firm = useMemo(() => normalizeFirm(checklist.firm), [checklist.firm]);
+  const accent = firm.accent;
 
   async function saveResume(next: ResumeState): Promise<void> {
     const merged = mergeResume(resume, next);
@@ -405,14 +425,14 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
   }
 
   if (privacyOpen) {
-    return <PrivacyScreen checklist={checklist} onBack={() => setPrivacyOpen(false)} />;
+    return <PrivacyScreen firm={firm} onBack={() => setPrivacyOpen(false)} />;
   }
 
   return (
     <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
       <div className="brand-line">
         <span className="brand-mark" aria-hidden="true" />
-        <span>{checklist.firm.name}</span>
+        <span>{firm.name}</span>
       </div>
 
       <ProgressDots items={actionItems} currentId={currentItemId} doneIds={doneIds} onGoTo={setCurrentItemId} />
@@ -424,9 +444,9 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       ) : null}
 
       {currentItemId === 'completion' || allDone ? (
-        <CompletionScreen checklist={checklist} />
+        <CompletionScreen firm={firm} />
       ) : item?.t === 'readonly_card' ? (
-        <WelcomeScreen checklist={checklist} item={item} onLearn={() => setPrivacyOpen(true)} onStart={() => void moveTo(nextIncomplete())} />
+        <WelcomeScreen checklist={checklist} firm={firm} item={item} onLearn={() => setPrivacyOpen(true)} onStart={() => void moveTo(nextIncomplete())} />
       ) : item && doneIds.has(item.item_id) && replacingItemId !== item.item_id ? (
         <ProvidedScreen
           item={item}
@@ -439,7 +459,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         <ItemInputScreen
           key={`${item.item_id}:${replacingItemId ?? 'new'}`}
           item={item}
-          firmName={checklist.firm.name}
+          firmName={firm.name}
           pendingUpload={resume.pending_uploads?.[item.item_id]}
           relay={relay}
           busy={busyItemId === item.item_id}
@@ -488,11 +508,13 @@ function ProgressDots({
 
 function WelcomeScreen({
   checklist,
+  firm,
   item,
   onLearn,
   onStart,
 }: {
   checklist: IntakeChecklist;
+  firm: IntakeFirm;
   item: RequestItem;
   onLearn: () => void;
   onStart: () => void;
@@ -500,10 +522,10 @@ function WelcomeScreen({
   return (
     <section className="panel">
       <p className="eyebrow">Secure intake</p>
-      <h1>{`Hi ${checklist.client_first_name}. Welcome to ${checklist.firm.name}.`}</h1>
+      <h1>{`Hi ${checklist.client_first_name}. Welcome to ${firm.name}.`}</h1>
       <p>{item.help_text || (item.t === 'readonly_card' ? item.body : '')}</p>
       <p>
-        This page locks your information on your device. Only {checklist.firm.name} can unlock it.{' '}
+        This page locks your information on your device. Only {firm.name} can unlock it.{' '}
         <button className="link-button" type="button" onClick={onLearn}>
           Learn how →
         </button>
@@ -515,15 +537,15 @@ function WelcomeScreen({
   );
 }
 
-function PrivacyScreen({ checklist, onBack }: { checklist: IntakeChecklist; onBack: () => void }): JSX.Element {
-  const accent = safeAccentColor(checklist.firm.accent);
+function PrivacyScreen({ firm, onBack }: { firm: IntakeFirm; onBack: () => void }): JSX.Element {
+  const accent = firm.accent;
   return (
     <main className="page-shell" style={{ '--accent': accent } as CSSProperties}>
       <section className="panel">
         <p className="eyebrow">How this stays private</p>
         <h1>Your answers lock before they leave this device.</h1>
         <p>Your browser locks each answer before it sends anything.</p>
-        <p>{checklist.firm.name} has the key to unlock it.</p>
+        <p>{firm.name} has the key to unlock it.</p>
         <p>Lantern holds the sealed package. Lantern cannot read your answers.</p>
         <p>Email replies use your firm&apos;s email. They are not protected by this page.</p>
         <p>This promise depends on the real Lantern page being sent to you. Your advisor sends it directly.</p>
@@ -566,14 +588,14 @@ function ProvidedScreen({
   );
 }
 
-function CompletionScreen({ checklist }: { checklist: IntakeChecklist }): JSX.Element {
+function CompletionScreen({ firm }: { firm: IntakeFirm }): JSX.Element {
   return (
     <section className="panel">
-      <p className="eyebrow">{checklist.firm.name}</p>
+      <p className="eyebrow">{firm.name}</p>
       <h1>That&apos;s everything for now.</h1>
       <p>Here&apos;s what happens next.</p>
       <ol className="next-list">
-        {checklist.firm.next_steps.map((step) => (
+        {firm.next_steps.map((step) => (
           <li key={step}>{step}</li>
         ))}
       </ol>

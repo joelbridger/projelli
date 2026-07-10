@@ -48,6 +48,7 @@ import {
   handleIntakeBundle,
   handleIntakeInbox,
   handleListUploadedIntakeChunks,
+  handleRegenerateIntake,
   handleReplaceIntakeChecklist,
   handleRevokeIntake,
   handleSaveIntakeState,
@@ -174,6 +175,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           if (ii.rest === "ack" && method === "POST") return await handleAckIntake(req, store, ii.id);
           if (ii.rest === "revoke" && method === "POST") return handleRevokeIntake(req, store, ii.id);
           if (ii.rest === "extend" && method === "POST") return await handleExtendIntake(req, store, ii.id);
+          if (ii.rest === "regenerate" && method === "POST") return await handleRegenerateIntake(req, store, ii.id);
           if (ii.rest === "bundle" && method === "GET") return handleIntakeBundle(req, store, ii.id, ip);
           if (ii.rest === "state" && method === "PUT") return await handleSaveIntakeState(req, store, ii.id, ip);
           const item = ii.rest.match(/^item\/([^/]+)\/(chunk|chunks|submit)$/);

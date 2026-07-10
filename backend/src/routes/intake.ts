@@ -157,6 +157,41 @@ export async function handleReplaceIntakeChecklist(req: Request, store: Store, i
   return json({ ok: true, intake_id: intakeId, checklist_version: intake.checklist_version });
 }
 
+export async function handleRegenerateIntake(req: Request, store: Store, intakeId: string): Promise<Response> {
+  const advisor = authorizeAdvisorIntake(req, store, intakeId);
+  if (!advisor.ok) return advisor.resp;
+
+  const read = await readJsonWithCap<{
+    token_b64?: unknown;
+    auth_token?: unknown;
+    checklist_ciphertext_b64?: unknown;
+    state_ciphertext_b64?: unknown;
+  }>(req, MAX_CREATE_REQUEST_BYTES);
+  if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
+
+  const rawToken = typeof read.body.token_b64 === "string"
+    ? read.body.token_b64
+    : typeof read.body.auth_token === "string"
+      ? read.body.auth_token
+      : null;
+  if (!isNonEmptyString(rawToken, 2048)) return error("missing_fields", 400);
+  const checklist = decodeB64(read.body.checklist_ciphertext_b64, MAX_INTAKE_CHECKLIST_BYTES);
+  if (!checklist.ok) return error(checklist.code, checklist.status);
+  const state = decodeB64(read.body.state_ciphertext_b64, MAX_INTAKE_STATE_BYTES);
+  if (!state.ok) return error(state.code, state.status);
+
+  // Keep submitted ciphertext intact. Only the new link's authentication and
+  // page-key-sealed display bundle are replaced.
+  const intake = store.regenerateIntake({
+    intake_id: intakeId,
+    token_hash: hmacHash(rawToken),
+    checklist_ciphertext: checklist.bytes,
+    state_ciphertext: state.bytes,
+  });
+  if (!intake) return error("intake_not_found", 404);
+  return json({ ok: true, intake_id: intakeId, checklist_version: intake.checklist_version });
+}
+
 export function handleIntakeInbox(req: Request, store: Store, intakeId: string): Response {
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;

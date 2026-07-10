@@ -1152,6 +1152,28 @@ export class Store {
     return res.changes > 0;
   }
 
+  regenerateIntake(input: {
+    intake_id: string;
+    token_hash: string;
+    checklist_ciphertext: Uint8Array;
+    state_ciphertext: Uint8Array;
+  }): IntakeRecord | null {
+    this.db
+      .query(
+        `UPDATE intakes
+         SET token_hash = ?, checklist_ciphertext = ?, state_ciphertext = ?,
+             status = 'active', revoked_at = NULL, checklist_version = checklist_version + 1
+         WHERE intake_id = ?`,
+      )
+      .run(
+        input.token_hash,
+        input.checklist_ciphertext,
+        input.state_ciphertext,
+        input.intake_id,
+      );
+    return this.getIntake(input.intake_id);
+  }
+
   revokeIntake(intakeId: string): boolean {
     const now = this.nowIso();
     const res = this.db

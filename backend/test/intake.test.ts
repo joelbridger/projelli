@@ -307,6 +307,40 @@ describe("intake mailbox storage", () => {
   });
 });
 
+describe("intake regeneration", () => {
+  test("re-seals a revoked link, keeps received submissions, and rejects the old token", async () => {
+    const ctx = makeServer();
+    const advisor = seedAdvisor(ctx.store);
+    const { intakeId, authToken } = await createIntake(ctx, advisor.seatToken, {
+      checklist: "old-checklist",
+      state: "old-state",
+    });
+    expect((await uploadChunk(ctx, intakeId, authToken, "item-tax", "submission-keep", 0, new Uint8Array([7, 8, 9]))).status).toBe(201);
+    expect((await submitItem(ctx, intakeId, authToken, "item-tax", "submission-keep")).status).toBe(201);
+    expect((await advisorJson(ctx, `/intake/${intakeId}/revoke`, advisor.seatToken, "POST")).status).toBe(200);
+
+    const regenerated = await advisorJson(ctx, `/intake/${intakeId}/regenerate`, advisor.seatToken, "POST", {
+      token_b64: "new-link-token",
+      checklist_ciphertext_b64: b64("new-checklist"),
+      state_ciphertext_b64: b64("new-state"),
+    });
+    expect(regenerated.status).toBe(200);
+    expect(regenerated.body.ok).toBe(true);
+
+    expect((await publicJson(ctx, `/intake/${intakeId}/bundle`, authToken, "GET")).status).toBe(410);
+    const newBundle = await publicJson(ctx, `/intake/${intakeId}/bundle`, "new-link-token", "GET");
+    expect(newBundle.status).toBe(200);
+    expect(newBundle.body.checklist_ciphertext_b64).toBe(b64("new-checklist"));
+    expect(newBundle.body.state_ciphertext_b64).toBe(b64("new-state"));
+    expect(newBundle.body.finalized_item_ids).toEqual(["item-tax"]);
+
+    const inbox = await advisorJson(ctx, `/intake/${intakeId}/inbox`, advisor.seatToken, "GET");
+    expect(inbox.status).toBe(200);
+    expect(inbox.body.submissions).toHaveLength(1);
+    expect(inbox.body.submissions[0].submission_id).toBe("submission-keep");
+  });
+});
+
 describe("advisor seat gate", () => {
   test("advisor endpoints reject missing or invalid seat tokens", async () => {
     const ctx = makeServer();

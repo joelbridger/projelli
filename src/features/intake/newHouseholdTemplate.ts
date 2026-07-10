@@ -1,6 +1,11 @@
 import type { FormRequest, RequestItem } from '@/platform/intake/types';
 
 export const NEW_HOUSEHOLD_BLUEPRINT = 'new_household_v1';
+export const NEW_HOUSEHOLD_NEXT_STEP =
+  'Your advisor reviews each item and follows up only if something needs a second look.';
+export const NEW_HOUSEHOLD_NEXT_STEPS = [
+  NEW_HOUSEHOLD_NEXT_STEP,
+];
 
 export function defaultNewHouseholdItems(): RequestItem[] {
   return [
@@ -72,7 +77,7 @@ export function defaultNewHouseholdItems(): RequestItem[] {
       help_text: '',
       required: false,
       subject: 'household',
-      body: 'Your advisor reviews each item and follows up only if something needs a second look.',
+      body: NEW_HOUSEHOLD_NEXT_STEP,
     },
   ];
 }
