@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vitest/globals"],
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "files": [
+    "scripts/contracts/contract-gate.fixture.ts",
+    "scripts/contracts/bun-test.d.ts"
+  ],
+  "include": [
+    "src/platform/intake/**/*.ts",
+    "intake-page/src/**/*.ts",
+    "backend/test/intake-e2e.test.ts",
+    "backend/test/contracts/**/*.test.ts"
+  ]
+}

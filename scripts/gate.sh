@@ -12,6 +12,10 @@ step () { echo ""; echo "===== $1 ====="; shift; "$@" || { echo "❌ FAILED: $*"
 step "Build assets"    node scripts/copy-build-assets.mjs
 step "Tauri version parity" node scripts/check-tauri-parity.mjs
 step "Tauri TS/Rust command contracts" node scripts/check-tauri-contracts.mjs
+# Run real cross-boundary contracts before the broad frontend and Rust suites.
+# This is intentionally blocking: an Intake wire change without its canonical
+# producer → route → consumer test must not wait for a final integration pass.
+step "Wire-contract suite" npm run test:contracts
 step "Provider front door" node scripts/check-provider-construction.mjs
 step "Consent-gate wiring" node scripts/check-consent-gate-wiring.mjs
 step "Case-only filename collisions" node scripts/check-case-collisions.mjs

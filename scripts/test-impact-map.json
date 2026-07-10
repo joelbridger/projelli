@@ -1,0 +1,75 @@
+{
+  "version": 1,
+  "rules": [
+    {
+      "pattern": "{package.json,package-lock.json,vite.config*.ts,vitest.config.ts,tests/setup.ts,tsconfig*.json}",
+      "impacts": ["full-vitest", "contracts"],
+      "reason": "shared frontend/test configuration can affect tests outside static imports"
+    },
+    {
+      "pattern": "{scripts/gate*.sh,scripts/gate-plan.mjs,scripts/test-contracts.sh,scripts/test-impact-map.json}",
+      "impacts": ["full-vitest", "contracts"],
+      "reason": "gate behavior changed; prove the complete frontend suite"
+    },
+    {
+      "pattern": "src/platform/intake/**",
+      "impacts": ["changed-vitest", "contracts"],
+      "reason": "advisor Intake producer or desktop consumer changed"
+    },
+    {
+      "pattern": "intake-page/src/**",
+      "impacts": ["changed-vitest", "contracts"],
+      "reason": "public Intake page changed"
+    },
+    {
+      "pattern": "backend/src/routes/intake.ts",
+      "impacts": ["backend", "contracts"],
+      "reason": "Intake relay route changed"
+    },
+    {
+      "pattern": "backend/src/intakeContract.ts",
+      "impacts": ["backend", "contracts"],
+      "reason": "Intake wire shape changed"
+    },
+    {
+      "pattern": "backend/src/server.ts",
+      "impacts": ["backend", "contracts"],
+      "reason": "Intake route registration may have changed"
+    },
+    {
+      "pattern": "backend/{src,test}/**",
+      "impacts": ["backend"],
+      "reason": "firm backend source or tests changed"
+    },
+    {
+      "pattern": "{src,tests}/**",
+      "impacts": ["changed-vitest"],
+      "reason": "frontend source or unit tests changed"
+    },
+    {
+      "pattern": "src-tauri/crates/lantern-docx/**",
+      "impacts": ["rust:lantern-docx"],
+      "reason": "OOXML crate changed"
+    },
+    {
+      "pattern": "src-tauri/crates/lantern-vault/**",
+      "impacts": ["rust:lantern-vault"],
+      "reason": "vault crate changed"
+    },
+    {
+      "pattern": "src-tauri/**",
+      "impacts": ["rust:lantern"],
+      "reason": "Tauri host or workspace configuration changed"
+    },
+    {
+      "pattern": "{docs,website,marketing}/**",
+      "impacts": [],
+      "reason": "documentation or site-only change"
+    },
+    {
+      "pattern": ".github/workflows/**",
+      "impacts": ["full-vitest", "backend", "rust:lantern", "contracts"],
+      "reason": "CI proof definition changed"
+    }
+  ]
+}

@@ -13,6 +13,17 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
+    // `vitest --changed` follows static imports. These files shape tests at
+    // runtime or globally, so any change must re-run the whole suite.
+    forceRerunTriggers: [
+      '**/package.json',
+      '**/package-lock.json',
+      '**/vitest.config.ts',
+      '**/vite.config*.ts',
+      '**/tests/setup.ts',
+      '**/tsconfig*.json',
+      '**/scripts/test-impact-map.json',
+    ],
     include: ['tests/**/*.{test,spec}.{ts,tsx}', 'src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['tests/e2e/**', 'tests/campaign/**'],
     coverage: {
