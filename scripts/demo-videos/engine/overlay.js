@@ -63,19 +63,19 @@
   Object.assign(caption.style, {
     position: 'fixed',
     left: '50%',
-    // This deliberately reserves the bottom input/control area. At 1080p it
-    // sits in the open lower part of the workspace, above the controls that a
-    // viewer may need to see, rather than covering them.
-    bottom: '140px',
+    // The flows clear the pill before an action or reveal. Keeping it in the
+    // lower edge leaves the main result, source links, and Client Map facts
+    // visible while the narration is on screen.
+    bottom: '24px',
     transform: 'translateX(-50%) translateY(12px)',
-    maxWidth: '1280px',
-    padding: '20px 34px',
-    borderRadius: '16px',
+    maxWidth: '1180px',
+    padding: '18px 32px',
+    borderRadius: '18px',
     background: 'rgba(17, 24, 39, 0.92)',
     color: '#ffffff',
-    // This is intentionally large. A demo should be understandable at a
-    // glance when embedded in a help page or watched across a desk.
-    font: "600 38px/1.32 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    // At the 1728px final render this is about twice the old on-screen size,
+    // so it remains huge without becoming a screen-sized wall of words.
+    font: "600 56px/1.18 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     textAlign: 'center',
     letterSpacing: '0',
     zIndex: '2147483646',

@@ -14,7 +14,7 @@
 
 export const meta = {
   title: 'Ask a question, get a cited answer',
-  viewport: { width: 1920, height: 1080 },
+  viewport: { width: 1280, height: 800 },
 };
 
 const ROTH_QUESTION = 'What did we decide about the Roth conversion?';
@@ -42,12 +42,16 @@ export default async function run(engine, { page }) {
     .getByTestId('ask-demo-question')
     .filter({ hasText: /Roth/i })
     .first();
-  await engine.moveTo(rothBtn);
   await engine.clearCaption();
+
+  // Explain the promise before revealing the answer, so the huge caption never
+  // hides the answer itself.
+  await engine.caption('It answers only from their own files.', 1500);
+  await engine.clearCaption();
+  await engine.moveTo(rothBtn);
   await engine.click(rothBtn);
 
   // Answer appears, grounded in the household's own files.
-  await engine.caption('It answers only from their own files.', 1500);
   await engine.waitForTestId('ask-answer-receipt', { timeout: 20000 });
   await page
     .getByTestId('ask-cited-attestation')
@@ -57,8 +61,7 @@ export default async function run(engine, { page }) {
   await engine.hold(1300);
   await engine.clearCaption();
 
-  // Point at a citation on the answer.
-  await engine.caption('Every claim carries a source.', 1500);
+  // Point at a citation on the answer without obscuring the result.
   await engine
     .moveTo(page.getByTestId('ask-citation-chip-1').first())
     .catch(() => {});
@@ -69,12 +72,8 @@ export default async function run(engine, { page }) {
   const sourcesToggle = page.getByTestId('ask-sources-toggle').first();
   if (await sourcesToggle.count()) {
     await engine.caption('Open the sources to read the exact words.', 1600);
+    await engine.clearCaption();
     await engine.click(sourcesToggle).catch(() => {});
     await engine.hold(2100);
-    await engine.clearCaption();
   }
-
-  await engine.caption('Nothing invented. Everything you can check.', 2000);
-  await engine.hold(400);
-  await engine.clearCaption();
 }

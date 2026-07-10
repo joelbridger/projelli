@@ -37,7 +37,7 @@ Never record real client data or rely on a personal AI key for a demo take.
 
 | Place | What it is |
 |---|---|
-| `scripts/demo-videos/record.mjs` | The one command that records and converts a video. It always makes full-HD 1920×1080 output. |
+| `scripts/demo-videos/record.mjs` | The one command that records and converts a video. It keeps the original 1280×800 app layout, captures it at 2560×1600 pixels, then makes a crisp 1728×1080 (16:10) MP4. |
 | `scripts/demo-videos/engine/DemoEngine.mjs` | The small set of actions a flow can use: move, click, type, wait, and show a caption. |
 | `scripts/demo-videos/engine/overlay.js` | The visible cursor, click ripple, and large caption pill. |
 | `scripts/demo-videos/flows/` | One small script for each story the video tells. |
@@ -55,8 +55,8 @@ screen coordinates or brittle CSS selectors.
 // scripts/demo-videos/flows/my-feature.mjs
 export const meta = {
   title: 'A short human title',
-  // Keep this for clarity. The recorder enforces full HD for every flow.
-  viewport: { width: 1920, height: 1080 },
+  // Keep this for clarity. The recorder always uses the original app layout.
+  viewport: { width: 1280, height: 800 },
 };
 
 export default async function run(engine, { page }) {
@@ -89,19 +89,19 @@ This is the whole loop. Do it for every new or changed video.
 
 ```bash
 # Record both web-ready formats. Add DEMO_DEBUG=1 only if a take has dead time.
-node scripts/demo-videos/record.mjs ask-cited-answer
+node scripts/demo-videos/record.mjs ask-cited-answer --output ask-cited-answer-crisp
 
-# Confirm the MP4 is really 1920×1080, H.264, and 30 frames per second.
+# Confirm the finished MP4 is really 1728×1080, H.264, and 30 frames per second.
 ffprobe -v error -select_streams v:0 \
   -show_entries stream=codec_name,width,height,avg_frame_rate \
   -show_entries format=duration,size -of default=nw=1 \
-  scripts/demo-videos/output/ask-cited-answer.mp4
+  scripts/demo-videos/output/ask-cited-answer-crisp.mp4
 
 # Pull exactly six evenly spread frames. Visual review is required, not optional.
 mkdir -p /tmp/ask-cited-answer-frames
 DURATION=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 \
-  scripts/demo-videos/output/ask-cited-answer.mp4)
-ffmpeg -y -i scripts/demo-videos/output/ask-cited-answer.mp4 \
+  scripts/demo-videos/output/ask-cited-answer-crisp.mp4)
+ffmpeg -y -i scripts/demo-videos/output/ask-cited-answer-crisp.mp4 \
   -vf "fps=6/${DURATION}" -frames:v 6 \
   /tmp/ask-cited-answer-frames/frame-%02d.png
 ```
@@ -110,7 +110,32 @@ Open and look at all six frame images. Do the same for `client-map`. The tool
 review must be visual: do not call a video “done” just because a command
 finished. If a frame is not useful, adjust the flow or overlay and record again.
 Use `--headed` to watch a take live and `--keep-raw` to keep the original
-Playwright WebM while debugging.
+full-density Playwright frames while debugging.
+
+### The sharp-layout rule
+
+The browser viewport is always **1280×800** with `deviceScaleFactor: 2`. That
+means the app keeps its original comfortable size while direct Playwright frame
+capture receives a real **2560×1600** HiDPI image. Never make the viewport
+bigger just to chase a higher-resolution file: that shrinks the interface
+itself. The recorder checks the raw frame pixels before converting. If a browser
+ever caps a raw frame, do not publish it; use a full-resolution capture path.
+
+The encoder downscales that 2× source once with Lanczos to **1728×1080**. This
+is 16:10, the same shape as the original layout. The finished MP4 is H.264 at
+CRF 18 so small text and fine UI lines stay clean.
+
+For every approval, inspect both ordinary frames and close-up crops of text and
+thin interface lines. For example:
+
+```bash
+ffmpeg -y -ss 00:00:08 -i scripts/demo-videos/output/ask-cited-answer-crisp.mp4 \
+  -vf "crop=720:360:500:150,scale=1440:720:flags=neighbor" -frames:v 1 \
+  /tmp/ask-cited-answer-text-crop.png
+```
+
+Open the crop as well as the full frames. The crop must show clean letter edges
+and UI borders, not soft or smeared ones.
 
 The normal one-command recording commands are:
 
@@ -126,22 +151,24 @@ use to `scripts/demo-videos/output/`.
 
 Before accepting a take, check every item below.
 
-- It is 1920×1080, 30fps, and the MP4 says `h264` in `ffprobe`.
+- The raw recording is 2560×1600, and the finished MP4 is 1728×1080 at 30fps
+  with `h264` in `ffprobe`.
 - The app is in its light theme from the first frame to the last.
 - The visible cursor is present, moves smoothly, and lands on the thing the
   real app action changes. Clicks have a small ripple.
-- Captions are large (38px at full HD), white on a dark pill, easy to read at a
+- Captions are huge (56px in the original 1280×800 layout, about twice the
+  former size in the finished film), white on a dark pill, easy to read at a
   glance, and have generous padding.
 - A caption never hides a useful control, result, source, or part of the
   story. Move the caption timing or simplify the step if it does.
 - The words are short, plain, and use client/household language. No em dashes.
 - The pace has no long frozen waits. Give people time to read and notice a
   result, but remove dead air.
-- Six extracted frames have been visually reviewed. They show a legible large
-  caption, visible cursor, crisp light interface, and meaningful moments from
-  across the whole video.
-- The file is web-reasonable. The MP4 uses H.264 with CRF 23, which balances
-  clean text with a modest size for a short help video.
+- Six extracted frames and zoomed crops of text/UI regions have been visually
+  reviewed. They show a legible huge caption, visible cursor, crisp light
+  interface, and meaningful moments from across the whole video.
+- The file is web-reasonable. The MP4 uses H.264 with CRF 18, which protects
+  clean text and fine UI lines in a short help video.
 
 ## Put an approved video on the private board
 
@@ -149,13 +176,15 @@ The private board already knows how to render a **Demo Videos** sub-tab. The
 steps below publish an approved MP4 there; do this only after the visual review
 above passes.
 
-1. Copy the finished MP4 into the board's public video folder. Keep its file
-   name simple and stable:
+1. Copy the finished MP4 into the board's public video folder. Every new video
+   version **must get a new filename** first (for example `-v2` or `-crisp`).
+   Cloudflare can keep an older media file at the edge, so never replace a
+   reviewed version under the same name:
 
    ```bash
    mkdir -p /home/jameson/board/public/demo-videos
-   cp scripts/demo-videos/output/ask-cited-answer.mp4 \
-     /home/jameson/board/public/demo-videos/ask-cited-answer.mp4
+   cp scripts/demo-videos/output/ask-cited-answer-crisp.mp4 \
+     /home/jameson/board/public/demo-videos/ask-cited-answer-crisp.mp4
    ```
 
 2. In `docs/board/board-data.json`, find the section whose `id` is `demo` and
@@ -165,7 +194,7 @@ above passes.
    ```json
    "videos": [
      {
-       "file": "ask-cited-answer.mp4",
+       "file": "ask-cited-answer-crisp.mp4",
        "title": "Ask a question, get a cited answer",
        "description": "Ask about one household, then open the exact sources behind the answer."
      }

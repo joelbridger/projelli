@@ -7,17 +7,18 @@
  * A "flow" is a small script under flows/<flow-name>.mjs that drives the real
  * app (the dev build) like a user would, using the DemoEngine API (smooth
  * cursor + captions). This runner:
- *   1. starts a headless Chromium recording the whole session to webm,
+ *   1. captures full-density Chromium frames for the whole session,
  *   2. injects the on-screen cursor/caption overlay,
  *   3. runs the flow,
- *   4. transcodes the raw webm to a clean MP4 + webm in output/.
+ *   4. transcodes the raw HiDPI frames to a clean MP4 + webm in output/.
  *
  * Prereq: the Vite dev server is running (npm run dev) at http://localhost:5173.
  *
  * Flags:
- *   --keep-raw     keep the raw Playwright webm alongside the outputs
+ *   --keep-raw     keep the raw full-density Playwright frames alongside the outputs
  *   --headed       run headed (watch it live; recording still works)
  *   --base <url>   override the dev server base URL
+ *   --output <id>  write a new output filename without changing the flow name
  */
 import { chromium } from 'playwright';
 import { spawnSync } from 'node:child_process';
@@ -30,6 +31,7 @@ const FLOWS_DIR = path.join(__dirname, 'flows');
 const OUTPUT_DIR = path.join(__dirname, 'output');
 const RAW_DIR = path.join(OUTPUT_DIR, '.raw');
 const OVERLAY = path.join(__dirname, 'engine', 'overlay.js');
+const RAW_FPS = 25;
 
 function arg(name, fallback) {
   const i = process.argv.indexOf(name);
@@ -54,6 +56,11 @@ const baseURL = arg(
   '--base',
   process.env.DEMO_BASE_URL || 'http://localhost:5173'
 );
+const outputName = arg('--output', flowName);
+if (!/^[a-z0-9][a-z0-9-]*$/.test(outputName)) {
+  console.error('✗ --output must use lowercase letters, numbers, and hyphens only.');
+  process.exit(1);
+}
 
 // Verify the dev server is up so failures are obvious, not mysterious.
 try {
@@ -82,23 +89,30 @@ if (typeof run !== 'function') {
   process.exit(1);
 }
 
-// Every published demo uses the same full-HD canvas. Keeping this in the
-// runner (rather than trusting each flow) prevents a new flow from quietly
-// producing an old, soft 1280px recording.
-const viewport = { width: 1920, height: 1080 };
+// Keep the original, comfortable app layout. Quality comes from twice the
+// device pixels, never from making the browser viewport bigger (which makes
+// every app control look smaller in the finished film).
+const viewport = { width: 1280, height: 800 };
+const deviceScaleFactor = 2;
+const captureSize = {
+  width: viewport.width * deviceScaleFactor,
+  height: viewport.height * deviceScaleFactor,
+};
+// 16:10 at a 1080px height preserves the original layout's aspect ratio.
+const outputSize = { width: 1728, height: 1080 };
 if (
   meta.viewport &&
   (meta.viewport.width !== viewport.width ||
     meta.viewport.height !== viewport.height)
 ) {
   console.warn(
-    `  ! Ignoring ${flowName}'s viewport metadata; demos are always ${viewport.width}x${viewport.height}.`
+    `  ! Ignoring ${flowName}'s viewport metadata; demos always use the original ${viewport.width}x${viewport.height} layout.`
   );
 }
 fs.mkdirSync(RAW_DIR, { recursive: true });
 
 console.log(
-  `\n▶ Recording flow "${flowName}"  (${viewport.width}x${viewport.height})`
+  `\n▶ Recording flow "${flowName}"  (${viewport.width}x${viewport.height} layout at ${captureSize.width}x${captureSize.height} pixels)`
 );
 const t0 = Date.now();
 
@@ -109,8 +123,7 @@ const { DemoEngine } = await import(
 const browser = await chromium.launch({ headless: !hasFlag('--headed') });
 const context = await browser.newContext({
   viewport,
-  deviceScaleFactor: 2,
-  recordVideo: { dir: RAW_DIR, size: viewport },
+  deviceScaleFactor,
 });
 const page = await context.newPage();
 // Fail stuck actions fast so a flaky target never freezes the recording for
@@ -124,6 +137,52 @@ page.on('console', (m) => {
 // Inject the on-screen cursor + caption overlay on every navigation.
 await page.addInitScript({ path: OVERLAY });
 
+// Playwright's built-in video recorder paints a CSS-pixel viewport into a
+// larger canvas on Chromium. That creates a technically big video with a
+// visibly shrunken app. Direct Playwright screenshots honor deviceScaleFactor,
+// so these are genuine 2560x1600 HiDPI frames of the 1280x800 layout.
+function startFullDensityCapture() {
+  const framesDir = fs.mkdtempSync(path.join(RAW_DIR, `${outputName}-`));
+  const frames = [];
+  let active = true;
+  let frameNumber = 0;
+  const intervalMs = 1000 / RAW_FPS;
+
+  const task = (async () => {
+    let nextFrameAt = performance.now();
+    while (active) {
+      const file = path.join(
+        framesDir,
+        `frame-${String(frameNumber++).padStart(6, '0')}.png`
+      );
+      try {
+        await page.screenshot({ path: file, type: 'png' });
+        frames.push({ file, capturedAt: performance.now() });
+      } catch (error) {
+        // Chromium can reject one screenshot while a just-created page is
+        // loading fonts. A missed frame is preferable to abandoning a take.
+        if (!active) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        continue;
+      }
+      nextFrameAt += intervalMs;
+      const waitMs = nextFrameAt - performance.now();
+      if (waitMs > 0)
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+    }
+  })();
+
+  return {
+    async stop() {
+      active = false;
+      await task;
+      return { frames, framesDir };
+    },
+  };
+}
+
+const capture = startFullDensityCapture();
+
 const engine = new DemoEngine(page, { baseURL });
 
 let failed = null;
@@ -136,28 +195,77 @@ try {
   console.error('  ✗ flow threw:', e.message);
 }
 
-const video = page.video();
-await context.close(); // finalizes the webm
+const captured = await capture.stop();
+await context.close();
 await browser.close();
 
-if (!video) {
-  console.error('✗ no video was captured.');
+if (captured.frames.length < 2) {
+  console.error('✗ not enough full-density frames were captured.');
   process.exit(1);
 }
-const rawPath = await video.path();
 if (failed) {
-  console.error(`  (raw partial recording kept at ${rawPath})`);
+  console.error(`  (raw partial frames kept at ${captured.framesDir})`);
   process.exit(1);
 }
 
 // ---- transcode: raw webm -> clean mp4 + webm -------------------------
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
-const mp4Out = path.join(OUTPUT_DIR, `${flowName}.mp4`);
-const webmOut = path.join(OUTPUT_DIR, `${flowName}.webm`);
-// Explicitly scale and set a broadly compatible pixel format on both output
-// formats. The Playwright capture is already 1920x1080; Lanczos keeps this
-// step crisp if an upstream browser ever gives us a slightly different size.
-const vf = `scale=${viewport.width}:${viewport.height}:flags=lanczos,fps=30,format=yuv420p`;
+const mp4Out = path.join(OUTPUT_DIR, `${outputName}.mp4`);
+const webmOut = path.join(OUTPUT_DIR, `${outputName}.webm`);
+
+function dimensionsOf(file) {
+  const r = spawnSync(
+    'ffprobe',
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=width,height',
+      '-of',
+      'csv=p=0',
+      file,
+    ],
+    { encoding: 'utf8' }
+  );
+  const [width, height] = (r.stdout || '').trim().split(',').map(Number);
+  return { width, height };
+}
+
+// Refuse to turn a capped Playwright recording into a misleading "crisp"
+// deliverable. The raw file must contain the actual 2x pixels first.
+const rawDimensions = dimensionsOf(captured.frames[0].file);
+if (
+  rawDimensions.width !== captureSize.width ||
+  rawDimensions.height !== captureSize.height
+) {
+  console.error(
+    `✗ Recorder produced ${rawDimensions.width}x${rawDimensions.height}, expected ${captureSize.width}x${captureSize.height}.`
+  );
+  console.error(`  Full-density frames were kept at ${captured.framesDir}.`);
+  process.exit(1);
+}
+
+const manifestPath = path.join(captured.framesDir, 'frames.ffconcat');
+const concatLines = ['ffconcat version 1.0'];
+for (let i = 0; i < captured.frames.length; i += 1) {
+  const frame = captured.frames[i];
+  const next = captured.frames[i + 1];
+  concatLines.push(`file '${frame.file.replace(/'/g, "'\\\\''")}'`);
+  concatLines.push(
+    `duration ${((next?.capturedAt - frame.capturedAt || 1000 / RAW_FPS) / 1000).toFixed(6)}`
+  );
+}
+// concat uses the duration of a frame only when the following frame exists.
+// Repeat the last image once so the final held frame reaches the output.
+concatLines.push(
+  `file '${captured.frames.at(-1).file.replace(/'/g, "'\\\\''")}'`
+);
+fs.writeFileSync(manifestPath, `${concatLines.join('\n')}\n`);
+
+// Downsample the genuine 2x capture once, using Lanczos, for crisp UI lines.
+const vf = `scale=${outputSize.width}:${outputSize.height}:flags=lanczos,fps=30,format=yuv420p`;
 
 function ffmpeg(args, label) {
   const r = spawnSync(
@@ -172,19 +280,22 @@ function ffmpeg(args, label) {
 }
 
 console.log('  transcoding…');
-// CRF 23 is the web-ready master: visibly clean at 1080p without making a
-// short help video unnecessarily heavy. faststart lets browsers begin playing
-// before they have downloaded the whole file.
+// CRF 18 protects small type and 1px UI borders. faststart lets browsers begin
+// playing before they have downloaded the whole file.
 ffmpeg(
   [
+    '-f',
+    'concat',
+    '-safe',
+    '0',
     '-i',
-    rawPath,
+    manifestPath,
     '-vf',
     vf,
     '-c:v',
     'libx264',
     '-crf',
-    '23',
+    '18',
     '-preset',
     'slow',
     '-movflags',
@@ -195,10 +306,14 @@ ffmpeg(
 );
 ffmpeg(
   [
+    '-f',
+    'concat',
+    '-safe',
+    '0',
     '-i',
-    rawPath,
+    manifestPath,
     '-vf',
-    `scale=${viewport.width}:${viewport.height}:flags=lanczos,fps=30`,
+    `scale=${outputSize.width}:${outputSize.height}:flags=lanczos,fps=30`,
     '-c:v',
     'libvpx-vp9',
     '-b:v',
@@ -212,7 +327,18 @@ ffmpeg(
   'webm'
 );
 
-if (!hasFlag('--keep-raw')) fs.rmSync(rawPath, { force: true });
+if (!hasFlag('--keep-raw')) fs.rmSync(captured.framesDir, { recursive: true, force: true });
+
+const mp4Dimensions = dimensionsOf(mp4Out);
+if (
+  mp4Dimensions.width !== outputSize.width ||
+  mp4Dimensions.height !== outputSize.height
+) {
+  console.error(
+    `✗ MP4 produced ${mp4Dimensions.width}x${mp4Dimensions.height}, expected ${outputSize.width}x${outputSize.height}.`
+  );
+  process.exit(1);
+}
 
 // Probe duration for the report.
 function durationOf(file) {
@@ -236,6 +362,6 @@ function durationOf(file) {
 const secs = ((Date.now() - t0) / 1000).toFixed(1);
 console.log(`\n✓ done in ${secs}s`);
 if (fs.existsSync(mp4Out))
-  console.log(`  MP4:  ${mp4Out}  (${durationOf(mp4Out)})`);
+  console.log(`  MP4:  ${mp4Out}  (${durationOf(mp4Out)}, ${mp4Dimensions.width}x${mp4Dimensions.height})`);
 if (fs.existsSync(webmOut)) console.log(`  WEBM: ${webmOut}`);
 console.log('');
