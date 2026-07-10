@@ -337,3 +337,96 @@ describe("advisor seat gate", () => {
     expect(invalid.status).toBe(401);
   });
 });
+
+/** Add a second advisor (own user + seat) to an existing org. */
+function addAdvisorToOrg(store: Store, org: ReturnType<typeof seedAdvisor>["org"]) {
+  const user = store.createUser({
+    org_id: org.org_id,
+    email: `coworker-${crypto.randomUUID()}@acme.test`,
+    password_hash: "x",
+    role: "member",
+  });
+  const seat = store.activateSeat({
+    org_id: org.org_id,
+    user_id: user.user_id,
+    machine_id: `machine-${crypto.randomUUID()}`,
+    machine_label: "Coworker machine",
+    seat_limit: org.seat_limit,
+  });
+  if (!seat.ok) throw new Error("fixture coworker seat activation failed");
+  return { user, seat: seat.seat, seatToken: mintSeatToken(org, user, seat.seat).token };
+}
+
+describe("intake owner-scoping and abuse limits", () => {
+  test("a same-org coworker cannot inbox, ack, or revoke another advisor's intake", async () => {
+    const ctx = makeServer();
+    const owner = seedAdvisor(ctx.store);
+    const coworker = addAdvisorToOrg(ctx.store, owner.org);
+    const { intakeId } = await createIntake(ctx, owner.seatToken);
+
+    // Owner can act.
+    const ownerInbox = await advisorJson(ctx, `/intake/${intakeId}/inbox`, owner.seatToken, "GET");
+    expect(ownerInbox.status).toBe(200);
+
+    // Coworker (same org, different user) gets the same neutral 404 everywhere —
+    // no cross-advisor existence probe, and no ability to delete/revoke.
+    for (const [path, method] of [
+      [`/intake/${intakeId}/inbox`, "GET"],
+      [`/intake/${intakeId}/revoke`, "POST"],
+    ] as const) {
+      const res = await advisorJson(ctx, path, coworker.seatToken, method, method === "POST" ? {} : undefined);
+      expect(res.status).toBe(404);
+    }
+    const ack = await advisorJson(ctx, `/intake/${intakeId}/ack`, coworker.seatToken, "POST", { submission_ids: ["x"] });
+    expect(ack.status).toBe(404);
+
+    // The intake is untouched: still active for the owner.
+    const stillActive = await advisorJson(ctx, `/intake/${intakeId}/inbox`, owner.seatToken, "GET");
+    expect(stillActive.status).toBe(200);
+  });
+
+  test("chunks are rejected once a submission is finalized", async () => {
+    const ctx = makeServer();
+    const advisor = seedAdvisor(ctx.store);
+    const { intakeId, authToken } = await createIntake(ctx, advisor.seatToken);
+    const submissionId = `sub-${crypto.randomUUID()}`;
+
+    const chunk0 = await uploadChunk(ctx, intakeId, authToken, "item-1", submissionId, 0, new Uint8Array([9, 9, 9]));
+    expect(chunk0.status).toBe(201);
+    const finalize = await submitItem(ctx, intakeId, authToken, "item-1", submissionId);
+    expect(finalize.status).toBe(201);
+
+    // A late/malicious chunk for the finalized submission must be rejected so it
+    // cannot mutate the blob list behind the recorded chunk_count.
+    const late = await uploadChunk(ctx, intakeId, authToken, "item-1", submissionId, 1, new Uint8Array([7, 7, 7]));
+    expect(late.status).toBe(409);
+    expect(String(late.body.error)).toBe("submission_finalized");
+  });
+
+  test("finalization bytes are counted toward the intake quota (accounting exists)", () => {
+    const store = new Store(":memory:");
+    const advisor = seedAdvisor(store);
+    store.createIntake({
+      intake_id: "quota-intake",
+      org_id: advisor.org.org_id,
+      user_id: advisor.user.user_id,
+      seat_id: advisor.seat.seat_id,
+      token_hash: hmacHash("t"),
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+      checklist_ciphertext: new Uint8Array([1]),
+      state_ciphertext: new Uint8Array([2]),
+    });
+    expect(store.countIntakeSubmissions("quota-intake")).toBe(0);
+    const finalized = store.finalizeIntakeSubmission({
+      intake_id: "quota-intake",
+      item_id: "item-1",
+      submission_id: "s1",
+      manifest_ciphertext: new Uint8Array(200),
+      wrapped_content_key: new Uint8Array(80),
+    });
+    expect(finalized.ok).toBe(true);
+    expect(store.countIntakeSubmissions("quota-intake")).toBe(1);
+    // Stored bytes (manifest + wrapped key) are visible to the quota check.
+    expect(store.sumIntakeSubmissionStoredBytes("quota-intake")).toBe(280);
+  });
+});
