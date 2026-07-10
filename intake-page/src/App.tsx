@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
+import { classifyTier1 } from '@/platform/intake/documentDetectiveRules';
+import type { DocumentKind, Tier1Classification } from '@/platform/intake/documentDetectiveTypes';
 import type { DocUploadRequestItem, GuidedQuestionRequestItem, RequestItem, TypedFieldRequestItem } from '@/platform/intake/types';
 
 import { openPageJson, sealPageJson } from './pageCrypto';
@@ -34,6 +36,7 @@ const EMPTY_RESUME: ResumeState = {
 const DEFAULT_ACCENT = '#2f7d62';
 const DEFAULT_FIRM_NAME = 'Advisor Prep Hero';
 const PAGE_FILE_MAX_BYTES = 100 * 1024 * 1024;
+const TEXT_SAMPLE_MAX_BYTES = 64 * 1024;
 const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/iu;
 const SAFE_NAMED_COLORS = new Set([
   'black',
@@ -157,6 +160,40 @@ function getUploadRules(item: DocUploadRequestItem): { slotCount: number; requir
   const slotCount = Math.max(requiredSlots, requestedMaxFiles);
   const maxBytes = Math.min(item.max_bytes ?? PAGE_FILE_MAX_BYTES, PAGE_FILE_MAX_BYTES);
   return { slotCount, requiredSlots, maxBytes };
+}
+
+async function readTextSample(file: File): Promise<string> {
+  if (!file.type.startsWith('text/')) return '';
+  try {
+    return await file.slice(0, TEXT_SAMPLE_MAX_BYTES).text();
+  } catch {
+    return '';
+  }
+}
+
+function documentKindLabel(kind: DocumentKind): string {
+  const labels: Record<DocumentKind, string> = {
+    drivers_license: "a driver's license",
+    tax_return: 'a tax return',
+    pay_stub: 'a pay stub',
+    bank_statement: 'a bank statement',
+    brokerage_statement: 'a brokerage statement',
+    ira_statement: 'an IRA statement',
+    credit_card_statement: 'a credit card statement',
+    other_financial: 'a financial document',
+    unknown: 'a document',
+  };
+  return labels[kind];
+}
+
+function warningMessage(classification: Extract<Tier1Classification, { verdict: 'warn' }>): string {
+  if (classification.reason === 'wrong_side_of_license') {
+    return `This looks like the ${classification.side} of a driver's license, but this spot is for the ${classification.expected.side}.`;
+  }
+  if (classification.reason === 'duplicate_license_side') {
+    return `This looks like another ${classification.side} side of a driver's license.`;
+  }
+  return `This looks like ${documentKindLabel(classification.observed)}, but this request asks for ${documentKindLabel(classification.expected.kind)}.`;
 }
 
 function getIntakeIdFromPath(): string | null {
@@ -383,8 +420,20 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       };
 
       if (selectedFiles && selectedFiles.length > 1) {
-        for (const file of selectedFiles) {
-          await submitSinglePayload({ kind: 'files', files: [file] }, false);
+        const slotIndexes = payload.kind === 'files' ? payload.file_slot_indexes ?? [] : [];
+        for (const [fileIndex, file] of selectedFiles.entries()) {
+          const slotIndex = slotIndexes[fileIndex];
+          const documentDetective = payload.kind === 'files' && slotIndex !== undefined
+            ? payload.document_detective?.filter((entry) => entry.slot_index === slotIndex)
+            : undefined;
+          await submitSinglePayload(
+            {
+              kind: 'files',
+              files: [file],
+              ...(documentDetective?.length ? { document_detective: documentDetective } : {}),
+            },
+            false,
+          );
         }
       } else {
         await submitSinglePayload(payload, true);
@@ -717,10 +766,50 @@ function DocUploadScreen({
 }): JSX.Element {
   const rules = useMemo(() => getUploadRules(item), [item]);
   const [files, setFiles] = useState<Array<File | undefined>>(() => Array.from({ length: rules.slotCount }));
+  const [fileAnalyses, setFileAnalyses] = useState<Record<number, { file: File; textSample: string }>>({});
+  const [checkingSlots, setCheckingSlots] = useState<Record<number, true>>({});
+  const [keptAnyway, setKeptAnyway] = useState<Record<number, true>>({});
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
+  const fileGeneration = useRef<Record<number, number>>({});
   const selectedCount = files.filter(Boolean).length;
-  const disabled = busy || selectedCount < rules.requiredSlots || Boolean(fileError);
+  const classifications = useMemo(() => {
+    const baseClassifications = files.map((file, index) => {
+      const analysis = fileAnalyses[index];
+      if (!file || !analysis || analysis.file !== file) return undefined;
+      const slotRole = rules.requiredSlots === 2 && index < 2 ? (index === 0 ? 'front' : 'back') : 'file';
+      return classifyTier1({
+        item,
+        slotIndex: index,
+        slotRole,
+        file: { name: file.name, mimeType: file.type, byteSize: file.size, textSample: analysis.textSample },
+      });
+    });
+
+    return Object.fromEntries(
+      baseClassifications.flatMap((classification, index) => {
+        const file = files[index];
+        const analysis = fileAnalyses[index];
+        if (!classification || !file || !analysis || analysis.file !== file) return [];
+        const siblingIndex = rules.requiredSlots === 2 ? (index === 0 ? 1 : 0) : -1;
+        const sibling = baseClassifications[siblingIndex];
+        const siblingLicenseSide = index > siblingIndex && sibling && sibling.verdict !== 'unknown' ? sibling.side : undefined;
+        const slotRole = rules.requiredSlots === 2 && index < 2 ? (index === 0 ? 'front' : 'back') : 'file';
+        return [[
+          index,
+          classifyTier1({
+            item,
+            slotIndex: index,
+            slotRole,
+            file: { name: file.name, mimeType: file.type, byteSize: file.size, textSample: analysis.textSample },
+            ...(siblingLicenseSide ? { siblingLicenseSide } : {}),
+          }),
+        ]];
+      }),
+    ) as Record<number, Tier1Classification>;
+  }, [fileAnalyses, files, item, rules.requiredSlots]);
+  const hasInFlightCheck = files.some((file, index) => Boolean(file && checkingSlots[index]));
+  const disabled = busy || selectedCount < rules.requiredSlots || Boolean(fileError) || hasInFlightCheck;
 
   useEffect(() => {
     let cancelled = false;
@@ -739,12 +828,35 @@ function DocUploadScreen({
     };
   }, [item.item_id, pendingUpload, relay]);
 
-  function updateFile(index: number, fileList: FileList | null): void {
+  async function updateFile(index: number, fileList: FileList | null): Promise<void> {
     const file = fileList?.[0];
+    const generation = (fileGeneration.current[index] ?? 0) + 1;
+    fileGeneration.current[index] = generation;
+    setFileAnalyses((existing) => {
+      const next = { ...existing };
+      delete next[index];
+      return next;
+    });
+    setCheckingSlots((existing) => {
+      const next = { ...existing };
+      if (file) next[index] = true;
+      else delete next[index];
+      return next;
+    });
     if (file && file.size > rules.maxBytes) {
       setFiles((existing) => {
         const next = [...existing];
         next[index] = undefined;
+        return next;
+      });
+      setCheckingSlots((existing) => {
+        const next = { ...existing };
+        delete next[index];
+        return next;
+      });
+      setKeptAnyway((existing) => {
+        const next = { ...existing };
+        delete next[index];
         return next;
       });
       setFileError(`This file is too large. Choose a file under ${formatByteLimit(rules.maxBytes)}.`);
@@ -756,10 +868,85 @@ function DocUploadScreen({
       next[index] = file;
       return next;
     });
+    setKeptAnyway((existing) => {
+      const next = { ...existing };
+      delete next[index];
+      return next;
+    });
+    if (!file) {
+      return;
+    }
+
+    try {
+      const textSample = await readTextSample(file);
+      if (fileGeneration.current[index] !== generation) return;
+      setFileAnalyses((existing) => ({ ...existing, [index]: { file, textSample } }));
+    } finally {
+      if (fileGeneration.current[index] === generation) {
+        setCheckingSlots((existing) => {
+          const next = { ...existing };
+          delete next[index];
+          return next;
+        });
+      }
+    }
   }
 
-  function submit(): void {
-    onSubmit({ kind: 'files', files: files.filter((file): file is File => Boolean(file)) });
+  function clearFile(index: number): void {
+    fileGeneration.current[index] = (fileGeneration.current[index] ?? 0) + 1;
+    setFiles((existing) => {
+      const next = [...existing];
+      next[index] = undefined;
+      return next;
+    });
+    setFileAnalyses((existing) => {
+      const next = { ...existing };
+      delete next[index];
+      return next;
+    });
+    setCheckingSlots((existing) => {
+      const next = { ...existing };
+      delete next[index];
+      return next;
+    });
+    setKeptAnyway((existing) => {
+      const next = { ...existing };
+      delete next[index];
+      return next;
+    });
+  }
+
+  function submit(acknowledgedWarnings: Record<number, true> = keptAnyway): void {
+    if (disabled) return;
+    const hasUnacknowledgedWarning = Object.entries(classifications).some(
+      ([index, classification]) => classification.verdict === 'warn' && !acknowledgedWarnings[Number(index)],
+    );
+    if (hasUnacknowledgedWarning) return;
+    const documentDetective = Object.entries(classifications).flatMap(([slotIndex, classification]) => {
+      if (classification.verdict !== 'warn') return [];
+      return [{
+        tier: 'tier1' as const,
+        slot_index: Number(slotIndex),
+        warning_reason: classification.reason,
+        expected: classification.reason === 'wrong_side_of_license' ? classification.expected.side : classification.expected.kind,
+        observed: classification.observed,
+        ...(classification.side ? { side: classification.side } : {}),
+        kept_anyway: Boolean(acknowledgedWarnings[Number(slotIndex)]),
+      }];
+    });
+    const selectedSlots = files.flatMap((file, index) => (file ? [{ file, index }] : []));
+    onSubmit({
+      kind: 'files',
+      files: selectedSlots.map(({ file }) => file),
+      file_slot_indexes: selectedSlots.map(({ index }) => index),
+      ...(documentDetective.length ? { document_detective: documentDetective } : {}),
+    });
+  }
+
+  function keepFileAnyway(index: number): void {
+    const acknowledgedWarnings = { ...keptAnyway, [index]: true } as Record<number, true>;
+    setKeptAnyway(acknowledgedWarnings);
+    submit(acknowledgedWarnings);
   }
 
   return (
@@ -790,6 +977,8 @@ function DocUploadScreen({
           const captureId = `${item.item_id}-${slotName}-capture`;
           const fileId = `${item.item_id}-${slotName}-file`;
           const ariaName = isLicenseSide ? `License ${slotName} photo` : `${item.label} ${slotName}`;
+          const classification = classifications[index];
+          const warning = classification?.verdict === 'warn' ? classification : undefined;
           return (
             <div className="upload-slot" key={slotName}>
               <p>{isLicenseSide ? `${slotName[0].toUpperCase()}${slotName.slice(1)} side` : item.label}</p>
@@ -800,7 +989,7 @@ function DocUploadScreen({
                 type="file"
                 accept={(item.accepted_mime_types ?? ['image/*']).join(',')}
                 capture="environment"
-                onChange={(event) => updateFile(index, event.target.files)}
+                onChange={(event) => void updateFile(index, event.target.files)}
               />
               <input
                 id={fileId}
@@ -808,7 +997,7 @@ function DocUploadScreen({
                 aria-label={`Choose ${slotName} file`}
                 type="file"
                 accept={(item.accepted_mime_types ?? ['image/*']).join(',')}
-                onChange={(event) => updateFile(index, event.target.files)}
+                onChange={(event) => void updateFile(index, event.target.files)}
               />
               <div className="button-row">
                 <label className="primary-button file-button" htmlFor={captureId}>
@@ -821,6 +1010,25 @@ function DocUploadScreen({
               <p className="ready-line">
                 {files[index] ? `${slotName} ready` : index < rules.requiredSlots ? `${slotName} needed` : `${slotName} optional`}
               </p>
+              {files[index] && checkingSlots[index] ? <p className="format-help">Checking your file...</p> : null}
+              {warning && !keptAnyway[index] ? (
+                <div className="document-warning" role="alert">
+                  <p>{warningMessage(warning)}</p>
+                  <div className="button-row">
+                    <button className="secondary-button" type="button" onClick={() => clearFile(index)}>
+                      Choose a different file
+                    </button>
+                    <button
+                      className="primary-button"
+                      type="button"
+                      onClick={() => keepFileAnyway(index)}
+                    >
+                      Keep this file anyway
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+              {warning && keptAnyway[index] ? <p className="kept-anyway">You chose to keep this file.</p> : null}
             </div>
           );
         })}

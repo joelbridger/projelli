@@ -315,6 +315,36 @@ describe('intake crypto tamper checks', () => {
     }
   });
 
+  it('accepts bounded document detective records and rejects hostile ones', async () => {
+    const contentKey = await importContentKey(await generateContentKey());
+    const ids = { intakeId: 'intake-1', itemId: 'item-1', submissionId: 'sub-1' };
+    const valid: SealedManifest = {
+      submission_id: 'sub-1',
+      item_id: 'item-1',
+      content_type: 'application/json',
+      file_names: [],
+      chunk_hashes: [],
+      chunk_count: 0,
+      document_detective: [{
+        tier: 'tier1',
+        slot_index: 0,
+        warning_reason: 'wrong_doc',
+        expected: 'drivers_license',
+        observed: 'tax_return',
+        kept_anyway: true,
+      }],
+    };
+    const sealedValid = await sealManifest(contentKey, valid, ids);
+    await expect(openManifest(contentKey, sealedValid, ids)).resolves.toMatchObject({ ok: true });
+
+    const hostile = {
+      ...valid,
+      document_detective: [{ ...valid.document_detective?.[0], slot_index: Number.POSITIVE_INFINITY }],
+    } as SealedManifest;
+    const sealedHostile = await sealManifest(contentKey, hostile, ids);
+    await expect(openManifest(contentKey, sealedHostile, ids)).resolves.toEqual({ ok: false, reason: 'malformed' });
+  });
+
   it('rejects a sealed manifest whose declared ids disagree with the envelope ids', async () => {
     const contentKey = await importContentKey(await generateContentKey());
     const sealIds = { intakeId: 'intake-1', itemId: 'item-1', submissionId: 'sub-1' };

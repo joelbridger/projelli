@@ -1,3 +1,13 @@
+export interface DocumentDetectiveManifestEntry {
+  tier: 'tier1';
+  slot_index: number;
+  warning_reason?: 'wrong_doc' | 'wrong_side_of_license' | 'duplicate_license_side' | 'unsupported_or_unreadable';
+  expected?: 'drivers_license' | 'tax_return' | 'pay_stub' | 'bank_statement' | 'brokerage_statement' | 'ira_statement' | 'credit_card_statement' | 'other_financial' | 'unknown' | 'front' | 'back';
+  observed?: 'drivers_license' | 'tax_return' | 'pay_stub' | 'bank_statement' | 'brokerage_statement' | 'ira_statement' | 'credit_card_statement' | 'other_financial' | 'unknown';
+  side?: 'front' | 'back' | 'unknown';
+  kept_anyway: boolean;
+}
+
 export interface SealedManifest {
   submission_id: string;
   item_id: string;
@@ -5,6 +15,7 @@ export interface SealedManifest {
   file_names: string[];
   chunk_hashes: string[];
   chunk_count: number;
+  document_detective?: DocumentDetectiveManifestEntry[];
 }
 
 export interface SubmissionEnvelope {
