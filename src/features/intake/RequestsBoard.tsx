@@ -72,9 +72,8 @@ export function RequestsBoard({
     const all = Object.values(intakesById)
       .filter((intake) => intake.status === 'active')
       .map((intake) => deriveRequestRow(intake, effectiveNow, DEFAULT_ONBOARDING_CONFIG));
-    // Lane 1's established sorter contains the visual priority contract. The
-    // row shape is identical; only the narrowed onboarding type differs.
-    return sortOnboardingRows(all as OnboardingRow[]);
+    // Lane 1's established sorter contains the visual priority contract.
+    return sortOnboardingRows(all);
   }, [intakesById, now]);
 
   const visibleRows = useMemo(
@@ -83,7 +82,7 @@ export function RequestsBoard({
   );
 
   const onboardingRows = useMemo(
-    () => rows.filter((row) => row.kind === 'onboarding') as OnboardingRow[],
+    () => rows.filter((row): row is OnboardingRow => row.kind === 'onboarding'),
     [rows],
   );
   const kpis = useMemo(
@@ -152,27 +151,32 @@ export function RequestsBoard({
         <OnboardingBoardEmptyState onNewClient={handleNewClient} />
       ) : (
         <div>
-          {visibleRows.map((row) => (
+          {visibleRows.map((row) => {
+            const isOnboarding = row.kind === 'onboarding';
+            const boardRow = row as OnboardingRow;
+            return (
             <div key={row.requestId} data-testid={`requests-board-row-${row.requestId}`}>
               {activeFilter === 'all' ? (
                 <div style={{ padding: '8px 18px 0', color: 'var(--color-muted-foreground)', fontSize: 12, fontWeight: 700 }}>
-                  {row.kind === 'onboarding' ? 'Onboarding' : (intakesById[row.requestId]?.requestTitle ?? 'Client request')}
+                  {isOnboarding ? 'Onboarding' : (intakesById[row.requestId]?.requestTitle ?? 'Client request')}
                 </div>
               ) : null}
               <OnboardingBoardRow
-                row={row as OnboardingRow}
-                onOpen={openRow as (row: OnboardingRow) => void}
-                onReviewItems={reviewRow as (row: OnboardingRow) => void}
-                onCopyLink={copyLink as (row: OnboardingRow) => Promise<void>}
+                row={boardRow}
+                hideNudgeAction={!isOnboarding}
+                onOpen={openRow}
+                onReviewItems={reviewRow}
+                onCopyLink={copyLink}
                 canCopyLink={Boolean(onCopyLink || intakesById[row.requestId]?.link || intakesById[row.requestId]?.publicKeyRawB64)}
-                {...(onOpenNudge ? { onOpenNudge: onOpenNudge as (row: OnboardingRow) => void } : {})}
-                {...(onOpenLinkSignals ? { onOpenLinkSignals: onOpenLinkSignals as (row: OnboardingRow) => void } : {})}
-                {...(renderNudgeSlot ? { renderNudgeSlot: renderNudgeSlot as (row: OnboardingRow) => ReactNode } : {})}
-                {...(renderLinkSignals ? { renderLinkSignals: renderLinkSignals as (row: OnboardingRow) => ReactNode } : {})}
-                {...(renderEmailReplySignals ? { renderEmailReplySignals: renderEmailReplySignals as (row: OnboardingRow) => ReactNode } : {})}
+                {...(isOnboarding && onOpenNudge ? { onOpenNudge } : {})}
+                {...(onOpenLinkSignals ? { onOpenLinkSignals } : {})}
+                {...(renderNudgeSlot ? { renderNudgeSlot } : {})}
+                {...(renderLinkSignals ? { renderLinkSignals } : {})}
+                {...(renderEmailReplySignals ? { renderEmailReplySignals } : {})}
               />
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

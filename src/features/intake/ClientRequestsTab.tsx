@@ -10,6 +10,9 @@ import { listEmailQuarantines } from '@/platform/intake/emailQuarantineStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { RequestFromClientIssuer } from './RequestFromClientDialog';
 import { RequestFromClientDialog } from './RequestFromClientDialog';
+import { EmailReplyProposalCard } from './EmailReplyProposalCard';
+import { EmailReplyQuarantinePanel } from './EmailReplyQuarantinePanel';
+import { DocumentExtractionReviewPanel } from './DocumentExtractionReviewPanel';
 import { OnboardingTab } from './OnboardingTab';
 
 export interface ClientRequestsTabProps {
@@ -32,6 +35,9 @@ function requestTitle(intake: IntakeRecord): string {
   return intake.requestTitle ?? (intake.kind === 'standing' ? 'Client request' : 'Onboarding');
 }
 
+const REQUEST_FROM_CLIENT_LABEL = 'Request from client';
+const EMPTY_REQUESTS_MESSAGE = 'No requests yet. Start one when you need something from this client.';
+
 export function ClientRequestsTab({
   matterId,
   clientName,
@@ -49,12 +55,13 @@ export function ClientRequestsTab({
 }: ClientRequestsTabProps) {
   const intakesById = useIntakeStore((state) => state.intakesById);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(activeRequestId ?? null);
+  const [locallySelectedRequestId, setLocallySelectedRequestId] = useState<string | null>(activeRequestId ?? null);
   const [replyCounts, setReplyCounts] = useState<Record<string, number>>({});
   const [quarantineCounts, setQuarantineCounts] = useState<Record<string, number>>({});
+  const [factsRefreshVersion, setFactsRefreshVersion] = useState(0);
 
   const requests = useMemo(() => {
-    const all = useIntakeStore.getState().getIntakesForMatter(matterId);
+    const all = Object.values(intakesById).filter((intake) => intake.matterId === matterId);
     return [...all].sort((a, b) => {
       const aOnboarding = (a.kind ?? 'onboarding') === 'onboarding' && a.status === 'active';
       const bOnboarding = (b.kind ?? 'onboarding') === 'onboarding' && b.status === 'active';
@@ -63,10 +70,12 @@ export function ClientRequestsTab({
     });
   }, [intakesById, matterId]);
 
+  const selectedRequestId = activeRequestId && intakesById[activeRequestId]
+    ? activeRequestId
+    : locallySelectedRequestId;
+
   useEffect(() => {
-    if (!activeRequestId || !intakesById[activeRequestId]) return;
-    setSelectedRequestId(activeRequestId);
-    onActiveRequestConsumed?.();
+    if (activeRequestId && intakesById[activeRequestId]) onActiveRequestConsumed?.();
   }, [activeRequestId, intakesById, onActiveRequestConsumed]);
 
   useEffect(() => {
@@ -96,18 +105,33 @@ export function ClientRequestsTab({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginBottom: 18 }}>
         <div>
           <h2 style={{ margin: 0, color: 'var(--kp-navy)', fontSize: 20, fontWeight: 800 }}>Requests</h2>
+          {/* eslint-disable-next-line lantern-i18n/no-hardcoded-string -- Requests copy ships with the lane. */}
           <p style={{ margin: '4px 0 0', color: 'var(--color-muted-foreground)', fontSize: 13 }}>Every open request for this client stays separate.</p>
         </div>
         <Button type="button" onClick={() => { setDialogOpen(true); }}>
           <Plus className="mr-2 h-4 w-4" aria-hidden />
-          Request from client
+          {REQUEST_FROM_CLIENT_LABEL}
         </Button>
+      </div>
+
+      <div style={{ display: 'grid', gap: 8, marginBottom: 18 }}>
+        <EmailReplyProposalCard
+          matterId={matterId}
+          advisorId={advisorId}
+          onAccepted={() => { setFactsRefreshVersion((current) => current + 1); }}
+        />
+        <EmailReplyQuarantinePanel matterId={matterId} advisorId={advisorId} />
+        <DocumentExtractionReviewPanel
+          matterId={matterId}
+          advisorId={advisorId}
+          onAccepted={() => { setFactsRefreshVersion((current) => current + 1); }}
+        />
       </div>
 
       {requests.length === 0 ? (
         <section data-testid="client-requests-empty" style={{ border: '1px dashed var(--kp-divider)', borderRadius: 8, padding: 24, color: 'var(--color-muted-foreground)' }}>
           <ClipboardList className="mb-2 h-5 w-5" aria-hidden />
-          No requests yet. Start one when you need something from this client.
+          {EMPTY_REQUESTS_MESSAGE}
         </section>
       ) : (
         <div style={{ display: 'grid', gap: 18 }}>
@@ -116,18 +140,20 @@ export function ClientRequestsTab({
             const selected = selectedRequestId === intake.intakeId;
             return (
               <section key={intake.intakeId} data-testid={`client-request-${intake.intakeId}`} data-selected={selected ? 'true' : 'false'} style={{ border: selected ? '2px solid var(--kp-accent)' : '1px solid var(--kp-divider)', borderRadius: 10, overflow: 'hidden' }}>
-                <button type="button" onClick={() => { setSelectedRequestId(intake.intakeId); }} style={{ width: '100%', textAlign: 'left', border: 0, borderBottom: '1px solid var(--kp-divider)', background: 'var(--kp-surface-card)', padding: '12px 16px', cursor: 'pointer' }}>
+                <button type="button" onClick={() => { setLocallySelectedRequestId(intake.intakeId); }} style={{ width: '100%', textAlign: 'left', border: 0, borderBottom: '1px solid var(--kp-divider)', background: 'var(--kp-surface-card)', padding: '12px 16px', cursor: 'pointer' }}>
                   <strong style={{ color: 'var(--kp-navy)' }}>{requestTitle(intake)}</strong>
                   <span style={{ marginLeft: 8, color: 'var(--color-muted-foreground)', fontSize: 12 }}>{row.kind === 'onboarding' ? 'Onboarding' : 'Standing request'} · {row.receivedCount}/{row.requiredCount} received</span>
                   <span data-testid={`request-nudge-state-${intake.intakeId}`} style={{ display: 'block', marginTop: 4, color: 'var(--color-muted-foreground)', fontSize: 12 }}>Nudge: {row.nudgeEligibility.reason.replaceAll('_', ' ')}</span>
                   {(replyCounts[intake.intakeId] ?? 0) + (quarantineCounts[intake.intakeId] ?? 0) > 0 ? <span data-testid={`request-email-signals-${intake.intakeId}`} style={{ display: 'block', marginTop: 4, color: 'var(--kp-warning)', fontSize: 12 }}>{replyCounts[intake.intakeId] ?? 0} reply items · {quarantineCounts[intake.intakeId] ?? 0} quarantined</span> : null}
                 </button>
                 <OnboardingTab
+                  key={`${intake.intakeId}-${String(factsRefreshVersion)}`}
                   matterId={matterId}
                   intake={intake}
                   title={requestTitle(intake)}
                   testId={`client-request-detail-${intake.intakeId}`}
                   showMatterSignals={false}
+                  factsRefreshVersion={factsRefreshVersion}
                   advisorId={advisorId}
                   {...(onExtend ? { onExtend } : {})}
                   {...(onRevoke ? { onRevoke } : {})}

@@ -28,8 +28,10 @@ export interface OnboardingTabProps {
   /** The generalized Requests tab supplies each request's local display title. */
   title?: string;
   testId?: string;
-  /** Matter-wide inbox panels are rendered once by the Requests tab, per request. */
+  /** Matter-wide inbox panels are rendered once by the Requests tab, per matter. */
   showMatterSignals?: boolean;
+  /** Lets the Requests tab refresh every request card after a matter-wide acceptance. */
+  factsRefreshVersion?: number;
   advisorId?: string;
   onExtend?: (intakeId: string) => Promise<void> | void;
   onRevoke?: (intakeId: string) => Promise<void> | void;
@@ -136,6 +138,7 @@ export function OnboardingTab({
   title,
   testId = 'onboarding-tab',
   showMatterSignals = true,
+  factsRefreshVersion = 0,
   advisorId = 'advisor',
   onExtend,
   onRevoke,
@@ -167,7 +170,7 @@ export function OnboardingTab({
     return () => {
       cancelled = true;
     };
-  }, [matterId, intake?.receivedItems.length]);
+  }, [factsRefreshVersion, matterId, intake?.receivedItems.length]);
 
   const completedCount = useMemo(
     () =>

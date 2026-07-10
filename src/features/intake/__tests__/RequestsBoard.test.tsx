@@ -68,4 +68,18 @@ describe('RequestsBoard', () => {
     expect(useMatterStore.getState().clientMapHubRequestId).toBe('standing-1');
     window.removeEventListener(EV_MATTER_LAUNCH, listener);
   });
+
+  it('does not offer a nudge for standing requests while onboarding nudges still work', () => {
+    const onOpenNudge = vi.fn();
+    const store = useIntakeStore.getState();
+    store.upsertIntake(intake({ intakeId: 'standing-stalled', kind: 'standing', requestTitle: 'Tax return', lastClientActivityAt: '2026-07-01T00:00:00.000Z' }));
+    store.upsertIntake(intake({ intakeId: 'onboarding-stalled', kind: 'onboarding', lastClientActivityAt: '2026-07-01T00:00:00.000Z' }));
+
+    render(<RequestsBoard now={now} onOpenNudge={onOpenNudge} />);
+    fireEvent.click(screen.getByTestId('requests-filter-all'));
+
+    expect(screen.queryByTestId('onboarding-row-nudge-standing-stalled')).toBeNull();
+    fireEvent.click(screen.getByTestId('onboarding-row-nudge-onboarding-stalled'));
+    expect(onOpenNudge).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'onboarding-stalled', kind: 'onboarding' }));
+  });
 });

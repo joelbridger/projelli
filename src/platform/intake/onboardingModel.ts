@@ -316,7 +316,7 @@ export function deriveOnboardingRow(
   return { ...row, kind: 'onboarding' };
 }
 
-export function sortOnboardingRows(rows: OnboardingRow[]): OnboardingRow[] {
+export function sortOnboardingRows<T extends RequestRow>(rows: T[]): T[] {
   return [...rows].sort((a, b) => {
     const bucket = a.sortBucket - b.sortBucket;
     if (bucket !== 0) return bucket;
