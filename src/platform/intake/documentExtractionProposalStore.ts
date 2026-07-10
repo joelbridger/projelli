@@ -84,6 +84,7 @@ export function documentExtractionStableKey(input: {
 }
 
 export function isDocumentExtractionProposalItemSelectable(item: DocumentExtractionProposalItem): boolean {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard on renderer-supplied data; the narrow type is not a runtime guarantee.
   return Boolean(item.value) && (item.kind === 'income_annual' || item.kind === 'spending_monthly');
 }
 
@@ -125,6 +126,7 @@ export async function documentExtractionProposalGetForAccept(proposalId: string,
 }
 
 function documentExtractionMoney(row: DocumentExtractionProposalItem): Extract<FactValue, { t: 'money' }> {
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- runtime guard on renderer-supplied data; the narrow type is not a runtime guarantee.
   if (row.kind !== 'income_annual' && row.kind !== 'spending_monthly') throw new Error('Document extraction fact kind is outside the allowed contract.');
   if (!row.value || row.value.t !== 'money' || !Number.isFinite(row.value.v.amount) || row.value.v.amount < 0 || !/^[A-Z]{3}$/u.test(row.value.v.currency)) throw new Error('Document extraction value is outside the allowed contract.');
   return row.value;
@@ -141,7 +143,7 @@ export async function documentExtractionProposalAcceptRow(input: DocumentExtract
   const money = documentExtractionMoney(row);
   const active = (await intakeFactList(proposal.matterId)).find((fact) => fact.subject === 'primary' && fact.kind === row.kind && fact.status === 'active');
   if ((active?.fact_id ?? null) !== input.expectedActiveFactId) throw new Error('The active fact changed while this review was open. Reopen the review before approving this row.');
-  const fact = await intakeFactUpsert({ matter_id: proposal.matterId, subject: 'primary', kind: row.kind, value: { t: 'money', v: { amount: input.amount, currency: money.v.currency } }, sensitivity: 'confidential', provenance: { channel: 'doc_extraction', source_ref: `document:v1:${proposal.sourcePath}:${row.source.page ?? 1}`, entered_by: input.advisorId, confirmed_by: input.advisorId, at: nowIso() }, verification: 'document_verified' });
+  const fact = await intakeFactUpsert({ matter_id: proposal.matterId, subject: 'primary', kind: row.kind, value: { t: 'money', v: { amount: input.amount, currency: money.v.currency } }, sensitivity: 'confidential', provenance: { channel: 'doc_extraction', source_ref: `document:v1:${proposal.sourcePath}:${String(row.source.page ?? 1)}`, entered_by: input.advisorId, confirmed_by: input.advisorId, at: nowIso() }, verification: 'document_verified' });
   const updated = await documentExtractionProposalMarkRowCompleted({ proposalId: proposal.proposalId, completion: { rowId: row.id, factId: fact.fact_id } });
   return { fact, proposal: updated };
 }
