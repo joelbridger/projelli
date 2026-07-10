@@ -74,7 +74,7 @@ describe('en.json structure snapshot', () => {
         "research": 11,
         "scheduling": 56,
         "search": 6,
-        "settings": 222,
+        "settings": 226,
         "shortcuts-overlay": 2,
         "spine": 10,
         "tab-guard": 3,
