@@ -24,7 +24,9 @@ function text(value: string): string {
 }
 
 describe('intake team-key grants', () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+  });
 
   it('round-trips an intake private JWK through a device grant and decrypts a real intake content key', async () => {
     const device = await getOrCreateDeviceKeypair();
