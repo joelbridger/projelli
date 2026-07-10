@@ -5,6 +5,7 @@ import {
 } from '@/platform/utils/mail-commands';
 import type { BuiltNudgeDraft } from './nudgeDraft';
 import {
+  assertNudgeDraftHasLink,
   enforceNudgeBodyInvariants,
   nudgeBodyToHtml,
 } from './nudgeDraft';
@@ -65,6 +66,7 @@ export async function saveNudgeDraftToMailbox(input: SaveNudgeDraftInput): Promi
   auditPairId: string;
   draftId: string;
 }> {
+  assertNudgeDraftHasLink(input.draft);
   const pairId = auditPairId();
   const at = (input.now ?? new Date()).toISOString();
   const bodyText = enforceNudgeBodyInvariants(input.bodyText, input.draft);

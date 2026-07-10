@@ -1,6 +1,7 @@
 import type { OnboardingRow } from './onboardingModel';
 import type { IntakeRecord } from './intakeStore';
 import type { OnboardingConfig } from './nudgeTypes';
+import { reconstructAdvisorIntakeLink } from './advisorIntakeLink';
 
 export interface NudgeDraftConfig extends OnboardingConfig {
   now?: Date;
@@ -24,8 +25,15 @@ export interface BuiltNudgeDraft {
 
 type TemplateKind = 'gentle' | 'helpful' | 'call';
 
+export const NUDGE_LINK_UNAVAILABLE_ERROR =
+  'Regenerate the onboarding link before saving a nudge. The app could not rebuild a working client link.';
+
 function cleanLine(value: string | undefined, fallback = ''): string {
   return (value ?? fallback).replace(/\s+/g, ' ').trim();
+}
+
+function nudgeLinkUnavailableError(): Error {
+  return new Error(NUDGE_LINK_UNAVAILABLE_ERROR);
 }
 
 function missingList(labels: string[]): string {
@@ -169,6 +177,46 @@ export function missingItemIdsMatch(a: string[], b: string[]): boolean {
   return sortedA.every((value, index) => value === sortedB[index]);
 }
 
+export function assertNudgeDraftHasLink(draft: Pick<BuiltNudgeDraft, 'intakeLink'>): void {
+  if (!cleanLine(draft.intakeLink, '')) throw nudgeLinkUnavailableError();
+}
+
+export async function resolveNudgeDraftIntakeLink(
+  intake: Pick<IntakeRecord, 'intakeId' | 'link' | 'publicKeyRawB64'>,
+  cfg: Pick<NudgeDraftConfig, 'intakeLink'> = {},
+): Promise<string> {
+  const existingLink = cleanLine(cfg.intakeLink ?? intake.link, '');
+  if (existingLink) return existingLink;
+
+  const publicKeyRawB64 = cleanLine(intake.publicKeyRawB64, '');
+  if (!publicKeyRawB64) throw nudgeLinkUnavailableError();
+
+  try {
+    // LANE3-FIX-LINK-AND-AUDIT
+    const reconstructedLink = await reconstructAdvisorIntakeLink({
+      intakeId: intake.intakeId,
+      publicKeyRawB64,
+    });
+    const cleanReconstructedLink = cleanLine(reconstructedLink, '');
+    if (!cleanReconstructedLink) throw nudgeLinkUnavailableError();
+    return cleanReconstructedLink;
+  } catch {
+    throw nudgeLinkUnavailableError();
+  }
+}
+
+export async function buildNudgeDraftForIntake(
+  row: OnboardingRow,
+  intake: IntakeRecord,
+  cfg: NudgeDraftConfig,
+): Promise<BuiltNudgeDraft> {
+  const intakeLink = await resolveNudgeDraftIntakeLink(intake, cfg);
+  return buildNudgeDraft(row, intake, {
+    ...cfg,
+    intakeLink,
+  });
+}
+
 export function buildNudgeDraft(
   row: OnboardingRow,
   intake: IntakeRecord,
@@ -182,6 +230,7 @@ export function buildNudgeDraft(
   const advisorFirstName = cleanLine(cfg.advisorFirstName, 'Your advisor');
   const firmName = cleanLine(intake.firmName, 'your advisory team');
   const intakeLink = cleanLine(cfg.intakeLink ?? intake.link, '');
+  if (!intakeLink) throw nudgeLinkUnavailableError();
   const kind = chooseTemplate(sequence, row.nudgeEligibility.suggestCall);
   const subject = templateSubject(kind, firmName);
   const bodyText = enforceNudgeBodyInvariants(renderBody(kind, {

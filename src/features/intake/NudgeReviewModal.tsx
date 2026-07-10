@@ -10,6 +10,7 @@ import type { IntakeRecord } from '@/platform/intake/intakeStore';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
 import {
   buildNudgeDraft,
+  buildNudgeDraftForIntake,
   enforceNudgeBodyInvariants,
   missingItemIdsMatch,
   type BuiltNudgeDraft,
@@ -92,8 +93,16 @@ function responseBody(response: unknown): string {
   return '';
 }
 
-function modalDraft(row: OnboardingRow, intake: IntakeRecord, now?: Date): BuiltNudgeDraft {
+function modalDraftIfStoredLink(row: OnboardingRow, intake: IntakeRecord, now?: Date): BuiltNudgeDraft | null {
+  if (!intake.link?.trim()) return null;
   return buildNudgeDraft(row, intake, {
+    ...DEFAULT_ONBOARDING_CONFIG,
+    ...(now ? { now } : {}),
+  });
+}
+
+function modalDraft(row: OnboardingRow, intake: IntakeRecord, now?: Date): Promise<BuiltNudgeDraft> {
+  return buildNudgeDraftForIntake(row, intake, {
     ...DEFAULT_ONBOARDING_CONFIG,
     ...(now ? { now } : {}),
   });
@@ -111,8 +120,8 @@ export function NudgeReviewModal({
   const currentIntake = useIntakeStore((state) => state.intakesById[intake.intakeId]) ?? intake;
   const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [accountIdx, setAccountIdx] = useState(0);
-  const [draft, setDraft] = useState<BuiltNudgeDraft>(() => modalDraft(row, intake, now));
-  const [body, setBody] = useState(draft.bodyText);
+  const [draft, setDraft] = useState<BuiltNudgeDraft | null>(() => modalDraftIfStoredLink(row, intake, now));
+  const [body, setBody] = useState(() => modalDraftIfStoredLink(row, intake, now)?.bodyText ?? '');
   const [status, setStatus] = useState<Status>('loading');
   const [error, setError] = useState<string | null>(null);
 
@@ -120,17 +129,16 @@ export function NudgeReviewModal({
     if (!open) return;
     let cancelled = false;
     void Promise.resolve()
-      .then(() => {
-        const nextDraft = modalDraft(row, intake, now);
-        if (cancelled) return null;
-        setDraft(nextDraft);
-        setBody(nextDraft.bodyText);
+      .then(async () => {
         setStatus('loading');
         setError(null);
-        return mailConnectedAccounts();
-      })
-      .then((connected) => {
-        if (cancelled || !connected) return;
+        setDraft(null);
+        setBody('');
+        const nextDraft = await modalDraft(row, intake, now);
+        const connected = await mailConnectedAccounts();
+        if (cancelled) return;
+        setDraft(nextDraft);
+        setBody(nextDraft.bodyText);
         setAccounts(connected);
         setAccountIdx(draftCapableAccount(connected));
         setStatus('ready');
@@ -147,13 +155,13 @@ export function NudgeReviewModal({
   }, [open, row, intake, now]);
 
   const account = accounts[accountIdx];
-  const canSave = accountCanSaveDraft(account) && draft.to.length > 0 && status !== 'saving' && status !== 'saved';
+  const canSave = draft !== null && accountCanSaveDraft(account) && draft.to.length > 0 && status !== 'saving' && status !== 'saved';
   const hasDraftMailbox = accounts.some((candidate) => candidate.provider !== 'imap');
   const currentRow = useMemo(
     () => deriveOnboardingRow(currentIntake, now ?? new Date(), DEFAULT_ONBOARDING_CONFIG),
     [currentIntake, now],
   );
-  const isStale = !missingItemIdsMatch(draft.missingItemIds, currentRow.missingItemIds);
+  const isStale = draft ? !missingItemIdsMatch(draft.missingItemIds, currentRow.missingItemIds) : false;
 
   if (!open) return null;
 
@@ -162,15 +170,23 @@ export function NudgeReviewModal({
   const regenerate = () => {
     const liveIntake = latestIntake();
     const liveRow = deriveOnboardingRow(liveIntake, now ?? new Date(), DEFAULT_ONBOARDING_CONFIG);
-    const nextDraft = modalDraft(liveRow, liveIntake, now);
-    setDraft(nextDraft);
-    setBody(nextDraft.bodyText);
+    setStatus('loading');
     setError(null);
-    setStatus('ready');
+    void modalDraft(liveRow, liveIntake, now)
+      .then((nextDraft) => {
+        setDraft(nextDraft);
+        setBody(nextDraft.bodyText);
+        setStatus('ready');
+      })
+      .catch((caught: unknown) => {
+        setError(caught instanceof Error ? caught.message : String(caught));
+        setStatus('error');
+      });
   };
 
   const handleRewrite = () => {
-    if (status === 'rewriting') return;
+    if (!draft || status === 'rewriting') return;
+    const activeDraft = draft;
     setStatus('rewriting');
     setError(null);
     void Promise.resolve()
@@ -184,12 +200,12 @@ export function NudgeReviewModal({
           onAuditLog: logIntakeNudgeAudit,
           operation: () =>
             resolved.provider.structuredOutput<RawDraftResponse>(
-              buildRewritePrompt(draft, body),
+              buildRewritePrompt(activeDraft, body),
               draftStructuredOutputOptions,
             ),
         });
         const rewritten = responseBody(response);
-        setBody(enforceNudgeBodyInvariants(rewritten || body, draft));
+        setBody(enforceNudgeBodyInvariants(rewritten || body, activeDraft));
         setStatus('ready');
       })
       .catch((caught: unknown) => {
@@ -199,10 +215,11 @@ export function NudgeReviewModal({
   };
 
   const handleSave = () => {
-    if (!accountCanSaveDraft(account)) return;
+    if (!accountCanSaveDraft(account) || !draft) return;
+    const activeDraft = draft;
     const liveIntake = latestIntake();
     const liveRow = deriveOnboardingRow(liveIntake, now ?? new Date(), DEFAULT_ONBOARDING_CONFIG);
-    if (!missingItemIdsMatch(draft.missingItemIds, liveRow.missingItemIds)) {
+    if (!missingItemIdsMatch(activeDraft.missingItemIds, liveRow.missingItemIds)) {
       setError(t('intake.nudge.modal.stale-error'));
       setStatus('error');
       return;
@@ -216,9 +233,9 @@ export function NudgeReviewModal({
     setError(null);
     void saveNudgeDraftToMailbox({
       intake: liveIntake,
-      draft,
+      draft: activeDraft,
       account,
-      bodyText: enforceNudgeBodyInvariants(body, draft),
+      bodyText: enforceNudgeBodyInvariants(body, activeDraft),
       ...(now ? { now } : {}),
     })
       .then(() => {
@@ -232,14 +249,16 @@ export function NudgeReviewModal({
   };
 
   const handleCopy = () => {
+    if (!draft) return;
+    const activeDraft = draft;
     const clipboard = navigator.clipboard as Clipboard | undefined;
     if (!clipboard || typeof clipboard.writeText !== 'function') {
       setError(t('intake.nudge.modal.copy-unavailable'));
       setStatus('error');
       return;
     }
-    const finalBody = enforceNudgeBodyInvariants(body, draft);
-    void clipboard.writeText(`${draft.subject}\n\n${finalBody}`)
+    const finalBody = enforceNudgeBodyInvariants(body, activeDraft);
+    void clipboard.writeText(`${activeDraft.subject}\n\n${finalBody}`)
       .then(() => {
         setStatus('copied');
         setError(null);
@@ -369,11 +388,11 @@ export function NudgeReviewModal({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--kp-space-sm)' }}>
             <label style={{ display: 'grid', gap: 'var(--kp-space-2xs)', minWidth: 0 }}>
               <span style={labelStyle}>{t('intake.nudge.modal.to-label')}</span>
-              <input data-testid="nudge-review-to" readOnly value={draft.to.join(', ')} style={inputStyle} />
+              <input data-testid="nudge-review-to" readOnly value={draft?.to.join(', ') ?? ''} style={inputStyle} />
             </label>
             <label style={{ display: 'grid', gap: 'var(--kp-space-2xs)', minWidth: 0 }}>
               <span style={labelStyle}>{t('intake.nudge.modal.subject-label')}</span>
-              <input data-testid="nudge-review-subject" readOnly value={draft.subject} style={inputStyle} />
+              <input data-testid="nudge-review-subject" readOnly value={draft?.subject ?? ''} style={inputStyle} />
             </label>
           </div>
 
@@ -391,18 +410,18 @@ export function NudgeReviewModal({
                 lineHeight: 'var(--kp-leading-snug)',
               }}
             >
-              {draft.missingItemLabels.join(', ')}
+              {draft?.missingItemLabels.join(', ') ?? ''}
             </div>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--kp-space-sm)' }}>
             <label style={{ display: 'grid', gap: 'var(--kp-space-2xs)', minWidth: 0 }}>
               <span style={labelStyle}>{t('intake.nudge.modal.link-label')}</span>
-              <input readOnly value={draft.intakeLink} style={inputStyle} />
+              <input readOnly value={draft?.intakeLink ?? ''} style={inputStyle} />
             </label>
             <label style={{ display: 'grid', gap: 'var(--kp-space-2xs)', minWidth: 0 }}>
               <span style={labelStyle}>{t('intake.nudge.modal.based-on-label')}</span>
-              <input readOnly value={t('intake.nudge.based-on', { date: formatDate(draft.basedOnAt) })} style={inputStyle} />
+              <input readOnly value={draft ? t('intake.nudge.based-on', { date: formatDate(draft.basedOnAt) }) : ''} style={inputStyle} />
             </label>
           </div>
 
@@ -415,6 +434,7 @@ export function NudgeReviewModal({
               onChange={(event) => {
                 setBody(event.target.value);
               }}
+              disabled={!draft}
               style={{
                 ...inputStyle,
                 resize: 'vertical',
@@ -529,7 +549,7 @@ export function NudgeReviewModal({
               variant="secondary"
               iconLeft={Sparkles}
               onClick={handleRewrite}
-              disabled={status === 'rewriting' || status === 'saving' || status === 'saved'}
+              disabled={!draft || status === 'rewriting' || status === 'saving' || status === 'saved'}
               loading={status === 'rewriting'}
               data-testid="nudge-draft-in-my-voice"
             >
@@ -544,6 +564,7 @@ export function NudgeReviewModal({
                 variant="primary"
                 iconLeft={Copy}
                 onClick={handleCopy}
+                disabled={!draft}
                 data-testid="nudge-copy-message"
               >
                 {t('intake.nudge.modal.copy-message')}

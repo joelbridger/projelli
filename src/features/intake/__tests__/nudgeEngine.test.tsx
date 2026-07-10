@@ -14,9 +14,10 @@ import { NudgeReviewModal } from '../NudgeReviewModal';
 
 type AuditLogEntry = Omit<AuditEntry, 'id' | 'timestamp'>;
 
-const { invokeMock, structuredOutputMock, accountsBox, failSaveBox } = vi.hoisted(() => ({
+const { invokeMock, structuredOutputMock, reconstructAdvisorIntakeLinkMock, accountsBox, failSaveBox } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   structuredOutputMock: vi.fn(),
+  reconstructAdvisorIntakeLinkMock: vi.fn(),
   accountsBox: {
     value: [{ provider: 'm365', account: 'default', label: 'Microsoft 365' }],
   },
@@ -26,6 +27,10 @@ const { invokeMock, structuredOutputMock, accountsBox, failSaveBox } = vi.hoiste
 vi.mock('@tauri-apps/api/core', () => ({
   isTauri: () => true,
   invoke: invokeMock,
+}));
+
+vi.mock('@/platform/intake/advisorIntakeLink', () => ({
+  reconstructAdvisorIntakeLink: reconstructAdvisorIntakeLinkMock,
 }));
 
 vi.mock('@/features/email/resolveEmailProvider', () => ({
@@ -99,6 +104,11 @@ function commandOrder(command: string): number {
   return order;
 }
 
+function commandPayload(command: string): Record<string, unknown> | undefined {
+  const calls = invokeMock.mock.calls as unknown as Array<[string, Record<string, unknown>]>;
+  return calls.find(([name]) => name === command)?.[1];
+}
+
 function auditEntryAt(calls: AuditLogEntry[][], index: number): AuditLogEntry {
   const call = calls[index];
   if (!call) throw new Error(`Missing audit call ${String(index)}.`);
@@ -132,6 +142,7 @@ describe('nudge engine', () => {
     setIntakeNudgeAuditEmitter(null);
     accountsBox.value = [{ provider: 'm365', account: 'default', label: 'Microsoft 365' }];
     failSaveBox.value = false;
+    reconstructAdvisorIntakeLinkMock.mockResolvedValue('https://forms.example.test/i/intake-1#rebuilt-link');
     structuredOutputMock.mockResolvedValue({
       body: 'Hi Sarah, I rewrote this but forgot the exact link and list.',
       citations: [],
@@ -168,6 +179,43 @@ describe('nudge engine', () => {
     expect(draft.bodyText).toContain('Income documents');
     expect(draft.bodyText).not.toContain('Passport scan');
     expect(draft.bodyText).not.toContain('passport-secret.png');
+  });
+
+  it('rebuilds a missing persisted link before saving a nudge draft', async () => {
+    const record = intake();
+    delete record.link;
+    record.publicKeyRawB64 = 'saved-public-key';
+    renderModal(record);
+
+    await waitFor(() => {
+      expect(textAreaValue('nudge-review-body')).toContain('https://forms.example.test/i/intake-1#rebuilt-link');
+    });
+    fireEvent.click(screen.getByTestId('nudge-save-draft'));
+
+    await waitFor(() => {
+      expect(commandCalled('mail_save_draft')).toBe(true);
+    });
+    expect(reconstructAdvisorIntakeLinkMock).toHaveBeenCalledWith({
+      intakeId: 'intake-1',
+      publicKeyRawB64: 'saved-public-key',
+    });
+    const bodyHtml = commandPayload('mail_save_draft')?.['bodyHtml'];
+    if (typeof bodyHtml !== 'string') throw new Error('Expected saved nudge body HTML.');
+    expect(bodyHtml).toContain('https://forms.example.test/i/intake-1#rebuilt-link');
+  });
+
+  it('blocks saving a nudge when no onboarding link can be produced', async () => {
+    const record = intake();
+    delete record.link;
+    delete record.publicKeyRawB64;
+    renderModal(record);
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('Regenerate');
+    });
+    expect(reconstructAdvisorIntakeLinkMock).not.toHaveBeenCalled();
+    expect(commandCalled('mail_save_draft')).toBe(false);
+    expect(screen.queryByTestId('nudge-save-draft')).toBeNull();
   });
 
   it('saves a draft through mail_save_draft, never mail_send, and audits intent before outcome', async () => {

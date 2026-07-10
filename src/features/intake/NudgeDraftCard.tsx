@@ -1,11 +1,14 @@
-import { useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { Bell, Phone } from 'lucide-react';
 
 import type { OnboardingRow, NudgeEligibility } from '@/platform/intake/onboardingModel';
 import type { IntakeRecord } from '@/platform/intake/intakeStore';
-import { buildNudgeDraft } from '@/platform/intake/nudgeDraft';
+import {
+  buildNudgeDraftForIntake,
+  type BuiltNudgeDraft,
+} from '@/platform/intake/nudgeDraft';
 import { DEFAULT_ONBOARDING_CONFIG } from '@/platform/intake/nudgeTypes';
 import { Badge, Button } from '@/ui/kp';
 
@@ -54,13 +57,39 @@ export function NudgeDraftCard({
   onOpenReview,
 }: NudgeDraftCardProps) {
   const { t } = useTranslation();
-  const draft = useMemo(
-    () => buildNudgeDraft(row, intake, {
-      ...DEFAULT_ONBOARDING_CONFIG,
-      ...(now ? { now } : {}),
-    }),
-    [row, intake, now],
-  );
+  const [draft, setDraft] = useState<BuiltNudgeDraft | null>(null);
+  const [draftError, setDraftError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+    void Promise.resolve()
+      .then(async () => {
+        if (!row.nudgeEligibility.eligible || row.nudgeEligibility.suggestCall) {
+          if (!isCancelled()) {
+            setDraft(null);
+            setDraftError(null);
+          }
+          return;
+        }
+        if (isCancelled()) return;
+        setDraft(null);
+        setDraftError(null);
+        const nextDraft = await buildNudgeDraftForIntake(row, intake, {
+          ...DEFAULT_ONBOARDING_CONFIG,
+          ...(now ? { now } : {}),
+        });
+        if (isCancelled()) return;
+        setDraft(nextDraft);
+      })
+      .catch((caught: unknown) => {
+        if (isCancelled()) return;
+        setDraftError(caught instanceof Error ? caught.message : String(caught));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [row, intake, now]);
 
   if (row.nudgeEligibility.suggestCall) {
     return (
@@ -110,6 +139,25 @@ export function NudgeDraftCard({
         }}
       >
         {blockedMessage(t, row.nudgeEligibility)}
+      </div>
+    );
+  }
+
+  if (draftError || !draft) {
+    return (
+      <div
+        data-testid={`nudge-draft-card-${row.requestId}`}
+        style={{
+          border: '1px solid var(--kp-divider)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--kp-bg-soft)',
+          padding: 'var(--kp-space-xs)',
+          color: draftError ? 'var(--kp-danger)' : 'var(--color-muted-foreground)',
+          fontSize: 'var(--kp-font-xs)',
+          lineHeight: 'var(--kp-leading-snug)',
+        }}
+      >
+        {draftError ?? t('intake.nudge.modal.drafting')}
       </div>
     );
   }
