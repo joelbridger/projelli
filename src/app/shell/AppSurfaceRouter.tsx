@@ -5,11 +5,13 @@
  * Extracted from App.tsx (Phase 3 shell refactor) to keep App.tsx focused
  * on layout + state wiring while this file owns the surface-selection ternary.
  *
- * All handlers and state values are passed down as props — no hooks here.
+ * All handlers and state values are passed down as props. A tiny leaf wrapper
+ * below uses an effect to save a client folder only after it already exists.
  * The component is purely presentational: it receives everything it needs and
  * delegates rendering to the appropriate surface component.
  */
 
+import { useEffect, useMemo, type ReactNode } from 'react';
 import { MattersHome } from '@/features/matters/MattersHome';
 import { Ask } from '@/features/ask/Ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
@@ -29,6 +31,7 @@ import { openRunArtifactFromWorkflows } from '@/app/shell/openRunArtifactFromWor
 import {
   resolveClientDocumentFolderPaths,
   shouldBackfillClientDocumentFolder,
+  shouldPersistExistingClientDocumentFolder,
 } from '@/app/shell/clientDocumentFolderPaths';
 
 import type { AppSurface } from '@/app/lifecycle/useGlobalEventBus';
@@ -109,6 +112,7 @@ export interface AppSurfaceRouterProps {
   repairAuditSeal: () => Promise<void>;
   apiKeys: APIKey[];
   rootPath: string | null | undefined;
+  fileTree: FileNode[];
   trashItems: TrashedItem[];
   trashStats: TrashStats;
   trashRetentionPeriod: TrashRetentionPeriod;
@@ -163,6 +167,80 @@ export interface AppSurfaceRouterProps {
   settingsPageFocus?: { category?: SettingCategory; key: number };
 }
 
+type BuildDocumentsHomeOptions = {
+  embedded?: boolean;
+  scopeFolderPaths?: string[];
+  scopeMatterId?: string;
+  ensureScopeFolder?: () => void;
+};
+
+function ClientDocumentsSurface({
+  hubMatter,
+  matters,
+  rootPath,
+  fileTree,
+  workspaceServiceRef,
+  setFileTree,
+  renderDocumentsHome,
+}: {
+  hubMatter: Matter | null;
+  matters: Matter[];
+  rootPath: string | null | undefined;
+  fileTree: FileNode[];
+  workspaceServiceRef: React.MutableRefObject<WorkspaceService | null>;
+  setFileTree: (tree: FileNode[]) => void;
+  renderDocumentsHome: (opts: BuildDocumentsHomeOptions) => ReactNode;
+}) {
+  const scopeFolderPaths = useMemo(
+    () =>
+      resolveClientDocumentFolderPaths({
+        matter: hubMatter,
+        matters,
+        workspaceRoot: rootPath,
+      }),
+    [hubMatter, matters, rootPath],
+  );
+  const shouldPersistExistingFolder = shouldPersistExistingClientDocumentFolder(
+    hubMatter,
+    scopeFolderPaths,
+    fileTree,
+    rootPath,
+  );
+  const matterId = hubMatter?.id;
+
+  useEffect(() => {
+    if (!matterId || !shouldPersistExistingFolder) return;
+    const latestMatter = useMatterStore.getState().matters.find((matter) => matter.id === matterId);
+    if (!shouldBackfillClientDocumentFolder(latestMatter, scopeFolderPaths)) return;
+    useMatterStore.getState().setFolderPaths(matterId, scopeFolderPaths);
+  }, [matterId, scopeFolderPaths, shouldPersistExistingFolder]);
+
+  const ensureScopeFolder = shouldBackfillClientDocumentFolder(hubMatter, scopeFolderPaths)
+    ? () => {
+        const folderPath = scopeFolderPaths[0];
+        useMatterStore.getState().setFolderPaths(hubMatter.id, scopeFolderPaths);
+        if (folderPath && workspaceServiceRef.current) {
+          void workspaceServiceRef.current
+            .mkdir(folderPath)
+            .then(() => workspaceServiceRef.current?.getFileTree())
+            .then((tree) => {
+              if (tree) setFileTree(tree);
+            })
+            .catch((error: unknown) => {
+              console.warn('[AppSurfaceRouter] could not create client document folder:', error);
+            });
+        }
+      }
+    : undefined;
+
+  return renderDocumentsHome({
+    embedded: true,
+    scopeFolderPaths,
+    ...(matterId ? { scopeMatterId: matterId } : {}),
+    ...(ensureScopeFolder ? { ensureScopeFolder } : {}),
+  });
+}
+
 export function AppSurfaceRouter({
   sidebarActiveTab,
   askPrefill,
@@ -186,6 +264,7 @@ export function AppSurfaceRouter({
   repairAuditSeal,
   apiKeys,
   rootPath,
+  fileTree,
   trashItems,
   trashStats,
   trashRetentionPeriod,
@@ -326,12 +405,7 @@ export function AppSurfaceRouter({
     />
   );
 
-  const buildDocumentsHome = (opts: {
-    embedded?: boolean;
-    scopeFolderPaths?: string[];
-    scopeMatterId?: string;
-    ensureScopeFolder?: () => void;
-  }) => (
+  const buildDocumentsHome = (opts: BuildDocumentsHomeOptions) => (
     <DocumentsHome
       // Per-client key so switching clients on the same sub-tab REMOUNTS this
       // surface (fresh currentFolderPath etc.) instead of reusing the prior
@@ -510,36 +584,17 @@ export function AppSurfaceRouter({
             // outer `activeMatter` closure, which can lag behind the hub's client
             // on a switch. This guarantees `scopeFolderPaths`/`scopeMatterId`
             // describe the client actually on screen (2026-07-01 re-fix).
-            {
-              const scopeFolderPaths = resolveClientDocumentFolderPaths({
-                matter: hubMatter,
-                matters: useMatterStore.getState().matters,
-                workspaceRoot: rootPath,
-              });
-              const ensureScopeFolder = shouldBackfillClientDocumentFolder(hubMatter, scopeFolderPaths)
-                ? () => {
-                    const folderPath = scopeFolderPaths[0];
-                    useMatterStore.getState().setFolderPaths(hubMatter.id, scopeFolderPaths);
-                    if (folderPath && workspaceServiceRef.current) {
-                      void workspaceServiceRef.current
-                        .mkdir(folderPath)
-                        .then(() => workspaceServiceRef.current?.getFileTree())
-                        .then((tree) => {
-                          if (tree) setFileTree(tree);
-                        })
-                        .catch((error: unknown) => {
-                          console.warn('[AppSurfaceRouter] could not create client document folder:', error);
-                        });
-                    }
-                  }
-                : undefined;
-              return buildDocumentsHome({
-                embedded: true,
-                scopeFolderPaths,
-                ...(hubMatter ? { scopeMatterId: hubMatter.id } : {}),
-                ...(ensureScopeFolder ? { ensureScopeFolder } : {}),
-              });
-            }
+            (
+              <ClientDocumentsSurface
+                hubMatter={hubMatter}
+                matters={useMatterStore.getState().matters}
+                rootPath={rootPath}
+                fileTree={fileTree}
+                workspaceServiceRef={workspaceServiceRef}
+                setFileTree={setFileTree}
+                renderDocumentsHome={buildDocumentsHome}
+              />
+            )
           }
           renderClientEmail={() =>
             buildEmailWorkspace({

@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { scopeFileTreeToFolders, toScopedFolderPath } from '@/features/documents/scopeFileTree';
+import { deriveNewClientFolderPath } from '@/features/matters/matterManagerDialogHelpers';
 import type { FileNode } from '@/platform/types/workspace';
 import type { Matter } from '@/platform/types/matter';
 
@@ -18,6 +19,17 @@ function folder(path: string, children: FileNode[] = []): FileNode {
 }
 function file(path: string): FileNode {
   return { id: path, name: path.split('/').pop() ?? path, path, type: 'file' };
+}
+function flatPaths(nodes: FileNode[]): string[] {
+  const paths: string[] = [];
+  const walk = (children: FileNode[]) => {
+    for (const node of children) {
+      paths.push(node.path);
+      if (node.children) walk(node.children);
+    }
+  };
+  walk(nodes);
+  return paths;
 }
 
 const TREE: FileNode[] = [
@@ -100,6 +112,42 @@ describe('scopeFileTreeToFolders', () => {
     // No matters passed → the nested folder is kept (no ownership awareness).
     const out = scopeFileTreeToFolders(nested, ['/ws/Clients']);
     expect(out[0]!.children?.map((c) => c.path)).toEqual(['/ws/Clients/Beta']);
+  });
+
+  it('trusts the passed scope for the active matter while still dropping another client folder', () => {
+    const ROOT = 'C:/LanternWorkspaces/Northcrest Wealth Partners';
+    const tree: FileNode[] = [
+      folder('Sutton, Karen & Ronald', [
+        file('Sutton, Karen & Ronald/plan.docx'),
+        folder('Sutton, Karen & Ronald/Nakamura, David & Susan', [
+          file('Sutton, Karen & Ronald/Nakamura, David & Susan/secret.docx'),
+        ]),
+      ]),
+      folder('Diaz, Michelle', [file('Diaz, Michelle/outside.docx')]),
+    ];
+    const matters: Matter[] = [
+      {
+        ...matter('sutton', []),
+        name: 'Sutton, Karen & Ronald',
+        client: 'Sutton, Karen & Ronald',
+      },
+      matter('nakamura', [`${ROOT}/Sutton, Karen & Ronald/Nakamura, David & Susan`]),
+      matter('diaz', [`${ROOT}/Diaz, Michelle`]),
+    ];
+
+    const out = scopeFileTreeToFolders(
+      tree,
+      [`${ROOT}/Sutton, Karen & Ronald`],
+      matters,
+      'sutton',
+      ROOT,
+    );
+    const flat = flatPaths(out);
+
+    expect(flat).toContain('Sutton, Karen & Ronald/plan.docx');
+    expect(flat).not.toContain('Sutton, Karen & Ronald/Nakamura, David & Susan');
+    expect(flat).not.toContain('Sutton, Karen & Ronald/Nakamura, David & Susan/secret.docx');
+    expect(flat).not.toContain('Diaz, Michelle');
   });
 
   it('normalizes path shapes the way matter resolution does (backslashes / trailing slash)', () => {
@@ -523,5 +571,19 @@ describe('toScopedFolderPath', () => {
   it('back-compat: no workspaceRoot compares paths as-is (one shape on both sides)', () => {
     const tree = [folder('/ws/Acme', [file('/ws/Acme/a.pdf')])];
     expect(toScopedFolderPath(tree, '/ws/Acme')).toBe('/ws/Acme');
+  });
+});
+
+describe('deriveNewClientFolderPath Wealthbox household names', () => {
+  it('preserves the comma and ampersand in "Sutton, Karen & Ronald"', () => {
+    const ROOT = 'C:/LanternWorkspaces/Northcrest Wealth Partners';
+    expect(
+      deriveNewClientFolderPath(
+        'Sutton, Karen & Ronald',
+        'Sutton, Karen & Ronald',
+        ROOT,
+        [],
+      ),
+    ).toBe(`${ROOT}/Sutton, Karen & Ronald`);
   });
 });

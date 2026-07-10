@@ -2071,6 +2071,7 @@ function AppShell() {
           repairAuditSeal={repairAuditSeal}
           apiKeys={apiKeys}
           rootPath={rootPath}
+          fileTree={fileTree}
           trashItems={trashItems}
           trashStats={trashStats}
           trashRetentionPeriod={trashRetentionPeriod}
