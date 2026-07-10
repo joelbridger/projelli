@@ -2509,7 +2509,11 @@
       "name-label": "Anzeigename",
       "name-placeholder": "z. B. Die Familie Hendricks",
       "cancel": "Abbrechen",
-      "create": "{{entity}} erstellen"
+      "create": "{{entity}} erstellen",
+      "household-template": "Vorlage für neuen Haushalt",
+      "review-greeting": "Hallo {{name}}, richten wir Ihren Haushalt ein.",
+      "review-link-note": "Dieser Link funktioniert 30 Tage lang. Sie können ihn jederzeit verlängern oder deaktivieren.",
+      "open-email-draft": "E-Mail-Entwurf öffnen"
     },
     "group": {
       "new-title": "Neue Gruppe",
@@ -3969,6 +3973,15 @@
       "confidentiality-column__sourceHash": "2c64c030d49520800e7bd1180d30a9d9054f3d89cc9264cba47592683fdde267",
       "confidentiality-badge": "Sensibel",
       "confidentiality-badge__sourceHash": "2c64c030d49520800e7bd1180d30a9d9054f3d89cc9264cba47592683fdde267"
+    }
+  },
+  "intake": {
+    "onboarding": {
+      "no-link": "Für diesen Kunden wurde noch kein Onboarding-Link erstellt.",
+      "activity-count": "{{completed}} von {{total}} Elementen weisen Aktivität auf.",
+      "link-expiry": "Dieser Link funktioniert bis {{date}}. Sie können ihn jederzeit verlängern oder deaktivieren.",
+      "no-facts": "Noch keine Angaben erhalten.",
+      "view-in-folder": "Im Ordner anzeigen"
     }
   }
 }

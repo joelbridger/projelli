@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -24,6 +25,23 @@ import { runFragmentNeverLoggedCheck } from '../../infra/intake/fragment-never-l
 
 const repoRoot = process.cwd();
 const tempDirs: string[] = [];
+
+// The compiled intake client page. The "signs the compiled Vite output" test
+// reuses this instead of spawning tsc+vite inside vitest (which exhausts
+// process/file handles under the concurrent gate). The gate pre-builds it
+// serially; this beforeAll is the standalone/pre-push fallback — one build,
+// before the tests run, only if dist is missing.
+const intakePageDist = path.join(repoRoot, 'intake-page', 'dist');
+beforeAll(() => {
+  if (!existsSync(path.join(intakePageDist, 'index.html'))) {
+    const result = spawnSync('npm', ['--prefix', path.join(repoRoot, 'intake-page'), 'run', 'build'], {
+      stdio: 'inherit',
+    });
+    if (result.status !== 0) {
+      throw new Error('Failed to build intake-page/dist for the hosting security tests.');
+    }
+  }
+}, 180_000);
 
 afterEach(() => {
   while (tempDirs.length) {
@@ -131,7 +149,9 @@ describe('intake bundle integrity', () => {
     try {
       process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'] =
         keys.privateKeyPem;
-      build = buildStaticBundle({ outDir: temp, relayOrigin });
+      // Reuse the pre-built intake-page/dist (beforeAll ensures it exists) rather
+      // than spawning a fresh tsc+vite build inside the concurrent vitest run.
+      build = buildStaticBundle({ outDir: temp, relayOrigin, buildPage: false });
     } finally {
       if (previousPrivateKey === undefined)
         delete process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'];
