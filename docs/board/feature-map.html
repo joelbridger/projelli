@@ -51,7 +51,7 @@
   .stage h2{font-size:15.5px; color:var(--navy); display:flex; align-items:center; gap:9px}
   .stage h2 .num{flex:none; width:26px; height:26px; border-radius:50%; background:var(--navy); color:#fff; font-size:13px; font-weight:800; display:inline-flex; align-items:center; justify-content:center}
   .stage h2 .picto{font-size:16px}
-  .stage .story{margin-top:5px; font-size:12.8px; color:var(--ink-soft); font-style:italic}
+  .stage .story{margin-top:5px; font-size:12.8px; color:var(--ink-soft)}
   .stage .mini{margin-top:7px; display:flex; gap:6px}
   .mini b{font-size:11px; font-weight:700; border-radius:6px; padding:2px 7px}
   .mini .m-shipped{color:var(--shipped); background:var(--shipped-bg)}
@@ -59,7 +59,7 @@
   .mini .m-planned{color:var(--planned); background:var(--planned-bg)}
 
   ul.features{list-style:none; padding:8px 14px 14px; position:relative; flex:1}
-  ul.features::before{content:""; position:absolute; left:24px; top:12px; bottom:16px; width:2px; background:var(--bg-soft); border-radius:2px}
+  ul.features::before{content:none}
   li.feat{position:relative; display:flex; gap:10px; align-items:flex-start; padding:5.5px 4px 5.5px 0; border-radius:8px}
   li.feat:hover{background:#f7f9fc}
   .stop{position:relative; z-index:1; flex:none; width:21px; height:21px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:10.5px; font-weight:800; border:2px solid; background:#fff; margin-top:1px}
@@ -72,11 +72,13 @@
   .feat .badge{display:none; font-size:9.5px; font-weight:800; letter-spacing:.4px; text-transform:uppercase; border-radius:5px; padding:1px 5px; margin-left:7px; vertical-align:1px}
   li.group{list-style:none; position:relative; margin:9px 0 3px; padding-left:0}
   li.group:first-child{margin-top:2px}
-  li.group .glabel{display:inline-block; position:relative; z-index:1; font-size:10.5px; font-weight:800; letter-spacing:.7px; text-transform:uppercase; color:var(--ink-mute); background:var(--card); padding:2px 8px 2px 2px}
+  li.group{border-top:1px solid var(--line); padding-top:10px; margin-top:12px}
+  li.group:first-child{border-top:none; padding-top:0; margin-top:2px}
+  li.group .glabel{display:block; font-size:14px; font-weight:700; color:var(--ink); background:none; padding:0}
   li.feat.hero .stop{width:26px; height:26px; font-size:12.5px; border-width:2.5px; margin-left:-2.5px}
   li.feat.hero .name{font-size:14.6px; font-weight:800}
   li.feat.hero .star{color:#c99400; font-size:12px; margin-left:6px; vertical-align:1px}
-  li.feat.sub{padding-left:14px}
+  li.feat.sub{padding-left:10px}
   li.feat.sub .stop{width:17px; height:17px; font-size:9px}
   li.feat.sub .name{font-weight:500; font-size:12.8px}
   .s-building .badge{display:inline-block; color:var(--building); background:var(--building-bg)}
