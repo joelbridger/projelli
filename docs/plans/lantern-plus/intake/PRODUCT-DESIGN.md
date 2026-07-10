@@ -295,7 +295,7 @@ Every accepted item and fact feeds the client's map immediately. The intake tab 
 | Case | Behavior |
 |---|---|
 | Link opened on two devices | Both work; per-item last-write-wins; advisor sees both provenance rows. No lockout — the failure mode we refuse is a locked-out client. |
-| Link forwarded / leaked | Holder sees exactly: firm name, item labels, the client's first name, done/not-done flags, and (later waves) any prefill values the advisor explicitly opted to show on the page — never anything the client submitted, no last-4, no file names (ARCHITECTURE.md §2 has the precise list). They can submit items, which flags as an anomaly if the item was already complete. Advisor kills the link in one click; ARCHITECTURE.md §6 covers rotation. |
+| Link forwarded / leaked | Holder sees exactly: firm name, item labels, the client's first name, done/not-done flags, and (later waves) any prefill values the advisor explicitly opted to show on the page — never anything the client submitted, no last-4, no file names (ARCHITECTURE.md §2 has the precise list). They can submit items — including completing a still-open item — and every submission from an unfamiliar device wears a "new device" chip on the advisor's board, while the client's own page distinguishes "provided by you just now" from plain "provided." Advisor kills the link in one click; ARCHITECTURE.md §6 covers rotation. |
 | Client stops mid-upload | Chunked upload resumes on next visit; item shows "upload didn't finish" on reopen, one tap to resume. |
 | Advisor offline for days | Client experience unaffected (items queue encrypted on the relay). Board catches up on next launch; nothing is lost. |
 | Expired link opened | Friendly page: "This link has expired. [Firm] can send you a fresh one." + the advisor sees "client tried an expired link" on the board (that's a hot lead signal, not an error). |
@@ -323,6 +323,6 @@ Every accepted item and fact feeds the client's map immediately. The intake tab 
 - Not e-signature in v1 (the DocuSign sign stage arrives with the paperwork waves; see WAVE-PLAN.md).
 - Not a client portal (no login, no performance dashboards, no document browsing for clients — one checklist, then done).
 - Not SMS-sending, not physical-mail mode, not the voice agent (grab-bag items 5 and 6 stay parked).
-- Not multi-firm white-label domains (firm branding on our intake domain first; custom domains are a later conversation).
+- Not multi-firm white-label domains (decided 2026-07-10: one neutral Lantern-owned address with firm branding on the page; custom domains later).
 
 Each "not" keeps the board stance intact: one simple flow, AI-first, never an integration-breadth arms race.
