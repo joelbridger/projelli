@@ -30,7 +30,7 @@
       {
        "name": "Wealthbox client records",
        "status": "shipped",
-       "note": "reads them; writing back is its own step"
+       "note": "can read them now; updating them comes later"
       },
       {
        "name": "Calendly (pulls in booked meetings)",
@@ -49,7 +49,7 @@
       {
        "name": "DocuSign, Salesforce, Redtail",
        "status": "building",
-       "note": "code ready; the vendors still need to hand us keys"
+       "note": "built; waiting for the vendors' approval and access"
       },
       {
        "name": "Addepar, Box, Jotform, ShareFile, Zocks",
@@ -93,7 +93,7 @@
       {
        "name": "One private link the client opens on their phone — no account, no app",
        "status": "planned",
-       "note": "flagship · locked end to end, so only you and the client can ever read it",
+       "note": "the headline feature · locked end to end, so only you and the client can ever read it",
        "hero": true
       },
       {
@@ -208,7 +208,7 @@
        "status": "shipped"
       },
       {
-       "name": "Imported email stays scrambled-safe on your computer",
+       "name": "Imported email stays locked up safe on your computer",
        "status": "shipped"
       }
      ]
@@ -239,7 +239,7 @@
       {
        "name": "A booking page clients use to grab time with you",
        "status": "building",
-       "note": "public page needs go-ahead"
+       "note": "waiting for the go-ahead to publish"
       }
      ]
     },
@@ -306,7 +306,7 @@
       {
        "name": "A receipt for every answer — see exactly what left your computer",
        "status": "shipped",
-       "note": "landed this week"
+       "note": "added this week"
       },
       {
        "name": "If an answer has no source, it says so",
@@ -315,7 +315,7 @@
       {
        "name": "You choose how private each answer is",
        "status": "shipped",
-       "note": "stays on your computer · straight to your AI · firm-assured"
+       "note": "on your computer only · direct to your AI · through your firm's protected setup"
       },
       {
        "name": "Warns you when a plan file looks out of date",
@@ -362,7 +362,7 @@
       {
        "name": "Every version kept",
        "status": "shipped",
-       "note": "roll back any document safely"
+       "note": "go back to any earlier version"
       }
      ]
     },
@@ -407,7 +407,7 @@
        "status": "shipped"
       },
       {
-       "name": "Chain steps together for bigger jobs",
+       "name": "Run several steps in a row automatically",
        "status": "shipped"
       },
       {
@@ -428,7 +428,7 @@
        "status": "shipped"
       },
       {
-       "name": "Simple editor for plain-text files",
+       "name": "A simple editor for basic text files",
        "status": "shipped"
       },
       {
@@ -460,7 +460,7 @@
       {
        "name": "Schwab account-opening paperwork, pre-filled",
        "status": "building",
-       "note": "approved program"
+       "note": "Schwab approved the program; we're building it"
       },
       {
        "name": "Send updates to RightCapital / Holistiplan",
@@ -492,7 +492,7 @@
      ]
     },
     {
-     "label": "Trust in every write",
+     "label": "Trust in every update",
      "features": [
       {
        "name": "An honesty card for every connection",
@@ -507,7 +507,7 @@
  "foundation": {
   "name": "Private by design — under every step",
   "icon": "🔒",
-  "story": "The trust layer is not a stage; it is the floor the whole journey stands on.",
+  "story": "Privacy isn't one stop on the map — it's the floor everything else stands on.",
   "features": [
    {
     "name": "An always-visible light shows the moment anything leaves your computer",
@@ -516,7 +516,7 @@
    {
     "name": "You pick the privacy level",
     "status": "shipped",
-    "note": "stays on your computer · straight to your AI · firm-assured"
+    "note": "on your computer only · direct to your AI · through your firm's protected setup"
    },
    {
     "name": "A tamper-proof diary of everything the AI did",
@@ -524,11 +524,11 @@
     "note": "locked; can't be edited or quietly switched off"
    },
    {
-    "name": "Documents locked in a coded vault only you can open",
+    "name": "Documents kept in a locked vault only you can open",
     "status": "shipped"
    },
    {
-    "name": "Passwords & keys kept in your computer's built-in safe",
+    "name": "Passwords and sign-in secrets kept in your computer's built-in safe",
     "status": "shipped"
    },
    {
@@ -542,7 +542,7 @@
    {
     "name": "Work on the same document together — still fully private",
     "status": "shipped",
-    "note": "our server only ever carries locked, unreadable data"
+    "note": "the server passing it along can never read it — everything it carries is locked"
    },
    {
     "name": "Answer pack for a firm's IT and compliance reviewers",

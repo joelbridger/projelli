@@ -129,10 +129,10 @@
 <nav class="filters">
   <div class="wrap" role="group" aria-label="Filter by status">
     <button class="chip active" data-f="all">All features</button>
-    <button class="chip" data-f="shipped"><span class="dot" style="background:var(--shipped)"></span>✓ Shipped</button>
-    <button class="chip" data-f="building"><span class="dot" style="background:var(--building)"></span>◐ Building</button>
+    <button class="chip" data-f="shipped"><span class="dot" style="background:var(--shipped)"></span>✓ Live now</button>
+    <button class="chip" data-f="building"><span class="dot" style="background:var(--building)"></span>◐ Being built</button>
     <button class="chip" data-f="planned"><span class="dot" style="background:var(--planned)"></span>○ Planned</button>
-    <span class="scrollhint">→ the journey scrolls sideways · ✓ shipped · ◐ building · ○ planned (icon + label, never color alone)</span>
+    <span class="scrollhint">→ the journey scrolls sideways · ✓ live now · ◐ being built · ○ planned (icon + label, never color alone)</span>
   </div>
 </nav>
 
@@ -151,7 +151,7 @@
 
 <script>
 var GLYPH={shipped:'✓', building:'◐', planned:'○'};
-var LABEL={shipped:'Shipped', building:'Building', planned:'Planned'};
+var LABEL={shipped:'Live now', building:'Being built', planned:'Planned'};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function featRow(f,tot){
   var st=f.status||'planned'; tot[st]=(tot[st]||0)+1;
@@ -202,7 +202,7 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
     '<span class="story">'+esc(f.story||'')+'</span></h2><ul>'+chips+'</ul></div>';
 
   document.getElementById('counts').innerHTML=
-    '<span class="count">✓ '+tot.shipped+' shipped</span><span class="count">◐ '+tot.building+' building</span><span class="count">○ '+tot.planned+' planned</span>';
+    '<span class="count">✓ '+tot.shipped+' live now</span><span class="count">◐ '+tot.building+' being built</span><span class="count">○ '+tot.planned+' planned</span>';
   document.getElementById('updated').textContent='Last updated '+(d.updated||'');
 }).catch(function(e){
   document.getElementById('flow').innerHTML='<div class="error">Could not load the map ('+esc(e.message)+'). Check that <code>feature-map-data.json</code> sits next to this page.</div>';
