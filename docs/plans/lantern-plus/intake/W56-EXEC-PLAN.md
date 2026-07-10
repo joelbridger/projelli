@@ -94,13 +94,22 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 
 | Lane | Brief | Built | Reviewed | codex-review | Fixed | Merged (sha) | Gate |
 |---|---|---|---|---|---|---|---|
-| W5c key-sharing | ✅ | ⚠️→rebuild | escalated (correct) | — | 🔨 v2 building | ☐ | ☐ |
-| W5a phone-mode | ✅ | ✅ 10/10 | ✅ 4 findings (2P1+2P2) | 🔨 fixing | ☐ | ☐ | ☐ |
-| W5b welcome-journey | ✅ | ✅ 4/4+build | ✅ 4 findings (P2) | 🔨 fixing | ☐ | ☐ | ☐ |
-| W6c it-pack | ✅ | ✅ 253/253 | ✅ 2 findings (P1 claims) | 🔨 fixing | ☐ | ☐ | ☐ |
+| W5c key-sharing | ✅ | ✅ deep PASS | ✅ fix2 (4 P1) + lint | ✅ done | ✅ vitest5+bun218 | ☐ merging | ☐ |
+| W5a phone-mode | ✅ | ✅ 14/14 | ✅ 4 findings + gatefix | ✅ done | ✅ green | ☐ merging | ☐ |
+| W5b welcome-journey | ✅ | ✅ 44/44 | ✅ 4 findings + gatefix | ✅ done | ⏳ verify | ☐ merging | ☐ |
+| W6c it-pack | ✅ | ✅ 255/255 | ✅ 2 findings | ✅ done | ✅ MERGED 3afd4da6 | ⏳ push | ⏳ |
 | W6a kpi-strip | ✅ brief | ☐ (after W5a) | ☐ | ☐ | ☐ | ☐ | ☐ |
 | W6b relay-hardening | ✅ brief (+expiry-cleanup) | ☐ (after W5c) | ☐ | ☐ | ☐ | ☐ | ☐ |
 | W6d a11y-audit | ✅ brief | ☐ (after W5b) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+**Note (memory governance):** `gate-changed.sh` triggers a Rust (lancedb) compile that earlyoom kills under concurrent Codex load. For frontend-only lanes use scoped checks (tsc + typecheck:tests + scoped vitest + lint:gate + test:contracts, NO cargo). Full `npm run gate` (with cargo) runs SERIAL, alone, before WORKER-DONE.
+
+### Round 2 (fixes verified + fresh review of the corrected crypto lane)
+- All 4 committed clean, tests green: key-sharing vitest 4/4 + bun 14/14; phone-mode 14/14; it-pack 255/255; welcome-journey 44/44 + page build.
+- **key-sharing deep read = PASS** (crypto exceeds checklist: distinct matter/intake context in HKDF+AAD + intake-id transplant binding; relay access-cutoff = honest revocation lever; active-admin escrow; honest non-revocation docs).
+- **key-sharing fresh codex-review found 4 P1** → one more fix round (fix2) building: (1) matter-key AAD backward-compat REGRESSION (would break existing matter shares); (2) shared-recipient ack = ciphertext DATA LOSS; (3) wrong (local vs firm) matter_id in publish; (4) no granted-intake discovery for recipients. + lint empty-catch.
+- **Gate-fixes pending:** phone-mode has new i18n hardcoded-strings + lint (intake UI uses t() universally → proper i18n keys, not disables). it-pack/welcome-journey lint TBD (lint3 running).
+- **Base synced from lp/intake @ 223c2f36** — fast gates now available.
 
 ### Adversarial-review findings log (round 1)
 - **W5c key-sharing:** correctly ESCALATED — my brief wrongly treated epoch-bump as cryptographic revocation; the intake keypair can't rotate mid-flight, so an already-pulled key is unrevocable. Re-briefed (v2) as a GRANT mechanism (team decrypt + admin escrow) with honest revocation semantics (forward-grant stop + relay access cutoff + re-send-fresh-intake for true rotation). Building.
