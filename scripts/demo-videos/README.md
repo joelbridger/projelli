@@ -122,7 +122,7 @@ scripts/demo-videos/
 A flow exports a default async function and optional `meta`:
 
 ```js
-export const meta = { title: 'My feature', viewport: { width: 1920, height: 1080 } };
+export const meta = { title: 'My feature', viewport: { width: 1280, height: 800 } };
 
 export default async function run(engine, { page }) {
   await engine.goto('/?testMode=true&seedDemo=1');
@@ -157,16 +157,19 @@ export default async function run(engine, { page }) {
 | Flag | Effect |
 |---|---|
 | `--headed` | Watch it run in a visible browser (still records) |
-| `--keep-raw` | Keep the raw Playwright WebM next to the outputs |
+| `--keep-raw` | Keep the raw full-density Playwright frames next to the outputs |
 | `--base <url>` | Point at a different dev server (default `http://localhost:5173`) |
+| `--output <id>` | Write a new filename for an approved video version (for example `ask-cited-answer-crisp`) |
 | `DEMO_DEBUG=1` (env) | Print step timings — handy when a video is too long |
 
 ---
 
 ## Quality bar
 
-- 1920×1080 (full HD), light theme always, smooth eased cursor, click ripples.
-- Captions are 38px with a dark, high-contrast pill and roomy padding. Keep
+- Original 1280×800 layout captured at 2560×1600 HiDPI, then scaled with Lanczos
+  to a crisp 1728×1080 (16:10) MP4; light theme always, smooth eased cursor,
+  click ripples.
+- Captions are 56px with a dark, high-contrast pill and roomy padding. Keep
   them short enough to stay on one or two lines and clear of meaningful UI.
 - No dead time. If a video runs long, `DEMO_DEBUG=1` prints which step stalled;
   targets that aren't ready fast are skipped rather than freezing the frame.
