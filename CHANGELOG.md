@@ -32,6 +32,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Lantern Intake — Wave 1 (the honest E2EE onboarding slice).** An advisor
+  presses New client, composes the locked "New household" checklist (DOB, SSN,
+  driver's license front/back, income, spending), and sends one link; the client
+  completes it on their phone through a page that encrypts every answer and
+  document in their own browser to a per-intake public key; the sealed payloads
+  round-trip through a ciphertext-only relay that holds no key; the advisor's
+  machine decrypts locally, files documents into the client's folder under
+  `Requests/onboarding/`, writes typed secrets into an encrypted facts store, and
+  shows checklist state on an Onboarding tab. Built as five reviewed lanes:
+  - **Contracts + crypto core** (`src/platform/intake/`): `ClientFact` + versioned
+    `FactKind` registry, forward-compatible `FormRequest`/`RequestItem` (§9a),
+    link-fragment codec, and intake siblings of the firm key-wrap / blob-seal
+    constructions (ECDH P-256 + HKDF + AES-256-GCM, intake HKDF info + per-chunk
+    AAD), with submission-integrity + replay-relabel defenses and an exhaustive
+    tamper suite. Files: `types.ts`, `intakeCrypto.ts`, `intakeLink.ts`,
+    `intakeContract.ts`, `pageSeal.ts`.
+  - **E2EE relay** (`backend/src/routes/intake.ts` + `lib/intake.ts` + tables):
+    creator-scoped advisor endpoints + public bearer endpoints, uniform neutral
+    410 with decoy-hash constant-time compare, durable duplicate-`submission_id`
+    rejection, chunk keying, caps + rate limits, HMAC-only token storage,
+    ack-deletes-ciphertext, and a standing privacy-proof test.
+  - **Client page** (`intake-page/`): mobile-first light-theme SPA, WebCrypto
+    feature-gate with sensitivity-routed fallback, one-item-at-a-time flow,
+    camera capture, masked write-only SSN, chunked sealed submissions, sealed
+    resume state, replace-answer, safe-accent guard, Playwright + axe suite.
+  - **Advisor side** (`src/features/intake/`, `src/platform/intake/`,
+    `src-tauri/src/commands/intake/`): compose flow on `NewClientDialog`, link
+    mint + copy/extend/revoke/regenerate (regenerate re-seals checklist+state),
+    manual fact entry, `IntakeSyncClient` (decrypt → verify → route → ack-last),
+    SQLCipher facts store (masking, audited reveal, refuse-if-audit-fails,
+    supersede chains, purge-by-fact_id), and an Onboarding tab on `MatterHub`.
+  - **Staged hosting** (`infra/intake/`): versioned bundle over the real Vite
+    build with a signed manifest + deploy-time integrity check that fails on
+    mismatch, strict CSP (`default-src 'none'`, `connect-src 'self'`), same-origin
+    `/intake/*` reverse-proxy to the relay, `Referrer-Policy: no-referrer`, 24h
+    access-log retention, fragment-never-logged check. Staging only.
 - **Add-client overhaul + client groups (FB2 clientux lane).**
   - **Calm one-field create.** Adding a client is now a small modal with just a
     display name (`NewClientDialog`); on create you land inside the new client's
