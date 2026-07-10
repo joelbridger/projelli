@@ -12,7 +12,7 @@ import {
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
 import { brandText } from '@/config/brandText';
-import { IntegrationHonestyCard } from '@/features/settings/IntegrationHonestyCard';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 
 export function MailConnect() {
   const { t } = useTranslation();

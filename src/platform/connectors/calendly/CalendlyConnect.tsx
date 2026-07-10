@@ -19,7 +19,7 @@ import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { brandText } from '@/config/brandText';
-import { IntegrationHonestyCard } from '@/features/settings/IntegrationHonestyCard';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 
 // Durable, append-only audit trail for connector activity, so a Calendly sync
 // (including one that indexed zero meetings or failed) always leaves a record —

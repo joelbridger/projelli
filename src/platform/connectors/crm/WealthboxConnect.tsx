@@ -27,7 +27,7 @@ import {
   attachCrmHouseholdFolderIfUnmapped,
   buildClaimedCrmFolderSet,
 } from '@/platform/matter/crmMatterFolderBackfill';
-import { IntegrationHonestyCard } from '@/features/settings/IntegrationHonestyCard';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 import {
   buildCrmMatterMap,
   filterCrmMatterMapForProvider,

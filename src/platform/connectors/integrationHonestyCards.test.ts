@@ -5,7 +5,7 @@ import {
   integrationHonestyCardIds,
   integrationHonestyCards,
   type IntegrationHonestyCardId,
-} from '@/features/settings/integrationHonestyCards';
+} from '@/platform/connectors/integrationHonestyCards';
 
 const markdownFiles = {
   wealthbox: 'WEALTHBOX.md',

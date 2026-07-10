@@ -12,7 +12,7 @@ import {
   getIntegrationHonestyCard,
   type IntegrationHonestyCardId,
   type IntegrationHonestySection,
-} from '@/features/settings/integrationHonestyCards';
+} from '@/platform/connectors/integrationHonestyCards';
 
 interface IntegrationHonestyCardProps {
   connectorId: IntegrationHonestyCardId;

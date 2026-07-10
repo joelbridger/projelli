@@ -5,7 +5,7 @@ import { useMailStore } from '@/platform/connectors/email/mailStore';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { brandText } from '@/config/brandText';
-import { IntegrationHonestyCard } from '@/features/settings/IntegrationHonestyCard';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 
 export function MailImapConnect() {
   useMailSync();

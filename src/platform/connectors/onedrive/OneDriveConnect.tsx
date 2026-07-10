@@ -37,7 +37,7 @@ import {
   isMicrosoftSignInExpiredError,
   MICROSOFT_SIGNIN_EXPIRED_MESSAGE,
 } from '@/platform/connectors/microsoft/microsoftAuthError';
-import { IntegrationHonestyCard } from '@/features/settings/IntegrationHonestyCard';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
 import type { Matter } from '@/platform/types/matter';
 import { brandText } from '@/config/brandText';
 

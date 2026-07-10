@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { IntegrationHonestyCard } from '@/features/settings/IntegrationHonestyCard';
-import { integrationHonestyCardIds } from '@/features/settings/integrationHonestyCards';
+import { IntegrationHonestyCard } from '@/platform/connectors/IntegrationHonestyCard';
+import { integrationHonestyCardIds } from '@/platform/connectors/integrationHonestyCards';
 
 afterEach(cleanup);
 
