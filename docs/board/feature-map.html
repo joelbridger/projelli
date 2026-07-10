@@ -281,6 +281,13 @@
   .hint-comment{position:fixed; top:64px; right:20px; z-index:20; background:var(--gold); color:#fff; border-radius:999px; padding:7px 15px; font-size:12.5px; box-shadow:0 8px 22px rgba(192,124,24,.35); display:none}
   body.commenting .hint-comment{display:block}
   body.layer-vision #statusfilters{display:none}
+  body.style-bento ul.features{padding:18px 22px 24px}
+  body.style-bento li.feat{padding:11px 4px 11px 0}
+  body.style-bento li.group{padding-top:20px; margin-top:24px}
+  body.style-bento .stagecard header{padding:24px 22px 18px}
+  body.style-bento .alabel{background:#fff; border-radius:999px; padding:7px 16px; font-size:12px; box-shadow:0 6px 18px rgba(60,40,120,.10); border:1px solid #eee7ff}
+  body.style-bento .foundation{padding:30px 34px}
+  body.style-bento .foundation ul{gap:14px; margin-top:20px}
   .error{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:30}
   .error>div{background:#fdeaea; border:1px solid #f2c4c4; color:#8a2222; border-radius:14px; padding:18px 22px; font-size:14px}
   @media (max-width:700px){ .hud-hint{display:none} .titlecard{max-width:78vw} }
@@ -461,13 +468,20 @@ function drawDefaultConnections(cards,d){
     if(state.style==='bento'){ p.setAttribute('stroke-linecap','round'); p.setAttribute('opacity','.6'); }
     else p.setAttribute('marker-end','url(#ah)');
     svg.appendChild(p);
-    addLabel(c.arrow,mx,(y1+y2)/2,state.style==='bento'?'bento-flow':'');
+    var ly = state.style==='bento' ? Math.min(c.y,n.y)-46 : (y1+y2)/2; // bento: pills float in the sky, never over cards
+    addLabel(c.arrow,mx,ly,state.style==='bento'?'bento-flow':'');
   });
   addFlywheel(cards,d);
 }
 
 function buildMap(){
   var d=MAPDATA, L=layerDef();
+  // Per-style layout: bento breathes (Jameson 2026-07-10: room between everything)
+  var LY = state.style==='bento'
+    ? {W:340, G:360, M:220, S:[0,130,30,160,20,140,60], F:160}
+    : {W:330, G:170, M:140, S:[0,64,18,80,10,70,32],  F:90};
+  STAGE_W=LY.W; GAP_X=LY.G; MARGIN=LY.M; STAGGER=LY.S;
+
   var tot={shipped:0,building:0,planned:0}, total=0;
   mapc.innerHTML='';
   mapc.className='theme-layout-'+state.style;
