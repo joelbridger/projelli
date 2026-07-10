@@ -47,6 +47,9 @@ Codex adversarial (gpt-5.5) found 4 (3 P1): [P1] `intakeStore` partialize persis
 - Merge docs branch `lp/docs-w1bench` (W1-BENCH-RUNBOOK.md — the post-WORKER-DONE bench script). **REVIEW its "Hard Stops" section against this exec plan's gates before printing WORKER-DONE.**
 - All docs-only, coordinator-reviewed, branched off lp/intake → clean merges.
 
+## ✅ WAVE 1 DONE — gate green, pushed (`lp/intake` @ `53502a19`), 2026-07-10
+Full `npm run gate` → **GATE GREEN** (typecheck, typecheck:tests, i18n completeness, vitest **7208 passed / 0 failed / 4 skipped**, ESLint gate, handle/token guards, cargo `--workspace`, tauri parity/contracts, provider/consent/case guards). backend `bun test` **211/0** (incl. the standing privacy-proof test). intake-page Playwright+axe **13/13** (incl. no-third-party-origin + axe-no-serious gates). `lp/intake` pushed, `HEAD == origin/lp/intake`, tree clean. WORKER-DONE printed. Legion phone-browser bench runs next per `W1-BENCH-RUNBOOK.md` (Hard Stops reviewed — compatible).
+
 ## Wave 1 COMPLETE — all 5 lanes merged (2026-07-10)
 All lanes merged into `lp/intake` with lead review + one codex adversarial pass each; every finding fixed + regression-tested; cross-lane seams reconciled:
 - A contracts+crypto `2942df73` (+3 hardenings). B relay `e828148e` (+3 findings). C client-page `f782a768` (+6 findings). D advisor-side `9a6990d5` (+4 findings) + C↔D pageSeal AAD unified `c1209ead`. E hosting `b977b8cc`+`a639cd0e` (+4 findings, collision reconciled, C↔E same-origin proxy + `connect-src 'self'`). Architecture-boundary `matters->intake` edge declared `6ccfb900`.
