@@ -19,7 +19,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ArrowDown, ArrowUp, Copy, Mail, MessageSquare, Plus, Send, Trash2 } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Copy,
+  Mail,
+  MessageSquare,
+  Plus,
+  Send,
+  Trash2,
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -59,14 +68,18 @@ export interface NewClientDialogProps {
 type NewClientStep = 'details' | 'compose' | 'review';
 
 function newIntakeId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return `intake_${crypto.randomUUID()}`;
   }
   return `intake_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function intakeHost(): string {
-  const env = (import.meta as { env?: { VITE_INTAKE_HOST?: string } }).env?.VITE_INTAKE_HOST;
+  const env = (import.meta as { env?: { VITE_INTAKE_HOST?: string } }).env
+    ?.VITE_INTAKE_HOST;
   return (env && env.trim()) || 'https://forms.lanternplatform.app';
 }
 
@@ -99,7 +112,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [step, setStep] = useState<NewClientStep>('details');
-  const [items, setItems] = useState<RequestItem[]>(() => defaultNewHouseholdItems());
+  const [items, setItems] = useState<RequestItem[]>(() =>
+    defaultNewHouseholdItems()
+  );
   const [sentLink, setSentLink] = useState('');
   const [createdMatterId, setCreatedMatterId] = useState('');
   const [sendError, setSendError] = useState('');
@@ -142,7 +157,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
     if (!sentLink) return '';
     const subject = encodeURIComponent('Your onboarding link');
     const body = encodeURIComponent(
-      `Hi ${firstName(name)},\n\nHere is the secure onboarding link we discussed:\n\n${sentLink}\n\nThis link works for 30 days. You can stop and come back anytime.\n`,
+      `Hi ${firstName(name)},\n\nHere is the secure onboarding link we discussed:\n\n${sentLink}\n\nThis link works for 30 days. You can stop and come back anytime.\n`
     );
     return `mailto:${encodeURIComponent(email.trim())}?subject=${subject}&body=${body}`;
   }, [email, name, sentLink]);
@@ -151,7 +166,8 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
     setItems((current) => {
       const index = current.findIndex((item) => item.item_id === itemId);
       const nextIndex = index + direction;
-      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length)
+        return current;
       const next = [...current];
       const [item] = next.splice(index, 1);
       if (!item) return current;
@@ -160,8 +176,15 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
     });
   };
 
-  const updateItemText = (itemId: string, patch: Partial<Pick<RequestItem, 'label' | 'help_text'>>) => {
-    setItems((current) => current.map((item) => (item.item_id === itemId ? { ...item, ...patch } : item)));
+  const updateItemText = (
+    itemId: string,
+    patch: Partial<Pick<RequestItem, 'label' | 'help_text'>>
+  ) => {
+    setItems((current) =>
+      current.map((item) =>
+        item.item_id === itemId ? { ...item, ...patch } : item
+      )
+    );
   };
 
   const addChecklistItem = () => {
@@ -185,7 +208,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
     const displayName = name.trim();
     if (!displayName) return;
     if (!seatToken) {
-      setSendError('Sign in and activate this machine before sending an onboarding link.');
+      setSendError(
+        'Sign in and activate this machine before sending an onboarding link.'
+      );
       return;
     }
     submittingRef.current = true;
@@ -195,12 +220,14 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
     void (async () => {
       let created = createdMatterRef.current;
       if (!created) {
-        const takenFolderPaths = useMatterStore.getState().matters.flatMap((m) => m.folderPaths);
+        const takenFolderPaths = useMatterStore
+          .getState()
+          .matters.flatMap((m) => m.folderPaths);
         const clientFolder = deriveNewClientFolderPath(
           '',
           displayName,
           rootPath,
-          takenFolderPaths,
+          takenFolderPaths
         );
         created = createMatter({
           name: displayName,
@@ -209,7 +236,16 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         });
         createdMatterRef.current = created;
         setCreatedMatterId(created.id);
-        if (clientFolder) void ensureClientFolderOnDisk(clientFolder);
+        if (clientFolder) {
+          void ensureClientFolderOnDisk(clientFolder).catch(
+            (error: unknown) => {
+              console.warn(
+                '[NewClientDialog] Could not prepare client folder:',
+                error
+              );
+            }
+          );
+        }
       }
 
       const intakeId = newIntakeId();
@@ -256,11 +292,15 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       window.dispatchEvent(
         new CustomEvent(EV_MATTER_LAUNCH, {
           detail: { matterId: created.id, surface: 'matters' },
-        }),
+        })
       );
     })()
       .catch((error: unknown) => {
-        setSendError(error instanceof Error ? error.message : 'Could not create the onboarding link.');
+        setSendError(
+          error instanceof Error
+            ? error.message
+            : 'Could not create the onboarding link.'
+        );
       })
       .finally(() => {
         submittingRef.current = false;
@@ -310,11 +350,25 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="new-client-email">Email</Label>
-                <Input id="new-client-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="client@example.com" />
+                <Input
+                  id="new-client-email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                  }}
+                  placeholder="client@example.com"
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="new-client-phone">Phone</Label>
-                <Input id="new-client-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 123-4567" />
+                <Input
+                  id="new-client-phone"
+                  value={phone}
+                  onChange={(e) => {
+                    setPhone(e.target.value);
+                  }}
+                  placeholder="(555) 123-4567"
+                />
               </div>
             </div>
           </div>
@@ -323,38 +377,88 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         {step === 'compose' && (
           <div className="space-y-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-sm font-medium text-slate-700">New household template</div>
-              <Button type="button" variant="outline" size="sm" onClick={addChecklistItem}>
+              <div className="text-sm font-medium text-slate-700">
+                {t('matter.new-client.household-template')}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addChecklistItem}
+              >
                 <Plus className="mr-2 h-4 w-4" aria-hidden />
                 Add item
               </Button>
             </div>
             <div className="max-h-[420px] space-y-2 overflow-auto pr-1">
               {items.map((item, index) => (
-                <div key={item.item_id} className="rounded-md border border-slate-200 bg-white p-3">
+                <div
+                  key={item.item_id}
+                  className="rounded-md border border-slate-200 bg-white p-3"
+                >
                   <div className="flex items-start gap-2">
-                    <div className="mt-2 w-6 shrink-0 text-center text-xs font-bold text-slate-400">{index + 1}</div>
+                    <div className="mt-2 w-6 shrink-0 text-center text-xs font-bold text-slate-400">
+                      {index + 1}
+                    </div>
                     <div className="min-w-0 flex-1 space-y-2">
                       <Input
                         value={item.label}
-                        onChange={(e) => updateItemText(item.item_id, { label: e.target.value })}
+                        onChange={(e) => {
+                          updateItemText(item.item_id, {
+                            label: e.target.value,
+                          });
+                        }}
                         aria-label="Item label"
                       />
                       <Input
                         value={item.help_text}
-                        onChange={(e) => updateItemText(item.item_id, { help_text: e.target.value })}
+                        onChange={(e) => {
+                          updateItemText(item.item_id, {
+                            help_text: e.target.value,
+                          });
+                        }}
                         aria-label="Item help text"
                         placeholder="Optional helper text"
                       />
                     </div>
                     <div className="flex shrink-0 gap-1">
-                      <Button type="button" variant="ghost" size="icon" aria-label="Move item up" onClick={() => moveItem(item.item_id, -1)} disabled={index === 0}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Move item up"
+                        onClick={() => {
+                          moveItem(item.item_id, -1);
+                        }}
+                        disabled={index === 0}
+                      >
                         <ArrowUp className="h-4 w-4" aria-hidden />
                       </Button>
-                      <Button type="button" variant="ghost" size="icon" aria-label="Move item down" onClick={() => moveItem(item.item_id, 1)} disabled={index === items.length - 1}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Move item down"
+                        onClick={() => {
+                          moveItem(item.item_id, 1);
+                        }}
+                        disabled={index === items.length - 1}
+                      >
                         <ArrowDown className="h-4 w-4" aria-hidden />
                       </Button>
-                      <Button type="button" variant="ghost" size="icon" aria-label="Remove item" onClick={() => setItems((current) => current.filter((candidate) => candidate.item_id !== item.item_id))}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove item"
+                        onClick={() => {
+                          setItems((current) =>
+                            current.filter(
+                              (candidate) => candidate.item_id !== item.item_id
+                            )
+                          );
+                        }}
+                      >
                         <Trash2 className="h-4 w-4" aria-hidden />
                       </Button>
                     </div>
@@ -368,25 +472,79 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         {step === 'review' && (
           <div className="space-y-4">
             <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-slate-500">{firmName}</div>
-              <div className="mt-2 text-lg font-bold text-slate-900">Hi {firstName(name)}, let’s get your household set up.</div>
-              <div className="mt-1 text-sm text-slate-600">This link works for 30 days. You can extend or turn it off anytime.</div>
+              <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                {firmName}
+              </div>
+              <div className="mt-2 text-lg font-bold text-slate-900">
+                {t('matter.new-client.review-greeting', {
+                  name: firstName(name),
+                })}
+              </div>
+              <div className="mt-1 text-sm text-slate-600">
+                {t('matter.new-client.review-link-note')}
+              </div>
               <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-500">
-                {sentLink || 'The private link will appear here after you create it.'}
+                {sentLink ||
+                  'The private link will appear here after you create it.'}
               </div>
             </div>
-            {sendError ? <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sendError}</div> : null}
+            {sendError ? (
+              <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                {sendError}
+              </div>
+            ) : null}
             {sentLink ? (
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <Button type="button" variant="outline" onClick={() => { void navigator.clipboard?.writeText(sentLink); setCopied('link'); }}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(sentLink)
+                      .then(() => {
+                        setCopied('link');
+                      })
+                      .catch((error: unknown) => {
+                        setSendError(
+                          error instanceof Error
+                            ? error.message
+                            : 'Could not copy the link.'
+                        );
+                      });
+                  }}
+                >
                   <Copy className="mr-2 h-4 w-4" aria-hidden />
                   {copied === 'link' ? 'Copied' : 'Copy link'}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => { window.location.href = emailHref; }} disabled={!emailHref}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    window.location.href = emailHref;
+                  }}
+                  disabled={!emailHref}
+                >
                   <Mail className="mr-2 h-4 w-4" aria-hidden />
-                  Open email draft
+                  {t('matter.new-client.open-email-draft')}
                 </Button>
-                <Button type="button" variant="outline" onClick={() => { void navigator.clipboard?.writeText(smsCopy(name, sentLink)); setCopied('sms'); }}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    void navigator.clipboard
+                      .writeText(smsCopy(name, sentLink))
+                      .then(() => {
+                        setCopied('sms');
+                      })
+                      .catch((error: unknown) => {
+                        setSendError(
+                          error instanceof Error
+                            ? error.message
+                            : 'Could not copy the text message.'
+                        );
+                      });
+                  }}
+                >
                   <MessageSquare className="mr-2 h-4 w-4" aria-hidden />
                   {copied === 'sms' ? 'Copied' : 'Copy text for SMS'}
                 </Button>
@@ -409,13 +567,17 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
               }
             }}
           >
-            {step === 'details' || sentLink ? t('matter.new-client.cancel') : 'Back'}
+            {step === 'details' || sentLink
+              ? t('matter.new-client.cancel')
+              : 'Back'}
           </Button>
           {step === 'details' ? (
             <Button
               data-testid="new-client-next"
               className="gap-2"
-              onClick={() => setStep('compose')}
+              onClick={() => {
+                setStep('compose');
+              }}
               disabled={!name.trim()}
             >
               <Plus className="h-4 w-4" />
@@ -425,7 +587,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
             <Button
               data-testid="new-client-review"
               className="gap-2"
-              onClick={() => setStep('review')}
+              onClick={() => {
+                setStep('review');
+              }}
               disabled={!canReview}
             >
               Review

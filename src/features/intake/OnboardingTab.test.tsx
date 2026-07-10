@@ -5,21 +5,27 @@ import { OnboardingTab } from './OnboardingTab';
 import { intakeFactPurge } from '@/platform/intake/factsStore';
 
 vi.mock('@/platform/intake/factsStore', () => ({
-  intakeFactList: vi.fn(async () => [
-    {
-      fact_id: 'fact-1',
-      matter_id: 'matter-1',
-      subject: 'primary',
-      kind: 'ssn',
-      sensitivity: 'restricted',
-      display_value: '•••-••-6789',
-      provenance: { channel: 'intake_link', entered_by: 'client', at: '2026-07-10T00:00:00.000Z' },
-      verification: 'client_stated',
-      status: 'active',
-    },
-  ]),
+  intakeFactList: vi.fn(() =>
+    Promise.resolve([
+      {
+        fact_id: 'fact-1',
+        matter_id: 'matter-1',
+        subject: 'primary',
+        kind: 'ssn',
+        sensitivity: 'restricted',
+        display_value: '•••-••-6789',
+        provenance: {
+          channel: 'intake_link',
+          entered_by: 'client',
+          at: '2026-07-10T00:00:00.000Z',
+        },
+        verification: 'client_stated',
+        status: 'active',
+      },
+    ])
+  ),
   intakeFactReveal: vi.fn(),
-  intakeFactPurge: vi.fn(async () => ['fact-1']),
+  intakeFactPurge: vi.fn(() => Promise.resolve(['fact-1'])),
   intakeFactUpsert: vi.fn(),
 }));
 
@@ -64,7 +70,7 @@ describe('OnboardingTab', () => {
           flags: [],
           knownSessionIds: [],
         }}
-      />,
+      />
     );
 
     expect(await screen.findByText('•••-••-6789')).toBeTruthy();
@@ -90,12 +96,14 @@ describe('OnboardingTab', () => {
           flags: [],
           knownSessionIds: [],
         }}
-      />,
+      />
     );
 
     fireEvent.click(await screen.findByLabelText('Purge fact'));
 
-    await waitFor(() => expect(intakeFactPurge).toHaveBeenCalledWith('fact-1'));
+    await waitFor(() => {
+      expect(intakeFactPurge).toHaveBeenCalledWith('fact-1');
+    });
     expect(intakeFactPurge).not.toHaveBeenCalledWith('matter-1', 'ssn');
   });
 });
