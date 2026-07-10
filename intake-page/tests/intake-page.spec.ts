@@ -476,6 +476,58 @@ test('warns before a tax return is selected for a driver license', async ({ page
   await expectNoSeriousAxeViolations(page);
 });
 
+test('holds submission only while a selected file is being checked, then shows the settled warning', async ({ page }) => {
+  await page.addInitScript(() => {
+    const nativeText = Blob.prototype.text;
+    Blob.prototype.text = async function delayedText(): Promise<string> {
+      const value = await nativeText.call(this);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      return value;
+    };
+  });
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License back photo').setInputFiles({
+    name: 'back.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('back-image'),
+  });
+  await expect(page.getByText('Checking your file...')).toHaveCount(0);
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+
+  await expect(page.getByText('Checking your file...')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+  expect(relay.submits.filter((submit) => submit.item_id === 'license')).toHaveLength(0);
+
+  await expect(page.getByRole('alert')).toContainText("This looks like a tax return, but this request asks for a driver's license.");
+  await expect(page.getByText('Checking your file...')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
+});
+
+test('keeps the latest file classification when a client changes a file while checking', async ({ page }) => {
+  await page.addInitScript(() => {
+    const nativeText = Blob.prototype.text;
+    Blob.prototype.text = async function delayedTaxReturn(): Promise<string> {
+      const value = await nativeText.call(this);
+      if (value.includes('Form 1040')) await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      return value;
+    };
+  });
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await page.getByLabel('License front photo').setInputFiles(LICENSE_FRONT_FIXTURE);
+
+  await expect(page.getByText('Checking your file...')).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await expect(page.getByText('front ready')).toBeVisible();
+});
+
 test('warns when a driver license back is selected for the front slot', async ({ page }) => {
   const relay = await setupRelay(page);
   await page.goto(relay.url);
@@ -515,14 +567,13 @@ test('keeps an advised upload, seals the override, and keeps warning details off
   await page.goto(relay.url);
   await openLicenseScreen(page);
 
-  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
-  await page.getByRole('button', { name: 'Keep this file anyway' }).click();
   await page.getByLabel('License back photo').setInputFiles({
     name: 'back.jpg',
     mimeType: 'image/jpeg',
     buffer: Buffer.from('back-image'),
   });
-  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await page.getByRole('button', { name: 'Keep this file anyway' }).click();
 
   await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
   const sealedFront = await openSubmittedPayload(relay, 'license', 0);
@@ -543,6 +594,30 @@ test('keeps an advised upload, seals the override, and keeps warning details off
   expect(relayBodies).not.toContain('tax_return');
   await expect(page.locator('body')).not.toContainText('tax return');
   await expect(page.locator('body')).not.toContainText("driver's license");
+});
+
+test('keeps a warned file and submits it with one click once every slot is ready', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License back photo').setInputFiles({
+    name: 'back.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('back-image'),
+  });
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
+
+  await page.getByRole('button', { name: 'Keep this file anyway' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
+  await expectSubmitCount(relay, 'license', 2);
+  const sealedFront = await openSubmittedPayload(relay, 'license', 0);
+  expect(sealedFront.documentDetective).toEqual([
+    expect.objectContaining({ warning_reason: 'wrong_doc', kept_anyway: true }),
+  ]);
 });
 
 test('resumes at the next incomplete item after a full reload', async ({ page }) => {

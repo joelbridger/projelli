@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 
 import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
@@ -766,15 +766,50 @@ function DocUploadScreen({
 }): JSX.Element {
   const rules = useMemo(() => getUploadRules(item), [item]);
   const [files, setFiles] = useState<Array<File | undefined>>(() => Array.from({ length: rules.slotCount }));
-  const [classifications, setClassifications] = useState<Record<number, Tier1Classification>>({});
+  const [fileAnalyses, setFileAnalyses] = useState<Record<number, { file: File; textSample: string }>>({});
+  const [checkingSlots, setCheckingSlots] = useState<Record<number, true>>({});
   const [keptAnyway, setKeptAnyway] = useState<Record<number, true>>({});
   const [fileError, setFileError] = useState<string | null>(null);
   const [uploadedCount, setUploadedCount] = useState<number | null>(null);
+  const fileGeneration = useRef<Record<number, number>>({});
   const selectedCount = files.filter(Boolean).length;
-  const unresolvedWarning = Object.entries(classifications).some(
-    ([index, classification]) => classification.verdict === 'warn' && !keptAnyway[Number(index)],
-  );
-  const disabled = busy || selectedCount < rules.requiredSlots || Boolean(fileError) || unresolvedWarning;
+  const classifications = useMemo(() => {
+    const baseClassifications = files.map((file, index) => {
+      const analysis = fileAnalyses[index];
+      if (!file || !analysis || analysis.file !== file) return undefined;
+      const slotRole = rules.requiredSlots === 2 && index < 2 ? (index === 0 ? 'front' : 'back') : 'file';
+      return classifyTier1({
+        item,
+        slotIndex: index,
+        slotRole,
+        file: { name: file.name, mimeType: file.type, byteSize: file.size, textSample: analysis.textSample },
+      });
+    });
+
+    return Object.fromEntries(
+      baseClassifications.flatMap((classification, index) => {
+        const file = files[index];
+        const analysis = fileAnalyses[index];
+        if (!classification || !file || !analysis || analysis.file !== file) return [];
+        const siblingIndex = rules.requiredSlots === 2 ? (index === 0 ? 1 : 0) : -1;
+        const sibling = baseClassifications[siblingIndex];
+        const siblingLicenseSide = index > siblingIndex && sibling && sibling.verdict !== 'unknown' ? sibling.side : undefined;
+        const slotRole = rules.requiredSlots === 2 && index < 2 ? (index === 0 ? 'front' : 'back') : 'file';
+        return [[
+          index,
+          classifyTier1({
+            item,
+            slotIndex: index,
+            slotRole,
+            file: { name: file.name, mimeType: file.type, byteSize: file.size, textSample: analysis.textSample },
+            ...(siblingLicenseSide ? { siblingLicenseSide } : {}),
+          }),
+        ]];
+      }),
+    ) as Record<number, Tier1Classification>;
+  }, [fileAnalyses, files, item, rules.requiredSlots]);
+  const hasInFlightCheck = files.some((file, index) => Boolean(file && checkingSlots[index]));
+  const disabled = busy || selectedCount < rules.requiredSlots || Boolean(fileError) || hasInFlightCheck;
 
   useEffect(() => {
     let cancelled = false;
@@ -795,13 +830,26 @@ function DocUploadScreen({
 
   async function updateFile(index: number, fileList: FileList | null): Promise<void> {
     const file = fileList?.[0];
+    const generation = (fileGeneration.current[index] ?? 0) + 1;
+    fileGeneration.current[index] = generation;
+    setFileAnalyses((existing) => {
+      const next = { ...existing };
+      delete next[index];
+      return next;
+    });
+    setCheckingSlots((existing) => {
+      const next = { ...existing };
+      if (file) next[index] = true;
+      else delete next[index];
+      return next;
+    });
     if (file && file.size > rules.maxBytes) {
       setFiles((existing) => {
         const next = [...existing];
         next[index] = undefined;
         return next;
       });
-      setClassifications((existing) => {
+      setCheckingSlots((existing) => {
         const next = { ...existing };
         delete next[index];
         return next;
@@ -826,40 +874,37 @@ function DocUploadScreen({
       return next;
     });
     if (!file) {
-      setClassifications((existing) => {
-        const next = { ...existing };
-        delete next[index];
-        return next;
-      });
       return;
     }
 
-    const textSample = await readTextSample(file);
-    setClassifications((existing) => {
-      const siblingIndex = rules.requiredSlots === 2 ? (index === 0 ? 1 : 0) : -1;
-      const sibling = existing[siblingIndex];
-      const siblingLicenseSide = sibling && sibling.verdict !== 'unknown' ? sibling.side : undefined;
-      const slotRole = rules.requiredSlots === 2 && index < 2 ? (index === 0 ? 'front' : 'back') : 'file';
-      return {
-        ...existing,
-        [index]: classifyTier1({
-          item,
-          slotIndex: index,
-          slotRole,
-          file: { name: file.name, mimeType: file.type, byteSize: file.size, textSample },
-          ...(siblingLicenseSide ? { siblingLicenseSide } : {}),
-        }),
-      };
-    });
+    try {
+      const textSample = await readTextSample(file);
+      if (fileGeneration.current[index] !== generation) return;
+      setFileAnalyses((existing) => ({ ...existing, [index]: { file, textSample } }));
+    } finally {
+      if (fileGeneration.current[index] === generation) {
+        setCheckingSlots((existing) => {
+          const next = { ...existing };
+          delete next[index];
+          return next;
+        });
+      }
+    }
   }
 
   function clearFile(index: number): void {
+    fileGeneration.current[index] = (fileGeneration.current[index] ?? 0) + 1;
     setFiles((existing) => {
       const next = [...existing];
       next[index] = undefined;
       return next;
     });
-    setClassifications((existing) => {
+    setFileAnalyses((existing) => {
+      const next = { ...existing };
+      delete next[index];
+      return next;
+    });
+    setCheckingSlots((existing) => {
       const next = { ...existing };
       delete next[index];
       return next;
@@ -871,7 +916,12 @@ function DocUploadScreen({
     });
   }
 
-  function submit(): void {
+  function submit(acknowledgedWarnings: Record<number, true> = keptAnyway): void {
+    if (disabled) return;
+    const hasUnacknowledgedWarning = Object.entries(classifications).some(
+      ([index, classification]) => classification.verdict === 'warn' && !acknowledgedWarnings[Number(index)],
+    );
+    if (hasUnacknowledgedWarning) return;
     const documentDetective = Object.entries(classifications).flatMap(([slotIndex, classification]) => {
       if (classification.verdict !== 'warn') return [];
       return [{
@@ -881,7 +931,7 @@ function DocUploadScreen({
         expected: classification.reason === 'wrong_side_of_license' ? classification.expected.side : classification.expected.kind,
         observed: classification.observed,
         ...(classification.side ? { side: classification.side } : {}),
-        kept_anyway: Boolean(keptAnyway[Number(slotIndex)]),
+        kept_anyway: Boolean(acknowledgedWarnings[Number(slotIndex)]),
       }];
     });
     const selectedSlots = files.flatMap((file, index) => (file ? [{ file, index }] : []));
@@ -891,6 +941,12 @@ function DocUploadScreen({
       file_slot_indexes: selectedSlots.map(({ index }) => index),
       ...(documentDetective.length ? { document_detective: documentDetective } : {}),
     });
+  }
+
+  function keepFileAnyway(index: number): void {
+    const acknowledgedWarnings = { ...keptAnyway, [index]: true } as Record<number, true>;
+    setKeptAnyway(acknowledgedWarnings);
+    submit(acknowledgedWarnings);
   }
 
   return (
@@ -954,6 +1010,7 @@ function DocUploadScreen({
               <p className="ready-line">
                 {files[index] ? `${slotName} ready` : index < rules.requiredSlots ? `${slotName} needed` : `${slotName} optional`}
               </p>
+              {files[index] && checkingSlots[index] ? <p className="format-help">Checking your file...</p> : null}
               {warning && !keptAnyway[index] ? (
                 <div className="document-warning" role="alert">
                   <p>{warningMessage(warning)}</p>
@@ -964,7 +1021,7 @@ function DocUploadScreen({
                     <button
                       className="primary-button"
                       type="button"
-                      onClick={() => setKeptAnyway((existing) => ({ ...existing, [index]: true }))}
+                      onClick={() => keepFileAnyway(index)}
                     >
                       Keep this file anyway
                     </button>

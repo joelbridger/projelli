@@ -84,24 +84,43 @@ const INFERRED_EXPECTATIONS: readonly [string, DocumentKind][] = [
   ['credit card statement', 'credit_card_statement'],
 ];
 
+const GENERIC_FINANCE_KINDS: readonly DocumentKind[] = [
+  'pay_stub',
+  'bank_statement',
+  'brokerage_statement',
+  'ira_statement',
+  'credit_card_statement',
+];
+
 function signalsIn(text: string, signals: readonly string[]): string[] {
   return signals.filter((signal) => text.includes(signal));
 }
 
-function observedKind(text: string): { kind: DocumentKind; evidence: string[] } {
+/**
+ * Finds the document kind from readable file text only. The filename remains
+ * deliberately weak metadata: it can never by itself create a client warning.
+ */
+export function classifyObservedKind(text: string, _filename = ''): { kind: DocumentKind; evidence: string[] } {
+  const normalizedText = text.toLowerCase();
   const matches = Object.entries(DOCUMENT_SIGNALS)
-    .map(([kind, signals]) => ({ kind: kind as DocumentKind, evidence: signalsIn(text, signals) }))
+    .map(([kind, signals]) => ({ kind: kind as DocumentKind, evidence: signalsIn(normalizedText, signals) }))
     .filter((match) => match.evidence.length > 0);
 
   if (matches.length === 0) return { kind: 'unknown', evidence: [] };
   if (matches.length === 1) return matches[0] as { kind: DocumentKind; evidence: string[] };
 
   const kinds = new Set(matches.map((match) => match.kind));
-  if (kinds.has('ira_statement') && kinds.has('brokerage_statement') && kinds.size === 2) {
+  const onlyKinds = (allowed: readonly DocumentKind[]): boolean => matches.every((match) => allowed.includes(match.kind));
+  const taxReturn = matches.find((match) => match.kind === 'tax_return');
+  if (taxReturn && onlyKinds(['tax_return', ...GENERIC_FINANCE_KINDS])) {
+    return taxReturn as { kind: DocumentKind; evidence: string[] };
+  }
+  if (kinds.has('ira_statement') && kinds.has('brokerage_statement') && onlyKinds(['ira_statement', 'brokerage_statement'])) {
     return matches.find((match) => match.kind === 'ira_statement') as { kind: DocumentKind; evidence: string[] };
   }
-  if (kinds.has('tax_return') && kinds.size === 1) {
-    return matches.find((match) => match.kind === 'tax_return') as { kind: DocumentKind; evidence: string[] };
+  const license = matches.find((match) => match.kind === 'drivers_license');
+  if (license && license.evidence.length >= 2 && onlyKinds(['drivers_license', ...GENERIC_FINANCE_KINDS])) {
+    return license as { kind: DocumentKind; evidence: string[] };
   }
   return { kind: 'unknown', evidence: [] };
 }
@@ -137,7 +156,7 @@ export function classifyTier1(input: Tier1ClassifyInput): Tier1Classification {
   const text = input.file.textSample?.toLowerCase().trim() ?? '';
   if (!text) return { verdict: 'unknown', evidence: [] };
 
-  const observedResult = observedKind(text);
+  const observedResult = classifyObservedKind(text, input.file.name);
   const sideResult = detectedSide(text);
   const observed = observedResult.kind === 'unknown' && sideResult.side !== 'unknown' ? 'drivers_license' : observedResult.kind;
   const evidence = [...observedResult.evidence, ...sideResult.evidence];

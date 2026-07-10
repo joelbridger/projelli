@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { classifyTier1 } from '@/platform/intake/documentDetectiveRules';
+import { classifyObservedKind, classifyTier1 } from '@/platform/intake/documentDetectiveRules';
 import type { Tier1ClassifyInput } from '@/platform/intake/documentDetectiveTypes';
 
 function classify(overrides: Partial<Tier1ClassifyInput> = {}) {
@@ -101,5 +101,24 @@ describe('classifyTier1', () => {
     });
 
     expect(result).toMatchObject({ verdict: 'warn', reason: 'wrong_doc', observed: 'ira_statement' });
+  });
+
+  it('prefers a tax return over a generic finance signal so a license warning is not missed', () => {
+    const result = classify({
+      file: {
+        name: 'return.txt',
+        mimeType: 'text/plain',
+        byteSize: 100,
+        textSample: 'Form 1040 adjusted gross income gross pay net pay',
+      },
+    });
+
+    expect(result).toMatchObject({ verdict: 'warn', reason: 'wrong_doc', observed: 'tax_return' });
+  });
+
+  it('exports observed-kind detection with IRA precedence for later reuse', () => {
+    expect(classifyObservedKind('Traditional IRA portfolio value brokerage statement', 'statement.txt')).toMatchObject({
+      kind: 'ira_statement',
+    });
   });
 });
