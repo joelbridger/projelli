@@ -9,8 +9,8 @@
 |---|---|---|---|---|---|---|---|---|
 | 0 | contract-model + live-sync | `~/lp-w2-0` | `lp/intake-w2-0` | DONE-EXIT:0 | lead PASS + 3 findings | codex-review: 4 findings (2 P1 lead missed) | in `cc1db61a` | **MERGED** |
 | 1 | board-ui | `~/lp-w2-1` | `lp/intake-w2-1` | DONE-EXIT:0 | lead PASS | codex-review: 4 P2 (real primary-action break) + fix | in `79be59fd` | **MERGED** |
-| 2 | link-lifecycle | `~/lp-w2-2` | `lp/intake-w2-2` | DONE-EXIT:0 | lead PASS | codex-review running | `c339e9b0` (pre-merge) | REVIEW |
-| 3 | nudges + E2E | `~/lp-w2-3` | `lp/intake-w2-3` | DONE-EXIT:0 | lead PASS | codex-review running | `c7a085e4` (pre-merge) | REVIEW |
+| 2 | link-lifecycle | `~/lp-w2-2` | `lp/intake-w2-2` | DONE-EXIT:0 | lead PASS | codex-review: CLEAN | in `b479c2c9`+wire `ec7897d9` | **MERGED + wired + pushed** |
+| 3 | nudges + E2E | `~/lp-w2-3` | `lp/intake-w2-3` | DONE-EXIT:0 | lead PASS | codex-review: 3 P1 (not reachable in prod) | `c7a085e4` (pre-fix) | FIX ROUND running (`briefs/w2-3-fix.md`) |
 
 ## 🟡 OPEN COORDINATOR DECISION (2026-07-10) — scope of Lane 0
 **Discovery:** Wave 1 built `IntakeSyncClient` (advisor inbox→decrypt→file→store) as a fully-tested class, and the relay exposes the `/intake/:id/inbox` + `/ack` routes — but **nothing in the running app constructs or polls it.** `IntakeRelayClient` has no `fetchInbox`/`ack` method; no live poller is mounted; the sample/demo workspace seeds no intake record. So in the running app today, client submissions land in the relay mailbox and are never pulled down — the store never updates from real data. The board/nudges/link-lifecycle all read that store → **hollow without a live data source.**
@@ -36,6 +36,13 @@ Lead independent verify: vitest 4/4, tsc clean, eslint-gate clean, no raw hex, i
 
 ## Lane 3 (nudge) — lead verify PASS
 75 tests pass, tsc/token-guard/eslint-gate clean. **No-send guarantee enforced:** no `mailSend` in code; tests reject `mail_send` + assert never called. `nudgeSave`: audit intent BEFORE `mailSaveDraft`, outcome after success, failed-outcome on error, `recordNudgeAttempt` only on success (shared `auditPairId`), no body/restricted values in rows. Stale-draft guard (missing items changed → block + regenerate). Proactively declared the new architecture-boundary edge. **Cross-lane E2E** (`onboarding-e2e.test.tsx`): store→model→board→draft-save→audit + REAL simulated restart (persist+rehydrate via migration) asserts cadence still blocks; redaction test asserts SSN/file-name absent from board/nudge/link. `intake_nudge` audit action added to audit.ts + AuditLog + auditHomeHelpers. codex-review pending. Board wiring (NudgeDraftCard/onOpenNudge) done by lead at merge.
+
+## Lane 3 review — 3 P1 "built but not reachable in production" (same class as Lane 0's unwired sync)
+codex-review found the nudge feature well-tested in isolation but not actually functional in the running app:
+- **[P1] nudge draft omits the link after restart** (`nudgeDraft.ts:184` falls back to `''`; store strips `link`). Fix (Codex): reconstruct via `reconstructAdvisorIntakeLink({intakeId,publicKeyRawB64})`; block save if no link. → `briefs/w2-3-fix.md` #1.
+- **[P1] audit emitter never registered in App.tsx** → `logIntakeNudgeAudit` silently drops every intent/outcome row in prod (compliance record lost). Fix (Codex): register the emitter in App.tsx mirroring `setEmailAuditEmitter`. → fix #2.
+- **[P1] nudge UI not wired into the board** (`MattersHome` renders board without `renderNudgeSlot`/`onOpenNudge` → Nudge button disabled). Fix: **LEAD wires it at merge** (like the link-badge wiring `ec7897d9`), since Lane 3 can't touch MattersHome.
+- LESSON: the adversarial pass again caught integration gaps unit tests can't see. Same pattern as Lane 0 — "the piece exists and passes its own tests but nothing in the running app reaches it."
 
 ## Resolved open questions (from W2-PREP)
 See `W2-EXEC-PLAN.md` §0 — all 7 resolved from grounded Wave-1 code. Headlines: (Q2) client email is NOT persisted today → Lane 0 adds it; (Q3) approve = `mailSaveDraft`, never send; (Q5) link signals LOCAL-only, no relay attempt-telemetry (preserves the uniform-410 privacy hardening); (Q7) deterministic templates + optional AI "in my voice" on body only.
