@@ -99,7 +99,10 @@ export function assertValidRequestBlueprint(blueprint: RequestBlueprint): void {
   if (blueprint.schemaVersion < 1 || !Number.isInteger(blueprint.schemaVersion)) {
     throw new BlueprintValidationError('Blueprint schema version must be a positive integer.');
   }
-  if (blueprint.defaultKind !== 'onboarding' && blueprint.defaultKind !== 'standing') {
+  // Defensive at runtime even though the type is exhaustive: blueprints can
+  // arrive from persisted JSON that was never actually type-checked.
+  const defaultKind = blueprint.defaultKind as string;
+  if (defaultKind !== 'onboarding' && defaultKind !== 'standing') {
     throw new BlueprintValidationError('Blueprint request kind is not supported.');
   }
 

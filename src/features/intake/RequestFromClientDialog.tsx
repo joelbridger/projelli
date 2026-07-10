@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 import { Button } from '@/ui/button';
 import {
@@ -27,7 +28,7 @@ type ComposerStep = 'picker' | 'editor' | 'review';
  * relay, firm, and link settings. Keeping that binding outside the dialog
  * makes this component reusable from any existing-client surface.
  */
-export type RequestFromClientIssuer = (request: FormRequest) => Promise<unknown> | unknown;
+export type RequestFromClientIssuer = (request: FormRequest) => unknown;
 
 export interface RequestFromClientDialogProps {
   matterId: string;
@@ -64,6 +65,7 @@ export function RequestFromClientDialog({
   blueprints,
   onIssued,
 }: RequestFromClientDialogProps) {
+  const { t } = useTranslation();
   const firmBlueprints = useBlueprintStore((state) => state.firmBlueprintsById);
   const availableBlueprints = useMemo(
     () => blueprints
@@ -82,7 +84,6 @@ export function RequestFromClientDialog({
 
   useEffect(() => {
     if (!open) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reopening must start a fresh, unpersisted request draft.
     setStep('picker');
     setSelectedBlueprint(null);
     setDraftItems([]);
@@ -172,7 +173,7 @@ export function RequestFromClientDialog({
         {step === 'picker' ? (
           <section className="grid gap-3" aria-label="Blueprint picker">
             {availableBlueprints.length === 0 ? (
-              <p className="m-0 text-sm text-muted-foreground">No request blueprints are available yet.</p>
+              <p className="m-0 text-sm text-muted-foreground">{t('intake.requestFromClient.noBlueprints')}</p>
             ) : availableBlueprints.map((blueprint) => (
               <button
                 type="button"
@@ -229,29 +230,29 @@ export function RequestFromClientDialog({
         {step === 'review' && resolution ? (
           <section className="grid gap-4" aria-label="Request review">
             <div className="grid gap-2">
-              <h3 className="m-0 text-base font-semibold">Will be sent</h3>
+              <h3 className="m-0 text-base font-semibold">{t('intake.requestFromClient.willBeSent')}</h3>
               {resolution.visibleItems.map((item) => (
                 <div key={item.item_id} className="rounded-md border border-[var(--kp-divider)] bg-background px-3 py-2 text-sm">
                   {item.label}
                 </div>
               ))}
               {resolution.visibleItems.length === 0 ? (
-                <p className="m-0 text-sm text-muted-foreground">Nothing needs to be requested right now.</p>
+                <p className="m-0 text-sm text-muted-foreground">{t('intake.requestFromClient.nothingNeeded')}</p>
               ) : null}
             </div>
             {suppressedLabels.length > 0 ? (
               <div className="grid gap-2">
-                <h3 className="m-0 text-base font-semibold">Already on file</h3>
+                <h3 className="m-0 text-base font-semibold">{t('intake.requestFromClient.alreadyOnFile')}</h3>
                 {suppressedLabels.map((item) => (
                   <div key={item.itemId} className="rounded-md bg-[var(--kp-success-bg)] px-3 py-2 text-sm text-[var(--kp-success-text)]">
-                    {item.label}: Already on file, won’t be asked.
+                    {t('intake.requestFromClient.alreadyOnFileRow', { label: item.label })}
                   </div>
                 ))}
               </div>
             ) : null}
             {blockedItem ? (
               <p role="alert" className="m-0 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                This item type isn’t supported yet — remove it to send this request.
+                {t('intake.requestFromClient.unsupportedItem')}
               </p>
             ) : null}
           </section>
@@ -267,9 +268,11 @@ export function RequestFromClientDialog({
             <Button type="button" variant="outline" onClick={() => { setStep('editor'); }}>Edit request</Button>
           ) : null}
           {step === 'editor' ? (
+            // eslint-disable-next-line lantern-async/no-silent-failure -- reviewRequest catches and surfaces every failure via setError; this call cannot itself reject.
             <Button type="button" onClick={() => { void reviewRequest(); }}>Review request</Button>
           ) : null}
           {step === 'review' ? (
+            // eslint-disable-next-line lantern-async/no-silent-failure -- sendRequest catches and surfaces every failure via setError; this call cannot itself reject.
             <Button type="button" disabled={Boolean(blockedItem) || sending} onClick={() => { void sendRequest(); }}>
               {sending ? 'Sending…' : 'Send request'}
             </Button>
