@@ -270,6 +270,21 @@
      "status": "shipped"
     },
     {
+     "name": "Form builder (create fillable forms)",
+     "status": "planned",
+     "note": "Lantern Forms: build a form, send to any client"
+    },
+    {
+     "name": "Fill & sign imported PDF forms",
+     "status": "planned",
+     "note": "firm templates or downloads, e.g. Schwab"
+    },
+    {
+     "name": "E-signature on forms (DocuSign)",
+     "status": "planned",
+     "note": "connector code-complete, awaiting credentials"
+    },
+    {
      "name": "Advisor workflow template pack",
      "status": "shipped"
     },
@@ -337,6 +352,11 @@
     {
      "name": "AI follow-up draft assist",
      "status": "shipped"
+    },
+    {
+     "name": "Form requests to existing clients",
+     "status": "planned",
+     "note": "send, track, returned into the client file"
     },
     {
      "name": "Cited email search & browse",
