@@ -1,4 +1,5 @@
 import type { FormRequest } from '@/platform/intake/types';
+import type { DocumentDetectiveManifestEntry } from '@/platform/intake/documentDetectiveTypes';
 
 export interface IntakeFirm {
   name: string;
@@ -25,4 +26,9 @@ export interface ResumeState {
 export type AnswerPayload =
   | { kind: 'typed'; value: string | number; display_value?: string }
   | { kind: 'guided'; answer: Record<string, unknown> }
-  | { kind: 'files'; files: File[] };
+  | {
+      kind: 'files';
+      files: File[];
+      file_slot_indexes?: number[];
+      document_detective?: DocumentDetectiveManifestEntry[];
+    };
