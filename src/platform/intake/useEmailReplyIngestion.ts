@@ -125,7 +125,7 @@ async function enqueueCandidate(
   const bodyText = sanitizeEmailReplyBodyForClassification(view.body);
   const aiClassificationEnabled = useSettingsStore
     .getState()
-    .getSetting<boolean>(EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY) === true;
+    .getSetting<boolean>(EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY);
   let modelConfidence:
     | ((prompt: string) => Promise<unknown>)
     | undefined;

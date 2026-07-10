@@ -33,7 +33,7 @@ export function PrivacySettings() {
   const [sharingDetailsOpen, setSharingDetailsOpen] = useState(false);
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
   const emailReplyAiClassificationEnabled = useSettingsStore(
-    (s) => s.getSetting<boolean>(EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY) === true,
+    (s) => s.getSetting<boolean>(EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY),
   );
   const setSetting = useSettingsStore((s) => s.setSetting);
 
@@ -74,9 +74,9 @@ export function PrivacySettings() {
       >
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-foreground">AI email reply classification</p>
+            <p className="text-sm font-medium text-foreground">{t('settings.privacy.email-reply-ai.title')}</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              Off by default. When enabled, Keepance sends the text of authenticated client email replies to your firm&apos;s configured AI provider to help match an onboarding item. Turn this on only when your firm approves that sharing.
+              {t('settings.privacy.email-reply-ai.description')}
             </p>
           </div>
           <Button
@@ -90,7 +90,7 @@ export function PrivacySettings() {
             }}
             data-testid="privacy-email-reply-ai-classification-toggle"
           >
-            {emailReplyAiClassificationEnabled ? 'Enabled' : 'Off'}
+            {emailReplyAiClassificationEnabled ? t('settings.privacy.email-reply-ai.enabled') : t('settings.privacy.email-reply-ai.off')}
           </Button>
         </div>
       </div>
