@@ -133,31 +133,32 @@ The current Wealthbox write path already has the hard parts. Do not rebuild them
 Relevant files:
 
 - `src-tauri/src/commands/crm/write.rs`
-  - `CrmWriteRequest` stores the target, source reference, approval timestamp, and optional provenance (`lines 23-58`).
-  - `WriteReceipt` returns the remote id and whether the write was deduped (`lines 61-68`).
-  - `CrmFieldUpdateRequest` models the three-column field write: existing value, new value, final approved value (`lines 188-220`).
-  - `CrmWriteSource` is already a provider trait, but it is CRM-shaped today: note, task, field update, readback (`lines 249-282`).
-  - `push_crm_write` is the idempotent send machine. It locks the write, checks the ledger, verifies ambiguous prior sends, writes the pending row before network send, records sent/pending/failed, and returns a receipt (`lines 640-833`).
-  - `push_crm_field_update` adds the key safety behavior for field edits: reread the current outside value at approval time, refuse stale writes, then reread after a successful update so a false 200 does not become a fake receipt (`lines 924-1030`).
+  - `CrmWriteKind::Note` and `CrmWriteKind::Task` are enum variants, not standalone command functions.
+  - `CrmWriteRequest` stores the target, source reference, approval timestamp, and optional provenance.
+  - `WriteReceipt` returns the remote id and whether the write was deduped.
+  - `CrmFieldUpdateRequest` models the three-column field write: existing value, new value, final approved value.
+  - `CrmWriteSource` is already a provider trait, but it is CRM-shaped today: note creation, task creation, field update, and readback.
+  - `push_crm_write` is the idempotent send machine. It locks the write, checks the ledger, verifies ambiguous prior sends, writes the pending row before network send, records sent/pending/failed, and returns a receipt.
+  - `push_crm_field_update` adds the key safety behavior for field edits: reread the current outside value at approval time, refuse stale writes, then reread after a successful update so a false 200 does not become a fake receipt.
 - `src-tauri/src/commands/crm/store.rs`
-  - `crm_outbound_writes` is the durable ledger for outbound writes (`lines 202-214`).
-  - `outbound_get`, `outbound_upsert`, and recovery lookup are the storage surface to generalize (`lines 631-760`).
+  - `crm_outbound_writes` is the durable ledger for outbound writes, and `OutboundWrite` is the typed row shape used by the write engine.
+  - `outbound_get`, `outbound_upsert`, and `outbound_find_recovery_candidate` are the storage surface to generalize.
 - `src-tauri/src/commands/crm/commands.rs`
-  - `crm_create_note` and `crm_create_task` document the important product rule: the frontend review card is the only legitimate caller after an explicit Approve click (`lines 626-641`).
-  - `crm_create_write` blocks writes during disconnect/reconnect, validates input, opens the encrypted store, calls the write engine, and appends a matter-scoped audit entry (`lines 709-841`).
-  - `crm_update_field` is the field-write command with stale-write audit handling (`lines 844-990`).
+  - `crm_approve_write_proposal` is the only provider-writing command exposed to the renderer. It reloads an encrypted proposal, verifies its hash, routes `note`/`task` through `CrmWriteKind::Note`/`CrmWriteKind::Task` into `crm_create_write`, and routes `field` into `crm_update_field_from_proposal`.
+  - `crm_create_write` is the private note/task command path. It blocks writes during disconnect/reconnect, validates input, opens the encrypted store, calls `push_crm_write`, and appends a matter-scoped audit entry.
+  - `crm_update_field_from_proposal` is the private field-write command path with stale-write audit handling.
 - `src/platform/state/crmWriteQueueStore.ts`
-  - The queue persists unapproved proposals and says enqueuing never sends (`lines 1-22`).
-  - `ProposedCrmWrite` already handles `note`, `task`, and `field`, with statuses for proposed/sending/sent/failed/verify_pending/stale (`lines 32-83`).
-  - `sendOne` sets `requestedAt` once per approval, calls the Tauri command, and maps stale/verify failures back into reviewable UI state (`lines 167-247`).
+  - The file-level comment says the queue holds proposals until explicit review-card approval, and that enqueuing never sends anything.
+  - `ProposedCrmWrite` already handles `note`, `task`, and `field`, with statuses for proposed/sending/sent/failed/verify_pending/stale.
+  - `sendOne` sets `requestedAt` once per approval, saves/prepares the encrypted proposal, calls `crmApproveWriteProposal`, and maps stale/verify failures back into reviewable UI state.
 - `src/features/matters/CrmWriteReviewCard.tsx`
-  - The card says "AI proposes, the advisor decides" and nothing sends on enqueue, mount, or timer (`lines 1-14`).
-  - It resets target selection when switching clients, forces review again after stale values, checks connection, selects target household, and approves only selected rows (`lines 88-210`, `221-286`, `367-459`).
-  - The field row already shows Existing, From this meeting, and Blended edit-before-approval columns (`lines 549-582`).
+  - The file-level comment says "AI proposes, the advisor decides" and nothing sends on enqueue, mount, or timer.
+  - `CrmWriteReviewCard` resets target selection when switching clients, forces review again after stale values, checks connection, selects the target household, and approves only selected rows.
+  - `CrmWriteRow` shows Existing, From this meeting, and Blended edit-before-approval columns for field writes.
 - `src/platform/utils/wealthbox-commands.ts`
-  - The TypeScript wrappers clearly state the only legitimate call site is the review card's Approve handler (`lines 207-214`) and pass `provider` through the current CRM commands (`lines 215-307`).
+  - The TypeScript wrappers separate proposal persistence/preparation from the one provider-writing call, `crmApproveWriteProposal`, which invokes `crm_approve_write_proposal`.
 - `src/platform/state/fieldBlend.ts`
-  - Narrative field blending keeps existing facts, folds in new info, sanitizes prompt text, and requires an egress-audit hook before any AI call (`lines 1-19`, `51-118`).
+  - `composeFieldBlend` keeps existing facts, folds in new info, sanitizes prompt text, and requires an audited send function before any AI call. `WEALTHBOX_WRITABLE_FIELDS` mirrors the backend writable-field allowlist.
 
 ## Socket design
 
