@@ -12,8 +12,10 @@ import {
   type OnboardingRow,
 } from '@/platform/intake/onboardingModel';
 import { DEFAULT_ONBOARDING_CONFIG } from '@/platform/intake/nudgeTypes';
+import { computeOnboardingKpis } from '@/platform/intake/onboardingKpis';
 import { Button } from '@/ui/kp';
 import { OnboardingBoardEmptyState } from './OnboardingBoardEmptyState';
+import { OnboardingKpiStrip } from './OnboardingKpiStrip';
 import { OnboardingBoardRow } from './OnboardingBoardRow';
 
 export interface OnboardingBoardProps {
@@ -65,6 +67,11 @@ export function OnboardingBoard({
       )
     );
   }, [activeIntakes, now]);
+
+  const kpis = useMemo(
+    () => computeOnboardingKpis(rows, Object.values(intakesById)),
+    [intakesById, rows],
+  );
 
   const openRow = useCallback(
     (row: OnboardingRow) => {
@@ -169,6 +176,8 @@ export function OnboardingBoard({
           {t('intake.board.new-client')}
         </Button>
       </div>
+
+      <OnboardingKpiStrip kpis={kpis} />
 
       {rows.length === 0 ? (
         <OnboardingBoardEmptyState onNewClient={handleNewClient} />

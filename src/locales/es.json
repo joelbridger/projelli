@@ -4170,6 +4170,16 @@
         "title": "No hay solicitudes de incorporación activas",
         "body": "Cree un nuevo cliente para enviarle su lista segura."
       },
+      "kpis": {
+        "aria": "Resumen de incorporación",
+        "average-label": "Promedio de días para completar",
+        "stalled-label": "Detenidos",
+        "completion-label": "Tasa de finalización",
+        "days_one": "{{count}} día",
+        "days_other": "{{count}} días",
+        "percent": "{{count}}%",
+        "no-completed": "Aún no hay incorporaciones completadas"
+      },
       "row": {
         "stalled_one": "DETENIDO {{count}} día",
         "stalled_other": "DETENIDO {{count}} días",
