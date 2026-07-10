@@ -103,6 +103,29 @@
   body.f-shipped li.feat:not(.s-shipped), body.f-building li.feat:not(.s-building), body.f-planned li.feat:not(.s-planned),
   body.f-shipped .foundation li:not(.s-shipped), body.f-building .foundation li:not(.s-building), body.f-planned .foundation li:not(.s-planned){opacity:.14}
 
+  /* ── comments ──────────────────────────────────────────── */
+  body.commenting #viewport{cursor:crosshair}
+  .hud-zoom .cmode.active{background:var(--gold); color:#fff}
+  .cnote,.composer{position:absolute; z-index:5; width:230px; background:#fff8dd; border:1px solid #ecd98f; border-radius:4px 14px 14px 14px; box-shadow:0 10px 26px rgba(41,37,32,.16); padding:10px 12px 11px; font-size:12.6px}
+  .cnote::before,.composer::before{content:"💬"; position:absolute; top:-13px; left:-13px; width:26px; height:26px; background:var(--gold); border-radius:50% 50% 50% 4px; display:flex; align-items:center; justify-content:center; font-size:12px; box-shadow:0 4px 10px rgba(41,37,32,.25)}
+  .cnote .nhead{display:flex; align-items:baseline; gap:7px; margin-bottom:4px}
+  .cnote .nhead b{font-size:12.2px}
+  .cnote .ntime{color:#a08d4e; font-size:10.8px; flex:1}
+  .cnote .ndel{border:none; background:none; color:#b3a05e; cursor:pointer; font-size:14px; line-height:1; padding:2px}
+  .cnote .ndel:hover{color:#8a2222}
+  .cnote .ntext{line-height:1.5; white-space:pre-wrap; word-wrap:break-word}
+  .composer textarea{width:100%; min-height:76px; border:1px solid #e2cd7f; border-radius:8px; background:#fffdf2; font:inherit; padding:8px; resize:vertical; outline:none}
+  .composer textarea:focus{border-color:var(--gold)}
+  .composer .crow{display:flex; gap:6px; align-items:center; margin-top:7px}
+  .composer .cname{flex:1; min-width:0; border:1px solid #e2cd7f; border-radius:8px; background:#fffdf2; font:inherit; font-size:11.8px; padding:5px 8px; outline:none}
+  .composer button{font:inherit; font-size:12px; font-weight:600; border:none; border-radius:8px; padding:6px 10px; cursor:pointer}
+  .composer .mic{background:#f3e8c0}
+  .composer .mic.rec{background:#e05a4e; color:#fff; animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.65}}
+  .composer .ccancel{background:transparent; color:var(--ink-soft)}
+  .composer .csave{background:var(--ink); color:#fff; padding:6px 14px}
+  .hint-comment{position:fixed; top:64px; right:20px; z-index:20; background:var(--gold); color:#fff; border-radius:999px; padding:7px 15px; font-size:12.5px; box-shadow:0 8px 22px rgba(192,124,24,.35); display:none}
+  body.commenting .hint-comment{display:block}
   .error{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:30}
   .error>div{background:#fdeaea; border:1px solid #f2c4c4; color:#8a2222; border-radius:14px; padding:18px 22px; font-size:14px}
   @media (max-width:700px){ .hud-hint{display:none} .titlecard{max-width:78vw} }
@@ -132,7 +155,10 @@
   <button id="zin" title="Zoom in" aria-label="Zoom in">＋</button>
   <span class="sep"></span>
   <button class="fit" id="zfit" title="Fit the whole map on screen">Fit map</button>
+  <span class="sep"></span>
+  <button class="fit cmode" id="cmode" title="Click anywhere on the map to leave a note">💬 Comment</button>
 </div>
+<div class="hint-comment">Now click anywhere on the map to pin your comment</div>
 <div class="updated" id="updated"></div>
 
 <script>/* panzoom v9.4.3 — MIT © Andrei Kashcha (github.com/anvaka/panzoom), inlined for a self-contained page */
@@ -238,7 +264,13 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
   document.getElementById('updated').textContent='Last updated '+(d.updated||'');
 
   // ── pan/zoom (open-source panzoom by @anvaka, inlined above) ──
-  var pz=panzoom(world,{maxZoom:2.5, minZoom:0.12, zoomDoubleClickSpeed:1.9, smoothScroll:false});
+  function ignorePan(e){
+    var t=e.target;
+    return !!(t && t.closest && t.closest('.cnote,.composer,button,textarea,input,a'));
+  }
+  var pz=panzoom(world,{maxZoom:2.5, minZoom:0.12, zoomDoubleClickSpeed:1.9, smoothScroll:false,
+    beforeMouseDown:ignorePan,
+    onTouch:function(e){return !ignorePan(e);}});
   var vp=document.getElementById('viewport');
   vp.addEventListener('pointerdown',function(){vp.classList.add('panning');});
   window.addEventListener('pointerup',function(){vp.classList.remove('panning');});
@@ -262,6 +294,91 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
   document.getElementById('zout').addEventListener('click',function(){zoomBy(0.8);});
   document.getElementById('zfit').addEventListener('click',fit);
   fit();
+
+  // ── comments: sticky notes anyone (with a login) can pin to the board ──
+  function fmtWhen(iso){
+    try{ var d=new Date(iso); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+    catch(e){ return ''; }
+  }
+  function renderNote(cm){
+    var n=document.createElement('div'); n.className='cnote'; n.dataset.id=cm.id;
+    n.style.left=cm.x+'px'; n.style.top=cm.y+'px';
+    n.innerHTML='<div class="nhead"><b>'+esc(cm.author)+'</b><span class="ntime">'+esc(fmtWhen(cm.ts))+'</span>'+
+      '<button class="ndel" title="Delete this note" aria-label="Delete">×</button></div>'+
+      '<div class="ntext">'+esc(cm.text)+'</div>';
+    n.querySelector('.ndel').addEventListener('click',function(){
+      if(!confirm('Delete this note?'))return;
+      fetch('/api/feature-map/comments/'+encodeURIComponent(cm.id),{method:'DELETE'})
+        .then(function(r){ if(r.ok) n.remove(); });
+    });
+    world.appendChild(n);
+  }
+  fetch('/api/feature-map/comments').then(function(r){return r.ok?r.json():[];}).then(function(list){
+    (list||[]).forEach(renderNote);
+  }).catch(function(){});
+
+  var cmodeBtn=document.getElementById('cmode');
+  var composer=null;
+  function exitCommentMode(){ document.body.classList.remove('commenting'); cmodeBtn.classList.remove('active'); }
+  cmodeBtn.addEventListener('click',function(){
+    if(document.body.classList.contains('commenting')){ exitCommentMode(); }
+    else{ document.body.classList.add('commenting'); cmodeBtn.classList.add('active'); }
+  });
+  document.addEventListener('keydown',function(e){ if(e.key==='Escape'){ closeComposer(); exitCommentMode(); } });
+
+  function closeComposer(){ if(composer){ if(composer._rec){ try{composer._rec.stop();}catch(e){} } composer.remove(); composer=null; } }
+  function openComposer(wx,wy){
+    closeComposer();
+    var c=document.createElement('div'); c.className='composer';
+    c.style.left=wx+'px'; c.style.top=wy+'px';
+    var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    c.innerHTML='<textarea placeholder="Type your comment — or tap the mic and just talk"></textarea>'+
+      '<div class="crow"><input class="cname" placeholder="Your name" maxlength="60">'+
+      (SR?'<button class="mic" title="Speak your comment">🎤</button>':'')+
+      '<button class="ccancel">Cancel</button><button class="csave">Post</button></div>';
+    world.appendChild(c); composer=c;
+    var ta=c.querySelector('textarea'), nameEl=c.querySelector('.cname');
+    nameEl.value=localStorage.getItem('fmap-name')||'';
+    ta.focus();
+    if(SR){
+      var mic=c.querySelector('.mic'), rec=null;
+      mic.addEventListener('click',function(){
+        if(rec){ try{rec.stop();}catch(e){} return; }
+        rec=new SR(); c._rec=rec;
+        rec.continuous=true; rec.interimResults=false; rec.lang='en-US';
+        rec.onresult=function(ev){
+          for(var i=ev.resultIndex;i<ev.results.length;i++){
+            if(ev.results[i].isFinal){ ta.value=(ta.value?ta.value+' ':'')+ev.results[i][0].transcript.trim(); }
+          }
+        };
+        rec.onend=function(){ mic.classList.remove('rec'); rec=null; c._rec=null; };
+        rec.onerror=function(){ mic.classList.remove('rec'); };
+        try{ rec.start(); mic.classList.add('rec'); }catch(e){}
+      });
+    }
+    c.querySelector('.ccancel').addEventListener('click',closeComposer);
+    c.querySelector('.csave').addEventListener('click',function(){
+      var text=ta.value.trim();
+      if(!text){ ta.focus(); return; }
+      var author=nameEl.value.trim()||'Anonymous';
+      localStorage.setItem('fmap-name',author);
+      fetch('/api/feature-map/comments',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({x:wx,y:wy,text:text,author:author})})
+        .then(function(r){ if(!r.ok) throw new Error('save failed'); return r.json(); })
+        .then(function(cm){ closeComposer(); exitCommentMode(); renderNote(cm); })
+        .catch(function(){ alert('Could not save the note — check your connection and try again.'); });
+    });
+  }
+  // Click (not drag) on the board while in comment mode = pin a note there.
+  var downX=0, downY=0;
+  vp.addEventListener('pointerdown',function(e){ downX=e.clientX; downY=e.clientY; });
+  vp.addEventListener('pointerup',function(e){
+    if(!document.body.classList.contains('commenting'))return;
+    if(Math.abs(e.clientX-downX)>6||Math.abs(e.clientY-downY)>6)return; // was a drag
+    if(e.target.closest('.cnote,.composer,button,textarea,input'))return;
+    var t=pz.getTransform();
+    openComposer((e.clientX-t.x)/t.scale, (e.clientY-t.y)/t.scale);
+  });
 }).catch(function(e){
   var er=document.createElement('div'); er.className='error';
   er.innerHTML='<div>Could not load the map ('+esc(e.message)+'). Check that <code>feature-map-data.json</code> sits next to this page.</div>';
