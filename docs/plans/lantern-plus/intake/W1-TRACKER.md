@@ -11,7 +11,9 @@
 | B | relay | `~/lp-w1-B` | `lp/intake-w1-B` | DONE-EXIT:0 | PASS (lead read) | PASS + 3 findings fixed | in `e828148e` | **MERGED** |
 | C | client-page | `~/lp-w1-C` | `lp/intake-w1-C` | DONE-EXIT:0 | PASS (lead read) | PASS + 6 findings fixed | in `f782a768` | **MERGED** |
 | D | advisor-side | `~/lp-w1-D` | `lp/intake-w1-D` | DONE-EXIT:0 | PASS (lead read) | PASS + 4 fixed + C↔D pageSeal reconciled | in `9a6990d5` (+`c1209ead`) | **MERGED** |
-| E | hosting | `~/lp-w1-E` | `lp/intake-w1-E` | DONE-EXIT:0 | PASS (lead read) | PASS, 4 findings + collision | — | RECONCILE-MERGE NEXT (LAST) |
+| E | hosting | `~/lp-w1-Efix` | `lp/intake-w1-E(fix)` | DONE-EXIT:0 | PASS (lead read) | PASS, 4 findings + collision | infra in `b977b8cc`, fix pending | RECONCILE-MERGED; fix round running |
+
+**Lane E state:** E's infra merged into `lp/intake` at `b977b8cc` (collision reconciled: kept C's real page, dropped E's placeholder `intake-page/src/{app.js,index.html}`, kept E's `infra/intake/*` + `tests/security/intake-hosting.test.ts` + package.json scripts). A Codex reconcile+fix round (`laneE-fix.log`, worktree `~/lp-w1-Efix` branch `lp/intake-w1-Efix`) is running to: repoint `build-static-bundle.mjs` at C's real `intake-page/dist` vite build (was raw `intake-page/src` placeholder); fix the 4 review findings (Caddy `log`-in-`handle`, `_releases` route ordering, 24h log retention, served-hash-must-match-build); and the C↔E same-origin reconcile (page Caddy reverse-proxies `/intake/*` → relay + CSP `connect-src 'self'` so C's relative URLs work). After it lands: verify (security vitest + intake-page build + deploy dry-run) → merge to lp/intake → FINAL full gate → push → docs merges → bench review → WORKER-DONE.
 
 ## Gate evidence (filled at each merge)
 
