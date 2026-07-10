@@ -463,60 +463,22 @@ impl IntakeFactsStore {
         })
     }
 
-    pub fn purge(
-        &self,
-        matter_id: &str,
-        kind: Option<&str>,
-        audit: &dyn IntakeAuditSink,
-    ) -> Result<Vec<String>> {
+    pub fn purge(&self, fact_id: &str, audit: &dyn IntakeAuditSink) -> Result<Vec<String>> {
+        let row = self.get_row(fact_id)?;
+        let pair_id = format!("purge_{fact_id}");
+        audit.append(audit_entry(
+            "intake_fact_purge",
+            "Intake fact purged locally.",
+            &row.matter_id,
+            Some(&row.fact_id),
+            "outcome",
+            &pair_id,
+        ))?;
         let mut conn = lock_unpoison(&self.conn);
         let tx = conn.transaction()?;
-        let mut query = String::from("SELECT fact_id FROM client_facts WHERE matter_id = ?1");
-        if kind.is_some() {
-            query.push_str(" AND kind = ?2");
-        }
-        let ids = {
-            let mut stmt = tx.prepare(&query)?;
-            if let Some(kind) = kind {
-                stmt.query_map(params![matter_id, kind], |row| row.get::<_, String>(0))?
-                    .collect::<rusqlite::Result<Vec<_>>>()?
-            } else {
-                stmt.query_map(params![matter_id], |row| row.get::<_, String>(0))?
-                    .collect::<rusqlite::Result<Vec<_>>>()?
-            }
-        };
-        for fact_id in &ids {
-            let pair_id = format!("purge_{fact_id}");
-            audit.append(audit_entry(
-                "intake_fact_purge",
-                "Intake fact purge requested.",
-                matter_id,
-                Some(fact_id),
-                "intent",
-                &pair_id,
-            ))?;
-        }
-        if let Some(kind) = kind {
-            tx.execute(
-                "DELETE FROM client_facts WHERE matter_id = ?1 AND kind = ?2",
-                params![matter_id, kind],
-            )?;
-        } else {
-            tx.execute("DELETE FROM client_facts WHERE matter_id = ?1", params![matter_id])?;
-        }
-        for fact_id in &ids {
-            let pair_id = format!("purge_{fact_id}");
-            audit.append(audit_entry(
-                "intake_fact_purge",
-                "Intake fact purged locally.",
-                matter_id,
-                Some(fact_id),
-                "outcome",
-                &pair_id,
-            ))?;
-        }
+        tx.execute("DELETE FROM client_facts WHERE fact_id = ?1", params![fact_id])?;
         tx.commit()?;
-        Ok(ids)
+        Ok(vec![row.fact_id])
     }
 }
 
@@ -549,10 +511,14 @@ mod tests {
     }
 
     fn input(fact_id: &str, value: &str) -> IntakeFactInput {
+        input_for_subject(fact_id, "primary", value)
+    }
+
+    fn input_for_subject(fact_id: &str, subject: &str, value: &str) -> IntakeFactInput {
         IntakeFactInput {
             fact_id: Some(fact_id.to_string()),
             matter_id: "matter-1".into(),
-            subject: "primary".into(),
+            subject: subject.into(),
             kind: "ssn".into(),
             value: json!({ "t": "string", "v": value }),
             sensitivity: "restricted".into(),
@@ -620,17 +586,36 @@ mod tests {
     }
 
     #[test]
-    fn purge_deletes_and_audits_each_fact() {
+    fn purge_deletes_and_audits_one_fact() {
         let (_dir, store) = store();
         let audit = VecAudit::default();
         store.upsert_fact(input("fact-1", "123-45-6789"), &audit).unwrap();
-        store.upsert_fact(input("fact-2", "987-65-4321"), &audit).unwrap();
         let before = audit.entries.lock().unwrap().len();
 
-        let purged = store.purge("matter-1", Some("ssn"), &audit).unwrap();
+        let purged = store.purge("fact-1", &audit).unwrap();
 
-        assert_eq!(purged, vec!["fact-1".to_string(), "fact-2".to_string()]);
+        assert_eq!(purged, vec!["fact-1".to_string()]);
         assert!(store.list_masked("matter-1").unwrap().is_empty());
-        assert_eq!(audit.entries.lock().unwrap().len(), before + 4);
+        assert_eq!(audit.entries.lock().unwrap().len(), before + 1);
+    }
+
+    #[test]
+    fn purge_deletes_only_the_selected_household_fact_and_audits_once() {
+        let (_dir, store) = store();
+        let audit = VecAudit::default();
+        store.upsert_fact(input("fact-1", "123-45-6789"), &audit).unwrap();
+        store
+            .upsert_fact(input_for_subject("fact-2", "spouse", "987-65-4321"), &audit)
+            .unwrap();
+        let before = audit.entries.lock().unwrap().len();
+
+        let purged = store.purge("fact-1", &audit).unwrap();
+
+        assert_eq!(purged, vec!["fact-1".to_string()]);
+        let remaining = store.list_masked("matter-1").unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].fact_id, "fact-2");
+        assert_eq!(remaining[0].subject, "spouse");
+        assert_eq!(audit.entries.lock().unwrap().len(), before + 1);
     }
 }

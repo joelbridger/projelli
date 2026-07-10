@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { OnboardingTab } from './OnboardingTab';
+import { intakeFactPurge } from '@/platform/intake/factsStore';
 
 vi.mock('@/platform/intake/factsStore', () => ({
   intakeFactList: vi.fn(async () => [
@@ -18,7 +19,7 @@ vi.mock('@/platform/intake/factsStore', () => ({
     },
   ]),
   intakeFactReveal: vi.fn(),
-  intakeFactPurge: vi.fn(),
+  intakeFactPurge: vi.fn(async () => ['fact-1']),
   intakeFactUpsert: vi.fn(),
 }));
 
@@ -69,5 +70,32 @@ describe('OnboardingTab', () => {
     expect(await screen.findByText('•••-••-6789')).toBeTruthy();
     expect(screen.getAllByText('typed by client').length).toBeGreaterThan(0);
     expect(screen.getByText('manual')).toBeTruthy();
+  });
+
+  it('purges only the selected fact id', async () => {
+    render(
+      <OnboardingTab
+        matterId="matter-1"
+        intake={{
+          intakeId: 'intake-1',
+          matterId: 'matter-1',
+          clientFirstName: 'Sarah',
+          firmName: 'North Star',
+          status: 'active',
+          link: 'https://forms.example.test/i/intake-1#secret',
+          expiresAt: '2026-08-09T00:00:00.000Z',
+          checklistVersion: 1,
+          items: [],
+          receivedItems: [],
+          flags: [],
+          knownSessionIds: [],
+        }}
+      />,
+    );
+
+    fireEvent.click(await screen.findByLabelText('Purge fact'));
+
+    await waitFor(() => expect(intakeFactPurge).toHaveBeenCalledWith('fact-1'));
+    expect(intakeFactPurge).not.toHaveBeenCalledWith('matter-1', 'ssn');
   });
 });

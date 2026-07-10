@@ -84,14 +84,13 @@ pub async fn intake_fact_reveal(
 #[tauri::command]
 pub async fn intake_fact_purge(
     state: State<'_, IntakeState>,
-    matter_id: String,
-    kind: Option<String>,
+    fact_id: String,
 ) -> Result<Vec<String>, String> {
     let ws = workspace(&state).await?;
     tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
         let store = IntakeFactsStore::open(&ws)?;
         let audit = EncryptedAuditSink::new(ws);
-        store.purge(&matter_id, kind.as_deref(), &audit)
+        store.purge(&fact_id, &audit)
     })
     .await
     .map_err(|e| format!("join: {e}"))?

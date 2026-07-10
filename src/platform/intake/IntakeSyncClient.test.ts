@@ -85,10 +85,15 @@ async function sealedSubmission(
 }
 
 describe('IntakeSyncClient', () => {
-  it('acks only after the local durable write succeeds', async () => {
+  it('refetches an unacked submission after a local filing failure, then advances after retry', async () => {
     const built = await sealedSubmission();
+    const fetchInbox = vi.fn(async (sinceCursor: number) => ({
+      cursor: sinceCursor < built.submission.cursor ? built.submission.cursor : sinceCursor,
+      has_more: false,
+      submissions: sinceCursor < built.submission.cursor ? [built.submission] : [],
+    }));
     const relay = {
-      fetchInbox: vi.fn(async () => ({ cursor: 7, has_more: false, submissions: [built.submission] })),
+      fetchInbox,
       ackSubmission: vi.fn(async () => undefined),
     };
     const routeSubmission = vi
@@ -109,9 +114,14 @@ describe('IntakeSyncClient', () => {
 
     await sync.syncOnce();
     expect(relay.ackSubmission).not.toHaveBeenCalled();
+    expect(sync.getCursor()).toBe(0);
+    expect(fetchInbox).toHaveBeenLastCalledWith(0);
 
     await sync.syncOnce();
+    expect(fetchInbox).toHaveBeenNthCalledWith(2, 0);
+    expect(routeSubmission).toHaveBeenCalledTimes(2);
     expect(relay.ackSubmission).toHaveBeenCalledWith('intake-1', 'submission-1', 7);
+    expect(sync.getCursor()).toBe(7);
   });
 
   it('flags replay mismatches before routing or acking', async () => {

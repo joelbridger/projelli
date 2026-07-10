@@ -132,18 +132,13 @@ export async function intakeFactReveal(factId: string): Promise<RevealedClientFa
   return { ...toMasked(fact), value: fact.value };
 }
 
-export async function intakeFactPurge(matterId: string, kind?: FactKind): Promise<string[]> {
+export async function intakeFactPurge(factId: string): Promise<string[]> {
   if (isTauri()) {
-    return invoke<string[]>('intake_fact_purge', { matterId, kind });
+    return invoke<string[]>('intake_fact_purge', { factId });
   }
-  const removed: string[] = [];
-  for (const fact of browserFacts.values()) {
-    if (fact.matter_id === matterId && (kind == null || fact.kind === kind)) {
-      removed.push(fact.fact_id);
-    }
-  }
-  for (const factId of removed) browserFacts.delete(factId);
-  return removed;
+  if (!browserFacts.has(factId)) return [];
+  browserFacts.delete(factId);
+  return [factId];
 }
 
 export function clearInMemoryFactsForTests(): void {

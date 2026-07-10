@@ -88,7 +88,6 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const { t } = useTranslation();
   const entityLabel = useEntityLabel();
   const createMatter = useMatterStore((s) => s.createMatter);
-  const matters = useMatterStore((s) => s.matters);
   const setClientMapHubTab = useMatterStore((s) => s.setClientMapHubTab);
   const upsertIntake = useIntakeStore((s) => s.upsertIntake);
   const seatToken = useFirmStore((s) => s.seatToken);
@@ -110,6 +109,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   // disabled button — matching the old MatterManagerDialog guard).
   const [isCreating, setIsCreating] = useState(false);
   const submittingRef = useRef(false);
+  const createdMatterRef = useRef<ReturnType<typeof createMatter> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Reset + focus each time the dialog opens.
@@ -127,6 +127,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       setCopied(null);
       setIsCreating(false);
       submittingRef.current = false;
+      createdMatterRef.current = null;
       // Focus after the dialog's own open animation/focus trap settles.
       const id = window.setTimeout(() => inputRef.current?.focus(), 0);
       return () => {
@@ -192,19 +193,24 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
     setSendError('');
 
     void (async () => {
-      const takenFolderPaths = matters.flatMap((m) => m.folderPaths);
-      const clientFolder = deriveNewClientFolderPath(
-        '',
-        displayName,
-        rootPath,
-        takenFolderPaths,
-      );
-      const created = createMatter({
-        name: displayName,
-        client: '',
-        ...(clientFolder ? { folderPaths: [clientFolder] } : {}),
-      });
-      if (clientFolder) void ensureClientFolderOnDisk(clientFolder);
+      let created = createdMatterRef.current;
+      if (!created) {
+        const takenFolderPaths = useMatterStore.getState().matters.flatMap((m) => m.folderPaths);
+        const clientFolder = deriveNewClientFolderPath(
+          '',
+          displayName,
+          rootPath,
+          takenFolderPaths,
+        );
+        created = createMatter({
+          name: displayName,
+          client: '',
+          ...(clientFolder ? { folderPaths: [clientFolder] } : {}),
+        });
+        createdMatterRef.current = created;
+        setCreatedMatterId(created.id);
+        if (clientFolder) void ensureClientFolderOnDisk(clientFolder);
+      }
 
       const intakeId = newIntakeId();
       const expiresAt = addDaysIso(30);

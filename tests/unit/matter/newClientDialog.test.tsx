@@ -107,6 +107,42 @@ describe('NewClientDialog', () => {
     window.removeEventListener(EV_MATTER_LAUNCH, onLaunch);
   });
 
+  it('retries link creation without creating a duplicate client', async () => {
+    intakeMocks.createAdvisorIntake
+      .mockRejectedValueOnce(new Error('relay is offline'))
+      .mockResolvedValueOnce({
+        link: 'https://forms.example.test/i/intake-2#secret',
+        tokenB64: 'token',
+        linkSecretB64: 'secret',
+        publicKeyRaw: new Uint8Array(65),
+        privateKey: {} as CryptoKey,
+        checklistCiphertextB64: 'checklist',
+        stateCiphertextB64: 'state',
+        intakeId: 'intake-2',
+      });
+
+    render(<NewClientDialog open={true} onOpenChange={() => undefined} />);
+    fireEvent.change(screen.getByTestId('new-client-name'), {
+      target: { value: 'The Reyes Household' },
+    });
+    fireEvent.click(screen.getByTestId('new-client-next'));
+    fireEvent.click(screen.getByTestId('new-client-review'));
+    fireEvent.click(screen.getByTestId('new-client-create'));
+
+    expect(await screen.findByText('relay is offline')).toBeInTheDocument();
+    expect(useMatterStore.getState().matters).toHaveLength(1);
+    const firstMatterId = useMatterStore.getState().matters[0]!.id;
+
+    fireEvent.click(screen.getByTestId('new-client-create'));
+
+    await waitFor(() => expect(intakeMocks.createAdvisorIntake).toHaveBeenCalledTimes(2));
+    expect(useMatterStore.getState().matters).toHaveLength(1);
+    expect(intakeMocks.createAdvisorIntake.mock.calls.map(([options]) => options.matterId)).toEqual([
+      firstMatterId,
+      firstMatterId,
+    ]);
+  });
+
   it('does not advance with a blank name', () => {
     render(<NewClientDialog open={true} onOpenChange={() => undefined} />);
     fireEvent.change(screen.getByTestId('new-client-name'), { target: { value: '   ' } });

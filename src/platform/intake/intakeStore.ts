@@ -46,7 +46,7 @@ export interface IntakeRecord {
   clientFirstName: string;
   firmName: string;
   status: IntakeStatus;
-  link: string;
+  link?: string;
   expiresAt: string;
   checklistVersion: number;
   items: IntakeChecklistState[];
@@ -73,6 +73,43 @@ interface IntakeStoreState {
   resetForTests: () => void;
 }
 
+type PersistableIntakeRecord = Omit<IntakeRecord, 'link'>;
+type PersistedIntakeState = { intakesById: Record<string, PersistableIntakeRecord> };
+
+type IntakeRecordWithPossibleSecrets = IntakeRecord & {
+  linkSecretB64?: unknown;
+  secret?: unknown;
+};
+
+export function partializeIntakeStateForPersistence(
+  state: Pick<IntakeStoreState, 'intakesById'>,
+): PersistedIntakeState {
+  return {
+    intakesById: Object.fromEntries(
+      Object.entries(state.intakesById).map(([intakeId, record]) => {
+        const {
+          link: _link,
+          linkSecretB64: _linkSecretB64,
+          secret: _secret,
+          ...persistable
+        } = record as IntakeRecordWithPossibleSecrets;
+        return [intakeId, persistable];
+      }),
+    ),
+  };
+}
+
+export function sanitizePersistedIntakeState(
+  persistedState: unknown,
+): PersistedIntakeState {
+  const state = persistedState as { intakesById?: unknown } | null | undefined;
+  const intakesById =
+    state?.intakesById && typeof state.intakesById === 'object'
+      ? state.intakesById as Record<string, IntakeRecord>
+      : {};
+  return partializeIntakeStateForPersistence({ intakesById });
+}
+
 function dedupeById<T extends { id?: string; itemId?: string; submissionId?: string }>(
   items: T[],
   next: T,
@@ -85,7 +122,7 @@ function dedupeById<T extends { id?: string; itemId?: string; submissionId?: str
 }
 
 export const useIntakeStore = create<IntakeStoreState>()(
-  persist(
+  persist<IntakeStoreState, [], [], PersistedIntakeState>(
     (set, get) => ({
       intakesById: {},
       upsertIntake: (record) => set((state) => ({
@@ -154,7 +191,13 @@ export const useIntakeStore = create<IntakeStoreState>()(
     }),
     {
       name: SK_INTAKES,
-      partialize: (state) => ({ intakesById: state.intakesById }),
+      version: 1,
+      migrate: sanitizePersistedIntakeState,
+      merge: (persistedState, currentState) => ({
+        ...currentState,
+        ...sanitizePersistedIntakeState(persistedState),
+      }),
+      partialize: partializeIntakeStateForPersistence,
     },
   ),
 );

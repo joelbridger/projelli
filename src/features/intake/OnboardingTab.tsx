@@ -10,6 +10,7 @@ import {
   intakeFactUpsert,
   type MaskedClientFact,
 } from '@/platform/intake/factsStore';
+import { reconstructAdvisorIntakeLink } from '@/platform/intake/advisorIntakeLink';
 import { FACT_KIND_SENSITIVITY, type FactKind, type FactValue } from '@/platform/intake/types';
 
 export interface OnboardingTabProps {
@@ -143,9 +144,18 @@ export function OnboardingTab({
   }
 
   const copyLink = async () => {
-    await navigator.clipboard?.writeText(intake.link);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1600);
+    setActionError('');
+    try {
+      const link = intake.link ?? await reconstructAdvisorIntakeLink({
+        intakeId: intake.intakeId,
+        publicKeyRawB64: intake.publicKeyRawB64 ?? '',
+      });
+      await navigator.clipboard?.writeText(link);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch (error) {
+      setActionError(error instanceof Error ? error.message : 'Could not copy this link.');
+    }
   };
 
   const runLinkAction = async (
@@ -399,7 +409,7 @@ export function OnboardingTab({
                         size="icon"
                         aria-label="Purge fact"
                         onClick={() => {
-                          void intakeFactPurge(matterId, fact.kind).then(() => {
+                          void intakeFactPurge(fact.fact_id).then(() => {
                             setFacts((current) => current.filter((candidate) => candidate.fact_id !== fact.fact_id));
                           });
                         }}

@@ -78,6 +78,10 @@ export interface IntakeSyncResult {
   cursor: number;
 }
 
+type IntakeProcessSubmissionResult = Omit<IntakeSyncResult, 'pulled' | 'cursor'> & {
+  ackedCursor?: number;
+};
+
 function flagFromSubmission(
   submission: IntakeInboxSubmission,
   kind: IntakeSubmissionFlagKind,
@@ -139,8 +143,13 @@ export class IntakeSyncClient {
         totals.acked += result.acked;
         totals.duplicates += result.duplicates;
         totals.rejected += result.rejected;
+        if (result.ackedCursor == null) {
+          totals.cursor = this.cursor;
+          return totals;
+        }
+        this.cursor = Math.max(this.cursor, result.ackedCursor);
+        totals.cursor = this.cursor;
       }
-      this.cursor = Math.max(this.cursor, page.cursor);
       totals.cursor = this.cursor;
       if (!page.has_more) break;
     }
@@ -149,7 +158,7 @@ export class IntakeSyncClient {
 
   private async processSubmission(
     submission: IntakeInboxSubmission,
-  ): Promise<Omit<IntakeSyncResult, 'pulled' | 'cursor'>> {
+  ): Promise<IntakeProcessSubmissionResult> {
     const totals = { routed: 0, acked: 0, duplicates: 0, rejected: 0 };
     const sessionId = submission.session_id;
     if (sessionId && !(await this.isKnownSession(submission.intake_id, sessionId))) {
@@ -176,7 +185,7 @@ export class IntakeSyncClient {
       await this.relay.ackSubmission(submission.intake_id, submission.submission_id, submission.cursor);
       totals.duplicates += 1;
       totals.acked += 1;
-      return totals;
+      return { ...totals, ackedCursor: submission.cursor };
     }
 
     try {
@@ -189,7 +198,7 @@ export class IntakeSyncClient {
     }
     totals.routed += 1;
     totals.acked += 1;
-    return totals;
+    return { ...totals, ackedCursor: submission.cursor };
   }
 
   private async decryptAndVerify(submission: IntakeInboxSubmission): Promise<RoutedIntakeSubmission> {
