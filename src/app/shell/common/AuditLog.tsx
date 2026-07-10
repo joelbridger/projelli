@@ -123,6 +123,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'salesforce.disconnect': Users2,
   'email.send': Send,
   'email.draft_saved': Save,
+  intake_nudge: Save,
   external_export_consent: ShieldCheck,
   // Marketplace template lifecycle.
   template_installed_from_marketplace: FilePlus,
@@ -205,6 +206,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'Salesforce Disconnected',
   'email.send': 'Email Sent',
   'email.draft_saved': 'Draft Saved',
+  intake_nudge: 'Intake Nudge',
   external_export_consent: 'Exported-Report Consent',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'Template Installed',
@@ -287,6 +289,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'salesforce.disconnect': 'text-orange-600 dark:text-orange-400',
   'email.send': 'text-sky-600 dark:text-sky-400',
   'email.draft_saved': 'text-sky-600 dark:text-sky-400',
+  intake_nudge: 'text-sky-600 dark:text-sky-400',
   external_export_consent: 'text-sky-600 dark:text-sky-400',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'text-green-600 dark:text-green-400',

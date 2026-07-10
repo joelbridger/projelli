@@ -4024,6 +4024,49 @@
         "copy-link-copied": "Kopiert",
         "link-signals-action": "Signale"
       }
+    },
+    "nudge": {
+      "based-on": "Basierend auf fehlenden Elementen am {{date}}",
+      "blocked": {
+        "cadence-wait_one": "Sie haben kürzlich eine Nachricht gesendet. Sie können in {{count}} Tag einen weiteren Entwurf speichern.",
+        "cadence-wait_other": "Sie haben kürzlich eine Nachricht gesendet. Sie können in {{count}} Tagen einen weiteren Entwurf speichern.",
+        "call": "Drei Nachrichten ohne Antwort. Ein kurzer Anruf hilft vielleicht mehr.",
+        "nothing-missing": "Im Moment fehlt nichts.",
+        "link-inactive": "Dieser Kundenlink ist nicht aktiv.",
+        "default": "Eine Erinnerung ist gerade nicht verfügbar."
+      },
+      "card": {
+        "badge": "Entwurf bereit",
+        "review-action": "Entwurf prüfen",
+        "call-suggestion": "Drei Nachrichten wurden nicht beantwortet. Schlagen Sie stattdessen einen kurzen Anruf vor."
+      },
+      "modal": {
+        "title": "Erinnerungsentwurf prüfen",
+        "description": "Dies speichert einen Entwurf in Ihrem Postfach. Es wird nichts gesendet.",
+        "close": "Erinnerungsentwurf schließen",
+        "account-label": "Postfach",
+        "to-label": "An",
+        "subject-label": "Betreff",
+        "missing-label": "Fehlende Elemente",
+        "link-label": "Kundenlink",
+        "based-on-label": "Beleg",
+        "body-label": "Nachricht",
+        "no-accounts": "Kein Entwurfspostfach ist verbunden. Kopieren Sie die Nachricht und fügen Sie sie in Ihre E-Mail-App ein.",
+        "imap-only": "Dieses Postfach kann keine Entwürfe speichern. Kopieren Sie die Nachricht oder verbinden Sie Outlook oder Gmail.",
+        "stale-inline": "Die fehlenden Elemente haben sich geändert. Vor dem Speichern neu erstellen.",
+        "stale-error": "Die fehlenden Elemente haben sich geändert. Erstellen Sie den Entwurf vor dem Speichern neu.",
+        "not-eligible": "Diese Erinnerung ist nicht mehr verfügbar.",
+        "copy-unavailable": "Die Zwischenablage ist nicht verfügbar.",
+        "saved": "Im Entwurfsordner gespeichert. Prüfen und senden Sie sie aus Ihrem Postfach.",
+        "copied": "Kopiert. Fügen Sie sie in Ihre E-Mail-App ein.",
+        "footer-note": "Die App legt Empfänger, Betreff, Link und Liste der fehlenden Elemente fest.",
+        "regenerate": "Neu erstellen",
+        "draft-in-my-voice": "In meinem Ton entwerfen",
+        "drafting": "Entwurf wird erstellt",
+        "copy-message": "Nachricht kopieren",
+        "save-draft": "In meinen Entwürfen speichern",
+        "saving": "Speichern"
+      }
     }
   }
 }

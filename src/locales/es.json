@@ -4024,6 +4024,49 @@
         "copy-link-copied": "Copiado",
         "link-signals-action": "Señales"
       }
+    },
+    "nudge": {
+      "based-on": "Basado en los elementos faltantes al {{date}}",
+      "blocked": {
+        "cadence-wait_one": "Enviaste una nota hace poco. Puedes guardar otro borrador en {{count}} día.",
+        "cadence-wait_other": "Enviaste una nota hace poco. Puedes guardar otro borrador en {{count}} días.",
+        "call": "Tres notas sin respuesta. Una llamada rápida puede ayudar más.",
+        "nothing-missing": "No falta nada ahora.",
+        "link-inactive": "Este enlace del cliente no está activo.",
+        "default": "Ahora no hay ningún recordatorio disponible."
+      },
+      "card": {
+        "badge": "Borrador listo",
+        "review-action": "Revisar borrador",
+        "call-suggestion": "Tres notas no han tenido respuesta. Sugiere una llamada rápida en su lugar."
+      },
+      "modal": {
+        "title": "Revisar borrador de recordatorio",
+        "description": "Esto guarda un borrador en tu buzón. No envía nada.",
+        "close": "Cerrar borrador de recordatorio",
+        "account-label": "Buzón",
+        "to-label": "Para",
+        "subject-label": "Asunto",
+        "missing-label": "Elementos faltantes",
+        "link-label": "Enlace del cliente",
+        "based-on-label": "Comprobante",
+        "body-label": "Mensaje",
+        "no-accounts": "No hay ningún buzón con borradores conectado. Copia el mensaje y pégalo en tu app de correo.",
+        "imap-only": "Este buzón no puede guardar borradores. Copia el mensaje o conecta Outlook o Gmail.",
+        "stale-inline": "Los elementos faltantes cambiaron. Regenera antes de guardar.",
+        "stale-error": "Los elementos faltantes cambiaron. Regenera el borrador antes de guardarlo.",
+        "not-eligible": "Este recordatorio ya no está disponible.",
+        "copy-unavailable": "El portapapeles no está disponible.",
+        "saved": "Guardado en tu carpeta de borradores. Revísalo y envíalo desde tu buzón.",
+        "copied": "Copiado. Pégalo en tu app de correo.",
+        "footer-note": "La app fija destinatario, asunto, enlace y lista de elementos faltantes.",
+        "regenerate": "Regenerar",
+        "draft-in-my-voice": "Redactar con mi voz",
+        "drafting": "Redactando",
+        "copy-message": "Copiar mensaje",
+        "save-draft": "Guardar en mis borradores",
+        "saving": "Guardando"
+      }
     }
   }
 }

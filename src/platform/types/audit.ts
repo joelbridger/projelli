@@ -78,6 +78,9 @@ export type AuditActionType =
   // mailbox Drafts folder (never sent by the app itself). A distinct type from
   // 'email.send' because the draft still needs the advisor's own review/send.
   | 'email.draft_saved'
+  // Lantern Intake: an onboarding nudge draft or call suggestion, recorded as
+  // an intent/outcome pair before and after the mailbox draft save.
+  | 'intake_nudge'
   // Connector-access: the advisor's one-time decision on whether their firm
   // permits storing + AI-processing exported reports/notes recognized from
   // outside tools (RightCapital, Jump). A defensible, timestamped record.
