@@ -1,0 +1,108 @@
+import { isTauri } from '@tauri-apps/api/core';
+
+import { KC_FALLBACK_PREFIX, KC_FIRM_NS } from '@/config/identity';
+import { keychainDelete, keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
+
+const KC_PRIVATE_JWK = 'private_jwk';
+const KC_LINK_SECRET = 'link_secret_b64';
+
+export function intakeService(intakeId: string): string {
+  return `${KC_FIRM_NS}.intake.${intakeId}`;
+}
+
+function fallbackKey(service: string, key: string): string {
+  return `${KC_FALLBACK_PREFIX}${service}::${key}`;
+}
+
+function utf8ToB64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let bin = '';
+  for (const b of bytes) bin += String.fromCharCode(b);
+  return btoa(bin);
+}
+
+function b64ToUtf8(b64: string): string {
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+async function setSecret(service: string, key: string, value: string): Promise<void> {
+  if (isTauri()) {
+    await keychainSet(key, value, service);
+    return;
+  }
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(fallbackKey(service, key), utf8ToB64(value));
+    return;
+  }
+  throw new Error('No secret storage available.');
+}
+
+async function getSecret(service: string, key: string): Promise<string | null> {
+  if (isTauri()) {
+    try {
+      return await keychainGet(key, service);
+    } catch {
+      return null;
+    }
+  }
+  if (typeof localStorage !== 'undefined') {
+    const raw = localStorage.getItem(fallbackKey(service, key));
+    if (raw == null) return null;
+    try {
+      return b64ToUtf8(raw);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+async function deleteSecret(service: string, key: string): Promise<void> {
+  if (isTauri()) {
+    await keychainDelete(key, service);
+    return;
+  }
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(fallbackKey(service, key));
+  }
+}
+
+export async function storeIntakeSecrets(
+  intakeId: string,
+  privateKey: CryptoKey,
+  linkSecretB64: string,
+): Promise<void> {
+  const jwk = await crypto.subtle.exportKey('jwk', privateKey);
+  const service = intakeService(intakeId);
+  await setSecret(service, KC_PRIVATE_JWK, JSON.stringify(jwk));
+  await setSecret(service, KC_LINK_SECRET, linkSecretB64);
+}
+
+export async function loadIntakePrivateKey(intakeId: string): Promise<CryptoKey | null> {
+  const raw = await getSecret(intakeService(intakeId), KC_PRIVATE_JWK);
+  if (!raw) return null;
+  return crypto.subtle.importKey(
+    'jwk',
+    JSON.parse(raw) as JsonWebKey,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    ['deriveBits'],
+  );
+}
+
+export async function loadIntakeLinkSecret(intakeId: string): Promise<string | null> {
+  return getSecret(intakeService(intakeId), KC_LINK_SECRET);
+}
+
+export async function updateIntakeLinkSecret(intakeId: string, linkSecretB64: string): Promise<void> {
+  await setSecret(intakeService(intakeId), KC_LINK_SECRET, linkSecretB64);
+}
+
+export async function clearIntakeSecrets(intakeId: string): Promise<void> {
+  const service = intakeService(intakeId);
+  await deleteSecret(service, KC_PRIVATE_JWK);
+  await deleteSecret(service, KC_LINK_SECRET);
+}

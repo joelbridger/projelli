@@ -55,6 +55,7 @@ export const SK_MATTER_AT_A_GLANCE           = `${APP_NS}:matter-at-a-glance`;
 export const SK_MEETING_BRIEFS               = `${APP_NS}:meeting-briefs`;
 export const SK_CLIENT_MAPS                  = `${APP_NS}:client-maps`;
 export const SK_CLIENT_MAP_TEMPLATES         = `${APP_NS}:client-map-templates`;
+export const SK_INTAKES                      = `${APP_NS}:intakes`;
 export const SK_RETENTION_POLICIES           = `${APP_NS}:retention-policies`;
 export const SK_WORKFLOW_CHAINS              = `${APP_NS}:workflowChains`;
 export const SK_USER_WORKFLOW_TEMPLATES      = `${APP_NS}:userWorkflowTemplates`;

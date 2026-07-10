@@ -225,6 +225,12 @@ pub fn run() {
             commands::crm::commands::crm_approve_write_proposal,
             commands::crm::commands::crm_list_write_proposals,
             commands::crm::commands::crm_delete_write_proposal,
+            // Lantern Intake — encrypted facts store and audit-gated reveals/purges.
+            commands::intake::intake_set_workspace,
+            commands::intake::intake_fact_upsert,
+            commands::intake::intake_fact_list,
+            commands::intake::intake_fact_reveal,
+            commands::intake::intake_fact_purge,
             // OneDrive / SharePoint document connector (read-only Graph import).
             commands::onedrive::commands::onedrive_set_workspace,
             commands::onedrive::commands::onedrive_connect,
@@ -444,6 +450,8 @@ pub fn run() {
             commands::firm::sso::manage_state(app);
             // Advisor Prep Hero 3.0 — manage encrypted audit-store state (active workspace).
             commands::audit::manage_state(app);
+            // Lantern Intake — manage encrypted fact-store state (active workspace).
+            commands::intake::manage_state(app);
             // Onboarding/setup progress — register the aggregator state + the
             // listeners that bridge the five per-source events into one
             // `setup-progress-changed` notification.
