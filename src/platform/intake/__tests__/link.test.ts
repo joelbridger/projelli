@@ -54,4 +54,22 @@ describe('intake link fragment codec', () => {
 
     expect(parsed).toEqual({ error: 'malformed_base64' });
   });
+
+  it('rejects a non-256-bit link secret on parse (low-entropy link)', () => {
+    const shortS = new Uint8Array(1).fill(9);
+    const pub = new Uint8Array(65).fill(4);
+    pub[0] = 4;
+
+    const parsed = parseLinkFragment(`v1.${b64Url(shortS)}.${b64Url(pub)}`);
+
+    expect(parsed).toEqual({ error: 'invalid_secret' });
+  });
+
+  it('refuses to build a link from a non-32-byte secret', () => {
+    const shortS = new Uint8Array(16).fill(3);
+    const pub = new Uint8Array(65).fill(4);
+    pub[0] = 4;
+
+    expect(() => buildLinkFragment(b64(shortS), pub)).toThrow(/32-byte|256-bit/i);
+  });
 });

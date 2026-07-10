@@ -395,14 +395,24 @@ function isStringArray(value: unknown): value is string[] {
 function isSealedManifest(value: unknown): value is SealedManifest {
   if (typeof value !== 'object' || value === null) return false;
   const candidate = value as Partial<SealedManifest>;
-  return (
-    typeof candidate.submission_id === 'string' &&
-    typeof candidate.item_id === 'string' &&
-    typeof candidate.content_type === 'string' &&
-    isStringArray(candidate.file_names) &&
-    isStringArray(candidate.chunk_hashes) &&
-    typeof candidate.chunk_count === 'number'
-  );
+  if (
+    typeof candidate.submission_id !== 'string' ||
+    typeof candidate.item_id !== 'string' ||
+    typeof candidate.content_type !== 'string' ||
+    !isStringArray(candidate.file_names) ||
+    !isStringArray(candidate.chunk_hashes) ||
+    typeof candidate.chunk_count !== 'number'
+  ) {
+    return false;
+  }
+  // The manifest is sealed by the (untrusted) submitter, so its decrypted
+  // contents are attacker-controlled: chunk_count must be a real, bounded,
+  // non-negative integer, and it must agree with the number of chunk hashes.
+  // Otherwise a hostile client could smuggle NaN/Infinity/negative counts that
+  // downstream loops would trust.
+  if (!Number.isSafeInteger(candidate.chunk_count) || candidate.chunk_count < 0) return false;
+  if (candidate.chunk_hashes.length !== candidate.chunk_count) return false;
+  return true;
 }
 
 export async function openManifest(
@@ -416,6 +426,14 @@ export async function openManifest(
   try {
     const parsed: unknown = JSON.parse(new TextDecoder().decode(opened.data));
     if (!isSealedManifest(parsed)) return { ok: false, reason: 'malformed' };
+    // Bind the decrypted manifest content to the AAD ids it was sealed under.
+    // The GCM AAD already proves the blob was sealed for these ids, but the
+    // JSON fields are separate attacker-controlled content — reject a manifest
+    // whose declared ids disagree with its envelope so routing can never be
+    // steered by manifest contents.
+    if (parsed.submission_id !== ids.submissionId || parsed.item_id !== ids.itemId) {
+      return { ok: false, reason: 'malformed' };
+    }
     return { ok: true, manifest: parsed };
   } catch {
     return { ok: false, reason: 'malformed' };
@@ -434,6 +452,13 @@ export function verifySubmissionIntegrity(
     if (chunkSid !== sealedManifest.submission_id) {
       return { ok: false, reason: 'chunk_submission_id_mismatch' };
     }
+  }
+  // The submitter declares chunk_count in the sealed manifest; the advisor
+  // presents one AAD sid per chunk it actually decrypted. A mismatch means the
+  // submission is incomplete or over-declared (a partial or padded upload) and
+  // must not be accepted as a finalized answer.
+  if (chunkAADSids.length !== sealedManifest.chunk_count) {
+    return { ok: false, reason: 'chunk_count_mismatch' };
   }
   return { ok: true };
 }

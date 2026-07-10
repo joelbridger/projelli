@@ -28,11 +28,18 @@ function b64UrlToBytes(b64Url: string): Uint8Array {
   return b64ToBytes(padded);
 }
 
+/** The link secret `s` is a 256-bit random value (ARCHITECTURE.md §2). */
+const LINK_SECRET_BYTES = 32;
+
 export function buildLinkFragment(sB64: string, intakePubRaw65B: Uint8Array): string {
   if (intakePubRaw65B.length !== 65) {
     throw new Error(`Expected a 65-byte intake public key, got ${String(intakePubRaw65B.length)}.`);
   }
-  return `v1.${bytesToB64Url(b64ToBytes(sB64))}.${bytesToB64Url(intakePubRaw65B)}`;
+  const s = b64ToBytes(sB64);
+  if (s.length !== LINK_SECRET_BYTES) {
+    throw new Error(`Expected a 32-byte (256-bit) link secret, got ${String(s.length)}.`);
+  }
+  return `v1.${bytesToB64Url(s)}.${bytesToB64Url(intakePubRaw65B)}`;
 }
 
 export type ParseLinkFragmentResult =
@@ -55,7 +62,7 @@ export function parseLinkFragment(fragment: string): ParseLinkFragmentResult {
     return { error: 'malformed_base64' };
   }
 
-  if (s.length === 0) return { error: 'invalid_secret' };
+  if (s.length !== LINK_SECRET_BYTES) return { error: 'invalid_secret' };
   if (intakePubRaw.length !== 65) return { error: 'invalid_public_key' };
   return { version: 1, s, intakePubRaw };
 }

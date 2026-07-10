@@ -296,6 +296,59 @@ describe('intake crypto tamper checks', () => {
     });
   });
 
+  it('rejects a sealed manifest with a hostile chunk_count or mismatched hashes', async () => {
+    const contentKey = await importContentKey(await generateContentKey());
+    const ids = { intakeId: 'intake-1', itemId: 'item-1', submissionId: 'sub-1' };
+
+    const hostile: SealedManifest[] = [
+      // chunk_count claims 2 but only 1 hash is present.
+      { submission_id: 'sub-1', item_id: 'item-1', content_type: 'application/json', file_names: [], chunk_hashes: ['h1'], chunk_count: 2 },
+      // negative count.
+      { submission_id: 'sub-1', item_id: 'item-1', content_type: 'application/json', file_names: [], chunk_hashes: [], chunk_count: -1 },
+      // non-finite count smuggled past the type via a cast.
+      { submission_id: 'sub-1', item_id: 'item-1', content_type: 'application/json', file_names: [], chunk_hashes: [], chunk_count: Number.POSITIVE_INFINITY },
+    ];
+
+    for (const manifest of hostile) {
+      const sealed = await sealManifest(contentKey, manifest, ids);
+      await expect(openManifest(contentKey, sealed, ids)).resolves.toEqual({ ok: false, reason: 'malformed' });
+    }
+  });
+
+  it('rejects a sealed manifest whose declared ids disagree with the envelope ids', async () => {
+    const contentKey = await importContentKey(await generateContentKey());
+    const sealIds = { intakeId: 'intake-1', itemId: 'item-1', submissionId: 'sub-1' };
+    // Manifest content lies about which item/submission it belongs to.
+    const manifest: SealedManifest = {
+      submission_id: 'other-sub',
+      item_id: 'other-item',
+      content_type: 'application/json',
+      file_names: [],
+      chunk_hashes: ['h1'],
+      chunk_count: 1,
+    };
+
+    const sealed = await sealManifest(contentKey, manifest, sealIds);
+    await expect(openManifest(contentKey, sealed, sealIds)).resolves.toEqual({ ok: false, reason: 'malformed' });
+  });
+
+  it('rejects a submission whose presented chunk count disagrees with the manifest', () => {
+    const sealedManifest: SealedManifest = {
+      submission_id: 'submission-1',
+      item_id: 'item-1',
+      content_type: 'application/json',
+      file_names: [],
+      chunk_hashes: ['h1', 'h2'],
+      chunk_count: 2,
+    };
+
+    // Only one chunk AAD presented for a two-chunk submission.
+    expect(verifySubmissionIntegrity('submission-1', sealedManifest, ['submission-1'])).toEqual({
+      ok: false,
+      reason: 'chunk_count_mismatch',
+    });
+  });
+
   it('returns typed non-throwing errors for malformed chunks', async () => {
     const contentKey = await importContentKey(await generateContentKey());
     const ids = { intakeId: 'intake-1', itemId: 'item-1', submissionId: 'sub-1', index: 0 };
