@@ -294,6 +294,62 @@ CREATE TABLE IF NOT EXISTS org_idp_config (
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL
 );
+
+-- =====================================================================
+-- Lantern Intake Wave 1: write-only public intake relay.
+--
+-- The relay is a mailbox for opaque ciphertext. It stores the link-token HMAC
+-- (never the token), advisor routing identity, sealed page state/checklist, and
+-- submitted ciphertext chunks/manifests. It deliberately has no client_name,
+-- item label, answer, file-name, IP, or user-agent columns.
+-- =====================================================================
+
+CREATE TABLE IF NOT EXISTS intakes (
+  intake_id            TEXT PRIMARY KEY,
+  org_id               TEXT NOT NULL,
+  user_id              TEXT NOT NULL,
+  seat_id              TEXT NOT NULL,
+  token_hash           TEXT NOT NULL,
+  expires_at           TEXT NOT NULL,
+  status               TEXT NOT NULL DEFAULT 'active',
+  checklist_ciphertext BLOB NOT NULL,
+  state_ciphertext     BLOB NOT NULL,
+  checklist_version    INTEGER NOT NULL DEFAULT 1,
+  created_at           TEXT NOT NULL,
+  revoked_at           TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_intakes_org ON intakes(org_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_intakes_status ON intakes(status, expires_at);
+
+CREATE TABLE IF NOT EXISTS intake_chunks (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  intake_id     TEXT NOT NULL REFERENCES intakes(intake_id) ON DELETE CASCADE,
+  item_id       TEXT NOT NULL,
+  submission_id TEXT NOT NULL,
+  idx           INTEGER NOT NULL,
+  ciphertext    BLOB NOT NULL,
+  size          INTEGER NOT NULL,
+  created_at    TEXT NOT NULL,
+  bound_at      TEXT,
+  UNIQUE(intake_id, item_id, submission_id, idx)
+);
+CREATE INDEX IF NOT EXISTS idx_intake_chunks_intake ON intake_chunks(intake_id, id);
+CREATE INDEX IF NOT EXISTS idx_intake_chunks_submission ON intake_chunks(intake_id, item_id, submission_id, idx);
+
+CREATE TABLE IF NOT EXISTS intake_submissions (
+  id                   INTEGER PRIMARY KEY AUTOINCREMENT,
+  intake_id            TEXT NOT NULL REFERENCES intakes(intake_id) ON DELETE CASCADE,
+  item_id              TEXT NOT NULL,
+  submission_id        TEXT NOT NULL,
+  manifest_ciphertext  BLOB,
+  wrapped_content_key  BLOB,
+  chunk_count          INTEGER NOT NULL DEFAULT 0,
+  created_at           TEXT NOT NULL,
+  acked_at             TEXT,
+  UNIQUE(intake_id, submission_id)
+);
+CREATE INDEX IF NOT EXISTS idx_intake_submissions_inbox ON intake_submissions(intake_id, id);
+CREATE INDEX IF NOT EXISTS idx_intake_submissions_item ON intake_submissions(intake_id, item_id);
 `;
 
 // ---------------------------------------------------------------------------
@@ -395,6 +451,125 @@ function toMatter(r: MatterRow): Matter {
     status: r.status as MatterStatus,
     key_epoch: r.key_epoch,
     created_at: r.created_at,
+  };
+}
+
+export type IntakeStatus = "active" | "revoked";
+
+export interface IntakeRecord {
+  intake_id: string;
+  org_id: string;
+  user_id: string;
+  seat_id: string;
+  token_hash: string;
+  expires_at: string;
+  status: IntakeStatus;
+  checklist_ciphertext: Uint8Array;
+  state_ciphertext: Uint8Array;
+  checklist_version: number;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+export interface IntakeChunkRecord {
+  id: number;
+  intake_id: string;
+  item_id: string;
+  submission_id: string;
+  index: number;
+  ciphertext: Uint8Array;
+  size: number;
+  created_at: string;
+  bound_at: string | null;
+}
+
+export interface IntakeSubmissionRecord {
+  id: number;
+  intake_id: string;
+  item_id: string;
+  submission_id: string;
+  manifest_ciphertext: Uint8Array | null;
+  wrapped_content_key: Uint8Array | null;
+  chunk_count: number;
+  created_at: string;
+  acked_at: string | null;
+}
+
+interface IntakeRow {
+  intake_id: string;
+  org_id: string;
+  user_id: string;
+  seat_id: string;
+  token_hash: string;
+  expires_at: string;
+  status: string;
+  checklist_ciphertext: Uint8Array;
+  state_ciphertext: Uint8Array;
+  checklist_version: number;
+  created_at: string;
+  revoked_at: string | null;
+}
+
+interface IntakeChunkRow {
+  id: number;
+  intake_id: string;
+  item_id: string;
+  submission_id: string;
+  idx: number;
+  ciphertext: Uint8Array;
+  size: number;
+  created_at: string;
+  bound_at: string | null;
+}
+
+interface IntakeSubmissionRow {
+  id: number;
+  intake_id: string;
+  item_id: string;
+  submission_id: string;
+  manifest_ciphertext: Uint8Array | null;
+  wrapped_content_key: Uint8Array | null;
+  chunk_count: number;
+  created_at: string;
+  acked_at: string | null;
+}
+
+function toBytes(v: Uint8Array): Uint8Array {
+  return new Uint8Array(v);
+}
+
+function toIntake(r: IntakeRow): IntakeRecord {
+  return {
+    ...r,
+    status: r.status as IntakeStatus,
+    checklist_ciphertext: toBytes(r.checklist_ciphertext),
+    state_ciphertext: toBytes(r.state_ciphertext),
+  };
+}
+
+function toIntakeChunk(r: IntakeChunkRow): IntakeChunkRecord {
+  return {
+    id: r.id,
+    intake_id: r.intake_id,
+    item_id: r.item_id,
+    submission_id: r.submission_id,
+    index: r.idx,
+    ciphertext: toBytes(r.ciphertext),
+    size: r.size,
+    created_at: r.created_at,
+    bound_at: r.bound_at,
+  };
+}
+
+function nullableBytes(v: Uint8Array | null): Uint8Array | null {
+  return v === null ? null : toBytes(v);
+}
+
+function toIntakeSubmission(r: IntakeSubmissionRow): IntakeSubmissionRecord {
+  return {
+    ...r,
+    manifest_ciphertext: nullableBytes(r.manifest_ciphertext),
+    wrapped_content_key: nullableBytes(r.wrapped_content_key),
   };
 }
 
@@ -914,6 +1089,335 @@ export class Store {
       detail: r.detail,
       ts: r.ts,
     }));
+  }
+
+  // ===========================================================================
+  // Lantern Intake relay (write-only mailbox for opaque ciphertext)
+  // ===========================================================================
+
+  createIntake(input: {
+    intake_id: string;
+    org_id: string;
+    user_id: string;
+    seat_id: string;
+    token_hash: string;
+    expires_at: string;
+    checklist_ciphertext: Uint8Array;
+    state_ciphertext: Uint8Array;
+  }): IntakeRecord {
+    const now = this.nowIso();
+    this.db
+      .query(
+        `INSERT INTO intakes
+           (intake_id, org_id, user_id, seat_id, token_hash, expires_at, status,
+            checklist_ciphertext, state_ciphertext, checklist_version, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, 1, ?)`,
+      )
+      .run(
+        input.intake_id,
+        input.org_id,
+        input.user_id,
+        input.seat_id,
+        input.token_hash,
+        input.expires_at,
+        input.checklist_ciphertext,
+        input.state_ciphertext,
+        now,
+      );
+    const intake = this.getIntake(input.intake_id);
+    if (!intake) throw new Error("intake_insert_failed");
+    return intake;
+  }
+
+  getIntake(intakeId: string): IntakeRecord | null {
+    const r = this.db.query(`SELECT * FROM intakes WHERE intake_id = ?`).get(intakeId) as IntakeRow | null;
+    return r ? toIntake(r) : null;
+  }
+
+  replaceIntakeChecklist(intakeId: string, checklistCiphertext: Uint8Array): IntakeRecord | null {
+    this.db
+      .query(
+        `UPDATE intakes
+         SET checklist_ciphertext = ?, checklist_version = checklist_version + 1
+         WHERE intake_id = ?`,
+      )
+      .run(checklistCiphertext, intakeId);
+    return this.getIntake(intakeId);
+  }
+
+  setIntakeState(intakeId: string, stateCiphertext: Uint8Array): boolean {
+    const res = this.db
+      .query(`UPDATE intakes SET state_ciphertext = ? WHERE intake_id = ?`)
+      .run(stateCiphertext, intakeId);
+    return res.changes > 0;
+  }
+
+  revokeIntake(intakeId: string): boolean {
+    const now = this.nowIso();
+    const res = this.db
+      .query(`UPDATE intakes SET status = 'revoked', revoked_at = ? WHERE intake_id = ? AND status <> 'revoked'`)
+      .run(now, intakeId);
+    return res.changes > 0;
+  }
+
+  extendIntake(intakeId: string, expiresAt: string): boolean {
+    const res = this.db
+      .query(`UPDATE intakes SET expires_at = ? WHERE intake_id = ?`)
+      .run(expiresAt, intakeId);
+    return res.changes > 0;
+  }
+
+  appendIntakeChunk(input: {
+    intake_id: string;
+    item_id: string;
+    submission_id: string;
+    index: number;
+    ciphertext: Uint8Array;
+  }): { ok: true; chunk: IntakeChunkRecord } | { ok: false; reason: "duplicate_chunk" | "submission_finalized" } {
+    const now = this.nowIso();
+    const txn = this.db.transaction(() => {
+      // Once a submission is finalized (manifest + chunk_count recorded), its
+      // chunk set is frozen. Accepting more chunks afterward would let a retry
+      // or a malicious link holder change the blob list behind a recorded
+      // chunk_count, producing stale inbox envelopes that fail the advisor-side
+      // integrity check.
+      const finalized = this.db
+        .query(`SELECT 1 FROM intake_submissions WHERE intake_id = ? AND submission_id = ? LIMIT 1`)
+        .get(input.intake_id, input.submission_id);
+      if (finalized) return { ok: false as const, reason: "submission_finalized" as const };
+
+      const existing = this.db
+        .query(
+          `SELECT * FROM intake_chunks
+           WHERE intake_id = ? AND item_id = ? AND submission_id = ? AND idx = ?`,
+        )
+        .get(input.intake_id, input.item_id, input.submission_id, input.index) as IntakeChunkRow | null;
+      if (existing) return { ok: false as const, reason: "duplicate_chunk" as const };
+
+      this.db
+        .query(
+          `INSERT INTO intake_chunks
+             (intake_id, item_id, submission_id, idx, ciphertext, size, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          input.intake_id,
+          input.item_id,
+          input.submission_id,
+          input.index,
+          input.ciphertext,
+          input.ciphertext.byteLength,
+          now,
+        );
+      const row = this.db
+        .query(
+          `SELECT * FROM intake_chunks
+           WHERE intake_id = ? AND item_id = ? AND submission_id = ? AND idx = ?`,
+        )
+        .get(input.intake_id, input.item_id, input.submission_id, input.index) as IntakeChunkRow;
+      return { ok: true as const, chunk: toIntakeChunk(row) };
+    });
+    return txn.immediate() as ReturnType<typeof this.appendIntakeChunk>;
+  }
+
+  getIntakeChunkById(intakeId: string, chunkId: number): IntakeChunkRecord | null {
+    const r = this.db
+      .query(`SELECT * FROM intake_chunks WHERE intake_id = ? AND id = ?`)
+      .get(intakeId, chunkId) as IntakeChunkRow | null;
+    return r ? toIntakeChunk(r) : null;
+  }
+
+  listIntakeChunksForSubmission(intakeId: string, itemId: string, submissionId: string): IntakeChunkRecord[] {
+    const rows = this.db
+      .query(
+        `SELECT * FROM intake_chunks
+         WHERE intake_id = ? AND item_id = ? AND submission_id = ?
+         ORDER BY idx ASC`,
+      )
+      .all(intakeId, itemId, submissionId) as IntakeChunkRow[];
+    return rows.map(toIntakeChunk);
+  }
+
+  countIntakeChunks(intakeId: string): number {
+    const r = this.db
+      .query(`SELECT COUNT(*) AS n FROM intake_chunks WHERE intake_id = ?`)
+      .get(intakeId) as { n: number };
+    return r.n;
+  }
+
+  sumIntakeBytes(intakeId: string): number {
+    const r = this.db
+      .query(`SELECT COALESCE(SUM(size), 0) AS n FROM intake_chunks WHERE intake_id = ?`)
+      .get(intakeId) as { n: number };
+    return r.n;
+  }
+
+  /**
+   * Bytes stored in finalization rows (manifest + wrapped content key) for an
+   * intake. These persist independently of chunks (a submit with a fresh
+   * submission_id and no chunks still stores a manifest + wrapped key), so they
+   * must be counted toward the per-intake quota or a link holder could grow the
+   * relay database without bound by posting endless finalizations.
+   */
+  sumIntakeSubmissionStoredBytes(intakeId: string): number {
+    const r = this.db
+      .query(
+        `SELECT COALESCE(SUM(LENGTH(manifest_ciphertext) + LENGTH(wrapped_content_key)), 0) AS n
+         FROM intake_submissions WHERE intake_id = ?`,
+      )
+      .get(intakeId) as { n: number };
+    return r.n;
+  }
+
+  countIntakeSubmissions(intakeId: string): number {
+    const r = this.db
+      .query(`SELECT COUNT(*) AS n FROM intake_submissions WHERE intake_id = ?`)
+      .get(intakeId) as { n: number };
+    return r.n;
+  }
+
+  sumIntakeSubmissionBytes(intakeId: string, itemId: string, submissionId: string): number {
+    const r = this.db
+      .query(
+        `SELECT COALESCE(SUM(size), 0) AS n FROM intake_chunks
+         WHERE intake_id = ? AND item_id = ? AND submission_id = ?`,
+      )
+      .get(intakeId, itemId, submissionId) as { n: number };
+    return r.n;
+  }
+
+  finalizeIntakeSubmission(input: {
+    intake_id: string;
+    item_id: string;
+    submission_id: string;
+    manifest_ciphertext: Uint8Array;
+    wrapped_content_key: Uint8Array;
+  }): { ok: true; submission: IntakeSubmissionRecord } | { ok: false; reason: "duplicate_submission_id" } {
+    const now = this.nowIso();
+    const txn = this.db.transaction(() => {
+      const existing = this.db
+        .query(`SELECT 1 FROM intake_submissions WHERE intake_id = ? AND submission_id = ? LIMIT 1`)
+        .get(input.intake_id, input.submission_id);
+      if (existing) return { ok: false as const, reason: "duplicate_submission_id" as const };
+
+      const chunkCount = this.listIntakeChunksForSubmission(input.intake_id, input.item_id, input.submission_id).length;
+      this.db
+        .query(
+          `INSERT INTO intake_submissions
+             (intake_id, item_id, submission_id, manifest_ciphertext, wrapped_content_key, chunk_count, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          input.intake_id,
+          input.item_id,
+          input.submission_id,
+          input.manifest_ciphertext,
+          input.wrapped_content_key,
+          chunkCount,
+          now,
+        );
+      this.db
+        .query(
+          `UPDATE intake_chunks
+           SET bound_at = ?
+           WHERE intake_id = ? AND item_id = ? AND submission_id = ? AND bound_at IS NULL`,
+        )
+        .run(now, input.intake_id, input.item_id, input.submission_id);
+      const row = this.db
+        .query(`SELECT * FROM intake_submissions WHERE intake_id = ? AND submission_id = ?`)
+        .get(input.intake_id, input.submission_id) as IntakeSubmissionRow;
+      return { ok: true as const, submission: toIntakeSubmission(row) };
+    });
+    return txn.immediate() as ReturnType<typeof this.finalizeIntakeSubmission>;
+  }
+
+  listIntakeSubmissionsSince(intakeId: string, sinceCursor: number, limit = 500): IntakeSubmissionRecord[] {
+    const rows = this.db
+      .query(
+        `SELECT * FROM intake_submissions
+         WHERE intake_id = ? AND id > ? AND acked_at IS NULL
+         ORDER BY id ASC
+         LIMIT ?`,
+      )
+      .all(intakeId, sinceCursor, limit) as IntakeSubmissionRow[];
+    return rows.map(toIntakeSubmission);
+  }
+
+  latestIntakeSubmissionCursor(intakeId: string): number {
+    const r = this.db
+      .query(`SELECT MAX(id) AS m FROM intake_submissions WHERE intake_id = ?`)
+      .get(intakeId) as { m: number | null };
+    return r.m ?? 0;
+  }
+
+  listFinalizedItemIds(intakeId: string): string[] {
+    const rows = this.db
+      .query(
+        `SELECT DISTINCT item_id FROM intake_submissions
+         WHERE intake_id = ?
+         ORDER BY id ASC`,
+      )
+      .all(intakeId) as Array<{ item_id: string }>;
+    return rows.map((r) => r.item_id);
+  }
+
+  getIntakeBundle(intakeId: string): {
+    checklist_ciphertext: Uint8Array;
+    state_ciphertext: Uint8Array;
+    checklist_version: number;
+    finalized_item_ids: string[];
+  } | null {
+    const intake = this.getIntake(intakeId);
+    if (!intake) return null;
+    return {
+      checklist_ciphertext: intake.checklist_ciphertext,
+      state_ciphertext: intake.state_ciphertext,
+      checklist_version: intake.checklist_version,
+      finalized_item_ids: this.listFinalizedItemIds(intakeId),
+    };
+  }
+
+  ackIntakeCiphertext(input: {
+    intake_id: string;
+    submission_ids?: string[];
+    blob_ids?: number[];
+  }): { deleted_chunks: number; wiped_submissions: number } {
+    const submissionIds = Array.from(new Set(input.submission_ids ?? [])).filter((s) => s.length > 0);
+    const blobIds = Array.from(new Set(input.blob_ids ?? [])).filter((id) => Number.isInteger(id) && id > 0);
+    let deletedChunks = 0;
+    let wipedSubmissions = 0;
+    const now = this.nowIso();
+
+    const txn = this.db.transaction(() => {
+      if (blobIds.length > 0) {
+        const placeholders = blobIds.map(() => "?").join(",");
+        const res = this.db
+          .query(`DELETE FROM intake_chunks WHERE intake_id = ? AND id IN (${placeholders})`)
+          .run(input.intake_id, ...blobIds);
+        deletedChunks += res.changes;
+      }
+
+      if (submissionIds.length > 0) {
+        const placeholders = submissionIds.map(() => "?").join(",");
+        const chunkRes = this.db
+          .query(`DELETE FROM intake_chunks WHERE intake_id = ? AND submission_id IN (${placeholders})`)
+          .run(input.intake_id, ...submissionIds);
+        deletedChunks += chunkRes.changes;
+
+        const subRes = this.db
+          .query(
+            `UPDATE intake_submissions
+             SET manifest_ciphertext = NULL,
+                 wrapped_content_key = NULL,
+                 acked_at = COALESCE(acked_at, ?)
+             WHERE intake_id = ? AND submission_id IN (${placeholders})`,
+          )
+          .run(now, input.intake_id, ...submissionIds);
+        wipedSubmissions += subRes.changes;
+      }
+    });
+    txn.immediate();
+    return { deleted_chunks: deletedChunks, wiped_submissions: wipedSubmissions };
   }
 
   // ===========================================================================

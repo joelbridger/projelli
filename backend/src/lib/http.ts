@@ -15,10 +15,10 @@ const MAX_BODY_BYTES = 64 * 1024; // 64 KB — generous for our small JSON bodie
 // because real deployment puts this behind a loopback-only reverse proxy and
 // the auth/seat tokens are the actual security gate (same posture as the
 // legacy validator). Tighten to specific origins if ever exposed directly.
-const CORS_HEADERS: Record<string, string> = {
+export const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Seat-Token",
   "Access-Control-Max-Age": "600",
 };
 
