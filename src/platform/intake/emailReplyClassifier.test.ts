@@ -44,6 +44,9 @@ describe('emailReplyClassifier', () => {
       kind: 'body_fact',
       checkedByDefault: false,
     });
-    expect(isEmailReplyProposalItemSelectable(rows[0]!)).toBe(false);
+    const [row] = rows;
+    expect(row).toBeDefined();
+    if (!row) throw new Error('Expected a classified row.');
+    expect(isEmailReplyProposalItemSelectable(row)).toBe(false);
   });
 });

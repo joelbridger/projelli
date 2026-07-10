@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event';
 
 import { resolveEmailProvider } from '@/features/email/resolveEmailProvider';
 import type { Provider } from '@/platform/providers/Provider';
+import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
 
 import {
   MAIL_SYNC_EVENT,
@@ -36,6 +37,7 @@ import {
   stableEmailReplyId,
   type EmailReplyProposalItem,
 } from './emailReplyProposalStore';
+import { logIntakeEmailReplyAudit } from './emailReplyAudit';
 
 export interface EmailReplyIngestionDeps {
   listMessages?: typeof mailListMessages;
@@ -48,7 +50,9 @@ export interface EmailReplyIngestionDeps {
 }
 
 export interface EmailReplyClassificationProvider {
-  provider: Pick<Provider, 'structuredOutput'>;
+  provider: Provider;
+  providerId: string;
+  assuredAvailable: boolean;
 }
 
 const EMAIL_REPLY_CONFIDENCE_SCHEMA = {
@@ -126,10 +130,38 @@ async function enqueueCandidate(
       const resolved = await deps.resolveEmailProvider();
       modelConfidence = async (prompt) => {
         try {
-          return await resolved.provider.structuredOutput(prompt, {
-            schema: EMAIL_REPLY_CONFIDENCE_SCHEMA,
-            temperature: 0,
-            maxTokens: 180,
+          // W3-LANE2-FIX2-EGRESS-WRAPPED
+          return await runWithEgressAudit({
+            provider: resolved.provider,
+            providerId: resolved.providerId,
+            model: resolved.provider.getMetadata().model,
+            assuredAvailable: resolved.assuredAvailable,
+            scope: { kind: 'matter', matterId: candidate.matchedMatterId },
+            onAuditLog: (entry) => {
+              void logIntakeEmailReplyAudit(entry);
+            },
+            operation: () => resolved.provider.structuredOutput(prompt, {
+              schema: EMAIL_REPLY_CONFIDENCE_SCHEMA,
+              temperature: 0,
+              maxTokens: 180,
+            }),
+            modelCall: () => ({
+              action: 'model_call',
+              description: 'Classified the confidence of an email reply.',
+              model: resolved.provider.getMetadata().model,
+              inputs: {
+                matterId: candidate.matchedMatterId,
+                requestId: candidate.matchedRequestId,
+                classifier: 'email_reply_confidence',
+              },
+              outputs: { result: 'confidence_label' },
+              userDecision: 'auto',
+              metadata: {
+                feature: 'email_reply_confidence',
+                bodySanitized: true,
+              },
+              provider: resolved.providerId,
+            }),
           });
         } catch {
           return null;

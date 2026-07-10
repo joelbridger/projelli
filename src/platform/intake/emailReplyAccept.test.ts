@@ -12,6 +12,7 @@ import type {
   EmailReplyProposalRecord,
   EmailReplyProposalStatus,
 } from './emailReplyProposalStore';
+import { emailReplyProposalMarkRowCompleted } from './emailReplyProposalStore';
 import type { IntakeFactUpsertInput } from './factsStore';
 
 const auth = {
@@ -339,7 +340,7 @@ describe('emailReplyAccept', () => {
         verification: 'advisor_confirmed',
         status: 'active' as const,
       });
-    const markRowCompleted = vi.fn().mockImplementation(
+    const markRowCompleted = vi.fn<typeof emailReplyProposalMarkRowCompleted>().mockImplementation(
       (input: {
         completion: { rowId: string; filePath?: string; factId?: string };
       }) => {
@@ -388,7 +389,10 @@ describe('emailReplyAccept', () => {
     expect(persistAttachment).toHaveBeenCalledTimes(1);
     expect(upsertFact).toHaveBeenCalledTimes(2);
     expect(markRowCompleted).toHaveBeenCalledTimes(2);
-    expect(markRowCompleted.mock.calls.map(([input]) => input.completion.rowId)).toEqual([
+    const completedRowIds = markRowCompleted.mock.calls.map(
+      ([input]) => input.completion.rowId
+    );
+    expect(completedRowIds).toEqual([
       'att-row',
       'ssn-row',
     ]);
