@@ -45,6 +45,8 @@
   nav.tabs button{white-space:nowrap; font-family:inherit; font-size:14px; font-weight:600; color:var(--ink-soft); background:transparent; border:0; cursor:pointer; padding:9px 14px; border-radius:9px}
   nav.tabs button:hover{background:var(--bg-soft); color:var(--ink)}
   nav.tabs button.active{background:var(--navy); color:#fff}
+  nav.tabs a{white-space:nowrap; font-family:inherit; font-size:14px; font-weight:600; color:var(--ink-soft); text-decoration:none; padding:9px 14px; border-radius:9px}
+  nav.tabs a:hover{background:var(--bg-soft); color:var(--ink)}
 
   main{padding:24px 0 64px}
   .panel{display:none}
@@ -368,7 +370,7 @@
     // tab bar
     document.getElementById('tabbar').innerHTML = TABS.map(function(t){
       return '<button data-tab="'+t.id+'">'+esc(t.label)+'</button>';
-    }).join('');
+    }).join('')+'<a href="/fleet.html">Fleet</a>';
 
     // panels
     var panelsHtml = '';
