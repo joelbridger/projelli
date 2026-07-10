@@ -8,7 +8,7 @@
 |---|---|---|---|---|---|---|---|---|
 | 1 | ingest+match (Rust+TS) | `~/lp-w3-1` | `lp/intake-w3-1` | DONE-EXIT:0 | lead PASS (security core) | codex-review: 1 P1 + 1 P2 → FIXED `4dc20449` | in `f61c249f` | **MERGED** |
 | 2 | proposal cards + accept | `~/lp-w3-2` | `lp/intake-w3-2` | DONE-EXIT:0 | lead PASS | codex-review: 2 P1 + 2 P2 → fixed | in `670752e2` | **MERGED** (gate-fix folded 3712a94b) |
-| 3 | quarantine path | `~/lp-w3-3` | `lp/intake-w3-3` | — | — | — | — | queued — last |
+| 3 | quarantine path | `~/lp-w3-3` | `lp/intake-w3-3` | dispatched | — | — | — | BUILDING (`briefs/w3-3-quarantine.md`) |
 
 ## Open questions — all 12 RESOLVED in `W3-EXEC-PLAN.md` §0
 Headlines: Q1 sender source = `IntakeRecord.clientEmail` (primary only; no per-member household addrs). Q3 no outbound thread/message id stored by Wave 2 → thread-tie best-effort; multi-active-request → quarantine. Q6 NO mail-auth parsing exists → Lane 1 adds `MailAuthResult` (missing→'none', never 'pass'). Q9 attachment persist via a new Rust command (no bytes to renderer). Q10 durable queues in the encrypted Intake SQLCipher store. Q11 audit action `intake_email_reply` (intent/outcome).
