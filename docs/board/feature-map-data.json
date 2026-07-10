@@ -1,6 +1,6 @@
 {
  "updated": "2026-07-10",
- "version": 4,
+ "version": 5,
  "flywheel": "Everything you send and produce lands back in the client's file — the map gets smarter with every step.",
  "stages": [
   {
@@ -30,7 +30,7 @@
       {
        "name": "Wealthbox client records",
        "status": "shipped",
-       "note": "can read them now; updating them comes later"
+       "statusNote": "can read them now; updating them comes later"
       },
       {
        "name": "Calendly (pulls in booked meetings)",
@@ -41,7 +41,8 @@
        "status": "shipped",
        "note": "always labeled with where they came from"
       }
-     ]
+     ],
+     "visionLabel": "Your everyday tools"
     },
     {
      "label": "Built, waiting on partner approval",
@@ -49,14 +50,15 @@
       {
        "name": "DocuSign, Salesforce, Redtail",
        "status": "building",
-       "note": "built; waiting for the vendors' approval and access"
+       "statusNote": "built; waiting for the vendors' approval and access"
       },
       {
        "name": "Addepar, Box, Jotform, ShareFile, Zocks",
        "status": "building",
-       "note": "same — waiting on the vendors"
+       "statusNote": "same — waiting on the vendors"
       }
-     ]
+     ],
+     "visionLabel": "More connections"
     },
     {
      "label": "On the roadmap",
@@ -65,7 +67,8 @@
        "name": "Clio, document systems for law firms, Word & Outlook add-ins",
        "status": "planned"
       }
-     ]
+     ],
+     "visionLabel": "Specialty & legal tools"
     }
    ]
   },
@@ -83,9 +86,10 @@
       {
        "name": "Add a new client; their documents file themselves into the right folder",
        "status": "shipped",
-       "note": "fixed this week"
+       "statusNote": "fixed this week"
       }
-     ]
+     ],
+     "visionLabel": "The basics"
     },
     {
      "label": "Lantern Intake — the flagship plan",
@@ -120,7 +124,8 @@
        "status": "planned",
        "note": "intake answers flow into Schwab paperwork, account transfers, RightCapital"
       }
-     ]
+     ],
+     "visionLabel": "Lantern Intake — the flagship"
     },
     {
      "label": "Running the process",
@@ -239,7 +244,7 @@
       {
        "name": "A booking page clients use to grab time with you",
        "status": "building",
-       "note": "waiting for the go-ahead to publish"
+       "statusNote": "waiting for the go-ahead to publish"
       }
      ]
     },
@@ -306,7 +311,7 @@
       {
        "name": "A receipt for every answer — see exactly what left your computer",
        "status": "shipped",
-       "note": "added this week"
+       "statusNote": "added this week"
       },
       {
        "name": "If an answer has no source, it says so",
@@ -383,9 +388,10 @@
       {
        "name": "Signatures on forms through DocuSign",
        "status": "planned",
-       "note": "built; waiting on DocuSign approval"
+       "statusNote": "built; waiting on DocuSign approval"
       }
-     ]
+     ],
+     "visionLabel": "Lantern Forms"
     },
     {
      "label": "Workflows & templates",
@@ -460,7 +466,7 @@
       {
        "name": "Schwab account-opening paperwork, pre-filled",
        "status": "building",
-       "note": "Schwab approved the program; we're building it"
+       "statusNote": "Schwab approved the program; we're building it"
       },
       {
        "name": "Send updates to RightCapital / Holistiplan",

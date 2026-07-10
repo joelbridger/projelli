@@ -126,6 +126,7 @@
   .composer .csave{background:var(--ink); color:#fff; padding:6px 14px}
   .hint-comment{position:fixed; top:64px; right:20px; z-index:20; background:var(--gold); color:#fff; border-radius:999px; padding:7px 15px; font-size:12.5px; box-shadow:0 8px 22px rgba(192,124,24,.35); display:none}
   body.commenting .hint-comment{display:block}
+  body.layer-vision #statusfilters{display:none}
   .error{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:30}
   .error>div{background:#fdeaea; border:1px solid #f2c4c4; color:#8a2222; border-radius:14px; padding:18px 22px; font-size:14px}
   @media (max-width:700px){ .hud-hint{display:none} .titlecard{max-width:78vw} }
@@ -133,7 +134,7 @@
 </head>
 <body>
 
-<div id="viewport"><div id="world"><svg id="arrows"></svg></div></div>
+<div id="viewport"><div id="world"><div id="mapcontent"></div></div></div>
 
 <div class="hud hud-top">
   <div class="titlecard">
@@ -141,7 +142,8 @@
     <p>The whole product as one journey, left to right — every feature at its place in an advisor's day. Privacy is the floor it all stands on.</p>
     <div class="counts" id="counts"></div>
   </div>
-  <div class="filters" role="group" aria-label="Filter by status">
+  <div class="filters layers" id="layers" role="group" aria-label="Layers"></div>
+  <div class="filters" id="statusfilters" role="group" aria-label="Filter by status">
     <button class="chip active" data-f="all">All</button>
     <button class="chip" data-f="shipped"><span class="dot" style="background:var(--live)"></span>✓ Live now</button>
     <button class="chip" data-f="building"><span class="dot" style="background:var(--build)"></span>◐ Being built</button>
@@ -169,27 +171,57 @@ var GLYPH={shipped:'✓', building:'◐', planned:'○'};
 var LABEL={shipped:'Live now', building:'Being built', planned:'Planned'};
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 
+// ── LAYERS ──────────────────────────────────────────────────────────────────
+// A layer is a way of looking at the same map. Add one here and it appears in
+// the picker automatically. Fields a layer can use:
+//   statuses:false → every feature renders as done: green check, no badges,
+//                    no status filters, and per-feature `statusNote` + per-group
+//                    `visionLabel` from the data are applied.
+var LAYERS=[
+  {id:'today',  name:'🚦 Today',      title:'What is live, being built, and planned', statuses:true},
+  {id:'vision', name:'✨ The vision', title:'The finished product — everything built', statuses:false}
+];
+var state={layer:'today', filter:'all'};
+function applyBodyState(){
+  var cls=[];
+  if(state.filter!=='all') cls.push('f-'+state.filter);
+  if(state.layer!=='today') cls.push('layer-'+state.layer);
+  document.body.className=cls.join(' ');
+}
+
 var world=document.getElementById('world');
+var mapc=document.getElementById('mapcontent');
 var svg=document.getElementById('arrows');
 var STAGE_W=330, GAP_X=170, MARGIN=140;
 var STAGGER=[0,64,18,80,10,70,32];
+var MAPDATA=null, worldW=0, worldH=0, pz=null;
 
-fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.json();}).then(function(d){
-  var tot={shipped:0,building:0,planned:0};
-  var stages=d.stages||[];
-  var cards=[];
+function layerDef(){ for(var i=0;i<LAYERS.length;i++){ if(LAYERS[i].id===state.layer) return LAYERS[i]; } return LAYERS[0]; }
 
+function buildMap(){
+  var d=MAPDATA, L=layerDef();
+  var tot={shipped:0,building:0,planned:0}, total=0;
+  mapc.innerHTML='';
+  var svgEl=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svgEl.id='arrows'; mapc.appendChild(svgEl); svg=svgEl;
+
+  var stages=d.stages||[], cards=[];
   stages.forEach(function(p,idx){
     var rows='';
     (p.groups||[{features:p.features||[]}]).forEach(function(gr){
-      if(gr.label) rows+='<li class="group"><span class="glabel">'+esc(gr.label)+'</span></li>';
+      var glabel=L.statuses ? gr.label : (gr.visionLabel!==undefined ? gr.visionLabel : gr.label);
+      if(glabel) rows+='<li class="group"><span class="glabel">'+esc(glabel)+'</span></li>';
       var fs=(gr.features||[]).slice().sort(function(a,b){return (b.hero?1:0)-(a.hero?1:0);});
       fs.forEach(function(f){
-        var st=f.status||'planned'; tot[st]=(tot[st]||0)+1;
+        var real=f.status||'planned'; tot[real]=(tot[real]||0)+1; total++;
+        var st=L.statuses?real:'shipped';
         var cls=f.hero?'hero':(fs.length>1&&fs.some(function(x){return x.hero;})?'sub':'');
+        var notes='';
+        if(f.note) notes+='<div class="note">'+esc(f.note)+'</div>';
+        if(L.statuses&&f.statusNote) notes+='<div class="note nstatus">'+esc(f.statusNote)+'</div>';
         rows+='<li class="feat s-'+st+(cls?' '+cls:'')+'"><span class="stop" title="'+LABEL[st]+'" aria-label="'+LABEL[st]+'">'+GLYPH[st]+'</span>'+
-          '<span class="body"><span class="name">'+esc(f.name)+(f.hero?'<span class="star" title="hero feature">★</span>':'')+'<span class="badge">'+LABEL[st]+'</span></span>'+
-          (f.note?'<div class="note">'+esc(f.note)+'</div>':'')+'</span></li>';
+          '<span class="body"><span class="name">'+esc(f.name)+(f.hero?'<span class="star" title="hero feature">★</span>':'')+
+          (L.statuses?'<span class="badge">'+LABEL[st]+'</span>':'')+'</span>'+notes+'</span></li>';
       });
     });
     var el=document.createElement('section');
@@ -200,67 +232,92 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
       '<ul class="features">'+rows+'</ul>';
     var x=MARGIN+idx*(STAGE_W+GAP_X), y=MARGIN+STAGGER[idx%STAGGER.length];
     el.style.left=x+'px'; el.style.top=y+'px';
-    world.appendChild(el);
+    mapc.appendChild(el);
     cards.push({el:el,x:x,y:y,arrow:p.arrow||''});
   });
 
-  // foundation band under everything
   var f=d.foundation||{features:[]};
   var chips=(f.features||[]).map(function(x){
-    var st=x.status||'planned'; tot[st]=(tot[st]||0)+1;
-    return '<li class="s-'+st+'"><span class="stop" title="'+LABEL[st]+'">'+GLYPH[st]+'</span>'+esc(x.name)+(x.note?' <span class="note">· '+esc(x.note)+'</span>':'')+'</li>';
+    var real=x.status||'planned'; tot[real]=(tot[real]||0)+1; total++;
+    var st=L.statuses?real:'shipped';
+    return '<li class="s-'+st+'"><span class="stop" title="'+LABEL[st]+'">'+GLYPH[st]+'</span>'+esc(x.name)+
+      (x.note?' <span class="note">· '+esc(x.note)+'</span>':'')+
+      (L.statuses&&x.statusNote?' <span class="note">· '+esc(x.statusNote)+'</span>':'')+'</li>';
   }).join('');
   var fd=document.createElement('div');
   fd.className='foundation';
   fd.innerHTML='<h2><span>'+esc(f.icon||'🔒')+'</span>'+esc(f.name||'Private by design')+'</h2>'+
     '<div class="story">'+esc(f.story||'')+'</div><ul>'+chips+'</ul>';
-  world.appendChild(fd);
+  mapc.appendChild(fd);
 
-  // measure, place foundation, draw arrows
   var maxBottom=0;
   cards.forEach(function(c){ maxBottom=Math.max(maxBottom, c.y+c.el.offsetHeight); });
   var totalW=MARGIN*2+stages.length*STAGE_W+(stages.length-1)*GAP_X;
   fd.style.left=MARGIN+'px'; fd.style.top=(maxBottom+90)+'px'; fd.style.width=(totalW-MARGIN*2)+'px';
-  var worldH=maxBottom+90+fd.offsetHeight+60;
+  worldW=totalW; worldH=maxBottom+90+fd.offsetHeight+60;
   world.style.width=totalW+'px'; world.style.height=worldH+'px';
   svg.setAttribute('width',totalW); svg.setAttribute('height',worldH);
   svg.innerHTML='<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--flow)"/></marker></defs>';
 
-  function curve(x1,y1,x2,y2,dash){
-    var mx=(x1+x2)/2;
-    var p=document.createElementNS('http://www.w3.org/2000/svg','path');
-    p.setAttribute('d','M'+x1+','+y1+' C'+mx+','+y1+' '+mx+','+y2+' '+x2+','+y2);
-    p.setAttribute('fill','none'); p.setAttribute('stroke','var(--flow)'); p.setAttribute('stroke-width','2.25');
-    if(dash)p.setAttribute('stroke-dasharray','7 7'); else p.setAttribute('marker-end','url(#ah)');
-    svg.appendChild(p);
-  }
   cards.forEach(function(c,i){
     if(i>=cards.length-1)return;
     var n=cards[i+1];
-    var y1=c.y+86, y2=n.y+86;
-    curve(c.x+STAGE_W+3,y1,n.x-9,y2,false);
+    var y1=c.y+86, y2=n.y+86, mx=(c.x+STAGE_W+n.x)/2;
+    var p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d','M'+(c.x+STAGE_W+3)+','+y1+' C'+mx+','+y1+' '+mx+','+y2+' '+(n.x-9)+','+y2);
+    p.setAttribute('fill','none'); p.setAttribute('stroke','var(--flow)'); p.setAttribute('stroke-width','2.25');
+    p.setAttribute('marker-end','url(#ah)');
+    svg.appendChild(p);
     if(c.arrow){
       var lb=document.createElement('div'); lb.className='alabel'; lb.textContent=c.arrow;
-      lb.style.left=((c.x+STAGE_W+n.x)/2)+'px'; lb.style.top=((y1+y2)/2)+'px';
-      world.appendChild(lb);
+      lb.style.left=mx+'px'; lb.style.top=((y1+y2)/2)+'px';
+      mapc.appendChild(lb);
     }
   });
-  // flywheel: dashed return arc from the last stage back to stage 3, above the cards
   var last=cards[cards.length-1], mid=cards[2];
   if(last&&mid){
     var fx1=last.x+STAGE_W/2, fy1=last.y-6, fx2=mid.x+STAGE_W/2, fy2=mid.y-6, top=Math.min(fy1,fy2)-84;
-    var p=document.createElementNS('http://www.w3.org/2000/svg','path');
-    p.setAttribute('d','M'+fx1+','+fy1+' C'+fx1+','+top+' '+fx2+','+top+' '+fx2+','+fy2);
-    p.setAttribute('fill','none'); p.setAttribute('stroke','#dfc79a'); p.setAttribute('stroke-width','2.25');
-    p.setAttribute('stroke-dasharray','7 7'); p.setAttribute('marker-end','url(#ah)');
-    svg.appendChild(p);
-    var lb=document.createElement('div'); lb.className='alabel fly'; lb.textContent='🔁 '+(d.flywheel||'');
-    lb.style.left=((fx1+fx2)/2)+'px'; lb.style.top=(top+18)+'px';
-    world.appendChild(lb);
+    var p2=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p2.setAttribute('d','M'+fx1+','+fy1+' C'+fx1+','+top+' '+fx2+','+top+' '+fx2+','+fy2);
+    p2.setAttribute('fill','none'); p2.setAttribute('stroke','#dfc79a'); p2.setAttribute('stroke-width','2.25');
+    p2.setAttribute('stroke-dasharray','7 7'); p2.setAttribute('marker-end','url(#ah)');
+    svg.appendChild(p2);
+    var lb2=document.createElement('div'); lb2.className='alabel fly'; lb2.textContent='🔁 '+(d.flywheel||'');
+    lb2.style.left=((fx1+fx2)/2)+'px'; lb2.style.top=(top+18)+'px';
+    mapc.appendChild(lb2);
   }
 
-  document.getElementById('counts').innerHTML=
-    '<span class="count c-live">✓ '+tot.shipped+' live now</span><span class="count c-build">◐ '+tot.building+' being built</span><span class="count c-plan">○ '+tot.planned+' planned</span>';
+  document.getElementById('counts').innerHTML = L.statuses
+    ? '<span class="count c-live">✓ '+tot.shipped+' live now</span><span class="count c-build">◐ '+tot.building+' being built</span><span class="count c-plan">○ '+tot.planned+' planned</span>'
+    : '<span class="count c-live">✨ all '+total+' features, as one finished product</span>';
+}
+
+// layer picker (generated from LAYERS so future layers just work)
+var layersEl=document.getElementById('layers');
+LAYERS.forEach(function(L){
+  var b=document.createElement('button');
+  b.className='chip'+(L.id===state.layer?' active':''); b.dataset.l=L.id; b.title=L.title; b.textContent=L.name;
+  b.addEventListener('click',function(){
+    if(state.layer===L.id)return;
+    state.layer=L.id;
+    if(!L.statuses) state.filter='all';
+    layersEl.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('active',x.dataset.l===L.id);});
+    document.querySelectorAll('.filters .chip').forEach(function(x){x.classList.toggle('active',x.dataset.f===state.filter);});
+    applyBodyState();
+    try{history.replaceState(null,'','#layer='+L.id);}catch(e){}
+    if(MAPDATA) buildMap();
+  });
+  layersEl.appendChild(b);
+});
+var hm=(location.hash||'').match(/layer=([a-z]+)/);
+if(hm && LAYERS.some(function(L){return L.id===hm[1];}) && hm[1]!==state.layer){ state.layer=hm[1];
+  layersEl.querySelectorAll('.chip').forEach(function(x){x.classList.toggle('active',x.dataset.l===state.layer);});
+}
+applyBodyState();
+
+fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('status '+r.status);return r.json();}).then(function(d){
+  MAPDATA=d;
+  buildMap();
   document.getElementById('updated').textContent='Last updated '+(d.updated||'');
 
   // ── pan/zoom (open-source panzoom by @anvaka, inlined above) ──
@@ -268,7 +325,7 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
     var t=e.target;
     return !!(t && t.closest && t.closest('.cnote,.composer,button,textarea,input,a'));
   }
-  var pz=panzoom(world,{maxZoom:2.5, minZoom:0.12, zoomDoubleClickSpeed:1.9, smoothScroll:false,
+  pz=panzoom(world,{maxZoom:2.5, minZoom:0.12, zoomDoubleClickSpeed:1.9, smoothScroll:false,
     beforeMouseDown:ignorePan,
     onTouch:function(e){return !ignorePan(e);}});
   var vp=document.getElementById('viewport');
@@ -278,10 +335,10 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
   pz.on('transform',pct);
   function fit(){
     var vw=window.innerWidth, vh=window.innerHeight;
-    var s=Math.min(vw/(totalW+40), (vh-140)/(worldH+40));
+    var s=Math.min(vw/(worldW+40), (vh-140)/(worldH+40));
     s=Math.max(Math.min(s,2.5),0.12);
     pz.zoomAbs(0,0,s);
-    pz.moveTo((vw-totalW*s)/2, 90+(vh-140-worldH*s)/2);
+    pz.moveTo((vw-worldW*s)/2, 90+(vh-140-worldH*s)/2);
     pct();
   }
   function zoomBy(f){
@@ -297,7 +354,7 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
 
   // ── comments: sticky notes anyone (with a login) can pin to the board ──
   function fmtWhen(iso){
-    try{ var d=new Date(iso); return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
+    try{ var d2=new Date(iso); return d2.toLocaleDateString(undefined,{month:'short',day:'numeric'})+' '+d2.toLocaleTimeString(undefined,{hour:'numeric',minute:'2-digit'}); }
     catch(e){ return ''; }
   }
   function renderNote(cm){
@@ -369,7 +426,6 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
         .catch(function(){ alert('Could not save the note — check your connection and try again.'); });
     });
   }
-  // Click (not drag) on the board while in comment mode = pin a note there.
   var downX=0, downY=0;
   vp.addEventListener('pointerdown',function(e){ downX=e.clientX; downY=e.clientY; });
   vp.addEventListener('pointerup',function(e){
@@ -385,16 +441,17 @@ fetch('feature-map-data.json',{cache:'no-store'}).then(function(r){if(!r.ok)thro
   document.body.appendChild(er);
 });
 
-document.querySelectorAll('.chip').forEach(function(b){
+document.querySelectorAll('.filters .chip').forEach(function(b){
   b.addEventListener('click',function(){
-    document.querySelectorAll('.chip').forEach(function(x){x.classList.remove('active');});
+    document.querySelectorAll('.filters .chip').forEach(function(x){x.classList.remove('active');});
     b.classList.add('active');
-    document.body.className = b.dataset.f==='all' ? '' : 'f-'+b.dataset.f;
+    state.filter=b.dataset.f;
+    applyBodyState();
   });
 });
 </script>
 <!-- Maintainers: content lives in feature-map-data.json (docs/board/ in the Lantern project).
      Add a feature to its journey stage, set its status, then run: bash docs/board/deploy.sh
-     The board draws itself from the data. Pan/zoom = panzoom (MIT, github.com/anvaka/panzoom), inlined above. -->
+     The board draws itself from the data. LAYERS: see the LAYERS registry at the top of the app script; per-feature `statusNote` and per-group `visionLabel` in the JSON feed the vision layer. Pan/zoom = panzoom (MIT, github.com/anvaka/panzoom), inlined above. -->
 </body>
 </html>
