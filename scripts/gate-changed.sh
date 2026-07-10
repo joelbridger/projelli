@@ -3,6 +3,9 @@
 # replaces scripts/gate.sh: the complete suite remains the merge/release gate.
 set -uo pipefail
 cd "$(dirname "$0")/.."
+# Fresh-worktree insurance: stub the platform sidecars cargo's build script expects (mirrors gate.sh)
+mkdir -p src-tauri/binaries
+touch src-tauri/binaries/piper-x86_64-unknown-linux-gnu src-tauri/binaries/llama-server-x86_64-unknown-linux-gnu
 
 plan_file="$(mktemp)"
 trap 'rm -f "$plan_file"' EXIT
