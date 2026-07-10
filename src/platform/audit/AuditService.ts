@@ -93,6 +93,8 @@ const CRITICAL_ACTIONS = new Set<AuditActionType>([
   'wealthbox.create_note',
   'wealthbox.create_task',
   'wealthbox.field_updated',
+  'acats.approve',
+  'acats.export',
 ]);
 
 function errorMessage(error: unknown): string {

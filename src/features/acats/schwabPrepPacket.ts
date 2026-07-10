@@ -3,10 +3,12 @@ import { resolveUniqueName } from '@/platform/utils/fileDrop';
 import { markdownToDocxBytes } from '@/platform/utils/docx-io';
 import {
   fieldValue,
-  maskAccountNumber,
   sanitizedFilePart,
 } from './format';
+import { auditSchwabPrepPacketExport } from './audit';
 import type { AcatsTransferDraft } from './types';
+
+export { buildAcatsApprovalAuditMetadata } from './audit';
 
 export interface BinaryWorkspaceWriter {
   exists(path: string): Promise<boolean>;
@@ -131,17 +133,6 @@ export function buildSchwabPrepPacketMarkdown(draft: AcatsTransferDraft): string
   ].join('\n');
 }
 
-export function buildAcatsApprovalAuditMetadata(draft: AcatsTransferDraft): Record<string, string | number> {
-  return {
-    draftId: draft.id,
-    matterId: draft.matterId,
-    deliveringFirm: draft.deliveringFirm.name?.value ?? 'Unknown firm',
-    deliveringAccountNumber: maskAccountNumber(draft.deliveringAccount.accountNumber?.value),
-    reviewStatus: draft.reviewStatus,
-    assetCount: draft.assets.length,
-  };
-}
-
 export interface ExportSchwabPrepPacketOptions {
   draft: AcatsTransferDraft;
   workspace: BinaryWorkspaceWriter;
@@ -166,8 +157,8 @@ export async function exportSchwabPrepPacket({
   const finalName = await resolveUniqueName(workspace, targetFolder, requestedName);
   const path = `${targetFolder}/${finalName}`;
   const bytes = await markdownToDocxBytes(buildSchwabPrepPacketMarkdown(draft), finalName);
+  await auditSchwabPrepPacketExport(draft, finalName);
   const command = new WriteBinaryFileCommand(path, exactArrayBuffer(bytes), workspace);
   await command.execute();
   return { path, name: finalName };
 }
-

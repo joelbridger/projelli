@@ -489,6 +489,9 @@ function scopedMatterKeys(): { matters: string; ui: string; glance: string } {
 }
 
 type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+type MatterAuditEmitterAsync = (
+  entry: Omit<AuditEntry, 'id' | 'timestamp'>
+) => Promise<AuditEntry>;
 
 /**
  * The matter store is not a React component, but MCP access changes still need
@@ -496,6 +499,7 @@ type MatterAuditEmitter = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
  * here, mirroring the existing active WorkspaceService accessor pattern.
  */
 let activeMatterAuditEmitter: MatterAuditEmitter | null = null;
+let activeMatterAuditEmitterAsync: MatterAuditEmitterAsync | null = null;
 
 export function setMatterAuditEmitter(
   emitter: MatterAuditEmitter | null
@@ -507,6 +511,16 @@ export function setMatterAuditEmitter(
  *  emit to the live Activity Log without threading a callback prop through. */
 export function getMatterAuditEmitter(): MatterAuditEmitter | null {
   return activeMatterAuditEmitter;
+}
+
+export function setMatterAuditEmitterAsync(
+  emitter: MatterAuditEmitterAsync | null
+): void {
+  activeMatterAuditEmitterAsync = emitter;
+}
+
+export function getMatterAuditEmitterAsync(): MatterAuditEmitterAsync | null {
+  return activeMatterAuditEmitterAsync;
 }
 
 function auditMatterMcpAccess(matter: Matter, granted: boolean): void {
