@@ -83,6 +83,11 @@ jobs:
       - name: TypeScript check (tests)
         run: npm run typecheck:tests
 
+      - name: Wire-contract gate
+        # Dormant only until an Intake wire lands on this branch; after that,
+        # test:contracts fails closed if the canonical real round trip is gone.
+        run: npm run test:contracts
+
       - name: i18n key parity (report-only — KNOWN-I18N-01 deferred)
         # i18n is a deferred decision (KNOWN-I18N-01): the locale files carry
         # pre-existing key drift. Report it but DON'T block CI until i18n is

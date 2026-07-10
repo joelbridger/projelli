@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.test.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["vitest/globals", "node", "vite/client"],
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  },
+  "files": [
+    "scripts/contracts/contract-gate.fixture.ts",
+    "scripts/contracts/bun-test.d.ts"
+  ],
+  "include": [
+    "src/platform/intake/**/*.ts",
+    "src/platform/types/*.d.ts"
+  ],
+  "exclude": [
+    "src/platform/intake/**/*.test.ts"
+  ]
+}
