@@ -69,6 +69,8 @@ describe('OnboardingTab', () => {
           receivedItems: [],
           flags: [],
           knownSessionIds: [],
+          knownSubmissionIds: [],
+          nudges: [],
         }}
       />
     );
@@ -95,6 +97,8 @@ describe('OnboardingTab', () => {
           receivedItems: [],
           flags: [],
           knownSessionIds: [],
+          knownSubmissionIds: [],
+          nudges: [],
         }}
       />
     );

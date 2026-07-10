@@ -193,6 +193,45 @@ describe('IntakeSyncClient', () => {
     );
   });
 
+  it('flags local filing failures before acking so the relay can redeliver', async () => {
+    const built = await sealedSubmission();
+    const relay = {
+      fetchInbox: vi.fn(() =>
+        Promise.resolve({
+          cursor: 7,
+          has_more: false,
+          submissions: [built.submission],
+        })
+      ),
+      ackSubmission: vi.fn(() => Promise.resolve()),
+    };
+    const flagSubmission = vi.fn(() => Promise.resolve());
+
+    const sync = new IntakeSyncClient({
+      relay,
+      loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(false)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      rememberSession: vi.fn(() => Promise.resolve()),
+      flagSubmission,
+      routeSubmission: vi.fn(() => Promise.reject(new Error('answer could not be filed safely'))),
+    });
+
+    const result = await sync.syncOnce();
+
+    expect(result.rejected).toBe(1);
+    expect(relay.ackSubmission).not.toHaveBeenCalled();
+    expect(flagSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'routing_failed',
+        submissionId: 'submission-1',
+        reason: 'answer could not be filed safely',
+      })
+    );
+    expect(sync.getCursor()).toBe(0);
+  });
+
   it('flags chunks transplanted from another item before routing or acking', async () => {
     const built = await sealedSubmission({
       chunkItemId: 'other-item',

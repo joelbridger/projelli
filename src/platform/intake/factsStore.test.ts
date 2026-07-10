@@ -49,6 +49,8 @@ describe('factsStore browser accessor', () => {
       receivedItems: [],
       flags: [],
       knownSessionIds: [],
+      knownSubmissionIds: [],
+      nudges: [],
     });
 
     const listed = await intakeFactList('matter-1');

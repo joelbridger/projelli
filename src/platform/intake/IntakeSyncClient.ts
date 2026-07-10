@@ -32,7 +32,11 @@ export interface IntakeRelayInboxClient {
   ackSubmission(intakeId: string, submissionId: string, cursor: number): Promise<void>;
 }
 
-export type IntakeSubmissionFlagKind = 'integrity_mismatch' | 'duplicate' | 'new_device';
+export type IntakeSubmissionFlagKind =
+  | 'integrity_mismatch'
+  | 'duplicate'
+  | 'new_device'
+  | 'routing_failed';
 
 export interface IntakeSubmissionFlag {
   kind: IntakeSubmissionFlagKind;
@@ -94,7 +98,7 @@ function flagFromSubmission(
     intakeId: submission.intake_id,
     itemId: submission.item_id,
     submissionId: submission.submission_id,
-    at: new Date().toISOString(),
+    at: submission.submitted_at,
   };
 }
 
@@ -194,7 +198,17 @@ export class IntakeSyncClient {
       await this.rememberSubmission(routed.manifest.submission_id);
       if (sessionId) await this.rememberSession(submission.intake_id, sessionId);
       await this.relay.ackSubmission(submission.intake_id, submission.submission_id, submission.cursor);
-    } catch {
+    } catch (error) {
+      await this.flagSubmission(
+        flagFromSubmission(
+          submission,
+          'routing_failed',
+          error instanceof Error
+            ? error.message
+            : 'Submission could not be filed safely.',
+        ),
+      );
+      totals.rejected += 1;
       return totals;
     }
     totals.routed += 1;

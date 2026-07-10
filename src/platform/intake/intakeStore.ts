@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 import { SK_INTAKES } from '@/config/identity';
+import type { IntakeNudgeAttempt } from './nudgeTypes';
 
 export type IntakeItemState = 'not_started' | 'provided' | 'received' | 'accepted' | 'needs_followup' | 'not_needed';
 export type IntakeStatus = 'draft' | 'active' | 'revoked' | 'expired' | 'completed';
@@ -33,7 +34,13 @@ export interface IntakeReceivedItem {
 
 export interface IntakeFlag {
   id: string;
-  kind: 'duplicate' | 'new_device' | 'integrity_mismatch' | 'stale_overwrite' | 'vault_off_nudge';
+  kind:
+    | 'duplicate'
+    | 'new_device'
+    | 'integrity_mismatch'
+    | 'routing_failed'
+    | 'stale_overwrite'
+    | 'vault_off_nudge';
   itemId?: string;
   submissionId?: string;
   message: string;
@@ -44,15 +51,20 @@ export interface IntakeRecord {
   intakeId: string;
   matterId: string;
   clientFirstName: string;
+  clientEmail?: string;
+  clientPhone?: string;
   firmName: string;
   status: IntakeStatus;
   link?: string;
   expiresAt: string;
+  lastClientActivityAt?: string;
   checklistVersion: number;
   items: IntakeChecklistState[];
   receivedItems: IntakeReceivedItem[];
   flags: IntakeFlag[];
   knownSessionIds: string[];
+  knownSubmissionIds: string[];
+  nudges: IntakeNudgeAttempt[];
   publicKeyRawB64?: string;
   checklistCiphertextB64?: string;
   stateCiphertextB64?: string;
@@ -69,6 +81,9 @@ interface IntakeStoreState {
   addReceivedItem: (intakeId: string, item: IntakeReceivedItem) => void;
   addFlag: (intakeId: string, flag: IntakeFlag) => void;
   rememberSession: (intakeId: string, sessionId: string) => void;
+  rememberSubmission: (intakeId: string, submissionId: string) => void;
+  recordNudgeAttempt: (intakeId: string, attempt: IntakeNudgeAttempt) => void;
+  setLastClientActivity: (intakeId: string, at: string) => void;
   setCursor: (intakeId: string, cursor: number) => void;
   resetForTests: () => void;
 }
@@ -81,18 +96,31 @@ type IntakeRecordWithPossibleSecrets = IntakeRecord & {
   secret?: unknown;
 };
 
+function intakeRecordWithDefaults(record: IntakeRecord): IntakeRecord {
+  return {
+    ...record,
+    items: Array.isArray(record.items) ? record.items : [],
+    receivedItems: Array.isArray(record.receivedItems) ? record.receivedItems : [],
+    flags: Array.isArray(record.flags) ? record.flags : [],
+    knownSessionIds: Array.isArray(record.knownSessionIds) ? record.knownSessionIds : [],
+    knownSubmissionIds: Array.isArray(record.knownSubmissionIds) ? record.knownSubmissionIds : [],
+    nudges: Array.isArray(record.nudges) ? record.nudges : [],
+  };
+}
+
 export function partializeIntakeStateForPersistence(
   state: Pick<IntakeStoreState, 'intakesById'>,
 ): PersistedIntakeState {
   return {
     intakesById: Object.fromEntries(
       Object.entries(state.intakesById).map(([intakeId, record]) => {
+        const normalized = intakeRecordWithDefaults(record);
         const {
           link: _link,
           linkSecretB64: _linkSecretB64,
           secret: _secret,
           ...persistable
-        } = record as IntakeRecordWithPossibleSecrets;
+        } = normalized as IntakeRecordWithPossibleSecrets;
         return [intakeId, persistable];
       }),
     ),
@@ -108,6 +136,13 @@ export function sanitizePersistedIntakeState(
       ? state.intakesById as Record<string, IntakeRecord>
       : {};
   return partializeIntakeStateForPersistence({ intakesById });
+}
+
+export function migratePersistedIntakeState(
+  persistedState: unknown,
+  _version: number,
+): PersistedIntakeState {
+  return sanitizePersistedIntakeState(persistedState);
 }
 
 function dedupeById<T extends { id?: string; itemId?: string; submissionId?: string }>(
@@ -126,12 +161,17 @@ export const useIntakeStore = create<IntakeStoreState>()(
     (set, get) => ({
       intakesById: {},
       upsertIntake: (record) => set((state) => ({
-        intakesById: { ...state.intakesById, [record.intakeId]: record },
+        intakesById: { ...state.intakesById, [record.intakeId]: intakeRecordWithDefaults(record) },
       })),
       updateIntake: (intakeId, patch) => set((state) => {
         const current = state.intakesById[intakeId];
         if (!current) return {};
-        return { intakesById: { ...state.intakesById, [intakeId]: { ...current, ...patch } } };
+        return {
+          intakesById: {
+            ...state.intakesById,
+            [intakeId]: intakeRecordWithDefaults({ ...current, ...patch }),
+          },
+        };
       }),
       getIntakeForMatter: (matterId) =>
         Object.values(get().intakesById).find((record) => record.matterId === matterId) ?? null,
@@ -182,6 +222,48 @@ export const useIntakeStore = create<IntakeStoreState>()(
           },
         };
       }),
+      rememberSubmission: (intakeId, submissionId) => set((state) => {
+        const current = state.intakesById[intakeId];
+        if (!current || current.knownSubmissionIds.includes(submissionId)) return {};
+        return {
+          intakesById: {
+            ...state.intakesById,
+            [intakeId]: {
+              ...current,
+              knownSubmissionIds: [...current.knownSubmissionIds, submissionId],
+            },
+          },
+        };
+      }),
+      recordNudgeAttempt: (intakeId, attempt) => set((state) => {
+        const current = state.intakesById[intakeId];
+        if (!current) return {};
+        return {
+          intakesById: {
+            ...state.intakesById,
+            [intakeId]: {
+              ...current,
+              nudges: [...current.nudges, attempt],
+            },
+          },
+        };
+      }),
+      setLastClientActivity: (intakeId, at) => set((state) => {
+        const current = state.intakesById[intakeId];
+        if (!current) return {};
+        const nextTime = new Date(at).getTime();
+        if (!Number.isFinite(nextTime)) return {};
+        const currentTime = current.lastClientActivityAt
+          ? new Date(current.lastClientActivityAt).getTime()
+          : Number.NEGATIVE_INFINITY;
+        if (Number.isFinite(currentTime) && nextTime <= currentTime) return {};
+        return {
+          intakesById: {
+            ...state.intakesById,
+            [intakeId]: { ...current, lastClientActivityAt: at },
+          },
+        };
+      }),
       setCursor: (intakeId, cursor) => set((state) => {
         const current = state.intakesById[intakeId];
         if (!current) return {};
@@ -191,8 +273,8 @@ export const useIntakeStore = create<IntakeStoreState>()(
     }),
     {
       name: SK_INTAKES,
-      version: 1,
-      migrate: sanitizePersistedIntakeState,
+      version: 2,
+      migrate: migratePersistedIntakeState,
       merge: (persistedState, currentState) => ({
         ...currentState,
         ...sanitizePersistedIntakeState(persistedState),
