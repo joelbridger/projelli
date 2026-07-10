@@ -522,6 +522,12 @@
         "title": "Where your data lives and who can see it",
         "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
+      },
+      "email-reply-ai": {
+        "title": "Clasificación de respuestas de correo con IA",
+        "description": "Desactivado de forma predeterminada. Cuando se activa, {{productName}} envía el texto de las respuestas de correo autenticadas de los clientes al proveedor de IA configurado por su firma para ayudar a relacionar un elemento de incorporación. Actívelo solo cuando su firma apruebe ese uso compartido.",
+        "enabled": "Activado",
+        "off": "Desactivado"
       }
     },
     "mcp": {

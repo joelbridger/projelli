@@ -522,6 +522,12 @@
         "title": "Where your data lives and who can see it",
         "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open the data map"
+      },
+      "email-reply-ai": {
+        "title": "KI-Klassifizierung von E-Mail-Antworten",
+        "description": "Standardmäßig aus. Wenn aktiviert, sendet {{productName}} den Text authentifizierter E-Mail-Antworten von Mandanten an den von Ihrer Firma konfigurierten KI-Anbieter, um ein Onboarding-Element zuzuordnen. Aktivieren Sie dies nur, wenn Ihre Firma diese Weitergabe genehmigt.",
+        "enabled": "Aktiviert",
+        "off": "Aus"
       }
     },
     "mcp": {

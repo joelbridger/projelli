@@ -541,6 +541,12 @@
         "title": "Where your data lives and who can see it",
         "description": "A plain-English map of what stays on your machine, what is sent to your AI provider, and what {{productNamePossessive}} own servers see (only a license check). You can print it or save it as a PDF to show a client.",
         "cta": "Open Data Map"
+      },
+      "email-reply-ai": {
+        "title": "AI email reply classification",
+        "description": "Off by default. When enabled, {{productName}} sends the text of authenticated client email replies to your firm's configured AI provider to help match an onboarding item. Turn this on only when your firm approves that sharing.",
+        "enabled": "Enabled",
+        "off": "Off"
       }
     },
     "mcp": {
