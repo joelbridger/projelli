@@ -4189,6 +4189,12 @@
           "body": "La app no pudo colocar un elemento recibido en la lista del cliente.",
           "action": "Revise la bandeja de incorporación y ubique el elemento manualmente."
         },
+        "shared-intake-setup-required": {
+          "badge": "Falta configurar la solicitud compartida",
+          "title": "Este dispositivo necesita configuración compartida",
+          "body": "El dispositivo de un compañero recibió una respuesta, pero aún no tiene la lista de esta solicitud.",
+          "action": "Complete la configuración compartida antes de archivar esta respuesta."
+        },
         "regenerate-available": {
           "badge": "Nuevo enlace disponible",
           "title": "Puede crear un enlace nuevo",

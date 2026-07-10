@@ -17,6 +17,7 @@ export type LinkSignalKind =
   | 'duplicate'
   | 'integrity_mismatch'
   | 'routing_failed'
+  | 'shared_intake_setup_required'
   | 'regenerate_available';
 
 export interface LinkSignal {
@@ -161,6 +162,13 @@ export function deriveLinkSignals(
       case 'routing_failed':
         return [{
           kind: 'routing_failed',
+          severity: 'attention',
+          at: flag.at,
+          dismissible: false,
+        }];
+      case 'shared_intake_setup_required':
+        return [{
+          kind: 'shared_intake_setup_required',
           severity: 'attention',
           at: flag.at,
           dismissible: false,

@@ -237,7 +237,12 @@ function contractItemOrFail(
     return failNeedsFollowup(submission, intake, 'This submission belongs to a different request.', 'integrity_mismatch');
   }
   if (!intake.requestItems) {
-    return failNeedsFollowup(submission, intake, 'This request is missing its sealed routing contract.', 'integrity_mismatch');
+    return failNeedsFollowup(
+      submission,
+      intake,
+      'This device needs setup to receive shared intake responses.',
+      'shared_intake_setup_required',
+    );
   }
   const item = intake.requestItems.find((candidate) => candidate.item_id === submission.itemId);
   if (!item) return failNeedsFollowup(submission, intake, 'This submission does not match a request item.', 'integrity_mismatch');
@@ -406,9 +411,6 @@ export async function routeIntakeSubmission(
   options: RouteIntakeSubmissionOptions,
 ): Promise<IntakeRouteResult> {
   const item = contractItemOrFail(submission, options.intake);
-  if (options.intake.knownSubmissionIds.includes(submission.submissionId)) {
-    failNeedsFollowup(submission, options.intake, 'This submission was already filed.', 'integrity_mismatch');
-  }
   const result = item.t === 'typed_field' || item.t === 'guided_question'
     ? submission.manifest.content_type === 'application/json'
       ? await routeJsonSubmission(submission, options)
@@ -456,9 +458,12 @@ async function syncOneIntake(
   const syncClient = new IntakeSyncClient({
     relay: bindIntakeRelayInbox(relayClient, intake.intakeId),
     loadPrivateKey: loadRequiredPrivateKey,
-    // Let the receiver-owned router inspect duplicates after decryption. The
-    // old fast path acknowledged them before the contract could reject them.
-    hasSubmission: () => Promise.resolve(false),
+    // A successful local filing is remembered before its relay acknowledgement.
+    // If that acknowledgement was lost, this recognizes the safe redelivery,
+    // acknowledges it, and lets later submissions in the page continue.
+    hasSubmission: (submissionId) => Promise.resolve(
+      useIntakeStore.getState().intakesById[intake.intakeId]?.knownSubmissionIds.includes(submissionId) ?? false,
+    ),
     rememberSubmission: (submissionId) => {
       useIntakeStore.getState().rememberSubmission(intake.intakeId, submissionId);
       return Promise.resolve();

@@ -58,6 +58,7 @@ export interface IntakeFlag {
     | 'new_device'
     | 'integrity_mismatch'
     | 'routing_failed'
+    | 'shared_intake_setup_required'
     | 'stale_overwrite'
     | 'vault_off_nudge';
   itemId?: string;

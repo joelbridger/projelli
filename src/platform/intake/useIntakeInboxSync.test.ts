@@ -1,12 +1,23 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RoutedIntakeSubmission } from './IntakeSyncClient';
+import type { IntakeInboxSubmission, RoutedIntakeSubmission } from './IntakeSyncClient';
 import type { IntakeFactUpsertInput } from './factsStore';
+import {
+  generateContentKey,
+  generateIntakeKeypair,
+  importContentKey,
+  sealItemChunk,
+  sealManifest,
+  wrapContentKey,
+} from './intakeCrypto';
+import { hashPlaintextChunk } from './chunkHash';
+import { storeIntakeSecrets } from './intakeKeychain';
 import { useIntakeStore, type IntakeRecord } from './intakeStore';
 import {
   bindIntakeRelayInbox,
   discoverGrantedIntakes,
   routeIntakeSubmission,
+  syncActiveIntakeInboxesOnce,
 } from './useIntakeInboxSync';
 import { useMatterStore } from '@/platform/matter/matterStore';
 
@@ -91,6 +102,53 @@ function maskedFact(input: IntakeFactUpsertInput, factId: string) {
   };
 }
 
+async function sealedInboxSubmission(input: {
+  intakeId: string;
+  itemId: string;
+  submissionId: string;
+  cursor: number;
+  publicKeyRaw: Uint8Array;
+  body: unknown;
+}): Promise<IntakeInboxSubmission> {
+  const contentKeyB64 = await generateContentKey();
+  const contentKey = await importContentKey(contentKeyB64);
+  const plaintext = enc.encode(JSON.stringify(input.body));
+  const manifestCiphertext = await sealManifest(contentKey, {
+    submission_id: input.submissionId,
+    item_id: input.itemId,
+    content_type: 'application/json',
+    file_names: [],
+    chunk_hashes: [await hashPlaintextChunk(plaintext)],
+    chunk_count: 1,
+  }, {
+    intakeId: input.intakeId,
+    itemId: input.itemId,
+    submissionId: input.submissionId,
+  });
+  const ciphertext = await sealItemChunk(contentKey, plaintext, {
+    intakeId: input.intakeId,
+    itemId: input.itemId,
+    submissionId: input.submissionId,
+    index: 0,
+  });
+  return {
+    cursor: input.cursor,
+    intake_id: input.intakeId,
+    item_id: input.itemId,
+    submission_id: input.submissionId,
+    submitted_at: '2026-07-10T10:00:00.000Z',
+    manifest_ciphertext_b64: manifestCiphertext,
+    wrapped_content_key_b64: await wrapContentKey(contentKeyB64, input.publicKeyRaw),
+    chunks: [{
+      intake_id: input.intakeId,
+      item_id: input.itemId,
+      submission_id: input.submissionId,
+      index: 0,
+      ciphertext_b64: ciphertext,
+    }],
+  };
+}
+
 describe('useIntakeInboxSync wiring helpers', () => {
   beforeEach(() => {
     useIntakeStore.getState().resetForTests();
@@ -142,6 +200,67 @@ describe('useIntakeInboxSync wiring helpers', () => {
 
     expect(relay.fetchInbox).toHaveBeenCalledWith('intake-1', 1);
     expect(relay.ackSubmission).toHaveBeenCalledWith('intake-1', 'submission-1', 2);
+  });
+
+  it('acknowledges a redelivered submission and still routes the next submission through the live sync wiring', async () => {
+    const { privateKey, publicKeyRaw } = await generateIntakeKeypair();
+    await storeIntakeSecrets('intake-1', privateKey, 'link-secret');
+    const localMatter = useMatterStore.getState().createMatter({
+      name: 'Sarah', client: 'Sarah', folderPaths: ['/workspace/Sarah'],
+    });
+    useIntakeStore.getState().upsertIntake(intake({
+      matterId: localMatter.id,
+      knownSubmissionIds: ['already-filed'],
+    }));
+    const [redelivery, next] = await Promise.all([
+      sealedInboxSubmission({
+        intakeId: 'intake-1', itemId: 'ssn', submissionId: 'already-filed', cursor: 1, publicKeyRaw,
+        body: { value: '111-11-1111' },
+      }),
+      sealedInboxSubmission({
+        intakeId: 'intake-1', itemId: 'ssn', submissionId: 'new-submission', cursor: 2, publicKeyRaw,
+        body: { value: '222-22-2222' },
+      }),
+    ]);
+    const relay = {
+      fetchInbox: vi.fn().mockResolvedValue({ cursor: 2, has_more: false, submissions: [redelivery, next] }),
+      ackSubmission: vi.fn().mockResolvedValue(undefined),
+    };
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    if (!current) throw new Error('Expected active intake.');
+
+    await syncActiveIntakeInboxesOnce({ relayClient: relay, workspaceService: {} as never });
+
+    expect(relay.ackSubmission).toHaveBeenCalledWith('intake-1', 'already-filed', 1);
+    expect(relay.ackSubmission).toHaveBeenCalledWith('intake-1', 'new-submission', 2);
+    const updated = useIntakeStore.getState().intakesById['intake-1'];
+    expect(updated?.knownSubmissionIds).toEqual(expect.arrayContaining(['already-filed', 'new-submission']));
+    expect(updated?.flags).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'duplicate', submissionId: 'already-filed' }),
+    ]));
+    expect(updated?.items[0]).toMatchObject({ state: 'received' });
+    expect(updated?.lastCursor).toBe(2);
+  });
+
+  it('marks a shared intake without a recovered checklist as setup-required, not an integrity mismatch', async () => {
+    const sharedIntake = intake();
+    delete sharedIntake.requestItems;
+    useIntakeStore.getState().upsertIntake(sharedIntake);
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    if (!current) throw new Error('Expected active intake.');
+
+    await expect(routeIntakeSubmission(routedSubmission({ value: '123-45-6789' }), {
+      intake: current,
+      matterFolderPath: '/workspace/Sarah',
+      workspaceService: null,
+    })).rejects.toThrow(/needs setup to receive shared intake responses/iu);
+
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'shared_intake_setup_required' }),
+    ]));
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'integrity_mismatch' }),
+    ]));
   });
 
   it('routes a typed submission into facts, checklist state, received items, and last activity without storing the value', async () => {

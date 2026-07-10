@@ -20,6 +20,8 @@ export function linkSignalLabel(kind: LinkSignalKind, t: TFunction): string {
       return t('intake.link.signal.integrity-mismatch.badge');
     case 'routing_failed':
       return t('intake.link.signal.routing-failed.badge');
+    case 'shared_intake_setup_required':
+      return t('intake.link.signal.shared-intake-setup-required.badge');
     case 'regenerate_available':
       return t('intake.link.signal.regenerate-available.badge');
   }
@@ -43,6 +45,8 @@ export function linkSignalTitle(kind: LinkSignalKind, t: TFunction): string {
       return t('intake.link.signal.integrity-mismatch.title');
     case 'routing_failed':
       return t('intake.link.signal.routing-failed.title');
+    case 'shared_intake_setup_required':
+      return t('intake.link.signal.shared-intake-setup-required.title');
     case 'regenerate_available':
       return t('intake.link.signal.regenerate-available.title');
   }
@@ -66,6 +70,8 @@ export function linkSignalBody(kind: LinkSignalKind, t: TFunction): string {
       return t('intake.link.signal.integrity-mismatch.body');
     case 'routing_failed':
       return t('intake.link.signal.routing-failed.body');
+    case 'shared_intake_setup_required':
+      return t('intake.link.signal.shared-intake-setup-required.body');
     case 'regenerate_available':
       return t('intake.link.signal.regenerate-available.body');
   }
@@ -89,6 +95,8 @@ export function linkSignalAction(kind: LinkSignalKind, t: TFunction): string {
       return t('intake.link.signal.integrity-mismatch.action');
     case 'routing_failed':
       return t('intake.link.signal.routing-failed.action');
+    case 'shared_intake_setup_required':
+      return t('intake.link.signal.shared-intake-setup-required.action');
     case 'regenerate_available':
       return t('intake.link.signal.regenerate-available.action');
   }

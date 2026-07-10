@@ -52,6 +52,18 @@ describe('createAdvisorIntake team sharing', () => {
     expect(useIntakeStore.getState().intakesById[input.intakeId]).toBeUndefined();
   });
 
+  it.each(['request with spaces', '../outside-request'])('rejects an unsafe caller-supplied request slug before creating anything: %s', async (requestSlug) => {
+    const input = options({
+      checklist: { ...options().checklist, kind: 'standing' },
+      requestSlug,
+    });
+
+    await expect(createAdvisorIntake(input)).rejects.toThrow(/folder names/iu);
+    expect(input.relay.createIntake).not.toHaveBeenCalled();
+    await expect(loadIntakeLinkSecret(input.intakeId)).resolves.toBeNull();
+    expect(useIntakeStore.getState().intakesById[input.intakeId]).toBeUndefined();
+  });
+
   it('cleans local secret and draft when relay creation fails, and tries to revoke the remote id', async () => {
     const revokeIntake = vi.fn().mockResolvedValue({ ok: true });
     const input = options({ relay: { createIntake: vi.fn().mockRejectedValue(new Error('offline')), revokeIntake } });

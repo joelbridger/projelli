@@ -4189,6 +4189,12 @@
           "body": "Die App konnte ein erhaltenes Element nicht in der Kundencheckliste ablegen.",
           "action": "Prüfen Sie den Intake-Eingang und ordnen Sie das Element manuell zu."
         },
+        "shared-intake-setup-required": {
+          "badge": "Einrichtung der gemeinsamen Anfrage nötig",
+          "title": "Dieses Gerät benötigt die gemeinsame Einrichtung",
+          "body": "Das Gerät eines Teammitglieds erhielt eine Antwort, hat aber die Checkliste dieser Anfrage noch nicht.",
+          "action": "Schließen Sie die gemeinsame Einrichtung ab, bevor Sie diese Antwort ablegen."
+        },
         "regenerate-available": {
           "badge": "Neuer Link verfügbar",
           "title": "Sie können einen frischen Link erstellen",

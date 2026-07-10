@@ -5,7 +5,7 @@ import { createInitialIntakeLinkBundle, type InitialIntakeLinkBundle } from './i
 import { clearIntakeSecrets, storeIntakeSecrets } from './intakeKeychain';
 import type { IntakeRelayClient } from './IntakeRelayClient';
 import { useIntakeStore } from './intakeStore';
-import { createOpaqueItemHandle, createRequestSlug } from './requestIdentity';
+import { assertRequestSlug, createOpaqueItemHandle, createRequestSlug } from './requestIdentity';
 
 export interface IntakeFirm {
   name: string;
@@ -57,7 +57,9 @@ export async function createAdvisorIntake(
   const requestItems = requestItemsForIssue(options.checklist);
   const requestSlug = options.checklist.kind === 'onboarding'
     ? 'onboarding'
-    : options.requestSlug ?? createRequestSlug();
+    : options.requestSlug === undefined
+      ? createRequestSlug()
+      : assertRequestSlug(options.requestSlug);
   const requestTitle = options.requestTitle ?? (options.checklist.kind === 'onboarding'
     ? 'New client onboarding'
     : 'Client request');
