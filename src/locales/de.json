@@ -4006,7 +4006,29 @@
       "activity-count": "{{completed}} von {{total}} Elementen weisen Aktivität auf.",
       "link-expiry": "Dieser Link funktioniert bis {{date}}. Sie können ihn jederzeit verlängern oder deaktivieren.",
       "no-facts": "Noch keine Angaben erhalten.",
-      "view-in-folder": "Im Ordner anzeigen"
+      "view-in-folder": "Im Ordner anzeigen",
+      "phone-call-title": "Im Gespräch mit {{client}}?",
+      "phone-call-description": "Gehen Sie dieselbe Checkliste gemeinsam durch, einen Schritt nach dem anderen.",
+      "start-phone-walkthrough": "Telefonische Anleitung starten"
+    },
+    "phone": {
+      "title": "Telefonische Anleitung",
+      "step-description": "Schritt {{step}} von {{total}}. Tragen Sie dies mit {{client}} im Gespräch ein.",
+      "progress": "Fortschritt {{step}} von {{total}}",
+      "already-provided": "Bereits angegeben",
+      "choose-document": "Dokument auswählen",
+      "enter-amount": "Betrag eingeben",
+      "choose-range": "Bereich wählen",
+      "unknown-answer": "Ich weiß es noch nicht",
+      "amount": "Betrag",
+      "low-amount": "Niedriger Betrag",
+      "high-amount": "Hoher Betrag",
+      "back": "Zurück",
+      "skip-for-now": "Vorerst überspringen",
+      "replace-and-continue": "Ersetzen und fortfahren",
+      "save-and-continue": "Speichern und fortfahren",
+      "save-error": "Dieses Element konnte nicht gespeichert werden.",
+      "file-name-error": "Dieser Dokumentname konnte nicht vorbereitet werden."
     },
     "email-reply": {
       "title": "E-Mail-Antworten warten",

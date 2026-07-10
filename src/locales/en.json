@@ -128,7 +128,29 @@
       "activity-count": "{{completed}} of {{total}} items have activity.",
       "link-expiry": "This link works until {{date}}. You can extend or turn it off anytime.",
       "no-facts": "No facts received yet.",
-      "view-in-folder": "View in folder"
+      "view-in-folder": "View in folder",
+      "phone-call-title": "On a call with {{client}}?",
+      "phone-call-description": "Work through the same checklist together, one step at a time.",
+      "start-phone-walkthrough": "Start phone walkthrough"
+    },
+    "phone": {
+      "title": "Phone walkthrough",
+      "step-description": "Step {{step}} of {{total}}. Enter this with {{client}} on the call.",
+      "progress": "Progress {{step}} of {{total}}",
+      "already-provided": "Already provided",
+      "choose-document": "Choose document",
+      "enter-amount": "Enter an amount",
+      "choose-range": "Choose a range",
+      "unknown-answer": "I don't know yet",
+      "amount": "Amount",
+      "low-amount": "Low amount",
+      "high-amount": "High amount",
+      "back": "Back",
+      "skip-for-now": "Skip for now",
+      "replace-and-continue": "Replace and continue",
+      "save-and-continue": "Save and continue",
+      "save-error": "Could not save this item.",
+      "file-name-error": "Could not prepare this document name."
     },
     "email-reply": {
       "title": "Email replies waiting",

@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 
 import { SK_INTAKES } from '@/config/identity';
 import type { IntakeNudgeAttempt } from './nudgeTypes';
+import type { RequestItem } from './types';
 
 export type IntakeItemState = 'not_started' | 'provided' | 'received' | 'accepted' | 'needs_followup' | 'not_needed';
 export type IntakeStatus = 'draft' | 'active' | 'revoked' | 'expired' | 'completed';
@@ -71,6 +72,8 @@ export interface IntakeRecord {
   expiresAt: string;
   lastClientActivityAt?: string;
   checklistVersion: number;
+  /** The advisor-side copy of the sealed checklist, used for phone walkthroughs. */
+  requestItems?: RequestItem[];
   items: IntakeChecklistState[];
   receivedItems: IntakeReceivedItem[];
   emailReplyManualFileReceipts?: EmailReplyManualFileReceipt[];

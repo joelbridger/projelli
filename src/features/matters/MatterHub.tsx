@@ -884,6 +884,8 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
               onRevoke={handleRevokeIntake}
               onRegenerate={handleRegenerateIntake}
               onShareWithTeam={handleShareIntakeWithTeam}
+              workspaceService={workspaceService}
+              matterFolderPath={matter.folderPaths[0] ?? ''}
             />
           </div>
         )}

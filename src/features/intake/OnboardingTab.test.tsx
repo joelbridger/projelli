@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { OnboardingTab } from './OnboardingTab';
-import { intakeFactPurge } from '@/platform/intake/factsStore';
+import { intakeFactList, intakeFactPurge } from '@/platform/intake/factsStore';
 
 vi.mock('@/platform/intake/factsStore', () => ({
   intakeFactList: vi.fn(() =>
@@ -109,5 +109,26 @@ describe('OnboardingTab', () => {
       expect(intakeFactPurge).toHaveBeenCalledWith('matter-1', 'fact-1');
     });
     expect(intakeFactPurge).not.toHaveBeenCalledWith('matter-2', 'fact-1');
+  });
+
+  it('labels phone-walkthrough facts as entered by you on a call', async () => {
+    vi.mocked(intakeFactList).mockResolvedValueOnce([
+      {
+        fact_id: 'fact-phone-1', matter_id: 'matter-1', subject: 'primary',
+        kind: 'income_annual', sensitivity: 'confidential', display_value: 'USD 120000',
+        provenance: {
+          channel: 'phone_walkthrough', entered_by: 'advisor-1', at: '2026-07-10T12:00:00.000Z',
+        },
+        verification: 'advisor_confirmed', status: 'active',
+      },
+    ]);
+
+    render(<OnboardingTab matterId="matter-1" intake={{
+      intakeId: 'intake-1', matterId: 'matter-1', clientFirstName: 'Sarah', firmName: 'North Star',
+      status: 'active', expiresAt: '2026-08-09T00:00:00.000Z', checklistVersion: 1,
+      items: [], receivedItems: [], flags: [], knownSessionIds: [], knownSubmissionIds: [], nudges: [],
+    }} />);
+
+    expect(await screen.findByText('entered by you on a call')).toBeTruthy();
   });
 });
