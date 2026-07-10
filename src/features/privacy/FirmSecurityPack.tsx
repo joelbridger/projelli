@@ -33,12 +33,18 @@ import {
   Printer,
   ChevronDown,
   FileText,
+  Link,
+  Download,
 } from 'lucide-react';
 import { Button } from '@/ui/kp';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { DataMapContent } from '@/platform/privacy/ui/DataMapDialog';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { BRAND } from '@/config/brand';
+import {
+  exportPrivacyCenterOverviewDocx,
+  exportPrivacyCenterOverviewPdf,
+} from '@/features/privacy/privacyCenterOverviewExport';
 
 /* ---------------------------------------------------------------------------
  * Per-mode egress descriptions — derived from egress.ts, not hand-typed.
@@ -47,9 +53,16 @@ import { BRAND } from '@/config/brand';
  * changes.
  * ---------------------------------------------------------------------------*/
 
-const LOCAL_ONLY_EGRESS = resolveEgress({ provider: 'ollama', mode: 'local-only' });
+const LOCAL_ONLY_EGRESS = resolveEgress({
+  provider: 'ollama',
+  mode: 'local-only',
+});
 const DIRECT_EGRESS = resolveEgress({ provider: 'anthropic', mode: 'direct' });
-const ASSURED_EGRESS = resolveEgress({ provider: 'anthropic', mode: 'assured', assuredAvailable: true });
+const ASSURED_EGRESS = resolveEgress({
+  provider: 'anthropic',
+  mode: 'assured',
+  assuredAvailable: true,
+});
 
 /* ---------------------------------------------------------------------------
  * Static section content
@@ -72,8 +85,8 @@ const SECTIONS: Section[] = [
     body: (
       <p>
         Lantern is a private intelligence layer for your practice. It runs as a
-        desktop app on your own computer. Documents, email, and client records stay
-        in local files you control. Lantern answers questions across all of
+        desktop app on your own computer. Documents, email, and client records
+        stay in local files you control. Lantern answers questions across all of
         it and shows a citation you can open and check for every answer.
       </p>
     ),
@@ -89,8 +102,80 @@ const SECTIONS: Section[] = [
           Your files stay on your own computer. Lantern has no content server.
           We never receive, store, or can read your client records.
         </p>
-        <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>Data map (full detail below):</p>
+        <p style={{ marginTop: '0.75rem', fontWeight: 600 }}>
+          Data map (full detail below):
+        </p>
       </>
+    ),
+  },
+  {
+    id: 'intake-secure-links',
+    icon: Link,
+    tone: 'text-cyan-700 bg-cyan-50',
+    heading: 'Intake / secure client links',
+    body: (
+      <div>
+        <p>
+          Lantern Intake lets an advisor send a secure checklist link to a
+          client or household. On the honest client page, each submitted answer
+          and document is encrypted in the browser before upload to a key held
+          in the advisor&apos;s operating system keychain. The relay is a
+          mailbox for encrypted submissions, not an archive.
+        </p>
+        <p style={{ marginTop: '0.75rem' }}>
+          <strong>The relay can see:</strong> the intake ID, the creating seat
+          or organization identity, lifecycle and submission timestamps, opaque
+          item IDs, ciphertext sizes and chunk counts, the checklist version, a
+          token hash, and ordinary connection details such as IP address and
+          user agent.
+        </p>
+        <p style={{ marginTop: '0.5rem' }}>
+          <strong>The relay cannot see:</strong> It cannot see a client&apos;s
+          name, email address or phone number in v1, checklist labels, answers
+          including Social Security numbers, file names or file contents. It
+          does not receive the private key needed to decrypt a submission.
+        </p>
+        <p style={{ marginTop: '0.5rem' }}>
+          The secure-link claim depends on page integrity. A compromised hosted
+          page could read information typed during that session before
+          encryption. The design therefore requires a self-contained page with
+          no third-party code, analytics, or CDN, plus restrictive browser
+          rules, published build hashes, and a deploy-time integrity check.
+        </p>
+        <p style={{ marginTop: '0.5rem' }}>
+          Email fallback is a separate channel with the confidentiality of the
+          firm&apos;s email system. It is not end-to-end encrypted, and
+          email-sourced items must remain clearly labeled as such.
+        </p>
+        <div style={{ marginTop: '0.75rem' }}>
+          <strong>Reviewer checklist before enabling Intake</strong>
+          <ul style={{ marginTop: '0.35rem', paddingLeft: '1.25rem' }}>
+            <li>
+              Verify the deployed page has no third-party code, analytics, or
+              CDN.
+            </li>
+            <li>
+              Verify the published build hash and deploy-time integrity check.
+            </li>
+            <li>
+              Verify access-log retention and rate limits match this metadata
+              list.
+            </li>
+            <li>
+              Verify the relay deletes ciphertext only after local durable
+              storage.
+            </li>
+            <li>
+              Confirm email fallback is not end-to-end encrypted in every
+              message.
+            </li>
+            <li>
+              Set the firm&apos;s retention rules before collecting restricted
+              information.
+            </li>
+          </ul>
+        </div>
+      </div>
     ),
   },
   {
@@ -101,32 +186,40 @@ const SECTIONS: Section[] = [
     body: (
       <div>
         <div style={{ marginBottom: '0.75rem' }}>
-          <strong>Local-only:</strong>{' '}
-          {LOCAL_ONLY_EGRESS.note}{' '}
+          <strong>Local-only:</strong> {LOCAL_ONLY_EGRESS.note}{' '}
           <span style={{ color: '#555' }}>
-            ({LOCAL_ONLY_EGRESS.dataLeaves ? 'data may leave device' : 'nothing leaves the device'})
+            (
+            {LOCAL_ONLY_EGRESS.dataLeaves
+              ? 'data may leave device'
+              : 'nothing leaves the device'}
+            )
           </span>
         </div>
         <div style={{ marginBottom: '0.75rem' }}>
-          <strong>Direct (bring your own key):</strong>{' '}
-          {DIRECT_EGRESS.note}{' '}
+          <strong>Direct (bring your own key):</strong> {DIRECT_EGRESS.note}{' '}
           <span style={{ color: '#555' }}>
             (data leaves to your chosen AI provider, not to Lantern)
           </span>
         </div>
         <div>
-          <strong>Assured (firm option):</strong>{' '}
-          {ASSURED_EGRESS.note}{' '}
+          <strong>Assured (firm option):</strong> {ASSURED_EGRESS.note}{' '}
           <span style={{ color: '#555' }}>
             (data passes through firm&apos;s zero-retention proxy under a DPA)
           </span>
-          <span style={{ display: 'block', marginTop: '0.35rem', color: '#b45309', fontStyle: 'italic' }}>
+          <span
+            style={{
+              display: 'block',
+              marginTop: '0.35rem',
+              color: '#b45309',
+              fontStyle: 'italic',
+            }}
+          >
             Note: the Assured zero-retention proxy is the firm-tier architecture
             we have designed and de-risked. Its independent audit is planned and
-            not yet complete, and it is not yet represented as a generally available
-            production service. We encourage you to inspect the design directly
-            rather than rely on an asserted guarantee. The DPA template describes
-            this honestly in Section 6.4.
+            not yet complete, and it is not yet represented as a generally
+            available production service. We encourage you to inspect the design
+            directly rather than rely on an asserted guarantee. The DPA template
+            describes this honestly in Section 6.4.
           </span>
         </div>
       </div>
@@ -139,8 +232,9 @@ const SECTIONS: Section[] = [
     heading: 'Keys and accounts',
     body: (
       <p>
-        Lantern never holds AI keys and never charges for AI usage. Solo use needs
-        no account at all. Firm use adds single sign-on, seats, and shared matters.
+        Lantern never holds AI keys and never charges for AI usage. Solo use
+        needs no account at all. Firm use adds single sign-on, seats, and shared
+        matters.
       </p>
     ),
   },
@@ -151,10 +245,10 @@ const SECTIONS: Section[] = [
     heading: 'Firm collaboration security',
     body: (
       <p>
-        Shared matters sync only as end-to-end encrypted data. The relay can only
-        ever see ciphertext. Information barriers are enforced by withholding keys, not
-        by hiding things in the interface. Single sign-on is supported through your
-        identity provider.
+        Shared matters sync only as end-to-end encrypted data. The relay can
+        only ever see ciphertext. Information barriers are enforced by
+        withholding keys, not by hiding things in the interface. Single sign-on
+        is supported through your identity provider.
       </p>
     ),
   },
@@ -166,31 +260,32 @@ const SECTIONS: Section[] = [
     body: (
       <div>
         <p>
-          <strong>SOC 2:</strong> Lantern is not SOC 2 certified. A readiness and
-          gap-analysis assessment is complete (see{' '}
+          <strong>SOC 2:</strong> Lantern is not SOC 2 certified. A readiness
+          and gap-analysis assessment is complete (see{' '}
           <code>docs/trust/soc2-readiness.md</code>); a formal audit by an
-          independent CPA firm has not yet been completed. A SOC 2 Type II report
-          requires an independent CPA auditor and an observation period (typically
-          3 to 6 months) that has not yet run. We will state this plainly in any
-          firm conversation. If your firm requires SOC 2 as a gate, we are happy to
-          discuss the readiness timeline.
+          independent CPA firm has not yet been completed. A SOC 2 Type II
+          report requires an independent CPA auditor and an observation period
+          (typically 3 to 6 months) that has not yet run. We will state this
+          plainly in any firm conversation. If your firm requires SOC 2 as a
+          gate, we are happy to discuss the readiness timeline.
         </p>
         <p style={{ marginTop: '0.5rem' }}>
           <strong>DPA:</strong> A Data Processing Agreement is available on
           request. A template is on file (see{' '}
-          <code>docs/legal/DPA-template.md</code>) and requires review by qualified
-          counsel before execution. It accurately describes the local-first
-          architecture and covers all three operating modes. The Assured proxy
-          described in the DPA is in development and not yet generally available;
-          the contractual terms for that path should be aligned with what the
-          deployed service and its independent audit can actually support before
-          execution.
+          <code>docs/legal/DPA-template.md</code>) and requires review by
+          qualified counsel before execution. It accurately describes the
+          local-first architecture and covers all three operating modes. The
+          Assured proxy described in the DPA is in development and not yet
+          generally available; the contractual terms for that path should be
+          aligned with what the deployed service and its independent audit can
+          actually support before execution.
         </p>
         <p style={{ marginTop: '0.5rem' }}>
-          <strong>Firm installation:</strong> Lantern runs as a desktop application
-          on your hardware. Your IT team deploys and updates it through your normal
-          software distribution process. No configuration of Lantern&apos;s
-          infrastructure is required for a solo or small-firm install.
+          <strong>Firm installation:</strong> Lantern runs as a desktop
+          application on your hardware. Your IT team deploys and updates it
+          through your normal software distribution process. No configuration of
+          Lantern&apos;s infrastructure is required for a solo or small-firm
+          install.
         </p>
       </div>
     ),
@@ -204,8 +299,10 @@ const SECTIONS: Section[] = [
       <div>
         <p>
           Questions for your security or ethics reviewer to send to{' '}
-          <a href={`mailto:${BRAND.urls.developersEmail}`}>{BRAND.urls.developersEmail}</a>.
-          We will answer in writing.
+          <a href={`mailto:${BRAND.urls.developersEmail}`}>
+            {BRAND.urls.developersEmail}
+          </a>
+          . We will answer in writing.
         </p>
         <ul style={{ marginTop: '0.5rem', paddingLeft: '1.25rem' }}>
           <li>Where exactly is my data stored, and who has access?</li>
@@ -213,7 +310,9 @@ const SECTIONS: Section[] = [
           <li>How do information barriers work across shared clients?</li>
           <li>What is the status of your SOC 2 examination?</li>
           <li>Can I see the DPA before we sign?</li>
-          <li>How do I verify the claims in this document against the source code?</li>
+          <li>
+            How do I verify the claims in this document against the source code?
+          </li>
         </ul>
       </div>
     ),
@@ -297,7 +396,9 @@ function usePrint(printableId: string) {
 const PRINTABLE_ID = 'lantern-firm-security-pack-printable';
 
 export function FirmSecurityPackContent() {
-  const [openSection, setOpenSection] = useState<string | null>(SECTIONS[0]?.id ?? null);
+  const [openSection, setOpenSection] = useState<string | null>(
+    SECTIONS[0]?.id ?? null
+  );
 
   return (
     <div id={PRINTABLE_ID} data-testid="firm-security-pack-content">
@@ -305,10 +406,10 @@ export function FirmSecurityPackContent() {
         Lantern security overview for your firm&apos;s CCO / compliance officer
       </h1>
       <p className="sub text-sm text-muted-foreground mb-4">
-        This is a plain-English summary of how Lantern handles your client
-        data, written so your CCO or compliance officer can evaluate it
-        quickly. Every claim here matches how the software actually works. If
-        something isn&apos;t finished yet, I say so.
+        This is a plain-English summary of how Lantern handles your client data,
+        written so your CCO or compliance officer can evaluate it quickly. Every
+        claim here matches how the software actually works. If something
+        isn&apos;t finished yet, I say so.
       </p>
 
       <div className="space-y-0" data-testid="firm-security-pack-sections">
@@ -324,7 +425,9 @@ export function FirmSecurityPackContent() {
               <button
                 type="button"
                 aria-expanded={isOpen}
-                onClick={() => { setOpenSection(isOpen ? null : section.id); }}
+                onClick={() => {
+                  setOpenSection(isOpen ? null : section.id);
+                }}
                 className="w-full flex items-center gap-3 min-w-0 py-2.5 text-left"
               >
                 <div
@@ -334,14 +437,19 @@ export function FirmSecurityPackContent() {
                   <Icon className="h-3.5 w-3.5" />
                 </div>
                 {/* PRINT: must be <h2> so `.row h2` in print CSS applies. */}
-                <h2 className="text-sm font-semibold m-0 flex-1">{section.heading}</h2>
+                <h2 className="text-sm font-semibold m-0 flex-1">
+                  {section.heading}
+                </h2>
                 <ChevronDown
                   className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`}
                   aria-hidden="true"
                 />
               </button>
               {/* PRINT: kept mounted (hidden when collapsed); print CSS reveals it. */}
-              <div hidden={!isOpen} className="pl-10 pb-2 text-sm text-muted-foreground">
+              <div
+                hidden={!isOpen}
+                className="pl-10 pb-2 text-sm text-muted-foreground"
+              >
                 {section.id === 'where-data-lives' ? (
                   <>
                     {section.body}
@@ -360,12 +468,14 @@ export function FirmSecurityPackContent() {
       </div>
 
       <p className="foot mt-4 text-xs text-muted-foreground">
-        This document was generated from the Lantern desktop app. All claims
-        are verifiable against the source code referenced in{' '}
+        This document was generated from the Lantern desktop app. All claims are
+        verifiable against the source code referenced in{' '}
         <code>docs/trust/security-overview.md</code>. For the full data
         processing contract, see <code>docs/legal/DPA-template.md</code>. For
-        SOC 2 status, see <code>docs/trust/soc2-readiness.md</code>. Lantern
-        is not SOC 2 certified as of this document.
+        Intake secure-link detail and the full reviewer checklist, see{' '}
+        <code>docs/trust/it-pack/INTAKE-IT-PACK.md</code>. For SOC 2 status, see{' '}
+        <code>docs/trust/soc2-readiness.md</code>. Lantern is not SOC 2
+        certified as of this document.
       </p>
     </div>
   );
@@ -378,6 +488,18 @@ export function FirmSecurityPackContent() {
 
 export function FirmSecurityPack() {
   const handlePrint = usePrint(PRINTABLE_ID);
+
+  const handleOverviewDocxExport = useCallback(() => {
+    void exportPrivacyCenterOverviewDocx().catch((error: unknown) => {
+      console.error('Failed to export firm security overview as Word:', error);
+    });
+  }, []);
+
+  const handleOverviewPdfExport = useCallback(() => {
+    void exportPrivacyCenterOverviewPdf().catch((error: unknown) => {
+      console.error('Failed to export firm security overview as PDF:', error);
+    });
+  }, []);
 
   return (
     <div
@@ -404,21 +526,49 @@ export function FirmSecurityPack() {
           Icon={FileText}
           title="Security overview for your firm"
           actions={
-            <Button
-              variant="primary"
-              size="sm"
-              data-testid="firm-security-pack-print-button"
-              onClick={handlePrint}
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}
             >
-              <Printer className="h-3.5 w-3.5 mr-1.5" />
-              Print / Save PDF
-            </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="firm-security-pack-export-docx"
+                onClick={handleOverviewDocxExport}
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export Word
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                data-testid="firm-security-pack-export-pdf"
+                onClick={handleOverviewPdfExport}
+              >
+                <Download className="h-3.5 w-3.5 mr-1.5" />
+                Export PDF
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                data-testid="firm-security-pack-print-button"
+                onClick={handlePrint}
+              >
+                <Printer className="h-3.5 w-3.5 mr-1.5" />
+                Print / Save PDF
+              </Button>
+            </div>
           }
         />
       </div>
 
       {/* Scrollable body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--kp-space-md) var(--kp-gutter)' }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: 'var(--kp-space-md) var(--kp-gutter)',
+        }}
+      >
         <FirmSecurityPackContent />
       </div>
     </div>

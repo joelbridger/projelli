@@ -4,9 +4,15 @@ import { DATA_MAP_ROWS } from '@/platform/privacy/ui/DataMapDialog';
 import { resolveEgress } from '@/platform/privacy/egress';
 import { BRAND } from '@/config/brand';
 import { saveFile } from '@/platform/utils/saveFile';
-import { openPrintWindow, exportMarkdownAsPdf } from '@/features/documents/pdf-export';
+import {
+  openPrintWindow,
+  exportMarkdownAsPdf,
+} from '@/features/documents/pdf-export';
 
-const LOCAL_ONLY_EGRESS = resolveEgress({ provider: 'ollama', mode: 'local-only' });
+const LOCAL_ONLY_EGRESS = resolveEgress({
+  provider: 'ollama',
+  mode: 'local-only',
+});
 const DIRECT_EGRESS = resolveEgress({ provider: 'anthropic', mode: 'direct' });
 const ASSURED_EGRESS = resolveEgress({
   provider: 'anthropic',
@@ -39,6 +45,29 @@ export function privacyCenterSecurityOverviewMarkdown(): string {
   }
 
   lines.push(
+    '## Intake / secure client links',
+    '',
+    "For Lantern Intake secure links, the honest client page encrypts each submitted answer and document in the browser before upload to a key held in the advisor's operating system keychain. The relay is a mailbox for encrypted submissions, not an archive.",
+    '',
+    '### Relay data boundary',
+    '',
+    'The relay can see the intake ID, the creating seat or organization identity, lifecycle and submission timestamps, opaque item IDs, ciphertext sizes and chunk counts, the checklist version, a token hash, and ordinary connection details such as IP address and user agent.',
+    '',
+    "The relay cannot see a client's name, email address or phone number in v1, checklist labels, answers including Social Security numbers, file names or file contents. It does not receive the private key needed to decrypt a submission.",
+    '',
+    'The secure-link claim depends on page integrity. A compromised hosted page could read information typed during that session before encryption. The design requires a self-contained page with no third-party code, analytics, or CDN, plus restrictive browser rules, published build hashes, and a deploy-time integrity check.',
+    '',
+    "Email fallback is a separate channel with the confidentiality of the firm's email system. It is not end-to-end encrypted, and email-sourced items must remain clearly labeled as such.",
+    '',
+    '## Intake reviewer checklist',
+    '',
+    '- Verify the deployed page has no third-party code, analytics, or CDN.',
+    '- Verify the published build hash and deploy-time integrity check.',
+    '- Verify access-log retention and rate limits match the relay metadata boundary.',
+    '- Verify the relay deletes ciphertext only after local durable storage.',
+    '- Confirm email fallback is not end-to-end encrypted in every message.',
+    '- Set the firm retention rules before collecting restricted information.',
+    '',
     '## Firm review notes',
     '',
     'Lantern runs as a desktop app on your own computer. Lantern has no content server for your documents, prompts, or client records.',
@@ -61,7 +90,7 @@ export function privacyCenterSecurityOverviewMarkdown(): string {
     '- What is the status of your SOC 2 examination?',
     '- Can I see the DPA before we sign?',
     '',
-    `Questions can be sent to ${BRAND.urls.developersEmail}.`,
+    `Questions can be sent to ${BRAND.urls.developersEmail}.`
   );
 
   return lines.join('\n');
@@ -71,7 +100,7 @@ export async function exportPrivacyCenterOverviewDocx(): Promise<void> {
   const { markdownToDocxBytes } = await import('@/platform/utils/docx-io');
   const bytes = await markdownToDocxBytes(
     privacyCenterSecurityOverviewMarkdown(),
-    OVERVIEW_DOCX_NAME,
+    OVERVIEW_DOCX_NAME
   );
   await saveFile(bytes, {
     suggestedName: OVERVIEW_DOCX_NAME,
@@ -80,7 +109,8 @@ export async function exportPrivacyCenterOverviewDocx(): Promise<void> {
       {
         description: 'Word document',
         accept: {
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+            ['.docx'],
         },
       },
     ],
@@ -88,11 +118,11 @@ export async function exportPrivacyCenterOverviewDocx(): Promise<void> {
 }
 
 export async function exportPrivacyCenterOverviewPdf(
-  printWindow: Window | null = openPrintWindow(),
+  printWindow: Window | null = openPrintWindow()
 ): Promise<void> {
   await exportMarkdownAsPdf(
     privacyCenterSecurityOverviewMarkdown(),
     OVERVIEW_PDF_NAME,
-    printWindow,
+    printWindow
   );
 }
