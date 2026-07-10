@@ -4170,6 +4170,16 @@
         "title": "Keine aktiven Onboarding-Anfragen",
         "body": "Legen Sie einen neuen Kunden an, um die sichere Checkliste zu senden."
       },
+      "kpis": {
+        "aria": "Onboarding-Zusammenfassung",
+        "average-label": "Durchschnittliche Tage bis zum Abschluss",
+        "stalled-label": "Stockend",
+        "completion-label": "Abschlussrate",
+        "days_one": "{{count}} Tag",
+        "days_other": "{{count}} Tage",
+        "percent": "{{count}}%",
+        "no-completed": "Noch keine abgeschlossenen Onboardings"
+      },
       "row": {
         "stalled_one": "STOCKT {{count}} Tag",
         "stalled_other": "STOCKT {{count}} Tage",

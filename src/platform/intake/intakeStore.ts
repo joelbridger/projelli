@@ -68,6 +68,10 @@ export interface IntakeRecord {
   clientPhone?: string;
   firmName: string;
   status: IntakeStatus;
+  /** Local creation time used only for the advisor's aggregate onboarding KPIs. */
+  createdAt?: string;
+  /** Local completion time used only for the advisor's aggregate onboarding KPIs. */
+  completedAt?: string;
   link?: string;
   expiresAt: string;
   lastClientActivityAt?: string;

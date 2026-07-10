@@ -316,6 +316,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         ...(phone.trim() ? { clientPhone: phone.trim() } : {}),
         firmName,
         status: 'active',
+        createdAt: new Date().toISOString(),
         link: bundle.link,
         expiresAt,
         checklistVersion: 1,

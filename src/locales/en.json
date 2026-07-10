@@ -292,6 +292,16 @@
         "title": "No active onboarding requests",
         "body": "Start a new client to send their secure checklist."
       },
+      "kpis": {
+        "aria": "Onboarding summary",
+        "average-label": "Avg days to complete",
+        "stalled-label": "Stalled",
+        "completion-label": "Completion rate",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days",
+        "percent": "{{count}}%",
+        "no-completed": "No completed onboardings yet"
+      },
       "row": {
         "stalled_one": "STALLED {{count}} day",
         "stalled_other": "STALLED {{count}} days",

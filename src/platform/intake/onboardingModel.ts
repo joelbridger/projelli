@@ -75,8 +75,12 @@ function missingItems(items: IntakeChecklistState[]): IntakeChecklistState[] {
   return items.filter((item) => item.state === 'not_started' || item.state === 'needs_followup');
 }
 
+export function isReceivedChecklistItem(item: IntakeChecklistState): boolean {
+  return item.state === 'received' || item.state === 'accepted';
+}
+
 function receivedItems(items: IntakeChecklistState[]): IntakeChecklistState[] {
-  return items.filter((item) => item.state === 'received' || item.state === 'accepted');
+  return items.filter(isReceivedChecklistItem);
 }
 
 function pendingReviewItems(items: IntakeChecklistState[]): IntakeChecklistState[] {
