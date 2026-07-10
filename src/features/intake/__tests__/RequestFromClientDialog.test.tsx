@@ -109,11 +109,13 @@ describe('RequestFromClientDialog', () => {
       { subject: 'household', kind: 'income_annual', status: 'active' },
     ]);
     const issueRequest = vi.fn();
+    const [firstItem] = annualReview.items;
+    if (!firstItem) throw new Error('Expected the annual review blueprint to have at least one item.');
     const onlyKnownFact: RequestBlueprint = {
       ...annualReview,
       blueprintId: 'income-only',
       label: 'Income only',
-      items: [annualReview.items[0]!],
+      items: [firstItem],
     };
 
     render(
@@ -146,8 +148,9 @@ describe('RequestFromClientDialog', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /annual review/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
-    const labels = screen.getAllByLabelText('Label');
-    fireEvent.change(labels[0]!, { target: { value: 'Updated annual income' } });
+    const [firstLabel] = screen.getAllByLabelText('Label');
+    if (!firstLabel) throw new Error('Expected at least one editable item label.');
+    fireEvent.change(firstLabel, { target: { value: 'Updated annual income' } });
     matches.resolve([{ subject: 'household', kind: 'income_annual', status: 'active' }]);
     await matches.promise;
     await Promise.resolve();

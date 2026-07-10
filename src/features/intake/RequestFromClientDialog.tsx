@@ -281,11 +281,10 @@ export function RequestFromClientDialog({
             <Button type="button" onClick={() => { void reviewRequest(); }}>Review request</Button>
           ) : null}
           {step === 'review' ? (
-            // eslint-disable-next-line lantern-async/no-silent-failure -- sendRequest catches and surfaces every failure via setError; this call cannot itself reject.
             <Button
               type="button"
               disabled={hasNoVisibleItems || Boolean(blockedItem) || sending}
-              onClick={() => { void sendRequest(); }}
+              onClick={() => { void sendRequest(); }} // eslint-disable-line lantern-async/no-silent-failure -- sendRequest catches and surfaces every failure via setError; this call cannot itself reject.
             >
               {sending ? 'Sending…' : 'Send request'}
             </Button>
