@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS intakes (
   checklist_ciphertext BLOB NOT NULL,
   state_ciphertext     BLOB NOT NULL,
   checklist_version    INTEGER NOT NULL DEFAULT 1,
+  generation           INTEGER NOT NULL DEFAULT 1,
   created_at           TEXT NOT NULL,
   revoked_at           TEXT
 );
@@ -467,6 +468,7 @@ export interface IntakeRecord {
   checklist_ciphertext: Uint8Array;
   state_ciphertext: Uint8Array;
   checklist_version: number;
+  generation: number;
   created_at: string;
   revoked_at: string | null;
 }
@@ -506,6 +508,7 @@ interface IntakeRow {
   checklist_ciphertext: Uint8Array;
   state_ciphertext: Uint8Array;
   checklist_version: number;
+  generation: number;
   created_at: string;
   revoked_at: string | null;
 }
@@ -621,6 +624,14 @@ export class Store {
       // Drop the old ordering index and recreate it partitioned by doc_id.
       this.db.exec("DROP INDEX IF EXISTS idx_matter_updates_matter");
       this.db.exec("CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, doc_id, id)");
+    }
+
+    // A public state save is authorized before its body is read. This epoch
+    // lets the later write prove that a link regeneration did not happen in
+    // between those two steps.
+    const intakeCols = this.db.query("PRAGMA table_info(intakes)").all() as Array<{ name: string }>;
+    if (!intakeCols.some((c) => c.name === "generation")) {
+      this.db.exec("ALTER TABLE intakes ADD COLUMN generation INTEGER NOT NULL DEFAULT 1");
     }
   }
 
@@ -1145,10 +1156,11 @@ export class Store {
     return this.getIntake(intakeId);
   }
 
-  setIntakeState(intakeId: string, stateCiphertext: Uint8Array): boolean {
+  setIntakeState(intakeId: string, stateCiphertext: Uint8Array, authorizedGeneration: number): boolean {
+    // BENCH-FIX-REGEN-GENERATION-GUARD
     const res = this.db
-      .query(`UPDATE intakes SET state_ciphertext = ? WHERE intake_id = ?`)
-      .run(stateCiphertext, intakeId);
+      .query(`UPDATE intakes SET state_ciphertext = ? WHERE intake_id = ? AND generation = ?`)
+      .run(stateCiphertext, intakeId, authorizedGeneration);
     return res.changes > 0;
   }
 
@@ -1162,7 +1174,8 @@ export class Store {
       .query(
         `UPDATE intakes
          SET token_hash = ?, checklist_ciphertext = ?, state_ciphertext = ?,
-             status = 'active', revoked_at = NULL, checklist_version = checklist_version + 1
+             status = 'active', revoked_at = NULL, checklist_version = checklist_version + 1,
+             generation = generation + 1
          WHERE intake_id = ?`,
       )
       .run(

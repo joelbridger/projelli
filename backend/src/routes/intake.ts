@@ -294,7 +294,9 @@ export async function handleSaveIntakeState(req: Request, store: Store, intakeId
   if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
   const state = decodeB64(read.body.ciphertext_b64, MAX_INTAKE_STATE_BYTES);
   if (!state.ok) return error(state.code, state.status);
-  store.setIntakeState(intakeId, state.bytes);
+  if (!store.setIntakeState(intakeId, state.bytes, auth.intake.generation)) {
+    return error("stale_state", 409);
+  }
   return json({ ok: true, intake_id: intakeId });
 }
 
