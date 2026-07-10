@@ -2,7 +2,7 @@
 
 > Audience: outside IT, security, and compliance reviewers evaluating Lantern Intake for a financial advisory firm.
 >
-> Scope: this document covers the hosted intake link, the relay, the client browser page, and the advisor desktop app handling received intake submissions. It is not a SOC 2 report, certification, legal opinion, or substitute for the firm's own Reg S-P, books-and-records, privacy, and vendor-review obligations.
+> Scope: this document covers the hosted intake link, the relay, the client browser page, and the advisor desktop app handling received intake submissions. Lantern is not SOC 2 certified. This is not a SOC 2 report, legal opinion, or substitute for the firm's own Reg S-P, books-and-records, privacy, and vendor-review obligations.
 >
 > Source discipline: hidden HTML comments cite the intake architecture sections behind the security claims. Claims about what not to say also cite the intake risks document.
 
@@ -18,38 +18,34 @@ The client page is a self-contained web page with no third-party origins, no CDN
 
 When the advisor desktop app syncs, it downloads the encrypted submissions, decrypts them locally with the keychain-held private key, and writes them into local advisor storage. Documents land in the client's folder. Restricted typed values, such as SSN and DOB, go into an encrypted facts store, not ordinary app state or browser storage. <!-- Source: ARCHITECTURE.md §5 and §9. -->
 
-The relay behaves like a mailbox, not an archive. After the advisor app confirms that a submission was durably saved locally, the relay deletes the acknowledged ciphertext. Expired intake data is also cleaned up after the architecture's expiry and grace window. <!-- Source: ARCHITECTURE.md §3, §5, and §6. -->
+The relay behaves like a mailbox, not an archive. After the advisor app confirms that a submission was durably saved locally, the relay deletes the acknowledged ciphertext. Intake ciphertext is also cleaned up at expiry plus a 30-day grace window. <!-- Source: ARCHITECTURE.md §3 and §5. -->
 
 The important boundary is page integrity. If the hosted intake page itself were compromised and served malicious JavaScript, that malicious page could read values typed from that session forward before encrypting them. Lantern treats that as a real residual risk and mitigates it with a self-contained static bundle, no third-party code, CSP, published build hashes, and a deploy-time integrity check. <!-- Source: ARCHITECTURE.md §8 T3. Also RISKS.md §3. -->
 
 ## 2. Honest relay metadata list
 
-This is the exact data boundary reviewers should use. The relay cannot read encrypted payloads, but it does see some routing and network metadata. Lantern does not describe this as "zero knowledge" because that would hide the metadata below. <!-- Source: ARCHITECTURE.md §3. Also RISKS.md §2. -->
+This is the exact data boundary reviewers should use. The relay cannot read encrypted payloads, but it does see some routing and network metadata. Lantern does not describe this as zero-knowledge because that would hide the metadata below. <!-- Source: ARCHITECTURE.md §3. Also RISKS.md §2. -->
 
 ### The relay can see
 
 - `intake_id`.
 - The creating seat or organization identity.
 - Creation, expiry, and revocation timestamps.
-- Opaque item ids.
-- Submission timestamps.
+- Opaque item ids and their submission timestamps.
 - Ciphertext sizes and chunk counts. This means traffic analysis may suggest that a file of a certain approximate size was uploaded.
 - `checklist_version`.
 - `HMAC(t_auth)`, not the raw link bearer secret.
-- HTTP request metadata that the server layer receives, including IP address and user agent per request. The design keeps these out of durable intake records, retains access logs for 24 hours, and uses in-memory rate-limit buckets.
+- Client-side request metadata that the HTTP layer receives, including IP address and user agent per request. The design keeps these out of durable intake records, retains access logs for 24 hours, and uses in-memory rate-limit buckets.
 
 ### The relay cannot see
 
 - The client's name.
 - The client's email address or phone number in v1, because links are sent from the advisor's own email or SMS tools.
 - Checklist item labels.
-- Answers.
-- Social Security numbers.
-- Dates of birth.
-- File names.
-- File contents.
-- Submitted values or documents after encryption.
-- The private key needed to decrypt submissions.
+- Any answer, including a Social Security number or date of birth.
+- Any file name or file content.
+
+The relay also does not receive the intake private key needed to decrypt a submission. <!-- Source: ARCHITECTURE.md §2 and §3. -->
 
 ### Important precision
 
@@ -75,11 +71,11 @@ Resume state contains only non-sensitive display data, such as progress flags, g
 
 ### On the advisor machine
 
-Documents are filed into the client's folder under `Requests/onboarding/`. File-level at-rest protection follows the Lantern vault setting for that workspace. Restricted typed values go into a SQLCipher encrypted facts store keyed to the client record. Ordinary app state stores item status, timestamps, references, and masked renderings, not the restricted values themselves. <!-- Source: ARCHITECTURE.md §5 and §9a. -->
+Documents are filed into the client's folder under `Requests/onboarding/`. File-level at-rest protection follows the Lantern vault setting for that workspace. Restricted typed values go into a SQLCipher encrypted facts store keyed to the client record. Ordinary app state stores item status, timestamps, references, and masked renderings, not the restricted values themselves. <!-- Source: ARCHITECTURE.md §5 and §9. -->
 
 The intake private key is stored in the operating system keychain. Social Security numbers are masked by default. Revealing, exporting, or copying a restricted fact writes an audit event. <!-- Source: ARCHITECTURE.md §2 and §5. -->
 
-Local retention is a firm policy decision. The architecture's intake default is to keep scans in the client folder, protected by the local vault when the vault is on, with a per-client delete control and optional firm-wide auto-delete off by default. Deletion actions write audit rows. <!-- Source: ARCHITECTURE.md §5; RISKS.md §1 and §4. -->
+Local retention is a firm policy decision. The architecture's intake default is to keep scans in the client folder, protected by the local vault when the vault is on, with a per-item purge control and optional firm-wide auto-delete off by default. Deletion actions write audit rows. <!-- Source: ARCHITECTURE.md §5; RISKS.md §1 and §4. -->
 
 ## 4. Threat model summary
 
@@ -88,10 +84,10 @@ Local retention is a firm policy decision. The architecture's intake default is 
 | Relay compromise, subpoena, or insider access | Relay holds ciphertext, token hashes, and the metadata listed above. It has no decryption key. | Metadata such as size, timing, IP, and user agent can still exist. <!-- Source: ARCHITECTURE.md §8 T1 and T10. --> |
 | Malicious relay tries to substitute encryption keys | The intake public key comes from the link fragment, not from the relay. | The user still has to receive and open the genuine link. <!-- Source: ARCHITECTURE.md §2 and §8 T2. --> |
 | Hosted intake page serves malicious JavaScript | Self-contained static bundle, no third-party origins, CSP pinned to the relay, published hashes, deploy-time integrity check. | This is the main residual trust root. Malicious served code could read values typed in that session before encryption. <!-- Source: ARCHITECTURE.md §8 T3; RISKS.md §3. --> |
-| Link leak or forwarding | Link secret is 256-bit. Wrong-token, expired, revoked, and unknown requests return the same neutral result. A link holder cannot read submitted values or files. | A link holder can see checklist labels, client first name, progress, and generic confirmations. They can submit new values to open items, which the advisor sees with provenance and new-device indicators. <!-- Source: ARCHITECTURE.md §2, §3, and §8 T4. --> |
+| Link leak or forwarding | Link secret is 256-bit. Wrong-token, expired, revoked, and unknown requests return the same neutral result. A link holder cannot read submitted values or files. | A link holder can see the firm name and branding, checklist labels, client first name, per-item done flags, generic confirmations, and later-wave advisor-approved outbound prefills that are never restricted facts. They can submit new values to open items. Every submission from a previously unseen session has a new-device indicator for the advisor. <!-- Source: ARCHITECTURE.md §2, §3, §8 T4, and §9a. --> |
 | Client device malware or shoulder-surfing | Masked inputs, no answer localStorage, plaintext kept in memory only. | A compromised client device can still read what the client types, as with any web form. <!-- Source: ARCHITECTURE.md §8 T5. --> |
 | Advisor machine compromise | Private key is in the OS keychain; received files and facts use the app's local storage protections and audit trail. | If the advisor machine or OS account is compromised, application-level controls cannot fully protect already-decrypted data. <!-- Source: ARCHITECTURE.md §5 and §8 T6. --> |
-| Advisor sends the link to the wrong person | Page greets the intended client by first name. The wrong recipient cannot read previously submitted secrets. Advisor can revoke and regenerate. | A wrong recipient can still submit into open items. Those submissions are visible to the advisor as separate provenance. <!-- Source: ARCHITECTURE.md §2, §6, and §8 T7. --> |
+| Advisor sends the link to the wrong person | Page greets the intended client by first name. The wrong recipient cannot read previously submitted secrets. Advisor can revoke and regenerate. | A wrong recipient can still submit into open items. Every submission from a new session has a new-device indicator for the advisor. <!-- Source: ARCHITECTURE.md §2, §6, and §8 T7. --> |
 | Malicious file upload | Server never decrypts or parses files. Advisor side uses size caps, type sniffing, no auto-open, and existing extraction rails. | A malicious file can still be delivered to the advisor machine as an inert file and must be handled with endpoint security in mind. <!-- Source: ARCHITECTURE.md §8 T8. --> |
 | Denial of service on public endpoints | Bearer token required before body read, rate limits per intake and IP, chunk caps, total-size caps, per-intake upload quota. | Availability still depends on the relay being reachable. <!-- Source: ARCHITECTURE.md §3 and §8 T9. --> |
 | Traffic analysis | Metadata is minimized and disclosed. Access logs are limited and not treated as client content. | File sizes, timing, IP, and user agent are not hidden from the HTTP service layer. <!-- Source: ARCHITECTURE.md §3 and §8 T10. --> |
@@ -121,7 +117,7 @@ The intake private key is generated on the advisor machine and stored in the ope
 
 ### 6. What happens if the link is forwarded?
 
-A forwarded link can show the firm branding, checklist labels, client first name, progress flags, generic confirmations, and any advisor-approved outbound prefill values. It cannot read submitted values or uploaded files. It can submit new values to open items, and those submissions are surfaced to the advisor with provenance and new-device indicators. <!-- Source: ARCHITECTURE.md §2 and §8 T4. -->
+A forwarded link can show the firm branding, checklist labels, client first name, per-item done flags, generic confirmations, and later-wave advisor-approved outbound prefill values. Restricted facts are never prefilled. It cannot read submitted values or uploaded files. It can submit new values to open items, and every submission from a previously unseen session has a new-device indicator for the advisor. <!-- Source: ARCHITECTURE.md §2, §8 T4, and §9a. -->
 
 ### 7. Can the client reopen the page and read back what they already submitted?
 
@@ -157,7 +153,7 @@ No. The firm remains the regulated entity. Lantern Intake can help reduce server
 
 ### 15. Can a firm delete intake data?
 
-Yes, with two layers. The relay deletes acknowledged ciphertext and cleans up expired intake ciphertext. Locally, the architecture includes per-client deletion controls and optional firm-wide auto-delete, with audit rows for deletion actions. Firms should set retention rules before collecting restricted data. <!-- Source: ARCHITECTURE.md §3, §5, and §6; RISKS.md §1 and §4. -->
+Yes, with two layers. The relay deletes acknowledged ciphertext and cleans up expired intake ciphertext after a 30-day grace window. Locally, the architecture includes per-item purge controls and optional firm-wide auto-delete, with audit rows for deletion actions. Firms should set retention rules before collecting restricted data. <!-- Source: ARCHITECTURE.md §3 and §5; RISKS.md §1 and §4. -->
 
 ## 6. Reviewer checklist
 
