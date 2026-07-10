@@ -11,6 +11,7 @@ import {
   unwrapContentKey,
 } from '../../src/platform/intake/intakeCrypto';
 import { buildLinkFragment } from '../../src/platform/intake/intakeLink';
+import { openPageJson } from '../../src/platform/intake/pageSeal';
 import type { BundleResponse, ChunkUpload, StateBlob, SubmitManifest } from '../../src/platform/intake/intakeContract';
 import type { FormRequest } from '../../src/platform/intake/types';
 import type { WelcomeJourney } from '../../src/features/intake/welcomeJourneyDefaults';
@@ -36,6 +37,7 @@ interface RelayHarness {
   chunks: ChunkUpload[];
   submits: SubmitManifest[];
   stateWrites: StateBlob[];
+  readPersistedResume: () => Promise<Record<string, unknown>>;
   externalRequests: string[];
   finalizedItemIds: Set<string>;
 }
@@ -44,6 +46,7 @@ interface RelaySetupOptions {
   checklist?: IntakeChecklist | Omit<IntakeChecklist, 'firm'>;
   finalized?: string[];
   resume?: Record<string, unknown>;
+  stateWriteGate?: (state: StateBlob) => Promise<void>;
 }
 
 function bytesToB64(bytes: Uint8Array): string {
@@ -242,8 +245,9 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
 
     if (request.method() === 'PUT' && url.pathname === `/intake/${intakeId}/state`) {
       const body = (await request.postDataJSON()) as StateBlob;
-      stateCiphertext = body.ciphertext_b64;
       stateWrites.push(body);
+      await options.stateWriteGate?.(body);
+      stateCiphertext = body.ciphertext_b64;
       await route.fulfill({ status: 204 });
       return;
     }
@@ -288,6 +292,7 @@ async function setupRelay(page: Page, finalizedOrOptions: string[] | RelaySetupO
     chunks,
     submits,
     stateWrites,
+    readPersistedResume: () => openPageJson<Record<string, unknown>>(pageKey, stateCiphertext),
     externalRequests,
     finalizedItemIds,
   };
@@ -445,15 +450,64 @@ test('resumes at the next incomplete item after a full reload', async ({ page })
   const relay = await setupRelay(page);
   await page.goto(relay.url);
 
+  await page.getByRole('button', { name: 'Learn how →' }).click();
+  await expect(page.locator('h1')).toBeFocused();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome, Sarah.' })).toBeFocused();
   await startChecklist(page);
   await completeDob(page);
   await expectSubmitCount(relay, 'dob', 1);
   await page.reload();
 
-  await expect(page.getByRole('heading', { name: 'Welcome back, Sarah.' })).toBeVisible();
+  await expect(page.getByText('Welcome back, Sarah.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeVisible();
   await page.getByRole('button', { name: /Date of birth.*provided/i }).click();
   await expect(page.getByText('Provided ✓')).toBeVisible();
+});
+
+test('serializes rapid state saves so the newer progress and completion state wins', async ({ page }) => {
+  let releaseFirstWrite: (() => void) | undefined;
+  let firstWriteStarted!: () => void;
+  const firstStateWriteStarted = new Promise<void>((resolve) => {
+    firstWriteStarted = resolve;
+  });
+  let holdFirstWrite = true;
+  const relay = await setupRelay(page, {
+    stateWriteGate: async () => {
+      if (!holdFirstWrite) return;
+      holdFirstWrite = false;
+      firstWriteStarted();
+      await new Promise<void>((resolve) => {
+        releaseFirstWrite = resolve;
+      });
+    },
+  });
+  await page.goto(relay.url);
+
+  // Starting the checklist begins one save and holds its response. Completing
+  // the first answer, then using a progress dot, creates newer saves while that
+  // older one is still pending.
+  await startChecklist(page);
+  await firstStateWriteStarted;
+  await completeDob(page);
+  await expectSubmitCount(relay, 'dob', 1);
+  await page.getByRole('button', { name: 'Income to do' }).click();
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
+
+  // The second logical update stays in the queue until the older request has
+  // settled, so the server cannot receive out-of-order whole-state PUTs.
+  expect(relay.stateWrites).toHaveLength(1);
+  releaseFirstWrite?.();
+  await expect.poll(() => relay.stateWrites.length).toBe(3);
+
+  const persisted = await relay.readPersistedResume();
+  expect(persisted).toMatchObject({
+    current_item_id: 'income',
+    completion_flags: { dob: true },
+  });
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
 });
 
 test('shows the reviewing state from sealed resume data', async ({ page }) => {
@@ -513,6 +567,17 @@ test('ignores hostile accent colors and makes no third-party request', async ({ 
   expect(relay.externalRequests).toEqual([]);
 });
 
+test('keeps a bright firm accent readable without losing the firm color', async ({ page }) => {
+  const checklist = sampleChecklist();
+  checklist.firm.accent = '#ffff00';
+  const relay = await setupRelay(page, { checklist });
+
+  await page.goto(relay.url);
+
+  await expect(page.locator('.page-shell')).toHaveCSS('--accent', '#ffff00');
+  await expectNoSeriousAxeViolations(page);
+});
+
 test('requires exactly nine SSN digits before saving', async ({ page }) => {
   const relay = await setupRelay(page);
   await page.goto(relay.url);
@@ -540,7 +605,7 @@ test('does not keep an SSN or last four digits after reload', async ({ page }) =
   await completeDob(page);
   await completeSsn(page);
   await page.getByRole('button', { name: /Social Security number.*provided/i }).click();
-  await expect(page.getByText('ending in 6789')).toBeVisible();
+  await expect(page.locator('.provided-line').getByText('ending in 6789')).toBeVisible();
 
   await page.reload();
   await page.getByRole('button', { name: /Social Security number.*provided/i }).click();
@@ -589,6 +654,8 @@ test('accepts comma-formatted amounts and rejects text amounts', async ({ page }
   await page.getByRole('button', { name: 'Enter an amount' }).click();
   await page.getByLabel('Yearly amount').fill('abc');
   await expect(page.getByText('Enter a number, like 90,000.')).toBeVisible();
+  await expect(page.getByLabel('Yearly amount')).toHaveAttribute('aria-describedby', /income-error/);
+  await expect(page.getByLabel('Yearly amount')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
   expect(relay.submits.filter((submit) => submit.item_id === 'income')).toHaveLength(0);
 
@@ -617,6 +684,8 @@ test('treats upload max files as a limit and rejects oversize files', async ({ p
     buffer: Buffer.from('12345'),
   });
   await expect(page.getByText('This file is too large. Choose a file under 4 bytes.')).toBeVisible();
+  await expect(page.getByLabel('Choose file 1 file')).toHaveAttribute('aria-describedby', /tax_statements-file-error/);
+  await expect(page.getByLabel('Choose file 1 file')).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
   expect(relay.submits.filter((submit) => submit.item_id === 'tax_statements')).toHaveLength(0);
 
@@ -656,7 +725,7 @@ test('old browsers see the sensitivity-routed fallback and no relay call', async
   expect(relayCalls).toBe(0);
 });
 
-test('has no serious or critical axe violations on the main screens', async ({ page }) => {
+test('has no serious or critical axe violations across the client journey', async ({ page }) => {
   const relay = await setupRelay(page);
   await page.goto(relay.url);
 
@@ -664,12 +733,86 @@ test('has no serious or critical axe violations on the main screens', async ({ p
   await startChecklist(page);
   await expectNoSeriousAxeViolations(page);
   await completeDob(page);
+  await expectNoSeriousAxeViolations(page);
   await completeSsn(page);
   await expectNoSeriousAxeViolations(page);
   await completeLicense(page);
-  await completeIncome(page);
-  await completeSpending(page);
+  await page.getByRole('button', { name: 'Choose a range' }).click();
   await expectNoSeriousAxeViolations(page);
+  await page.getByRole('button', { name: "I don't know yet" }).click();
+  await expectNoSeriousAxeViolations(page);
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Spending' })).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+  await page.getByRole('button', { name: 'Enter an amount' }).click();
+  await page.getByLabel('Monthly amount').fill('4,500');
+  await expectNoSeriousAxeViolations(page);
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expectNoSeriousAxeViolations(page);
+});
+
+test('keeps the new item heading focused and announces progress and SSN confirmation', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+
+  await startChecklist(page);
+  await expect(page.getByRole('heading', { name: 'Date of birth' })).toBeFocused();
+  await expect(page.locator('[role="status"]').filter({ hasText: 'Checklist progress: item 1 of 5.' })).toBeVisible();
+
+  await page.getByLabel('Date of birth', { exact: true }).fill('1960-02-03');
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Social Security number' })).toBeFocused();
+  await expect(page.locator('[role="status"]').filter({ hasText: 'Checklist progress: item 2 of 5.' })).toBeVisible();
+
+  const ssn = page.getByLabel('Social Security number', { exact: true });
+  await expect(ssn).toHaveAccessibleName('Social Security number');
+  await expect(ssn).toHaveAttribute('aria-describedby', /ssn-help/);
+  await ssn.fill('123-45-6789');
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+  await expect(page.getByRole('heading', { name: "Driver's license" })).toBeFocused();
+  await expect(page.locator('[role="status"]').filter({ hasText: 'Social Security number provided (ending in 6789)' })).toBeVisible();
+});
+
+test('has no serious or critical axe violations on resume, fallback, error, and loading states', async ({ page }) => {
+  const resumeRelay = await setupRelay(page, { resume: { current_item_id: 'income' } });
+  await page.goto(resumeRelay.url);
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+
+  await page.addInitScript(() => {
+    (window as unknown as { __INTAKE_FORCE_NO_WEBCRYPTO__?: boolean }).__INTAKE_FORCE_NO_WEBCRYPTO__ = true;
+  });
+  await page.goto('/i/old-browser#v1.fake.fake');
+  await expect(page.getByRole('heading', { name: 'Use another way to send this' })).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+});
+
+test('has no serious or critical axe violations on error and loading states', async ({ page }) => {
+  await page.goto('/i/missing#v1.not-a-complete-link');
+  await expect(page.getByRole('heading', { name: 'We could not open this page.' })).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+
+  const relay = await setupRelay(page);
+  let pendingBundle: Route | undefined;
+  await page.route('**/bundle', async (route) => {
+    pendingBundle = route;
+  });
+  await page.goto(relay.url, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'Opening your page.' })).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+  await pendingBundle?.abort();
+});
+
+test('keeps the phone layout usable at 200 percent zoom and respects reduced motion', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.setViewportSize({ width: 160, height: 900 });
+  await page.goto(relay.url);
+  await startChecklist(page);
+
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeVisible();
+  expect(Number.parseFloat(await page.locator('.primary-button').evaluate((element) => getComputedStyle(element).transitionDuration))).toBeLessThanOrEqual(0.01);
 });
 
 test('does not request any third-party origin during the full flow', async ({ page }) => {
