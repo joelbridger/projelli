@@ -351,6 +351,23 @@ CREATE TABLE IF NOT EXISTS intake_submissions (
 );
 CREATE INDEX IF NOT EXISTS idx_intake_submissions_inbox ON intake_submissions(intake_id, id);
 CREATE INDEX IF NOT EXISTS idx_intake_submissions_item ON intake_submissions(intake_id, item_id);
+
+-- Firm-only per-device copies of an intake's private key. The relay stores
+-- routing ids and opaque ciphertext only. matter_id is authorization routing
+-- metadata, not client content; it is needed to apply the existing roster and
+-- ethical-wall rules on every fetch.
+CREATE TABLE IF NOT EXISTS intake_wrapped_keys (
+  intake_id       TEXT NOT NULL REFERENCES intakes(intake_id) ON DELETE CASCADE,
+  matter_id       TEXT NOT NULL REFERENCES matters(matter_id),
+  epoch           INTEGER NOT NULL,
+  user_id         TEXT NOT NULL REFERENCES users(user_id),
+  device_id       TEXT NOT NULL,
+  wrapped_key_b64 TEXT NOT NULL,
+  published_by    TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  PRIMARY KEY (intake_id, epoch, user_id, device_id)
+);
+CREATE INDEX IF NOT EXISTS idx_intake_wrapped_keys_fetch ON intake_wrapped_keys(intake_id, user_id, device_id, epoch DESC);
 `;
 
 // ---------------------------------------------------------------------------
@@ -748,7 +765,7 @@ export class Store {
    * devices (escrow), so any org member may read it; emails are org-internal. */
   listOrgAdmins(orgId: string): Array<{ user_id: string; email: string }> {
     const rows = this.db
-      .query(`SELECT * FROM users WHERE org_id = ? AND role = 'admin'`)
+      .query(`SELECT * FROM users WHERE org_id = ? AND role = 'admin' AND status = 'active'`)
       .all(orgId) as UserRow[];
     return rows
       .map(toUser)
@@ -1405,6 +1422,63 @@ export class Store {
       )
       .all(intakeId) as Array<{ item_id: string }>;
     return rows.map((r) => r.item_id);
+  }
+
+  // ===========================================================================
+  // Firm intake key grants. These rows contain opaque device-wrapped JWK bytes
+  // only. A re-publish replaces the entire current grant set, deleting stale
+  // rows for removed devices as defence in depth. It cannot retract a key that
+  // an old device already downloaded.
+  // ===========================================================================
+
+  replaceIntakeWrappedKeys(input: {
+    intake_id: string;
+    matter_id: string;
+    epoch: number;
+    published_by: string;
+    wrapped: Array<{ user_id: string; device_id: string; wrapped_key_b64: string }>;
+  }): void {
+    const now = this.nowIso();
+    this.db.transaction(() => {
+      this.db.query(`DELETE FROM intake_wrapped_keys WHERE intake_id = ?`).run(input.intake_id);
+      const insert = this.db.query(
+        `INSERT INTO intake_wrapped_keys
+          (intake_id, matter_id, epoch, user_id, device_id, wrapped_key_b64, published_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      );
+      for (const row of input.wrapped) {
+        insert.run(input.intake_id, input.matter_id, input.epoch, row.user_id, row.device_id, row.wrapped_key_b64, input.published_by, now);
+      }
+    })();
+  }
+
+  getIntakeWrappedKeyForDevice(
+    intakeId: string,
+    userId: string,
+    deviceId: string,
+  ): { intake_id: string; matter_id: string; epoch: number; user_id: string; device_id: string; wrapped_key_b64: string } | null {
+    return this.db.query(
+      `SELECT intake_id, matter_id, epoch, user_id, device_id, wrapped_key_b64
+       FROM intake_wrapped_keys
+       WHERE intake_id = ? AND user_id = ? AND device_id = ?
+       ORDER BY epoch DESC LIMIT 1`,
+    ).get(intakeId, userId, deviceId) as {
+      intake_id: string; matter_id: string; epoch: number; user_id: string; device_id: string; wrapped_key_b64: string;
+    } | null;
+  }
+
+  getIntakeKeyMatterId(intakeId: string): string | null {
+    const row = this.db.query(
+      `SELECT matter_id FROM intake_wrapped_keys WHERE intake_id = ? ORDER BY epoch DESC LIMIT 1`,
+    ).get(intakeId) as { matter_id: string } | null;
+    return row?.matter_id ?? null;
+  }
+
+  listIntakeWrappedKeys(intakeId: string): Array<{ intake_id: string; matter_id: string; epoch: number; user_id: string; device_id: string; wrapped_key_b64: string }> {
+    return this.db.query(
+      `SELECT intake_id, matter_id, epoch, user_id, device_id, wrapped_key_b64
+       FROM intake_wrapped_keys WHERE intake_id = ? ORDER BY user_id, device_id`,
+    ).all(intakeId) as Array<{ intake_id: string; matter_id: string; epoch: number; user_id: string; device_id: string; wrapped_key_b64: string }>;
   }
 
   getIntakeBundle(intakeId: string): {

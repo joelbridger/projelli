@@ -134,12 +134,16 @@ function b64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-function epochInfo(epoch: number): Uint8Array {
-  return new TextEncoder().encode(`lantern-matter-key-wrap:v1:epoch:${String(epoch)}`);
+/** Context labels are part of the cryptographic domain separation. */
+export const MATTER_KEY_WRAP_CONTEXT = 'lantern-matter-key-wrap:v1';
+export const INTAKE_KEY_WRAP_CONTEXT = 'lantern-intake-private-key-wrap:v1';
+
+function epochInfo(context: string, epoch: number): Uint8Array {
+  return new TextEncoder().encode(`${context}:epoch:${String(epoch)}`);
 }
 
-function epochAad(epoch: number): Uint8Array {
-  return new TextEncoder().encode(`epoch:${String(epoch)}`);
+function epochAad(context: string, epoch: number): Uint8Array {
+  return new TextEncoder().encode(`${context}:epoch:${String(epoch)}`);
 }
 
 /**
@@ -184,6 +188,7 @@ async function deriveWrappingKey(
   publicKey: CryptoKey,
   salt: Uint8Array,
   epoch: number,
+  context: string,
 ): Promise<CryptoKey> {
   // ECDH shared secret (raw bits — 32 bytes for P-256)
   const sharedBits = await getSubtle().deriveBits(
@@ -207,7 +212,7 @@ async function deriveWrappingKey(
       name: 'HKDF',
       hash: 'SHA-256',
       salt: buf(salt) as unknown as BufferSource,
-      info: epochInfo(epoch),
+      info: epochInfo(context, epoch),
     },
     ikm,
     { name: 'AES-GCM', length: 256 },
@@ -231,6 +236,20 @@ export async function wrapMatterKey(
   recipientPubJwk: JsonWebKey,
   epoch: number,
 ): Promise<string> {
+  return wrapKeyMaterial(matterKeyB64, recipientPubJwk, epoch, MATTER_KEY_WRAP_CONTEXT);
+}
+
+/**
+ * Wrap opaque base64 key material to a device. `context` is authenticated in
+ * both HKDF and AES-GCM, so material wrapped for one protocol cannot be
+ * opened by another protocol which happens to use the same device keys.
+ */
+export async function wrapKeyMaterial(
+  keyMaterialB64: string,
+  recipientPubJwk: JsonWebKey,
+  epoch: number,
+  context: string,
+): Promise<string> {
   // 1. Generate ephemeral ECDH key pair.
   const ephemeralPair = await getSubtle().generateKey(
     { name: 'ECDH', namedCurve: 'P-256' },
@@ -246,16 +265,16 @@ export async function wrapMatterKey(
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
 
   // 4. Derive wrapping key: ephemeral_priv × recipient_pub → HKDF → AES-256.
-  const wrappingKey = await deriveWrappingKey(ephemeralPair.privateKey, recipientPub, salt, epoch);
+  const wrappingKey = await deriveWrappingKey(ephemeralPair.privateKey, recipientPub, salt, epoch, context);
 
   // 5. Encrypt the raw matter key bytes.
-  const matterKeyBytes = b64ToBytes(matterKeyB64);
+  const matterKeyBytes = b64ToBytes(keyMaterialB64);
   const ciphertext = new Uint8Array(
     await getSubtle().encrypt(
       {
         name: 'AES-GCM',
         iv: buf(iv) as unknown as BufferSource,
-        additionalData: buf(epochAad(epoch)) as unknown as BufferSource,
+        additionalData: buf(epochAad(context, epoch)) as unknown as BufferSource,
       },
       wrappingKey,
       buf(matterKeyBytes) as unknown as BufferSource,
@@ -292,6 +311,15 @@ export async function wrapMatterKey(
  * @throws NoDeviceKeyError if this device has no private key.
  */
 export async function unwrapMatterKey(wrappedB64: string, epoch: number): Promise<string> {
+  return unwrapKeyMaterial(wrappedB64, epoch, MATTER_KEY_WRAP_CONTEXT);
+}
+
+/** Open opaque base64 key material with this device's private key. */
+export async function unwrapKeyMaterial(
+  wrappedB64: string,
+  epoch: number,
+  context: string,
+): Promise<string> {
   // 1. Get this device's private key.
   let privateKey: CryptoKey;
   try {
@@ -339,7 +367,7 @@ export async function unwrapMatterKey(wrappedB64: string, epoch: number): Promis
   // 5. Derive the wrapping key: device_priv × ephemeral_pub → HKDF → AES-256.
   let wrappingKey: CryptoKey;
   try {
-    wrappingKey = await deriveWrappingKey(privateKey, ephemeralPub, salt, epoch);
+    wrappingKey = await deriveWrappingKey(privateKey, ephemeralPub, salt, epoch, context);
   } catch {
     // HKDF derivation itself should not fail for epoch mismatches — it fails at
     // AES-GCM decrypt below. If derivation fails, it's a deeper issue.
@@ -353,7 +381,7 @@ export async function unwrapMatterKey(wrappedB64: string, epoch: number): Promis
         {
           name: 'AES-GCM',
           iv: buf(iv) as unknown as BufferSource,
-          additionalData: buf(epochAad(epoch)) as unknown as BufferSource,
+          additionalData: buf(epochAad(context, epoch)) as unknown as BufferSource,
         },
         wrappingKey,
         buf(ciphertext) as unknown as BufferSource,

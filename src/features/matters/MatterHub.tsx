@@ -29,6 +29,9 @@ import { deriveAuthToken } from '@/platform/intake/intakeCrypto';
 import { regenerateIntakeLink } from '@/platform/intake/intakeLifecycle';
 import { b64ToBytes } from '@/platform/intake/pageSeal';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { FirmApiClient } from '@/platform/firm/FirmApiClient';
+import { publishIntakeKeyToMembers } from '@/platform/intake/intakeKeyShare';
+import { createAuditPairId, mustLogAuditPhase } from '@/platform/audit/durableAudit';
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { Badge, IconButton, QuietStatus, SlidePanel } from '@/ui/kp';
@@ -380,6 +383,45 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       stateCiphertextB64: regenerated.stateCiphertextB64,
     });
   }, [makeIntakeRelay, updateIntake]);
+
+  const handleShareIntakeWithTeam = useCallback(async (intakeId: string) => {
+    const current = useIntakeStore.getState().intakesById[intakeId];
+    const firm = useFirmStore.getState();
+    if (!current || !firm.session?.activated || firm.session.tier !== 'practice' || !firm.seatToken) {
+      throw new Error('Team sharing is available with an active Firm seat.');
+    }
+    // This action changes who may receive the key. Refuse before the network
+    // effect if the durable audit trail is unavailable.
+    if (!onAuditLog) throw new Error('Team sharing needs the audit log available first.');
+    const pairId = createAuditPairId('intake_key_share');
+    const entry = {
+      action: 'matter_shared' as const,
+      description: 'Shared an intake decryption key with the current firm team.',
+      model: undefined,
+      inputs: { intakeId, matterId: current.matterId },
+      outputs: {},
+      userDecision: 'approved' as const,
+      metadata: { intakeId, matterId: current.matterId, audit_pair_id: pairId },
+    };
+    await mustLogAuditPhase(onAuditLog, entry, 'intent', pairId);
+    try {
+      await publishIntakeKeyToMembers(
+        new FirmApiClient(firm.tokenSource()),
+        intakeId,
+        current.matterId,
+        1,
+        { firmEntitled: true },
+      );
+      await mustLogAuditPhase(onAuditLog, entry, 'outcome', pairId);
+    } catch (error) {
+      await mustLogAuditPhase(onAuditLog, {
+        ...entry,
+        description: 'Could not share an intake decryption key with the firm team.',
+        outputs: { error: error instanceof Error ? error.message : 'unknown' },
+      }, 'outcome', pairId);
+      throw error;
+    }
+  }, [onAuditLog]);
 
   const handleEditItem = useCallback((sectionKey: string, itemId: string) => {
     void (async () => {
@@ -841,6 +883,7 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
               onExtend={handleExtendIntake}
               onRevoke={handleRevokeIntake}
               onRegenerate={handleRegenerateIntake}
+              onShareWithTeam={handleShareIntakeWithTeam}
             />
           </div>
         )}

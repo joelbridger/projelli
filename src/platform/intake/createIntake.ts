@@ -26,6 +26,8 @@ export interface CreateAdvisorIntakeOptions {
   clientFirstName: string;
   firm: IntakeFirm;
   relay: Pick<IntakeRelayClient, 'createIntake'>;
+  /** Firm callers publish a separate E2EE device grant after the mailbox exists. */
+  publishTeamKey?: (intakeId: string, matterId: string) => Promise<void>;
 }
 
 export async function createAdvisorIntake(
@@ -60,5 +62,6 @@ export async function createAdvisorIntake(
     state_ciphertext_b64: bundle.stateCiphertextB64,
     checklist_version: 1,
   });
+  if (options.publishTeamKey) await options.publishTeamKey(options.intakeId, options.matterId);
   return bundle;
 }

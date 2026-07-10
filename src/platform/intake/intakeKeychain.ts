@@ -76,17 +76,49 @@ export async function storeIntakeSecrets(
   linkSecretB64: string,
 ): Promise<void> {
   const jwk = await crypto.subtle.exportKey('jwk', privateKey);
+  await storeIntakePrivateKeyJwk(intakeId, jwk);
   const service = intakeService(intakeId);
-  await setSecret(service, KC_PRIVATE_JWK, JSON.stringify(jwk));
   await setSecret(service, KC_LINK_SECRET, linkSecretB64);
 }
 
-export async function loadIntakePrivateKey(intakeId: string): Promise<CryptoKey | null> {
+/** Validate the only private-key shape this keychain may persist. */
+export function validateIntakePrivateKeyJwk(value: unknown): JsonWebKey {
+  if (!value || typeof value !== 'object') throw new Error('Invalid intake private key.');
+  const jwk = value as JsonWebKey;
+  if (
+    jwk.kty !== 'EC' || jwk.crv !== 'P-256' ||
+    typeof jwk.d !== 'string' || jwk.d.length === 0 ||
+    typeof jwk.x !== 'string' || jwk.x.length === 0 ||
+    typeof jwk.y !== 'string' || jwk.y.length === 0
+  ) {
+    throw new Error('Intake private key must be an EC P-256 JWK with private material.');
+  }
+  return { kty: 'EC', crv: 'P-256', d: jwk.d, x: jwk.x, y: jwk.y, ext: false, key_ops: ['deriveBits'] };
+}
+
+/** Load the validated private JWK for E2EE team distribution. */
+export async function loadIntakePrivateKeyJwk(intakeId: string): Promise<JsonWebKey | null> {
   const raw = await getSecret(intakeService(intakeId), KC_PRIVATE_JWK);
   if (!raw) return null;
+  try {
+    return validateIntakePrivateKeyJwk(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+/** Store a validated private JWK received through an E2EE device wrap. */
+export async function storeIntakePrivateKeyJwk(intakeId: string, jwk: JsonWebKey): Promise<void> {
+  const valid = validateIntakePrivateKeyJwk(jwk);
+  await setSecret(intakeService(intakeId), KC_PRIVATE_JWK, JSON.stringify(valid));
+}
+
+export async function loadIntakePrivateKey(intakeId: string): Promise<CryptoKey | null> {
+  const jwk = await loadIntakePrivateKeyJwk(intakeId);
+  if (!jwk) return null;
   return crypto.subtle.importKey(
     'jwk',
-    JSON.parse(raw) as JsonWebKey,
+    jwk,
     { name: 'ECDH', namedCurve: 'P-256' },
     false,
     ['deriveBits'],

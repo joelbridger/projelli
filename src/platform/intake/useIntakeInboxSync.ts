@@ -2,9 +2,11 @@ import { useEffect } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { FirmApiClient } from '@/platform/firm/FirmApiClient';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { IntakeRelayClient } from './IntakeRelayClient';
+import { obtainIntakeKey } from './intakeKeyShare';
 import {
   IntakeSyncClient,
   type IntakeInboxPage,
@@ -461,6 +463,19 @@ export async function syncActiveIntakeInboxesOnce(options: {
     .filter((intake) => intake.status === 'active');
   for (const intake of activeIntakes) {
     try {
+      // Team devices first install their own E2EE-wrapped private key. The
+      // existing IntakeSyncClient then performs the normal decrypt-and-file run.
+      if (options.relayClient instanceof IntakeRelayClient) {
+        const firm = useFirmStore.getState();
+        if (firm.seatToken && firm.accessToken) {
+          await obtainIntakeKey(
+            new FirmApiClient(firm.tokenSource()),
+            intake.intakeId,
+            intake.matterId,
+            firm.seatToken,
+          );
+        }
+      }
       await syncOneIntake(intake, options.relayClient, options.workspaceService);
     } catch (error) {
       console.warn('[useIntakeInboxSync] Intake inbox sync failed:', error);

@@ -47,6 +47,8 @@ import {
   handleGetIntakeBlob,
   handleIntakeBundle,
   handleIntakeInbox,
+  handleFetchIntakeKey,
+  handlePublishIntakeKeys,
   handleListUploadedIntakeChunks,
   handleRegenerateIntake,
   handleReplaceIntakeChecklist,
@@ -168,6 +170,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/intake" && method === "POST") return await handleCreateIntake(req, store);
         const ii = matchIntake(path);
         if (ii) {
+          if (ii.rest === "keys" && method === "POST") return await handlePublishIntakeKeys(req, store, ii.id);
+          if (ii.rest === "keys" && method === "GET") return handleFetchIntakeKey(req, store, ii.id);
           if (ii.rest === "checklist" && method === "PUT") return await handleReplaceIntakeChecklist(req, store, ii.id);
           if (ii.rest === "inbox" && method === "GET") return handleIntakeInbox(req, store, ii.id);
           const blob = ii.rest.match(/^blob\/([^/]+)$/);

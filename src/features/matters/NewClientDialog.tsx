@@ -46,6 +46,8 @@ import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { EV_MATTER_LAUNCH } from '@/config/identity';
 import { BRAND } from '@/config/brand';
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { FirmApiClient } from '@/platform/firm/FirmApiClient';
+import { publishIntakeKeyToMembers } from '@/platform/intake/intakeKeyShare';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
 import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
 import { createAdvisorIntake } from '@/platform/intake/createIntake';
@@ -273,6 +275,14 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
           next_steps: [...NEW_HOUSEHOLD_NEXT_STEPS],
         },
         relay,
+        ...(firmSession?.tier === 'practice' && firmSession.activated
+          ? {
+              publishTeamKey: async (sharedIntakeId: string, sharedMatterId: string) => {
+                const client = new FirmApiClient(useFirmStore.getState().tokenSource());
+                await publishIntakeKeyToMembers(client, sharedIntakeId, sharedMatterId, 1, { firmEntitled: true });
+              },
+            }
+          : {}),
       });
 
       upsertIntake({
