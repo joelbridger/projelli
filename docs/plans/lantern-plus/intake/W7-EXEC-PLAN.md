@@ -123,8 +123,8 @@ No cargo claim step — Wave 7 has no Rust changes. If `npm run gate` still runs
 - [x] Lane 4 brief written — `briefs/w7-4-contracts.md`.
 - [x] Coordinator build go received.
 - [x] **Lane 1 — MERGED `49358ccf`** (build `60f18b88`, fix round `24fff23e` for 2 P1 + 2 P2 findings from lead review + mandatory `codex-review`, gate-fix `b6906a2d` for 7 eslint baseline findings). `getIntakesForMatter`, `IntakeRecord.requestItems`/`kind`/`requestSlug`/`requestTitle`/`blueprintRef`, `assertSendableRequest`, `createRequestSlug`/`assertRequestSlug`/`createOpaqueItemHandle` (`requestIdentity.ts`), `deriveRequestRow`, `GuidedQuestionRequestItem.fact_kind?` all shipped. Scoped suite: 237/237 green, tsc clean, eslint-gate clean.
-- [ ] Lane 2 — blueprints + composer (next to dispatch)
-- [ ] Lane 3 — MERGED `<sha>`
+- [x] **Lane 2 — MERGED `2d3f6018`** (build `550ed7bd`, gate-fix `1068393c`, fix round `cd492a06` for 2 P2 findings from mandatory `codex-review` — empty-request send + async stale-draft race, gate-fix `fde350a8`). `RequestBlueprint`/`blueprintStore`/`blueprintValidation`/`defaultBlueprints`, `intakeFactMatchList` (genuinely value-free), `resolveAskOnce`, `RequestFromClientDialog` (props: `matterId, clientName, open, onOpenChange, issueRequest, blueprints?, onIssued?`) all shipped. Scoped suite: 251/251 green, tsc clean, eslint-gate clean.
+- [ ] Lane 3 — Requests board + client tab (next to dispatch)
 - [ ] Lane 4 — MERGED `<sha>`
 - [ ] Wave-end full gate green
 - [ ] Coordinator-gated synthetic standing-request bench
