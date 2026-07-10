@@ -573,7 +573,7 @@ export function Ask(props: UseAskProps) {
                       onClick={() => {
                         if (item.kind === 'whole-practice') {
                           setAskScope('whole-practice');
-                          if (isSampleMatter && activeMatter && item.question === SAMPLE_WHOLE_BOOK_QUESTION) {
+                          if (isSampleMatter && item.question === SAMPLE_WHOLE_BOOK_QUESTION) {
                             showSampleWholeBookAnswer();
                           } else {
                             submitWholePracticeQuestion(item.question);

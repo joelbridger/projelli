@@ -1303,7 +1303,13 @@ export function useChatSending(deps: UseChatSendingDeps) {
               }
             }
             case 'search_files': {
-              const query = String(params['query'] ?? '');
+              const rawQuery = params['query'];
+              const query =
+                typeof rawQuery === 'string'
+                  ? rawQuery
+                  : typeof rawQuery === 'number' || typeof rawQuery === 'boolean' || typeof rawQuery === 'bigint'
+                    ? String(rawQuery)
+                    : '';
               try {
                 const fileTree = await workspaceServiceRef.current.getFileTree();
                 const searchResults: Array<{ name: string; path: string; type: string }> = [];

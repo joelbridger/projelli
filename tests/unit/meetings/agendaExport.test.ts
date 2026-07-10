@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Provider } from '@/platform/providers/Provider';
 import { AuditService } from '@/platform/audit/AuditService';
+import type { AuditEntry } from '@/platform/types/audit';
 import { agendaMarkdownFromBrief, fallbackAgenda } from '@/features/meetings/agendaExport';
 
 vi.mock('@/platform/privacy/localOnlyGuard', () => ({
@@ -30,6 +31,30 @@ function fakeProvider(sendMessage: ReturnType<typeof vi.fn>): Provider {
   } as unknown as Provider;
 }
 
+type AuditLogArgs = Parameters<AuditService['log']>;
+
+function fakeAuditEntry(
+  action: AuditLogArgs[0],
+  description: AuditLogArgs[1],
+  options: AuditLogArgs[2] = {},
+): AuditEntry {
+  return {
+    id: `audit-test-${action}`,
+    timestamp: '2026-07-10T00:00:00.000Z',
+    action,
+    description,
+    model: options.model,
+    inputs: options.inputs ?? {},
+    outputs: options.outputs ?? {},
+    userDecision: options.userDecision,
+    metadata: options.metadata ?? {},
+    ...(options.tokensIn !== undefined ? { tokensIn: options.tokensIn } : {}),
+    ...(options.tokensOut !== undefined ? { tokensOut: options.tokensOut } : {}),
+    ...(options.costUsd !== undefined ? { costUsd: options.costUsd } : {}),
+    ...(options.provider !== undefined ? { provider: options.provider } : {}),
+  };
+}
+
 describe('agendaMarkdownFromBrief — audit ordering', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
@@ -41,8 +66,9 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
       order.push('send');
       return Promise.reject(new Error('simulated timeout'));
     });
-    const logSpy = vi.spyOn(AuditService.prototype, 'log').mockImplementation((action) => {
+    const logSpy = vi.spyOn(AuditService.prototype, 'log').mockImplementation((action, description, options) => {
       if (action === 'egress') order.push('egress-audit');
+      return fakeAuditEntry(action, description, options);
     });
 
     const md = await agendaMarkdownFromBrief(
@@ -71,8 +97,9 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
     let loggedProvider: string | undefined;
     const logSpy = vi.spyOn(AuditService.prototype, 'log').mockImplementation((action, _description, options) => {
       if (action === 'egress') {
-        loggedProvider = options.metadata?.['provider'] as string | undefined;
+        loggedProvider = options?.metadata?.['provider'] as string | undefined;
       }
+      return fakeAuditEntry(action, _description, options);
     });
 
     await agendaMarkdownFromBrief(
@@ -92,8 +119,9 @@ describe('agendaMarkdownFromBrief — audit ordering', () => {
     let loggedScope: unknown;
     const logSpy = vi.spyOn(AuditService.prototype, 'log').mockImplementation((action, _description, options) => {
       if (action === 'egress') {
-        loggedScope = options.metadata?.['scope'];
+        loggedScope = options?.metadata?.['scope'];
       }
+      return fakeAuditEntry(action, _description, options);
     });
 
     await agendaMarkdownFromBrief(

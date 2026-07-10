@@ -434,7 +434,7 @@ export function CrmWriteReviewCard({ matterId }: CrmWriteReviewCardProps) {
                 borderRadius: 'var(--radius-md)',
                 border: '1px solid var(--kp-success-line)',
                 background: 'var(--kp-success-bg)',
-                color: '#0a5c43',
+                color: 'var(--kp-success-text)',
                 fontSize: 'var(--kp-font-2xs)',
                 fontWeight: 650,
                 lineHeight: 1.45,
@@ -581,7 +581,7 @@ function CrmWriteRow({
               <div
                 style={{
                   display: 'flex', alignItems: 'center', gap: 5,
-                  fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: '#0a5c43', marginBottom: 4,
+                  fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-success-text)', marginBottom: 4,
                 }}
               >
                 <Pencil size={11} strokeWidth={2} />
@@ -599,7 +599,7 @@ function CrmWriteRow({
                   fontFamily: 'var(--font-sans)',
                   fontSize: 'var(--kp-font-xs)',
                   lineHeight: 1.5,
-                  color: '#0a5c43',
+                  color: 'var(--kp-success-text)',
                   background: 'var(--kp-success-bg)',
                   border: '1px solid var(--kp-success-line)',
                   borderRadius: 'var(--radius-sm)',
@@ -610,14 +610,14 @@ function CrmWriteRow({
             </div>
           </div>
         ) : (
-          <div style={{ fontSize: 'var(--kp-font-xs)', color: '#0a5c43', marginTop: 3 }}>
+          <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--kp-success-text)', marginTop: 3 }}>
             {item.body}
           </div>
         )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
           {item.kind === 'task' && item.dueDate != null && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: '#0a5c43' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 'var(--kp-font-2xs)', fontWeight: 'var(--kp-weight-semibold)', color: 'var(--kp-success-text)' }}>
               <CalendarDays size={12} strokeWidth={1.75} />
               Due {item.dueDate}
             </span>

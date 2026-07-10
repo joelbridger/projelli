@@ -81,7 +81,9 @@ describe('ClientMapPanel simplified controls', () => {
 
     expect(screen.getByTestId('clientmap-sources-pane').getAttribute('data-collapsed')).toBe('true');
 
-    fireEvent.click(screen.getAllByTestId('clientmap-source-link')[0]!);
+    const [firstSourceLink] = screen.getAllByTestId('clientmap-source-link');
+    if (!firstSourceLink) throw new Error('Expected at least one source link');
+    fireEvent.click(firstSourceLink);
 
     expect(screen.getByTestId('clientmap-sources-pane').getAttribute('data-collapsed')).toBe('false');
     expect(screen.getByTestId('clientmap-sources-heading').textContent).toContain('Sources');

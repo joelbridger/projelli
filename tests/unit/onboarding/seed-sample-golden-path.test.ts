@@ -40,6 +40,7 @@ describe('seedSampleGoldenPath', () => {
           client: 'The Hendricks Household',
           folderPaths: ['/workspace'],
           isSample: true,
+          createdAt: '2026-07-10T00:00:00.000Z',
         },
       ],
     });
