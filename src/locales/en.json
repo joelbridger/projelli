@@ -131,6 +131,31 @@
         "low": "Low"
       }
     },
+    "quarantine": {
+      "title": "Email needs your careful review",
+      "channel-label": "Normal email. Not end-to-end encrypted.",
+      "open-original": "Open original email",
+      "original-email": "Original email",
+      "reviewed": "Original email opened. Choose every destination yourself before filing.",
+      "client": "Client",
+      "request": "Onboarding request",
+      "item": "Open item",
+      "attachment": "Attachment",
+      "choose-client": "Choose a client",
+      "choose-request": "Choose an onboarding request",
+      "choose-item": "Choose an open item",
+      "choose-attachment": "Choose an attachment",
+      "attachment-number": "Attachment {{count}}",
+      "onboarding-request": "Active onboarding request",
+      "confirm-file": "Manually confirm and file",
+      "dismiss": "Dismiss as not intake",
+      "load-error": "Could not load quarantined email.",
+      "open-error": "Could not open the original email.",
+      "file-error": "Could not manually file this email.",
+      "dismiss-error": "Could not dismiss this email.",
+      "banner-count_one": "{{count}} email needs review",
+      "banner-count_other": "{{count}} emails need review"
+    },
     "link": {
       "title": "Link status",
       "local-note": "This shows what this device last recorded about the client's secure link. A change made on another device may not show here.",

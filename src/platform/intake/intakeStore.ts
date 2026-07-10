@@ -12,6 +12,8 @@ export interface IntakeProvenanceSummary {
   label: string;
   at: string;
   enteredBy?: string;
+  confirmedBy?: string;
+  verification?: 'client_stated' | 'document_verified' | 'advisor_confirmed';
 }
 
 export interface IntakeChecklistState {

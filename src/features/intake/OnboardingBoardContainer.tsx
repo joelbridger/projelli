@@ -14,11 +14,13 @@ import { useEffect, useState } from 'react';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
 import type { OnboardingRow } from '@/platform/intake/onboardingModel';
 import { emailReplyProposalList } from '@/platform/intake/emailReplyProposalStore';
+import { listEmailQuarantines } from '@/platform/intake/emailQuarantineStore';
 import { OnboardingBoard } from './OnboardingBoard';
 import { renderLinkSignalBadges } from './renderLinkSignalBadges';
 import { NudgeDraftCard } from './NudgeDraftCard';
 import { NudgeReviewModal } from './NudgeReviewModal';
 import { EmailReplyProposalBanner } from './EmailReplyProposalBanner';
+import { EmailReplyQuarantineBanner } from './EmailReplyQuarantineBanner';
 
 export interface OnboardingBoardContainerProps {
   onNewClient?: () => void;
@@ -33,14 +35,15 @@ export function OnboardingBoardContainer({
   const intakesById = useIntakeStore((state) => state.intakesById);
   const [reviewRow, setReviewRow] = useState<OnboardingRow | null>(null);
   const [emailReplyCounts, setEmailReplyCounts] = useState<Record<string, number>>({});
+  const [quarantineCounts, setQuarantineCounts] = useState<Record<string, number>>({});
 
   const reviewIntake = reviewRow ? intakesById[reviewRow.requestId] : undefined;
 
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      void emailReplyProposalList()
-        .then((proposals) => {
+      void Promise.all([emailReplyProposalList(), listEmailQuarantines()])
+        .then(([proposals, quarantines]) => {
           if (cancelled) return;
           const counts: Record<string, number> = {};
           for (const proposal of proposals) {
@@ -48,6 +51,12 @@ export function OnboardingBoardContainer({
               (counts[proposal.matchedMatterId] ?? 0) + 1;
           }
           setEmailReplyCounts(counts);
+          const quarantineNext: Record<string, number> = {};
+          for (const quarantine of quarantines) {
+            if (!quarantine.matchedMatterId) continue;
+            quarantineNext[quarantine.matchedMatterId] = (quarantineNext[quarantine.matchedMatterId] ?? 0) + 1;
+          }
+          setQuarantineCounts(quarantineNext);
         })
         .catch((error: unknown) => {
           console.warn('[OnboardingBoardContainer] Could not load email reply proposals:', error);
@@ -68,9 +77,7 @@ export function OnboardingBoardContainer({
         {...(now ? { now } : {})}
         renderLinkSignals={renderLinkSignalBadges}
         renderEmailReplySignals={(row) => (
-          <EmailReplyProposalBanner
-            count={emailReplyCounts[row.matterId] ?? 0}
-          />
+          <><EmailReplyProposalBanner count={emailReplyCounts[row.matterId] ?? 0} /><EmailReplyQuarantineBanner count={quarantineCounts[row.matterId] ?? 0} /></>
         )}
         onOpenNudge={(row) => {
           setReviewRow(row);

@@ -1087,6 +1087,45 @@ impl IntakeFactsStore {
             .collect::<rusqlite::Result<Vec<_>>>()?;
         Ok(rows)
     }
+
+    pub fn get_email_reply_quarantine(
+        &self,
+        quarantine_id: &str,
+    ) -> Result<EmailReplyQuarantineRecord> {
+        let conn = lock_unpoison(&self.conn);
+        conn.query_row(
+            "SELECT quarantine_id, message_id, provider, account, received, sender,
+                    auth_result_json, thread_id, reason, matched_matter_id,
+                    matched_request_id, status, created_at, updated_at
+             FROM email_reply_quarantines WHERE quarantine_id = ?1",
+            params![quarantine_id],
+            row_to_email_reply_quarantine,
+        )
+        .optional()?
+        .ok_or_else(|| anyhow::anyhow!("email reply quarantine not found"))
+    }
+
+    pub fn set_email_reply_quarantine_status(
+        &self,
+        quarantine_id: &str,
+        status: &str,
+    ) -> Result<EmailReplyQuarantineRecord> {
+        if !matches!(status, "pending" | "dismissed" | "manual_filed") {
+            bail!("invalid quarantine status");
+        }
+        let conn = lock_unpoison(&self.conn);
+        let changed = conn.execute(
+            "UPDATE email_reply_quarantines
+             SET status = ?2, updated_at = ?3
+             WHERE quarantine_id = ?1",
+            params![quarantine_id, status, now_iso()],
+        )?;
+        if changed == 0 {
+            bail!("email reply quarantine not found");
+        }
+        drop(conn);
+        self.get_email_reply_quarantine(quarantine_id)
+    }
 }
 
 /// Add durable per-row completion receipts for proposals created before this
@@ -1409,6 +1448,32 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn email_reply_quarantine_manual_file_status_survives_reopen() {
+        let (dir, store) = store();
+        store
+            .enqueue_email_reply_quarantine(quarantine_input("msg-1"))
+            .unwrap();
+        let filed = store
+            .set_email_reply_quarantine_status("quarantine-msg-1", "manual_filed")
+            .unwrap();
+        assert_eq!(filed.status, "manual_filed");
+        drop(store);
+
+        let reopened = IntakeFactsStore::open_with_key(dir.path(), &[7u8; 32]).unwrap();
+        assert_eq!(
+            reopened
+                .get_email_reply_quarantine("quarantine-msg-1")
+                .unwrap()
+                .status,
+            "manual_filed"
+        );
+        assert!(reopened
+            .list_email_reply_quarantines(Some("matter-1"))
+            .unwrap()
+            .is_empty());
     }
 
     #[test]

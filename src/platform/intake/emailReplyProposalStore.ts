@@ -334,6 +334,40 @@ export async function emailReplyQuarantineList(
     .filter((quarantine) => !matterId || quarantine.matchedMatterId === matterId);
 }
 
+export async function emailReplyQuarantineGet(
+  quarantineId: string
+): Promise<EmailReplyQuarantineRecord> {
+  if (isTauri()) {
+    return invoke<EmailReplyQuarantineRecord>('intake_email_reply_get_quarantine', {
+      quarantineId,
+    });
+  }
+  const quarantine = quarantines.get(quarantineId);
+  if (!quarantine) throw new Error('Email reply quarantine not found.');
+  return quarantine;
+}
+
+export async function emailReplyQuarantineSetStatus(
+  quarantineId: string,
+  status: EmailReplyQuarantineStatus
+): Promise<EmailReplyQuarantineRecord> {
+  if (isTauri()) {
+    return invoke<EmailReplyQuarantineRecord>(
+      'intake_email_reply_set_quarantine_status',
+      { quarantineId, status }
+    );
+  }
+  const quarantine = quarantines.get(quarantineId);
+  if (!quarantine) throw new Error('Email reply quarantine not found.');
+  const next: EmailReplyQuarantineRecord = {
+    ...quarantine,
+    status,
+    updatedAt: nowIso(),
+  };
+  quarantines.set(quarantineId, next);
+  return next;
+}
+
 export function clearInMemoryEmailReplyQueuesForTests(): void {
   proposals.clear();
   quarantines.clear();

@@ -211,3 +211,32 @@ pub async fn intake_email_reply_list_quarantines(
     .map_err(|e| format!("join: {e}"))?
     .map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub async fn intake_email_reply_get_quarantine(
+    state: State<'_, IntakeState>,
+    quarantine_id: String,
+) -> Result<EmailReplyQuarantineRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<EmailReplyQuarantineRecord> {
+        IntakeFactsStore::open(&ws)?.get_email_reply_quarantine(&quarantine_id)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn intake_email_reply_set_quarantine_status(
+    state: State<'_, IntakeState>,
+    quarantine_id: String,
+    status: String,
+) -> Result<EmailReplyQuarantineRecord, String> {
+    let ws = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<EmailReplyQuarantineRecord> {
+        IntakeFactsStore::open(&ws)?.set_email_reply_quarantine_status(&quarantine_id, &status)
+    })
+    .await
+    .map_err(|e| format!("join: {e}"))?
+    .map_err(|e| e.to_string())
+}
