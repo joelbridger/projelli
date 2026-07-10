@@ -1,0 +1,70 @@
+/**
+ * Flow: ask-cited-answer
+ *
+ * The flagship feature video. An advisor asks a plain question about a
+ * household and gets an answer that is grounded in that household's own files,
+ * with every claim carrying a source. Drives the REAL app (dev build) with the
+ * built-in advisor sample household (the Hendricks) active, so the cited answer
+ * is served locally with no cloud key — deterministic every run.
+ *
+ *   node scripts/demo-videos/record.mjs ask-cited-answer
+ *
+ * Captions use plain household language, no time promises, no em dashes.
+ */
+
+export const meta = {
+  title: 'Ask a question, get a cited answer',
+  viewport: { width: 1280, height: 800 },
+};
+
+const ROTH_QUESTION = 'What did we decide about the Roth conversion?';
+
+export default async function run(engine, { page }) {
+  // Land in the sample household's private workspace (opens on its Client Map).
+  await engine.goto('/?testMode=true&seedSample=1');
+  await engine.hold(1200);
+  await engine.caption('This is the Hendricks household, a sample client.', 1900);
+  await engine.clearCaption();
+
+  // Open Ask.
+  await engine.caption('Ask a plain question about them.', 1500);
+  await engine.clickTestId('spine-nav-search');
+  await engine.clearCaption();
+  await engine.waitForTestId('ask-thread-scroll');
+  await engine.hold(700);
+
+  // The app offers ready-made questions; pick the Roth conversion one.
+  await engine.caption('The app suggests real questions you can ask.', 1900);
+  const rothBtn = page.getByTestId('ask-demo-question').filter({ hasText: /Roth/i }).first();
+  await engine.moveTo(rothBtn);
+  await engine.clearCaption();
+  await engine.click(rothBtn);
+
+  // Answer appears, grounded in the household's own files.
+  await engine.caption('It answers only from their own files.', 1500);
+  await engine.waitForTestId('ask-answer-receipt', { timeout: 20000 });
+  await page.getByTestId('ask-cited-attestation').first()
+    .waitFor({ state: 'visible', timeout: 6000 })
+    .catch(() => {});
+  await engine.hold(1300);
+  await engine.clearCaption();
+
+  // Point at a citation on the answer.
+  await engine.caption('Every claim carries a source.', 1500);
+  await engine.moveTo(page.getByTestId('ask-citation-chip-1').first()).catch(() => {});
+  await engine.hold(800);
+  await engine.clearCaption();
+
+  // Reveal the source panel so the exact passage is visible.
+  const sourcesToggle = page.getByTestId('ask-sources-toggle').first();
+  if (await sourcesToggle.count()) {
+    await engine.caption('Open the sources to read the exact words.', 1600);
+    await engine.click(sourcesToggle).catch(() => {});
+    await engine.hold(2100);
+    await engine.clearCaption();
+  }
+
+  await engine.caption('Nothing invented. Everything you can check.', 2000);
+  await engine.hold(400);
+  await engine.clearCaption();
+}
