@@ -1,7 +1,22 @@
 #!/usr/bin/env bash
-# Fast pre-push gate. Skip with: git push --no-verify (use sparingly).
+# Fast, conservative pre-push gate. Skip with: git push --no-verify (use sparingly).
+# The full Vitest suite remains mandatory in CI and npm run gate.
 set -uo pipefail
-echo "pre-push: fast gate (typecheck + unit tests)…"
-npm run typecheck || { echo "❌ typecheck failed — push blocked"; exit 1; }
-npx vitest run    || { echo "❌ unit tests failed — push blocked"; exit 1; }
-echo "✅ fast gate passed"
+echo "pre-push: changed-file gate…"
+# Git sends the remote's current SHA on stdin. Using it means the local gate
+# sees every commit about to be added to an existing remote branch. A brand-new
+# branch has an all-zero SHA, so gate-plan falls back to its safe local base.
+remote_base=""
+while read -r _local_ref _local_sha _remote_ref remote_sha; do
+  if [ "$remote_sha" != "0000000000000000000000000000000000000000" ]; then
+    remote_base="$remote_sha"
+    break
+  fi
+done
+
+if [ -n "$remote_base" ]; then
+  GATE_BASE="$remote_base" npm run gate:changed || { echo "❌ changed gate failed — push blocked"; exit 1; }
+else
+  npm run gate:changed || { echo "❌ changed gate failed — push blocked"; exit 1; }
+fi
+echo "✅ changed gate passed"
