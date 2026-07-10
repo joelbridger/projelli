@@ -98,9 +98,16 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 | W5a phone-mode | ✅ | ✅ 14/14 | ✅ 4 findings + gatefix | ✅ done | ✅ green | ☐ merging | ☐ |
 | W5b welcome-journey | ✅ | ✅ 44/44 | ✅ 4 findings + gatefix | ✅ done | ⏳ verify | ☐ merging | ☐ |
 | W6c it-pack | ✅ | ✅ 255/255 | ✅ 2 findings | ✅ done | ✅ MERGED 3afd4da6 | ⏳ push | ⏳ |
-| W6a kpi-strip | ✅ | ✅ 7/7 | ✅ 1 P1 | 🔨 fixing | ☐ | ☐ | ☐ |
-| W6b relay-hardening | ✅ (+expiry-cleanup) | ✅ bun 222/222 | ✅ 2 P1 + P2 | 🔨 fixing | ☐ | ☐ | ☐ |
-| W6d a11y-audit | ✅ | ✅ build+22 pw | ✅ 1 P2 | 🔨 fixing | ☐ | ☐ | ☐ |
+| W6a kpi-strip | ✅ | ✅ 9/9 | ✅ 1 P1 fixed | ✅ | ✅ | ✅ b912ec68 | ✅ |
+| W6b relay-hardening | ✅ (+expiry-cleanup) | ✅ bun 226/226 | ✅ 2 P1+P2 fixed | ✅ | ✅ | ✅ d9abb06f | ✅ |
+| W6d a11y-audit | ✅ | ✅ pw 23/23 | ✅ 1 P2 fixed | ✅ | ✅ | ✅ 39f1a429 | ✅ |
+
+## ✅ WAVES 5+6 COMPLETE — all 7 lanes merged + pushed (origin/lp/intake-w56 @ 39f1a429)
+
+**Final full-tree gate (all 7 lanes):** tsc 0 err · typecheck:tests 0 err · backend typecheck 0 err · lint "No ESLint regression" · i18n completeness ✅ · wire-contracts ✅ · TS↔Rust command-contracts ✅ · provider/consent/case/brand/identity/parity ✅ · **backend bun 226/226** · **frontend vitest 517/517** (73 files, changed areas).
+**Cargo:** ZERO Rust/Cargo/src-tauri files changed across all 7 lanes (git-confirmed) → Rust binary byte-identical to lp/intake; TS↔Rust contract check passes. Full cargo recompile intentionally NOT forced (no coverage of these lanes + 2 concurrent Rust builds on the box = earlyoom kill risk). Can run on a private target later if belt-and-suspenders wanted.
+**Adversarial codex-review earned its keep on EVERY lane** (key-sharing needed 2 rounds — 2nd caught a matter-key backward-compat regression + ack data-loss; kpi-strip's completion metric was dead; relay's per-IP bucket collapsed behind the proxy; a11y's progress dots raced state writes). All fixed + tested.
+**Coordinator-gated (post-merge, on bench release):** two-advisor decrypt of one intake (W5c), real-device page a11y (W6d), relay soak (W6b). Session-marker/new-device end-to-end wiring DEFERRED (pre-existing W1 gap, flagged; IT-pack describes current state honestly).
 
 ### Batch-2 review findings (round 1)
 - **W6a kpi-strip [P1]:** completion metrics keyed on `status:'completed'`/`completedAt` that the lifecycle never sets → permanent 0% completion. Fix: derive completion from checklist item states.
