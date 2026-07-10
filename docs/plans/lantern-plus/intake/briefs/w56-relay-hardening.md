@@ -24,8 +24,11 @@ Make the relay stand up to load and abuse: tune the rate limits/quotas to sensib
 - Don't break existing intake e2e / privacy-proof / rate-limit tests.
 - The relay never decrypts anything (unchanged).
 
+### 5. Expiry + grace ciphertext cleanup (retention — makes the IT-pack claim TRUE)
+The relay TODAY only deletes ciphertext on advisor ack; expired links are DENIED access but their unacknowledged blobs persist forever (no cleanup job). ARCHITECTURE §5 promises "deleted on ack (and at expiry + 30-day grace regardless)" — implement the missing half. Add a cleanup pass (on-startup + periodic sweep, or on-access lazy delete — pick the simplest robust option for the single-instance Bun relay) that deletes intake ciphertext (chunks, manifests, wrapped keys, sealed state) for intakes past `expires_at` + a 30-day grace window. Make the grace window a named constant. Deletion is content-free (it removes ciphertext rows; logs only counts). Add a test: an intake past expiry+grace has its ciphertext removed; one within grace is retained; ack-delete still works. This closes the W6c it-pack finding (the pack can then restore the honest "expiry + 30-day grace" retention claim — coordinate with the it-pack lane / lead).
+
 ## Out of scope
-- Key sharing (W5c — but note it added `/intake/:id/keys` endpoints; apply the same auth-before-body + uniform-response discipline to them if they lack it), phone mode, KPI strip, client page. No new product features — this is hardening only.
+- Key sharing (W5c — but note it added `/intake/:id/keys` endpoints; apply the same auth-before-body + uniform-response discipline to them if they lack it), phone mode, KPI strip, client page. No new product features — this is hardening + the retention-cleanup job only.
 
 ## Verify
 `cd backend && bun test` (all intake tests, esp. your new abuse test + existing rate-limit/privacy-proof). Report exact pass/fail. When done + committed, print `W56-RELAY-HARDENED-DONE` then `DONE-EXIT:0`.

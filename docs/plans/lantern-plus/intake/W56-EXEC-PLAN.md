@@ -94,13 +94,19 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 
 | Lane | Brief | Built | Reviewed | codex-review | Fixed | Merged (sha) | Gate |
 |---|---|---|---|---|---|---|---|
-| W5c key-sharing | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W5a phone-mode | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W5b welcome-journey | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6c it-pack | ✅ | 🔨 building | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6a kpi-strip | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6b relay-hardening | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
-| W6d a11y-audit | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W5c key-sharing | ✅ | ⚠️→rebuild | escalated (correct) | — | 🔨 v2 building | ☐ | ☐ |
+| W5a phone-mode | ✅ | ✅ 10/10 | ✅ 4 findings (2P1+2P2) | 🔨 fixing | ☐ | ☐ | ☐ |
+| W5b welcome-journey | ✅ | ✅ 4/4+build | ✅ 4 findings (P2) | 🔨 fixing | ☐ | ☐ | ☐ |
+| W6c it-pack | ✅ | ✅ 253/253 | ✅ 2 findings (P1 claims) | 🔨 fixing | ☐ | ☐ | ☐ |
+| W6a kpi-strip | ✅ brief | ☐ (after W5a) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W6b relay-hardening | ✅ brief (+expiry-cleanup) | ☐ (after W5c) | ☐ | ☐ | ☐ | ☐ | ☐ |
+| W6d a11y-audit | ✅ brief | ☐ (after W5b) | ☐ | ☐ | ☐ | ☐ | ☐ |
+
+### Adversarial-review findings log (round 1)
+- **W5c key-sharing:** correctly ESCALATED — my brief wrongly treated epoch-bump as cryptographic revocation; the intake keypair can't rotate mid-flight, so an already-pulled key is unrevocable. Re-briefed (v2) as a GRANT mechanism (team decrypt + admin escrow) with honest revocation semantics (forward-grant stop + relay access cutoff + re-send-fresh-intake for true rotation). Building.
+- **W5a phone-mode:** [P1] guided-answer modes (income range / spending amount) not supported → breaks one-source-of-truth; [P1] doc-slot count not enforced (license 1-of-2 marked complete); [P2] per-file size cap bypass; [P2] duplicate-filename overwrite loses a license side. → one fix round.
+- **W5b welcome-journey:** [P2] firm-default saved to browser-global key (wrong-firm leak); [P2] empty role slots filled with lead advisor (solo shown 4×); [P2] editor can empty the timeline; [P2] staff-handoff message never rendered. → one fix round.
+- **W6c it-pack:** [P1] 30-day expiry/grace deletion claim unimplemented in relay; [P1] new-device indicator not wired end-to-end. → fix: honest wording now; expiry-cleanup folded into W6b; session-marker gap flagged to coordinator.
 
 ## Open items / COORDINATOR flags
 - Fast gates not in base `bf6fbc77`; sync from `lp/intake` before first merge (coordinator confirmed W4 lead folding now). Standard `npm run gate` is the fallback.
