@@ -52,9 +52,9 @@ Per intake, created on the advisor's machine at compose time:
 
 **What a link holder can see and do (the exact list, kept minimal by design):** the firm's name and branding; the checklist item labels; the client's first name; per-item done/not-done flags; generic confirmations ("Social Security number provided", "2 photos provided" — the resume state stores **no last-4 and no file names**; those confirmations render only in the live session from memory); and the ability to submit new values for open items. They can never read a submitted value or document. Overwrites of already-completed items are flagged to the advisor as anomalies.
 
-**Resume state is cosmetic, never authoritative:** because any link holder can rewrite `k_page`-sealed state, the advisor app derives all truth (item states, provenance, values) exclusively from finalized sealed submissions; the resume state only drives client-page rendering. A forged state can confuse the forger's own screen, nothing else.
+**Resume state is cosmetic, never authoritative — for the client page too:** because any link holder can rewrite `k_page`-sealed state, nothing trusted may derive from it on either side. The advisor app derives all truth (item states, provenance, values) exclusively from finalized sealed submissions. The client page derives **done/not-done from the relay's own finalization records** (the server already knows which items have a finalized submission — that's §3 metadata it holds regardless), so a forged resume state cannot mark items done and quietly derail the real client's flow; the resume state carries only harmless display details (current position, draft non-sensitive text, generic confirmations).
 
-**Replay protection:** every submission carries a client-generated random `submission_id` inside the sealed manifest and in plaintext metadata; the relay rejects duplicate `submission_id`s per intake, and the advisor sync dedupes by `(item_id, submission_id)` and flags any replayed or out-of-order ciphertext (a stale submission re-posted later can only ever appear as a flagged duplicate, never silently replace a newer answer — the facts store's supersede chain orders by advisor-verified receipt, not by claimed timestamps).
+**Replay protection:** every submission carries a client-generated random `submission_id` inside the sealed manifest, bound into every chunk's AAD, and repeated in plaintext metadata. The plaintext copy is **only a relay hint** (it lets the server reject crude duplicate posts); the authoritative id is the sealed one. After decrypting, the advisor app verifies that the plaintext id, the sealed manifest id, and the chunk AAD binding all agree — any mismatch is rejected and flagged — then dedupes by the **decrypted** manifest id. So re-posting old ciphertext under a fresh plaintext label fails the mismatch check, and a stale submission can only ever surface as a flagged duplicate, never silently replace a newer answer (the facts store's supersede chain orders by advisor-verified receipt, not by claimed timestamps).
 
 **Multi-advisor firms:** v1 decrypts on the creating advisor's machine only. Wave 5 wraps the intake private key to the matter's member devices using the existing `wrapped_matter_keys` machinery (`backend/src/routes/matterKeys.ts:30-148`, `src/platform/firm/matterKeyService.ts`) and, matching the vault's escrow precedent (`vaultClient.ts:272-302`), to org-admin devices — so a departed advisor's in-flight intakes are recoverable by the firm. Until then, the failure mode is honest: if the creating advisor's machine is lost, in-flight submissions are unreadable and the intake is re-sent (facts already synced down are unaffected).
 
@@ -81,7 +81,7 @@ New route group `routes/intake.ts` beside the existing groups in `backend/src/se
 
 | Endpoint | Effect |
 |---|---|
-| `GET /intake/:id/bundle` | sealed checklist + sealed resume state + `checklist_version` (the page's boot call) |
+| `GET /intake/:id/bundle` | sealed checklist + sealed resume state + `checklist_version` + per-item finalization flags from the server's own records (the page's boot call; done/not-done never trusts the writable resume state — §2) |
 | `PUT /intake/:id/state` | save sealed resume state (small cap, ~64 KiB) |
 | `POST /intake/:id/item/:item_id/chunk` | upload one ciphertext chunk (≤4 MiB per chunk — comfortably inside SQLite blob handling; server enforces per-intake total cap, default 500 MiB) |
 | `POST /intake/:id/item/:item_id/submit` | finalize an item: sealed manifest (file names, chunk hashes, content type, `submission_id` live *inside* the ciphertext) + plaintext `submission_id` + the wrapped content key; server marks prior chunks bound and rejects duplicate `submission_id`s |
@@ -107,7 +107,7 @@ Boot: parse fragment → derive `k_page`, `t_auth` → fetch bundle → decrypt 
 The page **can**: render the checklist, resume progress on any device with the link, show in-session confirmations (last-4 renders from memory during the submitting session only), run Tier-1 Document Detective locally (text extraction + keyword rules on the user's own document, in their own browser — nothing leaves the device unencrypted).
 The page **cannot**: read back any submitted secret (it holds no unwrap key), see other clients or the advisor's workspace, or reach any origin but the relay.
 
-**Old browsers:** feature-detect WebCrypto (`crypto.subtle`, P-256 ECDH) at boot; on failure, show the honest fallback ("reply to [advisor]'s email instead") — no degraded-crypto mode, ever. Every 2020+ evergreen browser and iOS/Android system browser passes.
+**Old browsers:** feature-detect WebCrypto (`crypto.subtle`, P-256 ECDH) at boot; on failure, show the sensitivity-routed fallback (documents → reply to the advisor's email; SSN and other restricted fields → "call [advisor] and do it together," i.e. phone mode — PRODUCT-DESIGN.md §6; the most sensitive value never gets nudged into the weakest channel). With JS disabled entirely the page can't decrypt the checklist or know the advisor's name, so a static `<noscript>` block says only: "This secure page needs a current browser. Please reply to the message that brought you here." No degraded-crypto mode, ever. Every 2020+ evergreen browser and iOS/Android system browser passes.
 
 ---
 
@@ -120,7 +120,7 @@ Sync-down (in `src/platform/intake/IntakeSyncClient.ts`, modeled on `MatterSyncC
 | Documents (license scans, statements) | the client's folder via `WorkspaceService` (one folder per client — `matterManagerDialogHelpers.ts:53,73`), under an `Onboarding/` subfolder | `lantern-vault` KPV1 when the vault is on (`vault.rs:117`); the UI nudges vault-off users once, plainly, when the first intake lands |
 | Typed secrets (SSN, DOB) | **new encrypted facts store** — SQLCipher, same pattern as the CRM proposal store (`crm/store.rs:247`), keyed by `matter_id` | SQLCipher; never localStorage, never the Zustand Client Map store |
 | Non-secret answers (income figure, spending range, "I don't know" flags) | facts store (canonical) + a masked/summary `ClientMapItem` with a `SourceRef` into the facts store | Client Map shows presence and provenance, not restricted values |
-| Checklist/item state | intake state in `src/platform/intake/intakeStore.ts` (Zustand, non-sensitive: states, timestamps, last-4 display strings) | ordinary app state |
+| Checklist/item state | intake state in `src/platform/intake/intakeStore.ts` (Zustand, non-sensitive: item states, timestamps, `fact_id` references, provenance) — **no last-4 or any value fragment ever enters ordinary app state**; masked renderings (•••-••-1234) are produced on demand by the facts-store accessor | ordinary app state |
 
 **Masking and audit:** SSN renders `•••-••-1234` everywhere by default; click-to-reveal writes an audit row (the reveal is an auditable event, same append-only encrypted audit store as CRM writes, `commands.rs:676`). Export/copy of a restricted fact likewise audits. Every intake receipt writes an intent/outcome pair via the existing machinery (`audit_pair_id` pattern, `commands.rs:1126`): intent = "item received, filing to folder/facts", outcome = confirmed with the file path / fact id — mirroring the CRM engine's refuse-if-audit-fails rule.
 
@@ -208,7 +208,7 @@ Rules: append-only with supersede chains (an SSN correction is a new fact supers
 | Failure | Behavior |
 |---|---|
 | Link opened twice / two devices | Both valid; last-write-wins per item; dual provenance kept (§6). |
-| Old browser, no WebCrypto | Detected at boot; honest email-fallback screen; no downgraded crypto path exists (§4). |
+| Old browser, no WebCrypto | Detected at boot; sensitivity-routed fallback (documents → email, restricted fields → phone; generic message under no-JS); no downgraded crypto path exists (§4). |
 | Upload dies mid-file | Chunk-level resume; page shows "didn't finish" with one-tap resume (§6). |
 | Advisor offline for days | Relay is the ciphertext mailbox; board catches up on next launch; ack-after-write means nothing is lost either way (§5). |
 | Advisor machine lost (v1, pre-Wave-5) | In-flight submissions unreadable (private key gone); already-synced facts/files intact; advisor re-sends a fresh intake. Honest, bounded, fixed by Wave 5 escrow. |
@@ -216,4 +216,4 @@ Rules: append-only with supersede chains (an SSN correction is a new fact supers
 | Crash between decrypt and local write | No ack sent → relay re-delivers on next sync (§5 ack-last rule). |
 | Duplicate submission of one item | Server versions per item; advisor sees both with timestamps; facts store supersede chain resolves (§9). |
 | Replayed ciphertext (old submission re-posted) | Relay rejects duplicate `submission_id`s; advisor sync flags replays and never lets a stale submission silently replace a newer answer (§2). |
-| Forged resume state (link holder rewrites it) | Cosmetic only — advisor truth derives solely from sealed submissions (§2); worst case is a confused rendering on the forger's own screen. |
+| Forged resume state (link holder rewrites it) | Cosmetic only — advisor truth derives solely from sealed submissions, and the client page's done/not-done flags come from the relay's finalization records, not the writable state (§2); a forgery cannot mark items done or derail the real client's flow. |
