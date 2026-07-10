@@ -44,7 +44,7 @@ export function EmailReplyProposalRow({
       }}
     >
       <input
-        aria-label={t('intake.emailReply.select-row')}
+        aria-label={t('intake.email-reply.select-row')}
         type="checkbox"
         checked={checked}
         disabled={!selectable}
@@ -78,7 +78,7 @@ export function EmailReplyProposalRow({
               textTransform: 'uppercase',
             }}
           >
-            {t(`intake.emailReply.confidence.${row.confidence}`)}
+            {t(`intake.email-reply.confidence.${row.confidence}`)}
           </span>
         </div>
         <div
@@ -91,7 +91,7 @@ export function EmailReplyProposalRow({
         >
           {row.attachment
             ? row.attachment.filename || row.attachment.name
-            : row.bodyFact?.displayValue ?? t('intake.emailReply.body-note')}
+            : row.bodyFact?.displayValue ?? t('intake.email-reply.body-note')}
         </div>
         {row.reasoning ? (
           <div
@@ -114,7 +114,7 @@ export function EmailReplyProposalRow({
               fontWeight: 700,
             }}
           >
-            {t('intake.emailReply.needs-manual-review')}
+            {t('intake.email-reply.needs-manual-review')}
           </div>
         ) : null}
         {restricted ? (
@@ -137,7 +137,7 @@ export function EmailReplyProposalRow({
               }}
             />
             <AlertTriangle aria-hidden size={14} />
-            {t('intake.emailReply.confirm-sensitive')}
+            {t('intake.email-reply.confirm-sensitive')}
           </label>
         ) : null}
       </div>
