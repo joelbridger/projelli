@@ -74,6 +74,29 @@ describe('phone walkthrough model', () => {
     });
   });
 
+  it('uses the same amount, range, and unknown answer shapes as the client link', () => {
+    const common = {
+      matterId: 'matter-1', advisorId: 'advisor-7', at: '2026-07-10T12:00:00.000Z',
+    };
+
+    expect(buildPhoneFactWrite({
+      ...common, item: income, answer: { mode: 'range', min: '100000', max: '140000', currency: 'usd' },
+    }).value).toEqual({
+      t: 'range', v: { min: 100000, max: 140000, currency: 'USD' },
+    });
+    expect(buildPhoneFactWrite({
+      ...common, item: spending, answer: { mode: 'amount', amount: '5000', currency: 'usd' },
+    }).value).toEqual({
+      t: 'money', v: { amount: 5000, currency: 'USD' },
+    });
+    expect(buildPhoneFactWrite({ ...common, item: income, answer: { mode: 'unknown' } }).value).toEqual({
+      t: 'string', v: "I don't know yet",
+    });
+    expect(buildPhoneFactWrite({ ...common, item: spending, answer: { mode: 'unknown' } }).value).toEqual({
+      t: 'string', v: "I don't know yet",
+    });
+  });
+
   it('marks SSN writes restricted so the facts store owns masking and secure storage', () => {
     const fact = buildPhoneFactWrite({
       matterId: 'matter-1', advisorId: 'advisor-7', at: '2026-07-10T12:00:00.000Z',

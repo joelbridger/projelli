@@ -4,6 +4,7 @@ import {
   FACT_KIND_SENSITIVITY,
   type FactKind,
   type FactValue,
+  type DocUploadRequestItem,
   type RequestItem,
 } from './types';
 
@@ -16,10 +17,11 @@ export interface PhoneWalkthroughItem {
 }
 
 export type PhoneWalkthroughAnswer = string | {
+  amount?: string | number;
   min?: string | number;
   max?: string | number;
   currency?: string;
-  mode?: 'unknown';
+  mode?: 'amount' | 'range' | 'unknown';
 };
 
 const COMPLETED_STATES = new Set<IntakeChecklistState['state']>([
@@ -28,6 +30,50 @@ const COMPLETED_STATES = new Set<IntakeChecklistState['state']>([
   'accepted',
   'not_needed',
 ]);
+
+const PHONE_UPLOAD_MAX_BYTES = 100 * 1024 * 1024;
+
+export function phoneUploadRules(item: DocUploadRequestItem): {
+  requiredFiles: number;
+  maxFiles: number;
+  maxBytes: number;
+} {
+  const requiredFiles = item.label.toLowerCase().includes('license') ? 2 : 1;
+  const requestedMaxFiles = item.max_files ?? requiredFiles;
+  return {
+    requiredFiles,
+    maxFiles: Math.max(requiredFiles, requestedMaxFiles),
+    maxBytes: Math.min(item.max_bytes ?? PHONE_UPLOAD_MAX_BYTES, PHONE_UPLOAD_MAX_BYTES),
+  };
+}
+
+function cleanPhoneFileName(value: string): string {
+  return value
+    .replace(/[\\/:*?"<>|]+/gu, '-')
+    .replace(/\s+/gu, ' ')
+    .trim() || 'intake-upload.bin';
+}
+
+function withFileSuffix(fileName: string, suffix: number): string {
+  const extensionIndex = fileName.lastIndexOf('.');
+  if (extensionIndex <= 0) return `${fileName}-${String(suffix)}`;
+  return `${fileName.slice(0, extensionIndex)}-${String(suffix)}${fileName.slice(extensionIndex)}`;
+}
+
+export function phoneUploadFileNames(files: File[]): string[] {
+  const used = new Set<string>();
+  return files.map((file) => {
+    const cleaned = cleanPhoneFileName(file.name);
+    let candidate = cleaned;
+    let suffix = 2;
+    while (used.has(candidate)) {
+      candidate = withFileSuffix(cleaned, suffix);
+      suffix += 1;
+    }
+    used.add(candidate);
+    return candidate;
+  });
+}
 
 export function derivePhoneWalkthroughItems(
   requestItems: RequestItem[],
@@ -84,7 +130,15 @@ export function phoneFactValue(
     return { t: 'string', v: "I don't know yet" };
   }
   if (kind === 'dob') return { t: 'date', v: stringValue(answer) };
-  if (item.t === 'guided_question' && item.response_format === 'range') {
+  const isGuidedRangeAnswer = item.t === 'guided_question'
+    && (answer !== null && typeof answer !== 'string')
+    && (answer.mode === 'range' || answer.min !== undefined || answer.max !== undefined);
+  const usesGuidedRange = isGuidedRangeAnswer || (
+    item.t === 'guided_question'
+    && item.response_format === 'range'
+    && (typeof answer === 'string' || answer.mode !== 'amount')
+  );
+  if (usesGuidedRange) {
     const range = typeof answer === 'string' ? {} : answer;
     const min = numberValue(range.min);
     const max = numberValue(range.max);
@@ -99,12 +153,16 @@ export function phoneFactValue(
     };
   }
   if (
+    (item.t === 'guided_question' && typeof answer !== 'string' && answer.mode === 'amount') ||
     (item.t === 'guided_question' && item.response_format === 'money') ||
     (item.t === 'typed_field' && item.input === 'money')
   ) {
-    const amount = numberValue(typeof answer === 'string' ? answer : undefined);
+    const amount = numberValue(typeof answer === 'string' ? answer : answer.amount);
     if (amount == null) throw new Error('Enter an amount.');
-    return { t: 'money', v: { amount, currency: 'USD' } };
+    return {
+      t: 'money',
+      v: { amount, currency: typeof answer === 'string' ? 'USD' : answer.currency?.trim().toUpperCase() || 'USD' },
+    };
   }
   return { t: 'string', v: stringValue(answer) };
 }

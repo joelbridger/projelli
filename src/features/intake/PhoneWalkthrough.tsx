@@ -14,6 +14,8 @@ import { useIntakeStore, type IntakeRecord } from '@/platform/intake/intakeStore
 import {
   buildPhoneFactWrite,
   derivePhoneWalkthroughItems,
+  phoneUploadFileNames,
+  phoneUploadRules,
   type PhoneWalkthroughAnswer,
 } from '@/platform/intake/phoneWalkthrough';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
@@ -57,6 +59,12 @@ function phoneProvenance(advisorId: string, at: string) {
   };
 }
 
+function formatByteLimit(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${String(bytes / (1024 * 1024))} MB`;
+  if (bytes >= 1024) return `${String(bytes / 1024)} KB`;
+  return `${String(bytes)} bytes`;
+}
+
 export function PhoneWalkthrough({
   matterId,
   intake,
@@ -77,7 +85,7 @@ export function PhoneWalkthrough({
   const [answer, setAnswer] = useState('');
   const [rangeMin, setRangeMin] = useState('');
   const [rangeMax, setRangeMax] = useState('');
-  const [unknown, setUnknown] = useState(false);
+  const [guidedAnswerMode, setGuidedAnswerMode] = useState<'amount' | 'range' | 'unknown' | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -88,7 +96,7 @@ export function PhoneWalkthrough({
     setAnswer('');
     setRangeMin('');
     setRangeMax('');
-    setUnknown(false);
+    setGuidedAnswerMode(null);
     setFiles([]);
     setError('');
   }, [index]);
@@ -126,16 +134,30 @@ export function PhoneWalkthrough({
     setError('');
     try {
       if (current.item.t === 'doc_upload') {
+        const uploadRules = phoneUploadRules(current.item);
         if (files.length === 0) throw new Error('Choose a document to file.');
+        if (files.length < uploadRules.requiredFiles) {
+          throw new Error(uploadRules.requiredFiles === 2
+            ? 'Choose both sides of the driver’s license before filing.'
+            : `Choose ${String(uploadRules.requiredFiles)} files before filing.`);
+        }
+        if (files.length > uploadRules.maxFiles) {
+          throw new Error(`Choose no more than ${String(uploadRules.maxFiles)} files.`);
+        }
+        const oversizedFile = files.find((file) => file.size > uploadRules.maxBytes);
+        if (oversizedFile) {
+          throw new Error(`${oversizedFile.name} is too large. Choose a file under ${formatByteLimit(uploadRules.maxBytes)}.`);
+        }
         if (!workspaceService || !matterFolderPath) {
           throw new Error('Open this client folder before filing a document.');
         }
-        const paths = await Promise.all(files.map(async (file) => {
+        const fileNames = phoneUploadFileNames(files);
+        const paths = await Promise.all(files.map(async (file, fileIndex) => {
           const bytes = new Uint8Array(await file.arrayBuffer());
           return fileIntakeDocument({
             workspaceService,
             matterFolderPath,
-            fileName: file.name,
+            fileName: fileNames[fileIndex]!,
             bytes,
           });
         }));
@@ -143,12 +165,19 @@ export function PhoneWalkthrough({
       } else if (current.item.t === 'readonly_card') {
         markReceived(at);
       } else {
-        const phoneAnswer: PhoneWalkthroughAnswer = unknown
-          ? { mode: 'unknown' }
-          : current.item.t === 'guided_question' && current.item.response_format === 'range'
-            ? { min: rangeMin, max: rangeMax, currency: 'USD' }
-            : answer;
-        if (!unknown && typeof phoneAnswer === 'string' && !phoneAnswer.trim()) {
+        const phoneAnswer: PhoneWalkthroughAnswer = current.item.t === 'guided_question'
+          ? guidedAnswerMode === 'unknown'
+            ? { mode: 'unknown' }
+            : guidedAnswerMode === 'range'
+              ? { mode: 'range', min: rangeMin, max: rangeMax, currency: 'USD' }
+              : guidedAnswerMode === 'amount'
+                ? { mode: 'amount', amount: answer, currency: 'USD' }
+                : ''
+          : answer;
+        if (current.item.t === 'guided_question' && !guidedAnswerMode) {
+          throw new Error('Choose an amount, a range, or “I don’t know yet.”');
+        }
+        if (guidedAnswerMode !== 'unknown' && typeof phoneAnswer === 'string' && !phoneAnswer.trim()) {
           throw new Error('Enter an answer or choose “I don’t know yet.”');
         }
         const fact = await intakeFactUpsert(buildPhoneFactWrite({
@@ -172,7 +201,10 @@ export function PhoneWalkthrough({
 
   if (!current) return null;
   const inputName = current.item.label;
-  const isRange = current.item.t === 'guided_question' && current.item.response_format === 'range';
+  const isGuidedQuestion = current.item.t === 'guided_question';
+  const isRange = isGuidedQuestion && guidedAnswerMode === 'range';
+  const isAmount = isGuidedQuestion && guidedAnswerMode === 'amount';
+  const uploadRules = current.item.t === 'doc_upload' ? phoneUploadRules(current.item) : null;
   const inputType = current.item.t === 'typed_field' && current.item.input === 'ssn'
     ? 'password'
     : current.item.t === 'typed_field' && current.item.input === 'date'
@@ -202,22 +234,28 @@ export function PhoneWalkthrough({
           {current.item.t === 'doc_upload' ? (
             <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">
               Choose document
-              <input aria-label="Choose document" type="file" multiple={(current.item.max_files ?? 1) > 1} accept={current.item.accepted_mime_types?.join(',')} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
+              <input aria-label="Choose document" type="file" multiple={(uploadRules?.maxFiles ?? 1) > 1} accept={current.item.accepted_mime_types?.join(',')} onChange={(event) => setFiles(Array.from(event.target.files ?? []))} />
             </label>
           ) : null}
-          {current.item.t !== 'doc_upload' && current.item.t !== 'readonly_card' && !isRange ? (
+          {isGuidedQuestion ? (
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Button type="button" variant={isAmount ? 'secondary' : 'outline'} aria-pressed={isAmount} onClick={() => setGuidedAnswerMode('amount')}>Enter an amount</Button>
+              <Button type="button" variant={isRange ? 'secondary' : 'outline'} aria-pressed={isRange} onClick={() => setGuidedAnswerMode('range')}>Choose a range</Button>
+              <Button type="button" variant={guidedAnswerMode === 'unknown' ? 'secondary' : 'outline'} aria-pressed={guidedAnswerMode === 'unknown'} onClick={() => setGuidedAnswerMode('unknown')}>I don&apos;t know yet</Button>
+            </div>
+          ) : null}
+          {current.item.t !== 'doc_upload' && current.item.t !== 'readonly_card' && (!isGuidedQuestion || isAmount) ? (
             <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">
-              {inputName}
-              <input aria-label={inputName} type={inputType} value={answer} placeholder={current.item.t === 'typed_field' ? current.item.placeholder : undefined} onChange={(event) => setAnswer(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" />
+              {isGuidedQuestion ? 'Amount' : inputName}
+              <input aria-label={isGuidedQuestion ? 'Amount' : inputName} type={inputType} value={answer} placeholder={current.item.t === 'typed_field' ? current.item.placeholder : undefined} onChange={(event) => setAnswer(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" />
             </label>
           ) : null}
           {isRange ? (
             <div className="grid grid-cols-2 gap-3">
-              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">Low end<input aria-label="Low end" value={rangeMin} onChange={(event) => setRangeMin(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" /></label>
-              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">High end<input aria-label="High end" value={rangeMax} onChange={(event) => setRangeMax(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" /></label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">Low amount<input aria-label="Low amount" value={rangeMin} onChange={(event) => setRangeMin(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" /></label>
+              <label className="grid gap-2 text-sm font-medium text-[var(--kp-navy)]">High amount<input aria-label="High amount" value={rangeMax} onChange={(event) => setRangeMax(event.target.value)} className="h-10 rounded-md border border-input bg-background px-3" /></label>
             </div>
           ) : null}
-          {current.item.t === 'guided_question' ? <Button type="button" variant={unknown ? 'secondary' : 'outline'} onClick={() => setUnknown((value) => !value)}>I don&apos;t know yet</Button> : null}
           {error ? <p role="alert" className="m-0 text-sm text-destructive">{error}</p> : null}
         </section>
         <div className="flex flex-wrap justify-between gap-2">
