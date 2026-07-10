@@ -35,7 +35,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Integration Honesty Cards in Account Connections.** Shipping connectors now show an in-app card with exactly what each connector reads, writes, can never touch, how writes are gated, and the last verified date.
   - Added typed card data with structural parity tests against the markdown trust cards.
   - Wired card triggers into Wealthbox, Microsoft 365 email, Gmail, IMAP email, OneDrive/SharePoint, and Calendly connection panels.
-  - Files modified: `src/features/settings/integrationHonestyCards.ts`, `src/features/settings/IntegrationHonestyCard.tsx`, `src/platform/connectors/crm/WealthboxConnect.tsx`, `src/platform/connectors/email/MailConnect.tsx`, `src/platform/connectors/email/MailGmailConnect.tsx`, `src/platform/connectors/email/MailImapConnect.tsx`, `src/platform/connectors/onedrive/OneDriveConnect.tsx`, `src/platform/connectors/calendly/CalendlyConnect.tsx`, `src/features/settings/integrationHonestyCards.test.ts`, `src/features/settings/IntegrationHonestyCard.test.tsx`, `tests/unit/connectors/integration-honesty-card-triggers.test.tsx`.
+  - Files modified: `src/platform/connectors/integrationHonestyCards.ts`, `src/platform/connectors/IntegrationHonestyCard.tsx`, `src/platform/connectors/crm/WealthboxConnect.tsx`, `src/platform/connectors/email/MailConnect.tsx`, `src/platform/connectors/email/MailGmailConnect.tsx`, `src/platform/connectors/email/MailImapConnect.tsx`, `src/platform/connectors/onedrive/OneDriveConnect.tsx`, `src/platform/connectors/calendly/CalendlyConnect.tsx`, `src/platform/connectors/integrationHonestyCards.test.ts`, `src/platform/connectors/IntegrationHonestyCard.test.tsx`, `tests/unit/connectors/integration-honesty-card-triggers.test.tsx`.
+- **ACATS Transfer Autopilot Waves A-C + D-lite.** Added the standalone ACATS
+  draft schema, delivering-firm normalization, statement classifier/extractor,
+  advisor review store, review UI, and Schwab Prep Packet `.docx` export. The
+  feature stays local-only, masks account numbers outside review, blocks
+  approval until required fields and warnings are handled, and does not depend
+  on the sibling Schwab prefill branch. Files:
+  `src/features/acats/{types,firmNormalization,format,extraction,reviewRules,acatsReviewStore,AcatsReviewScreen,schwabPrepPacket,index}.ts*`
+  plus focused ACATS tests in `src/features/acats/*.test.ts*`.
 - **Add-client overhaul + client groups (FB2 clientux lane).**
   - **Calm one-field create.** Adding a client is now a small modal with just a
     display name (`NewClientDialog`); on create you land inside the new client's
