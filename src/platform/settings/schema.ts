@@ -163,6 +163,13 @@ export function resolveSection(cat: string): SectionCategory {
  */
 export const EXTERNAL_EXPORT_CONSENT_KEY = 'externalExportConsent';
 
+/**
+ * Firm choice for the exceptional email-reply classifier path. It remains off
+ * until the firm deliberately accepts that authenticated client email text is
+ * sent to its configured AI provider.
+ */
+export const EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY = 'intake.emailReplyAiClassificationEnabled';
+
 /** Connector-access: a recognized plan snapshot older than this many days is
  *  flagged stale in the Ask sources and the answer. Plans only; meeting notes
  *  are never alarmed on age. */
@@ -616,6 +623,15 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
       { value: 'standard', label: 'Standard - flag meetings with no detected notice' },
       { value: 'strict', label: 'Strict - quarantine meetings until the notice is resolved' },
     ],
+  },
+  {
+    key: EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY,
+    category: 'privacy',
+    label: 'AI email reply classification',
+    description:
+      'Firm setting. Off by default. When enabled, the text of authenticated client email replies is sent to your firm\'s configured AI provider to help match an onboarding item.',
+    type: 'toggle',
+    defaultValue: false,
   },
   {
     // The firm-customizable spoken-notice script. Empty means "use the built-in

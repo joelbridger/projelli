@@ -22,6 +22,8 @@ import { getInstallId } from '@/platform/utils/installId';
 import { DataMapDialog } from '@/platform/privacy/ui/DataMapDialog';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { RetentionSettings } from '@/features/settings/RetentionSettings';
+import { useSettingsStore } from '@/platform/settings/settingsStore';
+import { EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY } from '@/platform/settings/schema';
 
 export function PrivacySettings() {
   const { t } = useTranslation();
@@ -30,6 +32,10 @@ export function PrivacySettings() {
   const [dataMapOpen, setDataMapOpen] = useState(false);
   const [sharingDetailsOpen, setSharingDetailsOpen] = useState(false);
   const workspaceRoot = useWorkspaceStore((s) => s.rootPath);
+  const emailReplyAiClassificationEnabled = useSettingsStore(
+    (s) => s.getSetting<boolean>(EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY) === true,
+  );
+  const setSetting = useSettingsStore((s) => s.setSetting);
 
   return (
     <div className="space-y-6">
@@ -61,6 +67,33 @@ export function PrivacySettings() {
       </div>
 
       <DataMapDialog open={dataMapOpen} onOpenChange={setDataMapOpen} />
+
+      <div
+        className="rounded-lg border border-border bg-card p-5"
+        data-testid="privacy-email-reply-ai-classification"
+      >
+        <div className="flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-foreground">AI email reply classification</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Off by default. When enabled, Keepance sends the text of authenticated client email replies to your firm&apos;s configured AI provider to help match an onboarding item. Turn this on only when your firm approves that sharing.
+            </p>
+          </div>
+          <Button
+            variant={emailReplyAiClassificationEnabled ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setSetting(
+                EMAIL_REPLY_AI_CLASSIFICATION_SETTING_KEY,
+                !emailReplyAiClassificationEnabled,
+              );
+            }}
+            data-testid="privacy-email-reply-ai-classification-toggle"
+          >
+            {emailReplyAiClassificationEnabled ? 'Enabled' : 'Off'}
+          </Button>
+        </div>
+      </div>
 
       {/* Wave 4 Track D — per-workspace retention policy for meeting recordings. */}
       {workspaceRoot && (
