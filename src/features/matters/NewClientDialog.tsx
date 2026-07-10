@@ -56,6 +56,15 @@ import {
   defaultNewHouseholdItems,
   NEW_HOUSEHOLD_NEXT_STEPS,
 } from '@/features/intake/newHouseholdTemplate';
+import { WhatHappensNextEditor } from '@/features/intake/WhatHappensNextEditor';
+import {
+  copyWelcomeJourney,
+  DEFAULT_WELCOME_JOURNEY,
+  loadFirmWelcomeJourneyDefault,
+  renderWelcomeJourneyEmail,
+  saveFirmWelcomeJourneyDefault,
+  type WelcomeJourney,
+} from '@/features/intake/welcomeJourneyDefaults';
 import {
   deriveNewClientFolderPath,
   ensureClientFolderOnDisk,
@@ -117,6 +126,8 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const [items, setItems] = useState<RequestItem[]>(() =>
     defaultNewHouseholdItems()
   );
+  const [welcomeJourney, setWelcomeJourney] = useState<WelcomeJourney>(() => copyWelcomeJourney(DEFAULT_WELCOME_JOURNEY));
+  const [hasFirmWelcomeDefault, setHasFirmWelcomeDefault] = useState(false);
   const [sentLink, setSentLink] = useState('');
   const [createdMatterId, setCreatedMatterId] = useState('');
   const [sendError, setSendError] = useState('');
@@ -138,6 +149,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
       setPhone('');
       setStep('details');
       setItems(defaultNewHouseholdItems());
+      const firmDefault = loadFirmWelcomeJourneyDefault();
+      setWelcomeJourney(copyWelcomeJourney(firmDefault ?? DEFAULT_WELCOME_JOURNEY));
+      setHasFirmWelcomeDefault(Boolean(firmDefault));
       setSentLink('');
       setCreatedMatterId('');
       setSendError('');
@@ -157,12 +171,15 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
   const canReview = name.trim() !== '' && items.length > 0;
   const emailHref = useMemo(() => {
     if (!sentLink) return '';
-    const subject = encodeURIComponent('Your onboarding link');
-    const body = encodeURIComponent(
-      `Hi ${firstName(name)},\n\nHere is the secure onboarding link we discussed:\n\n${sentLink}\n\nThis link works for 30 days. You can stop and come back anytime.\n`
-    );
+    const welcomeEmail = renderWelcomeJourneyEmail('welcome', {
+      client_first_name: firstName(name), firm_name: firmName, secure_link: sentLink,
+      primary_next_item: items.find((item) => item.t !== 'readonly_card')?.label ?? 'the first checklist item',
+      advisor_first_name: (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
+    });
+    const subject = encodeURIComponent(welcomeEmail.subject);
+    const body = encodeURIComponent(welcomeEmail.body);
     return `mailto:${encodeURIComponent(email.trim())}?subject=${subject}&body=${body}`;
-  }, [email, name, sentLink]);
+  }, [email, firmName, firmSession?.email, items, name, sentLink]);
 
   const moveItem = (itemId: string, direction: -1 | 1) => {
     setItems((current) => {
@@ -271,6 +288,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
           advisor_name: (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
           advisor_email: firmSession?.email ?? BRAND.urls.supportEmail,
           next_steps: [...NEW_HOUSEHOLD_NEXT_STEPS],
+          journey: welcomeJourney,
         },
         relay,
       });
@@ -480,6 +498,16 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
                 </div>
               ))}
             </div>
+            <details className="rounded-md border border-slate-200 bg-white p-3" open={!hasFirmWelcomeDefault}>
+              <summary className="cursor-pointer text-sm font-medium text-slate-700">Welcome journey</summary>
+              <div className="mt-3">
+                <WhatHappensNextEditor
+                  value={welcomeJourney}
+                  onChange={setWelcomeJourney}
+                  onSaveDefault={(next) => { saveFirmWelcomeJourneyDefault(next); setWelcomeJourney(next); setHasFirmWelcomeDefault(true); }}
+                />
+              </div>
+            </details>
           </div>
         )}
 

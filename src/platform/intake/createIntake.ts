@@ -1,4 +1,6 @@
 import type { FormRequest } from '@/platform/intake/types';
+import type { WelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
+import { sanitizeWelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
 import { createInitialIntakeLinkBundle, type InitialIntakeLinkBundle } from './intakeLifecycle';
 import { storeIntakeSecrets } from './intakeKeychain';
 import type { IntakeRelayClient } from './IntakeRelayClient';
@@ -9,6 +11,8 @@ export interface IntakeFirm {
   advisor_name: string;
   advisor_email: string;
   next_steps: string[];
+  /** Firm-authored client wording. It is sealed as part of the checklist. */
+  journey: WelcomeJourney;
 }
 
 export interface AdvisorIntakeChecklist extends FormRequest {
@@ -36,7 +40,7 @@ export async function createAdvisorIntake(
     ...options.checklist,
     client_first_name: options.clientFirstName,
     confirmations: {},
-    firm: options.firm,
+    firm: { ...options.firm, journey: sanitizeWelcomeJourney(options.firm.journey) },
   };
   const firstItem = checklist.items[0]?.item_id;
   const initialState = {

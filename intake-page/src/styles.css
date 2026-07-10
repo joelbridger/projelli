@@ -287,6 +287,76 @@ button,
   padding-left: 1.25rem;
 }
 
+.journey-timeline,
+.team-block,
+.help-block {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--border);
+  padding-top: 1rem;
+}
+
+.journey-timeline h2,
+.team-block h2,
+.help-block h2,
+.resume-banner h2 {
+  margin: 0 0 0.45rem;
+  color: #172019;
+  font-size: 1rem;
+}
+
+.journey-timeline ol {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding-left: 1.15rem;
+}
+
+.journey-timeline li {
+  display: grid;
+  gap: 0.15rem;
+  color: #526152;
+}
+
+.journey-timeline li.current strong,
+.journey-timeline li.current em {
+  color: var(--accent-strong);
+}
+
+.journey-timeline em {
+  font-size: 0.85rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.team-person {
+  display: grid;
+  gap: 0.2rem;
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.team-person span {
+  color: #526152;
+  font-size: 0.9rem;
+}
+
+.team-person .team-avatar {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(47, 125, 98, 0.12);
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
+.team-person p { margin: 0.15rem 0 0; }
+
+.resume-banner { margin-bottom: 1rem; }
+
 .sr-only {
   position: absolute;
   width: 1px;

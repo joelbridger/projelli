@@ -1,4 +1,5 @@
 import type { FormRequest } from '@/platform/intake/types';
+import type { WelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
 
 export interface IntakeFirm {
   name: string;
@@ -6,6 +7,7 @@ export interface IntakeFirm {
   advisor_name: string;
   advisor_email: string;
   next_steps: string[];
+  journey: WelcomeJourney;
 }
 
 export interface IntakeChecklist extends FormRequest {
@@ -20,6 +22,11 @@ export interface ResumeState {
   confirmations?: Record<string, string>;
   skipped_item_ids?: string[];
   pending_uploads?: Record<string, { submission_id: string; chunk_count: number; content_key_b64?: string }>;
+  /** Advisor-side state, still sealed with the page state. */
+  journey_state?: 'not_started' | 'in_progress' | 'reviewing' | 'paperwork' | 'signature_ready' | 'active_client' | 'expired' | 'revoked' | 'completed_old_link';
+  current_milestone_id?: string;
+  handoff_person_name?: string;
+  phone_completed_item_ids?: string[];
 }
 
 export type AnswerPayload =
