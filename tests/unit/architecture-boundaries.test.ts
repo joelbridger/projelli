@@ -42,6 +42,7 @@ const ALLOWED_FEATURE_EDGES = new Set<string>([
   'documents->meetings',  // TabBar's dictation voice-note context menu (Task 10b) opens
                           // FileAsMeetingDialog to file the note into a client's Meetings/
   'firm->matters',        // solo-to-firm bridge reuses the matters promote-to-shared routine
+  'intake->email',        // intake nudges reuse the reviewed email draft provider helpers for optional body-only rewrites
   'matters->ask',         // Client Map reuses Ask's Sources column (SourcePanel + AnswerCitation) so the cited-sources card design is identical across both surfaces
   'matters->meetings',    // MattersHome/MatterHub host the Today's-meetings and Before-you-meet strips (Lantern-Plus Wave 1) — per-client meeting context lives on the Client Map surfaces, not a standalone tab
   'matters->intake',      // MatterHub hosts the Onboarding tab (OnboardingTab) and NewClientDialog composes the intake New-household checklist (newHouseholdTemplate) — client onboarding lives on the matters/Client Map surfaces (Intake Wave 1), same pattern as matters->meetings

@@ -224,6 +224,49 @@
         "copy-link-copied": "Copied",
         "link-signals-action": "Signals"
       }
+    },
+    "nudge": {
+      "based-on": "Based on missing items as of {{date}}",
+      "blocked": {
+        "cadence-wait_one": "You sent a note recently. You can save another draft in {{count}} day.",
+        "cadence-wait_other": "You sent a note recently. You can save another draft in {{count}} days.",
+        "call": "Three notes with no reply. A quick call may help more.",
+        "nothing-missing": "Nothing is missing right now.",
+        "link-inactive": "This client link is not active.",
+        "default": "A nudge is not available right now."
+      },
+      "card": {
+        "badge": "Draft ready",
+        "review-action": "Review draft",
+        "call-suggestion": "Three notes have not been answered. Suggest a quick call instead."
+      },
+      "modal": {
+        "title": "Review nudge draft",
+        "description": "This saves a draft in your mailbox. It does not send anything.",
+        "close": "Close nudge draft",
+        "account-label": "Mailbox",
+        "to-label": "To",
+        "subject-label": "Subject",
+        "missing-label": "Missing items",
+        "link-label": "Client link",
+        "based-on-label": "Receipt",
+        "body-label": "Message",
+        "no-accounts": "No draft mailbox is connected. Copy the message and paste it into your email app.",
+        "imap-only": "This mailbox cannot save drafts. Copy the message or connect Outlook or Gmail.",
+        "stale-inline": "The missing items changed. Regenerate before saving.",
+        "stale-error": "The missing items changed. Regenerate the draft before saving.",
+        "not-eligible": "This nudge is no longer available.",
+        "copy-unavailable": "Clipboard is not available.",
+        "saved": "Saved to your Drafts folder. Review and send it from your mailbox.",
+        "copied": "Copied. Paste it into your email app.",
+        "footer-note": "The app owns the recipient, subject, link, and missing item list.",
+        "regenerate": "Regenerate",
+        "draft-in-my-voice": "Draft in my voice",
+        "drafting": "Drafting",
+        "copy-message": "Copy message",
+        "save-draft": "Save to my drafts",
+        "saving": "Saving"
+      }
     }
   },
   "layout": {
