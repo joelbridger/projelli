@@ -47,7 +47,18 @@ Codex adversarial (gpt-5.5) found 4 (3 P1): [P1] `intakeStore` partialize persis
 - Merge docs branch `lp/docs-w1bench` (W1-BENCH-RUNBOOK.md — the post-WORKER-DONE bench script). **REVIEW its "Hard Stops" section against this exec plan's gates before printing WORKER-DONE.**
 - All docs-only, coordinator-reviewed, branched off lp/intake → clean merges.
 
-## ✅ WAVE 1 DONE — gate green, pushed (`lp/intake` @ `53502a19`), 2026-07-10
+## 🔴 STOP-THE-LINE: coordinator's independent Wave-1 pass found 6 (3 P1 + 3 P2) — HARDENING FIX ROUND IN FLIGHT (2026-07-10)
+Source: `~/lantern-coordination/scratch-w1-final-findings.md`. All 6 CONFIRMED at HEAD (`ae7ca79d`). Wave 2 dispatch is BLOCKED until this merges + re-gates + re-pushes + WORKER-DONE re-printed.
+- **P1-1** `IntakeSyncClient.ts:~221` opens each chunk with the CHUNK's OWN self-reported ids, not the ENCLOSING submission's → transplant-attack class; manifest `chunk_hashes` never verified vs decrypted bytes. Fix: bind chunk-open to enclosing submission ids + expected index; verify chunk hashes; reject/flag mismatches.
+- **P1-2 (CONTRACT BREAK)** `createIntake.ts:34` sends `token_b64`, relay accepts only `auth_token`/`t_auth` → real links fail at create (`missing_fields`). Fix: send `auth_token`.
+- **P1-3 (CONTRACT BREAK)** page `relayClient.ts:24`/`submission.ts:110` GET `/intake/:id/item/:item_id/chunks`, relay (`server.ts:178`) only routes `(chunk|submit)` → real submissions fail. Fix: ADD the `chunks` index endpoint (count/indexes only) per ARCHITECTURE §6.
+- **P2-4** privacy-proof test is store-level only (random ciphertext) → never exercised the real HTTP/page/advisor flow. Fix: widen to the real path (folded into the E2E test).
+- **P2-5** `routes/intake.ts:236` rate-limits AFTER `authorizePublicIntake` → unknown/wrong-token/expired probes not throttled (id-space oracle). Fix: rate-limit before/regardless of auth.
+- **P2-6** `intake/mod.rs:69,85` + `store.rs` reveal/purge by `fact_id` alone (not matter-scoped) → cross-client fact risk. Fix: scope to (matter_id, fact_id).
+- **ROOT CAUSE + CENTERPIECE:** no test ran the REAL page→relay→IntakeSyncClient flow (Playwright mocked the relay; backend tests used their own field names) → the 2 contract breaks slipped my Wave-1 verification. The fix round MUST add a true E2E integration test (bun test in `backend/test/` booting the real relay + real client crypto/submit + real IntakeSyncClient decrypt+file) that FAILS on the current breaks and PASSES after — the new standing guarantee for the C↔B↔D wire contract.
+- **Fix round dispatched** (`laneHard-fix.log`, worktree `~/lp-w1-hard`, branch `lp/intake-w1-hardening`). After it lands: lead review + adversarial pass + re-gate + push + re-print WORKER-DONE.
+
+## ✅ WAVE 1 (initial) — gate green, pushed (`lp/intake` @ `53502a19`→`ae7ca79d`), 2026-07-10 — SUPERSEDED by the hardening round above
 Full `npm run gate` → **GATE GREEN** (typecheck, typecheck:tests, i18n completeness, vitest **7208 passed / 0 failed / 4 skipped**, ESLint gate, handle/token guards, cargo `--workspace`, tauri parity/contracts, provider/consent/case guards). backend `bun test` **211/0** (incl. the standing privacy-proof test). intake-page Playwright+axe **13/13** (incl. no-third-party-origin + axe-no-serious gates). `lp/intake` pushed, `HEAD == origin/lp/intake`, tree clean. WORKER-DONE printed. Legion phone-browser bench runs next per `W1-BENCH-RUNBOOK.md` (Hard Stops reviewed — compatible).
 
 ## Wave 1 COMPLETE — all 5 lanes merged (2026-07-10)
