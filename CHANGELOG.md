@@ -32,6 +32,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **ACATS Transfer Autopilot Waves A-C + D-lite.** Added the standalone ACATS
+  draft schema, delivering-firm normalization, statement classifier/extractor,
+  advisor review store, review UI, and Schwab Prep Packet `.docx` export. The
+  feature stays local-only, masks account numbers outside review, blocks
+  approval until required fields and warnings are handled, and does not depend
+  on the sibling Schwab prefill branch. Files:
+  `src/features/acats/{types,firmNormalization,format,extraction,reviewRules,acatsReviewStore,AcatsReviewScreen,schwabPrepPacket,index}.ts*`
+  plus focused ACATS tests in `src/features/acats/*.test.ts*`.
 - **Add-client overhaul + client groups (FB2 clientux lane).**
   - **Calm one-field create.** Adding a client is now a small modal with just a
     display name (`NewClientDialog`); on create you land inside the new client's
