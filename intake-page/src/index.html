@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en" data-relay-origin="__INTAKE_RELAY_ORIGIN__">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="__INTAKE_CSP__" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Lantern Intake Staging</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell" aria-labelledby="page-title">
+      <section class="panel">
+        <p class="eyebrow">Lantern Intake</p>
+        <h1 id="page-title">Staging page shell</h1>
+        <p class="body">
+          This hosted surface is staged for the page-integrity gate. The real
+          client intake flow lands here in Lane C.
+        </p>
+        <dl class="facts">
+          <div>
+            <dt>Status</dt>
+            <dd id="status">Loading</dd>
+          </div>
+          <div>
+            <dt>Relay</dt>
+            <dd id="relay-origin">Not loaded</dd>
+          </div>
+        </dl>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

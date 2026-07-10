@@ -1,0 +1,7 @@
+# STAGING ONLY. Add these above the final 404 catch-all in the existing tunnel.
+# Both hosts route to Caddy on :8080; Caddy chooses page vs relay by Host header.
+
+- hostname: intake-staging.lanternplatform.app
+  service: http://localhost:8080
+- hostname: intake-relay-staging.lanternplatform.app
+  service: http://localhost:8080
