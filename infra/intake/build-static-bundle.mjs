@@ -11,6 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   buildIntakeCsp,
@@ -28,18 +29,20 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const REPO_ROOT = path.resolve(__dirname, '../..');
-const DEFAULT_SOURCE_DIR = path.join(REPO_ROOT, 'intake-page/src');
-const DEFAULT_OUT_DIR = path.join(REPO_ROOT, 'intake-page/dist/staging');
+const DEFAULT_PAGE_DIR = path.join(REPO_ROOT, 'intake-page');
+const DEFAULT_SOURCE_DIR = path.join(DEFAULT_PAGE_DIR, 'dist');
+const DEFAULT_OUT_DIR = path.join(REPO_ROOT, 'dist/intake-staging');
 
 function parseArgs(argv) {
   const options = {
-    sourceDir: DEFAULT_SOURCE_DIR,
+    sourceDir: undefined,
     outDir: DEFAULT_OUT_DIR,
     relayOrigin:
       process.env.INTAKE_STAGING_RELAY_ORIGIN ??
       DEFAULT_INTAKE_STAGING_RELAY_ORIGIN,
     environment: 'staging',
     allowEphemeralSigningKey: false,
+    buildPage: true,
     printJson: false,
   };
 
@@ -56,6 +59,7 @@ function parseArgs(argv) {
     else if (arg === '--out-dir') options.outDir = path.resolve(next());
     else if (arg === '--relay-origin') options.relayOrigin = next();
     else if (arg === '--environment') options.environment = next();
+    else if (arg === '--no-page-build') options.buildPage = false;
     else if (arg === '--allow-ephemeral-signing-key')
       options.allowEphemeralSigningKey = true;
     else if (arg === '--print-json') options.printJson = true;
@@ -103,6 +107,20 @@ function walkFiles(dir) {
   return entries;
 }
 
+function runIntakePageBuild(pageDir = DEFAULT_PAGE_DIR) {
+  const result = spawnSync('npm', ['--prefix', pageDir, 'run', 'build'], {
+    cwd: REPO_ROOT,
+    stdio: 'inherit',
+    env: process.env,
+  });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(
+      `intake-page build failed with exit code ${String(result.status)}.`
+    );
+  }
+}
+
 function getSigningKeys(options) {
   const privateKeyPem = readPrivateKeyFromEnv();
   if (privateKeyPem) {
@@ -119,26 +137,30 @@ function getSigningKeys(options) {
 
 export function buildStaticBundle(rawOptions = {}) {
   const defaults = {
-    sourceDir: DEFAULT_SOURCE_DIR,
+    sourceDir: undefined,
     outDir: DEFAULT_OUT_DIR,
     relayOrigin:
       process.env.INTAKE_STAGING_RELAY_ORIGIN ??
       DEFAULT_INTAKE_STAGING_RELAY_ORIGIN,
     environment: 'staging',
     allowEphemeralSigningKey: false,
+    buildPage: undefined,
   };
   const options = { ...defaults };
   for (const [key, value] of Object.entries(rawOptions)) {
     if (value !== undefined) options[key] = value;
   }
 
-  const sourceDir = path.resolve(options.sourceDir);
+  const sourceDir = path.resolve(options.sourceDir ?? DEFAULT_SOURCE_DIR);
   const outDir = path.resolve(options.outDir);
   const relayOrigin = normalizeOrigin(options.relayOrigin);
   const csp = buildIntakeCsp(relayOrigin);
+  const shouldBuildPage = options.buildPage ?? options.sourceDir === undefined;
+
+  if (shouldBuildPage) runIntakePageBuild();
 
   if (!existsSync(sourceDir)) {
-    throw new Error(`Intake page source folder does not exist: ${sourceDir}`);
+    throw new Error(`Intake page build folder does not exist: ${sourceDir}`);
   }
 
   mkdirSync(outDir, { recursive: true });

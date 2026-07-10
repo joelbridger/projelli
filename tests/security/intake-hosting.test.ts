@@ -1,7 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { generateKeyPairSync } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 // prettier-ignore
@@ -11,6 +17,8 @@ import { buildIntakeSecurityHeaders, DEFAULT_INTAKE_STAGING_RELAY_ORIGIN, findTh
 import { buildStaticBundle } from '../../infra/intake/build-static-bundle.mjs';
 // @ts-expect-error The intake deploy helpers are plain Node ESM scripts.
 import { startDryRunServer } from '../../infra/intake/deploy-staging.mjs';
+// @ts-expect-error The intake deploy helpers are plain Node ESM scripts.
+import { verifyServedBundle } from '../../infra/intake/verify-served-bundle.mjs';
 // @ts-expect-error The intake deploy helpers are plain Node ESM scripts.
 import { runFragmentNeverLoggedCheck } from '../../infra/intake/fragment-never-logged-check.mjs';
 
@@ -65,13 +73,13 @@ function runNode(
 }
 
 describe('intake hosting headers', () => {
-  it('pins CSP to the staging relay and rejects third-party origins', () => {
+  it('pins CSP to self and rejects third-party origins', () => {
     const relayOrigin = DEFAULT_INTAKE_STAGING_RELAY_ORIGIN;
     const headers = buildIntakeSecurityHeaders(relayOrigin);
     const csp = parseCsp(headers['Content-Security-Policy']);
 
     expect(csp.get('default-src')).toEqual(["'none'"]);
-    expect(csp.get('connect-src')).toEqual([relayOrigin]);
+    expect(csp.get('connect-src')).toEqual(["'self'"]);
     expect(headers['Referrer-Policy']).toBe('no-referrer');
     expect(headers['X-Content-Type-Options']).toBe('nosniff');
     expect(validateIntakePageHeaders(headers, relayOrigin).errors).toEqual([]);
@@ -83,9 +91,69 @@ describe('intake hosting headers', () => {
     };
     expect(validateIntakePageHeaders(poisoned, relayOrigin).ok).toBe(false);
   });
+
+  it('keeps page hosting same-origin, ordered, and short-retained', () => {
+    const pageSnippet = readFileSync(
+      path.join(repoRoot, 'infra/intake/Caddyfile.intake-page-staging.snippet'),
+      'utf8'
+    );
+    const relaySnippet = readFileSync(
+      path.join(repoRoot, 'infra/intake/Caddyfile.intake-relay-staging.snippet'),
+      'utf8'
+    );
+
+    expect(pageSnippet).toContain("connect-src 'self'");
+    expect(pageSnippet).toContain('reverse_proxy /intake/* 127.0.0.1:5195');
+    expect(pageSnippet.indexOf('reverse_proxy /intake/*')).toBeLessThan(
+      pageSnippet.indexOf('try_files {path} /index.html')
+    );
+    expect(pageSnippet.indexOf('handle_path /_releases/*')).toBeLessThan(
+      pageSnippet.indexOf('try_files {path} /index.html')
+    );
+    expect(pageSnippet).toMatch(
+      /log @intake_page_staging \{[\s\S]*roll_keep_for 24h/u
+    );
+    expect(relaySnippet).toMatch(
+      /log @intake_relay_staging \{[\s\S]*roll_keep_for 24h/u
+    );
+  });
 });
 
 describe('intake bundle integrity', () => {
+  it('default pipeline signs the compiled Vite output, not raw source', () => {
+    const temp = makeTempDir();
+    const relayOrigin = DEFAULT_INTAKE_STAGING_RELAY_ORIGIN;
+    const keys = makeSigningKeys();
+    const previousPrivateKey =
+      process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'];
+
+    let build: ReturnType<typeof buildStaticBundle>;
+    try {
+      process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'] =
+        keys.privateKeyPem;
+      build = buildStaticBundle({ outDir: temp, relayOrigin });
+    } finally {
+      if (previousPrivateKey === undefined)
+        delete process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'];
+      else
+        process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'] =
+          previousPrivateKey;
+    }
+
+    const assetPaths = build.manifest.assets.map(
+      (asset: { path: string }) => asset.path
+    );
+    expect(assetPaths).toContain('index.html');
+    expect(
+      assetPaths.some((assetPath: string) =>
+        /^assets\/.+\.js$/u.test(assetPath)
+      )
+    ).toBe(true);
+    expect(
+      assetPaths.some((assetPath: string) => assetPath.endsWith('.tsx'))
+    ).toBe(false);
+  });
+
   it('passes when served bytes match and fails non-zero after an asset is tampered', async () => {
     const temp = makeTempDir();
     const sourceDir = path.join(temp, 'src');
@@ -146,6 +214,69 @@ describe('intake bundle integrity', () => {
       const tampered = await runNode(baseArgs, env);
       expect(tampered.status).not.toBe(0);
       expect(tampered.stderr).toContain('Integrity mismatch');
+    } finally {
+      await new Promise((resolve) => dryRunServer.server.close(resolve));
+    }
+  });
+
+  it('rejects a stale but valid served release when it is not the just-built bundle', async () => {
+    const temp = makeTempDir();
+    const sourceDir = path.join(temp, 'src');
+    const outDir = path.join(temp, 'dist');
+    const relayOrigin = DEFAULT_INTAKE_STAGING_RELAY_ORIGIN;
+    const keys = makeSigningKeys();
+    const previousPrivateKey =
+      process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'];
+
+    mkdirSync(sourceDir, { recursive: true });
+    writeFileSync(
+      path.join(sourceDir, 'index.html'),
+      '<!doctype html><html><head><title>Intake</title></head><body><script type="module" src="/app.js"></script></body></html>'
+    );
+    writeFileSync(path.join(sourceDir, 'app.js'), 'window.v = "old";\n');
+
+    let oldBuild: ReturnType<typeof buildStaticBundle>;
+    let newBuild: ReturnType<typeof buildStaticBundle>;
+    try {
+      process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'] =
+        keys.privateKeyPem;
+      oldBuild = buildStaticBundle({ sourceDir, outDir, relayOrigin });
+      writeFileSync(path.join(sourceDir, 'app.js'), 'window.v = "new";\n');
+      newBuild = buildStaticBundle({ sourceDir, outDir, relayOrigin });
+    } finally {
+      if (previousPrivateKey === undefined)
+        delete process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'];
+      else
+        process.env['INTAKE_MANIFEST_SIGNING_PRIVATE_KEY_PEM'] =
+          previousPrivateKey;
+    }
+
+    const dryRunServer = await startDryRunServer(
+      oldBuild.releaseDir,
+      relayOrigin
+    );
+    try {
+      await expect(
+        verifyServedBundle({
+          baseUrl: dryRunServer.baseUrl,
+          relayOrigin,
+          publicKeyPem: keys.publicKeyPem,
+          expectedVersion: newBuild.version,
+          expectedBundleHash: newBuild.bundleHash,
+        })
+      ).rejects.toThrow(
+        /Served manifest version mismatch|Served bundle hash mismatch/u
+      );
+
+      await expect(
+        verifyServedBundle({
+          baseUrl: dryRunServer.baseUrl,
+          relayOrigin,
+          publicKeyPem: keys.publicKeyPem,
+          expectedVersion: oldBuild.version,
+          expectedBundleHash: oldBuild.bundleHash,
+        })
+      ).resolves.toMatchObject({ ok: true, version: oldBuild.version });
     } finally {
       await new Promise((resolve) => dryRunServer.server.close(resolve));
     }

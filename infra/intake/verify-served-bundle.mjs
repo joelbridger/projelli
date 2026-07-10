@@ -13,6 +13,8 @@ function parseArgs(argv) {
     baseUrl: process.env.INTAKE_STAGING_BASE_URL,
     manifestPath: '/manifest.json',
     relayOrigin: process.env.INTAKE_STAGING_RELAY_ORIGIN,
+    expectedVersion: undefined,
+    expectedBundleHash: undefined,
     printJson: false,
   };
 
@@ -28,6 +30,9 @@ function parseArgs(argv) {
     if (arg === '--base-url') options.baseUrl = next();
     else if (arg === '--manifest-path') options.manifestPath = next();
     else if (arg === '--relay-origin') options.relayOrigin = next();
+    else if (arg === '--expected-version') options.expectedVersion = next();
+    else if (arg === '--expected-bundle-hash')
+      options.expectedBundleHash = next();
     else if (arg === '--print-json') options.printJson = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -98,6 +103,22 @@ export async function verifyServedBundle(rawOptions = {}) {
   if (manifest.bundle_hash_sha256 !== expectedBundleHash) {
     throw new Error(
       `Manifest bundle hash mismatch: manifest ${manifest.bundle_hash_sha256}, computed ${expectedBundleHash}.`
+    );
+  }
+  if (
+    rawOptions.expectedVersion &&
+    manifest.version !== rawOptions.expectedVersion
+  ) {
+    throw new Error(
+      `Served manifest version mismatch: expected ${rawOptions.expectedVersion}, got ${manifest.version}.`
+    );
+  }
+  if (
+    rawOptions.expectedBundleHash &&
+    manifest.bundle_hash_sha256 !== rawOptions.expectedBundleHash
+  ) {
+    throw new Error(
+      `Served bundle hash mismatch: expected ${rawOptions.expectedBundleHash}, got ${manifest.bundle_hash_sha256}.`
     );
   }
 

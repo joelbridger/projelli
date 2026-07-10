@@ -50,13 +50,13 @@ export function normalizeOrigin(rawOrigin) {
 }
 
 export function buildIntakeCsp(relayOrigin) {
-  const origin = normalizeOrigin(relayOrigin);
+  normalizeOrigin(relayOrigin);
   return [
     "default-src 'none'",
     "script-src 'self'",
     "style-src 'self'",
     "img-src 'self' data: blob:",
-    `connect-src ${origin}`,
+    "connect-src 'self'",
     "base-uri 'none'",
     "form-action 'none'",
     "frame-ancestors 'none'",
@@ -99,8 +99,8 @@ export function parseCsp(csp) {
 }
 
 export function findThirdPartyOriginTokens(headers, relayOrigin) {
-  const origin = normalizeOrigin(relayOrigin);
-  const allowedOrigins = new Set([origin]);
+  normalizeOrigin(relayOrigin);
+  const allowedOrigins = new Set();
   const found = [];
 
   for (const [name, value] of Object.entries(headers ?? {})) {
@@ -129,7 +129,7 @@ function sameTokens(actual, expected) {
 }
 
 export function validateIntakePageHeaders(headers, relayOrigin) {
-  const origin = normalizeOrigin(relayOrigin);
+  normalizeOrigin(relayOrigin);
   const errors = [];
   const csp = getHeader(headers, 'Content-Security-Policy');
   if (!csp) {
@@ -141,7 +141,7 @@ export function validateIntakePageHeaders(headers, relayOrigin) {
       ['script-src', ["'self'"]],
       ['style-src', ["'self'"]],
       ['img-src', ["'self'", 'data:', 'blob:']],
-      ['connect-src', [origin]],
+      ['connect-src', ["'self'"]],
       ['base-uri', ["'none'"]],
       ['form-action', ["'none'"]],
       ['frame-ancestors', ["'none'"]],
@@ -174,7 +174,7 @@ export function validateIntakePageHeaders(headers, relayOrigin) {
     errors.push('Permissions-Policy is required.');
   }
 
-  const thirdPartyTokens = findThirdPartyOriginTokens(headers, origin);
+  const thirdPartyTokens = findThirdPartyOriginTokens(headers, relayOrigin);
   for (const hit of thirdPartyTokens) {
     errors.push(`Third-party origin token in ${hit.header}: ${hit.token}`);
   }
