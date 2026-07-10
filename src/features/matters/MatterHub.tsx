@@ -25,6 +25,7 @@ import { useMatters, useActiveMatterPrivileged, useMatterStore, SAMPLE_MATTER_ID
 import { useIntakeStore } from '@/platform/intake/intakeStore';
 import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
 import { loadIntakeLinkSecret, updateIntakeLinkSecret } from '@/platform/intake/intakeKeychain';
+import { deriveAuthToken } from '@/platform/intake/intakeCrypto';
 import { regenerateIntakeLink } from '@/platform/intake/intakeLifecycle';
 import { b64ToBytes } from '@/platform/intake/pageSeal';
 import { useFirmStore } from '@/platform/firm/firmStore';
@@ -152,6 +153,21 @@ function addDaysIso(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() + days);
   return d.toISOString();
+}
+
+const INTAKE_LINK_SECRET_SAVE_ATTEMPTS = 3;
+
+async function saveIntakeLinkSecretWithRetry(intakeId: string, linkSecretB64: string): Promise<boolean> {
+  let saveFailures = 0;
+  for (let attempt = 0; attempt < INTAKE_LINK_SECRET_SAVE_ATTEMPTS; attempt += 1) {
+    try {
+      await updateIntakeLinkSecret(intakeId, linkSecretB64);
+      return true;
+    } catch {
+      saveFailures += 1;
+    }
+  }
+  return saveFailures < INTAKE_LINK_SECRET_SAVE_ATTEMPTS;
 }
 
 // ── MatterHub ──────────────────────────────────────────────────────────────
@@ -321,16 +337,41 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       stateCiphertextB64: current.stateCiphertextB64,
       oldLinkSecret: b64ToBytes(oldSecretB64),
     });
-    await updateIntakeLinkSecret(intakeId, regenerated.linkSecretB64);
-    try {
-      await makeIntakeRelay().regenerateIntake(intakeId, {
-        token_b64: regenerated.tokenB64,
-        checklist_ciphertext_b64: regenerated.checklistCiphertextB64,
-        state_ciphertext_b64: regenerated.stateCiphertextB64,
-      });
-    } catch (error) {
-      await updateIntakeLinkSecret(intakeId, oldSecretB64);
-      throw error;
+    const relay = makeIntakeRelay();
+    await relay.regenerateIntake(intakeId, {
+      token_b64: regenerated.tokenB64,
+      checklist_ciphertext_b64: regenerated.checklistCiphertextB64,
+      state_ciphertext_b64: regenerated.stateCiphertextB64,
+    });
+    const savedNewSecret = await saveIntakeLinkSecretWithRetry(intakeId, regenerated.linkSecretB64);
+    if (!savedNewSecret) {
+      let restoredPreviousLink = false;
+      let restoreFailed = false;
+      try {
+        const oldToken = (await deriveAuthToken(b64ToBytes(oldSecretB64))).tokenB64;
+        // W2-COORD-FIX-REGEN-COMPENSATE
+        await relay.regenerateIntake(intakeId, {
+          token_b64: oldToken,
+          checklist_ciphertext_b64: current.checklistCiphertextB64,
+          state_ciphertext_b64: current.stateCiphertextB64,
+        });
+        restoredPreviousLink = true;
+      } catch {
+        restoreFailed = true;
+      }
+      if (restoredPreviousLink) {
+        throw new Error(
+          'The client onboarding link was regenerated on the server, but this device could not save it in secure storage. The previous link was restored and still works. Try regenerate again once secure storage is available.',
+        );
+      }
+      if (restoreFailed) {
+        throw new Error(
+          'The client onboarding link was regenerated on the server, but this device could not save it in secure storage. Lantern could not restore the previous link automatically. Try regenerate again once secure storage is available.',
+        );
+      }
+      throw new Error(
+        'The client onboarding link was regenerated on the server, but this device could not save it in secure storage. Try regenerate again once secure storage is available.',
+      );
     }
     updateIntake(intakeId, {
       link: regenerated.link,

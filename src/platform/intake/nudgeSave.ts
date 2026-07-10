@@ -23,6 +23,14 @@ export interface SaveNudgeDraftInput {
   now?: Date;
 }
 
+export interface RecordNudgeCopiedToClipboardInput {
+  intake: IntakeRecord;
+  draft: BuiltNudgeDraft;
+  bodyText: string;
+  copyText: (text: string) => Promise<void>;
+  now?: Date;
+}
+
 export interface RecordCallSuggestionInput {
   intake: IntakeRecord;
   draft: BuiltNudgeDraft;
@@ -153,6 +161,92 @@ export async function saveNudgeDraftToMailbox(input: SaveNudgeDraftInput): Promi
           account: input.account,
         }),
         status: 'failed',
+      },
+    });
+    throw error;
+  }
+}
+
+export async function recordNudgeCopiedToClipboard(
+  input: RecordNudgeCopiedToClipboardInput,
+): Promise<{ auditPairId: string }> {
+  assertNudgeDraftHasLink(input.draft);
+  const pairId = auditPairId();
+  const at = (input.now ?? new Date()).toISOString();
+  const bodyText = enforceNudgeBodyInvariants(input.bodyText, input.draft);
+
+  logIntakeNudgeAudit({
+    action: 'intake_nudge',
+    description: 'Prepared an onboarding nudge message to copy.',
+    model: undefined,
+    inputs: {
+      matterId: input.intake.matterId,
+      requestId: input.intake.intakeId,
+      sequence: input.draft.sequence,
+      missingItemIds: input.draft.missingItemIds,
+    },
+    outputs: {},
+    userDecision: 'approved',
+    metadata: baseMetadata({
+      phase: 'intent',
+      auditPairId: pairId,
+      intake: input.intake,
+      draft: input.draft,
+    }),
+  });
+
+  try {
+    await input.copyText(`${input.draft.subject}\n\n${bodyText}`);
+    // W2-COORD-FIX-COPY-AUDIT
+    logIntakeNudgeAudit({
+      action: 'intake_nudge',
+      description: 'Copied an onboarding nudge message for mailbox review.',
+      model: undefined,
+      inputs: {},
+      outputs: {
+        channel: 'copied_message',
+        recipientCount: input.draft.to.length,
+      },
+      userDecision: 'approved',
+      metadata: {
+        ...baseMetadata({
+          phase: 'outcome',
+          auditPairId: pairId,
+          intake: input.intake,
+          draft: input.draft,
+        }),
+        status: 'copied',
+        channel: 'copied_message',
+        recipientCount: input.draft.to.length,
+      },
+    });
+    useIntakeStore.getState().recordNudgeAttempt(input.intake.intakeId, {
+      sequence: input.draft.sequence,
+      at,
+      missingItemIds: input.draft.missingItemIds,
+      auditPairId: pairId,
+      channel: 'email_draft',
+    });
+    return { auditPairId: pairId };
+  } catch (error) {
+    logIntakeNudgeAudit({
+      action: 'intake_nudge',
+      description: 'Failed to copy an onboarding nudge message.',
+      model: undefined,
+      inputs: {},
+      outputs: {
+        error: sanitizeError(error),
+      },
+      userDecision: 'approved',
+      metadata: {
+        ...baseMetadata({
+          phase: 'outcome',
+          auditPairId: pairId,
+          intake: input.intake,
+          draft: input.draft,
+        }),
+        status: 'failed',
+        channel: 'copied_message',
       },
     });
     throw error;

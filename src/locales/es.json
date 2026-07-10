@@ -3985,7 +3985,7 @@
     },
     "link": {
       "title": "Estado del enlace",
-      "local-note": "Esto muestra lo que su app ya sabe sobre el enlace seguro de este cliente.",
+      "local-note": "Esto muestra lo que este dispositivo registró por última vez sobre el enlace seguro de este cliente. Es posible que aquí no aparezca un cambio hecho en otro dispositivo.",
       "status-heading": "Enlace actual",
       "controls-heading": "Controles del enlace",
       "signals-heading": "Notas del enlace",

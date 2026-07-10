@@ -297,19 +297,49 @@ describe('nudge engine', () => {
     });
   });
 
-  it('uses copy message instead of draft save when no draft-capable mailbox exists', async () => {
+  it('copies through the nudge audit path and cadence-blocks a second copy', async () => {
     accountsBox.value = [{ provider: 'imap', account: 'firm@example.test', label: 'IMAP mailbox' }];
-    renderModal(intake());
+    const auditSpy = vi.fn((entry: AuditLogEntry) => entry);
+    renderModal(intake(), auditSpy);
 
     const copyButton = await screen.findByTestId('nudge-copy-message');
     fireEvent.click(copyButton);
 
+    const clipboard = navigator.clipboard as Clipboard & { writeText: ReturnType<typeof vi.fn> };
     await waitFor(() => {
-      const clipboard = navigator.clipboard as Clipboard & { writeText: ReturnType<typeof vi.fn> };
-      expect(clipboard.writeText).toHaveBeenCalled();
+      expect(clipboard.writeText).toHaveBeenCalledTimes(1);
     });
     expect(commandCalled('mail_save_draft')).toBe(false);
     expect(commandCalled('mail_send')).toBe(false);
+    await waitFor(() => {
+      expect(auditSpy).toHaveBeenCalledTimes(2);
+    });
+
+    const intent = auditEntryAt(auditSpy.mock.calls, 0);
+    const outcome = auditEntryAt(auditSpy.mock.calls, 1);
+    expect(intent.metadata['phase']).toBe('intent');
+    expect(outcome.metadata['phase']).toBe('outcome');
+    expect(outcome.metadata['auditPairId']).toBe(intent.metadata['auditPairId']);
+    expect(outcome.metadata['status']).toBe('copied');
+    expect(outcome.metadata['channel']).toBe('copied_message');
+    expect(outcome.outputs['recipientCount']).toBe(1);
+    expect(JSON.stringify([intent, outcome])).not.toContain('Hi Sarah');
+
+    const stored = useIntakeStore.getState().intakesById['intake-1'];
+    expect(stored?.nudges).toHaveLength(1);
+    expect(stored?.nudges[0]).toMatchObject({
+      sequence: 1,
+      missingItemIds: ['license-back', 'income-docs'],
+      channel: 'email_draft',
+      auditPairId: intent.metadata['auditPairId'],
+    });
+
+    fireEvent.click(copyButton);
+    await waitFor(() => {
+      expect(screen.getByRole('alert').textContent).toContain('no longer available');
+    });
+    expect(clipboard.writeText).toHaveBeenCalledTimes(1);
+    expect(auditSpy).toHaveBeenCalledTimes(2);
   });
 
   it('lets AI rewrite body prose only and reasserts the code-owned link and missing list', async () => {

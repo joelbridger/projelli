@@ -107,7 +107,7 @@
     },
     "link": {
       "title": "Link status",
-      "local-note": "This shows what your app already knows about this client's secure link.",
+      "local-note": "This shows what this device last recorded about the client's secure link. A change made on another device may not show here.",
       "status-heading": "Current link",
       "controls-heading": "Link controls",
       "signals-heading": "Link notes",

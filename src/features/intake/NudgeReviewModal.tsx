@@ -20,7 +20,7 @@ import {
   mailConnectedAccounts,
   type ConnectedAccount,
 } from '@/platform/utils/mail-commands';
-import { saveNudgeDraftToMailbox } from '@/platform/intake/nudgeSave';
+import { recordNudgeCopiedToClipboard, saveNudgeDraftToMailbox } from '@/platform/intake/nudgeSave';
 import {
   resolveEmailProvider,
 } from '@/features/email/resolveEmailProvider';
@@ -257,11 +257,31 @@ export function NudgeReviewModal({
       setStatus('error');
       return;
     }
-    const finalBody = enforceNudgeBodyInvariants(body, activeDraft);
-    void clipboard.writeText(`${activeDraft.subject}\n\n${finalBody}`)
+    const liveIntake = latestIntake();
+    const liveRow = deriveOnboardingRow(liveIntake, now ?? new Date(), DEFAULT_ONBOARDING_CONFIG);
+    if (!missingItemIdsMatch(activeDraft.missingItemIds, liveRow.missingItemIds)) {
+      setError(t('intake.nudge.modal.stale-error'));
+      setStatus('error');
+      return;
+    }
+    if (!liveRow.nudgeEligibility.eligible) {
+      setError(t('intake.nudge.modal.not-eligible'));
+      setStatus('error');
+      return;
+    }
+    setStatus('saving');
+    setError(null);
+    void recordNudgeCopiedToClipboard({
+      intake: liveIntake,
+      draft: activeDraft,
+      bodyText: body,
+      copyText: (text) => clipboard.writeText(text),
+      ...(now ? { now } : {}),
+    })
       .then(() => {
         setStatus('copied');
         setError(null);
+        onSaved?.();
       })
       .catch((caught: unknown) => {
         setError(caught instanceof Error ? caught.message : String(caught));
@@ -564,7 +584,8 @@ export function NudgeReviewModal({
                 variant="primary"
                 iconLeft={Copy}
                 onClick={handleCopy}
-                disabled={!draft}
+                disabled={!draft || status === 'saving'}
+                loading={status === 'saving'}
                 data-testid="nudge-copy-message"
               >
                 {t('intake.nudge.modal.copy-message')}
