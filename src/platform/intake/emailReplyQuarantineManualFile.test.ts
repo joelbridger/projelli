@@ -35,15 +35,15 @@ describe('emailReplyQuarantineManualFile', () => {
   it('writes the audit intent before the manual file effect, then records advisor-confirmed provenance', async () => {
     const events: Array<Record<string, unknown>> = [];
     const order: string[] = [];
-    setIntakeEmailReplyAuditEmitter(async (entry) => { order.push(`audit:${String(entry.metadata['phase'])}`); events.push(entry); });
-    const setStatus = vi.fn(async () => ({ ...quarantine, status: 'manual_filed' as const }));
-    const persistAttachment = vi.fn(async () => { order.push('file'); return { path: 'Requests/onboarding/email-replies/message-1/file.pdf' }; });
+    setIntakeEmailReplyAuditEmitter((entry) => { order.push(`audit:${String(entry.metadata['phase'])}`); events.push(entry); return Promise.resolve(); });
+    const setStatus = vi.fn(() => Promise.resolve({ ...quarantine, status: 'manual_filed' as const }));
+    const persistAttachment = vi.fn(() => { order.push('file'); return Promise.resolve({ path: 'Requests/onboarding/email-replies/message-1/file.pdf' }); });
 
     await expect(manualFileQuarantinedEmail({
       quarantineId: quarantine.quarantineId, targetMatterId: 'matter-1', targetRequestId: 'intake-1',
       targetItemId: 'license', attachmentId: 'attachment-1', advisorId: 'advisor-1', reviewed: true,
-      now: new Date('2026-07-10T12:00:00.000Z'), getQuarantine: async () => quarantine,
-      getMessage: async () => ({ attachmentsUnsupported: false, attachments: [{ id: 'attachment-1', name: 'file.pdf', filename: 'file.pdf', kind: 'file' }] } as never),
+      now: new Date('2026-07-10T12:00:00.000Z'), getQuarantine: () => Promise.resolve(quarantine),
+      getMessage: () => Promise.resolve({ attachmentsUnsupported: false, attachments: [{ id: 'attachment-1', name: 'file.pdf', filename: 'file.pdf', kind: 'file' }] } as never),
       persistAttachment: persistAttachment as never, setStatus: setStatus as never,
     })).resolves.toEqual({ filePath: 'Requests/onboarding/email-replies/message-1/file.pdf', status: 'manual_filed' });
 
@@ -59,7 +59,7 @@ describe('emailReplyQuarantineManualFile', () => {
     const persistAttachment = vi.fn();
     await expect(manualFileQuarantinedEmail({
       quarantineId: quarantine.quarantineId, targetMatterId: 'matter-1', targetRequestId: 'intake-1', targetItemId: 'made-up',
-      attachmentId: 'attachment-1', advisorId: 'advisor-1', reviewed: true, getQuarantine: async () => quarantine,
+      attachmentId: 'attachment-1', advisorId: 'advisor-1', reviewed: true, getQuarantine: () => Promise.resolve(quarantine),
       persistAttachment: persistAttachment as never,
     })).rejects.toThrow('real open onboarding item');
     expect(persistAttachment).not.toHaveBeenCalled();
@@ -67,10 +67,10 @@ describe('emailReplyQuarantineManualFile', () => {
 
   it('audits an explicit dismissal as not intake material', async () => {
     const events: Array<Record<string, unknown>> = [];
-    setIntakeEmailReplyAuditEmitter(async (entry) => { events.push(entry); });
+    setIntakeEmailReplyAuditEmitter((entry) => { events.push(entry); return Promise.resolve(); });
     const inactiveQuarantine = { ...quarantine, reason: 'inactive_request' } as const;
-    const setStatus = vi.fn(async () => ({ ...inactiveQuarantine, status: 'dismissed' as const }));
-    await dismissQuarantinedEmail({ quarantineId: quarantine.quarantineId, advisorId: 'advisor-1', getQuarantine: async () => inactiveQuarantine, setStatus: setStatus as never });
+    const setStatus = vi.fn(() => Promise.resolve({ ...inactiveQuarantine, status: 'dismissed' as const }));
+    await dismissQuarantinedEmail({ quarantineId: quarantine.quarantineId, advisorId: 'advisor-1', getQuarantine: () => Promise.resolve(inactiveQuarantine), setStatus: setStatus as never });
     expect(setStatus).toHaveBeenCalledWith('quarantine-1', 'dismissed');
     expect(events).toHaveLength(2);
     expect(events[1]?.['description']).toContain('not intake material');
@@ -81,24 +81,24 @@ describe('emailReplyQuarantineManualFile', () => {
     await expect(dismissQuarantinedEmail({
       quarantineId: quarantine.quarantineId,
       advisorId: 'advisor-1',
-      getQuarantine: async () => quarantine,
+      getQuarantine: () => Promise.resolve(quarantine),
       setStatus: setStatus as never,
     })).rejects.toThrow('requires manual review');
     expect(setStatus).not.toHaveBeenCalled();
   });
 
   it('retries a failed status update from its durable receipt without saving the attachment twice', async () => {
-    setIntakeEmailReplyAuditEmitter(async () => undefined);
-    const persistAttachment = vi.fn(async () => ({ path: 'Requests/onboarding/email-replies/message-1/file.pdf' }));
-    const getMessage = vi.fn(async () => ({
+    setIntakeEmailReplyAuditEmitter(() => Promise.resolve());
+    const persistAttachment = vi.fn(() => Promise.resolve({ path: 'Requests/onboarding/email-replies/message-1/file.pdf' }));
+    const getMessage = vi.fn(() => Promise.resolve({
       attachmentsUnsupported: false,
       attachments: [{ id: 'attachment-1', name: 'file.pdf', filename: 'file.pdf', kind: 'file' }],
     }));
     let attempts = 0;
-    const setStatus = vi.fn(async () => {
+    const setStatus = vi.fn(() => {
       attempts += 1;
-      if (attempts === 1) throw new Error('temporary status failure');
-      return { ...quarantine, status: 'manual_filed' as const };
+      if (attempts === 1) return Promise.reject(new Error('temporary status failure'));
+      return Promise.resolve({ ...quarantine, status: 'manual_filed' as const });
     });
     const options = {
       quarantineId: quarantine.quarantineId,
@@ -108,7 +108,7 @@ describe('emailReplyQuarantineManualFile', () => {
       attachmentId: 'attachment-1',
       advisorId: 'advisor-1',
       reviewed: true,
-      getQuarantine: async () => quarantine,
+      getQuarantine: () => Promise.resolve(quarantine),
       getMessage: getMessage as never,
       persistAttachment: persistAttachment as never,
       setStatus: setStatus as never,
