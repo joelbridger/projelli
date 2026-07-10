@@ -25,6 +25,7 @@ export interface OnboardingBoardProps {
   onCopyLink?: (row: OnboardingRow) => Promise<void> | void;
   renderNudgeSlot?: (row: OnboardingRow) => ReactNode;
   renderLinkSignals?: (row: OnboardingRow) => ReactNode;
+  renderEmailReplySignals?: (row: OnboardingRow) => ReactNode;
 }
 
 function defaultNewClient(): void {
@@ -40,6 +41,7 @@ export function OnboardingBoard({
   onCopyLink,
   renderNudgeSlot,
   renderLinkSignals,
+  renderEmailReplySignals,
 }: OnboardingBoardProps) {
   // LANE1-ONBOARDING-BOARD
   const { t } = useTranslation();
@@ -188,6 +190,7 @@ export function OnboardingBoard({
               {...(onOpenLinkSignals ? { onOpenLinkSignals } : {})}
               {...(renderNudgeSlot ? { renderNudgeSlot } : {})}
               {...(renderLinkSignals ? { renderLinkSignals } : {})}
+              {...(renderEmailReplySignals ? { renderEmailReplySignals } : {})}
             />
           ))}
         </div>

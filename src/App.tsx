@@ -104,6 +104,7 @@ import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
 import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
 import { setIntakeNudgeAuditEmitter } from '@/platform/intake/nudgeAudit';
+import { setIntakeEmailReplyAuditEmitter } from '@/platform/intake/emailReplyAudit';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   getOrCreateSampleMatter,
@@ -1601,6 +1602,14 @@ function AppShell() {
       setIntakeNudgeAuditEmitter(null);
     };
   }, [emitAuditEntry]);
+
+  useEffect(() => {
+    // Email-reply filing waits for this promise before any file or fact write.
+    setIntakeEmailReplyAuditEmitter(addAuditEntry);
+    return () => {
+      setIntakeEmailReplyAuditEmitter(null);
+    };
+  }, [addAuditEntry]);
 
   // Handle save audio recording (extracted to useAudioRecording)
   const { handleSaveAudioRecording } = useAudioRecording({

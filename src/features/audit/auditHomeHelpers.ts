@@ -125,6 +125,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   'email.send': Send,
   'email.draft_saved': Save,
   intake_nudge: Save,
+  intake_email_reply: Save,
   external_export_consent: ShieldCheck,
   // Marketplace template lifecycle.
   template_installed_from_marketplace: FilePlus,
@@ -206,6 +207,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   'email.send': 'Email Sent',
   'email.draft_saved': 'Draft Saved',
   intake_nudge: 'Intake Nudge',
+  intake_email_reply: 'Email Reply Intake',
   external_export_consent: 'Exported-Report Consent',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'Template Installed',
@@ -290,6 +292,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   'email.send': 'system',
   'email.draft_saved': 'system',
   intake_nudge: 'system',
+  intake_email_reply: 'system',
   external_export_consent: 'privilege',
   // Marketplace template lifecycle.
   template_installed_from_marketplace: 'system',

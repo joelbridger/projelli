@@ -234,6 +234,13 @@ pub fn run() {
             commands::intake::intake_fact_list,
             commands::intake::intake_fact_reveal,
             commands::intake::intake_fact_purge,
+            commands::intake::intake_email_reply_save_proposal,
+            commands::intake::intake_email_reply_save_quarantine,
+            commands::intake::intake_email_reply_list_proposals,
+            commands::intake::intake_email_reply_get_proposal,
+            commands::intake::intake_email_reply_mark_row_completed,
+            commands::intake::intake_email_reply_set_proposal_status,
+            commands::intake::intake_email_reply_list_quarantines,
             // OneDrive / SharePoint document connector (read-only Graph import).
             commands::onedrive::commands::onedrive_set_workspace,
             commands::onedrive::commands::onedrive_connect,

@@ -3983,6 +3983,32 @@
       "no-facts": "Noch keine Angaben erhalten.",
       "view-in-folder": "Im Ordner anzeigen"
     },
+    "emailReply": {
+      "title": "E-Mail-Antworten warten",
+      "channel-label": "E-Mail-Antwort. Nicht Ende-zu-Ende verschlüsselt.",
+      "helper": "Dies kam über Ihr Postfach, nicht über den sicheren Link. Prüfen Sie es vor dem Ablegen.",
+      "source-line": "Von {{sender}}",
+      "review": "Prüfen",
+      "review-title": "E-Mail-Antwort prüfen",
+      "select-row": "Dieses E-Mail-Antwort-Element auswählen",
+      "body-note": "E-Mail-Text",
+      "needs-manual-review": "Manuelle Prüfung erforderlich. Aus diesem E-Mail-Text kann nichts sicher abgelegt werden.",
+      "confirm-sensitive": "Ich habe diese maskierte sensible Angabe geprüft",
+      "accept-selected": "Ausgewählte annehmen",
+      "cancel": "Abbrechen",
+      "dismiss": "Verwerfen",
+      "load-error": "E-Mail-Antworten konnten nicht geladen werden.",
+      "accept-error": "Diese E-Mail-Antwort konnte nicht angenommen werden.",
+      "dismiss-error": "Diese E-Mail-Antwort konnte nicht verworfen werden.",
+      "partial-error": "Einige Elemente wurden gespeichert, aber ein Element muss geprüft werden.",
+      "banner-count_one": "{{count}} E-Mail-Antwort",
+      "banner-count_other": "{{count}} E-Mail-Antworten",
+      "confidence": {
+        "high": "Hoch",
+        "medium": "Mittel",
+        "low": "Niedrig"
+      }
+    },
     "link": {
       "title": "Linkstatus",
       "local-note": "Dies zeigt, was dieses Gerät zuletzt über den sicheren Link dieses Kunden gespeichert hat. Eine Änderung auf einem anderen Gerät wird hier möglicherweise nicht angezeigt.",

@@ -81,6 +81,9 @@ export type AuditActionType =
   // Lantern Intake: an onboarding nudge draft or call suggestion, recorded as
   // an intent/outcome pair before and after the mailbox draft save.
   | 'intake_nudge'
+  // Lantern Intake: an authenticated normal-email reply accepted into an
+  // onboarding request. Always written as intent/outcome before effects.
+  | 'intake_email_reply'
   // Connector-access: the advisor's one-time decision on whether their firm
   // permits storing + AI-processing exported reports/notes recognized from
   // outside tools (RightCapital, Jump). A defensible, timestamped record.
