@@ -492,8 +492,9 @@ export class WorkspaceService {
    */
   async isSymlink(path: string): Promise<boolean> {
     this.ensureInitialized();
-    const validatedPath = this.pathValidator!.validatePath(path);
-    return this.backend!.isSymlink(this.toBackendPath(validatedPath));
+    if (!this.pathValidator || !this.backend) throw new Error('Workspace not initialized');
+    const validatedPath = this.pathValidator.validatePath(path);
+    return this.backend.isSymlink(this.toBackendPath(validatedPath));
   }
 
   /**
@@ -503,8 +504,9 @@ export class WorkspaceService {
    */
   async resolveSymlink(path: string): Promise<string> {
     this.ensureInitialized();
-    const validatedPath = this.pathValidator!.validatePath(path);
-    return this.backend!.resolveSymlink(this.toBackendPath(validatedPath));
+    if (!this.pathValidator || !this.backend) throw new Error('Workspace not initialized');
+    const validatedPath = this.pathValidator.validatePath(path);
+    return this.backend.resolveSymlink(this.toBackendPath(validatedPath));
   }
 
   /**

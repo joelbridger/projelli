@@ -141,7 +141,7 @@ describe('advisor-side intake document reader and classifier', () => {
   it('refuses a link in one client folder that resolves into another before reading bytes', async () => {
     const service = workspace();
     const linkedPath = `${matterFolderPath}/Requests/onboarding/other-client-return.pdf`;
-    service.isSymlink.mockImplementation(async (path: string) => path === linkedPath);
+    service.isSymlink.mockImplementation((path: string) => Promise.resolve(path === linkedPath));
     service.resolveSymlink.mockResolvedValue('/workspace/Clients/Other Household/secret.pdf');
 
     await expect(readIntakeDocument({

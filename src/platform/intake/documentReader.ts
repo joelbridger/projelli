@@ -199,6 +199,7 @@ async function readScannedPdf(
   } catch {
     return unreadable('ocr_failed');
   } finally {
+    // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort OCR client teardown; a teardown failure must not mask the read result.
     await dependencies.destroyOcrClient().catch(() => undefined);
   }
 }
@@ -246,6 +247,7 @@ export async function readIntakeDocument(options: ReadIntakeDocumentOptions): Pr
     } catch {
       return unreadable('ocr_failed');
     } finally {
+      // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort OCR client teardown; a teardown failure must not mask the read result.
       await dependencies.destroyOcrClient().catch(() => undefined);
     }
   }

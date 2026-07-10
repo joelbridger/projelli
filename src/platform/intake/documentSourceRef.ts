@@ -30,7 +30,7 @@ export function docSourceRefFromString(value: string): IntakeDocumentSourceRef |
     const path = record['path'];
     const rawPage = Object.hasOwn(record, 'page') ? record['page'] : undefined;
     if (rawPage !== undefined && (typeof rawPage !== 'number' || !Number.isSafeInteger(rawPage) || rawPage < 1)) return null;
-    const page = rawPage as number | undefined;
+    const page = rawPage;
     const canonicalPayload = page === undefined ? { path } : { path, page };
     if (encodeURIComponent(JSON.stringify(canonicalPayload)) !== encoded) return null;
     return { kind: 'document', path, snippet: '', ...(page === undefined ? {} : { page }) };
