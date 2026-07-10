@@ -178,6 +178,7 @@ pub fn run() {
             commands::mail::mail_list_messages_by_matter,
             // WS-B/C — re-tag a mail folder's messages to a matter in place.
             commands::mail::mail_retag_folder_matter,
+            commands::mail::mail_retag_messages_matter,
             // Re-tag a single message's RAG chunks to a matter in place.
             commands::mail::mail_retag_message_matter,
             // Clear every email's filing for a matter being deleted (BUG-042).

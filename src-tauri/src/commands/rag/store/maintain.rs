@@ -317,6 +317,12 @@ pub async fn retag_matter_for_path(
 /// workspace can't build an unbounded predicate string. Returns rows updated;
 /// empty `paths` is a no-op. Same tokenized predicate + validation as the
 /// single-path version.
+pub const RETAG_MATTER_PATHS_PER_UPDATE: usize = 512;
+
+fn retag_matter_path_batches(paths: &[String]) -> impl Iterator<Item = &[String]> {
+    paths.chunks(RETAG_MATTER_PATHS_PER_UPDATE)
+}
+
 pub async fn retag_matter_for_paths(
     table: &Table,
     paths: &[String],
@@ -329,7 +335,7 @@ pub async fn retag_matter_for_paths(
     let matter_id = validate_matter_id(matter_id)?;
     let value_expr = format!("'{}'", sql_escape(matter_id));
     let mut total = 0u64;
-    for chunk in paths.chunks(512) {
+    for chunk in retag_matter_path_batches(paths) {
         let tokens: Vec<String> = chunk
             .iter()
             .map(|p| format!("'{}'", sql_escape(&super::super::crypto::path_token(key, p))))
@@ -345,6 +351,25 @@ pub async fn retag_matter_for_paths(
         total += result.rows_updated;
     }
     Ok(total)
+}
+
+#[cfg(test)]
+mod batch_tests {
+    use super::*;
+
+    #[test]
+    fn mail_sized_retag_uses_one_vector_table_update() {
+        let paths: Vec<String> = (0..450).map(|id| format!("mail:{id}")).collect();
+        assert_eq!(retag_matter_path_batches(&paths).count(), 1);
+    }
+
+    #[test]
+    fn retag_update_count_is_ceiling_of_512_id_chunks() {
+        for count in [0usize, 1, 512, 513, 1024, 1025] {
+            let paths: Vec<String> = (0..count).map(|id| format!("mail:{id}")).collect();
+            assert_eq!(retag_matter_path_batches(&paths).count(), count.div_ceil(RETAG_MATTER_PATHS_PER_UPDATE));
+        }
+    }
 }
 
 /// Read the matter scope a given source path is currently filed under, by

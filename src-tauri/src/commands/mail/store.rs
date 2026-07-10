@@ -442,6 +442,12 @@ pub fn message_matter_key(message_id: &str) -> String {
     format!("matter:{message_id}")
 }
 
+/// Versioned, source-level marker for a committed mail filing whose matching
+/// RAG scope update still needs repair.
+pub fn pending_rag_retag_key(message_id: &str) -> String {
+    format!("v1:pending_rag_retag:{message_id}")
+}
+
 fn legacy_imap_message_id(current_id: &str) -> Option<String> {
     let (prefix_and_folder, uid) = current_id.rsplit_once(':')?;
     let (prefix, uidvalidity) = prefix_and_folder.rsplit_once(':')?;
@@ -875,6 +881,87 @@ impl EncryptedMailStore {
     /// Persist (upsert) a message's manual matter filing. Idempotent.
     pub fn set_message_matter(&self, message_id: &str, matter_id: &str) -> Result<()> {
         self.set_meta(&message_matter_key(message_id), matter_id)
+    }
+
+    /// Verify every selected message and write every override in one SQLCipher
+    /// transaction. A missing id leaves no partial filing behind.
+    pub fn set_message_matter_batch(&self, message_ids: &[String], matter_id: &str) -> Result<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let mut missing = Vec::new();
+        {
+            let mut exists = tx.prepare("SELECT 1 FROM messages WHERE id = ?1 LIMIT 1")?;
+            for id in message_ids {
+                if !exists.exists([id])? {
+                    missing.push(id.clone());
+                }
+            }
+        }
+        if !missing.is_empty() {
+            anyhow::bail!("message(s) not found: {}", missing.join(", "));
+        }
+        {
+            let mut write = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            for id in message_ids {
+                write.execute(rusqlite::params![message_matter_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Record the exact mail sources whose RAG matter update failed.
+    pub fn mark_pending_rag_retag_batch(&self, message_ids: &[String], matter_id: &str) -> Result<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        {
+            let mut write = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            for id in message_ids {
+                write.execute(rusqlite::params![pending_rag_retag_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Clear only the repair records for the target just written; an older retry
+    /// cannot erase a newer pending repair after a later re-file.
+    pub fn clear_pending_rag_retag_batch(&self, message_ids: &[String], matter_id: &str) -> Result<()> {
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        {
+            let mut delete = tx.prepare("DELETE FROM meta WHERE key = ?1 AND value = ?2")?;
+            for id in message_ids {
+                delete.execute(rusqlite::params![pending_rag_retag_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn pending_rag_retags(&self) -> Result<Vec<(String, String)>> {
+        let c = lock_unpoison(&self.conn);
+        let mut stmt = c.prepare(
+            "SELECT key, value FROM meta WHERE key LIKE 'v1:pending_rag_retag:%' ORDER BY key",
+        )?;
+        let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))?;
+        rows.map(|row| {
+            let (key, matter_id) = row?;
+            Ok((key.trim_start_matches("v1:pending_rag_retag:").to_string(), matter_id))
+        })
+        .collect()
     }
 
     /// Clear a message's manual matter filing (unfile). No-op when absent.
@@ -1403,6 +1490,30 @@ mod tests {
         // Survives close + reopen with the same key (durable across restarts).
         let s2 = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
         assert_eq!(s2.get_message_matter("AAMk-2").unwrap().as_deref(), Some("matter-acme"));
+    }
+
+    #[test]
+    fn enc_batch_message_matter_is_all_or_nothing_when_one_id_is_missing() {
+        let (_dir, s) = enc_store();
+        s.upsert(&mk_rec("present-a", "inbox", "m365", "default")).unwrap();
+        s.upsert(&mk_rec("present-b", "inbox", "m365", "default")).unwrap();
+        s.set_message_matter("present-a", "matter-before").unwrap();
+        let ids = vec!["present-a".to_string(), "missing".to_string(), "present-b".to_string()];
+        assert!(s.set_message_matter_batch(&ids, "matter-after").is_err());
+        assert_eq!(s.get_message_matter("present-a").unwrap().as_deref(), Some("matter-before"));
+        assert_eq!(s.get_message_matter("present-b").unwrap(), None);
+    }
+
+    #[test]
+    fn enc_pending_rag_retags_are_source_scoped_durable_and_clearable() {
+        let (_dir, s) = enc_store();
+        let ids = vec!["mail-a".to_string(), "mail-b".to_string()];
+        s.mark_pending_rag_retag_batch(&ids, "matter-acme").unwrap();
+        assert_eq!(s.pending_rag_retags().unwrap().len(), 2);
+        s.clear_pending_rag_retag_batch(&["mail-a".to_string()], "matter-stale").unwrap();
+        assert_eq!(s.pending_rag_retags().unwrap().len(), 2);
+        s.clear_pending_rag_retag_batch(&["mail-a".to_string()], "matter-acme").unwrap();
+        assert_eq!(s.pending_rag_retags().unwrap(), vec![("mail-b".to_string(), "matter-acme".to_string())]);
     }
 
     #[test]

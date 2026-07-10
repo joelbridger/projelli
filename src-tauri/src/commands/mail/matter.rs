@@ -1,6 +1,9 @@
 use super::*;
 use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
+use std::collections::{BTreeMap, HashSet};
 use tauri::State;
+
+const MAX_MAIL_RETAG_MESSAGE_IDS: usize = 1024;
 
 /// Resolve the matter id for a folder from the supplied mapping. Folder-level
 /// entries (matching provider+account+folder) take precedence over account-level
@@ -158,6 +161,7 @@ pub async fn mail_list_messages_by_matter(
 /// `Ok(0)` (the message has no indexed rows yet — a timing gap; it will pick up
 /// the right matter when it is indexed) is a legitimate NO-OP, NOT a failure, and
 /// must stay a no-op or every not-yet-indexed folder would be held out forever.
+#[cfg(test)]
 fn summarize_mail_retag(results: &[Result<u64, String>]) -> Result<u32, String> {
     let mut retagged = 0u32;
     let mut failures = 0u32;
@@ -180,6 +184,41 @@ fn summarize_mail_retag(results: &[Result<u64, String>]) -> Result<u32, String> 
         ));
     }
     Ok(retagged)
+}
+
+fn normalize_mail_message_ids(message_ids: Vec<String>) -> Result<Vec<String>, String> {
+    let mut seen = HashSet::new();
+    let mut ids = Vec::with_capacity(message_ids.len());
+    for message_id in message_ids {
+        let id = message_id.strip_prefix("mail:").unwrap_or(&message_id);
+        if id.is_empty() {
+            return Err("message id must not be empty".to_string());
+        }
+        if seen.insert(id.to_string()) {
+            ids.push(id.to_string());
+        }
+    }
+    if ids.is_empty() {
+        return Err("at least one message id is required".to_string());
+    }
+    if ids.len() > MAX_MAIL_RETAG_MESSAGE_IDS {
+        return Err(format!("too many messages (maximum {MAX_MAIL_RETAG_MESSAGE_IDS})"));
+    }
+    Ok(ids)
+}
+
+fn group_mail_retag_paths(
+    ids_and_overrides: Vec<(String, Option<String>)>,
+    folder_matter: &str,
+) -> BTreeMap<String, Vec<String>> {
+    let mut grouped = BTreeMap::new();
+    for (id, override_matter) in ids_and_overrides {
+        grouped
+            .entry(resolve_effective_matter(override_matter.as_deref(), folder_matter))
+            .or_insert_with(Vec::new)
+            .push(format!("mail:{id}"));
+    }
+    grouped
 }
 
 /// WS-B/C: re-tag every message stored under a (provider, account, folder) to a
@@ -278,31 +317,59 @@ pub async fn mail_retag_folder_matter(
     let vec_key = crate::commands::rag::crypto::get_or_create_master_key()
         .map_err(|e| format!("vectors key: {e}"))?;
 
-    let mut results: Vec<Result<u64, String>> = Vec::with_capacity(ids_and_overrides.len());
-    for (id, override_matter) in ids_and_overrides {
-        let path_key = format!("mail:{}", id);
-        // BUG-013: a manually-filed message keeps its DURABLE per-message matter
-        // even when the whole folder is remapped — only messages without a
-        // manual filing follow the folder's new matter. Without this, a folder
-        // remap would silently re-scope a manually-filed email's search results.
-        // BUG-042: an "unassigned" tombstone (left when a filed-to matter was
-        // deleted) stays unassigned rather than being absorbed into the folder.
-        let effective_matter =
-            resolve_effective_matter(override_matter.as_deref(), matter_id.as_str());
-        let outcome = crate::commands::rag::store::retag_matter_for_path(
-            &table, &path_key, &effective_matter, &vec_key,
+    // Preserve manual overrides, but update each effective target once per
+    // 512 paths rather than once per message.
+    let grouped = group_mail_retag_paths(ids_and_overrides, &matter_id);
+    let mut any_rows = false;
+    let selected_count = grouped.values().map(Vec::len).sum::<usize>() as u32;
+    for (effective_matter, paths) in grouped {
+        let updated = crate::commands::rag::store::retag_matter_for_paths(
+            &table, &paths, &effective_matter, &vec_key,
         )
-        .await;
-        if let Err(e) = &outcome {
-            log::warn!("retag matter for {path_key} failed: {e}");
-        }
-        // QA-44 (R7-2): a per-message Err means that message may STILL carry the
-        // OLD (wrong-client) matter tag. Collect every outcome and fail the whole
-        // command if any errored — a swallowed failure here would let the frontend
-        // discharge the durable fail-closed hold on a false success.
-        results.push(outcome.map_err(|e| e.to_string()));
+        .await
+        .map_err(|e| format!("batched RAG matter re-tag: {e}"))?;
+        any_rows |= updated > 0;
     }
-    summarize_mail_retag(&results)
+    Ok(if any_rows { selected_count } else { 0 })
+}
+
+/// File messages to a matter in one durable transaction and bounded vector-table
+/// updates. RAG failures are recorded per source for later recovery.
+#[tauri::command]
+pub async fn mail_retag_messages_matter(
+    state: State<'_, MailState>, message_ids: Vec<String>, matter_id: String,
+    expected_workspace: Option<String>,
+) -> Result<u32, String> {
+    crate::commands::rag::store::validate_matter_id(&matter_id).map_err(|e| format!("invalid matter id: {e}"))?;
+    let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+    if let Some(expected) = expected_workspace.as_deref() {
+        if !expected.is_empty() && std::path::Path::new(expected) != workspace.as_path() {
+            return Err("mail_retag_messages_matter: workspace changed".to_string());
+        }
+    }
+    let ids = normalize_mail_message_ids(message_ids)?;
+    let ws = workspace.clone(); let persisted_ids = ids.clone(); let persisted_matter = matter_id.clone();
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        EncryptedMailStore::open(&ws)?.set_message_matter_batch(&persisted_ids, &persisted_matter)
+    }).await.map_err(|e| format!("persist matter filing join: {e}"))?.map_err(|e| format!("persist matter filing: {e}"))?;
+    let paths: Vec<String> = ids.iter().map(|id| format!("mail:{id}")).collect();
+    let result = async {
+        let conn = crate::commands::rag::store::open_connection(&workspace).await?;
+        if !conn.table_names().execute().await?.iter().any(|name| name == crate::commands::rag::store::TABLE_NAME) { return Ok::<(), anyhow::Error>(()); }
+        let table = conn.open_table(crate::commands::rag::store::TABLE_NAME).execute().await?;
+        let key = crate::commands::rag::crypto::get_or_create_master_key()?;
+        crate::commands::rag::store::retag_matter_for_paths(&table, &paths, &matter_id, &key).await?;
+        Ok(())
+    }.await;
+    let ws = workspace.clone(); let repair_ids = ids.clone(); let repair_matter = matter_id.clone();
+    match result {
+        Ok(()) => tokio::task::spawn_blocking(move || -> anyhow::Result<()> { EncryptedMailStore::open(&ws)?.clear_pending_rag_retag_batch(&repair_ids, &repair_matter) }).await.map_err(|e| format!("clear pending RAG repair join: {e}"))?.map_err(|e| format!("clear pending RAG repair: {e}"))?,
+        Err(error) => {
+            tokio::task::spawn_blocking(move || -> anyhow::Result<()> { EncryptedMailStore::open(&ws)?.mark_pending_rag_retag_batch(&repair_ids, &repair_matter) }).await.map_err(|e| format!("record pending RAG repair join: {e}"))?.map_err(|e| format!("record pending RAG repair: {e}"))?;
+            return Err(format!("mail was filed locally, but its search scope update is pending repair: {error}"));
+        }
+    }
+    Ok(ids.len() as u32)
 }
 
 /// File a SINGLE message to a matter, durably.
@@ -474,5 +541,13 @@ mod tests {
     fn a_failure_wins_even_when_the_rest_were_not_indexed() {
         // Not-yet-indexed no-ops must not mask a real failure.
         assert!(summarize_mail_retag(&[Ok(0), Err("boom".to_string()), Ok(2)]).is_err());
+    }
+
+    #[test]
+    fn batch_ids_normalize_prefixes_and_deduplicate() {
+        assert_eq!(
+            normalize_mail_message_ids(vec!["mail:a".into(), "a".into(), "mail:b".into()]).unwrap(),
+            vec!["a".to_string(), "b".to_string()]
+        );
     }
 }
