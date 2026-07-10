@@ -33,8 +33,10 @@
 - Worktree: `/home/jameson/lp-t2-honesty-cards`, branch `lp/t2-honesty-cards`
 - Material: `docs/trust/integration-cards/` (TEMPLATE + 4 shipping cards already written and merged into this branch) + `docs/2026-07-10-advisor-pain-analysis-and-lantern-answers.md` §4 ("In-app, the connector shows the same card").
 - Scope for this build: the docs are done. Build the in-app surface only — a shared `IntegrationHonestyCard` component/dialog with typed content (reads / writes / never-touch / gating / limits / last-verified) transcribed 1:1 from the four shipping cards (Wealthbox, Email, OneDrive/SharePoint, Calendly), triggered from each connector's row in Account → Connections (extends the existing `InfoHelp` affordance pattern). No new connectors, no vendor work.
-- Status: not started
-- SHA / gate evidence: —
+- Status: **MERGED** into `lp/track2-standing` @ `d47ef430` (feat) + `b8e42989` (fix, folded into the merge)
+- Built by Codex (`778f896b`). Reviewed: `codex-review --base lp/track2-standing` found one real finding — `src/platform/connectors/*` importing `src/features/settings/IntegrationHonestyCard` violated the machine-enforced `tests/unit/architecture-boundaries.test.ts` layer DAG (platform must not import features). Fixed by moving `IntegrationHonestyCard.tsx` + `integrationHonestyCards.ts` (+ tests) to `src/platform/connectors/`, alongside the existing `oauthPending.ts`/`syncAuditError.ts` shared connector modules. Re-verified: typecheck clean, all 10 new/moved tests pass including the architecture-boundaries test and the markdown↔TS structural-parity test.
+- Gate evidence: full `npm run gate` minus the Rust step (logged reason: zero `src-tauri/` changes in this diff) — all steps green except two flagged items, both confirmed transient/environmental on isolated rerun, not caused by this diff: (1) an ESLint baseline regression on `src/features/documents/versioning/VersionService.ts` (a file untouched by this merge) — clean on `npm run lint:gate` rerun; (2) a 5s timeout on `tests/unit/provider-front-door.test.ts` (a synchronous full-repo fs scan) under heavy concurrent load from the other two active Codex lanes — passes in isolation (`npx vitest run tests/unit/provider-front-door.test.ts`, 5/5 green). Handle guard: 8 new handles frozen clean, no vanished handles. Token guard: clean, no new hardcoded colors.
+- SHA / gate evidence: merge commit `d47ef430` on `lp/track2-standing`; gate log `/home/jameson/lp-track2-logs/gate-honesty-cards.log`.
 
 ## Merge order
 
@@ -42,3 +44,4 @@ No hard dependency between lanes — they land independently as each clears revi
 
 ## Log
 - 2026-07-10: tracker created, three worktrees created, docs cherry-picked, lanes about to dispatch.
+- 2026-07-10: Lane C (honesty cards) merged into `lp/track2-standing` @ `d47ef430`, gate green (two flagged items independently confirmed transient, not real regressions).
