@@ -46,6 +46,13 @@ import type { AssuredProvider, BillingMeta, ManagedProviderKey } from "./assured
 export const INTAKE_EXPIRY_CIPHERTEXT_GRACE_DAYS = 30;
 export const INTAKE_EXPIRY_CIPHERTEXT_GRACE_MS = INTAKE_EXPIRY_CIPHERTEXT_GRACE_DAYS * 24 * 60 * 60 * 1000;
 
+/** Store intake expiries in sortable UTC ISO form so retention range queries are reliable. */
+function normalizeIntakeExpiry(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) throw new Error("invalid_intake_expires_at");
+  return new Date(timestamp).toISOString();
+}
+
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS orgs (
   org_id              TEXT PRIMARY KEY,
@@ -1138,6 +1145,7 @@ export class Store {
     state_ciphertext: Uint8Array;
   }): IntakeRecord {
     const now = this.nowIso();
+    const expiresAt = normalizeIntakeExpiry(input.expires_at);
     this.db
       .query(
         `INSERT INTO intakes
@@ -1151,7 +1159,7 @@ export class Store {
         input.user_id,
         input.seat_id,
         input.token_hash,
-        input.expires_at,
+        expiresAt,
         input.checklist_ciphertext,
         input.state_ciphertext,
         now,
@@ -1217,9 +1225,10 @@ export class Store {
   }
 
   extendIntake(intakeId: string, expiresAt: string): boolean {
+    const normalizedExpiry = normalizeIntakeExpiry(expiresAt);
     const res = this.db
       .query(`UPDATE intakes SET expires_at = ? WHERE intake_id = ?`)
-      .run(expiresAt, intakeId);
+      .run(normalizedExpiry, intakeId);
     return res.changes > 0;
   }
 

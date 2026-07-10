@@ -445,8 +445,9 @@ export async function handleExtendIntake(req: Request, store: Store, intakeId: s
   if (typeof read.body.expires_at !== "string" || !Number.isFinite(Date.parse(read.body.expires_at))) {
     return error("invalid_expires_at", 400);
   }
-  store.extendIntake(intakeId, read.body.expires_at);
-  return json({ ok: true, intake_id: intakeId, expires_at: read.body.expires_at });
+  const expiresAt = new Date(read.body.expires_at).toISOString();
+  store.extendIntake(intakeId, expiresAt);
+  return json({ ok: true, intake_id: intakeId, expires_at: expiresAt });
 }
 
 // ---------------------------------------------------------------------------

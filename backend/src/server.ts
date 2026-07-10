@@ -10,7 +10,7 @@
  * headers (the desktop webview calls from tauri://localhost).
  */
 
-import { config } from "./lib/config.ts";
+import { clientIpFromPeer, config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
 import { json, error, preflight, startRateLimitGc } from "./lib/http.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
@@ -123,7 +123,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       const url = new URL(req.url);
       const path = url.pathname;
       const method = req.method;
-      const ip = srv.requestIP(req)?.address ?? "unknown";
+      const ip = clientIpFromPeer(srv.requestIP(req)?.address, req.headers.get("x-forwarded-for"));
 
       if (method === "OPTIONS") return preflight();
 

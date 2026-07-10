@@ -6,7 +6,13 @@ import {
   Store,
 } from "../src/lib/db.ts";
 import { config } from "../src/lib/config.ts";
-import { MAX_INTAKE_FILE_BYTES, MAX_INTAKE_SUBMISSIONS, MAX_INTAKE_TOTAL_BYTES } from "../src/lib/intake.ts";
+import {
+  MAX_INTAKE_CHUNK_BYTES,
+  MAX_INTAKE_FILE_BYTES,
+  MAX_INTAKE_SUBMISSIONS,
+  MAX_INTAKE_TOTAL_BYTES,
+  publicIntakeRateLimit,
+} from "../src/lib/intake.ts";
 import { getIntakeAbuseTelemetry, resetIntakeAbuseTelemetryForTests } from "../src/lib/intakeTelemetry.ts";
 import {
   handleIntakeBundle,
@@ -180,5 +186,43 @@ describe("intake relay abuse hardening", () => {
     expect(store.finalizeIntakeSubmission({ intake_id: withinGrace.intake_id, item_id: "ack", submission_id: "ack-sid", manifest_ciphertext: new Uint8Array([5]), wrapped_content_key: new Uint8Array([4]) }).ok).toBe(true);
     expect(store.ackIntakeCiphertext({ intake_id: withinGrace.intake_id, submission_ids: ["ack-sid"] })).toMatchObject({ deleted_chunks: 1, wiped_submissions: 1 });
     expect(store.countIntakeChunks(withinGrace.intake_id)).toBe(0);
+  });
+
+  test("normalizes parseable non-ISO expiry before the retention sweep", () => {
+    const store = new Store(":memory:");
+    const { advisor } = seedIntake(store, "normal-expiry", "normal-token");
+    const sweepAt = Date.now();
+    const expiredRfc2822 = new Date(sweepAt - INTAKE_EXPIRY_CIPHERTEXT_GRACE_MS - 60_000).toUTCString();
+    const expectedIso = new Date(expiredRfc2822).toISOString();
+
+    const expired = store.createIntake({
+      intake_id: "rfc-expiry",
+      org_id: advisor.org.org_id,
+      user_id: advisor.user.user_id,
+      seat_id: advisor.seat.seat_id,
+      token_hash: hmacHash("rfc-token"),
+      expires_at: expiredRfc2822,
+      checklist_ciphertext: new Uint8Array([1]),
+      state_ciphertext: new Uint8Array([2]),
+    });
+    expect(expired.expires_at).toBe(expectedIso);
+    expect(store.extendIntake("normal-expiry", expiredRfc2822)).toBe(true);
+    expect(store.getIntake("normal-expiry")?.expires_at).toBe(expectedIso);
+
+    expect(store.purgeExpiredIntakeCiphertext(sweepAt).deleted_intakes).toBe(2);
+    expect(store.getIntake("rfc-expiry")).toBeNull();
+    expect(store.getIntake("normal-expiry")).toBeNull();
+
+    expect(() => store.extendIntake("normal-expiry", "not-a-date")).toThrow("invalid_intake_expires_at");
+  });
+
+  test("allows every chunk in one maximum-size intake through the IP limiter", () => {
+    const ip = `full-upload-${crypto.randomUUID()}`;
+    const intakeId = `full-upload-${crypto.randomUUID()}`;
+    const chunkCount = Math.ceil(MAX_INTAKE_TOTAL_BYTES / MAX_INTAKE_CHUNK_BYTES);
+
+    for (let chunk = 0; chunk < chunkCount; chunk++) {
+      expect(publicIntakeRateLimit(ip, intakeId)).toBeNull();
+    }
   });
 });

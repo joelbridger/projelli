@@ -7,6 +7,7 @@
 
 import { randomBytes, generateKeyPairSync, createPrivateKey, createPublicKey } from "node:crypto";
 import { readFileSync } from "node:fs";
+import { isIP } from "node:net";
 import type { KeyObject } from "node:crypto";
 
 function num(name: string, fallback: number, { min = 1 }: { min?: number } = {}): number {
@@ -22,6 +23,28 @@ function num(name: string, fallback: number, { min = 1 }: { min?: number } = {})
 function str(name: string, fallback: string): string {
   const raw = process.env[name];
   return raw === undefined || raw.trim() === "" ? fallback : raw;
+}
+
+/**
+ * Parse a comma-separated proxy allowlist once at boot. We keep addresses as
+ * IPs, rather than hostnames, because this list decides whether a request may
+ * supply its own client address via X-Forwarded-For.
+ */
+function trustedProxyIps(name: string, fallback: string): Set<string> {
+  const entries = str(name, fallback).split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  const ips = new Set<string>();
+  for (const entry of entries) {
+    if (isIP(entry) === 0) throw new Error(`config: ${name} must contain only comma-separated IP addresses`);
+    ips.add(entry);
+  }
+  if (ips.size === 0) throw new Error(`config: ${name} must contain at least one IP address`);
+  return ips;
+}
+
+function normalizedIp(value: string): string | null {
+  // Brackets are permitted by some proxy implementations around IPv6 values.
+  const withoutBrackets = value.trim().replace(/^\[([^\]]+)\]$/, "$1").toLowerCase();
+  return isIP(withoutBrackets) === 0 ? null : withoutBrackets;
 }
 
 /** Detect a test run so we never warn about ephemeral secrets in `bun test`. */
@@ -145,14 +168,20 @@ export const config = {
   relayRateLimitWindowSeconds: num("RELAY_RATE_LIMIT_WINDOW_SECONDS", 60),
 
   // Public intake links are unauthenticated until their capability token is
-  // checked. A normal upload is at most 25 chunks/file, so 120 requests/minute
-  // gives a real client room to resume while stopping a single-IP flood. The
-  // higher per-link cap stops a distributed flood without punishing a household
-  // using several devices on one link.
-  intakePublicIpRateLimitMax: num("INTAKE_PUBLIC_IP_RATE_LIMIT_MAX", 120),
+  // checked. The largest allowed 500 MiB intake is 125 four-MiB chunks. 300
+  // requests/minute leaves more than a full extra upload's worth of room for
+  // retries, bundle/resume checks, and finalizations, while still bounding a
+  // single-IP probe flood. The higher per-link cap stops a distributed flood
+  // without punishing a household using several devices on one link.
+  intakePublicIpRateLimitMax: num("INTAKE_PUBLIC_IP_RATE_LIMIT_MAX", 300),
   intakePublicIpRateLimitWindowSeconds: num("INTAKE_PUBLIC_IP_RATE_LIMIT_WINDOW_SECONDS", 60),
   intakePublicIntakeRateLimitMax: num("INTAKE_PUBLIC_LINK_RATE_LIMIT_MAX", 600),
   intakePublicIntakeRateLimitWindowSeconds: num("INTAKE_PUBLIC_LINK_RATE_LIMIT_WINDOW_SECONDS", 60),
+
+  // Caddy is normally the loopback peer. Only these known proxy addresses may
+  // provide X-Forwarded-For; direct clients never get to choose their bucket.
+  // Override with TRUSTED_PROXY_IPS for a non-loopback proxy (comma-separated).
+  trustedProxyIps: trustedProxyIps("TRUSTED_PROXY_IPS", "127.0.0.1,::1,::ffff:127.0.0.1"),
 
   // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
   // The cap bounds abuse; the timeout severs a hung provider connection so a
@@ -195,3 +224,27 @@ export const config = {
 } as const;
 
 export type Config = typeof config;
+
+/**
+ * Return the address used for rate limits. A forwarded chain is accepted only
+ * when the direct socket peer is on the configured proxy allowlist. In that
+ * case, walk from the proxy-facing end and choose the first untrusted hop: a
+ * client cannot spoof this position because a correctly configured proxy
+ * appends its direct client address to X-Forwarded-For.
+ */
+export function clientIpFromPeer(
+  peerIp: string | null | undefined,
+  xForwardedFor: string | null,
+  trustedProxies: ReadonlySet<string> = config.trustedProxyIps,
+): string {
+  const peer = normalizedIp(peerIp ?? "");
+  if (!peer) return peerIp?.trim() || "unknown";
+  if (!trustedProxies.has(peer) || !xForwardedFor) return peer;
+
+  const hops = xForwardedFor.split(",");
+  for (let index = hops.length - 1; index >= 0; index--) {
+    const hop = normalizedIp(hops[index]!);
+    if (hop && !trustedProxies.has(hop)) return hop;
+  }
+  return peer;
+}

@@ -20,7 +20,7 @@ function makeUser(store: Store, orgId: string, role: 'admin' | 'member') {
   };
 }
 
-function headers(identity: ReturnType<typeof makeUser>, deviceId?: string): HeadersInit {
+function headers(identity: ReturnType<typeof makeUser>, deviceId?: string): Record<string, string> {
   return { authorization: `Bearer ${identity.accessToken}`, 'x-seat-token': identity.seatToken, ...(deviceId ? { 'x-device-id': deviceId } : {}) };
 }
 
