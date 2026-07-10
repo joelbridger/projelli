@@ -1,5 +1,20 @@
 # Demo Video Playbook
 
+> **✅ APPROVED FORMAT — LOCKED (Jameson, 2026-07-10, after 6 iterations).** Every future demo video matches
+> this spec exactly; do not regress any line of it without his word:
+> - **Recording:** real app in the browser dev build, viewport **1280×800 at deviceScaleFactor 2** (never a
+>   bigger viewport), output **2560×1600 H.264 High, 60fps** (verify with ffprobe + a six-consecutive-frame
+>   cursor burst showing small even steps).
+> - **Cursor:** overlay eased per animation frame — visibly smooth motion.
+> - **Captions:** large type on ONE line, container ~80–85% of frame width, dark pill at **~0.65–0.7 opacity**,
+>   positioned bottom-center — but **top-center whenever the step's target is in the bottom 40%** of the frame
+>   (never cover what is being demonstrated). Plain client/household language, no em dashes, no time promises.
+> - **Verification:** extract frames and LOOK at them (cursor, caption size/position, crispness, light theme)
+>   before calling any video done. Design visually.
+> - **Publishing:** every new version gets a **new filename** (Cloudflare caches media) → copy to
+>   `/home/jameson/board/public/demo-videos/`, update `board-data.json`, run the board deploy — and confirm the
+>   PUBLISHED copy references the new names (the served file, not just the source).
+
 This is the repeatable recipe for making a short, polished product video. It
 records the real app, not a mock-up. The result should feel like someone is
 calmly showing a helpful feature to an advisor.
