@@ -228,6 +228,7 @@
   body.style-bento .stagecard h2{font-family:var(--sans);font-size:25px;font-weight:900;line-height:1.02;letter-spacing:-1px;margin-top:6px;align-items:flex-start}
   body.style-bento .stagecard h2 .picto{font-size:34px;line-height:.9;filter:drop-shadow(0 4px 4px rgba(100,77,98,.10))}
   body.style-bento .stagecard .story{font-size:12px;line-height:1.42;margin-top:9px;color:var(--ink-soft)}
+  .bento-inflow{display:inline-block; margin:14px 0 0 20px; font-size:11px; font-weight:700; color:#6b5bb3; background:#f1ecff; border-radius:999px; padding:4px 12px; letter-spacing:.2px}
   body.style-bento ul.features{padding:5px 15px 17px}
   body.style-bento li.group{border-top:1px solid rgba(92,74,110,.13);padding-top:13px;margin-top:12px}
   body.style-bento li.group:first-child{border-top:0}
@@ -285,7 +286,7 @@
   body.style-bento li.feat{padding:11px 4px 11px 0}
   body.style-bento li.group{padding-top:20px; margin-top:24px}
   body.style-bento .stagecard header{padding:24px 22px 18px}
-  body.style-bento .alabel{background:#fff; border-radius:999px; padding:7px 16px; font-size:12px; box-shadow:0 6px 18px rgba(60,40,120,.10); border:1px solid #eee7ff}
+  body.style-bento .alabel{background:#fff; border-radius:16px; padding:8px 14px; font-size:11.5px; line-height:1.35; box-shadow:0 6px 18px rgba(60,40,120,.10); border:1px solid #eee7ff; max-width:180px; white-space:normal; text-align:center}
   body.style-bento .foundation{padding:30px 34px}
   body.style-bento .foundation ul{gap:14px; margin-top:20px}
   .error{position:fixed; inset:0; display:flex; align-items:center; justify-content:center; z-index:30}
@@ -390,10 +391,10 @@ function themeLayout(style,count){
     for(i=0;i<count;i++) layout.positions.push({x:100+i*390,y:metroY[i%metroY.length],w:270});
     layout.worldW=2810; layout.foundationX=100; layout.foundationW=2610; layout.foundationGap=105;
   }else if(style==='bento'){
-    var tiles=[], bentoW=[320,420,330,320,330,520,320], bentoY=[150,210,170,205,160,220,175], bx=100;
-    for(i=0;i<count;i++){ tiles.push({x:bx,y:bentoY[i%7],w:bentoW[i%7]}); bx+=bentoW[i%7]+35; }
+    var tiles=[], bentoW=[320,420,330,320,330,460,320], bentoY=[150,230,170,215,160,240,185], bx=120;
+    for(i=0;i<count;i++){ tiles.push({x:bx,y:bentoY[i%7],w:bentoW[i%7]}); bx+=bentoW[i%7]+140; }
     for(i=0;i<count;i++) layout.positions.push(tiles[i]||{x:100+i*390,y:1900,w:360});
-    layout.worldW=2970; layout.foundationX=100; layout.foundationW=2770; layout.foundationGap=110;
+    layout.worldW=3560; layout.foundationX=120; layout.foundationW=3320; layout.foundationGap=130;
   }else{
     for(i=0;i<count;i++) layout.positions.push({x:MARGIN+i*(STAGE_W+GAP_X),y:MARGIN+STAGGER[i%STAGGER.length],w:STAGE_W});
     layout.worldW=MARGIN*2+count*STAGE_W+(count-1)*GAP_X;
@@ -468,8 +469,10 @@ function drawDefaultConnections(cards,d){
     if(state.style==='bento'){ p.setAttribute('stroke-linecap','round'); p.setAttribute('opacity','.6'); }
     else p.setAttribute('marker-end','url(#ah)');
     svg.appendChild(p);
-    var ly = state.style==='bento' ? Math.min(c.y,n.y)-46 : (y1+y2)/2; // bento: pills float in the sky, never over cards
-    addLabel(c.arrow,mx,ly,state.style==='bento'?'bento-flow':'');
+    // bento: center the pill in the vertical band where BOTH cards flank the gap,
+    // so it sits beside the cards on its connector line, never above or over them
+    if(state.style!=='bento') addLabel(c.arrow,mx,(y1+y2)/2,'');
+    // bento: transition text lives as an eyebrow chip INSIDE the next card (added at card build)
   });
   addFlywheel(cards,d);
 }
@@ -510,7 +513,8 @@ function buildMap(){
     var el=document.createElement('section');
     var stepWord=state.style==='editorial'?'Chapter':(state.style==='metro'?'Station':'Step');
     el.className='stagecard stage-'+esc(p.id||String(idx));
-    el.innerHTML='<header><div class="kicker">'+stepWord+' '+p.num+'</div>'+
+    var inflow=(state.style==='bento'&&idx>0&&stages[idx-1].arrow)?('<div class="bento-inflow">\u2192 '+esc(stages[idx-1].arrow)+'</div>'):'';
+    el.innerHTML=inflow+'<header><div class="kicker">'+stepWord+' '+p.num+'</div>'+
       '<h2><span class="picto">'+esc(p.icon||'')+'</span><span>'+esc(p.name)+'</span></h2>'+
       '<div class="story">'+esc(p.story||'')+'</div></header>'+
       '<ul class="features">'+rows+'</ul>';
