@@ -18,6 +18,49 @@ import {
   verifyAdvisorSeat,
 } from "../lib/intake.ts";
 
+/** A neutral response for firm key/inbox access, avoiding an intake-id oracle. */
+function intakeNotFound(): Response {
+  return error("intake_not_found", 404);
+}
+
+function isFirmPlan(plan: string): boolean {
+  return plan === 'practice';
+}
+
+/**
+ * Firm team read access: active seat + JWT, current matter membership or org
+ * admin, and no ethical wall. The key-routing row carries only the matter id.
+ */
+function authorizeSharedIntakeRead(
+  req: Request,
+  store: Store,
+  intakeId: string,
+): { ok: true; userId: string; orgId: string; intake: ReturnType<Store['getIntake']>; matterId: string } | { ok: false; resp: Response } {
+  const advisor = verifyAdvisorSeat(req, store);
+  if (!advisor.ok || !advisor.identity.access) return { ok: false, resp: intakeNotFound() };
+  const org = store.getOrg(advisor.identity.org_id);
+  if (!org || !isFirmPlan(org.plan)) return { ok: false, resp: intakeNotFound() };
+  const intake = store.getIntake(intakeId);
+  const matterId = store.getIntakeKeyMatterId(intakeId);
+  if (!intake || !matterId || intake.org_id !== advisor.identity.org_id) return { ok: false, resp: intakeNotFound() };
+  const matter = store.getMatter(matterId);
+  if (!matter || matter.org_id !== advisor.identity.org_id || store.isWalled(matterId, advisor.identity.user_id)) {
+    return { ok: false, resp: intakeNotFound() };
+  }
+  const allowed = advisor.identity.access.role === 'admin' || Boolean(store.getMatterMember(matterId, advisor.identity.user_id));
+  if (!allowed) return { ok: false, resp: intakeNotFound() };
+  return { ok: true, userId: advisor.identity.user_id, orgId: advisor.identity.org_id, intake, matterId };
+}
+
+/** Creator-only legacy/solo access, otherwise the Firm team read gate. */
+function authorizeIntakeRead(req: Request, store: Store, intakeId: string): { ok: true; intake: NonNullable<ReturnType<Store['getIntake']>> } | { ok: false; resp: Response } {
+  const creator = authorizeAdvisorIntake(req, store, intakeId);
+  if (creator.ok) return { ok: true, intake: creator.intake };
+  const shared = authorizeSharedIntakeRead(req, store, intakeId);
+  if (!shared.ok || !shared.intake) return { ok: false, resp: intakeNotFound() };
+  return { ok: true, intake: shared.intake };
+}
+
 const MAX_CREATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHECKLIST_BYTES * 1.4) + Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 64 * 1024;
 const MAX_STATE_REQUEST_BYTES = Math.ceil(MAX_INTAKE_STATE_BYTES * 1.4) + 8 * 1024;
 const MAX_CHUNK_REQUEST_BYTES = Math.ceil(MAX_INTAKE_CHUNK_BYTES * 1.4) + 64 * 1024;
@@ -143,6 +186,91 @@ export async function handleCreateIntake(req: Request, store: Store): Promise<Re
   );
 }
 
+// ---------------------------------------------------------------------------
+// Firm-only intake private-key grants. The relay never receives a plaintext
+// JWK; it validates routing only and persists opaque per-device ciphertext.
+// ---------------------------------------------------------------------------
+
+export async function handlePublishIntakeKeys(req: Request, store: Store, intakeId: string): Promise<Response> {
+  const advisor = verifyAdvisorSeat(req, store);
+  if (!advisor.ok || !advisor.identity.access) return intakeNotFound();
+  const org = store.getOrg(advisor.identity.org_id);
+  const intake = store.getIntake(intakeId);
+  if (!org || !isFirmPlan(org.plan) || !intake || intake.org_id !== advisor.identity.org_id) return intakeNotFound();
+  const canPublish = intake.user_id === advisor.identity.user_id || advisor.identity.access.role === 'admin';
+  if (!canPublish) return intakeNotFound();
+
+  const read = await readJsonWithCap<{ matter_id?: unknown; epoch?: unknown; wrapped?: unknown }>(req, 2 * 1024 * 1024);
+  if (!read.ok) return read.tooLarge ? error('payload_too_large', 413) : error('invalid_json', 400);
+  const { matter_id: matterId, epoch, wrapped } = read.body;
+  if (!isNonEmptyString(matterId, 128) || !Number.isInteger(epoch) || (epoch as number) < 1 || !Array.isArray(wrapped)) {
+    return error('missing_fields', 400);
+  }
+  const matter = store.getMatter(matterId);
+  if (!matter || matter.org_id !== advisor.identity.org_id || store.isWalled(matterId, advisor.identity.user_id)) return intakeNotFound();
+
+  const allowedUsers = new Set<string>();
+  for (const member of store.listMatterMembers(matterId)) {
+    if (!store.isWalled(matterId, member.user_id)) allowedUsers.add(member.user_id);
+  }
+  for (const admin of store.listOrgAdmins(advisor.identity.org_id)) {
+    if (!store.isWalled(matterId, admin.user_id)) allowedUsers.add(admin.user_id);
+  }
+  const validated: Array<{ user_id: string; device_id: string; wrapped_key_b64: string }> = [];
+  for (const entry of wrapped) {
+    if (!entry || typeof entry !== 'object') return error('invalid_wrapped_entry', 400);
+    const row = entry as Record<string, unknown>;
+    if (!isNonEmptyString(row.user_id, 128) || !isNonEmptyString(row.device_id, 128) || !isNonEmptyString(row.wrapped_key_b64, 32768)) {
+      return error('invalid_wrapped_entry', 400);
+    }
+    if (!allowedUsers.has(row.user_id)) return error('invalid_wrapped_recipient', 400);
+    const device = store.getDevice(row.device_id, row.user_id);
+    if (!device || device.org_id !== advisor.identity.org_id) return error('invalid_wrapped_recipient', 400);
+    validated.push({ user_id: row.user_id, device_id: row.device_id, wrapped_key_b64: row.wrapped_key_b64 });
+  }
+  store.replaceIntakeWrappedKeys({
+    intake_id: intakeId,
+    matter_id: matterId,
+    epoch: epoch as number,
+    published_by: advisor.identity.user_id,
+    wrapped: validated,
+  });
+  store.audit({ org_id: advisor.identity.org_id, actor_user_id: advisor.identity.user_id, action: 'intake.keys.publish', target: intakeId, detail: { epoch, stored: validated.length } });
+  return json({ ok: true, stored: validated.length });
+}
+
+export function handleFetchIntakeKey(req: Request, store: Store, intakeId: string): Response {
+  const shared = authorizeSharedIntakeRead(req, store, intakeId);
+  if (!shared.ok) return shared.resp;
+  const deviceId = req.headers.get('x-device-id');
+  if (!isNonEmptyString(deviceId, 128)) return error('missing_device_id', 400);
+  const row = store.getIntakeWrappedKeyForDevice(intakeId, shared.userId, deviceId);
+  if (!row || row.matter_id !== shared.matterId) return intakeNotFound();
+  store.audit({ org_id: shared.orgId, actor_user_id: shared.userId, action: 'intake.keys.fetch', target: intakeId, detail: { epoch: row.epoch, device_id: deviceId } });
+  return json({ epoch: row.epoch, wrapped_key_b64: row.wrapped_key_b64 });
+}
+
+/**
+ * Return only routing metadata for private-key grants addressed to this exact
+ * device. Each row is re-checked through the normal org, matter-membership,
+ * and ethical-wall gate before it is exposed.
+ */
+export function handleListGrantedIntakes(req: Request, store: Store): Response {
+  const advisor = verifyAdvisorSeat(req, store);
+  if (!advisor.ok || !advisor.identity.access) return intakeNotFound();
+  const deviceId = req.headers.get('x-device-id');
+  if (!isNonEmptyString(deviceId, 128)) return error('missing_device_id', 400);
+
+  const grants = store.listIntakeWrappedKeysForDevice(advisor.identity.user_id, deviceId);
+  const intakes: Array<{ intake_id: string; matter_id: string; epoch: number }> = [];
+  for (const grant of grants) {
+    const shared = authorizeSharedIntakeRead(req, store, grant.intake_id);
+    if (!shared.ok || shared.userId !== advisor.identity.user_id || shared.matterId !== grant.matter_id) continue;
+    intakes.push({ intake_id: grant.intake_id, matter_id: grant.matter_id, epoch: grant.epoch });
+  }
+  return json({ intakes });
+}
+
 export async function handleReplaceIntakeChecklist(req: Request, store: Store, intakeId: string): Promise<Response> {
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
@@ -193,7 +321,7 @@ export async function handleRegenerateIntake(req: Request, store: Store, intakeI
 }
 
 export function handleIntakeInbox(req: Request, store: Store, intakeId: string): Response {
-  const advisor = authorizeAdvisorIntake(req, store, intakeId);
+  const advisor = authorizeIntakeRead(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const cursor = parseCursor(req);
   if (!cursor.ok) return cursor.resp;
@@ -212,7 +340,7 @@ export function handleIntakeInbox(req: Request, store: Store, intakeId: string):
 }
 
 export function handleGetIntakeBlob(req: Request, store: Store, intakeId: string, blobId: string): Response {
-  const advisor = authorizeAdvisorIntake(req, store, intakeId);
+  const advisor = authorizeIntakeRead(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const id = Number(blobId);
   if (!Number.isInteger(id) || id <= 0) return error("invalid_blob_id", 400);
@@ -226,6 +354,9 @@ export function handleGetIntakeBlob(req: Request, store: Store, intakeId: string
 }
 
 export async function handleAckIntake(req: Request, store: Store, intakeId: string): Promise<Response> {
+  // Acknowledging deletes ciphertext. Read access is shareable, deletion is
+  // deliberately creator-only so a teammate cannot erase an offline owner's
+  // mailbox before every authorized device has fetched it.
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const read = await readJsonWithCap<{ submission_ids?: unknown; blob_ids?: unknown }>(req, 64 * 1024);

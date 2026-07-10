@@ -2,9 +2,12 @@ import { useEffect } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 
 import { useFirmStore } from '@/platform/firm/firmStore';
+import { FirmApiClient } from '@/platform/firm/FirmApiClient';
+import { getOrCreateDeviceKeypair } from '@/platform/firm/deviceKeys';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { IntakeRelayClient } from './IntakeRelayClient';
+import { obtainIntakeKey } from './intakeKeyShare';
 import {
   IntakeSyncClient,
   type IntakeInboxPage,
@@ -457,14 +460,99 @@ export async function syncActiveIntakeInboxesOnce(options: {
   relayClient: IntakeRelayInboxMethodClient;
   workspaceService: WorkspaceService;
 }): Promise<void> {
+  if (options.relayClient instanceof IntakeRelayClient) {
+    const firm = useFirmStore.getState();
+    if (firm.seatToken && firm.accessToken) {
+      try {
+        const { deviceId } = await getOrCreateDeviceKeypair();
+        await discoverGrantedIntakes({
+          relay: options.relayClient,
+          deviceId,
+          firmClient: new FirmApiClient(firm.tokenSource()),
+          seatToken: firm.seatToken,
+        });
+      } catch (error) {
+        console.warn('[useIntakeInboxSync] Intake grant discovery failed:', error);
+      }
+    }
+  }
   const activeIntakes = Object.values(useIntakeStore.getState().intakesById)
     .filter((intake) => intake.status === 'active');
   for (const intake of activeIntakes) {
     try {
+      // Team devices first install their own E2EE-wrapped private key. The
+      // existing IntakeSyncClient then performs the normal decrypt-and-file run.
+      if (options.relayClient instanceof IntakeRelayClient) {
+        const firm = useFirmStore.getState();
+        if (firm.seatToken && firm.accessToken) {
+          await obtainIntakeKey(
+            new FirmApiClient(firm.tokenSource()),
+            intake.intakeId,
+            intake.matterId,
+            firm.seatToken,
+          );
+        }
+      }
       await syncOneIntake(intake, options.relayClient, options.workspaceService);
     } catch (error) {
       console.warn('[useIntakeInboxSync] Intake inbox sync failed:', error);
     }
+  }
+}
+
+type GrantedIntakeRelay = Pick<IntakeRelayClient, 'listGrantedIntakes'>;
+
+/**
+ * Discover grants that arrived on a teammate device before it ever created a
+ * local IntakeRecord. The seeded record contains routing metadata only; key
+ * installation must succeed before it becomes eligible for mailbox sync.
+ */
+export async function discoverGrantedIntakes(options: {
+  relay: GrantedIntakeRelay;
+  deviceId: string;
+  firmClient: FirmApiClient;
+  seatToken: string;
+  obtainKey?: typeof obtainIntakeKey;
+}): Promise<void> {
+  const { intakes } = await options.relay.listGrantedIntakes(options.deviceId);
+  const store = useIntakeStore.getState();
+  const obtainKey = options.obtainKey ?? obtainIntakeKey;
+  for (const grant of intakes) {
+    const linkedMatter = useMatterStore.getState().matters.find(
+      (matter) => matter.firmMatterId === grant.matter_id,
+    );
+    const existing = store.intakesById[grant.intake_id];
+    if (existing) {
+      // A remote matter may have been opened since we first seeded this grant.
+      if (linkedMatter && existing.matterId !== linkedMatter.id) {
+        store.updateIntake(grant.intake_id, { matterId: linkedMatter.id });
+      }
+      continue;
+    }
+    const privateKey = await obtainKey(
+      options.firmClient,
+      grant.intake_id,
+      grant.matter_id,
+      options.seatToken,
+    );
+    if (!privateKey) continue;
+    store.upsertIntake({
+      intakeId: grant.intake_id,
+      // Use the linked local id when available. Until then, retain only the
+      // firm routing id; no client name or ciphertext metadata is persisted.
+      matterId: linkedMatter?.id ?? grant.matter_id,
+      clientFirstName: '',
+      firmName: '',
+      status: 'active',
+      expiresAt: '',
+      checklistVersion: 1,
+      items: [],
+      receivedItems: [],
+      flags: [],
+      knownSessionIds: [],
+      knownSubmissionIds: [],
+      nudges: [],
+    });
   }
 }
 

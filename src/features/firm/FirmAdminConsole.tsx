@@ -46,6 +46,9 @@ import {
   publishMatterKeyToMembers,
   autoRepublishHeldMatterKeys,
 } from '@/platform/firm/matterKeyService';
+import { autoRepublishHeldIntakeKeys } from '@/platform/intake/intakeKeyShare';
+import { useIntakeStore } from '@/platform/intake/intakeStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { AuditService } from '@/platform/audit/AuditService';
 import type {
   FirmMatter,
@@ -63,6 +66,15 @@ import { SK_FIRM_KEY_PUBLISH_FP } from '@/config/identity';
 const audit = new AuditService('firm');
 
 const ASSURED_PROVIDERS: AssuredProvider[] = ['anthropic', 'openai', 'google'];
+const SK_INTAKE_KEY_PUBLISH_FP = 'lantern.intake-key-publish-fingerprints.v1';
+
+function readIntakePublishFingerprints(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(SK_INTAKE_KEY_PUBLISH_FP) ?? '{}') as Record<string, string>; } catch { return {}; }
+}
+
+function writeIntakePublishFingerprints(value: Record<string, string>): void {
+  localStorage.setItem(SK_INTAKE_KEY_PUBLISH_FP, JSON.stringify(value));
+}
 
 /** Generate a random 16-char temporary password. */
 function generateTempPassword(): string {
@@ -245,16 +257,35 @@ export function FirmAdminConsole() {
   // without a human dance. Fingerprints persist across sessions so a
   // reopened console doesn't re-wrap an unchanged org.
   const fpRef = useRef<Record<string, string>>(readPublishFingerprints());
+  const intakeFpRef = useRef<Record<string, string>>(readIntakePublishFingerprints());
   useEffect(() => {
     if (firm.role !== 'admin' || matters.length === 0) return undefined;
     let cancelled = false;
     const tick = async () => {
       const res = await autoRepublishHeldMatterKeys(getClient(), matters, fpRef.current);
+      const matterEpochById = new Map(matters.map((matter) => [matter.matter_id, matter.key_epoch]));
+      const heldIntakes = Object.values(useIntakeStore.getState().intakesById)
+        .map((intake) => ({
+          intake,
+          firmMatterId: useMatterStore.getState().matters.find((matter) => matter.id === intake.matterId)?.firmMatterId,
+        }))
+        .filter((entry): entry is { intake: typeof entry.intake; firmMatterId: string } =>
+          entry.intake.status === 'active' && Boolean(entry.firmMatterId && matterEpochById.has(entry.firmMatterId)),
+        )
+        .map((entry) => ({
+          intake_id: entry.intake.intakeId,
+          matter_id: entry.firmMatterId,
+          key_epoch: matterEpochById.get(entry.firmMatterId)!,
+        }));
+      const intakeRes = await autoRepublishHeldIntakeKeys(getClient(), heldIntakes, intakeFpRef.current, { firmEntitled: true });
       if (cancelled) return;
       fpRef.current = res.fingerprints;
+      intakeFpRef.current = intakeRes.fingerprints;
       writePublishFingerprints(res.fingerprints);
-      if (res.republishedMatterIds.length > 0) {
-        setNotice(t('firm.admin.auto-republish-ok', { count: res.republishedMatterIds.length }));
+      writeIntakePublishFingerprints(intakeRes.fingerprints);
+      const count = res.republishedMatterIds.length + intakeRes.republishedIntakeIds.length;
+      if (count > 0) {
+        setNotice(t('firm.admin.auto-republish-ok', { count }));
       }
     };
     void tick();

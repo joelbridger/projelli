@@ -33,6 +33,7 @@ export interface OnboardingTabProps {
   onExtend?: (intakeId: string) => Promise<void> | void;
   onRevoke?: (intakeId: string) => Promise<void> | void;
   onRegenerate?: (intakeId: string) => Promise<void> | void;
+  onShareWithTeam?: (intakeId: string) => Promise<void> | void;
   onOpenFile?: (path: string) => void;
 }
 
@@ -157,6 +158,7 @@ export function OnboardingTab({
   onExtend,
   onRevoke,
   onRegenerate,
+  onShareWithTeam,
   onOpenFile,
 }: OnboardingTabProps) {
   const { t } = useTranslation();
@@ -408,6 +410,17 @@ export function OnboardingTab({
             {...(onRegenerate ? { onRegenerate } : {})}
             {...(onRevoke ? { onRevoke } : {})}
           />
+
+          {onShareWithTeam ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => { void Promise.resolve(onShareWithTeam(intake.intakeId)).catch((error: unknown) => handleAsyncError(error, 'Could not share this intake with the team.')); }}
+            >
+              Share with team
+            </Button>
+          ) : null}
 
           <section
             style={{
