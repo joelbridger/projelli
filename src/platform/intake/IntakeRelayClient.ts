@@ -1,5 +1,6 @@
 import { getFirmApiBase } from '@/platform/firm/firmConfig';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
+import type { IntakeInboxPage, IntakeInboxSubmission } from './IntakeSyncClient';
 
 export interface IntakeCreateRequest {
   intake_id: string;
@@ -27,6 +28,14 @@ export interface IntakeRelayClientOptions {
   baseUrl?: string;
   seatToken: string;
   accessToken?: string | null;
+}
+
+interface IntakeRelayInboxResponse {
+  intake_id: string;
+  cursor: number;
+  latest_cursor: number;
+  has_more: boolean;
+  submissions: IntakeInboxSubmission[];
 }
 
 export class IntakeRelayClient {
@@ -110,6 +119,40 @@ export class IntakeRelayClient {
       {
         method: 'POST',
         body,
+      }
+    );
+  }
+
+  async fetchInbox(
+    intakeId: string,
+    sinceCursor: number
+  ): Promise<IntakeInboxPage> {
+    const page = await this.request<IntakeRelayInboxResponse>(
+      `/intake/${encodeURIComponent(intakeId)}/inbox?since=${encodeURIComponent(String(sinceCursor))}`,
+      {
+        method: 'GET',
+      }
+    );
+    return {
+      cursor: page.cursor,
+      has_more: page.has_more,
+      submissions: page.submissions,
+    };
+  }
+
+  async ackSubmission(
+    intakeId: string,
+    submissionId: string,
+    cursor: number
+  ): Promise<void> {
+    await this.request<{ ok: true }>(
+      `/intake/${encodeURIComponent(intakeId)}/ack`,
+      {
+        method: 'POST',
+        body: {
+          submission_ids: [submissionId],
+          cursor,
+        },
       }
     );
   }

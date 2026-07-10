@@ -94,7 +94,7 @@ function flagFromSubmission(
     intakeId: submission.intake_id,
     itemId: submission.item_id,
     submissionId: submission.submission_id,
-    at: new Date().toISOString(),
+    at: submission.submitted_at,
   };
 }
 
