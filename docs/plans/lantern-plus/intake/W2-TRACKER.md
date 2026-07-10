@@ -8,7 +8,7 @@
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
 | 0 | contract-model + live-sync | `~/lp-w2-0` | `lp/intake-w2-0` | DONE-EXIT:0 | lead PASS + 3 findings | codex-review: 4 findings (2 P1 lead missed) | in `cc1db61a` | **MERGED** |
-| 1 | board-ui | `~/lp-w2-1` | `lp/intake-w2-1` | — | — | — | — | queued (after Lane 0) |
+| 1 | board-ui | `~/lp-w2-1` | `lp/intake-w2-1` | DONE-EXIT:0 | lead PASS | codex-review: 4 P2 (real primary-action break) | `377be8b4` (pre-fix) | FIX ROUND running (`briefs/w2-1-fix.md`) |
 | 2 | link-lifecycle | `~/lp-w2-2` | `lp/intake-w2-2` | — | — | — | — | queued (after Lane 0) |
 | 3 | nudges + E2E | `~/lp-w2-3` | `lp/intake-w2-3` | — | — | — | — | queued (last) |
 
@@ -17,6 +17,19 @@
 - **Lead recommendation + default:** fold the live-sync mount into Lane 0 (add the inbox client method + a live poller wiring routeSubmission→file+fact+updateItem+`setLastClientActivity`). Makes the board real. Robust path ("no shortcuts on the core app").
 - **Alternative:** Wave-2 UI-only on the existing store; treat live-sync as a separate follow-up (faster, hollow board).
 - **Status:** surfaced to coordinator; proceeding on the recommended path (Lane 0 = live-sync + contract + model) unless redirected. Lane 0 dispatch held briefly for the window.
+
+## Board slot API — how Lanes 2/3 wire in at merge (LEAD does this in MattersHome)
+`OnboardingBoard` (Lane 1, `377be8b4`) exposes props: `onOpenNudge`, `onOpenLinkSignals`, `onReviewItems`, `onCopyLink`, `renderNudgeSlot(row)`, `renderLinkSignals(row)`. Currently mounted in `MattersHome` with only `onNewClient`. At merge:
+- **Lane 2 (link):** pass `renderLinkSignals={(row)=><LinkSignalBadge signals={row.linkSignals}/>}` + `onOpenLinkSignals`. (Lane 2 also mounts `LinkLifecyclePanel` in `OnboardingTab` itself.)
+- **Lane 3 (nudge):** pass `renderNudgeSlot`/`onOpenNudge` for the inline board nudge card.
+- Lead P3 (batch if codex-review agrees): board `copyLink` reads the in-memory-only `link` → silently no-ops after an app restart (OnboardingTab reconstructs it via `reconstructAdvisorIntakeLink`; the board should too, or delegate).
+
+## Lane 1 review — 4 P2 findings (batched into fix round `briefs/w2-1-fix.md`)
+Lead independent verify: vitest 4/4, tsc clean, eslint-gate clean, no raw hex, i18n snapshot 6/6, board test covers sort/labels/stalled/actions/redaction/routing. codex-review found 4 real user-facing P2s (the board test masked #1 by setting state directly, not via the real event bus — same "test fakes the other side" class):
+- **[P2 — primary action BROKEN] row click lands on OVERVIEW, not Onboarding:** `openRow` sets onboarding then dispatches `EV_MATTER_LAUNCH surface:'matters'`, which `useGlobalEventBus` handles by setting `overview` synchronously → overwrites onboarding. Fix: set the tab AFTER dispatch (or pass target tab in the event) + a test that reproduces the bus overwrite.
+- **[P2] copy-link falsely reports "Copied" after restart:** `link` is stripped from persisted state; board copyLink no-ops but flips to "Copied". Fix: reconstruct via `reconstructAdvisorIntakeLink` (like OnboardingTab); only show Copied on real success.
+- **[P2] keyboard: row keydown steals Enter/Space from child buttons** (preventDefault) → inner actions unusable by keyboard. Fix: only handle when `event.target===event.currentTarget`.
+- **[P2] enabled-but-dead actions:** board mounted without `onOpenNudge`/link handlers (Lanes 2/3 not merged) → nudge/link buttons enabled but no-op. Fix: disable/hide until the handler/slot is wired (light up when 2/3 merge).
 
 ## Resolved open questions (from W2-PREP)
 See `W2-EXEC-PLAN.md` §0 — all 7 resolved from grounded Wave-1 code. Headlines: (Q2) client email is NOT persisted today → Lane 0 adds it; (Q3) approve = `mailSaveDraft`, never send; (Q5) link signals LOCAL-only, no relay attempt-telemetry (preserves the uniform-410 privacy hardening); (Q7) deterministic templates + optional AI "in my voice" on body only.
