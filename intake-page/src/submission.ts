@@ -8,6 +8,7 @@ import {
   wrapContentKey,
   type SealedManifest,
 } from '@/platform/intake/intakeCrypto';
+import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
 import type { RequestItem } from '@/platform/intake/types';
 import type { ChunkUpload, SubmitManifest } from '@/platform/intake/intakeContract';
 
@@ -31,22 +32,6 @@ interface PlainChunk {
   bytes: Uint8Array;
   fileIndex?: number;
   filePart?: number;
-}
-
-function bytesToB64Url(bytes: Uint8Array): string {
-  let bin = '';
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
-  }
-  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/u, '');
-}
-
-async function sha256Label(chunk: PlainChunk): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', chunk.bytes));
-  const meta =
-    typeof chunk.fileIndex === 'number' ? `;file=${String(chunk.fileIndex)};part=${String(chunk.filePart ?? 0)}` : '';
-  return `sha256:${bytesToB64Url(digest)}${meta}`;
 }
 
 async function fileToChunks(file: File, fileIndex: number): Promise<PlainChunk[]> {
@@ -103,7 +88,7 @@ export async function submitAnswer(options: SubmitAnswerOptions): Promise<{ subm
   const contentKey = await importContentKey(contentKeyB64);
   const submissionId = options.resumeSubmissionId ?? generateSubmissionId();
   const { chunks, fileNames, contentType } = await buildChunks(options.item, options.payload);
-  const chunkHashes = await Promise.all(chunks.map((chunk) => sha256Label(chunk)));
+  const chunkHashes = await Promise.all(chunks.map((chunk) => hashPlaintextChunk(chunk.bytes)));
 
   await options.onPendingUpload?.({ submission_id: submissionId, chunk_count: chunks.length, content_key_b64: contentKeyB64 });
 

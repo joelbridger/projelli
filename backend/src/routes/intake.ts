@@ -233,10 +233,10 @@ export async function handleExtendIntake(req: Request, store: Store, intakeId: s
 // ---------------------------------------------------------------------------
 
 export function handleIntakeBundle(req: Request, store: Store, intakeId: string, ip: string): Response {
-  const auth = authorizePublicIntake(req, store, intakeId);
-  if (!auth.ok) return auth.resp;
   const limited = publicIntakeRateLimit(ip, intakeId);
   if (limited) return limited;
+  const auth = authorizePublicIntake(req, store, intakeId);
+  if (!auth.ok) return auth.resp;
 
   const bundle = store.getIntakeBundle(intakeId);
   if (!bundle) return neutralIntakeGone();
@@ -250,10 +250,10 @@ export function handleIntakeBundle(req: Request, store: Store, intakeId: string,
 }
 
 export async function handleSaveIntakeState(req: Request, store: Store, intakeId: string, ip: string): Promise<Response> {
-  const auth = authorizePublicIntake(req, store, intakeId);
-  if (!auth.ok) return auth.resp;
   const limited = publicIntakeRateLimit(ip, intakeId);
   if (limited) return limited;
+  const auth = authorizePublicIntake(req, store, intakeId);
+  if (!auth.ok) return auth.resp;
 
   const read = await readJsonWithCap<StateBlob>(req, MAX_STATE_REQUEST_BYTES);
   if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
@@ -270,10 +270,10 @@ export async function handleUploadIntakeChunk(
   itemId: string,
   ip: string,
 ): Promise<Response> {
-  const auth = authorizePublicIntake(req, store, intakeId);
-  if (!auth.ok) return auth.resp;
   const limited = publicIntakeRateLimit(ip, intakeId);
   if (limited) return limited;
+  const auth = authorizePublicIntake(req, store, intakeId);
+  if (!auth.ok) return auth.resp;
 
   const read = await readJsonWithCap<ChunkUpload>(req, MAX_CHUNK_REQUEST_BYTES);
   if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);
@@ -312,6 +312,25 @@ export async function handleUploadIntakeChunk(
   );
 }
 
+export function handleListUploadedIntakeChunks(
+  req: Request,
+  store: Store,
+  intakeId: string,
+  itemId: string,
+  ip: string,
+): Response {
+  const limited = publicIntakeRateLimit(ip, intakeId);
+  if (limited) return limited;
+  const auth = authorizePublicIntake(req, store, intakeId);
+  if (!auth.ok) return auth.resp;
+
+  const submissionId = new URL(req.url).searchParams.get("submission_id");
+  if (!isNonEmptyString(itemId, 256) || !isNonEmptyString(submissionId, 256)) return error("missing_fields", 400);
+  return json({
+    uploaded_indexes: store.listIntakeChunkIndexesForSubmission(intakeId, itemId, submissionId),
+  });
+}
+
 export async function handleSubmitIntakeItem(
   req: Request,
   store: Store,
@@ -319,10 +338,10 @@ export async function handleSubmitIntakeItem(
   itemId: string,
   ip: string,
 ): Promise<Response> {
-  const auth = authorizePublicIntake(req, store, intakeId);
-  if (!auth.ok) return auth.resp;
   const limited = publicIntakeRateLimit(ip, intakeId);
   if (limited) return limited;
+  const auth = authorizePublicIntake(req, store, intakeId);
+  if (!auth.ok) return auth.resp;
 
   const read = await readJsonWithCap<SubmitManifest>(req, MAX_SUBMIT_REQUEST_BYTES);
   if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);

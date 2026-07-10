@@ -140,21 +140,29 @@ export async function intakeFactList(
 }
 
 export async function intakeFactReveal(
+  matterId: string,
   factId: string
 ): Promise<RevealedClientFact> {
   if (isTauri()) {
-    return invoke<RevealedClientFact>('intake_fact_reveal', { factId });
+    return invoke<RevealedClientFact>('intake_fact_reveal', {
+      matterId,
+      factId,
+    });
   }
   const fact = browserFacts.get(factId);
-  if (!fact) throw new Error('Fact not found.');
+  if (!fact || fact.matter_id !== matterId) throw new Error('Fact not found.');
   return { ...toMasked(fact), value: fact.value };
 }
 
-export async function intakeFactPurge(factId: string): Promise<string[]> {
+export async function intakeFactPurge(
+  matterId: string,
+  factId: string
+): Promise<string[]> {
   if (isTauri()) {
-    return invoke<string[]>('intake_fact_purge', { factId });
+    return invoke<string[]>('intake_fact_purge', { matterId, factId });
   }
-  if (!browserFacts.has(factId)) return [];
+  const fact = browserFacts.get(factId);
+  if (!fact || fact.matter_id !== matterId) throw new Error('Fact not found.');
   browserFacts.delete(factId);
   return [factId];
 }

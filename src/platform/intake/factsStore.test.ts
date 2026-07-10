@@ -56,7 +56,7 @@ describe('factsStore browser accessor', () => {
     expect(JSON.stringify(useIntakeStore.getState().intakesById)).not.toContain('123-45-6789');
     expect(JSON.stringify(useIntakeStore.getState().intakesById)).not.toContain('6789');
 
-    const revealed = await intakeFactReveal('fact-ssn');
+    const revealed = await intakeFactReveal('matter-1', 'fact-ssn');
     expect(revealed.value).toEqual({ t: 'string', v: '123-45-6789' });
   });
 });

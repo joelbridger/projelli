@@ -6,6 +6,7 @@ import {
   verifySubmissionIntegrity,
   type SealedManifest,
 } from '@/platform/intake/intakeCrypto';
+import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
 import type { ChunkUpload } from './intakeContract';
 
 export interface IntakeInboxSubmission {
@@ -215,18 +216,44 @@ export class IntakeSyncClient {
       throw new Error(`Manifest failed integrity checks: ${openedManifest.reason}.`);
     }
 
+    const expectedChunkCount = openedManifest.manifest.chunk_count;
+    const chunksByIndex = new Map<number, ChunkUpload>();
+    for (const chunk of submission.chunks) {
+      if (
+        chunk.intake_id !== submission.intake_id ||
+        chunk.item_id !== submission.item_id ||
+        chunk.submission_id !== submission.submission_id
+      ) {
+        throw new Error('Chunk envelope does not match its enclosing submission.');
+      }
+      if (!Number.isSafeInteger(chunk.index) || chunk.index < 0 || chunk.index >= expectedChunkCount) {
+        throw new Error(`Chunk ${String(chunk.index)} is outside the manifest range.`);
+      }
+      if (chunksByIndex.has(chunk.index)) {
+        throw new Error(`Chunk ${String(chunk.index)} is duplicated.`);
+      }
+      chunksByIndex.set(chunk.index, chunk);
+    }
+
     const plaintextBytes: Uint8Array[] = [];
     const chunkAADSids: string[] = [];
-    for (const chunk of submission.chunks) {
+    for (let index = 0; index < expectedChunkCount; index += 1) {
+      const chunk = chunksByIndex.get(index);
+      if (!chunk) throw new Error(`Chunk ${String(index)} is missing.`);
       const opened = await openItemChunk(contentKey, chunk.ciphertext_b64, {
-        intakeId: chunk.intake_id,
-        itemId: chunk.item_id,
-        submissionId: chunk.submission_id,
-        index: chunk.index,
+        intakeId: submission.intake_id,
+        itemId: submission.item_id,
+        submissionId: submission.submission_id,
+        index,
       });
-      if (!opened.ok) throw new Error(`Chunk ${String(chunk.index)} failed integrity checks: ${opened.reason}.`);
+      if (!opened.ok) throw new Error(`Chunk ${String(index)} failed integrity checks: ${opened.reason}.`);
+      const expectedHash = openedManifest.manifest.chunk_hashes[index];
+      const actualHash = await hashPlaintextChunk(opened.data);
+      if (actualHash !== expectedHash) {
+        throw new Error(`Chunk ${String(index)} hash mismatch.`);
+      }
       plaintextBytes.push(opened.data);
-      chunkAADSids.push(chunk.submission_id);
+      chunkAADSids.push(submission.submission_id);
     }
 
     const verified = verifySubmissionIntegrity(submission.submission_id, openedManifest.manifest, chunkAADSids);

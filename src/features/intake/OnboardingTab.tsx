@@ -712,7 +712,7 @@ export function OnboardingTab({
                           size="icon"
                           aria-label="Reveal fact"
                           onClick={() => {
-                            void intakeFactReveal(fact.fact_id)
+                            void intakeFactReveal(matterId, fact.fact_id)
                               .then((full) => {
                                 setRevealed((current) => ({
                                   ...current,
@@ -735,7 +735,7 @@ export function OnboardingTab({
                           size="icon"
                           aria-label="Purge fact"
                           onClick={() => {
-                            void intakeFactPurge(fact.fact_id)
+                            void intakeFactPurge(matterId, fact.fact_id)
                               .then(() => {
                                 setFacts((current) =>
                                   current.filter(

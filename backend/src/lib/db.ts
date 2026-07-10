@@ -1238,6 +1238,17 @@ export class Store {
     return rows.map(toIntakeChunk);
   }
 
+  listIntakeChunkIndexesForSubmission(intakeId: string, itemId: string, submissionId: string): number[] {
+    const rows = this.db
+      .query(
+        `SELECT idx FROM intake_chunks
+         WHERE intake_id = ? AND item_id = ? AND submission_id = ?
+         ORDER BY idx ASC`,
+      )
+      .all(intakeId, itemId, submissionId) as Array<{ idx: number }>;
+    return rows.map((row) => row.idx);
+  }
+
   countIntakeChunks(intakeId: string): number {
     const r = this.db
       .query(`SELECT COUNT(*) AS n FROM intake_chunks WHERE intake_id = ?`)

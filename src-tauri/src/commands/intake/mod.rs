@@ -68,13 +68,14 @@ pub async fn intake_fact_list(
 #[tauri::command]
 pub async fn intake_fact_reveal(
     state: State<'_, IntakeState>,
+    matter_id: String,
     fact_id: String,
 ) -> Result<RevealedClientFact, String> {
     let ws = workspace(&state).await?;
     tokio::task::spawn_blocking(move || -> anyhow::Result<RevealedClientFact> {
         let store = IntakeFactsStore::open(&ws)?;
         let audit = EncryptedAuditSink::new(ws);
-        store.reveal_fact(&fact_id, &audit)
+        store.reveal_fact(&matter_id, &fact_id, &audit)
     })
     .await
     .map_err(|e| format!("join: {e}"))?
@@ -84,13 +85,14 @@ pub async fn intake_fact_reveal(
 #[tauri::command]
 pub async fn intake_fact_purge(
     state: State<'_, IntakeState>,
+    matter_id: String,
     fact_id: String,
 ) -> Result<Vec<String>, String> {
     let ws = workspace(&state).await?;
     tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<String>> {
         let store = IntakeFactsStore::open(&ws)?;
         let audit = EncryptedAuditSink::new(ws);
-        store.purge(&fact_id, &audit)
+        store.purge(&matter_id, &fact_id, &audit)
     })
     .await
     .map_err(|e| format!("join: {e}"))?
