@@ -267,7 +267,7 @@ for a specific client. For a solo advisor, the block can collapse to one person.
 
 ## AI-Drafted Welcome And Milestone Emails
 
-This should feel like the existing nudge pattern, not a separate campaign tool.
+This should feel like the planned nudge pattern, not a separate campaign tool.
 Lantern drafts the message, shows why it drafted it, and waits for approval.
 
 ### Draft triggers
