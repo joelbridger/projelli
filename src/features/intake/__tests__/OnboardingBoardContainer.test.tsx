@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useIntakeStore, type IntakeRecord } from '@/platform/intake/intakeStore';
 import { reconstructAdvisorIntakeLink } from '@/platform/intake/advisorIntakeLink';
+import { emailReplyQuarantineSave, clearInMemoryEmailReplyQueuesForTests } from '@/platform/intake/emailReplyProposalStore';
 import { OnboardingBoardContainer } from '../OnboardingBoardContainer';
 
 vi.mock('@/platform/intake/advisorIntakeLink', () => ({
@@ -41,6 +42,7 @@ function eligibleIntake(): IntakeRecord {
 describe('OnboardingBoardContainer', () => {
   beforeEach(() => {
     useIntakeStore.getState().resetForTests();
+    clearInMemoryEmailReplyQueuesForTests();
     vi.mocked(reconstructAdvisorIntakeLink).mockResolvedValue(
       'https://forms.example.test/i/intake-nudge#secret'
     );
@@ -62,5 +64,17 @@ describe('OnboardingBoardContainer', () => {
     await waitFor(() => {
       expect(screen.getByTestId('nudge-review-modal')).toBeTruthy();
     });
+  });
+
+  it('gives unmatched quarantines a visible board-level review home and count', async () => {
+    await emailReplyQuarantineSave({
+      quarantineId: 'quarantine-unmatched', messageId: 'message-unmatched', provider: 'm365', account: 'advisor@example.test',
+      received: null, sender: 'lookalike@example.test', authResult: { dkim: 'fail', spf: 'fail', dmarc: 'fail', aligned: false, source: 'graph' },
+      threadId: null, reason: 'lookalike',
+    });
+    render(<OnboardingBoardContainer now={now} />);
+    expect(await screen.findByTestId('unmatched-email-reply-quarantines')).toBeTruthy();
+    expect(screen.getByTestId('email-reply-quarantine-banner').textContent).toContain('1 email needs review');
+    expect(screen.getByTestId('email-reply-quarantine-card')).toBeTruthy();
   });
 });

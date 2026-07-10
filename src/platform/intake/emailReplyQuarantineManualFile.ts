@@ -13,7 +13,13 @@ import {
 import {
   emailReplyAttachmentDestination,
 } from './emailReplyAccept';
-import { useIntakeStore, type IntakeRecord } from './intakeStore';
+import { emailQuarantinePolicy } from './emailQuarantinePolicy';
+import type { EmailReplyQuarantineReason } from './emailReplyTypes';
+import {
+  useIntakeStore,
+  type EmailReplyManualFileReceipt,
+  type IntakeRecord,
+} from './intakeStore';
 
 export interface ManualFileQuarantinedEmailOptions {
   quarantineId: string;
@@ -43,20 +49,41 @@ export interface DismissQuarantinedEmailOptions {
   setStatus?: typeof setEmailQuarantineStatus;
 }
 
-function requireOpenTarget(input: {
+function requireTarget(input: {
   matterId: string;
   requestId: string;
   itemId: string;
+  allowAlreadyAccepted: boolean;
 }): { intake: IntakeRecord; item: IntakeRecord['items'][number] } {
   const intake = useIntakeStore.getState().intakesById[input.requestId];
   if (!intake || intake.matterId !== input.matterId || intake.status !== 'active') {
     throw new Error('Choose a real active client and onboarding request.');
   }
   const item = intake.items.find((candidate) => candidate.itemId === input.itemId);
-  if (!item || !['not_started', 'needs_followup'].includes(item.state)) {
+  if (
+    !item ||
+    (!input.allowAlreadyAccepted &&
+      !['not_started', 'needs_followup'].includes(item.state))
+  ) {
     throw new Error('Choose a real open onboarding item.');
   }
   return { intake, item };
+}
+
+function receiptForTarget(input: {
+  quarantineId: string;
+  targetMatterId: string;
+  targetRequestId: string;
+  targetItemId: string;
+}): EmailReplyManualFileReceipt | undefined {
+  const intake = useIntakeStore.getState().intakesById[input.targetRequestId];
+  return intake?.emailReplyManualFileReceipts?.find(
+    (receipt) =>
+      receipt.quarantineId === input.quarantineId &&
+      receipt.targetMatterId === input.targetMatterId &&
+      receipt.targetRequestId === input.targetRequestId &&
+      receipt.targetItemId === input.targetItemId,
+  );
 }
 
 function quarantineAuditEntry(input: {
@@ -149,16 +176,18 @@ export async function manualFileQuarantinedEmail(
   if (quarantine.status !== 'pending') {
     throw new Error('This quarantined email has already been resolved.');
   }
-  const { intake, item } = requireOpenTarget({
+  const receipt = receiptForTarget({
+    quarantineId: quarantine.quarantineId,
+    targetMatterId: options.targetMatterId,
+    targetRequestId: options.targetRequestId,
+    targetItemId: options.targetItemId,
+  });
+  const { intake, item } = requireTarget({
     matterId: options.targetMatterId,
     requestId: options.targetRequestId,
     itemId: options.targetItemId,
+    allowAlreadyAccepted: Boolean(receipt),
   });
-  const message = await (options.getMessage ?? mailGetMessage)(quarantine.messageId);
-  const attachment = message.attachments.find((candidate) => candidate.id === options.attachmentId);
-  if (!attachment || message.attachmentsUnsupported) {
-    throw new Error('Choose an attachment that is available from the original email.');
-  }
 
   const at = (options.now ?? new Date()).toISOString();
   const auditPairId = emailReplyAuditPairId(quarantine.quarantineId);
@@ -175,15 +204,35 @@ export async function manualFileQuarantinedEmail(
   );
 
   try {
-    const saved = await (options.persistAttachment ?? mailPersistAttachment)(
-      quarantine.provider,
-      quarantine.account,
-      quarantine.messageId,
-      attachment.id,
-      emailReplyAttachmentDestination(quarantine.messageId),
-      attachment.filename || attachment.name
-    );
-    markManuallyFiled({ intake, item, filePath: saved.path, at, advisorId: options.advisorId });
+    let filePath = receipt?.filePath;
+    if (!filePath) {
+      const message = await (options.getMessage ?? mailGetMessage)(quarantine.messageId);
+      const attachment = message.attachments.find(
+        (candidate) => candidate.id === options.attachmentId,
+      );
+      if (!attachment || message.attachmentsUnsupported) {
+        throw new Error('Choose an attachment that is available from the original email.');
+      }
+      const saved = await (options.persistAttachment ?? mailPersistAttachment)(
+        quarantine.provider,
+        quarantine.account,
+        quarantine.messageId,
+        attachment.id,
+        emailReplyAttachmentDestination(quarantine.messageId),
+        attachment.filename || attachment.name,
+      );
+      filePath = saved.path;
+      // The receipt comes first, so a later status failure can be retried safely.
+      useIntakeStore.getState().recordEmailReplyManualFileReceipt(intake.intakeId, {
+        quarantineId: quarantine.quarantineId,
+        targetMatterId: options.targetMatterId,
+        targetRequestId: options.targetRequestId,
+        targetItemId: options.targetItemId,
+        filePath,
+        completedAt: at,
+      });
+    }
+    markManuallyFiled({ intake, item, filePath, at, advisorId: options.advisorId });
     await (options.setStatus ?? setEmailQuarantineStatus)(
       quarantine.quarantineId,
       'manual_filed'
@@ -197,10 +246,10 @@ export async function manualFileQuarantinedEmail(
         advisorId: options.advisorId,
         itemIds: [item.itemId],
         status: 'manual_filed',
-        filePaths: [saved.path],
+        filePaths: [filePath],
       })
     );
-    return { filePath: saved.path, status: 'manual_filed' };
+    return { filePath, status: 'manual_filed' };
   } catch (error) {
     const messageText = error instanceof Error ? error.message : String(error);
     await mustLogIntakeEmailReplyAudit(
@@ -225,6 +274,10 @@ export async function dismissQuarantinedEmail(
   const quarantine = await (options.getQuarantine ?? getEmailQuarantine)(options.quarantineId);
   if (quarantine.status !== 'pending') {
     throw new Error('This quarantined email has already been resolved.');
+  }
+  // W3-LANE3-FIX-POLICY-ENFORCED
+  if (!emailQuarantinePolicy(quarantine.reason as EmailReplyQuarantineReason).dismissible) {
+    throw new Error('This email requires manual review and cannot be dismissed.');
   }
   const auditPairId = emailReplyAuditPairId(quarantine.quarantineId);
   await mustLogIntakeEmailReplyAudit(

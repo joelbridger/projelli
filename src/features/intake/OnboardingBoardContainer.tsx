@@ -21,21 +21,25 @@ import { NudgeDraftCard } from './NudgeDraftCard';
 import { NudgeReviewModal } from './NudgeReviewModal';
 import { EmailReplyProposalBanner } from './EmailReplyProposalBanner';
 import { EmailReplyQuarantineBanner } from './EmailReplyQuarantineBanner';
+import { EmailReplyQuarantinePanel } from './EmailReplyQuarantinePanel';
 
 export interface OnboardingBoardContainerProps {
   onNewClient?: () => void;
+  advisorId?: string;
   /** Test seam: a fixed clock so eligibility/draft output is deterministic. */
   now?: Date;
 }
 
 export function OnboardingBoardContainer({
   onNewClient,
+  advisorId = 'advisor',
   now,
 }: OnboardingBoardContainerProps) {
   const intakesById = useIntakeStore((state) => state.intakesById);
   const [reviewRow, setReviewRow] = useState<OnboardingRow | null>(null);
   const [emailReplyCounts, setEmailReplyCounts] = useState<Record<string, number>>({});
   const [quarantineCounts, setQuarantineCounts] = useState<Record<string, number>>({});
+  const [unmatchedQuarantineCount, setUnmatchedQuarantineCount] = useState(0);
 
   const reviewIntake = reviewRow ? intakesById[reviewRow.requestId] : undefined;
 
@@ -52,11 +56,16 @@ export function OnboardingBoardContainer({
           }
           setEmailReplyCounts(counts);
           const quarantineNext: Record<string, number> = {};
+          let unmatchedCount = 0;
           for (const quarantine of quarantines) {
-            if (!quarantine.matchedMatterId) continue;
+            if (!quarantine.matchedMatterId) {
+              unmatchedCount += 1;
+              continue;
+            }
             quarantineNext[quarantine.matchedMatterId] = (quarantineNext[quarantine.matchedMatterId] ?? 0) + 1;
           }
           setQuarantineCounts(quarantineNext);
+          setUnmatchedQuarantineCount(unmatchedCount);
         })
         .catch((error: unknown) => {
           console.warn('[OnboardingBoardContainer] Could not load email reply proposals:', error);
@@ -97,6 +106,12 @@ export function OnboardingBoardContainer({
           );
         }}
       />
+      {unmatchedQuarantineCount > 0 ? (
+        <section data-testid="unmatched-email-reply-quarantines" style={{ display: 'grid', gap: 8, padding: 12 }}>
+          <EmailReplyQuarantineBanner count={unmatchedQuarantineCount} />
+          <EmailReplyQuarantinePanel advisorId={advisorId} unmatchedOnly />
+        </section>
+      ) : null}
       {reviewRow && reviewIntake ? (
         <NudgeReviewModal
           open

@@ -68,10 +68,63 @@ describe('emailReplyQuarantineManualFile', () => {
   it('audits an explicit dismissal as not intake material', async () => {
     const events: Array<Record<string, unknown>> = [];
     setIntakeEmailReplyAuditEmitter(async (entry) => { events.push(entry); });
-    const setStatus = vi.fn(async () => ({ ...quarantine, status: 'dismissed' as const }));
-    await dismissQuarantinedEmail({ quarantineId: quarantine.quarantineId, advisorId: 'advisor-1', getQuarantine: async () => quarantine, setStatus: setStatus as never });
+    const inactiveQuarantine = { ...quarantine, reason: 'inactive_request' } as const;
+    const setStatus = vi.fn(async () => ({ ...inactiveQuarantine, status: 'dismissed' as const }));
+    await dismissQuarantinedEmail({ quarantineId: quarantine.quarantineId, advisorId: 'advisor-1', getQuarantine: async () => inactiveQuarantine, setStatus: setStatus as never });
     expect(setStatus).toHaveBeenCalledWith('quarantine-1', 'dismissed');
     expect(events).toHaveLength(2);
     expect(events[1]?.['description']).toContain('not intake material');
+  });
+
+  it('refuses to dismiss security quarantines even when called outside the UI', async () => {
+    const setStatus = vi.fn();
+    await expect(dismissQuarantinedEmail({
+      quarantineId: quarantine.quarantineId,
+      advisorId: 'advisor-1',
+      getQuarantine: async () => quarantine,
+      setStatus: setStatus as never,
+    })).rejects.toThrow('requires manual review');
+    expect(setStatus).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed status update from its durable receipt without saving the attachment twice', async () => {
+    setIntakeEmailReplyAuditEmitter(async () => undefined);
+    const persistAttachment = vi.fn(async () => ({ path: 'Requests/onboarding/email-replies/message-1/file.pdf' }));
+    const getMessage = vi.fn(async () => ({
+      attachmentsUnsupported: false,
+      attachments: [{ id: 'attachment-1', name: 'file.pdf', filename: 'file.pdf', kind: 'file' }],
+    }));
+    let attempts = 0;
+    const setStatus = vi.fn(async () => {
+      attempts += 1;
+      if (attempts === 1) throw new Error('temporary status failure');
+      return { ...quarantine, status: 'manual_filed' as const };
+    });
+    const options = {
+      quarantineId: quarantine.quarantineId,
+      targetMatterId: 'matter-1',
+      targetRequestId: 'intake-1',
+      targetItemId: 'license',
+      attachmentId: 'attachment-1',
+      advisorId: 'advisor-1',
+      reviewed: true,
+      getQuarantine: async () => quarantine,
+      getMessage: getMessage as never,
+      persistAttachment: persistAttachment as never,
+      setStatus: setStatus as never,
+    };
+
+    await expect(manualFileQuarantinedEmail(options)).rejects.toThrow('temporary status failure');
+    expect(useIntakeStore.getState().intakesById['intake-1']?.emailReplyManualFileReceipts).toEqual([
+      expect.objectContaining({ quarantineId: 'quarantine-1', targetItemId: 'license' }),
+    ]);
+
+    await expect(manualFileQuarantinedEmail(options)).resolves.toEqual({
+      filePath: 'Requests/onboarding/email-replies/message-1/file.pdf',
+      status: 'manual_filed',
+    });
+    expect(persistAttachment).toHaveBeenCalledTimes(1);
+    expect(getMessage).toHaveBeenCalledTimes(1);
+    expect(useIntakeStore.getState().intakesById['intake-1']?.receivedItems).toHaveLength(1);
   });
 });

@@ -16,7 +16,6 @@ import { Button } from '@/ui/button';
 
 export interface EmailReplyQuarantineCardProps {
   quarantine: EmailReplyQuarantine;
-  matterId: string;
   advisorId: string;
   onResolved: () => void;
   loadMessage?: typeof mailGetMessage;
@@ -24,7 +23,6 @@ export interface EmailReplyQuarantineCardProps {
 
 export function EmailReplyQuarantineCard({
   quarantine,
-  matterId,
   advisorId,
   onResolved,
   loadMessage = mailGetMessage,
@@ -43,12 +41,16 @@ export function EmailReplyQuarantineCard({
   const policy = emailQuarantinePolicy(
     quarantine.reason as EmailReplyQuarantineReason
   );
-  const matters = useMemo(
+  const activeIntakes = useMemo(
     () =>
       Object.values(intakesById).filter(
-        (intake) => intake.status === 'active' && intake.matterId === matterId
+        (intake) => intake.status === 'active'
       ),
-    [intakesById, matterId]
+    [intakesById]
+  );
+  const matters = useMemo(
+    () => Array.from(new Map(activeIntakes.map((intake) => [intake.matterId, intake])).values()),
+    [activeIntakes]
   );
   const selectedIntake = useMemo(
     () =>
@@ -112,6 +114,14 @@ export function EmailReplyQuarantineCard({
     }
   };
 
+  const handleUnexpectedError = (actionError: unknown) => {
+    setError(
+      actionError instanceof Error
+        ? actionError.message
+        : t('intake.quarantine.file-error'),
+    );
+  };
+
   return (
     <article
       data-testid="email-reply-quarantine-card"
@@ -150,12 +160,14 @@ export function EmailReplyQuarantineCard({
         {t('intake.quarantine.channel-label')}
       </span>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Button type="button" variant="outline" onClick={() => { void openOriginal(); }} disabled={busy}>
+        <Button type="button" variant="outline" onClick={() => { void openOriginal().catch(handleUnexpectedError); }} disabled={busy}>
           <ExternalLink aria-hidden size={14} /> {t('intake.quarantine.open-original')}
         </Button>
-        <Button type="button" variant="outline" onClick={() => { void dismiss(); }} disabled={busy}>
-          {t('intake.quarantine.dismiss')}
-        </Button>
+        {policy.dismissible ? (
+          <Button type="button" variant="outline" onClick={() => { void dismiss().catch(handleUnexpectedError); }} disabled={busy}>
+            {t('intake.quarantine.dismiss')}
+          </Button>
+        ) : null}
       </div>
       {reviewed ? (
         <div data-testid="email-reply-quarantine-review" style={{ display: 'grid', gap: 8 }}>
@@ -177,24 +189,24 @@ export function EmailReplyQuarantineCard({
               setTargetRequestId(event.target.value); setTargetItemId('');
             }}>
               <option value="">{t('intake.quarantine.choose-request')}</option>
-              {matters.filter((intake) => intake.matterId === targetMatterId).map((intake) => <option key={intake.intakeId} value={intake.intakeId}>{t('intake.quarantine.onboarding-request')}</option>)}
+              {activeIntakes.filter((intake) => intake.matterId === targetMatterId).map((intake) => <option key={intake.intakeId} value={intake.intakeId}>{t('intake.quarantine.onboarding-request')}</option>)}
             </select>
           </label>
           <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--kp-navy)' }}>
             {t('intake.quarantine.item')}
-            <select aria-label={t('intake.quarantine.item')} value={targetItemId} disabled={!targetRequestId} onChange={(event) => setTargetItemId(event.target.value)}>
+            <select aria-label={t('intake.quarantine.item')} value={targetItemId} disabled={!targetRequestId} onChange={(event) => { setTargetItemId(event.target.value); }}>
               <option value="">{t('intake.quarantine.choose-item')}</option>
               {openItems.map((item) => <option key={item.itemId} value={item.itemId}>{item.label}</option>)}
             </select>
           </label>
           <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--kp-navy)' }}>
             {t('intake.quarantine.attachment')}
-            <select aria-label={t('intake.quarantine.attachment')} value={attachmentId} onChange={(event) => setAttachmentId(event.target.value)}>
+            <select aria-label={t('intake.quarantine.attachment')} value={attachmentId} onChange={(event) => { setAttachmentId(event.target.value); }}>
               <option value="">{t('intake.quarantine.choose-attachment')}</option>
               {attachmentIds.map((id, index) => <option key={id} value={id}>{t('intake.quarantine.attachment-number', { count: index + 1 })}</option>)}
             </select>
           </label>
-          <Button type="button" onClick={() => { void manualFile(); }} disabled={busy || !targetMatterId || !targetRequestId || !targetItemId || !attachmentId}>
+          <Button type="button" onClick={() => { void manualFile().catch(handleUnexpectedError); }} disabled={busy || !targetMatterId || !targetRequestId || !targetItemId || !attachmentId}>
             {t('intake.quarantine.confirm-file')}
           </Button>
         </div>
