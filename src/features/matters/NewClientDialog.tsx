@@ -268,7 +268,7 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         firm: {
           name: firmName,
           accent: BRAND.colors.accent,
-          advisor_name: firmSession?.email.split('@')[0] ?? 'Your advisor',
+          advisor_name: (firmSession?.email ?? '').split('@')[0] || 'Your advisor',
           advisor_email: firmSession?.email ?? BRAND.urls.supportEmail,
           next_steps: [...NEW_HOUSEHOLD_NEXT_STEPS],
         },
