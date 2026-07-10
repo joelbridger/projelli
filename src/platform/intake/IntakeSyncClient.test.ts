@@ -30,6 +30,7 @@ async function sealedSubmission(
     chunkIndex: number;
     manifestChunkHashes: string[];
     payload: unknown;
+    keypair: { privateKey: CryptoKey; publicKeyRaw: Uint8Array };
   }> = {}
 ): Promise<{ submission: IntakeInboxSubmission; privateKey: CryptoKey }> {
   const intakeId = overrides.intakeId ?? 'intake-1';
@@ -40,7 +41,7 @@ async function sealedSubmission(
   const chunkIntakeId = overrides.chunkIntakeId ?? intakeId;
   const chunkItemId = overrides.chunkItemId ?? itemId;
   const chunkIndex = overrides.chunkIndex ?? 0;
-  const { privateKey, publicKeyRaw } = await generateIntakeKeypair();
+  const { privateKey, publicKeyRaw } = overrides.keypair ?? await generateIntakeKeypair();
   const contentKeyB64 = await generateContentKey();
   const contentKey = await importContentKey(contentKeyB64);
   const payload = overrides.payload ?? {
@@ -71,6 +72,7 @@ async function sealedSubmission(
       await hashPlaintextChunk(payloadBytes),
     ],
     chunk_count: 1,
+    ...(overrides.sessionId ? { session_id: overrides.sessionId } : {}),
   };
   const manifestCiphertext = await sealManifest(contentKey, manifest, {
     intakeId,
@@ -85,7 +87,6 @@ async function sealedSubmission(
       intake_id: intakeId,
       item_id: itemId,
       submission_id: submissionId,
-      session_id: overrides.sessionId ?? 'session-known',
       submitted_at: '2026-07-10T00:00:00.000Z',
       manifest_ciphertext_b64: manifestCiphertext,
       wrapped_content_key_b64: wrapped,
@@ -155,6 +156,7 @@ describe('IntakeSyncClient', () => {
   it('flags replay mismatches before routing or acking', async () => {
     const built = await sealedSubmission({
       manifestSubmissionId: 'sealed-different',
+      sessionId: 'untrusted-session',
     });
     const relay = {
       fetchInbox: vi.fn(() =>
@@ -190,6 +192,9 @@ describe('IntakeSyncClient', () => {
         kind: 'integrity_mismatch',
         submissionId: 'submission-1',
       })
+    );
+    expect(flagSubmission).not.toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'new_device' })
     );
   });
 
@@ -341,7 +346,7 @@ describe('IntakeSyncClient', () => {
     expect(relay.ackSubmission).not.toHaveBeenCalled();
   });
 
-  it('flags duplicate and new-device submissions instead of overwriting silently', async () => {
+  it('flags a new device only after decrypting its sealed manifest', async () => {
     const built = await sealedSubmission({ sessionId: 'session-new' });
     const relay = {
       fetchInbox: vi.fn(() =>
@@ -376,5 +381,42 @@ describe('IntakeSyncClient', () => {
       expect.objectContaining({ kind: 'new_device' })
     );
     expect(relay.ackSubmission).toHaveBeenCalledOnce();
+  });
+
+  it('remembers a sealed session marker after routing so only a different marker re-flags', async () => {
+    const keypair = await generateIntakeKeypair();
+    const first = await sealedSubmission({ submissionId: 'submission-a1', sessionId: 'session-a', keypair });
+    const second = await sealedSubmission({ submissionId: 'submission-a2', sessionId: 'session-a', keypair });
+    const third = await sealedSubmission({ submissionId: 'submission-b1', sessionId: 'session-b', keypair });
+    const knownSessions = new Set<string>();
+    const flags: string[] = [];
+    const relay = {
+      fetchInbox: vi.fn((cursor: number) => Promise.resolve({
+        cursor: 9,
+        has_more: false,
+        submissions: cursor === 0 ? [first.submission, second.submission, third.submission] : [],
+      })),
+      ackSubmission: vi.fn(() => Promise.resolve()),
+    };
+    const sync = new IntakeSyncClient({
+      relay,
+      loadPrivateKey: vi.fn(() => Promise.resolve(keypair.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(false)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn((_intakeId: string, sessionId: string) => Promise.resolve(knownSessions.has(sessionId))),
+      rememberSession: vi.fn((_intakeId: string, sessionId: string) => {
+        knownSessions.add(sessionId);
+        return Promise.resolve();
+      }),
+      flagSubmission: vi.fn((flag) => {
+        if (flag.kind === 'new_device') flags.push(flag.submissionId);
+        return Promise.resolve();
+      }),
+      routeSubmission: vi.fn(() => Promise.resolve({ factId: 'fact-1' })),
+    });
+
+    await sync.syncOnce();
+    expect(flags).toEqual(['submission-a1', 'submission-b1']);
+    expect(knownSessions).toEqual(new Set(['session-a', 'session-b']));
   });
 });

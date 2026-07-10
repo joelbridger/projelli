@@ -12,6 +12,7 @@ import {
 
 import { openPageJson, sealPageJson } from './pageCrypto';
 import { RelayClient } from './relayClient';
+import { getOrCreateSessionMarker } from './sessionMarker';
 import { submitAnswer } from './submission';
 import type { AnswerPayload, IntakeChecklist, IntakeFirm, ResumeState } from './types';
 
@@ -22,6 +23,7 @@ type LoadState =
   | {
       status: 'ready';
       intakeId: string;
+      sessionId: string;
       intakePubRaw: Uint8Array;
       pageKey: CryptoKey;
       relay: RelayClient;
@@ -243,6 +245,7 @@ export function App(): JSX.Element {
       try {
         const intakeId = getIntakeIdFromPath();
         if (!intakeId) throw new Error('This link is missing its intake id.');
+        const sessionId = getOrCreateSessionMarker(intakeId);
         const parsed = parseLinkFragment(window.location.hash);
         if ('error' in parsed) throw new Error('This link is not complete. Ask your advisor to send it again.');
         const pageKey = await derivePageKey(parsed.s);
@@ -255,6 +258,7 @@ export function App(): JSX.Element {
           setLoadState({
             status: 'ready',
             intakeId,
+            sessionId,
             intakePubRaw: parsed.intakePubRaw,
             pageKey,
             relay,
@@ -331,7 +335,7 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
 }
 
 function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
-  const { checklist, finalizedItemIds, intakeId, intakePubRaw, pageKey, relay } = props;
+  const { checklist, finalizedItemIds, intakeId, intakePubRaw, pageKey, relay, sessionId } = props;
   const [resume, setResume] = useState<ResumeState>(props.resume);
   const [currentItemId, setCurrentItemId] = useState(() => chooseInitialItem(checklist, finalizedItemIds, props.resume));
   const [localSubmitted, setLocalSubmitted] = useState<Set<string>>(() => new Set());
@@ -411,6 +415,7 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           item: itemToSubmit,
           payload: singlePayload,
           relay,
+          sessionId,
           resumeSubmissionId,
           resumeContentKeyB64,
           onPendingUpload: async (pendingUpload) => {

@@ -59,7 +59,6 @@ function routedSubmission(
       chunk_count: plaintextBytes.length,
     },
     plaintextBytes,
-    sessionId: 'session-1',
   };
 }
 

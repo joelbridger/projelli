@@ -158,7 +158,6 @@ export class IntakeRelayClient {
       manifest_ciphertext_b64: submission.manifest_ciphertext_b64,
       wrapped_content_key_b64: submission.wrapped_content_key_b64,
       chunks,
-      ...(submission.session_id ? { session_id: submission.session_id } : {}),
     };
   }
 

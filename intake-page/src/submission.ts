@@ -23,6 +23,7 @@ interface SubmitAnswerOptions {
   item: RequestItem;
   payload: AnswerPayload;
   relay: RelayClient;
+  sessionId: string;
   resumeSubmissionId?: string;
   resumeContentKeyB64?: string;
   onPendingUpload?: (pending: { submission_id: string; chunk_count: number; content_key_b64: string }) => Promise<void>;
@@ -125,6 +126,7 @@ export async function submitAnswer(options: SubmitAnswerOptions): Promise<{ subm
     file_names: fileNames,
     chunk_hashes: chunkHashes,
     chunk_count: chunks.length,
+    session_id: options.sessionId,
   };
   const integrity = verifySubmissionIntegrity(submissionId, manifest, chunkSidBindings);
   if (!integrity.ok) throw new Error(`Submission integrity failed: ${integrity.reason}`);

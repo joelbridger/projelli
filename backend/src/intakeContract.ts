@@ -5,6 +5,7 @@ export interface SealedManifest {
   file_names: string[];
   chunk_hashes: string[];
   chunk_count: number;
+  session_id?: string;
 }
 
 export interface SubmissionEnvelope {
@@ -15,7 +16,6 @@ export interface SubmissionEnvelope {
   wrapped_content_key_b64: string;
   chunk_count: number;
   submitted_at: string;
-  session_id?: string;
 }
 
 export interface ChunkUpload {
