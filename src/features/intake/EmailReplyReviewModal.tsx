@@ -33,17 +33,14 @@ export function EmailReplyReviewModal({
   const { t } = useTranslation();
   return (
     <div
+      className="kp-overlay"
       role="dialog"
       aria-modal="true"
       aria-label={t('intake.email-reply.review-title')}
       style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(15, 23, 42, 0.28)',
         display: 'grid',
         placeItems: 'center',
         padding: 18,
-        zIndex: 60,
       }}
     >
       <div
@@ -54,7 +51,7 @@ export function EmailReplyReviewModal({
           background: 'var(--color-background)',
           border: '1px solid var(--kp-divider)',
           borderRadius: 8,
-          boxShadow: '0 18px 50px rgba(15, 23, 42, 0.18)',
+          boxShadow: 'var(--kp-shadow-3)',
           padding: 16,
         }}
       >
