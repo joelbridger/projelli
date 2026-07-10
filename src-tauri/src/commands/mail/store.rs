@@ -916,6 +916,50 @@ impl EncryptedMailStore {
         Ok(())
     }
 
+    /// Atomically file every message and leave a source-level RAG repair marker
+    /// behind *before* any vector-table write is attempted.  The marker is part
+    /// of the same durable transaction as the filing, so a process crash in the
+    /// gap between SQLite commit and LanceDB update is recoverable on next open.
+    pub fn set_message_matter_batch_with_pending_rag_retag(
+        &self,
+        message_ids: &[String],
+        matter_id: &str,
+    ) -> Result<()> {
+        if message_ids.is_empty() {
+            return Ok(());
+        }
+        let mut c = lock_unpoison(&self.conn);
+        let tx = c.transaction()?;
+        let mut missing = Vec::new();
+        {
+            let mut exists = tx.prepare("SELECT 1 FROM messages WHERE id = ?1 LIMIT 1")?;
+            for id in message_ids {
+                if !exists.exists([id])? {
+                    missing.push(id.clone());
+                }
+            }
+        }
+        if !missing.is_empty() {
+            anyhow::bail!("message(s) not found: {}", missing.join(", "));
+        }
+        {
+            let mut filing = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            let mut pending = tx.prepare(
+                "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                 ON CONFLICT(key) DO UPDATE SET value = ?2",
+            )?;
+            for id in message_ids {
+                filing.execute(rusqlite::params![message_matter_key(id), matter_id])?;
+                pending.execute(rusqlite::params![pending_rag_retag_key(id), matter_id])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
     /// Record the exact mail sources whose RAG matter update failed.
     pub fn mark_pending_rag_retag_batch(&self, message_ids: &[String], matter_id: &str) -> Result<()> {
         if message_ids.is_empty() {
@@ -1502,6 +1546,27 @@ mod tests {
         assert!(s.set_message_matter_batch(&ids, "matter-after").is_err());
         assert_eq!(s.get_message_matter("present-a").unwrap().as_deref(), Some("matter-before"));
         assert_eq!(s.get_message_matter("present-b").unwrap(), None);
+    }
+
+    #[test]
+    fn enc_batch_filing_and_pending_repair_marker_commit_together() {
+        let (_dir, s) = enc_store();
+        s.upsert(&mk_rec("present-a", "inbox", "m365", "default")).unwrap();
+        s.upsert(&mk_rec("present-b", "inbox", "m365", "default")).unwrap();
+        let ids = vec!["present-a".to_string(), "present-b".to_string()];
+
+        s.set_message_matter_batch_with_pending_rag_retag(&ids, "matter-acme")
+            .unwrap();
+
+        assert_eq!(s.get_message_matter("present-a").unwrap().as_deref(), Some("matter-acme"));
+        assert_eq!(s.get_message_matter("present-b").unwrap().as_deref(), Some("matter-acme"));
+        assert_eq!(
+            s.pending_rag_retags().unwrap(),
+            vec![
+                ("present-a".to_string(), "matter-acme".to_string()),
+                ("present-b".to_string(), "matter-acme".to_string()),
+            ]
+        );
     }
 
     #[test]

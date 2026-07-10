@@ -1,4 +1,5 @@
 use super::*;
+use std::collections::HashSet;
 
 /// Compact data fragments and prune old versions in ONE pass. Called once at the
 /// END of a CRM sync so the per-matter appends don't drive per-household compaction
@@ -319,6 +320,11 @@ pub async fn retag_matter_for_path(
 /// single-path version.
 pub const RETAG_MATTER_PATHS_PER_UPDATE: usize = 512;
 
+#[cfg(test)]
+tokio::task_local! {
+    static RETAG_MATTER_TABLE_UPDATE_COUNTER: std::sync::Arc<std::sync::atomic::AtomicUsize>;
+}
+
 fn retag_matter_path_batches(paths: &[String]) -> impl Iterator<Item = &[String]> {
     paths.chunks(RETAG_MATTER_PATHS_PER_UPDATE)
 }
@@ -340,7 +346,15 @@ pub async fn retag_matter_for_paths(
             .iter()
             .map(|p| format!("'{}'", sql_escape(&super::super::crypto::path_token(key, p))))
             .collect();
-        let predicate = format!("path IN ({})", tokens.join(", "));
+        let predicate = format!(
+            "path IN ({}) AND matter_id <> {}",
+            tokens.join(", "),
+            value_expr
+        );
+        #[cfg(test)]
+        let _ = RETAG_MATTER_TABLE_UPDATE_COUNTER.try_with(|counter| {
+            counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        });
         let result = table
             .update()
             .only_if(predicate)
@@ -351,6 +365,65 @@ pub async fn retag_matter_for_paths(
         total += result.rows_updated;
     }
     Ok(total)
+}
+
+/// Count distinct sources that have indexed rows whose current matter differs
+/// from `matter_id`. This keeps folder remaps returning the old useful count:
+/// messages changed, not selected messages or changed chunk rows.
+pub async fn count_paths_requiring_matter_retag(
+    table: &Table,
+    paths: &[String],
+    matter_id: &str,
+    key: &[u8; 32],
+) -> Result<u32> {
+    use futures_util::TryStreamExt;
+
+    if paths.is_empty() {
+        return Ok(0);
+    }
+    let matter_id = validate_matter_id(matter_id)?;
+    let value_expr = format!("'{}'", sql_escape(matter_id));
+    let mut changed = HashSet::new();
+    for chunk in retag_matter_path_batches(paths) {
+        let tokens: Vec<String> = chunk
+            .iter()
+            .map(|path| super::super::crypto::path_token(key, path))
+            .collect();
+        let predicate_tokens: Vec<String> = tokens
+            .iter()
+            .map(|token| format!("'{}'", sql_escape(token)))
+            .collect();
+        let predicate = format!(
+            "path IN ({}) AND matter_id <> {}",
+            predicate_tokens.join(", "),
+            value_expr
+        );
+        let mut stream = table
+            .query()
+            .only_if(predicate)
+            .select(Select::columns(&["path"]))
+            .execute()
+            .await
+            .context("count retag paths query execute failed")?;
+        while let Some(batch) = stream
+            .try_next()
+            .await
+            .context("count retag paths stream failed")?
+        {
+            let Some(column) = batch
+                .column_by_name("path")
+                .and_then(|column| column.as_any().downcast_ref::<StringArray>())
+            else {
+                continue;
+            };
+            for index in 0..column.len() {
+                if !column.is_null(index) {
+                    changed.insert(column.value(index).to_string());
+                }
+            }
+        }
+    }
+    Ok(changed.len() as u32)
 }
 
 #[cfg(test)]
@@ -369,6 +442,30 @@ mod batch_tests {
             let paths: Vec<String> = (0..count).map(|id| format!("mail:{id}")).collect();
             assert_eq!(retag_matter_path_batches(&paths).count(), count.div_ceil(RETAG_MATTER_PATHS_PER_UPDATE));
         }
+    }
+
+    #[tokio::test]
+    async fn counter_observes_real_lancedb_update_calls_at_the_write_choke_point() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let conn = crate::commands::rag::store::open_connection(dir.path()).await.unwrap();
+        let table = crate::commands::rag::store::open_or_create_table(&conn).await.unwrap();
+        let key = [0x5Au8; 32];
+
+        let counter = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let paths: Vec<String> = (0..513).map(|id| format!("mail:{id}")).collect();
+        RETAG_MATTER_TABLE_UPDATE_COUNTER
+            .scope(counter.clone(), async {
+                retag_matter_for_paths(&table, &paths, "matter-acme", &key)
+                    .await
+                    .unwrap();
+            })
+            .await;
+
+        assert_eq!(
+            counter.load(std::sync::atomic::Ordering::SeqCst),
+            2,
+            "the counter sits beside Table::update(), so this proves the actual LanceDB writes"
+        );
     }
 }
 

@@ -1,5 +1,6 @@
 use super::*;
 use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
+use serde::Serialize;
 use std::collections::{BTreeMap, HashSet};
 use tauri::State;
 
@@ -221,6 +222,158 @@ fn group_mail_retag_paths(
     grouped
 }
 
+/// A source-level RAG repair marker. `source_id` is ready to use as a retrieval
+/// exclusion key; the frontend recovery lane deliberately owns that wiring.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PendingMailRagRetag {
+    pub message_id: String,
+    pub source_id: String,
+    pub matter_id: String,
+}
+
+#[derive(Default)]
+struct PendingRepairOutcome {
+    repaired: Vec<(String, Vec<String>)>,
+    failures: Vec<(String, Vec<String>, String)>,
+}
+
+fn group_pending_rag_retags(
+    pending: Vec<(String, String)>,
+) -> BTreeMap<String, Vec<String>> {
+    let mut grouped = BTreeMap::new();
+    for (message_id, matter_id) in pending {
+        grouped.entry(matter_id).or_insert_with(Vec::new).push(message_id);
+    }
+    grouped
+}
+
+/// Run each marked group once. Keeping this independent of Tauri lets the same
+/// exactly-marked batch logic power normal filing, startup repair, and failure
+/// tests without a second write path.
+async fn attempt_pending_rag_repairs<F, Fut>(
+    grouped: BTreeMap<String, Vec<String>>,
+    mut retag: F,
+) -> PendingRepairOutcome
+where
+    F: FnMut(String, Vec<String>) -> Fut,
+    Fut: std::future::Future<Output = Result<u64, String>>,
+{
+    let mut outcome = PendingRepairOutcome::default();
+    for (matter_id, message_ids) in grouped {
+        match retag(matter_id.clone(), message_ids.clone()).await {
+            Ok(_) => outcome.repaired.push((matter_id, message_ids)),
+            Err(error) => outcome.failures.push((matter_id, message_ids, error)),
+        }
+    }
+    outcome
+}
+
+async fn retag_mail_paths_in_workspace(
+    workspace: std::path::PathBuf,
+    message_ids: Vec<String>,
+    matter_id: String,
+) -> Result<u64, String> {
+    let paths: Vec<String> = message_ids
+        .iter()
+        .map(|message_id| format!("mail:{message_id}"))
+        .collect();
+    let conn = crate::commands::rag::store::open_connection(&workspace)
+        .await
+        .map_err(|e| format!("open lancedb: {e}"))?;
+    if !conn
+        .table_names()
+        .execute()
+        .await
+        .map_err(|e| format!("list tables: {e}"))?
+        .iter()
+        .any(|name| name == crate::commands::rag::store::TABLE_NAME)
+    {
+        return Ok(0); // no indexed mail yet; the durable filing will stamp it later
+    }
+    let table = conn
+        .open_table(crate::commands::rag::store::TABLE_NAME)
+        .execute()
+        .await
+        .map_err(|e| format!("open table: {e}"))?;
+    let key = crate::commands::rag::crypto::get_or_create_master_key()
+        .map_err(|e| format!("vectors key: {e}"))?;
+    crate::commands::rag::store::retag_matter_for_paths(&table, &paths, &matter_id, &key)
+        .await
+        .map_err(|e| format!("batched RAG matter re-tag: {e}"))
+}
+
+async fn clear_repaired_rag_markers(
+    workspace: std::path::PathBuf,
+    repaired: Vec<(String, Vec<String>)>,
+) -> Result<(), String> {
+    if repaired.is_empty() {
+        return Ok(());
+    }
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        let store = EncryptedMailStore::open(&workspace)?;
+        for (matter_id, message_ids) in repaired {
+            store.clear_pending_rag_retag_batch(&message_ids, &matter_id)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| format!("clear pending RAG repair join: {e}"))?
+    .map_err(|e| format!("clear pending RAG repair: {e}"))
+}
+
+async fn mail_retag_messages_matter_core(
+    state: &MailState,
+    message_ids: Vec<String>,
+    matter_id: String,
+    expected_workspace: std::path::PathBuf,
+) -> Result<u32, String> {
+    crate::commands::rag::store::validate_matter_id(&matter_id)
+        .map_err(|e| format!("invalid matter id: {e}"))?;
+    let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+    if expected_workspace != workspace {
+        return Err("mail_retag_messages_matter: workspace changed; refusing stale batch".to_string());
+    }
+    let ids = normalize_mail_message_ids(message_ids)?;
+
+    // This one transaction is deliberately before *any* LanceDB operation. A
+    // power loss here leaves either neither record or both the filing and its
+    // repair marker; it can never leave a filed message silently searchable in
+    // its old matter.
+    let ws = workspace.clone();
+    let persisted_ids = ids.clone();
+    let persisted_matter = matter_id.clone();
+    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
+        EncryptedMailStore::open(&ws)?.set_message_matter_batch_with_pending_rag_retag(
+            &persisted_ids,
+            &persisted_matter,
+        )
+    })
+    .await
+    .map_err(|e| format!("persist matter filing join: {e}"))?
+    .map_err(|e| format!("persist matter filing: {e}"))?;
+
+    let mut grouped = BTreeMap::new();
+    grouped.insert(matter_id, ids.clone());
+    let workspace_for_retag = workspace.clone();
+    let outcome = attempt_pending_rag_repairs(grouped, move |target, repair_ids| {
+        retag_mail_paths_in_workspace(workspace_for_retag.clone(), repair_ids, target)
+    })
+    .await;
+    clear_repaired_rag_markers(workspace, outcome.repaired).await?;
+    if let Some((target, repair_ids, error)) = outcome.failures.into_iter().next() {
+        return Err(format!(
+            "mail was filed locally, but RAG scope repair is pending for {} source(s) in {target}: {error}",
+            repair_ids.len()
+        ));
+    }
+
+    // This command's result is intentionally the durable filing count. Folder
+    // remaps retain their older, different "messages whose RAG scope changed"
+    // count below.
+    Ok(ids.len() as u32)
+}
+
 /// WS-B/C: re-tag every message stored under a (provider, account, folder) to a
 /// matter, IN PLACE in the RAG store (no re-embedding) — the same re-tag path
 /// files use. Called by the frontend when a mail folder's matter mapping
@@ -320,144 +473,122 @@ pub async fn mail_retag_folder_matter(
     // Preserve manual overrides, but update each effective target once per
     // 512 paths rather than once per message.
     let grouped = group_mail_retag_paths(ids_and_overrides, &matter_id);
-    let mut any_rows = false;
-    let selected_count = grouped.values().map(Vec::len).sum::<usize>() as u32;
+    let mut retagged_messages = 0u32;
     for (effective_matter, paths) in grouped {
-        let updated = crate::commands::rag::store::retag_matter_for_paths(
+        retagged_messages += crate::commands::rag::store::count_paths_requiring_matter_retag(
+            &table, &paths, &effective_matter, &vec_key,
+        )
+        .await
+        .map_err(|e| format!("count batched RAG matter re-tag: {e}"))?;
+        crate::commands::rag::store::retag_matter_for_paths(
             &table, &paths, &effective_matter, &vec_key,
         )
         .await
         .map_err(|e| format!("batched RAG matter re-tag: {e}"))?;
-        any_rows |= updated > 0;
     }
-    Ok(if any_rows { selected_count } else { 0 })
+    Ok(retagged_messages)
 }
 
 /// File messages to a matter in one durable transaction and bounded vector-table
-/// updates. RAG failures are recorded per source for later recovery.
+/// updates. `expected_workspace` is required, so a queued batch cannot act on a
+/// different workspace that was opened after the request was created.
 #[tauri::command]
 pub async fn mail_retag_messages_matter(
-    state: State<'_, MailState>, message_ids: Vec<String>, matter_id: String,
-    expected_workspace: Option<String>,
+    state: State<'_, MailState>,
+    message_ids: Vec<String>,
+    matter_id: String,
+    expected_workspace: String,
 ) -> Result<u32, String> {
-    crate::commands::rag::store::validate_matter_id(&matter_id).map_err(|e| format!("invalid matter id: {e}"))?;
-    let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
-    if let Some(expected) = expected_workspace.as_deref() {
-        if !expected.is_empty() && std::path::Path::new(expected) != workspace.as_path() {
-            return Err("mail_retag_messages_matter: workspace changed".to_string());
-        }
+    if expected_workspace.is_empty() {
+        return Err("expected_workspace is required".to_string());
     }
-    let ids = normalize_mail_message_ids(message_ids)?;
-    let ws = workspace.clone(); let persisted_ids = ids.clone(); let persisted_matter = matter_id.clone();
-    tokio::task::spawn_blocking(move || -> anyhow::Result<()> {
-        EncryptedMailStore::open(&ws)?.set_message_matter_batch(&persisted_ids, &persisted_matter)
-    }).await.map_err(|e| format!("persist matter filing join: {e}"))?.map_err(|e| format!("persist matter filing: {e}"))?;
-    let paths: Vec<String> = ids.iter().map(|id| format!("mail:{id}")).collect();
-    let result = async {
-        let conn = crate::commands::rag::store::open_connection(&workspace).await?;
-        if !conn.table_names().execute().await?.iter().any(|name| name == crate::commands::rag::store::TABLE_NAME) { return Ok::<(), anyhow::Error>(()); }
-        let table = conn.open_table(crate::commands::rag::store::TABLE_NAME).execute().await?;
-        let key = crate::commands::rag::crypto::get_or_create_master_key()?;
-        crate::commands::rag::store::retag_matter_for_paths(&table, &paths, &matter_id, &key).await?;
-        Ok(())
-    }.await;
-    let ws = workspace.clone(); let repair_ids = ids.clone(); let repair_matter = matter_id.clone();
-    match result {
-        Ok(()) => tokio::task::spawn_blocking(move || -> anyhow::Result<()> { EncryptedMailStore::open(&ws)?.clear_pending_rag_retag_batch(&repair_ids, &repair_matter) }).await.map_err(|e| format!("clear pending RAG repair join: {e}"))?.map_err(|e| format!("clear pending RAG repair: {e}"))?,
-        Err(error) => {
-            tokio::task::spawn_blocking(move || -> anyhow::Result<()> { EncryptedMailStore::open(&ws)?.mark_pending_rag_retag_batch(&repair_ids, &repair_matter) }).await.map_err(|e| format!("record pending RAG repair join: {e}"))?.map_err(|e| format!("record pending RAG repair: {e}"))?;
-            return Err(format!("mail was filed locally, but its search scope update is pending repair: {error}"));
-        }
-    }
-    Ok(ids.len() as u32)
+    mail_retag_messages_matter_core(
+        state.inner(),
+        message_ids,
+        matter_id,
+        std::path::PathBuf::from(expected_workspace),
+    )
+    .await
 }
 
-/// File a SINGLE message to a matter, durably.
-///
-/// BUG-013: filing is persisted in the mail DB (the durable source of truth that
-/// SURVIVES re-sync/re-index) and ALSO mirrored into the RAG index so search
-/// scope updates immediately. `message_id` is the provider message id (the part
-/// after `mail:` in a citation source — a leading `mail:` prefix is tolerated).
-///
-/// The command succeeds once the durable filing is written, so the UI can trust
-/// the filing happened. The RAG mirror is best-effort: if the message isn't
-/// indexed yet, the no-op is fine — sync/backfill stamp the override at index
-/// time (see `effective_mail_matter` / `mail_backfill_rag`).
+/// Compatibility entrypoint for one message. It delegates to the batch core so
+/// every filing follows the same durable-marker and RAG-repair path.
 #[tauri::command]
 pub async fn mail_retag_message_matter(
     state: State<'_, MailState>,
     message_id: String,
     matter_id: String,
 ) -> Result<(), String> {
-    crate::commands::rag::store::validate_matter_id(&matter_id)
-        .map_err(|e| format!("invalid matter id: {e}"))?;
+    let expected_workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+    mail_retag_messages_matter_core(
+        state.inner(),
+        vec![message_id],
+        matter_id,
+        expected_workspace,
+    )
+    .await
+    .map(|_| ())
+
+}
+
+/// List the exact source IDs that must stay out of retrieval until their RAG
+/// scope update is repaired. This is read-only and safe to call during startup.
+#[tauri::command]
+pub async fn mail_list_pending_rag_retags(
+    state: State<'_, MailState>,
+) -> Result<Vec<PendingMailRagRetag>, String> {
     let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+    tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<PendingMailRagRetag>> {
+        if !EncryptedMailStore::db_path(&workspace).exists() {
+            return Ok(Vec::new());
+        }
+        Ok(EncryptedMailStore::open(&workspace)?
+            .pending_rag_retags()?
+            .into_iter()
+            .map(|(message_id, matter_id)| PendingMailRagRetag {
+                source_id: format!("mail:{message_id}"),
+                message_id,
+                matter_id,
+            })
+            .collect())
+    })
+    .await
+    .map_err(|e| format!("list pending RAG repairs join: {e}"))?
+    .map_err(|e| format!("list pending RAG repairs: {e}"))
+}
 
-    // Tolerate a "mail:" prefix so callers can pass the citation source id directly.
-    let raw_id = message_id.strip_prefix("mail:").unwrap_or(&message_id).to_string();
-
-    // 1. Durable source of truth: persist the manual filing in the mail DB. This
-    //    is the success criterion — once it's written the email IS filed, even if
-    //    its RAG chunks don't exist yet.
-    {
-        let ws = workspace.clone();
-        let raw = raw_id.clone();
-        let mid = matter_id.clone();
-        let exists = tokio::task::spawn_blocking(move || -> anyhow::Result<bool> {
-            let store = EncryptedMailStore::open(&ws)?;
-            // Don't create a filing for a message that isn't in the mail DB (a
-            // stale list/viewer row, or a race with deletion) — that would
-            // report success for a phantom message.
-            if store.get_record(&raw)?.is_none() {
-                return Ok(false);
-            }
-            store.set_message_matter(&raw, &mid)?;
-            Ok(true)
-        })
-        .await
-        .map_err(|e| format!("join: {e}"))?
-        .map_err(|e| format!("persist matter filing: {e}"))?;
-        if !exists {
-            return Err("message not found".to_string());
+/// Retry exactly the marked source IDs, grouped only by their recorded target
+/// matter. Repeating it is safe: successful groups clear their own markers and
+/// a crash after the vector write simply replays the same idempotent update.
+#[tauri::command]
+pub async fn mail_repair_pending_rag_retags(
+    state: State<'_, MailState>,
+) -> Result<u32, String> {
+    let workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+    let ws_for_read = workspace.clone();
+    let pending = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<(String, String)>> {
+        if !EncryptedMailStore::db_path(&ws_for_read).exists() {
+            return Ok(Vec::new());
         }
+        EncryptedMailStore::open(&ws_for_read)?.pending_rag_retags()
+    })
+    .await
+    .map_err(|e| format!("read pending RAG repairs join: {e}"))?
+    .map_err(|e| format!("read pending RAG repairs: {e}"))?;
+    let marked_count = pending.len() as u32;
+    let workspace_for_retag = workspace.clone();
+    let outcome = attempt_pending_rag_repairs(group_pending_rag_retags(pending), move |target, ids| {
+        retag_mail_paths_in_workspace(workspace_for_retag.clone(), ids, target)
+    })
+    .await;
+    clear_repaired_rag_markers(workspace, outcome.repaired).await?;
+    if let Some((target, ids, error)) = outcome.failures.into_iter().next() {
+        return Err(format!(
+            "RAG scope repair still pending for {} source(s) in {target}: {error}",
+            ids.len()
+        ));
     }
-
-    // 2. Mirror into the RAG index so search scope follows immediately. Best-
-    //    effort: a missing index/table or no-indexed-chunks-yet is NOT an error
-    //    (the durable override above will be applied when the message is indexed).
-    let conn = match crate::commands::rag::store::open_connection(&workspace).await {
-        Ok(c) => c,
-        Err(e) => {
-            log::warn!("file-to-matter: RAG mirror skipped (open lancedb: {e})");
-            return Ok(());
-        }
-    };
-    let names = conn.table_names().execute().await.unwrap_or_default();
-    if !names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
-        return Ok(()); // nothing indexed yet — durable filing already persisted
-    }
-    let table = match conn.open_table(crate::commands::rag::store::TABLE_NAME).execute().await {
-        Ok(t) => t,
-        Err(e) => {
-            log::warn!("file-to-matter: RAG mirror skipped (open table: {e})");
-            return Ok(());
-        }
-    };
-    // VG-6e: retag uses the vector-store key (tokenized path predicate).
-    let vec_key = match crate::commands::rag::crypto::get_or_create_master_key() {
-        Ok(k) => k,
-        Err(e) => {
-            log::warn!("file-to-matter: RAG mirror skipped (vectors key: {e})");
-            return Ok(());
-        }
-    };
-    let path_key = format!("mail:{}", raw_id);
-    if let Err(e) =
-        crate::commands::rag::store::retag_matter_for_path(&table, &path_key, &matter_id, &vec_key).await
-    {
-        log::warn!("file-to-matter: RAG mirror retag for {path_key} failed: {e}");
-    }
-    Ok(())
+    Ok(marked_count)
 }
 
 /// Clear every email's manual "filed to this matter" tag for a matter that is
@@ -499,6 +630,7 @@ pub async fn mail_clear_matter_filings(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::commands::mail::store::MailRecord;
 
     // QA-44 (R7-2) — the per-message fold that decides whether a mail folder
     // re-tag SUCCEEDED. `Ok` from the command durably discharges the fail-closed
@@ -549,5 +681,67 @@ mod tests {
             normalize_mail_message_ids(vec!["mail:a".into(), "a".into(), "mail:b".into()]).unwrap(),
             vec!["a".to_string(), "b".to_string()]
         );
+    }
+
+    #[test]
+    fn matter_retag_has_only_syntax_validation_until_the_app_has_a_matter_authorization_seam() {
+        // Matter-scoped Tauri commands (including mail_list_messages_by_matter)
+        // have no caller identity or allowed-matter state. The separate MCP
+        // process has its own access state, but it is not available here. This
+        // documents the pre-existing boundary instead of inventing a false
+        // authorization check that could claim to protect this command.
+        assert!(crate::commands::rag::store::validate_matter_id("matter-not-in-any-local-list").is_ok());
+    }
+
+    #[tokio::test]
+    async fn forced_rag_failure_keeps_durable_filings_marked_and_repair_retries_exact_ids() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let key = [0x33u8; 32];
+        let store = EncryptedMailStore::open_with_key(dir.path(), &key).unwrap();
+        for id in ["one", "two"] {
+            store
+                .upsert(&MailRecord {
+                    id: id.to_string(),
+                    folder_id: "inbox".to_string(),
+                    internet_message_id: None,
+                    relative_path: format!(".lantern/mail/blobs/{id}.enc"),
+                    received_date_time: None,
+                    provider: "m365".to_string(),
+                    account: "default".to_string(),
+                    subject: String::new(),
+                    from_addr: String::new(),
+                    from_name: String::new(),
+                    snippet: String::new(),
+                    has_attachments: false,
+                })
+                .unwrap();
+        }
+        let ids = vec!["one".to_string(), "two".to_string()];
+        store
+            .set_message_matter_batch_with_pending_rag_retag(&ids, "matter-acme")
+            .unwrap();
+
+        let failed = attempt_pending_rag_repairs(group_pending_rag_retags(store.pending_rag_retags().unwrap()),
+            |_matter, _ids| async { Err("forced LanceDB failure".to_string()) },
+        )
+        .await;
+        assert!(failed.repaired.is_empty());
+        assert_eq!(failed.failures[0].1, ids);
+        assert_eq!(store.get_message_matter("one").unwrap().as_deref(), Some("matter-acme"));
+        assert_eq!(store.pending_rag_retags().unwrap().len(), 2, "failed RAG leaves both source markers");
+
+        let repaired = attempt_pending_rag_repairs(group_pending_rag_retags(store.pending_rag_retags().unwrap()),
+            |matter, repair_ids| async move {
+                assert_eq!(matter, "matter-acme");
+                assert_eq!(repair_ids, vec!["one".to_string(), "two".to_string()]);
+                Ok(2)
+            },
+        )
+        .await;
+        assert_eq!(repaired.repaired, vec![("matter-acme".to_string(), vec!["one".to_string(), "two".to_string()])]);
+        for (matter_id, repair_ids) in repaired.repaired {
+            store.clear_pending_rag_retag_batch(&repair_ids, &matter_id).unwrap();
+        }
+        assert!(store.pending_rag_retags().unwrap().is_empty());
     }
 }
