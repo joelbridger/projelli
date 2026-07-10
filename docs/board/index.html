@@ -128,6 +128,19 @@
   .demo-tag.say{color:var(--good);background:var(--good-bg)}
   .demo-tag.pr{color:var(--warn);background:var(--warn-bg)}
   .demo-say{font-style:italic;color:var(--ink)}
+  .demo-subtabs{display:flex;gap:7px;align-items:center;margin:0 0 18px;padding:5px;background:var(--bg-soft);border:1px solid var(--line);border-radius:11px;width:max-content;max-width:100%}
+  .demo-subtab{font-family:inherit;font-size:13.5px;font-weight:700;color:var(--ink-soft);background:transparent;border:0;border-radius:7px;padding:7px 11px;cursor:pointer;white-space:nowrap}
+  .demo-subtab:hover{color:var(--ink);background:#fff}
+  .demo-subtab.active{color:#fff;background:var(--navy);box-shadow:0 1px 2px rgba(16,28,51,.12)}
+  .demo-subpanel{display:none}
+  .demo-subpanel.active{display:block}
+  .demo-videos{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+  .demo-video-card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
+  .demo-video-card video{display:block;width:100%;aspect-ratio:16 / 9;background:var(--navy);border-bottom:1px solid var(--line)}
+  .demo-video-copy{padding:14px 15px 15px}
+  .demo-video-title{font-size:15.5px;font-weight:700;color:var(--ink);margin:0 0 5px;line-height:1.35}
+  .demo-video-desc{font-size:14px;color:var(--ink-soft);margin:0;line-height:1.5}
+  .demo-video-note{font-size:12.5px;color:var(--muted);margin:10px 0 0;padding-top:10px;border-top:1px solid var(--line)}
 
   /* Personal Development checklist */
   .pd-bar{margin:2px 0 6px}
@@ -289,7 +302,17 @@
     var tips=(s.tips||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('');
     var tipBlock = tips ? '<div class="reslinks"><h3><span class="mark res"></span>Run-it tips</h3><ul class="list">'+tips+'</ul></div>' : '';
     var intro = s.intro ? '<p class="demo-intro">'+esc(s.intro)+'</p>' : '';
-    return '<p class="now">'+esc(s.now)+'</p>'+intro+'<div class="demo-steps">'+steps+'</div>'+tipBlock;
+    var videos=(s.videos||[]).map(function(v){
+      return '<article class="demo-video-card"><video controls preload="metadata" src="/demo-videos/'+esc(v.file)+'" aria-label="'+esc(v.title)+'"></video>'
+        +'<div class="demo-video-copy"><h3 class="demo-video-title">'+esc(v.title)+'</h3>'
+        +'<p class="demo-video-desc">'+esc(v.description)+'</p>'
+        +'<p class="demo-video-note">Made with the new demo-video engine — real app, scripted cursor</p></div></article>';
+    }).join('');
+    var videoPanel = videos ? '<div class="demo-subpanel" data-demo-pane="videos" role="tabpanel"><div class="demo-videos">'+videos+'</div></div>' : '';
+    return '<p class="now">'+esc(s.now)+'</p><div class="demo-subtabs" role="tablist" aria-label="Demo content">'
+      +'<button class="demo-subtab active" type="button" role="tab" aria-selected="true" data-demo-subtab="walkthrough">Walkthrough</button>'
+      +(videos ? '<button class="demo-subtab" type="button" role="tab" aria-selected="false" data-demo-subtab="videos">Demo Videos</button>' : '')
+      +'</div><div class="demo-subpanel active" data-demo-pane="walkthrough" role="tabpanel">'+intro+'<div class="demo-steps">'+steps+'</div>'+tipBlock+'</div>'+videoPanel;
   }
   function renderPersonalDev(s){
     var groups=(s.groups||[]).map(function(g){
@@ -392,6 +415,12 @@
     // wiring
     document.querySelectorAll('#tabbar button').forEach(function(b){ b.addEventListener('click',function(){ activateTab(b.dataset.tab); }); });
     document.querySelectorAll('.area-head').forEach(function(h){ h.addEventListener('click',function(){ var sec=h.closest('.area'); var c=sec.classList.toggle('collapsed'); h.setAttribute('aria-expanded', String(!c)); }); });
+    document.querySelectorAll('.demo-subtab').forEach(function(b){ b.addEventListener('click',function(){
+      var body=b.closest('.area-body');
+      var target=b.dataset.demoSubtab;
+      body.querySelectorAll('.demo-subtab').forEach(function(tab){ var active=tab===b; tab.classList.toggle('active',active); tab.setAttribute('aria-selected',String(active)); });
+      body.querySelectorAll('.demo-subpanel').forEach(function(panel){ panel.classList.toggle('active',panel.dataset.demoPane===target); });
+    }); });
     document.querySelectorAll('.tile[data-goto]').forEach(function(t){
       t.addEventListener('click',function(){
         var sid=t.dataset.goto;

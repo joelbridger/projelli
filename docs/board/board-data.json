@@ -356,6 +356,18 @@
         "Lead with the compliance pack before the advisor gets nervous about AI keys.",
         "Use consumer names for AI providers: ChatGPT, Claude, and Gemini.",
         "End on a cited answer and the meeting Notice Card. That is the strongest “this is useful and allowed” moment."
+      ],
+      "videos": [
+        {
+          "file": "ask-cited-answer.mp4",
+          "title": "Ask: a cited answer from the client's own files",
+          "description": "See an advisor ask a client question, get a clear answer, and check the source behind it."
+        },
+        {
+          "file": "client-map.mp4",
+          "title": "The Client Map builds itself",
+          "description": "See scattered client files turn into a useful, living picture of the household."
+        }
       ]
     },
     {
