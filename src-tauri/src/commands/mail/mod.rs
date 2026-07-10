@@ -1,14 +1,14 @@
-pub mod model;
-pub mod normalize;
-pub mod provider;
-pub mod store;
-pub mod graph;
-pub mod oauth;
-pub mod sync;
 pub mod crypto;
 pub mod fde;
-pub mod imap;
 pub mod gmail;
+pub mod graph;
+pub mod imap;
+pub mod model;
+pub mod normalize;
+pub mod oauth;
+pub mod provider;
+pub mod store;
+pub mod sync;
 pub mod view;
 
 mod backfill;
@@ -30,7 +30,11 @@ pub(crate) use self::store::MailListQuery;
 
 #[cfg(test)]
 mod tests {
-    use super::{await_redirect_code_or_cancel, effective_mail_matter, frontmatter_subject, get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider, yaml_unescape, MailMatterMapEntry};
+    use super::{
+        await_redirect_code_or_cancel, effective_mail_matter, frontmatter_subject,
+        get_message_with_key, resolve_effective_matter, resolve_mail_matter, should_sync_provider,
+        yaml_unescape, MailMatterMapEntry,
+    };
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -55,8 +59,14 @@ mod tests {
         .await
         .expect("must not hit the 2s outer test timeout — cancellation should be near-instant");
 
-        assert!(result.is_err(), "a cancelled wait must return an error, not a code");
-        assert!(started.elapsed() < Duration::from_secs(1), "cancellation must be detected within one poll tick, not the full timeout");
+        assert!(
+            result.is_err(),
+            "a cancelled wait must return an error, not a code"
+        );
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "cancellation must be detected within one poll tick, not the full timeout"
+        );
     }
 
     #[tokio::test]
@@ -76,12 +86,17 @@ mod tests {
             cancel,
         ));
 
-        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}")).await.unwrap();
+        let mut stream = tokio::net::TcpStream::connect(format!("127.0.0.1:{port}"))
+            .await
+            .unwrap();
         let request = "GET /?code=REALCODE&state=TEST_STATE HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n";
         stream.write_all(request.as_bytes()).await.unwrap();
         stream.flush().await.unwrap();
 
-        let code = task.await.unwrap().expect("must succeed when never cancelled");
+        let code = task
+            .await
+            .unwrap()
+            .expect("must succeed when never cancelled");
         assert_eq!(code, "REALCODE");
     }
 
@@ -174,23 +189,38 @@ mod tests {
             resolve_mail_matter(&map, "m365", "default", "sent"),
             UNASSIGNED_MATTER
         );
-        assert_eq!(resolve_mail_matter(&[], "m365", "default", "inbox"), UNASSIGNED_MATTER);
+        assert_eq!(
+            resolve_mail_matter(&[], "m365", "default", "inbox"),
+            UNASSIGNED_MATTER
+        );
     }
 
     #[test]
     fn resolve_mail_matter_matches_exact_folder() {
         let map = vec![entry("m365", "default", "inbox", "matter_a")];
-        assert_eq!(resolve_mail_matter(&map, "m365", "default", "inbox"), "matter_a");
+        assert_eq!(
+            resolve_mail_matter(&map, "m365", "default", "inbox"),
+            "matter_a"
+        );
     }
 
     #[test]
     fn resolve_mail_matter_account_level_matches_any_folder() {
         // Empty folder_id == account-level mapping for every folder in the account.
         let map = vec![entry("gmail", "default", "", "matter_g")];
-        assert_eq!(resolve_mail_matter(&map, "gmail", "default", "INBOX"), "matter_g");
-        assert_eq!(resolve_mail_matter(&map, "gmail", "default", "Label_42"), "matter_g");
+        assert_eq!(
+            resolve_mail_matter(&map, "gmail", "default", "INBOX"),
+            "matter_g"
+        );
+        assert_eq!(
+            resolve_mail_matter(&map, "gmail", "default", "Label_42"),
+            "matter_g"
+        );
         // Different account is not covered.
-        assert_eq!(resolve_mail_matter(&map, "gmail", "other", "INBOX"), UNASSIGNED_MATTER);
+        assert_eq!(
+            resolve_mail_matter(&map, "gmail", "other", "INBOX"),
+            UNASSIGNED_MATTER
+        );
     }
 
     #[test]
@@ -205,14 +235,22 @@ mod tests {
             "matter_litigation"
         );
         // Other folders fall back to the account-level mapping.
-        assert_eq!(resolve_mail_matter(&map, "m365", "default", "inbox"), "matter_account");
+        assert_eq!(
+            resolve_mail_matter(&map, "m365", "default", "inbox"),
+            "matter_account"
+        );
     }
 
     // ── F2.6b: per-matter membership combines folder mapping + per-message filing ──
 
     /// Minimal stored record for the membership tests below (searchable columns
     /// blank — membership is decided by folder key + per-message filing, not text).
-    fn rec(id: &str, provider: &str, account: &str, folder: &str) -> crate::commands::mail::store::MailRecord {
+    fn rec(
+        id: &str,
+        provider: &str,
+        account: &str,
+        folder: &str,
+    ) -> crate::commands::mail::store::MailRecord {
         crate::commands::mail::store::MailRecord {
             id: id.into(),
             folder_id: folder.into(),
@@ -226,6 +264,10 @@ mod tests {
             from_name: String::new(),
             snippet: String::new(),
             has_attachments: false,
+            thread_id: None,
+            auth_result: Default::default(),
+            attachment_refs: Vec::new(),
+            attachments_unsupported: false,
         }
     }
 
@@ -245,7 +287,9 @@ mod tests {
         // a,b live in acme's folder; c lives in globex's folder.
         store.upsert(&rec("a", "m365", "default", "inbox")).unwrap();
         store.upsert(&rec("b", "m365", "default", "inbox")).unwrap();
-        store.upsert(&rec("c", "gmail", "default", "INBOX")).unwrap();
+        store
+            .upsert(&rec("c", "gmail", "default", "INBOX"))
+            .unwrap();
         // d lives in an UNMAPPED folder (should never belong to any real matter).
         store.upsert(&rec("d", "m365", "default", "sent")).unwrap();
 
@@ -263,9 +307,17 @@ mod tests {
 
         // Query returns a large page in id order-independent form; we assert the id set.
         let q = super::MailListQuery {
-            keyword: None, folder_id: None, provider: None, account: None,
-            date_from: None, date_to: None, has_attachments: None,
-            sort_by: "date".into(), sort_desc: true, limit: 200, offset: 0,
+            keyword: None,
+            folder_id: None,
+            provider: None,
+            account: None,
+            date_from: None,
+            date_to: None,
+            has_attachments: None,
+            sort_by: "date".into(),
+            sort_desc: true,
+            limit: 200,
+            offset: 0,
         };
         let list = |matter: &str| {
             let page = store
@@ -278,7 +330,10 @@ mod tests {
 
         let (acme, acme_total) = list("matter_acme");
         // a (folder), c (filing), e (filing) — NOT b (filed away), NOT f (tombstone), NOT d (unmapped).
-        assert_eq!(acme, vec!["a".to_string(), "c".to_string(), "e".to_string()]);
+        assert_eq!(
+            acme,
+            vec!["a".to_string(), "c".to_string(), "e".to_string()]
+        );
         assert_eq!(acme_total, 3);
 
         let (globex, globex_total) = list("matter_globex");
@@ -310,19 +365,27 @@ mod tests {
             received_date_time: Some("2026-05-01T14:30:00Z".into()),
             from_name: Some("Pat H".into()),
             from_address: Some("pat@hender.com".into()),
-            to: vec![Recipient { name: Some("Me".into()), address: Some("me@firm.com".into()) }],
+            to: vec![Recipient {
+                name: Some("Me".into()),
+                address: Some("me@firm.com".into()),
+            }],
             cc: vec![],
             folders: vec![],
             thread_id: Some("c1".into()),
             provider: "m365".into(),
             account: "default".into(),
             has_attachments: false,
+            attachments_unsupported: false,
+            auth_result: Default::default(),
+            attachments: Vec::new(),
             body_content_type: BodyContentType::Text,
             body_text: "Confirming May 14.".into(),
         };
         let markdown = to_markdown(&msg);
         // Write the encrypted blob + register the record (mirrors apply_messages_enc).
-        let rel = store.write_blob_with_key("AAMk-xyz", markdown.as_bytes(), &key).unwrap();
+        let rel = store
+            .write_blob_with_key("AAMk-xyz", markdown.as_bytes(), &key)
+            .unwrap();
         store
             .upsert(&MailRecord {
                 id: "AAMk-xyz".into(),
@@ -337,6 +400,10 @@ mod tests {
                 from_name: "Pat H".into(),
                 snippet: "Confirming May 14.".into(),
                 has_attachments: false,
+                thread_id: Some("c1".into()),
+                auth_result: Default::default(),
+                attachment_refs: Vec::new(),
+                attachments_unsupported: false,
             })
             .unwrap();
 
