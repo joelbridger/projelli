@@ -9,7 +9,10 @@ import {
   wrapContentKey,
   type SealedManifest,
 } from '@/platform/intake/intakeCrypto';
-import { IntakeSyncClient, type IntakeInboxSubmission } from './IntakeSyncClient';
+import {
+  IntakeSyncClient,
+  type IntakeInboxSubmission,
+} from './IntakeSyncClient';
 
 const enc = new TextEncoder();
 
@@ -22,7 +25,7 @@ async function sealedSubmission(
     manifestSubmissionId: string;
     chunkSubmissionId: string;
     payload: unknown;
-  }> = {},
+  }> = {}
 ): Promise<{ submission: IntakeInboxSubmission; privateKey: CryptoKey }> {
   const intakeId = overrides.intakeId ?? 'intake-1';
   const itemId = overrides.itemId ?? 'ssn';
@@ -40,12 +43,16 @@ async function sealedSubmission(
     value: { t: 'string', v: '123-45-6789' },
     verification: 'client_stated',
   };
-  const chunk = await sealItemChunk(contentKey, enc.encode(JSON.stringify(payload)), {
-    intakeId,
-    itemId,
-    submissionId: chunkSubmissionId,
-    index: 0,
-  });
+  const chunk = await sealItemChunk(
+    contentKey,
+    enc.encode(JSON.stringify(payload)),
+    {
+      intakeId,
+      itemId,
+      submissionId: chunkSubmissionId,
+      index: 0,
+    }
+  );
   const manifest: SealedManifest = {
     submission_id: manifestSubmissionId,
     item_id: itemId,
@@ -87,14 +94,20 @@ async function sealedSubmission(
 describe('IntakeSyncClient', () => {
   it('refetches an unacked submission after a local filing failure, then advances after retry', async () => {
     const built = await sealedSubmission();
-    const fetchInbox = vi.fn(async (sinceCursor: number) => ({
-      cursor: sinceCursor < built.submission.cursor ? built.submission.cursor : sinceCursor,
-      has_more: false,
-      submissions: sinceCursor < built.submission.cursor ? [built.submission] : [],
-    }));
+    const fetchInbox = vi.fn((sinceCursor: number) =>
+      Promise.resolve({
+        cursor:
+          sinceCursor < built.submission.cursor
+            ? built.submission.cursor
+            : sinceCursor,
+        has_more: false,
+        submissions:
+          sinceCursor < built.submission.cursor ? [built.submission] : [],
+      })
+    );
     const relay = {
       fetchInbox,
-      ackSubmission: vi.fn(async () => undefined),
+      ackSubmission: vi.fn(() => Promise.resolve()),
     };
     const routeSubmission = vi
       .fn()
@@ -103,12 +116,12 @@ describe('IntakeSyncClient', () => {
 
     const sync = new IntakeSyncClient({
       relay,
-      loadPrivateKey: vi.fn(async () => built.privateKey),
-      hasSubmission: vi.fn(async () => false),
-      rememberSubmission: vi.fn(async () => undefined),
-      isKnownSession: vi.fn(async () => true),
-      rememberSession: vi.fn(async () => undefined),
-      flagSubmission: vi.fn(async () => undefined),
+      loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(false)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      rememberSession: vi.fn(() => Promise.resolve()),
+      flagSubmission: vi.fn(() => Promise.resolve()),
       routeSubmission,
     });
 
@@ -120,26 +133,38 @@ describe('IntakeSyncClient', () => {
     await sync.syncOnce();
     expect(fetchInbox).toHaveBeenNthCalledWith(2, 0);
     expect(routeSubmission).toHaveBeenCalledTimes(2);
-    expect(relay.ackSubmission).toHaveBeenCalledWith('intake-1', 'submission-1', 7);
+    expect(relay.ackSubmission).toHaveBeenCalledWith(
+      'intake-1',
+      'submission-1',
+      7
+    );
     expect(sync.getCursor()).toBe(7);
   });
 
   it('flags replay mismatches before routing or acking', async () => {
-    const built = await sealedSubmission({ manifestSubmissionId: 'sealed-different' });
+    const built = await sealedSubmission({
+      manifestSubmissionId: 'sealed-different',
+    });
     const relay = {
-      fetchInbox: vi.fn(async () => ({ cursor: 7, has_more: false, submissions: [built.submission] })),
-      ackSubmission: vi.fn(async () => undefined),
+      fetchInbox: vi.fn(() =>
+        Promise.resolve({
+          cursor: 7,
+          has_more: false,
+          submissions: [built.submission],
+        })
+      ),
+      ackSubmission: vi.fn(() => Promise.resolve()),
     };
-    const routeSubmission = vi.fn(async () => ({ factId: 'fact-1' }));
-    const flagSubmission = vi.fn(async () => undefined);
+    const routeSubmission = vi.fn(() => Promise.resolve({ factId: 'fact-1' }));
+    const flagSubmission = vi.fn(() => Promise.resolve());
 
     const sync = new IntakeSyncClient({
       relay,
-      loadPrivateKey: vi.fn(async () => built.privateKey),
-      hasSubmission: vi.fn(async () => false),
-      rememberSubmission: vi.fn(async () => undefined),
-      isKnownSession: vi.fn(async () => true),
-      rememberSession: vi.fn(async () => undefined),
+      loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(false)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn(() => Promise.resolve(true)),
+      rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission,
       routeSubmission,
     });
@@ -149,36 +174,48 @@ describe('IntakeSyncClient', () => {
     expect(result.rejected).toBe(1);
     expect(routeSubmission).not.toHaveBeenCalled();
     expect(relay.ackSubmission).not.toHaveBeenCalled();
-    expect(flagSubmission).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'integrity_mismatch',
-      submissionId: 'submission-1',
-    }));
+    expect(flagSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'integrity_mismatch',
+        submissionId: 'submission-1',
+      })
+    );
   });
 
   it('flags duplicate and new-device submissions instead of overwriting silently', async () => {
     const built = await sealedSubmission({ sessionId: 'session-new' });
     const relay = {
-      fetchInbox: vi.fn(async () => ({ cursor: 7, has_more: false, submissions: [built.submission] })),
-      ackSubmission: vi.fn(async () => undefined),
+      fetchInbox: vi.fn(() =>
+        Promise.resolve({
+          cursor: 7,
+          has_more: false,
+          submissions: [built.submission],
+        })
+      ),
+      ackSubmission: vi.fn(() => Promise.resolve()),
     };
-    const flagSubmission = vi.fn(async () => undefined);
+    const flagSubmission = vi.fn(() => Promise.resolve());
 
     const sync = new IntakeSyncClient({
       relay,
-      loadPrivateKey: vi.fn(async () => built.privateKey),
-      hasSubmission: vi.fn(async () => true),
-      rememberSubmission: vi.fn(async () => undefined),
-      isKnownSession: vi.fn(async () => false),
-      rememberSession: vi.fn(async () => undefined),
+      loadPrivateKey: vi.fn(() => Promise.resolve(built.privateKey)),
+      hasSubmission: vi.fn(() => Promise.resolve(true)),
+      rememberSubmission: vi.fn(() => Promise.resolve()),
+      isKnownSession: vi.fn(() => Promise.resolve(false)),
+      rememberSession: vi.fn(() => Promise.resolve()),
       flagSubmission,
-      routeSubmission: vi.fn(async () => ({ factId: 'fact-1' })),
+      routeSubmission: vi.fn(() => Promise.resolve({ factId: 'fact-1' })),
     });
 
     const result = await sync.syncOnce();
 
     expect(result.duplicates).toBe(1);
-    expect(flagSubmission).toHaveBeenCalledWith(expect.objectContaining({ kind: 'duplicate' }));
-    expect(flagSubmission).toHaveBeenCalledWith(expect.objectContaining({ kind: 'new_device' }));
+    expect(flagSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'duplicate' })
+    );
+    expect(flagSubmission).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'new_device' })
+    );
     expect(relay.ackSubmission).toHaveBeenCalledOnce();
   });
 });

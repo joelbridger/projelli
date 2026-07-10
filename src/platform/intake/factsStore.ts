@@ -2,7 +2,10 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import type { ClientFact, FactKind, FactValue, Sensitivity } from './types';
 
-export interface IntakeFactUpsertInput extends Omit<ClientFact, 'fact_id' | 'status' | 'superseded_by'> {
+export interface IntakeFactUpsertInput extends Omit<
+  ClientFact,
+  'fact_id' | 'status' | 'superseded_by'
+> {
   fact_id?: string;
 }
 
@@ -26,7 +29,10 @@ export interface RevealedClientFact extends MaskedClientFact {
 let browserFacts = new Map<string, ClientFact>();
 
 function newFactId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto !== 'undefined' &&
+    typeof crypto.randomUUID === 'function'
+  ) {
     return `fact_${crypto.randomUUID()}`;
   }
   return `fact_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
@@ -49,7 +55,11 @@ function valueToPlainText(value: FactValue): string {
   }
 }
 
-export function maskFactValue(kind: FactKind, value: FactValue, sensitivity: Sensitivity): string {
+export function maskFactValue(
+  kind: FactKind,
+  value: FactValue,
+  sensitivity: Sensitivity
+): string {
   const plain = valueToPlainText(value);
   if (sensitivity !== 'restricted') return plain;
   const digits = plain.replace(/\D/gu, '');
@@ -102,19 +112,25 @@ function upsertBrowserFact(input: IntakeFactUpsertInput): MaskedClientFact {
   return toMasked(next);
 }
 
-export async function setIntakeFactsWorkspace(workspaceRoot: string): Promise<void> {
+export async function setIntakeFactsWorkspace(
+  workspaceRoot: string
+): Promise<void> {
   if (!isTauri()) return;
-  await invoke<void>('intake_set_workspace', { path: workspaceRoot });
+  await invoke('intake_set_workspace', { path: workspaceRoot });
 }
 
-export async function intakeFactUpsert(input: IntakeFactUpsertInput): Promise<MaskedClientFact> {
+export async function intakeFactUpsert(
+  input: IntakeFactUpsertInput
+): Promise<MaskedClientFact> {
   if (isTauri()) {
     return invoke<MaskedClientFact>('intake_fact_upsert', { input });
   }
   return upsertBrowserFact(input);
 }
 
-export async function intakeFactList(matterId: string): Promise<MaskedClientFact[]> {
+export async function intakeFactList(
+  matterId: string
+): Promise<MaskedClientFact[]> {
   if (isTauri()) {
     return invoke<MaskedClientFact[]>('intake_fact_list', { matterId });
   }
@@ -123,7 +139,9 @@ export async function intakeFactList(matterId: string): Promise<MaskedClientFact
     .map(toMasked);
 }
 
-export async function intakeFactReveal(factId: string): Promise<RevealedClientFact> {
+export async function intakeFactReveal(
+  factId: string
+): Promise<RevealedClientFact> {
   if (isTauri()) {
     return invoke<RevealedClientFact>('intake_fact_reveal', { factId });
   }

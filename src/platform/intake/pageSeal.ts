@@ -12,7 +12,8 @@ function getSubtle(): SubtleCrypto {
 }
 
 function buf(bytes: Uint8Array): Uint8Array {
-  if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength) return bytes;
+  if (bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength)
+    return bytes;
   return new Uint8Array(bytes);
 }
 
@@ -36,7 +37,10 @@ export function b64ToBytes(b64: string): Uint8Array {
   return out;
 }
 
-export async function sealPageBytes(key: CryptoKey, plaintext: Uint8Array): Promise<string> {
+export async function sealPageBytes(
+  key: CryptoKey,
+  plaintext: Uint8Array
+): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const ciphertext = new Uint8Array(
     await getSubtle().encrypt(
@@ -46,8 +50,8 @@ export async function sealPageBytes(key: CryptoKey, plaintext: Uint8Array): Prom
         additionalData: buf(PAGE_BLOB_AAD) as unknown as BufferSource,
       },
       key,
-      buf(plaintext) as unknown as BufferSource,
-    ),
+      buf(plaintext) as unknown as BufferSource
+    )
   );
   const out = new Uint8Array(1 + IV_BYTES + ciphertext.length);
   out[0] = VERSION;
@@ -56,7 +60,10 @@ export async function sealPageBytes(key: CryptoKey, plaintext: Uint8Array): Prom
   return bytesToB64(out);
 }
 
-export async function openPageBytes(key: CryptoKey, ciphertextB64: string): Promise<Uint8Array> {
+export async function openPageBytes(
+  key: CryptoKey,
+  ciphertextB64: string
+): Promise<Uint8Array> {
   const raw = b64ToBytes(ciphertextB64);
   if (raw.length < 1 + IV_BYTES + 16) throw new Error('Malformed page blob.');
   if (raw[0] !== VERSION) throw new Error('Unsupported page blob version.');
@@ -70,16 +77,22 @@ export async function openPageBytes(key: CryptoKey, ciphertextB64: string): Prom
         additionalData: buf(PAGE_BLOB_AAD) as unknown as BufferSource,
       },
       key,
-      buf(ciphertext) as unknown as BufferSource,
-    ),
+      buf(ciphertext) as unknown as BufferSource
+    )
   );
 }
 
-export async function sealPageJson<T>(key: CryptoKey, value: T): Promise<string> {
+export async function sealPageJson(
+  key: CryptoKey,
+  value: unknown
+): Promise<string> {
   return sealPageBytes(key, new TextEncoder().encode(JSON.stringify(value)));
 }
 
-export async function openPageJson<T>(key: CryptoKey, ciphertextB64: string): Promise<T> {
+export async function openPageJson<T>(
+  key: CryptoKey,
+  ciphertextB64: string
+): Promise<T> {
   const bytes = await openPageBytes(key, ciphertextB64);
   return JSON.parse(new TextDecoder().decode(bytes)) as T;
 }

@@ -97,6 +97,15 @@
     "manual-path-title": "Type a file path",
     "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\contract.docx"
   },
+  "intake": {
+    "onboarding": {
+      "no-link": "No onboarding link has been created for this client yet.",
+      "activity-count": "{{completed}} of {{total}} items have activity.",
+      "link-expiry": "This link works until {{date}}. You can extend or turn it off anytime.",
+      "no-facts": "No facts received yet.",
+      "view-in-folder": "View in folder"
+    }
+  },
   "layout": {
     "sidebar": {
       "workspace-label": "Workspace",
@@ -1705,6 +1714,10 @@
       "description": "Name the {{entity}}. You can add folders, email, and details inside the {{entity}} afterward.",
       "name-label": "Display name",
       "name-placeholder": "e.g. The Hendricks Household",
+      "household-template": "New household template",
+      "review-greeting": "Hi {{name}}, let’s get your household set up.",
+      "review-link-note": "This link works for 30 days. You can extend or turn it off anytime.",
+      "open-email-draft": "Open email draft",
       "cancel": "Cancel",
       "create": "Create {{entity}}"
     },
