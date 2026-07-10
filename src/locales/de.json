@@ -3985,7 +3985,7 @@
     },
     "link": {
       "title": "Linkstatus",
-      "local-note": "Dies zeigt, was Ihre App bereits über den sicheren Link dieses Kunden weiß.",
+      "local-note": "Dies zeigt, was dieses Gerät zuletzt über den sicheren Link dieses Kunden gespeichert hat. Eine Änderung auf einem anderen Gerät wird hier möglicherweise nicht angezeigt.",
       "status-heading": "Aktueller Link",
       "controls-heading": "Linksteuerung",
       "signals-heading": "Linkhinweise",

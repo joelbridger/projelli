@@ -321,17 +321,12 @@ export function MatterHub({ matterId, onBack, onAuditLog, renderDocuments, rende
       stateCiphertextB64: current.stateCiphertextB64,
       oldLinkSecret: b64ToBytes(oldSecretB64),
     });
+    await makeIntakeRelay().regenerateIntake(intakeId, {
+      token_b64: regenerated.tokenB64,
+      checklist_ciphertext_b64: regenerated.checklistCiphertextB64,
+      state_ciphertext_b64: regenerated.stateCiphertextB64,
+    });
     await updateIntakeLinkSecret(intakeId, regenerated.linkSecretB64);
-    try {
-      await makeIntakeRelay().regenerateIntake(intakeId, {
-        token_b64: regenerated.tokenB64,
-        checklist_ciphertext_b64: regenerated.checklistCiphertextB64,
-        state_ciphertext_b64: regenerated.stateCiphertextB64,
-      });
-    } catch (error) {
-      await updateIntakeLinkSecret(intakeId, oldSecretB64);
-      throw error;
-    }
     updateIntake(intakeId, {
       link: regenerated.link,
       status: 'active',

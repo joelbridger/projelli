@@ -10,6 +10,17 @@ import { useMatterStore, SAMPLE_MATTER_ID } from '@/platform/matter/matterStore'
 import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { AuditEntry } from '@/platform/types/audit';
+import { useFirmStore } from '@/platform/firm/firmStore';
+import { type IntakeRecord, useIntakeStore } from '@/platform/intake/intakeStore';
+
+const intakeLinkActionSpies = vi.hoisted(() => ({
+  loadIntakeLinkSecret: vi.fn(),
+  updateIntakeLinkSecret: vi.fn(),
+  regenerateIntakeLink: vi.fn(),
+  relayExtendIntake: vi.fn(),
+  relayRevokeIntake: vi.fn(),
+  relayRegenerateIntake: vi.fn(),
+}));
 
 // ── Mail commands (async probes used by GetStartedCard) ───────────────────────
 vi.mock('@/platform/utils/mail-commands', () => ({
@@ -92,6 +103,25 @@ vi.mock('@/platform/rag/MemoryService', () => ({
   },
 }));
 
+vi.mock('@/platform/intake/intakeKeychain', () => ({
+  loadIntakeLinkSecret: intakeLinkActionSpies.loadIntakeLinkSecret,
+  updateIntakeLinkSecret: intakeLinkActionSpies.updateIntakeLinkSecret,
+}));
+
+vi.mock('@/platform/intake/intakeLifecycle', () => ({
+  regenerateIntakeLink: intakeLinkActionSpies.regenerateIntakeLink,
+}));
+
+vi.mock('@/platform/intake/IntakeRelayClient', () => ({
+  IntakeRelayClient: vi.fn(function IntakeRelayClientMock() {
+    return {
+      extendIntake: intakeLinkActionSpies.relayExtendIntake,
+      revokeIntake: intakeLinkActionSpies.relayRevokeIntake,
+      regenerateIntake: intakeLinkActionSpies.relayRegenerateIntake,
+    };
+  }),
+}));
+
 // ── AI Chat Store ──────────────────────────────────────────────────────────────
 vi.mock('@/platform/state/aiChatStore', () => ({
   useAIChatStore: (sel: (s: { sessions: Record<string, unknown> }) => unknown) =>
@@ -106,6 +136,40 @@ import { useCrmWriteQueueStore } from '@/platform/state/crmWriteQueueStore';
 
 function resetStore() {
   useMatterStore.setState({ matters: [], activeMatterId: null, clientMapHubId: null, clientMapHubTab: null, pendingMeetingOpen: null });
+  useIntakeStore.getState().resetForTests();
+  useFirmStore.setState({ seatToken: null, accessToken: null, session: null });
+  intakeLinkActionSpies.loadIntakeLinkSecret.mockReset();
+  intakeLinkActionSpies.updateIntakeLinkSecret.mockReset();
+  intakeLinkActionSpies.regenerateIntakeLink.mockReset();
+  intakeLinkActionSpies.relayExtendIntake.mockReset();
+  intakeLinkActionSpies.relayRevokeIntake.mockReset();
+  intakeLinkActionSpies.relayRegenerateIntake.mockReset();
+}
+
+function makeIntakeForMatter(matterId: string): IntakeRecord {
+  return {
+    intakeId: 'intake-regenerate',
+    matterId,
+    clientFirstName: 'Sarah',
+    clientEmail: 'sarah@example.test',
+    firmName: 'North Star Planning',
+    status: 'revoked',
+    link: 'https://forms.example.test/i/intake-regenerate#old-secret',
+    expiresAt: '2026-07-01T00:00:00.000Z',
+    checklistVersion: 1,
+    items: [
+      { itemId: 'tax-return', label: 'Tax return', state: 'received' },
+      { itemId: 'income-docs', label: 'Income documents', state: 'not_started' },
+    ],
+    receivedItems: [],
+    flags: [],
+    knownSessionIds: [],
+    knownSubmissionIds: [],
+    nudges: [],
+    publicKeyRawB64: 'AQIDBA==',
+    checklistCiphertextB64: 'old-checklist',
+    stateCiphertextB64: 'old-state',
+  };
 }
 
 async function openFirstClientMapItemEdit() {
@@ -531,6 +595,85 @@ describe('MatterHub — sub-tab workspace', () => {
 
     fireEvent.click(screen.getByTestId('hub-subtab-documents'));
     expect(screen.getByTestId('hub-subtab-unavailable')).toBeInTheDocument();
+  });
+
+  it('regenerates the relay bundle before saving the new local link secret', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Regenerate Co',
+      client: 'Regenerate Co',
+    });
+    const record = makeIntakeForMatter(matter.id);
+    useIntakeStore.getState().upsertIntake(record);
+    useFirmStore.setState({ seatToken: 'seat-token', accessToken: 'access-token' });
+    intakeLinkActionSpies.loadIntakeLinkSecret.mockResolvedValue('AQIDBA==');
+    intakeLinkActionSpies.regenerateIntakeLink.mockResolvedValue({
+      link: 'https://forms.example.test/i/intake-regenerate#new-secret',
+      tokenB64: 'new-token',
+      linkSecretB64: 'new-secret-b64',
+      checklistCiphertextB64: 'new-checklist',
+      stateCiphertextB64: 'new-state',
+    });
+    intakeLinkActionSpies.relayRegenerateIntake.mockResolvedValue({ ok: true });
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+    fireEvent.click(screen.getByTestId('hub-subtab-onboarding'));
+    fireEvent.click(await screen.findByTestId('link-action-regenerate'));
+
+    await waitFor(() => {
+      expect(intakeLinkActionSpies.updateIntakeLinkSecret).toHaveBeenCalledWith(
+        'intake-regenerate',
+        'new-secret-b64',
+      );
+    });
+    expect(intakeLinkActionSpies.relayRegenerateIntake).toHaveBeenCalledWith(
+      'intake-regenerate',
+      {
+        token_b64: 'new-token',
+        checklist_ciphertext_b64: 'new-checklist',
+        state_ciphertext_b64: 'new-state',
+      },
+    );
+    expect(intakeLinkActionSpies.relayRegenerateIntake.mock.invocationCallOrder[0]).toBeLessThan(
+      intakeLinkActionSpies.updateIntakeLinkSecret.mock.invocationCallOrder[0]!,
+    );
+    expect(useIntakeStore.getState().intakesById['intake-regenerate']?.link).toBe(
+      'https://forms.example.test/i/intake-regenerate#new-secret',
+    );
+  });
+
+  it('keeps the old local link secret and link when relay regeneration fails', async () => {
+    const matter = useMatterStore.getState().createMatter({
+      name: 'Rejected Regenerate Co',
+      client: 'Rejected Regenerate Co',
+    });
+    const record = makeIntakeForMatter(matter.id);
+    useIntakeStore.getState().upsertIntake(record);
+    useFirmStore.setState({ seatToken: 'seat-token', accessToken: 'access-token' });
+    intakeLinkActionSpies.loadIntakeLinkSecret.mockResolvedValue('AQIDBA==');
+    intakeLinkActionSpies.regenerateIntakeLink.mockResolvedValue({
+      link: 'https://forms.example.test/i/intake-regenerate#new-secret',
+      tokenB64: 'new-token',
+      linkSecretB64: 'new-secret-b64',
+      checklistCiphertextB64: 'new-checklist',
+      stateCiphertextB64: 'new-state',
+    });
+    intakeLinkActionSpies.relayRegenerateIntake.mockRejectedValue(new Error('relay refused bundle'));
+
+    render(<MatterHub matterId={matter.id} onBack={() => undefined} />);
+    fireEvent.click(screen.getByTestId('hub-subtab-onboarding'));
+    fireEvent.click(await screen.findByTestId('link-action-regenerate'));
+
+    await waitFor(() => {
+      expect(intakeLinkActionSpies.relayRegenerateIntake).toHaveBeenCalledTimes(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByText('relay refused bundle')).toBeInTheDocument();
+    });
+    expect(intakeLinkActionSpies.updateIntakeLinkSecret).not.toHaveBeenCalled();
+    const stored = useIntakeStore.getState().intakesById['intake-regenerate'];
+    expect(stored?.link).toBe('https://forms.example.test/i/intake-regenerate#old-secret');
+    expect(stored?.checklistCiphertextB64).toBe('old-checklist');
+    expect(stored?.stateCiphertextB64).toBe('old-state');
   });
 
   // ───────────────────────────────────────────────────────────────────────────
