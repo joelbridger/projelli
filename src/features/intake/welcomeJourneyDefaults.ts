@@ -149,7 +149,11 @@ export function sanitizeWelcomeJourney(value: WelcomeJourney): WelcomeJourney {
 /** A client must always see at least one next step and the person responsible for it. */
 function repairWelcomeJourneyTimeline(journey: WelcomeJourney): void {
   if (journey.timeline.length === 0) {
-    journey.timeline = [copyWelcomeJourney(DEFAULT_WELCOME_JOURNEY).timeline[0]!];
+    const firstDefaultMilestone = copyWelcomeJourney(DEFAULT_WELCOME_JOURNEY).timeline[0];
+    if (!firstDefaultMilestone) {
+      throw new Error('The default welcome journey must include a timeline milestone.');
+    }
+    journey.timeline = [firstDefaultMilestone];
   }
 
   for (const step of journey.timeline) {
@@ -158,7 +162,8 @@ function repairWelcomeJourneyTimeline(journey: WelcomeJourney): void {
   }
 
   if (journey.timeline.some((step) => step.visible && JOURNEY_OWNERS.includes(step.owner))) return;
-  const first = journey.timeline[0]!;
+  const first = journey.timeline[0];
+  if (!first) return;
   first.visible = true;
   first.owner = DEFAULT_WELCOME_JOURNEY.timeline.find((candidate) => candidate.id === first.id)?.owner ?? 'firm';
 }
@@ -176,6 +181,9 @@ export function resolveWelcomeMergeFields(text: string, fields: Record<string, s
 }
 
 export function renderWelcomeJourneyEmail(id: string, fields: Record<string, string | undefined>): WelcomeJourneyEmailTemplate {
-  const template = WELCOME_JOURNEY_EMAILS.find((candidate) => candidate.id === id) ?? WELCOME_JOURNEY_EMAILS[0]!;
+  const template = WELCOME_JOURNEY_EMAILS.find((candidate) => candidate.id === id) ?? WELCOME_JOURNEY_EMAILS[0];
+  if (!template) {
+    throw new Error('The welcome journey must include an email template.');
+  }
   return { ...template, subject: resolveWelcomeMergeFields(template.subject, fields), body: resolveWelcomeMergeFields(template.body, fields) };
 }

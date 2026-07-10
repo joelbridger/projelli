@@ -98,6 +98,31 @@
     "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\contract.docx"
   },
   "intake": {
+    "journey": {
+      "title": "Welcome journey",
+      "description": "Shown on this client's one secure intake link.",
+      "save-firm-default": "Save as firm default",
+      "welcome-headline": "Welcome headline",
+      "welcome-introduction": "Welcome introduction",
+      "team-introduction": "Team introduction",
+      "help-contact": "Help contact",
+      "completion-headline": "Completion headline",
+      "completion-copy": "Completion copy",
+      "nothing-needed-copy": "Nothing-needed copy",
+      "paperwork-pending-copy": "Paperwork pending copy",
+      "timeline": "Timeline",
+      "milestone-label": "{{milestone}} label",
+      "milestone-description": "{{milestone}} description",
+      "milestone-owner": "{{milestone}} owner",
+      "show-milestone": "Show this milestone",
+      "team": "Your team",
+      "person-name": "{{person}} name",
+      "person-title": "{{person}} title",
+      "person-initials": "{{person}} initials",
+      "person-ask-about": "{{person}} ask me about",
+      "person-contact": "{{person}} contact",
+      "security-note": "The security explanation stays fixed so every client gets the same honest promise."
+    },
     "onboarding": {
       "no-link": "No onboarding link has been created for this client yet.",
       "activity-count": "{{completed}} of {{total}} items have activity.",
