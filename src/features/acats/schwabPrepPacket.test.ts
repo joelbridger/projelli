@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuditService } from '@/platform/audit/AuditService';
 import type { AuditEntry } from '@/platform/types/audit';
+import { setMatterAuditEmitterAsync } from '@/platform/matter/matterStore';
 import {
   type BinaryWorkspaceWriter,
   buildAcatsApprovalAuditMetadata,
@@ -8,6 +8,8 @@ import {
   exportSchwabPrepPacket,
 } from './schwabPrepPacket';
 import type { AcatsTransferDraft } from './types';
+
+type AuditEntryInput = Omit<AuditEntry, 'id' | 'timestamp'>;
 
 function field<T>(value: T, confidence = 0.95) {
   return {
@@ -66,18 +68,19 @@ function approvedDraft(): AcatsTransferDraft {
   };
 }
 
-function savedAuditEntry(description = 'saved'): AuditEntry {
+function savedAuditEntry(entry: AuditEntryInput): AuditEntry {
   return {
     id: 'audit-1',
     timestamp: '2026-07-10T12:00:00.000Z',
-    action: 'acats.export',
-    description,
-    model: undefined,
-    inputs: {},
-    outputs: {},
-    userDecision: 'approved',
-    metadata: { auditPersistenceStatus: 'saved' },
+    ...entry,
+    metadata: { ...entry.metadata, auditPersistenceStatus: 'saved' },
   };
+}
+
+function installSavedAuditEmitter() {
+  const emitter = vi.fn(async (entry: AuditEntryInput) => savedAuditEntry(entry));
+  setMatterAuditEmitterAsync(emitter);
+  return emitter;
 }
 
 function workspaceWithWrites(writes: Map<string, ArrayBuffer>): BinaryWorkspaceWriter {
@@ -98,6 +101,7 @@ function workspaceWithWrites(writes: Map<string, ArrayBuffer>): BinaryWorkspaceW
 describe('Schwab Prep Packet export', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    setMatterAuditEmitterAsync(null);
   });
 
   it('builds handoff copy that says Schwab owns signing and submission', () => {
@@ -120,6 +124,7 @@ describe('Schwab Prep Packet export', () => {
   });
 
   it('writes an approved packet as a .docx through the workspace service', async () => {
+    installSavedAuditEmitter();
     const writes = new Map<string, ArrayBuffer>();
     const service = workspaceWithWrites(writes);
 
@@ -135,9 +140,7 @@ describe('Schwab Prep Packet export', () => {
   });
 
   it('logs export with a masked account number and the destination file name', async () => {
-    const auditSpy = vi
-      .spyOn(AuditService.prototype, 'mustLogDurable')
-      .mockResolvedValue(savedAuditEntry('exported'));
+    const auditSpy = installSavedAuditEmitter();
     const writes = new Map<string, ArrayBuffer>();
 
     const result = await exportSchwabPrepPacket({
@@ -146,16 +149,22 @@ describe('Schwab Prep Packet export', () => {
       targetFolder: 'Clients/Hendricks',
     });
 
-    const call = auditSpy.mock.calls[0];
-    expect(call?.[0]).toBe('acats.export');
-    expect(call?.[1]).toContain('Wells Fargo Advisors');
-    expect(call?.[1]).toContain('****5678');
-    expect(call?.[1]).toContain(result.name);
-    expect(call?.[1]).not.toContain('1234-5678');
+    const entry = auditSpy.mock.calls[0]?.[0];
+    expect(entry?.action).toBe('acats.export');
+    expect(entry?.description).toContain('Wells Fargo Advisors');
+    expect(entry?.description).toContain('****5678');
+    expect(entry?.description).toContain(result.name);
+    expect(entry?.metadata).toMatchObject({
+      auditMustPersist: true,
+      deliveringAccountNumber: '****5678',
+      destinationFileName: result.name,
+    });
+    expect(entry?.outputs).toMatchObject({ destinationFileName: result.name });
+    expect(JSON.stringify(entry)).not.toContain('1234-5678');
   });
 
   it('does not write the packet when the durable audit row cannot be saved', async () => {
-    vi.spyOn(AuditService.prototype, 'mustLogDurable').mockRejectedValue(new Error('audit failed'));
+    setMatterAuditEmitterAsync(vi.fn().mockRejectedValue(new Error('audit failed')));
     const writes = new Map<string, ArrayBuffer>();
 
     await expect(
@@ -165,6 +174,20 @@ describe('Schwab Prep Packet export', () => {
         targetFolder: 'Clients/Hendricks',
       }),
     ).rejects.toThrow('audit failed');
+
+    expect(writes.size).toBe(0);
+  });
+
+  it('does not write the packet when the async Activity Log emitter is unavailable', async () => {
+    const writes = new Map<string, ArrayBuffer>();
+
+    await expect(
+      exportSchwabPrepPacket({
+        draft: approvedDraft(),
+        workspace: workspaceWithWrites(writes),
+        targetFolder: 'Clients/Hendricks',
+      }),
+    ).rejects.toThrow('ACATS audit emitter is not registered');
 
     expect(writes.size).toBe(0);
   });

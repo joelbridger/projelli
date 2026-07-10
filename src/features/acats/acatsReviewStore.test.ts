@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuditService } from '@/platform/audit/AuditService';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuditEntry } from '@/platform/types/audit';
+import { setMatterAuditEmitterAsync } from '@/platform/matter/matterStore';
 import { useAcatsReviewStore } from './acatsReviewStore';
 import { getAcatsReviewBlockingItems } from './reviewRules';
 import type { AcatsTransferDraft } from './types';
+
+type AuditEntryInput = Omit<AuditEntry, 'id' | 'timestamp'>;
 
 function field<T>(value: T, confidence = 0.95) {
   return {
@@ -58,18 +60,29 @@ function draft(overrides: Partial<AcatsTransferDraft> = {}): AcatsTransferDraft 
   };
 }
 
-function savedAuditEntry(description = 'saved'): AuditEntry {
+function savedAuditEntry(entry: AuditEntryInput): AuditEntry {
   return {
     id: 'audit-1',
     timestamp: '2026-07-10T12:00:00.000Z',
-    action: 'acats.approve',
-    description,
-    model: undefined,
-    inputs: {},
-    outputs: {},
-    userDecision: 'approved',
-    metadata: { auditPersistenceStatus: 'saved' },
+    ...entry,
+    metadata: { ...entry.metadata, auditPersistenceStatus: 'saved' },
   };
+}
+
+function installSavedAuditEmitter() {
+  const emitter = vi.fn(async (entry: AuditEntryInput) => savedAuditEntry(entry));
+  setMatterAuditEmitterAsync(emitter);
+  return emitter;
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
 }
 
 function confirmReadyDraft(): void {
@@ -91,12 +104,15 @@ describe('ACATS review store', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     useAcatsReviewStore.getState().resetAcatsReview();
+    setMatterAuditEmitterAsync(null);
+  });
+
+  afterEach(() => {
+    setMatterAuditEmitterAsync(null);
   });
 
   it('blocks approval until critical fields are confirmed and warnings acknowledged', async () => {
-    const auditSpy = vi
-      .spyOn(AuditService.prototype, 'mustLogDurable')
-      .mockResolvedValue(savedAuditEntry('approved'));
+    const auditSpy = installSavedAuditEmitter();
     useAcatsReviewStore.getState().setDraft(draft());
 
     expect(useAcatsReviewStore.getState().isReadyForApproval()).toBe(false);
@@ -110,36 +126,111 @@ describe('ACATS review store', () => {
     await useAcatsReviewStore.getState().approveDraft();
     expect(useAcatsReviewStore.getState().draft?.reviewStatus).toBe('approved');
     expect(auditSpy).toHaveBeenCalledWith(
-      'acats.approve',
-      expect.stringContaining('matter matter-1'),
-      expect.objectContaining({ userDecision: 'approved' }),
+      expect.objectContaining({
+        action: 'acats.approve',
+        description: expect.stringContaining('matter matter-1'),
+        userDecision: 'approved',
+      }),
     );
   });
 
-  it('logs approval with a masked account number and never the full number in the description', async () => {
-    const auditSpy = vi
-      .spyOn(AuditService.prototype, 'mustLogDurable')
-      .mockResolvedValue(savedAuditEntry('approved'));
+  it('logs approval through the async Activity Log emitter with only a masked account number', async () => {
+    const auditSpy = installSavedAuditEmitter();
     useAcatsReviewStore.getState().setDraft(draft());
     confirmReadyDraft();
 
     await useAcatsReviewStore.getState().approveDraft();
 
-    const call = auditSpy.mock.calls[0];
-    expect(call?.[0]).toBe('acats.approve');
-    expect(call?.[1]).toContain('Wells Fargo Advisors');
-    expect(call?.[1]).toContain('****5678');
-    expect(call?.[1]).not.toContain('1234-5678');
+    const entry = auditSpy.mock.calls[0]?.[0];
+    expect(entry?.action).toBe('acats.approve');
+    expect(entry?.description).toContain('Wells Fargo Advisors');
+    expect(entry?.description).toContain('****5678');
+    expect(entry?.metadata).toMatchObject({
+      auditMustPersist: true,
+      deliveringAccountNumber: '****5678',
+      reviewStatus: 'approved',
+    });
+    expect(JSON.stringify(entry)).not.toContain('1234-5678');
   });
 
   it('does not approve the draft when the durable audit row cannot be saved', async () => {
-    vi.spyOn(AuditService.prototype, 'mustLogDurable').mockRejectedValue(new Error('audit failed'));
+    setMatterAuditEmitterAsync(vi.fn().mockRejectedValue(new Error('audit failed')));
     useAcatsReviewStore.getState().setDraft(draft());
     confirmReadyDraft();
 
     await expect(useAcatsReviewStore.getState().approveDraft()).rejects.toThrow('audit failed');
 
     expect(useAcatsReviewStore.getState().draft?.reviewStatus).toBe('needs_review');
+    expect(useAcatsReviewStore.getState().isApprovingDraft).toBe(false);
+  });
+
+  it('throws instead of approving when the async Activity Log emitter is unavailable', async () => {
+    useAcatsReviewStore.getState().setDraft(draft());
+    confirmReadyDraft();
+
+    await expect(useAcatsReviewStore.getState().approveDraft()).rejects.toThrow(
+      'ACATS audit emitter is not registered',
+    );
+
+    expect(useAcatsReviewStore.getState().draft?.reviewStatus).toBe('needs_review');
+    expect(useAcatsReviewStore.getState().isApprovingDraft).toBe(false);
+  });
+
+  it('locks draft edits while the approval audit is still saving', async () => {
+    const pendingAudit = deferred<AuditEntry>();
+    const auditSpy = vi.fn((entry: AuditEntryInput) => {
+      void entry;
+      return pendingAudit.promise;
+    });
+    setMatterAuditEmitterAsync(auditSpy);
+    useAcatsReviewStore.getState().setDraft(draft());
+    confirmReadyDraft();
+    useAcatsReviewStore.getState().setAssetAction(0, 'in_kind');
+
+    const approval = useAcatsReviewStore.getState().approveDraft();
+
+    expect(auditSpy).toHaveBeenCalledTimes(1);
+    expect(useAcatsReviewStore.getState().isApprovingDraft).toBe(true);
+
+    useAcatsReviewStore.getState().editField('deliveringFirm.name', 'Changed firm');
+    useAcatsReviewStore.getState().editField('deliveringAccount.accountNumber', '9999-0000');
+    useAcatsReviewStore.getState().confirmField('extra.confirmation');
+    useAcatsReviewStore.getState().unconfirmField('deliveringFirm.name');
+    useAcatsReviewStore.getState().acknowledgeWarning('New warning');
+    useAcatsReviewStore.getState().unacknowledgeWarning('Account number is masked');
+    useAcatsReviewStore.getState().setTransferType('partial');
+    useAcatsReviewStore.getState().setAssetAction(0, 'liquidate');
+
+    const lockedState = useAcatsReviewStore.getState();
+    expect(lockedState.draft?.deliveringFirm.name?.value).toBe('Wells Fargo Advisors');
+    expect(lockedState.draft?.deliveringAccount.accountNumber?.value).toBe('1234-5678');
+    expect(lockedState.confirmedFields['deliveringFirm.name']).toBe(true);
+    expect(lockedState.confirmedFields['extra.confirmation']).toBeUndefined();
+    expect(lockedState.acknowledgedWarnings['Account number is masked']).toBe(true);
+    expect(lockedState.acknowledgedWarnings['New warning']).toBeUndefined();
+    expect(lockedState.draft?.instruction.transferType).toBe('full');
+    expect(lockedState.draft?.assets[0]?.action).toBe('in_kind');
+
+    const auditedEntry = auditSpy.mock.calls[0]?.[0];
+    expect(auditedEntry).toBeDefined();
+    if (!auditedEntry) throw new Error('Expected an ACATS approval audit row');
+    pendingAudit.resolve(savedAuditEntry(auditedEntry));
+    await approval;
+
+    const finalDraft = useAcatsReviewStore.getState().draft;
+    expect(finalDraft?.reviewStatus).toBe('approved');
+    expect(finalDraft?.deliveringFirm.name?.value).toBe('Wells Fargo Advisors');
+    expect(finalDraft?.deliveringAccount.accountNumber?.value).toBe('1234-5678');
+    expect(finalDraft?.instruction.transferType).toBe('full');
+    expect(finalDraft?.assets[0]?.action).toBe('in_kind');
+    expect(auditedEntry.metadata).toMatchObject({
+      auditMustPersist: true,
+      deliveringFirm: finalDraft?.deliveringFirm.name?.value,
+      deliveringAccountNumber: '****5678',
+      assetCount: finalDraft?.assets.length,
+      reviewStatus: 'approved',
+    });
+    expect(useAcatsReviewStore.getState().isApprovingDraft).toBe(false);
   });
 
   it('records advisor edits with original extracted values still recoverable', () => {

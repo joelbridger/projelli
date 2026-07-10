@@ -37,6 +37,7 @@ function ReviewField({ path, label, field, inputTestId, type = 'text' }: ReviewF
   const confirmField = useAcatsReviewStore((state) => state.confirmField);
   const confirmed = useAcatsReviewStore((state) => Boolean(state.confirmedFields[path]));
   const original = useAcatsReviewStore((state) => state.originalFields[path]);
+  const isApprovingDraft = useAcatsReviewStore((state) => state.isApprovingDraft);
   const value = fieldValue(field);
 
   return (
@@ -54,6 +55,7 @@ function ReviewField({ path, label, field, inputTestId, type = 'text' }: ReviewF
           variant={confirmed ? 'secondary' : 'primary'}
           size="sm"
           iconLeft={confirmed ? Check : ClipboardCheck}
+          disabled={isApprovingDraft}
           onClick={() => { confirmField(path); }}
         >
           {confirmed ? 'Confirmed' : 'Confirm'}
@@ -63,6 +65,7 @@ function ReviewField({ path, label, field, inputTestId, type = 'text' }: ReviewF
         data-testid={inputTestId}
         type={type}
         value={value}
+        disabled={isApprovingDraft}
         onChange={(event) => { editField(path, event.target.value); }}
       />
       {original ? (
@@ -100,6 +103,7 @@ function RegistrationSelect({ field }: { field: ExtractedField<unknown> | undefi
   const confirmField = useAcatsReviewStore((state) => state.confirmField);
   const confirmed = useAcatsReviewStore((state) => Boolean(state.confirmedFields['deliveringAccount.registrationType']));
   const original = useAcatsReviewStore((state) => state.originalFields['deliveringAccount.registrationType']);
+  const isApprovingDraft = useAcatsReviewStore((state) => state.isApprovingDraft);
   const registrationValue = typeof field?.value === 'string' ? field.value : 'unknown';
   return (
     <div
@@ -116,6 +120,7 @@ function RegistrationSelect({ field }: { field: ExtractedField<unknown> | undefi
           variant={confirmed ? 'secondary' : 'primary'}
           size="sm"
           iconLeft={confirmed ? Check : ClipboardCheck}
+          disabled={isApprovingDraft}
           onClick={() => { confirmField('deliveringAccount.registrationType'); }}
         >
           {confirmed ? 'Confirmed' : 'Confirm'}
@@ -125,6 +130,7 @@ function RegistrationSelect({ field }: { field: ExtractedField<unknown> | undefi
         data-testid="acats-field-registration"
         className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
         value={registrationValue}
+        disabled={isApprovingDraft}
         onChange={(event) => { editField('deliveringAccount.registrationType', event.target.value); }}
       >
         <option value="individual">Individual</option>
@@ -148,6 +154,7 @@ function TransferTypeControl() {
   const setTransferType = useAcatsReviewStore((state) => state.setTransferType);
   const confirmField = useAcatsReviewStore((state) => state.confirmField);
   const confirmed = useAcatsReviewStore((state) => Boolean(state.confirmedFields['instruction.transferType']));
+  const isApprovingDraft = useAcatsReviewStore((state) => state.isApprovingDraft);
   return (
     <div className="rounded-md border border-slate-200 bg-white p-3">
       <div className="mb-2 flex items-center justify-between gap-3">
@@ -157,6 +164,7 @@ function TransferTypeControl() {
           variant={confirmed ? 'secondary' : 'primary'}
           size="sm"
           iconLeft={confirmed ? Check : ClipboardCheck}
+          disabled={isApprovingDraft}
           onClick={() => { confirmField('instruction.transferType'); }}
         >
           {confirmed ? 'Confirmed' : 'Confirm'}
@@ -166,6 +174,7 @@ function TransferTypeControl() {
         data-testid="acats-transfer-type"
         className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm"
         value={draft?.instruction.transferType ?? 'unknown'}
+        disabled={isApprovingDraft}
         onChange={(event) => { setTransferType(event.target.value as AcatsTransferType); }}
       >
         <option value="unknown">Choose one</option>
@@ -179,6 +188,7 @@ function TransferTypeControl() {
 function HoldingsTable({ draft }: { draft: AcatsTransferDraft }) {
   const editField = useAcatsReviewStore((state) => state.editField);
   const setAssetAction = useAcatsReviewStore((state) => state.setAssetAction);
+  const isApprovingDraft = useAcatsReviewStore((state) => state.isApprovingDraft);
   return (
     <Card variant="flat" className="overflow-hidden">
       <table className="w-full border-collapse text-sm">
@@ -201,6 +211,7 @@ function HoldingsTable({ draft }: { draft: AcatsTransferDraft }) {
                   <Input
                     data-testid={`acats-asset-${assetIndex}-description`}
                     value={asset.description.value}
+                    disabled={isApprovingDraft}
                     onChange={(event) => { editField(`assets.${assetIndex}.description`, event.target.value); }}
                   />
                   <div className="mt-1"><SourceLine field={asset.description} /></div>
@@ -208,24 +219,28 @@ function HoldingsTable({ draft }: { draft: AcatsTransferDraft }) {
                 <td className="px-3 py-2">
                   <Input
                     value={asset.symbol?.value ?? ''}
+                    disabled={isApprovingDraft}
                     onChange={(event) => { editField(`assets.${assetIndex}.symbol`, event.target.value); }}
                   />
                 </td>
                 <td className="px-3 py-2">
                   <Input
                     value={asset.cusip?.value ?? ''}
+                    disabled={isApprovingDraft}
                     onChange={(event) => { editField(`assets.${assetIndex}.cusip`, event.target.value); }}
                   />
                 </td>
                 <td className="px-3 py-2">
                   <Input
                     value={asset.quantity?.value ?? ''}
+                    disabled={isApprovingDraft}
                     onChange={(event) => { editField(`assets.${assetIndex}.quantity`, event.target.value); }}
                   />
                 </td>
                 <td className="px-3 py-2">
                   <Input
                     value={asset.marketValue?.value ?? ''}
+                    disabled={isApprovingDraft}
                     onChange={(event) => { editField(`assets.${assetIndex}.marketValue`, event.target.value); }}
                   />
                 </td>
@@ -234,6 +249,7 @@ function HoldingsTable({ draft }: { draft: AcatsTransferDraft }) {
                     data-testid={`acats-asset-${assetIndex}-action`}
                     className="h-10 w-full rounded-md border border-slate-200 bg-white px-2 text-sm"
                     value={asset.action}
+                    disabled={isApprovingDraft}
                     onChange={(event) => { setAssetAction(index, event.target.value as AcatsAssetAction); }}
                   >
                     <option value="unknown">Choose</option>
@@ -259,8 +275,8 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
   const getBlockingItems = useAcatsReviewStore((state) => state.blockingItems);
   const isReadyForApproval = useAcatsReviewStore((state) => state.isReadyForApproval);
   const approveDraft = useAcatsReviewStore((state) => state.approveDraft);
+  const isApprovingDraft = useAcatsReviewStore((state) => state.isApprovingDraft);
   const [approvalError, setApprovalError] = useState<string | null>(null);
-  const [isApproving, setIsApproving] = useState(false);
 
   useEffect(() => {
     setDraft(draft);
@@ -273,13 +289,10 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
 
   async function handleApproveDraft(): Promise<void> {
     setApprovalError(null);
-    setIsApproving(true);
     try {
       await approveDraft();
     } catch {
       setApprovalError('The audit log could not be saved, so this draft was not approved. Try again.');
-    } finally {
-      setIsApproving(false);
     }
   }
 
@@ -379,6 +392,7 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
                     data-testid={`acats-warning-${warning}`}
                     type="checkbox"
                     checked={Boolean(acknowledgedWarnings[warning])}
+                    disabled={isApprovingDraft}
                     onChange={(event) => {
                       if (event.target.checked) acknowledgeWarning(warning);
                       else unacknowledgeWarning(warning);
@@ -400,11 +414,11 @@ export function AcatsReviewScreen({ draft }: { draft: AcatsTransferDraft }) {
         </div>
         <Button
           data-testid="acats-approve"
-          disabled={!ready || isApproving}
+          disabled={!ready || isApprovingDraft}
           iconLeft={ClipboardCheck}
           onClick={() => { void handleApproveDraft(); }}
         >
-          {isApproving ? 'Saving approval...' : 'Approve draft'}
+          {isApprovingDraft ? 'Saving approval...' : 'Approve draft'}
         </Button>
       </div>
       {approvalError ? (

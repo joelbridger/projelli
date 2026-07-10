@@ -21,6 +21,7 @@ interface AcatsReviewState {
   confirmedFields: AcatsConfirmedFields;
   acknowledgedWarnings: AcatsAcknowledgedWarnings;
   originalFields: Record<string, ExtractedField<unknown>>;
+  isApprovingDraft: boolean;
   setDraft: (draft: AcatsTransferDraft) => void;
   editField: (path: string, value: EditableAcatsValue) => void;
   confirmField: (path: string) => void;
@@ -135,16 +136,22 @@ export const useAcatsReviewStore = create<AcatsReviewState>((set, get) => ({
   confirmedFields: {},
   acknowledgedWarnings: {},
   originalFields: {},
+  isApprovingDraft: false,
   setDraft: (draft) => {
-    set({
-      draft: cloneDraft(draft),
-      confirmedFields: {},
-      acknowledgedWarnings: {},
-      originalFields: {},
+    set((state) => {
+      if (state.isApprovingDraft) return state;
+      return {
+        draft: cloneDraft(draft),
+        confirmedFields: {},
+        acknowledgedWarnings: {},
+        originalFields: {},
+        isApprovingDraft: false,
+      };
     });
   },
   editField: (path, value) => {
     set((state) => {
+      if (state.isApprovingDraft) return state;
       if (!state.draft) return state;
       const original = readField(state.draft, path);
       const nextOriginalFields = {
@@ -162,29 +169,38 @@ export const useAcatsReviewStore = create<AcatsReviewState>((set, get) => ({
     });
   },
   confirmField: (path) => {
-    set((state) => ({
-      confirmedFields: { ...state.confirmedFields, [path]: true },
-    }));
+    set((state) => {
+      if (state.isApprovingDraft) return state;
+      return {
+        confirmedFields: { ...state.confirmedFields, [path]: true },
+      };
+    });
   },
   unconfirmField: (path) => {
     set((state) => {
+      if (state.isApprovingDraft) return state;
       const { [path]: _removed, ...rest } = state.confirmedFields;
       return { confirmedFields: rest };
     });
   },
   acknowledgeWarning: (warning) => {
-    set((state) => ({
-      acknowledgedWarnings: { ...state.acknowledgedWarnings, [warning]: true },
-    }));
+    set((state) => {
+      if (state.isApprovingDraft) return state;
+      return {
+        acknowledgedWarnings: { ...state.acknowledgedWarnings, [warning]: true },
+      };
+    });
   },
   unacknowledgeWarning: (warning) => {
     set((state) => {
+      if (state.isApprovingDraft) return state;
       const { [warning]: _removed, ...rest } = state.acknowledgedWarnings;
       return { acknowledgedWarnings: rest };
     });
   },
   setTransferType: (transferType) => {
     set((state) => {
+      if (state.isApprovingDraft) return state;
       if (!state.draft) return state;
       return {
         draft: {
@@ -200,6 +216,7 @@ export const useAcatsReviewStore = create<AcatsReviewState>((set, get) => ({
   },
   setAssetAction: (assetIndex, action) => {
     set((state) => {
+      if (state.isApprovingDraft) return state;
       if (!state.draft) return state;
       const draft = cloneDraft(state.draft);
       const asset = draft.assets[assetIndex];
@@ -217,28 +234,37 @@ export const useAcatsReviewStore = create<AcatsReviewState>((set, get) => ({
   },
   approveDraft: async () => {
     const state = get();
-    if (!isAcatsDraftReadyForApproval(state) || !state.draft) return;
+    if (state.isApprovingDraft || !isAcatsDraftReadyForApproval(state) || !state.draft) return;
     const draftToApprove = cloneDraft(state.draft);
-    await auditAcatsDraftApproval(draftToApprove);
-    set((latestState) => {
-      if (!latestState.draft || latestState.draft.id !== draftToApprove.id) return latestState;
-      if (!isAcatsDraftReadyForApproval(latestState)) return latestState;
-      return {
-        draft: {
-          ...cloneDraft(latestState.draft),
-          reviewStatus: 'approved',
-        },
-      };
-    });
+    set({ isApprovingDraft: true });
+    try {
+      await auditAcatsDraftApproval(draftToApprove);
+      set((latestState) => {
+        if (!latestState.draft || latestState.draft.id !== draftToApprove.id) return latestState;
+        if (!isAcatsDraftReadyForApproval(latestState)) return latestState;
+        return {
+          draft: {
+            ...cloneDraft(latestState.draft),
+            reviewStatus: 'approved',
+          },
+        };
+      });
+    } finally {
+      set({ isApprovingDraft: false });
+    }
   },
   blockingItems: () => getAcatsReviewBlockingItems(get()),
   isReadyForApproval: () => isAcatsDraftReadyForApproval(get()),
   resetAcatsReview: () => {
-    set({
-      draft: null,
-      confirmedFields: {},
-      acknowledgedWarnings: {},
-      originalFields: {},
+    set((state) => {
+      if (state.isApprovingDraft) return state;
+      return {
+        draft: null,
+        confirmedFields: {},
+        acknowledgedWarnings: {},
+        originalFields: {},
+        isApprovingDraft: false,
+      };
     });
   },
 }));
