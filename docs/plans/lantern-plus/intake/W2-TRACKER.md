@@ -25,6 +25,13 @@ Full `npm run gate`: all TS steps GREEN (typecheck, typecheck:tests, i18n comple
 - Nudge = `mailSaveDraft` only (never sends — test-enforced). Link signals local-only (no relay probe telemetry — privacy hardening preserved). Client email now persisted. Board reachable + live via the wired inbox sync.
 - **BENCH still BLOCKED by the coordinator** (Legion demo indexing) — not run. UI-spec §5 screenshots + the V10 bench are post-WORKER-DONE, coordinator-gated.
 
+## 🟢 Coordinator final-pass fixes (2 P2 + 1 P3) — fix lane `5d488991` (worktree ~/lp-w2-cf, branch lp/intake-w2-cf)
+Coordinator's independent Wave-2 pass: NO P1s (board isolation + copy clean). Three fixes (brief `briefs/w2-coord-fix.md`), lead-verified correct + tested:
+- **[P2a] Copy-message nudge fallback now guards + audits** (`NudgeReviewModal.handleCopy` + `nudgeSave.recordNudgeCopiedToClipboard`): runs the SAME stale + eligibility check and writes the SAME intent/outcome audit pair + `recordNudgeAttempt` (channel email_draft for cadence; audit notes `copied_message`) as the mailbox path — previously it bypassed the cadence cap with no compliance record.
+- **[P2b] Regenerate persists the new secret only AFTER the relay accepts** (`MatterHub.handleRegenerateIntake`): reordered to relay-first, removed the pre-persist + rollback → no crash gap where the keychain holds a secret the relay never accepted (which made "copy link" hand out a dead link). Tests assert relay-before-persist ordering AND `updateIntakeLinkSecret` NOT called on relay reject.
+- **[P3] Link panel local-only honesty**: `intake.link.local-note` copy updated (en/de/es, value-only so snapshot counts hold) to say the status reflects what this device last recorded and may not show a change made elsewhere.
+- Lead verify: vitest 93/93 (intake), tsc clean, eslint-gate clean, i18n snapshot 6/6, TS-only (no backend/intake-page). Adversarial codex-review + full re-gate + push + re-WORKER-DONE next.
+
 ## Board slot API — how Lanes 2/3 wire in at merge (LEAD does this in MattersHome)
 `OnboardingBoard` (Lane 1, `377be8b4`) exposes props: `onOpenNudge`, `onOpenLinkSignals`, `onReviewItems`, `onCopyLink`, `renderNudgeSlot(row)`, `renderLinkSignals(row)`. Currently mounted in `MattersHome` with only `onNewClient`. At merge:
 - **Lane 2 (link):** pass `renderLinkSignals={(row)=><LinkSignalBadge signals={row.linkSignals}/>}` + `onOpenLinkSignals`. (Lane 2 also mounts `LinkLifecyclePanel` in `OnboardingTab` itself.)
