@@ -102,7 +102,10 @@ When both waves' lanes are merged + gate-green + pushed (HEAD==origin): `WORKER-
 | W6b relay-hardening | ✅ (+expiry-cleanup) | ✅ bun 226/226 | ✅ 2 P1+P2 fixed | ✅ | ✅ | ✅ d9abb06f | ✅ |
 | W6d a11y-audit | ✅ | ✅ pw 23/23 | ✅ 1 P2 fixed | ✅ | ✅ | ✅ 39f1a429 | ✅ |
 
-## ✅ WAVES 5+6 COMPLETE — all 7 lanes merged + pushed (origin/lp/intake-w56 @ 39f1a429)
+### W6e device-marker (coordinator-added post-batch-2) — the leaked-link "new device" flag, wired end-to-end
+Coordinator directed (after WORKER-DONE draft): the per-session new-device indicator MUST function (designed leaked-link mitigation), not just be described. Scope: client mints a stable per-browser marker → sealed INSIDE the manifest ciphertext (egress standard: never plaintext to the relay — per INTAKE-EGRESS-AUDIT.md linkability verdicts) → advisor reads it from the DECRYPTED manifest → existing new_device board chip fires. Removes the dead plaintext `SubmissionEnvelope.session_id` leak path. TS-only (no Rust/backend logic). Cross-side contract + privacy-proof tests. Building.
+
+## ✅ WAVES 5+6 (7 lanes) MERGED + pushed (origin/lp/intake-w56 @ 6a9b7af7); W6e device-marker in flight
 
 **Final full-tree gate (all 7 lanes):** tsc 0 err · typecheck:tests 0 err · backend typecheck 0 err · lint "No ESLint regression" · i18n completeness ✅ · wire-contracts ✅ · TS↔Rust command-contracts ✅ · provider/consent/case/brand/identity/parity ✅ · **backend bun 226/226** · **frontend vitest 517/517** (73 files, changed areas).
 **Cargo:** ZERO Rust/Cargo/src-tauri files changed across all 7 lanes (git-confirmed) → Rust binary byte-identical to lp/intake; TS↔Rust contract check passes. Full cargo recompile intentionally NOT forced (no coverage of these lanes + 2 concurrent Rust builds on the box = earlyoom kill risk). Can run on a private target later if belt-and-suspenders wanted.
