@@ -3982,6 +3982,48 @@
       "link-expiry": "Dieser Link funktioniert bis {{date}}. Sie können ihn jederzeit verlängern oder deaktivieren.",
       "no-facts": "Noch keine Angaben erhalten.",
       "view-in-folder": "Im Ordner anzeigen"
+    },
+    "board": {
+      "title": "Onboarding",
+      "new-client": "Neuer Kunde",
+      "view-toggle-aria": "Kundenansicht",
+      "view-list": "Liste",
+      "view-board": "Board",
+      "empty": {
+        "title": "Keine aktiven Onboarding-Anfragen",
+        "body": "Legen Sie einen neuen Kunden an, um die sichere Checkliste zu senden."
+      },
+      "row": {
+        "stalled_one": "STOCKT {{count}} Tag",
+        "stalled_other": "STOCKT {{count}} Tage",
+        "no-activity": "Noch keine Kundenaktivität",
+        "last-activity-today": "heute",
+        "days-ago_one": "vor {{count}} Tag",
+        "days-ago_other": "vor {{count}} Tagen",
+        "next-review_one": "{{count}} neues Element prüfen",
+        "next-review_other": "{{count}} neue Elemente prüfen",
+        "next-call": "Anruf vorschlagen",
+        "next-nudge-ready": "Erinnerung bereit",
+        "next-nudge-awaiting": "Erinnerung wartet auf Freigabe",
+        "next-complete": "abgeschlossen",
+        "next-progress": "{{received}} von {{total}}",
+        "stalled-badge": "Stockt",
+        "progress-aria": "Onboarding-Fortschritt für {{client}}",
+        "progress-text": "{{received}} von {{total}}",
+        "complete": "abgeschlossen",
+        "missing-heading": "Fehlt",
+        "missing-more_one": "+{{count}} weiteres",
+        "missing-more_other": "+{{count}} weitere",
+        "missing-none": "Nichts fehlt",
+        "open-aria": "Onboarding für {{client}} öffnen",
+        "actions-aria": "Onboarding-Aktionen für {{client}}",
+        "open-action": "Öffnen",
+        "review-action": "Prüfen",
+        "nudge-action": "Erinnern",
+        "copy-link-action": "Link kopieren",
+        "copy-link-copied": "Kopiert",
+        "link-signals-action": "Signale"
+      }
     }
   }
 }

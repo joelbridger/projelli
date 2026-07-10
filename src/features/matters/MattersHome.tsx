@@ -22,6 +22,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
   Users,
+  List,
   Lock,
   Plus,
   CheckCircle2,
@@ -36,6 +37,7 @@ import {
   MoreVertical,
   Mic,
   Clock,
+  ClipboardList,
 } from 'lucide-react';
 import {
   useMatters,
@@ -47,6 +49,7 @@ import {
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { MatterHub } from '@/features/matters/MatterHub';
 import { TodaysMeetingsStrip } from '@/features/meetings/TodaysMeetingsStrip';
+import { OnboardingBoard } from '@/features/intake/OnboardingBoard';
 import { useApiKeys } from '@/platform/hooks/useApiKeys';
 import {
   mailIsConnected,
@@ -68,6 +71,7 @@ import {
   Callout,
   SurfaceToolbar,
   IconButton,
+  SegmentedToggle,
 } from '@/ui/kp';
 import {
   DropdownMenu,
@@ -78,6 +82,7 @@ import {
 } from '@/ui/dropdown-menu';
 import {
   SK_SETUP_CARD_DISMISSED,
+  SK_CLIENTS_HOME_VIEW,
   EV_OPEN_SETTINGS,
   EV_OPEN_MATTER_MANAGER,
   EV_OPEN_CLIENT_SETTINGS,
@@ -90,6 +95,28 @@ const SETUP_CARD_DISMISSED_KEY = SK_SETUP_CARD_DISMISSED;
 
 /** Number of matters above which the search box is shown. */
 const SEARCH_THRESHOLD = 5;
+
+type ClientsHomeView = 'list' | 'board';
+const CLIENTS_HOME_VIEW_KEY = SK_CLIENTS_HOME_VIEW;
+
+function readClientsHomeView(): ClientsHomeView {
+  try {
+    return localStorage.getItem(CLIENTS_HOME_VIEW_KEY) === 'board'
+      ? 'board'
+      : 'list';
+  } catch (error: unknown) {
+    console.debug('Could not read clients home view preference:', error);
+    return 'list';
+  }
+}
+
+function writeClientsHomeView(view: ClientsHomeView): void {
+  try {
+    localStorage.setItem(CLIENTS_HOME_VIEW_KEY, view);
+  } catch (error: unknown) {
+    console.debug('Could not save clients home view preference:', error);
+  }
+}
 
 export interface MattersHomeProps {
   onAuditLog?: (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
@@ -862,6 +889,8 @@ export function MattersHome({
   };
   const entityLabel = useEntityLabel();
   const [archivedExpanded, setArchivedExpanded] = useState(false);
+  const [clientsHomeView, setClientsHomeView] =
+    useState<ClientsHomeView>(readClientsHomeView);
 
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -918,6 +947,10 @@ export function MattersHome({
   }, [filteredMatters, sort]);
 
   const showSearch = activeMatters.length > SEARCH_THRESHOLD;
+  const setHomeView = (view: ClientsHomeView) => {
+    setClientsHomeView(view);
+    writeClientsHomeView(view);
+  };
 
   // If a hub is open, render MatterHub instead of the table
   if (hubMatterId !== null) {
@@ -970,6 +1003,33 @@ export function MattersHome({
       {t('matter.home.new-client', { entity: entityLabel.one })}
     </Button>
   );
+  const openNewClient = () => {
+    window.dispatchEvent(new CustomEvent(EV_OPEN_MATTER_MANAGER));
+  };
+  const viewToggle = (
+    <SegmentedToggle<ClientsHomeView>
+      ariaLabel={t('intake.board.view-toggle-aria')}
+      size="sm"
+      variant="filled"
+      value={clientsHomeView}
+      onChange={setHomeView}
+      data-testid="clients-home-view-toggle"
+      options={[
+        {
+          value: 'list',
+          label: t('intake.board.view-list'),
+          icon: List,
+          testId: 'clients-home-view-list',
+        },
+        {
+          value: 'board',
+          label: t('intake.board.view-board'),
+          icon: ClipboardList,
+          testId: 'clients-home-view-board',
+        },
+      ]}
+    />
+  );
 
   return (
     <div
@@ -996,7 +1056,8 @@ export function MattersHome({
       {/* Toolbar */}
       <SurfaceToolbar>
         {newClientButton}
-        {showSearch && (
+        {viewToggle}
+        {showSearch && clientsHomeView === 'list' && (
           <SearchField
             data-testid="matters-search-input"
             value={searchQuery}
@@ -1027,7 +1088,9 @@ export function MattersHome({
           borderColor: 'var(--kp-divider)',
         }}
       >
-        {activeMatters.length === 0 && archivedMatters.length === 0 ? (
+        {clientsHomeView === 'board' ? (
+          <OnboardingBoard onNewClient={openNewClient} />
+        ) : activeMatters.length === 0 && archivedMatters.length === 0 ? (
           <MattersEmptyState
             entityOne={entityLabel.one}
             entityOther={entityLabel.other}

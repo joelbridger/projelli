@@ -70,6 +70,7 @@ export const SK_ASK_RAIL_COLLAPSED           = `${APP_NS}:ask-rail-collapsed`;
 export const SK_ASK_FILES_ONLY               = `${APP_NS}:ask-files-only`;
 export const SK_FIRST_FILE_TRUST_SHOWN       = `${APP_NS}:first-file-trust-shown`;
 export const SK_DOCS_VIEW                    = `${APP_NS}:docs-view`;
+export const SK_CLIENTS_HOME_VIEW            = `${APP_NS}:clients-home-view`;
 export const SK_EMAIL_FIRST_CONNECT_CALLOUT  = `${APP_NS}:email:firstConnectCalloutSeen`;
 export const SK_DEMO_MESSAGE_COUNT           = `${APP_NS}:demo:messageCount`;
 export const SK_DEMO_FIRST_MESSAGE_FLAG      = `${APP_NS}:demo:firstMessageReported`;
