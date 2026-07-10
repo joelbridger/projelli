@@ -82,3 +82,5 @@ timeout 120 node scripts/eslint-gate.mjs
 ## Finish
 
 Commit on `lp/intake-w7-requests-ui` with a conventional message containing the phrase `W7-LANE3-REQUESTS-UI`. Do NOT push. Do NOT merge. Report exact check results, the final tab-id decision from deliverable 4 (so Lane 4's UI integration test and the wave lead's exec plan match reality), and state the branch is clean.
+
+The very last line of your output — after everything else, on its own line — must be exactly `DONE-EXIT:0` if every check in this brief passed and the branch is clean and committed, or `DONE-EXIT:1` if you are stopping with something unresolved (explain what, above that line). The dispatcher watches for this exact anchored line to detect completion; do not print it early, do not print it more than once, and do not let it appear anywhere in quoted/example text earlier in your output.

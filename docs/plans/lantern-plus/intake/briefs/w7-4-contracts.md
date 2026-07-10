@@ -68,3 +68,5 @@ timeout 120 npx tsc --noEmit
 ## Finish
 
 Commit on `lp/intake-w7-contracts` with a conventional message containing the phrase `W7-LANE4-CONTRACTS`. Do NOT push. Do NOT merge. Report exact check results for all seven acceptance cases individually (pass/fail each, not just an aggregate), any real bugs found in merged lane code with exact file:line, and state the branch is clean.
+
+The very last line of your output — after everything else, on its own line — must be exactly `DONE-EXIT:0` if every case you were able to test passed and the branch is clean and committed, or `DONE-EXIT:1` if a real bug in merged lane code blocked a case from passing (explain which, above that line — this is a valid and useful outcome, not a failure of this lane's own work). The dispatcher watches for this exact anchored line to detect completion; do not print it early, do not print it more than once, and do not let it appear anywhere in quoted/example text earlier in your output.
