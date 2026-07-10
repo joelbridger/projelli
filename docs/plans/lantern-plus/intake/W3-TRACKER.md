@@ -7,7 +7,7 @@
 | Lane | Slug | Worktree | Branch | Codex | Review | Adversarial | Merged SHA | Status |
 |---|---|---|---|---|---|---|---|---|
 | 1 | ingest+match (Rust+TS) | `~/lp-w3-1` | `lp/intake-w3-1` | DONE-EXIT:0 | lead PASS (security core) | codex-review: 1 P1 + 1 P2 → FIXED `4dc20449` | in `f61c249f` | **MERGED** |
-| 2 | proposal cards + accept | `~/lp-w3-2` | `lp/intake-w3-2` | dispatched | — | — | — | BUILDING (`briefs/w3-2-proposal-cards.md`) |
+| 2 | proposal cards + accept | `~/lp-w3-2` | `lp/intake-w3-2` | DONE-EXIT:0 | lead PASS | codex-review: 2 P1 + 2 P2 | `c72a9618` (pre-fix) | FIX ROUND running (`briefs/w3-2-fix.md`) |
 | 3 | quarantine path | `~/lp-w3-3` | `lp/intake-w3-3` | — | — | — | — | queued — last |
 
 ## Open questions — all 12 RESOLVED in `W3-EXEC-PLAN.md` §0
@@ -21,6 +21,17 @@ Lead verify: vitest 90/90 (src/platform/intake), tsc clean, eslint-gate clean. L
 - **[P1] M365 Graph sync doesn't fetch `internetMessageHeaders`** → every Outlook message stored `authResult source: missing` → matcher quarantines ALL M365 replies → feature quarantine-only for the primary provider. Fix (Rust): `$select`/fetch the auth headers so DMARC-passing Outlook replies yield `dmarc: pass`.
 - **[P2] sender parse trusts first `<...>`, ignores trailing** → `Evil <sarah@x> <attacker@evil>` parses as sarah → spoof-gate bypass when only display `from` available. Fix (TS): fail closed on extra angle text.
 - Lead-noted (safe, optional): local-part compared case-sensitively → fail-closed false-negative.
+
+## Lane 2 (proposal cards) — lead verify + notes
+Lead verify PASS: vitest 136/136 (src/features/intake + src/platform/intake), tsc clean, eslint-gate clean. Accept path (`emailReplyAccept.ts`) is correct — audit INTENT first (`mustLog...` refuses on failure), code-owned destination `emailReplyAttachmentDestination(messageId)` (model chooses nothing), restricted rows gated by explicit approval. Ingestion wired (`useEmailReplyIngestion` + App.tsx + AppSurfaceRouter — not left hollow). Board/tab surfacing wired via OnboardingBoardContainer.
+- **The `infra/intake/headers.mjs` "orphan" is RESOLVED:** Lane 2's Codex committed a `OWNED_HEADER_NAMES` improvement to the third-party-origin scanner (scope creep — unrelated to proposal cards, but a correct self-contained security fix reducing CDN-header false-positives) AND leaked the same edit uncommitted into the MAIN worktree (stash@{0}). Decision: KEEP Lane 2's committed version (correct); DROP the redundant main-worktree stash after merge. Provenance = danger-full-access Codex writing outside its --cd worktree.
+- **The 3 modified existing tests are BENIGN:** `email-privilege-control.test.tsx`, `EmailViewer.audit.test.tsx`, `EmailViewer.test.tsx` only removed now-optional `authResult`/`threadId`/`attachmentsUnsupported` field-setters from `sampleMessage` FIXTURES (no `expect` assertions weakened).
+- codex-review found 4 real issues (batched → `briefs/w3-2-fix.md`, fix round running):
+  - **[P1] audit intent gate didn't block** — `App.tsx` registered a VOID emitter → `mustLogIntakeEmailReplyAudit` awaited `undefined` → files/facts could write before the intent row persisted (audit outage still files). Core compliance guarantee broken. Fix: promise-returning emitter, truly await, refuse on failure.
+  - **[P1] partial-retry not idempotent** — one row succeeds + one fails → retry reprocesses ALL → attachment persisted twice (unique filename), fact re-superseded. Fix: durable per-row completion, skip done rows on retry.
+  - **[P2] unfileable body rows selectable** → dead un-clearable proposal (no dismiss). Fix: non-selectable/manual + add dismiss.
+  - **[P2] classifier model path unreachable in prod** (`useEmailReplyIngestion` never passes modelConfidence). Fix: wire the provider (untrusted body sanitized; model chooses no id/path).
+  - The adversarial pass again caught what the lead diff-read missed (esp. the void-emitter defeating `mustLog`). cargo runs at merge gate.
 
 ## Lanes 2 & 3 — briefs to write (scoped in W3-EXEC-PLAN §3)
 - Lane 2 (`briefs/w3-2-proposal-cards.md`): proposal card/row/modal, accept path (audit intent → file via the new persist command / fact via `intakeFactUpsert(channel:'email_reply')` → checklist tick → outcome; partial-failure), durable proposal queue in SQLCipher, masked restricted previews, confidence tiers from auth, reuse `CrmWriteReviewCard`/`crmWriteQueueStore`.
