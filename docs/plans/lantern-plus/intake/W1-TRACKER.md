@@ -54,6 +54,14 @@ All lanes merged into `lp/intake` with lead review + one codex adversarial pass 
 - **Bench runbook Hard Stops reviewed — fully compatible.** Its same-origin/`connect-src 'self'`/fragment-never-logged requirements match the C↔E reconciliation; the `intake:headers:test` / `intake:integrity:test` / `intake:fragment-check` scripts it expects all exist in package.json.
 - Test evidence (independent, per lane): crypto vitest 25/25; backend bun 211; intake-page playwright+axe 13/13; advisor vitest 35/35 + cargo store 6/6; E security vitest 6/6. Final full `npm run gate` + backend `bun test` running before push + WORKER-DONE.
 
+## Final full gate — RED on quality checks (fix round running), 2 confirmed flakes
+First full `npm run gate` caught quality-gate regressions the SCOPED per-lane tests missed (all Lane D advisor UI):
+- `typecheck:tests`: `tests/unit/matter/newClientDialog.test.tsx:140` tuple/undefined index error.
+- `lint:gate`: 23 new ESLint findings in `src/features/intake/OnboardingTab.tsx` (+test) + `NewClientDialog.tsx` — `lantern-async/no-silent-failure` (void promises no `.catch`), `lantern-i18n/no-hardcoded-string` (6 user strings), no-confusing-void-expression / no-misused-promises / etc.
+- `token-guard`: 12 hard-coded hex colors in `OnboardingTab.tsx` (provenance chips/badges) — must use design tokens.
+**Fix round dispatched** (`laneQ-fix.log`, worktree `~/lp-w1-qfix`). After it lands: merge → re-run full gate.
+**Two CONFIRMED resource flakes (pass in isolation, choke only under full-gate concurrency):** `tests/security/intake-hosting.test.ts` "signs the compiled Vite output" (`ERR_INSUFFICIENT_RESOURCES` — it spawns a real vite build inside vitest) → 6/6 in isolation; backend `bun test` → 211/0 in isolation. Treat as environmental; verify in isolation at final gate, don't block on them. (Follow-up: make that security test lighter / not run a full vite build under the concurrent gate.)
+
 ## Bench needs (for the Legion runner, AFTER WORKER-DONE)
 - V6: complete all 5 items incl. camera uploads on a phone-sized browser against the staged relay; verify decrypt-and-file on desktop; screenshot.
 - V7: real iOS Safari + Android Chrome camera capture.
