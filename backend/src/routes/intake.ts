@@ -250,6 +250,27 @@ export function handleFetchIntakeKey(req: Request, store: Store, intakeId: strin
   return json({ epoch: row.epoch, wrapped_key_b64: row.wrapped_key_b64 });
 }
 
+/**
+ * Return only routing metadata for private-key grants addressed to this exact
+ * device. Each row is re-checked through the normal org, matter-membership,
+ * and ethical-wall gate before it is exposed.
+ */
+export function handleListGrantedIntakes(req: Request, store: Store): Response {
+  const advisor = verifyAdvisorSeat(req, store);
+  if (!advisor.ok || !advisor.identity.access) return intakeNotFound();
+  const deviceId = req.headers.get('x-device-id');
+  if (!isNonEmptyString(deviceId, 128)) return error('missing_device_id', 400);
+
+  const grants = store.listIntakeWrappedKeysForDevice(advisor.identity.user_id, deviceId);
+  const intakes: Array<{ intake_id: string; matter_id: string; epoch: number }> = [];
+  for (const grant of grants) {
+    const shared = authorizeSharedIntakeRead(req, store, grant.intake_id);
+    if (!shared.ok || shared.userId !== advisor.identity.user_id || shared.matterId !== grant.matter_id) continue;
+    intakes.push({ intake_id: grant.intake_id, matter_id: grant.matter_id, epoch: grant.epoch });
+  }
+  return json({ intakes });
+}
+
 export async function handleReplaceIntakeChecklist(req: Request, store: Store, intakeId: string): Promise<Response> {
   const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
@@ -333,7 +354,10 @@ export function handleGetIntakeBlob(req: Request, store: Store, intakeId: string
 }
 
 export async function handleAckIntake(req: Request, store: Store, intakeId: string): Promise<Response> {
-  const advisor = authorizeIntakeRead(req, store, intakeId);
+  // Acknowledging deletes ciphertext. Read access is shareable, deletion is
+  // deliberately creator-only so a teammate cannot erase an offline owner's
+  // mailbox before every authorized device has fetched it.
+  const advisor = authorizeAdvisorIntake(req, store, intakeId);
   if (!advisor.ok) return advisor.resp;
   const read = await readJsonWithCap<{ submission_ids?: unknown; blob_ids?: unknown }>(req, 64 * 1024);
   if (!read.ok) return read.tooLarge ? error("payload_too_large", 413) : error("invalid_json", 400);

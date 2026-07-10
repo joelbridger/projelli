@@ -99,6 +99,7 @@ export async function autoRepublishHeldIntakeKeys(
       await publishIntakeKeyToMembers(client, intake.intake_id, intake.matter_id, intake.key_epoch, options);
       fingerprints[intake.intake_id] = fingerprint;
       republishedIntakeIds.push(intake.intake_id);
+    // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort republish; a later roster poll retries
     } catch {
       // A later roster poll retries. Never silently create a different key.
     }

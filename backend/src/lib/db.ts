@@ -1467,6 +1467,19 @@ export class Store {
     } | null;
   }
 
+  /** Opaque intake-key grant routing rows for one authenticated device. */
+  listIntakeWrappedKeysForDevice(
+    userId: string,
+    deviceId: string,
+  ): Array<{ intake_id: string; matter_id: string; epoch: number }> {
+    return this.db.query(
+      `SELECT intake_id, matter_id, epoch
+       FROM intake_wrapped_keys
+       WHERE user_id = ? AND device_id = ?
+       ORDER BY intake_id ASC, epoch DESC`,
+    ).all(userId, deviceId) as Array<{ intake_id: string; matter_id: string; epoch: number }>;
+  }
+
   getIntakeKeyMatterId(intakeId: string): string | null {
     const row = this.db.query(
       `SELECT matter_id FROM intake_wrapped_keys WHERE intake_id = ? ORDER BY epoch DESC LIMIT 1`,

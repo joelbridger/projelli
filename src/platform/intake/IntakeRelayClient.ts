@@ -39,6 +39,12 @@ interface IntakeRelayInboxResponse {
   submissions: IntakeRelayInboxSubmission[];
 }
 
+export interface GrantedIntakeRoute {
+  intake_id: string;
+  matter_id: string;
+  epoch: number;
+}
+
 interface IntakeRelayBlobRef {
   blob_id: number;
   index: number;
@@ -94,12 +100,12 @@ export class IntakeRelayClient {
 
   private async request<T>(
     path: string,
-    init: { method: string; body?: unknown }
+    init: { method: string; body?: unknown; headers?: Record<string, string> }
   ): Promise<T> {
     const fetchFn = await getCorsSafeFetch({ signalEgress: false });
     const res = await fetchFn(`${this.baseUrl}${path}`, {
       method: init.method,
-      headers: this.authHeaders(init.body !== undefined),
+      headers: { ...this.authHeaders(init.body !== undefined), ...init.headers },
       ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
     });
     if (!res.ok) {
@@ -217,6 +223,13 @@ export class IntakeRelayClient {
         )
       ),
     };
+  }
+
+  listGrantedIntakes(deviceId: string): Promise<{ intakes: GrantedIntakeRoute[] }> {
+    return this.request<{ intakes: GrantedIntakeRoute[] }>('/intake/granted', {
+      method: 'GET',
+      headers: { 'X-Device-Id': deviceId },
+    });
   }
 
   async ackSubmission(

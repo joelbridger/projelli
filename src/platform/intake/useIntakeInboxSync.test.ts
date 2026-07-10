@@ -5,8 +5,10 @@ import type { IntakeFactUpsertInput } from './factsStore';
 import { useIntakeStore, type IntakeRecord } from './intakeStore';
 import {
   bindIntakeRelayInbox,
+  discoverGrantedIntakes,
   routeIntakeSubmission,
 } from './useIntakeInboxSync';
+import { useMatterStore } from '@/platform/matter/matterStore';
 
 const enc = new TextEncoder();
 
@@ -78,6 +80,35 @@ function maskedFact(input: IntakeFactUpsertInput, factId: string) {
 describe('useIntakeInboxSync wiring helpers', () => {
   beforeEach(() => {
     useIntakeStore.getState().resetForTests();
+    useMatterStore.setState({ matters: [] });
+  });
+
+  it('discovers a granted intake missing from local state, obtains its key, and makes it syncable', async () => {
+    const obtainKey = vi.fn().mockResolvedValue({} as CryptoKey);
+    const localMatter = useMatterStore.getState().createMatter({
+      name: 'Shared household',
+      client: '',
+      shared: true,
+      firmMatterId: 'firm-matter-1',
+      folderPaths: ['/workspace/shared-household'],
+    });
+    const relay = { listGrantedIntakes: vi.fn().mockResolvedValue({
+      intakes: [{ intake_id: 'granted-intake', matter_id: 'firm-matter-1', epoch: 2 }],
+    }) };
+
+    await discoverGrantedIntakes({
+      relay,
+      deviceId: 'device-1',
+      firmClient: {} as never,
+      seatToken: 'seat-token',
+      obtainKey,
+    });
+
+    expect(relay.listGrantedIntakes).toHaveBeenCalledWith('device-1');
+    expect(obtainKey).toHaveBeenCalledWith(expect.anything(), 'granted-intake', 'firm-matter-1', 'seat-token');
+    expect(useIntakeStore.getState().intakesById['granted-intake']).toMatchObject({
+      intakeId: 'granted-intake', matterId: localMatter.id, status: 'active', items: [],
+    });
   });
 
   it('binds the relay inbox adapter to one intake id', async () => {

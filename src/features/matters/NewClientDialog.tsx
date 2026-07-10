@@ -62,6 +62,7 @@ import {
   deriveNewClientFolderPath,
   ensureClientFolderOnDisk,
 } from './matterManagerDialogHelpers';
+import { firmMatterIdForIntakeSharing } from './logic/intakeFirmMatter';
 
 export interface NewClientDialogProps {
   open: boolean;
@@ -260,6 +261,9 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
         items,
       });
       const relay = new IntakeRelayClient({ seatToken, accessToken });
+      const firmMatterId = firmMatterIdForIntakeSharing(
+        useMatterStore.getState().matters.find((matter) => matter.id === created.id),
+      );
       const bundle = await createAdvisorIntake({
         intakeId,
         matterId: created.id,
@@ -275,11 +279,11 @@ export function NewClientDialog({ open, onOpenChange }: NewClientDialogProps) {
           next_steps: [...NEW_HOUSEHOLD_NEXT_STEPS],
         },
         relay,
-        ...(firmSession?.tier === 'practice' && firmSession.activated
+        ...(firmSession?.tier === 'practice' && firmSession.activated && firmMatterId
           ? {
-              publishTeamKey: async (sharedIntakeId: string, sharedMatterId: string) => {
+              publishTeamKey: async (sharedIntakeId: string) => {
                 const client = new FirmApiClient(useFirmStore.getState().tokenSource());
-                await publishIntakeKeyToMembers(client, sharedIntakeId, sharedMatterId, 1, { firmEntitled: true });
+                await publishIntakeKeyToMembers(client, sharedIntakeId, firmMatterId, 1, { firmEntitled: true });
               },
             }
           : {}),

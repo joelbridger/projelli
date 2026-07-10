@@ -143,6 +143,13 @@ function epochInfo(context: string, epoch: number): Uint8Array {
 }
 
 function epochAad(context: string, epoch: number): Uint8Array {
+  // Matter wraps shipped before intake sharing used this exact AAD. It is part
+  // of their persisted wire form, so changing it would lock existing members
+  // out of already-published matter keys. Intake wraps are new and bind their
+  // full context here. Both protocols remain domain-separated by HKDF info.
+  if (context === MATTER_KEY_WRAP_CONTEXT) {
+    return new TextEncoder().encode(`epoch:${String(epoch)}`);
+  }
   return new TextEncoder().encode(`${context}:epoch:${String(epoch)}`);
 }
 

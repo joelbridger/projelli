@@ -48,6 +48,7 @@ import {
 } from '@/platform/firm/matterKeyService';
 import { autoRepublishHeldIntakeKeys } from '@/platform/intake/intakeKeyShare';
 import { useIntakeStore } from '@/platform/intake/intakeStore';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { AuditService } from '@/platform/audit/AuditService';
 import type {
   FirmMatter,
@@ -264,8 +265,18 @@ export function FirmAdminConsole() {
       const res = await autoRepublishHeldMatterKeys(getClient(), matters, fpRef.current);
       const matterEpochById = new Map(matters.map((matter) => [matter.matter_id, matter.key_epoch]));
       const heldIntakes = Object.values(useIntakeStore.getState().intakesById)
-        .filter((intake) => intake.status === 'active' && matterEpochById.has(intake.matterId))
-        .map((intake) => ({ intake_id: intake.intakeId, matter_id: intake.matterId, key_epoch: matterEpochById.get(intake.matterId)! }));
+        .map((intake) => ({
+          intake,
+          firmMatterId: useMatterStore.getState().matters.find((matter) => matter.id === intake.matterId)?.firmMatterId,
+        }))
+        .filter((entry): entry is { intake: typeof entry.intake; firmMatterId: string } =>
+          entry.intake.status === 'active' && Boolean(entry.firmMatterId && matterEpochById.has(entry.firmMatterId)),
+        )
+        .map((entry) => ({
+          intake_id: entry.intake.intakeId,
+          matter_id: entry.firmMatterId,
+          key_epoch: matterEpochById.get(entry.firmMatterId)!,
+        }));
       const intakeRes = await autoRepublishHeldIntakeKeys(getClient(), heldIntakes, intakeFpRef.current, { firmEntitled: true });
       if (cancelled) return;
       fpRef.current = res.fingerprints;
