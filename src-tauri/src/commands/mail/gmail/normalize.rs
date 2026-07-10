@@ -1,6 +1,9 @@
 use base64::Engine;
 
-use crate::commands::mail::model::{BodyContentType, MailMessage, Recipient};
+use crate::commands::mail::model::{
+    BodyContentType, MailAttachmentKind, MailAttachmentRef, MailAuthResult, MailAuthSource,
+    MailMessage, Recipient,
+};
 
 /// Parse a Gmail `users.messages.get(format=full)` JSON object into a
 /// [`MailMessage`].
@@ -47,10 +50,7 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
     let id = format!("gmail:{}:{}", account, gmail_id);
 
     // ── thread_id ────────────────────────────────────────────────────────────
-    let thread_id = v
-        .get("threadId")
-        .and_then(|t| t.as_str())
-        .map(String::from);
+    let thread_id = v.get("threadId").and_then(|t| t.as_str()).map(String::from);
 
     // ── folders (labelIds) ───────────────────────────────────────────────────
     let folders: Vec<String> = v
@@ -80,6 +80,19 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
             }
         })
     };
+    let auth_headers: Vec<(String, String)> = headers
+        .iter()
+        .filter_map(|h| {
+            let name = h.get("name")?.as_str()?;
+            if !(name.eq_ignore_ascii_case("Authentication-Results")
+                || name.eq_ignore_ascii_case("ARC-Authentication-Results")
+                || name.eq_ignore_ascii_case("Received-SPF"))
+            {
+                return None;
+            }
+            Some((name.to_string(), h.get("value")?.as_str()?.to_string()))
+        })
+        .collect();
 
     let subject = get_header("Subject").unwrap_or_default();
     let from_header = get_header("From");
@@ -116,8 +129,9 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
 
     // ── Walk the MIME tree for body + attachments ────────────────────────────
     let payload = v.get("payload");
-    let (body_text, body_content_type, has_attachments) =
+    let (body_text, body_content_type, attachments, attachments_unsupported) =
         extract_body_and_attachments(payload);
+    let has_attachments = !attachments.is_empty() || attachments_unsupported;
 
     Some(MailMessage {
         id,
@@ -134,6 +148,14 @@ pub fn from_gmail(account: &str, v: &serde_json::Value) -> Option<MailMessage> {
         provider: "gmail".to_string(),
         account: account.to_string(),
         has_attachments,
+        attachments_unsupported,
+        auth_result: MailAuthResult::from_headers(
+            MailAuthSource::Gmail,
+            auth_headers
+                .iter()
+                .map(|(name, value)| (name.as_str(), value.as_str())),
+        ),
+        attachments,
         body_content_type,
         body_text,
     })
@@ -170,19 +192,41 @@ fn normalize_received_date(v: &serde_json::Value, date_header: Option<&str>) -> 
 /// Returns `(body_text, BodyContentType, has_attachments)`.
 fn extract_body_and_attachments(
     node: Option<&serde_json::Value>,
-) -> (String, BodyContentType, bool) {
+) -> (String, BodyContentType, Vec<MailAttachmentRef>, bool) {
     let mut plain: Option<String> = None;
     let mut html: Option<String> = None;
-    let mut has_attachments = false;
+    let mut attachments = Vec::new();
+    let mut attachments_unsupported = false;
 
-    walk_parts(node, &mut plain, &mut html, &mut has_attachments);
+    walk_parts(
+        node,
+        &mut plain,
+        &mut html,
+        &mut attachments,
+        &mut attachments_unsupported,
+    );
 
     if let Some(text) = plain {
-        (text, BodyContentType::Text, has_attachments)
+        (
+            text,
+            BodyContentType::Text,
+            attachments,
+            attachments_unsupported,
+        )
     } else if let Some(text) = html {
-        (text, BodyContentType::Html, has_attachments)
+        (
+            text,
+            BodyContentType::Html,
+            attachments,
+            attachments_unsupported,
+        )
     } else {
-        (String::new(), BodyContentType::Text, has_attachments)
+        (
+            String::new(),
+            BodyContentType::Text,
+            attachments,
+            attachments_unsupported,
+        )
     }
 }
 
@@ -190,25 +234,51 @@ fn walk_parts(
     node: Option<&serde_json::Value>,
     plain: &mut Option<String>,
     html: &mut Option<String>,
-    has_attachments: &mut bool,
+    attachments: &mut Vec<MailAttachmentRef>,
+    attachments_unsupported: &mut bool,
 ) {
     let node = match node {
         Some(n) => n,
         None => return,
     };
 
-    let mime_type = node
-        .get("mimeType")
-        .and_then(|m| m.as_str())
-        .unwrap_or("");
-    let filename = node
-        .get("filename")
-        .and_then(|f| f.as_str())
-        .unwrap_or("");
+    let mime_type = node.get("mimeType").and_then(|m| m.as_str()).unwrap_or("");
+    let filename = node.get("filename").and_then(|f| f.as_str()).unwrap_or("");
 
-    // A part with a non-empty filename is an attachment.
+    // A part with a non-empty filename is an attachment. Gmail needs the
+    // part-body attachmentId for later download; without it, the part is not a
+    // durable attachment ref and stays out of the fast proposal path.
     if !filename.is_empty() {
-        *has_attachments = true;
+        if let Some(attachment_id) = node
+            .get("body")
+            .and_then(|b| b.get("attachmentId"))
+            .and_then(|a| a.as_str())
+            .filter(|s| !s.trim().is_empty())
+        {
+            let content_type = if mime_type.is_empty() {
+                None
+            } else {
+                Some(mime_type.to_string())
+            };
+            let byte_size = node
+                .get("body")
+                .and_then(|b| b.get("size"))
+                .and_then(|s| s.as_u64());
+            let kind = if part_header_contains(node, "Content-Disposition", "inline") {
+                MailAttachmentKind::Inline
+            } else {
+                MailAttachmentKind::File
+            };
+            attachments.push(MailAttachmentRef::new(
+                attachment_id.to_string(),
+                filename.to_string(),
+                content_type,
+                byte_size,
+                kind,
+            ));
+        } else {
+            *attachments_unsupported = true;
+        }
     }
 
     match mime_type {
@@ -226,12 +296,39 @@ fn walk_parts(
         _ if mime_type.starts_with("multipart/") => {
             if let Some(parts) = node.get("parts").and_then(|p| p.as_array()) {
                 for part in parts {
-                    walk_parts(Some(part), plain, html, has_attachments);
+                    walk_parts(
+                        Some(part),
+                        plain,
+                        html,
+                        attachments,
+                        attachments_unsupported,
+                    );
                 }
             }
         }
         _ => {}
     }
+}
+
+fn part_header_contains(node: &serde_json::Value, header_name: &str, needle: &str) -> bool {
+    node.get("headers")
+        .and_then(|h| h.as_array())
+        .map(|headers| {
+            headers.iter().any(|h| {
+                h.get("name")
+                    .and_then(|n| n.as_str())
+                    .map(|n| n.eq_ignore_ascii_case(header_name))
+                    .unwrap_or(false)
+                    && h.get("value")
+                        .and_then(|v| v.as_str())
+                        .map(|v| {
+                            v.to_ascii_lowercase()
+                                .contains(&needle.to_ascii_lowercase())
+                        })
+                        .unwrap_or(false)
+            })
+        })
+        .unwrap_or(false)
 }
 
 /// Decode the `body.data` field (base64url, no padding). Returns `None` only if
@@ -388,7 +485,8 @@ mod tests {
                     { "name": "To",         "value": "Me <me@firm.com>, Alice <alice@firm.com>" },
                     { "name": "Cc",         "value": "Bob <bob@x.com>" },
                     { "name": "Message-ID", "value": "<closing-date@hender.com>" },
-                    { "name": "Date",       "value": "Fri, 01 May 2026 14:30:00 +0000" }
+                    { "name": "Date",       "value": "Fri, 01 May 2026 14:30:00 +0000" },
+                    { "name": "Authentication-Results", "value": "mx.google.com; dkim=pass header.d=hender.com; spf=pass smtp.mailfrom=hender.com; dmarc=pass header.from=hender.com" }
                 ],
                 "body": { "size": 0 },
                 "parts": [
@@ -420,6 +518,14 @@ mod tests {
                         "mimeType": "application/pdf",
                         "filename": "contract.pdf",
                         "body": { "size": 1024, "attachmentId": "att_001" }
+                    },
+                    {
+                        "mimeType": "image/png",
+                        "filename": "license.png",
+                        "headers": [
+                            { "name": "Content-Disposition", "value": "inline; filename=\"license.png\"" }
+                        ],
+                        "body": { "size": 2048, "attachmentId": "att_002" }
                     }
                 ]
             }
@@ -432,14 +538,20 @@ mod tests {
         assert_eq!(m.id, "gmail:user@gmail.com:abc123");
         assert_eq!(m.provider, "gmail");
         assert_eq!(m.account, "user@gmail.com");
-        assert!(m.conversation_id.is_none(), "conversation_id is always None for Gmail");
+        assert!(
+            m.conversation_id.is_none(),
+            "conversation_id is always None for Gmail"
+        );
     }
 
     #[test]
     fn parses_thread_id_and_folders() {
         let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
         assert_eq!(m.thread_id.as_deref(), Some("thread456"));
-        assert_eq!(m.folders, vec!["INBOX".to_string(), "IMPORTANT".to_string()]);
+        assert_eq!(
+            m.folders,
+            vec!["INBOX".to_string(), "IMPORTANT".to_string()]
+        );
     }
 
     #[test]
@@ -551,7 +663,82 @@ mod tests {
     #[test]
     fn detects_attachment() {
         let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
-        assert!(m.has_attachments, "contract.pdf part must set has_attachments");
+        assert!(
+            m.has_attachments,
+            "contract.pdf part must set has_attachments"
+        );
+    }
+
+    #[test]
+    fn parses_gmail_auth_result() {
+        let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
+        assert_eq!(
+            m.auth_result.dkim,
+            crate::commands::mail::model::MailAuthVerdict::Pass
+        );
+        assert_eq!(
+            m.auth_result.spf,
+            crate::commands::mail::model::MailAuthVerdict::Pass
+        );
+        assert_eq!(
+            m.auth_result.dmarc,
+            crate::commands::mail::model::MailAuthVerdict::Pass
+        );
+        assert!(m.auth_result.aligned);
+        assert_eq!(
+            m.auth_result.source,
+            crate::commands::mail::model::MailAuthSource::Gmail
+        );
+    }
+
+    #[test]
+    fn missing_gmail_auth_never_defaults_to_pass() {
+        let mut v = sample_full_message();
+        let headers = v
+            .pointer_mut("/payload/headers")
+            .and_then(|h| h.as_array_mut())
+            .unwrap();
+        headers.retain(|h| {
+            h.get("name")
+                .and_then(|n| n.as_str())
+                .map(|n| !n.eq_ignore_ascii_case("Authentication-Results"))
+                .unwrap_or(true)
+        });
+        let m = from_gmail("user@gmail.com", &v).expect("parse");
+        assert_eq!(
+            m.auth_result.dkim,
+            crate::commands::mail::model::MailAuthVerdict::None
+        );
+        assert_eq!(
+            m.auth_result.spf,
+            crate::commands::mail::model::MailAuthVerdict::None
+        );
+        assert_eq!(
+            m.auth_result.dmarc,
+            crate::commands::mail::model::MailAuthVerdict::None
+        );
+        assert_eq!(
+            m.auth_result.source,
+            crate::commands::mail::model::MailAuthSource::Missing
+        );
+        assert!(!m.auth_result.aligned);
+    }
+
+    #[test]
+    fn persists_gmail_attachment_manifest() {
+        let m = from_gmail("user@gmail.com", &sample_full_message()).expect("parse");
+        assert_eq!(m.attachments.len(), 2);
+        assert_eq!(m.attachments[0].id, "att_001");
+        assert_eq!(m.attachments[0].filename, "contract.pdf");
+        assert_eq!(
+            m.attachments[0].content_type.as_deref(),
+            Some("application/pdf")
+        );
+        assert_eq!(m.attachments[0].byte_size, Some(1024));
+        assert_eq!(
+            m.attachments[1].kind,
+            crate::commands::mail::model::MailAttachmentKind::Inline
+        );
     }
 
     #[test]
@@ -587,8 +774,11 @@ mod tests {
         let m = from_gmail("user@gmail.com", &v).expect("parse html-only");
         assert_eq!(m.body_content_type, BodyContentType::Html);
         assert!(!m.body_text.is_empty(), "HTML body should be decoded");
-        assert!(m.body_text.contains("Hi there") || m.body_text.starts_with("<p>"),
-            "decoded HTML body: {:?}", m.body_text);
+        assert!(
+            m.body_text.contains("Hi there") || m.body_text.starts_with("<p>"),
+            "decoded HTML body: {:?}",
+            m.body_text
+        );
         assert!(!m.has_attachments);
         // Message-Id (case variant) must still be stripped.
         assert_eq!(m.internet_message_id.as_deref(), Some("html1@x.com"));

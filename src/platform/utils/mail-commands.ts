@@ -14,15 +14,45 @@ import type { MailMatterMapEntry } from '@/platform/rag/matterResolver';
  * app." in browser mode). The UI uses this to show a calm info note instead of
  * a red "Something went wrong" alarm (UX-22).
  */
-export function isDesktopOnlyMailError(message: string | null | undefined): boolean {
+export function isDesktopOnlyMailError(
+  message: string | null | undefined
+): boolean {
   return !!message && /desktop app/i.test(message);
 }
 
-export interface DeviceCodePrompt { userCode: string; verificationUri: string; deviceCode: string; intervalSecs: number; expiresInSecs: number; }
+export interface DeviceCodePrompt {
+  userCode: string;
+  verificationUri: string;
+  deviceCode: string;
+  intervalSecs: number;
+  expiresInSecs: number;
+}
+
+export type MailAuthVerdict = 'pass' | 'fail' | 'none';
+export type MailAuthSource = 'graph' | 'gmail' | 'imap' | 'missing';
+
+export interface MailAuthResult {
+  dkim: MailAuthVerdict;
+  spf: MailAuthVerdict;
+  dmarc: MailAuthVerdict;
+  aligned: boolean;
+  source: MailAuthSource;
+}
+
+export type MailAttachmentKind = 'file' | 'inline' | 'unsupported';
 
 /** One attachment reference. `id` is a stable provider-specific id used to
  *  fetch bytes on demand via `mailGetAttachment`. */
-export interface MailAttachmentRef { id: string; name: string; }
+export interface MailAttachmentRef {
+  id: string;
+  /** Existing viewer label. Same value as `filename` for new Rust refs. */
+  name: string;
+  /** Provider display filename. Never trusted as a path. */
+  filename: string;
+  contentType?: string | null;
+  byteSize?: number | null;
+  kind: MailAttachmentKind;
+}
 
 /** A decrypted, structured email message for the read-only viewer. Mirror of
  *  the Rust `MailView` returned by `mail_get_message`. */
@@ -36,15 +66,23 @@ export interface MailView {
   provider: string | null;
   /** Provider account identifier (e.g. "default" or "user@example.com"). */
   account: string | null;
+  threadId: string | null;
+  authResult: MailAuthResult;
   body: string;
   hasAttachments: boolean;
+  attachmentsUnsupported: boolean;
   attachments: MailAttachmentRef[];
   /** BUG-013: the matter this message is currently filed under, looked up from
    *  the RAG store by `mail_get_message`. `null`/absent when not filed to any
    *  matter yet (or not indexed). The viewer uses it to show the filed state. */
   matterId?: string | null;
 }
-export type MailSyncStatus = 'idle' | 'syncing' | 'done' | 'cancelled' | 'error';
+export type MailSyncStatus =
+  | 'idle'
+  | 'syncing'
+  | 'done'
+  | 'cancelled'
+  | 'error';
 /** A sync-progress update for ONE provider. `provider` ("m365" | "imap" |
  *  "gmail") tags which account the update belongs to so each connector panel
  *  reacts only to its own status/count (the two panels are rendered together). */
@@ -83,14 +121,19 @@ export const MAIL_INDEX_CHUNK_EVENT = 'mail-index-chunk';
  *   — no further transmission occurs. If this path is ever changed to send
  *   `decryptedText` over a network connection, a full security review is required.
  */
-export interface MailIndexChunk { docId: string; subject: string; decryptedText: string; }
+export interface MailIndexChunk {
+  docId: string;
+  subject: string;
+  decryptedText: string;
+}
 
 export async function mailSetWorkspace(path: string): Promise<void> {
   if (!isTauri()) return;
   await invoke('mail_set_workspace', { path });
 }
 export async function mailBeginLogin(): Promise<DeviceCodePrompt> {
-  if (!isTauri()) throw new Error('Email connect is only available in the desktop app.');
+  if (!isTauri())
+    throw new Error('Email connect is only available in the desktop app.');
   return invoke<DeviceCodePrompt>('mail_begin_login');
 }
 /** Result of one device-code poll. `slow_down` means lengthen the interval. */
@@ -109,11 +152,18 @@ export async function mailIsConnected(): Promise<boolean> {
  *  single provider — a connector panel passes its own provider so connecting one
  *  account never runs (or fails on) another account's credentials. Omit it to
  *  refresh every connected provider. */
-export async function mailSyncAll(matterMap: MailMatterMapEntry[] = [], onlyProvider?: string): Promise<void> {
-  if (!isTauri()) throw new Error('Email sync is only available in the desktop app.');
+export async function mailSyncAll(
+  matterMap: MailMatterMapEntry[] = [],
+  onlyProvider?: string
+): Promise<void> {
+  if (!isTauri())
+    throw new Error('Email sync is only available in the desktop app.');
   // The Rust command expects camelCase `folderId` / `matterId` on each entry,
   // which matches MailMatterMapEntry, so we can pass it straight through.
-  await invoke('mail_sync_all', { matterMap, onlyProvider: onlyProvider ?? null });
+  await invoke('mail_sync_all', {
+    matterMap,
+    onlyProvider: onlyProvider ?? null,
+  });
 }
 export async function mailCancelSync(): Promise<void> {
   if (!isTauri()) return;
@@ -125,7 +175,9 @@ export async function mailCancelSync(): Promise<void> {
  *  backfill is needed, so it is safe to call on every boot / model-ready
  *  transition. `matterMap` scopes each backfilled message exactly as a sync
  *  would have. Returns the number of messages re-indexed. */
-export async function mailBackfillRag(matterMap: MailMatterMapEntry[] = []): Promise<number> {
+export async function mailBackfillRag(
+  matterMap: MailMatterMapEntry[] = []
+): Promise<number> {
   if (!isTauri()) return 0;
   return invoke<number>('mail_backfill_rag', { matterMap });
 }
@@ -151,7 +203,8 @@ export async function mailBackfillRag(matterMap: MailMatterMapEntry[] = []): Pro
  *   guarantee and the firm-tier E2EE contract.
  */
 export async function mailGetMessage(id: string): Promise<MailView> {
-  if (!isTauri()) throw new Error('Email viewer is only available in the desktop app.');
+  if (!isTauri())
+    throw new Error('Email viewer is only available in the desktop app.');
   return invoke<MailView>('mail_get_message', { id });
 }
 
@@ -166,7 +219,7 @@ export async function mailRetagFolderMatter(
   /** QA-44 (R7-5b): the workspace root the caller captured when scheduling. The
    *  backend refuses if the workspace has since switched, so a scheduled op can't
    *  re-tag a different workspace's mail. Omit for a live user filing. */
-  expectedWorkspace?: string,
+  expectedWorkspace?: string
 ): Promise<number> {
   if (!isTauri()) return 0;
   return invoke<number>('mail_retag_folder_matter', {
@@ -180,7 +233,11 @@ export async function mailRetagFolderMatter(
 
 /** A connected mail account offered for matter mapping. Mirror of the Rust
  *  `ConnectedAccount`. */
-export interface ConnectedAccount { provider: string; account: string; label: string; }
+export interface ConnectedAccount {
+  provider: string;
+  account: string;
+  label: string;
+}
 
 /** List the mail accounts currently connected, for the matter-mapping UI. */
 export async function mailConnectedAccounts(): Promise<ConnectedAccount[]> {
@@ -188,7 +245,11 @@ export async function mailConnectedAccounts(): Promise<ConnectedAccount[]> {
     return [
       { provider: 'm365', account: 'default', label: 'Outlook (demo)' },
       { provider: 'gmail', account: 'default', label: 'Gmail (demo)' },
-      { provider: 'imap', account: 'firm@firm.com', label: 'firm@firm.com (demo)' },
+      {
+        provider: 'imap',
+        account: 'firm@firm.com',
+        label: 'firm@firm.com (demo)',
+      },
     ];
   }
   if (!isTauri()) return [];
@@ -208,10 +269,21 @@ export async function mailFdeStatus(): Promise<FdeStatus> {
 }
 
 // IMAP multi-provider support
-export interface ImapConnectInput { host: string; port: number; username: string; password: string; }
+export interface ImapConnectInput {
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+}
 export async function mailImapConnect(input: ImapConnectInput): Promise<void> {
-  if (!isTauri()) throw new Error('Email connect is only available in the desktop app.');
-  await invoke('mail_imap_connect', { host: input.host, port: input.port, username: input.username, password: input.password });
+  if (!isTauri())
+    throw new Error('Email connect is only available in the desktop app.');
+  await invoke('mail_imap_connect', {
+    host: input.host,
+    port: input.port,
+    username: input.username,
+    password: input.password,
+  });
 }
 export async function mailImapIsConnected(): Promise<boolean> {
   if (!isTauri()) return false;
@@ -270,8 +342,12 @@ export interface MailListPage {
 /** True when the dev fixture flag (?mailFixture=1) is set in a browser (non-Tauri) DEV build.
  *  Lets the email surface render populated in the dev server for review/QA. */
 function mailFixtureEnabled(): boolean {
-  return import.meta.env.DEV && !isTauri() && typeof window !== 'undefined'
-    && new URLSearchParams(window.location.search).get('mailFixture') === '1';
+  return (
+    import.meta.env.DEV &&
+    !isTauri() &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('mailFixture') === '1'
+  );
 }
 
 // Dev fixture data — exercisable in browser dev server when ?mailFixture=1.
@@ -279,46 +355,165 @@ function mailFixtureEnabled(): boolean {
 // beneficiary updates, RMD reminders, and a CRM integration note. No law-era
 // content (Lantern's audience is RIAs and wealth managers, not litigators).
 const DEV_FIXTURES: MailListItem[] = [
-  { id: 'fix-1', subject: 'Re: Annual review meeting', fromAddr: 'marcus.webb@gmail.com', fromName: 'Marcus Webb', snippet: 'Thursday at 2pm works for us. We want to talk through the 401(k) rollover and Caleb\'s 529.', receivedDateTime: '2026-06-12T14:30:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: false },
-  { id: 'fix-2', subject: 'Q2 statement ready - Webb household', fromAddr: 'no-reply@schwab.com', fromName: 'Schwab Advisor Services', snippet: 'The Q2 2026 statement for account ending 4471 is now available to download.', receivedDateTime: '2026-06-11T09:15:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: true },
-  { id: 'fix-3', subject: 'Beneficiary form - signed and returned', fromAddr: 'tanya.webb@outlook.com', fromName: 'Tanya Webb', snippet: 'Signed beneficiary designation attached. We updated the contingent beneficiaries to the kids 50/50.', receivedDateTime: '2026-06-10T16:00:00Z', provider: 'gmail', account: 'default', folderId: 'INBOX', hasAttachments: true },
-  { id: 'fix-4', subject: 'RMD reminder - Patel IRA', fromAddr: 'notifications@fidelity.com', fromName: 'Fidelity Institutional', snippet: 'A required minimum distribution of $18,420 is due by December 31 for this traditional IRA.', receivedDateTime: '2026-06-09T11:45:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: true },
-  { id: 'fix-5', subject: 'Wealthbox integration update', fromAddr: 'support@wealthbox.com', fromName: 'Wealthbox Support', snippet: 'Your API key has been rotated. Please update your integration settings to keep contacts syncing.', receivedDateTime: '2026-06-08T08:00:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: false },
-  { id: 'fix-6', subject: 'FW: Signed advisory agreement', fromAddr: 'jane.ellison@gmail.com', fromName: 'Jane Ellison', snippet: 'Forwarding the signed advisory agreement for your records. Original attached.', receivedDateTime: '2026-06-07T13:20:00Z', provider: 'imap', account: 'firm@firm.com', folderId: 'INBOX', hasAttachments: true },
-  { id: 'fix-7', subject: 'Roth conversion question', fromAddr: 'david.nakamura@gmail.com', fromName: 'David Nakamura', snippet: 'Before year-end I want to revisit the Roth conversion we discussed. How much room is left in the 24% bracket?', receivedDateTime: '2026-06-06T17:00:00Z', provider: 'm365', account: 'default', folderId: 'sent', hasAttachments: false },
-  { id: 'fix-8', subject: 'Tax documents deadline', fromAddr: 'jhollings@cpafirm.com', fromName: 'Janet Hollings, CPA', snippet: 'Reminder: I need the 1099 and realized-gains report by October 15 to finish the Voss return.', receivedDateTime: '2026-06-05T09:00:00Z', provider: 'm365', account: 'default', folderId: 'inbox', hasAttachments: false },
+  {
+    id: 'fix-1',
+    subject: 'Re: Annual review meeting',
+    fromAddr: 'marcus.webb@gmail.com',
+    fromName: 'Marcus Webb',
+    snippet:
+      "Thursday at 2pm works for us. We want to talk through the 401(k) rollover and Caleb's 529.",
+    receivedDateTime: '2026-06-12T14:30:00Z',
+    provider: 'm365',
+    account: 'default',
+    folderId: 'inbox',
+    hasAttachments: false,
+  },
+  {
+    id: 'fix-2',
+    subject: 'Q2 statement ready - Webb household',
+    fromAddr: 'no-reply@schwab.com',
+    fromName: 'Schwab Advisor Services',
+    snippet:
+      'The Q2 2026 statement for account ending 4471 is now available to download.',
+    receivedDateTime: '2026-06-11T09:15:00Z',
+    provider: 'm365',
+    account: 'default',
+    folderId: 'inbox',
+    hasAttachments: true,
+  },
+  {
+    id: 'fix-3',
+    subject: 'Beneficiary form - signed and returned',
+    fromAddr: 'tanya.webb@outlook.com',
+    fromName: 'Tanya Webb',
+    snippet:
+      'Signed beneficiary designation attached. We updated the contingent beneficiaries to the kids 50/50.',
+    receivedDateTime: '2026-06-10T16:00:00Z',
+    provider: 'gmail',
+    account: 'default',
+    folderId: 'INBOX',
+    hasAttachments: true,
+  },
+  {
+    id: 'fix-4',
+    subject: 'RMD reminder - Patel IRA',
+    fromAddr: 'notifications@fidelity.com',
+    fromName: 'Fidelity Institutional',
+    snippet:
+      'A required minimum distribution of $18,420 is due by December 31 for this traditional IRA.',
+    receivedDateTime: '2026-06-09T11:45:00Z',
+    provider: 'm365',
+    account: 'default',
+    folderId: 'inbox',
+    hasAttachments: true,
+  },
+  {
+    id: 'fix-5',
+    subject: 'Wealthbox integration update',
+    fromAddr: 'support@wealthbox.com',
+    fromName: 'Wealthbox Support',
+    snippet:
+      'Your API key has been rotated. Please update your integration settings to keep contacts syncing.',
+    receivedDateTime: '2026-06-08T08:00:00Z',
+    provider: 'm365',
+    account: 'default',
+    folderId: 'inbox',
+    hasAttachments: false,
+  },
+  {
+    id: 'fix-6',
+    subject: 'FW: Signed advisory agreement',
+    fromAddr: 'jane.ellison@gmail.com',
+    fromName: 'Jane Ellison',
+    snippet:
+      'Forwarding the signed advisory agreement for your records. Original attached.',
+    receivedDateTime: '2026-06-07T13:20:00Z',
+    provider: 'imap',
+    account: 'firm@firm.com',
+    folderId: 'INBOX',
+    hasAttachments: true,
+  },
+  {
+    id: 'fix-7',
+    subject: 'Roth conversion question',
+    fromAddr: 'david.nakamura@gmail.com',
+    fromName: 'David Nakamura',
+    snippet:
+      'Before year-end I want to revisit the Roth conversion we discussed. How much room is left in the 24% bracket?',
+    receivedDateTime: '2026-06-06T17:00:00Z',
+    provider: 'm365',
+    account: 'default',
+    folderId: 'sent',
+    hasAttachments: false,
+  },
+  {
+    id: 'fix-8',
+    subject: 'Tax documents deadline',
+    fromAddr: 'jhollings@cpafirm.com',
+    fromName: 'Janet Hollings, CPA',
+    snippet:
+      'Reminder: I need the 1099 and realized-gains report by October 15 to finish the Voss return.',
+    receivedDateTime: '2026-06-05T09:00:00Z',
+    provider: 'm365',
+    account: 'default',
+    folderId: 'inbox',
+    hasAttachments: false,
+  },
 ];
 
 /** Apply query filters + sort to a fixture array (for dev fixture mode). */
-function applyQueryToFixtures(fixtures: MailListItem[], q: MailListQuery): MailListPage {
-  const filtered = fixtures.filter(item => {
+function applyQueryToFixtures(
+  fixtures: MailListItem[],
+  q: MailListQuery
+): MailListPage {
+  const filtered = fixtures.filter((item) => {
     if (q.keyword) {
       const kw = q.keyword.toLowerCase();
-      const hit = item.subject.toLowerCase().includes(kw)
-        || item.fromAddr.toLowerCase().includes(kw)
-        || item.fromName.toLowerCase().includes(kw);
+      const hit =
+        item.subject.toLowerCase().includes(kw) ||
+        item.fromAddr.toLowerCase().includes(kw) ||
+        item.fromName.toLowerCase().includes(kw);
       if (!hit) return false;
     }
     if (q.folderId && item.folderId !== q.folderId) return false;
     if (q.provider && item.provider !== q.provider) return false;
     if (q.account && item.account !== q.account) return false;
-    if (q.dateFrom && item.receivedDateTime && item.receivedDateTime < q.dateFrom) return false;
+    if (
+      q.dateFrom &&
+      item.receivedDateTime &&
+      item.receivedDateTime < q.dateFrom
+    )
+      return false;
     // Treat dateTo as end-of-day inclusive: append T23:59:59.999Z if it's a date-only string.
     if (q.dateTo && item.receivedDateTime) {
-      const upperBound = q.dateTo.includes('T') ? q.dateTo : `${q.dateTo}T23:59:59.999Z`;
+      const upperBound = q.dateTo.includes('T')
+        ? q.dateTo
+        : `${q.dateTo}T23:59:59.999Z`;
       if (item.receivedDateTime > upperBound) return false;
     }
-    if (q.hasAttachments !== undefined && item.hasAttachments !== q.hasAttachments) return false;
+    if (
+      q.hasAttachments !== undefined &&
+      item.hasAttachments !== q.hasAttachments
+    )
+      return false;
     return true;
   });
 
   // Sort
   const dir = q.sortDesc ? -1 : 1;
   filtered.sort((a, b) => {
-    let av = '', bv = '';
-    if (q.sortBy === 'subject') { av = a.subject; bv = b.subject; }
-    else if (q.sortBy === 'from') { av = a.fromName; bv = b.fromName; }
-    else { av = a.receivedDateTime ?? ''; bv = b.receivedDateTime ?? ''; }
+    let av = '',
+      bv = '';
+    if (q.sortBy === 'subject') {
+      av = a.subject;
+      bv = b.subject;
+    } else if (q.sortBy === 'from') {
+      av = a.fromName;
+      bv = b.fromName;
+    } else {
+      av = a.receivedDateTime ?? '';
+      bv = b.receivedDateTime ?? '';
+    }
     return av < bv ? -dir : av > bv ? dir : 0;
   });
 
@@ -329,7 +524,9 @@ function applyQueryToFixtures(fixtures: MailListItem[], q: MailListQuery): MailL
 
 /** Browse / keyword-search stored email metadata without decrypting blobs.
  *  Returns an empty page outside Tauri (or when `?mailFixture=1` in dev). */
-export async function mailListMessages(query: MailListQuery): Promise<MailListPage> {
+export async function mailListMessages(
+  query: MailListQuery
+): Promise<MailListPage> {
   // Dev fixture path: exercisable in browser dev server without Tauri.
   if (mailFixtureEnabled()) {
     return applyQueryToFixtures(DEV_FIXTURES, query);
@@ -353,18 +550,25 @@ export async function mailListMessages(query: MailListQuery): Promise<MailListPa
 export async function mailListMessagesByMatter(
   matterId: string,
   matterMap: MailMatterMapEntry[],
-  query: MailListQuery,
+  query: MailListQuery
 ): Promise<MailListPage> {
   if (mailFixtureEnabled()) {
     return applyQueryToFixtures(DEV_FIXTURES, query);
   }
   if (!isTauri()) return { items: [], total: 0 };
-  return invoke<MailListPage>('mail_list_messages_by_matter', { matterId, matterMap, query });
+  return invoke<MailListPage>('mail_list_messages_by_matter', {
+    matterId,
+    matterMap,
+    query,
+  });
 }
 
 // Microsoft 365 loopback OAuth (one-click flow, mirrors gmail_connect)
 export async function outlookConnect(): Promise<void> {
-  if (!isTauri()) throw new Error('Microsoft 365 connect is only available in the desktop app.');
+  if (!isTauri())
+    throw new Error(
+      'Microsoft 365 connect is only available in the desktop app.'
+    );
   await invoke('outlook_connect');
 }
 
@@ -387,7 +591,8 @@ export async function mailDisconnect(): Promise<void> {
 
 // Gmail native provider (loopback PKCE OAuth)
 export async function gmailConnect(): Promise<void> {
-  if (!isTauri()) throw new Error('Gmail connect is only available in the desktop app.');
+  if (!isTauri())
+    throw new Error('Gmail connect is only available in the desktop app.');
   await invoke('gmail_connect');
 }
 
@@ -426,7 +631,7 @@ export async function gmailDisconnect(): Promise<void> {
  *  No-op outside Tauri (fixture mode: resolves immediately). */
 export async function mailRetagMessageMatter(
   messageId: string,
-  matterId: string,
+  matterId: string
 ): Promise<void> {
   if (!isTauri()) return;
   await invoke('mail_retag_message_matter', { messageId, matterId });
@@ -436,7 +641,9 @@ export async function mailRetagMessageMatter(
  *  (BUG-042), so the emails don't resurface on the next sync tagged with a
  *  matter that no longer exists. Returns how many filings were cleared.
  *  No-op outside Tauri (fixture mode: resolves to 0). */
-export async function mailClearMatterFilings(matterId: string): Promise<number> {
+export async function mailClearMatterFilings(
+  matterId: string
+): Promise<number> {
   if (!isTauri()) return 0;
   return invoke<number>('mail_clear_matter_filings', { matterId });
 }
@@ -455,10 +662,45 @@ export async function mailGetAttachment(
   provider: string,
   account: string,
   messageId: string,
-  attachmentId: string,
+  attachmentId: string
 ): Promise<MailAttachmentData> {
-  if (!isTauri()) throw new Error('Attachment fetch is only available in the desktop app.');
-  return invoke<MailAttachmentData>('mail_get_attachment', { provider, account, messageId, attachmentId });
+  if (!isTauri())
+    throw new Error('Attachment fetch is only available in the desktop app.');
+  return invoke<MailAttachmentData>('mail_get_attachment', {
+    provider,
+    account,
+    messageId,
+    attachmentId,
+  });
+}
+
+export interface MailPersistedAttachment {
+  path: string;
+  filename: string;
+  contentType: string;
+  byteSize: number;
+}
+
+/** Fetch one provider attachment and write it directly into the workspace.
+ *  The backend returns the saved path, not the bytes. */
+export async function mailPersistAttachment(
+  provider: string,
+  account: string,
+  messageId: string,
+  attachmentId: string,
+  destinationDir: string,
+  filename?: string
+): Promise<MailPersistedAttachment> {
+  if (!isTauri())
+    throw new Error('Attachment save is only available in the desktop app.');
+  return invoke<MailPersistedAttachment>('mail_persist_attachment', {
+    provider,
+    account,
+    messageId,
+    attachmentId,
+    destinationDir,
+    filename: filename ?? null,
+  });
 }
 
 /** One file attachment to include in an outgoing email. */
@@ -476,7 +718,10 @@ export interface MailAttachmentLimit {
   label: string;
 }
 
-const DEFAULT_MAIL_ATTACHMENT_LIMIT: MailAttachmentLimit = { maxBytes: 25 * 1024 * 1024, label: '25 MB' };
+const DEFAULT_MAIL_ATTACHMENT_LIMIT: MailAttachmentLimit = {
+  maxBytes: 25 * 1024 * 1024,
+  label: '25 MB',
+};
 
 const MAIL_ATTACHMENT_LIMITS: Record<string, MailAttachmentLimit> = {
   // Graph simple fileAttachment sends must stay under roughly 3 MB per file.
@@ -485,11 +730,15 @@ const MAIL_ATTACHMENT_LIMITS: Record<string, MailAttachmentLimit> = {
   imap: DEFAULT_MAIL_ATTACHMENT_LIMIT,
 };
 
-export function mailAttachmentLimitForProvider(provider: string): MailAttachmentLimit {
+export function mailAttachmentLimitForProvider(
+  provider: string
+): MailAttachmentLimit {
   return MAIL_ATTACHMENT_LIMITS[provider] ?? DEFAULT_MAIL_ATTACHMENT_LIMIT;
 }
 
-export function mailAttachmentDecodedBytes(attachment: MailAttachmentInput): number {
+export function mailAttachmentDecodedBytes(
+  attachment: MailAttachmentInput
+): number {
   const clean = attachment.contentBase64.replace(/\s/g, '');
   if (clean.length === 0) return 0;
   const padding = clean.endsWith('==') ? 2 : clean.endsWith('=') ? 1 : 0;
@@ -498,7 +747,7 @@ export function mailAttachmentDecodedBytes(attachment: MailAttachmentInput): num
 
 export function validateMailAttachmentsForProvider(
   provider: string,
-  attachments: MailAttachmentInput[] | undefined,
+  attachments: MailAttachmentInput[] | undefined
 ): void {
   if (!attachments || attachments.length === 0) return;
   const limit = mailAttachmentLimitForProvider(provider);
@@ -511,8 +760,11 @@ export function validateMailAttachmentsForProvider(
   if (tooLarge.length === 0) return;
   throw new Error(
     `These attachments are too large for ${provider}: ${tooLarge
-      .map((entry) => `${entry.attachment.name} (${formatBytes(entry.bytes)}, limit ${limit.label})`)
-      .join(', ')}.`,
+      .map(
+        (entry) =>
+          `${entry.attachment.name} (${formatBytes(entry.bytes)}, limit ${limit.label})`
+      )
+      .join(', ')}.`
   );
 }
 
@@ -558,9 +810,10 @@ export async function mailSend(
   subject: string,
   body: string,
   inReplyToId?: string,
-  attachments?: MailAttachmentInput[],
+  attachments?: MailAttachmentInput[]
 ): Promise<string> {
-  if (!isTauri()) throw new Error('Email send is only available in the desktop app.');
+  if (!isTauri())
+    throw new Error('Email send is only available in the desktop app.');
   validateMailAttachmentsForProvider(provider, attachments);
   return invoke<string>('mail_send', {
     provider,
@@ -576,7 +829,10 @@ export async function mailSend(
 }
 
 /** Compose the "<provider>:<account>" account id `mail_save_draft` parses. */
-export function composeMailAccountId(provider: string, account: string): string {
+export function composeMailAccountId(
+  provider: string,
+  account: string
+): string {
   return `${provider}:${account}`;
 }
 
@@ -591,9 +847,10 @@ export async function mailSaveDraft(
   to: string[],
   subject: string,
   bodyHtml: string,
-  inReplyTo?: string,
+  inReplyTo?: string
 ): Promise<string> {
-  if (!isTauri()) throw new Error('Saving drafts is only available in the desktop app.');
+  if (!isTauri())
+    throw new Error('Saving drafts is only available in the desktop app.');
   return invoke<string>('mail_save_draft', {
     accountId,
     to,

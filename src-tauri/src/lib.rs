@@ -17,9 +17,9 @@ pub mod identity;
 // per-request sidecars both satisfy via appropriate no-ops.
 pub mod sidecars;
 // Cross-cutting utilities (process helpers, etc.).
-pub mod util;
 #[cfg(debug_assertions)]
 mod dev_bridge;
+pub mod util;
 // Shared WebView2 additional-browser-args string used by EVERY webview window
 // (main + Notice Card companion). Centralized so the windows are byte-identical,
 // which is what prevents the 0x8007139F (ERROR_INVALID_STATE) crash when a
@@ -184,6 +184,9 @@ pub fn run() {
             commands::mail::mail_clear_matter_filings,
             // Fetch one attachment's bytes on demand (never writes to disk).
             commands::mail::mail_get_attachment,
+            // Save one provider attachment directly into the workspace; bytes
+            // do not cross into the renderer.
+            commands::mail::mail_persist_attachment,
             // Option B — heal mail RAG indexing that failed while the embedding
             // model was still downloading (no-op when the marker is absent).
             commands::mail::mail_backfill_rag,
