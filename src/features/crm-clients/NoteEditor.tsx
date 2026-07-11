@@ -9,6 +9,7 @@ export interface NoteEditorProps {
   availableMentions: readonly { id: string; label: string }[];
   actions?: CrmClientsActions;
   onCancel?: () => void;
+  onSaved?: () => void;
 }
 
 /** Note audience is set by the creation lane and cannot be altered in this editor. */
@@ -17,6 +18,7 @@ export function NoteEditor({
   availableMentions,
   actions,
   onCancel,
+  onSaved,
 }: NoteEditorProps) {
   const [body, setBody] = useState('');
   const [pinned, setPinned] = useState(false);
@@ -129,12 +131,17 @@ export function NoteEditor({
           size="sm"
           data-testid="crm-note-save"
           disabled={!body.trim()}
-          onClick={() =>
-            actions?.onSaveNote?.(
+          onClick={() => {
+            const saved = actions?.onSaveNote?.(
               { body, audience, pinned, mentions },
               notifyFirm
-            )
-          }
+            );
+            if (saved && typeof (saved as Promise<void>).then === 'function') {
+              void (saved as Promise<void>).then(onSaved);
+            } else {
+              onSaved?.();
+            }
+          }}
         >
           Save note
         </Button>

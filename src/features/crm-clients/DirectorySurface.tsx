@@ -22,11 +22,13 @@ export function DirectorySurface({
   households = [],
   actions,
   onCreateHousehold,
+  error,
 }: {
   people: readonly CrmPerson[];
   households?: readonly HouseholdDirectoryEntry[];
   actions?: CrmClientsActions;
   onCreateHousehold?: (name: string) => Promise<void> | void;
+  error?: string | null;
 }) {
   const [tab, setTab] = useState<DirectoryTab>('households');
   const [query, setQuery] = useState('');
@@ -100,6 +102,7 @@ export function DirectorySurface({
           New household
         </Button>
       </SurfaceToolbar>
+      {error ? <Card variant="raised" role="alert">Could not load the saved CRM records: {error}</Card> : null}
       {creatingHousehold ? <form data-testid="crm-create-household" onSubmit={(event) => { event.preventDefault(); const name = householdName.trim(); if (!name) return; void Promise.resolve(onCreateHousehold?.(name)).then(() => { setHouseholdName(''); setCreatingHousehold(false); }); }} style={{ display: 'flex', gap: 8, marginTop: 12 }}><input data-testid="crm-household-name" aria-label="Household name" value={householdName} onChange={(event) => { setHouseholdName(event.target.value); }} placeholder="Household name" autoFocus /><Button data-testid="crm-household-save" type="submit">Create household</Button><Button variant="secondary" type="button" onClick={() => { setCreatingHousehold(false); }}>Cancel</Button></form> : null}
       {tab === 'households' ? (
         <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>

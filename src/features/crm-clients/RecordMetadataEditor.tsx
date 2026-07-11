@@ -9,10 +9,12 @@ export function RecordMetadataEditor({
   values,
   tags = [],
   actions,
+  onSaved,
 }: {
   values: readonly CrmFieldValue[];
   tags?: readonly string[];
   actions?: CrmClientsActions;
+  onSaved?: () => void;
 }) {
   const [draftValues, setDraftValues] = useState<CrmFieldValue[]>([...values]);
   const [draftTags, setDraftTags] = useState<string[]>([...tags]);
@@ -129,7 +131,14 @@ export function RecordMetadataEditor({
         size="sm"
         style={{ marginTop: 14 }}
         data-testid="crm-save-metadata"
-        onClick={() => actions?.onSaveMetadata?.(draftValues, draftTags)}
+        onClick={() => {
+          const saved = actions?.onSaveMetadata?.(draftValues, draftTags);
+          if (saved && typeof (saved as Promise<void>).then === 'function') {
+            void (saved as Promise<void>).then(onSaved);
+          } else {
+            onSaved?.();
+          }
+        }}
       >
         Save fields and tags
       </Button>
