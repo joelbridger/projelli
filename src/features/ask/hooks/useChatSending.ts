@@ -1927,8 +1927,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
               { id: 'open-files', origin: 'open_file', label: 'Open files', text: fileBlock },
               { id: 'facts', origin: 'chat_history', label: 'Saved chat facts', text: facts.map((fact) => fact.text).join('\n') },
               ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => {
-                  const extraction = pdfExtractions[attachment.att.id];
-                  const imageText = imageOcrText.get(attachment.att.id);
+                const extraction = pdfExtractions[attachment.att.id];
+                const imageText = imageOcrText.get(attachment.att.id);
                 return {
                   id: `attachment-${attachment.att.id}`,
                   origin: 'attachment_text' as const,
@@ -1936,10 +1936,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
                   attachment: {
                     attachmentId: attachment.att.id,
                     attachmentIndex,
-                      canRedact: attachment.att.type === 'pdf',
-                      ...(extraction
-                        ? { extractedText: extraction.pages.join('\n') }
-                        : imageText !== undefined ? { extractedText: imageText } : {}),
+                    canRedact: attachment.att.type === 'pdf',
+                    ...(extraction
+                      ? { extractedText: extraction.pages.join('\n') }
+                      : imageText !== undefined ? { extractedText: imageText } : {}),
                   },
                 };
               }),

@@ -24,6 +24,20 @@ describe('OpenAIProvider.formatAttachmentForRequest (image)', () => {
     await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES))
       .rejects.toThrow('unscannable_attachment');
   });
+
+  it('passes the original image bytes after clean local OCR text', async () => {
+    const provider = makeProvider('gpt-4o');
+    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'Clean chart title');
+    expect(block).toMatchObject({ type: 'image_url' });
+    expect((block as { image_url: { url: string } }).image_url.url)
+      .toContain('iVBORw==');
+  });
+
+  it('blocks an image when local OCR finds a secret', async () => {
+    const provider = makeProvider('gpt-4o');
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'access_token=image-secret'))
+      .rejects.toThrow('prompt_review_required');
+  });
 });
 
 describe('OpenAIProvider.supportsAttachment', () => {

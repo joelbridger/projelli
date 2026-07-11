@@ -24,7 +24,7 @@ describe('secret scrub wave 2c real send paths', () => {
   it('redacts a meeting agenda before its provider receives it', async () => {
     const sent: string[] = []; setPromptDecisionBroker(async () => 'send_redacted_copy');
     await agendaMarkdownFromBrief({ markdown: `Private link: ${SECRET}` }, { clientLabel: 'Client', eventTitle: 'Review', matterId: 'matter-1', provider: provider(sent) });
-    expect(sent).toHaveLength(1); expect(sent[0]).not.toContain('intake-secret'); expect(sent[0]).toContain('[private-link-hidden]');
+    expect(sent).toHaveLength(1); expect(sent[0]).not.toContain('intake-secret'); expect(sent[0]).toContain('[link-fragment-hidden]');
   });
   it('redacts a document summary before its structured provider receives it', async () => {
     const sent: string[] = []; const testProvider = provider(sent);
@@ -35,7 +35,7 @@ describe('secret scrub wave 2c real send paths', () => {
       } as T;
     };
     setPromptDecisionBroker(async () => 'send_redacted_copy'); await new DocSummaryService(testProvider).generateSummary('doc-1', `Link: ${SECRET}`);
-    expect(sent).toHaveLength(1); expect(sent[0]).not.toContain('intake-secret'); expect(sent[0]).toContain('[private-link-hidden]');
+    expect(sent).toHaveLength(1); expect(sent[0]).not.toContain('intake-secret'); expect(sent[0]).toContain('[link-fragment-hidden]');
   });
   it('blocks a background workflow before any provider call', async () => {
     const sent: string[] = []; const template = { id: 'secret-test', name: 'Secret test', description: '', category: 'test', version: '1', steps: [{ id: 'generate', name: 'Generate', type: 'generate', config: { promptTemplate: 'Use {{answer}}', outputFile: 'result.md' } }] } as unknown as WorkflowTemplate;

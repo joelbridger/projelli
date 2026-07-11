@@ -31,6 +31,7 @@ function pdfAttachment(overrides: Partial<AttachmentBytes['att']> = {}, bytes = 
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   setPreparationEnforcementMode('enforce');
   resetPromptPreparationStateForTests();
   vi.unstubAllGlobals();
@@ -192,6 +193,15 @@ describe('prompt preparation red-team catalog', () => {
     expect(() => { assertCloudPreparation(undefined, 'openai'); }).not.toThrow();
     expect(warning).toHaveBeenCalled();
     warning.mockRestore();
+  });
+
+  it('cannot weaken cloud preparation in a production build', () => {
+    vi.stubEnv('DEV', false);
+    vi.stubEnv('NODE_ENV', 'production');
+
+    expect(() => { setPreparationEnforcementMode('off'); })
+      .toThrow('enforcement mode can only change in development or tests');
+    expect(getPreparationEnforcementMode()).toBe('enforce');
   });
 
   it('records detected categories and counts for every preparation decision', async () => {

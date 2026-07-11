@@ -24,6 +24,18 @@ describe('GeminiProvider.formatAttachmentForRequest (image)', () => {
     await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES))
       .rejects.toThrow('unscannable_attachment');
   });
+
+  it('passes the original image bytes after clean local OCR text', async () => {
+    const provider = makeProvider('gemini-1.5-flash');
+    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'Clean chart title');
+    expect(block).toMatchObject({ inlineData: { data: 'iVBORw==' } });
+  });
+
+  it('blocks an image when local OCR finds a secret', async () => {
+    const provider = makeProvider('gemini-1.5-flash');
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'access_token=image-secret'))
+      .rejects.toThrow('prompt_review_required');
+  });
 });
 
 describe('GeminiProvider.supportsAttachment', () => {
