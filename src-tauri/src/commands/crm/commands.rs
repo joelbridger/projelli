@@ -7,8 +7,8 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -18,12 +18,12 @@ use crate::commands::audit::AuditState;
 use crate::commands::crm::engine;
 use crate::commands::crm::model::crm_key_belongs_to_provider;
 use crate::commands::crm::provider::{
-    CrmProvider, client_for, delete_token, read_token, store_token, validate_token,
+    client_for, delete_token, read_token, store_token, validate_token, CrmProvider,
 };
 use crate::commands::crm::redtail::RedtailClient;
 use crate::commands::crm::salesforce::{
-    SALESFORCE_TOKEN_ENDPOINT, SalesforceClient, build_salesforce_auth_url,
-    exchange_salesforce_code, salesforce_client_id,
+    build_salesforce_auth_url, exchange_salesforce_code, salesforce_client_id, SalesforceClient,
+    SALESFORCE_TOKEN_ENDPOINT,
 };
 use crate::commands::crm::store::{CrmStore, PendingCrmProposal};
 use crate::commands::crm::write::{
@@ -514,7 +514,11 @@ async fn confirm_stale_sent_rows_downgraded(app: &AppHandle, provider: CrmProvid
         // it aren't left blocked by a since-superseded failure. Per-
         // provider, not a global clear: an unrelated provider's still-
         // unconfirmed downgrade must be untouched.
-        app.state::<CrmState>().downgrade_unconfirmed.lock().await.remove(provider.id());
+        app.state::<CrmState>()
+            .downgrade_unconfirmed
+            .lock()
+            .await
+            .remove(provider.id());
     }
     confirmed
 }
@@ -685,20 +689,24 @@ async fn append_crm_audit_must_for_matter(
                     .unwrap_or_default();
                 let mut rng_bytes = [0u8; 4];
                 rand::RngCore::fill_bytes(&mut rand::thread_rng(), &mut rng_bytes);
-                format!("audit_crm_{}_{}_{}", audit_phase_s, nanos, hex::encode(rng_bytes))
+                format!(
+                    "audit_crm_{}_{}_{}",
+                    audit_phase_s,
+                    nanos,
+                    hex::encode(rng_bytes)
+                )
             }
         };
 
-        let payload_json =
-            crm_audit_payload_json_for_matter(
-                &id,
-                &timestamp,
-                &action_s,
-                &desc_s,
-                &matter_id_s,
-                &audit_phase_s,
-                &audit_pair_id_s,
-            );
+        let payload_json = crm_audit_payload_json_for_matter(
+            &id,
+            &timestamp,
+            &action_s,
+            &desc_s,
+            &matter_id_s,
+            &audit_phase_s,
+            &audit_pair_id_s,
+        );
 
         let rec = AuditEntryRecord {
             id,
@@ -717,11 +725,16 @@ async fn append_crm_audit_must_for_matter(
             let _ = app.emit(CRM_AUDIT_APPENDED_EVENT, &rec);
             Ok(())
         }
-        Ok(Err(e)) => Err(crm_audit_failure_message(&audit_phase_for_error, Some(format!("{e:#}")))),
-        Err(e) => Err(crm_audit_failure_message(&audit_phase_for_error, Some(e.to_string()))),
+        Ok(Err(e)) => Err(crm_audit_failure_message(
+            &audit_phase_for_error,
+            Some(format!("{e:#}")),
+        )),
+        Err(e) => Err(crm_audit_failure_message(
+            &audit_phase_for_error,
+            Some(e.to_string()),
+        )),
     }
 }
-
 
 async fn crm_store_from_state(state: &State<'_, CrmState>) -> Result<CrmStore, String> {
     let workspace = state
@@ -954,6 +967,7 @@ pub async fn crm_delete_write_proposal(
 pub async fn crm_approve_write_proposal(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     proposal_id: String,
 ) -> Result<WriteReceipt, String> {
     let mut proposal = {
@@ -979,6 +993,7 @@ pub async fn crm_approve_write_proposal(
             crm_create_write(
                 app,
                 &state,
+                policy.inner().clone(),
                 CrmWriteKind::Note,
                 proposal.matter_id.clone(),
                 proposal.title.clone(),
@@ -996,6 +1011,7 @@ pub async fn crm_approve_write_proposal(
             crm_create_write(
                 app,
                 &state,
+                policy.inner().clone(),
                 CrmWriteKind::Task,
                 proposal.matter_id.clone(),
                 proposal.title.clone(),
@@ -1013,6 +1029,7 @@ pub async fn crm_approve_write_proposal(
             crm_update_field_from_proposal(
                 app,
                 &state,
+                policy.inner().clone(),
                 proposal.matter_id.clone(),
                 proposal.household_key.clone(),
                 proposal.field.clone().unwrap_or_default(),
@@ -1033,9 +1050,9 @@ pub async fn crm_approve_write_proposal(
     proposal.error = None;
     proposal.content_hash = crm_proposal_content_hash(&proposal);
     let store = crm_store_from_state(&state).await?;
-    store
-        .proposal_upsert(&proposal)
-        .map_err(|e| format!("CRM write sent, but the local proposal status could not be saved: {e}"))?;
+    store.proposal_upsert(&proposal).map_err(|e| {
+        format!("CRM write sent, but the local proposal status could not be saved: {e}")
+    })?;
 
     Ok(receipt)
 }
@@ -1044,6 +1061,7 @@ pub async fn crm_approve_write_proposal(
 async fn crm_create_write(
     app: AppHandle,
     state: &State<'_, CrmState>,
+    policy: crate::network_policy::NetworkPolicy,
     kind: CrmWriteKind,
     matter_id: String,
     title: String,
@@ -1077,7 +1095,12 @@ async fn crm_create_write(
             provider.display_name()
         ));
     }
-    if state.downgrade_unconfirmed.lock().await.contains(provider.id()) {
+    if state
+        .downgrade_unconfirmed
+        .lock()
+        .await
+        .contains(provider.id())
+    {
         return Err(
             "CRM sync state couldn't be verified — try reopening your workspace before writing."
                 .to_string(),
@@ -1086,7 +1109,8 @@ async fn crm_create_write(
 
     write::validate_write_inputs(&title, &body).map_err(|e| e.to_string())?;
     write::validate_requested_at(&requested_at).map_err(|e| e.to_string())?;
-    write::validate_task_due_date(kind, provider.id(), due_date.as_deref()).map_err(|e| e.to_string())?;
+    write::validate_task_due_date(kind, provider.id(), due_date.as_deref())
+        .map_err(|e| e.to_string())?;
 
     let token = read_token(provider).ok_or_else(|| {
         format!(
@@ -1103,7 +1127,7 @@ async fn crm_create_write(
         .ok_or("workspace not set — call crm_set_workspace first")?;
 
     let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
-    let client = write::write_client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = write::write_client_for(provider, token, policy).map_err(|e| e.to_string())?;
 
     let req = CrmWriteRequest {
         kind,
@@ -1202,6 +1226,7 @@ async fn crm_create_write(
 async fn crm_update_field_from_proposal(
     app: AppHandle,
     state: &State<'_, CrmState>,
+    policy: crate::network_policy::NetworkPolicy,
     matter_id: String,
     household_key: String,
     field: String,
@@ -1230,7 +1255,12 @@ async fn crm_update_field_from_proposal(
             provider.display_name()
         ));
     }
-    if state.downgrade_unconfirmed.lock().await.contains(provider.id()) {
+    if state
+        .downgrade_unconfirmed
+        .lock()
+        .await
+        .contains(provider.id())
+    {
         return Err(
             "CRM sync state couldn't be verified — try reopening your workspace before writing."
                 .to_string(),
@@ -1254,7 +1284,7 @@ async fn crm_update_field_from_proposal(
         .ok_or("workspace not set — call crm_set_workspace first")?;
 
     let store = CrmStore::open(&workspace).map_err(|e| e.to_string())?;
-    let client = write::write_client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = write::write_client_for(provider, token, policy).map_err(|e| e.to_string())?;
 
     let req = write::CrmFieldUpdateRequest {
         matter_id: matter_id.clone(),
@@ -1427,7 +1457,9 @@ pub async fn crm_set_workspace(
         }
         match connect_guard {
             Some(_connect_guard) => {
-                let confirmed = downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace").await;
+                let confirmed =
+                    downgrade_stale_sent_rows_for_workspace(ws, provider, "crm set_workspace")
+                        .await;
                 let mut unconfirmed = state.downgrade_unconfirmed.lock().await;
                 if confirmed {
                     unconfirmed.remove(provider.id());
@@ -1436,7 +1468,11 @@ pub async fn crm_set_workspace(
                 }
             }
             None => {
-                state.downgrade_unconfirmed.lock().await.insert(provider.id().to_string());
+                state
+                    .downgrade_unconfirmed
+                    .lock()
+                    .await
+                    .insert(provider.id().to_string());
             }
         }
     }
@@ -1459,6 +1495,7 @@ pub async fn crm_set_workspace(
 pub async fn crm_connect(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     token: Option<String>,
     username: Option<String>,
     password: Option<String>,
@@ -1476,11 +1513,15 @@ pub async fn crm_connect(
             .as_deref()
             .filter(|v| !v.is_empty())
             .ok_or_else(|| "Redtail password is required".to_string())?;
-        let info = RedtailClient::authenticate(username, password)
-            .await
-            .map_err(|_| {
-                "Could not connect to Redtail: invalid login or network error".to_string()
-            })?;
+        let info = RedtailClient::authenticate_with_base_and_policy(
+            &crate::commands::crm::redtail::redtail_api_key().map_err(|e| e.to_string())?,
+            username,
+            password,
+            "https://api2.redtailtechnology.com/crm/v1/rest",
+            Some(policy.inner()),
+        )
+        .await
+        .map_err(|_| "Could not connect to Redtail: invalid login or network error".to_string())?;
 
         // Block NEW writes for the whole token-swap + downgrade transition
         // (not just the drain wait) — see ConnectInProgressGuard's doc
@@ -1535,12 +1576,14 @@ pub async fn crm_connect(
     // Validate: call /me and check the response is a success. Any network
     // error or non-2xx status surfaces a clean message; raw body is never
     // surfaced (it may contain advisor/firm PII).
-    let info = validate_token(provider, token).await.map_err(|_| {
-        format!(
-            "Could not connect to {}: invalid token or network error",
-            provider.display_name()
-        )
-    })?;
+    let info = validate_token(provider, token, policy.inner().clone())
+        .await
+        .map_err(|_| {
+            format!(
+                "Could not connect to {}: invalid token or network error",
+                provider.display_name()
+            )
+        })?;
 
     // Block NEW writes for the whole token-swap + downgrade transition (not
     // just the drain wait) — see ConnectInProgressGuard's doc comment. Also
@@ -1599,6 +1642,7 @@ pub async fn crm_connect(
 pub async fn crm_oauth_connect(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     provider: Option<String>,
 ) -> Result<CrmConnectInfo, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
@@ -1622,6 +1666,12 @@ pub async fn crm_oauth_connect(
             .await
             .map_err(|e| e.to_string())?;
     let url = build_salesforce_auth_url(&client_id, &redirect_uri, &challenge, &state_token);
+    crate::commands::connector_network::authorize_url(
+        policy.inner(),
+        &crate::network_policy::SALESFORCE_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     crate::commands::mail::gmail::oauth::open_browser(&url);
     let code = crate::commands::mail::gmail::oauth::await_redirect_code_or_cancel(
         listener,
@@ -1637,6 +1687,7 @@ pub async fn crm_oauth_connect(
         &verifier,
         &redirect_uri,
         SALESFORCE_TOKEN_ENDPOINT,
+        policy.inner(),
     )
     .await
     .map_err(|e| e.to_string())?;
@@ -1652,8 +1703,12 @@ pub async fn crm_oauth_connect(
     // an already-working account.
     let previous_token = read_token(provider);
     let rollback_token = |previous: &Option<String>| match previous {
-        Some(prev) => { let _ = store_token(provider, prev); }
-        None => { let _ = delete_token(provider); }
+        Some(prev) => {
+            let _ = store_token(provider, prev);
+        }
+        None => {
+            let _ = delete_token(provider);
+        }
     };
 
     // Block NEW writes from the start of this transition all the way through
@@ -1696,13 +1751,12 @@ pub async fn crm_oauth_connect(
         || rollback_token(&previous_token),
     )?;
 
-    let info = SalesforceClient::new_with_token_endpoint(
+    let info = verify_salesforce_oauth_identity(
         stored,
         client_id,
         SALESFORCE_TOKEN_ENDPOINT.to_string(),
+        policy.inner(),
     )
-    .map_err(|e| e.to_string())?
-    .identity()
     .await
     .map_err(|e| e.to_string())?;
 
@@ -1742,8 +1796,12 @@ pub async fn crm_oauth_connect(
         // canceled RECONNECT restores the prior credential — the device is
         // still connected with that credential, not disconnected.
         let outcome = match &previous_token {
-            Some(_) => "the new credential was discarded and the previous connection was restored".to_string(),
-            None => format!("the new credential was removed and this device is not connected to {}", provider.display_name()),
+            Some(_) => "the new credential was discarded and the previous connection was restored"
+                .to_string(),
+            None => format!(
+                "the new credential was removed and this device is not connected to {}",
+                provider.display_name()
+            ),
         };
         rollback_token(&previous_token);
         append_crm_audit_best_effort(
@@ -1764,6 +1822,23 @@ pub async fn crm_oauth_connect(
         plan: String::new(),
         email: info.email,
     })
+}
+
+/// The last live network call in `crm_oauth_connect`: after a token exchange,
+/// ask Salesforce which account it belongs to before reporting success.  Keep
+/// this small step separate so the command and its regression test share the
+/// exact production construction path.  A freshly-built client has no policy
+/// by default, so attaching it here is required before `identity()` can send.
+async fn verify_salesforce_oauth_identity(
+    stored_token: String,
+    client_id: String,
+    token_endpoint: String,
+    policy: &crate::network_policy::NetworkPolicy,
+) -> anyhow::Result<crate::commands::crm::salesforce::SalesforceAccountInfo> {
+    SalesforceClient::new_with_token_endpoint(stored_token, client_id, token_endpoint)?
+        .with_network_policy(policy.clone())
+        .identity()
+        .await
 }
 
 /// Abort a pending `crm_oauth_connect` interactive sign-in immediately (e.g.
@@ -1978,7 +2053,9 @@ async fn crm_disconnect_logic_for_provider(
             match CrmStore::open(&ws) {
                 Ok(store) => {
                     if let Err(e) = store.purge_outbound_writes_for_provider(provider.id()) {
-                        log::warn!("crm_disconnect: outbound ledger purge failed (non-fatal): {e:#}");
+                        log::warn!(
+                            "crm_disconnect: outbound ledger purge failed (non-fatal): {e:#}"
+                        );
                         result.warnings.push(format!(
                             "{} write history could not be fully cleared: {e}",
                             provider.display_name()
@@ -2137,6 +2214,7 @@ fn crm_source_id_for_row(row: &crate::commands::crm::store::CrmObjectRow) -> Opt
 pub async fn crm_sync_all(
     app: AppHandle,
     state: State<'_, CrmState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<CrmMatterMapEntry>,
     provider: Option<String>,
 ) -> Result<CrmSyncReportDto, String> {
@@ -2226,7 +2304,7 @@ pub async fn crm_sync_all(
 
     // Run the full backfill (fetch → ingest → index). The cancel flag is polled
     // between matters so the UI's Stop button interrupts a long sync.
-    let client = client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = client_for(provider, token, policy.inner().clone()).map_err(|e| e.to_string())?;
     let backfill_result = engine::backfill(
         client.as_ref(),
         &store,
@@ -2376,10 +2454,13 @@ fn household_dto_name(contact: &crate::commands::crm::model::CrmContact) -> Stri
 /// **Token and raw API body are never logged or returned** per the module
 /// security contract.
 #[tauri::command]
-pub async fn crm_list_households(provider: Option<String>) -> Result<Vec<CrmHouseholdDto>, String> {
+pub async fn crm_list_households(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+    provider: Option<String>,
+) -> Result<Vec<CrmHouseholdDto>, String> {
     let provider = CrmProvider::from_optional(provider.as_deref())?;
     let token = read_token(provider).ok_or_else(|| "not connected".to_string())?;
-    let client = client_for(provider, token).map_err(|e| e.to_string())?;
+    let client = client_for(provider, token, policy.inner().clone()).map_err(|e| e.to_string())?;
     let contacts = client.list_households().await.map_err(|e| e.to_string())?;
     let dtos = contacts
         .iter()
@@ -2398,6 +2479,55 @@ pub async fn crm_list_households(provider: Option<String>) -> Result<Vec<CrmHous
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn oauth_connect_identity_check_attaches_network_policy() {
+        use std::time::{Duration, SystemTime, UNIX_EPOCH};
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "organization_name": "Acme Advisory",
+                "email": "advisor@example.com"
+            })))
+            .mount(&server)
+            .await;
+        let expires_at_unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + Duration::from_secs(3600).as_secs();
+        let stored_token =
+            serde_json::to_string(&crate::commands::crm::salesforce::SalesforceTokenSet {
+                access_token: "access".into(),
+                refresh_token: "refresh".into(),
+                instance_url: server.uri(),
+                expires_at_unix,
+                id_url: format!("{}/id", server.uri()),
+            })
+            .unwrap();
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        );
+
+        // This calls the helper used by crm_oauth_connect immediately after
+        // its real token-exchange path. Without the attachment inside that
+        // helper, the production Salesforce client returns "requires a
+        // NetworkPolicy" before it can issue this request.
+        let info = verify_salesforce_oauth_identity(
+            stored_token,
+            "client".into(),
+            "https://login.salesforce.com/services/oauth2/token".into(),
+            &policy,
+        )
+        .await
+        .expect("OAuth command identity check should use its attached policy");
+        assert_eq!(info.name, "Acme Advisory");
+        assert_eq!(info.email, "advisor@example.com");
+    }
 
     fn test_pending_crm_proposal() -> PendingCrmProposal {
         let mut proposal = PendingCrmProposal {
@@ -2615,7 +2745,10 @@ mod tests {
 
         let started = std::time::Instant::now();
         let drained = wait_for_writes_to_drain(&state).await;
-        assert!(drained, "must report success once the write actually drains");
+        assert!(
+            drained,
+            "must report success once the write actually drains"
+        );
         assert!(
             started.elapsed() >= std::time::Duration::from_millis(25),
             "must actually wait for the in-flight write, not return immediately"
@@ -2634,9 +2767,15 @@ mod tests {
         flag.store(true, Ordering::SeqCst);
         {
             let _guard = ConnectInProgressGuard(flag.clone());
-            assert!(flag.load(Ordering::SeqCst), "flag must be set while the guard is held");
+            assert!(
+                flag.load(Ordering::SeqCst),
+                "flag must be set while the guard is held"
+            );
         }
-        assert!(!flag.load(Ordering::SeqCst), "flag must reset once the guard drops");
+        assert!(
+            !flag.load(Ordering::SeqCst),
+            "flag must reset once the guard drops"
+        );
     }
 
     /// P2 (self-converge codex-review round 8): a plain `store(true)` per
@@ -2755,7 +2894,7 @@ mod tests {
     #[tokio::test]
     async fn salesforce_disconnect_purges_live_and_tombstoned_chunks_preserving_other_crms() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{Chunk, chunk_text};
+        use crate::commands::rag::chunker::{chunk_text, Chunk};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -2908,7 +3047,7 @@ mod tests {
     #[tokio::test]
     async fn wealthbox_disconnect_purges_live_and_tombstoned_chunks_preserving_other_crms() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{Chunk, chunk_text};
+        use crate::commands::rag::chunker::{chunk_text, Chunk};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -3067,7 +3206,7 @@ mod tests {
     #[tokio::test]
     async fn redtail_disconnect_purges_live_and_tombstoned_chunks_preserving_other_crms() {
         use crate::commands::mail::crypto::decrypt_with_key;
-        use crate::commands::rag::chunker::{Chunk, chunk_text};
+        use crate::commands::rag::chunker::{chunk_text, Chunk};
         use crate::commands::rag::embedder::EMBEDDING_DIM;
         use crate::commands::rag::store::{self, PRIVILEGE_NONE};
         use arrow_array::RecordBatchIterator;
@@ -3700,8 +3839,9 @@ mod tests {
         let workspace = tempfile::TempDir::new().unwrap();
         let key: [u8; 32] = hex::decode(KEY_HEX).unwrap().try_into().unwrap();
         {
-            let store = crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &key)
-                .expect("open crm store");
+            let store =
+                crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &key)
+                    .expect("open crm store");
             store
                 .outbound_upsert(
                     "dedup-1",
@@ -3723,10 +3863,17 @@ mod tests {
             "test",
         )
         .await;
-        assert!(ok, "downgrade must report success against a real, writable workspace");
-        let store = crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &key).unwrap();
+        assert!(
+            ok,
+            "downgrade must report success against a real, writable workspace"
+        );
+        let store =
+            crate::commands::crm::store::CrmStore::open_with_key(workspace.path(), &key).unwrap();
         let row = store.outbound_get("dedup-1").unwrap().unwrap();
-        assert_eq!(row.status, "pending_verify", "the sent row must have been downgraded");
+        assert_eq!(
+            row.status, "pending_verify",
+            "the sent row must have been downgraded"
+        );
 
         // Failure: the "workspace" is a plain file, so the DB can never be
         // opened — the caller (every crm_connect/crm_oauth_connect success

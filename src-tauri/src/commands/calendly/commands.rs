@@ -123,10 +123,16 @@ pub async fn calendly_set_workspace(
 }
 
 #[tauri::command]
-pub async fn calendly_connect(token: String) -> Result<CalendlyConnectInfo, String> {
-    let user = CalendlyClient::current_user_with_token(token.clone())
-        .await
-        .map_err(|_| "Could not connect to Calendly: invalid token or network error".to_string())?;
+pub async fn calendly_connect(
+    token: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<CalendlyConnectInfo, String> {
+    let user =
+        CalendlyClient::current_user_with_token_and_policy(token.clone(), policy.inner().clone())
+            .await
+            .map_err(|_| {
+                "Could not connect to Calendly: invalid token or network error".to_string()
+            })?;
 
     if user.uri.trim().is_empty() {
         return Err(
@@ -153,6 +159,7 @@ pub async fn calendly_is_connected() -> Result<bool, String> {
 pub async fn calendly_sync_all(
     app: AppHandle,
     state: State<'_, CalendlyState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<CalendlyMatterMapEntry>,
 ) -> Result<CalendlySyncReportDto, String> {
     if state
@@ -212,7 +219,8 @@ pub async fn calendly_sync_all(
         }
     });
 
-    let client = CalendlyClient::new(token, user_uri);
+    let client = CalendlyClient::new(token, user_uri)
+        .with_network_policy(policy.inner().clone(), crate::network_policy::CALENDLY_SYNC);
     let result = engine::backfill(
         &client,
         &store,

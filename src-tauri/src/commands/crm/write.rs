@@ -80,7 +80,9 @@ pub enum CrmWriteError {
     Http(u16),
     #[error("CRM write throttled past retry budget")]
     Throttled,
-    #[error("a previous identical write may have been delivered — verification pending, retry shortly")]
+    #[error(
+        "a previous identical write may have been delivered — verification pending, retry shortly"
+    )]
     VerifyPending,
     #[error("this exact write is already being sent — wait a moment before retrying")]
     InProgress,
@@ -132,7 +134,10 @@ fn norm(s: &str) -> String {
 /// that would mask a REAL silent no-op (Finding 2) as a false match. Used
 /// only for readback comparison, never for dedup/audit content identity.
 fn normalize_for_readback_compare(s: &str) -> String {
-    s.replace("\r\n", "\n").replace('\r', "\n").trim_end().to_string()
+    s.replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .trim_end()
+        .to_string()
 }
 
 /// Stable content-addressed key scoped to ONE approval event: identical
@@ -295,7 +300,10 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
             "content": note_content(req),
             "linked_to": [{"id": contact_id, "type": "Contact"}],
         });
-        let resp = self.post_json("/notes", &body).await.map_err(map_http_err)?;
+        let resp = self
+            .post_json("/notes", &body)
+            .await
+            .map_err(map_http_err)?;
         remote_id_from(&resp)
     }
 
@@ -318,7 +326,10 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
         if let Some(d) = &req.due_date {
             body["due_date"] = serde_json::Value::String(d.clone());
         }
-        let resp = self.post_json("/tasks", &body).await.map_err(map_http_err)?;
+        let resp = self
+            .post_json("/tasks", &body)
+            .await
+            .map_err(map_http_err)?;
         remote_id_from(&resp)
     }
 
@@ -366,7 +377,8 @@ impl CrmWriteSource for crate::commands::crm::client::WealthboxClient {
                     .find(|t| {
                         norm(&t.name) == norm(req.title.trim())
                             && norm(&t.description) == norm(req.body.trim())
-                            && t.due_date.as_deref().map(str::trim) == req.due_date.as_deref().map(str::trim)
+                            && t.due_date.as_deref().map(str::trim)
+                                == req.due_date.as_deref().map(str::trim)
                             && t.linked_to.iter().any(|l| is_contact_link(l, contact_id))
                             && wealthbox_time_at_or_after(&t.created_at, &t.updated_at, not_before)
                     })
@@ -438,7 +450,11 @@ impl CrmWriteSource for crate::commands::crm::redtail::RedtailClient {
     async fn update_field(&self, _req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Redtail"))
     }
-    async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+    async fn get_contact_field(
+        &self,
+        _household_key: &str,
+        _field: &str,
+    ) -> Result<String, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Redtail"))
     }
 }
@@ -464,7 +480,11 @@ impl CrmWriteSource for crate::commands::crm::salesforce::SalesforceClient {
     async fn update_field(&self, _req: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Salesforce"))
     }
-    async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+    async fn get_contact_field(
+        &self,
+        _household_key: &str,
+        _field: &str,
+    ) -> Result<String, CrmWriteError> {
         Err(CrmWriteError::NotSupported("Salesforce"))
     }
 }
@@ -475,12 +495,21 @@ impl CrmWriteSource for crate::commands::crm::salesforce::SalesforceClient {
 pub fn write_client_for(
     provider: crate::commands::crm::provider::CrmProvider,
     token: String,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> anyhow::Result<Box<dyn CrmWriteSource>> {
     use crate::commands::crm::provider::CrmProvider;
     match provider {
-        CrmProvider::Wealthbox => Ok(Box::new(crate::commands::crm::client::WealthboxClient::new(token))),
-        CrmProvider::Redtail => Ok(Box::new(crate::commands::crm::redtail::RedtailClient::new(token)?)),
-        CrmProvider::Salesforce => Ok(Box::new(crate::commands::crm::salesforce::SalesforceClient::new(token)?)),
+        CrmProvider::Wealthbox => Ok(Box::new(
+            crate::commands::crm::client::WealthboxClient::new(token)
+                .with_network_policy(policy, crate::network_policy::WEALTHBOX_WRITE),
+        )),
+        CrmProvider::Redtail => Ok(Box::new(
+            crate::commands::crm::redtail::RedtailClient::new(token)?.with_network_policy(policy),
+        )),
+        CrmProvider::Salesforce => Ok(Box::new(
+            crate::commands::crm::salesforce::SalesforceClient::new(token)?
+                .with_network_policy(policy),
+        )),
     }
 }
 
@@ -678,9 +707,14 @@ pub async fn push_crm_write(
     if !guard.claim(&key) {
         return Err(CrmWriteError::InProgress);
     }
-    let _claim = InFlightClaim { guard, key: key.clone() };
+    let _claim = InFlightClaim {
+        guard,
+        key: key.clone(),
+    };
 
-    let existing = store.outbound_get(&key).map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
+    let existing = store
+        .outbound_get(&key)
+        .map_err(|_| CrmWriteError::InvalidInput("ledger read failed"))?;
 
     if let Some(row) = &existing {
         if row.status == "sent" {
@@ -693,7 +727,10 @@ pub async fn push_crm_write(
                 // can only reach this branch if it was recorded under the
                 // CURRENTLY connected account. See
                 // CrmStore::mark_sent_rows_pending_verify_for_provider.
-                return Ok(WriteReceipt { remote_id: remote_id.clone(), deduped: true });
+                return Ok(WriteReceipt {
+                    remote_id: remote_id.clone(),
+                    deduped: true,
+                });
             }
         }
         // `pending` is just as ambiguous as `pending_verify`: it can be left
@@ -707,7 +744,10 @@ pub async fn push_crm_write(
             match source.find_recent_matching(req, not_before).await {
                 Ok(Some(remote_id)) => {
                     upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
-                    return Ok(WriteReceipt { remote_id, deduped: true });
+                    return Ok(WriteReceipt {
+                        remote_id,
+                        deduped: true,
+                    });
                 }
                 Ok(None) => {
                     // Provably didn't land — fall through to (re)send below.
@@ -760,7 +800,8 @@ pub async fn push_crm_write(
         let recovery = recovery.filter(|row| {
             chrono::DateTime::parse_from_rfc3339(&row.created_at)
                 .map(|t| {
-                    let age = chrono::Utc::now().signed_duration_since(t.with_timezone(&chrono::Utc));
+                    let age =
+                        chrono::Utc::now().signed_duration_since(t.with_timezone(&chrono::Utc));
                     age >= chrono::Duration::zero()
                         && age <= chrono::Duration::minutes(RECOVERY_WINDOW_MINUTES)
                 })
@@ -776,7 +817,10 @@ pub async fn push_crm_write(
                     // THIS (new) key too, so a future retry under the same
                     // requested_at hits the ordinary sent-row fast path.
                     upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
-                    return Ok(WriteReceipt { remote_id, deduped: true });
+                    return Ok(WriteReceipt {
+                        remote_id,
+                        deduped: true,
+                    });
                 }
                 Ok(None) => {
                     // Provably didn't land under the interrupted attempt —
@@ -818,7 +862,10 @@ pub async fn push_crm_write(
     match create_result {
         Ok(remote_id) => {
             upsert_ledger(store, &key, source, req, "sent", Some(&remote_id));
-            Ok(WriteReceipt { remote_id, deduped: false })
+            Ok(WriteReceipt {
+                remote_id,
+                deduped: false,
+            })
         }
         Err(CrmWriteError::VerifyPending) => {
             upsert_ledger(store, &key, source, req, "pending_verify", None);
@@ -958,7 +1005,10 @@ pub async fn push_crm_field_update(
     if !guard.claim(&key) {
         return Err(CrmWriteError::InProgress);
     }
-    let _claim = InFlightClaim { guard, key: key.clone() };
+    let _claim = InFlightClaim {
+        guard,
+        key: key.clone(),
+    };
 
     // Codex round 1 (self-converge): a field update is a PUT — cheap and
     // idempotent to check/repeat — so EVERY attempt (fresh, retry, or a
@@ -974,7 +1024,9 @@ pub async fn push_crm_field_update(
     // what the user approved; `norm()`-equal-but-not-identical would either
     // silently skip sending the user's approved formatting (the success
     // check) or fail to notice a genuine drift (the stale-guard).
-    let current_value = source.get_contact_field(&req.household_key, &req.field).await?;
+    let current_value = source
+        .get_contact_field(&req.household_key, &req.field)
+        .await?;
     if current_value == req.final_value {
         // Already applied — whether this exact write already landed (a
         // prior attempt whose response was ambiguous, or a genuine retry),
@@ -982,7 +1034,10 @@ pub async fn push_crm_field_update(
         // re-issuing the PUT or (wrongly) rejecting this as stale just
         // because it no longer matches existing_value.
         upsert_ledger_field(store, &key, source, req, "sent", Some(&req.household_key));
-        return Ok(WriteReceipt { remote_id: req.household_key.clone(), deduped: true });
+        return Ok(WriteReceipt {
+            remote_id: req.household_key.clone(),
+            deduped: true,
+        });
     }
     if current_value != req.existing_value {
         upsert_ledger_field(store, &key, source, req, "pending_verify", None);
@@ -1003,13 +1058,19 @@ pub async fn push_crm_field_update(
             // background_information-specific): it catches the entire
             // "200-but-ignored" bug class for ANY writable field, on this
             // provider or a future one, not just the one bug this probe found.
-            match source.get_contact_field(&req.household_key, &req.field).await {
+            match source
+                .get_contact_field(&req.household_key, &req.field)
+                .await
+            {
                 Ok(applied)
                     if normalize_for_readback_compare(&applied)
                         == normalize_for_readback_compare(&req.final_value) =>
                 {
                     upsert_ledger_field(store, &key, source, req, "sent", Some(&remote_id));
-                    Ok(WriteReceipt { remote_id, deduped: false })
+                    Ok(WriteReceipt {
+                        remote_id,
+                        deduped: false,
+                    })
                 }
                 Ok(_) => {
                     // The CRM accepted the write and returned success, but
@@ -1167,10 +1228,14 @@ pub fn validate_write_inputs(title: &str, body: &str) -> Result<(), CrmWriteErro
         return Err(CrmWriteError::InvalidInput("title must not be empty"));
     }
     if title.len() > 500 {
-        return Err(CrmWriteError::InvalidInput("title is too long (max 500 characters)"));
+        return Err(CrmWriteError::InvalidInput(
+            "title is too long (max 500 characters)",
+        ));
     }
     if body.len() > 20_000 {
-        return Err(CrmWriteError::InvalidInput("body is too long (max 20,000 characters)"));
+        return Err(CrmWriteError::InvalidInput(
+            "body is too long (max 20,000 characters)",
+        ));
     }
     Ok(())
 }
@@ -1205,7 +1270,9 @@ pub fn validate_task_due_date(
 /// boundary rather than silently collapsing separate approvals into one key.
 pub fn validate_requested_at(requested_at: &str) -> Result<(), CrmWriteError> {
     if requested_at.trim().is_empty() {
-        return Err(CrmWriteError::InvalidInput("requested_at must not be empty"));
+        return Err(CrmWriteError::InvalidInput(
+            "requested_at must not be empty",
+        ));
     }
     chrono::DateTime::parse_from_rfc3339(requested_at.trim())
         .map(|_| ())
@@ -1219,7 +1286,11 @@ fn remote_id_from(resp: &serde_json::Value) -> Result<String, CrmWriteError> {
     // not proof the write failed, so this must be ambiguous (VerifyPending),
     // never a definitive `failed` that would skip verification on retry.
     resp.get("id")
-        .and_then(|v| v.as_i64().map(|n| n.to_string()).or_else(|| v.as_str().map(String::from)))
+        .and_then(|v| {
+            v.as_i64()
+                .map(|n| n.to_string())
+                .or_else(|| v.as_str().map(String::from))
+        })
         .ok_or(CrmWriteError::VerifyPending)
 }
 
@@ -1268,7 +1339,10 @@ mod tests {
         assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
         let err = r.create_task(&note_req()).await.unwrap_err();
         assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
-        let err = r.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap_err();
+        let err = r
+            .find_recent_matching(&note_req(), chrono::Utc::now())
+            .await
+            .unwrap_err();
         assert!(matches!(err, CrmWriteError::NotSupported("Redtail")));
 
         let s = salesforce_client();
@@ -1276,7 +1350,10 @@ mod tests {
         assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
         let err = s.create_task(&note_req()).await.unwrap_err();
         assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
-        let err = s.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap_err();
+        let err = s
+            .find_recent_matching(&note_req(), chrono::Utc::now())
+            .await
+            .unwrap_err();
         assert!(matches!(err, CrmWriteError::NotSupported("Salesforce")));
     }
 
@@ -1284,7 +1361,10 @@ mod tests {
     fn write_client_for_routes_by_provider() {
         use crate::commands::crm::provider::CrmProvider;
 
-        let wb = write_client_for(CrmProvider::Wealthbox, "tok".into()).unwrap();
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        );
+        let wb = write_client_for(CrmProvider::Wealthbox, "tok".into(), policy.clone()).unwrap();
         assert_eq!(wb.provider_id(), "wealthbox");
 
         // Redtail/Salesforce's real constructors need LANTERN_REDTAIL_API_KEY /
@@ -1299,11 +1379,11 @@ mod tests {
         // provider — proving the registry actually routes to that provider's
         // constructor (not a generic/wrong-provider error, and not silently
         // constructing the wrong client) regardless of this host's config.
-        match write_client_for(CrmProvider::Redtail, "tok".into()) {
+        match write_client_for(CrmProvider::Redtail, "tok".into(), policy.clone()) {
             Ok(client) => assert_eq!(client.provider_id(), "redtail"),
             Err(e) => assert!(e.to_string().contains("REDTAIL"), "got: {e}"),
         }
-        match write_client_for(CrmProvider::Salesforce, "tok".into()) {
+        match write_client_for(CrmProvider::Salesforce, "tok".into(), policy) {
             Ok(client) => assert_eq!(client.provider_id(), "salesforce"),
             Err(e) => assert!(e.to_string().contains("SALESFORCE"), "got: {e}"),
         }
@@ -1337,7 +1417,11 @@ mod tests {
         async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
             unimplemented!("FakeWriteSource does not exercise field updates")
         }
-        async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+        async fn get_contact_field(
+            &self,
+            _household_key: &str,
+            _field: &str,
+        ) -> Result<String, CrmWriteError> {
             unimplemented!("FakeWriteSource does not exercise field updates")
         }
     }
@@ -1358,7 +1442,12 @@ mod tests {
         let second = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(second.remote_id, "555");
         assert!(second.deduped);
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
     }
 
     #[tokio::test]
@@ -1376,7 +1465,12 @@ mod tests {
         let second = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(second.remote_id, "555");
         assert!(second.deduped);
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
     }
 
     #[tokio::test]
@@ -1397,7 +1491,12 @@ mod tests {
         let second = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(second.remote_id, "556");
         assert!(!second.deduped);
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
+        assert_eq!(
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            2
+        );
     }
 
     /// A `pending` ledger row can be left over from a process that crashed
@@ -1411,7 +1510,18 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true, &content_shape_key(&req))
+            .outbound_upsert(
+                &dedup_key(&req),
+                "wealthbox",
+                "note",
+                &req.household_key,
+                &req.matter_id,
+                &req.source_ref,
+                "pending",
+                None,
+                true,
+                &content_shape_key(&req),
+            )
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![]),
@@ -1421,7 +1531,13 @@ mod tests {
         let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(receipt.remote_id, "555");
         assert!(receipt.deduped);
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0, "must never repost while verification can still find it");
+        assert_eq!(
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "must never repost while verification can still find it"
+        );
     }
 
     #[tokio::test]
@@ -1430,7 +1546,18 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending", None, true, &content_shape_key(&req))
+            .outbound_upsert(
+                &dedup_key(&req),
+                "wealthbox",
+                "note",
+                &req.household_key,
+                &req.matter_id,
+                &req.source_ref,
+                "pending",
+                None,
+                true,
+                &content_shape_key(&req),
+            )
             .unwrap();
         let source = FakeWriteSource {
             create_results: std::sync::Mutex::new(vec![Ok("556".into())]),
@@ -1440,7 +1567,12 @@ mod tests {
         let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
         assert_eq!(receipt.remote_id, "556");
         assert!(!receipt.deduped);
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
     }
 
     /// REVIEW FINDING 3 (self-converge, from the integration branch review):
@@ -1459,8 +1591,15 @@ mod tests {
         old_req.requested_at = "2026-07-01T00:00:00Z".into();
         store
             .outbound_upsert(
-                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
-                &old_req.matter_id, &old_req.source_ref, "pending", None, true,
+                &dedup_key(&old_req),
+                "wealthbox",
+                "note",
+                &old_req.household_key,
+                &old_req.matter_id,
+                &old_req.source_ref,
+                "pending",
+                None,
+                true,
                 &content_shape_key(&old_req),
             )
             .unwrap();
@@ -1477,11 +1616,16 @@ mod tests {
             find_result: Some("999".into()), // the interrupted attempt actually landed
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
-        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        let receipt = push_crm_write(&source, &store, &guard, &new_req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, "999");
         assert!(receipt.deduped);
         assert_eq!(
-            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0,
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0,
             "must never blind-resend when the interrupted attempt actually landed"
         );
 
@@ -1499,8 +1643,15 @@ mod tests {
         old_req.requested_at = "2026-07-01T00:00:00Z".into();
         store
             .outbound_upsert(
-                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
-                &old_req.matter_id, &old_req.source_ref, "pending", None, true,
+                &dedup_key(&old_req),
+                "wealthbox",
+                "note",
+                &old_req.household_key,
+                &old_req.matter_id,
+                &old_req.source_ref,
+                "pending",
+                None,
+                true,
                 &content_shape_key(&old_req),
             )
             .unwrap();
@@ -1513,10 +1664,17 @@ mod tests {
             find_result: None, // provably didn't land under the interrupted attempt
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
-        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        let receipt = push_crm_write(&source, &store, &guard, &new_req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, "1000");
         assert!(!receipt.deduped);
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
 
         let row = store.outbound_get(&dedup_key(&new_req)).unwrap().unwrap();
         assert_eq!(row.status, "sent");
@@ -1546,8 +1704,15 @@ mod tests {
         old_req.requested_at = "2026-07-01T00:00:00Z".into();
         store
             .outbound_upsert(
-                &dedup_key(&old_req), "wealthbox", "note", &old_req.household_key,
-                &old_req.matter_id, &old_req.source_ref, "sent", Some("111"), true,
+                &dedup_key(&old_req),
+                "wealthbox",
+                "note",
+                &old_req.household_key,
+                &old_req.matter_id,
+                &old_req.source_ref,
+                "sent",
+                Some("111"),
+                true,
                 &content_shape_key(&old_req),
             )
             .unwrap();
@@ -1560,7 +1725,9 @@ mod tests {
             find_result: None,
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
-        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        let receipt = push_crm_write(&source, &store, &guard, &new_req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, "222");
         assert!(!receipt.deduped);
         assert_eq!(
@@ -1585,15 +1752,24 @@ mod tests {
         let old_key = dedup_key(&old_req);
         store
             .outbound_upsert(
-                &old_key, "wealthbox", "note", &old_req.household_key,
-                &old_req.matter_id, &old_req.source_ref, "pending_verify", None, true,
+                &old_key,
+                "wealthbox",
+                "note",
+                &old_req.household_key,
+                &old_req.matter_id,
+                &old_req.source_ref,
+                "pending_verify",
+                None,
+                true,
                 &content_shape_key(&old_req),
             )
             .unwrap();
         // Backdate it well outside RECOVERY_WINDOW_MINUTES (30) — simulating
         // a long-forgotten ambiguous send, not a just-happened crash.
         let far_past = (chrono::Utc::now() - chrono::Duration::days(7)).to_rfc3339();
-        store.outbound_backdate_for_test(&old_key, &far_past).unwrap();
+        store
+            .outbound_backdate_for_test(&old_key, &far_past)
+            .unwrap();
 
         let mut new_req = note_req();
         new_req.requested_at = "2026-07-08T00:00:00Z".into(); // a genuinely new approval, a week later
@@ -1606,11 +1782,16 @@ mod tests {
             find_result: Some("999-should-not-be-used".into()),
             create_calls: std::sync::atomic::AtomicUsize::new(0),
         };
-        let receipt = push_crm_write(&source, &store, &guard, &new_req).await.unwrap();
+        let receipt = push_crm_write(&source, &store, &guard, &new_req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, "333");
         assert!(!receipt.deduped);
         assert_eq!(
-            source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1,
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1,
             "an old orphaned pending_verify row must not swallow a much-later intentional repeat"
         );
     }
@@ -1633,7 +1814,8 @@ mod tests {
                 "wealthbox"
             }
             async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
-                self.create_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                self.create_calls
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 Ok("should-not-be-called".into())
             }
             async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
@@ -1646,10 +1828,17 @@ mod tests {
             ) -> Result<Option<String>, CrmWriteError> {
                 Err(CrmWriteError::VerifyPending)
             }
-            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+            async fn update_field(
+                &self,
+                _r: &CrmFieldUpdateRequest,
+            ) -> Result<String, CrmWriteError> {
                 unimplemented!("FlakyFindSource does not exercise field updates")
             }
-            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+            async fn get_contact_field(
+                &self,
+                _household_key: &str,
+                _field: &str,
+            ) -> Result<String, CrmWriteError> {
                 unimplemented!("FlakyFindSource does not exercise field updates")
             }
         }
@@ -1658,15 +1847,38 @@ mod tests {
         let guard = WriteInFlightGuard::new();
         let req = note_req();
         store
-            .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "pending_verify", None, true, &content_shape_key(&req))
+            .outbound_upsert(
+                &dedup_key(&req),
+                "wealthbox",
+                "note",
+                &req.household_key,
+                &req.matter_id,
+                &req.source_ref,
+                "pending_verify",
+                None,
+                true,
+                &content_shape_key(&req),
+            )
             .unwrap();
-        let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
+        let source = FlakyFindSource {
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
 
         let result = push_crm_write(&source, &store, &guard, &req).await;
         assert!(matches!(result, Err(CrmWriteError::VerifyPending)));
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0, "must never attempt a send while the recovery check itself is ambiguous");
         assert_eq!(
-            store.outbound_get(&dedup_key(&req)).unwrap().unwrap().status,
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0,
+            "must never attempt a send while the recovery check itself is ambiguous"
+        );
+        assert_eq!(
+            store
+                .outbound_get(&dedup_key(&req))
+                .unwrap()
+                .unwrap()
+                .status,
             "pending_verify",
             "the row's state must be explicitly re-affirmed, not left implicit"
         );
@@ -1690,7 +1902,8 @@ mod tests {
                 "wealthbox"
             }
             async fn create_note(&self, _r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
-                self.create_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                self.create_calls
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 Ok("should-not-be-called".into())
             }
             async fn create_task(&self, r: &CrmWriteRequest) -> Result<String, CrmWriteError> {
@@ -1703,10 +1916,17 @@ mod tests {
             ) -> Result<Option<String>, CrmWriteError> {
                 Err(CrmWriteError::VerifyPending)
             }
-            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+            async fn update_field(
+                &self,
+                _r: &CrmFieldUpdateRequest,
+            ) -> Result<String, CrmWriteError> {
                 unimplemented!()
             }
-            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+            async fn get_contact_field(
+                &self,
+                _household_key: &str,
+                _field: &str,
+            ) -> Result<String, CrmWriteError> {
                 unimplemented!()
             }
         }
@@ -1719,24 +1939,40 @@ mod tests {
         let old_key = dedup_key(&old_req);
         store
             .outbound_upsert(
-                &old_key, "wealthbox", "note", &old_req.household_key,
-                &old_req.matter_id, &old_req.source_ref, "pending_verify", None, true,
+                &old_key,
+                "wealthbox",
+                "note",
+                &old_req.household_key,
+                &old_req.matter_id,
+                &old_req.source_ref,
+                "pending_verify",
+                None,
+                true,
                 &content_shape_key(&old_req),
             )
             .unwrap();
         // A recent, VALID recovery candidate — 10 minutes ago, well inside
         // RECOVERY_WINDOW_MINUTES (30).
         let original_created_at = (chrono::Utc::now() - chrono::Duration::minutes(10)).to_rfc3339();
-        store.outbound_backdate_for_test(&old_key, &original_created_at).unwrap();
+        store
+            .outbound_backdate_for_test(&old_key, &original_created_at)
+            .unwrap();
 
         let mut new_req = note_req();
         new_req.requested_at = "2026-07-01T00:05:00Z".into(); // e.g. a restart 5 minutes after the crash
         let new_key = dedup_key(&new_req);
 
-        let source = FlakyFindSource { create_calls: std::sync::atomic::AtomicUsize::new(0) };
+        let source = FlakyFindSource {
+            create_calls: std::sync::atomic::AtomicUsize::new(0),
+        };
         let result = push_crm_write(&source, &store, &guard, &new_req).await;
         assert!(matches!(result, Err(CrmWriteError::VerifyPending)));
-        assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+        assert_eq!(
+            source
+                .create_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
 
         let old_row = store.outbound_get(&old_key).unwrap().unwrap();
         assert_eq!(
@@ -1768,9 +2004,22 @@ mod tests {
             let (_dir, store) = test_store();
             let guard = WriteInFlightGuard::new();
             store
-                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true, &content_shape_key(&req))
+                .outbound_upsert(
+                    &dedup_key(&req),
+                    "wealthbox",
+                    "note",
+                    &req.household_key,
+                    &req.matter_id,
+                    &req.source_ref,
+                    "sent",
+                    Some("old-id"),
+                    true,
+                    &content_shape_key(&req),
+                )
                 .unwrap();
-            store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+            store
+                .mark_sent_rows_pending_verify_for_provider("wealthbox")
+                .unwrap();
             let source = FakeWriteSource {
                 create_results: std::sync::Mutex::new(vec![]),
                 find_result: Some("new-account-id".into()),
@@ -1779,7 +2028,12 @@ mod tests {
             let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
             assert_eq!(receipt.remote_id, "new-account-id");
             assert!(receipt.deduped);
-            assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 0);
+            assert_eq!(
+                source
+                    .create_calls
+                    .load(std::sync::atomic::Ordering::SeqCst),
+                0
+            );
         }
 
         // Case 2: the newly connected account does NOT have this content —
@@ -1788,9 +2042,22 @@ mod tests {
             let (_dir, store) = test_store();
             let guard = WriteInFlightGuard::new();
             store
-                .outbound_upsert(&dedup_key(&req), "wealthbox", "note", &req.household_key, &req.matter_id, &req.source_ref, "sent", Some("old-id"), true, &content_shape_key(&req))
+                .outbound_upsert(
+                    &dedup_key(&req),
+                    "wealthbox",
+                    "note",
+                    &req.household_key,
+                    &req.matter_id,
+                    &req.source_ref,
+                    "sent",
+                    Some("old-id"),
+                    true,
+                    &content_shape_key(&req),
+                )
                 .unwrap();
-            store.mark_sent_rows_pending_verify_for_provider("wealthbox").unwrap();
+            store
+                .mark_sent_rows_pending_verify_for_provider("wealthbox")
+                .unwrap();
             let source = FakeWriteSource {
                 create_results: std::sync::Mutex::new(vec![Ok("fresh-id".into())]),
                 find_result: None,
@@ -1798,8 +2065,16 @@ mod tests {
             };
             let receipt = push_crm_write(&source, &store, &guard, &req).await.unwrap();
             assert_eq!(receipt.remote_id, "fresh-id");
-            assert!(!receipt.deduped, "must actually send to the newly connected account");
-            assert_eq!(source.create_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+            assert!(
+                !receipt.deduped,
+                "must actually send to the newly connected account"
+            );
+            assert_eq!(
+                source
+                    .create_calls
+                    .load(std::sync::atomic::Ordering::SeqCst),
+                1
+            );
         }
     }
 
@@ -1833,10 +2108,17 @@ mod tests {
             ) -> Result<Option<String>, CrmWriteError> {
                 Ok(None)
             }
-            async fn update_field(&self, _r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
+            async fn update_field(
+                &self,
+                _r: &CrmFieldUpdateRequest,
+            ) -> Result<String, CrmWriteError> {
                 unimplemented!("SlowSource does not exercise field updates")
             }
-            async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
+            async fn get_contact_field(
+                &self,
+                _household_key: &str,
+                _field: &str,
+            ) -> Result<String, CrmWriteError> {
                 unimplemented!("SlowSource does not exercise field updates")
             }
         }
@@ -1853,15 +2135,12 @@ mod tests {
         // until signaled. The second call, released only once the first has
         // provably already claimed the slot, must be rejected immediately
         // instead of racing the ledger and posting a duplicate.
-        let (first, second) = tokio::join!(
-            push_crm_write(&source, &store, &guard, &req),
-            async {
-                source.started.notified().await;
-                let result = push_crm_write(&source, &store, &guard, &req).await;
-                source.proceed.notify_one();
-                result
-            }
-        );
+        let (first, second) = tokio::join!(push_crm_write(&source, &store, &guard, &req), async {
+            source.started.notified().await;
+            let result = push_crm_write(&source, &store, &guard, &req).await;
+            source.proceed.notify_one();
+            result
+        });
 
         assert!(matches!(second, Err(CrmWriteError::InProgress)));
         assert_eq!(first.unwrap().remote_id, "555");
@@ -1921,7 +2200,8 @@ mod tests {
             field: "background_information".into(),
             existing_value: "Existing background.".into(),
             new_value: "Retiring spring 2027; stress-test earlier exit.".into(),
-            final_value: "Existing background.\n\nRetiring spring 2027; stress-test earlier exit.".into(),
+            final_value: "Existing background.\n\nRetiring spring 2027; stress-test earlier exit."
+                .into(),
             source_ref: "meeting:Clients/Hendersons/Meetings/2026-06-30#0".into(),
             requested_at: "2026-07-02T14:41:00Z".into(),
         }
@@ -1950,15 +2230,22 @@ mod tests {
         let mut b = base_field_req();
         b.final_value = format!("{}\n", a.final_value); // trailing newline only
         assert_ne!(
-            dedup_key_field(&a), dedup_key_field(&b),
+            dedup_key_field(&a),
+            dedup_key_field(&b),
             "formatting-only differences (e.g. a trailing newline) must produce distinct keys"
         );
     }
 
     #[test]
     fn wealthbox_read_field_name_maps_the_only_writable_field() {
-        assert_eq!(wealthbox_read_field_name("background_information"), "background_info");
-        assert_eq!(wealthbox_read_field_name("something_else"), "something_else");
+        assert_eq!(
+            wealthbox_read_field_name("background_information"),
+            "background_info"
+        );
+        assert_eq!(
+            wealthbox_read_field_name("something_else"),
+            "something_else"
+        );
     }
 
     /// TDD regression for Wealthbox probe Finding 2
@@ -1969,8 +2256,14 @@ mod tests {
     /// but silently ignores.
     #[test]
     fn wealthbox_write_field_name_is_the_identity_not_the_read_translation() {
-        assert_eq!(wealthbox_write_field_name("background_information"), "background_information");
-        assert_ne!(wealthbox_write_field_name("background_information"), wealthbox_read_field_name("background_information"));
+        assert_eq!(
+            wealthbox_write_field_name("background_information"),
+            "background_information"
+        );
+        assert_ne!(
+            wealthbox_write_field_name("background_information"),
+            wealthbox_read_field_name("background_information")
+        );
     }
 
     #[tokio::test]
@@ -1991,7 +2284,8 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let id = client.update_field(&base_field_req()).await.unwrap();
         assert_eq!(id, "12345");
     }
@@ -2005,7 +2299,8 @@ mod tests {
     /// prove the write-path fix AND the readback-verification mechanism
     /// both work together end-to-end against a real HTTP mock.
     #[tokio::test]
-    async fn push_crm_field_update_uses_the_literal_write_key_against_a_server_that_ignores_the_read_key() {
+    async fn push_crm_field_update_uses_the_literal_write_key_against_a_server_that_ignores_the_read_key(
+    ) {
         use wiremock::{matchers, Mock, MockServer, Respond, ResponseTemplate};
         let server = MockServer::start().await;
         let stored = std::sync::Arc::new(std::sync::Mutex::new("Existing background.".to_string()));
@@ -2052,12 +2347,19 @@ mod tests {
 
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let req = base_field_req();
 
-        let receipt = push_crm_field_update(&client, &store, &guard, &req).await.unwrap();
+        let receipt = push_crm_field_update(&client, &store, &guard, &req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, "12345");
-        assert_eq!(*stored.lock().unwrap(), req.final_value, "the field must have actually changed on the (mock) server");
+        assert_eq!(
+            *stored.lock().unwrap(),
+            req.final_value,
+            "the field must have actually changed on the (mock) server"
+        );
 
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
         assert_eq!(row.status, "sent");
@@ -2079,8 +2381,12 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let value = client.get_contact_field("12345", "background_information").await.unwrap();
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let value = client
+            .get_contact_field("12345", "background_information")
+            .await
+            .unwrap();
         assert_eq!(value, "Existing background.");
     }
 
@@ -2098,7 +2404,8 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let id = client.create_note(&note_req()).await.unwrap();
         assert_eq!(id, "555");
     }
@@ -2112,12 +2419,16 @@ mod tests {
             .respond_with(ResponseTemplate::new(422))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let err = client.create_note(&note_req()).await.unwrap_err();
         // reqwest::StatusCode's Display includes the reason phrase
         // ("422 Unprocessable Entity"), so this must not fall through to
         // VerifyPending just because the whole remainder isn't a bare number.
-        assert!(matches!(err, CrmWriteError::Http(422)), "expected Http(422), got {err:?}");
+        assert!(
+            matches!(err, CrmWriteError::Http(422)),
+            "expected Http(422), got {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -2129,13 +2440,17 @@ mod tests {
             .respond_with(ResponseTemplate::new(503))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let err = client.create_note(&note_req()).await.unwrap_err();
         // A 5xx can mean Wealthbox accepted (even persisted) the write before
         // failing to answer cleanly — this must go through push_crm_write's
         // verify-before-resend path (VerifyPending), never a definitive
         // `failed` that would let a retry blindly double-post.
-        assert!(matches!(err, CrmWriteError::VerifyPending), "expected VerifyPending, got {err:?}");
+        assert!(
+            matches!(err, CrmWriteError::VerifyPending),
+            "expected VerifyPending, got {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -2147,12 +2462,16 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"ok": true})))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let err = client.create_note(&note_req()).await.unwrap_err();
         // A 2xx means Wealthbox already accepted the write; a response we
         // can't find an id in is OUR parsing gap, not proof of failure — must
         // go through verify-before-resend, never a definitive `failed`.
-        assert!(matches!(err, CrmWriteError::VerifyPending), "expected VerifyPending, got {err:?}");
+        assert!(
+            matches!(err, CrmWriteError::VerifyPending),
+            "expected VerifyPending, got {err:?}"
+        );
     }
 
     #[tokio::test]
@@ -2171,7 +2490,8 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let id = client.create_task(&task_req()).await.unwrap();
         assert_eq!(id, "556");
     }
@@ -2192,12 +2512,16 @@ mod tests {
             Err(CrmWriteError::TaskDueDateRequired)
         ));
         assert_eq!(
-            validate_task_due_date(CrmWriteKind::Task, "wealthbox", None).unwrap_err().to_string(),
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", None)
+                .unwrap_err()
+                .to_string(),
             "Wealthbox tasks need a due date"
         );
 
         // A real date passes.
-        assert!(validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("2026-07-15")).is_ok());
+        assert!(
+            validate_task_due_date(CrmWriteKind::Task, "wealthbox", Some("2026-07-15")).is_ok()
+        );
 
         // Notes have no due date at all — never gated by this rule.
         assert!(validate_task_due_date(CrmWriteKind::Note, "wealthbox", None).is_ok());
@@ -2228,11 +2552,14 @@ mod tests {
 
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         let mut req = task_req();
         req.due_date = None;
 
-        let err = push_crm_write(&client, &store, &guard, &req).await.unwrap_err();
+        let err = push_crm_write(&client, &store, &guard, &req)
+            .await
+            .unwrap_err();
         assert!(matches!(err, CrmWriteError::TaskDueDateRequired));
 
         // No ledger row either — a rejected request was never even attempted.
@@ -2241,7 +2568,10 @@ mod tests {
 
     #[tokio::test]
     async fn non_numeric_household_key_is_rejected_for_wealthbox() {
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), "http://127.0.0.1:1".into());
+        let client = crate::commands::crm::client::WealthboxClient::new_with_base(
+            "t".into(),
+            "http://127.0.0.1:1".into(),
+        );
         let mut req = note_req();
         req.household_key = "sfdc:001XYZ".into();
         let err = client.create_note(&req).await.unwrap_err();
@@ -2263,11 +2593,18 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         // note_req() targets household 12345 — the identical-content note above
         // belongs to a different household (99999) and must NOT count as a match.
-        let found = client.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap();
-        assert_eq!(found, None, "identical content on a different household is not this write");
+        let found = client
+            .find_recent_matching(&note_req(), chrono::Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(
+            found, None,
+            "identical content on a different household is not this write"
+        );
     }
 
     #[tokio::test]
@@ -2287,12 +2624,19 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         // task_req() asks for due_date "2026-07-15" — a same-household,
         // same-name/description task with a DIFFERENT due date is a different
         // task, not proof this one was delivered.
-        let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
-        assert_eq!(found, None, "same content with a different due date is not this write");
+        let found = client
+            .find_recent_matching(&task_req(), chrono::Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(
+            found, None,
+            "same content with a different due date is not this write"
+        );
     }
 
     #[tokio::test]
@@ -2314,9 +2658,16 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&task_req(), chrono::Utc::now()).await.unwrap();
-        assert_eq!(found, None, "a task that predates this write attempt is not this write");
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client
+            .find_recent_matching(&task_req(), chrono::Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(
+            found, None,
+            "a task that predates this write attempt is not this write"
+        );
     }
 
     /// A fixed floor for the recovery-window tests below — avoids coupling
@@ -2347,8 +2698,12 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&task_req(), test_not_before()).await.unwrap();
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client
+            .find_recent_matching(&task_req(), test_not_before())
+            .await
+            .unwrap();
         assert_eq!(found, Some("44".to_string()));
     }
 
@@ -2377,9 +2732,16 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&task_req(), test_not_before()).await.unwrap();
-        assert_eq!(found, None, "a task created hours later is a separate approval, not proof this one landed");
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client
+            .find_recent_matching(&task_req(), test_not_before())
+            .await
+            .unwrap();
+        assert_eq!(
+            found, None,
+            "a task created hours later is a separate approval, not proof this one landed"
+        );
     }
 
     #[tokio::test]
@@ -2399,11 +2761,18 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         // A byte-identical, same-household note from 2020 cannot be proof
         // that a write attempted in 2026 landed.
-        let found = client.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap();
-        assert_eq!(found, None, "a note that predates this write attempt is not this write");
+        let found = client
+            .find_recent_matching(&note_req(), chrono::Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(
+            found, None,
+            "a note that predates this write attempt is not this write"
+        );
     }
 
     #[tokio::test]
@@ -2424,8 +2793,12 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&note_req(), test_not_before()).await.unwrap();
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client
+            .find_recent_matching(&note_req(), test_not_before())
+            .await
+            .unwrap();
         assert_eq!(found, Some("222".to_string()));
     }
 
@@ -2453,9 +2826,16 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&note_req(), test_not_before()).await.unwrap();
-        assert_eq!(found, None, "a note created hours later is a separate approval, not proof this one landed");
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client
+            .find_recent_matching(&note_req(), test_not_before())
+            .await
+            .unwrap();
+        assert_eq!(
+            found, None,
+            "a note created hours later is a separate approval, not proof this one landed"
+        );
     }
 
     #[tokio::test]
@@ -2477,9 +2857,16 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
-        let found = client.find_recent_matching(&note_req(), chrono::Utc::now()).await.unwrap();
-        assert_eq!(found, None, "a same-id link on a non-contact object must not count as proof of delivery");
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let found = client
+            .find_recent_matching(&note_req(), chrono::Utc::now())
+            .await
+            .unwrap();
+        assert_eq!(
+            found, None,
+            "a same-id link on a non-contact object must not count as proof of delivery"
+        );
     }
 
     #[test]
@@ -2528,7 +2915,11 @@ mod tests {
         // But the SAME approval (identical requested_at) still dedupes —
         // that's the retry-protection case this ledger exists for.
         let c = note_req();
-        assert_eq!(dedup_key(&a), dedup_key(&c), "same approval, retried, must still dedupe");
+        assert_eq!(
+            dedup_key(&a),
+            dedup_key(&c),
+            "same approval, retried, must still dedupe"
+        );
     }
 
     #[test]
@@ -2559,9 +2950,18 @@ mod tests {
     #[test]
     fn write_input_validation() {
         assert!(validate_write_inputs("t", "b").is_ok());
-        assert!(matches!(validate_write_inputs("", "b"), Err(CrmWriteError::InvalidInput(_))));
-        assert!(matches!(validate_write_inputs(&"x".repeat(501), "b"), Err(CrmWriteError::InvalidInput(_))));
-        assert!(matches!(validate_write_inputs("t", &"x".repeat(20_001)), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(
+            validate_write_inputs("", "b"),
+            Err(CrmWriteError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            validate_write_inputs(&"x".repeat(501), "b"),
+            Err(CrmWriteError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            validate_write_inputs("t", &"x".repeat(20_001)),
+            Err(CrmWriteError::InvalidInput(_))
+        ));
     }
 
     /// ADDED SCOPE #2 (codex round 6): requested_at is now part of the
@@ -2573,9 +2973,18 @@ mod tests {
     #[test]
     fn requested_at_must_be_a_real_rfc3339_timestamp() {
         assert!(validate_requested_at("2026-07-02T14:41:00Z").is_ok());
-        assert!(matches!(validate_requested_at(""), Err(CrmWriteError::InvalidInput(_))));
-        assert!(matches!(validate_requested_at("   "), Err(CrmWriteError::InvalidInput(_))));
-        assert!(matches!(validate_requested_at("not-a-timestamp"), Err(CrmWriteError::InvalidInput(_))));
+        assert!(matches!(
+            validate_requested_at(""),
+            Err(CrmWriteError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            validate_requested_at("   "),
+            Err(CrmWriteError::InvalidInput(_))
+        ));
+        assert!(matches!(
+            validate_requested_at("not-a-timestamp"),
+            Err(CrmWriteError::InvalidInput(_))
+        ));
     }
 
     #[tokio::test]
@@ -2597,7 +3006,8 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let client = crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
+        let client =
+            crate::commands::crm::client::WealthboxClient::new_with_base("t".into(), server.uri());
         client.create_note(&req).await.unwrap();
     }
 
@@ -2657,7 +3067,8 @@ mod tests {
             unimplemented!("FakeFieldSource only exercises field updates")
         }
         async fn update_field(&self, r: &CrmFieldUpdateRequest) -> Result<String, CrmWriteError> {
-            self.update_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            self.update_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             let result = self.update_results.lock().unwrap().remove(0);
             if result.is_ok() && !self.silently_ignores_write {
                 // Mirror a real CRM: after a successful PUT, the field
@@ -2667,8 +3078,15 @@ mod tests {
             }
             result
         }
-        async fn get_contact_field(&self, _household_key: &str, _field: &str) -> Result<String, CrmWriteError> {
-            let call_number = self.get_calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1;
+        async fn get_contact_field(
+            &self,
+            _household_key: &str,
+            _field: &str,
+        ) -> Result<String, CrmWriteError> {
+            let call_number = self
+                .get_calls
+                .fetch_add(1, std::sync::atomic::Ordering::SeqCst)
+                + 1;
             if self.fail_readback_get && call_number == 2 {
                 return Err(CrmWriteError::ReadFailed);
             }
@@ -2680,7 +3098,10 @@ mod tests {
         }
     }
 
-    fn fake_field_source(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+    fn fake_field_source(
+        remote_value: &str,
+        update_result: Result<String, CrmWriteError>,
+    ) -> FakeFieldSource {
         FakeFieldSource {
             remote_value: std::sync::Mutex::new(remote_value.into()),
             update_results: std::sync::Mutex::new(vec![update_result]),
@@ -2692,7 +3113,10 @@ mod tests {
         }
     }
 
-    fn fake_field_source_that_silently_ignores_writes(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+    fn fake_field_source_that_silently_ignores_writes(
+        remote_value: &str,
+        update_result: Result<String, CrmWriteError>,
+    ) -> FakeFieldSource {
         FakeFieldSource {
             remote_value: std::sync::Mutex::new(remote_value.into()),
             update_results: std::sync::Mutex::new(vec![update_result]),
@@ -2704,7 +3128,10 @@ mod tests {
         }
     }
 
-    fn fake_field_source_with_failing_readback(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+    fn fake_field_source_with_failing_readback(
+        remote_value: &str,
+        update_result: Result<String, CrmWriteError>,
+    ) -> FakeFieldSource {
         FakeFieldSource {
             remote_value: std::sync::Mutex::new(remote_value.into()),
             update_results: std::sync::Mutex::new(vec![update_result]),
@@ -2716,7 +3143,10 @@ mod tests {
         }
     }
 
-    fn fake_field_source_with_crlf_normalizing_readback(remote_value: &str, update_result: Result<String, CrmWriteError>) -> FakeFieldSource {
+    fn fake_field_source_with_crlf_normalizing_readback(
+        remote_value: &str,
+        update_result: Result<String, CrmWriteError>,
+    ) -> FakeFieldSource {
         FakeFieldSource {
             remote_value: std::sync::Mutex::new(remote_value.into()),
             update_results: std::sync::Mutex::new(vec![update_result]),
@@ -2738,18 +3168,34 @@ mod tests {
     async fn field_update_readback_mismatch_surfaces_as_an_error_not_success() {
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
-        let source = fake_field_source_that_silently_ignores_writes("Existing background.", Ok("12345".into()));
+        let source = fake_field_source_that_silently_ignores_writes(
+            "Existing background.",
+            Ok("12345".into()),
+        );
         let req = base_field_req();
 
-        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
-        assert!(matches!(err, CrmWriteError::WriteNotApplied), "expected WriteNotApplied, got {err:?}");
+        let err = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CrmWriteError::WriteNotApplied),
+            "expected WriteNotApplied, got {err:?}"
+        );
 
         // The PUT itself was attempted exactly once (it's not the update
         // that's wrong — it's that its success is unverified), and the
         // ledger must NOT record this as sent.
-        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            source
+                .update_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
-        assert_ne!(row.status, "sent", "a write that didn't actually apply must never be recorded as sent");
+        assert_ne!(
+            row.status, "sent",
+            "a write that didn't actually apply must never be recorded as sent"
+        );
     }
 
     /// Manual-review catch (post codex-review): the readback comparison must
@@ -2763,19 +3209,28 @@ mod tests {
     async fn field_update_readback_tolerates_crm_line_ending_normalization() {
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
-        let source = fake_field_source_with_crlf_normalizing_readback("Existing background.", Ok("12345".into()));
+        let source = fake_field_source_with_crlf_normalizing_readback(
+            "Existing background.",
+            Ok("12345".into()),
+        );
         let req = base_field_req();
 
-        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        let receipt = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, "12345");
         assert!(!receipt.deduped);
 
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
-        assert_eq!(row.status, "sent", "CRLF + trailing-newline normalization must not be mistaken for a silent no-op");
+        assert_eq!(
+            row.status, "sent",
+            "CRLF + trailing-newline normalization must not be mistaken for a silent no-op"
+        );
     }
 
     #[test]
-    fn normalize_for_readback_compare_ignores_line_endings_and_trailing_whitespace_but_not_internal_content() {
+    fn normalize_for_readback_compare_ignores_line_endings_and_trailing_whitespace_but_not_internal_content(
+    ) {
         assert_eq!(
             normalize_for_readback_compare("a\r\nb\n\nc"),
             normalize_for_readback_compare("a\nb\n\nc\n")
@@ -2801,11 +3256,17 @@ mod tests {
     async fn field_update_readback_failure_after_a_successful_write_is_verify_pending() {
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
-        let source = fake_field_source_with_failing_readback("Existing background.", Ok("12345".into()));
+        let source =
+            fake_field_source_with_failing_readback("Existing background.", Ok("12345".into()));
         let req = base_field_req();
 
-        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
-        assert!(matches!(err, CrmWriteError::VerifyPending), "expected VerifyPending, got {err:?}");
+        let err = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, CrmWriteError::VerifyPending),
+            "expected VerifyPending, got {err:?}"
+        );
 
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
         assert_eq!(row.status, "pending_verify");
@@ -2818,13 +3279,23 @@ mod tests {
         let source = fake_field_source("Existing background.", Ok("12345".into()));
         let req = base_field_req();
 
-        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        let receipt = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, "12345");
         assert!(!receipt.deduped);
         // 2 GETs: the stale-guard's pre-write check, then the post-write
         // readback verification that confirms the PUT actually applied.
-        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 2);
-        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            source.get_calls.load(std::sync::atomic::Ordering::SeqCst),
+            2
+        );
+        assert_eq!(
+            source
+                .update_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
 
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
         assert_eq!(row.status, "sent");
@@ -2836,10 +3307,15 @@ mod tests {
         let (_dir, store) = test_store();
         let guard = WriteInFlightGuard::new();
         // Someone else changed the field in Wealthbox since the proposal was shown.
-        let source = fake_field_source("Someone else already edited this.", Ok("should-not-be-used".into()));
+        let source = fake_field_source(
+            "Someone else already edited this.",
+            Ok("should-not-be-used".into()),
+        );
         let req = base_field_req();
 
-        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        let err = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap_err();
         match err {
             CrmWriteError::StaleFieldValue(current) => {
                 assert_eq!(current, "Someone else already edited this.");
@@ -2847,13 +3323,18 @@ mod tests {
             other => panic!("expected StaleFieldValue, got {other:?}"),
         }
         assert_eq!(
-            source.update_calls.load(std::sync::atomic::Ordering::SeqCst),
+            source
+                .update_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
             0,
             "must never write a blend proposed against a value that has since changed"
         );
 
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
-        assert_eq!(row.status, "pending_verify", "a stale detection must still produce a ledger entry (for the audit path)");
+        assert_eq!(
+            row.status, "pending_verify",
+            "a stale detection must still produce a ledger entry (for the audit path)"
+        );
     }
 
     /// Codex round 1 finding #2 (self-converge): a PUT whose response was
@@ -2871,16 +3352,24 @@ mod tests {
         // landed server-side even though its response was lost/ambiguous.
         let source = fake_field_source(&req.final_value, Ok("should-not-be-used".into()));
 
-        let receipt = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        let receipt = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap();
         assert_eq!(receipt.remote_id, req.household_key);
         assert!(receipt.deduped);
         assert_eq!(
-            source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 0,
+            source
+                .update_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0,
             "must not re-PUT when the live value already equals final_value"
         );
 
         let row = store.outbound_get(&dedup_key_field(&req)).unwrap().unwrap();
-        assert_eq!(row.status, "sent", "an already-landed value must be confirmed sent, not left pending_verify");
+        assert_eq!(
+            row.status, "sent",
+            "an already-landed value must be confirmed sent, not left pending_verify"
+        );
     }
 
     #[tokio::test]
@@ -2890,8 +3379,12 @@ mod tests {
         let source = fake_field_source("Existing background.", Ok("12345".into()));
         let req = base_field_req();
 
-        push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
-        let second = push_crm_field_update(&source, &store, &guard, &req).await.unwrap();
+        push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap();
+        let second = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap();
 
         assert_eq!(second.remote_id, req.household_key);
         assert!(second.deduped);
@@ -2903,8 +3396,16 @@ mod tests {
         // 3 GETs total: first push's stale-guard check + its post-write
         // readback verification, then the second push's stale-guard check
         // (which now finds final_value already applied and short-circuits).
-        assert_eq!(source.get_calls.load(std::sync::atomic::Ordering::SeqCst), 3);
-        assert_eq!(source.update_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(
+            source.get_calls.load(std::sync::atomic::Ordering::SeqCst),
+            3
+        );
+        assert_eq!(
+            source
+                .update_calls
+                .load(std::sync::atomic::Ordering::SeqCst),
+            1
+        );
     }
 
     #[tokio::test]
@@ -2915,7 +3416,9 @@ mod tests {
         let mut req = base_field_req();
         req.field = "ssn".into();
 
-        let err = push_crm_field_update(&source, &store, &guard, &req).await.unwrap_err();
+        let err = push_crm_field_update(&source, &store, &guard, &req)
+            .await
+            .unwrap_err();
         assert!(matches!(err, CrmWriteError::InvalidInput(_)));
         assert_eq!(
             source.get_calls.load(std::sync::atomic::Ordering::SeqCst),

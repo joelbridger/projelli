@@ -89,17 +89,26 @@ pub async fn docusign_set_workspace(
 }
 
 #[tauri::command]
-pub async fn docusign_connect() -> Result<DocusignConnectInfo, String> {
+pub async fn docusign_connect(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<DocusignConnectInfo, String> {
     use crate::commands::mail::gmail::oauth::{
         await_redirect_code, bind_loopback, gen_pkce, gen_state, open_browser,
     };
 
     let environment = DocusignEnvironment::Demo;
-    let oauth_client = oauth::DocusignOAuth::new(oauth::client_id(), environment);
+    let oauth_client = oauth::DocusignOAuth::new(oauth::client_id(), environment)
+        .with_network_policy(policy.inner().clone());
     let (verifier, challenge) = gen_pkce();
     let state = gen_state();
     let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
     let url = oauth_client.build_auth_url(&redirect_uri, &challenge, &state);
+    crate::commands::connector_network::authorize_url(
+        policy.inner(),
+        &crate::network_policy::DOCUSIGN_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     open_browser(&url);
     let code = await_redirect_code(listener, &state, std::time::Duration::from_secs(300))
         .await
@@ -158,11 +167,15 @@ pub async fn docusign_disconnect(
     if let Some(ws) = workspace {
         match purge_esign_rag_chunks(&ws).await {
             Ok(()) => result.rag_purged = true,
-            Err(e) => result.warnings.push(format!("Search-index purge failed: {e}")),
+            Err(e) => result
+                .warnings
+                .push(format!("Search-index purge failed: {e}")),
         }
         match DocusignStore::purge(&ws) {
             Ok(()) => result.db_purged = true,
-            Err(e) => result.warnings.push(format!("DocuSign local database purge failed: {e}")),
+            Err(e) => result
+                .warnings
+                .push(format!("DocuSign local database purge failed: {e}")),
         }
     } else {
         result
@@ -173,7 +186,9 @@ pub async fn docusign_disconnect(
     if result.rag_purged && result.db_purged {
         match oauth::delete_connection() {
             Ok(()) => result.token_deleted = true,
-            Err(e) => result.warnings.push(format!("DocuSign token delete failed: {e}")),
+            Err(e) => result
+                .warnings
+                .push(format!("DocuSign token delete failed: {e}")),
         }
         if let Err(e) = DocusignStore::delete_master_key() {
             result
@@ -197,6 +212,7 @@ async fn purge_esign_rag_chunks(workspace: &std::path::Path) -> anyhow::Result<(
 pub async fn docusign_sync(
     app: AppHandle,
     state: State<'_, DocusignState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<EsignMatterMapEntry>,
     from_date: Option<String>,
     to_date: Option<String>,
@@ -220,22 +236,30 @@ pub async fn docusign_sync(
         .await
         .clone()
         .ok_or_else(|| "workspace not set - call docusign_set_workspace first".to_string())?;
-    let _ = app.emit(DOCUSIGN_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "syncing" }));
+    let _ = app.emit(
+        DOCUSIGN_SYNC_PROGRESS_EVENT,
+        serde_json::json!({ "status": "syncing" }),
+    );
 
-    let (access, updated_connection) = oauth::fresh_access_token(&connection)
-        .await
-        .map_err(|e| {
-            let _ = app.emit(DOCUSIGN_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
-            e.to_string()
-        })?;
+    let (access, updated_connection) =
+        oauth::fresh_access_token_with_policy(&connection, policy.inner().clone())
+            .await
+            .map_err(|e| {
+                let _ = app.emit(
+                    DOCUSIGN_SYNC_PROGRESS_EVENT,
+                    serde_json::json!({ "status": "error" }),
+                );
+                e.to_string()
+            })?;
     let client = DocusignClient::new(
         access,
         updated_connection.account_id.clone(),
         updated_connection.api_base(),
-    );
+    )
+    .with_network_policy(policy.inner().clone(), crate::network_policy::DOCUSIGN_SYNC);
     let store = DocusignStore::open(&workspace).map_err(|e| e.to_string())?;
-    let rag_key = crate::commands::rag::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let rag_key =
+        crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
     let from = from_date.unwrap_or_else(|| "2020-01-01T00:00:00Z".to_string());
     let report = engine::sync_window_with_key(
@@ -251,7 +275,10 @@ pub async fn docusign_sync(
     )
     .await
     .map_err(|e| {
-        let _ = app.emit(DOCUSIGN_SYNC_PROGRESS_EVENT, serde_json::json!({ "status": "error" }));
+        let _ = app.emit(
+            DOCUSIGN_SYNC_PROGRESS_EVENT,
+            serde_json::json!({ "status": "error" }),
+        );
         e.to_string()
     })?;
 

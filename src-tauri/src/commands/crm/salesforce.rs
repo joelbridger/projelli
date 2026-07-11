@@ -76,22 +76,29 @@ pub async fn exchange_salesforce_code(
     code_verifier: &str,
     redirect_uri: &str,
     token_endpoint: &str,
+    policy: &crate::network_policy::NetworkPolicy,
 ) -> anyhow::Result<SalesforceTokenSet> {
     let http = reqwest::Client::builder()
         .timeout(Duration::from_secs(30))
         .connect_timeout(Duration::from_secs(15))
         .build()
         .expect("build reqwest client for Salesforce OAuth");
-    let resp = http
-        .post(token_endpoint)
-        .form(&[
-            ("grant_type", "authorization_code"),
-            ("client_id", client_id),
-            ("code", code),
-            ("code_verifier", code_verifier),
-            ("redirect_uri", redirect_uri),
-        ])
-        .send()
+    let authorized = crate::commands::connector_network::authorize_url(
+        policy,
+        &crate::network_policy::SALESFORCE_OAUTH,
+        token_endpoint,
+    )?;
+    let request = http.post(token_endpoint).form(&[
+        ("grant_type", "authorization_code"),
+        ("client_id", client_id),
+        ("code", code),
+        ("code_verifier", code_verifier),
+        ("redirect_uri", redirect_uri),
+    ]);
+    let resp =
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
         .await
         .context("Salesforce OAuth token exchange")?;
     let status = resp.status().as_u16();
@@ -159,6 +166,7 @@ pub struct SalesforceClient {
     tokens: tokio::sync::Mutex<SalesforceTokenSet>,
     http: reqwest::Client,
     token_endpoint: String,
+    network_policy: Option<crate::network_policy::NetworkPolicy>,
 }
 
 impl SalesforceClient {
@@ -189,7 +197,96 @@ impl SalesforceClient {
             tokens: tokio::sync::Mutex::new(tokens),
             http,
             token_endpoint,
+            network_policy: None,
         })
+    }
+
+    pub fn with_network_policy(mut self, policy: crate::network_policy::NetworkPolicy) -> Self {
+        self.network_policy = Some(policy);
+        self
+    }
+
+    async fn send_oauth(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some(policy) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("SalesforceClient requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(
+            policy,
+            &crate::network_policy::SALESFORCE_OAUTH,
+            url,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
+    }
+
+    async fn send_sync(
+        &self,
+        url: &str,
+        configured_instance_url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some(policy) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("SalesforceClient requires a NetworkPolicy before it can make a request");
+        };
+        let configured_host = reqwest::Url::parse(configured_instance_url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .ok_or_else(|| anyhow::anyhow!("Salesforce instance URL has no host"))?;
+        let authorized = crate::commands::connector_network::authorize_configured_host(
+            policy,
+            &crate::network_policy::SALESFORCE_SYNC,
+            url,
+            &configured_host,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
+    }
+
+    async fn send_identity(
+        &self,
+        url: &str,
+        instance_url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let identity_host = reqwest::Url::parse(url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned));
+        let instance_host = reqwest::Url::parse(instance_url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned));
+        if identity_host == instance_host {
+            return self.send_sync(url, instance_url, request).await;
+        }
+
+        let Some(policy) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("SalesforceClient requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(
+            policy,
+            &crate::network_policy::SALESFORCE_OAUTH,
+            url,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     async fn access_token(&self) -> anyhow::Result<(String, String)> {
@@ -206,29 +303,30 @@ impl SalesforceClient {
     }
 
     async fn refresh_locked(&self, refresh_token: &str) -> anyhow::Result<SalesforceTokenSet> {
+        let request = self.http.post(&self.token_endpoint).form(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", self.client_id.as_str()),
+            ("refresh_token", refresh_token),
+        ]);
         let resp = self
-            .http
-            .post(&self.token_endpoint)
-            .form(&[
-                ("grant_type", "refresh_token"),
-                ("client_id", self.client_id.as_str()),
-                ("refresh_token", refresh_token),
-            ])
-            .send()
+            .send_oauth(&self.token_endpoint, request)
             .await
             .context("Salesforce OAuth refresh")?;
         let status = resp.status().as_u16();
         let body: serde_json::Value = resp.json().await.context("parse Salesforce refresh JSON")?;
         let refreshed = parse_salesforce_token_response(status, &body, Some(refresh_token))?;
         if let Ok(json) = serde_json::to_string(&refreshed) {
-            let _ = keyring::Entry::new(&crate::identity::crm_keychain_service("salesforce"), "api-token")
-                .and_then(|entry| entry.set_password(&json));
+            let _ = keyring::Entry::new(
+                &crate::identity::crm_keychain_service("salesforce"),
+                "api-token",
+            )
+            .and_then(|entry| entry.set_password(&json));
         }
         Ok(refreshed)
     }
 
     pub async fn identity(&self) -> anyhow::Result<SalesforceAccountInfo> {
-        let (access, _) = self.access_token().await?;
+        let (access, instance_url) = self.access_token().await?;
         let id_url = { self.tokens.lock().await.id_url.clone() };
         if id_url.trim().is_empty() {
             return Ok(SalesforceAccountInfo {
@@ -236,11 +334,9 @@ impl SalesforceClient {
                 email: String::new(),
             });
         }
+        let request = self.http.get(&id_url).bearer_auth(access);
         let resp = self
-            .http
-            .get(&id_url)
-            .bearer_auth(access)
-            .send()
+            .send_identity(&id_url, &instance_url, request)
             .await
             .context("Salesforce identity request")?;
         let status = resp.status();
@@ -283,7 +379,10 @@ impl SalesforceClient {
         for (k, v) in query {
             req = req.query(&[(*k, v.as_str())]);
         }
-        let resp = req.send().await.context("Salesforce REST GET")?;
+        let resp = self
+            .send_sync(&url, &instance_url, req)
+            .await
+            .context("Salesforce REST GET")?;
         let status = resp.status();
         let body = resp.text().await.context("read Salesforce response body")?;
         if !status.is_success() {

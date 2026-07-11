@@ -64,12 +64,16 @@ pub async fn box_set_workspace(state: State<'_, BoxState>, path: String) -> Resu
 }
 
 #[tauri::command]
-pub async fn box_connect(access_token: String) -> Result<(), String> {
+pub async fn box_connect(
+    access_token: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<(), String> {
     let token = access_token.trim().to_string();
     if token.is_empty() {
         return Err("Paste a Box Developer Token first.".into());
     }
     BoxClient::new(token.clone())
+        .with_network_policy(policy.inner().clone(), crate::network_policy::BOX_SYNC)
         .current_user()
         .await
         .map_err(|e| format!("Box rejected this token: {e}"))?;
@@ -121,9 +125,11 @@ pub async fn box_disconnect(state: State<'_, BoxState>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn box_list_folders() -> Result<Vec<BoxFolderDto>, String> {
+pub async fn box_list_folders(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<Vec<BoxFolderDto>, String> {
     let token = stored_access_token()?;
-    let source = ApiBoxSource::new(token);
+    let source = ApiBoxSource::new(token, policy.inner().clone());
     list_folders(&source).await.map_err(|e| e.to_string())
 }
 
@@ -131,6 +137,7 @@ pub async fn box_list_folders() -> Result<Vec<BoxFolderDto>, String> {
 pub async fn box_sync(
     app: AppHandle,
     state: State<'_, BoxState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<BoxMatterMapEntry>,
 ) -> Result<BoxSyncReport, String> {
     if state
@@ -176,7 +183,7 @@ pub async fn box_sync(
         }
     });
 
-    let source = ApiBoxSource::new(token);
+    let source = ApiBoxSource::new(token, policy.inner().clone());
     let result = sync_documents(
         &source,
         &store,

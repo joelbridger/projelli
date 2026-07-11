@@ -269,6 +269,164 @@ pub const ICS_CALENDAR_SYNC: EgressOperation = EgressOperation {
     receipt_label: "ICS calendar sync",
 };
 
+pub const WEALTHBOX_SYNC: EgressOperation = EgressOperation {
+    id: "wealthbox-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api.crmworkspace.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Wealthbox sync",
+};
+pub const WEALTHBOX_WRITE: EgressOperation = EgressOperation {
+    id: "wealthbox-write",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api.crmworkspace.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Wealthbox write-back",
+};
+pub const CALENDLY_SYNC: EgressOperation = EgressOperation {
+    id: "calendly-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api.calendly.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Calendly sync",
+};
+pub const ADDEPAR_SYNC: EgressOperation = EgressOperation {
+    id: "addepar-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Addepar sync",
+};
+pub const BOX_SYNC: EgressOperation = EgressOperation {
+    id: "box-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api.box.com", "dl.boxcloud.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Box sync",
+};
+pub const DOCUSIGN_OAUTH: EgressOperation = EgressOperation {
+    id: "docusign-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&[
+        "account-d.docusign.com",
+        "account.docusign.com",
+    ]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "DocuSign sign-in",
+};
+pub const DOCUSIGN_SYNC: EgressOperation = EgressOperation {
+    id: "docusign-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "DocuSign sync",
+};
+pub const JOTFORM_SYNC: EgressOperation = EgressOperation {
+    id: "jotform-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api.jotform.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Jotform sync",
+};
+pub const SHAREFILE_SYNC: EgressOperation = EgressOperation {
+    id: "sharefile-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "ShareFile sync",
+};
+pub const ZOCKS_SYNC: EgressOperation = EgressOperation {
+    id: "zocks-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api.zocks.io"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Zocks sync",
+};
+pub const SALESFORCE_OAUTH: EgressOperation = EgressOperation {
+    id: "salesforce-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["login.salesforce.com"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Salesforce sign-in",
+};
+pub const SALESFORCE_SYNC: EgressOperation = EgressOperation {
+    id: "salesforce-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Salesforce sync",
+};
+pub const REDTAIL_OAUTH: EgressOperation = EgressOperation {
+    id: "redtail-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api2.redtailtechnology.com"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Redtail sign-in",
+};
+pub const REDTAIL_SYNC: EgressOperation = EgressOperation {
+    id: "redtail-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["api2.redtailtechnology.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Redtail sync",
+};
+
 /// A small seed registry for Lane 0.  Later lanes extend this list as they
 /// migrate real sinks; authorization never trusts an unregistered operation.
 pub const EGRESS_OPERATION_REGISTRY: &[EgressOperation] = &[
@@ -288,6 +446,20 @@ pub const EGRESS_OPERATION_REGISTRY: &[EgressOperation] = &[
     GOOGLE_CALENDAR_OAUTH,
     GOOGLE_CALENDAR_SYNC,
     ICS_CALENDAR_SYNC,
+    WEALTHBOX_SYNC,
+    WEALTHBOX_WRITE,
+    CALENDLY_SYNC,
+    ADDEPAR_SYNC,
+    BOX_SYNC,
+    DOCUSIGN_OAUTH,
+    DOCUSIGN_SYNC,
+    JOTFORM_SYNC,
+    SHAREFILE_SYNC,
+    ZOCKS_SYNC,
+    SALESFORCE_OAUTH,
+    SALESFORCE_SYNC,
+    REDTAIL_OAUTH,
+    REDTAIL_SYNC,
 ];
 
 pub fn registered_operation(id: &str) -> Option<&'static EgressOperation> {

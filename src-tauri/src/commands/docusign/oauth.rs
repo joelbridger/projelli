@@ -28,6 +28,7 @@ pub struct DocusignOAuth {
     oauth_base: String,
     environment: DocusignEnvironment,
     http: reqwest::Client,
+    network_policy: Option<crate::network_policy::NetworkPolicy>,
 }
 
 impl DocusignOAuth {
@@ -50,7 +51,34 @@ impl DocusignOAuth {
             oauth_base: oauth_base.trim_end_matches('/').to_string(),
             environment,
             http,
+            network_policy: None,
         }
+    }
+
+    pub fn with_network_policy(mut self, policy: crate::network_policy::NetworkPolicy) -> Self {
+        self.network_policy = Some(policy);
+        self
+    }
+    async fn send(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some(policy) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("DocusignOAuth requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(
+            policy,
+            &crate::network_policy::DOCUSIGN_OAUTH,
+            url,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     pub fn environment(&self) -> DocusignEnvironment {
@@ -74,17 +102,15 @@ impl DocusignOAuth {
         redirect_uri: &str,
     ) -> anyhow::Result<DocusignTokens> {
         let url = format!("{}/oauth/token", self.oauth_base);
+        let req = self.http.post(&url).form(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", self.client_id.as_str()),
+            ("code", code),
+            ("code_verifier", code_verifier),
+            ("redirect_uri", redirect_uri),
+        ]);
         let resp = self
-            .http
-            .post(&url)
-            .form(&[
-                ("grant_type", "authorization_code"),
-                ("client_id", self.client_id.as_str()),
-                ("code", code),
-                ("code_verifier", code_verifier),
-                ("redirect_uri", redirect_uri),
-            ])
-            .send()
+            .send(&url, req)
             .await
             .context("DocuSign token exchange send")?;
         let status = resp.status().as_u16();
@@ -94,15 +120,13 @@ impl DocusignOAuth {
 
     pub async fn refresh(&self, refresh_token: &str) -> anyhow::Result<DocusignTokens> {
         let url = format!("{}/oauth/token", self.oauth_base);
+        let req = self.http.post(&url).form(&[
+            ("grant_type", "refresh_token"),
+            ("client_id", self.client_id.as_str()),
+            ("refresh_token", refresh_token),
+        ]);
         let resp = self
-            .http
-            .post(&url)
-            .form(&[
-                ("grant_type", "refresh_token"),
-                ("client_id", self.client_id.as_str()),
-                ("refresh_token", refresh_token),
-            ])
-            .send()
+            .send(&url, req)
             .await
             .context("DocuSign token refresh send")?;
         let status = resp.status().as_u16();
@@ -117,11 +141,9 @@ impl DocusignOAuth {
             accounts: Vec<DocusignAccountInfo>,
         }
         let url = format!("{}/oauth/userinfo", self.oauth_base);
+        let req = self.http.get(&url).bearer_auth(access_token);
         let info: UserInfo = self
-            .http
-            .get(&url)
-            .bearer_auth(access_token)
-            .send()
+            .send(&url, req)
             .await
             .context("DocuSign userinfo GET")?
             .error_for_status()
@@ -233,20 +255,40 @@ pub fn delete_connection() -> anyhow::Result<()> {
     }
 }
 
-pub async fn fresh_access_token(
+pub async fn fresh_access_token_with_policy(
     connection: &DocusignConnection,
+    policy: crate::network_policy::NetworkPolicy,
 ) -> anyhow::Result<(String, DocusignConnection)> {
     let env = if connection.environment == "production" {
         DocusignEnvironment::Production
     } else {
         DocusignEnvironment::Demo
     };
-    let oauth = DocusignOAuth::new(client_id(), env);
+    let oauth = DocusignOAuth::new(client_id(), env).with_network_policy(policy);
     let tokens = oauth.refresh(&connection.refresh_token).await?;
     let mut updated = connection.clone();
     updated.refresh_token = tokens.refresh;
     store_connection(&updated)?;
     Ok((tokens.access, updated))
+}
+
+pub async fn fresh_access_token(
+    _connection: &DocusignConnection,
+) -> anyhow::Result<(String, DocusignConnection)> {
+    #[cfg(test)]
+    {
+        return fresh_access_token_with_policy(
+            _connection,
+            crate::network_policy::NetworkPolicy::load_from_directory(
+                &tempfile::tempdir().unwrap().keep(),
+            ),
+        )
+        .await;
+    }
+    #[cfg(not(test))]
+    {
+        anyhow::bail!("Docusign OAuth refresh requires a NetworkPolicy")
+    }
 }
 
 #[cfg(test)]

@@ -116,21 +116,22 @@ fn delete_secret(key: &str) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn zocks_set_workspace(
-    state: State<'_, ZocksState>,
-    path: String,
-) -> Result<(), String> {
+pub async fn zocks_set_workspace(state: State<'_, ZocksState>, path: String) -> Result<(), String> {
     *state.workspace.lock().await = Some(PathBuf::from(path));
     Ok(())
 }
 
 #[tauri::command]
-pub async fn zocks_connect(api_key: String) -> Result<ZocksConnectInfo, String> {
+pub async fn zocks_connect(
+    api_key: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<ZocksConnectInfo, String> {
     let api_key = api_key.trim().to_string();
     if api_key.is_empty() {
         return Err("Paste a Zocks API key first.".into());
     }
-    let client = ZocksClient::new(api_key.clone());
+    let client = ZocksClient::new(api_key.clone())
+        .with_network_policy(policy.inner().clone(), crate::network_policy::ZOCKS_SYNC);
     client.validate_connection().await.map_err(|e| {
         format!(
             "Could not connect to Zocks. The Zocks API endpoints are provisional pending vendor confirmation. Details: {e}"
@@ -149,9 +150,12 @@ pub async fn zocks_is_connected() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn zocks_list_sessions() -> Result<Vec<ZocksSessionSummary>, String> {
+pub async fn zocks_list_sessions(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<Vec<ZocksSessionSummary>, String> {
     let api_key = read_secret(KEYCHAIN_API_KEY).ok_or("Zocks is not connected")?;
-    let client = ZocksClient::new(api_key);
+    let client = ZocksClient::new(api_key)
+        .with_network_policy(policy.inner().clone(), crate::network_policy::ZOCKS_SYNC);
     let page = client
         .list_sessions(None, Some(50))
         .await
@@ -163,6 +167,7 @@ pub async fn zocks_list_sessions() -> Result<Vec<ZocksSessionSummary>, String> {
 pub async fn zocks_sync(
     app: AppHandle,
     state: State<'_, ZocksState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<ZocksMatterMapEntry>,
 ) -> Result<ZocksSyncReportDto, String> {
     if state
@@ -204,7 +209,8 @@ pub async fn zocks_sync(
         e.to_string()
     })?;
     let map: HashMap<String, String> = engine::build_matter_map(&matter_map);
-    let client = ZocksClient::new(api_key);
+    let client = ZocksClient::new(api_key)
+        .with_network_policy(policy.inner().clone(), crate::network_policy::ZOCKS_SYNC);
 
     let emit_counter = state.progress_sessions.clone();
     let emit_app = app.clone();
@@ -321,17 +327,23 @@ pub async fn zocks_disconnect(
 
     match purge_zocks_rag_chunks(&ws).await {
         Ok(()) => result.rag_purged = true,
-        Err(e) => result.warnings.push(format!("Search-index purge failed: {e}")),
+        Err(e) => result
+            .warnings
+            .push(format!("Search-index purge failed: {e}")),
     }
     match ZocksStore::purge(&ws) {
         Ok(()) => result.zocks_db_purged = true,
-        Err(e) => result.warnings.push(format!("Zocks local database purge failed: {e}")),
+        Err(e) => result
+            .warnings
+            .push(format!("Zocks local database purge failed: {e}")),
     }
 
     if result.rag_purged && result.zocks_db_purged {
         match delete_secret(KEYCHAIN_API_KEY) {
             Ok(()) => result.token_deleted = true,
-            Err(e) => result.warnings.push(format!("Zocks API key delete failed: {e}")),
+            Err(e) => result
+                .warnings
+                .push(format!("Zocks API key delete failed: {e}")),
         }
         if let Err(e) = ZocksStore::delete_master_key() {
             result

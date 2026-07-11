@@ -29,6 +29,10 @@ pub struct JotformClient {
     api_key: String,
     base: String,
     http: reqwest::Client,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl JotformReadOnlyApi for JotformClient {}
@@ -48,11 +52,73 @@ impl JotformClient {
             api_key,
             base: base.trim_end_matches('/').to_string(),
             http,
+            network_policy: None,
+        }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+    fn authorize_request(
+        &self,
+        url: &str,
+    ) -> anyhow::Result<
+        Option<(
+            crate::network_policy::NetworkPolicy,
+            crate::network_policy::AuthorizedGeneration,
+        )>,
+    > {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(None);
+            #[cfg(not(test))]
+            anyhow::bail!("JotformClient requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
+        Ok(Some((policy.clone(), authorized)))
+    }
+
+    async fn send_authorized(
+        &self,
+        authorization: Option<(
+            crate::network_policy::NetworkPolicy,
+            crate::network_policy::AuthorizedGeneration,
+        )>,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        match authorization {
+            Some((policy, authorized)) => {
+                crate::commands::connector_network::await_authorized(
+                    &policy,
+                    &authorized,
+                    async move { Ok(request.send().await?) },
+                )
+                .await
+            }
+            #[cfg(test)]
+            None => Ok(request.send().await?),
+            #[cfg(not(test))]
+            None => unreachable!("production requests always require authorization"),
         }
     }
 
     pub async fn current_user_with_key(api_key: String) -> anyhow::Result<JotformUser> {
         Self::new(api_key).current_user().await
+    }
+
+    pub async fn current_user_with_key_and_policy(
+        api_key: String,
+        policy: crate::network_policy::NetworkPolicy,
+    ) -> anyhow::Result<JotformUser> {
+        Self::new(api_key)
+            .with_network_policy(policy, crate::network_policy::JOTFORM_SYNC)
+            .current_user()
+            .await
     }
 
     pub async fn current_user(&self) -> anyhow::Result<JotformUser> {
@@ -102,7 +168,10 @@ impl JotformClient {
         let resp: JotformSubmissionsResponse = self
             .get_json(
                 &path,
-                &[("limit", PAGE_LIMIT.to_string()), ("offset", offset.to_string())],
+                &[
+                    ("limit", PAGE_LIMIT.to_string()),
+                    ("offset", offset.to_string()),
+                ],
             )
             .await?;
         Ok(resp.content)
@@ -120,11 +189,20 @@ impl JotformClient {
         };
 
         for attempt in 0..MAX_429_RETRIES {
-            let mut req = self.http.get(&url).query(&[("APIKEY", self.api_key.as_str())]);
+            // This must happen before constructing the request because Jotform
+            // puts its API key in the query string.
+            let authorization = self.authorize_request(&url)?;
+            let mut req = self
+                .http
+                .get(&url)
+                .query(&[("APIKEY", self.api_key.as_str())]);
             for (key, value) in query {
                 req = req.query(&[(*key, value.as_str())]);
             }
-            let resp = req.send().await.context("Jotform HTTP GET send")?;
+            let resp = self
+                .send_authorized(authorization, req)
+                .await
+                .context("Jotform HTTP GET send")?;
             if resp.status().as_u16() == 429 {
                 let retry_after = resp
                     .headers()
@@ -224,6 +302,9 @@ mod tests {
         let forms = client.list_forms().await.unwrap();
         assert_eq!(forms.len() as u32, PAGE_LIMIT + 5);
         assert_eq!(forms.first().unwrap().form_id, "f0");
-        assert_eq!(forms.last().unwrap().form_id, format!("f{}", PAGE_LIMIT + 4));
+        assert_eq!(
+            forms.last().unwrap().form_id,
+            format!("f{}", PAGE_LIMIT + 4)
+        );
     }
 }

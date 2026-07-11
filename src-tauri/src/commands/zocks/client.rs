@@ -22,6 +22,10 @@ pub struct ZocksClient {
     api_key: String,
     base: String,
     http: reqwest::Client,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl ZocksReadOnlyApi for ZocksClient {}
@@ -41,7 +45,34 @@ impl ZocksClient {
             api_key,
             base: base.trim_end_matches('/').to_string(),
             http,
+            network_policy: None,
         }
+    }
+
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+    async fn send(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some((policy, operation)) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("ZocksClient requires a NetworkPolicy before it can make a request");
+        };
+        let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     pub fn base_url(&self) -> &str {
@@ -67,8 +98,11 @@ impl ZocksClient {
     }
 
     pub async fn get_session(&self, session_id: &str) -> anyhow::Result<ZocksSession> {
-        self.get_json(&format!("/sessions/{}", encode_path_segment(session_id)), &[])
-            .await
+        self.get_json(
+            &format!("/sessions/{}", encode_path_segment(session_id)),
+            &[],
+        )
+        .await
     }
 
     async fn get_json<T: serde::de::DeserializeOwned>(
@@ -87,7 +121,7 @@ impl ZocksClient {
             for (k, v) in query {
                 req = req.query(&[(*k, v.as_str())]);
             }
-            let resp = req.send().await.context("Zocks HTTP GET send")?;
+            let resp = self.send(&url, req).await.context("Zocks HTTP GET send")?;
             if resp.status().as_u16() == 429 {
                 let retry_after = resp
                     .headers()

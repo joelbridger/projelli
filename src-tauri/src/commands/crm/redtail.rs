@@ -57,6 +57,7 @@ pub struct RedtailClient {
     base: String,
     http: reqwest::Client,
     cache: tokio::sync::Mutex<RedtailCache>,
+    network_policy: Option<crate::network_policy::NetworkPolicy>,
 }
 
 impl RedtailClient {
@@ -81,7 +82,40 @@ impl RedtailClient {
             base: base.trim_end_matches('/').to_string(),
             http,
             cache: tokio::sync::Mutex::new(RedtailCache::default()),
+            network_policy: None,
         }
+    }
+
+    pub fn with_network_policy(mut self, policy: crate::network_policy::NetworkPolicy) -> Self {
+        self.network_policy = Some(policy);
+        self
+    }
+
+    async fn send_sync(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some(policy) = self.network_policy.as_ref() else {
+            #[cfg(test)]
+            return Ok(request.send().await?);
+            #[cfg(not(test))]
+            anyhow::bail!("RedtailClient requires a NetworkPolicy before it can make a request");
+        };
+        let configured_host = reqwest::Url::parse(&self.base)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned))
+            .ok_or_else(|| anyhow::anyhow!("Redtail API base has no host"))?;
+        let authorized = crate::commands::connector_network::authorize_configured_host(
+            policy,
+            &crate::network_policy::REDTAIL_SYNC,
+            url,
+            &configured_host,
+        )?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
     }
 
     pub async fn authenticate(username: &str, password: &str) -> anyhow::Result<RedtailAuthInfo> {
@@ -95,6 +129,16 @@ impl RedtailClient {
         password: &str,
         base: &str,
     ) -> anyhow::Result<RedtailAuthInfo> {
+        Self::authenticate_with_base_and_policy(api_key, username, password, base, None).await
+    }
+
+    pub async fn authenticate_with_base_and_policy(
+        api_key: &str,
+        username: &str,
+        password: &str,
+        base: &str,
+        policy: Option<&crate::network_policy::NetworkPolicy>,
+    ) -> anyhow::Result<RedtailAuthInfo> {
         if username.trim().is_empty() || password.is_empty() {
             anyhow::bail!("Redtail username and password are required");
         }
@@ -105,16 +149,31 @@ impl RedtailClient {
             .expect("build reqwest client for Redtail auth");
         let url = format!("{}/authentication", base.trim_end_matches('/'));
         let auth = build_basic_auth_header(api_key, username.trim(), password);
-        let resp = http
-            .get(url)
-            .header("Authorization", auth)
-            .header(
-                "fields",
-                "database_id,user_id,user_key,first_name,last_name,username,email,tier",
-            )
-            .send()
-            .await
-            .context("Redtail authentication request")?;
+        let request = http.get(url).header("Authorization", auth).header(
+            "fields",
+            "database_id,user_id,user_key,first_name,last_name,username,email,tier",
+        );
+        let url = format!("{}/authentication", base.trim_end_matches('/'));
+        let resp = match policy {
+            Some(policy) => {
+                let authorized = crate::commands::connector_network::authorize_url(
+                    policy,
+                    &crate::network_policy::REDTAIL_OAUTH,
+                    &url,
+                )?;
+                crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+                    Ok(request.send().await?)
+                })
+                .await
+            }
+            None => {
+                #[cfg(test)]
+                { Ok(request.send().await?) }
+                #[cfg(not(test))]
+                { anyhow::bail!("Redtail authentication requires a NetworkPolicy before it can make a request") }
+            }
+        }
+        .context("Redtail authentication request")?;
         let status = resp.status();
         let body = resp.text().await.context("read Redtail auth response")?;
         if !status.is_success() {
@@ -340,7 +399,7 @@ impl RedtailClient {
         } else {
             format!("{}{}", self.base, path)
         };
-        let mut req = self.http.get(url).header(
+        let mut req = self.http.get(&url).header(
             "Authorization",
             build_userkey_auth_header(&self.api_key, &self.user_key),
         );
@@ -350,7 +409,10 @@ impl RedtailClient {
         for (key, value) in query {
             req = req.query(&[(*key, value.as_str())]);
         }
-        let resp = req.send().await.context("Redtail HTTP GET")?;
+        let resp = self
+            .send_sync(&url, req)
+            .await
+            .context("Redtail HTTP GET")?;
         let status = resp.status();
         let text = resp.text().await.context("read Redtail response body")?;
         if text.trim().is_empty() {
