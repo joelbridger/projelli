@@ -3,7 +3,7 @@
 
 import type { DocSummary } from '@/platform/types/analysis';
 import type { Provider, StructuredOutputOptions, OutputSchema } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 
 /**
  * Schema for DocSummary validation
@@ -113,15 +113,17 @@ Parse any [src:ID] references as citations.`,
 
     // Generate structured summary through the shared egress guard.
     const metadata = this.provider.getMetadata();
-    const result = await runWithEgressAudit<Omit<DocSummary, 'doc_id'>>({
+    const result = await sendPreparedStructuredWithEgressAudit<Omit<DocSummary, 'doc_id'>>({
       provider: this.provider,
       providerId: metadata.providerId ?? 'unknown',
       model: metadata.model,
-      operation: () =>
-        this.provider.structuredOutput<Omit<DocSummary, 'doc_id'>>(
-          prompt,
-          structuredOptions,
-        ),
+      surface: 'document_summary',
+      prompt,
+      options: structuredOptions,
+      parts: [
+        { id: 'prompt', origin: 'workflow_input', label: 'Summary request', text: prompt },
+        { id: 'document', origin: 'workflow_file', label: 'Document to summarize', text: content },
+      ],
     });
 
     // Create full summary with doc_id

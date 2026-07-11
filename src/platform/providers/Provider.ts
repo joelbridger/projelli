@@ -1,6 +1,7 @@
 // Provider Interface
 // Abstract interface for AI model adapters
 import type { ChatAttachment } from '@/platform/types/ai';
+import type { PreparationStamp } from '@/platform/privacy/promptPreparationGuard';
 
 /** Claude image block shape (returned by ClaudeProvider.formatAttachmentForRequest). */
 export interface ClaudeImageBlock {
@@ -92,6 +93,8 @@ export type ProviderContentBlock =
 export interface AttachmentBytes {
   att: ChatAttachment;
   bytes: Uint8Array;
+  /** Local-only OCR/PDF scan text used to prove a binary upload was inspected. */
+  extractedText?: string;
 }
 
 /**
@@ -122,6 +125,11 @@ export interface SendOptions {
    * formatAttachmentForRequest() to produce provider-specific blocks.
    */
   attachmentBytes?: AttachmentBytes[];
+  /**
+   * Opaque proof that the cloud-bound request passed local prompt preparation.
+   * Cloud adapters validate it immediately before their first network request.
+   */
+  preparationStamp?: PreparationStamp;
 }
 
 /**
@@ -187,6 +195,8 @@ export interface StructuredOutputOptions {
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
+  /** Opaque proof that this cloud-bound request was locally prepared. */
+  preparationStamp?: PreparationStamp;
 }
 
 /**
@@ -277,7 +287,8 @@ export interface Provider {
    */
   formatAttachmentForRequest(
     att: ChatAttachment,
-    bytes: Uint8Array
+    bytes: Uint8Array,
+    extractedText?: string,
   ): ProviderContentBlock | Promise<ProviderContentBlock>;
 
   /**

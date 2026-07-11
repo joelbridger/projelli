@@ -16,9 +16,13 @@ function isAllowedFile(fileName) {
   const normalized = normalize(fileName);
   return (
     normalized.includes('/src/platform/providers/') ||
-    normalized.includes('/src/web-demo/') ||
-    normalized.endsWith('/src/platform/privacy/sendWithEgressAudit.ts')
+    normalized.endsWith('/src/web-demo/demoAIProvider.ts') ||
+    normalized.endsWith('/src/platform/privacy/promptPreparation.ts')
   );
+}
+
+function isTestFile(fileName) {
+  return /\.(test|spec)\.[cm]?[jt]sx?$/.test(normalize(fileName));
 }
 
 function unwrapExpression(node) {
@@ -44,63 +48,6 @@ function isGuardedProviderCall(node) {
   );
 }
 
-function getCalleeName(callee) {
-  const unwrapped = unwrapExpression(callee);
-  if (!unwrapped) return undefined;
-  if (unwrapped.type === 'Identifier') return unwrapped.name;
-  if (
-    unwrapped.type === 'MemberExpression' &&
-    !unwrapped.computed &&
-    unwrapped.property &&
-    unwrapped.property.type === 'Identifier'
-  ) {
-    return unwrapped.property.name;
-  }
-  return undefined;
-}
-
-function getPropertyName(property) {
-  if (!property || property.computed) return undefined;
-  if (property.key.type === 'Identifier') return property.key.name;
-  if (property.key.type === 'Literal') return String(property.key.value);
-  return undefined;
-}
-
-function sourceCodeAncestors(context, node) {
-  if (context.sourceCode && typeof context.sourceCode.getAncestors === 'function') {
-    return context.sourceCode.getAncestors(node);
-  }
-  return typeof context.getAncestors === 'function' ? context.getAncestors() : [];
-}
-
-function isInsideRunWithEgressAuditOperation(context, node) {
-  const ancestors = sourceCodeAncestors(context, node);
-  for (let i = ancestors.length - 1; i >= 0; i -= 1) {
-    const ancestor = ancestors[i];
-    if (
-      !ancestor ||
-      ancestor.type !== 'Property' ||
-      getPropertyName(ancestor) !== 'operation'
-    ) {
-      continue;
-    }
-
-    const objectExpression = ancestors[i - 1];
-    const callExpression = ancestors[i - 2];
-    if (
-      objectExpression &&
-      objectExpression.type === 'ObjectExpression' &&
-      callExpression &&
-      callExpression.type === 'CallExpression' &&
-      callExpression.arguments.includes(objectExpression) &&
-      getCalleeName(callExpression.callee) === 'runWithEgressAudit'
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
 module.exports = {
   meta: {
     type: 'problem',
@@ -109,18 +56,17 @@ module.exports = {
     },
     messages: {
       directSend:
-        'Use sendWithEgressAudit(...) or runWithEgressAudit(...) for provider AI calls so privacy checks and audit receipts cannot be skipped.',
+        'Use a sendPrepared*WithEgressAudit(...) helper for cloud provider calls so prompt preparation and audit receipts cannot be skipped.',
     },
     schema: [],
   },
   create(context) {
-    if (isAllowedFile(context.getFilename())) return {};
+    // Tests intentionally exercise rejected direct calls. Runtime source is
+    // the protected boundary; test code is verified separately by Vitest.
+    if (isAllowedFile(context.getFilename()) || isTestFile(context.getFilename())) return {};
     return {
       CallExpression(node) {
-        if (
-          isGuardedProviderCall(node) &&
-          !isInsideRunWithEgressAuditOperation(context, node)
-        ) {
+        if (isGuardedProviderCall(node)) {
           context.report({ node, messageId: 'directSend' });
         }
       },

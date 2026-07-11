@@ -3156,6 +3156,16 @@
     }
   },
   "privacy": {
+    "prompt-preparation": {
+      "title": "Private Zugriffslinks prüfen",
+      "title__sourceHash": "a10e310e7f6a8ccbd88f0a6063654f08f51c03a4dceab2bbf760773852a60bdf",
+      "description_one": "Im Material für diese KI-Anfrage wurde {{count}} privater Zugriffslink gefunden. Ich habe eine sichere Kopie erstellt, in der die privaten Teile ausgeblendet sind. Diese sichere Kopie senden?",
+      "description_one__sourceHash": "eb80accb651027da083d38a62acb6ed46533bc6d99a1d1de6d9b748a0443fd41",
+      "description_other": "Im Material für diese KI-Anfrage wurden {{count}} private Zugriffslinks gefunden. Ich habe eine sichere Kopie erstellt, in der die privaten Teile ausgeblendet sind. Diese sichere Kopie senden?",
+      "description_other__sourceHash": "a9e137e329123ddcf0e51af557f2c7a21dd92111fcaf56934e360831d0b3da4e",
+      "send-redacted-copy": "Geschwärzte Kopie senden",
+      "send-redacted-copy__sourceHash": "b05aca0a5522d7aeacece30c728c02e3fac76a668b13dcf48eed5735ef1b72f6"
+    },
     "egress": {
       "local": {
         "label": "On your machine. No cloud AI",

@@ -1,6 +1,6 @@
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import type { Provider, ProviderResponse, SendOptions } from '@/platform/providers/Provider';
+import type { Provider, ProviderResponse, SendOptions, TokenUsage } from '@/platform/providers/Provider';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import {
   resolveEgress,
@@ -10,6 +10,22 @@ import {
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 
 export type EgressAuditLogger = (entry: Omit<AuditEntry, 'id' | 'timestamp'>) => void;
+
+/**
+ * Keep audit accounting honest when a legacy provider or test fixture omits
+ * token or cost details. The provider contract requires these fields, but the
+ * audit trail should still record the completed model call rather than fail.
+ */
+export function modelAuditMetrics(response: {
+  usage?: Partial<Pick<TokenUsage, 'inputTokens' | 'outputTokens'>>;
+  cost?: number;
+}): Pick<AuditEntry, 'tokensIn' | 'tokensOut' | 'costUsd'> {
+  return {
+    tokensIn: response.usage?.inputTokens ?? 0,
+    tokensOut: response.usage?.outputTokens ?? 0,
+    costUsd: response.cost ?? 0,
+  };
+}
 
 export interface EgressAuditContext {
   provider: Provider;
@@ -29,6 +45,8 @@ export interface EgressAuditContext {
   isDemo?: boolean;
   hasDemoByokKey?: boolean;
   assuredAvailable?: boolean;
+  /** The caller just performed the same fail-closed egress check. */
+  preflightChecked?: boolean;
 }
 
 export interface RunWithEgressAuditOptions<T> extends EgressAuditContext {
@@ -62,7 +80,7 @@ function effectiveModel(ctx: EgressAuditContext): string {
 export async function runWithEgressAudit<T>(
   opts: RunWithEgressAuditOptions<T>,
 ): Promise<T> {
-  assertLocalOnlyAllowsSend(opts.providerId);
+  if (!opts.preflightChecked) assertLocalOnlyAllowsSend(opts.providerId);
 
   const modeForResolution = opts.mode ?? getConfidentialityMode();
   const egress = resolveEgress({
@@ -102,27 +120,31 @@ export async function runWithEgressAudit<T>(
 export async function sendWithEgressAudit(
   opts: SendWithEgressAuditOptions,
 ): Promise<ProviderResponse> {
+  // Kept as a compatibility entry point while older callers are removed. It
+  // must still take the prepared path: this module is not an exception to the
+  // cloud-send rule.
+  const { sendPreparedMessageWithEgressAudit } = await import('./promptPreparation');
+  const { modelCall, ...context } = opts;
   const model = effectiveModel(opts);
-  const { prompt, options, modelCall, ...context } = opts;
-  const runOpts: RunWithEgressAuditOptions<ProviderResponse> = {
+  return sendPreparedMessageWithEgressAudit({
     ...context,
-    model,
-    operation: () => opts.provider.sendMessage(prompt, options),
-  };
-  if (modelCall) {
-    runOpts.modelCall = (response) => ({
-      action: 'model_call',
-      description: modelCall.description,
-      model,
-      inputs: modelCall.inputs ?? { promptLength: prompt.length },
-      outputs: modelCall.outputs?.(response) ?? { contentLength: response.content.length },
-      userDecision: modelCall.userDecision ?? 'auto',
-      metadata: modelCall.metadata ?? {},
-      tokensIn: (response as Partial<ProviderResponse>).usage?.inputTokens ?? 0,
-      tokensOut: (response as Partial<ProviderResponse>).usage?.outputTokens ?? 0,
-      costUsd: (response as Partial<ProviderResponse>).cost ?? 0,
-      provider: context.providerId,
-    });
-  }
-  return runWithEgressAudit<ProviderResponse>(runOpts);
+    surface: 'legacy_egress_send',
+    ...(modelCall
+      ? {
+        modelCall: (response: ProviderResponse) => ({
+          action: 'model_call' as const,
+          description: modelCall.description,
+          model,
+          inputs: modelCall.inputs ?? { promptLength: opts.prompt.length },
+          outputs: modelCall.outputs?.(response) ?? { contentLength: response.content.length },
+          userDecision: modelCall.userDecision ?? 'auto',
+          metadata: modelCall.metadata ?? {},
+          tokensIn: response.usage.inputTokens,
+          tokensOut: response.usage.outputTokens,
+          costUsd: response.cost,
+          provider: opts.providerId,
+        }),
+      }
+      : {}),
+  });
 }

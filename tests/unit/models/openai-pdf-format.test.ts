@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
 import type { ChatAttachment } from '@/platform/types/ai';
+import { extractPdfText } from '@/lib/pdf-extract';
 
 // Mock pdf-extract so tests do not need a real PDF.js environment.
 vi.mock('@/lib/pdf-extract', () => ({
@@ -52,6 +53,18 @@ describe('OpenAIProvider.formatAttachmentForRequest (PDF)', () => {
     const provider = makeProvider('gpt-4o');
     const block = await provider.formatAttachmentForRequest(pdfAtt, PDF_BYTES) as any;
     expect(block._text_extract.fileName).toBe('deck.pdf');
+  });
+
+  it('blocks extracted PDF text containing a private link before upload', async () => {
+    vi.mocked(extractPdfText).mockResolvedValueOnce({
+      pages: ['https://example.test/i/abc#intake-secret'],
+      pageCount: 1,
+      encrypted: false,
+      scanned: false,
+    });
+    const provider = makeProvider('gpt-4o');
+    await expect(provider.formatAttachmentForRequest(pdfAtt, PDF_BYTES))
+      .rejects.toThrow('prompt_review_required');
   });
 });
 

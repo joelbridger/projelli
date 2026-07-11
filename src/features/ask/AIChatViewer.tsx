@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useVoiceRecording } from './hooks/useVoiceRecording';
 import { useChatSending } from './hooks/useChatSending';
+import { usePromptPreparationDecision } from './usePromptPreparationDecision';
 import { deriveFactScope } from './hooks/deriveFactScope';
 import { useAIRules } from './hooks/useAIRules';
 import { useCitationHandlers } from './hooks/useCitationHandlers';
@@ -167,6 +168,7 @@ export function buildOpenFilesPromptBlock(openFiles: ExtractedContext[]): string
 
 export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspaceServiceRef, rootPath, onFileTreeChange, onAuditLog, onOpenFileAtPath, className }: AIChatViewerProps) {
   const { t } = useTranslation();
+  const promptPreparationDialog = usePromptPreparationDecision();
   const entityLabel = useEntityLabel();
   // The provider this chat ACTUALLY targets. A chat with no saved provider must
   // never fall back to the cloud ('anthropic') while the embedded Lantern Local
@@ -990,6 +992,7 @@ export function AIChatViewer({ chatData, onSave, onExport, apiKeys = [], workspa
 
   return (
     <div data-testid="ai-chat-viewer" className={cn('flex flex-col h-full', className)}>
+      {promptPreparationDialog}
       {/* Header */}
       <ChatHeader
         chatData={chatData}

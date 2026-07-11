@@ -19,20 +19,22 @@ function makeProvider(model: string) {
 }
 
 describe('GeminiProvider.formatAttachmentForRequest (image)', () => {
-  it('returns inlineData block', async () => {
+  it('blocks an image when local OCR text is unavailable', async () => {
     const provider = makeProvider('gemini-1.5-flash');
-    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
-    expect(block).toMatchObject({
-      inlineData: {
-        mimeType: 'image/png',
-      },
-    });
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES))
+      .rejects.toThrow('unscannable_attachment');
   });
 
-  it('inlineData.data is base64 of bytes', async () => {
+  it('passes the original image bytes after clean local OCR text', async () => {
     const provider = makeProvider('gemini-1.5-flash');
-    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
-    expect(atob(block.inlineData.data).charCodeAt(0)).toBe(0x89);
+    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'Clean chart title');
+    expect(block).toMatchObject({ inlineData: { data: 'iVBORw==' } });
+  });
+
+  it('blocks an image when local OCR finds a secret', async () => {
+    const provider = makeProvider('gemini-1.5-flash');
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'access_token=image-secret'))
+      .rejects.toThrow('prompt_review_required');
   });
 });
 

@@ -10,8 +10,8 @@ vi.mock('@/platform/utils/docx-io', () => ({
   applyLetterheadIfConfigured: vi.fn(async (b: ArrayBuffer) => b),
 }));
 
-vi.mock('@/platform/privacy/sendWithEgressAudit', () => ({
-  sendWithEgressAudit: vi.fn(async (opts: {
+vi.mock('@/platform/privacy/promptPreparation', () => ({
+  sendPreparedMessageWithEgressAudit: vi.fn(async (opts: {
     provider: { sendMessage: (prompt: string, options?: unknown) => Promise<unknown> };
     prompt: string;
     options?: unknown;

@@ -35,7 +35,8 @@ import {
 } from '@/platform/profile/professionModel';
 import type { ClientMap } from '@/platform/clientMap/types';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 
 // Re-export types consumed by callers so they don't need to reach into
@@ -316,20 +317,21 @@ Rules:
   if (options?.signal !== undefined) {
     sendOpts.signal = options.signal;
   }
-  const response = await sendWithEgressAudit({
+  const response = await sendPreparedMessageWithEgressAudit({
     provider,
     providerId: resolvedProvider.providerId,
     model: resolvedProvider.model,
     prompt: 'Summarize this client for the advisor.',
     options: sendOpts,
+    surface: 'client_at_a_glance',
+    background: true,
+    parts: [
+      { id: 'prompt', origin: 'client_map', label: 'At-a-glance request', text: 'Summarize this client for the advisor.' },
+      { id: 'at-a-glance-context', origin: 'client_map', label: 'Client source context', text: systemPrompt },
+    ],
     ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
     scope,
-    modelCall: {
-      description: `At-a-glance summary to ${resolvedProvider.model}`,
-      inputs: { matterId },
-      outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
-      metadata: { feature: 'at_a_glance' },
-    },
+    modelCall: (response) => ({ action: 'model_call', description: `At-a-glance summary to ${resolvedProvider.model}`, model: resolvedProvider.model, inputs: { matterId }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'at_a_glance' }, ...modelAuditMetrics(response), provider: resolvedProvider.providerId }),
   });
 
   if (options?.signal?.aborted) {

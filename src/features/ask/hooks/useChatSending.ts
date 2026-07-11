@@ -18,6 +18,7 @@ import { loadAttachmentBytes } from './loadAttachmentBytes';
 import { withAskTimeout, ASK_RETRIEVAL_TIMEOUT_MS } from '@/features/ask/askTimeout';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
+import { extractImageTextForCloudScan } from '@/features/ask/attachments/imageOcrForCloudScan';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
 import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/platform/types/ai';
@@ -30,7 +31,7 @@ import {
   type AuditLogSink,
 } from '@/platform/audit/durableAudit';
 import { resolveEgress } from '@/platform/privacy/egress';
-import { runWithEgressAudit, sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit, sendPreparedStreamingWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import type { Provider } from '@/platform/providers/Provider';
 import { createProvider, isLocalProviderId } from '@/platform/providers/providerFactory';
@@ -399,20 +400,30 @@ export function useChatSending(deps: UseChatSendingDeps) {
         batchTokenTarget: 10_000,
         fastProvider: fastResolved.provider,
         sendSummary: (provider, prompt, options, batchIndex) =>
-          sendWithEgressAudit({
+          sendPreparedMessageWithEgressAudit({
             provider,
             providerId: fastResolved.providerId,
             model: fastResolved.model,
+            surface: 'chat_compression',
             prompt,
             options,
+            parts: [{ id: 'chat-history', origin: 'chat_history', label: 'Earlier chat messages', text: prompt }],
+            background: true,
             ...(onAuditLog ? { onAuditLog } : {}),
             scope: compressionScope,
-            modelCall: {
+            modelCall: (response) => ({
+              action: 'model_call',
               description: `Chat compression batch to ${fastResolved.model}`,
+              model: fastResolved.model,
               inputs: { chatId, batchIndex, promptLength: prompt.length },
-              outputs: (response) => ({ contentLength: response.content.length }),
+              outputs: { contentLength: response.content.length },
+              userDecision: 'auto',
               metadata: { chatId, feature: 'chat_compression', batchIndex },
-            },
+              tokensIn: response.usage.inputTokens,
+              tokensOut: response.usage.outputTokens,
+              costUsd: response.cost,
+              provider: fastResolved.providerId,
+            }),
           }),
       });
       const tokensAfter = result.resultingTokens;
@@ -432,9 +443,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
         });
       }
     } catch (err) {
+      const message = err instanceof Error && err.message === 'prompt_review_required'
+        ? 'Review private links before sending this summary to AI.'
+        : `Compression failed: ${err instanceof Error ? err.message : String(err)}`;
       addMessage(chatId, {
         role: 'assistant',
-        content: `Compression failed: ${err instanceof Error ? err.message : String(err)}`,
+        content: message,
         timestamp: new Date().toISOString(),
         isError: true,
       });
@@ -1044,6 +1058,31 @@ export function useChatSending(deps: UseChatSendingDeps) {
           provider: chatProvider,
         });
 
+        // The prepared helper emits its receipt synchronously before it starts
+        // its egress operation. Keep the older durable intent pair, but create
+        // it only after that receipt says this request may proceed. The helper's
+        // own egress/model rows are intentionally not duplicated here: this
+        // chat path already records the durable intent/outcome pair below.
+        const preparedAuditLogger: AuditLogSink = (entry) => {
+          if (entry.action !== 'prompt_preparation') return;
+          onAuditLog?.(entry);
+        };
+
+        const saveDurableIntent = async (auditPairId: string, streamed: boolean) => {
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildSuccessfulEgressAuditEntry(),
+            'intent',
+            auditPairId,
+          );
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildModelCallAuditEntry(0, streamed),
+            'intent',
+            auditPairId,
+          );
+        };
+
         const emitSuccessfulAttachmentAudits = () => {
           // Only attachments actually sent — a withheld unconsented export must
           // NOT be audited as "sent to provider".
@@ -1608,10 +1647,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // read is skipped gracefully (logged but not fatal).
         // Load bytes ONLY for sentAttachments — unconsented exports were already
         // excluded above, so their bytes are never read or handed to the provider.
-        const attachmentBytes = await loadAttachmentBytes(
+        let attachmentBytes = await loadAttachmentBytes(
           sentAttachments,
           workspaceServiceRef?.current?.getBackend() ?? null,
         );
+        // Vision uploads are only allowed after the existing local OCR seam has
+        // read their text. Clean images retain their original bytes; a secret or
+        // an OCR failure is blocked by prompt preparation below (we cannot safely
+        // redact image pixels yet).
+        const imageOcrText = new Map<string, string>();
+        for (const attachment of attachmentBytes ?? []) {
+          const text = await extractImageTextForCloudScan(attachment);
+          if (text !== undefined) imageOcrText.set(attachment.att.id, text);
+        }
+        attachmentBytes = attachmentBytes?.map((attachment) => {
+          const extractedText = imageOcrText.get(attachment.att.id);
+          return extractedText === undefined ? attachment : { ...attachment, extractedText };
+        });
 
         // F2.5 — the system prompt's "you have read/write file tools" block MUST
         // match what was ACTUALLY registered (same predicate). When file access
@@ -1716,40 +1768,55 @@ export function useChatSending(deps: UseChatSendingDeps) {
             // BEFORE the attachment/memory awaits, so re-check immediately before
             // the actual network send.
             assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
-            await mustLogAuditPhase(
-              onAuditLog,
-              buildSuccessfulEgressAuditEntry(),
-              'intent',
-              auditPairId,
-            );
-            await mustLogAuditPhase(
-              onAuditLog,
-              buildModelCallAuditEntry(0, true),
-              'intent',
-              auditPairId,
-            );
             providerCallAttempted = true;
-            streamingResponse = await runWithEgressAudit({
+            streamingResponse = await sendPreparedStreamingWithEgressAudit({
               provider,
               providerId: provider.getMetadata().providerId ?? chatProvider,
               model: effectiveChatModel,
-              operation: () =>
-                provider.sendMessageStreaming!(userMessage.content, {
-                  systemPrompt,
-                  maxTokens: 4096,
-                  onChunk: (chunk: string) => {
-                    streamingAuditState.receivedChunk = true;
-                    accumulated += chunk;
-                    // Buffer locally (component state, not the Zustand store)
-                    // and flush at most once per animation frame. The store
-                    // gets exactly one write for this turn, once the stream
-                    // finishes (or is aborted) — see the `finally` below and
-                    // the citation-verification commit further down.
-                    flusher.push(accumulated);
-                  },
-                  signal: abortController.signal,
-                  ...(attachmentBytes ? { attachmentBytes } : {}),
+              surface: 'chat_send',
+              prompt: userMessage.content,
+              options: {
+                systemPrompt,
+                maxTokens: 4096,
+                onChunk: (chunk: string) => {
+                  streamingAuditState.receivedChunk = true;
+                  accumulated += chunk;
+                  // Buffer locally (component state, not the Zustand store)
+                  // and flush at most once per animation frame. The store
+                  // gets exactly one write for this turn, once the stream
+                  // finishes (or is aborted) — see the `finally` below and
+                  // the citation-verification commit further down.
+                  flusher.push(accumulated);
+                },
+                signal: abortController.signal,
+                ...(attachmentBytes ? { attachmentBytes } : {}),
+              },
+              onAuditLog: preparedAuditLogger,
+              beforeEgress: () => saveDurableIntent(auditPairId, true),
+              parts: [
+                { id: 'prompt', origin: 'typed_question', label: 'Your message', text: userMessage.content },
+                { id: 'chat-history', origin: 'chat_history', label: 'Earlier chat messages', text: messages.map((message) => message.content).join('\n') },
+                { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: retrievedSources.map((source) => source.chunkText).join('\n') },
+                { id: 'open-files', origin: 'open_file', label: 'Open files', text: fileBlock },
+                { id: 'facts', origin: 'chat_history', label: 'Saved chat facts', text: facts.map((fact) => fact.text).join('\n') },
+                ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => {
+                  const extraction = pdfExtractions[attachment.att.id];
+                  const imageText = imageOcrText.get(attachment.att.id);
+                  return {
+                    id: `attachment-${attachment.att.id}`,
+                    origin: 'attachment_text' as const,
+                    label: 'Attachment',
+                    attachment: {
+                      attachmentId: attachment.att.id,
+                      attachmentIndex,
+                      canRedact: attachment.att.type === 'pdf',
+                      ...(extraction
+                        ? { extractedText: extraction.pages.join('\n') }
+                        : imageText !== undefined ? { extractedText: imageText } : {}),
+                    },
+                  };
                 }),
+              ],
             });
           } catch (err) {
             if (err instanceof DOMException && err.name === 'AbortError') {
@@ -1832,23 +1899,12 @@ export function useChatSending(deps: UseChatSendingDeps) {
           // the actual send (the top-of-send check predates the awaits above).
           assertLocalOnlyAllowsSend(provider.getMetadata().providerId ?? chatProvider);
           const auditPairId = createAuditPairId('chat');
-          await mustLogAuditPhase(
-            onAuditLog,
-            buildSuccessfulEgressAuditEntry(),
-            'intent',
-            auditPairId,
-          );
-          await mustLogAuditPhase(
-            onAuditLog,
-            buildModelCallAuditEntry(0, false),
-            'intent',
-            auditPairId,
-          );
           providerCallAttempted = true;
-          const response = await sendWithEgressAudit({
+          const response = await sendPreparedMessageWithEgressAudit({
             provider,
             providerId: provider.getMetadata().providerId ?? chatProvider,
             model: effectiveChatModel,
+            surface: 'chat_send',
             prompt: userMessage.content,
             options: {
               systemPrompt,
@@ -1862,12 +1918,45 @@ export function useChatSending(deps: UseChatSendingDeps) {
             fileToolsEnabled: fileToolsRegisteredForSend,
             isDemo: IS_DEMO,
             assuredAvailable: Boolean(assuredRoute),
-            modelCall: {
+            onAuditLog: preparedAuditLogger,
+            beforeEgress: () => saveDurableIntent(auditPairId, false),
+            parts: [
+              { id: 'prompt', origin: 'typed_question', label: 'Your message', text: userMessage.content },
+              { id: 'chat-history', origin: 'chat_history', label: 'Earlier chat messages', text: messages.map((message) => message.content).join('\n') },
+              { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: retrievedSources.map((source) => source.chunkText).join('\n') },
+              { id: 'open-files', origin: 'open_file', label: 'Open files', text: fileBlock },
+              { id: 'facts', origin: 'chat_history', label: 'Saved chat facts', text: facts.map((fact) => fact.text).join('\n') },
+              ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => {
+                const extraction = pdfExtractions[attachment.att.id];
+                const imageText = imageOcrText.get(attachment.att.id);
+                return {
+                  id: `attachment-${attachment.att.id}`,
+                  origin: 'attachment_text' as const,
+                  label: 'Attachment',
+                  attachment: {
+                    attachmentId: attachment.att.id,
+                    attachmentIndex,
+                    canRedact: attachment.att.type === 'pdf',
+                    ...(extraction
+                      ? { extractedText: extraction.pages.join('\n') }
+                      : imageText !== undefined ? { extractedText: imageText } : {}),
+                  },
+                };
+              }),
+            ],
+            modelCall: (modelResponse) => ({
+              action: 'model_call',
               description: `Chat message to ${effectiveChatModel}`,
+              model: effectiveChatModel,
               inputs: { promptLength: userMessage.content.length },
-              outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+              outputs: { contentLength: modelResponse.content.length },
+              userDecision: 'auto',
               metadata: { chatId, streamed: false },
-            },
+              tokensIn: modelResponse.usage.inputTokens,
+              tokensOut: modelResponse.usage.outputTokens,
+              costUsd: modelResponse.cost,
+              provider: provider.getMetadata().providerId ?? chatProvider,
+            }),
           });
 
           providerSendCompletedOrCancelledAfterEgress = true;
@@ -1953,6 +2042,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
 
         const chatProvider = effectiveProvider;
         const chatModel = chatData.model;
+        const promptReviewRequired = error instanceof Error && error.message === 'prompt_review_required';
         if (!providerSendCompletedOrCancelledAfterEgress || error instanceof LocalOnlyEgressError) {
           const egress = resolveEgress({
             provider: chatProvider,
@@ -1960,7 +2050,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
             isDemo: IS_DEMO,
             assuredAvailable: assuredAvailableForChat,
           });
-          const failureType = error instanceof LocalOnlyEgressError
+          const failureType = error instanceof LocalOnlyEgressError || promptReviewRequired
             ? 'egress_blocked'
             : 'egress_failed';
           onAuditLog?.({
@@ -2018,7 +2108,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // telling the user how to fix it. We NEVER silently retry on a cloud
         // provider here: a Local-only / Ollama selection that errors stays
         // local-and-failed, it does not leak to the cloud.
-        if (isLocalProviderId(effectiveProvider)) {
+        if (promptReviewRequired) {
+          errorContent = 'Review private links before sending this material to AI.';
+        } else if (isLocalProviderId(effectiveProvider)) {
           errorContent =
             "Ollama isn't running, so this local chat couldn't get a response. " +
             'Start Ollama (then try again), or switch your confidentiality mode ' +
