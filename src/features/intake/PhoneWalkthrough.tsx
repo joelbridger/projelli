@@ -163,6 +163,14 @@ export function PhoneWalkthrough({
             matterFolderPath,
             fileName,
             bytes,
+            documentExtraction: {
+              matterId,
+              requestId: liveIntake.intakeId,
+              intakeId: liveIntake.intakeId,
+              itemId: current.item.item_id,
+              subject: current.item.subject,
+              ...(file.type ? { mimeType: file.type } : {}),
+            },
           });
         }));
         markReceived(at, undefined, paths[0]);
