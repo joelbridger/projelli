@@ -23,6 +23,7 @@ import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInf
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
+import { scanPromptPart } from '@/platform/privacy/promptPreparation';
 import { getMaxContextTokens } from './context-limits';
 import {
   abortAwareSleep,
@@ -773,6 +774,7 @@ Respond ONLY with the JSON object.`;
     bytes: Uint8Array
   ): Promise<ProviderContentBlock> {
     if (att.type === 'image') {
+      requireScannableAttachment(att);
       const data = bytesToBase64(bytes);
       return {
         type: 'image_url',
@@ -781,12 +783,11 @@ Respond ONLY with the JSON object.`;
     }
 
     if (att.type === 'pdf') {
-      const result = await extractPdfText(bytes);
-      const text = result.pages.join('\n\n');
+      const { text, pageCount } = await readScannablePdf(att, bytes);
       return {
         _text_extract: {
           text,
-          pageCount: result.pageCount,
+          pageCount,
           fileName: att.fileName,
         },
       } satisfies TextExtractBlock;
@@ -815,6 +816,38 @@ Respond ONLY with the JSON object.`;
   supportsNativePdf(_model: string): boolean {
     return false;
   }
+}
+
+function requireScannableAttachment(att: ChatAttachment): void {
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_binary',
+    label: att.fileName,
+    attachment: {},
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+}
+
+async function readScannablePdf(
+  att: ChatAttachment,
+  bytes: Uint8Array,
+): Promise<{ text: string; pageCount: number }> {
+  let result: Awaited<ReturnType<typeof extractPdfText>>;
+  try {
+    result = await extractPdfText(bytes);
+  } catch {
+    throw new Error('unscannable_attachment');
+  }
+  const text = result.pages.join('\n\n');
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_text',
+    label: att.fileName,
+    attachment: { extractedText: text, canRedact: false },
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
+  return { text, pageCount: result.pageCount };
 }
 
 /**

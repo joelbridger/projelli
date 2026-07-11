@@ -6,9 +6,11 @@ vi.mock('@/platform/privacy/cloudSendGuard', async (importOriginal) => {
 import { SECRET_SCRUB_FIXTURES } from './promptPreparation.fixtures';
 import {
   assertCloudPreparation,
+  getPendingPromptReview,
   getPreparationEnforcementMode,
   prepareCloudRequest,
   prepareToolResultContinuation,
+  resetPromptPreparationStateForTests,
   scanPromptPart,
   sendPreparedMessageWithEgressAudit,
   setPromptDecisionBroker,
@@ -28,7 +30,11 @@ function pdfAttachment(overrides: Partial<AttachmentBytes['att']> = {}, bytes = 
   };
 }
 
-afterEach(() => { setPreparationEnforcementMode('warn'); setPromptDecisionBroker(); vi.unstubAllGlobals(); });
+afterEach(() => {
+  setPreparationEnforcementMode('warn');
+  resetPromptPreparationStateForTests();
+  vi.unstubAllGlobals();
+});
 
 describe('prompt preparation red-team catalog', () => {
   it('finds every required secret family without retaining a value in the receipt data', () => {
@@ -152,6 +158,10 @@ describe('prompt preparation red-team catalog', () => {
   it('blocks a secret-bearing tool continuation before the follow-up request', () => {
     expect(() => prepareToolResultContinuation(SECRET_SCRUB_FIXTURES.urls)).toThrow('prompt_review_required');
     expect(prepareToolResultContinuation('ordinary tool response')).toBe('ordinary tool response');
+  });
+
+  it('starts clean after a test leaves a pending review', () => {
+    expect(getPendingPromptReview()).toBeUndefined();
   });
 
   it('warn mode never throws while enforce mode stops before a fetch can start', () => {

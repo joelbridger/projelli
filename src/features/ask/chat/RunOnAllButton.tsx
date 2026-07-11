@@ -136,6 +136,9 @@ export function RunOnAllButton({
           providerId: p.id,
           model: p.provider.getMetadata().model,
           prompt,
+          // runAll has just made the equivalent fail-closed check above; each
+          // cloud adapter also checks again immediately before its request.
+          preflightChecked: true,
           modelCall: {
             description: `Run on all request to ${p.label}`,
             inputs: { promptLength: prompt.length },

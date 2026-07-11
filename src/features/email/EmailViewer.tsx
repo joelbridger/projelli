@@ -66,7 +66,7 @@ import {
 import { deriveFilenameFromMessage } from '@/platform/utils/fileDrop';
 import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
 import { matterLabel } from '@/platform/rag/matterResolver';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import {
   emailMatterScope,
   effectiveModeForDestination,
@@ -358,11 +358,18 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
         `Body:\n${sanitizeForPrompt(stripResidualTags(message.body))}\n</incoming_email>\n\n` +
         `Write a clear, professional reply. Return only the reply text, no subject line or headers.`;
       const scope = emailMatterScope(filedMatterId, filedMatter?.name);
-      const response = await sendWithEgressAudit({
+      const response = await sendPreparedMessageWithEgressAudit({
         provider,
         providerId,
         model: provider.getMetadata().model,
+        surface: 'email_reply_draft',
         prompt,
+        parts: [{
+          id: 'prompt',
+          origin: 'email',
+          label: 'Email reply source',
+          text: prompt,
+        }],
         mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
         auditMode: (egress) => effectiveModeForDestination(egress.destination),
         assuredAvailable,
@@ -373,12 +380,19 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
           });
         },
         ...(scope ? { scope } : {}),
-        modelCall: {
-          description: `Drafted an email reply with AI`,
+        modelCall: (modelResponse) => ({
+          action: 'model_call',
+          description: 'Drafted an email reply with AI',
+          model: modelResponse.model,
           inputs: { messageId: message.id },
-          outputs: (modelResponse) => ({ contentLength: modelResponse.content.length }),
+          outputs: { contentLength: modelResponse.content.length },
+          userDecision: 'auto',
           metadata: { feature: 'email_draft', messageId: message.id },
-        },
+          tokensIn: modelResponse.usage.inputTokens,
+          tokensOut: modelResponse.usage.outputTokens,
+          costUsd: modelResponse.cost,
+          provider: providerId,
+        }),
       });
       // QA-53: the viewer may have switched to a different email while the model
       // ran — drop A's draft rather than dropping it into B's reply box.
