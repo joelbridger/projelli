@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { PdfCompletionReceipt, PdfTemplateDescriptor } from './types';
 import { sha256Hex } from './pdfTemplates/receipt';
-import { verifyPdfFillReceipt } from './pdfFillReceipt';
+import { assertSafeFlattenedPdf, verifyPdfFillReceipt } from './pdfFillReceipt';
 
 const enc = new TextEncoder();
 
@@ -82,6 +82,12 @@ describe('verifyPdfFillReceipt', () => {
     const approved = descriptor();
     await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved }))
       .rejects.toThrow(/interactive|active|attachment/iu);
+  });
+
+  it('rejects a name-escaped launch action after PDF.js resolves the catalog action', async () => {
+    const bytes = validPdf('/OpenAction << /S /#4c#61#75#6e#63#68 /F (unsafe.exe) >>');
+
+    await expect(assertSafeFlattenedPdf(bytes)).rejects.toThrow(/active document action/iu);
   });
 
   it('rejects malformed bytes and a missing local descriptor', async () => {

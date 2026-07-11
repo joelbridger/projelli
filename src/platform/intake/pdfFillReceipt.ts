@@ -8,6 +8,7 @@ import {
 type PdfJsDocument = {
   numPages: number;
   isPureXfa: boolean;
+  getOpenAction(): Promise<Record<string, unknown> | null>;
   getAttachments(): Promise<unknown>;
   getFieldObjects(): Promise<Record<string, unknown[]> | null>;
   getJSActions(): Promise<Record<string, unknown> | null>;
@@ -36,6 +37,7 @@ export interface VerifyPdfFillReceiptOptions {
 
 const PDF_HEADER = new TextEncoder().encode('%PDF-');
 const ACTIVE_PDF_NAME = /\/(?:AcroForm|JavaScript|JS|Launch|EmbeddedFiles?|Filespec|RichMedia|XFA|Sig)\b|\/Subtype\s*\/Widget\b/iu;
+const ACTIVE_PDF_ACTION = new Set(['Launch', 'GoToR', 'URI', 'SubmitForm', 'ImportData']);
 
 function hasPdfHeader(bytes: Uint8Array): boolean {
   const limit = Math.min(bytes.byteLength - PDF_HEADER.byteLength, 1024);
@@ -56,14 +58,41 @@ function containsActivePdfNames(bytes: Uint8Array): boolean {
   return ACTIVE_PDF_NAME.test(new TextDecoder('latin1').decode(bytes));
 }
 
+function containsEscapedActivePdfActionName(bytes: Uint8Array): boolean {
+  const source = new TextDecoder('latin1').decode(bytes);
+  const names = source.matchAll(/\/((?:#[0-9a-f]{2}|[^\s()[\]<>/{%])+)/giu);
+  for (const [, encodedName] of names) {
+    const name = encodedName.replaceAll(/#([0-9a-f]{2})/giu, (_match, hex: string) =>
+      String.fromCharCode(Number.parseInt(hex, 16)));
+    if (ACTIVE_PDF_ACTION.has(name)) return true;
+  }
+  return false;
+}
+
 function hasEntries(value: Record<string, unknown> | null): boolean {
   return value !== null && Object.keys(value).length > 0;
 }
 
 function annotationIsActive(annotation: Record<string, unknown>): boolean {
   if (annotation['subtype'] === 'Widget' || annotation['fieldType'] === 'Sig') return true;
+  if (
+    annotation['url'] !== undefined ||
+    annotation['unsafeUrl'] !== undefined ||
+    annotation['resetForm'] !== undefined ||
+    annotation['attachment'] !== undefined
+  ) return true;
   const actions = annotation['actions'];
   return typeof actions === 'object' && actions !== null && Object.keys(actions as object).length > 0;
+}
+
+function openActionIsActive(openAction: Record<string, unknown> | null): boolean {
+  if (!openAction) return false;
+  return (
+    openAction['url'] !== undefined ||
+    openAction['unsafeUrl'] !== undefined ||
+    openAction['resetForm'] !== undefined ||
+    openAction['attachment'] !== undefined
+  );
 }
 
 async function loadPdfJs(): Promise<PdfJsModule> {
@@ -96,6 +125,18 @@ export async function assertSafeFlattenedPdf(completedBytes: Uint8Array): Promis
   try {
     document = await loadingTask.promise;
     if (document.isPureXfa) throw new Error('Completed form contains an unsupported XFA form.');
+    // PDF.js resolves PDF name escapes before exposing action data. Check the
+    // catalog action plus every annotation with the broadest annotation intent.
+    if (openActionIsActive(await document.getOpenAction())) {
+      throw new Error('Completed form contains an active document action.');
+    }
+    // PDF.js does not expose every unsupported action subtype (notably
+    // SubmitForm and ImportData) in its public action result. Decode PDF names
+    // as a fail-closed companion check after parsing, so #XX escapes cannot
+    // hide those action names from the safety boundary.
+    if (containsEscapedActivePdfActionName(completedBytes)) {
+      throw new Error('Completed form contains an active document action.');
+    }
     if (hasEntries(await document.getAttachments())) {
       throw new Error('Completed form contains an attachment.');
     }
@@ -110,7 +151,7 @@ export async function assertSafeFlattenedPdf(completedBytes: Uint8Array): Promis
       if (hasEntries(await page.getJSActions())) {
         throw new Error('Completed form contains PDF JavaScript.');
       }
-      if ((await page.getAnnotations({ intent: 'display' })).some(annotationIsActive)) {
+      if ((await page.getAnnotations({ intent: 'any' })).some(annotationIsActive)) {
         throw new Error('Completed form contains an interactive or signature field.');
       }
     }

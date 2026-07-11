@@ -721,6 +721,59 @@ describe('useIntakeInboxSync wiring helpers', () => {
     expect(useIntakeStore.getState().intakesById['onboarding-1']?.items[0]).toMatchObject({ state: 'not_started' });
   });
 
+  it('rejects a PDF form incorrectly attached to onboarding without filing beneath onboarding', async () => {
+    const template = pdfDescriptor();
+    const bytes = completedPdf();
+    const record = intake({
+      kind: 'onboarding', requestSlug: 'onboarding',
+      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+    });
+    useIntakeStore.getState().upsertIntake(record);
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    if (!current) throw new Error('missing intake');
+    const fileDocument = vi.fn();
+
+    await expect(routeIntakeSubmission(routedSubmission(null, {
+      itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
+    }), {
+      intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
+    })).rejects.toThrow(/standing request/iu);
+
+    expect(fileDocument).not.toHaveBeenCalled();
+    expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]).toMatchObject({ state: 'needs_followup' });
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'integrity_mismatch', itemId: 'pdf-form' }),
+    ]));
+  });
+
+  it('flags an operational PDF filing failure and leaves the submission unreceived', async () => {
+    const template = pdfDescriptor();
+    const bytes = completedPdf();
+    vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(template);
+    const record = intake({
+      kind: 'standing', requestSlug: 'beneficiary-update-a1',
+      items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: 'pdf-form', label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+    });
+    useIntakeStore.getState().upsertIntake(record);
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    if (!current) throw new Error('missing intake');
+    const fileDocument = vi.fn().mockRejectedValue(new Error('Disk is full.'));
+
+    await expect(routeIntakeSubmission(routedSubmission(null, {
+      itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
+    }), {
+      intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
+    })).rejects.toThrow(/disk is full/iu);
+
+    expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]).toMatchObject({ state: 'needs_followup' });
+    expect(useIntakeStore.getState().intakesById['intake-1']?.receivedItems).toEqual([]);
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'integrity_mismatch', itemId: 'pdf-form' }),
+    ]));
+  });
+
   it('leaves a rejected PDF form unacknowledged on the relay', async () => {
     const template = pdfDescriptor();
     const record = intake({
