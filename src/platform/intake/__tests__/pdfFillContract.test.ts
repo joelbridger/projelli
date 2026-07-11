@@ -220,7 +220,7 @@ function recordingWorkspace() {
   return {
     paths,
     workspaceService: {
-      writeFileBinary: async (path: string) => { paths.push(path); },
+      writeFileBinary: (path: string) => { paths.push(path); return Promise.resolve(); },
     } as never,
   };
 }
@@ -413,7 +413,7 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
     }
 
     const storedItem = record.requestItems?.find((item) => item.t === 'pdf_fill');
-    if (!storedItem || storedItem.t !== 'pdf_fill') throw new Error('Expected the PDF request item.');
+    if (!storedItem) throw new Error('Expected the PDF request item.');
     expect(storedItem.template).toEqual({
       templateId: template.templateId,
       version: template.version,
@@ -426,7 +426,7 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
       bundle.checklistCiphertextB64,
     );
     const sealedPdfItem = sealedChecklist.items.find((item) => item.t === 'pdf_fill');
-    if (!sealedPdfItem || sealedPdfItem.t !== 'pdf_fill') throw new Error('Expected the sealed PDF request item.');
+    if (!sealedPdfItem) throw new Error('Expected the sealed PDF request item.');
     expect(sealedPdfItem.template).toEqual(template);
   });
 
