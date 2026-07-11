@@ -226,7 +226,11 @@ pub async fn tts_download_voice(
 
     // Keep a fresh capability alive while consuming the body too: receiving a
     // large archive is still network activity and must stop after a mode flip.
-    let body_grant = authorize_url(policy.inner(), &VOICE_MODEL_DOWNLOAD, &cdn_url)
+    // `response.url()` is the URL of the final authorized redirect hop. Use
+    // it for the body grant and receipt so the audit trail names the host that
+    // actually supplied the archive, not merely the initial CDN URL.
+    let body_url = response.url().as_str().to_string();
+    let body_grant = authorize_url(policy.inner(), &VOICE_MODEL_DOWNLOAD, &body_url)
         .map_err(|e| e.to_string())?;
     let archive_bytes = await_authorized(policy.inner(), &body_grant, async {
         Ok(response.bytes().await?)

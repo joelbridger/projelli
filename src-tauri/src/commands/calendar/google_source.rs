@@ -117,7 +117,24 @@ impl CalendarSource for GoogleCalendarSource {
             if !resp.status().is_success() {
                 anyhow::bail!("google events.list http {}", resp.status().as_u16());
             }
-            let v: serde_json::Value = resp.json().await?;
+            // `send_with_authorized_redirects` owns the request only through
+            // response headers. Keep a new grant while reqwest consumes the
+            // JSON body, so a mode flip cannot finish a response in flight.
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(
+                &self.policy,
+                &self.operation,
+                &body_url,
+            )?;
+            let v: serde_json::Value = crate::commands::connector_network::await_authorized(
+                &self.policy,
+                &body_grant,
+                async {
+                    let mut body = resp.bytes_stream();
+                    parse_google_events_body(&mut body).await
+                },
+            )
+            .await?;
             for item in v.get("items").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
                 if let Some(e) = map_google_event(item)? {
                     out.push(e);
@@ -130,6 +147,21 @@ impl CalendarSource for GoogleCalendarSource {
         }
         Ok(out)
     }
+}
+
+async fn parse_google_events_body<S, B, E>(body: &mut S) -> anyhow::Result<serde_json::Value>
+where
+    S: futures_util::Stream<Item = Result<B, E>> + Unpin,
+    B: AsRef<[u8]>,
+    E: Into<anyhow::Error>,
+{
+    use futures_util::StreamExt;
+
+    let mut bytes = Vec::new();
+    while let Some(chunk) = body.next().await {
+        bytes.extend_from_slice(chunk.map_err(Into::into)?.as_ref());
+    }
+    Ok(serde_json::from_slice(&bytes)?)
 }
 
 fn rfc3339_to_utc(s: &str) -> anyhow::Result<String> {
@@ -402,6 +434,56 @@ mod tests {
         );
         assert!(events[1].is_cancelled, "status cancelled maps");
         assert!(events[2].self_declined, "self attendee declined maps");
+    }
+
+    #[tokio::test]
+    async fn offline_mode_stops_google_calendar_body_after_the_first_chunk() {
+        let policy = test_policy();
+        let grant = crate::commands::connector_network::authorize_url(
+            &policy,
+            &crate::network_policy::LOCAL_LLAMA,
+            "http://127.0.0.1:18089/calendar",
+        )
+        .unwrap();
+        let (first_chunk_tx, first_chunk_rx) = tokio::sync::oneshot::channel();
+        let (release_second_tx, release_second_rx) = tokio::sync::oneshot::channel();
+        let stream = Box::pin(futures_util::stream::unfold(
+            (0_u8, Some(first_chunk_tx), Some(release_second_rx)),
+            |(state, first_chunk, release_second)| async move {
+                match state {
+                    0 => {
+                        let _ = first_chunk.unwrap().send(());
+                        Some((
+                            Ok::<Vec<u8>, std::io::Error>(b"{\"items\":".to_vec()),
+                            (1, None, release_second),
+                        ))
+                    }
+                    1 => {
+                        release_second?.await.ok()?;
+                        Some((
+                            Ok::<Vec<u8>, std::io::Error>(b"[]}".to_vec()),
+                            (2, None, None),
+                        ))
+                    }
+                    _ => None,
+                }
+            },
+        ));
+        let work_policy = policy.clone();
+        let work = tokio::spawn(async move {
+            let mut stream = stream;
+            crate::commands::connector_network::await_authorized(
+                &work_policy,
+                &grant,
+                async { parse_google_events_body(&mut stream).await },
+            )
+            .await
+        });
+
+        first_chunk_rx.await.unwrap();
+        policy.set_offline_mode(true).unwrap();
+        assert!(work.await.unwrap().is_err());
+        let _ = release_second_tx.send(());
     }
 
     #[test]

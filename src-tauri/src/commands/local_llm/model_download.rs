@@ -295,18 +295,58 @@ async fn append_download(
     let mut done = already_done;
     let mut last_emit = already_done;
     let mut stream = resp.bytes_stream();
+    let read_body = copy_download_body(
+        &mut stream,
+        &mut file,
+        part_path,
+        spec,
+        &mut done,
+        &mut last_emit,
+        sink,
+    );
+
+    // The request guard only owns the connection up to its headers. Keep a
+    // fresh grant alive for the whole body too, so Offline Mode can interrupt
+    // a multi-gigabyte model transfer between chunks.
+    if let Some(policy) = policy {
+        let body_grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
+        await_authorized(policy, &body_grant, read_body).await?;
+    } else {
+        read_body.await?;
+    }
+    Ok(())
+}
+
+/// Copy a response body into the partial model file. Kept separate so the
+/// policy-owned body lifetime can be exercised with a fake multi-chunk stream.
+async fn copy_download_body<S, B, E>(
+    stream: &mut S,
+    file: &mut tokio::fs::File,
+    part_path: &Path,
+    spec: &ModelDownloadSpec,
+    done: &mut u64,
+    last_emit: &mut u64,
+    sink: &(dyn Fn(LocalModelDownloadProgress) + Send + Sync),
+) -> Result<()>
+where
+    S: futures_util::Stream<Item = Result<B, E>> + Unpin,
+    B: AsRef<[u8]>,
+    E: Into<anyhow::Error>,
+{
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk.context("read local AI model download chunk")?;
-        file.write_all(&chunk)
+        let chunk = chunk
+            .map_err(Into::into)
+            .context("read local AI model download chunk")?;
+        file.write_all(chunk.as_ref())
             .await
             .with_context(|| format!("write {}", part_path.display()))?;
-        done += chunk.len() as u64;
-        if done.saturating_sub(last_emit) >= 4 * 1024 * 1024 || done == spec.size {
-            last_emit = done;
+        *done += chunk.as_ref().len() as u64;
+        if done.saturating_sub(*last_emit) >= 4 * 1024 * 1024 || *done == spec.size {
+            *last_emit = *done;
             sink(progress(
                 spec,
                 LocalModelDownloadState::Downloading,
-                done.min(spec.size),
+                (*done).min(spec.size),
                 None,
             ));
         }
@@ -730,6 +770,69 @@ mod tests {
         assert!(!part.exists());
         assert!(model_ready_in(tmp.path(), &spec));
         server.abort();
+    }
+
+    #[tokio::test]
+    async fn offline_mode_stops_local_model_body_after_the_first_chunk() {
+        let policy_dir = tempfile::tempdir().unwrap();
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(policy_dir.path());
+        let grant = authorize_url(
+            &policy,
+            &LOCAL_LLM_MODEL_DOWNLOAD,
+            "https://huggingface.co/test/model.gguf",
+        )
+        .unwrap();
+        let first = vec![b'a'; 4 * 1024 * 1024];
+        let second = b"must-not-be-written".to_vec();
+        let (release_second_tx, release_second_rx) = tokio::sync::oneshot::channel();
+        let stream = Box::pin(futures_util::stream::unfold(
+            (0_u8, Some(release_second_rx), first.clone(), second),
+            |(state, release, first, second)| async move {
+                match state {
+                    0 => Some((Ok::<Vec<u8>, std::io::Error>(first), (1, release, Vec::new(), second))),
+                    1 => {
+                        release?.await.ok()?;
+                        Some((Ok::<Vec<u8>, std::io::Error>(second), (2, None, Vec::new(), Vec::new())))
+                    }
+                    _ => None,
+                }
+            },
+        ));
+        let tmp = tempfile::tempdir().unwrap();
+        let part = tmp.path().join("body.part");
+        let spec = tiny_spec("https://huggingface.co/test/model.gguf".into(), &first);
+        let (first_chunk_tx, first_chunk_rx) = tokio::sync::oneshot::channel();
+        let first_chunk_tx = Arc::new(Mutex::new(Some(first_chunk_tx)));
+        let work_policy = policy.clone();
+        let work = tokio::spawn(async move {
+            let mut stream = stream;
+            let mut file = tokio::fs::File::create(&part).await.unwrap();
+            let mut done = 0;
+            let mut last_emit = 0;
+            await_authorized(&work_policy, &grant, async {
+                copy_download_body(
+                    &mut stream,
+                    &mut file,
+                    &part,
+                    &spec,
+                    &mut done,
+                    &mut last_emit,
+                    &move |_| {
+                        if let Some(tx) = first_chunk_tx.lock().unwrap().take() {
+                            let _ = tx.send(());
+                        }
+                    },
+                )
+                .await
+            })
+            .await
+        });
+
+        first_chunk_rx.await.unwrap();
+        policy.set_offline_mode(true).unwrap();
+        assert!(work.await.unwrap().is_err());
+        assert_eq!(std::fs::metadata(tmp.path().join("body.part")).unwrap().len(), first.len() as u64);
+        let _ = release_second_tx.send(());
     }
 
     /// Bug 2 (primary): a `.part` file already at the full expected size must be

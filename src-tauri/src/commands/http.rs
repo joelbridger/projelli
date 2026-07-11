@@ -15,7 +15,7 @@
 
 use std::time::Duration;
 
-use crate::commands::connector_network::send_with_authorized_redirects;
+use crate::commands::connector_network::{authorize_url, await_authorized, send_with_authorized_redirects};
 use crate::network_policy::{NetworkPolicy, EXTERNAL_NAVIGATION};
 
 /// Max number of bytes we'll read from a response body before giving up.
@@ -188,28 +188,46 @@ pub async fn fetch_url_title(
             return Ok(String::new());
         }
 
-        // Stream the response body up to MAX_BODY_BYTES. We can usually stop
-        // much earlier (once we see `</title>`), which both saves bandwidth
-        // and avoids pulling huge pages into memory.
-        let mut buf: Vec<u8> = Vec::with_capacity(8 * 1024);
+    // Stream the response body up to MAX_BODY_BYTES. We can usually stop much
+    // earlier (once we see `</title>`), which both saves bandwidth and avoids
+    // pulling huge pages into memory. The body gets its own grant: the
+    // request-level grant ended once headers were received.
+    let body_url = resp.url().as_str().to_string();
+    let body_grant = match authorize_url(policy.inner(), &EXTERNAL_NAVIGATION, &body_url) {
+        Ok(grant) => grant,
+        Err(_) => return Ok(String::new()),
+    };
+    let title = await_authorized(policy.inner(), &body_grant, async {
         let mut stream = resp.bytes_stream();
-        use futures_util::StreamExt;
-        while let Some(chunk) = stream.next().await {
-            let chunk = match chunk {
-                Ok(c) => c,
-                Err(_) => break,
-            };
-            buf.extend_from_slice(&chunk);
-            if buf.len() >= MAX_BODY_BYTES {
-                buf.truncate(MAX_BODY_BYTES);
-                break;
-            }
-            if has_complete_title(&buf) {
-                break;
-            }
+        Ok::<String, anyhow::Error>(read_title_body(&mut stream).await)
+    })
+    .await;
+    Ok(title.unwrap_or_default())
+}
+
+async fn read_title_body<S, B, E>(stream: &mut S) -> String
+where
+    S: futures_util::Stream<Item = Result<B, E>> + Unpin,
+    B: AsRef<[u8]>,
+{
+    let mut buf: Vec<u8> = Vec::with_capacity(8 * 1024);
+    use futures_util::StreamExt;
+    while let Some(chunk) = stream.next().await {
+        let chunk = match chunk {
+            Ok(c) => c,
+            Err(_) => break,
+        };
+        buf.extend_from_slice(chunk.as_ref());
+        if buf.len() >= MAX_BODY_BYTES {
+            buf.truncate(MAX_BODY_BYTES);
+            break;
         }
-        let html = String::from_utf8_lossy(&buf);
-        Ok(extract_title_from_html(&html).unwrap_or_default())
+        if has_complete_title(&buf) {
+            break;
+        }
+    }
+    let html = String::from_utf8_lossy(&buf);
+    extract_title_from_html(&html).unwrap_or_default()
 }
 
 /// Cheap check used to short-circuit streaming once we've got a title tag.
@@ -354,5 +372,54 @@ mod tests {
         assert!(has_complete_title(b"noise <TITLE>foo</TITLE> trailing"));
         assert!(!has_complete_title(b"<title>incomplete"));
         assert!(!has_complete_title(b"no tags here at all"));
+    }
+
+    #[tokio::test]
+    async fn offline_mode_stops_title_body_after_the_first_chunk() {
+        let policy_dir = tempfile::tempdir().unwrap();
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(policy_dir.path());
+        let grant = authorize_url(
+            &policy,
+            &EXTERNAL_NAVIGATION,
+            "https://example.com/article",
+        )
+        .unwrap();
+        let (first_chunk_tx, first_chunk_rx) = tokio::sync::oneshot::channel();
+        let (release_second_tx, release_second_rx) = tokio::sync::oneshot::channel();
+        let stream = Box::pin(futures_util::stream::unfold(
+            (0_u8, Some(first_chunk_tx), Some(release_second_rx)),
+            |(state, first_chunk, release_second)| async move {
+                match state {
+                    0 => {
+                        let _ = first_chunk.unwrap().send(());
+                        Some((
+                            Ok::<Vec<u8>, std::io::Error>(b"<html><head>".to_vec()),
+                            (1, None, release_second),
+                        ))
+                    }
+                    1 => {
+                        release_second?.await.ok()?;
+                        Some((
+                            Ok::<Vec<u8>, std::io::Error>(b"<title>must not arrive</title>".to_vec()),
+                            (2, None, None),
+                        ))
+                    }
+                    _ => None,
+                }
+            },
+        ));
+        let work_policy = policy.clone();
+        let work = tokio::spawn(async move {
+            let mut stream = stream;
+            await_authorized(&work_policy, &grant, async {
+                Ok::<String, anyhow::Error>(read_title_body(&mut stream).await)
+            })
+            .await
+        });
+
+        first_chunk_rx.await.unwrap();
+        policy.set_offline_mode(true).unwrap();
+        assert!(work.await.unwrap().is_err());
+        let _ = release_second_tx.send(());
     }
 }
