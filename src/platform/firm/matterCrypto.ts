@@ -20,6 +20,21 @@ const V1_VERSION = 1;
 const V2_VERSION = 2;
 const IV_BYTES = 12;
 const KEY_BITS = 256;
+/** Fixed, short bridge window. Deployments may move it earlier, never later. */
+const DEFAULT_V1_READ_DEADLINE = '2026-07-18T00:00:00.000Z';
+
+function v1ReadDeadline(): number {
+  const configured = (typeof process !== 'undefined' ? process.env['VITE_FIRM_V1_CRYPTO_READ_DEADLINE'] : undefined)
+    ?? import.meta.env['VITE_FIRM_V1_CRYPTO_READ_DEADLINE']
+    ?? DEFAULT_V1_READ_DEADLINE;
+  const parsed = Date.parse(configured);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** The legacy wire format is a migration-only reader, never a normal format. */
+export function isV1ReadWindowOpen(now = Date.now()): boolean {
+  return now < v1ReadDeadline();
+}
 
 function getSubtle(): SubtleCrypto {
   const subtle = (globalThis.crypto as Crypto | undefined)?.subtle;
@@ -157,6 +172,11 @@ export async function decryptUpdate(
   }
 }
 
+/** Cheap format check used by the bridge before it opens and rewrites a blob. */
+export function isLegacyV1Ciphertext(ciphertextB64: string): boolean {
+  try { return b64ToBytes(ciphertextB64)[0] === V1_VERSION; } catch { return false; }
+}
+
 /** Seal a new v2 relay blob. New writes must use this, never the v1 helper. */
 export async function encryptUpdateV2(
   key: CryptoKey,
@@ -177,9 +197,10 @@ export async function encryptUpdateV2(
 }
 
 /**
- * Open a relay blob. New writes are always v2, but stored v1 ciphertext must
- * remain readable forever: migration copied it unchanged into v2 routes.
- * Full re-encryption/compaction is a follow-up task, not this security round.
+ * Open a relay blob. V1 is accepted only during the short migration window;
+ * the bridge rewrites every readable V1 update into route-bound V2 before it
+ * acknowledges completion. Once the window closes, accepting V1 would reopen
+ * a permanent cross-stream replay path.
  */
 export async function decryptUpdateV2(
   key: CryptoKey,
@@ -190,6 +211,7 @@ export async function decryptUpdateV2(
   try { raw = b64ToBytes(ciphertextB64); } catch { return { ok: false, reason: 'malformed' }; }
   if (raw.length < 1 + IV_BYTES + 16) return { ok: false, reason: 'malformed' };
   if (raw[0] === V1_VERSION) {
+    if (!isV1ReadWindowOpen()) return { ok: false, reason: 'bad_version' };
     return decryptUpdate(key, ciphertextB64, context.keyEpoch);
   }
   if (raw[0] !== V2_VERSION) return { ok: false, reason: 'bad_version' };

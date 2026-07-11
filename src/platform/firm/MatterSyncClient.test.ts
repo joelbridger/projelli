@@ -35,7 +35,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
-  it('reads migrated v1 history even after the v1 protocol deadline has passed', async () => {
+  it('hard-rejects legacy v1 history after the migration deadline', async () => {
     vi.stubEnv('VITE_FIRM_V1_CRYPTO_READ_DEADLINE', '2000-01-01T00:00:00.000Z');
     const matterHandle = parseMatterHandle(`mh2_${'C'.repeat(43)}`);
     const streamHandle = parseStreamHandle(`sh2_${'D'.repeat(43)}`);
@@ -62,7 +62,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
 
     await client.start();
 
-    expect(client.doc.getMap('history').get('migrated-note')).toBe('still readable');
+    expect(client.doc.getMap('history').get('migrated-note')).toBeUndefined();
     client.stop();
   });
 });

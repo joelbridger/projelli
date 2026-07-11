@@ -416,6 +416,7 @@ export class FirmApiClient {
     ciphertextB64: string,
     seatToken: string,
     keyEpoch: number,
+    commitStreamHandle?: StreamHandle,
   ): Promise<PushUpdateResponse> {
     return this.request<PushUpdateResponse>(
       FIRM_ENDPOINTS.pushUpdate.replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
@@ -427,6 +428,7 @@ export class FirmApiClient {
           ciphertext_b64: ciphertextB64,
           seat_token: seatToken,
           key_epoch: keyEpoch,
+          ...(commitStreamHandle ? { commit_stream_handle: parseStreamHandle(commitStreamHandle) } : {}),
         },
       },
     );

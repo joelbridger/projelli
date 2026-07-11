@@ -3,7 +3,7 @@ import * as Y from 'yjs';
 import type { Matter } from '@/platform/types/matter';
 import { FirmApiClient } from './FirmApiClient';
 import { parseMatterHandle, parseStreamHandle, type LegacyMigrationManifestMatter } from './contract';
-import { decryptUpdateV2, generateMatterKey, importMatterKey } from './matterCrypto';
+import { decryptUpdateV2, encryptUpdate, generateMatterKey, importMatterKey } from './matterCrypto';
 import { readFirmMatterPrivateIndex } from './firmMatterPrivateIndex';
 import { type LegacyFirmManifestBridgeOptions, runLegacyFirmManifestBridge } from './legacyFirmManifestBridge';
 
@@ -56,7 +56,10 @@ function clientFor(
 ): FirmApiClient {
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-    const method = init?.method ?? 'GET';
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+    if (new URL(url, 'http://test.invalid').pathname.endsWith('/updates') && method === 'GET') {
+      return Promise.resolve(new Response(JSON.stringify({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+    }
     traffic.push({ url, method, body: typeof init?.body === 'string' ? init.body : '', headers: JSON.stringify(init?.headers ?? {}) });
     if (url.endsWith('/migration-manifest')) {
       return Promise.resolve(new Response(JSON.stringify({ matters: manifest }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -174,6 +177,51 @@ describe('one-time legacy firm manifest bridge', () => {
     expect(traffic.filter((request) => request.url.endsWith('/migration-manifest'))).toHaveLength(2);
     expect(traffic.filter((request) => request.url.endsWith('/migration-complete'))).toHaveLength(2);
     expect(fixture.matters()[0]).not.toHaveProperty('legacyFirmMatterId');
+  });
+
+  it('rewrites legacy history before acknowledgement, resumes after a crash, and leaves only AAD-bound history readable after the deadline', async () => {
+    const keyB64 = await generateMatterKey();
+    const legacyCiphertext = await encryptUpdate(await importMatterKey(keyB64), new Uint8Array([9, 7]), 1);
+    const updates = [{ cursor: 1, blob_id: 'old-history', key_epoch: 1, ciphertext_b64: legacyCiphertext }];
+    let matters = [legacyMatter()];
+    let crashAfterStore = true;
+    const pushes: Array<{ stream: string; blob: string; ciphertext: string }> = [];
+    const client = {
+      migrationManifest: async () => ({ matters: [row()] }),
+      migrationComplete: async () => ({ ok: true as const }),
+      pullUpdates: async (stream: string, since: number) => ({
+        key_epoch: 1, since, cursor: updates.at(-1)?.cursor ?? since,
+        latest_cursor: updates.at(-1)?.cursor ?? since, has_more: false,
+        updates: stream === documentStreamHandle ? updates.filter((update) => update.cursor > since) : [],
+      }),
+      pushUpdate: async (stream: string, blob: string, ciphertext: string) => {
+        pushes.push({ stream, blob, ciphertext });
+        if (stream === documentStreamHandle) {
+          if (!updates.some((update) => update.blob_id === blob)) updates.push({ cursor: updates.length + 1, blob_id: blob, key_epoch: 1, ciphertext_b64: ciphertext });
+          if (crashAfterStore) { crashAfterStore = false; throw new Error('connection dropped after relay accepted history'); }
+        }
+        return { ok: true as const, cursor: updates.length + 1, blob_id: blob, key_epoch: 1, duplicate: false };
+      },
+    };
+    const options: LegacyFirmManifestBridgeOptions = {
+      client: client as never, seatToken: 'seat-token', getMatters: () => matters,
+      saveMatter: (matter) => { matters = matters.map((current) => current.id === matter.id ? matter : current); },
+      createPlaceholder: () => undefined,
+      loadLegacyMatterKey: async () => keyB64, storeOpaqueMatterKey: async () => undefined, clearLegacyMatterKey: async () => undefined,
+    };
+
+    await expect(runLegacyFirmManifestBridge(options)).rejects.toThrow('connection dropped');
+    await expect(runLegacyFirmManifestBridge(options)).resolves.toMatchObject({ status: 'completed' });
+    const rewritten = updates.filter((update) => update.blob_id !== 'old-history');
+    expect(rewritten).toHaveLength(1);
+
+    vi.stubEnv('VITE_FIRM_V1_CRYPTO_READ_DEADLINE', '2000-01-01T00:00:00.000Z');
+    const key = await importMatterKey(keyB64);
+    expect(await decryptUpdateV2(key, legacyCiphertext, { matterHandle, streamHandle: documentStreamHandle, keyEpoch: 1 })).toEqual({ ok: false, reason: 'bad_version' });
+    expect(await decryptUpdateV2(key, rewritten[0]!.ciphertext_b64, { matterHandle, streamHandle: documentStreamHandle, keyEpoch: 1 })).toMatchObject({ ok: true, update: new Uint8Array([9, 7]) });
+    // Security proof: captured rewritten data cannot be replayed into another stream.
+    expect(await decryptUpdateV2(key, rewritten[0]!.ciphertext_b64, { matterHandle, streamHandle: rootStreamHandle, keyEpoch: 1 })).toEqual({ ok: false, reason: 'auth_failed' });
+    expect(pushes.filter((push) => push.stream === documentStreamHandle)).toHaveLength(2);
   });
 
   it('does not acknowledge until every matched root index was accepted', async () => {

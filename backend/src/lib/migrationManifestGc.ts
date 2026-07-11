@@ -1,19 +1,23 @@
 import type { Store } from "./db.ts";
 
-/** How often the relay removes expired legacy-ID bridge rows while it is running. */
+/** How often the relay removes expired migration rows and allocation holds. */
 export const LEGACY_MANIFEST_GC_INTERVAL_MS = 60_000;
 
 /**
- * Remove expired migration bridge rows now, then keep doing so while the relay
- * runs. The immediate sweep makes the migration deadline hold even when no
- * desktop ever calls a migration endpoint after expiry.
+ * Remove expired migration bridge rows and uncommitted stream allocations now,
+ * then keep doing so while the relay runs. The immediate sweep makes both
+ * deadlines hold even when no desktop calls a relay endpoint after expiry.
  */
 export function startLegacyManifestGc(
   store: Store,
   intervalMs = LEGACY_MANIFEST_GC_INTERVAL_MS,
 ): ReturnType<typeof setInterval> {
-  store.purgeExpiredLegacyManifest();
-  const timer = setInterval(() => store.purgeExpiredLegacyManifest(), intervalMs);
+  const purge = () => {
+    store.purgeExpiredLegacyManifest();
+    store.purgeExpiredProvisionalStreams();
+  };
+  purge();
+  const timer = setInterval(purge, intervalMs);
   if (typeof timer.unref === "function") timer.unref();
   return timer;
 }

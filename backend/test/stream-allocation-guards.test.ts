@@ -7,10 +7,12 @@ import type { MatterRole } from "../src/lib/types.ts";
 
 const originalCap = config.firmMatterStreamCap;
 const originalRateMax = config.firmMatterStreamAllocationRateLimitMax;
+const originalTtl = config.firmMatterProvisionalStreamTtlSeconds;
 
 afterEach(() => {
   (config as { firmMatterStreamCap: number }).firmMatterStreamCap = originalCap;
   (config as { firmMatterStreamAllocationRateLimitMax: number }).firmMatterStreamAllocationRateLimitMax = originalRateMax;
+  (config as { firmMatterProvisionalStreamTtlSeconds: number }).firmMatterProvisionalStreamTtlSeconds = originalTtl;
 });
 
 function setup(role: MatterRole) {
@@ -57,6 +59,34 @@ describe("stream allocation guards", () => {
     const fixture = setup("editor");
     expect((await allocate(fixture)).status).toBe(201);
     expect((await allocate(fixture)).status).toBe(409);
+    fixture.store.close();
+  });
+
+  test("expired provisional allocations are reclaimed and do not consume the cap", () => {
+    const fixture = setup("editor");
+    const provisional = fixture.store.createMatterStream(fixture.matter.matter_handle, 1);
+    expect(fixture.store.countMatterStreams(fixture.matter.matter_handle)).toBe(2);
+    expect(fixture.store.purgeExpiredProvisionalStreams(new Date(Date.now() + 2_000).toISOString())).toBe(1);
+    expect(fixture.store.countMatterStreams(fixture.matter.matter_handle)).toBe(1);
+    expect(fixture.store.streamBelongsToMatter(provisional, fixture.matter.matter_handle)).toBe(false);
+    fixture.store.close();
+  });
+
+  test("a root update commits an allocation while an uncommitted crash leaves no permanent slot", () => {
+    const fixture = setup("editor");
+    const committed = fixture.store.createMatterStream(fixture.matter.matter_handle, 1);
+    const accepted = fixture.store.appendMatterUpdate({
+      matter_handle: fixture.matter.matter_handle, org_id: fixture.user.org_id,
+      stream_handle: fixture.matter.root_stream_handle, blob_id: "root-publishes-stream",
+      ciphertext: new Uint8Array([2]), author_seat: "seat", key_epoch: 1,
+      commit_stream_handle: committed,
+    });
+    expect("commitRejected" in accepted).toBe(false);
+    expect(fixture.store.purgeExpiredProvisionalStreams(new Date(Date.now() + 2_000).toISOString())).toBe(0);
+    expect(fixture.store.streamBelongsToMatter(committed, fixture.matter.matter_handle)).toBe(true);
+    const crashed = fixture.store.createMatterStream(fixture.matter.matter_handle, 1);
+    expect(fixture.store.purgeExpiredProvisionalStreams(new Date(Date.now() + 2_000).toISOString())).toBe(1);
+    expect(fixture.store.streamBelongsToMatter(crashed, fixture.matter.matter_handle)).toBe(false);
     fixture.store.close();
   });
 

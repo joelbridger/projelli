@@ -27,7 +27,8 @@ export interface FirmMatterPrivateIndex {
 }
 
 export interface RootIndexSync {
-  flush(): Promise<void>;
+  /** When present, publish this allocation with the accepted encrypted root update. */
+  flush(commitStreamHandle?: StreamHandle): Promise<void>;
 }
 
 type PrivateStreamEntry = FirmMatterPrivateIndex['streams'][string];
@@ -164,7 +165,15 @@ export async function createDocumentStream(
 ): Promise<StreamHandle> {
   const { stream_handle } = await client.allocateStream(matterHandle, seatToken);
   const streamHandle = parseStreamHandle(stream_handle);
-  await addDocumentStreamToPrivateIndex(doc, rootSync, localDocumentId, streamHandle);
+  try {
+    // The root-sync implementation passes this opaque handle with the root
+    // update. The server commits it in the same transaction as that update.
+    await addDocumentStreamToPrivateIndex(doc, { flush: () => rootSync.flush(streamHandle) }, localDocumentId, streamHandle);
+  } catch (error) {
+    // Leave the allocation provisional. It will disappear shortly if this
+    // client crashes or cannot publish the encrypted directory update.
+    throw error;
+  }
   return streamHandle;
 }
 

@@ -8,7 +8,7 @@ import type { Matter } from '@/platform/types/matter';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import type { FirmApiClient } from './FirmApiClient';
 import { parseMatterHandle, parseStreamHandle, type LegacyMigrationManifestMatter, type MatterHandle, type StreamHandle } from './contract';
-import { encryptUpdateV2, importMatterKey } from './matterCrypto';
+import { decryptUpdateV2, encryptUpdateV2, importMatterKey, isLegacyV1Ciphertext } from './matterCrypto';
 import { writeFirmMatterPrivateIndex } from './firmMatterPrivateIndex';
 import { clearMatterKey, loadMatterKey, storeMatterKey } from './firmKeychain';
 
@@ -16,7 +16,7 @@ const PLACEHOLDER_NAME = 'Shared client';
 const UNMATCHED_NOTICE = 'A shared client was not found on this device, so it remains local only.';
 const MISSING_KEY_NOTICE = 'A shared client is waiting for its encryption key on this device.';
 
-type BridgeClient = Pick<FirmApiClient, 'migrationManifest' | 'migrationComplete' | 'pushUpdate'>;
+type BridgeClient = Pick<FirmApiClient, 'migrationManifest' | 'migrationComplete' | 'pullUpdates' | 'pushUpdate'>;
 
 export interface LegacyFirmManifestBridgeOptions {
   client: BridgeClient;
@@ -113,6 +113,46 @@ function blobId(): string {
   return crypto.randomUUID();
 }
 
+async function migratedBlobId(sourceBlobId: string): Promise<string> {
+  const bytes = new TextEncoder().encode(`firm-v1-to-v2:${sourceBlobId}`);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  return `v2m_${Array.from(digest, (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
+ * Rewrite every legacy blob before acknowledgement. The replacement id is
+ * deterministic, so a crash after a successful push resumes harmlessly: the
+ * relay returns that exact replacement as a duplicate on the next run.
+ */
+async function reencryptLegacyHistory(
+  client: BridgeClient,
+  row: LegacyMigrationManifestMatter,
+  key: CryptoKey,
+  matterHandle: MatterHandle,
+  seatToken: string,
+): Promise<void> {
+  for (const rawStreamHandle of new Set(Object.values(row.streams))) {
+    const streamHandle = parseStreamHandle(rawStreamHandle);
+    let cursor = 0;
+    for (;;) {
+      const page = await client.pullUpdates(streamHandle, cursor, seatToken);
+      for (const update of page.updates) {
+        cursor = Math.max(cursor, update.cursor);
+        if (!isLegacyV1Ciphertext(update.ciphertext_b64)) continue;
+        const opened = await decryptUpdateV2(key, update.ciphertext_b64, {
+          matterHandle, streamHandle, keyEpoch: update.key_epoch,
+        });
+        if (!opened.ok) throw new Error('Unable to re-encrypt a legacy firm update.');
+        const ciphertext = await encryptUpdateV2(key, opened.update, {
+          matterHandle, streamHandle, keyEpoch: update.key_epoch,
+        });
+        await client.pushUpdate(streamHandle, await migratedBlobId(update.blob_id), ciphertext, seatToken, update.key_epoch);
+      }
+      if (!page.has_more) break;
+    }
+  }
+}
+
 /**
  * Fetch, seal, and acknowledge the bridge. This intentionally has no server
  * input besides the two fixed empty-body endpoints and the normal opaque
@@ -178,6 +218,9 @@ export async function runLegacyFirmManifestBridge(
       streams: streamMapFor(linked, row, localDocumentIdForLegacyId),
     });
     const key = await importMatterKey(keyB64);
+    // History first: the saved checkpoint and deterministic replacement IDs
+    // make this pass resumable after a client crash without acknowledging early.
+    await reencryptLegacyHistory(options.client, row, key, matterHandle, options.seatToken);
     const ciphertext = await encryptUpdateV2(key, Y.encodeStateAsUpdate(root), {
       matterHandle,
       streamHandle: rootStreamHandle,
