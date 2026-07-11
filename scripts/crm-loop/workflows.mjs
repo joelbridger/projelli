@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const driver = resolve(root, 'desktop-drive.mjs');
+const driver = resolve(root, 'scripts/desktop-drive.mjs');
 const env = { ...process.env, DESKTOP_CDP_PORT: process.env.DESKTOP_CDP_PORT || '9250' };
 const screenshotDir = process.env.CRM_LOOP_SCREENSHOTS_DIR || '/tmp/lantern-crm-workflows';
 const run = (...args) => execFileSync('node', [driver, ...args], { cwd: root, env, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -19,6 +19,15 @@ const need = (prefix) => {
   const id = ids(prefix)[0];
   if (!id) throw new Error(`Could not find a visible control beginning ${prefix}`);
   return id;
+};
+const waitFor = async (prefix, seconds = 15) => {
+  const deadline = Date.now() + seconds * 1000;
+  while (Date.now() < deadline) {
+    const id = ids(prefix)[0];
+    if (id) return id;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Could not find a visible control beginning ${prefix}`);
 };
 const assert = (condition, message) => { if (!condition) throw new Error(message); };
 const capture = (name) => {
@@ -59,10 +68,10 @@ try {
   fill('crm-live-workflow-change-title', 'Confirm household goals');
   fill('crm-live-workflow-add-title', 'Send welcome summary');
   click('crm-live-workflow-publish');
-  const offer = need('crm-live-propagation-offer-');
-  const accept = need('crm-live-propagation-accept-');
+  const offer = await waitFor('crm-live-propagation-offer-');
+  const accept = await waitFor('crm-live-propagation-accept-');
   click(accept);
-  const apply = need('crm-live-propagation-apply-');
+  const apply = await waitFor('crm-live-propagation-apply-');
   click(apply);
   assert(evaluate('document.body.innerText').includes('Completed work and notes stayed as they were.'), 'Apply did not confirm that completed work stayed unchanged.');
   capture('workflow-applied');

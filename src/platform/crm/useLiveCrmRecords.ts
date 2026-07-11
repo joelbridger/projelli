@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import {
@@ -26,17 +26,27 @@ export function useLiveCrmRecords() {
   });
   const [records, setRecords] = useState<readonly LiveCrmRecord[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const workspaceRootRef = useRef(workspaceRoot);
+  workspaceRootRef.current = workspaceRoot;
   const [freshness, setFreshness] = useState<CrmEngineFreshness>(
     getCrmEngineFreshness,
   );
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
   const reload = useCallback(async () => {
+    const rootAtStart = workspaceRoot;
     try {
       setError(null);
-      setRecords(await loadLiveCrmRecords(workspaceRoot));
+      const loaded = await loadLiveCrmRecords(rootAtStart);
+      if (workspaceRootRef.current !== rootAtStart) return;
+      setRecords(loaded);
     } catch (reason) {
+      if (workspaceRootRef.current !== rootAtStart) return;
       setError(reason instanceof Error ? reason.message : String(reason));
     }
+  }, [workspaceRoot]);
+  useEffect(() => {
+    setRecords([]);
+    setError(null);
   }, [workspaceRoot]);
   useEffect(() => { void reload(); }, [reload]);
   useEffect(() => {
@@ -53,10 +63,15 @@ export function useLiveCrmRecords() {
     return () => { cancelled = true; };
   }, [reload, sharedMatterId, workspaceRoot]);
   const save = useCallback(async (record: LiveCrmRecord) => {
+    // Scope firm-level records to the shared client matter (multi-seat), and
+    // pin the workspace we started from so a mid-save folder switch can never
+    // land one workspace's record in another's view.
     const scoped = sharedMatterId && (!record.matterId || record.matterId === 'firm')
       ? { ...record, matterId: sharedMatterId }
       : record;
-    const saved = await saveLiveCrmRecord(workspaceRoot, scoped);
+    const rootAtStart = workspaceRoot;
+    const saved = await saveLiveCrmRecord(rootAtStart, scoped);
+    if (workspaceRootRef.current !== rootAtStart) return saved;
     setRecords((current) => {
       const exists = current.some((item) => item.id === saved.id);
       return exists ? current.map((item) => item.id === saved.id ? saved : item) : [...current, saved];

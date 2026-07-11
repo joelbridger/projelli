@@ -14,10 +14,25 @@ export type LiveCrmRecord = {
   [key: string]: unknown;
 };
 
+// The Rust CRM commands retain the active workspace between calls. Keep the
+// select-workspace + read/write pair together, so an older screen load cannot
+// point the backend at one workspace while a newer load reads from another.
+let workspaceOperation: Promise<void> = Promise.resolve();
+
+function inCrmWorkspace<T>(workspaceRoot: string, operation: () => Promise<T>): Promise<T> {
+  const task = workspaceOperation
+    .catch(() => undefined)
+    .then(async () => {
+      await crmSetWorkspace(workspaceRoot);
+      return operation();
+    });
+  workspaceOperation = task.then(() => undefined, () => undefined);
+  return task;
+}
+
 export async function loadLiveCrmRecords(workspaceRoot: string | null | undefined): Promise<readonly LiveCrmRecord[]> {
   if (!isTauri() || !workspaceRoot) return [];
-  await crmSetWorkspace(workspaceRoot);
-  return invoke<LiveCrmRecord[]>('crm_live_list');
+  return inCrmWorkspace(workspaceRoot, () => invoke<LiveCrmRecord[]>('crm_live_list'));
 }
 
 export async function saveLiveCrmRecord(
@@ -26,6 +41,5 @@ export async function saveLiveCrmRecord(
 ): Promise<LiveCrmRecord> {
   if (!isTauri()) throw new Error('CRM records can only be saved in the desktop app.');
   if (!workspaceRoot) throw new Error('Open a workspace before saving CRM data.');
-  await crmSetWorkspace(workspaceRoot);
-  return invoke<LiveCrmRecord>('crm_live_upsert', { record });
+  return inCrmWorkspace(workspaceRoot, () => invoke<LiveCrmRecord>('crm_live_upsert', { record }));
 }
