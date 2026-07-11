@@ -59,11 +59,24 @@ export interface IntakeFlag {
     | 'new_device'
     | 'integrity_mismatch'
     | 'routing_failed'
+    | 'extraction_failed'
     | 'shared_intake_setup_required'
     | 'stale_overwrite'
     | 'vault_off_nudge';
   itemId?: string;
   submissionId?: string;
+  /** Enough local context to retry reading a filed document after an app restart. */
+  documentExtraction?: {
+    matterId: string;
+    requestId: string;
+    intakeId: string;
+    itemId: string;
+    subject: string;
+    filePath: string;
+    fileName: string;
+    matterFolderPath: string;
+    mimeType?: string;
+  };
   message: string;
   at: string;
 }
@@ -117,6 +130,7 @@ interface IntakeStoreState {
   addReceivedItem: (intakeId: string, item: IntakeReceivedItem) => void;
   recordEmailReplyManualFileReceipt: (intakeId: string, receipt: EmailReplyManualFileReceipt) => void;
   addFlag: (intakeId: string, flag: IntakeFlag) => void;
+  removeFlag: (intakeId: string, flagId: string) => void;
   rememberSession: (intakeId: string, sessionId: string) => void;
   rememberSubmission: (intakeId: string, submissionId: string) => void;
   recordNudgeAttempt: (intakeId: string, attempt: IntakeNudgeAttempt) => void;
@@ -324,6 +338,19 @@ export const useIntakeStore = create<IntakeStoreState>()(
             [intakeId]: {
               ...current,
               flags: dedupeById(current.flags, flag),
+            },
+          },
+        };
+      }),
+      removeFlag: (intakeId, flagId) => set((state) => {
+        const current = state.intakesById[intakeId];
+        if (!current || !current.flags.some((flag) => flag.id === flagId)) return {};
+        return {
+          intakesById: {
+            ...state.intakesById,
+            [intakeId]: {
+              ...current,
+              flags: current.flags.filter((flag) => flag.id !== flagId),
             },
           },
         };

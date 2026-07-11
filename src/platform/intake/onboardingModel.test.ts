@@ -138,6 +138,7 @@ describe('onboardingModel', () => {
         { id: 'f1', kind: 'new_device', message: 'New device', at: '2026-07-10T10:00:00.000Z' },
         { id: 'f2', kind: 'duplicate', message: 'Duplicate', at: '2026-07-10T10:01:00.000Z' },
         { id: 'f3', kind: 'integrity_mismatch', message: 'Mismatch', at: '2026-07-10T10:02:00.000Z' },
+        { id: 'f4', kind: 'extraction_failed', message: 'Document could not be read.', at: '2026-07-10T10:03:00.000Z' },
       ],
     }), now, cfg);
     expect(flagged.map((signal) => signal.kind)).toEqual([
@@ -145,10 +146,12 @@ describe('onboardingModel', () => {
       'new_device',
       'duplicate',
       'integrity_mismatch',
+      'extraction_failed',
     ]);
     expect(flagged.at(-1)).toMatchObject({
-      severity: 'integrity',
+      severity: 'attention',
       dismissible: false,
+      flagId: 'f4',
     });
   });
 

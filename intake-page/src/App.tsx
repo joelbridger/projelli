@@ -4,19 +4,22 @@ import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
 import { classifyTier1 } from '@/platform/intake/documentDetectiveRules';
 import type { DocumentKind, Tier1Classification } from '@/platform/intake/documentDetectiveTypes';
+import { extractPdfText } from '@/lib/pdf-extract';
 import type { DocUploadRequestItem, GuidedQuestionRequestItem, RequestItem, TypedFieldRequestItem } from '@/platform/intake/types';
 import {
   DEFAULT_WELCOME_JOURNEY,
   resolveWelcomeMergeFields,
   sanitizeWelcomeJourney,
   type WelcomeJourney,
-} from '@/features/intake/welcomeJourneyDefaults';
+} from '@/platform/intake/welcomeJourneyDefaults';
 
 import { openPageJson, sealPageJson } from './pageCrypto';
 import { RelayClient } from './relayClient';
 import { getOrCreateSessionMarker } from './sessionMarker';
 import { submitAnswer } from './submission';
 import type { AnswerPayload, IntakeChecklist, IntakeFirm, ResumeState } from './types';
+import { PdfFillScreen } from './pdfFill/PdfFillScreen';
+import { sealedPdfSourceBytes } from './pdfFill/sealedPdfSource';
 
 type LoadState =
   | { status: 'checking' | 'loading' }
@@ -45,6 +48,7 @@ const DEFAULT_ACCENT = '#2f7d62';
 const DEFAULT_FIRM_NAME = 'Advisor Prep Hero';
 const PAGE_FILE_MAX_BYTES = 100 * 1024 * 1024;
 const TEXT_SAMPLE_MAX_BYTES = 64 * 1024;
+const PDF_TEXT_SAMPLE_MAX_CHARS = 64 * 1024;
 const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/iu;
 const SAFE_NAMED_COLORS = new Set([
   'black',
@@ -62,7 +66,7 @@ const SAFE_NAMED_COLORS = new Set([
 ]);
 
 function isActionable(item: RequestItem): boolean {
-  return item.t === 'typed_field' || item.t === 'doc_upload' || item.t === 'guided_question';
+  return item.t === 'typed_field' || item.t === 'doc_upload' || item.t === 'guided_question' || item.t === 'pdf_fill';
 }
 
 function isFiniteNumberToken(token: string): boolean {
@@ -192,12 +196,18 @@ function getUploadRules(item: DocUploadRequestItem): { slotCount: number; requir
 }
 
 async function readTextSample(file: File): Promise<string> {
-  if (!file.type.startsWith('text/')) return '';
   try {
-    return await file.slice(0, TEXT_SAMPLE_MAX_BYTES).text();
+    if (file.type.startsWith('text/')) {
+      return await file.slice(0, TEXT_SAMPLE_MAX_BYTES).text();
+    }
+    if (file.type === 'application/pdf') {
+      const { pages } = await extractPdfText(new Uint8Array(await file.arrayBuffer()));
+      return pages.join('\n').slice(0, PDF_TEXT_SAMPLE_MAX_CHARS);
+    }
   } catch {
-    return '';
+    // A malformed, encrypted, or image-only PDF has no usable text signal.
   }
+  return '';
 }
 
 function documentKindLabel(kind: DocumentKind): string {
@@ -440,10 +450,15 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         singlePayload: AnswerPayload,
         allowResume: boolean,
       ): Promise<void> => {
-        const resumeSubmissionId = itemToSubmit.t === 'doc_upload' && allowResume && !replacingItemId
+        const supportsResumableFileUpload = itemToSubmit.t === 'doc_upload' || itemToSubmit.t === 'pdf_fill';
+        const matchingPdfResume = itemToSubmit.t !== 'pdf_fill' || (
+          singlePayload.kind === 'files' &&
+          pending?.completed_sha256 === singlePayload.pdf_completion_receipt?.completedSha256
+        );
+        const resumeSubmissionId = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
           ? pending?.submission_id
           : undefined;
-        const resumeContentKeyB64 = itemToSubmit.t === 'doc_upload' && allowResume && !replacingItemId
+        const resumeContentKeyB64 = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
           ? pending?.content_key_b64
           : undefined;
         await submitAnswer({
@@ -456,12 +471,17 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           resumeSubmissionId,
           resumeContentKeyB64,
           onPendingUpload: async (pendingUpload) => {
-            if (itemToSubmit.t !== 'doc_upload') return;
+            if (itemToSubmit.t !== 'doc_upload' && itemToSubmit.t !== 'pdf_fill') return;
             try {
               await saveResume((current) => ({
                 pending_uploads: {
                   ...current.pending_uploads,
-                  [itemToSubmit.item_id]: pendingUpload,
+                  [itemToSubmit.item_id]: {
+                    ...pendingUpload,
+                    ...(itemToSubmit.t === 'pdf_fill' && singlePayload.kind === 'files' && singlePayload.pdf_completion_receipt
+                      ? { completed_sha256: singlePayload.pdf_completion_receipt.completedSha256 }
+                      : {}),
+                  },
                 },
               }));
             } catch {
@@ -506,11 +526,14 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       await saveResume((current) => {
         const nextPending = { ...(current.pending_uploads ?? {}) };
         delete nextPending[itemToSubmit.item_id];
+        const nextDrafts = { ...(current.pdf_fill_drafts ?? {}) };
+        delete nextDrafts[itemToSubmit.item_id];
         return {
           current_item_id: nextId,
           completion_flags: { ...(current.completion_flags ?? {}), [itemToSubmit.item_id]: true },
           confirmations: { ...(current.confirmations ?? {}), [itemToSubmit.item_id]: 'Provided' },
           pending_uploads: nextPending,
+          pdf_fill_drafts: nextDrafts,
         };
       });
     } catch {
@@ -579,6 +602,13 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           item={item}
           firmName={firm.name}
           pendingUpload={resume.pending_uploads?.[item.item_id]}
+          pdfFillDraft={resume.pdf_fill_drafts?.[item.item_id]}
+          onPdfFillDraftChange={(values) => {
+            if (item.t !== 'pdf_fill') return;
+            void saveResume((current) => ({
+              pdf_fill_drafts: { ...(current.pdf_fill_drafts ?? {}), [item.item_id]: values },
+            })).catch(() => setNotice('Your form stays on this screen. We will try saving it securely again soon.'));
+          }}
           relay={relay}
           busy={busyItemId === item.item_id}
           onSubmit={(payload, confirmation) => void handleSubmit(item, payload, confirmation)}
@@ -773,6 +803,8 @@ function ItemInputScreen({
   item,
   firmName,
   pendingUpload,
+  pdfFillDraft,
+  onPdfFillDraftChange,
   relay,
   busy,
   onSubmit,
@@ -781,6 +813,8 @@ function ItemInputScreen({
   item: RequestItem;
   firmName: string;
   pendingUpload?: { submission_id: string; chunk_count: number };
+  pdfFillDraft?: Record<string, string>;
+  onPdfFillDraftChange: (values: Record<string, string>) => void;
   relay: RelayClient;
   busy: boolean;
   onSubmit: (payload: AnswerPayload, confirmation?: string) => void;
@@ -791,6 +825,18 @@ function ItemInputScreen({
     return <DocUploadScreen item={item} pendingUpload={pendingUpload} relay={relay} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
   }
   if (item.t === 'guided_question') return <GuidedQuestionScreen item={item} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
+  if (item.t === 'pdf_fill') {
+    return <PdfFillScreen
+      item={item}
+      firmName={firmName}
+      sourceBytes={sealedPdfSourceBytes(item)}
+      draft={pdfFillDraft}
+      busy={busy}
+      onDraftChange={onPdfFillDraftChange}
+      onSubmit={onSubmit}
+      onSkip={onSkip}
+    />;
+  }
   return (
     <section className="panel">
       <h1 tabIndex={-1}>{item.label}</h1>

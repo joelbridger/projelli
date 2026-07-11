@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware';
 import { getBuiltInRequestBlueprint, listBuiltInRequestBlueprints } from './defaultBlueprints';
 import {
   BlueprintValidationError,
-  copyRequestBlueprint,
+  copyRequestBlueprintForPersistence,
 } from './blueprintValidation';
 import type {
   CreateFirmBlueprintInput,
@@ -52,7 +52,7 @@ export function partializeBlueprintStateForPersistence(
     firmBlueprintsById: Object.fromEntries(
       Object.entries(state.firmBlueprintsById).map(([blueprintId, blueprint]) => [
         blueprintId,
-        copyRequestBlueprint({ ...blueprint, source: 'firm_saved' }),
+        copyRequestBlueprintForPersistence({ ...blueprint, source: 'firm_saved' }),
       ]),
     ),
   };
@@ -68,7 +68,7 @@ export function sanitizePersistedBlueprintState(value: unknown): PersistedBluepr
       try {
         const blueprint = raw as RequestBlueprint;
         if (blueprint.blueprintId !== blueprintId || isBuiltIn(blueprintId)) return [];
-        return [[blueprintId, copyRequestBlueprint({ ...blueprint, source: 'firm_saved' })] as const];
+        return [[blueprintId, copyRequestBlueprintForPersistence({ ...blueprint, source: 'firm_saved' })] as const];
       } catch {
         return [];
       }
@@ -84,7 +84,7 @@ export const useBlueprintStore = create<BlueprintStoreState>()(
         if (isBuiltIn(input.blueprintId) || get().firmBlueprintsById[input.blueprintId]) {
           throw new BlueprintValidationError('Blueprint id is already in use.');
         }
-        const blueprint = copyRequestBlueprint({
+        const blueprint = copyRequestBlueprintForPersistence({
           blueprintId: input.blueprintId,
           schemaVersion: input.schemaVersion ?? 1,
           label: input.label,
@@ -95,11 +95,11 @@ export const useBlueprintStore = create<BlueprintStoreState>()(
         set((state) => ({
           firmBlueprintsById: { ...state.firmBlueprintsById, [blueprint.blueprintId]: blueprint },
         }));
-        return copyRequestBlueprint(blueprint);
+        return copyRequestBlueprintForPersistence(blueprint);
       },
       updateFirmBlueprint: (blueprintId, patch) => {
         const current = requireMutableFirmBlueprint(get(), blueprintId);
-        const next = copyRequestBlueprint({
+        const next = copyRequestBlueprintForPersistence({
           ...current,
           ...patch,
           blueprintId,
@@ -109,27 +109,27 @@ export const useBlueprintStore = create<BlueprintStoreState>()(
         set((state) => ({
           firmBlueprintsById: { ...state.firmBlueprintsById, [blueprintId]: next },
         }));
-        return copyRequestBlueprint(next);
+        return copyRequestBlueprintForPersistence(next);
       },
       archiveFirmBlueprint: (blueprintId) => {
         const current = requireMutableFirmBlueprint(get(), blueprintId);
-        const archived = copyRequestBlueprint({ ...current, archived: true, source: 'firm_saved' });
+        const archived = copyRequestBlueprintForPersistence({ ...current, archived: true, source: 'firm_saved' });
         set((state) => ({
           firmBlueprintsById: { ...state.firmBlueprintsById, [blueprintId]: archived },
         }));
-        return copyRequestBlueprint(archived);
+        return copyRequestBlueprintForPersistence(archived);
       },
       getBlueprint: (blueprintId) => {
         const builtIn = getBuiltInRequestBlueprint(blueprintId);
         if (builtIn) return builtIn;
         const blueprint = get().firmBlueprintsById[blueprintId];
-        return blueprint ? copyRequestBlueprint(blueprint) : undefined;
+        return blueprint ? copyRequestBlueprintForPersistence(blueprint) : undefined;
       },
       listBlueprints: (includeArchived = false) => [
         ...listBuiltInRequestBlueprints(),
         ...Object.values(get().firmBlueprintsById)
           .filter((blueprint) => includeArchived || !blueprint.archived)
-          .map(copyRequestBlueprint),
+          .map(copyRequestBlueprintForPersistence),
       ],
       resetForTests: () => set({ firmBlueprintsById: {} }),
     }),

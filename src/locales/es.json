@@ -3982,6 +3982,19 @@
     }
   },
   "intake": {
+    "pdf-template-library": {
+      "approved-forms": "Formularios PDF aprobados",
+      "add-starter-forms": "Agregar formularios iniciales",
+      "import-form": "Importar formulario PDF",
+      "empty-state": "Importe un PDF local, revíselo y apruébelo antes de agregarlo a una solicitud.",
+      "add-to-request": "Agregar a la solicitud",
+      "reviewing-local": "Revisando {{fileName}} localmente. No se guarda ni se usa ninguna dirección de sitio web.",
+      "fillable-fields": "Campos PDF rellenables",
+      "wrap-field": "Ajustar dentro de este campo",
+      "contact-advisor": "Pedir al cliente que contacte al asesor",
+      "add-overlay-field": "Agregar campo superpuesto",
+      "approve-version": "Aprobar esta versión"
+    },
     "journey": {
       "title": "Recorrido de bienvenida",
       "description": "Se muestra en el único enlace seguro de incorporación de este cliente.",
@@ -4188,6 +4201,13 @@
           "title": "Un elemento recibido necesita ubicación",
           "body": "La app no pudo colocar un elemento recibido en la lista del cliente.",
           "action": "Revise la bandeja de incorporación y ubique el elemento manualmente."
+        },
+        "extraction-failed": {
+          "badge": "Documento para revisar",
+          "title": "Este documento se guardó, pero no se pudo leer automáticamente",
+          "body": "El documento se archivó de forma segura. Puede revisarlo usted mismo o intentar leerlo de nuevo.",
+          "action": "Intente leer el documento de nuevo cuando esté listo.",
+          "retry": "Reintentar extracción"
         },
         "shared-intake-setup-required": {
           "badge": "Falta configurar la solicitud compartida",

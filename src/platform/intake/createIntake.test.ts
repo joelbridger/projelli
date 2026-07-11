@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
+import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
 import { assertSendableRequest, createAdvisorIntake, type CreateAdvisorIntakeOptions } from './createIntake';
 import { loadIntakeLinkSecret } from './intakeKeychain';
 import { useIntakeStore } from './intakeStore';
@@ -74,6 +74,18 @@ describe('createAdvisorIntake team sharing', () => {
   });
 
   it('validates pdf and signature item lists directly', () => {
-    expect(() => { assertSendableRequest([{ t: 'pdf_fill', item_id: 'pdf', label: 'PDF', help_text: '', required: true, subject: 'primary', pdf_ref: 'x', field_map: {}, prefill: [] }]); }).toThrow(/pdf_fill/iu);
+    const approved = {
+      t: 'pdf_fill' as const, item_id: 'pdf', label: 'PDF', help_text: '', required: true, subject: 'primary', prefill: [],
+      template: {
+        templateId: 'template_approved_03', version: 1, kind: 'acroform' as const, sourceSha256: 'a'.repeat(64),
+        sourceArtifactRef: 'sealed-artifact:approvedartifact0003', outputFileStem: 'client-form', maxOutputBytes: 1024 * 1024,
+        fields: { client_name: { kind: 'acroform' as const, field_id: 'client_name', acroform_field: 'Client.Name', pdf_field_type: 'text' as const } },
+      },
+    };
+    expect(() => { assertSendableRequest([approved]); }).not.toThrow();
+    expect(() => { assertSendableRequest([{ ...approved, template: { ...approved.template, sourceSha256: 'bad' } }]); }).toThrow(/pdf_fill/iu);
+    expect(() => { assertSendableRequest([{ t: 'signature', item_id: 'sign', label: 'Sign', help_text: '', required: true, subject: 'primary', grade: 'native_clicksign' }]); }).toThrow(/signature/iu);
+    const oldWave7 = { t: 'pdf_fill', item_id: 'old', label: 'Old', help_text: '', required: true, subject: 'primary', pdf_ref: 'old.pdf', field_map: {}, prefill: [] };
+    expect(() => { assertSendableRequest([oldWave7] as never); }).toThrow(/pdf_fill/iu);
   });
 });

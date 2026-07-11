@@ -110,6 +110,7 @@
     "mermaid": "^11.14.0",
     "minisearch": "^7.2.0",
     "papaparse": "^5.5.3",
+    "pdf-lib": "1.17.1",
     "pdfjs-dist": "^5.6.205",
     "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",

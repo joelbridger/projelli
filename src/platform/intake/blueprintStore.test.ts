@@ -7,7 +7,9 @@ import {
 } from './blueprintStore';
 import { NEW_HOUSEHOLD_BLUEPRINT } from './defaultBlueprints';
 import { BlueprintValidationError } from './blueprintValidation';
-import type { RequestItem } from './types';
+import { bytesToB64 } from './pageSeal';
+import { sha256Hex } from './pdfTemplates/receipt';
+import type { PdfFillRequestItem, PdfTemplateDescriptor, RequestItem } from './types';
 
 const annualReviewItems: RequestItem[] = [
   {
@@ -64,6 +66,35 @@ describe('blueprintStore', () => {
     const persisted = JSON.stringify(partializeBlueprintStateForPersistence(useBlueprintStore.getState()));
     expect(persisted).toContain('annual-review');
     expect(persisted).not.toMatch(/fact_id|display_value|provenance|matter_id|relay|ciphertext|link_secret/iu);
+  });
+
+  it('never saves an issued PDF source artifact in a reusable blueprint', async () => {
+    const sourceBytes = new TextEncoder().encode('persisted-blueprint-source');
+    const template: PdfTemplateDescriptor = {
+      templateId: 'template_persist_001', version: 1, kind: 'acroform', sourceSha256: await sha256Hex(sourceBytes),
+      sourceArtifactRef: 'sealed-artifact:persistedsource001', outputFileStem: 'persisted-form', maxOutputBytes: 1024 * 1024,
+      fields: { name: { kind: 'acroform', field_id: 'name', acroform_field: 'Name', pdf_field_type: 'text' } },
+    };
+    const issuedItem: PdfFillRequestItem = {
+      t: 'pdf_fill',
+      item_id: `pdf_${template.templateId}_${String(template.version)}`,
+      label: 'Form ready',
+      help_text: 'Complete the approved form securely.',
+      required: true,
+      subject: 'household',
+      template: structuredClone(template),
+      prefill: [],
+      sealed_source_pdf_b64: bytesToB64(sourceBytes),
+    };
+    const stored = useBlueprintStore.getState().createFirmBlueprint({
+      blueprintId: 'persisted-pdf', label: 'Persisted PDF', items: [issuedItem],
+    });
+
+    const storedItem = stored.items[0];
+    expect(storedItem?.t).toBe('pdf_fill');
+    expect(storedItem && 'sealed_source_pdf_b64' in storedItem).toBe(false);
+    const persisted = partializeBlueprintStateForPersistence(useBlueprintStore.getState());
+    expect(persisted.firmBlueprintsById['persisted-pdf']?.items[0]).not.toHaveProperty('sealed_source_pdf_b64');
   });
 
   it.each(['number', 'text', 'choice'] as const)(

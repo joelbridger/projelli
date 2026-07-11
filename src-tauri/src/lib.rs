@@ -230,6 +230,9 @@ pub fn run() {
             commands::crm::commands::crm_delete_write_proposal,
             // Lantern Intake — encrypted facts store and audit-gated reveals/purges.
             commands::intake::intake_set_workspace,
+            commands::intake::intake_pdf_template_artifact_write,
+            commands::intake::intake_pdf_template_artifact_read,
+            commands::intake::intake_pdf_template_artifact_delete,
             commands::intake::intake_fact_upsert,
             commands::intake::intake_fact_list,
             commands::intake::intake_fact_reveal,

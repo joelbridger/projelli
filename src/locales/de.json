@@ -3982,6 +3982,19 @@
     }
   },
   "intake": {
+    "pdf-template-library": {
+      "approved-forms": "Genehmigte PDF-Formulare",
+      "add-starter-forms": "Startformulare hinzufügen",
+      "import-form": "PDF-Formular importieren",
+      "empty-state": "Ein lokales PDF importieren, prüfen und genehmigen, bevor es einer Anfrage hinzugefügt wird.",
+      "add-to-request": "Zur Anfrage hinzufügen",
+      "reviewing-local": "{{fileName}} wird lokal geprüft. Es wird keine Website-Adresse gespeichert oder verwendet.",
+      "fillable-fields": "Ausfüllbare PDF-Felder",
+      "wrap-field": "In diesem Feld umbrechen",
+      "contact-advisor": "Den Kunden bitten, sich an den Berater zu wenden",
+      "add-overlay-field": "Überlagerungsfeld hinzufügen",
+      "approve-version": "Diese Version genehmigen"
+    },
     "journey": {
       "title": "Willkommensablauf",
       "description": "Wird über den einen sicheren Onboarding-Link dieses Kunden angezeigt.",
@@ -4188,6 +4201,13 @@
           "title": "Ein erhaltenes Element muss zugeordnet werden",
           "body": "Die App konnte ein erhaltenes Element nicht in der Kundencheckliste ablegen.",
           "action": "Prüfen Sie den Intake-Eingang und ordnen Sie das Element manuell zu."
+        },
+        "extraction-failed": {
+          "badge": "Dokument prüfen",
+          "title": "Dieses Dokument wurde gespeichert, konnte aber nicht automatisch gelesen werden",
+          "body": "Das Dokument ist sicher abgelegt. Sie können es selbst prüfen oder erneut versuchen, es zu lesen.",
+          "action": "Versuchen Sie erneut, das Dokument zu lesen, wenn Sie bereit sind.",
+          "retry": "Extraktion wiederholen"
         },
         "shared-intake-setup-required": {
           "badge": "Einrichtung der gemeinsamen Anfrage nötig",

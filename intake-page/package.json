@@ -4,12 +4,17 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "predev": "node scripts/copy-pdf-worker.mjs",
+    "prebuild": "node scripts/copy-pdf-worker.mjs",
+    "pretest": "node scripts/copy-pdf-worker.mjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "playwright test"
   },
   "dependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "5.6.205",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

@@ -2,9 +2,12 @@ import { isTauri } from '@tauri-apps/api/core';
 
 import { KC_FALLBACK_PREFIX, KC_FIRM_NS } from '@/config/identity';
 import { keychainDelete, keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
+import type { PdfTemplateDescriptor } from './pdfTemplates/templateContract';
+import { assertValidPdfTemplateDescriptor } from './pdfTemplates/templateValidation';
 
 const KC_PRIVATE_JWK = 'private_jwk';
 const KC_LINK_SECRET = 'link_secret_b64';
+const KC_PDF_TEMPLATE_DESCRIPTOR = 'pdf_template_descriptor';
 
 export function intakeService(intakeId: string): string {
   return `${KC_FIRM_NS}.intake.${intakeId}`;
@@ -12,6 +15,10 @@ export function intakeService(intakeId: string): string {
 
 function fallbackKey(service: string, key: string): string {
   return `${KC_FALLBACK_PREFIX}${service}::${key}`;
+}
+
+function pdfTemplateDescriptorKey(itemId: string): string {
+  return `${KC_PDF_TEMPLATE_DESCRIPTOR}:${itemId}`;
 }
 
 function utf8ToB64(value: string): string {
@@ -131,6 +138,37 @@ export async function loadIntakeLinkSecret(intakeId: string): Promise<string | n
 
 export async function updateIntakeLinkSecret(intakeId: string, linkSecretB64: string): Promise<void> {
   await setSecret(intakeService(intakeId), KC_LINK_SECRET, linkSecretB64);
+}
+
+/** Store one complete PDF template descriptor outside persisted intake state. */
+export async function storePdfTemplateDescriptor(
+  intakeId: string,
+  itemId: string,
+  descriptor: PdfTemplateDescriptor,
+): Promise<void> {
+  assertValidPdfTemplateDescriptor(descriptor);
+  await setSecret(intakeService(intakeId), pdfTemplateDescriptorKey(itemId), JSON.stringify(descriptor));
+}
+
+/** Load the complete descriptor needed to verify a returned PDF after restart. */
+export async function loadPdfTemplateDescriptor(
+  intakeId: string,
+  itemId: string,
+): Promise<PdfTemplateDescriptor | null> {
+  const raw = await getSecret(intakeService(intakeId), pdfTemplateDescriptorKey(itemId));
+  if (!raw) return null;
+  try {
+    const descriptor: unknown = JSON.parse(raw);
+    assertValidPdfTemplateDescriptor(descriptor);
+    return descriptor;
+  } catch {
+    return null;
+  }
+}
+
+/** Remove the one complete PDF template descriptor stored for an intake item. */
+export async function clearPdfTemplateDescriptor(intakeId: string, itemId: string): Promise<void> {
+  await deleteSecret(intakeService(intakeId), pdfTemplateDescriptorKey(itemId));
 }
 
 export async function clearIntakeSecrets(intakeId: string): Promise<void> {
