@@ -28,6 +28,13 @@ export interface IntakeChecklistState {
   provenance?: IntakeProvenanceSummary;
   factId?: string;
   filePath?: string;
+  /** Display cache only. Signature eligibility always re-hashes the filed bytes. */
+  pdfCompletion?: {
+    templateId: string;
+    templateVersion: number;
+    sourceSha256: string;
+    completedSha256: string;
+  };
 }
 
 export interface IntakeReceivedItem {
@@ -40,6 +47,13 @@ export interface IntakeReceivedItem {
   keptWarnedFileReason?: Tier1WarningReason;
   receivedAt: string;
   provenance: IntakeProvenanceSummary;
+  /** Display cache only. The signed-send gate recomputes this from the local file. */
+  pdfCompletion?: {
+    templateId: string;
+    templateVersion: number;
+    sourceSha256: string;
+    completedSha256: string;
+  };
 }
 
 /** Non-sensitive proof that a quarantined attachment was saved to this target. */

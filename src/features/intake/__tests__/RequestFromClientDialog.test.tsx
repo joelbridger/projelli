@@ -281,6 +281,11 @@ describe('RequestFromClientDialog', () => {
         template.version
       );
     });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: 'Add to request' })
+      ).toBeNull();
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
     fireEvent.click(
       await screen.findByRole('button', { name: 'Send request' })
