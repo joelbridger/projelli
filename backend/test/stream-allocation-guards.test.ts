@@ -20,7 +20,7 @@ function setup(role: MatterRole) {
   const org = store.createOrg({ name: "First write guard", plan: "practice", packs: [], seat_limit: 8 });
   const user = store.createUser({ org_id: org.org_id, email: `${role}@write.test`, password_hash: "x", role: "member" });
   const matter = store.createMatter({ org_id: org.org_id });
-  store.setMatterStatus(matter.matter_handle, "active");
+  store.activateProvisioningMatter(matter.matter_handle);
   store.addMatterMember({ matter_handle: matter.matter_handle, user_id: user.user_id, org_id: org.org_id, role });
   const activeSeat = store.activateSeat({ org_id: org.org_id, user_id: user.user_id, machine_id: `${role}-machine`, machine_label: null, seat_limit: 8 });
   if (!activeSeat.ok) throw new Error("test seat activation failed");
@@ -51,7 +51,7 @@ describe("client-generated stream first-write guards", () => {
   test("a handle already bound to another matter is rejected", async () => {
     const fixture = setup("editor");
     const other = fixture.store.createMatter({ org_id: fixture.user.org_id });
-    fixture.store.setMatterStatus(other.matter_handle, "active");
+    fixture.store.activateProvisioningMatter(other.matter_handle);
     fixture.store.addMatterMember({ matter_handle: other.matter_handle, user_id: fixture.user.user_id, org_id: fixture.user.org_id, role: "editor" });
     const handle = stream("B");
     expect((await push(fixture, handle, "first")).status).toBe(201);

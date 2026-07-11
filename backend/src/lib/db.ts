@@ -149,6 +149,15 @@ CREATE TABLE IF NOT EXISTS matters (
 );
 CREATE INDEX IF NOT EXISTS idx_matters_org ON matters(org_id);
 
+-- ARCHIVED IS TERMINAL. This protects the invariant even if a future caller
+-- bypasses Store transition helpers and issues SQL directly.
+CREATE TRIGGER IF NOT EXISTS prevent_archived_matter_resurrection
+BEFORE UPDATE OF status ON matters
+WHEN OLD.status = 'archived' AND NEW.status <> 'archived'
+BEGIN
+  SELECT RAISE(ABORT, 'archived_matter_terminal');
+END;
+
 CREATE TABLE IF NOT EXISTS matter_streams (
   stream_handle TEXT PRIMARY KEY,
   matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
@@ -1008,8 +1017,20 @@ export class Store {
     return row?.matter_handle ?? null;
   }
 
-  setMatterStatus(matterHandle: string, status: MatterStatus): void {
-    this.db.query(`UPDATE matters SET status = ? WHERE matter_handle = ?`).run(status, matterHandle);
+  /** The one legal activation transition: provisioning → active. */
+  activateProvisioningMatter(matterHandle: string): boolean {
+    const txn = this.db.transaction(() =>
+      this.db.query(`UPDATE matters SET status = 'active' WHERE matter_handle = ? AND status = 'provisioning'`).run(matterHandle).changes === 1,
+    );
+    return txn.immediate() as boolean;
+  }
+
+  /** The only legal archive transitions: provisioning|active → archived. */
+  archiveMatter(matterHandle: string): boolean {
+    const txn = this.db.transaction(() =>
+      this.db.query(`UPDATE matters SET status = 'archived' WHERE matter_handle = ? AND status IN ('provisioning', 'active')`).run(matterHandle).changes === 1,
+    );
+    return txn.immediate() as boolean;
   }
 
   /**
@@ -1520,6 +1541,47 @@ export class Store {
       .query(`SELECT * FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
       .get(matterHandle, epoch, userId, deviceId) as WrappedMatterKey | null;
     return r ?? null;
+  }
+
+  /**
+   * Resolve access, terminal status, current epoch, and one wrapped key under
+   * one IMMEDIATE lock. A completed archive therefore serializes either wholly
+   * before this read (no key returned) or wholly after it (the read happened
+   * while the matter was still open); there is no check-then-read gap.
+   */
+  fetchWrappedMatterKeyForAccess(input: {
+    matter_handle: string;
+    org_id: string;
+    user_id: string;
+    role: UserRole;
+    device_id: string;
+  }):
+    | { ok: true; epoch: number; access: "member" | "admin"; key: WrappedMatterKey | null }
+    | { ok: false; reason: "matter_not_found" | "cross_org" | "archived" | "walled" | "not_member" } {
+    const txn = this.db.transaction(() => {
+      const matter = this.db
+        .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
+        .get(input.matter_handle) as { org_id: string; status: MatterStatus; key_epoch: number } | null;
+      if (!matter) return { ok: false as const, reason: "matter_not_found" as const };
+      if (matter.org_id !== input.org_id) return { ok: false as const, reason: "cross_org" as const };
+      if (matter.status === "archived") return { ok: false as const, reason: "archived" as const };
+
+      const walled = this.db
+        .query(`SELECT 1 FROM ethical_walls WHERE matter_handle = ? AND user_id = ?`)
+        .get(input.matter_handle, input.user_id);
+      if (walled) return { ok: false as const, reason: "walled" as const };
+
+      const member = this.db
+        .query(`SELECT 1 FROM matter_members WHERE matter_handle = ? AND user_id = ?`)
+        .get(input.matter_handle, input.user_id);
+      if (!member && input.role !== "admin") return { ok: false as const, reason: "not_member" as const };
+
+      const key = this.db
+        .query(`SELECT * FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
+        .get(input.matter_handle, matter.key_epoch, input.user_id, input.device_id) as WrappedMatterKey | null;
+      return { ok: true as const, epoch: matter.key_epoch, access: member ? "member" as const : "admin" as const, key: key ?? null };
+    });
+    return txn.immediate() as ReturnType<Store["fetchWrappedMatterKeyForAccess"]>;
   }
 
   /**

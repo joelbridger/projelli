@@ -25,7 +25,7 @@ function fixture() {
   const admin = store.createUser({ org_id: org.org_id, email: "admin@archived.test", password_hash: "x", role: "admin" });
   const member = store.createUser({ org_id: org.org_id, email: "member@archived.test", password_hash: "x", role: "member" });
   const matter = store.createMatter({ org_id: org.org_id });
-  store.setMatterStatus(matter.matter_handle, "active");
+  store.activateProvisioningMatter(matter.matter_handle);
   store.addMatterMember({ matter_handle: matter.matter_handle, user_id: member.user_id, org_id: org.org_id, role: "editor" });
   const seat = store.activateSeat({ org_id: org.org_id, user_id: member.user_id, machine_id: "member-machine", machine_label: null, seat_limit: 8 });
   if (!seat.ok) throw new Error("test seat activation failed");
@@ -49,6 +49,32 @@ function request(token: string, body: unknown, seat?: string) {
     headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(seat ? { "x-seat-token": seat } : {}) },
     body: JSON.stringify(body),
   });
+}
+
+/** Hold body delivery until the test deliberately lets the handler continue. */
+function delayedRequest(token: string, body: unknown, seat?: string) {
+  let bodyRead!: () => void;
+  let releaseBody!: () => void;
+  const reading = new Promise<void>((resolve) => { bodyRead = resolve; });
+  const release = new Promise<void>((resolve) => { releaseBody = resolve; });
+  const encoded = new TextEncoder().encode(JSON.stringify(body));
+  const stream = new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      bodyRead();
+      await release;
+      controller.enqueue(encoded);
+      controller.close();
+    },
+  });
+  return {
+    request: new Request("http://relay.test/v2/firm/route", {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", ...(seat ? { "x-seat-token": seat } : {}) },
+      body: stream,
+    }),
+    reading,
+    release: releaseBody,
+  };
 }
 
 function pushRequest(f: ReturnType<typeof fixture>, blobId: string) {
@@ -107,7 +133,7 @@ describe("archived matter relay denial", () => {
   test("push to an archived matter is denied and cannot bind a new stream", async () => {
     const f = fixture();
     const newStream = stream("A");
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     await expectOpaqueArchivedDenial(await handlePushUpdate(pushRequest(f, "archived-push"), f.store, f.matter.matter_handle, newStream, "archived-push"));
     expect(f.store.streamBelongsToMatter(newStream, f.matter.matter_handle)).toBe(false);
     f.store.close();
@@ -115,14 +141,14 @@ describe("archived matter relay denial", () => {
 
   test("pull from an archived matter is denied", async () => {
     const f = fixture();
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     await expectOpaqueArchivedDenial(await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "archived-pull"));
     f.store.close();
   });
 
   test("sync-ticket minting for an archived matter is denied", async () => {
     const f = fixture();
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "archived-ticket", new SyncTicketStore()));
     f.store.close();
   });
@@ -133,7 +159,7 @@ describe("archived matter relay denial", () => {
     const minted = await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "prearchive-ticket", tickets);
     expect(minted.status).toBe(200);
     const { ticket } = await minted.json() as { ticket: string };
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     const connection = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${encodeURIComponent(ticket)}`), f.store, tickets);
     expect(connection.ok).toBe(false);
     if (!connection.ok) {
@@ -145,14 +171,14 @@ describe("archived matter relay denial", () => {
 
   test("key fetch from an archived matter is denied", async () => {
     const f = fixture();
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
     f.store.close();
   });
 
   test("wrapped-key publishing to an archived matter is denied without writing material", async () => {
     const f = fixture();
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     const response = await handlePublishMatterKeys(
       request(f.adminToken, {
         epoch: 1,
@@ -168,7 +194,7 @@ describe("archived matter relay denial", () => {
 
   test("an archive that wins a wrapped-key publish race leaves no new key material", () => {
     const f = fixture();
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     const result = f.store.publishWrappedMatterKeys({
       matter_handle: f.matter.matter_handle,
       org_id: f.org.org_id,
@@ -181,12 +207,47 @@ describe("archived matter relay denial", () => {
     f.store.close();
   });
 
+  test("a key fetch waiting for its body returns no key material after archive wins", async () => {
+    const f = fixture();
+    const pending = delayedRequest(f.memberToken, { device_id: "member-device" }, f.memberSeat);
+    const fetch = handleFetchMatterKey(pending.request, f.store, f.matter.matter_handle);
+    await pending.reading;
+
+    // This is the old TOCTOU: access used to be approved before the awaited
+    // body read, so this archive could commit before the wrapped-key lookup.
+    f.store.archiveMatter(f.matter.matter_handle);
+    pending.release();
+
+    const response = await fetch;
+    expect(response.status).toBe(404);
+    const responseBody = await response.text();
+    expect(responseBody).not.toContain("wrapped-key");
+    expect(responseBody.toLowerCase()).not.toContain("archived");
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "member-device")?.wrapped_key_b64).toBe("wrapped-key");
+    f.store.close();
+  });
+
+  test("the store only permits forward terminal transitions and SQLite rejects a raw resurrection", () => {
+    const f = fixture();
+    const provisioning = f.store.createMatter({ org_id: f.org.org_id });
+    expect(f.store.activateProvisioningMatter(provisioning.matter_handle)).toBe(true);
+    expect(f.store.getMatter(provisioning.matter_handle)?.status).toBe("active");
+    expect(f.store.archiveMatter(f.matter.matter_handle)).toBe(true);
+    expect(f.store.activateProvisioningMatter(f.matter.matter_handle)).toBe(false);
+    expect(f.store.getMatter(f.matter.matter_handle)?.status).toBe("archived");
+
+    // This deliberately bypasses Store methods. The SQLite trigger must still
+    // reject the write, so a future direct caller cannot resurrect this matter.
+    expect(() => f.store.db.query("UPDATE matters SET status = 'active' WHERE matter_handle = ?").run(f.matter.matter_handle)).toThrow(/archived_matter_terminal/);
+    f.store.close();
+  });
+
   test("archive racing a first write cannot bind the stream after archive commits", () => {
     const f = fixture();
     const newStream = stream("B");
     // The append method takes its own IMMEDIATE transaction, so this models a
     // push which cleared the earlier access gate before this archive committed.
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     expect(f.store.appendMatterUpdate({ matter_handle: f.matter.matter_handle, org_id: f.org.org_id, stream_handle: newStream, blob_id: "racing-first-write", ciphertext: new Uint8Array([1]), author_seat: "seat", key_epoch: 1 })).toEqual({ matterArchived: true });
     expect(f.store.streamBelongsToMatter(newStream, f.matter.matter_handle)).toBe(false);
     f.store.close();
@@ -195,7 +256,7 @@ describe("archived matter relay denial", () => {
   test("archiving keeps administrator membership and wall controls available", async () => {
     const f = fixture();
     const target = f.store.createUser({ org_id: f.org.org_id, email: "target@archived.test", password_hash: "x", role: "member" });
-    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    f.store.archiveMatter(f.matter.matter_handle);
     expect((await handleAddMatterMember(request(f.adminToken, { user_id: target.user_id, role: "viewer" }), f.store, f.matter.matter_handle)).status).toBe(200);
     expect((await handleSetWall(request(f.adminToken, { user_id: target.user_id }), f.store, f.matter.matter_handle)).status).toBe(200);
     expect((await handleClearWall(request(f.adminToken, { user_id: target.user_id }), f.store, f.matter.matter_handle)).status).toBe(200);

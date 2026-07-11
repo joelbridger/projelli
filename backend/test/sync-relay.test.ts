@@ -77,7 +77,7 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
 
   test("an archive between ticket approval and subscription sends no websocket backlog", () => {
     const matter = store.createMatter({ org_id: store.getMatter(handle)!.org_id });
-    store.setMatterStatus(matter.matter_handle, "active");
+    store.activateProvisioningMatter(matter.matter_handle);
     store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: store.getMatter(handle)!.org_id, role: "editor" });
     expect(store.appendMatterUpdate({ matter_handle: matter.matter_handle, org_id: store.getMatter(handle)!.org_id, stream_handle: matter.root_stream_handle, blob_id: "pre-subscribe-backlog", ciphertext: new Uint8Array([1]), author_seat: "seat", key_epoch: 1 })).toMatchObject({ duplicate: false });
     const tickets = new SyncTicketStore();
@@ -85,7 +85,7 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
     const approved = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${encodeURIComponent(ticket.ticket)}`), store, tickets);
     expect(approved.ok).toBe(true);
     if (!approved.ok) throw new Error("ticket should be approved before archive");
-    store.setMatterStatus(matter.matter_handle, "archived");
+    store.archiveMatter(matter.matter_handle);
     const frames: string[] = [], closed: Array<[number | undefined, string | undefined]> = [], isolatedHub = new FanoutHub();
     subscribeSyncSocket(store, isolatedHub, { data: { subId: "between-ticket-and-subscribe", ...approved.data }, send: (frame: string) => { frames.push(frame); return 0; }, close: (code?: number, reason?: string) => { closed.push([code, reason]); } } as unknown as Bun.ServerWebSocket<SyncSocketData>);
     expect(frames).toEqual([]);
@@ -95,7 +95,7 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
 
   test("archiving an open websocket evicts that matter only", async () => {
     const matter = store.createMatter({ org_id: store.getMatter(handle)!.org_id });
-    store.setMatterStatus(matter.matter_handle, "active");
+    store.activateProvisioningMatter(matter.matter_handle);
     store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: store.getMatter(handle)!.org_id, role: "editor" });
     const isolatedHub = new FanoutHub(), frames: string[] = [], closed: Array<[number | undefined, string | undefined]> = [];
     subscribeSyncSocket(store, isolatedHub, { data: { subId: "open-archive-socket", matterHandle: matter.matter_handle, streamHandle: matter.root_stream_handle, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: "seat", role: "member" }, send: (frame: string) => { frames.push(frame); return 0; }, close: (code?: number, reason?: string) => { closed.push([code, reason]); } } as unknown as Bun.ServerWebSocket<SyncSocketData>);
