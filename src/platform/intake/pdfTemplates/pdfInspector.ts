@@ -65,7 +65,7 @@ function safeName(value: unknown): string | null {
 function fieldType(value: unknown): InspectedPdfFieldType | null {
   if (value === 'checkbox') return 'checkbox';
   if (value === 'radiobutton') return 'radio';
-  if (value === 'choice') return 'select';
+  if (value === 'combobox' || value === 'listbox') return 'select';
   if (value === 'text') return 'text';
   return null;
 }
@@ -94,8 +94,11 @@ export async function inspectPdfTemplate(bytes: Uint8Array): Promise<PdfInspecti
     const objects = await pdf.getFieldObjects();
     const fields = Object.entries(objects ?? {}).flatMap(([name, widgets]) => {
       const safe = safeName(name);
-      const widget = widgets?.[0] as { fieldType?: unknown; items?: unknown[] } | undefined;
-      const type = fieldType(widget?.fieldType);
+      // PDF.js's public getFieldObjects() shape uses `type`, not `fieldType`.
+      // Push buttons intentionally return null below: they are actions, never
+      // client-answer fields.
+      const widget = widgets?.[0] as { type?: unknown; items?: unknown[] } | undefined;
+      const type = fieldType(widget?.type);
       if (!safe || !type) return [];
       const options = type === 'radio' || type === 'select'
         ? (widget?.items ?? []).flatMap((item) => {

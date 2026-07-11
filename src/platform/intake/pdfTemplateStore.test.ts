@@ -32,6 +32,26 @@ describe('pdf template library', () => {
     expect(persisted).not.toContain('http');
   });
 
+  it('round-trips a large source through the encrypted artifact shelf', async () => {
+    const largeSource = new Uint8Array(400 * 1024);
+    largeSource.fill(0x61);
+    largeSource.set(source.slice(0, 12));
+    const value = await descriptor();
+    value.sourceSha256 = await sha256Hex(largeSource);
+
+    await usePdfTemplateStore.getState().importDraft({
+      templateId: value.templateId,
+      label: 'Large custodian form',
+      descriptor: value,
+      sourceBytes: largeSource,
+    });
+
+    expect(await usePdfTemplateStore.getState().loadSourceBytes(value.templateId, 1)).toEqual(largeSource);
+    expect(localStorage.getItem('lantern:intake-pdf-template-artifact:template_store_0001')).toBeTruthy();
+    // The old keychain-shaped shelf must never receive the full PDF.
+    expect(Object.keys(localStorage).some((key) => key.startsWith('lantern:keychain::'))).toBe(false);
+  });
+
   it('never accepts a website address as a local template source', async () => {
     const value = await descriptor();
     await expect(usePdfTemplateStore.getState().importDraft({

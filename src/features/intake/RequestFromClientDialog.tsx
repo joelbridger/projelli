@@ -53,7 +53,9 @@ function newStandingRequestId(): string {
 }
 
 function unsupportedItem(items: RequestItem[]): RequestItem | undefined {
-  return items.find((item) => item.t === 'signature' || (item.t === 'pdf_fill' && !isValidPdfTemplateDescriptor(item.template)));
+  return items.find((item) => item.t === 'signature' || (item.t === 'pdf_fill' && (
+    !isValidPdfTemplateDescriptor(item.template) || !item.sealed_source_pdf_b64
+  )));
 }
 
 function copyBlueprints(blueprints: RequestBlueprint[]): RequestBlueprint[] {

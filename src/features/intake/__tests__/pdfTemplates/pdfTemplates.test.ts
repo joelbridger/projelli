@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { assertSendableRequest } from '@/platform/intake/createIntake';
 import { assertPrefillLegal, type FormRequest, type PdfTemplateDescriptor } from '@/platform/intake/types';
-import { assertDryFillPreview, buildDryFillPreviewSnapshot } from '../../pdfTemplates/TemplateLibraryPanel';
+import { assertDryFillPreview, buildDryFillPreviewSnapshot, drawOverlayDryFill, overlayField } from '../../pdfTemplates/TemplateLibraryPanel';
 import { createPdfFillDraftItem } from '../../pdfTemplates/requestComposerPdf';
 
 const template: PdfTemplateDescriptor = {
@@ -42,5 +42,38 @@ describe('PDF template composer and golden dry fill', () => {
     delete shifted.fields.state;
     expect(buildDryFillPreviewSnapshot(shifted)).not.toBe(golden);
     expect(buildDryFillPreviewSnapshot(shifted)).not.toContain('"field":"state"');
+  });
+
+  it('creates distinct overlay fields and keeps their editable geometry', () => {
+    const first = overlayField(1);
+    const second = {
+      ...overlayField(2),
+      page: 2,
+      rect: { x: 0.58, y: 0.42, width: 0.31, height: 0.08 },
+    };
+
+    expect(first.kind).toBe('overlay');
+    expect(second.kind).toBe('overlay');
+    expect(second.page).toBe(2);
+    expect(second.rect).toEqual({ x: 0.58, y: 0.42, width: 0.31, height: 0.08 });
+    expect(second.rect).not.toEqual(first.rect);
+  });
+
+  it('draws the overlay dry-fill sample at its real normalized canvas position', () => {
+    const entry = {
+      ...overlayField(1),
+      rect: { x: 0.2, y: 0.3, width: 0.5, height: 0.1 },
+      overflow: 'stop' as const,
+    };
+    if (entry.kind !== 'overlay') throw new Error('Expected overlay field.');
+    const context = {
+      save: vi.fn(), beginPath: vi.fn(), rect: vi.fn(), clip: vi.fn(), restore: vi.fn(),
+      measureText: vi.fn(() => ({ width: 20 })), fillText: vi.fn(),
+    } as unknown as CanvasRenderingContext2D;
+
+    drawOverlayDryFill(context, entry, 1_000, 500);
+
+    expect(context.rect).toHaveBeenCalledWith(200, 150, 500, 50);
+    expect(context.fillText).toHaveBeenCalledWith('A fitting answer', 200, 150, 500);
   });
 });

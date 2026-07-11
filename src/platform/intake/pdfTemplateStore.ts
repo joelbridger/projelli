@@ -1,15 +1,16 @@
-import { isTauri } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-import { KC_FALLBACK_PREFIX, KC_FIRM_NS } from '@/config/identity';
-import { keychainDelete, keychainGet, keychainSet } from '@/platform/utils/tauri-commands';
 import type { PdfTemplateDescriptor } from './pdfTemplates/templateContract';
 import { assertValidPdfTemplateDescriptor } from './pdfTemplates/templateValidation';
 import { sha256Hex } from './pdfTemplates/receipt';
+import {
+  deletePdfTemplateArtifact,
+  readPdfTemplateArtifact,
+  writePdfTemplateArtifact,
+} from './pdfTemplateArtifacts';
 
 export const PDF_TEMPLATE_LIBRARY_STORAGE_KEY = 'lantern:intake-pdf-template-library';
-const TEMPLATE_SERVICE = `${KC_FIRM_NS}.intake.pdf-template-library`;
 
 export type PdfTemplateApprovalStatus = 'draft' | 'approved';
 
@@ -69,24 +70,13 @@ function bytes(value: string): Uint8Array {
   return Uint8Array.from(text, (character) => character.charCodeAt(0));
 }
 
-function secretKey(templateId: string): string {
-  return `template:${templateId}`;
+async function writeSensitiveRecord(templateId: string, value: SensitiveTemplateRecord): Promise<void> {
+  await writePdfTemplateArtifact(templateId, JSON.stringify(value));
 }
 
-async function writeSecret(templateId: string, value: SensitiveTemplateRecord): Promise<void> {
-  const json = JSON.stringify(value);
-  if (isTauri()) {
-    await keychainSet(secretKey(templateId), json, TEMPLATE_SERVICE);
-    return;
-  }
-  localStorage.setItem(`${KC_FALLBACK_PREFIX}${TEMPLATE_SERVICE}::${secretKey(templateId)}`, btoa(json));
-}
-
-async function readSecret(templateId: string): Promise<SensitiveTemplateRecord | null> {
+async function readSensitiveRecord(templateId: string): Promise<SensitiveTemplateRecord | null> {
   try {
-    const raw = isTauri()
-      ? await keychainGet(secretKey(templateId), TEMPLATE_SERVICE)
-      : localStorage.getItem(`${KC_FALLBACK_PREFIX}${TEMPLATE_SERVICE}::${secretKey(templateId)}`) && atob(localStorage.getItem(`${KC_FALLBACK_PREFIX}${TEMPLATE_SERVICE}::${secretKey(templateId)}`)!);
+    const raw = await readPdfTemplateArtifact(templateId);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as SensitiveTemplateRecord;
     return parsed && typeof parsed === 'object' && parsed.versions ? parsed : null;
@@ -96,8 +86,7 @@ async function readSecret(templateId: string): Promise<SensitiveTemplateRecord |
 }
 
 async function clearSecret(templateId: string): Promise<void> {
-  if (isTauri()) await keychainDelete(secretKey(templateId), TEMPLATE_SERVICE);
-  else localStorage.removeItem(`${KC_FALLBACK_PREFIX}${TEMPLATE_SERVICE}::${secretKey(templateId)}`);
+  await deletePdfTemplateArtifact(templateId);
 }
 
 function metadata(descriptor: PdfTemplateDescriptor, status: PdfTemplateApprovalStatus, now: string): PdfTemplateVersionMetadata {
@@ -145,7 +134,7 @@ export const usePdfTemplateStore = create<PdfTemplateStoreState>()(
         assertSafeDraftSource(descriptor);
         if (await sha256Hex(sourceBytes) !== descriptor.sourceSha256) throw new Error('Imported PDF bytes do not match the saved hash.');
         const now = new Date().toISOString();
-        await writeSecret(templateId, { versions: { '1': { descriptor: cloneDescriptor(descriptor), sourceBytesB64: b64(sourceBytes) } } });
+        await writeSensitiveRecord(templateId, { versions: { '1': { descriptor: cloneDescriptor(descriptor), sourceBytesB64: b64(sourceBytes) } } });
         set((state) => ({ templatesById: { ...state.templatesById, [templateId]: { templateId, label: label.trim(), versions: [metadata(descriptor, 'draft', now)], createdAt: now, updatedAt: now } } }));
         return cloneDescriptor(descriptor);
       },
@@ -153,7 +142,7 @@ export const usePdfTemplateStore = create<PdfTemplateStoreState>()(
         const record = get().templatesById[templateId];
         if (!record || descriptor.templateId !== templateId) throw new Error('Template was not found.');
         assertSafeDraftSource(descriptor);
-        const secret = await readSecret(templateId);
+        const secret = await readSensitiveRecord(templateId);
         if (!secret) throw new Error('Template source is unavailable on this device.');
         const current = record.versions.find((candidate) => candidate.version === descriptor.version);
         const previousDescriptor = secret.versions[String(descriptor.version)]?.descriptor;
@@ -167,14 +156,14 @@ export const usePdfTemplateStore = create<PdfTemplateStoreState>()(
         const next = cloneDescriptor({ ...descriptor, version: nextVersion });
         if (await sha256Hex(nextBytes) !== next.sourceSha256) throw new Error('Template source does not match this version hash.');
         secret.versions[String(nextVersion)] = { descriptor: next, sourceBytesB64: b64(nextBytes) };
-        await writeSecret(templateId, secret);
+        await writeSensitiveRecord(templateId, secret);
         const now = new Date().toISOString();
         set((state) => ({ templatesById: { ...state.templatesById, [templateId]: { ...record, versions: [...record.versions.filter((candidate) => candidate.version !== nextVersion), metadata(next, 'draft', now)], updatedAt: now } } }));
         return cloneDescriptor(next);
       },
       approveVersion: async (templateId, version) => {
         const record = get().templatesById[templateId];
-        const secret = await readSecret(templateId);
+        const secret = await readSensitiveRecord(templateId);
         const stored = secret?.versions[String(version)];
         if (!record || !secret || !stored) throw new Error('Template version was not found.');
         assertValidPdfTemplateDescriptor(stored.descriptor);
@@ -190,12 +179,12 @@ export const usePdfTemplateStore = create<PdfTemplateStoreState>()(
       },
       loadDescriptor: async (templateId, version) => {
         const status = get().templatesById[templateId]?.versions.find((candidate) => candidate.version === version);
-        const stored = (await readSecret(templateId))?.versions[String(version)];
+        const stored = (await readSensitiveRecord(templateId))?.versions[String(version)];
         if (!status || !stored) return null;
         try { assertValidPdfTemplateDescriptor(stored.descriptor); return cloneDescriptor(stored.descriptor); } catch { return null; }
       },
       loadSourceBytes: async (templateId, version) => {
-        const stored = (await readSecret(templateId))?.versions[String(version)];
+        const stored = (await readSensitiveRecord(templateId))?.versions[String(version)];
         return stored ? bytes(stored.sourceBytesB64) : null;
       },
       resetForTests: async () => {
