@@ -93,6 +93,21 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     sync.stop();
   });
 
+  it('abandons an allocated stream when its root-index flush outlives the lease commit deadline', async () => {
+    const doc = new Y.Doc();
+    writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
+    let allocated = false;
+    await expect(createDocumentStream(
+      { allocateStream: () => { allocated = true; return Promise.resolve({ stream_handle: docStream }); } } as never,
+      parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc,
+      { flush: ({ signal } = {}) => new Promise<void>((_resolve, reject) => { signal?.addEventListener('abort', () => { reject(new Error('deadline elapsed')); }, { once: true }); }) },
+      'timed-out-document', { leaseCommitDeadlineMs: 5 },
+    )).rejects.toThrow('deadline elapsed');
+
+    expect(allocated).toBe(true);
+    expect(readFirmMatterPrivateIndex(doc)?.streams['timed-out-document']).toBeUndefined();
+  });
+
   it('retries a transient root push failure and returns the mapped stream only after acceptance', async () => {
     const doc = new Y.Doc();
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });

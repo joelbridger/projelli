@@ -3,10 +3,10 @@
  *
  * Mirrors the mock-relay pattern from tests/unit/firm/matterSync.test.ts.
  *
- * Two MatterDocSyncClient instances for the same (matter, docId), each wrapping
+ * Two MatterDocSyncClient instances for the same opaque stream, each wrapping
  * a Y.Doc built via documentJsonToYDoc. An editRunText on client A propagates
  * (encrypted) to client B and both yDocToDocumentJson converge. An update for a
- * DIFFERENT docId is NOT applied.
+ * DIFFERENT stream is NOT applied.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -37,11 +37,11 @@ const BASE_DOC: DocumentJson = {
 };
 
 const MATTER_HANDLE = `mh2_${'m'.repeat(43)}` as MatterHandle;
-const streamHandleFor = (docId: string): StreamHandle =>
-  `sh2_${docId.padEnd(43, '_').slice(0, 43)}` as StreamHandle;
+const streamHandleFor = (label: string): StreamHandle =>
+  `sh2_${label.padEnd(43, '_').slice(0, 43)}` as StreamHandle;
 
 // ---------------------------------------------------------------------------
-// Fake relay (doc_id-aware, mirrors FakeDocRelay from matterSync.test.ts)
+// Fake relay (opaque-stream-aware, mirrors FakeDocRelay from matterSync.test.ts)
 // ---------------------------------------------------------------------------
 
 interface StoredBlob {
@@ -49,7 +49,7 @@ interface StoredBlob {
   blob_id: string;
   key_epoch: number;
   ciphertext_b64: string;
-  doc_id: string;
+  stream_handle: StreamHandle;
 }
 
 class FakeDocRelay {
@@ -58,20 +58,18 @@ class FakeDocRelay {
   private sockets: Map<string, FakeSocket[]> = new Map();
   keyEpoch = 1;
 
-  push(blobId: string, ct: string, epoch: number, docId: string): PushUpdateResponse {
-    const existing = this.blobs.find((b) => b.blob_id === blobId && b.doc_id === docId);
+  push(blobId: string, ct: string, epoch: number, streamHandle: StreamHandle): PushUpdateResponse {
+    const existing = this.blobs.find((b) => b.blob_id === blobId && b.stream_handle === streamHandle);
     if (existing) {
       return { ok: true, cursor: existing.cursor, blob_id: blobId, key_epoch: this.keyEpoch, duplicate: true };
     }
     this.seq += 1;
-    const stored: StoredBlob = { cursor: this.seq, blob_id: blobId, key_epoch: epoch, ciphertext_b64: ct, doc_id: docId };
+    const stored: StoredBlob = { cursor: this.seq, blob_id: blobId, key_epoch: epoch, ciphertext_b64: ct, stream_handle: streamHandle };
     this.blobs.push(stored);
-    const docSockets = this.sockets.get(docId) ?? [];
+    const docSockets = this.sockets.get(streamHandle) ?? [];
     for (const s of docSockets) {
       s.deliver({
         type: 'update',
-        matter_id: 'm1',
-        doc_id: docId,
         cursor: stored.cursor,
         blob_id: stored.blob_id,
         key_epoch: stored.key_epoch,
@@ -83,19 +81,18 @@ class FakeDocRelay {
     return { ok: true, cursor: stored.cursor, blob_id: blobId, key_epoch: this.keyEpoch, duplicate: false };
   }
 
-  pull(since: number, docId: string): PullUpdatesResponse {
+  pull(since: number, streamHandle: StreamHandle): PullUpdatesResponse {
     const updates = this.blobs
-      .filter((b) => b.cursor > since && b.doc_id === docId)
+      .filter((b) => b.cursor > since && b.stream_handle === streamHandle)
       .map((b) => ({
         cursor: b.cursor,
         blob_id: b.blob_id,
-        doc_id: b.doc_id,
         key_epoch: b.key_epoch,
         author_seat: 'seat-x',
         created_at: new Date().toISOString(),
         ciphertext_b64: b.ciphertext_b64,
       }));
-    const allForDoc = this.blobs.filter((b) => b.doc_id === docId);
+    const allForDoc = this.blobs.filter((b) => b.stream_handle === streamHandle);
     const latest = allForDoc.length ? allForDoc[allForDoc.length - 1]!.cursor : 0;
     return {
       key_epoch: this.keyEpoch,
@@ -107,14 +104,14 @@ class FakeDocRelay {
     };
   }
 
-  connect(socket: FakeSocket, docId: string): void {
-    if (!this.sockets.has(docId)) this.sockets.set(docId, []);
-    this.sockets.get(docId)!.push(socket);
-    const allForDoc = this.blobs.filter((b) => b.doc_id === docId);
+  connect(socket: FakeSocket, streamHandle: StreamHandle): void {
+    if (!this.sockets.has(streamHandle)) this.sockets.set(streamHandle, []);
+    this.sockets.get(streamHandle)!.push(socket);
+    const allForDoc = this.blobs.filter((b) => b.stream_handle === streamHandle);
     const latest = allForDoc.length ? allForDoc[allForDoc.length - 1]!.cursor : 0;
     queueMicrotask(() => {
       socket.open();
-      socket.deliver({ type: 'ready', matter_id: 'm1', doc_id: docId, backlog: allForDoc.length, latest_cursor: latest });
+      socket.deliver({ type: 'ready', backlog: allForDoc.length, latest_cursor: latest, subscribers: 1 });
     });
   }
 }
@@ -131,12 +128,12 @@ class FakeSocket implements WebSocketLike {
 }
 
 /** A FirmApiClient stub exposing only what MatterSyncClient calls. */
-function fakeClient(relay: FakeDocRelay, docId: string) {
+function fakeClient(relay: FakeDocRelay) {
   return {
-    pushUpdate: async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number, dId?: string) =>
-      relay.push(blobId, ct, epoch ?? relay.keyEpoch, dId ?? docId),
-    pullUpdates: async (_m: string, since: number, _seat: string, dId?: string) =>
-      relay.pull(since, dId ?? docId),
+    pushUpdate: async (streamHandle: StreamHandle, blobId: string, ct: string, _seat: string, epoch?: number) =>
+      relay.push(blobId, ct, epoch ?? relay.keyEpoch, streamHandle),
+    pullUpdates: async (streamHandle: StreamHandle, since: number) =>
+      relay.pull(since, streamHandle),
     createSyncTicket: (...args: [string, string]) => {
       void args;
       return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
@@ -212,25 +209,25 @@ function seedDocAfterStart(doc: Y.Doc, base: DocumentJson): { blockId: string; r
 }
 
 describe('MatterDocSyncClient', () => {
-  it('two clients on the same (matter, docId) converge after an editRunText on client A', async () => {
+  it('two clients on the same opaque stream converge after an editRunText on client A', async () => {
     const relay = new FakeDocRelay();
     const keyB64 = await generateMatterKey();
-    const docId = 'doc-001';
+    const streamHandle = streamHandleFor('doc-001');
 
     // Client A: start with an empty Y.Doc, then seed the doc structure AFTER
     // start() so the update handler is wired and the full state lands in the relay.
     const docA = new Y.Doc();
     const clientA = new MatterDocSyncClient({
       matterHandle: MATTER_HANDLE,
-      streamHandle: streamHandleFor(docId),
+      streamHandle,
       doc: docA,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
-      client: fakeClient(relay, docId),
+      client: fakeClient(relay),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, docId);
+        relay.connect(s, streamHandle);
         return s;
       },
     });
@@ -241,25 +238,25 @@ describe('MatterDocSyncClient', () => {
     const { blockId, runId } = seedDocAfterStart(docA, BASE_DOC);
 
     // Wait for the seed blob to land in the relay
-    await until(() => relay.blobs.some((b) => b.doc_id === docId));
+    await until(() => relay.blobs.some((b) => b.stream_handle === streamHandle));
 
     // Edit on client A — this delta also lands in the relay
     editRunText(docA, blockId, runId, 'Hello world', 'Hello converged', 'attorney-a');
-    await until(() => relay.blobs.filter((b) => b.doc_id === docId).length >= 2);
+    await until(() => relay.blobs.filter((b) => b.stream_handle === streamHandle).length >= 2);
 
     // Client B starts with an EMPTY Y.Doc and catches up from the relay
     const docB = new Y.Doc();
     const clientB = new MatterDocSyncClient({
       matterHandle: MATTER_HANDLE,
-      streamHandle: streamHandleFor(docId),
+      streamHandle,
       doc: docB,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
-      client: fakeClient(relay, docId),
+      client: fakeClient(relay),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, docId);
+        relay.connect(s, streamHandle);
         return s;
       },
     });
@@ -296,39 +293,41 @@ describe('MatterDocSyncClient', () => {
     clientB.stop();
   });
 
-  it('an update for a DIFFERENT docId is NOT applied to a client on another docId', async () => {
+  it('an update for a DIFFERENT stream is NOT applied to a client on another stream', async () => {
     const relay = new FakeDocRelay();
     const keyB64 = await generateMatterKey();
 
     const docAlpha = documentJsonToYDoc(BASE_DOC);
     const docBeta = documentJsonToYDoc(BASE_DOC);
 
+    const alphaStream = streamHandleFor('doc-alpha');
+    const betaStream = streamHandleFor('doc-beta');
     const clientAlpha = new MatterDocSyncClient({
       matterHandle: MATTER_HANDLE,
-      streamHandle: streamHandleFor('doc-alpha'),
+      streamHandle: alphaStream,
       doc: docAlpha,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
-      client: fakeClient(relay, 'doc-alpha'),
+      client: fakeClient(relay),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, 'doc-alpha');
+        relay.connect(s, alphaStream);
         return s;
       },
     });
 
     const clientBeta = new MatterDocSyncClient({
       matterHandle: MATTER_HANDLE,
-      streamHandle: streamHandleFor('doc-beta'),
+      streamHandle: betaStream,
       doc: docBeta,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
-      client: fakeClient(relay, 'doc-beta'),
+      client: fakeClient(relay),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, 'doc-beta');
+        relay.connect(s, betaStream);
         return s;
       },
     });
@@ -346,7 +345,7 @@ describe('MatterDocSyncClient', () => {
     editRunText(docAlpha, blockIdAlpha, runIdAlpha, 'Hello world', 'ALPHA ONLY', 'attorney-a');
 
     // Wait for alpha's update to reach the relay
-    await until(() => relay.blobs.some((b) => b.doc_id === 'doc-alpha'));
+    await until(() => relay.blobs.some((b) => b.stream_handle === alphaStream));
 
     // Give time for any spurious delivery to docBeta
     await new Promise((r) => setTimeout(r, 30));
@@ -357,9 +356,9 @@ describe('MatterDocSyncClient', () => {
     const betaText = (paraBeta.inlines[0] as { kind: string; text?: string }).text ?? '';
     expect(betaText).not.toBe('ALPHA ONLY');
 
-    // Alpha's blobs stayed in the doc-alpha stream
-    const alphaBlobs = relay.blobs.filter((b) => b.doc_id === 'doc-alpha');
-    const betaBlobs = relay.blobs.filter((b) => b.doc_id === 'doc-beta');
+    // Alpha's blobs stayed in its opaque stream.
+    const alphaBlobs = relay.blobs.filter((b) => b.stream_handle === alphaStream);
+    const betaBlobs = relay.blobs.filter((b) => b.stream_handle === betaStream);
     expect(alphaBlobs.length).toBeGreaterThan(0);
     expect(betaBlobs.length).toBe(0);
 
@@ -370,46 +369,46 @@ describe('MatterDocSyncClient', () => {
   it('client B catches up edits that happened before it joined', async () => {
     const relay = new FakeDocRelay();
     const keyB64 = await generateMatterKey();
-    const docId = 'doc-catchup';
+    const streamHandle = streamHandleFor('doc-catchup');
 
     // Client A: start with empty Y.Doc, seed via post-start transact, edit, stop
     const docA = new Y.Doc();
     const clientA = new MatterDocSyncClient({
       matterHandle: MATTER_HANDLE,
-      streamHandle: streamHandleFor(docId),
+      streamHandle,
       doc: docA,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
-      client: fakeClient(relay, docId),
+      client: fakeClient(relay),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, docId);
+        relay.connect(s, streamHandle);
         return s;
       },
     });
     await clientA.start();
 
     const { blockId: blockIdA, runId: runIdA } = seedDocAfterStart(docA, BASE_DOC);
-    await until(() => relay.blobs.some((b) => b.doc_id === docId));
+    await until(() => relay.blobs.some((b) => b.stream_handle === streamHandle));
 
     editRunText(docA, blockIdA, runIdA, 'Hello world', 'Pre-joined edit', 'attorney-a');
-    await until(() => relay.blobs.filter((b) => b.doc_id === docId).length >= 2);
+    await until(() => relay.blobs.filter((b) => b.stream_handle === streamHandle).length >= 2);
     clientA.stop();
 
     // Client B joins after the edit with an empty Y.Doc (must catch up via pull)
     const docB = new Y.Doc();
     const clientB = new MatterDocSyncClient({
       matterHandle: MATTER_HANDLE,
-      streamHandle: streamHandleFor(docId),
+      streamHandle,
       doc: docB,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
-      client: fakeClient(relay, docId),
+      client: fakeClient(relay),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, docId);
+        relay.connect(s, streamHandle);
         return s;
       },
     });

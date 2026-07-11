@@ -19,6 +19,13 @@ export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
 export const FIRM_PRIVATE_INDEX_STREAMS_V2_MAP = 'firm-private-index-streams-v2';
 const INDEX_VERSION = 1;
 
+/**
+ * The relay reclaims an unused stream after 15 minutes. Leave a large buffer
+ * for clocks, network queues, and cleanup scheduling: a new stream must have
+ * its encrypted root-index mapping accepted within eight minutes.
+ */
+export const DOCUMENT_STREAM_LEASE_COMMIT_DEADLINE_MS = 8 * 60 * 1_000;
+
 export interface FirmMatterPrivateIndex {
   version: 1;
   clientName: string;
@@ -28,7 +35,18 @@ export interface FirmMatterPrivateIndex {
 
 export interface RootIndexSync {
   /** Publish the encrypted root update. The relay treats its ciphertext as opaque. */
-  flush(): Promise<void>;
+  flush(options?: { signal?: AbortSignal }): Promise<void>;
+}
+
+export interface DocumentStreamCommitOptions {
+  /** Test/host override. Production uses the eight-minute safe lease window. */
+  leaseCommitDeadlineMs?: number;
+}
+
+function deadlineSignal(timeoutMs: number): { signal: AbortSignal; cancel: () => void } {
+  const controller = new AbortController();
+  const timer = setTimeout(() => { controller.abort(new DOMException('Document stream lease commit timed out.', 'TimeoutError')); }, timeoutMs);
+  return { signal: controller.signal, cancel: () => { clearTimeout(timer); } };
 }
 
 type PrivateStreamEntry = FirmMatterPrivateIndex['streams'][string];
@@ -140,6 +158,7 @@ export async function addDocumentStreamToPrivateIndex(
   rootSync: RootIndexSync,
   localDocumentId: string,
   streamHandle: StreamHandle,
+  options: DocumentStreamCommitOptions = {},
 ): Promise<void> {
   const current = readFirmMatterPrivateIndex(doc);
   if (!current) throw new Error('Cannot add a document stream before the private index exists.');
@@ -150,8 +169,9 @@ export async function addDocumentStreamToPrivateIndex(
   doc.transact(() => {
     streamsMap.set(localDocumentId, { streamHandle, kind: 'document' });
   });
+  const deadline = deadlineSignal(options.leaseCommitDeadlineMs ?? DOCUMENT_STREAM_LEASE_COMMIT_DEADLINE_MS);
   try {
-    await rootSync.flush();
+    await rootSync.flush({ signal: deadline.signal });
   } catch (error) {
     // Do not leave a locally usable mapping behind when its encrypted root
     // update was not accepted. The unused stream lease has no accepted stream
@@ -161,6 +181,8 @@ export async function addDocumentStreamToPrivateIndex(
       else streamsMap.set(localDocumentId, previous);
     });
     throw error;
+  } finally {
+    deadline.cancel();
   }
 }
 
@@ -176,11 +198,14 @@ export async function createDocumentStream(
   doc: Y.Doc,
   rootSync: RootIndexSync,
   localDocumentId: string,
+  options: DocumentStreamCommitOptions = {},
 ): Promise<StreamHandle> {
-  const { stream_handle } = await client.allocateStream(matterHandle, seatToken);
+  const { stream_handle, lease_commit_deadline_ms } = await client.allocateStream(matterHandle, seatToken);
   const streamHandle = parseStreamHandle(stream_handle);
   // If publishing the directory fails, the unused lease disappears shortly.
-  await addDocumentStreamToPrivateIndex(doc, rootSync, localDocumentId, streamHandle);
+  await addDocumentStreamToPrivateIndex(doc, rootSync, localDocumentId, streamHandle, {
+    leaseCommitDeadlineMs: options.leaseCommitDeadlineMs ?? lease_commit_deadline_ms,
+  });
   return streamHandle;
 }
 

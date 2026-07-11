@@ -125,7 +125,7 @@ export class MatterSyncClient {
   private socket: WebSocketLike | null = null;
   private started = false;
   /** Local Yjs updates that failed to push, queued (in order) for retry. */
-  private readonly pendingUpdates: Uint8Array[] = [];
+  private readonly pendingUpdates: Array<{ sequence: number; update: Uint8Array }> = [];
   /** Backoff reconnect timer; non-null while a reconnect attempt is pending. */
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   /** Current backoff delay (ms). 0 means "not yet backed off" — the first
@@ -133,7 +133,9 @@ export class MatterSyncClient {
   private reconnectDelayMs = 0;
   /** Blob ids we originated, so we don't re-apply our own echoes wastefully. */
   private readonly ownBlobIds = new Set<string>();
-  private readonly inFlightWrites = new Set<Promise<boolean>>();
+  /** Each local edit gets a monotonic marker so flush() can snapshot a boundary. */
+  private nextWriteSequence = 0;
+  private readonly inFlightWrites = new Map<number, { promise: Promise<boolean>; controller: AbortController }>();
   private updateHandler: ((update: Uint8Array, origin: unknown) => void) | null = null;
   /** Origin marker used when applying remote updates so we don't re-broadcast. */
   private readonly remoteOrigin = Symbol('matter-sync-remote');
@@ -175,18 +177,34 @@ export class MatterSyncClient {
    * allocated document stream. A queued retry is not acceptance, so never
    * report success while any update is still waiting to be accepted.
    */
-  async flush(): Promise<void> {
-    for (;;) {
-      while (this.inFlightWrites.size > 0) {
-        await Promise.all([...this.inFlightWrites]);
+  async flush(options: { signal?: AbortSignal } = {}): Promise<void> {
+    // This is deliberately a snapshot, not a global-drain operation. A busy
+    // editor may continue making changes forever; document creation only needs
+    // the root-index updates that existed when it called flush().
+    const boundary = this.nextWriteSequence;
+    const abortBoundaryWrites = () => {
+      for (const [sequence, write] of this.inFlightWrites) {
+        if (sequence <= boundary) write.controller.abort();
       }
-      if (!await this.flushPendingUpdates()) {
-        throw new Error('Could not publish the encrypted root update.');
+    };
+    options.signal?.addEventListener('abort', abortBoundaryWrites, { once: true });
+    try {
+      for (;;) {
+        if (options.signal?.aborted) throw new Error('Could not publish the encrypted root update before the stream lease deadline.');
+        const inFlight = [...this.inFlightWrites.entries()]
+          .filter(([sequence]) => sequence <= boundary)
+          .map(([, write]) => write.promise);
+        if (inFlight.length > 0) {
+          await Promise.all(inFlight);
+          continue;
+        }
+        if (!this.pendingUpdates.some(({ sequence }) => sequence <= boundary)) return;
+        if (!await this.flushPendingUpdatesThrough(boundary, options.signal)) {
+          throw new Error('Could not publish the encrypted root update.');
+        }
       }
-      // A local Yjs update can arrive while we await an acceptance. Do not
-      // expose the caller's durability boundary until that write is accepted,
-      // too.
-      if (this.inFlightWrites.size === 0 && this.pendingUpdates.length === 0) return;
+    } finally {
+      options.signal?.removeEventListener('abort', abortBoundaryWrites);
     }
   }
 
@@ -231,19 +249,12 @@ export class MatterSyncClient {
       if (origin === this.remoteOrigin) return;
       // If there's already a backlog, queue behind it rather than racing a
       // fresh push ahead of updates still waiting to be sent.
+      const sequence = ++this.nextWriteSequence;
       if (this.pendingUpdates.length > 0) {
-        this.pendingUpdates.push(update);
+        this.pendingUpdates.push({ sequence, update });
         return;
       }
-      const write = this.pushLocalUpdate(update);
-      this.inFlightWrites.add(write);
-      void write.then((ok) => {
-        this.inFlightWrites.delete(write);
-        if (!ok) {
-          this.pendingUpdates.push(update);
-          this.scheduleReconnect();
-        }
-      });
+      this.startInFlightWrite(sequence, update);
     };
     this.doc.on('update', this.updateHandler);
 
@@ -312,7 +323,21 @@ export class MatterSyncClient {
    * Returns false (and sets `offline`) on failure so callers can queue the
    * update for retry instead of silently dropping it.
    */
-  private async pushLocalUpdate(update: Uint8Array): Promise<boolean> {
+  private startInFlightWrite(sequence: number, update: Uint8Array): void {
+    const controller = new AbortController();
+    const promise = this.pushLocalUpdate(update, controller.signal);
+    this.inFlightWrites.set(sequence, { promise, controller });
+    void promise.then((ok) => {
+      this.inFlightWrites.delete(sequence);
+      if (!ok) {
+        this.pendingUpdates.push({ sequence, update });
+        this.pendingUpdates.sort((a, b) => a.sequence - b.sequence);
+        this.scheduleReconnect();
+      }
+    });
+  }
+
+  private async pushLocalUpdate(update: Uint8Array, signal?: AbortSignal): Promise<boolean> {
     let blobId: string | undefined;
     try {
       const key = await this.ensureKey();
@@ -327,6 +352,7 @@ export class MatterSyncClient {
         ciphertext,
         this.seatToken,
         this.keyEpoch,
+        signal,
       );
       this.cursor = Math.max(this.cursor, res.cursor);
       if (res.key_epoch > this.keyEpoch) {
@@ -349,16 +375,19 @@ export class MatterSyncClient {
    * push that keeps failing (independent of the WebSocket's own health)
    * doesn't strand the queue with nothing left to wake it back up.
    */
-  private async flushPendingUpdates(): Promise<boolean> {
-    while (this.pendingUpdates.length > 0) {
-      const next = this.pendingUpdates[0];
+  private async flushPendingUpdatesThrough(boundary: number, signal?: AbortSignal): Promise<boolean> {
+    for (;;) {
+      if (signal?.aborted) return false;
+      const nextIndex = this.pendingUpdates.findIndex(({ sequence }) => sequence <= boundary);
+      if (nextIndex < 0) break;
+      const next = this.pendingUpdates[nextIndex];
       if (next === undefined) return true;
-      const ok = await this.pushLocalUpdate(next);
+      const ok = await this.pushLocalUpdate(next.update, signal);
       if (!ok) {
         this.scheduleReconnect();
         return false;
       }
-      this.pendingUpdates.shift();
+      this.pendingUpdates.splice(nextIndex, 1);
     }
     // Drained cleanly. If the socket itself was never actually disconnected
     // (this was a push-only failure — openSocket()'s reconnect guard means it
@@ -367,6 +396,10 @@ export class MatterSyncClient {
     // now that pushes are working again.
     if (this.socket) this.setStatus('live');
     return true;
+  }
+
+  private flushPendingUpdates(): Promise<boolean> {
+    return this.flushPendingUpdatesThrough(Number.POSITIVE_INFINITY);
   }
 
   private clearReconnectTimer(): void {

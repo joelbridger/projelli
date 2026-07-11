@@ -215,7 +215,7 @@ export async function autoRepublishHeldMatterKeys(
  * Obtain the matter key for a shared matter.
  *
  * - Local keychain hit → return immediately (no network call).
- * - Else: POST /matter/:id/keys/fetch with this device's ID.
+ * - Else: use the current opaque key-fetch endpoint with this device's ID.
  *   - Success: unwrap the blob and store it → return the key.
  *   - 403/404: return null (walled, non-member, or no key published yet).
  *   - Other errors: propagate (caller handles).

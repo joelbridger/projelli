@@ -7,7 +7,7 @@
  *
  *   - the access + refresh tokens   -> service `com.lantern.user.<user_id>`
  *   - the signed Ed25519 seat token -> service `com.lantern.user.<user_id>`
- *   - the per-matter AES content key -> service `com.lantern.matter.<matter_id>`
+ *   - the per-matter AES content key -> a service derived from the local Matter identifier
  *
  * On the desktop (Tauri) these go to the real OS keychain via the existing
  * `keychain_*` commands (macOS Keychain / Windows Credential Manager / Linux

@@ -235,7 +235,7 @@ export class FanoutHub {
     return this.byChannel.get(this.channelKey(matterHandle, streamHandle))?.size ?? 0;
   }
 
-  /** Broadcast a frame to every current subscriber of a (matter, doc_id) channel. */
+  /** Broadcast a frame to every current subscriber of an opaque matter/stream channel. */
   broadcast(matterHandle: string, frame: UpdateFrame, streamHandle: string): void {
     const key = this.channelKey(matterHandle, streamHandle);
     const set = this.byChannel.get(key);
@@ -249,7 +249,7 @@ export class FanoutHub {
     }
   }
 
-  /** Broadcast a presence frame to every subscriber of a (matter, doc_id) channel. */
+  /** Broadcast a presence frame to every subscriber of an opaque matter/stream channel. */
   broadcastPresence(matterHandle: string, streamHandle: string): void {
     const key = this.channelKey(matterHandle, streamHandle);
     const set = this.byChannel.get(key);

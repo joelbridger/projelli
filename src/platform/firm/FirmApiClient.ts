@@ -113,6 +113,8 @@ export class FirmApiClient {
       query?: Record<string, string>;
       /** Extra request headers (e.g. X-Seat-Token — kept OUT of the URL). */
       headers?: Record<string, string>;
+      /** Cancels a bounded relay operation such as document-stream creation. */
+      signal?: AbortSignal;
     } = {
       method: 'GET',
     },
@@ -132,6 +134,7 @@ export class FirmApiClient {
       return fetchFn(this.url(fullPath), {
         method: init.method,
         headers,
+        ...(init.signal ? { signal: init.signal } : {}),
         ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
       });
     };
@@ -391,6 +394,7 @@ export class FirmApiClient {
     ciphertextB64: string,
     seatToken: string,
     keyEpoch: number,
+    signal?: AbortSignal,
   ): Promise<PushUpdateResponse> {
     return this.request<PushUpdateResponse>(
       FIRM_ENDPOINTS.pushUpdate.replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
@@ -403,6 +407,7 @@ export class FirmApiClient {
           seat_token: seatToken,
           key_epoch: keyEpoch,
         },
+        ...(signal ? { signal } : {}),
       },
     );
   }
@@ -439,8 +444,8 @@ export class FirmApiClient {
   }
 
   /** Allocate an opaque document stream. The request body is intentionally empty. */
-  allocateStream(matterHandle: MatterHandle, seatToken: string): Promise<{ stream_handle: StreamHandle }> {
-    return this.request<{ stream_handle: StreamHandle }>(
+  allocateStream(matterHandle: MatterHandle, seatToken: string): Promise<{ stream_handle: StreamHandle; lease_commit_deadline_ms: number }> {
+    return this.request<{ stream_handle: StreamHandle; lease_commit_deadline_ms: number }>(
       FIRM_ENDPOINTS.allocateStream.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
       { method: 'POST', auth: true, body: {}, headers: { 'X-Seat-Token': seatToken } },
     );

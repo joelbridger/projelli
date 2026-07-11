@@ -1,27 +1,27 @@
 /**
  * MatterDocSyncClient — doc-scoped E2EE transport for live co-editing.
  *
- * A thin facade over `MatterSyncClient` that binds a specific `(matterId, docId)`
+ * A thin facade over `MatterSyncClient` that binds one opaque matter/stream
  * pair to a `Y.Doc`. This is the transport half of the Wave 4 live co-editing
  * feature; the CRDT model lives in `docCrdt.ts`.
  *
  * Design approach: COMPOSE rather than duplicate.
- * `MatterSyncClient` (Task 7) is now docId-aware: it accepts an optional `docId`
- * (default `_notes`), threads it through push/pull/ticket/WS, and exposes the
- * underlying `doc: Y.Doc`. `MatterDocSyncClient` simply constructs a
- * `MatterSyncClient` with the given `docId` + `doc` and delegates all transport
+ * `MatterSyncClient` uses a server-issued stream handle for each encrypted
+ * document, threads it through push/pull/ticket/WS, and exposes the underlying
+ * `doc: Y.Doc`. `MatterDocSyncClient` simply constructs a `MatterSyncClient`
+ * with the given stream + `doc` and delegates all transport
  * concerns to it. This avoids duplicating crypto, socket, catch-up, or fan-out
  * logic.
  *
  * Same matter key + epoch:
  * Co-editing blobs and notes blobs share the per-matter AES-256 key (same
- * `matterCrypto.encryptUpdateV2`/`decryptUpdateV2` path). Only the `doc_id` stream
+ * `matterCrypto.encryptUpdateV2`/`decryptUpdateV2` path). Only the opaque stream
  * distinguishes them on the relay.
  *
  * Usage:
  * ```ts
  * const client = new MatterDocSyncClient({
- *   matterId, docId, doc,
+ *   matterHandle, streamHandle, doc,
  *   keyB64, keyEpoch, seatToken, client: firmApiClient,
  * });
  * await client.start();          // catch up + go live
@@ -56,9 +56,9 @@ export interface MatterDocSyncOptions {
 }
 
 /**
- * Doc-scoped E2EE sync client for a single `(matterId, docId)` pair.
+ * Doc-scoped E2EE sync client for a single opaque matter/stream pair.
  *
- * Internally constructs a `MatterSyncClient` with the given `docId` and `doc`,
+ * Internally constructs a `MatterSyncClient` with the given stream and `doc`,
  * so all transport (encrypt, push, pull, socket, key epoch rotation) is handled
  * by the existing, tested `MatterSyncClient` implementation. No crypto is
  * duplicated here.
@@ -73,7 +73,7 @@ export class MatterDocSyncClient {
     this.doc = opts.doc;
 
     // Delegate all transport to MatterSyncClient, supplying:
-    //   - docId  → scopes push/pull/WS to this document stream
+    //   - stream → scopes push/pull/WS to this document stream
     //   - doc    → the same Y.Doc instance; MatterSyncClient wires update listeners
     //              and applies incoming decrypted updates using its remoteOrigin sentinel
     // Build the options object, omitting optional properties when undefined so
@@ -98,7 +98,7 @@ export class MatterDocSyncClient {
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /**
-   * Start sync: catch up the relay's existing history for this (matter, docId),
+   * Start sync: catch up the relay's existing history for this opaque stream,
    * then go live on the WS. Local Y.Doc updates are encrypted and pushed
    * automatically. Idempotent (safe to call twice; only starts once).
    */

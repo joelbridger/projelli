@@ -73,8 +73,8 @@ export interface SyncSocketData {
 }
 
 /**
- * Extract a `/matter/:id/...` path. Returns the matter id and the trailing
- * segment (e.g. "updates", "members/add", "" for the bare matter). The id is a
+ * Extract a v2 matter route. Returns the opaque handle and trailing segment
+ * (e.g. "updates", "members/add", "" for the bare matter). The handle is a
  * single path segment; we never let it contain a slash.
  */
 function matchMatter(path: string): { handle: string; rest: string } | null {
@@ -165,7 +165,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         }
         // Admin: matter collection.
         if (path === "/v2/firm/matters" && method === "POST") return await handleCreateMatter(req, store);
-        if (path.startsWith("/matter/") || path === "/org/matters" || path === "/org/matters/list") return error("firm_relay_upgrade_required", 426);
+        if (path.startsWith("/matter/") || (path.startsWith("/org/") && ["matters", "matters/list"].includes(path.slice("/org/".length)))) return error("firm_relay_upgrade_required", 426);
 
         // --- Health (open) ---
         if (path === "/healthz" && method === "GET") {

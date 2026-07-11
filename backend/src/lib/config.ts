@@ -156,6 +156,8 @@ export const config = {
   firmMatterStreamAllocationRateLimitWindowSeconds: num("FIRM_MATTER_STREAM_ALLOCATION_RATE_LIMIT_WINDOW_SECONDS", 60, { min: 1 }),
   /** Unused stream leases expire; streams with accepted data are retained. */
   firmMatterStreamLeaseIdleSeconds: num("FIRM_MATTER_STREAM_LEASE_IDLE_SECONDS", 900, { min: 1 }),
+  /** A client must publish its encrypted root mapping well before lease expiry. */
+  firmMatterStreamLeaseCommitDeadlineSeconds: num("FIRM_MATTER_STREAM_LEASE_COMMIT_DEADLINE_SECONDS", 480, { min: 1 }),
   /** Keeps one editor from consuming a matter's entire durable stream budget. */
   firmMatterSeatLiveStreamCap: num("FIRM_MATTER_SEAT_LIVE_STREAM_CAP", 128, { min: 1 }),
 
@@ -198,5 +200,9 @@ export const config = {
 
   isTest: IS_TEST,
 } as const;
+
+if (config.firmMatterStreamLeaseCommitDeadlineSeconds >= config.firmMatterStreamLeaseIdleSeconds) {
+  throw new Error("config: FIRM_MATTER_STREAM_LEASE_COMMIT_DEADLINE_SECONDS must be shorter than FIRM_MATTER_STREAM_LEASE_IDLE_SECONDS");
+}
 
 export type Config = typeof config;
