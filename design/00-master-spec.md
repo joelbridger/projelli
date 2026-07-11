@@ -267,7 +267,51 @@ the end of 04 is deleted.
 After R8–R12: round-3 closure review (one adversarial Codex pass verifying every XD2/SA2/SC
 finding closed + no new contradictions) → SPEC-FREEZE.md.
 
+## Round-3 adjudication (binding, 2026-07-11)
+
+*Round-3 reports: `reviews/2026-07-11-codex-round3-closure.md` (41/46 closed; remainders
+XD2-3/4/11/13, SA2-7) and `reviews/2026-07-11-codex-round3-freshdrift.md` (FD-1..14).
+Lanes R13 (02) and R14 (01/03/04/05/06) implement these rulings.*
+
+**D26 — Fresh-drift rulings (all bindings, tersely):**
+- FD-1: 02 adds `WorkflowStepProgress.origin: template|local` and
+  `removalRequestedBy: OR-Set<revisionId>` with merge rules + SQL projection (03's removal
+  reconciliation needs them).
+- FD-2: canonical name is **`assigneeUserId`** everywhere (02 renames step-progress
+  `assigneeId`); 02 adds append-only **`assignmentOperations`** (mirror of completion
+  operations) — P10's reassign-after-complete and 03's "assignment history" hang off it.
+- FD-3: 02 defines **`HouseholdDirectoryShell`** (opaque household ref + operational
+  status only; non-identifying per wall rules) as the `crm:directory` content.
+- FD-4: prose field name is `completedBy` (03/06); `completed_by` is SQL-only.
+- FD-5: 02 adds **`IntakeLink`** + **`IntakeSubmission`** entities (scoped fields,
+  audience-lane payload, matching-decision mutation) backing 04 §14.
+- FD-6: 02 adds `Task.customFields: CustomFieldValueMap` + merge row.
+- FD-7: 02 adds durable local migration-operation records: **`MigrationChecklistItem`**
+  (in-flight workflow re-creation decision), **`AttachmentAccountingRecord`**
+  (exported-or-gap), **`ExportJob`** (archive/rollback export status). Local SQLCipher
+  tables on the operator device, projected into the fidelity report and captured in the
+  immutable archive — NOT synced CRDT docs.
+- FD-8: 02 adds immutable `TemplateRevision.label` (human-readable update label).
+- FD-9: `ProposalRecord.householdRef` becomes nullable; null = firm-scope proposal
+  (firm-operational approval routing).
+- FD-10: 02 adds `LegacyProject.anchorHouseholdId?`; unlinked imports anchor to the
+  `firm_home` operational doc, flagged `unlinked`, visible in the Legacy Projects view.
+- FD-11: `RawArchiveEntry` extends with capture-layer version, fixture identity, typed
+  outcome, target `EntityRef`/skip reason, and the resulting `external_refs` projection.
+- FD-12: 06 adds `legacyProject` to the EntityKind catalog; Task test scripts use only
+  canonical Task fields (`assigneeUserId`, `body` — no "checklist item").
+- FD-13: fix the three broken anchors (01→05 §2.1, 04→03 §2.3, 06→02 §1.18).
+- FD-14: 03 drops the "`rev` is reserved" sentence — no `rev` field exists; propagation
+  uses immutable `revisionId` values and revision sets.
+- Closure remainders: 06 §1.4 idempotency test requires the canonical
+  `(provider, sourceType, sourceId, scope)` key by 02 link (XD2-3); 05 §3.2 matrix targets
+  renamed to `Person.personType` / `ActivityEvent` / `LegacyProject` (XD2-4); 06 §1.1
+  anchor → 02 §1.18 (XD2-11); 05 intro's "02 had not landed / conceptual names" wording
+  removed (XD2-13); 02's `crm_outbox`/`crm_inbox` tables gain `org_id` scope (SA2-7).
+
 ## Status
 - 2026-07-11: D1–D10 recorded; R1–R5 dispatching. Round-2 review + freeze pending.
 - 2026-07-11 (later): Round-2 reviews complete (15 blockers total); D12–D25 adjudicated
   above; R8–R12 dispatching. Round-3 closure review + freeze pending.
+- 2026-07-11 (round 3): closure 41/46 + fresh-drift FD-1..14; D26 adjudicated; R13/R14
+  dispatching. Freeze after their merge + spot verification.
