@@ -1,5 +1,6 @@
 import type { RequestItem } from './types';
 import type { RequestBlueprint } from './blueprintTypes';
+import { assertValidPdfTemplateDescriptor } from './pdfTemplates/templateValidation';
 
 export class BlueprintValidationError extends Error {
   constructor(message: string) {
@@ -12,15 +13,43 @@ function requireText(value: string, name: string): void {
   if (!value.trim()) throw new BlueprintValidationError(`${name} is required.`);
 }
 
-function copyFieldMap(item: Extract<RequestItem, { t: 'pdf_fill' }>) {
-  return Object.fromEntries(
-    Object.entries(item.field_map).map(([key, entry]) => [key, {
-      field_id: entry.field_id,
-      ...(entry.item_id ? { item_id: entry.item_id } : {}),
-      ...(entry.fact_kind ? { fact_kind: entry.fact_kind } : {}),
-      ...(entry.pdf_field_type ? { pdf_field_type: entry.pdf_field_type } : {}),
-    }]),
-  );
+function copyPdfTemplate(item: Extract<RequestItem, { t: 'pdf_fill' }>) {
+  assertValidPdfTemplateDescriptor(item.template);
+  return {
+    templateId: item.template.templateId,
+    version: item.template.version,
+    kind: item.template.kind,
+    sourceSha256: item.template.sourceSha256,
+    sourceArtifactRef: item.template.sourceArtifactRef,
+    outputFileStem: item.template.outputFileStem,
+    maxOutputBytes: item.template.maxOutputBytes,
+    fields: Object.fromEntries(Object.entries(item.template.fields).map(([fieldId, field]) => [
+      fieldId,
+      field.kind === 'acroform'
+        ? {
+            kind: 'acroform' as const,
+            field_id: field.field_id,
+            pdf_field_type: field.pdf_field_type,
+            acroform_field: field.acroform_field,
+            ...(field.fact_kind === undefined ? {} : { fact_kind: field.fact_kind }),
+            ...(field.required === undefined ? {} : { required: field.required }),
+            ...('options' in field ? { options: field.options.map((option) => ({ ...option })) } : {}),
+          }
+        : {
+            kind: 'overlay' as const,
+            field_id: field.field_id,
+            pdf_field_type: field.pdf_field_type,
+            page: field.page,
+            rect: { ...field.rect },
+            font: { ...field.font },
+            alignment: field.alignment,
+            overflow: field.overflow,
+            ...(field.fact_kind === undefined ? {} : { fact_kind: field.fact_kind }),
+            ...(field.required === undefined ? {} : { required: field.required }),
+            ...('options' in field ? { options: field.options.map((option) => ({ ...option })) } : {}),
+          },
+    ])),
+  } as Extract<RequestItem, { t: 'pdf_fill' }>['template'];
 }
 
 /**
@@ -77,8 +106,7 @@ export function copyBlueprintItem(item: RequestItem): RequestItem {
       return {
         t: 'pdf_fill',
         ...common,
-        pdf_ref: item.pdf_ref,
-        field_map: copyFieldMap(item),
+        template: copyPdfTemplate(item),
         // Values and fact references are never blueprint data. A fillable PDF
         // may be saved as a future-facing item, but its prefill stays empty.
         prefill: [],
@@ -122,6 +150,14 @@ export function assertValidRequestBlueprint(blueprint: RequestBlueprint): void {
     }
     if (item.t === 'pdf_fill' && item.prefill.length > 0) {
       throw new BlueprintValidationError('Blueprint PDF items cannot contain prefilled client facts.');
+    }
+    if (item.t === 'pdf_fill') {
+      try {
+        assertValidPdfTemplateDescriptor(item.template);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Unknown template validation error.';
+        throw new BlueprintValidationError(`Blueprint PDF template is not approved: ${message}`);
+      }
     }
   }
 }

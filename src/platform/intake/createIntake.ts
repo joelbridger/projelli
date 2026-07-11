@@ -6,6 +6,7 @@ import { clearIntakeSecrets, storeIntakeSecrets } from './intakeKeychain';
 import type { IntakeRelayClient } from './IntakeRelayClient';
 import { useIntakeStore } from './intakeStore';
 import { assertRequestSlug, createOpaqueItemHandle, createRequestSlug } from './requestIdentity';
+import { assertValidPdfTemplateDescriptor } from './pdfTemplates/templateValidation';
 
 export interface IntakeFirm {
   name: string;
@@ -41,8 +42,17 @@ export interface CreateAdvisorIntakeOptions {
 }
 
 export function assertSendableRequest(items: RequestItem[]): void {
-  const unsupported = items.find((item) => item.t === 'pdf_fill' || item.t === 'signature');
-  if (unsupported) throw new Error(`${unsupported.t} items cannot be sent through an intake link.`);
+  const signature = items.find((item) => item.t === 'signature');
+  if (signature) throw new Error('signature items cannot be sent through an intake link.');
+  for (const item of items) {
+    if (item.t !== 'pdf_fill') continue;
+    try {
+      assertValidPdfTemplateDescriptor(item.template);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown template validation error.';
+      throw new Error(`pdf_fill items cannot be sent through an intake link until their template is approved: ${message}`);
+    }
+  }
 }
 
 function requestItemsForIssue(checklist: FormRequest): RequestItem[] {

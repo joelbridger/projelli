@@ -94,9 +94,20 @@ describe('intake fact and request contracts', () => {
         help_text: 'Review the filled fields.',
         required: true,
         subject: 'primary',
-        pdf_ref: 'forms/schwab.pdf',
-        field_map: {
-          dob_field: { field_id: 'dob_field', fact_kind: 'dob', item_id: 'dob' },
+        template: {
+          templateId: 'template_types_01',
+          version: 1,
+          kind: 'acroform',
+          sourceSha256: 'a'.repeat(64),
+          sourceArtifactRef: 'sealed-artifact:typestemplate0001',
+          outputFileStem: 'custodian-form',
+          maxOutputBytes: 1024 * 1024,
+          fields: {
+            dob_field: {
+              kind: 'acroform', field_id: 'dob_field', fact_kind: 'dob',
+              acroform_field: 'Date.Of.Birth', pdf_field_type: 'date',
+            },
+          },
         },
         prefill: [
           {
