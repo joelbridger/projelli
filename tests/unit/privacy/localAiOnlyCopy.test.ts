@@ -34,4 +34,24 @@ describe('Local AI only facade copy', () => {
     expect(source).toContain("'local ai only'");
     expect(source).toContain("'local only'");
   });
+
+  it('keeps all three locale catalogs on the same keys', () => {
+    const flatten = (value: Record<string, unknown>, prefix = ''): string[] =>
+      Object.entries(value).flatMap(([key, child]) => {
+        const path = prefix ? `${prefix}.${key}` : key;
+        if (child && typeof child === 'object') {
+          return flatten(child as Record<string, unknown>, path);
+        }
+        return key.endsWith('__sourceHash') || key.endsWith('__locked') ? [] : [path];
+      });
+    const keysFor = (locale: string) =>
+      flatten(
+        JSON.parse(
+          readFileSync(resolve(process.cwd(), `src/locales/${locale}.json`), 'utf8'),
+        ) as Record<string, unknown>,
+      ).sort();
+    const english = keysFor('en');
+    expect(keysFor('de')).toEqual(english);
+    expect(keysFor('es')).toEqual(english);
+  });
 });
