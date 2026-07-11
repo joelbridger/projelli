@@ -31,6 +31,16 @@ describe('PDF blueprint validation', () => {
     expect(copied.template.fields).not.toBe(item.template.fields);
   });
 
+  it('preserves a sealed source PDF only when it is present on an issued item', () => {
+    const withSource = approvedPdfItem();
+    withSource.sealed_source_pdf_b64 = 'c2VhbGVkLXBkZi1ieXRlcw==';
+    const copiedWithSource = copyBlueprintItem(withSource) as PdfFillRequestItem;
+    const copiedWithoutSource = copyBlueprintItem(approvedPdfItem()) as PdfFillRequestItem;
+
+    expect(copiedWithSource.sealed_source_pdf_b64).toBe(withSource.sealed_source_pdf_b64);
+    expect('sealed_source_pdf_b64' in copiedWithoutSource).toBe(false);
+  });
+
   it('rejects unapproved templates and the retired Wave 7 pdf_ref shape', () => {
     const invalid = approvedPdfItem();
     invalid.template.sourceSha256 = 'bad';

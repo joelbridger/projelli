@@ -6,7 +6,7 @@ import { assertDryFillPreview, buildDryFillPreviewSnapshot } from '../../pdfTemp
 import { createPdfFillDraftItem } from '../../pdfTemplates/requestComposerPdf';
 
 const template: PdfTemplateDescriptor = {
-  templateId: 'template_golden_001', version: 1, kind: 'overlay', sourceSha256: 'a'.repeat(64),
+  templateId: 'template_golden_001', version: 1, kind: 'overlay', sourceSha256: '531a82ecb7a8dd2bef553b4bcadd33e57c06b001005e27101f6c1d12a88cc5e6',
   sourceArtifactRef: 'sealed-artifact:goldenartifact0001', outputFileStem: 'contact-information', maxOutputBytes: 1024 * 1024,
   fields: {
     full_name: { kind: 'overlay', field_id: 'full_name', pdf_field_type: 'text', page: 1, rect: { x: 0.1, y: 0.1, width: 0.4, height: 0.08 }, font: { family: 'Helvetica', size: 10 }, alignment: 'left', overflow: 'wrap' },
@@ -19,8 +19,8 @@ const template: PdfTemplateDescriptor = {
 };
 
 describe('PDF template composer and golden dry fill', () => {
-  it('adds an approved template as a value snapshot that is sendable', () => {
-    const item = createPdfFillDraftItem(template);
+  it('adds an approved template as a value snapshot that is sendable', async () => {
+    const item = await createPdfFillDraftItem(template, new TextEncoder().encode('golden-source-pdf'));
     template.fields.full_name = { ...template.fields.full_name, rect: { x: 0.8, y: 0.1, width: 0.1, height: 0.05 } };
     expect(item.template.fields.full_name).not.toEqual(template.fields.full_name);
     const request: FormRequest = { request_id: 'intake_1', schema_version: 1, matter_id: 'matter_1', kind: 'standing', items: [item] };

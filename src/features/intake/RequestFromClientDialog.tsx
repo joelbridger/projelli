@@ -19,6 +19,7 @@ import { listBuiltInRequestBlueprints } from '@/platform/intake/defaultBlueprint
 import { intakeFactMatchList } from '@/platform/intake/factsStore';
 import { resolveAskOnce, type AskOnceResolution } from '@/platform/intake/requestAskOnce';
 import { isValidPdfTemplateDescriptor } from '@/platform/intake/pdfTemplates/templateValidation';
+import { usePdfTemplateStore } from '@/platform/intake/pdfTemplateStore';
 import type { RequestBlueprint } from '@/platform/intake/blueprintTypes';
 import type { FormRequest, PdfTemplateDescriptor, RequestItem } from '@/platform/intake/types';
 import { TemplateLibraryPanel } from './pdfTemplates/TemplateLibraryPanel';
@@ -70,6 +71,7 @@ export function RequestFromClientDialog({
 }: RequestFromClientDialogProps) {
   const { t } = useTranslation();
   const firmBlueprints = useBlueprintStore((state) => state.firmBlueprintsById);
+  const loadSourceBytes = usePdfTemplateStore((state) => state.loadSourceBytes);
   const availableBlueprints = useMemo(
     () => blueprints
       ? copyBlueprints(blueprints)
@@ -132,18 +134,25 @@ export function RequestFromClientDialog({
     setResolution(null);
   };
 
-  const addApprovedTemplate = (template: PdfTemplateDescriptor) => {
+  const addApprovedTemplate = async (template: PdfTemplateDescriptor) => {
     if (!isValidPdfTemplateDescriptor(template)) {
       setError('This form is not approved yet. Review and approve it before adding it to a request.');
       return;
     }
-    draftGeneration.current += 1;
-    setDraftItems((items) => [
-      ...items,
-      createPdfFillDraftItem(template),
-    ]);
-    setResolution(null);
-    setShowTemplateLibrary(false);
+    try {
+      const sourceBytes = await loadSourceBytes(template.templateId, template.version);
+      if (!sourceBytes) {
+        setError('This approved PDF is unavailable on this device. It was not added to the request.');
+        return;
+      }
+      const item = await createPdfFillDraftItem(template, sourceBytes);
+      draftGeneration.current += 1;
+      setDraftItems((items) => [...items, item]);
+      setResolution(null);
+      setShowTemplateLibrary(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'This approved PDF could not be added to the request.');
+    }
   };
 
   const reviewRequest = async () => {

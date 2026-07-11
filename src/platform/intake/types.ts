@@ -139,6 +139,8 @@ export interface PdfFillRequestItem extends Omit<RequestItemBase, 't'> {
   /** Immutable, sealed-by-value approval snapshot. Never a live library reference. */
   template: PdfTemplateDescriptor;
   prefill: PdfPrefill[];
+  /** Base64 source PDF bytes for an issued request only. Populate at compose/send time, never in a persisted reusable blueprint. */
+  sealed_source_pdf_b64?: string;
 }
 
 export interface SignatureRequestItem extends Omit<RequestItemBase, 't'> {

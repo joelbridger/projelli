@@ -110,6 +110,9 @@ export function copyBlueprintItem(item: RequestItem): RequestItem {
         // Values and fact references are never blueprint data. A fillable PDF
         // may be saved as a future-facing item, but its prefill stays empty.
         prefill: [],
+        ...(item.sealed_source_pdf_b64 === undefined
+          ? {}
+          : { sealed_source_pdf_b64: item.sealed_source_pdf_b64 }),
       };
     case 'signature':
       return {
@@ -162,7 +165,7 @@ export function assertValidRequestBlueprint(blueprint: RequestBlueprint): void {
   }
 }
 
-/** Validate and return a structural-only deep copy suitable for persistence. */
+/** Validate and return a deep copy suitable for issuing a sealed request. */
 export function copyRequestBlueprint(blueprint: RequestBlueprint): RequestBlueprint {
   assertValidRequestBlueprint(blueprint);
   return {
@@ -173,5 +176,18 @@ export function copyRequestBlueprint(blueprint: RequestBlueprint): RequestBluepr
     defaultKind: blueprint.defaultKind,
     items: blueprint.items.map(copyBlueprintItem),
     ...(blueprint.archived ? { archived: true } : {}),
+  };
+}
+
+/** Remove issue-time PDF artifacts before a reusable blueprint is persisted. */
+export function copyRequestBlueprintForPersistence(blueprint: RequestBlueprint): RequestBlueprint {
+  const copy = copyRequestBlueprint(blueprint);
+  return {
+    ...copy,
+    items: copy.items.map((item) => {
+      if (item.t !== 'pdf_fill') return item;
+      const { sealed_source_pdf_b64: _sealedSourcePdfB64, ...persistedItem } = item;
+      return persistedItem;
+    }),
   };
 }
