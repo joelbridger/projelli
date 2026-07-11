@@ -36,7 +36,10 @@ export interface VerifyPdfFillReceiptOptions {
 }
 
 const PDF_HEADER = new TextEncoder().encode('%PDF-');
-const ACTIVE_PDF_NAME = /\/(?:AcroForm|JavaScript|JS|Launch|EmbeddedFiles?|Filespec|RichMedia|XFA|Sig)\b|\/Subtype\s*\/Widget\b/iu;
+// A flattened pdf-lib document may retain a harmless empty /AcroForm catalog
+// reference. PDF.js below verifies whether any actual fields remain, so do not
+// reject that marker before the structural check can distinguish it from a live form.
+const ACTIVE_PDF_NAME = /\/(?:JavaScript|JS|Launch|EmbeddedFiles?|Filespec|RichMedia|XFA|Sig)\b|\/Subtype\s*\/Widget\b/iu;
 const ACTIVE_PDF_ACTION = new Set(['Launch', 'GoToR', 'URI', 'SubmitForm', 'ImportData']);
 
 function hasPdfHeader(bytes: Uint8Array): boolean {

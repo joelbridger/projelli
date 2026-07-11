@@ -104,7 +104,9 @@ export async function submitAnswer(options: SubmitAnswerOptions): Promise<{ subm
   for (let index = 0; index < chunks.length; index += 1) {
     chunkSidBindings.push(submissionId);
     if (existingIndexes.has(index)) continue;
-    const ciphertext = await sealItemChunk(contentKey, chunks[index].bytes, {
+    const chunk = chunks[index];
+    if (!chunk) throw new Error(`Submission chunk ${String(index)} is missing.`);
+    const ciphertext = await sealItemChunk(contentKey, chunk.bytes, {
       intakeId: options.intakeId,
       itemId: options.item.item_id,
       submissionId,
