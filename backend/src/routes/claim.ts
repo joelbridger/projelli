@@ -65,19 +65,15 @@ export async function handleOrgClaim(req: Request, store: Store): Promise<Respon
       ? body.org_name.trim()
       : undefined;
 
-  // Atomically claim the org and create the admin user in a single transaction
-  // so a duplicate-email constraint violation cannot leave the org active with
-  // zero users or consume the key without a usable account.
+  // The storage layer keeps claiming the org and creating its first admin in
+  // one transaction, so a failed account cannot leave a claimed empty org.
   const passwordHash = await hashPassword(body.password);
-  const adminUser = store.db.transaction(() => {
-    store.claimOrg(org.org_id, orgName ? { name: orgName } : undefined);
-    return store.createUser({
-      org_id: org.org_id,
-      email: (body.email as string).trim(),
-      password_hash: passwordHash,
-      role: "admin",
-    });
-  })();
+  const adminUser = store.claimOrgAndCreateAdmin({
+    org_id: org.org_id,
+    org_name: orgName,
+    email: (body.email as string).trim(),
+    password_hash: passwordHash,
+  });
 
   store.audit({
     org_id: org.org_id,

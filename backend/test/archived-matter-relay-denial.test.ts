@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { Database } from "bun:sqlite";
+import { rmSync } from "node:fs";
 import { Store } from "../src/lib/db.ts";
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
 import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
@@ -19,13 +21,13 @@ function stream(char: string) {
   return `sh2_${char.repeat(43)}`;
 }
 
-function fixture() {
-  const store = new Store(":memory:");
+function fixture(path = ":memory:", activate = true) {
+  const store = new Store(path);
   const org = store.createOrg({ name: "Archived relay denial", plan: "practice", packs: [], seat_limit: 8 });
   const admin = store.createUser({ org_id: org.org_id, email: "admin@archived.test", password_hash: "x", role: "admin" });
   const member = store.createUser({ org_id: org.org_id, email: "member@archived.test", password_hash: "x", role: "member" });
   const matter = store.createMatter({ org_id: org.org_id });
-  store.activateProvisioningMatter(matter.matter_handle);
+  if (activate) store.activateProvisioningMatter(matter.matter_handle);
   store.addMatterMember({ matter_handle: matter.matter_handle, user_id: member.user_id, org_id: org.org_id, role: "editor" });
   const seat = store.activateSeat({ org_id: org.org_id, user_id: member.user_id, machine_id: "member-machine", machine_label: null, seat_limit: 8 });
   if (!seat.ok) throw new Error("test seat activation failed");
@@ -40,6 +42,7 @@ function fixture() {
     adminToken: issueAuthTokens(store, admin).access_token,
     memberToken: issueAuthTokens(store, member).access_token,
     memberSeat: mintSeatToken(org, member, seat.seat).token,
+    memberSeatId: seat.seat.seat_id,
   };
 }
 
@@ -227,19 +230,86 @@ describe("archived matter relay denial", () => {
     f.store.close();
   });
 
-  test("the store only permits forward terminal transitions and SQLite rejects a raw resurrection", () => {
-    const f = fixture();
-    const provisioning = f.store.createMatter({ org_id: f.org.org_id });
-    expect(f.store.activateProvisioningMatter(provisioning.matter_handle)).toBe(true);
-    expect(f.store.getMatter(provisioning.matter_handle)?.status).toBe("active");
-    expect(f.store.archiveMatter(f.matter.matter_handle)).toBe(true);
-    expect(f.store.activateProvisioningMatter(f.matter.matter_handle)).toBe(false);
-    expect(f.store.getMatter(f.matter.matter_handle)?.status).toBe("archived");
-
-    // This deliberately bypasses Store methods. The SQLite trigger must still
-    // reject the write, so a future direct caller cannot resurrect this matter.
-    expect(() => f.store.db.query("UPDATE matters SET status = 'active' WHERE matter_handle = ?").run(f.matter.matter_handle)).toThrow(/archived_matter_terminal/);
+  test("provisioning matters are denied on every relay and key-data path", async () => {
+    const f = fixture(":memory:", false);
+    const tickets = new SyncTicketStore();
+    await expectOpaqueArchivedDenial(await handlePushUpdate(pushRequest(f, "provisioning-push"), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "provisioning-push"));
+    await expectOpaqueArchivedDenial(await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "provisioning-pull"));
+    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "provisioning-ticket", tickets));
+    await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
+    await expectOpaqueArchivedDenial(await handlePublishMatterKeys(request(f.adminToken, { epoch: 1, wrapped: [] }), f.store, f.matter.matter_handle));
+    const { ticket } = tickets.mint({ matterHandle: f.matter.matter_handle, streamHandle: f.matter.root_stream_handle, orgId: f.org.org_id, userId: f.member.user_id, seatId: f.memberSeatId, role: "member" });
+    const connection = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${ticket}`), f.store, tickets);
+    expect(connection.ok).toBe(false);
     f.store.close();
+  });
+
+  test("malformed statuses fail closed on every relay and key-data path", async () => {
+    const path = `/tmp/firm-relay-malformed-${crypto.randomUUID()}.sqlite`;
+    const f = fixture(path);
+    const attacker = new Database(path);
+    // This simulates a separately-authorized SQLite/schema attacker. Store no
+    // longer exposes its connection, but resolveAccess must still deny a corrupt
+    // legacy/on-disk value if one somehow exists.
+    attacker.exec("PRAGMA ignore_check_constraints = ON; DROP TRIGGER prevent_invalid_matter_status_transition;");
+    attacker.query("UPDATE matters SET status = 'malformed' WHERE matter_handle = ?").run(f.matter.matter_handle);
+    attacker.close();
+
+    const tickets = new SyncTicketStore();
+    await expectOpaqueArchivedDenial(await handlePushUpdate(pushRequest(f, "malformed-push"), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "malformed-push"));
+    await expectOpaqueArchivedDenial(await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "malformed-pull"));
+    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "malformed-ticket", tickets));
+    await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
+    await expectOpaqueArchivedDenial(await handlePublishMatterKeys(request(f.adminToken, { epoch: 1, wrapped: [] }), f.store, f.matter.matter_handle));
+    const { ticket } = tickets.mint({ matterHandle: f.matter.matter_handle, streamHandle: f.matter.root_stream_handle, orgId: f.org.org_id, userId: f.member.user_id, seatId: f.memberSeatId, role: "member" });
+    const connection = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${ticket}`), f.store, tickets);
+    expect(connection.ok).toBe(false);
+    f.store.close();
+    rmSync(path, { force: true });
+  });
+
+  test("SQLite accepts only legal status transitions and blocks archived delete-reinsert resurrection", () => {
+    const path = `/tmp/firm-relay-transitions-${crypto.randomUUID()}.sqlite`;
+    const f = fixture(path);
+    const provisioningSelf = f.store.createMatter({ org_id: f.org.org_id });
+    const provisioningToActive = f.store.createMatter({ org_id: f.org.org_id });
+    const provisioningToArchived = f.store.createMatter({ org_id: f.org.org_id });
+    const activeSelf = f.store.createMatter({ org_id: f.org.org_id });
+    const activeToArchived = f.store.createMatter({ org_id: f.org.org_id });
+    const archivedSelf = f.store.createMatter({ org_id: f.org.org_id });
+    f.store.activateProvisioningMatter(activeSelf.matter_handle);
+    f.store.activateProvisioningMatter(activeToArchived.matter_handle);
+    f.store.archiveMatter(archivedSelf.matter_handle);
+    f.store.archiveMatter(f.matter.matter_handle);
+    f.store.close();
+
+    const attacker = new Database(path);
+    expect(() => attacker.query("INSERT INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'malformed', 1, 'now')").run("mh2_invalid_status", f.org.org_id, "sh2_invalid_status")).toThrow(/CHECK constraint failed/);
+    const update = (matterHandle: string, status: string) => attacker.query("UPDATE matters SET status = ? WHERE matter_handle = ?").run(status, matterHandle);
+
+    // Every explicitly legal edge, including no-op transitions.
+    expect(update(provisioningSelf.matter_handle, "provisioning").changes).toBe(1);
+    expect(update(provisioningToActive.matter_handle, "active").changes).toBe(1);
+    expect(update(provisioningToArchived.matter_handle, "archived").changes).toBe(1);
+    expect(update(activeSelf.matter_handle, "active").changes).toBe(1);
+    expect(update(activeToArchived.matter_handle, "archived").changes).toBe(1);
+    expect(update(archivedSelf.matter_handle, "archived").changes).toBe(1);
+
+    // Every illegal edge is rejected: backwards, resurrection, and malformed.
+    expect(() => update(activeSelf.matter_handle, "provisioning")).toThrow(/invalid_matter_status_transition/);
+    expect(() => update(activeSelf.matter_handle, "malformed")).toThrow(/invalid_matter_status_transition/);
+    expect(() => update(archivedSelf.matter_handle, "provisioning")).toThrow(/invalid_matter_status_transition/);
+    expect(() => update(archivedSelf.matter_handle, "active")).toThrow(/invalid_matter_status_transition/);
+    expect(() => update(archivedSelf.matter_handle, "malformed")).toThrow(/invalid_matter_status_transition/);
+    expect(() => update(provisioningSelf.matter_handle, "malformed")).toThrow(/invalid_matter_status_transition/);
+
+    // This is the hostile delete+reinsert sequence: foreign keys are disabled,
+    // but retained streams/updates/wrapped keys still make the delete abort.
+    attacker.exec("PRAGMA foreign_keys = OFF;");
+    expect(() => attacker.query("DELETE FROM matters WHERE matter_handle = ?").run(f.matter.matter_handle)).toThrow(/archived_matter_data_retained/);
+    expect(() => attacker.query("INSERT INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'active', 1, 'now')").run(f.matter.matter_handle, f.org.org_id, f.matter.root_stream_handle)).toThrow(/UNIQUE constraint failed/);
+    attacker.close();
+    rmSync(path, { force: true });
   });
 
   test("archive racing a first write cannot bind the stream after archive commits", () => {

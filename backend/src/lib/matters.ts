@@ -41,8 +41,8 @@ export const MAX_UPDATE_BYTES = 1024 * 1024; // 1 MiB per encrypted update blob.
  *
  * Order matters and is intentional:
  *   1. Matter must exist AND be in the caller's org (no cross-org access).
- *   2. Archived matters are terminally closed to relay data flow. This denial is
- *      intentionally opaque to clients, just like an unknown matter.
+ *   2. Only active matters are open to relay data flow. Provisioning, archived,
+ *      and malformed statuses are denied without revealing their state.
  *   3. An ethical wall is checked FIRST among identity checks and wins outright —
  *      deny-overrides-allow.
  *      A screened user is blocked even if mistakenly added as a member or admin.
@@ -60,7 +60,7 @@ export function resolveAccess(
   const matter = store.getMatter(matterHandle);
   if (!matter) return { allowed: false, matter: null, reason: "matter_not_found" };
   if (matter.org_id !== input.orgId) return { allowed: false, matter: null, reason: "cross_org" };
-  if (matter.status === "archived") return { allowed: false, matter, reason: "archived" };
+  if (matter.status !== "active") return { allowed: false, matter, reason: "inactive" };
 
   // Deny wins. Check the wall before any allow path.
   if (store.isWalled(matterHandle, input.userId)) {
@@ -82,7 +82,7 @@ export type GateResult =
  * The audited access gate every relay/membership endpoint calls. Resolves the
  * predicate and writes an append-only audit event for BOTH outcomes:
  *   - granted  -> matter.access.granted
- *   - denied   -> matter.access.denied (with the reason: archived / walled /
+ *   - denied   -> matter.access.denied (with the reason: inactive / walled /
  *      not_member / cross_org / matter_not_found)
  *
  * `action` tags what the caller was trying to do (e.g. "push", "pull", "connect")
@@ -120,8 +120,9 @@ export function gateMatterAccess(
   });
 
   // cross_org / matter_not_found both surface as 404 so we never confirm the
-  // existence of another org's matter to an outsider. Archived follows that
-  // same opaque 404 path: clients never learn whether a relay matter was closed.
+  // existence of another org's matter to an outsider. Inactive matters follow
+  // that same opaque 404 path: clients never learn whether a relay matter is
+  // provisioning, archived, or malformed.
   // walled / not_member are 403 (the caller's own org, matter exists, they're
   // just not allowed).
   if (access.reason === "walled" || access.reason === "not_member") {

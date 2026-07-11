@@ -11,13 +11,15 @@ describe("file-backed v1 firm relay reset", () => {
     const path = `/tmp/firm-relay-v2-bridge-${crypto.randomUUID()}.sqlite`;
     paths.push(path);
     const initial = new Store(path);
-    initial.db.exec("CREATE TABLE firm_relay_migration_manifest (legacy_matter_id TEXT NOT NULL)");
-    initial.db.query("INSERT INTO firm_relay_migration_manifest VALUES (?)").run("matter-semantic-123");
     initial.close();
+    const bridge = new Database(path);
+    bridge.exec("CREATE TABLE firm_relay_migration_manifest (legacy_matter_id TEXT NOT NULL)");
+    bridge.query("INSERT INTO firm_relay_migration_manifest VALUES (?)").run("matter-semantic-123");
+    bridge.close();
 
     const reopened = new Store(path);
     try {
-      const tables = reopened.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name='firm_relay_migration_manifest'").all();
+      const tables = reopened.inspectReadOnly().all("SELECT name FROM sqlite_master WHERE type='table' AND name='firm_relay_migration_manifest'");
       expect(tables).toEqual([]);
     } finally {
       reopened.close();
@@ -41,29 +43,73 @@ describe("file-backed v1 firm relay reset", () => {
 
     const store = new Store(path);
     try {
+      const inspector = store.inspectReadOnly();
       for (const table of ["matters", "matter_streams", "matter_members", "ethical_walls", "matter_updates", "wrapped_matter_keys"]) {
-        expect(store.db.query(`SELECT COUNT(*) AS count FROM ${table}`).get()).toEqual({ count: 0 });
+        expect(inspector.all(`SELECT COUNT(*) AS count FROM ${table}`)).toEqual([{ count: 0 }]);
       }
-      expect(store.db.query("SELECT COUNT(*) AS count FROM audit_events").get()).toEqual({ count: 0 });
+      expect(inspector.all("SELECT COUNT(*) AS count FROM audit_events")).toEqual([{ count: 0 }]);
 
-      const tables = store.db.query("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+      const tables = inspector.all("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'") as Array<{ name: string }>;
       expect(tables.map((table) => table.name)).not.toContain("firm_relay_migration_manifest");
       const columns = tables.flatMap(({ name }) =>
-        (store.db.query(`PRAGMA table_info(\"${name.replaceAll('"', '""')}\")`).all() as Array<{ name: string }>)
+        (inspector.all(`PRAGMA table_info(\"${name.replaceAll('"', '""')}\")`) as Array<{ name: string }>)
           .map((column) => `${name}.${column.name}`),
       );
       expect(columns.join(" ")).not.toMatch(/legacy_matter_id|matter_id|doc_id|client_name/);
 
       for (const sentinel of ["CLIENT_SECRET_NIMBUS", "matter-semantic-123", "doc-advisory-plan.docx"]) {
         for (const { name } of tables) {
-          const textColumns = store.db.query(`PRAGMA table_info(\"${name.replaceAll('"', '""')}\")`).all() as Array<{ name: string; type: string }>;
+          const textColumns = inspector.all(`PRAGMA table_info(\"${name.replaceAll('"', '""')}\")`) as Array<{ name: string; type: string }>;
           for (const column of textColumns.filter((item) => /TEXT/i.test(item.type))) {
-            expect(store.db.query(`SELECT 1 FROM \"${name.replaceAll('"', '""')}\" WHERE \"${column.name.replaceAll('"', '""')}\" = ?`).all(sentinel)).toEqual([]);
+            expect(inspector.all(`SELECT 1 FROM \"${name.replaceAll('"', '""')}\" WHERE \"${column.name.replaceAll('"', '""')}\" = ?`, sentinel)).toEqual([]);
           }
         }
       }
     } finally {
       store.close();
+    }
+  });
+
+  test("upgrades a pre-constraint v2 matters table without losing its active relay shell", () => {
+    const path = `/tmp/firm-relay-pre-constraint-${crypto.randomUUID()}.sqlite`;
+    paths.push(path);
+    const initial = new Store(path);
+    const org = initial.createOrg({ name: "Constraint migration", plan: "practice", packs: [], seat_limit: 1 });
+    const matter = initial.createMatter({ org_id: org.org_id });
+    initial.activateProvisioningMatter(matter.matter_handle);
+    initial.close();
+
+    // Recreate the immediately-prior v2 shape: it has the opaque columns but
+    // not the status CHECK. This uses a separate SQLite owner, never Store's
+    // private connection.
+    const old = new Database(path);
+    old.exec(`
+      PRAGMA foreign_keys = OFF;
+      DROP TRIGGER IF EXISTS prevent_invalid_matter_status_transition;
+      DROP TRIGGER IF EXISTS prevent_archived_matter_data_deletion;
+      CREATE TABLE matters_pre_constraint (
+        matter_handle TEXT PRIMARY KEY,
+        org_id TEXT NOT NULL REFERENCES orgs(org_id),
+        root_stream_handle TEXT NOT NULL UNIQUE,
+        status TEXT NOT NULL DEFAULT 'provisioning',
+        key_epoch INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO matters_pre_constraint SELECT * FROM matters;
+      DROP TABLE matters;
+      ALTER TABLE matters_pre_constraint RENAME TO matters;
+      CREATE INDEX idx_matters_org ON matters(org_id);
+      PRAGMA foreign_keys = ON;
+    `);
+    old.close();
+
+    const reopened = new Store(path);
+    try {
+      expect(reopened.getMatter(matter.matter_handle)).toMatchObject({ status: "active", root_stream_handle: matter.root_stream_handle });
+      const tableSql = reopened.inspectReadOnly().all("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'matters'") as Array<{ sql: string }>;
+      expect(tableSql[0]?.sql).toContain("CHECK (status IN ('provisioning', 'active', 'archived'))");
+    } finally {
+      reopened.close();
     }
   });
 });

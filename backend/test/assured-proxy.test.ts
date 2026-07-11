@@ -157,10 +157,11 @@ async function infer(opts: { access: string; seat: string; provider?: string; mo
 
 /** Dump EVERY value in EVERY user table to one big string — for the sentinel scan. */
 function dumpEntireDb(s: Store): string {
-  const tables = (s.db.query(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`).all() as Array<{ name: string }>).map((r) => r.name);
+  const inspector = s.inspectReadOnly();
+  const tables = (inspector.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`) as Array<{ name: string }>).map((r) => r.name);
   const chunks: string[] = [];
   for (const t of tables) {
-    const rows = s.db.query(`SELECT * FROM ${t}`).all() as Array<Record<string, unknown>>;
+    const rows = inspector.all(`SELECT * FROM ${t}`) as Array<Record<string, unknown>>;
     for (const row of rows) {
       for (const [k, v] of Object.entries(row)) {
         // Stringify every value, including BLOBs (Uint8Array) decoded as utf8.

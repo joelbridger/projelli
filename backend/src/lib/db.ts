@@ -12,7 +12,7 @@
  * transaction so two simultaneous activations can't both slip past the limit.
  */
 
-import { Database } from "bun:sqlite";
+import { Database, type SQLQueryBindings } from "bun:sqlite";
 import { randomBytes, randomUUID } from "node:crypto";
 import { config } from "./config.ts";
 import type {
@@ -143,20 +143,12 @@ CREATE TABLE IF NOT EXISTS matters (
   matter_handle      TEXT PRIMARY KEY,
   org_id             TEXT NOT NULL REFERENCES orgs(org_id),
   root_stream_handle TEXT NOT NULL UNIQUE,
-  status             TEXT NOT NULL DEFAULT 'provisioning',
+  status             TEXT NOT NULL DEFAULT 'provisioning'
+                     CHECK (status IN ('provisioning', 'active', 'archived')),
   key_epoch          INTEGER NOT NULL DEFAULT 1,
   created_at         TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_matters_org ON matters(org_id);
-
--- ARCHIVED IS TERMINAL. This protects the invariant even if a future caller
--- bypasses Store transition helpers and issues SQL directly.
-CREATE TRIGGER IF NOT EXISTS prevent_archived_matter_resurrection
-BEFORE UPDATE OF status ON matters
-WHEN OLD.status = 'archived' AND NEW.status <> 'archived'
-BEGIN
-  SELECT RAISE(ABORT, 'archived_matter_terminal');
-END;
 
 CREATE TABLE IF NOT EXISTS matter_streams (
   stream_handle TEXT PRIMARY KEY,
@@ -417,8 +409,20 @@ function toMatter(r: MatterRow): Matter {
 // ---------------------------------------------------------------------------
 // The store
 // ---------------------------------------------------------------------------
+/**
+ * Deliberately small read-only window used by privacy-proof tests. It supports
+ * only SELECTs and table metadata PRAGMAs; callers never receive the mutable
+ * SQLite connection.
+ */
+export interface ReadOnlyStoreInspector {
+  all(sql: string, ...params: SQLQueryBindings[]): unknown[];
+}
+
 export class Store {
-  readonly db: Database;
+  // Keep the connection inside the storage layer. SQLite cannot defend against
+  // a caller allowed to run arbitrary schema/PRAGMA SQL; the real protection is
+  // never handing that caller this connection in the first place.
+  private readonly db: Database;
 
   constructor(path: string) {
     this.db = new Database(path, { create: true });
@@ -476,6 +480,99 @@ export class Store {
        ON webhook_events (subscription_id) WHERE subscription_id IS NOT NULL`,
     );
 
+    this.ensureMatterStatusConstraints();
+    this.installMatterStatusGuards();
+
+  }
+
+  /** A narrow read-only inspection surface for sentinel/privacy sweeps. */
+  inspectReadOnly(): ReadOnlyStoreInspector {
+    return {
+      all: (sql: string, ...params: SQLQueryBindings[]): unknown[] => {
+        const statement = sql.trim();
+        const isSelect = /^SELECT\b/i.test(statement);
+        const isTableMetadata = /^PRAGMA\s+table_(?:info|xinfo)\s*\(/i.test(statement);
+        if (!isSelect && !isTableMetadata) throw new Error("readonly_inspection_query_required");
+        if (statement.includes(";")) throw new Error("readonly_inspection_single_statement_required");
+        return this.db.query(statement).all(...params);
+      },
+    };
+  }
+
+  /** Rebuild pre-constraint v2 databases while retaining safe, opaque relay data. */
+  private ensureMatterStatusConstraints(): void {
+    const schema = this.db.query("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'matters'").get() as { sql: string } | null;
+    if (schema?.sql.includes("CHECK (status IN ('provisioning', 'active', 'archived'))")) return;
+
+    this.db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+    try {
+      this.db.exec(`
+        CREATE TABLE matters_status_v3 (
+          matter_handle      TEXT PRIMARY KEY,
+          org_id             TEXT NOT NULL REFERENCES orgs(org_id),
+          root_stream_handle TEXT NOT NULL UNIQUE,
+          status             TEXT NOT NULL DEFAULT 'provisioning'
+                             CHECK (status IN ('provisioning', 'active', 'archived')),
+          key_epoch          INTEGER NOT NULL DEFAULT 1,
+          created_at         TEXT NOT NULL
+        );
+        INSERT INTO matters_status_v3 (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at)
+          SELECT matter_handle, org_id, root_stream_handle,
+            CASE status
+              WHEN 'provisioning' THEN 'provisioning'
+              WHEN 'active' THEN 'active'
+              WHEN 'archived' THEN 'archived'
+              ELSE 'archived'
+            END,
+            key_epoch, created_at
+          FROM matters;
+        DROP TABLE matters;
+        ALTER TABLE matters_status_v3 RENAME TO matters;
+        CREATE INDEX idx_matters_org ON matters(org_id);
+      `);
+      const fk = this.db.query("PRAGMA foreign_key_check").all();
+      if (fk.length) throw new Error("matter_status_migration_foreign_key_failure");
+      this.db.exec("COMMIT; PRAGMA foreign_keys = ON;");
+    } catch (cause) {
+      this.db.exec("ROLLBACK; PRAGMA foreign_keys = ON;");
+      throw cause;
+    }
+  }
+
+  /** Enforce the complete finite-state machine even for accidental raw SQL. */
+  private installMatterStatusGuards(): void {
+    this.db.exec(`
+      DROP TRIGGER IF EXISTS prevent_invalid_matter_status_transition;
+      DROP TRIGGER IF EXISTS prevent_archived_matter_resurrection;
+      DROP TRIGGER IF EXISTS prevent_archived_matter_data_deletion;
+
+      CREATE TRIGGER prevent_invalid_matter_status_transition
+      BEFORE UPDATE OF status ON matters
+      WHEN NOT (
+        (OLD.status = 'provisioning' AND NEW.status IN ('provisioning', 'active', 'archived')) OR
+        (OLD.status = 'active' AND NEW.status IN ('active', 'archived')) OR
+        (OLD.status = 'archived' AND NEW.status = 'archived')
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'invalid_matter_status_transition');
+      END;
+
+      -- An archived handle can leave only after every retained relay/control row
+      -- has been deliberately removed. This blocks delete+reinsert resurrection
+      -- even if a caller has disabled foreign-key enforcement.
+      CREATE TRIGGER prevent_archived_matter_data_deletion
+      BEFORE DELETE ON matters
+      WHEN OLD.status = 'archived' AND (
+        EXISTS (SELECT 1 FROM matter_streams WHERE matter_handle = OLD.matter_handle) OR
+        EXISTS (SELECT 1 FROM matter_updates WHERE matter_handle = OLD.matter_handle) OR
+        EXISTS (SELECT 1 FROM wrapped_matter_keys WHERE matter_handle = OLD.matter_handle) OR
+        EXISTS (SELECT 1 FROM matter_members WHERE matter_handle = OLD.matter_handle) OR
+        EXISTS (SELECT 1 FROM ethical_walls WHERE matter_handle = OLD.matter_handle)
+      )
+      BEGIN
+        SELECT RAISE(ABORT, 'archived_matter_data_retained');
+      END;
+    `);
   }
 
   private newHandle(prefix: "mh2_" | "sh2_"): string {
@@ -489,8 +586,8 @@ export class Store {
     this.db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
     try {
       this.db.exec(`
-        CREATE TABLE matters_v2 (matter_handle TEXT PRIMARY KEY, org_id TEXT NOT NULL, root_stream_handle TEXT NOT NULL UNIQUE, status TEXT NOT NULL, key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
-        CREATE TABLE matter_streams_v2 (stream_handle TEXT PRIMARY KEY, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), created_at TEXT NOT NULL, allocated_by_seat TEXT, last_activity_at TEXT NOT NULL, accepted_update_at TEXT);
+        CREATE TABLE matters_v2 (matter_handle TEXT PRIMARY KEY, org_id TEXT NOT NULL, root_stream_handle TEXT NOT NULL UNIQUE, status TEXT NOT NULL CHECK (status IN ('provisioning', 'active', 'archived')), key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
+        CREATE TABLE matter_streams_v2 (stream_handle TEXT PRIMARY KEY, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), created_at TEXT NOT NULL);
         CREATE TABLE matter_members_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), user_id TEXT NOT NULL, org_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,user_id));
         CREATE TABLE ethical_walls_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), user_id TEXT NOT NULL, org_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,user_id));
         CREATE TABLE matter_updates_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), org_id TEXT NOT NULL, stream_handle TEXT NOT NULL REFERENCES matter_streams_v2(stream_handle), blob_id TEXT NOT NULL, ciphertext BLOB NOT NULL, author_seat TEXT NOT NULL, key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
@@ -666,6 +763,35 @@ export class Store {
         key.issued_at,
       );
     return key;
+  }
+
+  /** Atomically create the unclaimed Firm org and its claimable license key. */
+  createProvisionedFirmOrg(input: {
+    name: string;
+    seat_limit: number;
+    billing_customer_id: string | null;
+    key_hash: string;
+    packs: ProfessionPack[];
+  }): Org {
+    const txn = this.db.transaction(() => {
+      const org = this.createOrg({
+        name: input.name,
+        plan: "practice",
+        packs: input.packs,
+        seat_limit: input.seat_limit,
+        billing_customer_id: input.billing_customer_id,
+      });
+      this.setOrgStatus(org.org_id, "unclaimed");
+      this.createLicenseKey({
+        org_id: org.org_id,
+        key_hash: input.key_hash,
+        plan: "practice",
+        packs: input.packs,
+        seat_limit: input.seat_limit,
+      });
+      return org;
+    });
+    return txn.immediate() as Org;
   }
 
   getLicenseKeyByHash(keyHash: string): LicenseKey | null {
@@ -1205,9 +1331,9 @@ export class Store {
     const txn = this.db.transaction(() => {
       // This check deliberately lives inside the same IMMEDIATE transaction as
       // first-write stream binding. A push that passed its earlier access gate
-      // cannot create a new stream after an archive has committed.
+      // cannot create a new stream after the matter leaves active status.
       const matter = this.db.query(`SELECT status FROM matters WHERE matter_handle = ?`).get(input.matter_handle) as { status: MatterStatus } | null;
-      if (!matter || matter.status === "archived") return { matterArchived: true as const };
+      if (!matter || matter.status !== "active") return { matterArchived: true as const };
       const stream = this.db.query(`SELECT matter_handle FROM matter_streams WHERE stream_handle = ?`).get(input.stream_handle) as { matter_handle: string } | null;
       if (stream && stream.matter_handle !== input.matter_handle) return { streamMatterMismatch: true as const };
       const existing = this.db
@@ -1476,10 +1602,10 @@ export class Store {
   /**
    * Atomically publish a batch of wrapped keys for the current active epoch.
    *
-   * The status and epoch checks intentionally share this IMMEDIATE transaction
-   * with every insert. That closes the time-of-check/time-of-use window where an
-   * archive could otherwise commit after a route checked the matter but before
-   * it wrote new encrypted key material.
+   * The active-status and epoch checks intentionally share this IMMEDIATE
+   * transaction with every insert. That closes the time-of-check/time-of-use
+   * window where a matter could leave active status after a route checked it but
+   * before it wrote new encrypted key material.
    */
   publishWrappedMatterKeys(input: {
     matter_handle: string;
@@ -1493,7 +1619,7 @@ export class Store {
         .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
         .get(input.matter_handle) as { org_id: string; status: MatterStatus; key_epoch: number } | null;
       if (!matter || matter.org_id !== input.org_id) return { matterNotFound: true as const };
-      if (matter.status === "archived") return { matterArchived: true as const };
+      if (matter.status !== "active") return { matterArchived: true as const };
       if (matter.key_epoch !== input.epoch) return { staleEpoch: true as const };
 
       let stored = 0;
@@ -1544,10 +1670,10 @@ export class Store {
   }
 
   /**
-   * Resolve access, terminal status, current epoch, and one wrapped key under
-   * one IMMEDIATE lock. A completed archive therefore serializes either wholly
+   * Resolve access, active status, current epoch, and one wrapped key under one
+   * IMMEDIATE lock. A completed status change therefore serializes either wholly
    * before this read (no key returned) or wholly after it (the read happened
-   * while the matter was still open); there is no check-then-read gap.
+   * while the matter was active); there is no check-then-read gap.
    */
   fetchWrappedMatterKeyForAccess(input: {
     matter_handle: string;
@@ -1557,14 +1683,14 @@ export class Store {
     device_id: string;
   }):
     | { ok: true; epoch: number; access: "member" | "admin"; key: WrappedMatterKey | null }
-    | { ok: false; reason: "matter_not_found" | "cross_org" | "archived" | "walled" | "not_member" } {
+    | { ok: false; reason: "matter_not_found" | "cross_org" | "inactive" | "walled" | "not_member" } {
     const txn = this.db.transaction(() => {
       const matter = this.db
         .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
         .get(input.matter_handle) as { org_id: string; status: MatterStatus; key_epoch: number } | null;
       if (!matter) return { ok: false as const, reason: "matter_not_found" as const };
       if (matter.org_id !== input.org_id) return { ok: false as const, reason: "cross_org" as const };
-      if (matter.status === "archived") return { ok: false as const, reason: "archived" as const };
+      if (matter.status !== "active") return { ok: false as const, reason: "inactive" as const };
 
       const walled = this.db
         .query(`SELECT 1 FROM ethical_walls WHERE matter_handle = ? AND user_id = ?`)
@@ -1757,6 +1883,25 @@ export class Store {
     } else {
       this.db.query(`UPDATE orgs SET status = 'active' WHERE org_id = ?`).run(orgId);
     }
+  }
+
+  /** Atomically claim an org and create its first administrator. */
+  claimOrgAndCreateAdmin(input: {
+    org_id: string;
+    org_name?: string;
+    email: string;
+    password_hash: string;
+  }): User {
+    const txn = this.db.transaction(() => {
+      this.claimOrg(input.org_id, input.org_name ? { name: input.org_name } : undefined);
+      return this.createUser({
+        org_id: input.org_id,
+        email: input.email,
+        password_hash: input.password_hash,
+        role: "admin",
+      });
+    });
+    return txn.immediate() as User;
   }
 
   /**

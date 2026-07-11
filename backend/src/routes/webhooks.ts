@@ -175,29 +175,16 @@ export async function handleLemonSqueezyWebhook(req: Request, store: Store): Pro
   const rawKey = payloadKey ?? generateLicenseKey();
   const keySource = payloadKey ? "payload" : "generated_fallback";
 
-  // Wrap org creation + status override + license key creation in a single
-  // transaction so a crash between steps cannot create an unclaimed org with
-  // no claimable key, or record the dedupe row and then fail to provision.
+  // Keep org creation + its claimable license key together so a crash cannot
+  // leave an unclaimed org with no usable key.
   const keyHash = hmacHash(rawKey);
-  const { org } = store.db.transaction(() => {
-    const newOrg = store.createOrg({
-      name: orgName,
-      plan: "practice",
-      packs: DEFAULT_FIRM_PACKS,
-      seat_limit: seatLimit,
-      billing_customer_id: (attrs.customer_id as string) ?? null,
-    });
-    // Override status to 'unclaimed' (createOrg defaults to 'active').
-    store.setOrgStatus(newOrg.org_id, "unclaimed");
-    store.createLicenseKey({
-      org_id: newOrg.org_id,
-      key_hash: keyHash,
-      plan: "practice",
-      packs: DEFAULT_FIRM_PACKS,
-      seat_limit: seatLimit,
-    });
-    return { org: newOrg };
-  })();
+  const org = store.createProvisionedFirmOrg({
+    name: orgName,
+    seat_limit: seatLimit,
+    billing_customer_id: (attrs.customer_id as string) ?? null,
+    key_hash: keyHash,
+    packs: DEFAULT_FIRM_PACKS,
+  });
 
   store.audit({
     org_id: org.org_id,

@@ -17,38 +17,41 @@ const hostileBody = {
 };
 
 function textColumns(store: Store): Array<{ table: string; column: string }> {
-  const tables = store.db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+  const inspector = store.inspectReadOnly();
+  const tables = inspector.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'") as Array<{ name: string }>;
   return tables.flatMap(({ name }) =>
-    (store.db.query(`PRAGMA table_info("${name.replaceAll('"', '""')}")`).all() as Array<{ name: string; type: string }>)
+    (inspector.all(`PRAGMA table_info("${name.replaceAll('"', '""')}")`) as Array<{ name: string; type: string }>)
       .filter((column) => /TEXT/i.test(column.type))
       .map((column) => ({ table: name, column: column.name })),
   );
 }
 
 function expectSentinelsAbsentFromStore(store: Store): void {
+  const inspector = store.inspectReadOnly();
   for (const { table, column } of textColumns(store)) {
     const quotedTable = `"${table.replaceAll('"', '""')}"`;
     const quotedColumn = `"${column.replaceAll('"', '""')}"`;
     for (const sentinel of sentinels) {
-      const rows = store.db.query(`SELECT 1 FROM ${quotedTable} WHERE instr(CAST(${quotedColumn} AS TEXT), ?) > 0`).all(sentinel);
+      const rows = inspector.all(`SELECT 1 FROM ${quotedTable} WHERE instr(CAST(${quotedColumn} AS TEXT), ?) > 0`, sentinel);
       expect(rows, `${table}.${column} contains ${sentinel}`).toHaveLength(0);
     }
   }
-  expect(JSON.stringify(store.listAudit("org"))).not.toContain(sentinels[0]);
-  expect(JSON.stringify(store.listAudit("org"))).not.toContain(sentinels[1]);
-  expect(JSON.stringify(store.listAudit("org"))).not.toContain(sentinels[2]);
+  for (const row of inspector.all("SELECT org_id FROM orgs") as Array<{ org_id: string }>) {
+    expect(JSON.stringify(store.listAudit(row.org_id))).not.toContain(sentinels[0]);
+    expect(JSON.stringify(store.listAudit(row.org_id))).not.toContain(sentinels[1]);
+    expect(JSON.stringify(store.listAudit(row.org_id))).not.toContain(sentinels[2]);
+  }
 }
 
 function fixture() {
   const store = new Store(":memory:");
   const org = store.createOrg({ name: "Relay privacy", plan: "practice", packs: ["advisor"], seat_limit: 4 });
-  store.db.query("UPDATE orgs SET org_id='org' WHERE org_id=?").run(org.org_id);
-  const admin = store.createUser({ org_id: "org", email: "admin@privacy.test", password_hash: "x", role: "admin" });
-  const member = store.createUser({ org_id: "org", email: "member@privacy.test", password_hash: "x", role: "member" });
-  const adminSeat = store.activateSeat({ org_id: "org", user_id: admin.user_id, machine_id: "admin-device", machine_label: null, seat_limit: 4 });
-  const memberSeat = store.activateSeat({ org_id: "org", user_id: member.user_id, machine_id: "member-device", machine_label: null, seat_limit: 4 });
+  const admin = store.createUser({ org_id: org.org_id, email: "admin@privacy.test", password_hash: "x", role: "admin" });
+  const member = store.createUser({ org_id: org.org_id, email: "member@privacy.test", password_hash: "x", role: "member" });
+  const adminSeat = store.activateSeat({ org_id: org.org_id, user_id: admin.user_id, machine_id: "admin-device", machine_label: null, seat_limit: 4 });
+  const memberSeat = store.activateSeat({ org_id: org.org_id, user_id: member.user_id, machine_id: "member-device", machine_label: null, seat_limit: 4 });
   if (!adminSeat.ok || !memberSeat.ok) throw new Error("test seat activation failed");
-  const seededOrg = store.getOrg("org")!;
+  const seededOrg = store.getOrg(org.org_id)!;
   return {
     store,
     admin,
@@ -65,6 +68,13 @@ async function responseJson(response: Response): Promise<Record<string, unknown>
 }
 
 describe("firm relay privacy proof", () => {
+  test("privacy inspection is read-only and never exposes the database connection", () => {
+    const { store } = fixture();
+    expect(() => store.inspectReadOnly().all("UPDATE orgs SET name = 'mutated'"))
+      .toThrow("readonly_inspection_query_required");
+    store.close();
+  });
+
   test("the shared recursive guard recognizes forbidden relay descriptors", () => {
     expect(hasForbiddenV2RelayKey(hostileBody)).toBe(true);
     expect(hasForbiddenV2RelayKey({ wrapped: [{ user_id: "safe", TITLE: sentinels[0] }] })).toBe(true);
@@ -76,10 +86,11 @@ describe("firm relay privacy proof", () => {
     const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
     const base = `http://${server.hostname}:${server.port}`;
     try {
-      const tables = store.db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+      const inspector = store.inspectReadOnly();
+      const tables = inspector.all("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'") as Array<{ name: string }>;
       expect(tables.map((table) => table.name)).not.toContain("firm_relay_migration_manifest");
       const columns = tables.flatMap(({ name }) =>
-        (store.db.query(`PRAGMA table_info(\"${name.replaceAll('"', '""')}\")`).all() as Array<{ name: string }>)
+        (inspector.all(`PRAGMA table_info(\"${name.replaceAll('"', '""')}\")`) as Array<{ name: string }>)
           .map((column) => `${name}.${column.name}`),
       );
       expect(columns.join(" ")).not.toMatch(/legacy_matter_id|matter_id|doc_id|client_name/);
@@ -277,7 +288,10 @@ describe("firm relay privacy proof", () => {
       const create = await fetch(`${base}/v2/firm/matters`, {
         method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
       });
-      const { root_stream_handle: rootStream } = await responseJson(create) as { root_stream_handle: string };
+      const { matter_handle: matterHandle, root_stream_handle: rootStream } = await responseJson(create) as { matter_handle: string; root_stream_handle: string };
+      expect((await fetch(`${base}/v2/firm/matters/${matterHandle}/activate`, {
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+      })).status).toBe(200);
       const path = `/v2/firm/streams/${rootStream}/updates?since=0`;
       const allowedPreflight = await fetch(`${base}${path}`, {
         method: "OPTIONS",
