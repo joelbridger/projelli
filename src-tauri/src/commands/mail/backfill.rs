@@ -1,10 +1,10 @@
+use super::state::MailIndexChunkPayload;
 use super::*;
 use crate::commands::mail::provider::MailProvider;
 use crate::commands::mail::store::{EncryptedMailStore, MailStore};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
-use super::state::MailIndexChunkPayload;
 
 /// Option B healing: re-index mail that was imported while the embedding model
 /// was still downloading. During that window each message's RAG indexing fails
@@ -51,8 +51,8 @@ pub async fn mail_backfill_rag(
         return Ok(0);
     }
 
-    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let enc_key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
     // Fast no-op #2: marker absent → nothing to heal (one row read).
     let ws_probe = workspace.clone();
@@ -223,8 +223,10 @@ pub async fn mail_backfill_rag(
         // into the folder's matter).
         let folder_default =
             resolve_mail_matter(&matter_map, &rec.provider, &rec.account, &rec.folder_id);
-        let matter =
-            resolve_effective_matter(store.get_message_matter(&rec.id).ok().flatten().as_deref(), &folder_default);
+        let matter = resolve_effective_matter(
+            store.get_message_matter(&rec.id).ok().flatten().as_deref(),
+            &folder_default,
+        );
 
         match index_mail_text_internal(&workspace, &path_key, &text, &matter).await {
             Ok(_) => indexed += 1,
@@ -473,7 +475,11 @@ pub(crate) fn mark_rag_backfill_needed_after_vector_rebuild(
 /// Correctness (no message is ever silently un-indexed) is still guaranteed by
 /// the durable marker + the next-launch `mail_backfill_rag`; this read makes the
 /// terminal CLAIM honest. Any error reading the marker is treated as "not pending".
-async fn rag_backfill_pending(workspace: &std::path::Path, key: &[u8; 32], wrote_any: bool) -> bool {
+async fn rag_backfill_pending(
+    workspace: &std::path::Path,
+    key: &[u8; 32],
+    wrote_any: bool,
+) -> bool {
     // Cheapest and most important signal: any mail index task still running or
     // queued behind the semaphore means the just-imported mail is NOT fully
     // searchable yet. Report pending so the terminal event says "search indexing
@@ -573,9 +579,7 @@ fn spawn_mail_rag_index(
         // call; if the semaphore is ever closed (it never is — it's a static)
         // we still proceed rather than silently dropping the message.
         let _permit = MAIL_INDEX_SEMAPHORE.acquire().await.ok();
-        if let Err(e) =
-            index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await
-        {
+        if let Err(e) = index_mail_text_internal(&workspace, &path_key, &text, &matter_id).await {
             // {:#} = full anyhow chain, so the log shows root causes.
             log::warn!("mail RAG index failed for {}: {:#}", path_key, e);
             // Mark the backfill on ANY index failure, not only model-not-ready
@@ -675,7 +679,10 @@ fn make_tombstone_callback(workspace: std::path::PathBuf) -> impl Fn(&str) + Sen
             match crate::commands::rag::store::open_connection(&ws).await {
                 Ok(conn) => {
                     let names = conn.table_names().execute().await.unwrap_or_default();
-                    if names.iter().any(|n| n == crate::commands::rag::store::TABLE_NAME) {
+                    if names
+                        .iter()
+                        .any(|n| n == crate::commands::rag::store::TABLE_NAME)
+                    {
                         if let Ok(table) = conn
                             .open_table(crate::commands::rag::store::TABLE_NAME)
                             .execute()
@@ -850,13 +857,11 @@ async fn sync_m365_section(
 ) -> Result<SectionOutcome, String> {
     let token = fresh_access_token().await?;
     let refresh = graph_token_refresh();
-    let folders = crate::commands::mail::graph::GraphProvider::new_with_refresh(
-        token,
-        refresh.clone(),
-    )
-        .list_folders()
-        .await
-        .map_err(|e| e.to_string())?;
+    let folders =
+        crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone())
+            .list_folders()
+            .await
+            .map_err(|e| e.to_string())?;
     let mut base = sync::PageStats::default();
     for folder in folders {
         if cancel.load(Ordering::SeqCst) {
@@ -867,8 +872,17 @@ async fn sync_m365_section(
             crate::commands::mail::graph::GraphProvider::new_with_refresh(token, refresh.clone());
         let folder_matter = resolve_mail_matter(matter_map, "m365", M365_ACCOUNT, &folder.id);
         let s = sync_one_folder(
-            app, "m365", &provider, store, workspace, &folder, M365_ACCOUNT, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "m365",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            M365_ACCOUNT,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -922,8 +936,17 @@ async fn sync_imap_section(
         }
         let folder_matter = resolve_mail_matter(matter_map, "imap", &imap_cfg.account, &folder.id);
         let s = sync_one_folder(
-            app, "imap", &provider, store, workspace, &folder, &imap_cfg.account, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "imap",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            &imap_cfg.account,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -965,8 +988,17 @@ async fn sync_gmail_section(
         let provider = GmailProvider::new(token, GMAIL_ACCOUNT.to_string());
         let folder_matter = resolve_mail_matter(matter_map, "gmail", GMAIL_ACCOUNT, &folder.id);
         let s = sync_one_folder(
-            app, "gmail", &provider, store, workspace, &folder, GMAIL_ACCOUNT, &folder_matter,
-            enc_key, base.written, base.removed,
+            app,
+            "gmail",
+            &provider,
+            store,
+            workspace,
+            &folder,
+            GMAIL_ACCOUNT,
+            &folder_matter,
+            enc_key,
+            base.written,
+            base.removed,
         )
         .await
         .map_err(|e| e.to_string())?;
@@ -998,12 +1030,58 @@ async fn sync_gmail_section(
 pub async fn mail_sync_all(
     app: AppHandle,
     state: State<'_, MailState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Option<Vec<MailMatterMapEntry>>,
     only_provider: Option<String>,
 ) -> Result<(), String> {
+    // Check every possible remote leg before the worker can construct a
+    // client.  The worker reuses the existing single-flight cancellation flag;
+    // the policy watch below flips that flag and drops the active future on an
+    // Offline Mode transition.
+    if should_sync_provider(&only_provider, "m365") && mail_is_connected().await.unwrap_or(false) {
+        crate::commands::connector_network::authorize_url(
+            &policy,
+            &crate::network_policy::OUTLOOK_MAIL_OAUTH,
+            "https://login.microsoftonline.com",
+        )
+        .map_err(|e| e.to_string())?;
+        crate::commands::connector_network::authorize_url(
+            &policy,
+            &crate::network_policy::OUTLOOK_MAIL_SYNC,
+            "https://graph.microsoft.com",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    if should_sync_provider(&only_provider, "gmail") && gmail_is_connected().await.unwrap_or(false)
+    {
+        crate::commands::connector_network::authorize_url(
+            &policy,
+            &crate::network_policy::GMAIL_OAUTH,
+            "https://oauth2.googleapis.com",
+        )
+        .map_err(|e| e.to_string())?;
+        crate::commands::connector_network::authorize_url(
+            &policy,
+            &crate::network_policy::GMAIL_SYNC,
+            "https://gmail.googleapis.com",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    if should_sync_provider(&only_provider, "imap") {
+        if let Ok(Some((config, _))) = load_imap_config_checked() {
+            crate::commands::connector_network::authorize_configured_host(
+                &policy,
+                &crate::network_policy::IMAP_SYNC,
+                &format!("imaps://{}:{}", config.host, config.port),
+                &config.host,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+    }
     // Atomically claim the sync slot; reject if a sync is already running.
     // We do NOT reset `cancel` if we bail here — an in-flight sync owns it.
-    if state.is_syncing
+    if state
+        .is_syncing
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
         .is_err()
     {
@@ -1022,7 +1100,14 @@ pub async fn mail_sync_all(
     // Per-provider terminal events (done/error/cancelled) are emitted INSIDE the
     // inner, per section, so one provider failing no longer error-flags the whole
     // sync (it used to emit a single global "error" that showed on every panel).
-    let result = mail_sync_all_inner(&app, &state, &matter_map, &only_provider).await;
+    let mut cancellation = policy.register_cancellation();
+    let result = tokio::select! {
+        result = mail_sync_all_inner(&app, &state, &matter_map, &only_provider) => result,
+        _ = cancellation.cancelled() => {
+            state.cancel.store(true, Ordering::SeqCst);
+            Err("Offline Mode cancelled the mail sync.".to_string())
+        }
+    };
     if let Err(e) = &result {
         // A setup failure (workspace/store/key) happens BEFORE any provider section,
         // so no `finish_section` ran and no terminal event/audit row would exist —
@@ -1067,8 +1152,8 @@ async fn mail_sync_all_inner(
     sync::migrate_plaintext(&workspace);
 
     let store = EncryptedMailStore::open(&workspace).map_err(|e| e.to_string())?;
-    let enc_key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let enc_key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
     // Each provider runs only if it is in scope (see `only_provider`) AND actually
     // connected/configured — so connecting one account never reaches into
@@ -1116,8 +1201,8 @@ async fn mail_sync_all_inner(
     if should_sync_provider(only_provider, "gmail") {
         match gmail_is_connected().await {
             Ok(true) => {
-                let r =
-                    sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel).await;
+                let r = sync_gmail_section(app, &store, &workspace, &enc_key, matter_map, &cancel)
+                    .await;
                 finish_section(app, "gmail", r);
             }
             Ok(false) => {}

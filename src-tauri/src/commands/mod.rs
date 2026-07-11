@@ -97,4 +97,5 @@ pub mod retention;
 // guest-join window that shows participants the recording-notice card. The
 // window inherits NO app capabilities (label-scoped isolation); status flows
 // out one-way via document.title. See notice_card/mod.rs for the full model.
+pub mod connector_network;
 pub mod notice_card;

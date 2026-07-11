@@ -1,7 +1,11 @@
 use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 
 #[derive(Debug, PartialEq)]
-pub enum Continuation { Next(String), Delta(String), End }
+pub enum Continuation {
+    Next(String),
+    Delta(String),
+    End,
+}
 
 /// Sentinel error: the delta token has expired (HTTP 410). Callers can
 /// downcast with `e.downcast_ref::<DeltaGone>()` instead of string-matching.
@@ -23,10 +27,16 @@ pub struct GraphClient {
     refresh: Option<GraphTokenRefresh>,
     base: String,
     http: reqwest::Client,
+    network_policy: Option<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )>,
 }
 
 impl GraphClient {
-    pub fn new(token: String) -> Self { Self::new_with_base(token, "https://graph.microsoft.com".into()) }
+    pub fn new(token: String) -> Self {
+        Self::new_with_base(token, "https://graph.microsoft.com".into())
+    }
     pub fn new_with_base(token: String, base: String) -> Self {
         Self::new_with_base_and_refresh(token, base, None)
     }
@@ -50,9 +60,39 @@ impl GraphClient {
             refresh,
             base,
             http,
+            network_policy: None,
         }
     }
-    pub fn base(&self) -> &str { &self.base }
+    pub fn base(&self) -> &str {
+        &self.base
+    }
+
+    /// Production connector commands must install their registered operation
+    /// before using this client.  The unconfigured constructor remains for
+    /// hermetic parser/wiremock tests only; all command paths use this method.
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.network_policy = Some((policy, operation));
+        self
+    }
+
+    async fn send(
+        &self,
+        url: &str,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        let Some((policy, operation)) = &self.network_policy else {
+            return Ok(request.send().await?);
+        };
+        let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
+        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
+            Ok(request.send().await?)
+        })
+        .await
+    }
 
     async fn bearer_token(&self) -> String {
         self.token.lock().await.clone()
@@ -122,7 +162,9 @@ impl GraphClient {
             anyhow::anyhow!("Microsoft Graph access token expired and refresh failed: {e}")
         })?;
         if access.trim().is_empty() {
-            anyhow::bail!("Microsoft Graph access token expired and refresh returned an empty token");
+            anyhow::bail!(
+                "Microsoft Graph access token expired and refresh returned an empty token"
+            );
         }
         *self.token.lock().await = access;
         Ok(true)
@@ -139,11 +181,15 @@ impl GraphClient {
                 anyhow::bail!("graph: throttled past retry budget");
             }
             let access = self.bearer_token().await;
-            let resp = self.http.get(url)
-                .bearer_auth(&access)
-                .send().await?;
+            let resp = self
+                .send(url, self.http.get(url).bearer_auth(&access))
+                .await?;
             if resp.status().as_u16() == 429 {
-                let ra = resp.headers().get("Retry-After").and_then(|v| v.to_str().ok()).map(String::from);
+                let ra = resp
+                    .headers()
+                    .get("Retry-After")
+                    .and_then(|v| v.to_str().ok())
+                    .map(String::from);
                 tokio::time::sleep(retry_delay(ra.as_deref(), throttle_attempt)).await;
                 throttle_attempt += 1;
                 continue;
@@ -193,11 +239,15 @@ impl GraphClient {
                 anyhow::bail!("graph: throttled past retry budget");
             }
             let access = self.bearer_token().await;
-            let resp = self.http.get(url)
-                .bearer_auth(&access)
-                .send().await?;
+            let resp = self
+                .send(url, self.http.get(url).bearer_auth(&access))
+                .await?;
             if resp.status().as_u16() == 429 {
-                let ra = resp.headers().get("Retry-After").and_then(|v| v.to_str().ok()).map(String::from);
+                let ra = resp
+                    .headers()
+                    .get("Retry-After")
+                    .and_then(|v| v.to_str().ok())
+                    .map(String::from);
                 tokio::time::sleep(retry_delay(ra.as_deref(), throttle_attempt)).await;
                 throttle_attempt += 1;
                 continue;
@@ -289,11 +339,7 @@ impl GraphClient {
             }
             let access = self.bearer_token().await;
             let resp = self
-                .http
-                .post(url)
-                .bearer_auth(&access)
-                .json(body)
-                .send()
+                .send(url, self.http.post(url).bearer_auth(&access).json(body))
                 .await?;
             if resp.status().as_u16() == 429 {
                 let ra = resp
@@ -366,12 +412,17 @@ impl GraphClient {
         }
         if !attachments.is_empty() {
             message["attachments"] = serde_json::Value::Array(
-                attachments.iter().map(|att| serde_json::json!({
-                    "@odata.type": "#microsoft.graph.fileAttachment",
-                    "name": att.name,
-                    "contentType": att.content_type,
-                    "contentBytes": att.content_base64,
-                })).collect(),
+                attachments
+                    .iter()
+                    .map(|att| {
+                        serde_json::json!({
+                            "@odata.type": "#microsoft.graph.fileAttachment",
+                            "name": att.name,
+                            "contentType": att.content_type,
+                            "contentBytes": att.content_base64,
+                        })
+                    })
+                    .collect(),
             );
         }
         let payload = serde_json::json!({
@@ -400,11 +451,7 @@ impl GraphClient {
             }
             let access = self.bearer_token().await;
             let resp = self
-                .http
-                .patch(url)
-                .bearer_auth(&access)
-                .json(body)
-                .send()
+                .send(url, self.http.patch(url).bearer_auth(&access).json(body))
                 .await?;
             if resp.status().as_u16() == 429 {
                 let ra = resp
@@ -522,11 +569,7 @@ fn split_display_address(raw: &str) -> (Option<String>, String) {
         if start < end {
             let address = trimmed[start + 1..end].trim();
             if !address.is_empty() {
-                let name = trimmed[..start]
-                    .trim()
-                    .trim_matches('"')
-                    .trim()
-                    .to_string();
+                let name = trimmed[..start].trim().trim_matches('"').trim().to_string();
                 return (
                     if name.is_empty() { None } else { Some(name) },
                     address.to_string(),
@@ -617,25 +660,41 @@ use async_trait::async_trait;
 const PROVIDER_MAX_DELTA_RESETS: u32 = 3;
 
 /// Microsoft 365 implementation of `MailProvider`, wrapping `GraphClient`.
-pub struct GraphProvider { client: GraphClient }
+pub struct GraphProvider {
+    client: GraphClient,
+}
 impl GraphProvider {
-    pub fn new(token: String) -> Self { Self { client: GraphClient::new(token) } }
-    pub fn new_with_base(token: String, base: String) -> Self { Self { client: GraphClient::new_with_base(token, base) } }
+    pub fn new(token: String) -> Self {
+        Self {
+            client: GraphClient::new(token),
+        }
+    }
+    pub fn new_with_base(token: String, base: String) -> Self {
+        Self {
+            client: GraphClient::new_with_base(token, base),
+        }
+    }
     pub fn new_with_refresh(token: String, refresh: GraphTokenRefresh) -> Self {
-        Self { client: GraphClient::new_with_refresh(token, refresh) }
+        Self {
+            client: GraphClient::new_with_refresh(token, refresh),
+        }
     }
     pub fn new_with_base_and_refresh(
         token: String,
         base: String,
         refresh: GraphTokenRefresh,
     ) -> Self {
-        Self { client: GraphClient::new_with_base_and_refresh(token, base, Some(refresh)) }
+        Self {
+            client: GraphClient::new_with_base_and_refresh(token, base, Some(refresh)),
+        }
     }
 }
 
 #[async_trait]
 impl MailProvider for GraphProvider {
-    fn kind(&self) -> &'static str { "m365" }
+    fn kind(&self) -> &'static str {
+        "m365"
+    }
 
     async fn list_folders(&self) -> anyhow::Result<Vec<RemoteFolder>> {
         // Resolve the junk folders (Deleted Items + Junk Email) by their stable
@@ -645,7 +704,11 @@ impl MailProvider for GraphProvider {
         // lookup fails we simply don't add it to the skip set.
         let mut skip_ids = std::collections::HashSet::new();
         for well_known in ["deleteditems", "junkemail"] {
-            let url = format!("{}/v1.0/me/mailFolders/{}?$select=id", self.client.base(), well_known);
+            let url = format!(
+                "{}/v1.0/me/mailFolders/{}?$select=id",
+                self.client.base(),
+                well_known
+            );
             if let Ok(j) = self.client.get_json(&url).await {
                 if let Some(id) = j.get("id").and_then(|s| s.as_str()) {
                     skip_ids.insert(id.to_string());
@@ -654,24 +717,43 @@ impl MailProvider for GraphProvider {
         }
 
         let mut folders = Vec::new();
-        let mut next = Some(format!("{}/v1.0/me/mailFolders?$top=200", self.client.base()));
+        let mut next = Some(format!(
+            "{}/v1.0/me/mailFolders?$top=200",
+            self.client.base()
+        ));
         while let Some(url) = next {
             let page = self.client.get_json(&url).await?;
             if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
                 for f in arr {
                     if let Some(id) = f.get("id").and_then(|s| s.as_str()) {
-                        if skip_ids.contains(id) { continue; } // skip Deleted Items / Junk Email
-                        let name = f.get("displayName").and_then(|s| s.as_str()).unwrap_or(id).to_string();
-                        folders.push(RemoteFolder { id: id.to_string(), display_name: name });
+                        if skip_ids.contains(id) {
+                            continue;
+                        } // skip Deleted Items / Junk Email
+                        let name = f
+                            .get("displayName")
+                            .and_then(|s| s.as_str())
+                            .unwrap_or(id)
+                            .to_string();
+                        folders.push(RemoteFolder {
+                            id: id.to_string(),
+                            display_name: name,
+                        });
                     }
                 }
             }
-            next = page.get("@odata.nextLink").and_then(|v| v.as_str()).map(String::from);
+            next = page
+                .get("@odata.nextLink")
+                .and_then(|v| v.as_str())
+                .map(String::from);
         }
         Ok(folders)
     }
 
-    async fn fetch_changes(&self, folder: &RemoteFolder, cursor: &Cursor) -> anyhow::Result<ChangePage> {
+    async fn fetch_changes(
+        &self,
+        folder: &RemoteFolder,
+        cursor: &Cursor,
+    ) -> anyhow::Result<ChangePage> {
         let mut url = match cursor {
             Cursor::Backfill => self.client.delta_start_url(&folder.id),
             Cursor::Resume(t) => t.clone(),
@@ -683,7 +765,11 @@ impl MailProvider for GraphProvider {
                 Err(e) if e.downcast_ref::<DeltaGone>().is_some() => {
                     resets += 1;
                     if resets > PROVIDER_MAX_DELTA_RESETS {
-                        anyhow::bail!("folder {}: delta token expired {} times in a row; giving up", folder.id, resets);
+                        anyhow::bail!(
+                            "folder {}: delta token expired {} times in a row; giving up",
+                            folder.id,
+                            resets
+                        );
                     }
                     url = self.client.delta_start_url(&folder.id);
                 }
@@ -695,15 +781,35 @@ impl MailProvider for GraphProvider {
         if let Some(arr) = page.get("value").and_then(|v| v.as_array()) {
             for item in arr {
                 let id = item.get("id").and_then(|s| s.as_str()).unwrap_or("");
-                if id.is_empty() { continue; }
-                if MailMessage::is_removed(item) { removed_ids.push(id.to_string()); }
-                else if let Some(m) = MailMessage::from_graph(item) { messages.push(m); }
+                if id.is_empty() {
+                    continue;
+                }
+                if MailMessage::is_removed(item) {
+                    removed_ids.push(id.to_string());
+                } else if let Some(m) = MailMessage::from_graph(item) {
+                    messages.push(m);
+                }
             }
         }
         Ok(match page_continuation(&page) {
-            Continuation::Next(n) => ChangePage { messages, removed_ids, next: Some(n), done: false },
-            Continuation::Delta(d) => ChangePage { messages, removed_ids, next: Some(d), done: true },
-            Continuation::End => ChangePage { messages, removed_ids, next: None, done: true },
+            Continuation::Next(n) => ChangePage {
+                messages,
+                removed_ids,
+                next: Some(n),
+                done: false,
+            },
+            Continuation::Delta(d) => ChangePage {
+                messages,
+                removed_ids,
+                next: Some(d),
+                done: true,
+            },
+            Continuation::End => ChangePage {
+                messages,
+                removed_ids,
+                next: None,
+                done: true,
+            },
         })
     }
 }
@@ -715,13 +821,16 @@ mod tests {
 
     #[tokio::test]
     async fn fetches_delta_page_and_retries_on_429() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
         // First call 429 with Retry-After: 0, second returns a page.
-        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
             .respond_with(ResponseTemplate::new(429).insert_header("Retry-After", "0"))
-            .up_to_n_times(1).mount(&server).await;
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
         Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "value": [{ "id": "m1", "subject": "Hi", "body": {"contentType":"text","content":"yo"} }],
@@ -731,7 +840,10 @@ mod tests {
         let client = GraphClient::new_with_base("AT".into(), server.uri());
         let url = format!("{}/v1.0/me/mailFolders/inbox/messages/delta", server.uri());
         let page = client.get_json(&url).await.expect("page");
-        assert_eq!(page_continuation(&page), Continuation::Delta("https://x/d?$deltatoken=tok".into()));
+        assert_eq!(
+            page_continuation(&page),
+            Continuation::Delta("https://x/d?$deltatoken=tok".into())
+        );
         assert_eq!(page["value"][0]["id"], "m1");
     }
 
@@ -741,22 +853,24 @@ mod tests {
             atomic::{AtomicUsize, Ordering},
             Arc,
         };
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1.0/me/drive/root/delta"))
             .and(header("authorization", "Bearer OLD"))
             .respond_with(ResponseTemplate::new(401).set_body_string("expired token"))
-            .mount(&server).await;
+            .mount(&server)
+            .await;
         Mock::given(method("GET"))
             .and(path("/v1.0/me/drive/root/delta"))
             .and(header("authorization", "Bearer NEW"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "value": [{ "id": "file-1", "name": "Plan.docx" }]
             })))
-            .mount(&server).await;
+            .mount(&server)
+            .await;
 
         let refresh_count = Arc::new(AtomicUsize::new(0));
         let refresh_seen = refresh_count.clone();
@@ -767,10 +881,14 @@ mod tests {
                 Ok("NEW".to_string())
             })
         });
-        let client = GraphClient::new_with_base_and_refresh("OLD".into(), server.uri(), Some(refresh));
+        let client =
+            GraphClient::new_with_base_and_refresh("OLD".into(), server.uri(), Some(refresh));
         let url = format!("{}/v1.0/me/drive/root/delta", server.uri());
 
-        let page = client.get_json(&url).await.expect("401 should refresh and retry");
+        let page = client
+            .get_json(&url)
+            .await
+            .expect("401 should refresh and retry");
 
         assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
         assert_eq!(page["value"][0]["id"], "file-1");
@@ -826,7 +944,10 @@ mod tests {
         }
 
         for task in tasks {
-            let page = task.await.expect("task should join").expect("request should retry");
+            let page = task
+                .await
+                .expect("task should join")
+                .expect("request should retry");
             assert_eq!(page["value"][0]["id"], "file-1");
         }
         assert_eq!(refresh_count.load(Ordering::SeqCst), 1);
@@ -834,18 +955,27 @@ mod tests {
 
     #[tokio::test]
     async fn list_folders_excludes_deleted_and_junk() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
         // The two well-known junk-folder lookups resolve their (locale-independent) ids.
-        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/deleteditems"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "DEL_ID" })))
-            .mount(&server).await;
-        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/junkemail"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "JUNK_ID" })))
-            .mount(&server).await;
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders/deleteditems"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "DEL_ID" })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders/junkemail"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "JUNK_ID" })),
+            )
+            .mount(&server)
+            .await;
         // The folder list contains Inbox, Deleted Items, Junk Email, and Sent Items.
-        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders"))
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "value": [
                     { "id": "INBOX_ID", "displayName": "Inbox" },
@@ -853,7 +983,9 @@ mod tests {
                     { "id": "JUNK_ID",  "displayName": "Junk Email" },
                     { "id": "SENT_ID",  "displayName": "Sent Items" }
                 ]
-            }))).mount(&server).await;
+            })))
+            .mount(&server)
+            .await;
 
         let provider = GraphProvider::new_with_base("AT".into(), server.uri());
         let folders = provider.list_folders().await.expect("list_folders");
@@ -889,30 +1021,52 @@ mod tests {
         let client = GraphClient::new_with_base("AT".into(), "https://g".into());
         // Normal base64url ids pass through unchanged.
         let safe = client.delta_start_url("AQMkAD-0_abc");
-        assert!(safe.ends_with("/mailFolders/AQMkAD-0_abc/messages/delta"), "got {safe}");
+        assert!(
+            safe.ends_with("/mailFolders/AQMkAD-0_abc/messages/delta"),
+            "got {safe}"
+        );
         // A traversal/escape attempt is neutralized (no raw `/` or `..` survives).
         let evil = client.delta_start_url("../../etc");
-        assert!(!evil.contains("/../../etc/"), "folder id must be encoded: {evil}");
-        assert!(evil.contains("%2E%2E%2F%2E%2E%2Fetc"), "expected percent-encoding, got {evil}");
+        assert!(
+            !evil.contains("/../../etc/"),
+            "folder id must be encoded: {evil}"
+        );
+        assert!(
+            evil.contains("%2E%2E%2F%2E%2E%2Fetc"),
+            "expected percent-encoding, got {evil}"
+        );
     }
 
     #[test]
     fn extracts_delta_and_next_links() {
-        let next = serde_json::json!({ "value": [], "@odata.nextLink": "https://g/n?$skiptoken=s" });
-        let delta = serde_json::json!({ "value": [], "@odata.deltaLink": "https://g/d?$deltatoken=d" });
-        assert_eq!(page_continuation(&next), Continuation::Next("https://g/n?$skiptoken=s".into()));
-        assert_eq!(page_continuation(&delta), Continuation::Delta("https://g/d?$deltatoken=d".into()));
-        assert_eq!(page_continuation(&serde_json::json!({"value":[]})), Continuation::End);
+        let next =
+            serde_json::json!({ "value": [], "@odata.nextLink": "https://g/n?$skiptoken=s" });
+        let delta =
+            serde_json::json!({ "value": [], "@odata.deltaLink": "https://g/d?$deltatoken=d" });
+        assert_eq!(
+            page_continuation(&next),
+            Continuation::Next("https://g/n?$skiptoken=s".into())
+        );
+        assert_eq!(
+            page_continuation(&delta),
+            Continuation::Delta("https://g/d?$deltatoken=d".into())
+        );
+        assert_eq!(
+            page_continuation(&serde_json::json!({"value":[]})),
+            Continuation::End
+        );
     }
 
     #[tokio::test]
     async fn http_410_returns_delta_gone_sentinel() {
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
-        Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
+        Mock::given(method("GET"))
+            .and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
             .respond_with(ResponseTemplate::new(410).set_body_string("Sync state not found"))
-            .mount(&server).await;
+            .mount(&server)
+            .await;
         let client = GraphClient::new_with_base("AT".into(), server.uri());
         let url = format!("{}/v1.0/me/mailFolders/inbox/messages/delta", server.uri());
         let err = client.get_json(&url).await.expect_err("should fail on 410");
@@ -1071,7 +1225,10 @@ mod tests {
             .and(body_partial_json(serde_json::json!({
                 "body": { "contentType": "HTML", "content": "<p>Following up.</p>" }
             })))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": "reply-draft-7" })))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "id": "reply-draft-7" })),
+            )
             .expect(1)
             .mount(&server)
             .await;
@@ -1107,15 +1264,16 @@ mod tests {
         Mock::given(method("POST"))
             .and(path(format!("/v1.0/me/messages/{encoded_id}/createReply")))
             .respond_with(
-                ResponseTemplate::new(201)
-                    .set_body_json(serde_json::json!({ "id": raw_draft_id })),
+                ResponseTemplate::new(201).set_body_json(serde_json::json!({ "id": raw_draft_id })),
             )
             .expect(1)
             .mount(&server)
             .await;
         Mock::given(method("PATCH"))
             .and(path(format!("/v1.0/me/messages/{encoded_draft_id}")))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": raw_draft_id })))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "id": raw_draft_id })),
+            )
             .expect(1)
             .mount(&server)
             .await;
@@ -1136,11 +1294,14 @@ mod tests {
     #[tokio::test]
     async fn graph_provider_fetch_changes_backfill_returns_message_and_delta_done() {
         use crate::commands::mail::provider::{Cursor, RemoteFolder};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
         use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
 
         let server = MockServer::start().await;
-        let delta_link = format!("{}/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=tok123", server.uri());
+        let delta_link = format!(
+            "{}/v1.0/me/mailFolders/inbox/messages/delta?$deltatoken=tok123",
+            server.uri()
+        );
         Mock::given(method("GET")).and(path("/v1.0/me/mailFolders/inbox/messages/delta"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
                 "value": [{ "id": "msg1", "subject": "Hello from Graph", "body": { "contentType": "text", "content": "Body text here." } }],
@@ -1148,12 +1309,21 @@ mod tests {
             }))).mount(&server).await;
 
         let provider = GraphProvider::new_with_base("AT".into(), server.uri());
-        let folder = RemoteFolder { id: "inbox".into(), display_name: "Inbox".into() };
-        let page = provider.fetch_changes(&folder, &Cursor::Backfill).await.expect("fetch_changes");
+        let folder = RemoteFolder {
+            id: "inbox".into(),
+            display_name: "Inbox".into(),
+        };
+        let page = provider
+            .fetch_changes(&folder, &Cursor::Backfill)
+            .await
+            .expect("fetch_changes");
 
         assert_eq!(page.messages.len(), 1, "expected exactly one message");
         assert_eq!(page.messages[0].id, "msg1");
-        assert!(page.done, "Cursor::Backfill with deltaLink must be done=true");
+        assert!(
+            page.done,
+            "Cursor::Backfill with deltaLink must be done=true"
+        );
         assert_eq!(page.next, Some(delta_link), "next must equal the deltaLink");
         assert!(page.removed_ids.is_empty(), "no tombstones expected");
     }
@@ -1240,8 +1410,14 @@ mod tests {
     fn summarize_error_body_emits_code_and_length_never_message() {
         let body = r#"{"error":{"code":"InvalidAuthenticationToken","message":"user@example.com token expired at mailbox X"}}"#;
         let summary = summarize_error_body(body);
-        assert!(summary.contains("code=InvalidAuthenticationToken"), "{summary}");
-        assert!(summary.contains(&format!("bytes={}", body.len())), "{summary}");
+        assert!(
+            summary.contains("code=InvalidAuthenticationToken"),
+            "{summary}"
+        );
+        assert!(
+            summary.contains(&format!("bytes={}", body.len())),
+            "{summary}"
+        );
         // The PII-bearing message must never appear in the summary.
         assert!(!summary.contains("user@example.com"), "{summary}");
         assert!(!summary.contains("mailbox"), "{summary}");

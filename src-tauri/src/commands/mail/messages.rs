@@ -1,5 +1,5 @@
-use super::*;
 use super::matter::folder_matter_from_rag;
+use super::*;
 use crate::commands::mail::store::{EncryptedMailStore, MailListPage, MailListQuery, MailStore};
 use serde::Serialize;
 use tauri::State;
@@ -57,10 +57,7 @@ pub(crate) fn frontmatter_subject(markdown: &str) -> String {
     String::new()
 }
 #[tauri::command]
-pub async fn mail_set_workspace(
-    state: State<'_, MailState>,
-    path: String,
-) -> Result<(), String> {
+pub async fn mail_set_workspace(state: State<'_, MailState>, path: String) -> Result<(), String> {
     *state.workspace.lock().await = Some(std::path::PathBuf::from(path));
     Ok(())
 }
@@ -85,8 +82,8 @@ pub(crate) fn get_message_with_key(
     use anyhow::Context;
     // Tolerate a "mail:" prefix so callers can pass the citation source id.
     let id = id.strip_prefix("mail:").unwrap_or(id);
-    let store = EncryptedMailStore::open_with_key(workspace, key)
-        .context("open encrypted mail store")?;
+    let store =
+        EncryptedMailStore::open_with_key(workspace, key).context("open encrypted mail store")?;
     let rec = match store.get_record(id)? {
         Some(r) => r,
         None => return Ok(None),
@@ -119,8 +116,8 @@ pub async fn mail_get_message(
         .await
         .clone()
         .ok_or("workspace not set")?;
-    let key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
     // Decrypt + DB read are blocking fs/sqlite work; run off the async runtime.
     let ws_for_view = workspace.clone();
     let id_for_lookup = id.clone();
@@ -154,8 +151,8 @@ pub async fn mail_list_messages(
         .await
         .clone()
         .ok_or("workspace not set")?;
-    let key = crate::commands::mail::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let key =
+        crate::commands::mail::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
     // SQLite work is blocking; run off the async runtime.
     tokio::task::spawn_blocking(move || {
         let store =
@@ -185,6 +182,7 @@ pub struct MailAttachmentData {
 /// IMAP attachment download is not yet implemented and returns an error.
 #[tauri::command]
 pub async fn mail_get_attachment(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     provider: String,
     account: String,
     message_id: String,
@@ -193,11 +191,46 @@ pub async fn mail_get_attachment(
     use base64::Engine;
     match provider.as_str() {
         "m365" => {
+            crate::commands::connector_network::authorize_url(
+                &policy,
+                &crate::network_policy::OUTLOOK_MAIL_OAUTH,
+                "https://login.microsoftonline.com",
+            )
+            .map_err(|e| e.to_string())?;
+            crate::commands::connector_network::authorize_url(
+                &policy,
+                &crate::network_policy::OUTLOOK_MAIL_SYNC,
+                "https://graph.microsoft.com",
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        "gmail" => {
+            crate::commands::connector_network::authorize_url(
+                &policy,
+                &crate::network_policy::GMAIL_OAUTH,
+                "https://oauth2.googleapis.com",
+            )
+            .map_err(|e| e.to_string())?;
+            crate::commands::connector_network::authorize_url(
+                &policy,
+                &crate::network_policy::GMAIL_SYNC,
+                "https://gmail.googleapis.com",
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        _ => {}
+    }
+    let mut cancellation = policy.register_cancellation();
+    tokio::select! {
+        result = async {
+    match provider.as_str() {
+        "m365" => {
             let token = fresh_access_token().await?;
             let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
                 token,
                 graph_token_refresh(),
-            );
+            )
+            .with_network_policy(policy.inner().clone(), crate::network_policy::OUTLOOK_MAIL_SYNC);
             let (bytes, content_type, filename) = client
                 .get_attachment(&message_id, &attachment_id)
                 .await
@@ -210,7 +243,8 @@ pub async fn mail_get_attachment(
         }
         "gmail" => {
             let token = fresh_gmail_access_token().await?;
-            let client = crate::commands::mail::gmail::api::GmailClient::new(token);
+            let client = crate::commands::mail::gmail::api::GmailClient::new(token)
+                .with_network_policy(policy.inner().clone(), crate::network_policy::GMAIL_SYNC);
             // Gmail attachment id is the part-body `attachmentId` — message_id
             // is the gmail message id (without the "gmail:<account>:" prefix).
             let raw_msg_id = message_id
@@ -230,5 +264,8 @@ pub async fn mail_get_attachment(
         }
         "imap" => Err("IMAP attachment download is not yet supported".to_string()),
         other => Err(format!("unknown provider: {other}")),
+    }
+        } => result,
+        _ = cancellation.cancelled() => Err("Offline Mode cancelled the attachment fetch.".to_string()),
     }
 }

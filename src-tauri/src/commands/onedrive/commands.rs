@@ -218,7 +218,10 @@ pub async fn onedrive_set_workspace(
 /// user finishes, cancels (see `onedrive_connect_cancel`), or a 5-minute
 /// timeout elapses.
 #[tauri::command]
-pub async fn onedrive_connect(state: State<'_, OneDriveState>) -> Result<(), String> {
+pub async fn onedrive_connect(
+    state: State<'_, OneDriveState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<(), String> {
     use crate::commands::mail::gmail::oauth::{
         await_redirect_code_or_cancel, bind_loopback_host, gen_pkce, gen_state, open_browser,
     };
@@ -236,6 +239,12 @@ pub async fn onedrive_connect(state: State<'_, OneDriveState>) -> Result<(), Str
         .await
         .map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::ONEDRIVE_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     open_browser(&url);
     let code = await_redirect_code_or_cancel(
         listener,
@@ -244,6 +253,12 @@ pub async fn onedrive_connect(state: State<'_, OneDriveState>) -> Result<(), Str
         cancel.clone(),
     )
     .await
+    .map_err(|e| e.to_string())?;
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::ONEDRIVE_OAUTH,
+        MS_TOKEN_ENDPOINT,
+    )
     .map_err(|e| e.to_string())?;
     let tokens = ms_exchange_code(
         &client_id(),
@@ -294,7 +309,15 @@ pub async fn onedrive_connect_cancel(state: State<'_, OneDriveState>) -> Result<
 }
 
 #[tauri::command]
-pub async fn onedrive_begin_login() -> Result<DeviceCodePrompt, String> {
+pub async fn onedrive_begin_login(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<DeviceCodePrompt, String> {
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::ONEDRIVE_OAUTH,
+        "https://login.microsoftonline.com",
+    )
+    .map_err(|e| e.to_string())?;
     let auth = OAuth::new(client_id());
     let dc = auth
         .request_device_code()
@@ -310,7 +333,16 @@ pub async fn onedrive_begin_login() -> Result<DeviceCodePrompt, String> {
 }
 
 #[tauri::command]
-pub async fn onedrive_poll_login(device_code: String) -> Result<String, String> {
+pub async fn onedrive_poll_login(
+    device_code: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<String, String> {
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::ONEDRIVE_OAUTH,
+        "https://login.microsoftonline.com",
+    )
+    .map_err(|e| e.to_string())?;
     let auth = OAuth::new(client_id());
     match auth
         .poll_token(&device_code)
@@ -722,7 +754,10 @@ pub async fn onedrive_disconnect(
 }
 
 #[tauri::command]
-pub async fn onedrive_list_drives() -> Result<Vec<Drive>, String> {
+pub async fn onedrive_list_drives(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<Vec<Drive>, String> {
+    authorize_onedrive(&policy)?;
     let token = fresh_access_token().await?;
     OneDriveClient::new_with_refresh(token, graph_token_refresh())
         .list_drives()
@@ -733,7 +768,9 @@ pub async fn onedrive_list_drives() -> Result<Vec<Drive>, String> {
 #[tauri::command]
 pub async fn onedrive_list_folders(
     state: State<'_, OneDriveState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
 ) -> Result<Vec<OneDriveFolderDto>, String> {
+    authorize_onedrive(&policy)?;
     // F1: refuse the folder-discovery walk (the step `runSync()` runs BEFORE
     // `onedrive_sync`) while a disconnect is in progress — it would otherwise
     // clear the cancel flag below and lead straight into a sync that
@@ -908,12 +945,30 @@ fn is_personal_drive(drive: &Drive) -> bool {
         .unwrap_or(false)
 }
 
+fn authorize_onedrive(policy: &crate::network_policy::NetworkPolicy) -> Result<(), String> {
+    crate::commands::connector_network::authorize_url(
+        policy,
+        &crate::network_policy::ONEDRIVE_OAUTH,
+        "https://login.microsoftonline.com",
+    )
+    .map_err(|e| e.to_string())?;
+    crate::commands::connector_network::authorize_url(
+        policy,
+        &crate::network_policy::ONEDRIVE_SYNC,
+        "https://graph.microsoft.com",
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn onedrive_sync(
     app: AppHandle,
     state: State<'_, OneDriveState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<OneDriveMatterMapEntry>,
 ) -> Result<OneDriveSyncReport, String> {
+    authorize_onedrive(&policy)?;
     // Win the sync slot and refuse if a disconnect is in progress (F1). Only
     // AFTER this succeeds is `cancel` cleared below — a sync that bails because
     // a disconnect is underway must not erase the cancel the disconnect raised.
@@ -1042,8 +1097,16 @@ pub async fn onedrive_sync(
         }
     };
 
-    let outcome = tokio::time::timeout(SYNC_TIMEOUT, sync_future).await;
+    let mut cancellation = policy.register_cancellation();
+    let outcome = tokio::select! {
+        outcome = tokio::time::timeout(SYNC_TIMEOUT, sync_future) => Some(outcome),
+        _ = cancellation.cancelled() => {
+            state.cancel.store(true, Ordering::SeqCst);
+            None
+        }
+    };
     emitter.abort();
+    let outcome = outcome.ok_or_else(|| "Offline Mode cancelled the OneDrive sync.".to_string())?;
 
     let report = match outcome {
         Ok(Ok(report)) => report,
