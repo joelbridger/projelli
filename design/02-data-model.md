@@ -1,6 +1,6 @@
 # 02 — Data model + storage design (CRM core)
 
-**Conforms to 00-master-spec decisions D1–D25.**
+**Conforms to 00-master-spec decisions D1–D26.**
 
 **Lane B deliverable. Status: DRAFT for freeze review.** This spec is written to be
 **frozen and built against without iteration** (per `LANTERN-CRM.md` §"one-shot
@@ -96,7 +96,8 @@ type EntityKind =
   | 'workflowTemplate' | 'workflowInstance' | 'servicePolicy'
   | 'activityEvent' | 'firmDoc' | 'tag' | 'customFieldDef'
   | 'opportunity' | 'pipelineDef' | 'stageDef' | 'proposalRecord' | 'legacyProject'
-  | 'firmDirectoryEntry' | 'importArchiveManifest' | 'savedView';
+  | 'firmDirectoryEntry' | 'householdDirectoryShell' | 'intakeLink' | 'intakeSubmission'
+  | 'importArchiveManifest' | 'savedView';
 
 interface ActorRef {
   userId: string;          // firm member id, or 'system'
@@ -366,6 +367,7 @@ interface Task extends CrmBase {
   recurrence?: RecurrenceRule;  // LWW
   priority: 'high' | 'normal' | 'low'; // LWW
   contextRefs: EntityRef[];     // SET
+  customFields: CustomFieldValueMap; // SET keyed by definition key (§1.13)
 }
 
 interface RecurrenceRule {
@@ -443,6 +445,7 @@ interface TemplateRevision {
   parentRevisionIds: string[];  // SET — one or more parents; composed revisions may name concurrent heads
   author: ActorRef;             // IMM
   issuedHlc: HlcStamp;          // IMM — issued under §2.3's HLC contract
+  label: string;                // IMM — human-readable update label shown at publish/review time
   stepChanges: Keyed<TemplateStepChange>; // IMM — complete per-step field change-set
 }
 
@@ -486,15 +489,18 @@ interface RevisionSet {
 
 interface WorkflowStepProgress {
   stepId: string;               // IMM — matches StepDef.id (the merge key)
+  origin: 'template' | 'local'; // IMM — template step or locally added step; local steps are never propagation targets
   status: WorkflowStepStatus;  // LWW — `UNTOUCHED` is the named untouched state
-  assigneeId?: string;          // LWW
+  assigneeUserId?: string;      // LWW — current active assignee; canonical name everywhere
   taskId?: string;              // IMM — the Task materializing this step (§1.6)
   // snapshot of the step definition this instance is currently honoring, so an
   // instance renders correctly even offline from the template:
   titleSnapshot: string;        // LWW
   derived: Record<string, DerivedField>; // LWW per key — current template-derived field values + immutable sources
+  removalRequestedBy: string[]; // SET — OR-Set<revisionId>; removal is reconciled after every merge (§2.4)
   detachedFromTemplate: boolean;// LWW — removal/offline-progress rule is re-run on merge
   stepNotes: string;            // SEQ — per-step Y.Text comments, never a task-body surrogate (D9)
+  assignmentOperations: Keyed<AssignmentOperation>; // APP — append-only assignment history accompanying the current LWW assignee
   completionOperations: Keyed<CompletionOperation>; // APP — append-only truth; display completion is derived
 }
 
@@ -510,6 +516,15 @@ interface CompletionOperation {
   completedAt: string;          // IMM
   completedBy: ActorRef;        // IMM
   outcome?: string;             // IMM
+  sourceOperationId: string;    // IMM
+}
+
+interface AssignmentOperation {
+  assignmentId: string;         // IMM — unique within stepId
+  stepId: string;               // IMM
+  assignedUserId: string | null;// IMM — null records an explicit unassignment
+  assignedAt: string;           // IMM
+  assignedBy: ActorRef;         // IMM
   sourceOperationId: string;    // IMM
 }
 
@@ -743,7 +758,7 @@ the field is named `proposalKind` because `CrmBase.kind` is already the entity d
 ```ts
 interface ProposalRecord extends CrmBase {
   kind: 'proposalRecord';
-  householdRef: EntityRef;      // IMM
+  householdRef: EntityRef | null; // IMM — null is a firm-scope proposal routed through firm operations
   proposalKind: 'workflow_launch' | 'task_create' | 'fact_add' | 'communication_draft'; // IMM
   proposedMutation: ProposalMutation; // IMM — complete durable proposed change
   proposedBy: ActorRef;         // IMM
@@ -777,6 +792,8 @@ record while leaving the imported project unchanged.
 interface LegacyProject extends CrmBase {
   kind: 'legacyProject';
   householdLinks: HouseholdLink[]; // SET — imported linked households, with one deterministic anchor
+  anchorHouseholdId?: string;   // IMM — deterministic linked-household anchor when one exists
+  unlinked: boolean;            // IMM — true when imported without a household; lives in firm_home operational doc
   title: string;                // IMM — imported display title
   status?: string;              // IMM — source status, rendered read-only
   description?: string;         // IMM — source text, rendered read-only
@@ -836,13 +853,150 @@ interface ImportArchiveManifest extends CrmBase {
 interface RawArchiveEntry {
   rawRecordId: string;          // IMM
   requestPath: string;          // IMM
+  captureLayerVersion: string;  // IMM — raw-capture format/behavior used for this entry
+  fixtureCorpusIdentity: string;// IMM — exact synthetic fixture corpus identity
   capturedAt: string;           // IMM
   responseSha256: string;       // IMM
   byteLength: number;           // IMM
+  typedOutcome: 'landed' | 'skipped' | 'rejected'; // IMM — result of typed parse + landing attempt
+  targetEntityRef?: EntityRef;  // IMM when landed
+  skipReason?: string;          // IMM when skipped/rejected; exactly one allowed reason
+  resultingExternalRefs: ExternalRef[]; // IMM — final external_refs projection for a landed source
 }
 ```
 
-### 1.19 SavedView / Report definition
+### 1.19 HouseholdDirectoryShell (non-identifying directory projection)
+
+`crm:directory` needs a shell that lets a firm list operational client state without
+copying a household name, people, facts, or other client-identifying content into the firm
+directory. The opaque reference is resolvable only after the device has the household record.
+
+```ts
+interface HouseholdDirectoryShell extends CrmBase {
+  kind: 'householdDirectoryShell';
+  matterId: 'firm_home';        // IMM
+  householdRef: EntityRef;      // IMM — opaque household pointer; never a display name or client payload
+  operationalStatus: Household['status']; // LWW — prospect/active/inactive/former only
+}
+```
+
+### 1.20 IntakeLink + IntakeSubmission
+
+Intake is a firm-scoped, durable review queue, not a direct write into a household. A link
+declares the fields it may collect and the audience lane that owns the submitted payload.
+The public form may create a submission, but matching a response to a household or creating
+a household is a deliberate, append-only firm-member mutation.
+
+```ts
+interface IntakeLink extends CrmBase {
+  kind: 'intakeLink';
+  matterId: 'firm_home';        // IMM
+  name: string;                 // LWW
+  householdRef: EntityRef | null; // IMM — null means firm-wide intake; otherwise the intended household scope
+  audience: 'internal' | 'client-facing'; // IMM — immutable lane for all collected payload
+  fields: Keyed<IntakeField>;   // SET — selected responsive form fields
+  confirmationCopy: string;     // SEQ — public confirmation text
+  status: 'draft' | 'active' | 'closed'; // LWW
+}
+
+interface IntakeField {
+  id: string;                   // IMM
+  label: string;                // LWW
+  kind: 'text' | 'email' | 'phone' | 'date' | 'select' | 'textarea'; // LWW
+  required: boolean;            // LWW
+  choices?: string[];           // LWW
+}
+
+interface IntakeSubmission extends CrmBase {
+  kind: 'intakeSubmission';
+  matterId: 'firm_home';        // IMM
+  intakeLinkId: string;         // IMM
+  audience: 'internal' | 'client-facing'; // IMM — copied from IntakeLink; no cross-lane move
+  payload: IntakeAudiencePayload; // IMM — collected field values in that lane only
+  submittedAt: string;          // IMM
+  matchingDecisions: Keyed<IntakeMatchingDecision>; // APP — append-only match/create/reject decisions
+}
+
+type IntakeAudiencePayload = {
+  audience: 'internal' | 'client-facing'; // IMM — must equal IntakeSubmission.audience
+  values: Record<string, string | string[] | null>; // IMM — keyed only by IntakeLink.fields ids
+};
+
+interface IntakeMatchingDecision {
+  decisionId: string;           // IMM
+  decision: 'match' | 'create' | 'reject'; // IMM
+  householdRef?: EntityRef;     // IMM when decision === 'match' or a create succeeds
+  reason?: string;              // IMM — required for reject; visible review note
+  decidedAt: string;            // IMM
+  decidedBy: ActorRef;          // IMM
+  sourceOperationId: string;    // IMM
+}
+
+// Projection only: not a mutable CRDT field. The matching-decision operation with the
+// highest valid §2.3 HLC/operation-ID order supplies the displayed state and target.
+interface DisplayedIntakeMatch {
+  state: 'unmatched' | 'matched' | 'created' | 'rejected';
+  householdRef?: EntityRef;
+}
+```
+
+`matchingDecisions` is the only matching-decision mutation. The projector orders valid
+entries by the §2.3 HLC/operation-ID order, exposes one resulting `state`, and retains all
+earlier decisions for audit. A matched submission can propose dated Facts with the intake
+payload as its source; it never writes Facts or household fields by itself.
+
+### 1.21 Durable local migration-operation records
+
+These records make the migration screen's operator decisions durable, but they are **not
+CRM entities, not CRDT docs, and never relay-synced**. They are local SQLCipher tables on the
+operator device because they describe that device's export work and readiness. Each completed
+record is projected into the fidelity report and copied into the sealed immutable import
+archive; the archive copy is the cross-device/compliance artifact, not a synced mutable copy.
+
+```ts
+interface MigrationChecklistItem {
+  id: string;                   // IMM — operator-local UUIDv7
+  importBatchId: string;        // IMM
+  legacyProjectRef: EntityRef;  // IMM
+  householdRef: EntityRef | null; // IMM — null for an unlinked legacy project
+  sourceTemplateLabel?: string; // LWW — readable source evidence
+  activityEvidenceRefs: EntityRef[]; // SET — available traces
+  decision: 'pending' | 'recreate' | 'gap' | 'not_needed'; // local LWW
+  resultingWorkflowInstanceRef?: EntityRef; // LWW after recreate
+  gapReason?: string;           // LWW when decision === 'gap'
+  decidedAt?: string; decidedBy?: ActorRef; // local LWW
+}
+
+interface AttachmentAccountingRecord {
+  id: string;                   // IMM — operator-local UUIDv7
+  importBatchId: string;        // IMM
+  householdRef: EntityRef;      // IMM
+  status: 'exported' | 'gap';   // local LWW — every affected household must end in one
+  exportSource?: string;        // LWW when exported
+  exportedAt?: string; exportedBy?: ActorRef; // local LWW
+  gapReason?: string; gapOwnerUserId?: string; // local LWW when gap
+}
+
+interface ExportJob {
+  id: string;                   // IMM — operator-local UUIDv7
+  importBatchId: string;        // IMM
+  kind: 'archive' | 'rollback'; // IMM
+  status: 'preparing' | 'ready' | 'failed' | 'exported'; // local LWW
+  manifestRef?: EntityRef;      // LWW — required for archive jobs once ready
+  fidelityReportSha256?: string;// LWW — report captured with the job
+  destinationLabel?: string;    // LWW — never a credential or secret path
+  failureReason?: string;       // LWW when failed
+  startedAt: string; startedBy: ActorRef; // IMM
+  finishedAt?: string;          // local LWW
+}
+```
+
+An `archive` ExportJob reaches `exported` only after its immutable archive package contains a
+snapshot of every checklist, attachment-accounting, and export-job record for that
+`importBatchId`, alongside the referenced manifest and fidelity report. The package is a
+sealed capture, not a write back into the manifest or a new synced document.
+
+### 1.22 SavedView / Report definition
 
 Structured browse for the "Seattle persona" (path4 §5.2, principle 6). A saved view or a
 report is a **stored query definition**; results are always computed live (never cached as
@@ -876,7 +1030,7 @@ interface ViewQuery {
 Reports are **computed on demand and stamped "computed just now from N sources"**
 (path4 §5.2). The definition is stored; the answer never is.
 
-### 1.20 Shared value types
+### 1.23 Shared value types
 
 ```ts
 interface EntityRef { kind: EntityKind; id: string; matterId?: string; } // typed cross-entity pointer
@@ -892,7 +1046,9 @@ type Keyed<T> = Record<string /*element id*/, T>;                        // id-k
 - **Primary ids are app-minted, type-prefixed UUIDv7**: `hh_<uuid7>`, `per_<uuid7>`,
   `acct_<uuid7>`, `fact_<uuid7>`, `note_<uuid7>`, `task_<uuid7>`, `wtpl_`, `winst_`,
   `svc_`, `act_`, `fdoc_`, `tag_`, `cfd_`, `opp_`, `pipe_`, `stage_`, `proposal_`, `dir_`,
-  `import_`, `legacy_`, `view_`. UUIDv7 is time-ordered so the SQL index gets locality for free.
+  `hds_`, `intake_link_`, `intake_sub_`, `import_`, `legacy_`, `view_`. UUIDv7 is
+  time-ordered so the SQL index gets locality for free. Local migration-operation ids use
+  the same UUIDv7 rule but are never CRM entity ids or relay identifiers.
 - **Provider ids are NEVER primary keys.** Wealthbox numeric ids and `crm_key()` values
   (`model.rs:314-317`) are retained only in `externalRefs[]`. This is the clean decoupling
   feasibility §1/§6 demands ("app-owned editable records decoupled from the connector") and
@@ -912,9 +1068,11 @@ is the Yjs truth unit. The relay stream is always `(matter_id, doc_id)`.
 | Firm home (`firm_home`) | `crm:tasks` | Task operational shells; firm-task bodies | Bootstrap and always-on |
 | Firm home | `crm:workflows` | Workflow instances, propagation offers, PipelineDef, StageDef, ProposalRecord | Bootstrap and always-on |
 | Firm home | `crm:templates` | WorkflowTemplate, ServicePolicy, Tag, CustomFieldDef, FirmDoc, SavedView | Bootstrap and always-on |
-| Firm home | `crm:directory` | FirmDirectoryEntry and ImportArchiveManifest | Bootstrap and always-on |
+| Firm home | `crm:directory` | FirmDirectoryEntry, HouseholdDirectoryShell, and ImportArchiveManifest | Bootstrap and always-on |
+| Firm home | `crm:intake` | IntakeLink and IntakeSubmission | Bootstrap and always-on |
 | Firm home | `crm:activity:<YYYY-Qn>` | append-only ActivityEvent entries | Current quarter plus recent/pinned quarters |
 | Real household matter | `crm:record` | Household, Person links, Account, Fact, Note, Opportunity, and LegacyProject | On open, plus pinned/recent households; never all households by default |
+| Firm home | `crm:record` | Unlinked LegacyProject records only, each marked `unlinked` | Bootstrap and always-on |
 | Real household matter | `crm:task-notes` | `taskId → Y.Text` confidential task body/notes | Only with that household's client view |
 
 A task's operational shell is in `firm_home` / `crm:tasks`. If `householdRef` is non-null,
@@ -927,7 +1085,10 @@ with an intersection key derived from all linked household keys; it renders only
 device holds every linked key. No per-entity household streams exist.
 There is exactly one `crm:record` document for each household under that household's real
 matter; it is subscribed only when the household is open, pinned, or recent. `firm_home` is
-the one real synthetic firm matter; no pseudo-scope is valid.
+the one real synthetic firm matter; no pseudo-scope is valid. An imported LegacyProject with
+no linked household has `matterId: 'firm_home'`, `anchorHouseholdId: undefined`, and
+`unlinked: true`; it is retained in the firm-home operational `crm:record` rather than being
+invented into a household.
 
 ### 2.3 Field Merge Contract v1.0
 
@@ -969,7 +1130,7 @@ interface HlcStamp {
 |---|---|---|---|---|---|
 | CrmBase | id, kind, matterId, createdAt, createdBy, rawRecordRef | updatedAt, updatedBy, source, deleted, schemaVersion | — | externalRefs | — |
 | HlcStamp | wallMillis, logicalCounter, actorId, operationId | — | — | — | — |
-| ActorRef / RawRecordRef / EntityRef / RawArchiveEntry | ActorRef.userId, seat, display, kind; RawRecordRef.importBatchId, manifestId, rawRecordId, sha256, capturedAt; EntityRef.kind, id, matterId; RawArchiveEntry.rawRecordId, requestPath, capturedAt, responseSha256, byteLength | — | — | — | — |
+| ActorRef / RawRecordRef / EntityRef / RawArchiveEntry | ActorRef.userId, seat, display, kind; RawRecordRef.importBatchId, manifestId, rawRecordId, sha256, capturedAt; EntityRef.kind, id, matterId; RawArchiveEntry.rawRecordId, requestPath, captureLayerVersion, fixtureCorpusIdentity, capturedAt, responseSha256, byteLength, typedOutcome, targetEntityRef, skipReason, resultingExternalRefs | — | — | — | — |
 | Provenance | — | origin, sources, importBatchId, note | — | — | — |
 | ExternalRef | provider, sourceType, sourceId, scope, crmKey | lastSyncedAt | — | — | — |
 | Household / HouseholdMember | HouseholdMember.personId, HouseholdMember.addedAt | name, greeting, status, clientSince, primaryContactId, servicePolicyId, primaryAdvisorId, ownership, archived, HouseholdMember.role | — | members, tagIds, pinnedFactIds, addresses, customFields | — |
@@ -977,16 +1138,18 @@ interface HlcStamp {
 | Account | householdId | custodian, accountType, registration, last4, purpose, ownership, status, openedAt, closedAt | — | ownerPersonIds, tagIds, customFields | — |
 | Fact | householdId | subjectRef, factType, label, value, text, status, isAssumption, pinned, sectionKey, asOf, observedAt, supersededBy | — | — | — |
 | Note / HouseholdLink / NoteMention | audience, HouseholdLink.householdId, matterId, externalRef, NoteMention.id, ref | pinned, title, format, templateId, authoredVia, NoteMention.notifyState | body | householdLinks, links, mentions, tagIds | — |
-| Task / RecurrenceRule | householdRef | title, assigneeUserId, status, due, recurrence, priority, RecurrenceRule.freq, interval, byWeekday, byMonthDay, count, until, regenerateOnComplete | body | contextRefs | — |
-| WorkflowTemplate / WorkflowSchedule / TemplateRevision | TemplateRevision.revisionId, templateId, author, issuedHlc, TemplateStepChange.stepId, field, value | name, category, status, schedule, WorkflowSchedule.frequency, timezone, startsAt, householdSelector, enabled | description, stepOrder | headRevisionIds, steps, triggerHints, tagIds, TemplateRevision.parentRevisionIds | revisions (APP); TemplateRevision.stepChanges (IMM complete map) |
+| Task / RecurrenceRule | householdRef | title, assigneeUserId, status, due, recurrence, priority, RecurrenceRule.freq, interval, byWeekday, byMonthDay, count, until, regenerateOnComplete | body | contextRefs, customFields | — |
+| WorkflowTemplate / WorkflowSchedule / TemplateRevision | TemplateRevision.revisionId, templateId, author, issuedHlc, label, TemplateStepChange.stepId, field, value | name, category, status, schedule, WorkflowSchedule.frequency, timezone, startsAt, householdSelector, enabled | description, stepOrder | headRevisionIds, steps, triggerHints, tagIds, TemplateRevision.parentRevisionIds | revisions (APP); TemplateRevision.stepChanges (IMM complete map) |
 | StepDef / StepOutcome | StepDef.id, StepDef.addedInRevisionId, StepOutcome.id | StepDef.title, ownerRole, defaultAssigneeId, offsetDays, required, removedInRevisionId, StepOutcome.label, nextStepId, restartAtStepId, condition | StepDef.description | outcomes | — |
-| WorkflowInstance / RevisionSet / WorkflowStepProgress / DerivedField / CompletionOperation | householdId, templateId, startedAt, WorkflowStepProgress.stepId, taskId; CompletionOperation.completionId, stepId, completedAt, completedBy, outcome, sourceOperationId | displayedRevisionSet, name, status, WorkflowStepProgress.status, assigneeId, titleSnapshot, DerivedField.value, sourceRevisionId, sourceOperationId, detachedFromTemplate | WorkflowStepProgress.stepNotes | acceptedRevisionIds, RevisionSet.revisionIds, pendingOffers, steps (STEP-LWW) | completionOperations (APP) |
+| WorkflowInstance / RevisionSet / WorkflowStepProgress / DerivedField / CompletionOperation / AssignmentOperation | householdId, templateId, startedAt, WorkflowStepProgress.stepId, origin, taskId; CompletionOperation.completionId, stepId, completedAt, completedBy, outcome, sourceOperationId; AssignmentOperation.assignmentId, stepId, assignedUserId, assignedAt, assignedBy, sourceOperationId | displayedRevisionSet, name, status, WorkflowStepProgress.status, assigneeUserId, titleSnapshot, DerivedField.value, sourceRevisionId, sourceOperationId, detachedFromTemplate | WorkflowStepProgress.stepNotes | acceptedRevisionIds, RevisionSet.revisionIds, pendingOffers, steps (STEP-LWW), WorkflowStepProgress.removalRequestedBy (OR-Set<revisionId>) | completionOperations (APP); assignmentOperations (APP) |
 | PropagationOffer / PropagationStepChange / PropagationDecision | offerId, fromRevisionSet, targetRevisionSet, PropagationStepChange.stepId, changeKind, fields; PropagationDecision.decisionKey, instanceId, revisionId, stepId, field, decision, sourceOperationId, supersedesDecisionKey, reofferState, decidedAt, decidedBy | state, appliedAt, appliedBy, PropagationStepChange.decision, decidedBy, decidedAt | — | stepChanges | decisionLedger (APP, keyed by its exact `(instanceId, revisionId, stepId, field)` key) |
 | ServicePolicy / ActivityEvent | ServicePolicy.matterId; ActivityEvent.at, actor, verb, targetRef, householdId, summary, payload, important | ServicePolicy.scope, tierName, meetingCadence, cadenceDays, nextReviewDue, reviewChecklistTemplateId, schedulingLinkUrl | ServicePolicy.description | appliesToHouseholdIds | ActivityEvent (APP) |
 | FirmDoc / Tag / CustomFieldDef / CustomFieldValue | FirmDoc.matterId, Tag.matterId, CustomFieldDef.matterId, CustomFieldDef.key | FirmDoc.docType, title, bodyRef, pinned; Tag.name, color, category; CustomFieldDef.appliesTo, label, fieldType, options, required, order, archived; CustomFieldValue.value, updatedAt, source | FirmDoc.body | FirmDoc.tagIds, Tag.externalRefs | — |
 | Opportunity / PipelineDef / StageDef / StageTriggerRule | Opportunity.householdId, PipelineDef.matterId, StageDef.matterId, pipelineId, StageTriggerRule.id, event | Opportunity.name, pipelineId, stageId, amount, probability, status, expectedCloseDate, closedAt, closeReason, ownerId; PipelineDef.name, archived; StageDef.name, statusEffect, archived; StageTriggerRule.workflowTemplateId, proposalRequired, enabled | PipelineDef.description, stageOrder | Opportunity.contextRefs, tagIds, customFields; PipelineDef.stageIds; StageDef.triggerRules | — |
-| ProposalRecord / ProposalMutation / LegacyProject / LegacyProjectWorkflowLaunch / FirmDirectoryEntry | ProposalRecord.householdRef, proposalKind, proposedMutation; ProposalMutation.kind and payload; ProposalRecord.proposedBy; LegacyProject.title, status, description, sourcePayload; LegacyProjectWorkflowLaunch.launchId, workflowInstanceId, workflowTemplateId, launchedAt, launchedBy; FirmDirectoryEntry.matterId, userId | ProposalRecord.state, decidedAt, decidedBy, appliedEntityRef; FirmDirectoryEntry.displayName, email, title, active | ProposalRecord.rationale | ProposalRecord.contextRefs; LegacyProject.householdLinks; FirmDirectoryEntry.teamLabels, externalRefs | LegacyProject.manualWorkflowLaunches (APP) |
+| ProposalRecord / ProposalMutation / LegacyProject / LegacyProjectWorkflowLaunch / FirmDirectoryEntry | ProposalRecord.householdRef, proposalKind, proposedMutation; ProposalMutation.kind and payload; ProposalRecord.proposedBy; LegacyProject.anchorHouseholdId, unlinked, title, status, description, sourcePayload; LegacyProjectWorkflowLaunch.launchId, workflowInstanceId, workflowTemplateId, launchedAt, launchedBy; FirmDirectoryEntry.matterId, userId | ProposalRecord.state, decidedAt, decidedBy, appliedEntityRef; FirmDirectoryEntry.displayName, email, title, active | ProposalRecord.rationale | ProposalRecord.contextRefs; LegacyProject.householdLinks; FirmDirectoryEntry.teamLabels, externalRefs | LegacyProject.manualWorkflowLaunches (APP) |
+| HouseholdDirectoryShell / IntakeLink / IntakeField / IntakeSubmission / IntakeAudiencePayload / IntakeMatchingDecision | HouseholdDirectoryShell.householdRef; IntakeLink.matterId, householdRef, audience; IntakeField.id; IntakeSubmission.matterId, intakeLinkId, audience, payload, submittedAt; IntakeAudiencePayload.audience, values; IntakeMatchingDecision.decisionId, decision, householdRef, reason, decidedAt, decidedBy, sourceOperationId | HouseholdDirectoryShell.operationalStatus; IntakeLink.name, status; IntakeField.label, kind, required, choices | IntakeLink.confirmationCopy | IntakeLink.fields | IntakeSubmission.matchingDecisions (APP; `DisplayedIntakeMatch` is projection only) |
 | ImportArchiveManifest / SavedView / ViewQuery | ImportArchiveManifest.matterId, importBatchId, provider, capturedAt, sourceWorkspaceLabel, finalizedAt, manifestSha256 | SavedView.name, surface, visibility, query, layout, reportKind; ViewQuery.entity, filters, sort, groupBy | — | — | ImportArchiveManifest.records (APP until finalization) |
+| MigrationChecklistItem / AttachmentAccountingRecord / ExportJob (operator-local only) | MigrationChecklistItem.id, importBatchId, legacyProjectRef, householdRef; AttachmentAccountingRecord.id, importBatchId, householdRef; ExportJob.id, importBatchId, kind, startedAt, startedBy | MigrationChecklistItem.sourceTemplateLabel, decision, resultingWorkflowInstanceRef, gapReason, decidedAt, decidedBy; AttachmentAccountingRecord.status, exportSource, exportedAt, exportedBy, gapReason, gapOwnerUserId; ExportJob.status, manifestRef, fidelityReportSha256, destinationLabel, failureReason, finishedAt | — | MigrationChecklistItem.activityEvidenceRefs | **LOCAL-LWW only:** one operator-device SQLCipher transaction; never a CRDT merge or relay update |
 
 Fact value edits mint a new Fact linked by supersededBy; the LWW rule chooses only the
 current link, never destroys history. Template propagation uses immutable revision IDs and
@@ -999,7 +1162,14 @@ eligible choices to accepted and offers approve-all. Every derived field records
 revision ID and source operation ID. `displayedRevisionSet` advances only when the required
 change-set is complete. The immutable decision ledger preserves rejections until a descendant
 revision changes that same field and re-offers it. An offline-progress/removal race re-runs
-the removal decision using `UNTOUCHED`. A selected target is its ancestor closure in
+the removal decision using `UNTOUCHED`: a template removal only adds its immutable
+`revisionId` to `removalRequestedBy`; it never deletes the step. After every merged state,
+the projector hides a step only when `origin === 'template'`, a removal is present, and its
+status is `UNTOUCHED` with no notes, assignment operation, completion operation, or outcome.
+Otherwise it keeps the step visible and sets `detachedFromTemplate: true`. `origin` is IMM;
+`assigneeUserId` is LWW for the current active assignment, while every assignment or explicit
+unassignment also appends its immutable `AssignmentOperation`; that history is never changed
+by propagation or removal. A selected target is its ancestor closure in
 parent-before-child topological order; concurrent ready nodes sort by §2.3 HLC/operation ID,
 and any still-unresolved concurrent head is `review_required`. Undo restores only derived
 fields untouched since apply and reports the rest. Apply, audit entry, and outbox work are
@@ -1023,6 +1193,8 @@ Truth layer  : durable merged Yjs state for each subscribed collection document,
                encrypted and synced through the relay oplog.
 Index layer  : crm-core-enc.db (SQLCipher) — a materialized read-model, rebuilt from
                decrypted collection docs and never authoritative. (D0.1)
+Operator layer: durable local migration-operation tables, never CRDT-synced; their sealed
+               fidelity/archive copies are the durable cross-device record (§1.21).
 ```
 
 Write path: user edit → local collection-doc mutation → same local transaction updates the
@@ -1040,7 +1212,8 @@ for concurrent sync-loop + indexer writers (`store.rs:158-215`, `audit/store.rs:
 
 ```sql
 -- durable local mirror of each subscribed collection document (truth layer).
--- SQL tables below are rebuildable projections from these collection states.
+-- SQL tables below are rebuildable projections from these collection states unless explicitly
+-- marked operator-local migration state; those three tables never enter crm_docs or the relay.
 CREATE TABLE crm_docs (
   doc_key      TEXT PRIMARY KEY,   -- "<matterId>/<docId>"
   matter_id    TEXT NOT NULL,      -- plaintext scope (queryable) — the pattern RAG already uses (feasibility §4)
@@ -1074,14 +1247,18 @@ CREATE TABLE crm_merge_quarantine (
 -- D5 durable notification delivery. These rows are written in the same local transaction
 -- as the doc mutation that caused them. Neither table stores a persisted sender identity.
 CREATE TABLE crm_outbox (
-  envelope_id TEXT PRIMARY KEY, mutation_id TEXT NOT NULL, recipient_user_id TEXT NOT NULL,
+  org_id TEXT NOT NULL, envelope_id TEXT NOT NULL, mutation_id TEXT NOT NULL, recipient_user_id TEXT NOT NULL,
   envelope_class TEXT NOT NULL CHECK(envelope_class IN ('firm_operational','client_confidential')),
-  ciphertext BLOB NOT NULL, created_at TEXT NOT NULL, delivered_at TEXT, dead_letter_at TEXT
+  ciphertext BLOB NOT NULL, created_at TEXT NOT NULL, delivered_at TEXT, dead_letter_at TEXT,
+  PRIMARY KEY(org_id, envelope_id)
 );
+CREATE INDEX idx_crm_outbox_org_delivery ON crm_outbox(org_id, delivered_at, created_at);
 CREATE TABLE crm_inbox (
-  envelope_id TEXT PRIMARY KEY, ciphertext BLOB NOT NULL, received_at TEXT NOT NULL,
-  decrypted_at TEXT, deduped_at TEXT, dead_letter_at TEXT
+  org_id TEXT NOT NULL, envelope_id TEXT NOT NULL, ciphertext BLOB NOT NULL, received_at TEXT NOT NULL,
+  decrypted_at TEXT, deduped_at TEXT, dead_letter_at TEXT,
+  PRIMARY KEY(org_id, envelope_id)
 );
+CREATE INDEX idx_crm_inbox_org_received ON crm_inbox(org_id, received_at);
 
 -- ── Projected read-model (rebuildable). One table per entity; columns are the fields the
 --    UI filters/sorts/groups on. Prose + full record live in the doc; SQL holds queryable
@@ -1138,6 +1315,8 @@ CREATE TABLE tasks (
 CREATE INDEX idx_task_status_due ON tasks(status, due_at);          -- "who's overdue" (client-side, §0.4)
 CREATE INDEX idx_task_hh ON tasks(household_id);
 CREATE INDEX idx_task_assignee ON tasks(assignee_user_id);         -- "all tasks for Alice" (E-119)
+-- Task.customFields stays in the rebuildable task JSON snapshot; it is not an independently
+-- indexed search field until a CustomFieldDef makes an explicit projection necessary.
 
 CREATE TABLE workflow_templates (
   id TEXT PRIMARY KEY, name TEXT, category TEXT, head_revision_set_json TEXT, status TEXT,
@@ -1152,7 +1331,7 @@ CREATE TABLE workflow_instances (
 CREATE INDEX idx_winst_template ON workflow_instances(template_id, status);
 CREATE TABLE template_revisions (
   revision_id TEXT PRIMARY KEY, template_id TEXT NOT NULL, parent_revision_ids_json TEXT NOT NULL,
-  issued_hlc_json TEXT NOT NULL, json TEXT NOT NULL
+  issued_hlc_json TEXT NOT NULL, label TEXT NOT NULL, json TEXT NOT NULL
 );
 CREATE INDEX idx_template_revision_template ON template_revisions(template_id);
 CREATE TABLE workflow_completion_operations (
@@ -1161,6 +1340,18 @@ CREATE TABLE workflow_completion_operations (
   json TEXT NOT NULL
 );
 CREATE INDEX idx_completion_instance_step ON workflow_completion_operations(workflow_instance_id, step_id);
+CREATE TABLE workflow_assignment_operations (
+  assignment_id TEXT PRIMARY KEY, workflow_instance_id TEXT NOT NULL, step_id TEXT NOT NULL,
+  assigned_user_id TEXT, assigned_at TEXT NOT NULL, assigned_by_json TEXT NOT NULL,
+  source_operation_id TEXT NOT NULL, json TEXT NOT NULL
+);
+CREATE INDEX idx_assignment_instance_step ON workflow_assignment_operations(workflow_instance_id, step_id, assigned_at);
+CREATE TABLE workflow_step_progress (
+  workflow_instance_id TEXT NOT NULL, step_id TEXT NOT NULL, origin TEXT NOT NULL,
+  assignee_user_id TEXT, status TEXT NOT NULL, removal_requested_by_json TEXT NOT NULL,
+  detached_from_template INTEGER NOT NULL DEFAULT 0, json TEXT NOT NULL,
+  PRIMARY KEY(workflow_instance_id, step_id)
+);
 CREATE TABLE propagation_decisions (
   instance_id TEXT NOT NULL, revision_id TEXT NOT NULL, step_id TEXT NOT NULL, field TEXT NOT NULL,
   decision TEXT NOT NULL, source_operation_id TEXT NOT NULL, supersedes_decision_key TEXT,
@@ -1188,7 +1379,7 @@ CREATE TABLE proposal_records ( id TEXT PRIMARY KEY, household_id TEXT, proposal
 CREATE INDEX idx_proposal_pending ON proposal_records(state, household_id);
 CREATE TABLE legacy_projects (
   id TEXT PRIMARY KEY, matter_id TEXT NOT NULL, anchor_household_id TEXT, title TEXT NOT NULL,
-  source_status TEXT, json TEXT NOT NULL, deleted INTEGER DEFAULT 0
+  source_status TEXT, unlinked INTEGER NOT NULL DEFAULT 0, json TEXT NOT NULL, deleted INTEGER DEFAULT 0
 );
 CREATE INDEX idx_legacy_project_anchor ON legacy_projects(anchor_household_id);
 CREATE TABLE legacy_project_household_links (
@@ -1197,8 +1388,21 @@ CREATE TABLE legacy_project_household_links (
 );
 CREATE TABLE firm_directory_entries ( id TEXT PRIMARY KEY, user_id TEXT UNIQUE, display_name TEXT,
   email TEXT, active INTEGER DEFAULT 1, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE TABLE household_directory_shells ( id TEXT PRIMARY KEY, household_id TEXT NOT NULL UNIQUE,
+  operational_status TEXT NOT NULL, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE TABLE intake_links ( id TEXT PRIMARY KEY, household_id TEXT, audience TEXT NOT NULL, name TEXT NOT NULL,
+  status TEXT NOT NULL, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE INDEX idx_intake_link_status ON intake_links(status);
+CREATE TABLE intake_submissions ( id TEXT PRIMARY KEY, intake_link_id TEXT NOT NULL, audience TEXT NOT NULL,
+  state TEXT NOT NULL, submitted_at TEXT NOT NULL, json TEXT NOT NULL, deleted INTEGER DEFAULT 0 );
+CREATE INDEX idx_intake_submission_review ON intake_submissions(state, submitted_at);
+CREATE TABLE intake_matching_decisions ( decision_id TEXT PRIMARY KEY, submission_id TEXT NOT NULL,
+  decision TEXT NOT NULL, household_id TEXT, decided_at TEXT NOT NULL, decided_by_json TEXT NOT NULL,
+  source_operation_id TEXT NOT NULL, json TEXT NOT NULL );
 CREATE TABLE import_archive_manifests ( id TEXT PRIMARY KEY, import_batch_id TEXT UNIQUE,
   provider TEXT, finalized_at TEXT, manifest_sha256 TEXT, json TEXT NOT NULL );
+-- RawArchiveEntry's capture-layer version, fixture identity, typed outcome, target/skip
+-- result, and resulting external_refs projection are immutable members of this manifest JSON.
 CREATE TABLE note_household_links ( note_id TEXT NOT NULL, household_id TEXT NOT NULL,
   matter_id TEXT NOT NULL, PRIMARY KEY(note_id, household_id) );
 
@@ -1235,16 +1439,39 @@ CREATE TABLE import_directory_mappings (
   PRIMARY KEY(provider, external_user_id)
 );
 
+-- D26 migration operations: durable encrypted operator-local state, deliberately outside
+-- crm_docs and the relay. A sealed fidelity/archive snapshot copies these rows by value.
+CREATE TABLE migration_checklist_items (
+  id TEXT PRIMARY KEY, import_batch_id TEXT NOT NULL, legacy_project_id TEXT NOT NULL,
+  household_id TEXT, decision TEXT NOT NULL, resulting_workflow_instance_id TEXT,
+  gap_reason TEXT, decided_at TEXT, decided_by_json TEXT, json TEXT NOT NULL
+);
+CREATE INDEX idx_migration_checklist_batch ON migration_checklist_items(import_batch_id, decision);
+CREATE TABLE attachment_accounting_records (
+  id TEXT PRIMARY KEY, import_batch_id TEXT NOT NULL, household_id TEXT NOT NULL,
+  status TEXT NOT NULL, export_source TEXT, exported_at TEXT, exported_by_json TEXT,
+  gap_reason TEXT, gap_owner_user_id TEXT, json TEXT NOT NULL
+);
+CREATE INDEX idx_attachment_accounting_batch ON attachment_accounting_records(import_batch_id, status);
+CREATE TABLE export_jobs (
+  id TEXT PRIMARY KEY, import_batch_id TEXT NOT NULL, kind TEXT NOT NULL, status TEXT NOT NULL,
+  manifest_id TEXT, fidelity_report_sha256 TEXT, destination_label TEXT, failure_reason TEXT,
+  started_at TEXT NOT NULL, started_by_json TEXT NOT NULL, finished_at TEXT, json TEXT NOT NULL
+);
+CREATE INDEX idx_export_job_batch ON export_jobs(import_batch_id, kind, status);
+
 CREATE TABLE meta ( key TEXT PRIMARY KEY, value TEXT NOT NULL );  -- schema_version, index_rebuild_watermark, …
 ```
 
 **Notification durability and eligibility (D5).** The transaction that mutates a collection
-doc also writes the encrypted outbox row. Relay delivery is at least once; the inbox dedupes
-by `envelope_id`, survives a crash, and TTL-expired undecryptable ciphertext gets a
-dead-letter marker. The relay persists recipient, timestamps, and ciphertext only, never a
-sender seat. A client-confidential envelope is created only for holders of every required
-client key; a firm-operational notice goes to all firm seats. `NoteMention.notifyState` is
-the encrypted record-side state, not relay-visible metadata.
+doc also writes the encrypted outbox row. Every durable envelope identity and dedupe lookup
+is `(org_id, envelope_id)`; a device never reads, acknowledges, retires, or dead-letters an
+envelope outside that organization. Relay delivery is at least once; the inbox survives a
+crash, and TTL-expired undecryptable ciphertext gets a dead-letter marker. The relay
+persists recipient, timestamps, and ciphertext only, never a sender seat. A
+client-confidential envelope is created only for holders of every required client key; a
+firm-operational notice goes to all firm seats. `NoteMention.notifyState` is the encrypted
+record-side state, not relay-visible metadata.
 
 Migrations follow the `migrate_*_columns` swallow-error `ALTER TABLE ADD COLUMN` pattern
 (`store.rs:884-895`).
@@ -1254,11 +1481,13 @@ Migrations follow the `migrate_*_columns` swallow-error `ALTER TABLE ADD COLUMN`
 - The projector `project(collectionDoc) → rows` is deterministic and total. `meta.schema_version`
   gates it.
 - **Index rebuild** (on schema change, corruption, or first open after import): `DELETE`
-  every projected table, then iterate `crm_docs`, decode each collection `yjs_state`, run the
-  projector, upsert. `crm_docs` + the relay oplog are sufficient to reconstruct everything;
-  losing the projected tables is never data loss (D0.1). This is the exact guarantee the
-  connector already relies on (`crm_render_state` rebuilt from `crm_objects`,
-  `store.rs:193-197`).
+  every CRDT-projected table, then iterate `crm_docs`, decode each collection `yjs_state`, run
+  the projector, upsert. `crm_docs` + the relay oplog are sufficient to reconstruct every
+  shared CRM record; losing those projected tables is never data loss (D0.1). This is the
+  exact guarantee the connector already relies on (`crm_render_state` rebuilt from
+  `crm_objects`, `store.rs:193-197`). The three operator-local migration-operation tables are
+  excluded: they are durable local workflow state and are retained until their fidelity/archive
+  copy is sealed.
 - **Consistency:** a doc write and its projection commit in one SQLite transaction
   (`apply_ingest_batch` pattern, `store.rs:255-281`). The relay push is fire-and-queue
   (`pendingUpdates`, `MatterSyncClient.ts:132-133`); local truth is the durable Y.Doc, so a
@@ -1397,11 +1626,15 @@ flagged §7 Q5). Jump-pushed notes (E-029/030), if identifiable by content, set
 records→`contextRefs`. `assigneeUserId` and `recurrence` have no Wealthbox source and import
 as null/absent. This is the D2 Task schema, with no importer-only variant.
 
-**Projects:** each imported Wealthbox Project becomes one `LegacyProject` in its anchor
-household's `crm:record`, retaining its normalized source snapshot, exact `rawRecordRef`,
-and the same `(provider, sourceType, sourceId, scope)` external-reference identity. It is
-read-only after import. The only conversion is the explicit manual workflow launch in §1.16;
-the original LegacyProject remains present and linked to that launch.
+**Projects:** each imported Wealthbox Project becomes one read-only `LegacyProject`, retaining
+its normalized source snapshot, exact `rawRecordRef`, and the same `(provider, sourceType,
+sourceId, scope)` external-reference identity. A project with linked households gets a
+deterministic `anchorHouseholdId` and lives in that household's `crm:record`. An unlinked
+project has `anchorHouseholdId: undefined`, `unlinked: true`, and lives in the `firm_home`
+operational `crm:record`; it is visibly flagged **Unlinked** in Legacy Projects rather than
+silently dropped or attached to a made-up household. The only conversion is the explicit
+manual workflow launch in §1.16; the original LegacyProject remains present and linked to
+that launch.
 
 **Firm directory mapping:** Wealthbox users/assignee identities map to `FirmDirectoryEntry`
 by provider user ID through `import_directory_mappings` (§3.2). This is a display/import
