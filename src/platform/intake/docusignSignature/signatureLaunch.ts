@@ -17,7 +17,6 @@ function validDate(value: string): number | null {
 
 /** Throws before any attempt to open a stale or previously consumed ceremony URL. */
 export function assertSignatureLaunchUsable(launch: SignatureLaunchRecord, nowIso: string): void {
-  if (!launch || typeof launch !== 'object') throw new Error('Signature launch record is required.');
   if (typeof launch.consumed !== 'boolean') throw new Error('Signature launch consumed must be boolean.');
   if (typeof launch.requestId !== 'string' || !launch.requestId.trim()) throw new Error('Signature launch requestId is required.');
   if (typeof launch.signatureItemId !== 'string' || !launch.signatureItemId.trim()) throw new Error('Signature launch signatureItemId is required.');

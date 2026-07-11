@@ -77,7 +77,7 @@ function record(status: SignatureStatus = 'envelope_created'): LocalSignatureRec
 
 describe('reviewed DocuSign tab maps', () => {
   it('accepts only the three reviewed normalized tabs', () => {
-    expect(() => assertValidDocusignTabMap(tabMap())).not.toThrow();
+    expect(() => { assertValidDocusignTabMap(tabMap()); }).not.toThrow();
   });
 
   it.each([
@@ -88,7 +88,7 @@ describe('reviewed DocuSign tab maps', () => {
     ['non-integer page', { ...tabMap(), signatureTab: { ...tabMap().signatureTab, page: 1.5 } }],
     ['non-positive page', { ...tabMap(), signatureTab: { ...tabMap().signatureTab, page: 0 } }],
   ])('rejects %s', (_name, value) => {
-    expect(() => assertValidDocusignTabMap(value)).toThrow();
+    expect(() => { assertValidDocusignTabMap(value); }).toThrow();
   });
 
   it('bounds tabs to the known reviewed overlay pages', () => {
@@ -100,7 +100,7 @@ describe('reviewed DocuSign tab maps', () => {
         },
       },
     } });
-    expect(() => assertValidDocusignTabMap({ ...tabMap(), signerNameTab: { ...tabMap().signerNameTab, page: 3 } }, source.template)).toThrow(/page range/iu);
+    expect(() => { assertValidDocusignTabMap({ ...tabMap(), signerNameTab: { ...tabMap().signerNameTab, page: 3 } }, source.template); }).toThrow(/page range/iu);
   });
 });
 
@@ -147,7 +147,7 @@ describe('local signature records', () => {
   it.each<SignatureStatus>([
     'not_ready', 'ready_to_send', 'envelope_created', 'signing_opened', 'completion_pending', 'signed', 'declined', 'voided', 'needs_followup',
   ])('accepts valid %s records', (status) => {
-    expect(() => assertValidLocalSignatureRecord(record(status))).not.toThrow();
+    expect(() => { assertValidLocalSignatureRecord(record(status)); }).not.toThrow();
   });
 
   it.each([
@@ -157,12 +157,12 @@ describe('local signature records', () => {
     ['malformed source hash', { ...record(), sourceTemplateSha256: 'not-a-hash' }],
     ['malformed completed hash', { ...record(), wave8CompletedSha256: 'not-a-hash' }],
   ])('rejects missing or malformed %s', (_name, value) => {
-    expect(() => assertValidLocalSignatureRecord(value)).toThrow();
+    expect(() => { assertValidLocalSignatureRecord(value); }).toThrow();
   });
 
   it('deduplicates only the stable DocuSign-derived event id', () => {
-    const existing: SignatureEvent[] = [{ eventId: 'docusign-event-1', status: 'completion_pending', source: 'connect_webhook', at: '2026-07-11T12:00:00.000Z' }];
-    const first: SignatureEvent = existing[0]!;
+    const first: SignatureEvent = { eventId: 'docusign-event-1', status: 'completion_pending', source: 'connect_webhook', at: '2026-07-11T12:00:00.000Z' };
+    const existing: SignatureEvent[] = [first];
     expect(isDuplicateSignatureEvent(existing, { ...first, source: 'poll' })).toBe(true);
     expect(isDuplicateSignatureEvent(existing, { ...first, eventId: 'docusign-event-2' })).toBe(false);
   });
@@ -176,12 +176,12 @@ describe('signature launch records and generated names', () => {
 
   it('accepts a fresh unconsumed launch within the conservative TTL', () => {
     expect(MAX_SIGNATURE_LAUNCH_TTL_MS).toBe(30 * 60 * 1000);
-    expect(() => assertSignatureLaunchUsable(launch, '2026-07-11T12:01:00.000Z')).not.toThrow();
+    expect(() => { assertSignatureLaunchUsable(launch, '2026-07-11T12:01:00.000Z'); }).not.toThrow();
   });
 
   it('rejects expired and consumed launches with separate failures', () => {
-    expect(() => assertSignatureLaunchUsable(launch, '2026-07-11T12:30:00.000Z')).toThrow(/expired/iu);
-    expect(() => assertSignatureLaunchUsable({ ...launch, consumed: true }, '2026-07-11T12:01:00.000Z')).toThrow(/consumed/iu);
+    expect(() => { assertSignatureLaunchUsable(launch, '2026-07-11T12:30:00.000Z'); }).toThrow(/expired/iu);
+    expect(() => { assertSignatureLaunchUsable({ ...launch, consumed: true }, '2026-07-11T12:01:00.000Z'); }).toThrow(/consumed/iu);
   });
 
   it('returns bare generated output names only', () => {

@@ -49,14 +49,14 @@ describe('Wave 9 signature contract gate', () => {
       blueprintId: 'signature-contract', schemaVersion: 1, label: 'Signature contract', source: 'firm_saved' as const,
       defaultKind: 'standing' as const, items: items as RequestItem[],
     });
-    expect(() => assertValidRequestBlueprint(blueprint([{ t: 'signature', item_id: 'native', label: 'Native', help_text: '', required: true, subject: 'primary', grade: 'native_clicksign' }]))).toThrow(/native_clicksign/iu);
-    expect(() => assertValidRequestBlueprint(blueprint([pdfItem(), signature('missing')]))).toThrow(/source_pdf_fill_item_id/iu);
-    expect(() => assertValidRequestBlueprint(blueprint([{ t: 'readonly_card', item_id: 'card', label: 'Card', help_text: '', required: false, subject: 'primary', body: 'Read' }, signature('card')]))).toThrow(/pdf_fill/iu);
-    expect(() => assertValidRequestBlueprint(blueprint([pdfItem(), signature(), { ...signature(), item_id: 'signature-item-2' }]))).toThrow(/only one/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([{ t: 'signature', item_id: 'native', label: 'Native', help_text: '', required: true, subject: 'primary', grade: 'native_clicksign' }])); }).toThrow(/native_clicksign/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([pdfItem(), signature('missing')])); }).toThrow(/source_pdf_fill_item_id/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([{ t: 'readonly_card', item_id: 'card', label: 'Card', help_text: '', required: false, subject: 'primary', body: 'Read' }, signature('card')])); }).toThrow(/pdf_fill/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([pdfItem(), signature(), { ...signature(), item_id: 'signature-item-2' }])); }).toThrow(/only one/iu);
     const missingTab = signature() as Omit<ReturnType<typeof signature>, 'tab_map'> & { tab_map: Partial<ReturnType<typeof signature>['tab_map']> };
     delete missingTab.tab_map.dateSignedTab;
-    expect(() => assertValidRequestBlueprint(blueprint([pdfItem(), missingTab]))).toThrow(/tab map/iu);
-    expect(() => assertValidRequestBlueprint(blueprint([{ t: 'signature', item_id: 'old', label: 'Old', help_text: '', required: true, subject: 'primary', grade: 'docusign' }]))).toThrow(/source_pdf_fill_item_id/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([pdfItem(), missingTab])); }).toThrow(/tab map/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([{ t: 'signature', item_id: 'old', label: 'Old', help_text: '', required: true, subject: 'primary', grade: 'docusign' }])); }).toThrow(/source_pdf_fill_item_id/iu);
   });
 
   it('uses the real relay client seam but rejects a DocuSign item before crypto or relay traffic', async () => {
@@ -90,7 +90,7 @@ describe('Wave 9 signature contract gate', () => {
   // TODO Lane 4: import assertValidDocusignBrokerRequest from backend/src/lib/docusignSigning/requestSchema.
   it.skip('rejects document bytes, recipient details, and a matter id before a DocuSign call', () => {
     const broker = undefined as unknown as { assertValidDocusignBrokerRequest: (value: unknown) => void };
-    expect(() => broker.assertValidDocusignBrokerRequest({ documentBytes: 'bytes', recipientEmail: 'client@example.invalid', matter_id: 'private' })).toThrow();
+    expect(() => { broker.assertValidDocusignBrokerRequest({ documentBytes: 'bytes', recipientEmail: 'client@example.invalid', matter_id: 'private' }); }).toThrow();
   });
 
   // TODO Lane 2: import fileRetrievedDocusignArtifacts from src/platform/intake/intakeFiling.

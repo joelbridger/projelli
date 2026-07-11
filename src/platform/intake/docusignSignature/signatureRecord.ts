@@ -80,8 +80,16 @@ function requireExactKeys(value: LooseRecord, allowed: readonly string[], name: 
   }
 }
 
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+
 function requireText(value: unknown, name: string): string {
-  if (typeof value !== 'string' || !value.trim() || /[\u0000-\u001f\u007f]/u.test(value)) {
+  if (typeof value !== 'string' || !value.trim() || hasControlCharacter(value)) {
     fail(`${name} must be a non-empty safe string.`);
   }
   return value;

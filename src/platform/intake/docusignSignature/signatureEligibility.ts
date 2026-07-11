@@ -38,7 +38,6 @@ export function assertSignatureEligible(input: SignatureEligibilityInput): Docus
   if (!item) fail('The requested signature item does not exist in this request.');
   if (item.t !== 'signature') fail('The requested item is not a DocuSign signature item.');
   if (item.grade === 'native_clicksign') fail('native_clicksign signature items are not eligible for DocuSign.');
-  if (item.grade !== 'docusign') fail('The requested signature item is not a DocuSign signature item.');
 
   const source = input.request.items.find((candidate) => candidate.item_id === item.source_pdf_fill_item_id);
   if (!source || source.t !== 'pdf_fill') {

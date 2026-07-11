@@ -119,9 +119,6 @@ export function copyBlueprintItem(item: RequestItem): RequestItem {
       if (item.grade === 'native_clicksign') {
         throw new BlueprintValidationError('native_clicksign signature items are not supported.');
       }
-      if (item.grade !== 'docusign') {
-        throw new BlueprintValidationError('Signature grade is not supported.');
-      }
       try {
         assertValidDocusignTabMap(item.tab_map);
       } catch (error) {
@@ -189,7 +186,6 @@ export function assertValidRequestBlueprint(blueprint: RequestBlueprint): void {
     if (item.grade === 'native_clicksign') {
       throw new BlueprintValidationError('native_clicksign signature items are not supported.');
     }
-    if (item.grade !== 'docusign') throw new BlueprintValidationError('Signature grade is not supported.');
     if (typeof item.source_pdf_fill_item_id !== 'string' || !item.source_pdf_fill_item_id.trim()) {
       throw new BlueprintValidationError('DocuSign signature source_pdf_fill_item_id is required.');
     }

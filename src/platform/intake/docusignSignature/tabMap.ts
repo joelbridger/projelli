@@ -80,7 +80,7 @@ function assertOverlayPageBounds(map: ReviewedDocusignTabMap, template: PdfTempl
   const maxPage = Math.max(...pages);
   for (const [name, anchor] of Object.entries(map) as Array<[keyof ReviewedDocusignTabMap, DocusignTabAnchor]>) {
     if (anchor.page > maxPage) {
-      fail(`${String(name)}.page exceeds the reviewed overlay template page range.`);
+      fail(`${name}.page exceeds the reviewed overlay template page range.`);
     }
   }
 }

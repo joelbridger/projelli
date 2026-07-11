@@ -4,8 +4,16 @@ export interface SignatureOutputNameInput {
   envelopeId: string;
 }
 
+function hasControlCharacter(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+}
+
 function requireOpaquePart(value: string, name: string): void {
-  if (typeof value !== 'string' || !value.trim() || /[\u0000-\u001f\u007f]/u.test(value)) {
+  if (typeof value !== 'string' || !value.trim() || hasControlCharacter(value)) {
     throw new Error(`${name} is required.`);
   }
 }

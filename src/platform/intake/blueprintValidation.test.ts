@@ -80,7 +80,7 @@ describe('DocuSign signature blueprint validation', () => {
     ['duplicate source', [approvedPdfItem(), signature(), { ...signature(), item_id: 'sign-form-2' }], /only one/iu],
     ['retired placeholder', [{ t: 'signature', item_id: 'old', label: 'Old', help_text: '', required: true, subject: 'primary', grade: 'docusign' }], /source_pdf_fill_item_id/iu],
   ])('rejects %s', (_name, items, message) => {
-    expect(() => assertValidRequestBlueprint(blueprint(items))).toThrow(message);
+    expect(() => { assertValidRequestBlueprint(blueprint(items)); }).toThrow(message);
   });
 
   it.each([
@@ -88,7 +88,7 @@ describe('DocuSign signature blueprint validation', () => {
     ['bad coordinate', { ...signature(), tab_map: { ...signature().tab_map, signatureTab: { ...signature().tab_map.signatureTab, rect: { ...signature().tab_map.signatureTab.rect, x: 0 } } } }],
     ['bad page', { ...signature(), tab_map: { ...signature().tab_map, signatureTab: { ...signature().tab_map.signatureTab, page: 1.5 } } }],
   ])('rejects an incomplete tab map: %s', (_name, item) => {
-    expect(() => assertValidRequestBlueprint(blueprint([approvedPdfItem(), item]))).toThrow(/tab map/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([approvedPdfItem(), item])); }).toThrow(/tab map/iu);
   });
 
   it('rejects a tab beyond an overlay template field page', () => {
@@ -103,6 +103,6 @@ describe('DocuSign signature blueprint validation', () => {
     };
     const item = signature();
     item.tab_map.signatureTab.page = 2;
-    expect(() => assertValidRequestBlueprint(blueprint([overlay, item]))).toThrow(/page range/iu);
+    expect(() => { assertValidRequestBlueprint(blueprint([overlay, item])); }).toThrow(/page range/iu);
   });
 });
