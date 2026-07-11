@@ -29,6 +29,7 @@
     "test:multiclient": "bun run tests/multiclient/run.ts",
     "test:layer2": "bun run tests/multiclient/layer2.ts",
     "test:wbsim": "bun run tests/wbsim/smoke.ts",
+    "test:fidelity": "bun run tests/wbsim/fidelity.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
