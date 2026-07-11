@@ -1,8 +1,9 @@
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { PDFDocument } from 'pdf-lib';
 import { assertSafeFlattenedPdf, verifyPdfFillReceipt } from '@/platform/intake/pdfFillReceipt';
 import { fileIntakeDocument } from '@/platform/intake/intakeFiling';
 import { loadIntakeLinkSecret, loadPdfTemplateDescriptor } from '@/platform/intake/intakeKeychain';
-import { derivePageKey } from '@/platform/intake/intakeCrypto';
+import { derivePageKey, generateContentKey, importContentKey, openItemChunk, sealItemChunk } from '@/platform/intake/intakeCrypto';
 import { b64ToBytes, sealPageJson } from '@/platform/intake/pageSeal';
 import { sha256Hex } from '@/platform/intake/pdfTemplates/receipt';
 import type { PdfCompletionReceipt } from '@/platform/intake/pdfTemplates/templateContract';
@@ -10,8 +11,9 @@ import { assertSignatureEligible, type SignatureEligibilityInput } from '@/platf
 import { signatureOutputFileNames } from '@/platform/intake/docusignSignature/signatureOutputNaming';
 import type { LocalSignatureRecord, SignatureStatus } from '@/platform/intake/docusignSignature/signatureRecord';
 import type { SignatureLaunchRecord } from '@/platform/intake/docusignSignature/signatureLaunch';
+import type { ReviewedDocusignTabMap } from '@/platform/intake/docusignSignature/tabMap';
 import { assertLocalOnlyAllowsExternal, LocalOnlyExternalError } from '@/platform/privacy/localOnlyGuard';
-import { DirectDocusignAdapter, type DocusignEnvelopeInput } from './docusignAdapter';
+import { DirectDocusignAdapter, type DocusignEnvelopeInput, type DocusignTabPosition, type ResolvedDocusignTabMap } from './docusignAdapter';
 import { createDocusignEgressReceipt } from './egressReceipt';
 import { DocusignLaunchRelayClient } from './launchRelayClient';
 import { loadLocalSignatureRecord, saveLocalSignatureRecord } from './signatureRecordStore';
@@ -34,6 +36,8 @@ export interface StartSignatureInput extends CompletionSource {
   returnUrl: string;
   adapter: DirectDocusignAdapter;
   launchRelay: DocusignLaunchRelayClient;
+  /** Durable broker registration is mandatory before a launch can be sealed. */
+  registerEnvelope?: (envelopeId: string) => Promise<void>;
 }
 
 function stableClientUserId(requestId: string, signatureItemId: string): string {
@@ -44,7 +48,35 @@ function stableClientUserId(requestId: string, signatureItemId: string): string 
 }
 function active(status: SignatureStatus): boolean { return ['envelope_created', 'signing_opened', 'completion_pending'].includes(status); }
 function initialRecord(input: StartSignatureInput, source: { sourceItemId: string; templateVersion: number; sourceSha256: string; completedSha256: string }, envelopeId: string): LocalSignatureRecord {
-  return { requestId: input.request.request_id, signatureItemId: input.signatureItemId, sourcePdfFillItemId: source.sourceItemId, sourceTemplateVersion: source.templateVersion, sourceTemplateSha256: source.sourceSha256, wave8CompletedSha256: source.completedSha256, envelopeId, status: 'envelope_created', events: [{ eventId: `local-envelope:${envelopeId}`, status: 'envelope_created', source: 'poll', at: new Date().toISOString() }] };
+  return { requestId: input.request.request_id, signatureItemId: input.signatureItemId, sourcePdfFillItemId: source.sourceItemId, sourceTemplateVersion: source.templateVersion, sourceTemplateSha256: source.sourceSha256, wave8CompletedSha256: source.completedSha256, envelopeId, requestSlug: input.requestSlug, matterFolderPath: input.matterFolderPath, status: 'envelope_created', events: [{ eventId: `local-envelope:${envelopeId}`, status: 'envelope_created', source: 'poll', at: new Date().toISOString() }] };
+}
+
+function resolvedTab(anchor: { page: number; rect: { x: number; y: number; width: number; height: number } }, pages: Array<{ width: number; height: number }>): DocusignTabPosition {
+  const page = pages[anchor.page - 1];
+  if (!page) throw new Error(`Reviewed DocuSign tab refers to missing PDF page ${String(anchor.page)}.`);
+  // Both reviewed overlays and DocuSign measure Y down from the page's top edge.
+  return { page: anchor.page, xPosition: Math.round(anchor.rect.x * page.width), yPosition: Math.round(anchor.rect.y * page.height), width: Math.round(anchor.rect.width * page.width), height: Math.round(anchor.rect.height * page.height) };
+}
+
+/** Converts sealed normalized reviewed anchors to DocuSign's absolute page-point coordinates. */
+export async function resolveDocusignTabMap(pdfBytes: Uint8Array, tabMap: ReviewedDocusignTabMap): Promise<ResolvedDocusignTabMap> {
+  const document = await PDFDocument.load(pdfBytes, { ignoreEncryption: false });
+  const pages = document.getPages().map((page) => page.getSize());
+  return { signatureTab: resolvedTab(tabMap.signatureTab, pages), dateSignedTab: resolvedTab(tabMap.dateSignedTab, pages), signerNameTab: resolvedTab(tabMap.signerNameTab, pages) };
+}
+
+const artifactIds = (record: LocalSignatureRecord, kind: 'signed-pdf' | 'certificate') => ({ intakeId: `signature:${record.requestId}`, itemId: record.signatureItemId, submissionId: record.envelopeId, index: kind === 'signed-pdf' ? 0 : 1 });
+
+/** Fresh AES-256-GCM encryption for artifacts, with request/envelope-bound AAD via the established intake chunk primitive. */
+export async function encryptSignatureArtifact(contentKeyB64: string, record: LocalSignatureRecord, kind: 'signed-pdf' | 'certificate', bytes: Uint8Array): Promise<Uint8Array> {
+  const sealed = await sealItemChunk(await importContentKey(contentKeyB64), bytes, artifactIds(record, kind));
+  return new TextEncoder().encode(sealed);
+}
+
+export async function decryptSignatureArtifact(contentKeyB64: string, record: LocalSignatureRecord, kind: 'signed-pdf' | 'certificate', ciphertext: Uint8Array): Promise<Uint8Array> {
+  const opened = await openItemChunk(await importContentKey(contentKeyB64), new TextDecoder().decode(ciphertext), artifactIds(record, kind));
+  if (!opened.ok) throw new Error('Signed artifact ciphertext could not be authenticated.');
+  return opened.data;
 }
 
 /** Recomputes the filed completion hash every time. Store receipt fields are display cache only. */
@@ -72,7 +104,15 @@ export async function startDocusignSignature(input: StartSignatureInput): Promis
   const receipt = createDocusignEgressReceipt({ host, requestId: input.request.request_id, signatureItemId: input.signatureItemId, userConfirmed: true, outcome: 'allowed' });
   // Durable proof of the advisor's confirmation exists before document bytes leave this device.
   await saveLocalSignatureRecord(input.intakeId, { record: { requestId: input.request.request_id, signatureItemId: input.signatureItemId, sourcePdfFillItemId: completion.sourceItemId, sourceTemplateVersion: completion.templateVersion, sourceTemplateSha256: completion.sourceSha256, wave8CompletedSha256: completion.completedSha256, envelopeId: 'pending-egress', status: 'not_ready', events: [] }, egressReceipts: [receipt] });
-  const envelope = await input.adapter.createEnvelopeAndRecipientView({ pdfBytes: completion.bytes, signerName: input.signerName, signerEmail: input.signerEmail, requestId: input.request.request_id, signatureItemId: input.signatureItemId, clientUserId: stableClientUserId(input.request.request_id, input.signatureItemId), tabMap: signature.tab_map, returnUrl: input.returnUrl } satisfies DocusignEnvelopeInput);
+  const tabMap = await resolveDocusignTabMap(completion.bytes, signature.tab_map);
+  const envelope = await input.adapter.createEnvelopeAndRecipientView({ pdfBytes: completion.bytes, signerName: input.signerName, signerEmail: input.signerEmail, requestId: input.request.request_id, signatureItemId: input.signatureItemId, clientUserId: stableClientUserId(input.request.request_id, input.signatureItemId), tabMap, returnUrl: input.returnUrl } satisfies DocusignEnvelopeInput);
+  try {
+    await (input.registerEnvelope?.(envelope.envelopeId) ?? Promise.reject(new Error('DocuSign envelope registration is not configured.')));
+  } catch (error) {
+    const retryable = { ...initialRecord(input, completion, envelope.envelopeId), status: 'needs_followup' as const, events: [{ eventId: `registration-failed:${envelope.envelopeId}`, status: 'needs_followup' as const, source: 'poll' as const, at: new Date().toISOString() }] };
+    await saveLocalSignatureRecord(input.intakeId, { record: retryable, egressReceipts: [receipt] });
+    throw error;
+  }
   const record = initialRecord(input, completion, envelope.envelopeId);
   await saveLocalSignatureRecord(input.intakeId, { record, egressReceipts: [receipt] });
   const secret = await loadIntakeLinkSecret(input.intakeId);
@@ -84,9 +124,12 @@ export async function startDocusignSignature(input: StartSignatureInput): Promis
   return record;
 }
 
-export async function retrieveAndFileDocusignCompletion(input: CompletionSource & { requestId: string; signatureItemId: string; matterFolderPath: string; requestSlug: string; adapter: DirectDocusignAdapter }): Promise<LocalSignatureRecord> {
+export async function retrieveAndFileDocusignCompletion(input: CompletionSource & { requestId: string; signatureItemId: string; matterFolderPath?: string; requestSlug?: string; adapter: DirectDocusignAdapter }): Promise<LocalSignatureRecord> {
   const stored = await loadLocalSignatureRecord(input.intakeId, input.requestId, input.signatureItemId);
   if (!stored) throw new Error('No local DocuSign signature record exists.');
+  if (stored.record.requestId !== input.requestId || stored.record.signatureItemId !== input.signatureItemId) throw new Error('The requested signature record does not match this retrieval.');
+  if (!stored.record.matterFolderPath || !stored.record.requestSlug) throw new Error('This older signature record has no verified local filing route. Create a new signature request.');
+  if ((input.matterFolderPath !== undefined && input.matterFolderPath !== stored.record.matterFolderPath) || (input.requestSlug !== undefined && input.requestSlug !== stored.record.requestSlug)) throw new Error('The requested filing route does not match the protected signature record.');
   if (stored.record.status === 'signed') return stored.record;
   const status = await input.adapter.pollEnvelopeStatus(stored.record.envelopeId);
   if (status === 'declined' || status === 'voided') {
@@ -101,14 +144,39 @@ export async function retrieveAndFileDocusignCompletion(input: CompletionSource 
   const pending = { ...stored.record, status: 'completion_pending' as const };
   await saveLocalSignatureRecord(input.intakeId, { ...stored, record: pending });
   const result = await input.adapter.retrieveCompletion(stored.record.envelopeId);
+  if (result.envelopeId !== stored.record.envelopeId) throw new Error('DocuSign retrieval returned a different envelope than the protected signature record.');
   await Promise.all([assertSafeFlattenedPdf(result.signedPdf), assertSafeFlattenedPdf(result.certificate)]);
   const [finalSignedSha256, certificateSha256] = await Promise.all([sha256Hex(result.signedPdf), sha256Hex(result.certificate)]);
-  const names = signatureOutputFileNames({ requestId: input.requestId, signatureItemId: input.signatureItemId, envelopeId: stored.record.envelopeId });
-  await Promise.all([
-    fileIntakeDocument({ workspaceService: input.workspaceService as WorkspaceService, matterFolderPath: input.matterFolderPath, requestSlug: input.requestSlug, folder: 'signature', fileName: names.signedPdfFileName, bytes: result.signedPdf }),
-    fileIntakeDocument({ workspaceService: input.workspaceService as WorkspaceService, matterFolderPath: input.matterFolderPath, requestSlug: input.requestSlug, folder: 'signature', fileName: names.certificateFileName, bytes: result.certificate }),
+  const contentKeyB64 = stored.record.outputContentKeyB64 ?? await generateContentKey();
+  const keyedPending = { ...pending, outputContentKeyB64: contentKeyB64 };
+  await saveLocalSignatureRecord(input.intakeId, { ...stored, record: keyedPending });
+  const [sealedPdf, sealedCertificate] = await Promise.all([
+    encryptSignatureArtifact(contentKeyB64, keyedPending, 'signed-pdf', result.signedPdf),
+    encryptSignatureArtifact(contentKeyB64, keyedPending, 'certificate', result.certificate),
   ]);
-  const record: LocalSignatureRecord = { ...pending, status: 'signed', finalSignedSha256, certificateSha256, events: [...pending.events, { eventId: `retrieved:${stored.record.envelopeId}:${finalSignedSha256}`, status: 'signed', source: 'direct_retrieval', at: new Date().toISOString() }] };
+  const names = signatureOutputFileNames({ requestId: stored.record.requestId, signatureItemId: stored.record.signatureItemId, envelopeId: stored.record.envelopeId });
+  const workspace = input.workspaceService as WorkspaceService;
+  const matterFolderPath = stored.record.matterFolderPath;
+  const requestSlug = stored.record.requestSlug;
+  const signedPath = `${matterFolderPath.replace(/[\\/]+$/u, '')}/Requests/${requestSlug}/signatures/${names.signedPdfFileName}`;
+  const certificatePath = `${matterFolderPath.replace(/[\\/]+$/u, '')}/Requests/${requestSlug}/signatures/${names.certificateFileName}`;
+  const maybeExisting = async (path: string, kind: 'signed-pdf' | 'certificate', plaintext: Uint8Array): Promise<boolean> => {
+    if (typeof workspace.exists !== 'function' || typeof workspace.readFileBinary !== 'function') return false;
+    if (!await workspace.exists(path)) return false;
+    const opened = await decryptSignatureArtifact(contentKeyB64, keyedPending, kind, new Uint8Array(await workspace.readFileBinary(path)));
+    return (await sha256Hex(opened)) === (await sha256Hex(plaintext));
+  };
+  const signedAlreadyFiled = await maybeExisting(signedPath, 'signed-pdf', result.signedPdf);
+  const certificateAlreadyFiled = await maybeExisting(certificatePath, 'certificate', result.certificate);
+  let wroteSigned = false;
+  try {
+    if (!signedAlreadyFiled) { await fileIntakeDocument({ workspaceService: workspace, matterFolderPath, requestSlug, folder: 'signature', fileName: names.signedPdfFileName, bytes: sealedPdf }); wroteSigned = true; }
+    if (!certificateAlreadyFiled) await fileIntakeDocument({ workspaceService: workspace, matterFolderPath, requestSlug, folder: 'signature', fileName: names.certificateFileName, bytes: sealedCertificate });
+  } catch (error) {
+    if (wroteSigned && typeof workspace.delete === 'function') await workspace.delete(signedPath).catch(() => undefined);
+    throw error;
+  }
+  const record: LocalSignatureRecord = { ...keyedPending, status: 'signed', finalSignedSha256, certificateSha256, events: [...keyedPending.events, { eventId: `retrieved:${stored.record.envelopeId}:${finalSignedSha256}`, status: 'signed', source: 'direct_retrieval', at: new Date().toISOString() }] };
   await saveLocalSignatureRecord(input.intakeId, { ...stored, record });
   return record;
 }

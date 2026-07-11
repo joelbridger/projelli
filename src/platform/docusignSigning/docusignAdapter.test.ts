@@ -7,7 +7,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({ getCorsSafeFetch: vi.fn() })
 vi.mock('@/platform/privacy/localOnlyGuard', () => ({ assertLocalOnlyAllowsExternal: vi.fn() }));
 
 const fetchMock = vi.fn();
-const tabMap = { signatureTab: { page: 1, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 } }, dateSignedTab: { page: 1, rect: { x: 0.1, y: 0.2, width: 0.2, height: 0.1 } }, signerNameTab: { page: 1, rect: { x: 0.1, y: 0.3, width: 0.2, height: 0.1 } } };
+const tabMap = { signatureTab: { page: 1, xPosition: 61, yPosition: 79, width: 122, height: 79 }, dateSignedTab: { page: 1, xPosition: 61, yPosition: 158, width: 122, height: 79 }, signerNameTab: { page: 1, xPosition: 61, yPosition: 238, width: 122, height: 79 } };
 
 interface DocusignEnvelopeRequest {
   documents: Array<{ documentBase64: string }>;

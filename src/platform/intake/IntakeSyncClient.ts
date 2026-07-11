@@ -8,6 +8,7 @@ import {
 } from '@/platform/intake/intakeCrypto';
 import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
 import type { ChunkUpload } from './intakeContract';
+import type { PdfCompletionReceipt } from './pdfTemplates/templateContract';
 
 export interface IntakeInboxSubmission {
   cursor: number;
@@ -58,6 +59,8 @@ export interface RoutedIntakeSubmission {
 export interface IntakeRouteResult {
   factId?: string;
   filePath?: string;
+  /** The sealed W8 receipt needed to re-verify the same filed form before signature send. */
+  pdfCompletion?: PdfCompletionReceipt;
 }
 
 export interface IntakeSyncClientOptions {

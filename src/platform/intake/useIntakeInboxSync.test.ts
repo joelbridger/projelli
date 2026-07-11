@@ -607,7 +607,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
       itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['client-file.pdf'], plaintextBytes: [bytes], receipt,
     }), {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
-    })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf' });
+    })).resolves.toMatchObject({ filePath: '/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf', pdfCompletion: expect.objectContaining({ issuedItemId: PDF_ITEM_ID }) });
 
     const filing = fileDocument.mock.calls[0]?.[0];
     expect(filing?.requestSlug).toBe('beneficiary-update-a1');

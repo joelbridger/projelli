@@ -34,6 +34,8 @@ export interface IntakeChecklistState {
     templateVersion: number;
     sourceSha256: string;
     completedSha256: string;
+    completedAt?: string;
+    pageVersion?: string;
   };
 }
 
@@ -53,6 +55,8 @@ export interface IntakeReceivedItem {
     templateVersion: number;
     sourceSha256: string;
     completedSha256: string;
+    completedAt?: string;
+    pageVersion?: string;
   };
 }
 

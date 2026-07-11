@@ -22,6 +22,7 @@ interface RelayHarness {
   openCalls: () => Promise<string[]>;
   launchRequests: string[];
   consoleMessages: string[];
+  fetchLaunchAfterConsumption: () => Promise<unknown>;
 }
 
 function signingChecklist(): IntakeChecklist {
@@ -51,7 +52,7 @@ async function setupSigningRelay(page: Page, launch: SignatureLaunchRecord | nul
   const auth = await deriveAuthToken(secret);
   const checklistCiphertext = await sealPageJson(pageKey, signingChecklist());
   const stateCiphertext = await sealPageJson(pageKey, { completion_flags: {}, confirmations: {}, skipped_item_ids: [], pending_uploads: {} });
-  const launchCiphertext = launch ? await sealedSyntheticSignatureLaunch(pageKey, launch) : null;
+  let launchCiphertext = launch ? await sealedSyntheticSignatureLaunch(pageKey, launch) : null;
   const launchRequests: string[] = [];
   const consoleMessages: string[] = [];
 
@@ -93,6 +94,11 @@ async function setupSigningRelay(page: Page, launch: SignatureLaunchRecord | nul
       await route.fulfill({ status: 401 });
       return;
     }
+    if (request.method() === 'DELETE') {
+      launchCiphertext = null;
+      await route.fulfill({ status: 204 });
+      return;
+    }
     await route.fulfill({ status: 200, json: { launch_ciphertext_b64: launchCiphertext } });
   });
 
@@ -101,6 +107,10 @@ async function setupSigningRelay(page: Page, launch: SignatureLaunchRecord | nul
     openCalls: () => page.evaluate(() => (window as unknown as { __docusignOpenCalls: string[] }).__docusignOpenCalls),
     launchRequests,
     consoleMessages,
+    fetchLaunchAfterConsumption: () => page.evaluate(async ({ currentIntakeId, token }) => {
+      const response = await fetch(`/docusign-signing/${currentIntakeId}/launch`, { headers: { Authorization: `Bearer ${token}` } });
+      return response.json();
+    }, { currentIntakeId: intakeId, token: auth.tokenB64 }),
   };
 }
 
@@ -117,14 +127,15 @@ test('requires consent, opens the exact one-time URL once, and stays safe throug
   await page.getByRole('button', { name: 'Continue to DocuSign' }).click();
   await expect(page.getByRole('heading', { name: 'Your signing window is open' })).toBeVisible();
   expect(await harness.openCalls()).toEqual([RECIPIENT_VIEW_URL]);
+  await expect(harness.fetchLaunchAfterConsumption()).resolves.toEqual({ launch_ciphertext_b64: null });
 
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Your signing window is open' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'This signing link is no longer available' })).toBeVisible();
   expect(await harness.openCalls()).toEqual([]);
 
   await page.goto('/docusign-signing-return?event=unknown');
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Your signing window is open' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'This signing link is no longer available' })).toBeVisible();
   expect(await harness.openCalls()).toEqual([]);
 });
 
@@ -222,7 +233,7 @@ test('keeps the launch relay wire and browser surface free of protected values',
   await openConsent(page, harness);
   await page.getByRole('button', { name: 'Continue to DocuSign' }).click();
 
-  expect(harness.launchRequests).toHaveLength(1);
+  expect(harness.launchRequests).toHaveLength(2);
   const publicSurface = `${await page.content()}\n${JSON.stringify(requests)}\n${harness.consoleMessages.join('\n')}`;
   for (const protectedValue of ['sealed-only-synthetic-matter', 'envelope', 'Bearer ', 'JWT', 'certificate', 'W8 PDF']) {
     expect(publicSurface).not.toContain(protectedValue);
