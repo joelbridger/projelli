@@ -43,7 +43,6 @@ import { sourceIdentitiesFromSources } from '@/platform/audit/sourceCapture';
 import {
   createAuditPairId,
   mustLogAuditPhase,
-  withDurableAuditPhase,
   type AuditEntryInput,
   type AuditLogSink,
 } from '@/platform/audit/durableAudit';
@@ -1484,15 +1483,15 @@ export function useAsk({
           const preparedAuditLogger: AuditLogSink = (entry) => {
             if (entry.action !== 'prompt_preparation') return;
             onAuditLog?.(entry);
-            const decision = (entry.metadata as { decision?: string }).decision;
-            if (decision === 'blocked' || decision === 'cancelled') return;
+          };
+          const saveDurableIntent = async () => {
             const egressIntent = buildEgressEntry();
             if (egressIntent) {
-              onAuditLog?.(withDurableAuditPhase(egressIntent, 'intent', auditPairId));
+              await mustLogAuditPhase(onAuditLog, egressIntent, 'intent', auditPairId);
             }
             const modelCallIntent = buildModelCallEntry(0);
             if (modelCallIntent) {
-              onAuditLog?.(withDurableAuditPhase(modelCallIntent, 'intent', auditPairId));
+              await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
             }
           };
           if (typeof provider.sendMessageStreaming === 'function') {
@@ -1534,6 +1533,7 @@ export function useAsk({
                   { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
                 ],
                 onAuditLog: preparedAuditLogger,
+                beforeEgress: saveDurableIntent,
               }),
               stallPromise,
             ]);
@@ -1567,6 +1567,7 @@ export function useAsk({
                 isDemo: IS_DEMO,
                 hasDemoByokKey: hasDemoByokKey(),
                 onAuditLog: preparedAuditLogger,
+                beforeEgress: saveDurableIntent,
                 parts: [
                   { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
                   { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },

@@ -26,7 +26,6 @@ import { auditEventToEntry } from '@/platform/audit/AuditService';
 import {
   createAuditPairId,
   mustLogAuditPhase,
-  withDurableAuditPhase,
   type AuditEntryInput,
   type AuditLogSink,
 } from '@/platform/audit/durableAudit';
@@ -1063,13 +1062,24 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // it only after that receipt says this request may proceed. The helper's
         // own egress/model rows are intentionally not duplicated here: this
         // chat path already records the durable intent/outcome pair below.
-        const preparedAuditLogger = (auditPairId: string, streamed: boolean): AuditLogSink => (entry) => {
+        const preparedAuditLogger: AuditLogSink = (entry) => {
           if (entry.action !== 'prompt_preparation') return;
           onAuditLog?.(entry);
-          const decision = (entry.metadata as { decision?: string }).decision;
-          if (decision === 'blocked' || decision === 'cancelled') return;
-          onAuditLog?.(withDurableAuditPhase(buildSuccessfulEgressAuditEntry(), 'intent', auditPairId));
-          onAuditLog?.(withDurableAuditPhase(buildModelCallAuditEntry(0, streamed), 'intent', auditPairId));
+        };
+
+        const saveDurableIntent = async (auditPairId: string, streamed: boolean) => {
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildSuccessfulEgressAuditEntry(),
+            'intent',
+            auditPairId,
+          );
+          await mustLogAuditPhase(
+            onAuditLog,
+            buildModelCallAuditEntry(0, streamed),
+            'intent',
+            auditPairId,
+          );
         };
 
         const emitSuccessfulAttachmentAudits = () => {
@@ -1767,7 +1777,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 signal: abortController.signal,
                 ...(attachmentBytes ? { attachmentBytes } : {}),
               },
-              onAuditLog: preparedAuditLogger(auditPairId, true),
+              onAuditLog: preparedAuditLogger,
+              beforeEgress: () => saveDurableIntent(auditPairId, true),
               parts: [
                 { id: 'prompt', origin: 'typed_question', label: 'Your message', text: userMessage.content },
                 { id: 'chat-history', origin: 'chat_history', label: 'Earlier chat messages', text: messages.map((message) => message.content).join('\n') },
@@ -1890,7 +1901,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
             fileToolsEnabled: fileToolsRegisteredForSend,
             isDemo: IS_DEMO,
             assuredAvailable: Boolean(assuredRoute),
-            onAuditLog: preparedAuditLogger(auditPairId, false),
+            onAuditLog: preparedAuditLogger,
+            beforeEgress: () => saveDurableIntent(auditPairId, false),
             parts: [
               { id: 'prompt', origin: 'typed_question', label: 'Your message', text: userMessage.content },
               { id: 'chat-history', origin: 'chat_history', label: 'Earlier chat messages', text: messages.map((message) => message.content).join('\n') },
