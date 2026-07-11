@@ -127,10 +127,10 @@ function fakeClient(relay: FakeRelay) {
     // Mint a fake single-use ticket — what MatterSyncClient fetches before it
     // opens the WS. The seat token is passed via the (mocked) HTTP call, not the
     // URL; the test asserts the WS URL carries only the ticket.
-    createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
-      ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-      expires_in_ms: 30_000,
-    })),
+    createSyncTicket: vi.fn((...args: [string, string]) => {
+      void args;
+      return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+    }),
   } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
@@ -265,10 +265,10 @@ function fakeDocClient(relay: FakeDocRelay, streamHandle: StreamHandle) {
         relay.push(blobId, ct, epoch ?? relay.keyEpoch, streamHandle),
     ),
     pullUpdates: vi.fn(async (_stream: StreamHandle, since: number) => relay.pull(since, streamHandle)),
-    createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
-      ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-      expires_in_ms: 30_000,
-    })),
+    createSyncTicket: vi.fn((...args: [string, string]) => {
+      void args;
+      return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+    }),
   } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
@@ -636,10 +636,10 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
           },
         ),
         pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
-        createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
-          ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-          expires_in_ms: 30_000,
-        })),
+        createSyncTicket: vi.fn((...args: [string, string]) => {
+          void args;
+          return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+        }),
       } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 
       const c = new MatterSyncClient({
@@ -701,10 +701,10 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
           },
         ),
         pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
-        createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
-          ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-          expires_in_ms: 30_000,
-        })),
+        createSyncTicket: vi.fn((...args: [string, string]) => {
+          void args;
+          return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+        }),
       } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 
       const c = new MatterSyncClient({
@@ -767,10 +767,10 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
           },
         ),
         pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
-        createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
-          ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-          expires_in_ms: 30_000,
-        })),
+        createSyncTicket: vi.fn((...args: [string, string]) => {
+          void args;
+          return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+        }),
       } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 
       const c = new MatterSyncClient({

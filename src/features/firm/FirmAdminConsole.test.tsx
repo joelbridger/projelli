@@ -6,7 +6,7 @@ const matterHandle = parseMatterHandle(`mh2_${'A'.repeat(43)}`);
 const rootStreamHandle = parseStreamHandle(`sh2_${'B'.repeat(43)}`);
 
 const client = {
-  listMatters: vi.fn(async () => ({
+  listMatters: vi.fn(() => Promise.resolve({
     matters: [{
       matter_handle: matterHandle,
       root_stream_handle: rootStreamHandle,
@@ -20,10 +20,10 @@ const client = {
       displayName: '/clients/nimbus',
     }],
   })),
-  listSeats: vi.fn(async () => ({ seats: [] })),
-  listProviderKeys: vi.fn(async () => ({ keys: [] })),
-  listOrgUsers: vi.fn(async () => ({ users: [] })),
-  ssoConfigGet: vi.fn(async () => ({ configured: false, redirect_uri: 'https://example.test/callback' })),
+  listSeats: vi.fn(() => Promise.resolve({ seats: [] })),
+  listProviderKeys: vi.fn(() => Promise.resolve({ keys: [] })),
+  listOrgUsers: vi.fn(() => Promise.resolve({ users: [] })),
+  ssoConfigGet: vi.fn(() => Promise.resolve({ configured: false, redirect_uri: 'https://example.test/callback' })),
 };
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -36,7 +36,7 @@ vi.mock('@/platform/firm/firmStore', () => ({
 }));
 vi.mock('@/platform/firm/matterKeyService', () => ({
   publishMatterKeyToMembers: vi.fn(),
-  autoRepublishHeldMatterKeys: vi.fn(async () => ({ fingerprints: {}, republishedMatterIds: [] })),
+  autoRepublishHeldMatterKeys: vi.fn(() => Promise.resolve({ fingerprints: {}, republishedMatterIds: [] })),
 }));
 vi.mock('@/platform/audit/AuditService', () => ({ AuditService: class { append = vi.fn(); } }));
 
@@ -46,7 +46,7 @@ describe('FirmAdminConsole opaque client labels', () => {
   it('renders only a generic shared-client label, never a server-supplied name or routing value', async () => {
     render(<FirmAdminConsole />);
 
-    await waitFor(() => expect(screen.getByTestId(`firm-matter-${matterHandle}`)).toBeTruthy());
+    await waitFor(() => { expect(screen.getByTestId(`firm-matter-${matterHandle}`)).toBeTruthy(); });
 
     const list = screen.getByTestId('firm-matter-list');
     expect(list.textContent).toContain('Shared client');

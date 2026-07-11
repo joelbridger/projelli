@@ -93,7 +93,7 @@ describe('publishMatterKeyToMembers', () => {
     await storeMatterKey(matterHandle, matterKeyB64);
 
     // Ensure this device has a keypair
-    const { publicJwk: thisDevicePub, deviceId: thisDeviceId } = await getOrCreateDeviceKeypair();
+    await getOrCreateDeviceKeypair();
 
     // Two "member" devices: alice (not walled) and bob (walled)
     const alice = await generateMemberKeyPair();
@@ -251,7 +251,7 @@ describe('obtainMatterKey', () => {
 
   it('success path: unwraps and stores the matter key, then returns it', async () => {
     // Set up: "the server" has a wrapped key that was wrapped TO this device's public key
-    const { publicJwk, deviceId } = await getOrCreateDeviceKeypair();
+    const { publicJwk } = await getOrCreateDeviceKeypair();
 
     const matterKeyB64 = await generateMatterKey();
 

@@ -12,10 +12,10 @@
  * mirroring matterDocSync.test.ts.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import * as Y from 'yjs';
 import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/platform/firm/coedit/coeditSession';
-import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/platform/firm/coedit/docCrdt';
+import { documentJsonToYDoc, editRunText } from '@/platform/firm/coedit/docCrdt';
 import { generateMatterKey } from '@/platform/firm/matterCrypto';
 import type { DocumentJson, DocxParagraph } from '@/platform/types/docx';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
@@ -36,12 +36,6 @@ const BASE_DOC: DocumentJson = {
       ],
     } as DocxParagraph,
   ],
-  comments: {},
-};
-
-const EMPTY_DOC: DocumentJson = {
-  formatVersion: 1,
-  body: [],
   comments: {},
 };
 
@@ -156,10 +150,10 @@ function fakeClient(relay: FakeDocRelay, docId: string) {
       relay.push(blobId, ct, epoch ?? relay.keyEpoch, dId ?? docId),
     pullUpdates: async (_m: string, since: number, _seat: string, dId?: string) =>
       relay.pull(since, dId ?? docId),
-    createSyncTicket: async (_m: string, _seat: string) => ({
-      ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-      expires_in_ms: 30_000,
-    }),
+    createSyncTicket: (...args: [string, string]) => {
+      void args;
+      return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+    },
   } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 

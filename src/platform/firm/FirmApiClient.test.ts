@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/platform/providers/fetchUtils', () => ({
-  getCorsSafeFetch: async () => fetch,
+  getCorsSafeFetch: () => Promise.resolve(fetch),
 }));
 
 import { FirmApiClient } from './FirmApiClient';
@@ -25,24 +25,24 @@ describe('FirmApiClient v2 relay privacy', () => {
   beforeEach(() => {
     traffic.length = 0;
     parsedResponses.length = 0;
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
       traffic.push({
-        url: String(input), method: init?.method ?? 'GET',
+        url, method: init?.method ?? 'GET',
         headers: JSON.stringify(init?.headers ?? {}), body: typeof init?.body === 'string' ? init.body : '',
       });
-      const url = String(input);
       const body = url.endsWith('/matters') ? {
         matter_handle: matterHandle, root_stream_handle: streamHandle, key_epoch: 1, status: 'provisioning',
       } : url.endsWith('/streams') ? { stream_handle: streamHandle } :
         url.includes('/updates') && (init?.method ?? 'GET') === 'GET' ?
           { key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] } :
           url.endsWith('/sync-ticket') ? { ticket: 'ticket-opaque', expires_in_ms: 60_000 } : { ok: true, cursor: 1, blob_id: 'blob', key_epoch: 1, duplicate: false };
-      return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     }));
   });
 
   it('keeps every v2 matter operation free of all six local-metadata sentinels', async () => {
-    const client = new FirmApiClient({ getAccessToken: () => 'access', refreshAccessToken: async () => null });
+    const client = new FirmApiClient({ getAccessToken: () => 'access', refreshAccessToken: () => Promise.resolve(null) });
     parsedResponses.push(
       await client.createMatter(),
       await client.activateMatter(matterHandle),

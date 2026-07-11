@@ -7,7 +7,7 @@ import { decryptUpdateV2, generateMatterKey, importMatterKey } from './matterCry
 import { readFirmMatterPrivateIndex } from './firmMatterPrivateIndex';
 import { type LegacyFirmManifestBridgeOptions, runLegacyFirmManifestBridge } from './legacyFirmManifestBridge';
 
-vi.mock('@/platform/providers/fetchUtils', () => ({ getCorsSafeFetch: async () => fetch }));
+vi.mock('@/platform/providers/fetchUtils', () => ({ getCorsSafeFetch: () => Promise.resolve(fetch) }));
 
 const matterHandle = parseMatterHandle(`mh2_${'A'.repeat(43)}`);
 const rootStreamHandle = parseStreamHandle(`sh2_${'B'.repeat(43)}`);
@@ -54,20 +54,20 @@ function clientFor(
   traffic: Traffic[],
   complete: () => Response = () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
 ): FirmApiClient {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
+  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
     const method = init?.method ?? 'GET';
     traffic.push({ url, method, body: typeof init?.body === 'string' ? init.body : '', headers: JSON.stringify(init?.headers ?? {}) });
     if (url.endsWith('/migration-manifest')) {
-      return new Response(JSON.stringify({ matters: manifest }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return Promise.resolve(new Response(JSON.stringify({ matters: manifest }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     }
-    if (url.endsWith('/migration-complete')) return complete();
+    if (url.endsWith('/migration-complete')) return Promise.resolve(complete());
     if (url.endsWith('/updates')) {
-      return new Response(JSON.stringify({ ok: true, cursor: 1, blob_id: 'opaque-blob', key_epoch: 1, duplicate: false }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+      return Promise.resolve(new Response(JSON.stringify({ ok: true, cursor: 1, blob_id: 'opaque-blob', key_epoch: 1, duplicate: false }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
     }
     throw new Error(`Unexpected request ${url}`);
   }));
-  return new FirmApiClient({ getAccessToken: () => 'access-token', refreshAccessToken: async () => null });
+  return new FirmApiClient({ getAccessToken: () => 'access-token', refreshAccessToken: () => Promise.resolve(null) });
 }
 
 function bridgeOptions(
@@ -108,9 +108,9 @@ function bridgeOptions(
       saveMatter,
       createPlaceholder,
       localDocumentIdForLegacyId: (_matter: Matter, legacyDocumentId: string) => legacyDocumentId === 'legacy-document-9' ? 'doc-advisory-plan.docx' : null,
-      loadLegacyMatterKey: async (_legacyMatterId: string) => keyB64,
-      storeOpaqueMatterKey: async () => undefined,
-      clearLegacyMatterKey: async () => undefined,
+      loadLegacyMatterKey: (_legacyMatterId: string) => Promise.resolve(keyB64),
+      storeOpaqueMatterKey: () => Promise.resolve(),
+      clearLegacyMatterKey: () => Promise.resolve(),
     },
     matters: () => matters,
     saveMatter,
@@ -209,10 +209,10 @@ describe('one-time legacy firm manifest bridge', () => {
     const keyB64 = await generateMatterKey();
     const fixture = bridgeOptions(clientFor([row(), secondRow], traffic), [legacyMatter(), second], keyB64, []);
     let firstClientKey: string | null = null;
-    const loadLegacyMatterKey = vi.fn(async (legacyMatterId: string) =>
-      legacyMatterId === 'matter-semantic-123' ? firstClientKey : keyB64,
+    const loadLegacyMatterKey = vi.fn((legacyMatterId: string) =>
+      Promise.resolve(legacyMatterId === 'matter-semantic-123' ? firstClientKey : keyB64),
     );
-    const clearLegacyMatterKey = vi.fn(async () => undefined);
+    const clearLegacyMatterKey = vi.fn(() => Promise.resolve());
     fixture.options.loadLegacyMatterKey = loadLegacyMatterKey;
     fixture.options.clearLegacyMatterKey = clearLegacyMatterKey;
 

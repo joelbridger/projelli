@@ -13,7 +13,7 @@ import { describe, it, expect } from 'vitest';
 import * as Y from 'yjs';
 import { MatterDocSyncClient } from '@/platform/firm/coedit/MatterDocSyncClient';
 import { documentJsonToYDoc, yDocToDocumentJson, editRunText } from '@/platform/firm/coedit/docCrdt';
-import { generateMatterKey, importMatterKey } from '@/platform/firm/matterCrypto';
+import { generateMatterKey } from '@/platform/firm/matterCrypto';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
@@ -137,10 +137,10 @@ function fakeClient(relay: FakeDocRelay, docId: string) {
       relay.push(blobId, ct, epoch ?? relay.keyEpoch, dId ?? docId),
     pullUpdates: async (_m: string, since: number, _seat: string, dId?: string) =>
       relay.pull(since, dId ?? docId),
-    createSyncTicket: async (_m: string, _seat: string) => ({
-      ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-      expires_in_ms: 30_000,
-    }),
+    createSyncTicket: (...args: [string, string]) => {
+      void args;
+      return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+    },
   } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 

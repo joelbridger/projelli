@@ -8,9 +8,9 @@ describe('MatterSyncClient v2 socket privacy', () => {
     const urls: string[] = [];
     let socket: WebSocketLike | undefined;
     const fakeClient = {
-      pullUpdates: async () => ({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
-      createSyncTicket: async () => ({ ticket: 'ticket-only', expires_in_ms: 1000 }),
-      pushUpdate: async () => ({ ok: true, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false }),
+      pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+      createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+      pushUpdate: () => Promise.resolve({ ok: true, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false }),
     };
     const client = new MatterSyncClient({
       matterHandle: parseMatterHandle(`mh2_${'A'.repeat(43)}`), streamHandle: parseStreamHandle(`sh2_${'B'.repeat(43)}`),

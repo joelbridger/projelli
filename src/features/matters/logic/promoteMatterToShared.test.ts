@@ -25,10 +25,10 @@ async function generatedKey(): Promise<string> {
 
 function successfulClient() {
   return {
-    createMatter: vi.fn(async () => ({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1 as const, status: 'provisioning' as const })),
-    pushUpdate: vi.fn(async () => ({ ok: true as const, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false })),
-    activateMatter: vi.fn(async () => ({ ok: true as const })),
-    archiveMatter: vi.fn(async () => ({ ok: true as const })),
+    createMatter: vi.fn(() => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1 as const, status: 'provisioning' as const })),
+    pushUpdate: vi.fn(() => Promise.resolve({ ok: true as const, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false })),
+    activateMatter: vi.fn(() => Promise.resolve({ ok: true as const })),
+    archiveMatter: vi.fn(() => Promise.resolve({ ok: true as const })),
   };
 }
 
@@ -57,9 +57,9 @@ describe('promoteMatterToShared v2 ordering', () => {
   it('seals encrypted root details before activating the opaque shell', async () => {
     const order: string[] = [];
     const client = {
-      createMatter: vi.fn(async () => { order.push('provision'); return { matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const }; }),
-      pushUpdate: vi.fn(async () => { order.push('root-index'); return { ok: true, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false }; }),
-      activateMatter: vi.fn(async () => { order.push('activate'); return { ok: true }; }),
+      createMatter: vi.fn(() => { order.push('provision'); return Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const }); }),
+      pushUpdate: vi.fn(() => { order.push('root-index'); return Promise.resolve({ ok: true, cursor: 1, blob_id: 'x', key_epoch: 1, duplicate: false }); }),
+      activateMatter: vi.fn(() => { order.push('activate'); return Promise.resolve({ ok: true }); }),
     };
     const result = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
     expect(result.status).toBe('shared');
@@ -70,8 +70,8 @@ describe('promoteMatterToShared v2 ordering', () => {
 
   it('does not activate or link a failed provisioning record', async () => {
     const client = {
-      createMatter: vi.fn(async () => ({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const })),
-      pushUpdate: vi.fn(async () => { throw new Error('root write failed'); }),
+      createMatter: vi.fn(() => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const })),
+      pushUpdate: vi.fn(() => Promise.reject(new Error('root write failed'))),
       activateMatter: vi.fn(),
     };
     const result = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);

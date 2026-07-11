@@ -114,7 +114,7 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
   const current = readFirmMatterPrivateIndex(doc);
   if (!current || !current.streams[localDocumentId]) return;
   const streams = { ...current.streams };
-  delete streams[localDocumentId];
+  Reflect.deleteProperty(streams, localDocumentId);
   writeFirmMatterPrivateIndex(doc, { ...current, streams });
   await rootSync.flush();
 }

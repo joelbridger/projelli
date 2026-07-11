@@ -233,7 +233,7 @@ export async function runLegacyFirmManifestBridgeFromMatterStore(
     client,
     seatToken,
     getMatters: () => useMatterStore.getState().matters,
-    saveMatter: (matter) => useMatterStore.getState().replaceMatterFromLegacyFirmBridge(matter),
+    saveMatter: (matter) => { useMatterStore.getState().replaceMatterFromLegacyFirmBridge(matter); },
     createPlaceholder: ({ matterHandle, rootStreamHandle }) => {
       useMatterStore.getState().createMatter({
         name: PLACEHOLDER_NAME,

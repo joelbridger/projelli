@@ -12,11 +12,9 @@
  * presence frames directly, exactly as the real relay would.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import * as Y from 'yjs';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { openCoeditSession, closeCoeditSession, type CoeditSessionOptions } from '@/platform/firm/coedit/coeditSession';
 import { generateMatterKey } from '@/platform/firm/matterCrypto';
-import type { DocumentJson } from '@/platform/types/docx';
 import type { WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
 import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
@@ -77,11 +75,15 @@ class FakeDocRelayWithPresence {
   }
 
   pushUpdate(_blobId: string, _ct: string, _epoch: number, _docId: string): PushUpdateResponse {
+    void _ct;
+    void _epoch;
+    void _docId;
     this.seq += 1;
     return { ok: true, cursor: this.seq, blob_id: _blobId, key_epoch: this.keyEpoch, duplicate: false };
   }
 
   pullUpdates(_since: number, docId: string): PullUpdatesResponse {
+    void docId;
     return {
       key_epoch: this.keyEpoch,
       since: _since,
@@ -99,10 +101,10 @@ function fakeClient(relay: FakeDocRelayWithPresence, docId: string) {
       relay.pushUpdate(blobId, ct, epoch ?? relay.keyEpoch, dId ?? docId),
     pullUpdates: async (_m: string, since: number, _seat: string, dId?: string) =>
       relay.pullUpdates(since, dId ?? docId),
-    createSyncTicket: async (_m: string, _seat: string) => ({
-      ticket: `tkt_${Math.random().toString(36).slice(2)}`,
-      expires_in_ms: 30_000,
-    }),
+    createSyncTicket: (...args: [string, string]) => {
+      void args;
+      return Promise.resolve({ ticket: `tkt_${Math.random().toString(36).slice(2)}`, expires_in_ms: 30_000 });
+    },
   } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
@@ -129,7 +131,7 @@ async function makeOpts(
     keyEpoch: 1,
     seatToken: 'seat',
     client: fakeClient(relay, docId),
-    socketFactory: (url: string) => {
+    socketFactory: () => {
       const s = new FakeSocket();
       relay.connect(s, docId);
       return s;

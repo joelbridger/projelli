@@ -19,7 +19,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // ---------------------------------------------------------------------------
 // Hoisted mocks (vi.hoisted runs before any import hoisting)
 // ---------------------------------------------------------------------------
-const { startMock, stopMock, rotateMock, MockMatterSyncClient, getLastCallbacks } = vi.hoisted(() => {
+const { stopMock, MockMatterSyncClient, getLastCallbacks } = vi.hoisted(() => {
   const startMock = vi.fn(async () => undefined);
   const stopMock = vi.fn();
   const rotateMock = vi.fn(async () => undefined);

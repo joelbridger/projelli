@@ -13,7 +13,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     const doc = new Y.Doc();
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'CLIENT_SECRET_NIMBUS', displayName: 'Nimbus', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
     let flushed = false;
-    await addDocumentStreamToPrivateIndex(doc, { flush: async () => { flushed = true; } }, 'doc-advisory-plan.docx', docStream);
+    await addDocumentStreamToPrivateIndex(doc, { flush: () => { flushed = true; return Promise.resolve(); } }, 'doc-advisory-plan.docx', docStream);
     expect(flushed).toBe(true);
     expect(readFirmMatterPrivateIndex(doc)?.streams['doc-advisory-plan.docx']).toEqual({ streamHandle: docStream, kind: 'document' });
   });
@@ -32,9 +32,9 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     writeFirmMatterPrivateIndex(doc, { version: 1, clientName: 'x', displayName: 'x', streams: { _notes: { streamHandle: root, kind: 'notes' } } });
     const events: string[] = [];
     const result = await createDocumentStream(
-      { allocateStream: async () => { events.push('allocate'); return { stream_handle: docStream }; } } as never,
+      { allocateStream: () => { events.push('allocate'); return Promise.resolve({ stream_handle: docStream }); } } as never,
       parseMatterHandle(`mh2_${'M'.repeat(43)}`), doc,
-      { flush: async () => { events.push('encrypted-root-accepted'); } }, 'local-document-id',
+      { flush: () => { events.push('encrypted-root-accepted'); return Promise.resolve(); } }, 'local-document-id',
     );
     expect(result).toBe(docStream);
     expect(events).toEqual(['allocate', 'encrypted-root-accepted']);
