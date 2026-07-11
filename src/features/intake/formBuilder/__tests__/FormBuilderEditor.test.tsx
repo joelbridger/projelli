@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NEW_HOUSEHOLD_BLUEPRINT } from '@/platform/intake/defaultBlueprints';
 import { useBlueprintStore } from '@/platform/intake/blueprintStore';
 import type { RequestBlueprint } from '@/platform/intake/blueprintTypes';
+import type { RequestItem } from '@/platform/intake/types';
 import { FormBuilderEditor } from '../FormBuilderEditor';
 
 function addAllItemKinds(): void {
@@ -53,6 +54,39 @@ describe('FormBuilderEditor', () => {
     expect(onSaved).toHaveBeenCalledWith(expect.objectContaining({ label: 'New name' }));
     expect(useBlueprintStore.getState().getBlueprint('existing')).toMatchObject({ label: 'New name' });
     expect(onSaved.mock.calls[0]?.[0].items).toEqual(stored.items);
+  });
+
+  it('shows approved PDF forms accurately and preserves PDF and signature items unchanged on save', () => {
+    const specialItems: RequestItem[] = [
+      {
+        t: 'pdf_fill', item_id: 'custodian-form', label: 'Custodian transfer form', help_text: 'Complete every required field.', required: true, subject: 'primary',
+        pdf_ref: 'forms/custodian-transfer.pdf',
+        field_map: { account_number: { field_id: 'account_number', fact_kind: 'ssn', pdf_field_type: 'text' } },
+        prefill: [],
+      },
+      {
+        t: 'signature', item_id: 'sign-transfer', label: 'Sign transfer form', help_text: 'Sign after reviewing.', required: true, subject: 'primary',
+        grade: 'docusign', document_ref: 'forms/custodian-transfer.pdf',
+      },
+    ];
+    const originalItems = JSON.stringify(specialItems);
+    const stored = useBlueprintStore.getState().createFirmBlueprint({ blueprintId: 'special-items', label: 'Transfer', items: specialItems });
+    const onSaved = vi.fn<(blueprint: RequestBlueprint) => void>();
+
+    render(<FormBuilderEditor blueprint={stored} onSaved={onSaved} onCancel={vi.fn()} />);
+
+    expect(screen.getByText('PDF form')).toBeTruthy();
+    expect(screen.queryByText('Text block')).toBeNull();
+    expect(screen.getByLabelText('Approved PDF form')).toHaveTextContent('approved PDF form');
+    expect(screen.getByLabelText('Signature request')).toHaveTextContent('signature request');
+    expect(screen.queryByLabelText('Label')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Save form' }));
+
+    const saved = onSaved.mock.calls[0]?.[0];
+    expect(saved).toBeTruthy();
+    expect(JSON.stringify(saved?.items)).toBe(originalItems);
+    expect(JSON.stringify(useBlueprintStore.getState().getBlueprint('special-items')?.items)).toBe(originalItems);
   });
 
   it('loads a first welcome card into the welcome-message field', () => {
