@@ -171,7 +171,7 @@ async fn fresh_access_token(
 fn graph_token_refresh(policy: crate::network_policy::NetworkPolicy) -> GraphTokenRefresh {
     Arc::new(move || -> GraphTokenRefreshFuture {
         let policy = policy.clone();
-        Box::pin(async {
+        Box::pin(async move {
             fresh_access_token(&policy)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))

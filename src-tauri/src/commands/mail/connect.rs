@@ -274,7 +274,7 @@ pub(crate) fn graph_token_refresh(
 ) -> GraphTokenRefresh {
     Arc::new(move || -> GraphTokenRefreshFuture {
         let policy = policy.clone();
-        Box::pin(async {
+        Box::pin(async move {
             fresh_access_token(&policy)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))
