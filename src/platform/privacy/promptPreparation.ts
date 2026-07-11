@@ -18,7 +18,7 @@ export {
 import { createPreparationStamp } from './promptPreparationGuard';
 
 export type PromptOrigin =
-  | 'typed_question' | 'chat_history' | 'retrieval' | 'open_file' | 'email'
+  | 'typed_question' | 'system_prompt' | 'chat_history' | 'retrieval' | 'open_file' | 'email'
   | 'workflow_input' | 'workflow_file' | 'meeting' | 'client_map' | 'tool_result'
   | 'attachment_text' | 'attachment_binary' | 'attachment_filename';
 
