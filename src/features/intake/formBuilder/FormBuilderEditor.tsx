@@ -73,7 +73,9 @@ function positiveIntOrFallback(value: number | undefined, fallback: number): num
 function friendlyType(item: RequestItem): string {
   return item.t === 'typed_field' ? 'Typed field'
     : item.t === 'doc_upload' ? 'Document upload'
-      : item.t === 'guided_question' ? 'Guided question' : 'Text block';
+      : item.t === 'guided_question' ? 'Guided question'
+        : item.t === 'pdf_fill' ? 'PDF form'
+          : item.t === 'signature' ? 'Signature request' : 'Text block';
 }
 
 function slugFor(label: string): string {
@@ -97,6 +99,24 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
       <article className="grid gap-2 rounded-lg border border-[var(--kp-divider)] bg-background p-4" aria-label="Preserved legacy text block">
         <strong>{item.label || 'Legacy text block'}</strong>
         <p className="m-0 text-sm text-muted-foreground">This older text block will be kept when you save, but can’t be edited here.</p>
+      </article>
+    );
+  }
+
+  if (item.t === 'pdf_fill') {
+    return (
+      <article className="grid gap-2 rounded-lg border border-[var(--kp-divider)] bg-background p-4" aria-label="Approved PDF form">
+        <strong>{item.label || 'Approved PDF form'}</strong>
+        <p className="m-0 text-sm text-muted-foreground">This approved PDF form will be kept when you save, but can’t be edited in this builder.</p>
+      </article>
+    );
+  }
+
+  if (item.t === 'signature') {
+    return (
+      <article className="grid gap-2 rounded-lg border border-[var(--kp-divider)] bg-background p-4" aria-label="Signature request">
+        <strong>{item.label || 'Signature request'}</strong>
+        <p className="m-0 text-sm text-muted-foreground">This signature request will be kept when you save, but can’t be edited in this builder.</p>
       </article>
     );
   }
