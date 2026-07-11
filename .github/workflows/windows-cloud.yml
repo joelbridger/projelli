@@ -57,14 +57,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Install and build intake page
-        # Use the intake app as the working folder instead of npm's --prefix
-        # shortcut. On Windows the shortcut can leave Vite's relative dist
-        # output outside intake-page, so the security suite cannot find it.
-        working-directory: intake-page
+      - name: Prepare intake page for hosting security tests
+        # Build this serially before Vitest. The hosting suite reuses this
+        # output and only falls back to building it itself when it is absent.
         run: |
-          npm ci
-          npm run build
+          npm --prefix intake-page ci
+          npm --prefix intake-page run build
 
       - name: TypeScript check
         run: npx tsc --noEmit
