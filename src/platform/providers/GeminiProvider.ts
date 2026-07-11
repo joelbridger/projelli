@@ -17,6 +17,7 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse, redactUrl } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
+import { assertCloudPreparation } from '@/platform/privacy/promptPreparationGuard';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
@@ -264,6 +265,7 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
+    assertCloudPreparation(options?.preparationStamp, 'google');
     const contents: GeminiContent[] = [
       {
         role: 'user',
@@ -423,6 +425,7 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
+    assertCloudPreparation(options.preparationStamp, 'google');
     const { onChunk, signal, ...sendOpts } = options;
 
     const contents: GeminiContent[] = [{ role: 'user', parts: await this.buildUserParts(prompt, sendOpts.attachmentBytes) }];
@@ -548,6 +551,7 @@ export class GeminiProvider implements Provider {
   ): Promise<T> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
+    assertCloudPreparation(options.preparationStamp, 'google');
     // Gemini doesn't have native JSON schema support like OpenAI, so include
     // the schema directly in the prompt and ask for only that JSON object.
     const jsonPrompt = `${prompt}
@@ -562,6 +566,7 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
       temperature: options.temperature ?? 0.1,
       ...(options.maxTokens !== undefined ? { maxTokens: options.maxTokens } : {}),
       ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.preparationStamp ? { preparationStamp: options.preparationStamp } : {}),
     });
 
     try {
