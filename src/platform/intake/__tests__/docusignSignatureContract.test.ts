@@ -36,8 +36,9 @@ function recordingWorkspace() {
   return {
     files,
     workspaceService: {
-      writeFileBinary: async (path: string, bytes: ArrayBuffer) => {
+      writeFileBinary: (path: string, bytes: ArrayBuffer) => {
         files.set(path, new Uint8Array(bytes));
+        return Promise.resolve();
       },
     } as never,
   };
@@ -106,7 +107,7 @@ describe('Wave 9 signature contract gate', () => {
   it('captures exact flattened bytes and reviewed tabs in the DocuSign envelope adapter', async () => {
     fetchMock.mockResolvedValueOnce(response({ envelopeId: 'envelope-1' }, 201))
       .mockResolvedValueOnce(response({ url: 'https://demo.docusign.net/Signing/view' }, 201));
-    const adapter = new DirectDocusignAdapter(async () => ({
+    const adapter = new DirectDocusignAdapter(() => Promise.resolve({
       accessToken: 'short-lived-token', accountId: 'account-1', baseUri: 'https://demo.docusign.net',
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     }));

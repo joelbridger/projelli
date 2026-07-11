@@ -68,25 +68,25 @@ export function validateDocusignConnectPayload(
     if (FORBIDDEN_FIELD.test(normalizedField(key))) return { ok: false, code: "document_or_sensitive_field_forbidden", status: 400 };
     if (!ALLOWED_FIELDS.has(key)) return { ok: false, code: "unknown_field", status: 400 };
   }
-  if (!nonEmptyString(body.event_id) || !nonEmptyString(body.envelope_id) || !nonEmptyString(body.nonce)) {
+  if (!nonEmptyString(body["event_id"]) || !nonEmptyString(body["envelope_id"]) || !nonEmptyString(body["nonce"])) {
     return { ok: false, code: "missing_event_fields", status: 400 };
   }
-  if (body.event_type !== "completed") return { ok: false, code: "unknown_event_type", status: 400 };
-  if (body.environment !== expectedEnvironment) return { ok: false, code: "wrong_environment", status: 400 };
-  if (typeof body.occurred_at !== "string" || !ISO_UTC_RE.test(body.occurred_at)) return { ok: false, code: "invalid_timestamp", status: 400 };
-  const timestamp = Date.parse(body.occurred_at);
+  if (body["event_type"] !== "completed") return { ok: false, code: "unknown_event_type", status: 400 };
+  if (body["environment"] !== expectedEnvironment) return { ok: false, code: "wrong_environment", status: 400 };
+  if (typeof body["occurred_at"] !== "string" || !ISO_UTC_RE.test(body["occurred_at"])) return { ok: false, code: "invalid_timestamp", status: 400 };
+  const timestamp = Date.parse(body["occurred_at"]);
   if (!Number.isFinite(timestamp) || Math.abs(nowMs - timestamp) > CONNECT_CLOCK_SKEW_MS) {
     return { ok: false, code: "expired_event", status: 400 };
   }
   return {
     ok: true,
     payload: {
-      event_id: body.event_id,
-      envelope_id: body.envelope_id,
+      event_id: body["event_id"],
+      envelope_id: body["envelope_id"],
       event_type: "completed",
-      occurred_at: body.occurred_at,
-      environment: body.environment,
-      nonce: body.nonce,
+      occurred_at: body["occurred_at"],
+      environment: body["environment"],
+      nonce: body["nonce"],
     } as DocusignConnectPayload,
     at: new Date(timestamp).toISOString(),
   };
