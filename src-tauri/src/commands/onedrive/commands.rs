@@ -1028,13 +1028,13 @@ pub async fn onedrive_sync(
     // an honest timeout error instead of silence.
     let sync_future = async {
         let token = fresh_access_token(&policy).await?;
-        let refresh = graph_token_refresh(policy.clone());
+        let refresh = graph_token_refresh(policy.inner().clone());
         let store = OneDriveStore::open(&workspace).map_err(|e| e.to_string())?;
         let rag_key =
             crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
 
         let available_drives = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
-            .with_network_policy(policy.clone(), crate::network_policy::ONEDRIVE_SYNC)
+            .with_network_policy(policy.inner().clone(), crate::network_policy::ONEDRIVE_SYNC)
             .list_drives()
             .await
             .unwrap_or_default();
@@ -1042,7 +1042,7 @@ pub async fn onedrive_sync(
         let mut merged_report = OneDriveSyncReport::default();
         if drive_ids.is_empty() {
             let omit_select = OneDriveClient::new_with_refresh(token.clone(), refresh.clone())
-                .with_network_policy(policy.clone(), crate::network_policy::ONEDRIVE_SYNC)
+                .with_network_policy(policy.inner().clone(), crate::network_policy::ONEDRIVE_SYNC)
                 .default_drive()
                 .await
                 .map(|drive| is_personal_drive(&drive))
@@ -1051,7 +1051,7 @@ pub async fn onedrive_sync(
                 token,
                 omit_select,
                 refresh,
-                policy.clone(),
+                policy.inner().clone(),
             );
             sync_documents(
                 &source,
@@ -1085,7 +1085,7 @@ pub async fn onedrive_sync(
                     drive_id,
                     omit_select,
                     refresh.clone(),
-                    policy.clone(),
+                    policy.inner().clone(),
                 );
                 match sync_documents(
                     &source,
