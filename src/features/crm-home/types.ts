@@ -16,15 +16,45 @@ export interface CrmFreshnessState {
 export interface CrmTask {
   id: string;
   title: string;
-  householdLabel?: string;
-  assigneeUserId: string;
-  assigneeLabel: string;
+  body?: string | undefined;
+  householdLabel?: string | undefined;
+  householdId?: string | undefined;
+  assigneeUserId: string | null;
+  assigneeLabel?: string | undefined;
   status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
-  dueLabel?: string;
-  dueAt?: string;
+  dueLabel?: string | undefined;
+  dueAt?: string | undefined;
   priority: 'high' | 'normal' | 'low';
-  recurrenceLabel?: string;
-  contextRefs?: readonly string[];
+  recurrenceLabel?: string | undefined;
+  recurrence?: { freq: 'daily' | 'weekly' | 'monthly' | 'yearly'; interval: number; regenerateOnComplete: boolean } | undefined;
+  contextRefs?: readonly string[] | undefined;
+}
+
+export interface CrmApproval {
+  id: string;
+  title: string;
+  rationale?: string | undefined;
+  householdLabel?: string | undefined;
+  state: 'pending' | 'approved' | 'rejected' | 'expired';
+  decidedAt?: string | undefined;
+}
+
+export interface CrmActivity {
+  id: string;
+  summary: string;
+  at: string;
+}
+
+export interface CrmTaskSavedView {
+  id: string;
+  name: string;
+  layout: 'list' | 'kanban' | 'table';
+  search?: string | undefined;
+}
+
+export interface CrmHouseholdOption {
+  id: string;
+  name: string;
 }
 
 /** The only fields propagation may change. Progress is intentionally absent. */
@@ -129,7 +159,9 @@ export interface CrmMigrationData {
 }
 
 export interface CrmHomeActions {
-  updateTask?: (task: CrmTask) => void;
+  updateTask?: (task: CrmTask) => void | Promise<void>;
+  decideApproval?: (approval: CrmApproval, decision: 'approved' | 'rejected') => void | Promise<void>;
+  saveTaskView?: (view: CrmTaskSavedView) => void | Promise<void>;
   applyPropagation?: (offers: readonly PropagationApplyOffer[]) => void;
   undoPropagation?: () => { restored: number; protectedCells: readonly string[] };
   markNotificationsRead?: () => void;
@@ -146,6 +178,10 @@ export interface CrmHomeActions {
 export interface CrmHomeAdapter {
   freshness: CrmFreshnessState;
   tasks: readonly CrmTask[];
+  approvals?: readonly CrmApproval[];
+  activity?: readonly CrmActivity[];
+  savedTaskViews?: readonly CrmTaskSavedView[];
+  households?: readonly CrmHouseholdOption[];
   offers: readonly PropagationOffer[];
   migration: CrmMigrationData;
   actions: CrmHomeActions;

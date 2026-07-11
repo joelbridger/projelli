@@ -1,0 +1,95 @@
+#!/usr/bin/env node
+// Real desktop smoke path for Home > Tasks and Home > Today.
+// Run only after `npm run tauri:dev` is open with the Linux bridge on :9250.
+import { mkdirSync } from 'node:fs';
+
+const port = process.env.DESKTOP_CDP_PORT || '9250';
+const root = process.env.CRM_LOOP_WORKSPACE || '/tmp/lantern-crm-today-tasks-loop';
+const base = `http://127.0.0.1:${port}`;
+const stamp = new Date().toISOString().slice(0, 10);
+const id = `loop-${Date.now()}`;
+
+function fail(message) { throw new Error(`FAIL: ${message}`); }
+async function request(path, query = {}) {
+  const url = new URL(`${base}${path}`);
+  for (const [key, value] of Object.entries(query)) url.searchParams.set(key, String(value));
+  const response = await fetch(url);
+  const body = await response.json();
+  if (!response.ok || !body.ok) fail(body.error || `${path} failed`);
+  return body.result;
+}
+async function evaluate(js) { return request('/eval', { js }); }
+async function click(testid) { return request('/click', { testid }); }
+async function fill(testid, text) { return request('/fill', { testid, text }); }
+async function waitFor(testid, seconds = 10) {
+  const end = Date.now() + seconds * 1000;
+  while (Date.now() < end) {
+    if (await evaluate(`Boolean(document.querySelector('[data-testid="${testid}"]'))`)) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  fail(`timed out waiting for ${testid}`);
+}
+async function setSelect(testid, value) {
+  await evaluate(`(() => { const element = document.querySelector('[data-testid="${testid}"]'); if (!element) throw new Error('missing ${testid}'); const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; setter.call(element, ${JSON.stringify(value)}); element.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+}
+
+mkdirSync(root, { recursive: true });
+await request('/health');
+
+// Seed only the two records the Tasks screen needs. They use the same real Tauri
+// commands as the UI, not browser storage or a test adapter.
+await evaluate(`(async () => {
+  const invoke = window.__TAURI_INTERNALS__?.invoke;
+  if (!invoke) throw new Error('Tauri invoke is unavailable');
+  await invoke('crm_set_workspace', { path: ${JSON.stringify(root)} });
+  await invoke('crm_live_upsert', { record: {
+    id: 'household-${id}', kind: 'household', matterId: 'household-${id}', name: 'Loop household', status: 'active'
+  }});
+  await invoke('crm_live_upsert', { record: {
+    id: 'proposal-${id}', kind: 'proposalRecord', matterId: 'firm_home', householdRef: { kind: 'household', id: 'household-${id}', matterId: 'household-${id}' },
+    proposalKind: 'task_create', rationale: 'A real approval for this desktop loop.', state: 'pending',
+    proposedMutation: { kind: 'task_create', task: { title: 'Proposal task', householdRef: { kind: 'household', id: 'household-${id}' }, assigneeUserId: 'loop-user', due: '${stamp}', priority: 'normal', contextRefs: [] } }
+  }});
+})()`);
+
+await waitFor('crm-home-nav-tasks');
+await click('crm-home-nav-tasks');
+await waitFor('crm-task-new');
+await click('crm-task-new');
+await waitFor('crm-task-detail');
+await fill('crm-task-title-input', 'Pay attention today');
+await fill('crm-task-body', 'Saved by the desktop loop.');
+await setSelect('crm-task-household', `household-${id}`);
+await fill('crm-task-assignee', 'loop-user');
+await setSelect('crm-task-priority', 'high');
+await fill('crm-task-due', stamp);
+await setSelect('crm-task-recurrence', 'weekly');
+await click('crm-task-save');
+
+const textAfterCreate = await evaluate('document.body.innerText');
+if (!String(textAfterCreate).includes('Pay attention today')) fail('created task is not in the list');
+
+await click('crm-task-board-view');
+await waitFor('crm-task-board');
+await click('crm-task-save-view-open');
+await fill('crm-task-view-name', 'Loop view');
+await click('crm-task-save-view');
+const afterView = await evaluate('document.body.innerText');
+if (!String(afterView).includes('Loop view')) fail('saved task view did not render');
+
+await click('crm-home-nav-today');
+await waitFor('crm-today-triage');
+const todayText = await evaluate('document.body.innerText');
+if (!String(todayText).includes('Pay attention today')) fail('Today did not compute the due task from the live store');
+
+await click(`crm-approval-approve-proposal-${id}`);
+await waitFor('crm-approval-history');
+const records = await evaluate(`window.__TAURI_INTERNALS__.invoke('crm_live_list')`);
+const task = records.find((record) => record.kind === 'task' && record.title === 'Pay attention today');
+const view = records.find((record) => record.kind === 'savedView' && record.name === 'Loop view');
+const approval = records.find((record) => record.id === 'proposal-${id}');
+const activity = records.filter((record) => record.kind === 'activityEvent');
+if (!task || task.householdRef?.id !== 'household-${id}' || task.recurrence?.freq !== 'weekly') fail('task was not durably stored with its household link and recurrence');
+if (!view || !approval || approval.state !== 'approved' || activity.length === 0) fail('view, approval history, or activity was not durably stored');
+
+console.log('PASS: Tasks, saved view, Today triage, approval history, and activity are durable CRM records.');

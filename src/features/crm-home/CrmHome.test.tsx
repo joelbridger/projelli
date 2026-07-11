@@ -49,7 +49,7 @@ describe('CrmHome', () => {
 
   it('shows sample records only through the visibly labelled preview mode', () => {
     render(<CrmHome preview />);
-    expect(screen.getByTestId('crm-home-preview-label')).toHaveTextContent(/preview sample content only/i);
+    expect(screen.getByTestId('crm-home-preview-label')).toHaveTextContent(/preview mode/i);
     expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(/working offline/i);
   });
 
@@ -60,6 +60,21 @@ describe('CrmHome', () => {
     fireEvent.change(screen.getByTestId('crm-task-title-input'), { target: { value: 'Call client today' } });
     fireEvent.click(screen.getByTestId('crm-task-save'));
     expect(updateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Call client today' }));
+  });
+
+  it('computes Today from supplied records and keeps approval decisions as history', () => {
+    const decideApproval = vi.fn();
+    const today = new Date().toISOString().slice(0, 10);
+    render(<CrmHome adapter={adapter({
+      tasks: [{ id: 'due', title: 'Due now', assigneeUserId: 'advisor', status: 'open', priority: 'high', dueAt: today }],
+      approvals: [{ id: 'proposal-1', title: 'Review proposed task', state: 'pending' }],
+      activity: [{ id: 'activity-1', summary: 'Task created', at: new Date().toISOString() }],
+      actions: { decideApproval },
+    })} />);
+    expect(screen.getByTestId('crm-today-triage')).toHaveTextContent(/1 due or overdue item from 1 open task/i);
+    expect(screen.getByTestId('crm-recent-activity')).toHaveTextContent(/task created/i);
+    fireEvent.click(screen.getByTestId('crm-approval-approve-proposal-1'));
+    expect(decideApproval).toHaveBeenCalledWith(expect.objectContaining({ id: 'proposal-1' }), 'approved');
   });
 
   it('blocks Apply until every concurrent propagation decision is explicitly reviewed', () => {
