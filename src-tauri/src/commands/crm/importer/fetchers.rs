@@ -17,10 +17,9 @@ pub struct RawHttpResponse {
     pub response_bytes: Vec<u8>,
 }
 
-/// IMPORTER-INTEGRATION-PENDING: WealthboxClient needs a narrow raw-GET method
-/// that delegates to its existing shared rate gate and PII-safe status logging.
-/// This lane may not edit that existing client; implementors MUST share the
-/// gate, never create a second per-importer request limiter.
+/// WealthboxClient implements this with its shared rate gate and PII-safe
+/// status logging. Implementors must share that gate, never create a second
+/// per-importer request limiter.
 #[async_trait]
 pub trait RawWealthboxTransport: Send + Sync {
     async fn get_raw(
