@@ -32,7 +32,7 @@ import type {
 import type { OutputSchema, Provider } from '@/platform/providers/Provider';
 import { auditEventToEntry } from '@/platform/audit/AuditService';
 import { resolveEgress, type ConfidentialityMode } from '@/platform/privacy/egress';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
 import { BRAND } from '@/config/brand';
 
@@ -265,28 +265,40 @@ export async function requestRedlineEdits(
   const paragraphs = extractIndexedParagraphs(doc);
   const prompt = buildRedlinePrompt(instruction, paragraphs, selection);
   const model = auditContext.model ?? provider.getMetadata().model;
-  const raw = await runWithEgressAudit<unknown>({
+  const raw = await sendPreparedStructuredWithEgressAudit<unknown>({
     provider,
     providerId: auditContext.providerId,
     model,
+    surface: 'word_redline',
+    prompt,
+    parts: [{
+      id: 'prompt',
+      origin: 'open_file',
+      label: auditContext.fileName,
+      text: prompt,
+    }],
+    options: {
+      schema: REDLINE_SCHEMA,
+      systemPrompt: REDLINE_SYSTEM_PROMPT,
+      temperature: 0,
+      maxTokens: 4096,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    },
     mode: auditContext.mode,
     ...(auditContext.scope !== undefined ? { scope: auditContext.scope } : {}),
     ...(auditContext.isDemo !== undefined ? { isDemo: auditContext.isDemo } : {}),
     ...(auditContext.assuredAvailable !== undefined
       ? { assuredAvailable: auditContext.assuredAvailable }
       : {}),
-    operation: () => {
-      auditContext.onAuditLog?.(buildRedlineEgressAuditEntry({
-        ...auditContext,
-        model,
-      }));
-      return provider.structuredOutput<unknown>(prompt, {
-        schema: REDLINE_SCHEMA,
-        systemPrompt: REDLINE_SYSTEM_PROMPT,
-        temperature: 0,
-        maxTokens: 4096,
-        ...(options?.signal ? { signal: options.signal } : {}),
-      });
+    onAuditLog: (entry) => {
+      if (entry.action === 'egress') {
+        auditContext.onAuditLog?.(buildRedlineEgressAuditEntry({
+          ...auditContext,
+          model,
+        }));
+        return;
+      }
+      auditContext.onAuditLog?.(entry);
     },
   });
   return normalizeEdits(raw);

@@ -19,18 +19,24 @@ function makeProvider(model: string) {
 }
 
 describe('OpenAIProvider.formatAttachmentForRequest (image)', () => {
-  it('returns image_url block with data URL', async () => {
+  it('blocks an image when local OCR text is unavailable', async () => {
     const provider = makeProvider('gpt-4o');
-    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
-    expect(block.type).toBe('image_url');
-    expect(block.image_url.url).toMatch(/^data:image\/png;base64,/);
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES))
+      .rejects.toThrow('unscannable_attachment');
   });
 
-  it('data URL contains correct base64', async () => {
+  it('passes the original image bytes after clean local OCR text', async () => {
     const provider = makeProvider('gpt-4o');
-    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
-    const b64 = block.image_url.url.split(',')[1];
-    expect(atob(b64).charCodeAt(0)).toBe(0x89);
+    const block = await provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'Clean chart title');
+    expect(block).toMatchObject({ type: 'image_url' });
+    expect((block as { image_url: { url: string } }).image_url.url)
+      .toContain('iVBORw==');
+  });
+
+  it('blocks an image when local OCR finds a secret', async () => {
+    const provider = makeProvider('gpt-4o');
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'access_token=image-secret'))
+      .rejects.toThrow('prompt_review_required');
   });
 });
 

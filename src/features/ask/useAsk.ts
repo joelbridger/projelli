@@ -52,7 +52,7 @@ import {
   type ConfidentialityMode,
   type EgressInfo,
 } from '@/platform/privacy/egress';
-import { runWithEgressAudit, sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit, sendPreparedStreamingWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import {
   fileToolsAllowed,
   resolveWorkspaceRetrieval,
@@ -1477,27 +1477,36 @@ export function useAsk({
         });
         try {
           const auditPairId = createAuditPairId('ask');
-          const egressIntent = buildEgressEntry();
-          if (egressIntent) {
-            await mustLogAuditPhase(onAuditLog, egressIntent, 'intent', auditPairId);
-          }
-          const modelCallIntent = buildModelCallEntry(0);
-          if (modelCallIntent) {
-            await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
-          }
+          // Preparation must be the first durable record for this request. If
+          // the advisor cancels or this background-safe gate blocks, there is
+          // no egress intent to record because nothing can leave the device.
+          const preparedAuditLogger: AuditLogSink = (entry) => {
+            if (entry.action !== 'prompt_preparation') return;
+            onAuditLog?.(entry);
+          };
+          const saveDurableIntent = async () => {
+            const egressIntent = buildEgressEntry();
+            if (egressIntent) {
+              await mustLogAuditPhase(onAuditLog, egressIntent, 'intent', auditPairId);
+            }
+            const modelCallIntent = buildModelCallEntry(0);
+            if (modelCallIntent) {
+              await mustLogAuditPhase(onAuditLog, modelCallIntent, 'intent', auditPairId);
+            }
+          };
           if (typeof provider.sendMessageStreaming === 'function') {
-            const sendMessageStreaming = provider.sendMessageStreaming.bind(provider);
             failedStage = 'provider-send';
             providerCallStarted = true;
             resolveEgressForSend();
             const streamResp = await Promise.race([
-              runWithEgressAudit({
+              sendPreparedStreamingWithEgressAudit({
                 provider,
                 providerId: providerAudit.providerId,
                 model: providerAudit.model,
-                operation: () =>
-                  sendMessageStreaming(q, {
-                    systemPrompt,
+                surface: 'ask',
+                prompt: q,
+                options: {
+                  systemPrompt,
                     // lp/localai-patience (round 2) — align the provider's whole-
                     // request timeout with the UI first-token budget for local sends.
                     ...(providerRequestTimeoutMs !== undefined
@@ -1516,8 +1525,15 @@ export function useAsk({
                         prev ? { ...prev, answer: answerText } : prev
                       );
                     },
-                    signal: abort.signal,
-                  }),
+                  signal: abort.signal,
+                },
+                parts: [
+                  { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
+                  { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
+                  { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
+                ],
+                onAuditLog: preparedAuditLogger,
+                beforeEgress: saveDurableIntent,
               }),
               stallPromise,
             ]);
@@ -1532,10 +1548,11 @@ export function useAsk({
             providerCallStarted = true;
             resolveEgressForSend();
             const resp = await Promise.race([
-              sendWithEgressAudit({
+              sendPreparedMessageWithEgressAudit({
                 provider,
                 providerId: providerAudit.providerId,
                 model: providerAudit.model,
+                surface: 'ask',
                 prompt: q,
                 options: {
                   systemPrompt,
@@ -1549,12 +1566,13 @@ export function useAsk({
                 fileToolsEnabled,
                 isDemo: IS_DEMO,
                 hasDemoByokKey: hasDemoByokKey(),
-                modelCall: {
-                  description: `Search question to ${providerAudit.model}`,
-                  inputs: { promptLength: q.length },
-                  outputs: (response) => ({ contentLength: response.content.length }),
-                  metadata: { chatId, askScope },
-                },
+                onAuditLog: preparedAuditLogger,
+                beforeEgress: saveDurableIntent,
+                parts: [
+                  { id: 'prompt', origin: 'typed_question', label: 'Your question', text: q },
+                  { id: 'retrieval', origin: 'retrieval', label: 'Retrieved workspace material', text: workspaceBlock },
+                  { id: 'chat-history', origin: 'chat_history', label: 'Earlier Ask answers', text: historyBlock },
+                ],
               }),
               stallPromise,
             ]);

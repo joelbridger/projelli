@@ -16,18 +16,15 @@ import type {
   Provider,
   ProviderResponse,
   SendOptions,
-  StructuredOutputOptions,
   StreamOptions,
 } from '@/platform/providers/Provider';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
 import type { AuditEntry, AuditScope } from '@/platform/types/audit';
-import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
+import { type ConfidentialityMode } from '@/platform/privacy/egress';
 import {
-  resolveEgress,
-  type ConfidentialityMode,
-} from '@/platform/privacy/egress';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+  sendPreparedMessageWithEgressAudit,
+  sendPreparedStreamingWithEgressAudit,
+} from '@/platform/privacy/promptPreparation';
 import {
   runContradictionAnalysis,
   type RetrieveFn,
@@ -114,6 +111,8 @@ export interface WorkflowAuditOptions {
   getScope?: () => AuditScope;
   assuredAvailable?: boolean;
   isDemo?: boolean;
+  /** Headless runs cannot display a send-review dialog and must stop safely. */
+  background?: boolean;
 }
 
 export interface WorkflowEngineOptions {
@@ -177,7 +176,6 @@ export class WorkflowEngine {
     try {
       community = await this.getCommunityTemplates();
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn(
         '[WorkflowEngine] getCommunityTemplates failed, returning built-ins only:',
         err,
@@ -349,42 +347,6 @@ export class WorkflowEngine {
     });
   }
 
-  private emitEgressAudit(step: WorkflowStep): void {
-    if (!this.audit?.onAuditLog) return;
-    const mode = this.audit.getConfidentialityMode();
-    const model = this.audit.model ?? this.provider.getMetadata().model;
-    const egress = resolveEgress({
-      provider: this.audit.providerId,
-      mode,
-      isDemo: this.audit.isDemo ?? false,
-      assuredAvailable: this.audit.assuredAvailable ?? false,
-    });
-    const entry = auditEventToEntry({
-      type: 'egress',
-      timestamp: new Date().toISOString(),
-      payload: {
-        provider: egress.provider,
-        model,
-        mode,
-        destination: egress.destination,
-        dataLeaves: egress.dataLeaves,
-        ...(this.audit.getScope ? { scope: this.audit.getScope() } : {}),
-      },
-    });
-    this.emitAudit({
-      ...entry,
-      metadata: {
-        ...entry.metadata,
-        feature: 'workflow',
-        workflowId: this.execution?.template.id,
-        workflowName: this.execution?.template.name,
-        runId: this.execution?.runId,
-        stepId: step.id,
-        stepName: step.name,
-      },
-    });
-  }
-
   private emitModelCallAudit(
     step: WorkflowStep,
     callKind: 'generate' | 'review' | 'analyze',
@@ -456,34 +418,31 @@ export class WorkflowEngine {
     prompt: string,
     options?: SendOptions,
   ): Promise<ProviderResponse> {
-    return sendWithEgressAudit({
+    const response = await sendPreparedMessageWithEgressAudit({
       provider: this.provider,
       providerId: this.audit?.providerId ?? this.provider.getMetadata().providerId ?? 'unknown',
       model: this.audit?.model ?? this.provider.getMetadata().model,
       prompt,
       ...(options ? { options } : {}),
+      surface: `workflow_${callKind}`,
+      background: this.audit?.background ?? false,
+      parts: [
+        { id: 'prompt', origin: 'workflow_input', label: `Workflow ${callKind} request`, text: prompt },
+        ...Object.entries(this.execution?.inputs ?? {}).map(([key, value]) => ({
+          id: `workflow-input-${key}`,
+          origin: 'workflow_input' as const,
+          label: `Workflow answer: ${key}`,
+          text: String(value),
+        })),
+      ],
       ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
       ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
-      modelCall: {
-        description: `Workflow ${callKind} step to ${this.audit?.model ?? this.provider.getMetadata().model}`,
-        inputs: { promptLength: prompt.length, stepId: step.id, callKind },
-        outputs: (response) => ({ contentLength: response.content.length }),
-        metadata: {
-          feature: 'workflow',
-          runId: this.execution?.runId,
-          workflowId: this.execution?.template.id,
-          workflowName: this.execution?.template.name,
-          stepId: step.id,
-          stepName: step.name,
-          callKind,
-          provider: this.audit?.providerId,
-          ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
-        },
-      },
     });
+    this.emitModelCallAudit(step, callKind, prompt, response);
+    return response;
   }
 
-  private auditedProvider(step: WorkflowStep, callKind: 'analyze'): Provider {
+  private auditedProvider(step: WorkflowStep): Provider {
     const base = this.provider;
     const sendMessageStreaming = base.sendMessageStreaming?.bind(base);
     const toolCall = base.toolCall?.bind(base);
@@ -496,9 +455,18 @@ export class WorkflowEngine {
       ...(sendMessageStreaming
         ? {
           sendMessageStreaming: async (prompt: string, options: StreamOptions) => {
-            assertLocalOnlyAllowsSend(base.getMetadata().providerId ?? 'unknown');
-            this.emitEgressAudit(step);
-            const response = await sendMessageStreaming(prompt, options);
+            const response = await sendPreparedStreamingWithEgressAudit({
+              provider: base,
+              providerId: this.audit?.providerId ?? base.getMetadata().providerId ?? 'unknown',
+              model: this.audit?.model ?? base.getMetadata().model,
+              prompt,
+              options,
+              surface: 'workflow_streaming',
+              background: this.audit?.background ?? false,
+              parts: [{ id: 'prompt', origin: 'workflow_input', label: 'Workflow streaming request', text: prompt }],
+              ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
+              ...(this.audit?.getScope ? { scope: this.audit.getScope() } : {}),
+            });
             this.emitModelCallAudit(step, 'generate', prompt, response);
             return response;
           },
@@ -510,14 +478,10 @@ export class WorkflowEngine {
             toolCall<T>(tool, params, options),
         }
         : {}),
-      structuredOutput: async <T,>(prompt: string, options: StructuredOutputOptions) => {
-        assertLocalOnlyAllowsSend(base.getMetadata().providerId ?? 'unknown');
-        this.emitEgressAudit(step);
-        // eslint-disable-next-line lantern-egress/no-direct-provider-send -- auditedProvider checks Local-only and writes the workflow egress receipt immediately before this structured call.
-        const response = await base.structuredOutput<T>(prompt, options);
-        this.emitModelCallAudit(step, callKind, prompt, response);
-        return response;
-      },
+      // `runContradictionAnalysis` owns this send through
+      // sendPreparedStructuredWithEgressAudit. Binding preserves the concrete
+      // adapter's receiver without creating a second, unprepared send route.
+      structuredOutput: base.structuredOutput.bind(base),
       formatAttachmentForRequest: (att, bytes) => base.formatAttachmentForRequest(att, bytes),
       supportsAttachment: (att, model) => base.supportsAttachment(att, model),
       ...(supportsNativePdf
@@ -548,7 +512,7 @@ export class WorkflowEngine {
       case 'analyze':
         return this.executeAnalyzeStep(step);
       default:
-        throw new Error(`Unknown step type: ${step.type}`);
+        throw new Error('Unknown workflow step type');
     }
   }
 
@@ -566,7 +530,9 @@ export class WorkflowEngine {
    */
   private async executeGenerateStep(step: WorkflowStep): Promise<Record<string, unknown>> {
     const config = step.config as GenerateStepConfig;
-    const inputs = this.execution!.inputs;
+    const execution = this.execution;
+    if (!execution) throw new Error('No workflow execution is active.');
+    const inputs = execution.inputs;
 
     // Build the prompt from template with current inputs
     const prompt = this.interpolateTemplate(config.promptTemplate, inputs);
@@ -657,13 +623,15 @@ export class WorkflowEngine {
    */
   private async executeReviewStep(step: WorkflowStep): Promise<Record<string, unknown>> {
     const config = step.config as { inputFile: string; reviewPrompt: string };
+    const execution = this.execution;
+    if (!execution) throw new Error('No workflow execution is active.');
 
     // Read the input file
     const content = await this.fileOps.readFile(config.inputFile);
 
     // Build the review prompt
     const prompt = this.interpolateTemplate(config.reviewPrompt, {
-      ...this.execution!.inputs,
+      ...execution.inputs,
       content,
     });
 
@@ -734,7 +702,9 @@ export class WorkflowEngine {
         'Pick your client first.',
       );
     }
-    const inputs = this.execution!.inputs;
+    const execution = this.execution;
+    if (!execution) throw new Error('No workflow execution is active.');
+    const inputs = execution.inputs;
 
     const callStart = Date.now();
     const callId = this.generateCallId();
@@ -742,13 +712,20 @@ export class WorkflowEngine {
     // Grounded, cited analysis. `analyzeKind` selects the pipeline; today the
     // litigation flagship is `'contradictions'`.
     const { result, chunks, retrievalQuery, retrievalUnavailable } = await runContradictionAnalysis({
-      provider: this.auditedProvider(step, 'analyze'),
+      provider: this.auditedProvider(step),
       config,
       inputs,
       scope,
       retrieve: this.analyzeDeps.retrieve,
       verify: this.analyzeDeps.verifyCitation,
       interpolate: (tpl, values) => this.interpolateTemplate(tpl, values),
+      promptPreparation: {
+        ...(this.audit?.providerId ? { providerId: this.audit.providerId } : {}),
+        ...(this.audit?.model ? { model: this.audit.model } : {}),
+        ...(this.audit?.background !== undefined ? { background: this.audit.background } : {}),
+        ...(this.audit?.onAuditLog ? { onAuditLog: this.audit.onAuditLog } : {}),
+        ...(this.audit?.getScope ? { scope: this.audit.getScope() } : { scope }),
+      },
     });
 
     // Render the structured findings to a real Word document. The matter +
@@ -762,10 +739,10 @@ export class WorkflowEngine {
       verificationBanner:
         config.verificationBanner ??
         'Verify every flagged contradiction against the original source before relying on it.',
-      ...(typeof inputs['matterName'] === 'string' ? { matterName: inputs['matterName'] as string } : {}),
-      ...(typeof inputs['witnessName'] === 'string' ? { witnessName: inputs['witnessName'] as string } : {}),
+      ...(typeof inputs['matterName'] === 'string' ? { matterName: inputs['matterName'] } : {}),
+      ...(typeof inputs['witnessName'] === 'string' ? { witnessName: inputs['witnessName'] } : {}),
       ...(typeof inputs['depositionDate'] === 'string'
-        ? { depositionDate: inputs['depositionDate'] as string }
+        ? { depositionDate: inputs['depositionDate'] }
         : {}),
       // VG-3b — the deliverable says what grounded it. Retrieval down but
       // excerpts pasted → analyzed only those, and the header says so. Empty
@@ -842,7 +819,7 @@ export class WorkflowEngine {
       if (value === undefined) {
         return `{{${key}}}`;
       }
-      const stringValue = String(value);
+      const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
       return transform ? transform(stringValue) : stringValue;
     });
   }
@@ -915,14 +892,14 @@ export class WorkflowEngine {
    * Generate a unique run ID
    */
   private generateRunId(): string {
-    return `run_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    return `run_${Date.now().toString()}_${Math.random().toString(36).slice(2, 9)}`;
   }
 
   /**
    * Generate a unique call ID
    */
   private generateCallId(): string {
-    return `call_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+    return `call_${Date.now().toString()}_${Math.random().toString(36).slice(2, 9)}`;
   }
 }
 

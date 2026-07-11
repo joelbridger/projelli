@@ -79,30 +79,12 @@ describe('ClaudeProvider sendMessage with attachmentBytes', () => {
     vi.unstubAllGlobals();
   });
 
-  it('includes image block before text in user message content array', async () => {
+  it('blocks an unscannable image before the cloud request', async () => {
     const provider = new ClaudeProvider({ apiKey: 'test-key', model: 'claude-3-5-sonnet-20241022' });
 
-    await provider.sendMessage('Describe this image.', { attachmentBytes });
-
-    expect(fetchMock).toHaveBeenCalled();
-    const [_url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-
-    // The user message content must be an array (not a plain string)
-    const userMsg = body.messages[0];
-    expect(Array.isArray(userMsg.content)).toBe(true);
-
-    // First block: image
-    const imgBlock = userMsg.content[0];
-    expect(imgBlock.type).toBe('image');
-    expect(imgBlock.source?.type).toBe('base64');
-    expect(imgBlock.source?.media_type).toBe('image/png');
-    expect(imgBlock.source?.data).toBe(PNG_BASE64);
-
-    // Second block: text
-    const txtBlock = userMsg.content[1];
-    expect(txtBlock.type).toBe('text');
-    expect(txtBlock.text).toBe('Describe this image.');
+    await expect(provider.sendMessage('Describe this image.', { attachmentBytes }))
+      .rejects.toThrow('unscannable_attachment');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('falls back to plain string content when no attachmentBytes provided', async () => {
@@ -148,23 +130,14 @@ describe('ClaudeProvider sendMessageStreaming with attachmentBytes', () => {
     vi.unstubAllGlobals();
   });
 
-  it('includes image block before text in user message for streaming', async () => {
+  it('blocks an unscannable image before the streaming cloud request', async () => {
     const provider = new ClaudeProvider({ apiKey: 'test-key', model: 'claude-3-5-sonnet-20241022' });
 
-    await provider.sendMessageStreaming('Describe this image.', {
+    await expect(provider.sendMessageStreaming('Describe this image.', {
       onChunk: () => {},
       attachmentBytes,
-    });
-
-    const [_url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-
-    const userMsg = body.messages[0];
-    expect(Array.isArray(userMsg.content)).toBe(true);
-    expect(userMsg.content[0].type).toBe('image');
-    expect(userMsg.content[0].source?.data).toBe(PNG_BASE64);
-    expect(userMsg.content[1].type).toBe('text');
-    expect(userMsg.content[1].text).toBe('Describe this image.');
+    })).rejects.toThrow('unscannable_attachment');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
@@ -201,26 +174,12 @@ describe('OpenAIProvider sendMessage with attachmentBytes', () => {
     vi.unstubAllGlobals();
   });
 
-  it('includes image_url block before text in user message content array', async () => {
+  it('blocks an unscannable image before the cloud request', async () => {
     const provider = new OpenAIProvider({ apiKey: 'test-key', model: 'gpt-4o' });
 
-    await provider.sendMessage('What do you see?', { attachmentBytes });
-
-    const [_url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-
-    // The user message should be the last in messages (after optional system)
-    const userMsg = body.messages.find((m: { role: string }) => m.role === 'user');
-    expect(userMsg).toBeDefined();
-    expect(Array.isArray(userMsg.content)).toBe(true);
-
-    const imgBlock = userMsg.content.find((b: { type: string }) => b.type === 'image_url');
-    expect(imgBlock).toBeDefined();
-    expect(imgBlock.image_url.url).toBe(`data:image/png;base64,${PNG_BASE64}`);
-
-    const txtBlock = userMsg.content.find((b: { type: string }) => b.type === 'text');
-    expect(txtBlock).toBeDefined();
-    expect(txtBlock.text).toBe('What do you see?');
+    await expect(provider.sendMessage('What do you see?', { attachmentBytes }))
+      .rejects.toThrow('unscannable_attachment');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('falls back to plain string content when no attachmentBytes provided', async () => {
@@ -269,25 +228,12 @@ describe('GeminiProvider sendMessage with attachmentBytes', () => {
     vi.unstubAllGlobals();
   });
 
-  it('includes inlineData part before text part in user content', async () => {
+  it('blocks an unscannable image before the cloud request', async () => {
     const provider = new GeminiProvider({ apiKey: 'test-key', model: 'gemini-1.5-pro' });
 
-    await provider.sendMessage('What is this?', { attachmentBytes });
-
-    const [_url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-
-    const userContent = body.contents.find((c: { role: string }) => c.role === 'user');
-    expect(userContent).toBeDefined();
-
-    const inlinePart = userContent.parts.find((p: { inlineData?: unknown }) => p.inlineData !== undefined);
-    expect(inlinePart).toBeDefined();
-    expect(inlinePart.inlineData.mimeType).toBe('image/png');
-    expect(inlinePart.inlineData.data).toBe(PNG_BASE64);
-
-    const textPart = userContent.parts.find((p: { text?: string }) => p.text !== undefined);
-    expect(textPart).toBeDefined();
-    expect(textPart.text).toBe('What is this?');
+    await expect(provider.sendMessage('What is this?', { attachmentBytes }))
+      .rejects.toThrow('unscannable_attachment');
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

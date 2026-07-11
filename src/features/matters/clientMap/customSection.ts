@@ -5,7 +5,8 @@ import { filterHitsForExportConsent } from '@/platform/rag/exportConsent';
 import { buildResolvedProviderForClientMap } from './provider';
 import { parseItems, itemsFromRaw, aiSectionPrompt } from './aiSection';
 import type { ClientMapSection } from '@/platform/clientMap/types';
-import { sendWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedMessageWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import { modelAuditMetrics } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditEntry } from '@/platform/types/audit';
 
 export interface BuildCustomSectionOptions {
@@ -35,23 +36,26 @@ export async function buildCustomSection(
   };
   if (hits.length === 0) return base;
   const resolved = await buildResolvedProviderForClientMap();
-  const res = await sendWithEgressAudit({
+  const systemPrompt = aiSectionPrompt(title, buildWorkspaceContextBlock(hits));
+  const res = await sendPreparedMessageWithEgressAudit({
     provider: resolved.provider,
     providerId: resolved.providerId,
     model: resolved.model,
     prompt: 'Build this section.',
     options: {
-      systemPrompt: aiSectionPrompt(title, buildWorkspaceContextBlock(hits)),
+      systemPrompt,
       maxTokens: 500,
     },
+    surface: 'client_map_custom_section',
+    parts: [
+      // This is the text actually sent as the user prompt. The custom query
+      // only selects local retrieval results; it is not cloud-bound.
+      { id: 'prompt', origin: 'client_map', label: 'Custom section request', text: 'Build this section.' },
+      { id: 'client-map-context', origin: 'client_map', label: 'Client Map source context', text: systemPrompt },
+    ],
     ...(options?.onAuditLog ? { onAuditLog: options.onAuditLog } : {}),
     scope: { kind: 'matter', matterId },
-    modelCall: {
-      description: `Client Map custom section (${title}) to ${resolved.model}`,
-      inputs: { matterId, sectionId },
-      outputs: (response) => ({ contentLength: response.content.length }),
-      metadata: { feature: 'client_map', step: 'custom_section', sectionId },
-    },
+    modelCall: (response) => ({ action: 'model_call', description: `Client Map custom section (${title}) to ${resolved.model}`, model: resolved.model, inputs: { matterId, sectionId }, outputs: { contentLength: response.content.length }, userDecision: 'auto', metadata: { feature: 'client_map', step: 'custom_section', sectionId }, ...modelAuditMetrics(response), provider: resolved.providerId }),
   });
   return { ...base, items: itemsFromRaw(parseItems(res.content), hits) };
 }

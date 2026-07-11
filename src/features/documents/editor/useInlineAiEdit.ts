@@ -25,7 +25,7 @@ import {
 import { buildEditSystemPrompt } from '@/features/documents/editor/aiEdit/editPrompt';
 import type { DiffHunk, HunkResolution } from '@/features/documents/editor/aiEdit/types';
 import type { Provider } from '@/platform/providers/Provider';
-import { runWithEgressAudit } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStreamingWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import { getVersionService } from '@/features/documents/versioning/VersionService';
 import { useTrialGate } from '@/platform/hooks/useTrial';
 
@@ -195,8 +195,6 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
         // We could show a toast here; for now just abort gracefully.
         return;
       }
-      const sendMessageStreaming = provider.sendMessageStreaming.bind(provider);
-
       const meta = provider.getMetadata();
       const modelId = `${meta.providerId ?? meta.name ?? 'unknown'}/${meta.model}`;
 
@@ -223,18 +221,25 @@ export function useInlineAiEdit(args: UseInlineAiEditArgs): {
       abortRef.current = controller;
 
       try {
-        await runWithEgressAudit({
+        await sendPreparedStreamingWithEgressAudit({
           provider,
           providerId: meta.providerId ?? 'unknown',
           model: meta.model,
-          operation: () =>
-            sendMessageStreaming(instruction, {
-              systemPrompt,
-              signal: controller.signal,
-              onChunk: (chunk) => {
-                setSessionProposed((prev) => prev + chunk);
-              },
-            }),
+          surface: 'inline_text_edit',
+          prompt: instruction,
+          parts: [{
+            id: 'prompt',
+            origin: 'typed_question',
+            label: 'Editing instruction',
+            text: instruction,
+          }],
+          options: {
+            systemPrompt,
+            signal: controller.signal,
+            onChunk: (chunk) => {
+              setSessionProposed((prev) => prev + chunk);
+            },
+          },
         });
       } catch {
         // Silent: the UI still shows whatever streamed up to the abort

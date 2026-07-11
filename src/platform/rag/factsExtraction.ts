@@ -28,7 +28,8 @@ import type {
   Provider,
   StructuredOutputOptions,
 } from '@/platform/providers/Provider';
-import { runWithEgressAudit, type EgressAuditLogger } from '@/platform/privacy/sendWithEgressAudit';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
+import type { EgressAuditLogger } from '@/platform/privacy/sendWithEgressAudit';
 import type { AuditScope } from '@/platform/types/audit';
 
 /** How many messages between checkpoints (both roles counted). */
@@ -198,13 +199,20 @@ export async function runExtraction(
     maxTokens: 512,
   };
   try {
-    const result = await runWithEgressAudit<ExtractionResult>({
+    const result = await sendPreparedStructuredWithEgressAudit<ExtractionResult>({
       provider,
       providerId: audit.providerId,
+      surface: 'fact_extraction',
+      background: true,
+      prompt,
+      options: opts,
+      parts: [
+        { id: 'prompt', origin: 'chat_history', label: 'Recent chat messages', text: prompt },
+        { id: 'system', origin: 'system_prompt', label: 'Fact extraction instructions', text: EXTRACTION_SYSTEM_PROMPT },
+      ],
       ...(audit.model ? { model: audit.model } : {}),
       ...(audit.scope ? { scope: audit.scope } : {}),
       ...(audit.onAuditLog ? { onAuditLog: audit.onAuditLog } : {}),
-      operation: () => provider.structuredOutput<ExtractionResult>(prompt, opts),
       modelCall: (output) => ({
         action: 'model_call',
         description: `Fact extraction to ${audit.model ?? provider.getMetadata().model}`,
