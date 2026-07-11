@@ -109,3 +109,4 @@ blindness, envelope metadata), and completeness (feature matrix vs screens vs da
   then SPEC-FREEZE.md, then the build wave. Coordination protocol with the mainline
   session posted to ~/lantern-coordination/BOARD.md (compile windows; re-read at every
   checkpoint).
+- 2026-07-11 (baseline): first `npm run gate` on the untouched fork = RED with 5 failures, ALL 5s-timeouts (DocxEditor menu test, SourcePanel cache tests, +2), run while ~12 Codex jobs loaded the box. Likely load-induced flakes, NOT confirmed inherited breakage. REQUIRED before build wave: re-run the gate on a quiet machine; only a clean re-run counts as the green baseline. Log: scratchpad crm-baseline-gate.log (session-tmp; re-run if gone).
