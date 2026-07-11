@@ -46,7 +46,9 @@ function htmlFiles(dir: string, acc: string[] = []): string[] {
   for (const e of readdirSync(dir)) {
     const p = path.join(dir, e);
     if (statSync(p).isDirectory()) {
-      if (/(^|\/)(blog|changelog|archive)$/.test(p)) continue; // historical — left by design
+      // Node returns backslashes on Windows, so split on either separator.
+      // These dated pages are historical records, not live buyer-facing copy.
+      if (/(^|[\\/])(blog|changelog|archive)$/.test(p)) continue;
       htmlFiles(p, acc);
     } else if (e.endsWith('.html')) acc.push(p);
   }

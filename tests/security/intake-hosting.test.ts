@@ -34,7 +34,11 @@ const tempDirs: string[] = [];
 const intakePageDist = path.join(repoRoot, 'intake-page', 'dist');
 beforeAll(() => {
   if (!existsSync(path.join(intakePageDist, 'index.html'))) {
-    const result = spawnSync('npm', ['--prefix', path.join(repoRoot, 'intake-page'), 'run', 'build'], {
+    // npm is a .cmd shim on Windows. child_process does not execute that shim
+    // without a shell, so call its Windows name explicitly and keep the test
+    // runnable on every supported host.
+    const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const result = spawnSync(npmCommand, ['--prefix', path.join(repoRoot, 'intake-page'), 'run', 'build'], {
       stdio: 'inherit',
     });
     if (result.status !== 0) {

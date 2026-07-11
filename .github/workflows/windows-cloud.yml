@@ -25,6 +25,9 @@ jobs:
         with:
           node-version: '20'
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            intake-page/package-lock.json
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -52,7 +55,10 @@ jobs:
           Copy-Item $stub src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm --prefix intake-page ci
+          npm --prefix intake-page run build
 
       - name: TypeScript check
         run: npx tsc --noEmit

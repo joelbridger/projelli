@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import path from 'node:path';
 const invokeMock = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invokeMock(...a) }));
 
@@ -120,6 +121,9 @@ describe('meeting store', () => {
 
   it('indexes transcript.json and notes.docx under the meeting matter as soon as the post-stop pipeline writes them (QA-88)', async () => {
     const files = new Map<string, string>();
+    // The production code uses path.join(), so this in-memory test filesystem
+    // must accept the platform separator that join produces.
+    const normalized = (filePath: string) => filePath.replaceAll('\\', '/');
     files.set(
       '/ws/C/Meetings/x/meeting.json',
       JSON.stringify({
@@ -135,17 +139,18 @@ describe('meeting store', () => {
       }),
     );
     const readFile = vi.fn(async (p: string) => {
-      if (!files.has(p)) throw new Error('ENOENT');
-      return files.get(p) as string;
+      const filePath = normalized(p);
+      if (!files.has(filePath)) throw new Error('ENOENT');
+      return files.get(filePath) as string;
     });
     const writeFile = vi.fn(async (p: string, content: string) => {
-      files.set(p, content);
+      files.set(normalized(p), content);
     });
     const writeFileBinary = vi.fn(async () => {});
     setMeetingsWorkspaceService({
       readFile,
       writeFile,
-      exists: vi.fn(async (p: string) => files.has(p)),
+      exists: vi.fn(async (p: string) => files.has(normalized(p))),
       writeFileBinary,
     } as never);
     vi.mocked(meetingNoteFromTranscript.run).mockResolvedValueOnce('- did a thing [t:0]');
@@ -158,9 +163,10 @@ describe('meeting store', () => {
     await s.startRecording('m-1', { consentMode: 'one-party' });
     await useMeetingStore.getState().stopRecording();
 
-    expect(writeFileBinary).toHaveBeenCalledWith('/ws/C/Meetings/x/notes.docx', expect.any(Uint8Array));
-    expect(indexFileMock).toHaveBeenCalledWith('/ws/C/Meetings/x/transcript.json', 'm-1');
-    expect(indexFileMock).toHaveBeenCalledWith('/ws/C/Meetings/x/notes.docx', 'm-1');
+    const meetingDir = '/ws/C/Meetings/x';
+    expect(writeFileBinary).toHaveBeenCalledWith(path.join(meetingDir, 'notes.docx'), expect.any(Uint8Array));
+    expect(indexFileMock).toHaveBeenCalledWith(path.join(meetingDir, 'transcript.json'), 'm-1');
+    expect(indexFileMock).toHaveBeenCalledWith(path.join(meetingDir, 'notes.docx'), 'm-1');
   });
 
   it('extends the Rust-authored meeting.json rather than reconstructing/overwriting matterId/startedAt/consent', async () => {
