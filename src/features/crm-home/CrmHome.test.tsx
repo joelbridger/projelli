@@ -1,47 +1,119 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { CrmHome } from './CrmHome';
+import type { CrmHomeAdapter } from './types';
+
+const migration: CrmHomeAdapter['migration'] = {
+  workflowChecklists: [
+    { id: 'workflow-henderson', clientLabel: 'Henderson household', sourceTemplateLabel: 'Annual review', activityEvidence: ['Activity trace'], availableSteps: ['Prepare review', 'Confirm meeting'], decision: 'pending' },
+    { id: 'workflow-ortiz', clientLabel: 'Ortiz household', sourceTemplateLabel: 'Onboarding', activityEvidence: ['Legacy Project'], availableSteps: ['Open accounts'], decision: 'pending' },
+  ],
+  attachmentAccounting: [
+    { id: 'attachment-henderson', clientLabel: 'Henderson household', status: 'pending' },
+    { id: 'attachment-ortiz', clientLabel: 'Ortiz household', status: 'pending' },
+  ],
+  exports: [
+    { kind: 'archive', status: 'ready', manifestId: 'manifest_001' },
+    { kind: 'rollback', status: 'ready' },
+  ],
+};
+
+function adapter(overrides: Partial<CrmHomeAdapter> = {}): CrmHomeAdapter {
+  const { actions, ...rest } = overrides;
+  return {
+    freshness: { kind: 'live' }, tasks: [], offers: [], migration,
+    actions: {
+      updateTask: () => undefined,
+      applyPropagation: () => undefined,
+      undoPropagation: () => ({ restored: 0, protectedCells: [] }),
+      markNotificationsRead: () => undefined,
+      recordWorkflowChecklist: () => undefined,
+      recordAttachmentAccounting: () => undefined,
+      createExport: () => undefined,
+      retryExport: () => undefined,
+      ...actions,
+    },
+    ...rest,
+  };
+}
 
 describe('CrmHome', () => {
-  it('opens Home on Today and moves to the task board', () => {
+  it('keeps the default Home honest and non-interactive until its data engine is connected', () => {
     render(<CrmHome />);
-    expect(screen.getByTestId('crm-screen-today')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('crm-home-nav-tasks'));
-    fireEvent.click(screen.getByTestId('crm-task-board-view'));
-    expect(screen.getByTestId('crm-task-board')).toBeInTheDocument();
+    expect(screen.getByTestId('crm-home-engine-pending')).toHaveTextContent(/CRM data engine not yet connected/i);
+    expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(/working offline/i);
+    expect(screen.queryByTestId('crm-screen-today')).not.toBeInTheDocument();
   });
 
-  it('saves a direct local task edit from the detail panel', () => {
+  it('shows sample records only through the visibly labelled preview mode', () => {
+    render(<CrmHome preview />);
+    expect(screen.getByTestId('crm-home-preview-label')).toHaveTextContent(/preview sample content only/i);
+    expect(screen.getByTestId('crm-freshness-banner')).toHaveTextContent(/working offline/i);
+  });
+
+  it('saves a direct task edit through the supplied adapter', () => {
     const updateTask = vi.fn();
-    render(<CrmHome adapter={{ freshness: { kind: 'live' }, tasks: [{ id: 't1', title: 'Call client', assigneeUserId: 'maya', assigneeLabel: 'Maya', status: 'open', priority: 'normal' }], offers: [], actions: { updateTask } }} initialRoute="tasks" />);
+    render(<CrmHome adapter={adapter({ tasks: [{ id: 't1', title: 'Call client', assigneeUserId: 'maya', assigneeLabel: 'Maya', status: 'open', priority: 'normal' }], actions: { updateTask } })} initialRoute="tasks" />);
     fireEvent.click(screen.getByTestId('crm-task-open-t1'));
     fireEvent.change(screen.getByTestId('crm-task-title-input'), { target: { value: 'Call client today' } });
     fireEvent.click(screen.getByTestId('crm-task-save'));
     expect(updateTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'Call client today' }));
   });
 
-  it('keeps propagation decisions per instance and blocks bulk approval offline', () => {
+  it('blocks Apply until every concurrent propagation decision is explicitly reviewed', () => {
     const applyPropagation = vi.fn();
-    render(<CrmHome adapter={{ freshness: { kind: 'offline' }, tasks: [], offers: [{ id: 'offer-1', householdLabel: 'Henderson household', revisionLabel: 'Named update', state: 'ready', fields: [{ id: 'field-1', label: 'Due offset', after: '+4 days', accepted: true }] }], actions: { applyPropagation } }} initialRoute="propagation" />);
-    expect(screen.getByTestId('crm-propagation-approve-all')).toBeDisabled();
-    fireEvent.click(screen.getByTestId('crm-propagation-toggle-field-1'));
-    expect(screen.getByTestId('crm-propagation-toggle-field-1')).not.toBeChecked();
-    expect(screen.getByText(/read-only offline/i)).toBeInTheDocument();
+    render(<CrmHome adapter={adapter({ offers: [{ id: 'offer-1', instanceId: 'instance-1', householdLabel: 'Henderson household', revisionLabel: 'Named update', state: 'needs-decision', steps: [{ id: 'step-1', label: 'Confirm transfer', changeKind: 'modify', protectedProgress: { status: 'completed', hasNotes: true, hasCompletion: true, hasOutcome: true, hasAssignmentHistory: true }, decisions: [{ id: 'decision-1', revisionId: 'revision-1', stepId: 'step-1', field: 'due_offset', label: 'Due offset', after: '+4 days', decision: 'review_required', reofferState: 'original' }] }] }], actions: { applyPropagation } })} initialRoute="propagation" />);
+    expect(screen.getByTestId('crm-propagation-apply')).toBeDisabled();
+    expect(screen.getByTestId('crm-propagation-review-required')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('crm-propagation-accept-decision-1'));
+    expect(screen.getByTestId('crm-propagation-apply')).toBeEnabled();
+    fireEvent.click(screen.getByTestId('crm-propagation-apply'));
+    expect(applyPropagation).toHaveBeenCalledWith([{ offerId: 'offer-1', instanceId: 'instance-1', acceptedDecisions: [{ id: 'decision-1', revisionId: 'revision-1', stepId: 'step-1', field: 'due_offset', reofferState: 'original' }] }]);
+    expect(screen.getByTestId('crm-propagation-result')).toHaveTextContent(/progress, notes, assignments, completions, and outcomes were excluded/i);
   });
 
-  it('reports cells that a conditional propagation undo must protect', () => {
-    render(<CrmHome adapter={{ freshness: { kind: 'live' }, tasks: [], offers: [], actions: { undoPropagation: () => ({ restored: 2, protectedCells: ['Henderson due offset — later local edit'] }) } }} initialRoute="propagation" />);
+  it('reports protected propagation cells for both button and keyboard Undo', () => {
+    const undoPropagation = vi.fn(() => ({ restored: 2, protectedCells: ['Henderson due offset — later local edit'] }));
+    render(<CrmHome adapter={adapter({ actions: { undoPropagation } })} initialRoute="propagation" />);
     fireEvent.click(screen.getByTestId('crm-propagation-undo'));
     expect(screen.getByTestId('crm-propagation-undo-report')).toHaveTextContent(/protected cells kept/i);
+    fireEvent.keyDown(window, { key: 'u' });
+    expect(undoPropagation).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId('crm-propagation-undo-report')).toHaveTextContent(/later local edit/i);
   });
 
-  it('keeps both migration fallbacks visible and records local notification read state', () => {
-    render(<CrmHome initialRoute="migration" />);
-    expect(screen.getByTestId('crm-migration-workflow-fallback')).toBeInTheDocument();
-    expect(screen.getByTestId('crm-migration-attachment-fallback')).toBeInTheDocument();
-    fireEvent.click(screen.getByTestId('crm-notifications-button'));
-    fireEvent.click(screen.getByTestId('crm-notifications-read'));
-    expect(screen.getByText(/marked read on this device/i)).toBeInTheDocument();
+  it('requires a complete per-client workflow record and attachment outcome', () => {
+    const recordWorkflowChecklist = vi.fn();
+    const recordAttachmentAccounting = vi.fn();
+    const { rerender } = render(<CrmHome adapter={adapter({ actions: { recordWorkflowChecklist, recordAttachmentAccounting } })} initialRoute="workflow-recreation" />);
+    expect(screen.getAllByTestId(/crm-workflow-checklist-/)).toHaveLength(2);
+    expect(screen.getByTestId('crm-workflow-record-workflow-henderson')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('crm-workflow-evidence-workflow-henderson'));
+    fireEvent.change(screen.getByTestId('crm-workflow-step-workflow-henderson'), { target: { value: 'Prepare review' } });
+    fireEvent.click(screen.getAllByText('Create resulting instance')[0]);
+    fireEvent.change(screen.getByTestId('crm-workflow-instance-workflow-henderson'), { target: { value: 'winst_henderson_review' } });
+    fireEvent.click(screen.getByTestId('crm-workflow-record-workflow-henderson'));
+    expect(recordWorkflowChecklist).toHaveBeenCalledWith(expect.objectContaining({ selectedCurrentStep: 'Prepare review', resultingInstanceLabel: 'winst_henderson_review' }));
+
+    rerender(<CrmHome key="attachments" adapter={adapter({ actions: { recordWorkflowChecklist, recordAttachmentAccounting } })} initialRoute="attachment-accounting" />);
+    expect(screen.getAllByTestId(/^crm-attachment-record-attachment-/)).toHaveLength(2);
+    fireEvent.change(screen.getByTestId('crm-attachment-status-attachment-henderson'), { target: { value: 'exported' } });
+    expect(screen.getByTestId('crm-attachment-record-save-attachment-henderson')).toBeDisabled();
+    fireEvent.change(screen.getByTestId('crm-attachment-source-attachment-henderson'), { target: { value: 'Wealthbox export' } });
+    fireEvent.change(screen.getByTestId('crm-attachment-operator-attachment-henderson'), { target: { value: 'Maya' } });
+    fireEvent.click(screen.getByTestId('crm-attachment-record-save-attachment-henderson'));
+    expect(recordAttachmentAccounting).toHaveBeenCalledWith(expect.objectContaining({ status: 'exported', exportSource: 'Wealthbox export', exportedBy: 'Maya' }));
+  });
+
+  it('renders supplied failed and exported export states with their required evidence', () => {
+    const retryExport = vi.fn();
+    const { rerender } = render(<CrmHome adapter={adapter({ migration: { ...migration, exports: [{ kind: 'archive', status: 'exported', exportedAt: 'Jul 11', manifestId: 'manifest_abc' }, { kind: 'rollback', status: 'failed', failureReason: 'Destination unavailable' }] } })} initialRoute="archive-export" />);
+    expect(screen.getByTestId('crm-exported-status')).toHaveTextContent(/manifest id: manifest_abc/i);
+    rerender(<CrmHome key="failed-rollback" adapter={adapter({ migration: { ...migration, exports: [{ kind: 'archive', status: 'ready' }, { kind: 'rollback', status: 'failed', failureReason: 'Destination unavailable' }] }, actions: { retryExport } })} initialRoute="rollback-export" />);
+    expect(screen.getByRole('alert')).toHaveTextContent(/destination unavailable/i);
+    fireEvent.click(screen.getByTestId('crm-export-retry'));
+    expect(retryExport).toHaveBeenCalledWith('rollback');
+    rerender(<CrmHome key="rollback" adapter={adapter({ migration: { ...migration, exports: [{ kind: 'archive', status: 'ready' }, { kind: 'rollback', status: 'exported', exportedAt: 'Jul 11', reconciliationReportId: 'recon_abc' }] } })} initialRoute="rollback-export" />);
+    expect(screen.getByTestId('crm-exported-status')).toHaveTextContent(/reconciliation report: recon_abc/i);
   });
 });
