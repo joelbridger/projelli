@@ -19,6 +19,8 @@ import { safeJsonParse, redactUrl } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
 import {
   egressFetch,
+  egressFetchStream,
+  getEgressStreamReader,
   OfflineModeBlockedError,
 } from '@/platform/privacy/networkClient';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
@@ -489,7 +491,7 @@ export class GeminiProvider implements Provider {
     });
     let response: Response;
     try {
-      response = await egressFetch(
+      response = await egressFetchStream(
         this.assured ? 'assured-ai' : 'cloud-ai',
         routed.url,
         {
@@ -521,8 +523,10 @@ export class GeminiProvider implements Provider {
       );
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) {
+    let reader: ReadableStreamDefaultReader<Uint8Array>;
+    try {
+      reader = getEgressStreamReader(response);
+    } catch {
       controlled.cleanup();
       throw new Error('No response body');
     }

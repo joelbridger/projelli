@@ -3,6 +3,7 @@ import {
   subscribeToOfflineModeChanges,
   type NetworkPolicyStatus,
 } from '@/platform/privacy/offlineMode';
+import { isTauri } from '@tauri-apps/api/core';
 import {
   getEgressOperation,
   type EgressOperation,
@@ -250,16 +251,113 @@ async function authorizeRedirectDestination(
   assertRegisteredDestination(operation, destination);
 }
 
-/** A fail-closed, near drop-in replacement for an off-device fetch. */
-export async function egressFetch(
+/**
+ * Keep a streaming response's egress registration alive until its body has
+ * finished, been cancelled, or failed. Aborting the registered controller
+ * also errors a pending body read, including transports whose body does not
+ * itself observe the fetch signal after headers have arrived.
+ */
+function guardStreamingResponse(
+  response: Response,
+  active: ActiveEgress
+): Response {
+  if (!response.body) {
+    releaseActiveEgress(active);
+    return response;
+  }
+
+  const sourceReader = response.body.getReader();
+  let released = false;
+  let streamController: ReadableStreamDefaultController<Uint8Array>;
+
+  const release = () => {
+    if (released) return;
+    released = true;
+    active.controller.signal.removeEventListener('abort', abortStream);
+    releaseActiveEgress(active);
+  };
+
+  const abortStream = () => {
+    const reason =
+      active.controller.signal.reason ??
+      new DOMException('The network request was aborted.', 'AbortError');
+    // eslint-disable-next-line lantern-async/no-silent-failure -- the wrapper errors the consumer immediately; this is only best-effort cleanup for the source body.
+    void sourceReader.cancel(reason).catch(() => undefined);
+    streamController.error(reason);
+    release();
+  };
+
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      streamController = controller;
+      if (active.controller.signal.aborted) abortStream();
+      else
+        active.controller.signal.addEventListener('abort', abortStream, {
+          once: true,
+        });
+    },
+    async pull(controller) {
+      if (active.controller.signal.aborted) {
+        abortStream();
+        return;
+      }
+      try {
+        const { done, value } = await sourceReader.read();
+        if (done) {
+          controller.close();
+          release();
+          return;
+        }
+        controller.enqueue(value);
+      } catch (error) {
+        controller.error(error);
+        release();
+      }
+    },
+    async cancel(reason) {
+      try {
+        await sourceReader.cancel(reason);
+      } finally {
+        release();
+      }
+    },
+  });
+
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  });
+}
+
+/**
+ * Get a reader for a response returned by egressFetchStream(). Its body keeps
+ * the original egress registration active until this reader finishes, errors,
+ * or is cancelled.
+ */
+export function getEgressStreamReader(
+  response: Response
+): ReadableStreamDefaultReader<Uint8Array> {
+  const body = response.body;
+  if (!body) throw new Error('No response body');
+  return body.getReader();
+}
+
+async function egressFetchWithPolicy(
   operationId: string,
   input: string | URL,
-  init?: RequestInit
+  init: RequestInit | undefined,
+  keepActiveForBody: boolean
 ): Promise<Response> {
+  // Browser development intentionally has no desktop Offline Mode guarantee.
+  // Keep its historical Vite-proxy and relative-URL behavior exactly intact.
+  if (!isTauri()) return globalThis.fetch(input, init);
+
   const { operation, destination, active } = await authorize(
     operationId,
     input
   );
+  let bodyOwnsActive = false;
   try {
     const transport = await egressFetchTransport();
     let redirectHops = 0;
@@ -278,7 +376,12 @@ export async function egressFetch(
       } as RequestInit & { maxRedirections: number });
       await recheck(operation, requestDestination, active);
 
-      if (!isManualRedirect(response)) return response;
+      if (!isManualRedirect(response)) {
+        if (!keepActiveForBody) return response;
+        const guardedResponse = guardStreamingResponse(response, active);
+        bodyOwnsActive = true;
+        return guardedResponse;
+      }
       const location = response.headers.get('location');
       if (!location) return response;
       if (redirectHops >= MAX_REDIRECT_HOPS) {
@@ -291,8 +394,29 @@ export async function egressFetch(
       redirectHops += 1;
     }
   } finally {
-    releaseActiveEgress(active);
+    if (!bodyOwnsActive) releaseActiveEgress(active);
   }
+}
+
+/** A fail-closed, near drop-in replacement for an off-device fetch. */
+export async function egressFetch(
+  operationId: string,
+  input: string | URL,
+  init?: RequestInit
+): Promise<Response> {
+  return egressFetchWithPolicy(operationId, input, init, false);
+}
+
+/**
+ * A streaming variant of egressFetch. It keeps the same authorization and
+ * cancellation registration alive until the response body is no longer read.
+ */
+export async function egressFetchStream(
+  operationId: string,
+  input: string | URL,
+  init?: RequestInit
+): Promise<Response> {
+  return egressFetchWithPolicy(operationId, input, init, true);
 }
 
 /** A fail-closed replacement for an off-device WebSocket constructor. */
@@ -301,6 +425,11 @@ export async function egressWebSocket(
   url: string | URL,
   protocols?: string | string[]
 ): Promise<WebSocket> {
+  if (!isTauri()) {
+    return protocols === undefined
+      ? new WebSocket(url)
+      : new WebSocket(url, protocols);
+  }
   const { operation, destination, active } = await authorize(operationId, url);
   try {
     await recheck(operation, destination, active);
@@ -333,6 +462,7 @@ export async function assertEgressNavigationAllowed(
   operationId: string,
   url: string | URL
 ): Promise<void> {
+  if (!isTauri()) return;
   const { operation, destination, active } = await authorize(operationId, url);
   try {
     await recheck(operation, destination, active);

@@ -17,7 +17,11 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
-import { egressFetch } from '@/platform/privacy/networkClient';
+import {
+  egressFetch,
+  egressFetchStream,
+  getEgressStreamReader,
+} from '@/platform/privacy/networkClient';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import {
   applyAssuredRoute,
@@ -487,8 +491,10 @@ export class OpenAIProvider implements Provider {
       signal
     );
 
-    const reader = response.body?.getReader();
-    if (!reader) {
+    let reader: ReadableStreamDefaultReader<Uint8Array>;
+    try {
+      reader = getEgressStreamReader(response);
+    } catch {
       controlled.cleanup();
       throw new Error('No response body');
     }
@@ -589,7 +595,7 @@ export class OpenAIProvider implements Provider {
         `${this.baseUrl}/v1/chat/completions`,
         headers
       );
-      const response = await egressFetch(
+      const response = await egressFetchStream(
         this.assured ? 'assured-ai' : 'cloud-ai',
         routed.url,
         {

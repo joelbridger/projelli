@@ -17,7 +17,11 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
-import { egressFetch } from '@/platform/privacy/networkClient';
+import {
+  egressFetch,
+  egressFetchStream,
+  getEgressStreamReader,
+} from '@/platform/privacy/networkClient';
 import {
   applyAssuredRoute,
   type AssuredRoute,
@@ -462,7 +466,7 @@ export class ClaudeProvider implements Provider {
         'anthropic-dangerous-direct-browser-access': 'true',
       }
     );
-    const response = await egressFetch(
+    const response = await egressFetchStream(
       this.assured ? 'assured-ai' : 'cloud-ai',
       routed.url,
       {
@@ -482,8 +486,7 @@ export class ClaudeProvider implements Provider {
       );
     }
 
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error('No response body');
+    const reader = getEgressStreamReader(response);
 
     const decoder = new TextDecoder();
     let fullContent = '';
