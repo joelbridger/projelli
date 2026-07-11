@@ -55,7 +55,7 @@ describe('FirmApiClient v2 relay privacy', () => {
       await client.clearWall(matterHandle, 'user-opaque'),
       await client.publishMatterKeys(matterHandle, { epoch: 1, wrapped: [{ user_id: 'user-opaque', device_id: 'device-opaque', wrapped_key_b64: 'wrapped' }] }),
       await client.fetchMatterKeys(matterHandle, 'device-opaque', 'seat'),
-      await client.allocateStream(matterHandle),
+      await client.allocateStream(matterHandle, 'seat'),
       await client.pushUpdate(streamHandle, 'blob-opaque', 'ciphertext-opaque', 'seat', 1),
       await client.pullUpdates(streamHandle, 0, 'seat'),
       await client.createSyncTicket(streamHandle, 'seat'),

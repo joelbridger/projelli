@@ -264,6 +264,7 @@ export class FirmApiClient {
     return this.request<ListMattersResponse>(FIRM_ENDPOINTS.listMatters, {
       method: 'POST',
       auth: true,
+      body: {},
     });
   }
 
@@ -275,6 +276,7 @@ export class FirmApiClient {
     return this.request<MatterMineResponse>(FIRM_ENDPOINTS.matterMine, {
       method: 'POST',
       auth: true,
+      body: {},
       headers: { 'X-Seat-Token': seatToken },
     });
   }
@@ -305,7 +307,7 @@ export class FirmApiClient {
     const handle = parseMatterHandle(matterHandle);
     return this.request<MatterMembersResponse>(
       FIRM_ENDPOINTS.listMatterMembers.replace(':matter_handle', encodeURIComponent(handle)),
-      { method: 'POST', auth: true },
+      { method: 'POST', auth: true, body: {} },
     );
   }
 
@@ -453,16 +455,17 @@ export class FirmApiClient {
       {
         method: 'POST',
         auth: true,
+        body: {},
         headers: { 'X-Seat-Token': seatToken },
       },
     );
   }
 
   /** Allocate an opaque document stream. The request body is intentionally empty. */
-  allocateStream(matterHandle: MatterHandle): Promise<{ stream_handle: StreamHandle }> {
+  allocateStream(matterHandle: MatterHandle, seatToken: string): Promise<{ stream_handle: StreamHandle }> {
     return this.request<{ stream_handle: StreamHandle }>(
       FIRM_ENDPOINTS.allocateStream.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
-      { method: 'POST', auth: true, body: {} },
+      { method: 'POST', auth: true, body: {}, headers: { 'X-Seat-Token': seatToken } },
     );
   }
 

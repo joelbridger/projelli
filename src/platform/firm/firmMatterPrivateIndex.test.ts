@@ -33,7 +33,7 @@ describe('encrypted FirmMatterPrivateIndex', () => {
     const events: string[] = [];
     const result = await createDocumentStream(
       { allocateStream: () => { events.push('allocate'); return Promise.resolve({ stream_handle: docStream }); } } as never,
-      parseMatterHandle(`mh2_${'M'.repeat(43)}`), doc,
+      parseMatterHandle(`mh2_${'M'.repeat(43)}`), 'seat-token', doc,
       { flush: () => { events.push('encrypted-root-accepted'); return Promise.resolve(); } }, 'local-document-id',
     );
     expect(result).toBe(docStream);

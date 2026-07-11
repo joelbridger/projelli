@@ -13,6 +13,7 @@
 import { config } from "./lib/config.ts";
 import { getStore } from "./lib/db.ts";
 import { json, error, preflight, startRateLimitGc } from "./lib/http.ts";
+import { requestHasForbiddenV2RelayKey } from "./lib/v2Payload.ts";
 import { hashPassword, generateLicenseKey, hmacHash } from "./lib/crypto.ts";
 import { handleLogin, handleRefresh, handleLogout, handleMe } from "./routes/auth.ts";
 import { handleActivate, handleSeatValidate, handleSeatHeartbeat } from "./routes/seats.ts";
@@ -95,7 +96,11 @@ function matchStream(path: string): { handle: string; operation: "updates" | "sy
  * fan-out as production — no logic duplication, no cross-file server-lifecycle
  * coupling.
  */
-export function buildServeOptions(store: Store, hub: FanoutHub) {
+export interface RelayTrafficRecorder {
+  onWebSocketFrame?(frame: unknown): void;
+}
+
+export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayTrafficRecorder) {
   return {
     hostname: config.host,
     port: config.port,
@@ -111,13 +116,27 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       if (method === "OPTIONS") return preflight();
 
       try {
+        // Reject descriptor-shaped relay bodies before a route can authenticate,
+        // validate, log, or store them. Handlers also use strict schemas as a
+        // second lock for unknown fields and normal malformed payloads.
+        if (path.startsWith("/v2/firm/") && await requestHasForbiddenV2RelayKey(req)) {
+          return error("invalid_v2_payload", 400);
+        }
+        if (path.startsWith("/v2/firm/")) {
+          const queryKeys = [...url.searchParams.keys()];
+          const isFlatStreamRoute = /^\/v2\/firm\/streams\/[^/]+\/(updates|sync-ticket)$/.test(path);
+          const allowedQueryKeys = path === "/v2/firm/sync"
+            ? ["ticket"]
+            : (method === "GET" && /^\/v2\/firm\/streams\/[^/]+\/updates$/.test(path) ? ["since"] : []);
+          if ((path === "/v2/firm/sync" || isFlatStreamRoute) && queryKeys.some((key) => !allowedQueryKeys.includes(key))) return error("invalid_v2_query", 400);
+        }
         // --- E2EE sync relay + matter ACL (chunk 2) ---
         // The WebSocket upgrade is handled before normal routing so the relay
         // live fan-out shares the same access gate as the HTTP endpoints.
         if (path === "/v2/firm/matters/mine" && method === "POST") return await handleMatterMine(req, store);
         if (path === "/v2/firm/migration-manifest" && method === "POST") return await handleMigrationManifest(req, store);
         if (path === "/v2/firm/migration-complete" && method === "POST") return await handleMigrationComplete(req, store);
-        if (path === "/v2/firm/matters/list" && method === "POST") return handleListMatters(req, store);
+        if (path === "/v2/firm/matters/list" && method === "POST") return await handleListMatters(req, store);
         if (path === "/v2/firm/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           if ([...url.searchParams.keys()].some((key) => key !== "ticket")) return error("invalid_v2_query", 400);
           const authz = authorizeSyncConnect(req, store);
@@ -131,25 +150,25 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           const stream = sm.handle;
           const matterHandle = store.getMatterHandleForStream(stream);
           if (!matterHandle) return error("stream_not_found", 404);
-          if (sm.operation === "sync-ticket" && method === "POST") return handleSyncTicket(req, store, matterHandle, stream, ip);
+          if (sm.operation === "sync-ticket" && method === "POST") return await handleSyncTicket(req, store, matterHandle, stream, ip);
           if (sm.operation === "updates" && method === "POST") return await handlePushUpdate(req, store, matterHandle, stream, ip, hub);
-          if (sm.operation === "updates" && method === "GET") return handlePullUpdates(req, store, matterHandle, stream, ip);
+          if (sm.operation === "updates" && method === "GET") return await handlePullUpdates(req, store, matterHandle, stream, ip);
         }
         const mm = matchMatter(path);
         if (mm) {
           // HTTP matter administration remains handle-scoped. Live sync uses
           // the fixed /v2/firm/sync ticket route handled above.
           if (mm.rest === "" && method === "POST") return error("invalid_v2_payload", 400);
-          if (mm.rest === "activate" && method === "POST") return handleActivateMatter(req, store, mm.handle);
-          if (mm.rest === "streams" && method === "POST") return handleAllocateStream(req, store, mm.handle);
+          if (mm.rest === "activate" && method === "POST") return await handleActivateMatter(req, store, mm.handle);
+          if (mm.rest === "streams" && method === "POST") return await handleAllocateStream(req, store, mm.handle);
           // Relay: append / catch-up. Push broadcasts via this server's hub.
           // Admin: membership + walls (scoped to :id).
           if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.handle);
           if (mm.rest === "members/remove" && method === "POST") return await handleRemoveMatterMember(req, store, mm.handle);
-          if (mm.rest === "members/list" && method === "POST") return handleListMatterMembers(req, store, mm.handle);
+          if (mm.rest === "members/list" && method === "POST") return await handleListMatterMembers(req, store, mm.handle);
           if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.handle);
           if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.handle);
-          if (mm.rest === "archive" && method === "POST") return handleArchiveMatter(req, store, mm.handle);
+          if (mm.rest === "archive" && method === "POST") return await handleArchiveMatter(req, store, mm.handle);
           // Phase 1: wrapped matter-key distribution.
           if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.handle);
           if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.handle);
@@ -238,13 +257,17 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
     websocket: {
       open(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;
+        const sendFrame = (frame: unknown) => {
+          traffic?.onWebSocketFrame?.(frame);
+          ws.send(JSON.stringify(frame));
+        };
         const sub: Subscriber = {
           id: d.subId,
           user_id: d.userId,
           seat_id: d.seatId,
           send: (frame) => {
             try {
-              ws.send(JSON.stringify(frame));
+              sendFrame(frame);
             } catch {
               /* dead socket; close handler prunes */
             }
@@ -256,8 +279,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         try {
           const backlog = store.getMatterUpdatesSince(d.matterHandle, d.streamHandle, 0, 500);
           const subscribers = hub.subscriberCount(d.matterHandle, d.streamHandle);
-          ws.send(JSON.stringify({ type: "ready", backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterHandle, d.streamHandle), subscribers }));
-          for (const u of backlog) ws.send(JSON.stringify(toUpdateFrame(u)));
+          sendFrame({ type: "ready", backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterHandle, d.streamHandle), subscribers });
+          for (const u of backlog) sendFrame(toUpdateFrame(u));
         } catch {
           /* best-effort backlog */
         }

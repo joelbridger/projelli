@@ -95,11 +95,12 @@ export async function addDocumentStreamToPrivateIndex(
 export async function createDocumentStream(
   client: FirmApiClient,
   matterHandle: MatterHandle,
+  seatToken: string,
   doc: Y.Doc,
   rootSync: RootIndexSync,
   localDocumentId: string,
 ): Promise<StreamHandle> {
-  const { stream_handle } = await client.allocateStream(matterHandle);
+  const { stream_handle } = await client.allocateStream(matterHandle, seatToken);
   const streamHandle = parseStreamHandle(stream_handle);
   await addDocumentStreamToPrivateIndex(doc, rootSync, localDocumentId, streamHandle);
   return streamHandle;
