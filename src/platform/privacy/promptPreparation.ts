@@ -82,6 +82,15 @@ let decisionBroker: PromptDecisionBroker | undefined;
 let pendingReview: { findings: SecretFinding[]; surface: string } | undefined;
 export function setPromptDecisionBroker(broker?: PromptDecisionBroker): void { decisionBroker = broker; }
 export function getPendingPromptReview(): Readonly<typeof pendingReview> { return pendingReview; }
+/**
+ * Test-only cleanup for module state that ordinary callers deliberately cannot
+ * clear. A pending review is normally consumed by the review UI; tests that
+ * intentionally create one must not leave it for another test file.
+ */
+export function resetPromptPreparationStateForTests(): void {
+  decisionBroker = undefined;
+  pendingReview = undefined;
+}
 
 
 const ZERO_WIDTH = /[\u200B-\u200D\uFEFF]/g;

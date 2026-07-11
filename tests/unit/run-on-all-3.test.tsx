@@ -171,8 +171,8 @@ describe('RunOnAllButton (Q15)', () => {
       expect(claude.sendMessage).toHaveBeenCalledTimes(1);
       expect(openai.sendMessage).toHaveBeenCalledTimes(1);
     });
-    expect(claude.sendMessage.mock.calls[0]?.[0]).not.toContain('intake-secret');
-    expect(openai.sendMessage.mock.calls[0]?.[0]).not.toContain('intake-secret');
+    expect(vi.mocked(claude.sendMessage).mock.calls[0]?.[0]).not.toContain('intake-secret');
+    expect(vi.mocked(openai.sendMessage).mock.calls[0]?.[0]).not.toContain('intake-secret');
   });
 
   it('does not fan out when the advisor cancels private-link review', async () => {

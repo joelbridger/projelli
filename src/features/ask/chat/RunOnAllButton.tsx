@@ -145,6 +145,11 @@ export function RunOnAllButton({
           prompt,
           ...(onAuditLog ? { onAuditLog } : {}),
           parts: [{ id: 'prompt', origin: 'typed_question', label: 'Your question', text: prompt }],
+          // Prompt preparation may wait for the advisor's review. Re-check at
+          // the final door after that wait, then tell the shared sender the
+          // equivalent check is complete; cloud adapters still check again.
+          beforeEgress: () => assertLocalOnlyAllowsExternal('Run on all models'),
+          preflightChecked: true,
           modelCall: (modelResponse) => ({
             action: 'model_call',
             description: `Run on all request to ${p.label}`,

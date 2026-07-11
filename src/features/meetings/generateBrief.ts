@@ -14,9 +14,8 @@ import { buildResolvedProviderForGlance } from '@/platform/matter/matterAtAGlanc
 import { matterLabel } from '@/platform/rag/matterResolver';
 import { useMatterStore } from '@/platform/matter/matterStore';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
-import { AuditService, auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress } from '@/platform/privacy/egress';
-import { assertLocalOnlyAllowsSend } from '@/platform/privacy/localOnlyGuard';
+import { AuditService } from '@/platform/audit/AuditService';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import type { Provider } from '@/platform/providers/Provider';
 import type { OutputSchema } from '@/platform/providers/Provider';
@@ -176,48 +175,26 @@ async function generateBriefBullets(
 ): Promise<MeetingBriefBullet[]> {
   if (hits.length === 0) return [];
   const prompt = buildBulletPrompt(event, clientLabel, hits);
-  // codex-review P1/round-4 P2: logged BEFORE the send (matching every other
-  // egress site in this codebase, e.g. DraftFollowUpModal), not only after a
-  // successful response, and with the REAL resolved providerId (not
-  // provider.getMetadata().providerId, which real cloud providers leave
-  // unset) — otherwise a timed-out/malformed-response attempt would be
-  // invisible in the Activity Log, and a successful one would be mislabeled
-  // "unknown" in the confidentiality report.
-  const egress = resolveEgress({
-    provider: providerId,
-    mode: getConfidentialityMode(),
-    isDemo: false,
-    assuredAvailable: false,
-  });
-  onAuditLog(
-    auditEventToEntry({
-      type: 'egress',
-      timestamp: new Date().toISOString(),
-      payload: {
-        provider: egress.provider,
-        model: provider.getMetadata().model,
-        mode: getConfidentialityMode(),
-        destination: egress.destination,
-        dataLeaves: egress.dataLeaves,
-        scope: { kind: 'matter', matterId },
-      },
-    }),
-  );
-  // Re-check the Local-only switch immediately before this second cloud call —
-  // the guarded WorkflowEngine send above is not enough if the mode flipped
-  // mid-generation (review fix: the comment below used to claim this guard
-  // existed when it did not).
-  assertLocalOnlyAllowsSend(providerId);
   try {
-    // eslint-disable-next-line lantern-egress/no-direct-provider-send -- assertLocalOnlyAllowsSend is called above and the custom egress receipt is written before this structured call.
-    const result = await provider.structuredOutput<{ bullets?: unknown }>(prompt, {
-      schema: BULLET_SCHEMA,
-      systemPrompt: BULLET_SYSTEM_PROMPT,
-      temperature: 0,
-      // codex-review P2: without this, cancelling a queued brief after the
-      // markdown step but while this extra call is in flight had no effect —
-      // the request kept running and held the queue regardless.
-      ...(signal !== undefined && { signal }),
+    const result = await sendPreparedStructuredWithEgressAudit<{ bullets?: unknown }>({
+      provider,
+      providerId,
+      model: provider.getMetadata().model,
+      surface: 'meeting_brief_bullets',
+      background: true,
+      prompt,
+      options: {
+        schema: BULLET_SCHEMA,
+        systemPrompt: BULLET_SYSTEM_PROMPT,
+        temperature: 0,
+        ...(signal !== undefined && { signal }),
+      },
+      parts: [
+        { id: 'prompt', origin: 'meeting', label: 'Meeting brief citation request', text: prompt },
+        ...hits.map((hit, index) => ({ id: `retrieval-${String(index)}`, origin: 'retrieval' as const, label: `Retrieved source: ${hit.path}`, text: hit.chunkText })),
+      ],
+      onAuditLog,
+      scope: { kind: 'matter', matterId },
     });
     const rawBullets = Array.isArray(result.bullets) ? result.bullets : [];
     const bullets: MeetingBriefBullet[] = [];
@@ -397,6 +374,7 @@ export async function generateMeetingBrief(
         providerId,
         model: provider.getMetadata().model,
         getConfidentialityMode,
+        background: true,
       },
     }
   );

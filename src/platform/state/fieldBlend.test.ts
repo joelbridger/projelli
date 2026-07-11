@@ -76,11 +76,15 @@ describe('composeFieldBlend — narrative fields, audited sender configured', ()
     expect(send).toHaveBeenCalledTimes(1);
     const call = send.mock.calls[0];
     expect(call).toBeDefined();
-    const prompt: string = typeof call?.[0] === 'string' ? call[0] : '';
+    const request = call?.[0];
+    const prompt = request && typeof request === 'object' && 'prompt' in request
+      ? String(request.prompt)
+      : '';
     expect(prompt).toContain('Merge the new information into the existing text');
     expect(prompt).toContain('Keep every existing fact');
     expect(prompt).toContain('Robert owns a rental property.');
     expect(prompt).toContain('Retiring spring 2027.');
+    expect(request).toMatchObject({ surface: 'crm_field_blend', background: true });
   });
 
   it('does not call the sender for a scalar field', async () => {
