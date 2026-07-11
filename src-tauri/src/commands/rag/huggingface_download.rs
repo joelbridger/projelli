@@ -103,7 +103,13 @@ pub async fn download_missing_files(
         tokio::fs::create_dir_all(target.parent().expect("target parent")).await?;
         let mut output = tokio::fs::File::create(&partial).await?;
         let mut bytes = 0_u64;
-        await_authorized(policy, &grant, async {
+        // `client.get()` follows redirects itself, so `response.url()` (the
+        // actual post-redirect URL) can differ from `url` above. Authorize
+        // the body against the host that actually serves it, not the
+        // originally-requested one — the header-time `grant` is stale here.
+        let body_url = response.url().as_str().to_string();
+        let body_grant = authorize_url(policy, operation, &body_url)?;
+        await_authorized(policy, &body_grant, async {
             let mut body = response.bytes_stream();
             while let Some(chunk) = body.next().await {
                 let chunk = chunk?;

@@ -113,9 +113,16 @@ const GUARD_CALL_NAMES = ['await_authorized', 'send_with_authorized_redirects'];
 const HTTP_COMPLETING_CALL =
   /\.(?:send|text|bytes)\s*\(\s*\)\s*\.await|\.json\s*(?:::\s*<[^>]*>\s*)?\(\s*\)\s*\.await|\.bytes_stream\s*\(\s*\)/g;
 
-/** Strip `//` line comments and `"..."` string literals to a same-length run
- * of spaces so index-based scanning stays aligned with the original source,
- * without matching brackets or call names that only appear in text. */
+// Strip line comments, block comments, and string literals to a same-length
+// run of spaces so index-based scanning stays aligned with the original
+// source, without matching brackets or call names that only appear in text.
+// Block comments matter two ways: left unblanked, a comment spliced between
+// a method name and its opening paren would silently evade the
+// HTTP-completing-call regex (a false negative hiding a real gap), and a
+// cfg(test) attribute written inside a block comment ahead of a real
+// production statement would falsely trigger the inline cfg(test) exemption
+// below (also a false negative) since that pass runs on this function's
+// output and never sees raw comment text once this runs first.
 function blankCommentsAndStrings(source) {
   let out = '';
   let i = 0;
@@ -124,6 +131,13 @@ function blankCommentsAndStrings(source) {
     if (source[i] === '/' && source[i + 1] === '/') {
       const end = source.indexOf('\n', i);
       const stop = end === -1 ? n : end;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+    if (source[i] === '/' && source[i + 1] === '*') {
+      const end = source.indexOf('*/', i + 2);
+      const stop = end === -1 ? n : end + 2;
       out += ' '.repeat(stop - i);
       i = stop;
       continue;

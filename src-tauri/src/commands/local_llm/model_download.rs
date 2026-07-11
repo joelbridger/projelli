@@ -319,7 +319,12 @@ async fn append_download(
     // actually reads from is the one held by the guard.
     match transport {
         DownloadTransport::Guarded(policy) => {
-            let body_grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
+            // `resp.url()` is the actual post-redirect URL — the guarded
+            // client follows redirects itself, so this can differ from
+            // `spec.source_url` (the originally-requested URL). Authorize
+            // and receipt against the host that actually serves the body.
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &body_url)?;
             await_authorized(policy, &body_grant, async {
                 let mut stream = resp.bytes_stream();
                 copy_download_body(
