@@ -1,0 +1,1246 @@
+[
+  {
+    "testid": "app-container",
+    "tag": "div",
+    "text": "Skip to main contentUsing cloud AIDevice: Offline Mode on. I"
+  },
+  {
+    "tag": "a",
+    "text": "Skip to main content"
+  },
+  {
+    "testid": "app-header",
+    "tag": "header",
+    "text": "Using cloud AIDevice: Offline Mode on. Internet connections "
+  },
+  {
+    "testid": "trust-bar",
+    "tag": "div",
+    "text": "Using cloud AIDevice: Offline Mode on. Internet connections "
+  },
+  {
+    "testid": "egress-indicator",
+    "tag": "button",
+    "text": "Using cloud AI"
+  },
+  {
+    "testid": "egress-indicator-label",
+    "tag": "span",
+    "text": "Using cloud AI"
+  },
+  {
+    "testid": "device-connection-status",
+    "tag": "div",
+    "text": "Device: Offline Mode on. Internet connections from Lantern a"
+  },
+  {
+    "tag": "button",
+    "text": "Open Privacy Center"
+  },
+  {
+    "testid": "scheduling-topbar-button",
+    "tag": "button",
+    "text": "Scheduling"
+  },
+  {
+    "testid": "settings-gear",
+    "tag": "button",
+    "text": "Settings"
+  },
+  {
+    "testid": "command-palette-button",
+    "tag": "button",
+    "text": "Command palette (Ctrl+K)"
+  },
+  {
+    "testid": "rag-progress-banner",
+    "tag": "div",
+    "text": "Indexing PDFs: 24 / 4780. Nothing leaves your machine."
+  },
+  {
+    "testid": "rag-pdf-progress",
+    "tag": "span",
+    "text": "Indexing PDFs: 24 / 4780. Nothing leaves your machine."
+  },
+  {
+    "testid": "sidebar",
+    "tag": "div",
+    "text": "Client MapAskWorkflowsClientsAll clientsAbernathy, George & "
+  },
+  {
+    "testid": "spine-nav",
+    "tag": "nav",
+    "text": "Client MapAskWorkflowsClientsAll clientsAbernathy, George & "
+  },
+  {
+    "testid": "spine-nav-matters",
+    "tag": "button",
+    "text": "Client Map"
+  },
+  {
+    "testid": "spine-nav-search",
+    "tag": "button",
+    "text": "Ask"
+  },
+  {
+    "testid": "spine-nav-workflows",
+    "tag": "button",
+    "text": "Workflows"
+  },
+  {
+    "testid": "spine-clients-toggle",
+    "tag": "button",
+    "text": "Clients"
+  },
+  {
+    "testid": "spine-client-search-toggle",
+    "tag": "button",
+    "text": "Find client"
+  },
+  {
+    "testid": "spine-new-client",
+    "tag": "button",
+    "text": "Add"
+  },
+  {
+    "testid": "spine-client-list",
+    "tag": "div",
+    "text": "All clientsAbernathy, George & PamAnderson, Gary & DavidAnde"
+  },
+  {
+    "testid": "spine-all-clients-row",
+    "tag": "button",
+    "text": "All clients"
+  },
+  {
+    "testid": "spine-client-row-matter_04b70db7-7df3-456a-8f4f-abfb94121a17",
+    "tag": "button",
+    "text": "Abernathy, George & Pam"
+  },
+  {
+    "testid": "spine-client-row-matter_39590e6a-a0b7-4e98-a524-a52043d77cda",
+    "tag": "button",
+    "text": "Anderson, Gary & David"
+  },
+  {
+    "testid": "spine-client-row-matter_c8a78554-1268-48a2-95c0-e1858063f056",
+    "tag": "button",
+    "text": "Anderson, Patricia & Gary"
+  },
+  {
+    "testid": "spine-client-row-matter_7a8ec739-556e-4ad0-8268-39797ffb237e",
+    "tag": "button",
+    "text": "Brennan, Patrick & Sheila"
+  },
+  {
+    "testid": "spine-client-row-matter_120b5f45-662e-4ea9-baa8-2712eb382092",
+    "tag": "button",
+    "text": "Caldwell, Jennifer"
+  },
+  {
+    "testid": "spine-client-row-matter_3416b3c6-1090-41a9-9977-cc4e2d0fa35e",
+    "tag": "button",
+    "text": "Caldwell, Nancy & Patricia"
+  },
+  {
+    "testid": "spine-client-row-matter_1cb5663a-1f0d-48ec-a788-c7a47150e8e3",
+    "tag": "button",
+    "text": "Castellano, Vincent"
+  },
+  {
+    "testid": "spine-client-row-matter_2618b5c5-d2d8-4e8f-8291-20d27839162a",
+    "tag": "button",
+    "text": "Delgado, Marco & Renata"
+  },
+  {
+    "testid": "spine-client-row-matter_c098bc0a-e1a0-436c-8ce5-9e321318b95c",
+    "tag": "button",
+    "text": "Diaz, Amy"
+  },
+  {
+    "testid": "spine-client-row-matter_066df5de-080a-41d1-a310-e3913ef5f61c",
+    "tag": "button",
+    "text": "Diaz, Michelle"
+  },
+  {
+    "testid": "spine-client-row-matter_b4ffe7ed-9cf5-4f42-b324-68ab2732bef7",
+    "tag": "button",
+    "text": "Diaz, Sandra"
+  },
+  {
+    "testid": "spine-client-row-matter_9aacac93-c200-408e-9fda-24212a5644fa",
+    "tag": "button",
+    "text": "Donnelly, Margaret"
+  },
+  {
+    "testid": "spine-client-row-matter_6079e6c3-a5c1-4992-8025-5b773deb85d0",
+    "tag": "button",
+    "text": "Ellison, Robert & Margaret"
+  },
+  {
+    "testid": "spine-client-row-matter_4787ddfd-0ce7-449a-98c7-bea15ced6bd4",
+    "tag": "button",
+    "text": "Fitzgerald, Sean & Bridget"
+  },
+  {
+    "testid": "spine-client-row-matter_ae26ad77-6616-41ef-88bd-b424cd64961d",
+    "tag": "button",
+    "text": "Foster, Laura & Emily"
+  },
+  {
+    "testid": "spine-client-row-matter_8bb7d373-be80-497e-a0e1-f5a2979897ee",
+    "tag": "button",
+    "text": "Foster, Ronald & Linda"
+  },
+  {
+    "testid": "spine-client-row-matter_be6d28ad-4710-46c2-82dd-7e7e8a19b9ef",
+    "tag": "button",
+    "text": "Greer, Carol & Anthony"
+  },
+  {
+    "testid": "spine-client-row-matter_7eb844d0-b00c-48a5-8fc4-32ed054f4034",
+    "tag": "button",
+    "text": "Greer, Jason"
+  },
+  {
+    "testid": "spine-client-row-matter_e7cf1446-7ad5-4792-8bc2-efb96c7616cc",
+    "tag": "button",
+    "text": "Greer, Steven"
+  },
+  {
+    "testid": "spine-client-row-matter_038c6dab-6ac8-4266-9e8a-621fc0ad5f8b",
+    "tag": "button",
+    "text": "Halvorsen, Erik & Britt"
+  },
+  {
+    "testid": "spine-client-row-matter_0def0847-2ed2-47cd-b318-6b541b490214",
+    "tag": "button",
+    "text": "Hartmann, Greta"
+  },
+  {
+    "testid": "spine-client-row-matter_3798b8e1-4d6a-40a2-8d29-8299f786c8be",
+    "tag": "button",
+    "text": "Hollings Family"
+  },
+  {
+    "testid": "spine-client-row-matter_e1c1ac36-3cd5-4a9f-86ac-9bd3af0d02e4",
+    "tag": "button",
+    "text": "Iverson, Amy & Patricia"
+  },
+  {
+    "testid": "spine-client-row-matter_c409e6fa-090c-44cb-a2b1-dd06c5c7d824",
+    "tag": "button",
+    "text": "Jennings, Carol"
+  },
+  {
+    "testid": "spine-client-row-matter_853cb504-972d-4633-87de-361c855bd9d7",
+    "tag": "button",
+    "text": "Jennings, Jeffrey & Linda"
+  },
+  {
+    "testid": "spine-client-row-matter_0f9438c6-60d7-42e6-afe8-c7cddd04a56b",
+    "tag": "button",
+    "text": "Jennings, Robert"
+  },
+  {
+    "testid": "spine-client-row-matter_cb19978f-248d-45e3-83fd-1b18cbf716a9",
+    "tag": "button",
+    "text": "Koch, Linda & Paul"
+  },
+  {
+    "testid": "spine-client-row-matter_84d542bc-440f-4ffb-8224-7938033c13a5",
+    "tag": "button",
+    "text": "Koch, Nancy & Nancy"
+  },
+  {
+    "testid": "spine-client-row-matter_39720a75-8f66-44b6-a7e0-a90a629204e1",
+    "tag": "button",
+    "text": "Lambert, Angela"
+  },
+  {
+    "testid": "spine-client-row-matter_460378bc-18a3-457c-830b-195acaab3a37",
+    "tag": "button",
+    "text": "Lambert, Emily & Kevin"
+  },
+  {
+    "testid": "spine-client-row-matter_e303ee42-bd4d-4e16-859f-7004e5a6d9f0",
+    "tag": "button",
+    "text": "Lambert, Jeffrey"
+  },
+  {
+    "testid": "spine-client-row-matter_7632577f-a50f-47c9-964c-4336b86ce431",
+    "tag": "button",
+    "text": "Lambert, Laura & John"
+  },
+  {
+    "testid": "spine-client-row-matter_10c47e9d-c952-4875-b59d-e2c3798f3845",
+    "tag": "button",
+    "text": "Mercer, David & Linda"
+  },
+  {
+    "testid": "spine-client-row-matter_e6f537a7-04e9-4fd0-a463-52276db0c8e4",
+    "tag": "button",
+    "text": "Mercer, Deborah & Ruth"
+  },
+  {
+    "testid": "spine-client-row-matter_fd91a278-52e7-4bd5-9f1f-eb2e326cbbdd",
+    "tag": "button",
+    "text": "Mercer, Mark"
+  },
+  {
+    "testid": "spine-client-row-matter_1266945e-1a96-45f2-96d7-3d436b8ce397",
+    "tag": "button",
+    "text": "Nakamura, David & Susan"
+  },
+  {
+    "testid": "spine-client-row-matter_4541973d-10da-4782-a434-7ed8531f7e80",
+    "tag": "button",
+    "text": "Nguyen, Long & Mai"
+  },
+  {
+    "testid": "spine-client-row-matter_6e613e0a-8715-43d2-8c22-ca5b12d2d70d",
+    "tag": "button",
+    "text": "Novak, Steven & Sharon"
+  },
+  {
+    "testid": "spine-client-row-matter_8c23dc36-af3f-4e83-8a34-e7971c45ffff",
+    "tag": "button",
+    "text": "Okonkwo, Chidi"
+  },
+  {
+    "testid": "spine-client-row-matter_cdb13780-a614-4cb5-989d-fe296cb12080",
+    "tag": "button",
+    "text": "Osborne, Linda & Paul"
+  },
+  {
+    "testid": "spine-client-row-matter_8fed8715-ab5a-4bfb-abde-898a47bd65da",
+    "tag": "button",
+    "text": "Park, Soo-Jin & Min"
+  },
+  {
+    "testid": "spine-client-row-matter_d3f85965-7d3c-4c02-af56-2b25c219f5ae",
+    "tag": "button",
+    "text": "Patel, Priya"
+  },
+  {
+    "testid": "spine-client-row-matter_65e8ad54-89a3-4fe2-a9e6-c0edaf6cfefd",
+    "tag": "button",
+    "text": "Pruitt, Edward & Patricia"
+  },
+  {
+    "testid": "spine-client-row-matter_ce6af613-c5ea-4e20-8a65-4697c069626b",
+    "tag": "button",
+    "text": "Pruitt, George & James"
+  },
+  {
+    "testid": "spine-client-row-matter_396a3897-0b92-4330-ad61-1996badcee6b",
+    "tag": "button",
+    "text": "Pruitt, Jeffrey & Kimberly"
+  },
+  {
+    "testid": "spine-client-row-matter_1943d865-1d70-45ec-8f32-916563847357",
+    "tag": "button",
+    "text": "Pruitt, Michelle & Gary"
+  },
+  {
+    "testid": "spine-client-row-matter_ba4a4fb4-1bda-4086-bed0-672e3d820c05",
+    "tag": "button",
+    "text": "Quinn, Angela"
+  },
+  {
+    "testid": "spine-client-row-matter_86ec66ab-d0b8-4d63-925a-d78c97d26e0b",
+    "tag": "button",
+    "text": "Quinn, George & Carol"
+  },
+  {
+    "testid": "spine-client-row-matter_574353b6-f356-4b6c-a7aa-4abecbf74fba",
+    "tag": "button",
+    "text": "Quinn, Patricia & Kevin"
+  },
+  {
+    "testid": "spine-client-row-matter_857ac225-5594-4fab-8126-98887ee0d4eb",
+    "tag": "button",
+    "text": "Reardon, Carol & David"
+  },
+  {
+    "testid": "spine-client-row-matter_5a782fc6-841c-4c53-a86e-61c975f87128",
+    "tag": "button",
+    "text": "Reardon, Jason & Linda"
+  },
+  {
+    "testid": "spine-client-row-matter_a3cc9799-11b0-4ba6-89a0-f11d739d4b70",
+    "tag": "button",
+    "text": "Reardon, Jeffrey & Emily"
+  },
+  {
+    "testid": "spine-client-row-matter_808586c2-7d30-4dcd-b52e-a64421d5bf0b",
+    "tag": "button",
+    "text": "Reardon, Laura & Kimberly"
+  },
+  {
+    "testid": "spine-client-row-matter_f19c205d-6c9c-496e-ac6b-cc720635e61b",
+    "tag": "button",
+    "text": "Schwartz, Daniel"
+  },
+  {
+    "testid": "spine-client-row-matter_93c21ca8-dc29-4868-ac8a-4525d8732601",
+    "tag": "button",
+    "text": "Sutton, Amy & Kevin"
+  },
+  {
+    "testid": "spine-client-row-matter_a93a8e2d-3e6c-43a8-b686-6d23dbb4f4e3",
+    "tag": "button",
+    "text": "Sutton, Brian & Angela"
+  },
+  {
+    "testid": "spine-client-row-matter_e6cdb180-b385-48aa-b473-0d9b964cf827",
+    "tag": "button",
+    "text": "Sutton, John & Linda"
+  },
+  {
+    "testid": "spine-client-row-matter_f5c90d47-9f25-46ac-9b9c-208eed755f64",
+    "tag": "button",
+    "text": "Sutton, Karen & Ronald"
+  },
+  {
+    "testid": "spine-client-row-matter_2ed88d7f-cec2-4fad-bb4f-b0b6873d9abc",
+    "tag": "button",
+    "text": "Sutton, Linda & Brian"
+  },
+  {
+    "testid": "spine-client-row-matter_df83e040-459e-4b1d-a702-bcf195a30b86",
+    "tag": "button",
+    "text": "Sutton, Mark & George"
+  },
+  {
+    "testid": "spine-client-row-matter_0fa16514-027f-4b17-aef6-745fffd97a0b",
+    "tag": "button",
+    "text": "Trent, Linda"
+  },
+  {
+    "testid": "spine-client-row-matter_c8a70e59-6375-4abf-b26b-3746f225cc66",
+    "tag": "button",
+    "text": "Trent, Steven"
+  },
+  {
+    "testid": "spine-client-row-matter_96ddead8-6caf-4198-908d-013fa55a3a1d",
+    "tag": "button",
+    "text": "Underwood, Anthony"
+  },
+  {
+    "testid": "spine-client-row-matter_1e35e357-902b-4942-8b01-140fdf37e71c",
+    "tag": "button",
+    "text": "Underwood, Daniel & Emily"
+  },
+  {
+    "testid": "spine-client-row-matter_c59c9231-e1a9-47d1-9863-0e66897228e1",
+    "tag": "button",
+    "text": "Underwood, Donna & Karen"
+  },
+  {
+    "testid": "spine-client-row-matter_4ac350a2-b4cb-4c6c-a0c8-d3a948b105aa",
+    "tag": "button",
+    "text": "Underwood, Laura & Emily"
+  },
+  {
+    "testid": "spine-client-row-matter_e193f910-a918-41d3-8edc-25a9442123b0",
+    "tag": "button",
+    "text": "Vargas, Jennifer"
+  },
+  {
+    "testid": "spine-client-row-matter_3674ce7f-02d6-4b44-9a40-eac234fed97b",
+    "tag": "button",
+    "text": "Vargas, Ronald & Sharon"
+  },
+  {
+    "testid": "spine-client-row-matter_6d781810-9f81-43d1-ae70-d8ff4369ef3a",
+    "tag": "button",
+    "text": "Vargas, Sandra"
+  },
+  {
+    "testid": "spine-client-row-matter_fec2185c-f57f-41c9-94c4-5436f160241f",
+    "tag": "button",
+    "text": "Vasquez, Eduardo & Lucia"
+  },
+  {
+    "testid": "spine-client-row-matter_0e082c93-502e-4c58-a9c7-93e1becefbbd",
+    "tag": "button",
+    "text": "Voss, Eleanor"
+  },
+  {
+    "testid": "spine-client-row-matter_ac7c363c-817c-4a90-865b-11fde380c050",
+    "tag": "button",
+    "text": "Webb, Marcus & Tanya"
+  },
+  {
+    "testid": "spine-client-row-matter_66b25a68-adbd-4ea9-af2a-e32ffa9d7b63",
+    "tag": "button",
+    "text": "Whitfield, Carolyn"
+  },
+  {
+    "testid": "spine-client-row-matter_6d919212-afc5-45a4-93a9-112597dc4b80",
+    "tag": "button",
+    "text": "Whitman, Angela & Jason"
+  },
+  {
+    "testid": "spine-client-row-matter_26aa7e80-597b-4d7c-97f8-98be08ba5b20",
+    "tag": "button",
+    "text": "Whitman, Linda & John"
+  },
+  {
+    "testid": "spine-client-row-matter_1694af2a-98f8-4171-be95-d226fdc721fb",
+    "tag": "button",
+    "text": "Whitman, Nancy"
+  },
+  {
+    "testid": "spine-client-row-matter_70ee9051-ef21-40ad-b110-f79876bea219",
+    "tag": "button",
+    "text": "Whitman, Robert & Carol"
+  },
+  {
+    "testid": "spine-client-row-matter_fe24bef4-975d-4372-b6f7-cef4b981ff96",
+    "tag": "button",
+    "text": "York, Gary & Deborah"
+  },
+  {
+    "testid": "spine-client-row-matter_b5dcd900-56b0-46db-b3f8-3a6febefea03",
+    "tag": "button",
+    "text": "York, Michael & James"
+  },
+  {
+    "testid": "spine-client-row-matter_94967b2e-0015-4b32-851b-b5b4c56ba115",
+    "tag": "button",
+    "text": "Zimmerman, Paul & Carol"
+  },
+  {
+    "testid": "spine-client-row-matter_9d304b34-be4a-45af-b8f9-752a679a7403",
+    "tag": "button",
+    "text": "W1 Bench Sarah Plainclient 20260710T141825Z"
+  },
+  {
+    "testid": "spine-client-row-matter_507fb766-8c4d-40d7-ad7a-3e909797cf1f",
+    "tag": "button",
+    "text": "W1 Bench Sarah Plainclient v2 20260710T141825Z"
+  },
+  {
+    "testid": "spine-client-row-matter_672ca524-b1fb-4fe0-839c-ec9b1b0281e6",
+    "tag": "button",
+    "text": "W1 Reverify Client 20260710T174041Z"
+  },
+  {
+    "testid": "spine-client-row-matter_ee1737ee-a2e7-4730-ac41-65714d8242f9",
+    "tag": "button",
+    "text": "W1 Reverify Client v2 20260710T174041Z"
+  },
+  {
+    "testid": "spine-client-row-matter_sample_garcia_v_meridian",
+    "tag": "button",
+    "text": "The Hendricks Household"
+  },
+  {
+    "testid": "spine-client-row-matter_de153997-7a6c-4788-bc0e-f3ff9d12f2ca",
+    "tag": "button",
+    "text": "INTAKE BENCH 20260711T033532Z"
+  },
+  {
+    "testid": "spine-client-row-matter_8223d0f9-368a-4212-98ac-c2310de3302a",
+    "tag": "button",
+    "text": "INTAKE OTHER 20260711T033532Z"
+  },
+  {
+    "testid": "spine-client-row-matter_601ef0e8-1cd6-46d4-8f68-02d60c31a3ab",
+    "tag": "button",
+    "text": "INTAKE"
+  },
+  {
+    "testid": "account-identity",
+    "tag": "button",
+    "text": "YAYour account"
+  },
+  {
+    "tag": "button",
+    "text": "Collapse sidebar"
+  },
+  {
+    "testid": "matters-home-scroll",
+    "tag": "div",
+    "text": "ClientsNew clientClientCreatedAbernathy, George & PamJul 9, "
+  },
+  {
+    "tag": "button",
+    "text": "New client"
+  },
+  {
+    "testid": "matters-search-input",
+    "tag": "input",
+    "text": "Search clients"
+  },
+  {
+    "tag": "button",
+    "text": "Client"
+  },
+  {
+    "tag": "button",
+    "text": "Created"
+  },
+  {
+    "testid": "matter-row-shell-matter_04b70db7-7df3-456a-8f4f-abfb94121a17",
+    "tag": "div",
+    "text": "Abernathy, George & PamJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_04b70db7-7df3-456a-8f4f-abfb94121a17",
+    "tag": "button",
+    "text": "Abernathy, George & Pam"
+  },
+  {
+    "testid": "matter-quick-actions-matter_04b70db7-7df3-456a-8f4f-abfb94121a17",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_04b70db7-7df3-456a-8f4f-abfb94121a17",
+    "tag": "button",
+    "text": "More actions for Abernathy, George & Pam"
+  },
+  {
+    "testid": "matter-row-shell-matter_39590e6a-a0b7-4e98-a524-a52043d77cda",
+    "tag": "div",
+    "text": "Anderson, Gary & DavidJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_39590e6a-a0b7-4e98-a524-a52043d77cda",
+    "tag": "button",
+    "text": "Anderson, Gary & David"
+  },
+  {
+    "testid": "matter-quick-actions-matter_39590e6a-a0b7-4e98-a524-a52043d77cda",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_39590e6a-a0b7-4e98-a524-a52043d77cda",
+    "tag": "button",
+    "text": "More actions for Anderson, Gary & David"
+  },
+  {
+    "testid": "matter-row-shell-matter_c8a78554-1268-48a2-95c0-e1858063f056",
+    "tag": "div",
+    "text": "Anderson, Patricia & GaryJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_c8a78554-1268-48a2-95c0-e1858063f056",
+    "tag": "button",
+    "text": "Anderson, Patricia & Gary"
+  },
+  {
+    "testid": "matter-quick-actions-matter_c8a78554-1268-48a2-95c0-e1858063f056",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_c8a78554-1268-48a2-95c0-e1858063f056",
+    "tag": "button",
+    "text": "More actions for Anderson, Patricia & Gary"
+  },
+  {
+    "testid": "matter-row-shell-matter_7a8ec739-556e-4ad0-8268-39797ffb237e",
+    "tag": "div",
+    "text": "Brennan, Patrick & SheilaJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_7a8ec739-556e-4ad0-8268-39797ffb237e",
+    "tag": "button",
+    "text": "Brennan, Patrick & Sheila"
+  },
+  {
+    "testid": "matter-quick-actions-matter_7a8ec739-556e-4ad0-8268-39797ffb237e",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_7a8ec739-556e-4ad0-8268-39797ffb237e",
+    "tag": "button",
+    "text": "More actions for Brennan, Patrick & Sheila"
+  },
+  {
+    "testid": "matter-row-shell-matter_120b5f45-662e-4ea9-baa8-2712eb382092",
+    "tag": "div",
+    "text": "Caldwell, JenniferJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_120b5f45-662e-4ea9-baa8-2712eb382092",
+    "tag": "button",
+    "text": "Caldwell, Jennifer"
+  },
+  {
+    "testid": "matter-quick-actions-matter_120b5f45-662e-4ea9-baa8-2712eb382092",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_120b5f45-662e-4ea9-baa8-2712eb382092",
+    "tag": "button",
+    "text": "More actions for Caldwell, Jennifer"
+  },
+  {
+    "testid": "matter-row-shell-matter_3416b3c6-1090-41a9-9977-cc4e2d0fa35e",
+    "tag": "div",
+    "text": "Caldwell, Nancy & PatriciaJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_3416b3c6-1090-41a9-9977-cc4e2d0fa35e",
+    "tag": "button",
+    "text": "Caldwell, Nancy & Patricia"
+  },
+  {
+    "testid": "matter-quick-actions-matter_3416b3c6-1090-41a9-9977-cc4e2d0fa35e",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_3416b3c6-1090-41a9-9977-cc4e2d0fa35e",
+    "tag": "button",
+    "text": "More actions for Caldwell, Nancy & Patricia"
+  },
+  {
+    "testid": "matter-row-shell-matter_1cb5663a-1f0d-48ec-a788-c7a47150e8e3",
+    "tag": "div",
+    "text": "Castellano, VincentJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_1cb5663a-1f0d-48ec-a788-c7a47150e8e3",
+    "tag": "button",
+    "text": "Castellano, Vincent"
+  },
+  {
+    "testid": "matter-quick-actions-matter_1cb5663a-1f0d-48ec-a788-c7a47150e8e3",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_1cb5663a-1f0d-48ec-a788-c7a47150e8e3",
+    "tag": "button",
+    "text": "More actions for Castellano, Vincent"
+  },
+  {
+    "testid": "matter-row-shell-matter_2618b5c5-d2d8-4e8f-8291-20d27839162a",
+    "tag": "div",
+    "text": "Delgado, Marco & RenataJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_2618b5c5-d2d8-4e8f-8291-20d27839162a",
+    "tag": "button",
+    "text": "Delgado, Marco & Renata"
+  },
+  {
+    "testid": "matter-quick-actions-matter_2618b5c5-d2d8-4e8f-8291-20d27839162a",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_2618b5c5-d2d8-4e8f-8291-20d27839162a",
+    "tag": "button",
+    "text": "More actions for Delgado, Marco & Renata"
+  },
+  {
+    "testid": "matter-row-shell-matter_c098bc0a-e1a0-436c-8ce5-9e321318b95c",
+    "tag": "div",
+    "text": "Diaz, AmyJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_c098bc0a-e1a0-436c-8ce5-9e321318b95c",
+    "tag": "button",
+    "text": "Diaz, Amy"
+  },
+  {
+    "testid": "matter-quick-actions-matter_c098bc0a-e1a0-436c-8ce5-9e321318b95c",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_c098bc0a-e1a0-436c-8ce5-9e321318b95c",
+    "tag": "button",
+    "text": "More actions for Diaz, Amy"
+  },
+  {
+    "testid": "matter-row-shell-matter_066df5de-080a-41d1-a310-e3913ef5f61c",
+    "tag": "div",
+    "text": "Diaz, MichelleJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_066df5de-080a-41d1-a310-e3913ef5f61c",
+    "tag": "button",
+    "text": "Diaz, Michelle"
+  },
+  {
+    "testid": "matter-quick-actions-matter_066df5de-080a-41d1-a310-e3913ef5f61c",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_066df5de-080a-41d1-a310-e3913ef5f61c",
+    "tag": "button",
+    "text": "More actions for Diaz, Michelle"
+  },
+  {
+    "testid": "matter-row-shell-matter_b4ffe7ed-9cf5-4f42-b324-68ab2732bef7",
+    "tag": "div",
+    "text": "Diaz, SandraJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_b4ffe7ed-9cf5-4f42-b324-68ab2732bef7",
+    "tag": "button",
+    "text": "Diaz, Sandra"
+  },
+  {
+    "testid": "matter-quick-actions-matter_b4ffe7ed-9cf5-4f42-b324-68ab2732bef7",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_b4ffe7ed-9cf5-4f42-b324-68ab2732bef7",
+    "tag": "button",
+    "text": "More actions for Diaz, Sandra"
+  },
+  {
+    "testid": "matter-row-shell-matter_9aacac93-c200-408e-9fda-24212a5644fa",
+    "tag": "div",
+    "text": "Donnelly, MargaretJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_9aacac93-c200-408e-9fda-24212a5644fa",
+    "tag": "button",
+    "text": "Donnelly, Margaret"
+  },
+  {
+    "testid": "matter-quick-actions-matter_9aacac93-c200-408e-9fda-24212a5644fa",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_9aacac93-c200-408e-9fda-24212a5644fa",
+    "tag": "button",
+    "text": "More actions for Donnelly, Margaret"
+  },
+  {
+    "testid": "matter-row-shell-matter_6079e6c3-a5c1-4992-8025-5b773deb85d0",
+    "tag": "div",
+    "text": "Ellison, Robert & MargaretJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_6079e6c3-a5c1-4992-8025-5b773deb85d0",
+    "tag": "button",
+    "text": "Ellison, Robert & Margaret"
+  },
+  {
+    "testid": "matter-quick-actions-matter_6079e6c3-a5c1-4992-8025-5b773deb85d0",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_6079e6c3-a5c1-4992-8025-5b773deb85d0",
+    "tag": "button",
+    "text": "More actions for Ellison, Robert & Margaret"
+  },
+  {
+    "testid": "matter-row-shell-matter_4787ddfd-0ce7-449a-98c7-bea15ced6bd4",
+    "tag": "div",
+    "text": "Fitzgerald, Sean & BridgetJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_4787ddfd-0ce7-449a-98c7-bea15ced6bd4",
+    "tag": "button",
+    "text": "Fitzgerald, Sean & Bridget"
+  },
+  {
+    "testid": "matter-quick-actions-matter_4787ddfd-0ce7-449a-98c7-bea15ced6bd4",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_4787ddfd-0ce7-449a-98c7-bea15ced6bd4",
+    "tag": "button",
+    "text": "More actions for Fitzgerald, Sean & Bridget"
+  },
+  {
+    "testid": "matter-row-shell-matter_ae26ad77-6616-41ef-88bd-b424cd64961d",
+    "tag": "div",
+    "text": "Foster, Laura & EmilyJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_ae26ad77-6616-41ef-88bd-b424cd64961d",
+    "tag": "button",
+    "text": "Foster, Laura & Emily"
+  },
+  {
+    "testid": "matter-quick-actions-matter_ae26ad77-6616-41ef-88bd-b424cd64961d",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_ae26ad77-6616-41ef-88bd-b424cd64961d",
+    "tag": "button",
+    "text": "More actions for Foster, Laura & Emily"
+  },
+  {
+    "testid": "matter-row-shell-matter_8bb7d373-be80-497e-a0e1-f5a2979897ee",
+    "tag": "div",
+    "text": "Foster, Ronald & LindaJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_8bb7d373-be80-497e-a0e1-f5a2979897ee",
+    "tag": "button",
+    "text": "Foster, Ronald & Linda"
+  },
+  {
+    "testid": "matter-quick-actions-matter_8bb7d373-be80-497e-a0e1-f5a2979897ee",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_8bb7d373-be80-497e-a0e1-f5a2979897ee",
+    "tag": "button",
+    "text": "More actions for Foster, Ronald & Linda"
+  },
+  {
+    "testid": "matter-row-shell-matter_be6d28ad-4710-46c2-82dd-7e7e8a19b9ef",
+    "tag": "div",
+    "text": "Greer, Carol & AnthonyJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_be6d28ad-4710-46c2-82dd-7e7e8a19b9ef",
+    "tag": "button",
+    "text": "Greer, Carol & Anthony"
+  },
+  {
+    "testid": "matter-quick-actions-matter_be6d28ad-4710-46c2-82dd-7e7e8a19b9ef",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_be6d28ad-4710-46c2-82dd-7e7e8a19b9ef",
+    "tag": "button",
+    "text": "More actions for Greer, Carol & Anthony"
+  },
+  {
+    "testid": "matter-row-shell-matter_7eb844d0-b00c-48a5-8fc4-32ed054f4034",
+    "tag": "div",
+    "text": "Greer, JasonJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_7eb844d0-b00c-48a5-8fc4-32ed054f4034",
+    "tag": "button",
+    "text": "Greer, Jason"
+  },
+  {
+    "testid": "matter-quick-actions-matter_7eb844d0-b00c-48a5-8fc4-32ed054f4034",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_7eb844d0-b00c-48a5-8fc4-32ed054f4034",
+    "tag": "button",
+    "text": "More actions for Greer, Jason"
+  },
+  {
+    "testid": "matter-row-shell-matter_e7cf1446-7ad5-4792-8bc2-efb96c7616cc",
+    "tag": "div",
+    "text": "Greer, StevenJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_e7cf1446-7ad5-4792-8bc2-efb96c7616cc",
+    "tag": "button",
+    "text": "Greer, Steven"
+  },
+  {
+    "testid": "matter-quick-actions-matter_e7cf1446-7ad5-4792-8bc2-efb96c7616cc",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_e7cf1446-7ad5-4792-8bc2-efb96c7616cc",
+    "tag": "button",
+    "text": "More actions for Greer, Steven"
+  },
+  {
+    "testid": "matter-row-shell-matter_038c6dab-6ac8-4266-9e8a-621fc0ad5f8b",
+    "tag": "div",
+    "text": "Halvorsen, Erik & BrittJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_038c6dab-6ac8-4266-9e8a-621fc0ad5f8b",
+    "tag": "button",
+    "text": "Halvorsen, Erik & Britt"
+  },
+  {
+    "testid": "matter-quick-actions-matter_038c6dab-6ac8-4266-9e8a-621fc0ad5f8b",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_038c6dab-6ac8-4266-9e8a-621fc0ad5f8b",
+    "tag": "button",
+    "text": "More actions for Halvorsen, Erik & Britt"
+  },
+  {
+    "testid": "matter-row-shell-matter_0def0847-2ed2-47cd-b318-6b541b490214",
+    "tag": "div",
+    "text": "Hartmann, GretaJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_0def0847-2ed2-47cd-b318-6b541b490214",
+    "tag": "button",
+    "text": "Hartmann, Greta"
+  },
+  {
+    "testid": "matter-quick-actions-matter_0def0847-2ed2-47cd-b318-6b541b490214",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_0def0847-2ed2-47cd-b318-6b541b490214",
+    "tag": "button",
+    "text": "More actions for Hartmann, Greta"
+  },
+  {
+    "testid": "matter-row-shell-matter_3798b8e1-4d6a-40a2-8d29-8299f786c8be",
+    "tag": "div",
+    "text": "Hollings FamilyJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_3798b8e1-4d6a-40a2-8d29-8299f786c8be",
+    "tag": "button",
+    "text": "Hollings Family"
+  },
+  {
+    "testid": "matter-quick-actions-matter_3798b8e1-4d6a-40a2-8d29-8299f786c8be",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_3798b8e1-4d6a-40a2-8d29-8299f786c8be",
+    "tag": "button",
+    "text": "More actions for Hollings Family"
+  },
+  {
+    "testid": "matter-row-shell-matter_601ef0e8-1cd6-46d4-8f68-02d60c31a3ab",
+    "tag": "div",
+    "text": "INTAKEJul 11, 2026"
+  },
+  {
+    "testid": "matter-row-matter_601ef0e8-1cd6-46d4-8f68-02d60c31a3ab",
+    "tag": "button",
+    "text": "INTAKE"
+  },
+  {
+    "testid": "matter-quick-actions-matter_601ef0e8-1cd6-46d4-8f68-02d60c31a3ab",
+    "tag": "div",
+    "text": "Jul 11, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_601ef0e8-1cd6-46d4-8f68-02d60c31a3ab",
+    "tag": "button",
+    "text": "More actions for INTAKE"
+  },
+  {
+    "testid": "matter-row-shell-matter_de153997-7a6c-4788-bc0e-f3ff9d12f2ca",
+    "tag": "div",
+    "text": "INTAKE BENCH 20260711T033532ZJul 10, 2026"
+  },
+  {
+    "testid": "matter-row-matter_de153997-7a6c-4788-bc0e-f3ff9d12f2ca",
+    "tag": "button",
+    "text": "INTAKE BENCH 20260711T033532Z"
+  },
+  {
+    "testid": "matter-quick-actions-matter_de153997-7a6c-4788-bc0e-f3ff9d12f2ca",
+    "tag": "div",
+    "text": "Jul 10, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_de153997-7a6c-4788-bc0e-f3ff9d12f2ca",
+    "tag": "button",
+    "text": "More actions for INTAKE BENCH 20260711T033532Z"
+  },
+  {
+    "testid": "matter-row-shell-matter_8223d0f9-368a-4212-98ac-c2310de3302a",
+    "tag": "div",
+    "text": "INTAKE OTHER 20260711T033532ZJul 10, 2026"
+  },
+  {
+    "testid": "matter-row-matter_8223d0f9-368a-4212-98ac-c2310de3302a",
+    "tag": "button",
+    "text": "INTAKE OTHER 20260711T033532Z"
+  },
+  {
+    "testid": "matter-quick-actions-matter_8223d0f9-368a-4212-98ac-c2310de3302a",
+    "tag": "div",
+    "text": "Jul 10, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_8223d0f9-368a-4212-98ac-c2310de3302a",
+    "tag": "button",
+    "text": "More actions for INTAKE OTHER 20260711T033532Z"
+  },
+  {
+    "testid": "matter-row-shell-matter_e1c1ac36-3cd5-4a9f-86ac-9bd3af0d02e4",
+    "tag": "div",
+    "text": "Iverson, Amy & PatriciaJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_e1c1ac36-3cd5-4a9f-86ac-9bd3af0d02e4",
+    "tag": "button",
+    "text": "Iverson, Amy & Patricia"
+  },
+  {
+    "testid": "matter-quick-actions-matter_e1c1ac36-3cd5-4a9f-86ac-9bd3af0d02e4",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_e1c1ac36-3cd5-4a9f-86ac-9bd3af0d02e4",
+    "tag": "button",
+    "text": "More actions for Iverson, Amy & Patricia"
+  },
+  {
+    "testid": "matter-row-shell-matter_c409e6fa-090c-44cb-a2b1-dd06c5c7d824",
+    "tag": "div",
+    "text": "Jennings, CarolJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_c409e6fa-090c-44cb-a2b1-dd06c5c7d824",
+    "tag": "button",
+    "text": "Jennings, Carol"
+  },
+  {
+    "testid": "matter-quick-actions-matter_c409e6fa-090c-44cb-a2b1-dd06c5c7d824",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_c409e6fa-090c-44cb-a2b1-dd06c5c7d824",
+    "tag": "button",
+    "text": "More actions for Jennings, Carol"
+  },
+  {
+    "testid": "matter-row-shell-matter_853cb504-972d-4633-87de-361c855bd9d7",
+    "tag": "div",
+    "text": "Jennings, Jeffrey & LindaJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_853cb504-972d-4633-87de-361c855bd9d7",
+    "tag": "button",
+    "text": "Jennings, Jeffrey & Linda"
+  },
+  {
+    "testid": "matter-quick-actions-matter_853cb504-972d-4633-87de-361c855bd9d7",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_853cb504-972d-4633-87de-361c855bd9d7",
+    "tag": "button",
+    "text": "More actions for Jennings, Jeffrey & Linda"
+  },
+  {
+    "testid": "matter-row-shell-matter_0f9438c6-60d7-42e6-afe8-c7cddd04a56b",
+    "tag": "div",
+    "text": "Jennings, RobertJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_0f9438c6-60d7-42e6-afe8-c7cddd04a56b",
+    "tag": "button",
+    "text": "Jennings, Robert"
+  },
+  {
+    "testid": "matter-quick-actions-matter_0f9438c6-60d7-42e6-afe8-c7cddd04a56b",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_0f9438c6-60d7-42e6-afe8-c7cddd04a56b",
+    "tag": "button",
+    "text": "More actions for Jennings, Robert"
+  },
+  {
+    "testid": "matter-row-shell-matter_cb19978f-248d-45e3-83fd-1b18cbf716a9",
+    "tag": "div",
+    "text": "Koch, Linda & PaulJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_cb19978f-248d-45e3-83fd-1b18cbf716a9",
+    "tag": "button",
+    "text": "Koch, Linda & Paul"
+  },
+  {
+    "testid": "matter-quick-actions-matter_cb19978f-248d-45e3-83fd-1b18cbf716a9",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_cb19978f-248d-45e3-83fd-1b18cbf716a9",
+    "tag": "button",
+    "text": "More actions for Koch, Linda & Paul"
+  },
+  {
+    "testid": "matter-row-shell-matter_84d542bc-440f-4ffb-8224-7938033c13a5",
+    "tag": "div",
+    "text": "Koch, Nancy & NancyJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_84d542bc-440f-4ffb-8224-7938033c13a5",
+    "tag": "button",
+    "text": "Koch, Nancy & Nancy"
+  },
+  {
+    "testid": "matter-quick-actions-matter_84d542bc-440f-4ffb-8224-7938033c13a5",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_84d542bc-440f-4ffb-8224-7938033c13a5",
+    "tag": "button",
+    "text": "More actions for Koch, Nancy & Nancy"
+  },
+  {
+    "testid": "matter-row-shell-matter_39720a75-8f66-44b6-a7e0-a90a629204e1",
+    "tag": "div",
+    "text": "Lambert, AngelaJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_39720a75-8f66-44b6-a7e0-a90a629204e1",
+    "tag": "button",
+    "text": "Lambert, Angela"
+  },
+  {
+    "testid": "matter-quick-actions-matter_39720a75-8f66-44b6-a7e0-a90a629204e1",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_39720a75-8f66-44b6-a7e0-a90a629204e1",
+    "tag": "button",
+    "text": "More actions for Lambert, Angela"
+  },
+  {
+    "testid": "matter-row-shell-matter_460378bc-18a3-457c-830b-195acaab3a37",
+    "tag": "div",
+    "text": "Lambert, Emily & KevinJul 9, 2026"
+  },
+  {
+    "testid": "matter-row-matter_460378bc-18a3-457c-830b-195acaab3a37",
+    "tag": "button",
+    "text": "Lambert, Emily & Kevin"
+  },
+  {
+    "testid": "matter-quick-actions-matter_460378bc-18a3-457c-830b-195acaab3a37",
+    "tag": "div",
+    "text": "Jul 9, 2026"
+  },
+  {
+    "testid": "matter-actions-menu-matter_460378bc-18a3-457c-830b-195acaab3a37",
+    "tag": "button",
+    "text": "More actions for Lambert, Emily & Kevin"
+  }
+]

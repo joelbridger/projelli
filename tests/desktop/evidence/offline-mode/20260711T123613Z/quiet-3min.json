@@ -1,0 +1,14 @@
+{
+    "at":  "2026-07-11T12:32:39.8511930Z",
+    "dnsLines":  0,
+    "proxyLines":  0,
+    "remoteConnections":  [
+                              {
+                                  "LocalAddress":  "127.0.0.1",
+                                  "LocalPort":  9250,
+                                  "RemoteAddress":  "0.0.0.0",
+                                  "RemotePort":  0,
+                                  "State":  2
+                              }
+                          ]
+}
