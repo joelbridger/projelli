@@ -86,4 +86,91 @@ describe('native egress boundary checker: block-comment bypasses', () => {
     const violations = findNativeEgressBoundaryViolations(root);
     expect(violations.some((v: { text: string }) => v.text.includes('.text'))).toBe(true);
   });
+
+  it('a nested block comment does not leak its inner #[cfg(test)] and hide a real unguarded body read', () => {
+    // Rust block comments nest (unlike C/JS): `/* outer /* inner */ still
+    // commented */` is ONE comment. A naive "stop at the first */" scanner
+    // would treat the outer comment as closing early, leaving its tail —
+    // including a fake #[cfg(test)] — as live code the exemption pass reads.
+    const root = fixtureRoot(`
+      use crate::network_policy::NetworkPolicy;
+      async fn send(policy: &NetworkPolicy, url: &str) -> anyhow::Result<reqwest::Response> {
+          let authorized = crate::commands::connector_network::authorize_url(policy, &OP, url)?;
+          crate::commands::connector_network::await_authorized(policy, &authorized, async {
+              Ok(reqwest::Client::new().get(url).send().await?)
+          }).await
+      }
+      /* outer /* inner */ #[cfg(test)] */
+      async fn read_body(resp: reqwest::Response) -> anyhow::Result<String> {
+          Ok(resp.text().await?)
+      }
+    `);
+    const violations = findNativeEgressBoundaryViolations(root);
+    expect(violations.some((v: { text: string }) => v.text.includes('.text()'))).toBe(true);
+  });
+
+  it('a nested generic in .json::<T>() is still matched as a completing call', () => {
+    const root = fixtureRoot(`
+      use crate::network_policy::NetworkPolicy;
+      async fn send(policy: &NetworkPolicy, url: &str) -> anyhow::Result<reqwest::Response> {
+          let authorized = crate::commands::connector_network::authorize_url(policy, &OP, url)?;
+          crate::commands::connector_network::await_authorized(policy, &authorized, async {
+              Ok(reqwest::Client::new().get(url).send().await?)
+          }).await
+      }
+      async fn read_body(resp: reqwest::Response) -> anyhow::Result<Vec<Vec<String>>> {
+          Ok(resp.json::<Vec<Vec<String>>>().await?)
+      }
+    `);
+    const violations = findNativeEgressBoundaryViolations(root);
+    expect(violations.some((v: { text: string }) => v.text.includes('.json'))).toBe(true);
+  });
+
+  it('.json() and .json::<T>() calls that ARE enclosed produce no violation', () => {
+    const root = fixtureRoot(`
+      use crate::network_policy::NetworkPolicy;
+      fn client() -> reqwest::Client {
+          reqwest::Client::builder()
+              .redirect(reqwest::redirect::Policy::none())
+              .build()
+              .expect("build client")
+      }
+      async fn send(policy: &NetworkPolicy, url: &str) -> anyhow::Result<reqwest::Response> {
+          let authorized = crate::commands::connector_network::authorize_url(policy, &OP, url)?;
+          crate::commands::connector_network::await_authorized(policy, &authorized, async {
+              Ok(client().get(url).send().await?)
+          }).await
+      }
+      async fn read_body(policy: &NetworkPolicy, resp: reqwest::Response) -> anyhow::Result<Vec<Vec<String>>> {
+          let body_grant = crate::commands::connector_network::authorize_url(policy, &OP, resp.url().as_str())?;
+          crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+              Ok(resp.json::<Vec<Vec<String>>>().await?)
+          }).await
+      }
+    `);
+    expect(findNativeEgressBoundaryViolations(root)).toEqual([]);
+  });
+
+  it('a member access that merely starts with "json" (not a completing call) is not a false positive', () => {
+    const root = fixtureRoot(`
+      use crate::network_policy::NetworkPolicy;
+      fn client() -> reqwest::Client {
+          reqwest::Client::builder()
+              .redirect(reqwest::redirect::Policy::none())
+              .build()
+              .expect("build client")
+      }
+      async fn send(policy: &NetworkPolicy, url: &str) -> anyhow::Result<reqwest::Response> {
+          let authorized = crate::commands::connector_network::authorize_url(policy, &OP, url)?;
+          crate::commands::connector_network::await_authorized(policy, &authorized, async {
+              Ok(client().get(url).send().await?)
+          }).await
+      }
+      struct Body { json_bytes_len: usize }
+      fn describe(b: &Body) -> usize {
+          b.json_bytes_len
+      }
+    `);
+    expect(findNativeEgressBoundaryViolations(root)).toEqual([]);
+  });
 });

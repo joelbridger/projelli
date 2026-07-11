@@ -111,7 +111,49 @@ function isPolicyGuardedClient(source) {
  */
 const GUARD_CALL_NAMES = ['await_authorized', 'send_with_authorized_redirects'];
 const HTTP_COMPLETING_CALL =
-  /\.(?:send|text|bytes)\s*\(\s*\)\s*\.await|\.json\s*(?:::\s*<[^>]*>\s*)?\(\s*\)\s*\.await|\.bytes_stream\s*\(\s*\)/g;
+  /\.(?:send|text|bytes)\s*\(\s*\)\s*\.await|\.json\b|\.bytes_stream\s*\(\s*\)/g;
+
+/**
+ * `.json()` and `.json::<T>()` both complete a body read, but `T` can be an
+ * arbitrarily nested generic (`Vec<Vec<String>>`, `HashMap<String, Vec<T>>`)
+ * that a `[^>]*`-style regex cannot balance. Given the index right after
+ * `.json`, confirm this is really `.json` (optionally `::<...>` with
+ * angle-bracket nesting tracked the same way call-argument parens are
+ * elsewhere in this file) `()` `.await`, and return the match end, or null
+ * if it's some other `.json...` member (e.g. `.json_body`) or doesn't
+ * complete into `.await`.
+ */
+function matchJsonCall(scanSource, jsonEnd) {
+  let i = jsonEnd;
+  const n = scanSource.length;
+  while (i < n && /\s/.test(scanSource[i])) i += 1;
+  if (scanSource[i] === ':' && scanSource[i + 1] === ':') {
+    i += 2;
+    while (i < n && /\s/.test(scanSource[i])) i += 1;
+    if (scanSource[i] !== '<') return null;
+    let depth = 0;
+    while (i < n) {
+      if (scanSource[i] === '<') depth += 1;
+      else if (scanSource[i] === '>') {
+        depth -= 1;
+        i += 1;
+        if (depth === 0) break;
+        continue;
+      }
+      i += 1;
+    }
+    if (depth !== 0) return null;
+  }
+  while (i < n && /\s/.test(scanSource[i])) i += 1;
+  if (scanSource[i] !== '(') return null;
+  i += 1;
+  while (i < n && /\s/.test(scanSource[i])) i += 1;
+  if (scanSource[i] !== ')') return null;
+  i += 1;
+  while (i < n && /\s/.test(scanSource[i])) i += 1;
+  if (scanSource.slice(i, i + 6) !== '.await') return null;
+  return i + 6;
+}
 
 // Strip line comments, block comments, and string literals to a same-length
 // run of spaces so index-based scanning stays aligned with the original
@@ -136,10 +178,26 @@ function blankCommentsAndStrings(source) {
       continue;
     }
     if (source[i] === '/' && source[i + 1] === '*') {
-      const end = source.indexOf('*/', i + 2);
-      const stop = end === -1 ? n : end + 2;
-      out += ' '.repeat(stop - i);
-      i = stop;
+      // Unlike C/JS, Rust block comments NEST (`/* outer /* inner */ still
+      // commented */` is one comment, not two) — a naive "find the first
+      // `*/`" would stop early and leave the outer comment's tail (which
+      // could contain a fake #[cfg(test)] or a real body-read call) visible
+      // to the scanner. Track nesting depth so the whole thing is blanked.
+      let depth = 1;
+      let j = i + 2;
+      while (j < n && depth > 0) {
+        if (source[j] === '/' && source[j + 1] === '*') {
+          depth += 1;
+          j += 2;
+        } else if (source[j] === '*' && source[j + 1] === '/') {
+          depth -= 1;
+          j += 2;
+        } else {
+          j += 1;
+        }
+      }
+      out += ' '.repeat(j - i);
+      i = j;
       continue;
     }
     if (source[i] === '"') {
@@ -249,10 +307,17 @@ function findUnenclosedHttpCalls(source) {
   HTTP_COMPLETING_CALL.lastIndex = 0;
   while ((match = HTTP_COMPLETING_CALL.exec(scanSource)) !== null) {
     const callStart = match.index;
+    let matchEnd = HTTP_COMPLETING_CALL.lastIndex;
+    if (match[0] === '.json') {
+      const jsonCallEnd = matchJsonCall(scanSource, matchEnd);
+      if (jsonCallEnd === null) continue; // `.json_body` or similar, not a completing call
+      matchEnd = jsonCallEnd;
+      HTTP_COMPLETING_CALL.lastIndex = matchEnd;
+    }
     const enclosed = guardSpans.some(([start, end]) => callStart >= start && callStart < end);
     if (!enclosed) {
       const line = source.slice(0, callStart).split('\n').length;
-      violations.push({ line, text: match[0] });
+      violations.push({ line, text: scanSource.slice(callStart, matchEnd).trim() });
     }
   }
   return violations;
