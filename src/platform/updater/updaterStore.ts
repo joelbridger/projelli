@@ -152,8 +152,9 @@ async function recordUpdaterTransportResult(
         error,
       ),
     );
+    // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort receipt write; the preflight already failed closed if native policy was unavailable, so there is nothing actionable to surface here.
   } catch {
-    // The preflight already failed closed if native policy was unavailable.
+    // Intentionally empty: see the disable-comment above.
   }
 }
 

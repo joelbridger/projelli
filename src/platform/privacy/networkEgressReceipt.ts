@@ -110,7 +110,7 @@ export function recordNetworkEgressReceipt(receipt: NetworkEgressReceipt): void 
     description:
       receipt.result === 'blocked-before-network'
         ? `Network action blocked before connection: ${receipt.operationLabel}`
-        : `Network action ${receipt.result}: ${receipt.operationLabel} contacted ${receipt.destination}`,
+        : `Network action ${receipt.result}: ${receipt.operationLabel} contacted ${receipt.destination ?? 'an unknown destination'}`,
     inputs: {},
     outputs: {},
     userDecision: 'auto',
