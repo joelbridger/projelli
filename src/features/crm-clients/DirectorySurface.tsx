@@ -21,16 +21,20 @@ export function DirectorySurface({
   people,
   households = [],
   actions,
+  onCreateHousehold,
 }: {
   people: readonly CrmPerson[];
   households?: readonly HouseholdDirectoryEntry[];
   actions?: CrmClientsActions;
+  onCreateHousehold?: (name: string) => Promise<void> | void;
 }) {
   const [tab, setTab] = useState<DirectoryTab>('households');
   const [query, setQuery] = useState('');
   const [externalOnly, setExternalOnly] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
   const [selected, setSelected] = useState<CrmPerson | null>(null);
+  const [creatingHousehold, setCreatingHousehold] = useState(false);
+  const [householdName, setHouseholdName] = useState('');
   const filtered = useMemo(
     () =>
       people.filter(
@@ -91,11 +95,12 @@ export function DirectorySurface({
           size="sm"
           iconLeft={Plus}
           data-testid="crm-directory-add"
-          onClick={() => actions?.onAdd?.({ kind: 'person', householdRef: { kind: 'household', id: 'firm_home' }, contextRefs: [] })}
+          onClick={() => { setCreatingHousehold(true); }}
         >
-          Add
+          New household
         </Button>
       </SurfaceToolbar>
+      {creatingHousehold ? <form data-testid="crm-create-household" onSubmit={(event) => { event.preventDefault(); const name = householdName.trim(); if (!name) return; void Promise.resolve(onCreateHousehold?.(name)).then(() => { setHouseholdName(''); setCreatingHousehold(false); }); }} style={{ display: 'flex', gap: 8, marginTop: 12 }}><input data-testid="crm-household-name" aria-label="Household name" value={householdName} onChange={(event) => { setHouseholdName(event.target.value); }} placeholder="Household name" autoFocus /><Button data-testid="crm-household-save" type="submit">Create household</Button><Button variant="secondary" type="button" onClick={() => { setCreatingHousehold(false); }}>Cancel</Button></form> : null}
       {tab === 'households' ? (
         <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
           {filteredHouseholds.length ? (

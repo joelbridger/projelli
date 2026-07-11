@@ -21,6 +21,7 @@ export interface CrmTask {
   assigneeLabel: string;
   status: 'open' | 'in_progress' | 'blocked' | 'done' | 'cancelled';
   dueLabel?: string;
+  dueAt?: string;
   priority: 'high' | 'normal' | 'low';
   recurrenceLabel?: string;
   contextRefs?: readonly string[];
