@@ -15,6 +15,7 @@ import { storeIntakeSecrets } from './intakeKeychain';
 import * as intakeKeychain from './intakeKeychain';
 import type { FileIntakeDocumentOptions } from './intakeFiling';
 import { sha256Hex } from './pdfTemplates/receipt';
+import * as pdfFillReceipt from './pdfFillReceipt';
 import type { PdfCompletionReceipt, PdfTemplateDescriptor } from './types';
 import { useIntakeStore, type IntakeRecord } from './intakeStore';
 import {
@@ -776,6 +777,47 @@ describe('useIntakeInboxSync wiring helpers', () => {
     expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: 'integrity_mismatch', itemId: PDF_ITEM_ID }),
     ]));
+  });
+
+  it('flags a PDF tooling failure as routing_failed with an honest message, never integrity_mismatch', async () => {
+    // Regression: verifyPdfFillReceipt threw 'No "GlobalWorkerOptions.workerSrc"
+    // specified.' for every single pdf_fill submission (a PDF.js configuration
+    // bug, not the client's fault), and routePdfFillSubmission's catch block
+    // folded ANY failure here into 'integrity_mismatch' - the advisor-facing
+    // copy for that kind says "could not safely match... to this client
+    // request" and tells the advisor to reject the package and ask the client
+    // to resend, which is actively wrong advice when the client's form was
+    // fine and our own tooling broke.
+    const template = pdfDescriptor();
+    const bytes = completedPdf();
+    vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(template);
+    const verifySpy = vi.spyOn(pdfFillReceipt, 'verifyPdfFillReceipt').mockRejectedValueOnce(
+      new pdfFillReceipt.PdfToolingFailure('This completed form could not be checked because of an app problem, not something wrong with what your client sent.', new Error('cause')),
+    );
+    const record = intake({
+      kind: 'standing', requestSlug: 'beneficiary-update-a1',
+      items: [{ itemId: PDF_ITEM_ID, label: 'Form', state: 'not_started' }],
+      requestItems: [{ t: 'pdf_fill', item_id: PDF_ITEM_ID, label: 'Form', help_text: '', required: true, subject: 'primary', template, prefill: [] }],
+    });
+    useIntakeStore.getState().upsertIntake(record);
+    const current = useIntakeStore.getState().intakesById['intake-1'];
+    if (!current) throw new Error('missing intake');
+    const fileDocument = vi.fn();
+
+    await expect(routeIntakeSubmission(routedSubmission(null, {
+      itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
+    }), {
+      intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
+    })).rejects.toThrow(/app problem/iu);
+
+    expect(verifySpy).toHaveBeenCalled();
+    expect(fileDocument).not.toHaveBeenCalled();
+    expect(useIntakeStore.getState().intakesById['intake-1']?.items[0]).toMatchObject({ state: 'needs_followup' });
+    const flags = useIntakeStore.getState().intakesById['intake-1']?.flags ?? [];
+    expect(flags).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'routing_failed', itemId: PDF_ITEM_ID }),
+    ]));
+    expect(flags.some((flag) => flag.kind === 'integrity_mismatch')).toBe(false);
   });
 
   it('leaves a rejected PDF form unacknowledged on the relay', async () => {
