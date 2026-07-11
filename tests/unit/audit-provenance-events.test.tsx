@@ -96,6 +96,7 @@ import { useMatterStore } from '@/platform/matter/matterStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
 import { CONFIDENTIALITY_MODE_SETTING_KEY } from '@/platform/privacy/egress';
 import { CONFIDENTIALITY_CHOICE_MADE_KEY } from '@/platform/privacy/resolvePersonalEgressDefault';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 
 type LoggedEntry = Omit<AuditEntry, 'id' | 'timestamp'>;
 
@@ -459,7 +460,7 @@ describe('Lantern 3.0 audit provenance events', () => {
     expect(eventsOfType(logged, 'egress_blocked')).toHaveLength(1);
   });
 
-  it('logs one successful egress and one attachment sent row only after a successful attachment send', async () => {
+  it('blocks an unscannable attachment before any egress', async () => {
     const visionChat: AIChatFile = {
       ...chat,
       id: 'audit-attachment-success',
@@ -492,13 +493,52 @@ describe('Lantern 3.0 audit provenance events', () => {
     await waitFor(() => expect(screen.getByTestId('attachment-tiles-strip')).toBeTruthy());
 
     act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      const msgs = useAIChatStore.getState().sessions[visionChat.id]?.messages ?? [];
+      expect(msgs.some((m) => m.role === 'assistant' && m.isError)).toBe(true);
+    });
 
-    expect(eventsOfType(logged, 'egress')).toHaveLength(2); // intent + outcome (A1)
-    expect(eventsOfType(logged, 'attachment_sent_to_provider')).toHaveLength(1);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
+    expect(logged).toContainEqual(expect.objectContaining({
+      action: 'prompt_preparation',
+      metadata: expect.objectContaining({ decision: 'blocked' }),
+    }));
+    expect(eventsOfType(logged, 'egress_blocked')).toHaveLength(1);
   });
 
-  it('does not log attachment sent when an attachment provider send fails', async () => {
+  it('shows the review, sends only a redacted chat copy, and records the finding', async () => {
+    const logged: LoggedEntry[] = [];
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={(entry) => logged.push(entry)} />);
+
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: SECRET_SCRUB_FIXTURES.urls } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+    await screen.findByText('Review private links');
+    fireEvent.click(screen.getByRole('button', { name: 'Send redacted copy' }));
+
+    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
+    expect(mocks.sendMessage.mock.calls[0]?.[0]).not.toContain('intake-secret');
+    expect(logged).toContainEqual(expect.objectContaining({
+      action: 'prompt_preparation',
+      metadata: expect.objectContaining({
+        decision: 'redacted_by_user',
+        categories: expect.arrayContaining([expect.objectContaining({ kind: 'intake_link_secret', count: 1 })]),
+      }),
+    }));
+  });
+
+  it('does not send a chat request when the advisor cancels private-link review', async () => {
+    render(<AIChatViewer chatData={chat} apiKeys={apiKey} />);
+
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: SECRET_SCRUB_FIXTURES.urls } }));
+    act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
+    await screen.findByText('Review private links');
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+
+    await waitFor(() => expect(mocks.sendMessage).not.toHaveBeenCalled());
+  });
+
+  it('does not log an attachment send when an unscannable attachment is blocked', async () => {
     const visionChat: AIChatFile = {
       ...chat,
       id: 'audit-attachment-failure',
@@ -526,15 +566,16 @@ describe('Lantern 3.0 audit provenance events', () => {
     await waitFor(() => expect(screen.getByTestId('attachment-tiles-strip')).toBeTruthy());
 
     act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
-    await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
     await waitFor(() => {
       const msgs = useAIChatStore.getState().sessions[visionChat.id]?.messages ?? [];
       expect(msgs.some((m) => m.role === 'assistant' && m.isError)).toBe(true);
     });
 
-    expect(eventsOfType(logged, 'egress')).toHaveLength(1);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(eventsOfType(logged, 'egress')).toHaveLength(0);
     expect(eventsOfType(logged, 'attachment_sent_to_provider')).toHaveLength(0);
-    expect(eventsOfType(logged, 'egress_failed')).toHaveLength(1);
+    expect(eventsOfType(logged, 'egress_failed')).toHaveLength(0);
+    expect(eventsOfType(logged, 'egress_blocked')).toHaveLength(1);
   });
 
   it('logs citation_verified with the verdict for each checked citation', async () => {

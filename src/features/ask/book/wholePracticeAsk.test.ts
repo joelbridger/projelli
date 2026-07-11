@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // GUARD: whole-practice Ask must never touch retrieval. Mock the two doors
 // raw RAG could enter through and assert they stay shut.
@@ -34,6 +34,8 @@ import { useClientMapStore } from '@/platform/clientMap/clientMapStore';
 import { emptyClientMap } from '@/platform/clientMap/types';
 import type { Matter } from '@/platform/types/matter';
 import { useAIChatStore } from '@/platform/state/aiChatStore';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
+import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
 
 function at<T>(arr: T[], i: number): T {
   const v = arr[i];
@@ -59,6 +61,8 @@ beforeEach(() => {
   }];
   useClientMapStore.setState({ maps: { m1: map } });
 });
+
+afterEach(() => { setPromptDecisionBroker(); });
 
 describe('runWholePracticeAsk', () => {
   it('answers from summaries and NEVER calls retrieval or rag_retrieve', async () => {
@@ -103,6 +107,35 @@ describe('runWholePracticeAsk', () => {
     const r = await runWholePracticeAsk('which clients mention 529 plans?', CHAT_ID);
     expect(sendMessageMock).toHaveBeenCalledTimes(1);
     expect(at(r.matches, 0).label).toBe('Sample Household - Sample');
+  });
+
+  it('sends only a redacted copy and records its secret category', async () => {
+    const audit = vi.fn();
+    sendMessageMock.mockResolvedValue({
+      content: '{"answer":"Safe answer","matches":[]}',
+      usage: { inputTokens: 10, outputTokens: 10, totalTokens: 20 }, cost: 0,
+    });
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+
+    await runWholePracticeAsk(SECRET_SCRUB_FIXTURES.urls, CHAT_ID, { onAuditLog: audit });
+
+    expect(sendMessageMock).toHaveBeenCalledTimes(1);
+    expect(sendMessageMock.mock.calls[0]?.[0]).not.toContain('intake-secret');
+    expect(audit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'prompt_preparation',
+      metadata: expect.objectContaining({
+        decision: 'redacted_by_user',
+        categories: expect.arrayContaining([expect.objectContaining({ kind: 'intake_link_secret', count: 1 })]),
+      }),
+    }));
+  });
+
+  it('does not send when the advisor cancels the private-link review', async () => {
+    setPromptDecisionBroker(() => Promise.resolve('cancel'));
+
+    await expect(runWholePracticeAsk(SECRET_SCRUB_FIXTURES.urls, CHAT_ID)).rejects.toThrow('prompt_send_cancelled');
+
+    expect(sendMessageMock).not.toHaveBeenCalled();
   });
 
   describe('file-access consent gate (cloud provider)', () => {

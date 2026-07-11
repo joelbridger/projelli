@@ -50,6 +50,7 @@ import { matterLabel } from '@/platform/rag/matterResolver';
 import { isMemoryEnabled } from '@/platform/rag/MemoryService';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { useAsk, type UseAskProps } from './useAsk';
+import { usePromptPreparationDecision } from './usePromptPreparationDecision';
 import { useEntityLabel } from '@/platform/hooks/useEntityLabel';
 import { useTranslation } from 'react-i18next';
 import { IS_DEMO } from '@/web-demo/demoModeFlag';
@@ -83,6 +84,7 @@ import { buildSampleWholeBookAnswer } from './book/sampleWholeBookAnswer';
 
 export function Ask(props: UseAskProps) {
   const { onSaveToDocument } = props;
+  const promptPreparationDialog = usePromptPreparationDecision();
   const entityLabel = useEntityLabel();
   const { t } = useTranslation();
   // This surface is the 3-tab IA's "Ask" tab.
@@ -477,6 +479,7 @@ export function Ask(props: UseAskProps) {
         overflow: 'hidden',
       }}
     >
+      {promptPreparationDialog}
       {/* Header */}
       <div
         style={{
