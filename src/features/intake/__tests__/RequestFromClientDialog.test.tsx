@@ -85,7 +85,14 @@ describe('RequestFromClientDialog', () => {
       blueprintId: 'pdf-update', schemaVersion: 1, label: 'PDF update', source: 'firm_saved', defaultKind: 'standing',
       items: [{
         t: 'pdf_fill', item_id: 'form', label: 'Custodian form', help_text: '', required: true, subject: 'primary',
-        pdf_ref: 'template.pdf', field_map: {}, prefill: [],
+        template: {
+          templateId: 'template_dialog_01', version: 1, kind: 'acroform', sourceSha256: 'a'.repeat(64),
+          sourceArtifactRef: 'sealed-artifact:dialogtemplate0001', outputFileStem: 'custodian-form', maxOutputBytes: 1024 * 1024,
+          fields: {
+            client_name: { kind: 'acroform', field_id: 'client_name', acroform_field: 'Client.Name', pdf_field_type: 'text' },
+          },
+        },
+        prefill: [],
       }],
     };
 

@@ -1,4 +1,14 @@
 import type { DocumentKind } from './documentDetectiveTypes';
+import type { PdfTemplateDescriptor } from './pdfTemplates/templateContract';
+
+export type {
+  PdfCompletionReceipt,
+  PdfFieldMap,
+  PdfFieldMapEntry,
+  PdfFieldType,
+  PdfTemplateDescriptor,
+  PdfTemplateKind,
+} from './pdfTemplates/templateContract';
 
 export type FactKind =
   | 'dob'
@@ -124,21 +134,10 @@ export interface ReadonlyCardRequestItem extends Omit<RequestItemBase, 't'> {
   acknowledgement_required?: boolean;
 }
 
-export type PdfFieldType = 'text' | 'date' | 'checkbox' | 'signature' | 'number' | 'money';
-
-export interface PdfFieldMapEntry {
-  field_id: string;
-  item_id?: string;
-  fact_kind?: FactKind;
-  pdf_field_type?: PdfFieldType;
-}
-
-export type PdfFieldMap = Record<string, PdfFieldMapEntry>;
-
 export interface PdfFillRequestItem extends Omit<RequestItemBase, 't'> {
   t: 'pdf_fill';
-  pdf_ref: string;
-  field_map: PdfFieldMap;
+  /** Immutable, sealed-by-value approval snapshot. Never a live library reference. */
+  template: PdfTemplateDescriptor;
   prefill: PdfPrefill[];
 }
 
