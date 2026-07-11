@@ -48,7 +48,7 @@ try {
   screenshot('02-fidelity-report.png');
 
   run(['click', 'crm-migration-workflow-fallback']);
-  const workflowSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid$=-record]')).map(x => x.getAttribute('data-testid')))"]));
+  const workflowSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-workflow-record-]')).map(x => x.getAttribute('data-testid')))"]));
   if (!workflowSave.length) throw new Error('No in-flight workflow checklist was saved.');
   const workflowId = workflowSave[0].replace('crm-workflow-record-', '');
   run(['click', `crm-workflow-evidence-${workflowId}`]);
@@ -58,7 +58,7 @@ try {
   run(['click', `crm-workflow-record-${workflowId}`]);
 
   run(['click', 'crm-home-nav-firm-setup']); run(['click', 'crm-firm-route-migration']); run(['click', 'crm-migration-attachment-fallback']);
-  const attachmentSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid$=-record-save]')).map(x => x.getAttribute('data-testid')))"]));
+  const attachmentSave = JSON.parse(run(['eval', "JSON.stringify(Array.from(document.querySelectorAll('[data-testid^=crm-attachment-record-save-]')).map(x => x.getAttribute('data-testid')))"]));
   if (!attachmentSave.length) throw new Error('No attachment accounting record was saved.');
   const attachmentId = attachmentSave[0].replace('crm-attachment-record-save-', '');
   run(['eval', `const e=document.querySelector('[data-testid="crm-attachment-status-${attachmentId}"]');e.value='gap';e.dispatchEvent(new Event('change',{bubbles:true}))`]);
