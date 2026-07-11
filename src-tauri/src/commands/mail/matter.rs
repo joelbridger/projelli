@@ -255,6 +255,15 @@ pub struct PendingMailRagRetag {
     pub matter_id: String,
 }
 
+/// The durable filing completed.  Search is either current too, or the exact
+/// sources remain held out until the persisted repair marker is healed.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct MailRetagResult {
+    pub filed_count: u32,
+    pub search_repair_pending: bool,
+}
+
 #[derive(Default)]
 struct PendingRepairOutcome {
     repaired: Vec<(String, Vec<String>)>,
@@ -361,7 +370,7 @@ async fn mail_retag_messages_matter_core(
     message_ids: Vec<String>,
     matter_id: String,
     expected_workspace: std::path::PathBuf,
-) -> Result<u32, String> {
+) -> Result<MailRetagResult, String> {
     crate::commands::rag::store::validate_matter_id(&matter_id)
         .map_err(|e| format!("invalid matter id: {e}"))?;
     // A filing owns its durable update, vector mirror and marker clear from
@@ -412,16 +421,23 @@ async fn mail_retag_messages_matter_core(
     .await;
     clear_repaired_rag_markers(workspace, outcome.repaired).await?;
     if let Some((target, repair_ids, error)) = outcome.failures.into_iter().next() {
-        return Err(format!(
-            "mail was filed locally, but RAG scope repair is pending for {} source(s) in {target}: {error}",
+        log::warn!(
+            "mail filed locally; RAG scope repair remains pending for {} source(s) in {target}: {error}",
             repair_ids.len()
-        ));
+        );
+        return Ok(MailRetagResult {
+            filed_count: ids.len() as u32,
+            search_repair_pending: true,
+        });
     }
 
     // This command's result is intentionally the durable filing count. Folder
     // remaps retain their older, different "messages whose RAG scope changed"
     // count below.
-    Ok(ids.len() as u32)
+    Ok(MailRetagResult {
+        filed_count: ids.len() as u32,
+        search_repair_pending: false,
+    })
 }
 
 /// WS-B/C: re-tag every message stored under a (provider, account, folder) to a
@@ -547,11 +563,11 @@ pub async fn mail_retag_messages_matter(
     message_ids: Vec<String>,
     matter_id: String,
     expected_workspace: Option<String>,
-) -> Result<u32, String> {
-    let expected_workspace = match expected_workspace.filter(|workspace| !workspace.is_empty()) {
-        Some(workspace) => std::path::PathBuf::from(workspace),
-        None => state.workspace.lock().await.clone().ok_or("workspace not set")?,
-    };
+) -> Result<MailRetagResult, String> {
+    let expected_workspace = expected_workspace
+        .filter(|workspace| !workspace.is_empty())
+        .map(std::path::PathBuf::from)
+        .ok_or("mail_retag_messages_matter: expected workspace is required")?;
     mail_retag_messages_matter_core(
         state.inner(),
         message_ids,
@@ -568,8 +584,12 @@ pub async fn mail_retag_message_matter(
     state: State<'_, MailState>,
     message_id: String,
     matter_id: String,
-) -> Result<(), String> {
-    let expected_workspace = state.workspace.lock().await.clone().ok_or("workspace not set")?;
+    expected_workspace: Option<String>,
+) -> Result<MailRetagResult, String> {
+    let expected_workspace = expected_workspace
+        .filter(|workspace| !workspace.is_empty())
+        .map(std::path::PathBuf::from)
+        .ok_or("mail_retag_message_matter: expected workspace is required")?;
     mail_retag_messages_matter_core(
         state.inner(),
         vec![message_id],
@@ -577,7 +597,6 @@ pub async fn mail_retag_message_matter(
         expected_workspace,
     )
     .await
-    .map(|_| ())
 
 }
 
@@ -835,10 +854,11 @@ mod tests {
         let app = test_app_for_workspace(dir.path()).await;
         let failure = FORCE_LANCEDB_RETAG_FAILURE.scope((), async {
             mail_retag_messages_matter(
-                app.state::<MailState>(), vec!["one".to_string()], "matter-acme".to_string(), None,
+                app.state::<MailState>(), vec!["one".to_string()], "matter-acme".to_string(),
+                Some(dir.path().display().to_string()),
             ).await
         }).await;
-        assert!(failure.unwrap_err().contains("injected LanceDB update failure"));
+        assert_eq!(failure.unwrap().search_repair_pending, true);
         let store = EncryptedMailStore::open(dir.path()).unwrap();
         assert_eq!(store.get_message_matter("one").unwrap().as_deref(), Some("matter-acme"));
         assert_eq!(store.pending_rag_retags().unwrap(), vec![("one".to_string(), "matter-acme".to_string())]);
@@ -876,9 +896,10 @@ mod tests {
 
         assert_eq!(
             mail_retag_messages_matter(
-                app.state::<MailState>(), ids.clone(), "matter-b".to_string(), None,
-            ).await.unwrap(),
-            1
+                app.state::<MailState>(), ids.clone(), "matter-b".to_string(),
+                Some(dir.path().display().to_string()),
+            ).await.unwrap().filed_count,
+            1,
         );
         rendezvous.resume.notify_one();
         assert_eq!(repair.await.unwrap(), 1);
@@ -888,5 +909,21 @@ mod tests {
         let key = crate::commands::rag::crypto::get_or_create_master_key().unwrap();
         assert_eq!(crate::commands::rag::store::matter_for_path(&table, "mail:one", &key).await.unwrap().as_deref(), Some("matter-b"));
         assert!(store.pending_rag_retags().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn public_interactive_retags_reject_a_missing_workspace_pin() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let app = test_app_for_workspace(dir.path()).await;
+
+        let batch = mail_retag_messages_matter(
+            app.state::<MailState>(), vec!["one".to_string()], "matter-a".to_string(), None,
+        ).await;
+        assert!(batch.unwrap_err().contains("expected workspace is required"));
+
+        let single = mail_retag_message_matter(
+            app.state::<MailState>(), "one".to_string(), "matter-a".to_string(), None,
+        ).await;
+        assert!(single.unwrap_err().contains("expected workspace is required"));
     }
 }

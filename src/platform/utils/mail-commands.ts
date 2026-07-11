@@ -8,8 +8,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { MailMatterMapEntry } from '@/platform/rag/matterResolver';
 import {
-  beginPendingMailRagRetagHold,
   holdPendingMailRagRetagSources,
+  markPendingMailRagRetagLoading,
   setPendingMailRagRetagSources,
 } from '@/platform/rag/pendingMailRagRetagHold';
 import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
@@ -433,10 +433,14 @@ export async function gmailDisconnect(): Promise<void> {
 export async function mailRetagMessageMatter(
   messageId: string,
   matterId: string,
-): Promise<void> {
-  if (!isTauri()) return;
-  await withLiveMailRetagHold([messageId], () =>
-    invoke<void>('mail_retag_message_matter', { messageId, matterId }),
+): Promise<MailRetagResult> {
+  if (!isTauri()) return { filedCount: 1, searchRepairPending: false };
+  return withLiveMailRetagHold([messageId], (expectedWorkspace) =>
+    invoke<MailRetagResult>('mail_retag_message_matter', {
+      messageId,
+      matterId,
+      expectedWorkspace,
+    }),
   );
 }
 
@@ -445,11 +449,21 @@ export async function mailRetagMessageMatter(
 export async function mailRetagMessagesMatter(
   messageIds: string[],
   matterId: string,
-): Promise<number> {
-  if (!isTauri()) return messageIds.length;
-  return withLiveMailRetagHold(messageIds, () =>
-    invoke<number>('mail_retag_messages_matter', { messageIds, matterId }),
+): Promise<MailRetagResult> {
+  if (!isTauri()) return { filedCount: messageIds.length, searchRepairPending: false };
+  return withLiveMailRetagHold(messageIds, (expectedWorkspace) =>
+    invoke<MailRetagResult>('mail_retag_messages_matter', {
+      messageIds,
+      matterId,
+      expectedWorkspace,
+    }),
   );
+}
+
+/** A filing either has current search immediately or is safely queued for repair. */
+export interface MailRetagResult {
+  filedCount: number;
+  searchRepairPending: boolean;
 }
 
 export interface PendingMailRagRetag {
@@ -471,24 +485,31 @@ export async function mailListPendingRagRetags(): Promise<PendingMailRagRetag[]>
  */
 async function withLiveMailRetagHold<T>(
   messageIds: string[],
-  action: () => Promise<T>,
+  action: (expectedWorkspace: string) => Promise<T>,
 ): Promise<T> {
   const workspaceRoot = useWorkspaceStore.getState().rootPath;
+  if (!workspaceRoot) {
+    throw new Error('Choose a workspace before filing email.');
+  }
   const sourceIds = messageIds
     .map((id) => id.startsWith('mail:') ? id : `mail:${id}`);
-  if (workspaceRoot) holdPendingMailRagRetagSources(workspaceRoot, sourceIds);
+  const releaseLiveHold = holdPendingMailRagRetagSources(workspaceRoot, sourceIds);
   try {
-    return await action();
+    return await action(workspaceRoot);
   } finally {
     // Do not let a request from the old workspace alter the newly-opened one.
-    if (workspaceRoot && useWorkspaceStore.getState().rootPath === workspaceRoot) {
+    if (useWorkspaceStore.getState().rootPath === workspaceRoot) {
       try {
         const pending = await mailListPendingRagRetags();
         setPendingMailRagRetagSources(workspaceRoot, pending.map((entry) => entry.sourceId));
       } catch {
-        beginPendingMailRagRetagHold(workspaceRoot);
+        markPendingMailRagRetagLoading(workspaceRoot);
       }
     }
+    // This request releases only its own temporary hold. A second filing that
+    // is still in progress remains excluded even if this marker refresh did
+    // not yet see its durable repair row.
+    releaseLiveHold();
   }
 }
 

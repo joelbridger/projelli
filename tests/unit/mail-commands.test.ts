@@ -94,18 +94,30 @@ describe('mail-commands', () => {
   });
 
   it('mailRetagMessagesMatter sends one batch IPC request', async () => {
-    (invoke as any).mockResolvedValue(513);
+    useWorkspaceStore.setState({ rootPath: '/test-workspace' });
+    (invoke as any).mockImplementation((command: string) => {
+      if (command === 'mail_retag_messages_matter') {
+        return Promise.resolve({ filedCount: 513, searchRepairPending: false });
+      }
+      if (command === 'mail_list_pending_rag_retags') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
     const { mailRetagMessagesMatter } = await import('@/platform/utils/mail-commands');
-    await expect(mailRetagMessagesMatter(['one', 'two'], 'matter_a')).resolves.toBe(513);
+    await expect(mailRetagMessagesMatter(['one', 'two'], 'matter_a')).resolves.toEqual({
+      filedCount: 513,
+      searchRepairPending: false,
+    });
     expect(invoke).toHaveBeenCalledWith('mail_retag_messages_matter', {
-      messageIds: ['one', 'two'], matterId: 'matter_a',
+      messageIds: ['one', 'two'], matterId: 'matter_a', expectedWorkspace: '/test-workspace',
     });
   });
 
   it('holds a live filing until it has read the durable repair markers', async () => {
     useWorkspaceStore.setState({ rootPath: '/test-workspace' });
     (invoke as any).mockImplementation((command: string) => {
-      if (command === 'mail_retag_messages_matter') return Promise.resolve(2);
+      if (command === 'mail_retag_messages_matter') {
+        return Promise.resolve({ filedCount: 2, searchRepairPending: false });
+      }
       if (command === 'mail_list_pending_rag_retags') {
         return Promise.resolve([{ messageId: 'one', sourceId: 'mail:one', matterId: 'matter_a' }]);
       }
@@ -113,10 +125,61 @@ describe('mail-commands', () => {
     });
     const { mailRetagMessagesMatter } = await import('@/platform/utils/mail-commands');
 
-    await expect(mailRetagMessagesMatter(['one', 'two'], 'matter_a')).resolves.toBe(2);
+    await expect(mailRetagMessagesMatter(['one', 'two'], 'matter_a')).resolves.toEqual({
+      filedCount: 2,
+      searchRepairPending: false,
+    });
 
     expect(isPendingMailRagRetagSource('/test-workspace', 'mail:one')).toBe(true);
     expect(isPendingMailRagRetagSource('/test-workspace', 'mail:two')).toBe(false);
+  });
+
+  it('keeps a second live filing held while the first refreshes durable markers', async () => {
+    useWorkspaceStore.setState({ rootPath: '/test-workspace' });
+    let resolveFirst: ((value: { filedCount: number; searchRepairPending: boolean }) => void) | undefined;
+    let resolveSecond: ((value: { filedCount: number; searchRepairPending: boolean }) => void) | undefined;
+    (invoke as any).mockImplementation((command: string, args?: { messageIds?: string[] }) => {
+      if (command === 'mail_retag_messages_matter') {
+        if (args?.messageIds?.[0] === 'one') {
+          return new Promise(resolve => { resolveFirst = resolve; });
+        }
+        return new Promise(resolve => { resolveSecond = resolve; });
+      }
+      if (command === 'mail_list_pending_rag_retags') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+    const { mailRetagMessagesMatter } = await import('@/platform/utils/mail-commands');
+
+    const first = mailRetagMessagesMatter(['one'], 'matter_a');
+    const second = mailRetagMessagesMatter(['two'], 'matter_b');
+    await vi.waitFor(() => expect(resolveSecond).toBeDefined());
+    resolveFirst?.({ filedCount: 1, searchRepairPending: false });
+    await first;
+
+    expect(isPendingMailRagRetagSource('/test-workspace', 'mail:two')).toBe(true);
+    resolveSecond?.({ filedCount: 1, searchRepairPending: false });
+    await second;
+    expect(isPendingMailRagRetagSource('/test-workspace', 'mail:two')).toBe(false);
+  });
+
+  it('pins a single interactive filing to the workspace captured before IPC', async () => {
+    useWorkspaceStore.setState({ rootPath: '/test-workspace' });
+    (invoke as any).mockImplementation((command: string) => {
+      if (command === 'mail_retag_message_matter') {
+        return Promise.resolve({ filedCount: 1, searchRepairPending: false });
+      }
+      if (command === 'mail_list_pending_rag_retags') return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+    const { mailRetagMessageMatter } = await import('@/platform/utils/mail-commands');
+
+    await expect(mailRetagMessageMatter('one', 'matter_a')).resolves.toEqual({
+      filedCount: 1,
+      searchRepairPending: false,
+    });
+    expect(invoke).toHaveBeenCalledWith('mail_retag_message_matter', {
+      messageId: 'one', matterId: 'matter_a', expectedWorkspace: '/test-workspace',
+    });
   });
 
   it('mailConnectedAccounts lists connected accounts', async () => {

@@ -56,7 +56,7 @@ import {
   pendingFolderRetagHydrationSuspect,
 } from '@/platform/rag/pendingFolderRetagStore';
 import {
-  beginPendingMailRagRetagHold,
+  beginPendingMailRagRetagStartupHold,
   isPendingMailRagRetagLoading,
   isPendingMailRagRetagSource,
   setPendingMailRagRetagSources,
@@ -1189,32 +1189,78 @@ export function restoreFolderHolds(workspaceRoot: string | null | undefined): vo
 // stale RAG row could otherwise be retrieved before repair starts.
 async function refreshPendingMailRagRetagHold(
   workspaceIdentity: WorkspaceIdentitySnapshot,
-): Promise<boolean> {
+): Promise<number | null> {
   const workspaceRoot = workspaceIdentity.rootPath;
-  if (!workspaceRoot) return false;
+  if (!workspaceRoot) return null;
   try {
     const pending = await mailListPendingRagRetags();
-    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
+    if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return null;
     setPendingMailRagRetagSources(workspaceRoot, pending.map((entry) => entry.sourceId));
-    return true;
+    return pending.length;
   } catch {
     // Keep the conservative all-mail hold: an unreadable durable marker store
     // must never be interpreted as "no sources are pending".
-    return false;
+    return null;
   }
 }
 
-async function repairPendingMailRagRetags(
+const PENDING_MAIL_RAG_REPAIR_RETRY_MS = 1_000;
+
+/**
+ * Repair durable mail filings without waiting for a full workspace index.  A
+ * temporary backend or vector-store failure keeps the exact mail sources held
+ * out and retries while this workspace stays open.
+ */
+export function startPendingMailRagRetagRecovery(
   workspaceIdentity: WorkspaceIdentitySnapshot,
-): Promise<void> {
-  // The hold is already active before this command runs. A failed repair leaves
-  // it intact; a successful repair re-reads SQLCipher before releasing sources.
-  try {
-    await mailRepairPendingRagRetags();
-  } catch {
-    return;
-  }
-  await refreshPendingMailRagRetagHold(workspaceIdentity);
+  options: {
+    retryDelayMs?: number;
+    isCancelled?: () => boolean;
+  } = {},
+): () => void {
+  let stopped = false;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  const retryDelayMs = options.retryDelayMs ?? PENDING_MAIL_RAG_REPAIR_RETRY_MS;
+  const isStopped = () => stopped || options.isCancelled?.() === true ||
+    !isWorkspaceIdentityCurrent(workspaceIdentity);
+
+  const scheduleRetry = (attempt: () => void) => {
+    if (isStopped()) return;
+    retryTimer = setTimeout(attempt, retryDelayMs);
+  };
+
+  const attempt = () => {
+    void (async () => {
+      // The first successful marker read is the only thing allowed to release
+      // the all-mail startup hold. Until then, retry with the hold intact.
+      const pendingCount = await refreshPendingMailRagRetagHold(workspaceIdentity);
+      if (isStopped()) return;
+      if (pendingCount === null) {
+        scheduleRetry(attempt);
+        return;
+      }
+      if (pendingCount === 0) return;
+
+      try {
+        await mailRepairPendingRagRetags();
+      } catch {
+        scheduleRetry(attempt);
+        return;
+      }
+      if (isStopped()) return;
+
+      const remainingCount = await refreshPendingMailRagRetagHold(workspaceIdentity);
+      if (isStopped() || remainingCount === 0) return;
+      // A failed read, a failed repair, or a newer durable filing all retry.
+      scheduleRetry(attempt);
+    })();
+  };
+
+  attempt();
+  return () => {
+    stopped = true;
+    if (retryTimer !== null) clearTimeout(retryTimer);
+  };
 }
 
 export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
@@ -1647,11 +1693,6 @@ export async function startFullIndex(
       // downloading, from the local encrypted bodies. No-ops fast when the
       // backfill marker is absent (the common case).
       await mailBackfillRag(buildMailMatterMap(getMatters())).catch(() => {});
-      if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
-      // A committed manual filing may have survived a crash or a failed vector
-      // write. Its exact sources were held before startup; repair them before
-      // normal folder healing can make search available again.
-      await repairPendingMailRagRetags(workspaceIdentity);
       if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return;
       // QA-44 (Codex round 3): re-apply every mapped mail folder's matter on
       // boot — the mail mirror of `retagExistingMatterFolderPaths` below. Heals a
@@ -2120,6 +2161,10 @@ export function useMemoryWiring(
     let unlisten: (() => void) | null = null;
     const stopModelListeners: Array<() => void> = [];
     let cancelled = false;
+    // This begins synchronously in the effect, before its first await.  Search
+    // can therefore never show a stale mail row during a restart's wiring gap.
+    beginPendingMailRagRetagStartupHold(rootPath);
+    let stopPendingMailRagRetagRecovery: () => void = () => {};
     // QA-19 (codex-review follow-up): owned per mount so its retry timers can
     // be cancelled wholesale on cleanup — see IndexRetryScheduler.disposeAll.
     const indexRetryScheduler = createIndexRetryScheduler();
@@ -2193,10 +2238,14 @@ export function useMemoryWiring(
         // Optional connectors — every one of these is best-effort and
         // individually caught, so a failure here can never again take down
         // the file watcher / live indexing installed above.
-        beginPendingMailRagRetagHold(rootPath);
         try {
           await mailSetWorkspace(rootPath);
-          await refreshPendingMailRagRetagHold(workspaceIdentity);
+          if (!cancelled) {
+            stopPendingMailRagRetagRecovery = startPendingMailRagRetagRecovery(
+              workspaceIdentity,
+              { isCancelled: () => cancelled },
+            );
+          }
         } catch (err) {
           console.warn('mailSetWorkspace failed; continuing workspace setup:', err);
         }
@@ -2345,6 +2394,7 @@ export function useMemoryWiring(
         s();
       });
       deleteBatcher.dispose();
+      stopPendingMailRagRetagRecovery();
       // QA-19 (codex-review follow-up): cancel any pending index retry so it
       // can never fire after this workspace has closed/switched and index
       // stale content into whatever workspace is active by then.

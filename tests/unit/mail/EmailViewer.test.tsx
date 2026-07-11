@@ -275,6 +275,21 @@ describe('EmailViewer', () => {
     expect(screen.getByTestId('file-to-matter-btn-m1')).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('honestly says when filing worked but search repair is still pending', async () => {
+    mockMailGetMessage.mockResolvedValue(sampleMessage({ matterId: null }));
+    mockMailRetagMessageMatter.mockResolvedValue({ filedCount: 1, searchRepairPending: true });
+    render(<EmailViewer sourceId="AAMk-xyz" />);
+    await screen.findByTestId('email-file-to-matter');
+    await openFilingPicker();
+
+    fireEvent.click(screen.getByTestId('file-to-matter-btn-m1'));
+
+    expect(await screen.findByTestId('email-filed-matter')).toHaveTextContent(/Acme v\. Beta/);
+    expect(await screen.findByTestId('email-file-result')).toHaveTextContent(
+      /Filed to this client\. Search is updating/,
+    );
+  });
+
   it('shows the reply area with Draft with AI and mailto link', async () => {
     mockMailGetMessage.mockResolvedValue(sampleMessage());
     render(<EmailViewer sourceId="AAMk-xyz" />);

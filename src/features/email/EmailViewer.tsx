@@ -197,6 +197,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
     : null;
   const [filingMatter, setFilingMatter] = useState<string | null>(null);
   const [fileSuccess, setFileSuccess] = useState(false);
+  const [fileSearchRepairPending, setFileSearchRepairPending] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
   const [filePickerOpen, setFilePickerOpen] = useState(false);
   const [fileMatterSearch, setFileMatterSearch] = useState('');
@@ -304,8 +305,9 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
     setFilingMatter(matterId);
     setFileError(null);
     setFileSuccess(false);
+    setFileSearchRepairPending(false);
     try {
-      await mailRetagMessageMatter(targetId, matterId);
+      const result = await mailRetagMessageMatter(targetId, matterId);
       // QA-53: if the viewer moved to a different email while this filing ran,
       // drop the result — never mark the CURRENT (different) email filed here.
       if (fileTargetIdRef.current !== targetId) return false;
@@ -314,8 +316,12 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
       // not only via the transient success flag.
       setMessage((prev) => (prev && prev.id === targetId ? { ...prev, matterId } : prev));
       setFileSuccess(true);
+      setFileSearchRepairPending(result.searchRepairPending);
       setTimeout(() => {
-        if (fileTargetIdRef.current === targetId) setFileSuccess(false);
+        if (fileTargetIdRef.current === targetId) {
+          setFileSuccess(false);
+          setFileSearchRepairPending(false);
+        }
       }, 2500);
       return true;
     } catch (e: unknown) {
@@ -577,7 +583,14 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
         </p>
       ) : null}
       {fileSuccess ? (
-        <p className="m-0 text-[11px] text-emerald-700">{t('mail.viewer.filed-success')}</p>
+        <p
+          className={`m-0 text-[11px] ${fileSearchRepairPending ? 'text-amber-700' : 'text-emerald-700'}`}
+          data-testid="email-file-result"
+        >
+          {fileSearchRepairPending
+            ? 'Filed to this client. Search is updating and will skip this email until it is ready.'
+            : t('mail.viewer.filed-success')}
+        </p>
       ) : null}
       {filePickerOpen ? (
         <Dropdown
