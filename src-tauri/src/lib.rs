@@ -13,6 +13,9 @@ pub mod commands;
 // MCP identifiers, OS data paths). Single source of truth for all
 // Rust-side identity strings — call sites import from here, never hard-code.
 pub mod identity;
+// The desktop host and the MCP sidecar must load Offline Mode from the same
+// identifier-based OS app-data directory.
+pub mod app_data;
 // Native Offline Mode source of truth.  It is loaded before any startup work
 // and later lanes route every off-device sink through this policy.
 pub mod egress_http;
@@ -376,10 +379,8 @@ pub fn run() {
             // record is synchronously loaded, off-device requests are denied.
             // A malformed/unreadable record remains fail-closed and is exposed
             // through `network_policy_status` for the settings UI in Lane 1.
-            let policy_data_dir = app
-                .path()
-                .app_data_dir()
-                .map_err(|error| error.to_string())?;
+            let policy_data_dir = crate::app_data::resolve_lantern_app_data_dir()
+                .ok_or_else(|| "could not resolve Lantern app data directory".to_string())?;
             app.manage(network_policy::NetworkPolicy::load_from_app_data_dir(
                 &policy_data_dir,
             ));

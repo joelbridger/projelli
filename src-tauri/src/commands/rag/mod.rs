@@ -31,6 +31,7 @@ pub mod bm25_index;
 pub mod crypto;
 pub mod embedder;
 pub mod extractor;
+pub mod huggingface_download;
 pub mod manifest;
 pub mod model_download;
 pub mod office;

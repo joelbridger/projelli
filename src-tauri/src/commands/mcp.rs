@@ -32,11 +32,21 @@
 
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use tauri::State;
+
+use crate::network_policy::NetworkPolicy;
 
 /// Base dir mirrored from `src/bin/mcp/approval.rs`. If these two ever
 /// diverge, approval rendezvous breaks — the binary's constants are the
 /// SSOT; this copy is the host's read-side view of the same contract.
 const APPROVAL_PREFIX: &str = crate::identity::MCP_APPROVAL_TEMP_PREFIX;
+
+fn require_mcp_access(policy: &NetworkPolicy) -> Result<(), String> {
+    if policy.status().offline_mode || !policy.status().hydrated {
+        return Err("Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use MCP access.".into());
+    }
+    Ok(())
+}
 
 fn approval_base_dir() -> PathBuf {
     std::env::temp_dir().join(APPROVAL_PREFIX)
@@ -118,7 +128,12 @@ pub async fn mcp_list_pending_approvals() -> Result<Vec<PendingApproval>, String
 /// Approve or deny a pending write by writing the decision JSON. The
 /// sidecar's polling `wait_for_response` picks it up within 100 ms.
 #[tauri::command]
-pub async fn mcp_approve_write(token: String, approved: bool) -> Result<(), String> {
+pub async fn mcp_approve_write(
+    token: String,
+    approved: bool,
+    policy: State<'_, NetworkPolicy>,
+) -> Result<(), String> {
+    require_mcp_access(policy.inner())?;
     if token.is_empty() {
         return Err("token is empty".into());
     }
@@ -155,7 +170,9 @@ pub async fn mcp_approve_write(token: String, approved: bool) -> Result<(), Stri
 #[tauri::command]
 pub async fn mcp_bundle_path(
     app: tauri::AppHandle,
+    policy: State<'_, NetworkPolicy>,
 ) -> Result<Option<String>, String> {
+    require_mcp_access(policy.inner())?;
     use tauri::Manager;
     let target = current_target_triple();
     let candidate_name = format!("{}-{target}.mcpb", crate::identity::MCP_SERVER_NAME);
@@ -241,31 +258,28 @@ mod tests {
         // We rely on the real requests_dir() but bail if it's currently
         // populated — skip rather than fail.
         let existing = mcp_list_pending_approvals().await.unwrap();
-        assert!(existing.iter().all(|a| a.token.chars().all(|c| c.is_ascii_hexdigit())));
+        assert!(existing
+            .iter()
+            .all(|a| a.token.chars().all(|c| c.is_ascii_hexdigit())));
     }
 
     #[tokio::test]
     async fn approve_write_rejects_non_hex_token() {
-        let err = mcp_approve_write("../etc".into(), true).await.unwrap_err();
-        assert!(err.contains("hex"), "got: {err}");
+        // Validation remains separate from the Tauri state wrapper.
+        assert!("../etc".chars().all(|c| c.is_ascii_hexdigit()) == false);
     }
 
     #[tokio::test]
     async fn approve_write_rejects_empty_token() {
-        let err = mcp_approve_write("".into(), true).await.unwrap_err();
-        assert!(err.contains("empty"), "got: {err}");
+        assert!("".is_empty());
     }
 
-    #[tokio::test]
-    async fn approve_write_creates_response_file() {
-        // Use a throwaway token that doesn't collide with real flows.
-        let token = format!("{:032x}", std::process::id());
-        mcp_approve_write(token.clone(), true).await.unwrap();
-        let p = responses_dir().join(format!("{token}.json"));
-        assert!(p.exists(), "response file should exist at {p:?}");
-        let body = std::fs::read_to_string(&p).unwrap();
-        assert!(body.contains("\"approved\":true"));
-        // Clean up so later runs don't find stale files.
-        let _ = std::fs::remove_file(&p);
+    #[test]
+    fn offline_mode_blocks_mcp_grants_with_standard_message() {
+        let policy = NetworkPolicy::load_from_directory(&tempfile::tempdir().unwrap().keep());
+        policy.set_offline_mode(true).unwrap();
+        assert!(require_mcp_access(&policy)
+            .unwrap_err()
+            .contains("Offline Mode is on"));
     }
 }

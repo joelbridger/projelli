@@ -27,6 +27,9 @@
 
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
+use crate::commands::connector_network::authorize_configured_host;
+use crate::network_policy::{AuthorizedGeneration, NetworkPolicy, MEETING_AUTO_JOIN};
+
 /// Only https meeting links may ever be opened in the companion window. Guards
 /// against a malformed or non-web scheme (`file:`, `javascript:`, etc.) ever
 /// reaching the webview. Pure + unit-tested.
@@ -37,12 +40,24 @@ pub fn is_allowed_join_url(raw: &str) -> bool {
     }
 }
 
+fn authorize_join_url(
+    policy: &NetworkPolicy,
+    join_url: &str,
+) -> Result<AuthorizedGeneration, String> {
+    let url = tauri::Url::parse(join_url).map_err(|e| format!("parse join url: {e}"))?;
+    let host = url
+        .host_str()
+        .ok_or_else(|| "notice card join url must have a host".to_string())?;
+    authorize_configured_host(policy, &MEETING_AUTO_JOIN, join_url, host).map_err(|e| e.to_string())
+}
+
 /// Open (or replace) the isolated companion window for one card and begin the
 /// guest join. `init_script` is the self-contained automation the app built
 /// (`buildInjectionScript`); it runs before the meeting page's own scripts.
 #[tauri::command]
 pub async fn notice_card_open(
     app: AppHandle,
+    policy: tauri::State<'_, NetworkPolicy>,
     label: String,
     join_url: String,
     init_script: String,
@@ -50,6 +65,9 @@ pub async fn notice_card_open(
     if !is_allowed_join_url(&join_url) {
         return Err("notice card join url must be a valid https link".into());
     }
+    // This is deliberately before window construction: while Offline Mode is
+    // on Lantern must not even begin an app-opened meeting navigation.
+    let authorized = authorize_join_url(policy.inner(), &join_url)?;
     let url = tauri::Url::parse(&join_url).map_err(|e| format!("parse join url: {e}"))?;
 
     // Replace any stale window with this label so a re-record rejoins cleanly.
@@ -82,6 +100,13 @@ pub async fn notice_card_open(
         builder.additional_browser_args(&crate::webview_env::webview_browser_args())
     };
 
+    // Hold the generation grant until the last moment before Tauri creates the
+    // external webview. If Offline Mode flipped while this command prepared the
+    // window, the now-stale grant stops the navigation before construction.
+    policy
+        .assert_authorized_generation(&authorized)
+        .map_err(|e| e.to_string())?;
+
     builder
         // CRITICAL for the status channel: the injected script reports the join
         // phase by writing `NC:<phase>` into the PAGE's `document.title`, but
@@ -106,7 +131,8 @@ pub async fn notice_card_open(
 #[tauri::command]
 pub fn notice_card_close(app: AppHandle, label: String) -> Result<(), String> {
     if let Some(w) = app.get_webview_window(&label) {
-        w.destroy().map_err(|e| format!("close notice card window: {e}"))?;
+        w.destroy()
+            .map_err(|e| format!("close notice card window: {e}"))?;
     }
     Ok(())
 }
@@ -124,7 +150,10 @@ pub fn notice_card_close(app: AppHandle, label: String) -> Result<(), String> {
 #[tauri::command]
 pub fn notice_card_status(app: AppHandle, label: String) -> Result<Option<String>, String> {
     match app.get_webview_window(&label) {
-        Some(w) => w.title().map(Some).map_err(|e| format!("read notice card title: {e}")),
+        Some(w) => w
+            .title()
+            .map(Some)
+            .map_err(|e| format!("read notice card title: {e}")),
         None => Ok(None),
     }
 }
@@ -158,7 +187,9 @@ mod tests {
 
     #[test]
     fn allows_only_https_meeting_links() {
-        assert!(is_allowed_join_url("https://teams.microsoft.com/l/meetup-join/abc"));
+        assert!(is_allowed_join_url(
+            "https://teams.microsoft.com/l/meetup-join/abc"
+        ));
         assert!(is_allowed_join_url("https://acme.zoom.us/j/123?pwd=x"));
         // Rejected: non-https schemes, missing host, and junk.
         assert!(!is_allowed_join_url("http://teams.microsoft.com/x")); // not https
@@ -166,5 +197,22 @@ mod tests {
         assert!(!is_allowed_join_url("javascript:alert(1)"));
         assert!(!is_allowed_join_url("not a url"));
         assert!(!is_allowed_join_url(""));
+    }
+
+    #[test]
+    fn offline_mode_blocks_meeting_auto_join_with_the_standard_message() {
+        let policy = NetworkPolicy::load_from_directory(&tempfile::tempdir().unwrap().keep());
+        policy.set_offline_mode(true).unwrap();
+        let error = authorize_join_url(&policy, "https://teams.microsoft.com/l/meetup-join/abc")
+            .unwrap_err();
+        assert_eq!(error, "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use meeting auto-join.");
+    }
+
+    #[test]
+    fn offline_mode_blocks_loopback_meeting_auto_join_too() {
+        let policy = NetworkPolicy::load_from_directory(&tempfile::tempdir().unwrap().keep());
+        policy.set_offline_mode(true).unwrap();
+        let error = authorize_join_url(&policy, "https://127.0.0.1/meeting").unwrap_err();
+        assert_eq!(error, "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use meeting auto-join.");
     }
 }

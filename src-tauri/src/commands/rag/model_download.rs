@@ -12,9 +12,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, State};
 
-use super::embedder;
+use crate::network_policy::{NetworkPolicy, RAG_MODEL_DOWNLOAD};
+
+use super::{embedder, huggingface_download};
 
 /// HF repo + file set fastembed needs for MultilingualE5Small. Kept honest
 /// by the `required_files_match_fastembed` test below.
@@ -86,7 +88,10 @@ pub fn model_files_cached(cache_dir: &Path) -> bool {
 /// the model.
 pub fn writable_cache_dir() -> PathBuf {
     if let Some(data_dir) = dirs::data_dir() {
-        return data_dir.join(crate::identity::OS_DATA_SUBDIR).join("models").join("e5-small");
+        return data_dir
+            .join(crate::identity::OS_DATA_SUBDIR)
+            .join("models")
+            .join("e5-small");
     }
     std::env::temp_dir().join(format!("{}-e5-small", crate::identity::OS_DATA_SUBDIR))
 }
@@ -105,44 +110,42 @@ fn emit(app: &AppHandle, p: ModelDownloadProgress) {
 /// NB: parse the `content-length` HEADER, not `Response::content_length()`
 /// — the latter is the body size hint, which is always 0 for a HEAD
 /// response (hyper decodes HEAD bodies as zero-length per RFC 9110).
-async fn head_total_size() -> Option<u64> {
-    // Timeouts matter: on a DROP-style firewall each of the 5 sequential
-    // HEADs would otherwise hang for minutes while the UI sits on
-    // "Checking" and the single-flight guard blocks retry.
-    let client = match reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-    {
-        Ok(c) => c,
-        // Builder failure is exotic; the prepass is best-effort anyway.
-        Err(_) => return None,
-    };
-    let mut sum: u64 = 0;
-    for file in REQUIRED_FILES {
-        let url = format!("https://huggingface.co/{MODEL_REPO}/resolve/main/{file}");
-        let resp = client.head(&url).send().await.ok()?;
-        if !resp.status().is_success() {
-            return None;
-        }
-        let len = resp
-            .headers()
-            .get(reqwest::header::CONTENT_LENGTH)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<u64>().ok())
-            .or_else(|| {
-                resp.headers()
-                    .get("x-linked-size")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse().ok())
-            })?;
-        sum += len;
-    }
-    Some(sum)
+async fn head_total_size(policy: &NetworkPolicy) -> Option<u64> {
+    huggingface_download::total_size(policy, &RAG_MODEL_DOWNLOAD, MODEL_REPO, &REQUIRED_FILES).await
+}
+
+async fn download_all_authorized(
+    policy: &NetworkPolicy,
+    cache_dir: &Path,
+    grand_total: Option<u64>,
+    sink: impl Fn(ModelDownloadProgress) + Send + Sync + 'static,
+) -> Result<()> {
+    let done_before = REQUIRED_FILES
+        .iter()
+        .filter_map(|file| cached_file_len(cache_dir, file))
+        .sum::<u64>();
+    huggingface_download::download_missing_files(
+        policy,
+        &RAG_MODEL_DOWNLOAD,
+        cache_dir,
+        MODEL_REPO,
+        &REQUIRED_FILES,
+        |file, file_done| {
+            sink(ModelDownloadProgress {
+                state: ModelDownloadState::Downloading,
+                file: Some(file.into()),
+                bytes_done: done_before + file_done,
+                bytes_total: grand_total,
+                message: None,
+            })
+        },
+    )
+    .await
 }
 
 /// hf-hub `Progress` adapter that forwards throttled aggregate progress to
 /// a sink (the Tauri event emitter in production, a println in tests).
+#[cfg(test)]
 struct SinkProgress {
     sink: Box<dyn Fn(ModelDownloadProgress) + Send>,
     file: String,
@@ -154,6 +157,7 @@ struct SinkProgress {
     last_emit: u64,
 }
 
+#[cfg(test)]
 impl hf_hub::api::Progress for SinkProgress {
     fn init(&mut self, _size: usize, _filename: &str) {
         // hf-hub may call init again on an internal retry, then re-seed the
@@ -173,6 +177,7 @@ impl hf_hub::api::Progress for SinkProgress {
     }
 }
 
+#[cfg(test)]
 impl SinkProgress {
     fn emit_now(&mut self) {
         self.last_emit = self.file_done;
@@ -188,7 +193,9 @@ impl SinkProgress {
 
 fn cached_file_len(cache_dir: &Path, file: &str) -> Option<u64> {
     let cache = hf_hub::Cache::new(cache_dir.to_path_buf());
-    let p = cache.repo(hf_hub::Repo::model(MODEL_REPO.to_string())).get(file)?;
+    let p = cache
+        .repo(hf_hub::Repo::model(MODEL_REPO.to_string()))
+        .get(file)?;
     std::fs::metadata(&p).ok().map(|m| m.len())
 }
 
@@ -196,6 +203,7 @@ fn cached_file_len(cache_dir: &Path, file: &str) -> Option<u64> {
 /// forwarding progress to `sink`. Sync — call from spawn_blocking.
 /// Files already complete are skipped (their size still counts toward
 /// `bytes_done` so a retry's bar starts where it left off).
+#[cfg(test)]
 fn download_all(
     cache_dir: &Path,
     grand_total: Option<u64>,
@@ -204,12 +212,11 @@ fn download_all(
     // from_cache (not new().with_cache_dir(...)): `new()` reads the token
     // from the DEFAULT ~/.cache/huggingface and with_cache_dir doesn't reset
     // it — a stale user-level HF token could 401 where anonymous succeeds.
-    let api = hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(
-        cache_dir.to_path_buf(),
-    ))
-    .with_progress(false) // no terminal bar; we emit our own events
-    .build()
-    .context("hf-hub api init")?;
+    let api =
+        hf_hub::api::sync::ApiBuilder::from_cache(hf_hub::Cache::new(cache_dir.to_path_buf()))
+            .with_progress(false) // no terminal bar; we emit our own events
+            .build()
+            .context("hf-hub api init")?;
     let repo = api.model(MODEL_REPO.to_string());
 
     let mut done_before: u64 = 0;
@@ -237,7 +244,7 @@ fn download_all(
 /// verify by actually initializing the embedder. On verify failure the
 /// repo dir is wiped so Retry re-fetches cleanly instead of looping on a
 /// corrupt cache.
-async fn run_download(app: &AppHandle) -> Result<()> {
+async fn run_download(app: &AppHandle, policy: &NetworkPolicy) -> Result<()> {
     emit(
         app,
         ModelDownloadProgress {
@@ -249,18 +256,13 @@ async fn run_download(app: &AppHandle) -> Result<()> {
         },
     );
 
-    let total = head_total_size().await;
+    let total = head_total_size(policy).await;
 
     let dir = writable_cache_dir();
     std::fs::create_dir_all(&dir).context("create model cache dir")?;
 
     let app_for_sink = app.clone();
-    let dir_for_dl = dir.clone();
-    tokio::task::spawn_blocking(move || {
-        download_all(&dir_for_dl, total, move |p| emit(&app_for_sink, p))
-    })
-    .await
-    .context("download task join failed")??;
+    download_all_authorized(policy, &dir, total, move |p| emit(&app_for_sink, p)).await?;
 
     emit(
         app,
@@ -290,10 +292,9 @@ pub async fn model_status() -> Result<String, String> {
     }
     // resolve_cache_dir itself probes candidate dirs (a dozen fs syscalls),
     // so it belongs inside the blocking closure too.
-    let ready =
-        tokio::task::spawn_blocking(|| model_files_cached(&embedder::resolve_cache_dir()))
-            .await
-            .map_err(|e| e.to_string())?;
+    let ready = tokio::task::spawn_blocking(|| model_files_cached(&embedder::resolve_cache_dir()))
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(if ready { "ready" } else { "absent" }.into())
 }
 
@@ -302,7 +303,10 @@ pub async fn model_status() -> Result<String, String> {
 /// in flight, otherwise runs the download job to completion and returns
 /// "ready" (or an error after emitting an Error event).
 #[tauri::command]
-pub async fn model_ensure(app: AppHandle) -> Result<String, String> {
+pub async fn model_ensure(
+    app: AppHandle,
+    policy: State<'_, NetworkPolicy>,
+) -> Result<String, String> {
     // Check the single-flight guard BEFORE the cached fast-path (matching
     // model_status's order) so a concurrent caller can't observe "ready"
     // while another job is still in Verifying and could yet fail-and-wipe.
@@ -345,7 +349,7 @@ pub async fn model_ensure(app: AppHandle) -> Result<String, String> {
     // path from here on, including panic-unwind inside the download job.
     let _downloading_guard = DownloadingGuard;
 
-    let result = run_download(&app).await;
+    let result = run_download(&app, policy.inner()).await;
 
     match result {
         Ok(()) => {

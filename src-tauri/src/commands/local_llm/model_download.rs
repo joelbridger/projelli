@@ -13,8 +13,13 @@ use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::State;
 use tauri::{AppHandle, Emitter};
 use tokio::io::AsyncWriteExt;
+
+use crate::commands::connector_network::{authorize_url, await_authorized};
+use crate::egress_http::EgressHttpClient;
+use crate::network_policy::{NetworkPolicy, LOCAL_LLM_MODEL_DOWNLOAD};
 
 pub const MODEL_ID: &str = "qwen3-4b-instruct-2507-q4-k-m";
 pub const MODEL_REPO: &str = "bartowski/Qwen_Qwen3-4B-Instruct-2507-GGUF";
@@ -218,6 +223,7 @@ fn sha256_file(path: &Path) -> Result<String> {
 
 async fn append_download(
     client: &reqwest::Client,
+    policy: Option<&NetworkPolicy>,
     spec: &ModelDownloadSpec,
     part_path: &Path,
     already_done: u64,
@@ -228,10 +234,30 @@ async fn append_download(
         req = req.header(reqwest::header::RANGE, format!("bytes={already_done}-"));
     }
 
-    let resp = req
-        .send()
-        .await
-        .with_context(|| format!("download {}", spec.source_url))?;
+    let resp = match policy {
+        Some(policy) => {
+            let grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
+            let egress = EgressHttpClient::new(policy.clone())?;
+            let mut headers = reqwest::header::HeaderMap::new();
+            if already_done > 0 {
+                headers.insert(
+                    reqwest::header::RANGE,
+                    reqwest::header::HeaderValue::from_str(&format!("bytes={already_done}-"))?,
+                );
+            }
+            await_authorized(policy, &grant, async {
+                Ok(egress
+                    .get_with_headers(&LOCAL_LLM_MODEL_DOWNLOAD, spec.source_url.parse()?, headers)
+                    .await?)
+            })
+            .await
+            .with_context(|| format!("download {}", spec.source_url))?
+        }
+        None => req
+            .send()
+            .await
+            .with_context(|| format!("download {}", spec.source_url))?,
+    };
 
     if already_done > 0 && resp.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
         // The CDN has nothing to send from this offset. If the bytes already on
@@ -296,6 +322,15 @@ pub async fn download_model_to_dir(
     spec: &ModelDownloadSpec,
     sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
 ) -> Result<PathBuf> {
+    download_model_to_dir_with_policy(None, model_dir, spec, sink).await
+}
+
+async fn download_model_to_dir_with_policy(
+    policy: Option<&NetworkPolicy>,
+    model_dir: &Path,
+    spec: &ModelDownloadSpec,
+    sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
+) -> Result<PathBuf> {
     std::fs::create_dir_all(model_dir)
         .with_context(|| format!("create model dir {}", model_dir.display()))?;
 
@@ -350,7 +385,7 @@ pub async fn download_model_to_dir(
             .build()
             .context("build local AI model download client")?;
 
-        append_download(&client, spec, &part_path, partial_len, &sink).await?;
+        append_download(&client, policy, spec, &part_path, partial_len, &sink).await?;
     }
 
     let actual_size = std::fs::metadata(&part_path)
@@ -399,6 +434,24 @@ pub async fn download_model_to_dir(
     Ok(final_path)
 }
 
+/// Policy-wrapped production entry point.  The authorization is held across
+/// the entire resumable transfer, including the response stream, so a mode
+/// flip drops the in-flight request rather than merely blocking a later retry.
+async fn download_model_to_dir_authorized(
+    policy: &NetworkPolicy,
+    model_dir: &Path,
+    spec: &ModelDownloadSpec,
+    sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
+) -> Result<PathBuf> {
+    let grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
+    await_authorized(
+        policy,
+        &grant,
+        download_model_to_dir_with_policy(Some(policy), model_dir, spec, sink),
+    )
+    .await
+}
+
 pub async fn local_llm_model_status_value() -> Result<String> {
     if DOWNLOADING.load(Ordering::SeqCst) {
         return Ok("downloading".to_string());
@@ -419,7 +472,10 @@ pub async fn local_llm_model_status() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn local_llm_model_ensure(app: AppHandle) -> Result<String, String> {
+pub async fn local_llm_model_ensure(
+    app: AppHandle,
+    policy: State<'_, NetworkPolicy>,
+) -> Result<String, String> {
     if DOWNLOADING.load(Ordering::SeqCst) {
         return Ok("downloading".to_string());
     }
@@ -448,7 +504,10 @@ pub async fn local_llm_model_ensure(app: AppHandle) -> Result<String, String> {
     let _ = write_manifest(&dir, &spec.manifest(LocalModelStatus::Downloading));
 
     let app_for_sink = app.clone();
-    let result = download_model_to_dir(&dir, &spec, move |p| emit(&app_for_sink, p)).await;
+    let result = download_model_to_dir_authorized(policy.inner(), &dir, &spec, move |p| {
+        emit(&app_for_sink, p)
+    })
+    .await;
 
     match result {
         Ok(_) => Ok("ready".to_string()),
@@ -706,7 +765,7 @@ mod tests {
         std::fs::write(&part, &bytes).unwrap();
         let client = reqwest::Client::new();
 
-        append_download(&client, &spec, &part, bytes.len() as u64, &|_| {})
+        append_download(&client, None, &spec, &part, bytes.len() as u64, &|_| {})
             .await
             .expect("416 on an already-complete file must be treated as done");
 
@@ -728,7 +787,7 @@ mod tests {
         std::fs::write(&part, &bytes[..7]).unwrap();
         let client = reqwest::Client::new();
 
-        let err = append_download(&client, &spec, &part, 7, &|_| {})
+        let err = append_download(&client, None, &spec, &part, 7, &|_| {})
             .await
             .unwrap_err()
             .to_string();

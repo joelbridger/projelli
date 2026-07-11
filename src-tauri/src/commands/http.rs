@@ -15,6 +15,9 @@
 
 use std::time::Duration;
 
+use crate::commands::connector_network::{authorize_configured_host, await_authorized};
+use crate::network_policy::{NetworkPolicy, EXTERNAL_NAVIGATION};
+
 /// Max number of bytes we'll read from a response body before giving up.
 /// Most <title> tags appear in the first few hundred bytes; 10 MiB is more
 /// than enough without exposing us to a pathological server trying to
@@ -77,10 +80,7 @@ fn decode_common_entities(input: &str) -> String {
         if bytes[i] == b'&' {
             // Find next ';' within 10 bytes (any legitimate entity is short).
             let lookahead_end = (i + 10).min(bytes.len());
-            if let Some(semi_rel) = bytes[i + 1..lookahead_end]
-                .iter()
-                .position(|&c| c == b';')
-            {
+            if let Some(semi_rel) = bytes[i + 1..lookahead_end].iter().position(|&c| c == b';') {
                 let entity = &input[i + 1..i + 1 + semi_rel];
                 match entity {
                     "amp" => out.push('&'),
@@ -155,7 +155,14 @@ fn collapse_whitespace(s: &str) -> String {
 /// Timeout is 5 seconds. Body is read to a hard 10 MiB cap. Up to 5
 /// redirects are followed.
 #[tauri::command]
-pub async fn fetch_url_title(url: String) -> Result<String, String> {
+pub async fn fetch_url_title(
+    url: String,
+    policy: tauri::State<'_, NetworkPolicy>,
+) -> Result<String, String> {
+    let parsed = reqwest::Url::parse(&url).map_err(|_| "invalid URL".to_string())?;
+    let host = parsed.host_str().ok_or_else(|| "invalid URL".to_string())?;
+    let grant = authorize_configured_host(policy.inner(), &EXTERNAL_NAVIGATION, &url, host)
+        .map_err(|error| error.to_string())?;
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
         .redirect(reqwest::redirect::Policy::limited(5))
@@ -166,38 +173,40 @@ pub async fn fetch_url_title(url: String) -> Result<String, String> {
         Err(_) => return Ok(String::new()),
     };
 
-    let resp = match client.get(&url).send().await {
-        Ok(r) => r,
-        Err(_) => return Ok(String::new()),
-    };
-    if !resp.status().is_success() {
-        return Ok(String::new());
-    }
-
-    // Stream the response body up to MAX_BODY_BYTES. We can usually stop
-    // much earlier (once we see `</title>`), which both saves bandwidth
-    // and avoids pulling huge pages into memory.
-    let mut buf: Vec<u8> = Vec::with_capacity(8 * 1024);
-    let mut stream = resp.bytes_stream();
-    use futures_util::StreamExt;
-    while let Some(chunk) = stream.next().await {
-        let chunk = match chunk {
-            Ok(c) => c,
-            Err(_) => break,
+    await_authorized(policy.inner(), &grant, async {
+        let resp = match client.get(&url).send().await {
+            Ok(r) => r,
+            Err(_) => return Ok(String::new()),
         };
-        buf.extend_from_slice(&chunk);
-        if buf.len() >= MAX_BODY_BYTES {
-            buf.truncate(MAX_BODY_BYTES);
-            break;
+        if !resp.status().is_success() {
+            return Ok(String::new());
         }
-        // Fast-path: if we already have a complete <title>...</title>, stop.
-        if has_complete_title(&buf) {
-            break;
-        }
-    }
 
-    let html = String::from_utf8_lossy(&buf);
-    Ok(extract_title_from_html(&html).unwrap_or_default())
+        // Stream the response body up to MAX_BODY_BYTES. We can usually stop
+        // much earlier (once we see `</title>`), which both saves bandwidth
+        // and avoids pulling huge pages into memory.
+        let mut buf: Vec<u8> = Vec::with_capacity(8 * 1024);
+        let mut stream = resp.bytes_stream();
+        use futures_util::StreamExt;
+        while let Some(chunk) = stream.next().await {
+            let chunk = match chunk {
+                Ok(c) => c,
+                Err(_) => break,
+            };
+            buf.extend_from_slice(&chunk);
+            if buf.len() >= MAX_BODY_BYTES {
+                buf.truncate(MAX_BODY_BYTES);
+                break;
+            }
+            if has_complete_title(&buf) {
+                break;
+            }
+        }
+        let html = String::from_utf8_lossy(&buf);
+        Ok(extract_title_from_html(&html).unwrap_or_default())
+    })
+    .await
+    .map_err(|error| error.to_string())
 }
 
 /// Cheap check used to short-circuit streaming once we've got a title tag.
@@ -272,10 +281,7 @@ mod tests {
     #[test]
     fn mixed_case_tags() {
         let html = "<HTML><HEAD><TiTlE>Case Test</TITLE></HEAD>";
-        assert_eq!(
-            extract_title_from_html(html).as_deref(),
-            Some("Case Test")
-        );
+        assert_eq!(extract_title_from_html(html).as_deref(), Some("Case Test"));
     }
 
     #[test]
@@ -299,10 +305,7 @@ mod tests {
     #[test]
     fn decodes_numeric_entities() {
         let html = "<title>A&#38;B &#x26; C</title>";
-        assert_eq!(
-            extract_title_from_html(html).as_deref(),
-            Some("A&B & C")
-        );
+        assert_eq!(extract_title_from_html(html).as_deref(), Some("A&B & C"));
     }
 
     #[test]
