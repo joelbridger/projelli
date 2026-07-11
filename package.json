@@ -135,6 +135,7 @@
     "eslint-plugin-lantern-i18n": "file:./packages/eslint-plugin-lantern-i18n",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.26",
+    "fast-check": "^4.9.0",
     "globals": "^17.1.0",
     "http-proxy-middleware": "^3.0.7",
     "i18next-parser": "^9.4.0",
