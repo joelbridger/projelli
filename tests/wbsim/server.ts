@@ -1,5 +1,11 @@
 import { createCorpus, type Corpus, type RecordJson } from './corpus/generate';
 import { corpusManifest, type CorpusCollection } from './corpus/manifest';
+declare const Bun: {
+  serve(options: { port: number; fetch(request: Request): Response }): {
+    port: number;
+    stop(closeActiveConnections?: boolean): void;
+  };
+};
 export interface WealthboxSimulator {
   baseUrl: string;
   corpus: Corpus;
@@ -102,7 +108,7 @@ export function startSimulator(
         });
       if (request.method === 'GET' && /^\/contacts\/\d+$/.test(path)) {
         const row = corpus.contacts.find(
-          (r) => r.id === Number(path.split('/').pop())
+          (r) => r['id'] === Number(path.split('/').pop())
         );
         return row ? out(row) : no();
       }
@@ -142,7 +148,7 @@ export function startSimulator(
   };
 }
 if (import.meta.main) {
-  const s = startSimulator({ port: Number(process.env.WBSIM_PORT ?? 8788) });
+  const s = startSimulator({ port: Number(process.env['WBSIM_PORT'] ?? 8788) });
   console.log(
     `DEMO Wealthbox simulator at ${s.baseUrl}: ${corpusManifest.label}`
   );

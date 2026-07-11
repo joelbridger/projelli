@@ -82,7 +82,7 @@ export function RecordMetadataEditor({
             <span
               key={tag}
               style={{
-                background: '#e0f2fe',
+                background: 'var(--color-sky-100)',
                 padding: '3px 7px',
                 borderRadius: 999,
               }}

@@ -31,7 +31,7 @@ export function IntakeSubmissionReview({
       </div>
       {matched ? (
         <>
-          <div style={{ padding: 10, background: '#eff6ff' }}>
+          <div style={{ padding: 10, background: 'var(--color-blue-50)' }}>
             <Check size={14} aria-hidden="true" /> Matched to {matched.name}.
             Review each proposed dated fact before saving.
             <Button

@@ -115,7 +115,7 @@ export function DirectorySurface({
                   <strong>{household.name}</strong>
                   <Badge variant="featured">{household.serviceTier}</Badge>
                 </div>
-                <div style={{ color: '#475569', marginTop: 4 }}>
+                <div style={{ color: 'var(--color-slate-600)', marginTop: 4 }}>
                   {household.lifecycle} · Owned by {household.primaryAdvisor} · {household.peopleCount} people
                 </div>
               </Card>
@@ -161,7 +161,7 @@ export function DirectorySurface({
                   )}
                 </div>
               </div>
-              <div style={{ color: '#475569', marginTop: 4 }}>
+              <div style={{ color: 'var(--color-slate-600)', marginTop: 4 }}>
                 {person.personType === 'organization'
                   ? 'Organization'
                   : person.personType === 'trust'

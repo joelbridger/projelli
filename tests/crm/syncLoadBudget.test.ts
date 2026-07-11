@@ -6,7 +6,7 @@ describe('D1 lazy-subscription load budgets', () => {
     const metrics = new InMemorySyncMetrics();
     metrics.beginBootstrap();
     // Frozen 03 §1.3 allocation: 10 MiB firm + 30 MiB records + 15 MiB notes + 1 MiB control.
-    for (const [stream, bytes] of [['firm', 10], ['record', 30], ['task-notes', 15], ['control', 1]] as const) {
+    for (const [stream, bytes] of [['firm', 10], ['record', 30], ['task-notes', 15], ['overhead', 1]] as const) {
       let remaining = bytes * 1024 * 1024;
       while (remaining > 0) {
         const chunk = Math.min(remaining, 768 * 1024);

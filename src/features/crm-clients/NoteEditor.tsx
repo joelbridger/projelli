@@ -31,8 +31,8 @@ export function NoteEditor({
       variant="raised"
       data-testid="crm-note-editor"
       style={{
-        border: `1px solid ${isInternal ? '#d97706' : '#0f766e'}`,
-        background: isInternal ? '#fffbeb' : '#f0fdfa',
+        border: `1px solid ${isInternal ? 'var(--color-amber-600)' : 'var(--color-teal-700)'}`,
+        background: isInternal ? 'var(--color-amber-50)' : 'var(--color-teal-50)',
       }}
     >
       <div
@@ -93,7 +93,7 @@ export function NoteEditor({
         style={{
           marginTop: 12,
           padding: 10,
-          background: '#fff',
+          background: 'var(--color-background)',
           borderRadius: 6,
         }}
       >

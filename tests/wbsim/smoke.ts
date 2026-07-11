@@ -25,7 +25,7 @@ const routes: Record<CorpusCollection, [string, string]> = {
   ],
   stream_items: ['/activity', 'stream_items'],
 };
-const ok = (x: unknown, m: string): asserts x => {
+const ok: (x: unknown, m: string) => asserts x = (x, m) => {
   if (!x) throw Error(m);
 };
 const get = async (url: string) => {
@@ -53,7 +53,7 @@ async function paged(
     ok(
       Array.isArray(items) &&
         items.length <= 100 &&
-        (data.meta as Record<string, unknown>).total_count === expected,
+        (data['meta'] as Record<string, unknown>)['total_count'] === expected,
       `${path} bad shape`
     );
     rows.push(...items);
@@ -74,11 +74,11 @@ async function stream(base: string, expected: number) {
       'activity shape'
     );
     const data = body as Record<string, unknown>,
-      items = data.stream_items as Record<string, unknown>[];
+      items = data['stream_items'] as Record<string, unknown>[];
     ok(Array.isArray(items) && items.length <= 100, 'activity cap');
     rows.push(...items);
     cursor =
-      ((data.meta as Record<string, unknown>).cursor as string | null) ?? '';
+      ((data['meta'] as Record<string, unknown>)['cursor'] as string | null) ?? '';
   } while (cursor);
   ok(rows.length === expected, 'activity count');
   return rows;
@@ -95,21 +95,21 @@ try {
         : await paged(s.baseUrl, ...routes[kind], expected);
   ok(
     ['household', 'person', 'organization', 'trust'].every((type) =>
-      all.contacts?.some((r) => r.type === type)
+      all.contacts?.some((r) => r['type'] === type)
     ),
     'contact types'
   );
   ok(
-    all.status_updates?.some((r) => (r.linked_to as unknown[]).length > 1),
+    all.status_updates?.some((r) => (r['linked_to'] as unknown[]).length > 1),
     'multi-link note'
   );
   ok(
-    all.tasks?.some((r) => r.wbsim_case === 'UNVERIFIED nested-subtask shape'),
+    all.tasks?.some((r) => r['wbsim_case'] === 'UNVERIFIED nested-subtask shape'),
     'subtask fixture'
   );
   ok(
     all.opportunities?.every(
-      (r) => typeof r.stage === 'number' && r.stage_label_missing === true
+      (r) => typeof r['stage'] === 'number' && r['stage_label_missing'] === true
     ) && all.opportunity_stage?.length === 0,
     'raw stage fixture'
   );
