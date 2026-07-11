@@ -17,7 +17,6 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse, redactUrl } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
-import { assertCloudPreparation, prepareToolResultContinuation } from '@/platform/privacy/promptPreparation';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
@@ -265,7 +264,6 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
-    assertCloudPreparation(options?.preparationStamp, 'google');
     const contents: GeminiContent[] = [
       {
         role: 'user',
@@ -348,17 +346,16 @@ export class GeminiProvider implements Provider {
               // results so the API accepts them.
               response:
                 result && typeof result === 'object' && !Array.isArray(result)
-                  ? JSON.parse(prepareToolResultContinuation(JSON.stringify(result))) as Record<string, unknown>
-                  : { result: prepareToolResultContinuation(JSON.stringify(result)) },
+                  ? (result as Record<string, unknown>)
+                  : { result },
             },
           });
         } catch (error) {
-          if (error instanceof Error && error.message === 'prompt_review_required') throw error;
           responseParts.push({
             functionResponse: {
               name: call.name,
               response: {
-                error: prepareToolResultContinuation(error instanceof Error ? error.message : String(error)),
+                error: error instanceof Error ? error.message : String(error),
               },
             },
           });
@@ -426,7 +423,6 @@ export class GeminiProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
-    assertCloudPreparation(options.preparationStamp, 'google');
     const { onChunk, signal, ...sendOpts } = options;
 
     const contents: GeminiContent[] = [{ role: 'user', parts: await this.buildUserParts(prompt, sendOpts.attachmentBytes) }];
@@ -552,7 +548,6 @@ export class GeminiProvider implements Provider {
   ): Promise<T> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('google');
-    assertCloudPreparation(options.preparationStamp, 'google');
     // Gemini doesn't have native JSON schema support like OpenAI, so include
     // the schema directly in the prompt and ask for only that JSON object.
     const jsonPrompt = `${prompt}

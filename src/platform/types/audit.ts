@@ -30,7 +30,6 @@ export type AuditActionType =
   | 'privilege_evaluated'
   | 'scope_active'
   | 'egress'
-  | 'prompt_preparation'
   // Privileged Matter Mode: an MCP server write was blocked while the mode was
   // on. Stored under `action = 'mcp_blocked'` so the audit log can label/filter
   // it as a defensible "nothing exfiltrated" record.
@@ -230,17 +229,6 @@ export interface AuditEntry {
  */
 export type AuditEvent =
   | { type: 'attachment_added'; timestamp: string; payload: { path: string; hash: string; byteSize: number } }
-  | {
-      type: 'prompt_preparation';
-      timestamp: string;
-      payload: {
-        surface: string;
-        destination: string;
-        categories: Array<{ kind: string; count: number }>;
-        decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked';
-        attachmentDisposition: 'none' | 'text_only' | 'redacted_derivative' | 'blocked';
-      };
-    }
   | { type: 'attachment_sent_to_provider'; timestamp: string; payload: { path: string; hash: string; provider: string; model: string } }
   | { type: 'attachment_removed'; timestamp: string; payload: { path: string; hash: string } }
   | { type: 'pdf_extracted'; timestamp: string; payload: { path: string; pages: number; mode: 'native' | 'text-extract' } }

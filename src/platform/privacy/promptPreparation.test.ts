@@ -3,7 +3,6 @@ vi.mock('@/platform/privacy/cloudSendGuard', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/platform/privacy/cloudSendGuard')>();
   return { ...actual, assertCloudSendAllowed: vi.fn(), isLocalOnlyModeFailClosed: () => false };
 });
-const fetchSpy = vi.fn();
 import { SECRET_SCRUB_FIXTURES } from './promptPreparation.fixtures';
 import {
   assertCloudPreparation,
@@ -16,9 +15,6 @@ import {
   setPreparationEnforcementMode,
 } from './promptPreparation';
 import type { Provider } from '@/platform/providers/Provider';
-import { ClaudeProvider } from '@/platform/providers/ClaudeProvider';
-import { OpenAIProvider } from '@/platform/providers/OpenAIProvider';
-import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 
 afterEach(() => { setPreparationEnforcementMode('warn'); setPromptDecisionBroker(); vi.unstubAllGlobals(); });
 
@@ -97,29 +93,4 @@ describe('prompt preparation red-team catalog', () => {
     expect(JSON.stringify(entries[0])).toContain('intake_link_secret');
   });
 
-  it('scans tool results in Claude, OpenAI, and Gemini before a continuation fetch', async () => {
-    const cases: Array<{ provider: { setTools: (tools: never[], executor: () => Promise<unknown>) => void; sendMessage: (prompt: string) => Promise<unknown> }; body: unknown }> = [
-      {
-        provider: new ClaudeProvider({ apiKey: 'test' }),
-        body: { model: 'claude', stop_reason: 'tool_use', usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: 'tool_use', id: 'tool-1', name: 'read', input: {} }] },
-      },
-      {
-        provider: new OpenAIProvider({ apiKey: 'test' }),
-        body: { model: 'openai', usage: { prompt_tokens: 1, completion_tokens: 1 }, choices: [{ finish_reason: 'tool_calls', message: { content: null, tool_calls: [{ id: 'tool-1', function: { name: 'read', arguments: '{}' } }] } }] },
-      },
-      {
-        provider: new GeminiProvider({ apiKey: 'test' }),
-        body: { usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 }, candidates: [{ content: { parts: [{ functionCall: { name: 'read', args: {} } }] } }] },
-      },
-    ];
-    for (const { provider, body } of cases) {
-      fetchSpy.mockReset();
-      fetchSpy.mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
-      vi.stubGlobal('fetch', fetchSpy);
-      provider.setTools([] as never[], () => Promise.resolve({ link: 'https://example.test/i/abc#tool-secret' }));
-      // eslint-disable-next-line lantern-egress/no-direct-provider-send -- this proves the provider backstop rejects an unprepared tool continuation.
-      await expect(provider.sendMessage('read this')).rejects.toThrow('prompt_review_required');
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
-    }
-  });
 });

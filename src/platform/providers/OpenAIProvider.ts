@@ -17,7 +17,6 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
-import { assertCloudPreparation, prepareToolResultContinuation } from '@/platform/privacy/promptPreparation';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
@@ -282,7 +281,6 @@ export class OpenAIProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('openai');
-    assertCloudPreparation(options?.preparationStamp, 'openai');
     const messages: OpenAIMessage[] = [];
 
     // Build system prompt with AI Rules prepended if available
@@ -366,11 +364,11 @@ export class OpenAIProvider implements Provider {
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: prepareToolResultContinuation(JSON.stringify({
+            content: JSON.stringify({
               error: `Failed to parse tool arguments JSON: ${
                 parseError instanceof Error ? parseError.message : String(parseError)
               }`,
-            })),
+            }),
           });
           continue;
         }
@@ -380,16 +378,15 @@ export class OpenAIProvider implements Provider {
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: prepareToolResultContinuation(JSON.stringify(result)),
+            content: JSON.stringify(result),
           });
         } catch (error) {
-          if (error instanceof Error && error.message === 'prompt_review_required') throw error;
           messages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: prepareToolResultContinuation(JSON.stringify({
+            content: JSON.stringify({
               error: error instanceof Error ? error.message : String(error),
-            })),
+            }),
           });
         }
       }
@@ -430,7 +427,6 @@ export class OpenAIProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('openai');
-    assertCloudPreparation(options.preparationStamp, 'openai');
     const { onChunk, signal, ...sendOpts } = options;
 
     const messages: OpenAIMessage[] = [];
@@ -589,7 +585,6 @@ export class OpenAIProvider implements Provider {
   ): Promise<T> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('openai');
-    assertCloudPreparation(options.preparationStamp, 'openai');
     // Build a prompt that requests JSON output
     const structuredPrompt = `${prompt}
 

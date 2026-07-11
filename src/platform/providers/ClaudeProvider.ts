@@ -17,7 +17,6 @@ import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
 import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
-import { assertCloudPreparation, prepareToolResultContinuation } from '@/platform/privacy/promptPreparation';
 import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
@@ -252,7 +251,6 @@ export class ClaudeProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('anthropic');
-    assertCloudPreparation(options?.preparationStamp, 'anthropic');
     const messages: ClaudeMessage[] = [
       { role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) },
     ];
@@ -336,16 +334,15 @@ export class ClaudeProvider implements Provider {
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolUse.id,
-            content: prepareToolResultContinuation(JSON.stringify(result)),
+            content: JSON.stringify(result),
           });
         } catch (error) {
-          if (error instanceof Error && error.message === 'prompt_review_required') throw error;
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolUse.id,
-            content: prepareToolResultContinuation(JSON.stringify({
+            content: JSON.stringify({
               error: error instanceof Error ? error.message : String(error),
-            })),
+            }),
           });
         }
       }
@@ -400,7 +397,6 @@ export class ClaudeProvider implements Provider {
   ): Promise<ProviderResponse> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('anthropic');
-    assertCloudPreparation(options.preparationStamp, 'anthropic');
     const { onChunk, signal, ...sendOpts } = options;
 
     const messages: ClaudeMessage[] = [
@@ -527,7 +523,6 @@ export class ClaudeProvider implements Provider {
   ): Promise<T> {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('anthropic');
-    assertCloudPreparation(options.preparationStamp, 'anthropic');
     // Build a prompt that requests JSON output
     const structuredPrompt = `${prompt}
 
@@ -542,7 +537,6 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
         'You are a helpful assistant that responds only with valid JSON.',
       temperature: options.temperature ?? 0,
     };
-    if (options.preparationStamp) sendOptions.preparationStamp = options.preparationStamp;
     if (options.maxTokens !== undefined) {
       sendOptions.maxTokens = options.maxTokens;
     }

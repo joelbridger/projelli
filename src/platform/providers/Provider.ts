@@ -1,7 +1,6 @@
 // Provider Interface
 // Abstract interface for AI model adapters
 import type { ChatAttachment } from '@/platform/types/ai';
-import type { PreparationStamp } from '@/platform/privacy/promptPreparation';
 
 /** Claude image block shape (returned by ClaudeProvider.formatAttachmentForRequest). */
 export interface ClaudeImageBlock {
@@ -99,8 +98,6 @@ export interface AttachmentBytes {
  * Options for sending a message to the model
  */
 export interface SendOptions {
-  /** Internal capability issued by prompt preparation for cloud requests. */
-  preparationStamp?: PreparationStamp;
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
@@ -185,8 +182,6 @@ export interface StreamOptions extends SendOptions {
  * Options for structured output
  */
 export interface StructuredOutputOptions {
-  /** Internal capability issued by prompt preparation for cloud requests. */
-  preparationStamp?: PreparationStamp;
   schema: OutputSchema;
   systemPrompt?: string;
   temperature?: number;

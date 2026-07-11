@@ -700,10 +700,6 @@ function describeAuditEvent(event: AuditEvent): string {
               : `${event.payload.provider} with your key`;
       return `AI request sent to ${where}`;
     }
-    case 'prompt_preparation':
-      return event.payload.decision === 'clean'
-        ? 'AI request checked for private access links'
-        : `AI request preparation: ${event.payload.decision}`;
     case 'mcp_blocked':
       return `External AI write blocked by Privileged Matter Mode: ${event.payload.path}`;
     case 'mcp_matter_access_granted':
