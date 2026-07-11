@@ -243,6 +243,7 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
     setReplyCcBccOpen(false);
     setFilingMatter(null);
     setFileSuccess(false);
+    setFileSearchRepairPending(false);
     setFileError(null);
     setFilePickerOpen(false);
     setFileMatterSearch('');
@@ -320,7 +321,6 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
       setTimeout(() => {
         if (fileTargetIdRef.current === targetId) {
           setFileSuccess(false);
-          setFileSearchRepairPending(false);
         }
       }, 2500);
       return true;
@@ -598,12 +598,19 @@ export function EmailViewer({ sourceId, className, onOpenSettings, onSaveToWorks
       ) : null}
       {fileSuccess ? (
         <p
-          className={`m-0 text-[11px] ${fileSearchRepairPending ? 'text-amber-700' : 'text-emerald-700'}`}
+          className="m-0 text-[11px] text-emerald-700"
           data-testid="email-file-result"
         >
-          {fileSearchRepairPending
-            ? 'Filed to this client. Search is updating and will skip this email until it is ready.'
-            : t('mail.viewer.filed-success')}
+          {t('mail.viewer.filed-success')}
+        </p>
+      ) : null}
+      {fileSearchRepairPending ? (
+        <p
+          className="m-0 flex items-center gap-1 text-[11px] text-amber-700"
+          data-testid="email-file-search-repair-pending"
+        >
+          <AlertTriangle className="h-3 w-3" />
+          Search is updating. This email will not appear in search results until it is ready.
         </p>
       ) : null}
       {filePickerOpen ? (
