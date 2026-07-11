@@ -17,9 +17,9 @@ pub struct RawHttpResponse {
     pub response_bytes: Vec<u8>,
 }
 
-/// B1-PENDING: `WealthboxClient` needs a narrow raw-GET method that delegates
-/// to its existing shared rate gate and PII-safe status logging.  This trait is
-/// the seam until that ownership lane is merged; implementors MUST share that
+/// IMPORTER-INTEGRATION-PENDING: WealthboxClient needs a narrow raw-GET method
+/// that delegates to its existing shared rate gate and PII-safe status logging.
+/// This lane may not edit that existing client; implementors MUST share the
 /// gate, never create a second per-importer request limiter.
 #[async_trait]
 pub trait RawWealthboxTransport: Send + Sync {
