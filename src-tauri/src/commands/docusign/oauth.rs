@@ -115,7 +115,22 @@ impl DocusignOAuth {
             .await
             .context("DocuSign token exchange send")?;
         let status = resp.status().as_u16();
-        let body: serde_json::Value = resp.json().await.context("DocuSign token JSON")?;
+        let policy = self.network_policy.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("DocusignOAuth requires a NetworkPolicy before it can read a response")
+        })?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            policy,
+            &crate::network_policy::DOCUSIGN_OAUTH,
+            &body_url,
+        )?;
+        let body: serde_json::Value = crate::commands::connector_network::await_authorized(
+            policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await
+        .context("DocuSign token JSON")?;
         parse_token_response(status, &body)
     }
 
@@ -131,7 +146,22 @@ impl DocusignOAuth {
             .await
             .context("DocuSign token refresh send")?;
         let status = resp.status().as_u16();
-        let body: serde_json::Value = resp.json().await.context("DocuSign refresh JSON")?;
+        let policy = self.network_policy.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("DocusignOAuth requires a NetworkPolicy before it can read a response")
+        })?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            policy,
+            &crate::network_policy::DOCUSIGN_OAUTH,
+            &body_url,
+        )?;
+        let body: serde_json::Value = crate::commands::connector_network::await_authorized(
+            policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await
+        .context("DocuSign refresh JSON")?;
         parse_token_response(status, &body)
     }
 
@@ -143,15 +173,28 @@ impl DocusignOAuth {
         }
         let url = format!("{}/oauth/userinfo", self.oauth_base);
         let req = self.http.get(&url).bearer_auth(access_token);
-        let info: UserInfo = self
+        let resp = self
             .send(&url, req)
             .await
             .context("DocuSign userinfo GET")?
             .error_for_status()
-            .context("DocuSign userinfo status")?
-            .json()
-            .await
-            .context("DocuSign userinfo JSON")?;
+            .context("DocuSign userinfo status")?;
+        let policy = self.network_policy.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("DocusignOAuth requires a NetworkPolicy before it can read a response")
+        })?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            policy,
+            &crate::network_policy::DOCUSIGN_OAUTH,
+            &body_url,
+        )?;
+        let info: UserInfo = crate::commands::connector_network::await_authorized(
+            policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await
+        .context("DocuSign userinfo JSON")?;
         pick_account(info.accounts)
     }
 }

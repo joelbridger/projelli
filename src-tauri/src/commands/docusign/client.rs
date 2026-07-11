@@ -136,7 +136,25 @@ impl DocusignClient {
 
             log_rate_headers(resp.headers());
             let status = resp.status();
-            let body = resp.text().await.context("read DocuSign response body")?;
+            let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("DocusignClient requires a NetworkPolicy before it can read a response")
+            })?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_configured_host(
+                policy,
+                operation,
+                &body_url,
+                reqwest::Url::parse(&self.api_base)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_owned))
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("DocuSign API base has no host"))?,
+            )?;
+            let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .context("read DocuSign response body")?;
             if !status.is_success() {
                 log::warn!("DocuSign GET failed: HTTP {} at {}", status, path);
                 anyhow::bail!("DocuSign request failed (HTTP {})", status);
@@ -178,11 +196,26 @@ impl DocusignClient {
                 log::warn!("DocuSign document GET failed: HTTP {} at {}", status, path);
                 anyhow::bail!("DocuSign document request failed (HTTP {})", status);
             }
-            return Ok(resp
-                .bytes()
-                .await
-                .context("read DocuSign document bytes")?
-                .to_vec());
+            let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("DocusignClient requires a NetworkPolicy before it can read a response")
+            })?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_configured_host(
+                policy,
+                operation,
+                &body_url,
+                reqwest::Url::parse(&self.api_base)
+                    .ok()
+                    .and_then(|url| url.host_str().map(str::to_owned))
+                    .as_deref()
+                    .ok_or_else(|| anyhow::anyhow!("DocuSign API base has no host"))?,
+            )?;
+            let bytes = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                Ok(resp.bytes().await?)
+            })
+            .await
+            .context("read DocuSign document bytes")?;
+            return Ok(bytes.to_vec());
         }
         anyhow::bail!("DocuSign document throttled past retry budget")
     }

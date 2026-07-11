@@ -184,7 +184,21 @@ impl SharefileClient {
             }
 
             let status = resp.status();
-            let body = resp.text().await.context("read ShareFile response body")?;
+            let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("SharefileClient requires a NetworkPolicy before it can read a response")
+            })?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_configured_origin(
+                policy,
+                operation,
+                &body_url,
+                &self.api_base,
+            )?;
+            let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .context("read ShareFile response body")?;
             if !status.is_success() {
                 anyhow::bail!("ShareFile request failed (HTTP {})", status);
             }
@@ -217,11 +231,22 @@ impl SharefileClient {
             if !status.is_success() {
                 anyhow::bail!("ShareFile download request failed (HTTP {})", status);
             }
-            return Ok(resp
-                .bytes()
-                .await
-                .context("read ShareFile document bytes")?
-                .to_vec());
+            let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("SharefileClient requires a NetworkPolicy before it can read a response")
+            })?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_configured_origin(
+                policy,
+                operation,
+                &body_url,
+                &self.api_base,
+            )?;
+            let bytes = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                Ok(resp.bytes().await?)
+            })
+            .await
+            .context("read ShareFile document bytes")?;
+            return Ok(bytes.to_vec());
         }
         anyhow::bail!("ShareFile download throttled past retry budget")
     }

@@ -134,7 +134,16 @@ impl ZocksClient {
             }
 
             let status = resp.status();
-            let body = resp.text().await.context("read Zocks response body")?;
+            let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("ZocksClient requires a NetworkPolicy before it can read a response")
+            })?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(policy, operation, &body_url)?;
+            let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .context("read Zocks response body")?;
             if !status.is_success() {
                 log::warn!("Zocks GET failed: HTTP {} at {}", status, path);
                 anyhow::bail!("Zocks request failed (HTTP {})", status);

@@ -119,6 +119,20 @@ impl RedtailClient {
         .await
     }
 
+    fn body_policy(&self) -> anyhow::Result<crate::network_policy::NetworkPolicy> {
+        if let Some(policy) = self.network_policy.as_ref() {
+            return Ok(policy.clone());
+        }
+        #[cfg(test)]
+        {
+            return Ok(crate::network_policy::NetworkPolicy::load_from_directory(
+                &tempfile::tempdir()?.keep(),
+            ));
+        }
+        #[cfg(not(test))]
+        anyhow::bail!("RedtailClient requires a NetworkPolicy before it can read a response")
+    }
+
     pub async fn authenticate(username: &str, password: &str) -> anyhow::Result<RedtailAuthInfo> {
         let api_key = redtail_api_key()?;
         Self::authenticate_with_base(&api_key, username, password, REDTAIL_BASE_URL).await
@@ -177,7 +191,42 @@ impl RedtailClient {
         }
         .context("Redtail authentication request")?;
         let status = resp.status();
-        let body = resp.text().await.context("read Redtail auth response")?;
+        let body_policy = match policy {
+            Some(policy) => policy.clone(),
+            None => {
+                #[cfg(test)]
+                {
+                    crate::network_policy::NetworkPolicy::load_from_directory(
+                        &tempfile::tempdir()?.keep(),
+                    )
+                }
+                #[cfg(not(test))]
+                {
+                    anyhow::bail!("Redtail authentication requires a NetworkPolicy before it can read a response")
+                }
+            }
+        };
+        let body_url = resp.url().as_str().to_string();
+        let operation = {
+            #[cfg(test)]
+            {
+                &crate::network_policy::LOCAL_LLAMA
+            }
+            #[cfg(not(test))]
+            {
+                &crate::network_policy::REDTAIL_OAUTH
+            }
+        };
+        let body_grant = crate::commands::connector_network::authorize_url(
+            &body_policy,
+            operation,
+            &body_url,
+        )?;
+        let body = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+            Ok(resp.text().await?)
+        })
+        .await
+        .context("read Redtail auth response")?;
         if !status.is_success() {
             anyhow::bail!("Redtail authentication failed (HTTP {status})");
         }
@@ -414,9 +463,35 @@ impl RedtailClient {
         let resp = self
             .send_sync(&url, req)
             .await
-            .context("Redtail HTTP GET")?;
+        .context("Redtail HTTP GET")?;
         let status = resp.status();
-        let text = resp.text().await.context("read Redtail response body")?;
+        let body_policy = self.body_policy()?;
+        let body_url = resp.url().as_str().to_string();
+        let operation = {
+            #[cfg(test)]
+            {
+                &crate::network_policy::LOCAL_LLAMA
+            }
+            #[cfg(not(test))]
+            {
+                &crate::network_policy::REDTAIL_SYNC
+            }
+        };
+        let body_grant = crate::commands::connector_network::authorize_configured_host(
+            &body_policy,
+            operation,
+            &body_url,
+            reqwest::Url::parse(&self.base)
+                .ok()
+                .and_then(|url| url.host_str().map(str::to_owned))
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("Redtail API base has no host"))?,
+        )?;
+        let text = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+            Ok(resp.text().await?)
+        })
+        .await
+        .context("read Redtail response body")?;
         if text.trim().is_empty() {
             return Ok((status, Value::Null));
         }

@@ -103,7 +103,19 @@ pub async fn exchange_salesforce_code(
         .await
         .context("Salesforce OAuth token exchange")?;
     let status = resp.status().as_u16();
-    let body: serde_json::Value = resp.json().await.context("parse Salesforce token JSON")?;
+    let body_url = resp.url().as_str().to_string();
+    let body_grant = crate::commands::connector_network::authorize_url(
+        policy,
+        &crate::network_policy::SALESFORCE_OAUTH,
+        &body_url,
+    )?;
+    let body: serde_json::Value = crate::commands::connector_network::await_authorized(
+        policy,
+        &body_grant,
+        async { Ok(resp.json().await?) },
+    )
+    .await
+    .context("parse Salesforce token JSON")?;
     parse_salesforce_token_response(status, &body, None)
 }
 
@@ -313,9 +325,24 @@ impl SalesforceClient {
         let resp = self
             .send_oauth(&self.token_endpoint, request)
             .await
-            .context("Salesforce OAuth refresh")?;
+        .context("Salesforce OAuth refresh")?;
         let status = resp.status().as_u16();
-        let body: serde_json::Value = resp.json().await.context("parse Salesforce refresh JSON")?;
+        let policy = self.network_policy.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("SalesforceClient requires a NetworkPolicy before it can read a response")
+        })?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_url(
+            policy,
+            &crate::network_policy::SALESFORCE_OAUTH,
+            &body_url,
+        )?;
+        let body: serde_json::Value = crate::commands::connector_network::await_authorized(
+            policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await
+        .context("parse Salesforce refresh JSON")?;
         let refreshed = parse_salesforce_token_response(status, &body, Some(refresh_token))?;
         if let Ok(json) = serde_json::to_string(&refreshed) {
             let _ = keyring::Entry::new(
@@ -342,10 +369,29 @@ impl SalesforceClient {
             .await
             .context("Salesforce identity request")?;
         let status = resp.status();
-        let body: serde_json::Value = resp
-            .json()
-            .await
-            .context("parse Salesforce identity JSON")?;
+        let policy = self.network_policy.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("SalesforceClient requires a NetworkPolicy before it can read a response")
+        })?;
+        let body_url = resp.url().as_str().to_string();
+        let instance_host = reqwest::Url::parse(&instance_url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned));
+        let identity_host = reqwest::Url::parse(&body_url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_owned));
+        let operation = if identity_host == instance_host {
+            &crate::network_policy::SALESFORCE_SYNC
+        } else {
+            &crate::network_policy::SALESFORCE_OAUTH
+        };
+        let body_grant = crate::commands::connector_network::authorize_url(policy, operation, &body_url)?;
+        let body: serde_json::Value = crate::commands::connector_network::await_authorized(
+            policy,
+            &body_grant,
+            async { Ok(resp.json().await?) },
+        )
+        .await
+        .context("parse Salesforce identity JSON")?;
         if !status.is_success() {
             anyhow::bail!("Salesforce identity request failed (HTTP {status})");
         }
@@ -384,9 +430,27 @@ impl SalesforceClient {
         let resp = self
             .send_sync(&url, &instance_url, req)
             .await
-            .context("Salesforce REST GET")?;
+        .context("Salesforce REST GET")?;
         let status = resp.status();
-        let body = resp.text().await.context("read Salesforce response body")?;
+        let policy = self.network_policy.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("SalesforceClient requires a NetworkPolicy before it can read a response")
+        })?;
+        let body_url = resp.url().as_str().to_string();
+        let body_grant = crate::commands::connector_network::authorize_configured_host(
+            policy,
+            &crate::network_policy::SALESFORCE_SYNC,
+            &body_url,
+            reqwest::Url::parse(&instance_url)
+                .ok()
+                .and_then(|url| url.host_str().map(str::to_owned))
+                .as_deref()
+                .ok_or_else(|| anyhow::anyhow!("Salesforce instance URL has no host"))?,
+        )?;
+        let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+            Ok(resp.text().await?)
+        })
+        .await
+        .context("read Salesforce response body")?;
         if !status.is_success() {
             log::warn!(
                 "Salesforce GET failed: HTTP {} at {}",

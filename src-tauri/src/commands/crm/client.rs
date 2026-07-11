@@ -132,6 +132,28 @@ impl WealthboxClient {
         .await
     }
 
+    fn body_policy_operation(
+        &self,
+    ) -> anyhow::Result<(
+        crate::network_policy::NetworkPolicy,
+        crate::network_policy::EgressOperation,
+    )> {
+        if let Some((policy, operation)) = self.network_policy.as_ref() {
+            return Ok((policy.clone(), operation.clone()));
+        }
+        #[cfg(test)]
+        {
+            return Ok((
+                crate::network_policy::NetworkPolicy::load_from_directory(
+                    &tempfile::tempdir()?.keep(),
+                ),
+                crate::network_policy::LOCAL_LLAMA,
+            ));
+        }
+        #[cfg(not(test))]
+        anyhow::bail!("WealthboxClient requires a NetworkPolicy before it can read a response")
+    }
+
     // -----------------------------------------------------------------------
     // ~1 rps gate
     // -----------------------------------------------------------------------
@@ -194,7 +216,14 @@ impl WealthboxClient {
             }
 
             let status = resp.status();
-            let body = resp.text().await.context("read Wealthbox response body")?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let body = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .context("read Wealthbox response body")?;
             if !status.is_success() {
                 // Status + endpoint only — body is NEVER logged (may contain advisor/client PII).
                 log::warn!("Wealthbox request failed: HTTP {} at {}", status, path);
@@ -242,7 +271,14 @@ impl WealthboxClient {
                 continue;
             }
             let status = resp.status();
-            let text = resp.text().await.context("read Wealthbox response body")?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let text = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .context("read Wealthbox response body")?;
             if !status.is_success() {
                 // Status + endpoint only — body is NEVER logged (may contain advisor/client PII).
                 log::warn!("Wealthbox write failed: HTTP {} at {}", status, path);
@@ -293,7 +329,14 @@ impl WealthboxClient {
                 continue;
             }
             let status = resp.status();
-            let text = resp.text().await.context("read Wealthbox response body")?;
+            let (body_policy, body_operation) = self.body_policy_operation()?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(&body_policy, &body_operation, &body_url)?;
+            let text = crate::commands::connector_network::await_authorized(&body_policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .context("read Wealthbox response body")?;
             if !status.is_success() {
                 // Status + endpoint only — body is NEVER logged (may contain advisor/client PII).
                 log::warn!("Wealthbox write failed: HTTP {} at {}", status, path);

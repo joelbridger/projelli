@@ -215,7 +215,16 @@ impl JotformClient {
             }
 
             let status = resp.status();
-            let body = resp.text().await.context("read Jotform response body")?;
+            let (policy, operation) = self.network_policy.as_ref().ok_or_else(|| {
+                anyhow::anyhow!("JotformClient requires a NetworkPolicy before it can read a response")
+            })?;
+            let body_url = resp.url().as_str().to_string();
+            let body_grant = crate::commands::connector_network::authorize_url(policy, operation, &body_url)?;
+            let body = crate::commands::connector_network::await_authorized(policy, &body_grant, async {
+                Ok(resp.text().await?)
+            })
+            .await
+            .context("read Jotform response body")?;
             if !status.is_success() {
                 log::warn!("Jotform GET failed: HTTP {} at {}", status, path);
                 anyhow::bail!("Jotform request failed (HTTP {})", status);
@@ -299,7 +308,11 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = JotformClient::new_with_base("k".into(), server.uri());
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        );
+        let client = JotformClient::new_with_base("k".into(), server.uri())
+            .with_network_policy(policy, crate::network_policy::LOCAL_LLAMA);
         let forms = client.list_forms().await.unwrap();
         assert_eq!(forms.len() as u32, PAGE_LIMIT + 5);
         assert_eq!(forms.first().unwrap().form_id, "f0");
