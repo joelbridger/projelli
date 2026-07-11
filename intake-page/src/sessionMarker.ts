@@ -8,31 +8,41 @@ function mintSessionMarker(): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function getInMemoryMarker(intakeId: string): string {
-  const existing = inMemoryMarkers.get(intakeId);
-  if (existing) return existing;
-
-  const marker = mintSessionMarker();
-  inMemoryMarkers.set(intakeId, marker);
-  return marker;
-}
-
 /**
  * This marker identifies one browser's visits to one intake. It never leaves
  * the browser except as encrypted manifest content for the advisor to read.
+ *
+ * Single-flight by construction: the in-memory map is checked and populated
+ * FIRST, before this function ever touches localStorage. The whole function
+ * body is synchronous with no internal await, so once the first caller for a
+ * given intakeId reaches the map-populate line, every other caller for that
+ * same intakeId - however it was triggered, including React StrictMode's
+ * dev-only double-invoked effects racing two `boot()` calls against real
+ * async work (WebCrypto key generation) between the await and this call -
+ * short-circuits on the map and never re-reads or re-writes localStorage.
+ * The old read-localStorage-first order left a window where two callers
+ * could each see localStorage empty and mint two different markers for one
+ * browser, which the advisor's desktop then saw as two devices.
  */
 export function getOrCreateSessionMarker(intakeId: string): string {
-  const key = `${SESSION_MARKER_KEY_PREFIX}${intakeId}`;
-  try {
-    const existing = window.localStorage.getItem(key);
-    if (existing) return existing;
+  const cached = inMemoryMarkers.get(intakeId);
+  if (cached) return cached;
 
-    const marker = getInMemoryMarker(intakeId);
-    window.localStorage.setItem(key, marker);
-    return marker;
+  const key = `${SESSION_MARKER_KEY_PREFIX}${intakeId}`;
+  let existing: string | null = null;
+  try {
+    existing = window.localStorage.getItem(key);
   } catch {
-    // Browser storage can be disabled. The marker is advisory only, so keep
-    // the form working with a marker that lasts for this page load.
-    return getInMemoryMarker(intakeId);
+    // Reading storage can throw (disabled, private-mode quota, security
+    // policy). Fall through to minting; persistence below is best-effort
+    // and independent, since a read failure doesn't imply a write failure.
   }
+  const marker = existing ?? mintSessionMarker();
+  inMemoryMarkers.set(intakeId, marker);
+  try {
+    window.localStorage.setItem(key, marker);
+  } catch {
+    // Storage disabled; the map still keeps this page load consistent.
+  }
+  return marker;
 }

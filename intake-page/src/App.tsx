@@ -1319,10 +1319,14 @@ function ActionButtons({
 }): JSX.Element {
   return (
     <div className="action-row">
-      <button className="primary-button" type="button" disabled={disabled} onClick={onSubmit}>
+      {/* Never pass onSubmit/onSkip directly as onClick: React calls onClick
+          with the MouseEvent as the first argument, which would clobber a
+          defaulted parameter on a caller's submit function (e.g. the
+          document-upload screen's `acknowledgedWarnings = keptAnyway`). */}
+      <button className="primary-button" type="button" disabled={disabled} onClick={() => { onSubmit(); }}>
         {busy ? 'Saving' : 'Save and continue'}
       </button>
-      <button className="quiet-button" type="button" disabled={busy} onClick={onSkip}>
+      <button className="quiet-button" type="button" disabled={busy} onClick={() => { onSkip(); }}>
         Skip for now
       </button>
     </div>
