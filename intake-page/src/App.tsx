@@ -4,13 +4,14 @@ import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
 import { classifyTier1 } from '@/platform/intake/documentDetectiveRules';
 import type { DocumentKind, Tier1Classification } from '@/platform/intake/documentDetectiveTypes';
+import { extractPdfText } from '@/lib/pdf-extract';
 import type { DocUploadRequestItem, GuidedQuestionRequestItem, RequestItem, TypedFieldRequestItem } from '@/platform/intake/types';
 import {
   DEFAULT_WELCOME_JOURNEY,
   resolveWelcomeMergeFields,
   sanitizeWelcomeJourney,
   type WelcomeJourney,
-} from '@/features/intake/welcomeJourneyDefaults';
+} from '@/platform/intake/welcomeJourneyDefaults';
 
 import { openPageJson, sealPageJson } from './pageCrypto';
 import { RelayClient } from './relayClient';
@@ -45,6 +46,7 @@ const DEFAULT_ACCENT = '#2f7d62';
 const DEFAULT_FIRM_NAME = 'Advisor Prep Hero';
 const PAGE_FILE_MAX_BYTES = 100 * 1024 * 1024;
 const TEXT_SAMPLE_MAX_BYTES = 64 * 1024;
+const PDF_TEXT_SAMPLE_MAX_CHARS = 64 * 1024;
 const HEX_COLOR_RE = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/iu;
 const SAFE_NAMED_COLORS = new Set([
   'black',
@@ -192,12 +194,18 @@ function getUploadRules(item: DocUploadRequestItem): { slotCount: number; requir
 }
 
 async function readTextSample(file: File): Promise<string> {
-  if (!file.type.startsWith('text/')) return '';
   try {
-    return await file.slice(0, TEXT_SAMPLE_MAX_BYTES).text();
+    if (file.type.startsWith('text/')) {
+      return await file.slice(0, TEXT_SAMPLE_MAX_BYTES).text();
+    }
+    if (file.type === 'application/pdf') {
+      const { pages } = await extractPdfText(new Uint8Array(await file.arrayBuffer()));
+      return pages.join('\n').slice(0, PDF_TEXT_SAMPLE_MAX_CHARS);
+    }
   } catch {
-    return '';
+    // A malformed, encrypted, or image-only PDF has no usable text signal.
   }
+  return '';
 }
 
 function documentKindLabel(kind: DocumentKind): string {

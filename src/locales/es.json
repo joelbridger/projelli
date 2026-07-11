@@ -4189,6 +4189,13 @@
           "body": "La app no pudo colocar un elemento recibido en la lista del cliente.",
           "action": "Revise la bandeja de incorporación y ubique el elemento manualmente."
         },
+        "extraction-failed": {
+          "badge": "Documento para revisar",
+          "title": "Este documento se guardó, pero no se pudo leer automáticamente",
+          "body": "El documento se archivó de forma segura. Puede revisarlo usted mismo o intentar leerlo de nuevo.",
+          "action": "Intente leer el documento de nuevo cuando esté listo.",
+          "retry": "Reintentar extracción"
+        },
         "shared-intake-setup-required": {
           "badge": "Falta configurar la solicitud compartida",
           "title": "Este dispositivo necesita configuración compartida",

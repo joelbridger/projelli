@@ -2,7 +2,7 @@ import type { OnboardingRow } from './onboardingModel';
 import type { IntakeRecord } from './intakeStore';
 import type { OnboardingConfig } from './nudgeTypes';
 import { reconstructAdvisorIntakeLink } from './advisorIntakeLink';
-import { renderWelcomeJourneyEmail } from '@/features/intake/welcomeJourneyDefaults';
+import { renderWelcomeJourneyEmail } from '@/platform/intake/welcomeJourneyDefaults';
 
 export interface NudgeDraftConfig extends OnboardingConfig {
   now?: Date;

@@ -17,6 +17,7 @@ export type LinkSignalKind =
   | 'duplicate'
   | 'integrity_mismatch'
   | 'routing_failed'
+  | 'extraction_failed'
   | 'shared_intake_setup_required'
   | 'regenerate_available';
 
@@ -25,6 +26,7 @@ export interface LinkSignal {
   severity: 'info' | 'attention' | 'integrity';
   at?: string;
   dismissible: boolean;
+  flagId?: string;
 }
 
 export interface NudgeEligibility {
@@ -165,6 +167,14 @@ export function deriveLinkSignals(
           severity: 'attention',
           at: flag.at,
           dismissible: false,
+        }];
+      case 'extraction_failed':
+        return [{
+          kind: 'extraction_failed',
+          severity: 'attention',
+          at: flag.at,
+          dismissible: false,
+          flagId: flag.id,
         }];
       case 'shared_intake_setup_required':
         return [{

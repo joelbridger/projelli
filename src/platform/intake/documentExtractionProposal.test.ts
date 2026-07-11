@@ -13,6 +13,12 @@ import {
   type DocumentExtractionProposalRecord,
 } from './documentExtractionProposalStore';
 import type { IntakeFactUpsertInput, MaskedClientFact } from './factsStore';
+import {
+  clearInMemoryFactsForTests,
+  intakeFactList,
+  intakeFactUpsert,
+} from './factsStore';
+import { documentExtractionProposalAcceptRow } from './documentExtractionProposalStore';
 
 function input(): DocumentExtractionProposalInput {
   const ids = { matterId: 'matter-1', requestId: 'request-1', intakeId: 'intake-1', sourcePath: 'Clients/A/income.pdf' };
@@ -40,6 +46,7 @@ function proposalRecord(): DocumentExtractionProposalRecord {
 describe('document extraction proposal queue', () => {
   beforeEach(() => {
     clearInMemoryDocumentExtractionQueuesForTests();
+    clearInMemoryFactsForTests();
   });
 
   afterEach(() => {
@@ -81,6 +88,9 @@ describe('document extraction proposal queue', () => {
 
   it('writes exact document provenance only after intent audit', async () => {
     const proposal = proposalRecord();
+    proposal.items = proposal.items.map((item) => (
+      item.id === 'income-row' ? { ...item, subject: 'spouse' } : item
+    ));
     const order: string[] = [];
     const upsert = vi.fn<(input: IntakeFactUpsertInput) => Promise<MaskedClientFact>>(() => {
       order.push('fact');
@@ -105,10 +115,45 @@ describe('document extraction proposal queue', () => {
     const writtenFact = upsert.mock.calls[0]?.[0];
     expect(writtenFact).toBeDefined();
     expect(writtenFact?.verification).toBe('document_verified');
+    expect(writtenFact?.subject).toBe('spouse');
     expect(writtenFact?.provenance.channel).toBe('doc_extraction');
     expect(writtenFact?.provenance.confirmed_by).toBe('advisor-1');
     expect(writtenFact?.provenance.entered_by).toBe('advisor-1');
     expect(writtenFact?.provenance.source_ref).toContain('document:v1:');
+  });
+
+  it('files a spouse document fact under the spouse without superseding the primary fact in the browser fallback', async () => {
+    const proposal = input();
+    proposal.items = proposal.items.map((item) => (
+      item.id === 'income-row' ? { ...item, subject: 'spouse' } : item
+    ));
+    await documentExtractionProposalSave(proposal);
+    const primary = await intakeFactUpsert({
+      fact_id: 'primary-income',
+      matter_id: proposal.matterId,
+      subject: 'primary',
+      kind: 'income_annual',
+      value: { t: 'money', v: { amount: 110000, currency: 'USD' } },
+      sensitivity: 'confidential',
+      provenance: { channel: 'manual', entered_by: 'advisor-1', at: '2026-07-10T00:00:00.000Z' },
+      verification: 'advisor_confirmed',
+    });
+
+    const accepted = await documentExtractionProposalAcceptRow({
+      proposalId: proposal.proposalId,
+      matterId: proposal.matterId,
+      rowId: 'income-row',
+      amount: 120000,
+      expectedActiveFactId: null,
+      expectedActiveFactChecked: true,
+      advisorId: 'advisor-1',
+    });
+
+    expect(accepted.fact.subject).toBe('spouse');
+    await expect(intakeFactList(proposal.matterId)).resolves.toEqual(expect.arrayContaining([
+      expect.objectContaining({ fact_id: primary.fact_id, subject: 'primary', status: 'active' }),
+      expect.objectContaining({ fact_id: accepted.fact.fact_id, subject: 'spouse', status: 'active' }),
+    ]));
   });
 
   it('refuses an off-contract final value before any fact write', async () => {

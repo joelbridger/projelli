@@ -517,6 +517,11 @@ fn rebuild_document_extraction_items(
             if !DOCUMENT_EXTRACTION_ALLOWED_KINDS.contains(&kind) {
                 bail!("document extraction fact kind is outside the allowed contract");
             }
+            let subject = object
+                .get("subject")
+                .and_then(Value::as_str)
+                .filter(|subject| !subject.trim().is_empty())
+                .ok_or_else(|| anyhow::anyhow!("document extraction subject is missing"))?;
             if let Some(sensitivity) = object.get("sensitivity").and_then(Value::as_str) {
                 if sensitivity != "confidential" {
                     bail!("document extraction sensitivity is outside the allowed contract");
@@ -575,7 +580,7 @@ fn rebuild_document_extraction_items(
             }
             Ok(json!({
                 "id": format!("document_extraction_row_{index}"),
-                "subject": "primary",
+                "subject": subject,
                 "kind": kind,
                 "value": { "t": "money", "v": { "amount": amount, "currency": currency } },
                 "displayValue": document_extraction_display_value(amount, &currency),
@@ -1479,9 +1484,12 @@ impl IntakeFactsStore {
             row.get("value")
                 .ok_or_else(|| anyhow::anyhow!("document extraction value is missing"))?,
         )?;
-        if row.get("subject").and_then(Value::as_str) != Some("primary")
-            || row.get("sensitivity").and_then(Value::as_str) != Some("confidential")
-        {
+        let subject = row
+            .get("subject")
+            .and_then(Value::as_str)
+            .filter(|subject| !subject.trim().is_empty())
+            .ok_or_else(|| anyhow::anyhow!("document extraction subject is missing"))?;
+        if row.get("sensitivity").and_then(Value::as_str) != Some("confidential") {
             bail!("document extraction row is outside the allowed contract");
         }
         let source = row
@@ -1494,8 +1502,8 @@ impl IntakeFactsStore {
             bail!("document extraction source is outside the allowed contract");
         }
         let active_old: Option<String> = tx.query_row(
-            "SELECT fact_id FROM client_facts WHERE matter_id = ?1 AND subject = 'primary' AND kind = ?2 AND status = 'active'",
-            params![proposal.matter_id, kind],
+            "SELECT fact_id FROM client_facts WHERE matter_id = ?1 AND subject = ?2 AND kind = ?3 AND status = 'active'",
+            params![proposal.matter_id, subject, kind],
             |row| row.get(0),
         ).optional()?;
         if active_old != input.expected_active_fact_id {
@@ -1522,7 +1530,7 @@ impl IntakeFactsStore {
         let provenance = json!({ "channel": "doc_extraction", "source_ref": source_ref, "entered_by": input.advisor_id, "confirmed_by": input.advisor_id, "at": now_iso() });
         let value = json!({ "t": "money", "v": { "amount": input.amount, "currency": currency } });
         let created_at = now_iso();
-        tx.execute("INSERT INTO client_facts (fact_id, matter_id, subject, kind, value_json, sensitivity, provenance_json, verification, status, superseded_by, created_at) VALUES (?1, ?2, 'primary', ?3, ?4, 'confidential', ?5, 'document_verified', 'active', NULL, ?6)", params![fact_id, proposal.matter_id, kind, serde_json::to_string(&value)?, serde_json::to_string(&provenance)?, created_at])?;
+        tx.execute("INSERT INTO client_facts (fact_id, matter_id, subject, kind, value_json, sensitivity, provenance_json, verification, status, superseded_by, created_at) VALUES (?1, ?2, ?3, ?4, ?5, 'confidential', ?6, 'document_verified', 'active', NULL, ?7)", params![fact_id, proposal.matter_id, subject, kind, serde_json::to_string(&value)?, serde_json::to_string(&provenance)?, created_at])?;
         proposal
             .completed_rows
             .push(DocumentExtractionProposalRowCompletion {
@@ -1544,7 +1552,7 @@ impl IntakeFactsStore {
         let fact = masked(&ClientFactRow {
             fact_id,
             matter_id: proposal.matter_id.clone(),
-            subject: "primary".to_string(),
+            subject: subject.to_string(),
             kind: kind.to_string(),
             value_json: serde_json::to_string(&value)?,
             sensitivity: "confidential".to_string(),
@@ -1950,6 +1958,44 @@ mod tests {
         let active = store.list_masked("matter-1").unwrap();
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].fact_id, "current-income");
+    }
+
+    #[test]
+    fn document_extraction_accepts_a_spouse_fact_without_superseding_primary() {
+        let (_dir, store) = store();
+        let audit = VecAudit::default();
+        let mut input = document_extraction_input();
+        input.items[0]["subject"] = json!("spouse");
+        let proposal = store.enqueue_document_extraction_proposal(input).unwrap();
+
+        let mut primary = input_for_subject("primary-income", "primary", "120000");
+        primary.kind = "income_annual".into();
+        primary.sensitivity = "confidential".into();
+        primary.value = json!({ "t": "money", "v": { "amount": 110000, "currency": "USD" } });
+        store.upsert_fact(primary, &audit).unwrap();
+
+        let accepted = store
+            .accept_document_extraction_proposal_row(
+                DocumentExtractionProposalAcceptInput {
+                    proposal_id: proposal.proposal_id,
+                    matter_id: "matter-1".into(),
+                    row_id: "document_extraction_row_0".into(),
+                    amount: 120000.0,
+                    expected_active_fact_id: None,
+                    expected_active_fact_checked: true,
+                    advisor_id: "advisor-1".into(),
+                },
+                &audit,
+            )
+            .unwrap();
+
+        assert_eq!(accepted.fact.subject, "spouse");
+        let primary = store.get_masked("primary-income").unwrap();
+        assert_eq!(primary.subject, "primary");
+        assert_eq!(primary.status, "active");
+        let active = store.list_masked("matter-1").unwrap();
+        assert!(active.iter().any(|fact| fact.fact_id == "primary-income" && fact.subject == "primary"));
+        assert!(active.iter().any(|fact| fact.fact_id == accepted.fact.fact_id && fact.subject == "spouse"));
     }
 
     #[test]
