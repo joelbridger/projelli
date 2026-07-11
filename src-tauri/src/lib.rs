@@ -18,6 +18,10 @@ pub mod identity;
 pub mod sidecars;
 // Cross-cutting utilities (process helpers, etc.).
 pub mod util;
+// The Windows bench's local-only automation bridge. This module is absent from
+// release artifacts, so port 9250 can never be opened by a production build.
+#[cfg(debug_assertions)]
+mod dev_bridge;
 // Shared WebView2 additional-browser-args string used by EVERY webview window
 // (main + Notice Card companion). Centralized so the windows are byte-identical,
 // which is what prevents the 0x8007139F (ERROR_INVALID_STATE) crash when a
@@ -40,6 +44,8 @@ pub fn run() {
             ),
         )))
         .invoke_handler(tauri::generate_handler![
+            #[cfg(debug_assertions)]
+            dev_bridge::dev_bridge_result,
             commands::fs::check_path,
             commands::fs::get_home_dir,
             // First-launch migration of the per-workspace data folder
@@ -361,6 +367,8 @@ pub fn run() {
                         .build(),
                 )?;
             }
+            #[cfg(debug_assertions)]
+            crate::dev_bridge::manage_state(app);
             // The main window is created here (not via `tauri.conf.json`'s
             // automatic `create: true` path — see `"create": false` there)
             // so we can pass WebView2 additional browser arguments through
@@ -388,6 +396,9 @@ pub fn run() {
                 tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
                     .additional_browser_args(&browser_args)
                     .build()?;
+
+                #[cfg(debug_assertions)]
+                crate::dev_bridge::start(app.handle().clone());
             }
             // Check the OS-level data subdir (`<data_dir>/lantern`, holding
             // downloaded models + logs) once at startup, before anything
