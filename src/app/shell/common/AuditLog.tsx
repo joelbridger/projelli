@@ -91,6 +91,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   privilege_evaluated: Lock,
   scope_active: Target,
   egress: Send,
+  prompt_preparation: ShieldCheck,
   mcp_blocked: ShieldOff,
   mcp_list: FileText,
   mcp_read: FileText,
@@ -167,6 +168,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   workflow_complete: 'Workflow Completed',
   workflow_fail: 'Workflow Failed',
   model_call: 'Model Call',
+  prompt_preparation: 'Private Link Check',
   context_compressed: 'Context Compressed',
   user_action: 'User Action',
   // Lantern 3.0 provenance events.
@@ -247,6 +249,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   file_move: 'text-blue-600 dark:text-blue-400',
   file_rename: 'text-blue-600 dark:text-blue-400',
   file_export: 'text-sky-600 dark:text-sky-400',
+  prompt_preparation: 'text-amber-600 dark:text-amber-400',
   workflow_start: 'text-purple-600 dark:text-purple-400',
   workflow_complete: 'text-green-600 dark:text-green-400',
   workflow_fail: 'text-red-600 dark:text-red-400',
@@ -323,6 +326,12 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   'wealthbox.create_task': 'text-green-600 dark:text-green-400',
   'wealthbox.field_updated': 'text-blue-600 dark:text-blue-400',
 };
+
+function toSafeAuditValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
 
 export function AuditLog({
   entries,
@@ -515,7 +524,7 @@ export function AuditLog({
             <Input
               placeholder="Search..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => { setSearchQuery(e.target.value); }}
               className="pl-7 h-7 text-xs"
             />
           </div>
@@ -523,9 +532,9 @@ export function AuditLog({
             variant={showFilters ? 'secondary' : 'ghost'}
             size="sm"
             className="h-7 px-1.5 shrink-0"
-            onClick={() => setShowFilters(!showFilters)}
-            title={activeFilterCount > 0 ? `Filter ${activeFilterCount}` : 'Filter'}
-            aria-label={activeFilterCount > 0 ? `Filter ${activeFilterCount}` : 'Filter'}
+            onClick={() => { setShowFilters(!showFilters); }}
+            title={activeFilterCount > 0 ? `Filter ${String(activeFilterCount)}` : 'Filter'}
+            aria-label={activeFilterCount > 0 ? `Filter ${String(activeFilterCount)}` : 'Filter'}
           >
             <Filter className="h-3.5 w-3.5" />
             {activeFilterCount > 0 && (
@@ -546,7 +555,7 @@ export function AuditLog({
                   variant={selectedTypes.has(type) ? 'secondary' : 'outline'}
                   size="sm"
                   className="h-6 text-xs"
-                  onClick={() => toggleFilter(type)}
+                  onClick={() => { toggleFilter(type); }}
                 >
                   {ACTION_LABELS[type]}
                 </Button>
@@ -558,7 +567,7 @@ export function AuditLog({
                 <input
                   type="date"
                   value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  onChange={(e) => { setDateFrom(e.target.value); }}
                   data-testid="audit-log-filter-date-from"
                   className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
                   aria-label="Filter by date from"
@@ -569,7 +578,7 @@ export function AuditLog({
                 <input
                   type="date"
                   value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
+                  onChange={(e) => { setDateTo(e.target.value); }}
                   data-testid="audit-log-filter-date-to"
                   className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
                   aria-label="Filter by date to"
@@ -579,7 +588,7 @@ export function AuditLog({
                 Model
                 <select
                   value={modelFilter}
-                  onChange={(e) => setModelFilter(e.target.value)}
+                  onChange={(e) => { setModelFilter(e.target.value); }}
                   data-testid="audit-log-filter-model"
                   className="ml-1 h-6 rounded border border-input bg-background px-1.5 text-xs"
                   aria-label="Filter by model"
@@ -626,8 +635,8 @@ export function AuditLog({
                 key={entry.id}
                 entry={entry}
                 isExpanded={expandedEntries.has(entry.id)}
-                onToggleExpand={() => toggleExpanded(entry.id)}
-                onViewDetails={() => setDetailEntry(entry)}
+                onToggleExpand={() => { toggleExpanded(entry.id); }}
+                onViewDetails={() => { setDetailEntry(entry); }}
                 formatTimestamp={formatTimestamp}
               />
             ))}
@@ -638,7 +647,7 @@ export function AuditLog({
       {/* Detail dialog */}
       <Dialog
         open={detailEntry !== null}
-        onOpenChange={() => setDetailEntry(null)}
+        onOpenChange={() => { setDetailEntry(null); }}
       >
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -671,8 +680,8 @@ function AuditEntryRow({
   onViewDetails,
   formatTimestamp,
 }: AuditEntryRowProps) {
-  const Icon = ACTION_ICONS[entry.action] ?? History;
-  const colorClass = ACTION_COLORS[entry.action] ?? 'text-muted-foreground';
+  const Icon = ACTION_ICONS[entry.action];
+  const colorClass = ACTION_COLORS[entry.action];
 
   // Defensive: a row may arrive without these objects (e.g. connector entries).
   const inputs = asRecord(entry.inputs);
@@ -772,8 +781,8 @@ interface AuditEntryDetailsProps {
 }
 
 function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
-  const Icon = ACTION_ICONS[entry.action] ?? History;
-  const colorClass = ACTION_COLORS[entry.action] ?? 'text-muted-foreground';
+  const Icon = ACTION_ICONS[entry.action];
+  const colorClass = ACTION_COLORS[entry.action];
 
   // Defensive: a row may arrive without these objects (e.g. connector entries).
   const inputs = asRecord(entry.inputs);
@@ -860,25 +869,25 @@ function AuditEntryDetails({ entry, formatTimestamp }: AuditEntryDetailsProps) {
             {fmid != null && (
               <div className="flex gap-2">
                 <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Firm client</span>
-                <span className="font-mono text-xs break-all">{String(fmid)}</span>
+                <span className="font-mono text-xs break-all">{toSafeAuditValue(fmid)}</span>
               </div>
             )}
             {mid != null && mid !== fmid && (
               <div className="flex gap-2">
                 <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Local client</span>
-                <span className="font-mono text-xs break-all">{String(mid)}</span>
+                <span className="font-mono text-xs break-all">{toSafeAuditValue(mid)}</span>
               </div>
             )}
             {tuid != null && (
               <div className="flex gap-2">
                 <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Target user</span>
-                <span className="font-mono text-xs break-all">{String(tuid)}</span>
+                <span className="font-mono text-xs break-all">{toSafeAuditValue(tuid)}</span>
               </div>
             )}
             {oid != null && (
               <div className="flex gap-2">
                 <span className="text-xs text-muted-foreground uppercase shrink-0 w-28">Org</span>
-                <span className="font-mono text-xs break-all">{String(oid)}</span>
+                <span className="font-mono text-xs break-all">{toSafeAuditValue(oid)}</span>
               </div>
             )}
           </div>

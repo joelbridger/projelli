@@ -4,6 +4,7 @@
  * module must never turn a secret into telemetry.
  */
 import type { AttachmentBytes, ProviderResponse, SendOptions, StreamOptions, StructuredOutputOptions } from '@/platform/providers/Provider';
+import type { AuditEvent } from '@/platform/types/audit';
 import type { EgressAuditContext } from './sendWithEgressAudit';
 import { runWithEgressAudit } from './sendWithEgressAudit';
 export {
@@ -177,21 +178,25 @@ export interface PreparedSendContext extends EgressAuditContext {
   parts?: PromptPart[];
   background?: boolean;
 }
+type PromptPreparationReceipt = Extract<AuditEvent, { type: 'prompt_preparation' }>['payload'];
+
 function receipt(ctx: PreparedSendContext, decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked', request?: PreparedCloudRequest): void {
+  const metadata = {
+    surface: ctx.surface,
+    destination: ctx.providerId,
+    categories: (request?.findings ?? []).map(({ kind, count }) => ({ kind, count })),
+    decision,
+    attachmentDisposition: request?.attachmentDisposition ?? 'blocked',
+  } satisfies PromptPreparationReceipt;
+
   ctx.onAuditLog?.({
-    action: 'prompt_preparation' as never,
+    action: 'prompt_preparation',
     description: 'AI request checked for private access links',
     model: undefined,
     inputs: {},
     outputs: {},
     userDecision: undefined,
-    metadata: {
-      surface: ctx.surface,
-      destination: ctx.providerId,
-      categories: (request?.findings ?? []).map(({ kind, count }) => ({ kind, count })),
-      decision,
-      attachmentDisposition: request?.attachmentDisposition ?? 'blocked',
-    },
+    metadata,
   });
 }
 export async function sendPreparedMessageWithEgressAudit(ctx: PreparedSendContext): Promise<ProviderResponse> {
