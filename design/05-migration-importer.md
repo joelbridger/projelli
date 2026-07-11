@@ -195,7 +195,7 @@ they never independently decide whether an import is safe to replay.
 | Projects | ❌ not fetched (only excluded as a link type) | `GET /v1/projects` | **New.** |
 | Workflow templates | ❌ | `GET /v1/workflow_templates` (read-only, per docs) | **New**, read-only — this is the template Lantern's own workflow-propagation feature needs to understand what a firm's workflows *are*. |
 | Workflow instances / current step | ❌ | `GET /v1/workflows` and `GET /v1/workflow_steps` return 200 but were empty; `GET /v1/workflow_instances` returned 404 | **Not an API migration path in v1.** Current-state fidelity is **UNVERIFIED** until a seeded open workflow can be read. At cutover, use the guided manual re-creation fallback in §2.5a: templates plus activity traces become an operator checklist; the operator starts a new Lantern instance at the correct step. |
-| Custom fields | ❌ | No registry endpoint: `/v1/custom_fields`, `/contact_custom_fields`, and `/custom_field_definitions` returned 404; record-level `custom_fields` arrays are exposed on contacts | **New, record-derived only.** Remove the registry-import path. Derive the field inventory from record-level `custom_fields` arrays, preserving each value's raw record reference; the populated value shape is **UNVERIFIED** because the first 100 contacts had empty arrays. |
+| Custom fields | ❌ | Registry IS readable at `GET /v1/categories/custom_fields?document_type=<Type>` (200, empty in this sandbox — [seeded re-probe](evidence/2026-07-11-wealthbox-seeded-reprobe.md)); the earlier-guessed `/v1/custom_fields`, `/contact_custom_fields`, `/custom_field_definitions` are 404; record-level `custom_fields` arrays are exposed on contacts | **New.** Import the registry from `/categories/custom_fields` per document type AND derive/cross-check the inventory from record-level `custom_fields` arrays, preserving each value's raw record reference; populated definition and value shapes are **UNVERIFIED** (sandbox holds no definitions — the seeded re-probe still owes this case). |
 | Tags (registry) | Partial — tag strings already parse per-contact (`CrmTag`) | `GET /v1/categories/tags` | **New** — fetch the canonical registry so imported tags de-duplicate against one firm-wide tag list instead of becoming orphan strings per household. Contact records also supply `{id, name}` values inline. |
 | Contact roles | Placeholder only (`Vec<Value>`, unused) | `GET /v1/contact_roles` | **New** — type it properly; today's field is a parse-safety no-op, not a complete import. |
 | Activity stream | ❌ | `GET /v1/activity`, cursor-paginated | **New**, read-only, lower priority — this is "full historical activity" (logins, field changes, system events), imported as an inspectable timeline, not an editable record. It uses an opaque `meta.cursor`; persist its one cursor string in `crm_cursors` and request the next page with `cursor=<opaque-cursor>&per_page=100` (§2.3). No `Link` headers were observed. |
@@ -374,7 +374,7 @@ listed reason.
 | Project | `LegacyProject` | Northcrest fabricated API corpus: linked/unlinked cases | 100% of parseable records; no automatic workflow conversion | malformed source; unresolved required link |
 | Workflow template | WorkflowTemplate | Northcrest fabricated API corpus: templates and step definitions | 100% of parseable records | malformed source; unsupported source shape |
 | Open workflow instance/current step | New Lantern workflow instance created by operator at cutover | Northcrest fabricated API corpus: templates, activity traces, and guided-re-creation checklist | 100% of in-flight workflows have a checklist and recorded operator decision; no API state is claimed | malformed source; guided manual re-creation fallback required because `/workflow_instances` is absent and populated current state is unverified; unresolved required link |
-| Custom-field values / record-derived inventory | Field inventory plus typed target field/provenance | Northcrest fabricated API corpus: populated contact `custom_fields`, typed and null values | 100% of proven record-level supported shapes; no registry import | malformed source; unsupported field type; populated value shape unverified pending seeded re-probe; registry endpoint unavailable |
+| Custom-field values / registry + record-derived inventory | Field inventory (`/categories/custom_fields` registry cross-checked against record-level arrays) plus typed target field/provenance | Northcrest fabricated API corpus: populated contact `custom_fields`, typed and null values, registry definitions | 100% of proven record-level supported shapes; registry and record inventories must agree or the divergence is reported | malformed source; unsupported field type; populated definition/value shape unverified pending seeded re-probe |
 | Tags/categories | Firm lookup/read model and entity labels | Northcrest fabricated API corpus: duplicate and missing-label cases | 100% of parseable registry entries | malformed source; unresolved registry reference |
 | Contact roles | `Person.roles[]` and `HouseholdMember.role` as applicable | Northcrest fabricated API corpus: person and household roles | 100% of typed role records | malformed source; role has no supported target scope |
 | Users/teams | `FirmDirectoryEntry` read model | Northcrest fabricated API corpus: matched and external users | 100% of parseable records | malformed source |
@@ -610,8 +610,12 @@ for this task.
 The 2026-07-11 live probe settled these points and they are **not** open questions:
 `per_page=100` is the effective page cap; activity uses one opaque `meta.cursor` string
 with no observed `Link` headers; tags use `GET /categories/tags` and contacts expose inline
-`{id,name}` tags; workflow steps are readable as a collection (not write-only); the tested
-custom-field registry addresses are absent; `/pipelines` is absent while
+`{id,name}` tags; workflow steps are readable as a collection (not write-only); the
+custom-field registry is readable at `GET /categories/custom_fields?document_type=<Type>`
+(the guessed `/custom_fields`-style addresses are absent — corrected by the
+[seeded re-probe](evidence/2026-07-11-wealthbox-seeded-reprobe.md), which also proved the
+populated Projects shape and that project-contact links do not persist through
+`PUT /projects`); `/pipelines` is absent while
 `/categories/opportunity_stage` is readable; `/workflow_instances` is absent; and every
 tested attachment/file/document read path is absent. See the
 [live probe evidence](evidence/2026-07-11-wealthbox-api-probe.md).
