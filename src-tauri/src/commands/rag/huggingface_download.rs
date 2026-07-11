@@ -102,9 +102,9 @@ pub async fn download_missing_files(
         let partial = target.with_extension("part");
         tokio::fs::create_dir_all(target.parent().expect("target parent")).await?;
         let mut output = tokio::fs::File::create(&partial).await?;
-        let mut body = response.bytes_stream();
         let mut bytes = 0_u64;
         await_authorized(policy, &grant, async {
+            let mut body = response.bytes_stream();
             while let Some(chunk) = body.next().await {
                 let chunk = chunk?;
                 output.write_all(&chunk).await?;

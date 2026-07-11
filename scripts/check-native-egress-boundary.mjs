@@ -88,6 +88,162 @@ function isPolicyGuardedClient(source) {
   return usesConnectorBoundary || usesEgressHttpClient;
 }
 
+/**
+ * Per-call enclosure proof.
+ *
+ * `isPolicyGuardedClient` only proves a *file* contains guard code somewhere.
+ * That is not proof that a given `.send()`/`.text()`/`.json()`/`.bytes()`
+ * call is actually inside a guard's closure — a file can call
+ * `await_authorized(...)` once for a header-time send and then read the
+ * response body completely outside it. That body-read stops being
+ * policy-owned the moment the guard closure returns, so a mode flip
+ * mid-transfer cannot stop it — the exact bug class this check now also
+ * catches, not just a raw unguarded client constructor.
+ *
+ * This walks every `await_authorized(...)` / `send_with_authorized_redirects(...)`
+ * call in a guarded file, finds the balanced-bracket span of its argument
+ * list (the closure passed to it lives inside that span), and then requires
+ * every HTTP-completing call in the file — `.send().await`, `.text().await`,
+ * `.json().await`/`.json::<T>().await`, `.bytes().await`, `.bytes_stream()`
+ * — to fall inside at least one such span. A call outside every guard span
+ * is a violation: the transport or the body it returned is not tied to the
+ * live policy generation.
+ */
+const GUARD_CALL_NAMES = ['await_authorized', 'send_with_authorized_redirects'];
+const HTTP_COMPLETING_CALL =
+  /\.(?:send|text|bytes)\s*\(\s*\)\s*\.await|\.json\s*(?:::\s*<[^>]*>\s*)?\(\s*\)\s*\.await|\.bytes_stream\s*\(\s*\)/g;
+
+/** Strip `//` line comments and `"..."` string literals to a same-length run
+ * of spaces so index-based scanning stays aligned with the original source,
+ * without matching brackets or call names that only appear in text. */
+function blankCommentsAndStrings(source) {
+  let out = '';
+  let i = 0;
+  const n = source.length;
+  while (i < n) {
+    if (source[i] === '/' && source[i + 1] === '/') {
+      const end = source.indexOf('\n', i);
+      const stop = end === -1 ? n : end;
+      out += ' '.repeat(stop - i);
+      i = stop;
+      continue;
+    }
+    if (source[i] === '"') {
+      let j = i + 1;
+      while (j < n && source[j] !== '"') {
+        if (source[j] === '\\') j += 1;
+        j += 1;
+      }
+      j = Math.min(j + 1, n);
+      out += ' '.repeat(j - i);
+      i = j;
+      continue;
+    }
+    out += source[i];
+    i += 1;
+  }
+  return out;
+}
+
+const CFG_TEST_ATTR = /#\[cfg\(test\)\]/g;
+
+/** Blank out the single statement an inline `#[cfg(test)]` attribute governs
+ * (through the next top-level `;` or `,` — a match-arm body ends in `,`, a
+ * `return`/`let` statement ends in `;`). That code does not exist in a
+ * production build, so it must not be required to hold a live-policy guard;
+ * this is the inline counterpart to `productionSource()`, which already
+ * strips whole `#[cfg(test)] mod tests { ... }` blocks. Every connector's
+ * `send()` helper uses exactly this idiom for its "no NetworkPolicy in a
+ * production build" test-only fallback (`#[cfg(test)] return
+ * Ok(request.send().await?);`), so leaving it unblanked would flag a path
+ * that release binaries never contain. */
+function blankInlineCfgTestStatements(scanSource) {
+  let out = scanSource;
+  CFG_TEST_ATTR.lastIndex = 0;
+  let match;
+  while ((match = CFG_TEST_ATTR.exec(out)) !== null) {
+    const statementStart = match.index + match[0].length;
+    let depth = 0;
+    let end = out.length;
+    for (let i = statementStart; i < out.length; i += 1) {
+      const ch = out[i];
+      if (ch === '(' || ch === '{' || ch === '[') depth += 1;
+      else if (ch === ')' || ch === '}' || ch === ']') {
+        depth -= 1;
+        // A brace-bodied item (e.g. `#[cfg(test)] fn foo(...) { ... }`) ends
+        // here; a plain statement's parens (e.g. `Ok(...)`) can also return
+        // to depth 0 before the item does, but in that case the next branch
+        // below catches the real end at the statement's trailing `;`/`,` —
+        // this only fires early when a closing brace is what brought the
+        // depth back to zero, i.e. an item body just closed.
+        if (depth === 0 && ch === '}') {
+          end = i + 1;
+          break;
+        }
+      } else if ((ch === ';' || ch === ',') && depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+    out = out.slice(0, statementStart) + ' '.repeat(end - statementStart) + out.slice(end);
+    CFG_TEST_ATTR.lastIndex = end;
+  }
+  return out;
+}
+
+/** Given the index of a call name's first character, return the balanced
+ * span `[start, end)` of its argument list — from the `(` right after the
+ * name through the matching `)` — or null if the source is malformed. Any
+ * bracket type advances/retreats the same depth counter; Rust source is
+ * well-nested, so depth returning to zero at a `)` is always that call's
+ * true close even with `{}`/`[]` nested inside. */
+function findCallArgSpan(scanSource, nameEnd) {
+  const openParen = scanSource.indexOf('(', nameEnd);
+  if (openParen === -1) return null;
+  // Only whitespace may sit between the name and its `(`.
+  if (scanSource.slice(nameEnd, openParen).trim().length > 0) return null;
+  let depth = 0;
+  for (let i = openParen; i < scanSource.length; i += 1) {
+    const ch = scanSource[i];
+    if (ch === '(' || ch === '{' || ch === '[') depth += 1;
+    else if (ch === ')' || ch === '}' || ch === ']') {
+      depth -= 1;
+      if (depth === 0) return [openParen, i + 1];
+    }
+  }
+  return null;
+}
+
+function findGuardSpans(scanSource) {
+  const spans = [];
+  for (const name of GUARD_CALL_NAMES) {
+    const pattern = new RegExp(`\\b${name}\\s*(?=\\()`, 'g');
+    let match;
+    while ((match = pattern.exec(scanSource)) !== null) {
+      const span = findCallArgSpan(scanSource, match.index + name.length);
+      if (span) spans.push(span);
+    }
+  }
+  return spans;
+}
+
+function findUnenclosedHttpCalls(source) {
+  const scanSource = blankInlineCfgTestStatements(blankCommentsAndStrings(source));
+  const guardSpans = findGuardSpans(scanSource);
+  const violations = [];
+  let match;
+  HTTP_COMPLETING_CALL.lastIndex = 0;
+  while ((match = HTTP_COMPLETING_CALL.exec(scanSource)) !== null) {
+    const callStart = match.index;
+    const enclosed = guardSpans.some(([start, end]) => callStart >= start && callStart < end);
+    if (!enclosed) {
+      const line = source.slice(0, callStart).split('\n').length;
+      violations.push({ line, text: match[0] });
+    }
+  }
+  return violations;
+}
+
 /** A builder's redirect setting must appear before its build call. Keeping the
  * scan local catches a copied client setup even when the rest of its file uses
  * authorize_url/await_authorized for the first request. */
@@ -139,16 +295,29 @@ export function findNativeEgressBoundaryViolations(root = repoRoot) {
     }
     violations.push(...redirectViolations);
 
-    if (!hasRawConstruction) continue;
-
-    if (
+    const exempt =
       POLICY_IMPLEMENTATIONS.has(relPath) ||
       LOOPBACK_SIDECARS.has(relPath) ||
-      KNOWN_TRACKED_EXCEPTIONS.has(relPath) ||
-      isPolicyGuardedClient(source)
-    ) {
-      continue;
+      KNOWN_TRACKED_EXCEPTIONS.has(relPath);
+    const guardedClient = !exempt && isPolicyGuardedClient(source);
+
+    // A file that claims to route through the guard boundary must prove
+    // every send and every body-read is actually enclosed by a guard call,
+    // not merely that a guard call appears somewhere in the file.
+    if (guardedClient) {
+      for (const violation of findUnenclosedHttpCalls(source)) {
+        violations.push({
+          relPath,
+          line: violation.line,
+          text: violation.text,
+          rule: 'HTTP call is not enclosed by an await_authorized/send_with_authorized_redirects span',
+        });
+      }
     }
+
+    if (!hasRawConstruction) continue;
+
+    if (exempt || guardedClient) continue;
 
     lines.forEach((line, index) => {
       if (RAW_CONSTRUCTION.some((pattern) => pattern.test(line))) {

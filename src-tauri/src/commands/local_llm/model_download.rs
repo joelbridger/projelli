@@ -221,23 +221,32 @@ fn sha256_file(path: &Path) -> Result<String> {
     Ok(hex::encode(hasher.finalize()))
 }
 
+/// How `append_download` obtains its response. Production only ever
+/// constructs [`Self::Guarded`]. The `Unauthorized` variant exists solely so
+/// download-mechanics tests (retry/resume/hash logic, exercised against a
+/// local fake server whose host can never appear in
+/// [`crate::network_policy::LOCAL_LLM_MODEL_DOWNLOAD`]'s exact-host
+/// allowlist) can drive the same status-handling and body-streaming code
+/// without a policy check standing in the way — it is `#[cfg(test)]`, so it
+/// does not exist as a compiled variant in a release build, and matching on
+/// just `Guarded` stays exhaustive there.
+enum DownloadTransport<'a> {
+    Guarded(&'a NetworkPolicy),
+    #[cfg(test)]
+    Unauthorized(&'a reqwest::Client),
+}
+
 async fn append_download(
-    client: &reqwest::Client,
-    policy: Option<&NetworkPolicy>,
+    transport: &DownloadTransport<'_>,
     spec: &ModelDownloadSpec,
     part_path: &Path,
     already_done: u64,
     sink: &(dyn Fn(LocalModelDownloadProgress) + Send + Sync),
 ) -> Result<()> {
-    let mut req = client.get(&spec.source_url);
-    if already_done > 0 {
-        req = req.header(reqwest::header::RANGE, format!("bytes={already_done}-"));
-    }
-
-    let resp = match policy {
-        Some(policy) => {
+    let resp = match transport {
+        DownloadTransport::Guarded(policy) => {
             let grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
-            let egress = EgressHttpClient::new(policy.clone())?;
+            let egress = EgressHttpClient::new((*policy).clone())?;
             let mut headers = reqwest::header::HeaderMap::new();
             if already_done > 0 {
                 headers.insert(
@@ -253,10 +262,16 @@ async fn append_download(
             .await
             .with_context(|| format!("download {}", spec.source_url))?
         }
-        None => req
-            .send()
-            .await
-            .with_context(|| format!("download {}", spec.source_url))?,
+        #[cfg(test)]
+        DownloadTransport::Unauthorized(client) => {
+            let mut req = client.get(&spec.source_url);
+            if already_done > 0 {
+                req = req.header(reqwest::header::RANGE, format!("bytes={already_done}-"));
+            }
+            req.send()
+                .await
+                .with_context(|| format!("download {}", spec.source_url))?
+        }
     };
 
     if already_done > 0 && resp.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
@@ -294,25 +309,46 @@ async fn append_download(
 
     let mut done = already_done;
     let mut last_emit = already_done;
-    let mut stream = resp.bytes_stream();
-    let read_body = copy_download_body(
-        &mut stream,
-        &mut file,
-        part_path,
-        spec,
-        &mut done,
-        &mut last_emit,
-        sink,
-    );
 
     // The request guard only owns the connection up to its headers. Keep a
     // fresh grant alive for the whole body too, so Offline Mode can interrupt
-    // a multi-gigabyte model transfer between chunks.
-    if let Some(policy) = policy {
-        let body_grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
-        await_authorized(policy, &body_grant, read_body).await?;
-    } else {
-        read_body.await?;
+    // a multi-gigabyte model transfer between chunks. `bytes_stream()` itself
+    // is lazy and does no I/O, but it is created inside the guarded closure
+    // too so the static native-egress-boundary check can prove by lexical
+    // nesting (not just call-graph inference) that the stream this function
+    // actually reads from is the one held by the guard.
+    match transport {
+        DownloadTransport::Guarded(policy) => {
+            let body_grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
+            await_authorized(policy, &body_grant, async {
+                let mut stream = resp.bytes_stream();
+                copy_download_body(
+                    &mut stream,
+                    &mut file,
+                    part_path,
+                    spec,
+                    &mut done,
+                    &mut last_emit,
+                    sink,
+                )
+                .await
+            })
+            .await?;
+        }
+        #[cfg(test)]
+        DownloadTransport::Unauthorized(_) => {
+            let mut stream = resp.bytes_stream();
+            copy_download_body(
+                &mut stream,
+                &mut file,
+                part_path,
+                spec,
+                &mut done,
+                &mut last_emit,
+                sink,
+            )
+            .await?;
+        }
     }
     Ok(())
 }
@@ -357,16 +393,8 @@ where
     Ok(())
 }
 
-pub async fn download_model_to_dir(
-    model_dir: &Path,
-    spec: &ModelDownloadSpec,
-    sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
-) -> Result<PathBuf> {
-    download_model_to_dir_with_policy(None, model_dir, spec, sink).await
-}
-
 async fn download_model_to_dir_with_policy(
-    policy: Option<&NetworkPolicy>,
+    transport: &DownloadTransport<'_>,
     model_dir: &Path,
     spec: &ModelDownloadSpec,
     sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
@@ -419,17 +447,7 @@ async fn download_model_to_dir_with_policy(
     // used to treat as fatal, permanently wedging an already-complete download.
     // Fall straight through to the shared verify → rename → Ready-manifest path.
     if !already_complete {
-        let client = reqwest::Client::builder()
-            .connect_timeout(std::time::Duration::from_secs(20))
-            .timeout(std::time::Duration::from_secs(60 * 60))
-            // Production downloads use EgressHttpClient's guarded redirect
-            // loop. This fallback client is only used by hermetic tests, but
-            // it must never quietly become a redirect-following bypass.
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .context("build local AI model download client")?;
-
-        append_download(&client, policy, spec, &part_path, partial_len, &sink).await?;
+        append_download(transport, spec, &part_path, partial_len, &sink).await?;
     }
 
     let actual_size = std::fs::metadata(&part_path)
@@ -488,12 +506,36 @@ async fn download_model_to_dir_authorized(
     sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
 ) -> Result<PathBuf> {
     let grant = authorize_url(policy, &LOCAL_LLM_MODEL_DOWNLOAD, &spec.source_url)?;
+    let transport = DownloadTransport::Guarded(policy);
     await_authorized(
         policy,
         &grant,
-        download_model_to_dir_with_policy(Some(policy), model_dir, spec, sink),
+        download_model_to_dir_with_policy(&transport, model_dir, spec, sink),
     )
     .await
+}
+
+/// Test-only convenience wrapper: drives the same status-handling and
+/// body-streaming code as production, against a `reqwest::Client` with no
+/// policy check — needed because these hermetic mechanics tests (retry,
+/// resume, hashing, manifest state) talk to a local fake server whose host
+/// can never appear in [`crate::network_policy::LOCAL_LLM_MODEL_DOWNLOAD`]'s
+/// exact-host allowlist. Production always goes through
+/// [`download_model_to_dir_authorized`] with the app's real policy.
+#[cfg(test)]
+pub async fn download_model_to_dir(
+    model_dir: &Path,
+    spec: &ModelDownloadSpec,
+    sink: impl Fn(LocalModelDownloadProgress) + Send + Sync,
+) -> Result<PathBuf> {
+    let client = reqwest::Client::builder()
+        .connect_timeout(std::time::Duration::from_secs(20))
+        .timeout(std::time::Duration::from_secs(60 * 60))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .context("build local AI model download test client")?;
+    let transport = DownloadTransport::Unauthorized(&client);
+    download_model_to_dir_with_policy(&transport, model_dir, spec, sink).await
 }
 
 pub async fn local_llm_model_status_value() -> Result<String> {
@@ -871,8 +913,9 @@ mod tests {
         let part = part_file_path(tmp.path(), &spec);
         std::fs::write(&part, &bytes).unwrap();
         let client = reqwest::Client::new();
+        let transport = DownloadTransport::Unauthorized(&client);
 
-        append_download(&client, None, &spec, &part, bytes.len() as u64, &|_| {})
+        append_download(&transport, &spec, &part, bytes.len() as u64, &|_| {})
             .await
             .expect("416 on an already-complete file must be treated as done");
 
@@ -893,8 +936,9 @@ mod tests {
         let part = part_file_path(tmp.path(), &spec);
         std::fs::write(&part, &bytes[..7]).unwrap();
         let client = reqwest::Client::new();
+        let transport = DownloadTransport::Unauthorized(&client);
 
-        let err = append_download(&client, None, &spec, &part, 7, &|_| {})
+        let err = append_download(&transport, &spec, &part, 7, &|_| {})
             .await
             .unwrap_err()
             .to_string();
