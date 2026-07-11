@@ -398,6 +398,21 @@ export interface MatterMineResponse {
   matters: MatterMineSummary[];
 }
 
+// --- One-time legacy bridge -------------------------------------------------
+// These response fields are deliberately isolated to the short-lived bridge.
+// They are received over TLS and remain device-local; callers must never put
+// any of them into a URL, request body, header, or relay frame.
+export interface LegacyMigrationManifestMatter {
+  legacy_matter_id: string;
+  matter_handle: MatterHandle;
+  root_stream_handle: StreamHandle;
+  streams: Record<string, StreamHandle>;
+}
+
+export interface LegacyMigrationManifestResponse {
+  matters: LegacyMigrationManifestMatter[];
+}
+
 // --- /org/claim (Phase 1) --------------------------------------------------
 
 export interface OrgClaimRequest {
@@ -454,6 +469,8 @@ export const FIRM_ENDPOINTS = {
   orgUserDevices: '/org/users/devices',
   orgAdmins: '/org/admins',
   matterMine: '/v2/firm/matters/mine',
+  migrationManifest: '/v2/firm/migration-manifest',
+  migrationComplete: '/v2/firm/migration-complete',
   orgClaim: '/org/claim',
   lemonSqueezyWebhook: '/webhooks/lemonsqueezy',
   health: '/healthz',

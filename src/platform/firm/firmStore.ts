@@ -93,6 +93,8 @@ interface FirmState {
   isOffline: boolean;
   isLoading: boolean;
   error: string | null;
+  /** Plain, non-blocking result of a one-time local migration. */
+  legacyMigrationNotice: string | null;
   /** Providers for which the firm has a managed (assured) key configured. */
   assuredProviders: AssuredProvider[];
 
@@ -158,6 +160,32 @@ function emptyVerdict(): Pick<
 }
 
 /**
+ * Best-effort startup work: only a device that still has a legacy local link
+ * makes the two bridge calls. Failures stay non-blocking (for example, an
+ * offline laptop simply resumes on its next signed-in launch).
+ */
+function beginLegacyFirmBridge(
+  get: () => FirmState,
+  set: (partial: Partial<FirmState> | ((state: FirmState) => Partial<FirmState>)) => void,
+): void {
+  const seatToken = get().seatToken;
+  if (!seatToken) return;
+  void import('./legacyFirmManifestBridge')
+    .then(({ runLegacyFirmManifestBridgeFromMatterStore }) =>
+      runLegacyFirmManifestBridgeFromMatterStore(get().client(), seatToken))
+    .then((result) => {
+      // A sign-out while the request was in flight must not resurrect a notice.
+      if (get().seatToken === seatToken && result.notices[0]) {
+        set({ legacyMigrationNotice: result.notices[0] });
+      }
+    })
+    .catch(() => {
+      // The bridge has its own durable checkpoint. Do not turn a recoverable
+      // migration retry into a sign-in or seat-activation failure.
+    });
+}
+
+/**
  * Shared post-login path: given a LoginResponse (from either password login or
  * SSO code-exchange), store the auth tokens in the OS keychain, fetch org
  * context + seat public key, and persist the session. Called by both `signIn`
@@ -207,6 +235,7 @@ async function establishSessionFromLogin(
     seatPublicKeyPem,
     isLoading: false,
     error: null,
+    legacyMigrationNotice: null,
     isOffline: false,
   });
   // If a seat was already activated on this machine, re-validate it.
@@ -223,6 +252,7 @@ export const useFirmStore = create<FirmState>()(
       ...emptyVerdict(),
       isLoading: false,
       error: null,
+      legacyMigrationNotice: null,
       assuredProviders: [],
 
       tokenSource: (): TokenSource => ({
@@ -365,6 +395,7 @@ export const useFirmStore = create<FirmState>()(
             seatPublicKeyPem,
             isLoading: false,
             error: null,
+            legacyMigrationNotice: null,
             isOffline: false,
           });
           return { ok: true, claimedLicenseKey: licenseKey.trim() };
@@ -406,6 +437,7 @@ export const useFirmStore = create<FirmState>()(
             isOffline: false,
             isLoading: false,
             error: null,
+            legacyMigrationNotice: null,
             session: {
               ...session,
               seatId: res.seat_id,
@@ -416,6 +448,7 @@ export const useFirmStore = create<FirmState>()(
               activated: true,
             },
           });
+          beginLegacyFirmBridge(get, set);
           return { ok: true };
         } catch (err) {
           if (err instanceof FirmApiError && err.seatLimit) {
@@ -450,6 +483,7 @@ export const useFirmStore = create<FirmState>()(
           ...emptyVerdict(),
           assuredProviders: [],
           error: null,
+          legacyMigrationNotice: null,
         });
       },
 
@@ -463,7 +497,8 @@ export const useFirmStore = create<FirmState>()(
           set({ accessToken: null, seatToken: null, ...emptyVerdict() });
           return;
         }
-        set({ accessToken: tokens.accessToken, seatToken: tokens.seatToken ?? null });
+        set({ accessToken: tokens.accessToken, seatToken: tokens.seatToken ?? null, legacyMigrationNotice: null });
+        beginLegacyFirmBridge(get, set);
 
         // Offline-verify the stored seat token immediately (works on a plane).
         let offlineSeatValid = false;
