@@ -64,22 +64,47 @@ impl JotformClient {
         self.network_policy = Some((policy, operation));
         self
     }
-    async fn send(
+    fn authorize_request(
         &self,
         url: &str,
-        request: reqwest::RequestBuilder,
-    ) -> anyhow::Result<reqwest::Response> {
+    ) -> anyhow::Result<
+        Option<(
+            crate::network_policy::NetworkPolicy,
+            crate::network_policy::AuthorizedGeneration,
+        )>,
+    > {
         let Some((policy, operation)) = self.network_policy.as_ref() else {
             #[cfg(test)]
-            return Ok(request.send().await?);
+            return Ok(None);
             #[cfg(not(test))]
             anyhow::bail!("JotformClient requires a NetworkPolicy before it can make a request");
         };
         let authorized = crate::commands::connector_network::authorize_url(policy, operation, url)?;
-        crate::commands::connector_network::await_authorized(policy, &authorized, async move {
-            Ok(request.send().await?)
-        })
-        .await
+        Ok(Some((policy.clone(), authorized)))
+    }
+
+    async fn send_authorized(
+        &self,
+        authorization: Option<(
+            crate::network_policy::NetworkPolicy,
+            crate::network_policy::AuthorizedGeneration,
+        )>,
+        request: reqwest::RequestBuilder,
+    ) -> anyhow::Result<reqwest::Response> {
+        match authorization {
+            Some((policy, authorized)) => {
+                crate::commands::connector_network::await_authorized(
+                    &policy,
+                    &authorized,
+                    async move { Ok(request.send().await?) },
+                )
+                .await
+            }
+            #[cfg(test)]
+            None => Ok(request.send().await?),
+            #[cfg(not(test))]
+            None => unreachable!("production requests always require authorization"),
+        }
     }
 
     pub async fn current_user_with_key(api_key: String) -> anyhow::Result<JotformUser> {
@@ -164,6 +189,9 @@ impl JotformClient {
         };
 
         for attempt in 0..MAX_429_RETRIES {
+            // This must happen before constructing the request because Jotform
+            // puts its API key in the query string.
+            let authorization = self.authorize_request(&url)?;
             let mut req = self
                 .http
                 .get(&url)
@@ -171,9 +199,8 @@ impl JotformClient {
             for (key, value) in query {
                 req = req.query(&[(*key, value.as_str())]);
             }
-            // Authorize before attaching/sending the query-string API key.
             let resp = self
-                .send(&url, req)
+                .send_authorized(authorization, req)
                 .await
                 .context("Jotform HTTP GET send")?;
             if resp.status().as_u16() == 429 {
