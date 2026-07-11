@@ -183,7 +183,8 @@ CREATE INDEX IF NOT EXISTS idx_ethical_walls_user ON ethical_walls(user_id);
 -- is stored as a BLOB and is NEVER parsed, decoded, hashed, or logged. The id is
 -- the monotonic fetch cursor for catch-up. (blob_id) is a per-matter client
 -- idempotency key so a retried push doesn't duplicate.
--- doc_id partitions the relay into per-document streams; notes use '_notes'.
+-- stream_handle partitions opaque encrypted relay streams. The client keeps
+-- the local document mapping inside encrypted root-stream state.
 CREATE TABLE IF NOT EXISTS matter_updates (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
@@ -490,7 +491,7 @@ export class Store {
         this.legacyManifest.set(legacy, { matter_handle: map.matter, root_stream_handle: map.root, streams: Object.fromEntries(map.streams) });
         this.db.query("UPDATE audit_events SET target = ?, detail = NULL WHERE target = ?").run(map.matter, legacy);
       }
-      this.db.exec("DROP TABLE wrapped_matter_keys; DROP TABLE matter_updates; DROP TABLE ethical_walls; DROP TABLE matter_members; DROP TABLE IF EXISTS matter_streams; DROP TABLE matters; ALTER TABLE matters_v2 RENAME TO matters; ALTER TABLE matter_streams_v2 RENAME TO matter_streams; ALTER TABLE matter_members_v2 RENAME TO matter_members; ALTER TABLE ethical_walls_v2 RENAME TO ethical_walls; ALTER TABLE matter_updates_v2 RENAME TO matter_updates; ALTER TABLE wrapped_matter_keys_v2 RENAME TO wrapped_matter_keys; CREATE INDEX idx_matters_org ON matters(org_id); CREATE INDEX idx_matter_streams_matter ON matter_streams(matter_handle); CREATE INDEX idx_matter_members_user ON matter_members(user_id); CREATE INDEX idx_matter_members_matter ON matter_members(matter_handle); CREATE INDEX idx_ethical_walls_user ON ethical_walls(user_id);");
+      this.db.exec("DROP TABLE wrapped_matter_keys; DROP TABLE matter_updates; DROP TABLE ethical_walls; DROP TABLE matter_members; DROP TABLE IF EXISTS matter_streams; DROP TABLE matters; ALTER TABLE matters_v2 RENAME TO matters; ALTER TABLE matter_streams_v2 RENAME TO matter_streams; ALTER TABLE matter_members_v2 RENAME TO matter_members; ALTER TABLE ethical_walls_v2 RENAME TO ethical_walls; ALTER TABLE matter_updates_v2 RENAME TO matter_updates; ALTER TABLE wrapped_matter_keys_v2 RENAME TO wrapped_matter_keys; DROP INDEX idx_matter_updates_blob_v2; DROP INDEX idx_matter_updates_matter_v2; DROP INDEX idx_wmk_matter_epoch_v2; DROP INDEX idx_wmk_user_v2; CREATE INDEX idx_matters_org ON matters(org_id); CREATE INDEX idx_matter_streams_matter ON matter_streams(matter_handle); CREATE INDEX idx_matter_members_user ON matter_members(user_id); CREATE INDEX idx_matter_members_matter ON matter_members(matter_handle); CREATE INDEX idx_ethical_walls_user ON ethical_walls(user_id); CREATE UNIQUE INDEX idx_matter_updates_blob ON matter_updates(stream_handle, blob_id); CREATE INDEX idx_matter_updates_matter ON matter_updates(matter_handle, stream_handle, id); CREATE INDEX idx_wmk_matter_epoch ON wrapped_matter_keys(matter_handle, epoch); CREATE INDEX idx_wmk_user ON wrapped_matter_keys(user_id);");
       const fk = this.db.query("PRAGMA foreign_key_check").all(); if (fk.length) throw new Error("firm_relay_migration_foreign_key_failure");
       this.db.exec("COMMIT; PRAGMA foreign_keys = ON;");
     } catch (cause) { this.db.exec("ROLLBACK; PRAGMA foreign_keys = ON;"); throw cause; }

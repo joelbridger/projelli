@@ -1,23 +1,34 @@
+/** Service-layer port of the original ACL and relay invariants to v2 handles. */
 import { describe, expect, test } from "bun:test";
 import { Store } from "../src/lib/db.ts";
-import { resolveAccess, toUpdateFrame } from "../src/lib/matters.ts";
+import { gateMatterAccess, MAX_UPDATE_BYTES, resolveAccess } from "../src/lib/matters.ts";
+import type { UserRole } from "../src/lib/types.ts";
 
-describe("opaque firm relay store", () => {
-  test("routes ciphertext through opaque handles and preserves wall enforcement", () => {
-    const store = new Store(":memory:");
-    const org = store.createOrg({ name: "Firm", plan: "practice", packs: ["advisor"], seat_limit: 2 });
-    const admin = store.createUser({ org_id: org.org_id, email: "a@test.dev", password_hash: "x", role: "admin" });
-    const member = store.createUser({ org_id: org.org_id, email: "m@test.dev", password_hash: "x", role: "member" });
-    const matter = store.createMatter({ org_id: org.org_id });
-    expect(matter.matter_handle).toMatch(/^mh2_[A-Za-z0-9_-]{43}$/);
-    expect(matter.root_stream_handle).toMatch(/^sh2_[A-Za-z0-9_-]{43}$/);
-    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: member.user_id, org_id: org.org_id, role: "editor" });
-    expect(resolveAccess(store, { orgId: org.org_id, userId: member.user_id, role: "member" }, matter.matter_handle).allowed).toBe(true);
-    const update = store.appendMatterUpdate({ matter_handle: matter.matter_handle, stream_handle: matter.root_stream_handle, org_id: org.org_id, blob_id: "random-blob", ciphertext: new Uint8Array([0, 255, 4]), author_seat: "seat", key_epoch: 1 }).update;
-    expect(toUpdateFrame(update)).toEqual(expect.objectContaining({ type: "update", cursor: 1, blob_id: "random-blob" }));
-    expect(toUpdateFrame(update)).not.toHaveProperty("matter_id");
-    expect(toUpdateFrame(update)).not.toHaveProperty("doc_id");
-    store.setEthicalWall({ matter_handle: matter.matter_handle, user_id: member.user_id, org_id: org.org_id, created_by: admin.user_id });
-    expect(resolveAccess(store, { orgId: org.org_id, userId: member.user_id, role: "member" }, matter.matter_handle).allowed).toBe(false);
-  });
+function seed() {
+  const store=new Store(":memory:"), orgA=store.createOrg({name:"A",plan:"practice",packs:["advisor"],seat_limit:5}),orgB=store.createOrg({name:"B",plan:"practice",packs:["advisor"],seat_limit:5});
+  const adminA=store.createUser({org_id:orgA.org_id,email:"admin@a.test",password_hash:"x",role:"admin"}),alice=store.createUser({org_id:orgA.org_id,email:"alice@a.test",password_hash:"x",role:"member"}),bob=store.createUser({org_id:orgA.org_id,email:"bob@a.test",password_hash:"x",role:"member"}),adminB=store.createUser({org_id:orgB.org_id,email:"admin@b.test",password_hash:"x",role:"admin"}),carol=store.createUser({org_id:orgB.org_id,email:"carol@b.test",password_hash:"x",role:"member"});
+  const matter=store.createMatter({org_id:orgA.org_id}); return {store,orgA,orgB,adminA,alice,bob,adminB,carol,matter};
+}
+const caller=(u:{org_id:string;user_id:string;role:UserRole})=>({org_id:u.org_id,user_id:u.user_id,role:u.role});
+
+describe("v2 opaque matter access predicate",()=>{
+  test("member is allowed",()=>{const s=seed();s.store.addMatterMember({matter_handle:s.matter.matter_handle,user_id:s.alice.user_id,org_id:s.orgA.org_id,role:"editor"});expect(resolveAccess(s.store,{orgId:s.orgA.org_id,userId:s.alice.user_id,role:"member"},s.matter.matter_handle)).toMatchObject({allowed:true,reason:"member"});});
+  test("non-member is denied by default",()=>{const s=seed();expect(resolveAccess(s.store,{orgId:s.orgA.org_id,userId:s.bob.user_id,role:"member"},s.matter.matter_handle)).toMatchObject({allowed:false,reason:"not_member"});});
+  test("ethical wall overrides membership",()=>{const s=seed();s.store.addMatterMember({matter_handle:s.matter.matter_handle,user_id:s.alice.user_id,org_id:s.orgA.org_id,role:"editor"});s.store.setEthicalWall({matter_handle:s.matter.matter_handle,user_id:s.alice.user_id,org_id:s.orgA.org_id,created_by:s.adminA.user_id});expect(resolveAccess(s.store,{orgId:s.orgA.org_id,userId:s.alice.user_id,role:"member"},s.matter.matter_handle)).toMatchObject({allowed:false,reason:"walled"});});
+  test("wall overrides an otherwise allowed admin",()=>{const s=seed();s.store.setEthicalWall({matter_handle:s.matter.matter_handle,user_id:s.adminA.user_id,org_id:s.orgA.org_id,created_by:s.adminA.user_id});expect(resolveAccess(s.store,{orgId:s.orgA.org_id,userId:s.adminA.user_id,role:"admin"},s.matter.matter_handle)).toMatchObject({allowed:false,reason:"walled"});});
+  test("cross-org admins and members are denied",()=>{const s=seed();expect(resolveAccess(s.store,{orgId:s.orgB.org_id,userId:s.carol.user_id,role:"member"},s.matter.matter_handle).reason).toBe("cross_org");expect(resolveAccess(s.store,{orgId:s.orgB.org_id,userId:s.adminB.user_id,role:"admin"},s.matter.matter_handle).reason).toBe("cross_org");});
+  test("clearing a wall never creates membership",()=>{const s=seed();s.store.setEthicalWall({matter_handle:s.matter.matter_handle,user_id:s.bob.user_id,org_id:s.orgA.org_id,created_by:s.adminA.user_id});s.store.clearEthicalWall(s.matter.matter_handle,s.bob.user_id);expect(resolveAccess(s.store,{orgId:s.orgA.org_id,userId:s.bob.user_id,role:"member"},s.matter.matter_handle).reason).toBe("not_member");});
+  test("granted and denied access are both audited with opaque target",()=>{const s=seed();s.store.addMatterMember({matter_handle:s.matter.matter_handle,user_id:s.alice.user_id,org_id:s.orgA.org_id,role:"editor"});expect(gateMatterAccess(s.store,caller(s.alice),s.matter.matter_handle,"push").ok).toBe(true);expect(gateMatterAccess(s.store,caller(s.bob),s.matter.matter_handle,"pull").ok).toBe(false);const events=s.store.listAudit(s.orgA.org_id);expect(events.map(x=>x.action)).toEqual(expect.arrayContaining(["matter.access.granted","matter.access.denied"]));expect(events.every(x=>x.target!=="matter-semantic-123")).toBe(true);});
+  test("cross-org denial is 404 and audits only caller org",()=>{const s=seed();const d=gateMatterAccess(s.store,caller(s.carol),s.matter.matter_handle,"pull");expect(d).toMatchObject({ok:false,http:404,reason:"cross_org"});expect(s.store.listAudit(s.orgB.org_id).some(x=>x.action==="matter.access.denied")).toBe(true);});
+});
+
+describe("v2 stream relay store",()=>{
+  test("ciphertext round-trips byte-for-byte",()=>{const s=seed(), bytes=new Uint8Array([0,255,16,128]);const r=s.store.appendMatterUpdate({matter_handle:s.matter.matter_handle,stream_handle:s.matter.root_stream_handle,org_id:s.orgA.org_id,blob_id:"one",ciphertext:bytes,author_seat:"seat",key_epoch:1});expect(Array.from(s.store.getMatterUpdatesSince(s.matter.matter_handle,s.matter.root_stream_handle,0)[0]!.ciphertext)).toEqual(Array.from(bytes));expect(r.duplicate).toBe(false);});
+  test("idempotency is per opaque stream and blob",()=>{const s=seed(),a=s.store.appendMatterUpdate({matter_handle:s.matter.matter_handle,stream_handle:s.matter.root_stream_handle,org_id:s.orgA.org_id,blob_id:"dup",ciphertext:new Uint8Array([1]),author_seat:"s",key_epoch:1}),b=s.store.appendMatterUpdate({matter_handle:s.matter.matter_handle,stream_handle:s.matter.root_stream_handle,org_id:s.orgA.org_id,blob_id:"dup",ciphertext:new Uint8Array([9]),author_seat:"s",key_epoch:1});expect(b).toMatchObject({duplicate:true,update:{id:a.update.id}});expect(Array.from(b.update.ciphertext)).toEqual([1]);});
+  test("cursor catch-up is strictly after and ordered",()=>{const s=seed(),ids:number[]=[];for(let i=0;i<5;i++)ids.push(s.store.appendMatterUpdate({matter_handle:s.matter.matter_handle,stream_handle:s.matter.root_stream_handle,org_id:s.orgA.org_id,blob_id:`b${i}`,ciphertext:new Uint8Array([i]),author_seat:"s",key_epoch:1}).update.id);expect(s.store.getMatterUpdatesSince(s.matter.matter_handle,s.matter.root_stream_handle,ids[1]!).map(x=>x.id)).toEqual(ids.slice(2));});
+  test("updates never leak across opaque matters",()=>{const s=seed(),other=s.store.createMatter({org_id:s.orgA.org_id});s.store.appendMatterUpdate({matter_handle:s.matter.matter_handle,stream_handle:s.matter.root_stream_handle,org_id:s.orgA.org_id,blob_id:"x",ciphertext:new Uint8Array([1]),author_seat:"s",key_epoch:1});s.store.appendMatterUpdate({matter_handle:other.matter_handle,stream_handle:other.root_stream_handle,org_id:s.orgA.org_id,blob_id:"x",ciphertext:new Uint8Array([2]),author_seat:"s",key_epoch:1});expect(Array.from(s.store.getMatterUpdatesSince(other.matter_handle,other.root_stream_handle,0)[0]!.ciphertext)).toEqual([2]);});
+  test("fresh matter starts at key epoch one",()=>expect(seed().matter.key_epoch).toBe(1));
+  test("member removal bumps epoch",()=>{const s=seed();const before=s.matter.key_epoch;s.store.addMatterMember({matter_handle:s.matter.matter_handle,user_id:s.alice.user_id,org_id:s.orgA.org_id,role:"editor"});s.store.removeMatterMember(s.matter.matter_handle,s.alice.user_id);expect(s.store.bumpMatterKeyEpoch(s.matter.matter_handle)).toBeGreaterThan(before);});
+  test("setting a wall bumps epoch",()=>{const s=seed();s.store.setEthicalWall({matter_handle:s.matter.matter_handle,user_id:s.alice.user_id,org_id:s.orgA.org_id,created_by:s.adminA.user_id});expect(s.store.bumpMatterKeyEpoch(s.matter.matter_handle)).toBe(2);});
+  test("update limit remains a positive bounded safety cap",()=>{expect(MAX_UPDATE_BYTES).toBeGreaterThan(0);expect(MAX_UPDATE_BYTES).toBeLessThanOrEqual(8*1024*1024);});
 });

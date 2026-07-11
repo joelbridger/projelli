@@ -1,15 +1,68 @@
-import { describe, expect, test } from "bun:test";
+/** V2 port of the firm wiring suite: device/admin plumbing plus opaque key discovery. */
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Store } from "../src/lib/db.ts";
+import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
+import { buildServeOptions } from "../src/server.ts";
+import { FanoutHub } from "../src/lib/matters.ts";
 
-describe("opaque discovery and wrapped keys", () => {
-  test("discovery returns only opaque routing values", () => {
-    const store = new Store(":memory:");
-    const org = store.createOrg({ name: "Firm", plan: "practice", packs: ["advisor"], seat_limit: 2 });
-    const user = store.createUser({ org_id: org.org_id, email: "member@test.dev", password_hash: "x", role: "member" });
-    const matter = store.createMatter({ org_id: org.org_id });
-    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: user.user_id, org_id: org.org_id, role: "owner" });
-    store.upsertWrappedMatterKey({ matter_handle: matter.matter_handle, epoch: 1, user_id: user.user_id, device_id: "device", wrapped_key_b64: "opaque-wrap", published_by: user.user_id });
-    expect(store.listMatterMembershipsForUser(user.user_id, org.org_id)).toEqual([{ matter_handle: matter.matter_handle, root_stream_handle: matter.root_stream_handle, status: "provisioning", key_epoch: 1, role: "owner" }]);
-    expect(store.getWrappedMatterKey(matter.matter_handle, 1, user.user_id, "device")?.wrapped_key_b64).toBe("opaque-wrap");
-  });
+const store=new Store(":memory:"), server=Bun.serve(buildServeOptions(store,new FanoutHub()));
+const base=`http://${server.hostname}:${server.port}`;
+let orgId="",adminId="",memberId="",otherId="",admin="",member="",memberSeat="",handle="",root="";
+const post=async(path:string,body:unknown={},token?:string,extra:Record<string,string>={})=>{const r=await fetch(base+path,{method:"POST",headers:{"content-type":"application/json",...(token?{authorization:`Bearer ${token}`}:{}),...extra},body:JSON.stringify(body)});return {status:r.status,body:await r.json().catch(()=>({})) as Record<string,any>};};
+beforeAll(async()=>{const org=store.createOrg({name:"Wiring",plan:"practice",packs:["advisor"],seat_limit:6});orgId=org.org_id;const a=store.createUser({org_id:orgId,email:"admin@wire.test",password_hash:"x",role:"admin"}),m=store.createUser({org_id:orgId,email:"member@wire.test",password_hash:"x",role:"member"}),o=store.createUser({org_id:orgId,email:"other@wire.test",password_hash:"x",role:"member"});adminId=a.user_id;memberId=m.user_id;otherId=o.user_id;admin=issueAuthTokens(store,a).access_token;member=issueAuthTokens(store,m).access_token;const seat=store.activateSeat({org_id:orgId,user_id:memberId,machine_id:"member-machine",machine_label:null,seat_limit:6});if(!seat.ok)throw new Error("seat activation failed");memberSeat=mintSeatToken(org,m,seat.seat).token;const made=await post("/v2/firm/matters",{},admin);handle=made.body.matter_handle;root=made.body.root_stream_handle;await post(`/v2/firm/matters/${handle}/members/add`,{user_id:memberId,role:"owner"},admin);await post(`/v2/firm/matters/${handle}/activate`,{},admin);});
+afterAll(()=>server.stop(true));
+
+describe("firm wiring preserved proofs",()=>{
+  const cases:Array<[string,()=>Promise<void>|void]>=[
+    ["device registration accepts a public P-256 JWK",async()=>{expect((await post("/device/register",{device_id:"dev-a",machine_id:"m",label:"Work",pubkey_jwk:{kty:"EC",crv:"P-256",x:"x",y:"y"}},admin)).status).toBe(200)}],
+    ["device registration is an upsert",async()=>{await post("/device/register",{device_id:"dev-up",machine_id:"m",label:"Old",pubkey_jwk:{kty:"EC",crv:"P-256",x:"x",y:"y"}},admin);await post("/device/register",{device_id:"dev-up",machine_id:"m",label:"New",pubkey_jwk:{kty:"EC",crv:"P-256",x:"x",y:"z"}},admin);expect(store.getDevice("dev-up",adminId)?.label).toBe("New")}],
+    ["device registration rejects missing id",async()=>expect((await post("/device/register",{machine_id:"m",label:"x",pubkey_jwk:{}},admin)).status).toBe(400)],
+    ["device registration rejects private JWK material",async()=>expect((await post("/device/register",{device_id:"d",machine_id:"m",label:"x",pubkey_jwk:{kty:"EC",crv:"P-256",x:"x",y:"y",d:"secret"}},admin)).status).toBe(400)],
+    ["device registration rejects wrong curve",async()=>expect((await post("/device/register",{device_id:"d384",machine_id:"m",label:"x",pubkey_jwk:{kty:"EC",crv:"P-384",x:"x",y:"y"}},admin)).status).toBe(400)],
+    ["device registration requires auth",async()=>expect((await post("/device/register",{})).status).toBe(401)],
+    ["same-org admin can list devices",async()=>{const r=await post("/org/users/devices",{user_ids:[adminId]},admin);expect(r.status).toBe(200);expect(Array.isArray(r.body.devices)).toBe(true)}],
+    ["same-org member can list wrapping devices",async()=>expect((await post("/org/users/devices",{user_ids:[adminId]},member)).status).toBe(200)],
+    ["cross-org device list is denied",async()=>{const outside=store.createOrg({name:"Outside",plan:"practice",packs:[],seat_limit:1});const user=store.createUser({org_id:outside.org_id,email:"x@outside.test",password_hash:"x",role:"member"});expect((await post("/org/users/devices",{user_ids:[user.user_id]},admin)).status).toBe(403)}],
+    ["empty device list is empty",async()=>expect((await post("/org/users/devices",{user_ids:[]},admin)).body.devices).toEqual([])],
+    ["active admins list only own org",async()=>{const r=await post("/org/admins",{},member);expect(r.status).toBe(200);expect(r.body.admins.map((x:any)=>x.user_id)).toContain(adminId)}],
+    ["admin list requires auth",async()=>expect((await post("/org/admins",{})).status).toBe(401)],
+    ["owner publishes wrapped key",async()=>{const r=await post(`/v2/firm/matters/${handle}/keys/publish`,{epoch:1,wrapped:[{user_id:memberId,device_id:"member-device",wrapped_key_b64:"wrapped-key"}]},member);expect(r).toMatchObject({status:200,body:{ok:true,stored:1}})}],
+    ["admin publishes wrapped keys",async()=>expect((await post(`/v2/firm/matters/${handle}/keys/publish`,{epoch:1,wrapped:[{user_id:adminId,device_id:"admin-device",wrapped_key_b64:"admin-wrap"}]},admin)).status).toBe(200)],
+    ["non-owner member cannot publish",async()=>{const r=await post(`/v2/firm/matters/${handle}/members/add`,{user_id:otherId,role:"editor"},admin);expect(r.status).toBe(200);const other=issueAuthTokens(store,store.getUser(otherId)!).access_token;expect((await post(`/v2/firm/matters/${handle}/keys/publish`,{epoch:1,wrapped:[]},other)).status).toBe(403)}],
+    ["stale epoch is rejected",async()=>expect((await post(`/v2/firm/matters/${handle}/keys/publish`,{epoch:99,wrapped:[]},admin)).status).toBe(409)],
+    ["wall skips wrapped-key recipients",async()=>{await post(`/v2/firm/matters/${handle}/wall/set`,{user_id:otherId},admin);const r=await post(`/v2/firm/matters/${handle}/keys/publish`,{epoch:rEpoch(),wrapped:[{user_id:otherId,device_id:"blocked",wrapped_key_b64:"no"}]},admin);expect(r.body.stored).toBe(0);await post(`/v2/firm/matters/${handle}/wall/clear`,{user_id:otherId},admin)}],
+    ["member fetches own wrapped key",async()=>{await post(`/v2/firm/matters/${handle}/keys/publish`,{epoch:rEpoch(),wrapped:[{user_id:memberId,device_id:"member-device",wrapped_key_b64:"wrapped-key-current"}]},admin);const r=await post(`/v2/firm/matters/${handle}/keys/fetch`,{device_id:"member-device"},member,{"x-seat-token":memberSeat});expect(r.status).toBe(200);expect(r.body.wrapped_key_b64).toBe("wrapped-key-current")}],
+    ["walled member cannot fetch key",async()=>{await post(`/v2/firm/matters/${handle}/wall/set`,{user_id:memberId},admin);expect((await post(`/v2/firm/matters/${handle}/keys/fetch`,{device_id:"member-device"},member,{"x-seat-token":memberSeat})).status).toBe(403);await post(`/v2/firm/matters/${handle}/wall/clear`,{user_id:memberId},admin)}],
+    ["non-member cannot fetch key",async()=>{const u=store.createUser({org_id:orgId,email:"nomember@wire.test",password_hash:"x",role:"member"});const token=issueAuthTokens(store,u).access_token;const seat=store.activateSeat({org_id:orgId,user_id:u.user_id,machine_id:"n",machine_label:null,seat_limit:6});if(!seat.ok)throw new Error("seat activation failed");expect((await post(`/v2/firm/matters/${handle}/keys/fetch`,{device_id:"x"},token,{"x-seat-token":mintSeatToken(store.getOrg(orgId)!,u,seat.seat).token})).status).toBe(403)}],
+    ["missing wrapped key is 404",async()=>expect((await post(`/v2/firm/matters/${handle}/keys/fetch`,{device_id:"missing"},member,{"x-seat-token":memberSeat})).status).toBe(404)],
+    ["member removal rotates epoch and purges old keys",async()=>{const old=store.getMatter(handle)!.key_epoch;await post(`/v2/firm/matters/${handle}/members/remove`,{user_id:otherId},admin);expect(store.getMatter(handle)!.key_epoch).toBeGreaterThan(old)}],
+    ["opaque discovery returns handle and root stream only",async()=>{const r=await post("/v2/firm/matters/mine",{},member,{"x-seat-token":memberSeat});expect(r.status).toBe(200);expect(JSON.stringify(r.body)).not.toMatch(/client_name|matter_id|doc_id/)}],
+    ["walled membership is absent from discovery",async()=>{await post(`/v2/firm/matters/${handle}/wall/set`,{user_id:memberId},admin);const r=await post("/v2/firm/matters/mine",{},member,{"x-seat-token":memberSeat});expect(r.body.matters).toEqual([]);await post(`/v2/firm/matters/${handle}/wall/clear`,{user_id:memberId},admin)}],
+    ["discovery requires a seat",async()=>expect((await post("/v2/firm/matters/mine",{},member)).status).toBe(401)],
+    ["member list returns authorization data without client names",async()=>{const r=await post(`/v2/firm/matters/${handle}/members/list`,{},admin);expect(r.status).toBe(200);expect(JSON.stringify(r.body)).not.toContain("client_name")}],
+    ["member list requires admin",async()=>expect((await post(`/v2/firm/matters/${handle}/members/list`,{},member)).status).toBe(403)],
+    ["member list rejects cross-org handle",async()=>expect((await post(`/v2/firm/matters/mh2_bad/members/list`,{},admin)).status).toBe(404)],
+    ["v2 create accepts only empty object",async()=>expect((await post("/v2/firm/matters",{},admin)).status).toBe(201)],
+    ["v2 create rejects client name",async()=>expect((await post("/v2/firm/matters",{client_name:"CLIENT_SECRET_NIMBUS"},admin)).status).toBe(400)],
+    ["v2 membership add requires same-org user",async()=>expect((await post(`/v2/firm/matters/${handle}/members/add`,{user_id:"missing"},admin)).status).toBe(400)],
+    ["v2 wall rejects free-text reason",async()=>expect((await post(`/v2/firm/matters/${handle}/wall/set`,{user_id:memberId,reason:"CLIENT_SECRET_NIMBUS"},admin)).status).toBe(400)],
+    ["v2 stream allocation requires seat",async()=>expect((await post(`/v2/firm/matters/${handle}/streams`,{},member)).status).toBe(401)],
+    ["v2 stream allocation returns an opaque stream",async()=>{const r=await post(`/v2/firm/matters/${handle}/streams`,{},member,{"x-seat-token":memberSeat});expect(r.body.stream_handle).toMatch(/^sh2_[A-Za-z0-9_-]{43}$/)}],
+    ["v1 collection route returns upgrade response",async()=>expect((await post("/org/matters",{client_name:"x"},admin)).status).toBe(426)],
+    ["v1 item route returns upgrade response",async()=>expect((await post("/matter/matter-semantic-123/members/add",{},admin)).status).toBe(426)],
+    ["v2 list uses opaque matter handle",async()=>{const r=await post("/v2/firm/matters/list",{},admin);expect(r.body.matters.every((m:any)=>/^mh2_/.test(m.matter_handle))).toBe(true)}],
+    ["v2 list never returns semantic identifier",async()=>expect(JSON.stringify((await post("/v2/firm/matters/list",{},admin)).body)).not.toMatch(/matter_id|client_name/)],
+    ["activation returns no descriptor plaintext",async()=>{const m=(await post("/v2/firm/matters",{},admin)).body;const r=await post(`/v2/firm/matters/${m.matter_handle}/activate`,{},admin);expect(JSON.stringify(r.body)).not.toMatch(/client_name|matter_id/)}],
+    ["archive retains opaque status only",async()=>{const m=(await post("/v2/firm/matters",{},admin)).body;const r=await post(`/v2/firm/matters/${m.matter_handle}/archive`,{},admin);expect(r.body).toMatchObject({ok:true,status:"archived"})}],
+    ["v2 key publish rejects legacy matter_id body",async()=>expect((await post(`/v2/firm/matters/${handle}/keys/publish`,{matter_id:"matter-semantic-123",epoch:rEpoch(),wrapped:[]},admin)).status).toBe(400)],
+    ["v2 key fetch response omits matter id",async()=>expect(JSON.stringify((await post(`/v2/firm/matters/${handle}/keys/fetch`,{device_id:"member-device"},member,{"x-seat-token":memberSeat})).body)).not.toContain("matter_id")],
+    ["v2 membership response uses role not names",async()=>expect(JSON.stringify((await post(`/v2/firm/matters/${handle}/members/add`,{user_id:memberId,role:"editor"},admin)).body)).not.toContain("client_name")],
+    ["audit targets store opaque handles",()=>expect(store.listAudit(orgId).filter(x=>x.target?.startsWith("mh2_")).length).toBeGreaterThan(0)],
+    ["audit detail has no client descriptor",()=>expect(JSON.stringify(store.listAudit(orgId))).not.toContain("CLIENT_SECRET_NIMBUS")],
+    ["matter handle has 256-bit base64url shape",()=>expect(handle).toMatch(/^mh2_[A-Za-z0-9_-]{43}$/)],
+    ["root stream handle has 256-bit base64url shape",()=>expect(root).toMatch(/^sh2_[A-Za-z0-9_-]{43}$/)],
+    ["wrapped-key route never echoes client metadata",async()=>expect(JSON.stringify((await post(`/v2/firm/matters/${handle}/keys/publish`,{epoch:rEpoch(),wrapped:[]},admin)).body)).not.toMatch(/client_name|matter_id|doc_id/)],
+  ];
+  for(const [name,run] of cases) test(name,run);
 });
+function rEpoch(){return store.getMatter(handle)!.key_epoch;}
