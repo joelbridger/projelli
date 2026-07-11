@@ -64,6 +64,8 @@ export interface SyncSocketData {
   matterId: string;
   /** Document stream this socket is subscribed to. '_notes' for matter notes. */
   docId: string;
+  /** Last cursor the client has durably applied before this subscription. */
+  since: number;
   orgId: string;
   userId: string;
   seatId: string;
@@ -118,7 +120,10 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
             if (!authz.ok) return authz.resp;
             // Read the doc_id from the query string (absent → '_notes').
             const syncDocId = url.searchParams.get("doc_id") ?? "_notes";
-            const data: SyncSocketData = { subId: randomUUID(), docId: syncDocId, ...authz.data };
+            const sinceRaw = url.searchParams.get("since") ?? "0";
+            const syncSince = Number(sinceRaw);
+            if (!Number.isInteger(syncSince) || syncSince < 0) return error("invalid_cursor", 400);
+            const data: SyncSocketData = { subId: randomUUID(), docId: syncDocId, since: syncSince, ...authz.data };
             if (srv.upgrade(req, { data })) return undefined; // upgraded; Bun owns the socket now
             return error("upgrade_failed", 400);
           }
@@ -216,9 +221,12 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
     // Live fan-out for the sync relay. The connection is already access-gated in
     // `fetch` (authorizeSyncConnect) before upgrade, so a walled / non-member /
     // cross-org socket never gets here. We register the socket as a Subscriber and
-    // ship a `since=0` backlog so a late joiner catches up, then receives new
-    // updates live. We never read inbound socket frames as document data: pushes
-    // go through the audited HTTP POST so every write is gated + recorded.
+    // subscribe BEFORE capturing a historical watermark, then page every update
+    // from the client's `since` cursor through that watermark. Updates written
+    // after the watermark are delivered by the live subscription. This closes
+    // the pull-then-subscribe gap without asking the relay to inspect ciphertext.
+    // We never read inbound socket frames as document data: pushes go through the
+    // audited HTTP POST so every write is gated + recorded.
     websocket: {
       open(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;
@@ -234,16 +242,30 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
             }
           },
         };
-        // Subscribe to the (matter, docId) channel so only that doc's frames arrive.
+        // Subscribe first. From this point, post-watermark writes fan out live.
         hub.subscribe(d.matterId, sub, d.docId);
-        // Catch-up backlog (opaque bytes, base64; never logged).
+        // Capture a finite boundary AFTER subscription, then page only through
+        // it. Keeping the upper bound prevents a busy writer from making initial
+        // catch-up unbounded, while the subscription guarantees no later row is
+        // lost in the handoff to live delivery.
         try {
-          const backlog = store.getMatterUpdatesSince(d.matterId, 0, 500, d.docId);
+          const watermark = store.latestMatterCursor(d.matterId, d.docId);
+          const backlog = store.countMatterUpdatesThrough(d.matterId, d.since, watermark, d.docId);
           const subscribers = hub.subscriberCount(d.matterId, d.docId);
-          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, doc_id: d.docId, backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterId, d.docId), subscribers }));
-          for (const u of backlog) ws.send(JSON.stringify(toUpdateFrame(u)));
+          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, doc_id: d.docId, backlog, latest_cursor: watermark, subscribers }));
+
+          let cursor = d.since;
+          for (;;) {
+            const page = store.getMatterUpdatesThrough(d.matterId, cursor, watermark, 500, d.docId);
+            if (page.length === 0) break;
+            for (const u of page) ws.send(JSON.stringify(toUpdateFrame(u)));
+            cursor = page[page.length - 1]!.id;
+          }
         } catch {
-          /* best-effort backlog */
+          // Never leave a peer believing it has a complete catch-up when replay
+          // failed. Closing makes the client reconnect and repair via HTTP/WS.
+          ws.close(1011, "sync_backfill_failed");
+          return;
         }
         // Broadcast updated subscriber count to all connected peers (including self).
         hub.broadcastPresence(d.matterId, d.docId);

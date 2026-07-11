@@ -1191,6 +1191,50 @@ export class Store {
     return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
   }
 
+  /**
+   * Fetch one bounded catch-up page strictly after `sinceCursor` and no later
+   * than an already-captured subscription watermark. The upper bound is what
+   * lets a live socket finish historical replay without racing a concurrent
+   * writer: rows after `throughCursor` arrive through the subscriber instead.
+   */
+  getMatterUpdatesThrough(
+    matterId: string,
+    sinceCursor: number,
+    throughCursor: number,
+    limit = 500,
+    docId = "_notes",
+  ): MatterUpdate[] {
+    const rows = this.db
+      .query(
+        `SELECT * FROM matter_updates
+         WHERE matter_id = ? AND doc_id = ? AND id > ? AND id <= ?
+         ORDER BY id ASC LIMIT ?`,
+      )
+      .all(matterId, docId, sinceCursor, throughCursor, limit) as Array<{
+      id: number;
+      matter_id: string;
+      org_id: string;
+      doc_id: string;
+      blob_id: string;
+      ciphertext: Uint8Array;
+      author_seat: string;
+      key_epoch: number;
+      created_at: string;
+    }>;
+    return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
+  }
+
+  /** Count a bounded historical range without loading its opaque blobs. */
+  countMatterUpdatesThrough(matterId: string, sinceCursor: number, throughCursor: number, docId = "_notes"): number {
+    const row = this.db
+      .query(
+        `SELECT COUNT(*) AS count FROM matter_updates
+         WHERE matter_id = ? AND doc_id = ? AND id > ? AND id <= ?`,
+      )
+      .get(matterId, docId, sinceCursor, throughCursor) as { count: number };
+    return row.count;
+  }
+
   /** Highest cursor currently stored for a matter+doc stream (0 if none). */
   latestMatterCursor(matterId: string, docId = "_notes"): number {
     const r = this.db
