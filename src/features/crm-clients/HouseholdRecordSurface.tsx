@@ -26,6 +26,9 @@ import type {
 import { NoteEditor } from './NoteEditor';
 import { ProposalCard } from './ProposalCard';
 import { RecordMetadataEditor } from './RecordMetadataEditor';
+import { HouseholdTimeline } from '@/features/crm-timeline';
+import type { CrmEngineFreshness } from '@/platform/crm/store';
+import type { TimelineRecord } from '@/features/crm-timeline';
 
 type HouseholdTab =
   | 'client_map'
@@ -69,12 +72,16 @@ export function HouseholdRecordSurface({
   actions,
   onSaveHousehold,
   onBack,
+  timelineRecords = [],
+  timelineFreshness,
 }: {
   household: HouseholdRecord;
   proposals?: readonly CrmProposal[];
   actions?: CrmClientsActions;
   onSaveHousehold?: (household: HouseholdRecord) => Promise<void> | void;
   onBack?: () => void;
+  timelineRecords?: readonly TimelineRecord[];
+  timelineFreshness?: CrmEngineFreshness;
 }) {
   const schedulingLinkUrl = household.schedulingLinkUrl;
   const [tab, setTab] = useState<HouseholdTab>('client_map');
@@ -186,6 +193,16 @@ export function HouseholdRecordSurface({
       />
       {tab === 'client_map' ? (
         <ClientMap household={household} />
+      ) : tab === 'timeline' && timelineFreshness ? (
+        <HouseholdTimeline
+          household={{
+            id: household.id,
+            notes: household.notes,
+            facts: household.facts,
+          }}
+          records={timelineRecords}
+          freshness={timelineFreshness}
+        />
       ) : (
         <ExistingSurface
           tab={tab}
