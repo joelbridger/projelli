@@ -3,6 +3,7 @@ import type {
   PdfFieldOption,
   PdfTemplateDescriptor,
 } from './templateContract';
+import { OPAQUE_ITEM_HANDLE_RE } from '../requestIdentity';
 
 export const MAX_PDF_TEMPLATE_OUTPUT_BYTES = 50 * 1024 * 1024;
 
@@ -55,6 +56,7 @@ type LooseRecord = Record<string, unknown> & {
   completedSha256?: unknown;
   completedAt?: unknown;
   pageVersion?: unknown;
+  issuedItemId?: unknown;
   value?: unknown;
   label?: unknown;
 };
@@ -264,8 +266,9 @@ export function isValidPdfTemplateDescriptor(value: unknown): value is PdfTempla
 export function assertValidPdfCompletionReceipt(value: unknown): asserts value is PdfCompletionReceipt {
   const receipt = asRecord(value, 'PDF completion receipt');
   requireExactKeys(receipt, [
-    'templateId', 'templateVersion', 'sourceSha256', 'completedSha256', 'completedAt', 'pageVersion',
+    'issuedItemId', 'templateId', 'templateVersion', 'sourceSha256', 'completedSha256', 'completedAt', 'pageVersion',
   ], 'PDF completion receipt');
+  requireSafeIdentifier(receipt.issuedItemId, 'Receipt issuedItemId', OPAQUE_ITEM_HANDLE_RE);
   requireSafeIdentifier(receipt.templateId, 'Receipt templateId', TEMPLATE_ID_RE);
   if (!Number.isInteger(receipt.templateVersion) || (receipt.templateVersion as number) <= 0) {
     fail('Receipt templateVersion must be a positive integer.');

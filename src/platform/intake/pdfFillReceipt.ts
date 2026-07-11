@@ -33,6 +33,7 @@ export interface VerifyPdfFillReceiptOptions {
   completedBytes: Uint8Array;
   receipt: unknown;
   descriptor: PdfTemplateDescriptor | null;
+  expectedItemId: string;
 }
 
 const PDF_HEADER = new TextEncoder().encode('%PDF-');
@@ -175,6 +176,9 @@ export async function verifyPdfFillReceipt(options: VerifyPdfFillReceiptOptions)
     throw new Error('This completed form is missing its local approved template.');
   }
   assertValidPdfCompletionReceipt(options.receipt);
+  if (options.receipt.issuedItemId !== options.expectedItemId) {
+    throw new Error('Completion receipt does not belong to this request item.');
+  }
   verifyReceiptAgainstDescriptor(options.receipt, options.descriptor);
   await verifyCompletedBytesAgainstReceipt(options.completedBytes, options.receipt, options.descriptor);
   await assertSafeFlattenedPdf(options.completedBytes);

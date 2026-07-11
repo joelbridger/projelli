@@ -42,6 +42,7 @@ export interface PreparedPdfFillSubmission {
 }
 
 export interface PreparePdfFillSubmissionInput {
+  issuedItemId: string;
   sourceBytes: Uint8Array;
   template: PdfTemplateDescriptor;
   values: Record<string, string>;
@@ -252,6 +253,7 @@ export async function preparePdfFillSubmission(input: PreparePdfFillSubmissionIn
   await verifySourceBytesAgainstDescriptor(sourceBytes, template);
 
   const receipt: PdfCompletionReceipt = {
+    issuedItemId: input.issuedItemId,
     templateId: template.templateId,
     templateVersion: template.version,
     sourceSha256: template.sourceSha256,

@@ -122,7 +122,7 @@ export function PdfFillScreen({ item, firmName, sourceBytes, draft, busy, onDraf
     if (!sourceBytes || busy || requiredMissing || invalid) return;
     setSubmitError(null);
     try {
-      const prepared = await preparePdfFillSubmission({ sourceBytes, template: item.template, values });
+      const prepared = await preparePdfFillSubmission({ issuedItemId: item.item_id, sourceBytes, template: item.template, values });
       onSubmit({ kind: 'files', files: [prepared.file], pdf_completion_receipt: prepared.receipt });
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'We could not check this form. Please contact your advisor.');
