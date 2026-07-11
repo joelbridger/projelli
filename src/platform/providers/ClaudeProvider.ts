@@ -22,6 +22,8 @@ import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
 import { getMaxContextTokens } from './context-limits';
+import { extractPdfText } from '@/lib/pdf-extract';
+import { scanPromptPart } from '@/platform/privacy/promptPreparation';
 import {
   abortAwareSleep,
   composeRequestSignal,
@@ -211,19 +213,20 @@ export class ClaudeProvider implements Provider {
    * array: image blocks first, then the text block. Without attachments it
    * stays a plain string (cheaper and cleaner for text-only turns).
    */
-  private buildUserContent(
+  private async buildUserContent(
     prompt: string,
     attachmentBytes?: AttachmentBytes[]
-  ): string | ClaudeContentBlock[] {
+  ): Promise<string | ClaudeContentBlock[]> {
     if (!attachmentBytes || attachmentBytes.length === 0) {
       return prompt;
     }
-    const blocks: ClaudeContentBlock[] = attachmentBytes.map(({ att, bytes }) => {
+    const blocks: ClaudeContentBlock[] = [];
+    for (const { att, bytes } of attachmentBytes) {
       // formatAttachmentForRequest returns ClaudeImageBlock which is compatible
       // with ClaudeContentBlock (now includes 'image' type and source field).
-      const formatted = this.formatAttachmentForRequest(att, bytes);
-      return formatted as unknown as ClaudeContentBlock;
-    });
+      const formatted = await this.formatAttachmentForRequest(att, bytes);
+      blocks.push(formatted as unknown as ClaudeContentBlock);
+    }
     // Prompt-injection defense (Codex injection audit, BUG-059 residual): Claude
     // reads PDFs NATIVELY as document blocks, so there's no extracted text to
     // sanitize — but a hostile PDF could still embed instructions. Prepend a
@@ -252,7 +255,7 @@ export class ClaudeProvider implements Provider {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('anthropic');
     const messages: ClaudeMessage[] = [
-      { role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) },
+      { role: 'user', content: await this.buildUserContent(prompt, options?.attachmentBytes) },
     ];
 
     const request: ClaudeRequest = {
@@ -400,7 +403,7 @@ export class ClaudeProvider implements Provider {
     const { onChunk, signal, ...sendOpts } = options;
 
     const messages: ClaudeMessage[] = [
-      { role: 'user', content: this.buildUserContent(prompt, sendOpts.attachmentBytes) },
+      { role: 'user', content: await this.buildUserContent(prompt, sendOpts.attachmentBytes) },
     ];
 
     const request: ClaudeRequest & { stream: boolean } = {
@@ -731,8 +734,9 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
    * For PDFs on non-native models (Haiku): throws so the caller (AIChatViewer)
    *   can route to the text-extract path instead.
    */
-  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+  async formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): Promise<ProviderContentBlock> {
     if (att.type === 'image') {
+      requireScannableAttachment(att);
       const data = bytesToBase64(bytes);
       const block: ClaudeImageBlock = {
         type: 'image',
@@ -746,6 +750,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
     }
 
     if (att.type === 'pdf') {
+      await requireScannablePdf(att, bytes);
       const currentModel = this.model;
       if (!pdfNativeCheck('claude', currentModel)) {
         throw new Error(
@@ -791,6 +796,33 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
   supportsNativePdf(model: string): boolean {
     return pdfNativeCheck('claude', model);
   }
+}
+
+function requireScannableAttachment(att: ChatAttachment): void {
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_binary',
+    label: att.fileName,
+    attachment: {},
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+}
+
+async function requireScannablePdf(att: ChatAttachment, bytes: Uint8Array): Promise<void> {
+  let text: string;
+  try {
+    text = (await extractPdfText(bytes)).pages.join('\n\n');
+  } catch {
+    throw new Error('unscannable_attachment');
+  }
+  const scan = scanPromptPart({
+    id: 'attachment',
+    origin: 'attachment_text',
+    label: att.fileName,
+    attachment: { extractedText: text, canRedact: false },
+  });
+  if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
 }
 
 /**

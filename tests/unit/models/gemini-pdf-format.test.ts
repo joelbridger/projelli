@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GeminiProvider } from '@/platform/providers/GeminiProvider';
 import type { ChatAttachment } from '@/platform/types/ai';
+import { extractPdfText } from '@/lib/pdf-extract';
 
 vi.mock('@/lib/pdf-extract', () => ({
   extractPdfText: vi.fn().mockResolvedValue({
@@ -35,6 +36,18 @@ describe('GeminiProvider.formatAttachmentForRequest (PDF)', () => {
     expect(block._text_extract.text).toContain('Gemini page content.');
     expect(block._text_extract.pageCount).toBe(1);
     expect(block._text_extract.fileName).toBe('report.pdf');
+  });
+
+  it('blocks extracted PDF text containing a private link before upload', async () => {
+    vi.mocked(extractPdfText).mockResolvedValueOnce({
+      pages: ['https://example.test/i/abc#intake-secret'],
+      pageCount: 1,
+      encrypted: false,
+      scanned: false,
+    });
+    const provider = makeProvider('gemini-1.5-pro');
+    await expect(provider.formatAttachmentForRequest(pdfAtt, PDF_BYTES))
+      .rejects.toThrow('prompt_review_required');
   });
 });
 

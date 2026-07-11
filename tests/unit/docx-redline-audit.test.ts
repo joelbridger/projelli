@@ -51,8 +51,9 @@ describe('BUG-081 redline egress audit', () => {
     );
 
     expect(edits).toEqual([]);
-    expect(auditEntries).toHaveLength(1);
-    expect(auditEntries[0]).toMatchObject({
+    expect(auditEntries).toHaveLength(2);
+    expect(auditEntries[0]).toMatchObject({ action: 'prompt_preparation' });
+    expect(auditEntries[1]).toMatchObject({
       action: 'egress',
       metadata: {
         provider: 'openai',
@@ -86,11 +87,11 @@ describe('BUG-081 redline egress audit', () => {
       context,
     );
 
-    expect(auditEntries).toHaveLength(1);
-    expect(auditEntries[0]?.model).toBe(effectiveModel);
-    expect(auditEntries[0]?.metadata).toMatchObject({
+    expect(auditEntries).toHaveLength(2);
+    expect(auditEntries[1]?.model).toBe(effectiveModel);
+    expect(auditEntries[1]?.metadata).toMatchObject({
       model: effectiveModel,
     });
-    expect(auditEntries[0]?.model).not.toBe('unknown');
+    expect(auditEntries[1]?.model).not.toBe('unknown');
   });
 });

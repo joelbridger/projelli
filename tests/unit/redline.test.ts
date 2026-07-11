@@ -21,6 +21,7 @@ import {
 import type { DocumentJson } from '@/platform/types/docx';
 import type { Provider } from '@/platform/providers/Provider';
 import { createProvider } from '@/platform/providers/providerFactory';
+import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
 
 const REDLINE_AUDIT: RedlineEgressAuditContext = {
   providerId: 'ollama',
@@ -209,6 +210,25 @@ describe('redline — requestRedlineEdits (provider translation)', () => {
       structuredOutput: vi.fn().mockResolvedValue({ edits: [] }),
     } as unknown as Provider;
     expect(await requestRedlineEdits(provider, 'nothing to do', sampleDoc(), REDLINE_AUDIT)).toEqual([]);
+  });
+
+  it('sends a redacted copy when the document contains a private link', async () => {
+    const structuredOutput = vi.fn().mockResolvedValue({ edits: [] });
+    const provider = { structuredOutput } as unknown as Provider;
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+    try {
+      const doc = sampleDoc();
+      const paragraph = doc.body[0];
+      if (paragraph?.kind !== 'paragraph') throw new Error('expected paragraph');
+      paragraph.inlines = [{ kind: 'run', text: 'Open https://example.test/i/abc#intake-secret' }];
+
+      await requestRedlineEdits(provider, 'tighten this', doc, REDLINE_AUDIT);
+
+      expect(structuredOutput).toHaveBeenCalledTimes(1);
+      expect(structuredOutput.mock.calls[0]![0]).not.toContain('intake-secret');
+    } finally {
+      setPromptDecisionBroker();
+    }
   });
 });
 

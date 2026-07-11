@@ -32,12 +32,12 @@ import {
   effectiveModeForDestination,
   logEmailAuditEntry,
 } from '@/features/email/emailAuditLog';
-import { auditEventToEntry } from '@/platform/audit/AuditService';
-import { resolveEgress, providerDisplayName } from '@/platform/privacy/egress';
+import { providerDisplayName } from '@/platform/privacy/egress';
 import { getConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { useMatters } from '@/platform/matter/matterStore';
 import { UNASSIGNED_MATTER_ID } from '@/platform/types/matter';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
+import { sendPreparedStructuredWithEgressAudit } from '@/platform/privacy/promptPreparation';
 
 export interface DraftFollowUpModalProps {
   open: boolean;
@@ -206,37 +206,33 @@ export function DraftFollowUpModal({
         resolvedRef.current = resolved;
         const { provider, providerId, assuredAvailable } = resolved;
         assertLocalOnlyAllowsSend(providerId);
-        // Egress audit entry BEFORE the send (mirrors every other AI surface),
-        // now fired only on the deliberate Generate — not on open.
-        const egress = resolveEgress({
-          provider: providerId,
-          mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
-          assuredAvailable,
-        });
         const scope = emailMatterScope(matterId, undefined);
-        const auditEntry = auditEventToEntry({
-          type: 'egress',
-          timestamp: new Date().toISOString(),
-          payload: {
-            provider: egress.provider,
-            model: provider.getMetadata().model,
-            mode: effectiveModeForDestination(egress.destination),
-            destination: egress.destination,
-            dataLeaves: egress.dataLeaves,
-            ...(scope ? { scope } : {}),
-          },
-        });
-        logEmailAuditEntry({
-          ...auditEntry,
-          metadata: { ...auditEntry.metadata, noteName },
-        });
         const prompt = buildFollowUpPrompt({ noteName, noteContent });
         if (superseded()) return;
-        // eslint-disable-next-line lantern-egress/no-direct-provider-send -- inline guard above calls assertLocalOnlyAllowsSend and writes the email-specific egress receipt before this structured call.
-        const response = await provider.structuredOutput<RawDraftResponse>(
+        const response = await sendPreparedStructuredWithEgressAudit<RawDraftResponse>({
+          provider,
+          providerId,
+          model: provider.getMetadata().model,
+          surface: 'follow_up_email_draft',
           prompt,
-          draftStructuredOutputOptions,
-        );
+          parts: [{
+            id: 'prompt',
+            origin: 'open_file',
+            label: 'Follow-up note',
+            text: prompt,
+          }],
+          options: draftStructuredOutputOptions,
+          mode: assuredAvailable ? 'assured' : getConfidentialityMode(),
+          auditMode: (egress) => effectiveModeForDestination(egress.destination),
+          assuredAvailable,
+          ...(scope ? { scope } : {}),
+          onAuditLog: (entry) => {
+            logEmailAuditEntry({
+              ...entry,
+              metadata: { ...entry.metadata, noteName },
+            });
+          },
+        });
         if (superseded()) return;
         const applied = applyDraftResponse(noteName, response, noteContent);
         setSubject(applied.subject);

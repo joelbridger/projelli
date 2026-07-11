@@ -29,6 +29,8 @@ export interface EgressAuditContext {
   isDemo?: boolean;
   hasDemoByokKey?: boolean;
   assuredAvailable?: boolean;
+  /** The caller just performed the same fail-closed egress check. */
+  preflightChecked?: boolean;
 }
 
 export interface RunWithEgressAuditOptions<T> extends EgressAuditContext {
@@ -62,7 +64,7 @@ function effectiveModel(ctx: EgressAuditContext): string {
 export async function runWithEgressAudit<T>(
   opts: RunWithEgressAuditOptions<T>,
 ): Promise<T> {
-  assertLocalOnlyAllowsSend(opts.providerId);
+  if (!opts.preflightChecked) assertLocalOnlyAllowsSend(opts.providerId);
 
   const modeForResolution = opts.mode ?? getConfidentialityMode();
   const egress = resolveEgress({

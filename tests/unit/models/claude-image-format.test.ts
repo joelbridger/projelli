@@ -29,32 +29,16 @@ function makeProvider(model: string) {
 }
 
 describe('ClaudeProvider.formatAttachmentForRequest (image)', () => {
-  it('returns Claude image block shape', () => {
+  it('blocks an image when local OCR text is unavailable', async () => {
     const provider = makeProvider('claude-3-5-sonnet-20241022');
-    const block = provider.formatAttachmentForRequest(imageAtt, PNG_BYTES);
-    expect(block).toMatchObject({
-      type: 'image',
-      source: {
-        type: 'base64',
-        media_type: 'image/png',
-      },
-    });
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES))
+      .rejects.toThrow('unscannable_attachment');
   });
 
-  it('base64 data encodes the bytes correctly', () => {
+  it('blocks an unreadable PDF before native upload', async () => {
     const provider = makeProvider('claude-3-5-sonnet-20241022');
-    const block = provider.formatAttachmentForRequest(imageAtt, PNG_BYTES) as any;
-    const decoded = atob(block.source.data);
-    expect(decoded.charCodeAt(0)).toBe(0x89);
-    expect(decoded.charCodeAt(1)).toBe(0x50);
-  });
-
-  it('returns ClaudeDocumentBlock for pdf on a native-capable model (A2)', () => {
-    const provider = makeProvider('claude-3-5-sonnet-20241022');
-    const block = provider.formatAttachmentForRequest(pdfAtt, new Uint8Array([0x25, 0x50])) as any;
-    expect(block.type).toBe('document');
-    expect(block.source?.type).toBe('base64');
-    expect(block.source?.media_type).toBe('application/pdf');
+    await expect(provider.formatAttachmentForRequest(pdfAtt, new Uint8Array([0x25, 0x50])))
+      .rejects.toThrow('unscannable_attachment');
   });
 });
 
