@@ -12,6 +12,7 @@ pub mod core_schema;
 pub mod core_store;
 pub mod commands;
 pub mod engine;
+pub mod importer;
 pub mod model;
 pub mod provider;
 pub mod redtail;
