@@ -83,6 +83,10 @@ describe('PDF template contract validation', () => {
     expect(() => { assertValidPdfTemplateDescriptor(descriptor({ fields: {
       account_number: { kind: 'acroform', field_id: 'account_number', acroform_field: 'Account', pdf_field_type: 'text', value: 'client answer' },
     } })); }).toThrow(/unsupported property/iu);
+    expect(() => { assertValidPdfTemplateDescriptor(descriptor({ fields: {
+      account_number: { kind: 'acroform', field_id: 'account_number', acroform_field: 'Account.Number', pdf_field_type: 'text' },
+      account_name: { kind: 'acroform', field_id: 'account_name', acroform_field: 'Account.Number', pdf_field_type: 'text' },
+    } })); }).toThrow(/AcroForm field.*mapped more than once/iu);
   });
 
   it('rejects overlay coordinates, unsafe fonts, and omitted long-value behavior', () => {
@@ -121,5 +125,14 @@ describe('PDF completion receipt integrity helpers', () => {
     await expect(verifySourceBytesAgainstDescriptor(bytes, approved)).resolves.toBeUndefined();
     await expect(verifyCompletedBytesAgainstReceipt(bytes, receipt({ sourceSha256: hash, completedSha256: hash }), approved)).resolves.toBeUndefined();
     await expect(verifyCompletedBytesAgainstReceipt(bytes, receipt({ sourceSha256: hash, completedSha256: 'd'.repeat(64) }), approved)).rejects.toThrow(/completed PDF/iu);
+  });
+
+  it('rejects completed bytes that exceed the approved output limit before hashing', async () => {
+    const completedBytes = new Uint8Array([1, 2, 3, 4]);
+    await expect(verifyCompletedBytesAgainstReceipt(
+      completedBytes,
+      receipt({ completedSha256: 'd'.repeat(64) }),
+      descriptor({ maxOutputBytes: 3 }),
+    )).rejects.toThrow(/output size limit/iu);
   });
 });

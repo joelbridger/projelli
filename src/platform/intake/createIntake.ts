@@ -2,7 +2,12 @@ import type { FormRequest, RequestItem } from '@/platform/intake/types';
 import type { WelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
 import { sanitizeWelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
 import { createInitialIntakeLinkBundle, type InitialIntakeLinkBundle } from './intakeLifecycle';
-import { clearIntakeSecrets, storeIntakeSecrets } from './intakeKeychain';
+import {
+  clearIntakeSecrets,
+  clearPdfTemplateDescriptor,
+  storeIntakeSecrets,
+  storePdfTemplateDescriptor,
+} from './intakeKeychain';
 import type { IntakeRelayClient } from './IntakeRelayClient';
 import { useIntakeStore } from './intakeStore';
 import { assertRequestSlug, createOpaqueItemHandle, createRequestSlug } from './requestIdentity';
@@ -60,6 +65,21 @@ function requestItemsForIssue(checklist: FormRequest): RequestItem[] {
   return checklist.items.map((item) => ({ ...item, item_id: createOpaqueItemHandle() }));
 }
 
+function redactPdfTemplateDescriptorsForStore(requestItems: RequestItem[]): RequestItem[] {
+  return requestItems.map((item) => {
+    if (item.t !== 'pdf_fill') return item;
+    return {
+      ...item,
+      // The complete reviewed map lives in the intake keychain, not Zustand persistence.
+      template: {
+        templateId: item.template.templateId,
+        version: item.template.version,
+        kind: item.template.kind,
+      } as typeof item.template,
+    };
+  });
+}
+
 export async function createAdvisorIntake(
   options: CreateAdvisorIntakeOptions,
 ): Promise<InitialIntakeLinkBundle> {
@@ -94,26 +114,30 @@ export async function createAdvisorIntake(
     initialState,
   });
   const store = useIntakeStore.getState();
+  const storedRequestItems = redactPdfTemplateDescriptorsForStore(requestItems);
   // This visible local draft exists before the network call, so there is never an
   // untracked live link if the network step fails or the app closes mid-send.
-  store.upsertIntake({
-    intakeId: options.intakeId,
-    matterId: options.matterId,
-    kind: checklist.kind,
-    ...(checklist.blueprint_ref ? { blueprintRef: checklist.blueprint_ref } : {}),
-    requestTitle,
-    requestSlug,
-    clientFirstName: options.clientFirstName,
-    firmName: options.firm.name,
-    status: 'draft',
-    createdAt: new Date().toISOString(),
-    expiresAt: options.expiresAt,
-    checklistVersion: 1,
-    requestItems,
-    items: requestItems.map((item) => ({ itemId: item.item_id, label: item.label, state: 'not_started' })),
-    receivedItems: [], flags: [], knownSessionIds: [], knownSubmissionIds: [], nudges: [],
-  });
   try {
+    await Promise.all(requestItems.flatMap((item) => item.t === 'pdf_fill'
+      ? [storePdfTemplateDescriptor(options.intakeId, item.item_id, item.template)]
+      : []));
+    store.upsertIntake({
+      intakeId: options.intakeId,
+      matterId: options.matterId,
+      kind: checklist.kind,
+      ...(checklist.blueprint_ref ? { blueprintRef: checklist.blueprint_ref } : {}),
+      requestTitle,
+      requestSlug,
+      clientFirstName: options.clientFirstName,
+      firmName: options.firm.name,
+      status: 'draft',
+      createdAt: new Date().toISOString(),
+      expiresAt: options.expiresAt,
+      checklistVersion: 1,
+      requestItems: storedRequestItems,
+      items: requestItems.map((item) => ({ itemId: item.item_id, label: item.label, state: 'not_started' })),
+      receivedItems: [], flags: [], knownSessionIds: [], knownSubmissionIds: [], nudges: [],
+    });
     await storeIntakeSecrets(options.intakeId, bundle.privateKey, bundle.linkSecretB64);
     await options.relay.createIntake({
       intake_id: options.intakeId,
@@ -129,6 +153,9 @@ export async function createAdvisorIntake(
     } catch { // eslint-disable-line lantern-async/no-silent-failure -- best-effort revoke during already-failed-creation cleanup; the original error is rethrown below regardless.
     }
     await clearIntakeSecrets(options.intakeId);
+    await Promise.all(requestItems.flatMap((item) => item.t === 'pdf_fill'
+      ? [clearPdfTemplateDescriptor(options.intakeId, item.item_id)]
+      : []));
     useIntakeStore.getState().removeIntake(options.intakeId);
     throw error;
   }

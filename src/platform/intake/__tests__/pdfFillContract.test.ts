@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
 import { assertValidRequestBlueprint } from '@/platform/intake/blueprintValidation';
 import { assertSendableRequest, createAdvisorIntake } from '@/platform/intake/createIntake';
-import { loadIntakeLinkSecret } from '@/platform/intake/intakeKeychain';
+import { derivePageKey } from '@/platform/intake/intakeCrypto';
+import { loadIntakeLinkSecret, loadPdfTemplateDescriptor } from '@/platform/intake/intakeKeychain';
 import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
-import { useIntakeStore } from '@/platform/intake/intakeStore';
+import { partializeIntakeStateForPersistence, useIntakeStore } from '@/platform/intake/intakeStore';
+import { b64ToBytes, openPageJson } from '@/platform/intake/pageSeal';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
 import type { FormRequest, PdfTemplateDescriptor, RequestItem } from '../types';
 
@@ -50,8 +52,8 @@ function firm() {
   };
 }
 
-async function issue(checklist: FormRequest): Promise<void> {
-  await createAdvisorIntake({
+async function issue(checklist: FormRequest) {
+  return createAdvisorIntake({
     intakeId: checklist.request_id, matterId: checklist.matter_id, intakeHost: 'https://forms.test',
     expiresAt: '2026-12-01T00:00:00.000Z', checklist, clientFirstName: 'Avery', firm: firm(), relay: relay(),
   });
@@ -83,6 +85,44 @@ describe('Wave 8 encrypted PDF-fill contract gate', () => {
     ]) {
       expect(wire).not.toContain(forbidden);
     }
+  });
+
+  it('keeps complete PDF templates out of persisted state while retaining them in the sealed checklist and keychain', async () => {
+    const template = approvedTemplate();
+    const checklist = request([pdfItem(template)]);
+    const bundle = await issue(checklist);
+    const record = useIntakeStore.getState().intakesById[checklist.request_id];
+    if (!record) throw new Error('Expected the issued intake to be stored.');
+
+    const serialized = JSON.stringify(partializeIntakeStateForPersistence({
+      intakesById: { [record.intakeId]: record },
+    }));
+    for (const forbidden of [
+      'sourceSha256', template.sourceSha256,
+      'sourceArtifactRef', template.sourceArtifactRef,
+      'acroform_field', template.fields['client_name']?.kind === 'acroform'
+        ? template.fields['client_name'].acroform_field
+        : '',
+    ]) {
+      expect(serialized).not.toContain(forbidden);
+    }
+
+    const storedItem = record.requestItems?.find((item) => item.t === 'pdf_fill');
+    if (!storedItem || storedItem.t !== 'pdf_fill') throw new Error('Expected the PDF request item.');
+    expect(storedItem.template).toEqual({
+      templateId: template.templateId,
+      version: template.version,
+      kind: template.kind,
+    });
+    await expect(loadPdfTemplateDescriptor(record.intakeId, storedItem.item_id)).resolves.toEqual(template);
+
+    const sealedChecklist = await openPageJson<FormRequest>(
+      await derivePageKey(b64ToBytes(bundle.linkSecretB64)),
+      bundle.checklistCiphertextB64,
+    );
+    const sealedPdfItem = sealedChecklist.items.find((item) => item.t === 'pdf_fill');
+    if (!sealedPdfItem || sealedPdfItem.t !== 'pdf_fill') throw new Error('Expected the sealed PDF request item.');
+    expect(sealedPdfItem.template).toEqual(template);
   });
 
   it.each([

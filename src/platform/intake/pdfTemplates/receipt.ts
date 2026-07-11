@@ -27,6 +27,9 @@ export async function verifyCompletedBytesAgainstReceipt(
   descriptor: PdfTemplateDescriptor,
 ): Promise<void> {
   verifyReceiptAgainstDescriptor(receipt, descriptor);
+  if (completedBytes.byteLength > descriptor.maxOutputBytes) {
+    throw new PdfTemplateValidationError('Completed PDF bytes exceed the approved template output size limit.');
+  }
   const actual = await sha256Hex(completedBytes);
   if (actual !== receipt.completedSha256) {
     throw new PdfTemplateValidationError('Completed PDF bytes do not match the sealed receipt hash.');

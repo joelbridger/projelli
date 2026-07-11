@@ -176,7 +176,13 @@ function validateOverlayEntry(entry: LooseRecord, name: string): void {
   }
 }
 
-function validateFieldEntry(mapKey: string, value: unknown, descriptorKind: string, seenIds: Set<string>): void {
+function validateFieldEntry(
+  mapKey: string,
+  value: unknown,
+  descriptorKind: string,
+  seenIds: Set<string>,
+  seenAcroformFields: Set<string>,
+): void {
   const entry = asRecord(value, `Template field "${mapKey}"`);
   const name = `Template field "${mapKey}"`;
   const fieldId = requireSafeIdentifier(entry.field_id, `${name}.field_id`, FIELD_ID_RE);
@@ -200,7 +206,11 @@ function validateFieldEntry(mapKey: string, value: unknown, descriptorKind: stri
       'kind', 'field_id', 'fact_kind', 'required', 'pdf_field_type', 'options', 'acroform_field',
     ], name);
     if (entry.kind !== 'acroform') fail(`${name} must match the descriptor kind.`);
-    requireSafeIdentifier(entry.acroform_field, `${name}.acroform_field`, FIELD_ID_RE);
+    const acroformField = requireSafeIdentifier(entry.acroform_field, `${name}.acroform_field`, FIELD_ID_RE);
+    if (seenAcroformFields.has(acroformField)) {
+      fail(`Template AcroForm field "${acroformField}" is mapped more than once.`);
+    }
+    seenAcroformFields.add(acroformField);
   } else if (descriptorKind === 'overlay') {
     validateOverlayEntry(entry, name);
   } else {
@@ -233,9 +243,10 @@ export function assertValidPdfTemplateDescriptor(value: unknown): asserts value 
   const entries = Object.entries(fields);
   if (entries.length === 0 || entries.length > 512) fail('Template must contain between one and 512 reviewed fields.');
   const seenIds = new Set<string>();
+  const seenAcroformFields = new Set<string>();
   for (const [mapKey, entry] of entries) {
     requireSafeIdentifier(mapKey, 'Template field map key', FIELD_ID_RE);
-    validateFieldEntry(mapKey, entry, descriptor.kind, seenIds);
+    validateFieldEntry(mapKey, entry, descriptor.kind, seenIds, seenAcroformFields);
   }
 }
 
