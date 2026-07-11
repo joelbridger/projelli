@@ -60,7 +60,9 @@ export async function handleAddMatterMember(req: Request, store: Store, handle: 
   const a=admin(req); if(!a.ok) return a.resp; const m=sameOrgMatter(store,a.claims.org_id,handle); if(!m) return error("matter_not_found",404);
   const b=await readStrictV2Payload(req,["user_id","role"]); if(!b||!isNonEmptyString(b.user_id,64)||!sameOrgUser(store,a.claims.org_id,b.user_id)) return error("invalid_v2_payload",400);
   const role=roles.has(b.role as MatterRole)?b.role as MatterRole:"editor"; store.addMatterMember({matter_handle:handle,user_id:b.user_id,org_id:a.claims.org_id,role});
-  store.audit({org_id:a.claims.org_id,actor_user_id:a.claims.sub,action:"matter.member.add",target:handle,detail:{op:"member_add",role}}); return json({ok:true,role,key_epoch:m.key_epoch});
+  // Match the original key-release decision: a wall always overrides membership.
+  const key_release = store.isWalled(handle, b.user_id) ? "blocked_walled" : "release_to_member";
+  store.audit({org_id:a.claims.org_id,actor_user_id:a.claims.sub,action:"matter.member.add",target:handle,detail:{op:"member_add",role}}); return json({ok:true,role,key_epoch:m.key_epoch,key_release});
 }
 export async function handleRemoveMatterMember(req: Request, store: Store, handle: string): Promise<Response> {
   const a=admin(req); if(!a.ok)return a.resp; const m=sameOrgMatter(store,a.claims.org_id,handle);if(!m)return error("matter_not_found",404);

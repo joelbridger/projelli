@@ -177,20 +177,20 @@ export async function encryptUpdateV2(
 }
 
 /**
- * Open a v2 blob; v1 is accepted only as a bounded migration read path.
- * The caller should remove `allowV1` after the configured migration deadline.
+ * Open a relay blob. New writes are always v2, but stored v1 ciphertext must
+ * remain readable forever: migration copied it unchanged into v2 routes.
+ * Full re-encryption/compaction is a follow-up task, not this security round.
  */
 export async function decryptUpdateV2(
   key: CryptoKey,
   ciphertextB64: string,
   context: MatterRouteContext,
-  allowV1 = true,
 ): Promise<DecryptResult> {
   let raw: Uint8Array;
   try { raw = b64ToBytes(ciphertextB64); } catch { return { ok: false, reason: 'malformed' }; }
   if (raw.length < 1 + IV_BYTES + 16) return { ok: false, reason: 'malformed' };
   if (raw[0] === V1_VERSION) {
-    return allowV1 ? decryptUpdate(key, ciphertextB64, context.keyEpoch) : { ok: false, reason: 'bad_version' };
+    return decryptUpdate(key, ciphertextB64, context.keyEpoch);
   }
   if (raw[0] !== V2_VERSION) return { ok: false, reason: 'bad_version' };
   try {

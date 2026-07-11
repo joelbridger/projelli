@@ -70,15 +70,5 @@ export function getMatterSyncSocketUrl(ticket: string): string {
   return `${wsBase}/v2/firm/sync?ticket=${encodeURIComponent(ticket)}`;
 }
 
-/** Temporary migration bridge deadline. Deployments set this to an ISO date. */
-export function isV1MatterCryptoReadAllowed(now = new Date()): boolean {
-  try {
-    const deadline = import.meta.env['VITE_FIRM_V1_CRYPTO_READ_DEADLINE'] as string | undefined;
-    return !deadline || now.getTime() < new Date(deadline).getTime();
-  } catch {
-    return true;
-  }
-}
-
 /** App version sent on activation (kept in sync with the licensing hook). */
 export const FIRM_APP_VERSION = '3.0.0';

@@ -1045,6 +1045,10 @@ export class Store {
       JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
       JOIN matters ON matters.matter_handle = manifest.matter_handle
       WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?
+        AND NOT EXISTS (
+          SELECT 1 FROM ethical_walls AS walls
+          WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = members.user_id
+        )
       ORDER BY manifest.matter_handle`).all(userId, orgId, orgId) as Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams_json: string }>;
     return rows.map((row) => ({
       legacy_matter_id: row.legacy_matter_id,
@@ -1068,7 +1072,11 @@ export class Store {
         FROM firm_relay_migration_manifest AS manifest
         JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
         JOIN matters ON matters.matter_handle = manifest.matter_handle
-        WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?`)
+        WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?
+          AND NOT EXISTS (
+            SELECT 1 FROM ethical_walls AS walls
+            WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = members.user_id
+          )`)
         .run(userId, orgId, this.nowIso(), userId, orgId, orgId).changes;
     });
     return txn.immediate() as number;

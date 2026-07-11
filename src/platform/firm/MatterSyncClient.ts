@@ -28,7 +28,7 @@
 import * as Y from 'yjs';
 import type { FirmApiClient } from './FirmApiClient';
 import { encryptUpdateV2, decryptUpdateV2, importMatterKey } from './matterCrypto';
-import { getMatterSyncSocketUrl, isV1MatterCryptoReadAllowed } from './firmConfig';
+import { getMatterSyncSocketUrl } from './firmConfig';
 import type { MatterHandle, StreamHandle, SyncFrame } from './contract';
 
 export type SyncStatus =
@@ -278,7 +278,7 @@ export class MatterSyncClient {
     const key = await this.ensureKey();
     const res = await decryptUpdateV2(key, ciphertextB64, {
       keyEpoch: blobEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
-    }, isV1MatterCryptoReadAllowed());
+    });
     if (!res.ok) {
       // Could be an older-epoch blob our current key can't open, or tampering.
       // Skip it rather than crash the sync loop (CRDT tolerates gaps; a full

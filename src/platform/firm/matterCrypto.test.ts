@@ -15,11 +15,10 @@ describe('v2 matter crypto', () => {
     expect(await decryptUpdateV2(key, blob, { ...context, matterHandle: `mh2_${'D'.repeat(43)}` })).toEqual({ ok: false, reason: 'auth_failed' });
   });
 
-  it('reads a legacy blob only during the bounded migration window, then writes v2', async () => {
+  it('keeps migrated legacy blobs readable while new writes use v2', async () => {
     const key = await importMatterKey(await generateMatterKey());
     const old = await encryptUpdate(key, new Uint8Array([1, 2]), context.keyEpoch);
-    expect(await decryptUpdateV2(key, old, context, true)).toMatchObject({ ok: true });
-    expect(await decryptUpdateV2(key, old, context, false)).toEqual({ ok: false, reason: 'bad_version' });
+    expect(await decryptUpdateV2(key, old, context)).toMatchObject({ ok: true, update: new Uint8Array([1, 2]) });
     const current = await encryptUpdateV2(key, new Uint8Array([3]), context);
     expect(current).not.toBe(old);
   });

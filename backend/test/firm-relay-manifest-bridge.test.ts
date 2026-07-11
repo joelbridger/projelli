@@ -35,6 +35,9 @@ describe("durable migration manifest bridge", () => {
     insert.run("LEGACY_A_SEALED", sealed.matter_handle, sealed.root_stream_handle, JSON.stringify({ _notes: sealed.root_stream_handle }), expiry);
     insert.run("LEGACY_A_UNSEALED", unsealed.matter_handle, unsealed.root_stream_handle, JSON.stringify({ _notes: unsealed.root_stream_handle }), expiry);
     insert.run("LEGACY_B_OTHER_ORG", other.matter_handle, other.root_stream_handle, JSON.stringify({ _notes: other.root_stream_handle }), expiry);
+    // This user remains a member, but the ethical wall must win just as it
+    // does for every normal relay route.
+    store.setEthicalWall({ matter_handle: unsealed.matter_handle, user_id: userA.user_id, org_id: orgA.org_id, created_by: userA2.user_id });
 
     // The bridge survives the actual durable-store lifecycle, not merely a Map.
     store.close(); store = new Store(path);
@@ -60,7 +63,7 @@ describe("durable migration manifest bridge", () => {
       const otherOrg = await post("/v2/firm/migration-manifest", tokenB, seatTokenB);
       expect(first).toEqual(second);
       expect(JSON.stringify(first.body)).toContain("LEGACY_A_SEALED");
-      expect(JSON.stringify(first.body)).toContain("LEGACY_A_UNSEALED");
+      expect(JSON.stringify(first.body)).not.toContain("LEGACY_A_UNSEALED");
       expect(JSON.stringify(first.body)).not.toContain("LEGACY_B_OTHER_ORG");
       expect(JSON.stringify(otherOrg.body)).toContain("LEGACY_B_OTHER_ORG");
       expect(JSON.stringify(otherOrg.body)).not.toContain("LEGACY_A_SEALED");
