@@ -51,6 +51,7 @@ export default tseslint.config(
       '@typescript-eslint/no-empty-object-type': 'off',
       'lantern-i18n/no-hardcoded-string': i18nSeverity,
       'lantern-egress/no-direct-provider-send': 'error',
+      'lantern-egress/no-raw-network-call': 'error',
     },
   },
   // Tauri grants broad filesystem capability at runtime. Keep raw plugin-fs
