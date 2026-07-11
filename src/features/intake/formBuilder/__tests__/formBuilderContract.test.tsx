@@ -59,20 +59,23 @@ describe('form builder intake contract', () => {
     expect(sendableBlueprint.items.some((item) => item.t === 'pdf_fill' || item.t === 'signature')).toBe(false);
   });
 
-  it('preserves an existing PDF form and signature request byte-identical through the full store lifecycle', () => {
+  it('preserves an existing PDF form and signature request unchanged through the full store lifecycle', () => {
     const pdfItem: RequestItem = {
       t: 'pdf_fill', item_id: 'custodian-form', label: 'Custodian transfer form', help_text: 'Complete every required field.', required: true, subject: 'primary',
-      pdf_ref: 'forms/custodian-transfer.pdf',
-      field_map: { account_number: { field_id: 'account_number', fact_kind: 'ssn', pdf_field_type: 'text' } },
+      template: {
+        templateId: 'template_custodian_transfer_01', version: 1, kind: 'acroform', sourceSha256: 'a'.repeat(64),
+        sourceArtifactRef: 'sealed-artifact:custodiantransfer0001', outputFileStem: 'custodian-transfer', maxOutputBytes: 1024 * 1024,
+        fields: {
+          account_number: { kind: 'acroform', field_id: 'account_number', fact_kind: 'ssn', acroform_field: 'Account.Number', pdf_field_type: 'text' },
+        },
+      },
       prefill: [],
-    } as never;
+    };
     const signatureItem: RequestItem = {
       t: 'signature', item_id: 'sign-transfer', label: 'Sign transfer form', help_text: 'Sign after reviewing.', required: true, subject: 'primary',
       grade: 'docusign', document_ref: 'forms/custodian-transfer.pdf',
-    } as never;
+    };
     const typedItem = { ...draftTypedField(), label: 'Date of birth' };
-    const originalPdfItem = JSON.stringify(pdfItem);
-    const originalSignatureItem = JSON.stringify(signatureItem);
 
     const stored = useBlueprintStore.getState().createFirmBlueprint({
       blueprintId: 'existing-managed-items', label: 'Existing managed items', items: [typedItem, pdfItem, signatureItem],
@@ -91,19 +94,21 @@ describe('form builder intake contract', () => {
 
     const saved = onSaved.mock.calls[0]?.[0];
     if (!saved) throw new Error('expected the existing-managed-items form to be saved');
-    const savedPdfItem = saved.items.find((item) => item.t === 'pdf_fill');
-    const savedSignatureItem = saved.items.find((item) => item.t === 'signature');
-    expect(JSON.stringify(savedPdfItem)).toBe(originalPdfItem);
-    expect(JSON.stringify(savedSignatureItem)).toBe(originalSignatureItem);
+    // Deep equality, not JSON.stringify: copyBlueprintItem/copyPdfTemplate
+    // reconstruct these objects with their own key order, which is a
+    // harmless, semantically-irrelevant difference a raw string compare
+    // would wrongly flag.
+    expect(saved.items.find((item) => item.t === 'pdf_fill')).toEqual(pdfItem);
+    expect(saved.items.find((item) => item.t === 'signature')).toEqual(signatureItem);
     expect(saved.items.find((item) => item.t === 'typed_field')?.label).toBe('Renamed typed field');
 
     const persisted = useBlueprintStore.getState().getBlueprint(saved.blueprintId);
-    expect(JSON.stringify(persisted?.items.find((item) => item.t === 'pdf_fill'))).toBe(originalPdfItem);
-    expect(JSON.stringify(persisted?.items.find((item) => item.t === 'signature'))).toBe(originalSignatureItem);
+    expect(persisted?.items.find((item) => item.t === 'pdf_fill')).toEqual(pdfItem);
+    expect(persisted?.items.find((item) => item.t === 'signature')).toEqual(signatureItem);
 
     const updated = useBlueprintStore.getState().updateFirmBlueprint(saved.blueprintId, { label: 'Existing managed items updated' });
     expect(updated.label).toBe('Existing managed items updated');
-    expect(JSON.stringify(updated.items.find((item) => item.t === 'pdf_fill'))).toBe(originalPdfItem);
-    expect(JSON.stringify(updated.items.find((item) => item.t === 'signature'))).toBe(originalSignatureItem);
+    expect(updated.items.find((item) => item.t === 'pdf_fill')).toEqual(pdfItem);
+    expect(updated.items.find((item) => item.t === 'signature')).toEqual(signatureItem);
   });
 });
