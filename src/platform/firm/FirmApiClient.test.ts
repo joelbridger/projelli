@@ -12,9 +12,19 @@ const streamHandle = parseStreamHandle(`sh2_${'B'.repeat(43)}`);
 
 describe('FirmApiClient v2 relay privacy', () => {
   const traffic: Array<{ url: string; method: string; headers: string; body: string }> = [];
+  const parsedResponses: unknown[] = [];
+  const sentinels = [
+    'CLIENT_SECRET_NIMBUS', // client name
+    'matter-semantic-123', // legacy semantic matter ID
+    'local-matter-77', // local Matter.id
+    'doc-advisory-plan.docx', // document ID
+    'Client plan.docx', // filename
+    '/clients/nimbus', // filesystem path
+  ];
 
   beforeEach(() => {
     traffic.length = 0;
+    parsedResponses.length = 0;
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       traffic.push({
         url: String(input), method: init?.method ?? 'GET',
@@ -31,20 +41,46 @@ describe('FirmApiClient v2 relay privacy', () => {
     }));
   });
 
-  it('never serializes client or local routing metadata into v2 traffic', async () => {
+  it('keeps every v2 matter operation free of all six local-metadata sentinels', async () => {
     const client = new FirmApiClient({ getAccessToken: () => 'access', refreshAccessToken: async () => null });
-    await client.createMatter();
-    await client.activateMatter(matterHandle);
-    await client.allocateStream(matterHandle);
-    await client.pushUpdate(streamHandle, 'blob', 'ciphertext', 'seat', 1);
-    await client.pullUpdates(streamHandle, 0, 'seat');
-    await client.createSyncTicket(streamHandle, 'seat');
-    const recorded = JSON.stringify(traffic);
-    for (const secret of [
-      'CLIENT_SECRET_NIMBUS', 'matter-semantic-123', 'local-matter-77', 'doc-advisory-plan.docx', 'Client plan.docx', '/clients/nimbus', 'doc_id', 'client_name', 'matter_id',
-    ]) expect(recorded).not.toContain(secret);
+    parsedResponses.push(
+      await client.createMatter(),
+      await client.activateMatter(matterHandle),
+      await client.listMatters(),
+      await client.matterMine('seat'),
+      await client.listMatterMembers(matterHandle),
+      await client.addMatterMember(matterHandle, 'user-opaque', 'editor'),
+      await client.removeMatterMember(matterHandle, 'user-opaque'),
+      await client.setWall(matterHandle, 'user-opaque'),
+      await client.clearWall(matterHandle, 'user-opaque'),
+      await client.publishMatterKeys(matterHandle, { epoch: 1, wrapped: [{ user_id: 'user-opaque', device_id: 'device-opaque', wrapped_key_b64: 'wrapped' }] }),
+      await client.fetchMatterKeys(matterHandle, 'device-opaque', 'seat'),
+      await client.allocateStream(matterHandle),
+      await client.pushUpdate(streamHandle, 'blob-opaque', 'ciphertext-opaque', 'seat', 1),
+      await client.pullUpdates(streamHandle, 0, 'seat'),
+      await client.createSyncTicket(streamHandle, 'seat'),
+    );
+
+    for (const request of traffic) {
+      const url = new URL(request.url, 'http://firm.test');
+      for (const secret of sentinels) {
+        expect(url.pathname).not.toContain(secret);
+        expect(url.search).not.toContain(secret);
+        expect(request.headers).not.toContain(secret);
+        expect(request.body).not.toContain(secret);
+        expect(request.method).not.toContain(secret);
+      }
+      expect(url.searchParams.has('client_name')).toBe(false);
+      expect(url.searchParams.has('matter_id')).toBe(false);
+      expect(url.searchParams.has('doc_id')).toBe(false);
+    }
+    const parsedRouting = JSON.stringify(parsedResponses);
+    for (const secret of sentinels) expect(parsedRouting).not.toContain(secret);
+    expect(parsedRouting).not.toMatch(/client_name|matter_id|doc_id/);
+
     expect(traffic.map((r) => r.url).join('\n')).toContain('/v2/firm/streams/');
     expect(traffic.find((r) => r.url.includes('/updates?'))?.url).toMatch(/\?since=0$/);
+    expect(traffic).toHaveLength(15);
   });
 
   it('accepts only strict 256-bit base64url opaque handles', () => {

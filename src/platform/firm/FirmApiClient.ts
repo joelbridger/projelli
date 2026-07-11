@@ -250,6 +250,15 @@ export class FirmApiClient {
     );
   }
 
+  /** Hide an activated shell again when promotion cannot finish safely. */
+  archiveMatter(matterHandle: MatterHandle): Promise<{ ok: true }> {
+    const handle = parseMatterHandle(matterHandle);
+    return this.request<{ ok: true }>(
+      FIRM_ENDPOINTS.archiveMatter.replace(':matter_handle', encodeURIComponent(handle)),
+      { method: 'POST', auth: true, body: {} },
+    );
+  }
+
   listMatters(): Promise<ListMattersResponse> {
     return this.request<ListMattersResponse>(FIRM_ENDPOINTS.listMatters, {
       method: 'POST',

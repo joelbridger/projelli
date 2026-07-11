@@ -31,6 +31,7 @@ export async function promoteMatterToShared(
 ): Promise<PromoteMatterResult> {
   const { linkFirmMatter } = useMatterStore.getState();
   let handle: MatterHandle | null = null;
+  let activated = false;
   try {
     const provision = await client.createMatter();
     handle = provision.matter_handle;
@@ -54,6 +55,7 @@ export async function promoteMatterToShared(
     await client.pushUpdate(provision.root_stream_handle, blobId(), ciphertext, seatToken, provision.key_epoch);
 
     await client.activateMatter(handle);
+    activated = true;
     await registerDevice(client);
     await publishMatterKeyToMembers(client, handle, provision.key_epoch);
 
@@ -65,7 +67,8 @@ export async function promoteMatterToShared(
     });
     return { status: 'shared', matterId, firmMatterId: handle, orgId };
   } catch (err) {
-    // Before activation this leaves only a timed-out provisioning shell server-side.
+    // A post-activation failure must not leave a visible shared-client shell.
+    if (handle && activated) await client.archiveMatter(handle).catch(() => undefined);
     if (handle) await forgetMatterKey(handle).catch(() => undefined);
     return { status: 'failed', matterId, error: err instanceof Error ? err.message : String(err) };
   }
