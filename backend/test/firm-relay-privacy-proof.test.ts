@@ -4,7 +4,7 @@ import { Store } from "../src/lib/db.ts";
 import { FanoutHub } from "../src/lib/matters.ts";
 import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import { buildServeOptions, type SyncSocketData } from "../src/server.ts";
-import { hasForbiddenV2RelayKey } from "../src/lib/v2Payload.ts";
+import { hasForbiddenV2RelayKey, validateV2RelayBoundary } from "../src/lib/v2Payload.ts";
 
 const sentinels = ["CLIENT_SECRET_NIMBUS", "matter-semantic-123", "doc-advisory-plan.docx"] as const;
 const [clientSecret, semanticMatter, documentName] = sentinels;
@@ -69,6 +69,74 @@ describe("firm relay privacy proof", () => {
     expect(hasForbiddenV2RelayKey(hostileBody)).toBe(true);
     expect(hasForbiddenV2RelayKey({ wrapped: [{ user_id: "safe", TITLE: sentinels[0] }] })).toBe(true);
     expect(hasForbiddenV2RelayKey({ blob_id: "opaque", ciphertext_b64: "AQID" })).toBe(false);
+  });
+
+  test("the shared guard rejects deeply nested JSON without overflowing the call stack", () => {
+    const depth = 10_000;
+    const nestedJson = `${'{"nested":'.repeat(depth)}0${"}".repeat(depth)}`;
+    expect(hasForbiddenV2RelayKey(JSON.parse(nestedJson))).toBe(true);
+  });
+
+  test("the boundary caps unknown-length bodies and does not read preflight bodies", async () => {
+    const encoder = new TextEncoder();
+    let declaredLengthPulls = 0;
+    const declaredOversized = new Request("https://relay.test/v2/firm/matters", {
+      method: "POST",
+      headers: { "content-length": String(2 * 1024 * 1024 + 1) },
+      body: new ReadableStream<Uint8Array>({
+        pull(controller) {
+          declaredLengthPulls++;
+          controller.enqueue(encoder.encode("{}"));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    });
+    expect(await validateV2RelayBoundary(declaredOversized)).toBe("invalid_v2_payload");
+    expect(declaredLengthPulls).toBe(0);
+
+    let unknownLengthPulls = 0;
+    let unknownLengthCancelled = false;
+    const chunk = new Uint8Array(1024 * 1024);
+    const unknownLengthOversized = new Request("https://relay.test/v2/firm/matters", {
+      method: "POST",
+      body: new ReadableStream<Uint8Array>({
+        pull(controller) {
+          unknownLengthPulls++;
+          controller.enqueue(chunk);
+        },
+        cancel() {
+          unknownLengthCancelled = true;
+        },
+      }),
+      duplex: "half",
+    });
+    expect(await validateV2RelayBoundary(unknownLengthOversized)).toBe("invalid_v2_payload");
+    await Bun.sleep(0);
+    expect(unknownLengthPulls).toBeGreaterThan(0);
+    expect(unknownLengthCancelled).toBe(true);
+
+    let preflightPulls = 0;
+    let releasePreflightBody!: () => void;
+    const preflightBodyGate = new Promise<void>((resolve) => { releasePreflightBody = resolve; });
+    const preflight = new Request("https://relay.test/v2/firm/streams/stream/updates?since=0", {
+      method: "OPTIONS",
+      headers: { "access-control-request-method": "GET" },
+      body: new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          preflightPulls++;
+          await preflightBodyGate;
+          controller.enqueue(encoder.encode(JSON.stringify(hostileBody)));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    });
+    await Bun.sleep(0); // Bun may start the supplied Request body eagerly.
+    const pullsBeforeBoundary = preflightPulls;
+    expect(await validateV2RelayBoundary(preflight)).toBeNull();
+    expect(preflightPulls).toBe(pullsBeforeBoundary);
+    releasePreflightBody();
   });
 
   test("every v2 firm route rejects a hostile descriptor body without storing or echoing it", async () => {
@@ -152,6 +220,49 @@ describe("firm relay privacy proof", () => {
       const body = await responseJson(response) as { error?: string };
       expect(body.error).toBe("invalid_v2_query");
       expect(JSON.stringify(body)).not.toContain(clientSecret);
+
+      const activateResponse = await fetch(`${base}/v2/firm/matters/matter/activate?client_name=${encodeURIComponent(clientSecret)}`, {
+        method: "OPTIONS",
+        headers: { origin: "https://app.example.test", "access-control-request-method": "POST" },
+      });
+      expect(activateResponse.status).toBe(400);
+      const activateBody = await responseJson(activateResponse) as { error?: string };
+      expect(activateBody.error).toBe("invalid_v2_query");
+      expect(JSON.stringify(activateBody)).not.toContain(clientSecret);
+    } finally {
+      server.stop(true);
+      store.close();
+    }
+  });
+
+  test("pull preflights honor their requested GET method and cross-origin pulls still work", async () => {
+    const { store, adminToken, adminSeatToken } = fixture();
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    const base = `http://${server.hostname}:${server.port}`;
+    const auth = { authorization: `Bearer ${adminToken}`, "x-seat-token": adminSeatToken };
+    try {
+      const create = await fetch(`${base}/v2/firm/matters`, {
+        method: "POST", headers: { "content-type": "application/json", ...auth }, body: "{}",
+      });
+      const { root_stream_handle: rootStream } = await responseJson(create) as { root_stream_handle: string };
+      const path = `/v2/firm/streams/${rootStream}/updates?since=0`;
+      const allowedPreflight = await fetch(`${base}${path}`, {
+        method: "OPTIONS",
+        headers: { origin: "https://app.example.test", "access-control-request-method": "GET" },
+      });
+      expect(allowedPreflight.status).toBe(204);
+      expect(allowedPreflight.headers.get("access-control-allow-origin")).toBe("*");
+
+      const rejectedPreflight = await fetch(`${base}${path}`, {
+        method: "OPTIONS",
+        headers: { origin: "https://app.example.test", "access-control-request-method": "POST" },
+      });
+      expect(rejectedPreflight.status).toBe(400);
+      expect((await responseJson(rejectedPreflight)).error).toBe("invalid_v2_query");
+
+      const pull = await fetch(`${base}${path}`, { headers: { origin: "https://app.example.test", ...auth } });
+      expect(pull.status).toBe(200);
+      expect(pull.headers.get("access-control-allow-origin")).toBe("*");
     } finally {
       server.stop(true);
       store.close();
