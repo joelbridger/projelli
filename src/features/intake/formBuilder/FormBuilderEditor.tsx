@@ -148,7 +148,7 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
           <div className="grid gap-2">
             <Label htmlFor={`${item.item_id}-input`}>Answer format</Label>
             <select id={`${item.item_id}-input`} value={item.input} onChange={(event) => { onChange({ ...item, input: event.target.value as TypedFieldInputFormat }); }}>
-              {(INPUTS_BY_FACT_KIND[item.fact_kind as TypedFieldFactKind] ?? []).map((input) => <option key={input} value={input}>{input}</option>)}
+              {INPUTS_BY_FACT_KIND[item.fact_kind as TypedFieldFactKind].map((input) => <option key={input} value={input}>{input}</option>)}
             </select>
           </div>
         </>

@@ -46,7 +46,7 @@ describe('FormBuilderEditor', () => {
     const stored = useBlueprintStore.getState().createFirmBlueprint({
       blueprintId: 'existing', label: 'Old name', items: [{ t: 'readonly_card', item_id: 'card', label: 'Card', help_text: '', required: false, subject: 'primary', body: 'Hello' }],
     });
-    const onSaved = vi.fn();
+    const onSaved = vi.fn<(blueprint: RequestBlueprint) => void>();
     render(<FormBuilderEditor blueprint={stored} onSaved={onSaved} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByLabelText('Form name'), { target: { value: 'New name' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save form' }));
