@@ -607,6 +607,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
       itemId: PDF_ITEM_ID, contentType: 'application/pdf', fileNames: ['client-file.pdf'], plaintextBytes: [bytes], receipt,
     }), {
       intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest's expect.objectContaining() return type is untyped inside a nested toMatchObject() matcher
     })).resolves.toMatchObject({ filePath: '/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf', pdfCompletion: expect.objectContaining({ issuedItemId: PDF_ITEM_ID }) });
 
     const filing = fileDocument.mock.calls[0]?.[0];

@@ -173,6 +173,7 @@ export async function retrieveAndFileDocusignCompletion(input: CompletionSource 
     if (!signedAlreadyFiled) { await fileIntakeDocument({ workspaceService: workspace, matterFolderPath, requestSlug, folder: 'signature', fileName: names.signedPdfFileName, bytes: sealedPdf }); wroteSigned = true; }
     if (!certificateAlreadyFiled) await fileIntakeDocument({ workspaceService: workspace, matterFolderPath, requestSlug, folder: 'signature', fileName: names.certificateFileName, bytes: sealedCertificate });
   } catch (error) {
+    // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort rollback cleanup during an already-failed write; the original error is rethrown below regardless
     if (wroteSigned && typeof workspace.delete === 'function') await workspace.delete(signedPath).catch(() => undefined);
     throw error;
   }

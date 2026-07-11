@@ -232,6 +232,7 @@ test('keeps the launch relay wire and browser surface free of protected values',
   page.on('request', (request) => requests.push({ url: request.url(), body: request.postData() }));
   await openConsent(page, harness);
   await page.getByRole('button', { name: 'Continue to DocuSign' }).click();
+  await expect(page.getByRole('heading', { name: 'Your signing window is open' })).toBeVisible();
 
   expect(harness.launchRequests).toHaveLength(2);
   const publicSurface = `${await page.content()}\n${JSON.stringify(requests)}\n${harness.consoleMessages.join('\n')}`;
