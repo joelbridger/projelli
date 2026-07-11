@@ -75,6 +75,11 @@ async fn await_authorized_after_check<T>(
     // cancelled when select! starts and the transport is never polled.
     after_initial_check();
     let mut cancellation = policy.register_cancellation_for(authorized.value());
+    if cancellation.is_cancelled() {
+        return Err(anyhow::Error::from(
+            crate::network_policy::NetworkPolicyError::Uninitialized,
+        ));
+    }
     tokio::select! {
         _ = cancellation.cancelled() => Err(anyhow::Error::from(crate::network_policy::NetworkPolicyError::Uninitialized)),
         result = request => {
@@ -391,14 +396,18 @@ mod tests {
     fn configured_origin_requires_matching_scheme_host_and_port() {
         let policy = policy();
         assert!(authorize_configured_origin(
-            &policy, &ICS_CALENDAR_SYNC,
+            &policy,
+            &ICS_CALENDAR_SYNC,
             "https://calendar.example.test:8443/feed.ics",
             "https://calendar.example.test/feed.ics",
-        ).is_err());
+        )
+        .is_err());
         assert!(authorize_configured_origin(
-            &policy, &ICS_CALENDAR_SYNC,
+            &policy,
+            &ICS_CALENDAR_SYNC,
             "http://calendar.example.test/feed.ics",
             "https://calendar.example.test/feed.ics",
-        ).is_err());
+        )
+        .is_err());
     }
 }
