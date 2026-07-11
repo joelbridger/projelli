@@ -35,6 +35,8 @@ import {
   handleListMatterMembers,
   handleSetWall,
   handleClearWall,
+  handleActivateMatter,
+  handleAllocateStream,
   handlePushUpdate,
   handlePullUpdates,
   handleSyncTicket,
@@ -51,7 +53,7 @@ import {
   handleInferenceBilling,
 } from "./routes/assured.ts";
 import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
-import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from "./routes/matterKeys.ts";
+import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine, handleMigrationManifest } from "./routes/matterKeys.ts";
 import { handleOrgClaim } from "./routes/claim.ts";
 import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
@@ -61,9 +63,8 @@ import type { Store } from "./lib/db.ts";
 /** Data attached to each sync WebSocket on upgrade (set by authorizeSyncConnect). */
 export interface SyncSocketData {
   subId: string;
-  matterId: string;
-  /** Document stream this socket is subscribed to. '_notes' for matter notes. */
-  docId: string;
+  matterHandle: string;
+  streamHandle: string;
   orgId: string;
   userId: string;
   seatId: string;
@@ -74,10 +75,10 @@ export interface SyncSocketData {
  * segment (e.g. "updates", "members/add", "" for the bare matter). The id is a
  * single path segment; we never let it contain a slash.
  */
-function matchMatter(path: string): { id: string; rest: string } | null {
-  const m = path.match(/^\/matter\/([^/]+)(?:\/(.*))?$/);
+function matchMatter(path: string): { handle: string; rest: string } | null {
+  const m = path.match(/^\/v2\/firm\/matters\/([^/]+)(?:\/(.*))?$/);
   if (!m) return null;
-  return { id: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
+  return { handle: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
 }
 
 /**
@@ -106,41 +107,45 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         // --- E2EE sync relay + matter ACL (chunk 2) ---
         // The WebSocket upgrade is handled before normal routing so the relay
         // live fan-out shares the same access gate as the HTTP endpoints.
+        if (path === "/v2/firm/matters/mine" && method === "POST") return await handleMatterMine(req, store);
+        if (path === "/v2/firm/migration-manifest" && method === "POST") return await handleMigrationManifest(req, store);
+        if (path === "/v2/firm/matters/list" && method === "POST") return handleListMatters(req, store);
         const mm = matchMatter(path);
         if (mm) {
           // Mint a single-use WS connect ticket (authed; runs the relay gate).
-          if (mm.rest === "sync-ticket" && method === "POST") return handleSyncTicket(req, store, mm.id, ip);
+          const streamMatch = mm.rest.match(/^streams\/([^/]+)\/(updates|sync-ticket)$/);
+          if (streamMatch?.[2] === "sync-ticket" && method === "POST") return handleSyncTicket(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip);
           // Live sync socket: GET /matter/:id/sync?ticket=<t> (Upgrade: websocket).
           // The upgrade carries ONLY a single-use ticket — never the access/seat
           // token — so no credential can land in an access log or browser history.
+          if (mm.rest === "" && method === "POST") return error("invalid_v2_payload", 400);
+          if (mm.rest === "activate" && method === "POST") return handleActivateMatter(req, store, mm.handle);
+          if (mm.rest === "streams" && method === "POST") return handleAllocateStream(req, store, mm.handle);
+          if (streamMatch?.[2] === "updates" && method === "POST") return await handlePushUpdate(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip, hub);
+          if (streamMatch?.[2] === "updates" && method === "GET") return handlePullUpdates(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip);
           if (mm.rest === "sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
-            const authz = authorizeSyncConnect(req, store, mm.id);
+            const authz = authorizeSyncConnect(req, store);
             if (!authz.ok) return authz.resp;
-            // Read the doc_id from the query string (absent → '_notes').
-            const syncDocId = url.searchParams.get("doc_id") ?? "_notes";
-            const data: SyncSocketData = { subId: randomUUID(), docId: syncDocId, ...authz.data };
+            if ([...url.searchParams.keys()].some((key) => key !== "ticket")) return error("invalid_v2_query", 400);
+            const data: SyncSocketData = { subId: randomUUID(), ...authz.data };
             if (srv.upgrade(req, { data })) return undefined; // upgraded; Bun owns the socket now
             return error("upgrade_failed", 400);
           }
           // Relay: append / catch-up. Push broadcasts via this server's hub.
-          if (mm.rest === "updates" && method === "POST") return await handlePushUpdate(req, store, mm.id, ip, hub);
-          if (mm.rest === "updates" && method === "GET") return handlePullUpdates(req, store, mm.id, ip);
           // Admin: membership + walls (scoped to :id).
-          if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.id);
-          if (mm.rest === "members/remove" && method === "POST") return await handleRemoveMatterMember(req, store, mm.id);
-          if (mm.rest === "members/list" && method === "POST") return handleListMatterMembers(req, store, mm.id);
-          if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.id);
-          if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.id);
-          if (mm.rest === "archive" && method === "POST") return handleArchiveMatter(req, store, mm.id);
+          if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.handle);
+          if (mm.rest === "members/remove" && method === "POST") return await handleRemoveMatterMember(req, store, mm.handle);
+          if (mm.rest === "members/list" && method === "POST") return handleListMatterMembers(req, store, mm.handle);
+          if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.handle);
+          if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.handle);
+          if (mm.rest === "archive" && method === "POST") return handleArchiveMatter(req, store, mm.handle);
           // Phase 1: wrapped matter-key distribution.
-          if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.id);
-          if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.id);
+          if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.handle);
+          if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.handle);
         }
-        // Phase 1: /matter/mine (before the :id match so it doesn't accidentally match).
-        if (path === "/matter/mine" && method === "POST") return await handleMatterMine(req, store);
         // Admin: matter collection.
-        if (path === "/org/matters" && method === "POST") return await handleCreateMatter(req, store);
-        if (path === "/org/matters/list" && method === "POST") return handleListMatters(req, store);
+        if (path === "/v2/firm/matters" && method === "POST") return await handleCreateMatter(req, store);
+        if (path.startsWith("/matter/") || path === "/org/matters" || path === "/org/matters/list") return error("firm_relay_upgrade_required", 426);
 
         // --- Health (open) ---
         if (path === "/healthz" && method === "GET") {
@@ -235,18 +240,18 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           },
         };
         // Subscribe to the (matter, docId) channel so only that doc's frames arrive.
-        hub.subscribe(d.matterId, sub, d.docId);
+        hub.subscribe(d.matterHandle, sub, d.streamHandle);
         // Catch-up backlog (opaque bytes, base64; never logged).
         try {
-          const backlog = store.getMatterUpdatesSince(d.matterId, 0, 500, d.docId);
-          const subscribers = hub.subscriberCount(d.matterId, d.docId);
-          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, doc_id: d.docId, backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterId, d.docId), subscribers }));
+          const backlog = store.getMatterUpdatesSince(d.matterHandle, d.streamHandle, 0, 500);
+          const subscribers = hub.subscriberCount(d.matterHandle, d.streamHandle);
+          ws.send(JSON.stringify({ type: "ready", backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterHandle, d.streamHandle), subscribers }));
           for (const u of backlog) ws.send(JSON.stringify(toUpdateFrame(u)));
         } catch {
           /* best-effort backlog */
         }
         // Broadcast updated subscriber count to all connected peers (including self).
-        hub.broadcastPresence(d.matterId, d.docId);
+        hub.broadcastPresence(d.matterHandle, d.streamHandle);
       },
       message() {
         // Inbound socket frames are ignored on purpose. Awareness/presence would
@@ -255,9 +260,9 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       },
       close(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;
-        hub.unsubscribe(d.matterId, d.subId, d.docId);
+        hub.unsubscribe(d.matterHandle, d.subId, d.streamHandle);
         // Broadcast updated presence count to remaining subscribers (no-op if all left).
-        hub.broadcastPresence(d.matterId, d.docId);
+        hub.broadcastPresence(d.matterHandle, d.streamHandle);
       },
     },
   };

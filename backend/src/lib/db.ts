@@ -13,7 +13,7 @@
  */
 
 import { Database } from "bun:sqlite";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { config } from "./config.ts";
 import type {
   Org,
@@ -140,36 +140,42 @@ CREATE INDEX IF NOT EXISTS idx_audit_org ON audit_events(org_id);
 -- =====================================================================
 
 CREATE TABLE IF NOT EXISTS matters (
-  matter_id   TEXT PRIMARY KEY,
-  org_id      TEXT NOT NULL REFERENCES orgs(org_id),
-  client_name TEXT NOT NULL,
-  status      TEXT NOT NULL DEFAULT 'active',   -- active | archived
-  key_epoch   INTEGER NOT NULL DEFAULT 1,       -- bumps on member-remove / wall-set
-  created_at  TEXT NOT NULL
+  matter_handle      TEXT PRIMARY KEY,
+  org_id             TEXT NOT NULL REFERENCES orgs(org_id),
+  root_stream_handle TEXT NOT NULL UNIQUE,
+  status             TEXT NOT NULL DEFAULT 'provisioning',
+  key_epoch          INTEGER NOT NULL DEFAULT 1,
+  created_at         TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_matters_org ON matters(org_id);
 
+CREATE TABLE IF NOT EXISTS matter_streams (
+  stream_handle TEXT PRIMARY KEY,
+  matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
+  created_at    TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_matter_streams_matter ON matter_streams(matter_handle);
+
 CREATE TABLE IF NOT EXISTS matter_members (
-  matter_id  TEXT NOT NULL REFERENCES matters(matter_id),
+  matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
   user_id    TEXT NOT NULL REFERENCES users(user_id),
   org_id     TEXT NOT NULL,
   role       TEXT NOT NULL DEFAULT 'editor',    -- owner | editor | viewer
   created_at TEXT NOT NULL,
-  PRIMARY KEY (matter_id, user_id)
+  PRIMARY KEY (matter_handle, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_matter_members_user ON matter_members(user_id);
-CREATE INDEX IF NOT EXISTS idx_matter_members_matter ON matter_members(matter_id);
+CREATE INDEX IF NOT EXISTS idx_matter_members_matter ON matter_members(matter_handle);
 
 -- Explicit DENY (a screen). Deny-overrides-allow: a row here blocks (matter,user)
 -- regardless of membership or admin role.
 CREATE TABLE IF NOT EXISTS ethical_walls (
-  matter_id  TEXT NOT NULL REFERENCES matters(matter_id),
+  matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
   user_id    TEXT NOT NULL REFERENCES users(user_id),
   org_id     TEXT NOT NULL,
-  reason     TEXT,
   created_by TEXT NOT NULL,
   created_at TEXT NOT NULL,
-  PRIMARY KEY (matter_id, user_id)
+  PRIMARY KEY (matter_handle, user_id)
 );
 CREATE INDEX IF NOT EXISTS idx_ethical_walls_user ON ethical_walls(user_id);
 
@@ -180,17 +186,17 @@ CREATE INDEX IF NOT EXISTS idx_ethical_walls_user ON ethical_walls(user_id);
 -- doc_id partitions the relay into per-document streams; notes use '_notes'.
 CREATE TABLE IF NOT EXISTS matter_updates (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  matter_id   TEXT NOT NULL REFERENCES matters(matter_id),
+  matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
   org_id      TEXT NOT NULL,
-  doc_id      TEXT NOT NULL DEFAULT '_notes',
+  stream_handle TEXT NOT NULL REFERENCES matter_streams(stream_handle),
   blob_id     TEXT NOT NULL,
   ciphertext  BLOB NOT NULL,
   author_seat TEXT NOT NULL,
   key_epoch   INTEGER NOT NULL DEFAULT 1,
   created_at  TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, doc_id, id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, doc_id, blob_id);
+CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_handle, stream_handle, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(stream_handle, blob_id);
 
 -- =====================================================================
 -- Chunk 3: Assured zero-retention inference proxy (DECISION.md §5).
@@ -257,16 +263,16 @@ CREATE INDEX IF NOT EXISTS idx_devices_org  ON devices(org_id);
 -- On member-remove / wall-set the handler deletes the affected user's rows
 -- and all rows for the OLD epoch so publishers must re-wrap for the new one.
 CREATE TABLE IF NOT EXISTS wrapped_matter_keys (
-  matter_id       TEXT NOT NULL REFERENCES matters(matter_id),
+  matter_handle   TEXT NOT NULL REFERENCES matters(matter_handle),
   epoch           INTEGER NOT NULL,
   user_id         TEXT NOT NULL REFERENCES users(user_id),
   device_id       TEXT NOT NULL,
   wrapped_key_b64 TEXT NOT NULL,
   published_by    TEXT NOT NULL,  -- user_id of the admin / owner who published
   created_at      TEXT NOT NULL,
-  PRIMARY KEY (matter_id, epoch, user_id, device_id)
+  PRIMARY KEY (matter_handle, epoch, user_id, device_id)
 );
-CREATE INDEX IF NOT EXISTS idx_wmk_matter_epoch ON wrapped_matter_keys(matter_id, epoch);
+CREATE INDEX IF NOT EXISTS idx_wmk_matter_epoch ON wrapped_matter_keys(matter_handle, epoch);
 CREATE INDEX IF NOT EXISTS idx_wmk_user ON wrapped_matter_keys(user_id);
 
 -- LemonSqueezy webhook idempotency: prevents double-processing the same event.
@@ -380,18 +386,18 @@ function toSeat(r: SeatRow): Seat {
 }
 
 interface MatterRow {
-  matter_id: string;
+  matter_handle: string;
   org_id: string;
-  client_name: string;
+  root_stream_handle: string;
   status: string;
   key_epoch: number;
   created_at: string;
 }
 function toMatter(r: MatterRow): Matter {
   return {
-    matter_id: r.matter_id,
+    matter_handle: r.matter_handle,
     org_id: r.org_id,
-    client_name: r.client_name,
+    root_stream_handle: r.root_stream_handle,
     status: r.status as MatterStatus,
     key_epoch: r.key_epoch,
     created_at: r.created_at,
@@ -403,6 +409,8 @@ function toMatter(r: MatterRow): Matter {
 // ---------------------------------------------------------------------------
 export class Store {
   readonly db: Database;
+  /** Brief, process-local bridge for an upgraded desktop. Never written to the v2 DB. */
+  private readonly legacyManifest = new Map<string, { matter_handle: string; root_stream_handle: string; streams: Record<string, string> }>();
 
   constructor(path: string) {
     this.db = new Database(path, { create: true });
@@ -412,6 +420,11 @@ export class Store {
     this.db.exec("PRAGMA foreign_keys = ON;");
     this.db.exec("PRAGMA busy_timeout = 5000;");
     this.db.exec("PRAGMA synchronous = NORMAL;");
+    // A legacy schema cannot even parse the v2 index declarations. Detect and
+    // rebuild it before applying the current schema, all inside the rebuild's
+    // transaction; fresh and already-v2 databases take the normal path.
+    const existingMatterCols = this.db.query("PRAGMA table_info(matters)").all() as Array<{ name: string }>;
+    if (existingMatterCols.some((c) => c.name === "matter_id")) this.migrateFirmRelayToV2();
     this.db.exec(SCHEMA);
 
     // Guarded migration: add subscription_id column + partial unique index to
@@ -427,26 +440,60 @@ export class Store {
        ON webhook_events (subscription_id) WHERE subscription_id IS NOT NULL`,
     );
 
-    // Guarded migration: add doc_id column to matter_updates for doc-level stream
-    // partitioning (Wave 4 co-editing). Existing rows backfill to '_notes' so live
-    // matters keep working unchanged. The old per-(matter,blob_id) unique index is
-    // dropped and recreated as per-(matter,doc_id,blob_id). Because SQLite cannot
-    // drop an index by DDL inside IF-EXISTS guards cleanly, we check column presence
-    // first and only run the migration once.
-    const muCols = this.db.query("PRAGMA table_info(matter_updates)").all() as Array<{ name: string }>;
-    if (!muCols.some((c) => c.name === "doc_id")) {
-      this.db.exec("ALTER TABLE matter_updates ADD COLUMN doc_id TEXT NOT NULL DEFAULT '_notes'");
-      // Backfill any rows that were inserted before this migration (shouldn't exist
-      // in production yet, but defence-in-depth; NULL would violate NOT NULL).
-      this.db.exec("UPDATE matter_updates SET doc_id = '_notes' WHERE doc_id IS NULL");
-      // Drop the old blob uniqueness index (keyed only on matter+blob) and recreate
-      // it keyed on (matter, doc_id, blob) so blobs are unique per stream.
-      this.db.exec("DROP INDEX IF EXISTS idx_matter_updates_blob");
-      this.db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_matter_updates_blob ON matter_updates(matter_id, doc_id, blob_id)");
-      // Drop the old ordering index and recreate it partitioned by doc_id.
-      this.db.exec("DROP INDEX IF EXISTS idx_matter_updates_matter");
-      this.db.exec("CREATE INDEX IF NOT EXISTS idx_matter_updates_matter ON matter_updates(matter_id, doc_id, id)");
-    }
+  }
+
+  private newHandle(prefix: "mh2_" | "sh2_"): string {
+    return `${prefix}${randomBytes(32).toString("base64url")}`;
+  }
+
+  /** One atomic rebuild; SQLite cannot safely rename this foreign-key graph piecemeal. */
+  private migrateFirmRelayToV2(): void {
+    const cols = this.db.query("PRAGMA table_info(matters)").all() as Array<{ name: string }>;
+    if (cols.some((c) => c.name === "matter_handle")) return;
+    const oldUpdateCols = this.db.query("PRAGMA table_info(matter_updates)").all() as Array<{ name: string }>;
+    const hasDocId = oldUpdateCols.some((c) => c.name === "doc_id");
+    this.db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
+    try {
+      this.db.exec(`
+        CREATE TABLE matters_v2 (matter_handle TEXT PRIMARY KEY, org_id TEXT NOT NULL, root_stream_handle TEXT NOT NULL UNIQUE, status TEXT NOT NULL, key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
+        CREATE TABLE matter_streams_v2 (stream_handle TEXT PRIMARY KEY, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), created_at TEXT NOT NULL);
+        CREATE TABLE matter_members_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), user_id TEXT NOT NULL, org_id TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,user_id));
+        CREATE TABLE ethical_walls_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), user_id TEXT NOT NULL, org_id TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,user_id));
+        CREATE TABLE matter_updates_v2 (id INTEGER PRIMARY KEY AUTOINCREMENT, matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), org_id TEXT NOT NULL, stream_handle TEXT NOT NULL REFERENCES matter_streams_v2(stream_handle), blob_id TEXT NOT NULL, ciphertext BLOB NOT NULL, author_seat TEXT NOT NULL, key_epoch INTEGER NOT NULL, created_at TEXT NOT NULL);
+        CREATE UNIQUE INDEX idx_matter_updates_blob_v2 ON matter_updates_v2(stream_handle, blob_id);
+        CREATE INDEX idx_matter_updates_matter_v2 ON matter_updates_v2(matter_handle, stream_handle, id);
+        CREATE TABLE wrapped_matter_keys_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), epoch INTEGER NOT NULL, user_id TEXT NOT NULL, device_id TEXT NOT NULL, wrapped_key_b64 TEXT NOT NULL, published_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,epoch,user_id,device_id));
+        CREATE INDEX idx_wmk_matter_epoch_v2 ON wrapped_matter_keys_v2(matter_handle, epoch);
+        CREATE INDEX idx_wmk_user_v2 ON wrapped_matter_keys_v2(user_id);
+      `);
+      const matters = this.db.query("SELECT * FROM matters").all() as Array<{ matter_id: string; org_id: string; status: string; key_epoch: number; created_at: string }>;
+      const handles = new Map<string, { matter: string; root: string; streams: Map<string, string> }>();
+      for (const old of matters) {
+        const matter = this.newHandle("mh2_");
+        const root = this.newHandle("sh2_");
+        handles.set(old.matter_id, { matter, root, streams: new Map([["_notes", root]]) });
+        this.db.query("INSERT INTO matters_v2 VALUES (?, ?, ?, ?, ?, ?)").run(matter, old.org_id, root, old.status === "archived" ? "archived" : "active", old.key_epoch, old.created_at);
+        this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?)").run(root, matter, old.created_at);
+      }
+      const updateRows = this.db.query(`SELECT * FROM matter_updates ORDER BY id ASC`).all() as Array<{ id: number; matter_id: string; org_id: string; doc_id?: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }>;
+      for (const u of updateRows) {
+        const mapped = handles.get(u.matter_id); if (!mapped) continue;
+        const legacyStream = hasDocId ? (u.doc_id ?? "_notes") : "_notes";
+        let stream = mapped.streams.get(legacyStream);
+        if (!stream) { stream = this.newHandle("sh2_"); mapped.streams.set(legacyStream, stream); this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?)").run(stream, mapped.matter, u.created_at); }
+        this.db.query("INSERT INTO matter_updates_v2 (id,matter_handle,org_id,stream_handle,blob_id,ciphertext,author_seat,key_epoch,created_at) VALUES (?,?,?,?,?,?,?,?,?)").run(u.id, mapped.matter, u.org_id, stream, u.blob_id, u.ciphertext, u.author_seat, u.key_epoch, u.created_at);
+      }
+      for (const row of this.db.query("SELECT * FROM matter_members").all() as Array<{ matter_id:string; user_id:string; org_id:string; role:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO matter_members_v2 VALUES (?,?,?,?,?)").run(m.matter,row.user_id,row.org_id,row.role,row.created_at); }
+      for (const row of this.db.query("SELECT * FROM ethical_walls").all() as Array<{ matter_id:string; user_id:string; org_id:string; created_by:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO ethical_walls_v2 VALUES (?,?,?,?,?)").run(m.matter,row.user_id,row.org_id,row.created_by,row.created_at); }
+      for (const row of this.db.query("SELECT * FROM wrapped_matter_keys").all() as Array<{ matter_id:string; epoch:number; user_id:string; device_id:string; wrapped_key_b64:string; published_by:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO wrapped_matter_keys_v2 VALUES (?,?,?,?,?,?,?)").run(m.matter,row.epoch,row.user_id,row.device_id,row.wrapped_key_b64,row.published_by,row.created_at); }
+      for (const [legacy, map] of handles) {
+        this.legacyManifest.set(legacy, { matter_handle: map.matter, root_stream_handle: map.root, streams: Object.fromEntries(map.streams) });
+        this.db.query("UPDATE audit_events SET target = ?, detail = NULL WHERE target = ?").run(map.matter, legacy);
+      }
+      this.db.exec("DROP TABLE wrapped_matter_keys; DROP TABLE matter_updates; DROP TABLE ethical_walls; DROP TABLE matter_members; DROP TABLE IF EXISTS matter_streams; DROP TABLE matters; ALTER TABLE matters_v2 RENAME TO matters; ALTER TABLE matter_streams_v2 RENAME TO matter_streams; ALTER TABLE matter_members_v2 RENAME TO matter_members; ALTER TABLE ethical_walls_v2 RENAME TO ethical_walls; ALTER TABLE matter_updates_v2 RENAME TO matter_updates; ALTER TABLE wrapped_matter_keys_v2 RENAME TO wrapped_matter_keys; CREATE INDEX idx_matters_org ON matters(org_id); CREATE INDEX idx_matter_streams_matter ON matter_streams(matter_handle); CREATE INDEX idx_matter_members_user ON matter_members(user_id); CREATE INDEX idx_matter_members_matter ON matter_members(matter_handle); CREATE INDEX idx_ethical_walls_user ON ethical_walls(user_id);");
+      const fk = this.db.query("PRAGMA foreign_key_check").all(); if (fk.length) throw new Error("firm_relay_migration_foreign_key_failure");
+      this.db.exec("COMMIT; PRAGMA foreign_keys = ON;");
+    } catch (cause) { this.db.exec("ROLLBACK; PRAGMA foreign_keys = ON;"); throw cause; }
   }
 
   close(): void {
@@ -919,26 +966,17 @@ export class Store {
   // ===========================================================================
   // Matters (DECISION.md §4 ACL unit)
   // ===========================================================================
-  createMatter(input: { org_id: string; client_name: string }): Matter {
-    const m: Matter = {
-      matter_id: randomUUID(),
-      org_id: input.org_id,
-      client_name: input.client_name,
-      status: "active",
-      key_epoch: 1,
-      created_at: this.nowIso(),
-    };
-    this.db
-      .query(
-        `INSERT INTO matters (matter_id, org_id, client_name, status, key_epoch, created_at)
-         VALUES (?, ?, ?, 'active', 1, ?)`,
-      )
-      .run(m.matter_id, m.org_id, m.client_name, m.created_at);
-    return m;
+  createMatter(input: { org_id: string }): Matter {
+    const m: Matter = { matter_handle: this.newHandle("mh2_"), org_id: input.org_id, root_stream_handle: this.newHandle("sh2_"), status: "provisioning", key_epoch: 1, created_at: this.nowIso() };
+    const txn = this.db.transaction(() => {
+      this.db.query("INSERT INTO matters (matter_handle, org_id, root_stream_handle, status, key_epoch, created_at) VALUES (?, ?, ?, 'provisioning', 1, ?)").run(m.matter_handle, m.org_id, m.root_stream_handle, m.created_at);
+      this.db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at) VALUES (?, ?, ?)").run(m.root_stream_handle, m.matter_handle, m.created_at);
+    });
+    txn.immediate(); return m;
   }
 
-  getMatter(matterId: string): Matter | null {
-    const r = this.db.query(`SELECT * FROM matters WHERE matter_id = ?`).get(matterId) as MatterRow | null;
+  getMatter(matterHandle: string): Matter | null {
+    const r = this.db.query(`SELECT * FROM matters WHERE matter_handle = ?`).get(matterHandle) as MatterRow | null;
     return r ? toMatter(r) : null;
   }
 
@@ -949,8 +987,27 @@ export class Store {
     return rows.map(toMatter);
   }
 
-  setMatterStatus(matterId: string, status: MatterStatus): void {
-    this.db.query(`UPDATE matters SET status = ? WHERE matter_id = ?`).run(status, matterId);
+  createMatterStream(matterHandle: string): string {
+    const streamHandle = this.newHandle("sh2_");
+    this.db.query("INSERT INTO matter_streams (stream_handle, matter_handle, created_at) VALUES (?, ?, ?)").run(streamHandle, matterHandle, this.nowIso());
+    return streamHandle;
+  }
+
+  streamBelongsToMatter(streamHandle: string, matterHandle: string): boolean {
+    return this.db.query("SELECT 1 FROM matter_streams WHERE stream_handle = ? AND matter_handle = ?").get(streamHandle, matterHandle) !== null;
+  }
+
+  /** One-time, authenticated bridge; values were captured only while rebuilding old rows. */
+  consumeLegacyManifestForUser(userId: string, orgId: string): Array<{ matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> {
+    const allowed = this.db.query("SELECT matter_handle FROM matter_members WHERE user_id = ? AND org_id = ?").all(userId, orgId) as Array<{ matter_handle: string }>;
+    const result: Array<{ matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> = [];
+    for (const v of this.legacyManifest.values()) if (allowed.some((a) => a.matter_handle === v.matter_handle)) result.push(v);
+    this.legacyManifest.clear();
+    return result;
+  }
+
+  setMatterStatus(matterHandle: string, status: MatterStatus): void {
+    this.db.query(`UPDATE matters SET status = ? WHERE matter_handle = ?`).run(status, matterHandle);
   }
 
   /**
@@ -958,10 +1015,10 @@ export class Store {
    * wall-set so the desktop key-release service rotates the per-matter key and a
    * removed/walled user's old key can't read subsequently-pushed updates (§4 L2).
    */
-  bumpMatterKeyEpoch(matterId: string): number {
+  bumpMatterKeyEpoch(matterHandle: string): number {
     const txn = this.db.transaction(() => {
-      this.db.query(`UPDATE matters SET key_epoch = key_epoch + 1 WHERE matter_id = ?`).run(matterId);
-      const r = this.db.query(`SELECT key_epoch FROM matters WHERE matter_id = ?`).get(matterId) as
+      this.db.query(`UPDATE matters SET key_epoch = key_epoch + 1 WHERE matter_handle = ?`).run(matterHandle);
+      const r = this.db.query(`SELECT key_epoch FROM matters WHERE matter_handle = ?`).get(matterHandle) as
         | { key_epoch: number }
         | null;
       return r?.key_epoch ?? 1;
@@ -970,9 +1027,9 @@ export class Store {
   }
 
   // ---- Matter membership ---------------------------------------------------
-  addMatterMember(input: { matter_id: string; user_id: string; org_id: string; role: MatterRole }): MatterMember {
+  addMatterMember(input: { matter_handle: string; user_id: string; org_id: string; role: MatterRole }): MatterMember {
     const m: MatterMember = {
-      matter_id: input.matter_id,
+      matter_handle: input.matter_handle,
       user_id: input.user_id,
       org_id: input.org_id,
       role: input.role,
@@ -981,34 +1038,34 @@ export class Store {
     // Upsert: re-adding updates the role (and refreshes created_at on first add only).
     this.db
       .query(
-        `INSERT INTO matter_members (matter_id, user_id, org_id, role, created_at)
+        `INSERT INTO matter_members (matter_handle, user_id, org_id, role, created_at)
          VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(matter_id, user_id) DO UPDATE SET role = excluded.role`,
+         ON CONFLICT(matter_handle, user_id) DO UPDATE SET role = excluded.role`,
       )
-      .run(m.matter_id, m.user_id, m.org_id, m.role, m.created_at);
+      .run(m.matter_handle, m.user_id, m.org_id, m.role, m.created_at);
     return m;
   }
 
-  removeMatterMember(matterId: string, userId: string): boolean {
+  removeMatterMember(matterHandle: string, userId: string): boolean {
     const res = this.db
-      .query(`DELETE FROM matter_members WHERE matter_id = ? AND user_id = ?`)
-      .run(matterId, userId);
+      .query(`DELETE FROM matter_members WHERE matter_handle = ? AND user_id = ?`)
+      .run(matterHandle, userId);
     return res.changes > 0;
   }
 
-  getMatterMember(matterId: string, userId: string): MatterMember | null {
+  getMatterMember(matterHandle: string, userId: string): MatterMember | null {
     const r = this.db
-      .query(`SELECT * FROM matter_members WHERE matter_id = ? AND user_id = ?`)
-      .get(matterId, userId) as
-      | { matter_id: string; user_id: string; org_id: string; role: string; created_at: string }
+      .query(`SELECT * FROM matter_members WHERE matter_handle = ? AND user_id = ?`)
+      .get(matterHandle, userId) as
+      | { matter_handle: string; user_id: string; org_id: string; role: string; created_at: string }
       | null;
     return r ? { ...r, role: r.role as MatterRole } : null;
   }
 
-  listMatterMembers(matterId: string): MatterMember[] {
+  listMatterMembers(matterHandle: string): MatterMember[] {
     const rows = this.db
-      .query(`SELECT * FROM matter_members WHERE matter_id = ? ORDER BY created_at ASC`)
-      .all(matterId) as Array<{ matter_id: string; user_id: string; org_id: string; role: string; created_at: string }>;
+      .query(`SELECT * FROM matter_members WHERE matter_handle = ? ORDER BY created_at ASC`)
+      .all(matterHandle) as Array<{ matter_handle: string; user_id: string; org_id: string; role: string; created_at: string }>;
     return rows.map((r) => ({ ...r, role: r.role as MatterRole }));
   }
 
@@ -1018,16 +1075,16 @@ export class Store {
    * only when a matching user row exists (it always should, but the join is LEFT
    * so a dangling member row doesn't crash the handler).
    */
-  listMatterMembersWithEmail(matterId: string): Array<MatterMember & { email: string | null }> {
+  listMatterMembersWithEmail(matterHandle: string): Array<MatterMember & { email: string | null }> {
     const rows = this.db
       .query(
-        `SELECT mm.matter_id, mm.user_id, mm.org_id, mm.role, mm.created_at, u.email
+        `SELECT mm.matter_handle, mm.user_id, mm.org_id, mm.role, mm.created_at, u.email
          FROM matter_members mm
          LEFT JOIN users u ON u.user_id = mm.user_id
-         WHERE mm.matter_id = ?
+         WHERE mm.matter_handle = ?
          ORDER BY mm.created_at ASC`,
       )
-      .all(matterId) as Array<{ matter_id: string; user_id: string; org_id: string; role: string; created_at: string; email: string | null }>;
+      .all(matterHandle) as Array<{ matter_handle: string; user_id: string; org_id: string; role: string; created_at: string; email: string | null }>;
     return rows.map((r) => ({ ...r, role: r.role as MatterRole, email: r.email ?? null }));
   }
 
@@ -1051,52 +1108,51 @@ export class Store {
   }
 
   // ---- Ethical walls (explicit DENY, deny-overrides-allow) -----------------
-  setEthicalWall(input: { matter_id: string; user_id: string; org_id: string; reason: string | null; created_by: string }): EthicalWall {
+  setEthicalWall(input: { matter_handle: string; user_id: string; org_id: string; created_by: string }): EthicalWall {
     const w: EthicalWall = {
-      matter_id: input.matter_id,
+      matter_handle: input.matter_handle,
       user_id: input.user_id,
       org_id: input.org_id,
-      reason: input.reason,
       created_by: input.created_by,
       created_at: this.nowIso(),
     };
     this.db
       .query(
-        `INSERT INTO ethical_walls (matter_id, user_id, org_id, reason, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(matter_id, user_id) DO UPDATE SET reason = excluded.reason, created_by = excluded.created_by, created_at = excluded.created_at`,
+        `INSERT INTO ethical_walls (matter_handle, user_id, org_id, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(matter_handle, user_id) DO UPDATE SET created_by = excluded.created_by, created_at = excluded.created_at`,
       )
-      .run(w.matter_id, w.user_id, w.org_id, w.reason, w.created_by, w.created_at);
+      .run(w.matter_handle, w.user_id, w.org_id, w.created_by, w.created_at);
     return w;
   }
 
-  clearEthicalWall(matterId: string, userId: string): boolean {
+  clearEthicalWall(matterHandle: string, userId: string): boolean {
     const res = this.db
-      .query(`DELETE FROM ethical_walls WHERE matter_id = ? AND user_id = ?`)
-      .run(matterId, userId);
+      .query(`DELETE FROM ethical_walls WHERE matter_handle = ? AND user_id = ?`)
+      .run(matterHandle, userId);
     return res.changes > 0;
   }
 
-  getEthicalWall(matterId: string, userId: string): EthicalWall | null {
+  getEthicalWall(matterHandle: string, userId: string): EthicalWall | null {
     const r = this.db
-      .query(`SELECT * FROM ethical_walls WHERE matter_id = ? AND user_id = ?`)
-      .get(matterId, userId) as
-      | { matter_id: string; user_id: string; org_id: string; reason: string | null; created_by: string; created_at: string }
+      .query(`SELECT * FROM ethical_walls WHERE matter_handle = ? AND user_id = ?`)
+      .get(matterHandle, userId) as
+      | { matter_handle: string; user_id: string; org_id: string; created_by: string; created_at: string }
       | null;
     return r ?? null;
   }
 
-  listEthicalWalls(matterId: string): EthicalWall[] {
+  listEthicalWalls(matterHandle: string): EthicalWall[] {
     return this.db
-      .query(`SELECT * FROM ethical_walls WHERE matter_id = ? ORDER BY created_at ASC`)
-      .all(matterId) as EthicalWall[];
+      .query(`SELECT * FROM ethical_walls WHERE matter_handle = ? ORDER BY created_at ASC`)
+      .all(matterHandle) as EthicalWall[];
   }
 
   /** True iff there is an active ethical-wall (deny) row for (matter, user). */
-  isWalled(matterId: string, userId: string): boolean {
+  isWalled(matterHandle: string, userId: string): boolean {
     const r = this.db
-      .query(`SELECT 1 FROM ethical_walls WHERE matter_id = ? AND user_id = ? LIMIT 1`)
-      .get(matterId, userId);
+      .query(`SELECT 1 FROM ethical_walls WHERE matter_handle = ? AND user_id = ? LIMIT 1`)
+      .get(matterHandle, userId);
     return r !== null;
   }
 
@@ -1114,34 +1170,33 @@ export class Store {
    * blob_id under different doc_ids are distinct rows.
    */
   appendMatterUpdate(input: {
-    matter_id: string;
+    matter_handle: string;
     org_id: string;
-    doc_id?: string;
+    stream_handle: string;
     blob_id: string;
     ciphertext: Uint8Array;
     author_seat: string;
     key_epoch: number;
   }): { update: MatterUpdate; duplicate: boolean } {
     const now = this.nowIso();
-    const docId = input.doc_id ?? "_notes";
     const txn = this.db.transaction(() => {
       const existing = this.db
-        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND doc_id = ? AND blob_id = ?`)
-        .get(input.matter_id, docId, input.blob_id) as
-        | { id: number; matter_id: string; org_id: string; doc_id: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }
+        .query(`SELECT * FROM matter_updates WHERE stream_handle = ? AND blob_id = ?`)
+        .get(input.stream_handle, input.blob_id) as
+        | { id: number; matter_handle: string; org_id: string; stream_handle: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }
         | null;
       if (existing) {
         return { update: { ...existing, ciphertext: new Uint8Array(existing.ciphertext) }, duplicate: true };
       }
       this.db
         .query(
-          `INSERT INTO matter_updates (matter_id, org_id, doc_id, blob_id, ciphertext, author_seat, key_epoch, created_at)
+          `INSERT INTO matter_updates (matter_handle, org_id, stream_handle, blob_id, ciphertext, author_seat, key_epoch, created_at)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
-          input.matter_id,
+          input.matter_handle,
           input.org_id,
-          docId,
+          input.stream_handle,
           input.blob_id,
           input.ciphertext,
           input.author_seat,
@@ -1149,12 +1204,12 @@ export class Store {
           now,
         );
       const row = this.db
-        .query(`SELECT * FROM matter_updates WHERE matter_id = ? AND doc_id = ? AND blob_id = ?`)
-        .get(input.matter_id, docId, input.blob_id) as {
+        .query(`SELECT * FROM matter_updates WHERE stream_handle = ? AND blob_id = ?`)
+        .get(input.stream_handle, input.blob_id) as {
         id: number;
-        matter_id: string;
+        matter_handle: string;
         org_id: string;
-        doc_id: string;
+        stream_handle: string;
         blob_id: string;
         ciphertext: Uint8Array;
         author_seat: string;
@@ -1172,16 +1227,16 @@ export class Store {
    * catch-up. `sinceCursor = 0` returns the whole history. Bounded by `limit`.
    * `docId` filters to a specific document stream; defaults to '_notes'.
    */
-  getMatterUpdatesSince(matterId: string, sinceCursor: number, limit = 500, docId = "_notes"): MatterUpdate[] {
+  getMatterUpdatesSince(matterHandle: string, streamHandle: string, sinceCursor: number, limit = 500): MatterUpdate[] {
     const rows = this.db
       .query(
-        `SELECT * FROM matter_updates WHERE matter_id = ? AND doc_id = ? AND id > ? ORDER BY id ASC LIMIT ?`,
+        `SELECT * FROM matter_updates WHERE matter_handle = ? AND stream_handle = ? AND id > ? ORDER BY id ASC LIMIT ?`,
       )
-      .all(matterId, docId, sinceCursor, limit) as Array<{
+      .all(matterHandle, streamHandle, sinceCursor, limit) as Array<{
       id: number;
-      matter_id: string;
+      matter_handle: string;
       org_id: string;
-      doc_id: string;
+      stream_handle: string;
       blob_id: string;
       ciphertext: Uint8Array;
       author_seat: string;
@@ -1192,10 +1247,10 @@ export class Store {
   }
 
   /** Highest cursor currently stored for a matter+doc stream (0 if none). */
-  latestMatterCursor(matterId: string, docId = "_notes"): number {
+  latestMatterCursor(matterHandle: string, streamHandle: string): number {
     const r = this.db
-      .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_id = ? AND doc_id = ?`)
-      .get(matterId, docId) as { m: number | null };
+      .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_handle = ? AND stream_handle = ?`)
+      .get(matterHandle, streamHandle) as { m: number | null };
     return r.m ?? 0;
   }
 
@@ -1389,7 +1444,7 @@ export class Store {
    * a re-publish of the same (matter, epoch, user, device) replaces the blob.
    */
   upsertWrappedMatterKey(input: {
-    matter_id: string;
+    matter_handle: string;
     epoch: number;
     user_id: string;
     device_id: string;
@@ -1398,20 +1453,20 @@ export class Store {
   }): void {
     this.db
       .query(
-        `INSERT INTO wrapped_matter_keys (matter_id, epoch, user_id, device_id, wrapped_key_b64, published_by, created_at)
+        `INSERT INTO wrapped_matter_keys (matter_handle, epoch, user_id, device_id, wrapped_key_b64, published_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(matter_id, epoch, user_id, device_id) DO UPDATE SET
+         ON CONFLICT(matter_handle, epoch, user_id, device_id) DO UPDATE SET
            wrapped_key_b64 = excluded.wrapped_key_b64,
            published_by    = excluded.published_by`,
       )
-      .run(input.matter_id, input.epoch, input.user_id, input.device_id, input.wrapped_key_b64, input.published_by, this.nowIso());
+      .run(input.matter_handle, input.epoch, input.user_id, input.device_id, input.wrapped_key_b64, input.published_by, this.nowIso());
   }
 
   /** Fetch the wrapped key for a specific (matter, epoch, user, device). */
-  getWrappedMatterKey(matterId: string, epoch: number, userId: string, deviceId: string): WrappedMatterKey | null {
+  getWrappedMatterKey(matterHandle: string, epoch: number, userId: string, deviceId: string): WrappedMatterKey | null {
     const r = this.db
-      .query(`SELECT * FROM wrapped_matter_keys WHERE matter_id = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
-      .get(matterId, epoch, userId, deviceId) as WrappedMatterKey | null;
+      .query(`SELECT * FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ? AND user_id = ? AND device_id = ?`)
+      .get(matterHandle, epoch, userId, deviceId) as WrappedMatterKey | null;
     return r ?? null;
   }
 
@@ -1420,10 +1475,10 @@ export class Store {
    * Called when a member is removed or walled — they lose access to all key
    * epochs, including ones they already had.
    */
-  deleteWrappedKeysForUser(matterId: string, userId: string): void {
+  deleteWrappedKeysForUser(matterHandle: string, userId: string): void {
     this.db
-      .query(`DELETE FROM wrapped_matter_keys WHERE matter_id = ? AND user_id = ?`)
-      .run(matterId, userId);
+      .query(`DELETE FROM wrapped_matter_keys WHERE matter_handle = ? AND user_id = ?`)
+      .run(matterHandle, userId);
   }
 
   /**
@@ -1432,10 +1487,10 @@ export class Store {
    * published set is stale because the removed user had keys for it. Deleting
    * it forces a full re-publish at the new epoch.
    */
-  deleteWrappedKeysForEpoch(matterId: string, epoch: number): void {
+  deleteWrappedKeysForEpoch(matterHandle: string, epoch: number): void {
     this.db
-      .query(`DELETE FROM wrapped_matter_keys WHERE matter_id = ? AND epoch = ?`)
-      .run(matterId, epoch);
+      .query(`DELETE FROM wrapped_matter_keys WHERE matter_handle = ? AND epoch = ?`)
+      .run(matterHandle, epoch);
   }
 
   // ===========================================================================
@@ -1598,29 +1653,29 @@ export class Store {
   listMatterMembershipsForUser(
     userId: string,
     orgId: string,
-  ): Array<{ matter_id: string; client_name: string; status: MatterStatus; key_epoch: number; role: MatterRole }> {
+  ): Array<{ matter_handle: string; root_stream_handle: string; status: MatterStatus; key_epoch: number; role: MatterRole }> {
     const rows = this.db
       .query(
-        `SELECT m.matter_id, m.client_name, m.status, m.key_epoch, mm.role
+        `SELECT m.matter_handle, m.root_stream_handle, m.status, m.key_epoch, mm.role
          FROM matter_members mm
-         JOIN matters m ON m.matter_id = mm.matter_id
+         JOIN matters m ON m.matter_handle = mm.matter_handle
          WHERE mm.user_id = ? AND m.org_id = ?
            AND NOT EXISTS (
              SELECT 1 FROM ethical_walls ew
-             WHERE ew.matter_id = mm.matter_id AND ew.user_id = mm.user_id
+             WHERE ew.matter_handle = mm.matter_handle AND ew.user_id = mm.user_id
            )
          ORDER BY m.created_at DESC`,
       )
       .all(userId, orgId) as Array<{
-      matter_id: string;
-      client_name: string;
+      matter_handle: string;
+      root_stream_handle: string;
       status: string;
       key_epoch: number;
       role: string;
     }>;
     return rows.map((r) => ({
-      matter_id: r.matter_id,
-      client_name: r.client_name,
+      matter_handle: r.matter_handle,
+      root_stream_handle: r.root_stream_handle,
       status: r.status as MatterStatus,
       key_epoch: r.key_epoch,
       role: r.role as MatterRole,

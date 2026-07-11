@@ -26,7 +26,8 @@ import type { UserRole } from "./types.ts";
 
 /** What a redeemed ticket authorizes — the identity the socket runs as. */
 export interface SyncTicketBinding {
-  matterId: string;
+  matterHandle: string;
+  streamHandle: string;
   orgId: string;
   userId: string;
   seatId: string;
