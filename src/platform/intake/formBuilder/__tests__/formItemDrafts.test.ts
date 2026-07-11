@@ -5,9 +5,8 @@ import type { RequestItem } from '../../types';
 import {
   draftDocUpload,
   draftGuidedQuestion,
-  draftReadonlyCard,
-  draftSectionHeader,
   draftTypedField,
+  draftWelcomeCard,
   insertItem,
   moveItem,
   newItemId,
@@ -24,21 +23,22 @@ function valid(items: RequestItem[]) {
 
 describe('form item drafts', () => {
   it('makes structurally valid drafts for every supported item kind', () => {
-    const items = [draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard(), draftSectionHeader()];
+    const items = [draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftWelcomeCard()];
     expect(() => {
       assertValidRequestBlueprint(valid(items));
     }).not.toThrow();
-    expect(items.map((item) => item.t)).toEqual(['typed_field', 'doc_upload', 'guided_question', 'readonly_card', 'readonly_card']);
+    expect(items.map((item) => item.t)).toEqual(['typed_field', 'doc_upload', 'guided_question', 'readonly_card']);
     expect(draftDocUpload().accepted_mime_types).toEqual(['image/jpeg', 'image/png', 'application/pdf']);
     expect(draftTypedField()).toMatchObject({ fact_kind: 'dob', input: 'date', subject: 'primary' });
     expect(draftGuidedQuestion()).toMatchObject({ response_format: 'money' });
-    expect(draftSectionHeader()).toMatchObject({ label: 'Section', body: '' });
+    expect(draftWelcomeCard('Hello')).toMatchObject({ label: 'Welcome', body: 'Hello' });
+    expect(draftWelcomeCard().item_id.toLowerCase()).toContain('welcome');
   });
 
   it('makes unique ids and never creates excluded item kinds', () => {
     const ids = Array.from({ length: 100 }, () => newItemId());
     expect(new Set(ids).size).toBe(ids.length);
-    const drafts: RequestItem[] = [draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard(), draftSectionHeader()];
+    const drafts: RequestItem[] = [draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftWelcomeCard()];
     expect(drafts.some((item) => item.t === 'pdf_fill' || item.t === 'signature')).toBe(false);
   });
 

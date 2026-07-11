@@ -11,8 +11,8 @@ import type { FactKind, RequestItem, TypedFieldInputFormat } from '@/platform/in
 import {
   draftDocUpload,
   draftGuidedQuestion,
-  draftSectionHeader,
   draftTypedField,
+  draftWelcomeCard,
   insertItem,
   moveItem,
   removeItem,
@@ -31,30 +31,43 @@ const FACT_KINDS: FactKind[] = [
   'address', 'citizenship', 'employer', 'beneficiary',
 ];
 
-const INPUTS_BY_FACT_KIND: Record<FactKind, TypedFieldInputFormat[]> = {
+type TypedFieldFactKind = Exclude<FactKind, 'drivers_license'>;
+
+const TYPED_FIELD_FACT_KINDS: TypedFieldFactKind[] = [
+  'dob', 'ssn', 'income_annual', 'spending_monthly', 'address', 'citizenship', 'employer', 'beneficiary',
+];
+
+const INPUTS_BY_FACT_KIND: Record<TypedFieldFactKind, TypedFieldInputFormat[]> = {
   dob: ['date'],
   ssn: ['ssn'],
   income_annual: ['money', 'number'],
   spending_monthly: ['money', 'number'],
-  drivers_license: ['file_ref'],
   address: ['text', 'textarea'],
   citizenship: ['text', 'select'],
   employer: ['text', 'textarea'],
   beneficiary: ['text', 'textarea'],
 };
 
-function firstInputFor(kind: FactKind): TypedFieldInputFormat {
+function firstInputFor(kind: TypedFieldFactKind): TypedFieldInputFormat {
   switch (kind) {
     case 'dob': return 'date';
     case 'ssn': return 'ssn';
     case 'income_annual': return 'money';
     case 'spending_monthly': return 'money';
-    case 'drivers_license': return 'file_ref';
     case 'address': return 'text';
     case 'citizenship': return 'text';
     case 'employer': return 'text';
     case 'beneficiary': return 'text';
   }
+}
+
+function parsePositiveInt(value: string, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : fallback;
+}
+
+function positiveIntOrFallback(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 ? value : fallback;
 }
 
 function friendlyType(item: RequestItem): string {
@@ -79,6 +92,15 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
   onMove: (direction: 'up' | 'down') => void;
   onRemove: () => void;
 }): React.JSX.Element {
+  if (item.t === 'readonly_card') {
+    return (
+      <article className="grid gap-2 rounded-lg border border-[var(--kp-divider)] bg-background p-4" aria-label="Preserved legacy text block">
+        <strong>{item.label || 'Legacy text block'}</strong>
+        <p className="m-0 text-sm text-muted-foreground">This older text block will be kept when you save, but can’t be edited here.</p>
+      </article>
+    );
+  }
+
   const common = (patch: Partial<RequestItem>) => {
     onChange({ ...item, ...patch } as RequestItem);
   };
@@ -117,16 +139,16 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
           <div className="grid gap-2">
             <Label htmlFor={`${item.item_id}-fact-kind`}>Information to collect</Label>
             <select id={`${item.item_id}-fact-kind`} value={item.fact_kind} onChange={(event) => {
-              const factKind = event.target.value as FactKind;
+              const factKind = event.target.value as TypedFieldFactKind;
               onChange({ ...item, fact_kind: factKind, input: firstInputFor(factKind) });
             }}>
-              {FACT_KINDS.map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, ' ')}</option>)}
+              {TYPED_FIELD_FACT_KINDS.map((kind) => <option key={kind} value={kind}>{kind.replace(/_/g, ' ')}</option>)}
             </select>
           </div>
           <div className="grid gap-2">
             <Label htmlFor={`${item.item_id}-input`}>Answer format</Label>
             <select id={`${item.item_id}-input`} value={item.input} onChange={(event) => { onChange({ ...item, input: event.target.value as TypedFieldInputFormat }); }}>
-              {INPUTS_BY_FACT_KIND[item.fact_kind].map((input) => <option key={input} value={input}>{input}</option>)}
+              {(INPUTS_BY_FACT_KIND[item.fact_kind as TypedFieldFactKind] ?? []).map((input) => <option key={input} value={input}>{input}</option>)}
             </select>
           </div>
         </>
@@ -143,8 +165,8 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
               }} />{mime}</label>;
             })}
           </fieldset>
-          <div className="grid gap-2"><Label htmlFor={`${item.item_id}-max-files`}>Maximum files</Label><Input id={`${item.item_id}-max-files`} type="number" min="1" value={item.max_files ?? 1} onChange={(event) => { onChange({ ...item, max_files: Number(event.target.value) }); }} /></div>
-          <div className="grid gap-2"><Label htmlFor={`${item.item_id}-max-mb`}>Maximum size in MB</Label><Input id={`${item.item_id}-max-mb`} type="number" min="1" value={bytesToMb(item.max_bytes)} onChange={(event) => { onChange({ ...item, max_bytes: Number(event.target.value) * 1024 * 1024 }); }} /></div>
+          <div className="grid gap-2"><Label htmlFor={`${item.item_id}-max-files`}>Maximum files</Label><Input id={`${item.item_id}-max-files`} type="number" min="1" value={positiveIntOrFallback(item.max_files, 1)} onChange={(event) => { onChange({ ...item, max_files: parsePositiveInt(event.target.value, positiveIntOrFallback(item.max_files, 1)) }); }} /></div>
+          <div className="grid gap-2"><Label htmlFor={`${item.item_id}-max-mb`}>Maximum size in MB</Label><Input id={`${item.item_id}-max-mb`} type="number" min="1" value={bytesToMb(positiveIntOrFallback(item.max_bytes, 100 * 1024 * 1024))} onChange={(event) => { onChange({ ...item, max_bytes: parsePositiveInt(event.target.value, positiveIntOrFallback(item.max_bytes, 100 * 1024 * 1024) / (1024 * 1024)) * 1024 * 1024 }); }} /></div>
         </>
       ) : null}
 
@@ -165,12 +187,6 @@ function ItemEditor({ item, index, count, onChange, onMove, onRemove }: {
         </>
       ) : null}
 
-      {item.t === 'readonly_card' ? (
-        <>
-          <div className="grid gap-2"><Label htmlFor={`${item.item_id}-body`}>Text</Label><Textarea id={`${item.item_id}-body`} value={item.body} onChange={(event) => { onChange({ ...item, body: event.target.value }); }} /></div>
-          <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={item.acknowledgement_required ?? false} onChange={(event) => { onChange({ ...item, acknowledgement_required: event.target.checked }); }} />Client must acknowledge this</label>
-        </>
-      ) : null}
     </article>
   );
 }
@@ -179,6 +195,7 @@ export function FormBuilderEditor(props: FormBuilderEditorProps): React.JSX.Elem
   const createFirmBlueprint = useBlueprintStore((state) => state.createFirmBlueprint);
   const updateFirmBlueprint = useBlueprintStore((state) => state.updateFirmBlueprint);
   const [label, setLabel] = useState('');
+  const [welcomeMessage, setWelcomeMessage] = useState('');
   const [items, setItems] = useState<RequestItem[]>([]);
   const [error, setError] = useState('');
   const readOnly = props.blueprint?.source === 'built_in';
@@ -186,8 +203,11 @@ export function FormBuilderEditor(props: FormBuilderEditorProps): React.JSX.Elem
   /* eslint-disable react-hooks/set-state-in-effect -- A newly selected blueprint must replace this local editing draft. */
   useEffect(() => {
     const copy = props.blueprint ? copyRequestBlueprint(props.blueprint) : null;
+    const firstItem = copy?.items[0];
+    const hasWelcomeFirst = firstItem?.t === 'readonly_card' && firstItem.item_id.toLowerCase().includes('welcome');
     setLabel(copy?.label ?? '');
-    setItems(copy?.items ?? []);
+    setWelcomeMessage(hasWelcomeFirst ? firstItem.body : '');
+    setItems(hasWelcomeFirst ? copy?.items.slice(1) ?? [] : copy?.items ?? []);
     setError('');
   }, [props.blueprint]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -201,9 +221,13 @@ export function FormBuilderEditor(props: FormBuilderEditorProps): React.JSX.Elem
   const save = () => {
     setError('');
     try {
+      const savedItems = [
+        ...(welcomeMessage.trim() ? [draftWelcomeCard(welcomeMessage)] : []),
+        ...items,
+      ];
       const result = props.blueprint
-        ? updateFirmBlueprint(props.blueprint.blueprintId, { label, items })
-        : createFirmBlueprint({ blueprintId: slugFor(label), label, items });
+        ? updateFirmBlueprint(props.blueprint.blueprintId, { label, items: savedItems })
+        : createFirmBlueprint({ blueprintId: slugFor(label), label, items: savedItems });
       props.onSaved(result);
     } catch (cause) {
       setError(cause instanceof BlueprintValidationError ? cause.message : 'This form could not be saved. Please try again.');
@@ -217,8 +241,9 @@ export function FormBuilderEditor(props: FormBuilderEditorProps): React.JSX.Elem
   return (
     <section className="grid gap-5" aria-label="Form builder">
       <div className="grid gap-2"><Label htmlFor="form-name">Form name</Label><Input id="form-name" value={label} onChange={(event) => { setLabel(event.target.value); }} placeholder="For example, Annual review" /></div>
+      <div className="grid gap-2"><Label htmlFor="welcome-message">Welcome message</Label><Textarea id="welcome-message" value={welcomeMessage} onChange={(event) => { setWelcomeMessage(event.target.value); }} placeholder="Optional message shown before the client starts" /></div>
       <section className="grid gap-2 rounded-lg border border-[var(--kp-divider)] bg-[var(--kp-bg-soft)] p-3" aria-label="Form preview"><h2 className="m-0 text-base font-semibold">Form preview</h2>{items.length === 0 ? <p className="m-0 text-sm text-muted-foreground">Add items to see the form take shape.</p> : <ol className="m-0 grid gap-1 pl-5">{items.map((item) => <li key={item.item_id}>{item.label || 'Untitled item'} <span className="text-muted-foreground">{friendlyType(item)}</span></li>)}</ol>}</section>
-      <div className="flex flex-wrap gap-2" aria-label="Add item"><Button type="button" variant="outline" onClick={() => { add(draftTypedField()); }}>Add typed field</Button><Button type="button" variant="outline" onClick={() => { add(draftDocUpload()); }}>Add document upload</Button><Button type="button" variant="outline" onClick={() => { add(draftGuidedQuestion()); }}>Add guided question</Button><Button type="button" variant="outline" onClick={() => { add(draftSectionHeader()); }}>Add section header / text block</Button></div>
+      <div className="flex flex-wrap gap-2" aria-label="Add item"><Button type="button" variant="outline" onClick={() => { add(draftTypedField()); }}>Add typed field</Button><Button type="button" variant="outline" onClick={() => { add(draftDocUpload()); }}>Add document upload</Button><Button type="button" variant="outline" onClick={() => { add(draftGuidedQuestion()); }}>Add guided question</Button></div>
       <div className="grid gap-4">{items.map((item, index) => <ItemEditor key={item.item_id} item={item} index={index} count={items.length} onChange={updateItem} onMove={(direction) => { setItems((current) => moveItem(current, index, direction)); }} onRemove={() => { setItems((current) => removeItem(current, item.item_id)); }} />)}</div>
       {error ? <p role="alert" className="m-0 text-sm text-destructive">{error}</p> : null}
       <div className="flex gap-2"><Button type="button" variant="outline" onClick={props.onCancel}>Cancel</Button><Button type="button" onClick={save}>Save form</Button></div>

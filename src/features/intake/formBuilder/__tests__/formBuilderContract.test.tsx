@@ -9,9 +9,8 @@ import type { RequestItem } from '@/platform/intake/types';
 import {
   draftDocUpload,
   draftGuidedQuestion,
-  draftReadonlyCard,
-  draftSectionHeader,
   draftTypedField,
+  draftWelcomeCard,
 } from '@/platform/intake/formBuilder/formItemDrafts';
 import { FormBuilderEditor } from '../FormBuilderEditor';
 
@@ -21,31 +20,27 @@ describe('form builder intake contract', () => {
   });
 
   it('round trips a form through the store and produces a sendable request', () => {
-    const assembled: RequestItem[] = [draftSectionHeader(), draftTypedField(), draftDocUpload(), draftGuidedQuestion(), draftReadonlyCard()];
+    const assembled: RequestItem[] = [draftWelcomeCard(), draftTypedField(), draftDocUpload(), draftGuidedQuestion()];
     expect(assembled.some((item) => item.t === 'pdf_fill' || item.t === 'signature')).toBe(false);
 
     const onSaved = vi.fn<(blueprint: RequestBlueprint) => void>();
     render(<FormBuilderEditor blueprint={null} onSaved={onSaved} onCancel={vi.fn()} />);
     fireEvent.change(screen.getByLabelText('Form name'), { target: { value: 'Contract form' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Add section header / text block' }));
+    fireEvent.change(screen.getByLabelText('Welcome message'), { target: { value: 'Start here.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add typed field' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add document upload' }));
     fireEvent.click(screen.getByRole('button', { name: 'Add guided question' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add section header / text block' }));
     screen.getAllByLabelText('Label').forEach((input, index) => {
       fireEvent.change(input, { target: { value: `Item ${String(index + 1)}` } });
     });
     fireEvent.change(screen.getByLabelText('Question'), { target: { value: 'What is your income?' } });
-    const [firstText, secondText] = screen.getAllByLabelText('Text');
-    if (!firstText || !secondText) throw new Error('expected two Text fields');
-    fireEvent.change(firstText, { target: { value: 'Start here.' } });
-    fireEvent.change(secondText, { target: { value: 'Thanks.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save form' }));
 
     const saved = onSaved.mock.calls[0]?.[0];
     if (!saved) throw new Error('expected the contract form to be saved');
     expect(saved).toBeTruthy();
     expect(saved.items.map((item: { t: string }) => item.t)).toEqual(assembled.map((item) => item.t));
+    expect(saved.items.filter((item) => item.t === 'readonly_card').every((item) => item.item_id.toLowerCase().includes('welcome'))).toBe(true);
     expect(useBlueprintStore.getState().getBlueprint(saved.blueprintId)).toEqual(saved);
     expect(useBlueprintStore.getState().listBlueprints().some((blueprint) => blueprint.blueprintId === saved.blueprintId)).toBe(true);
 

@@ -34,15 +34,10 @@ export function draftGuidedQuestion(): GuidedQuestionRequestItem {
   };
 }
 
-export function draftReadonlyCard(): ReadonlyCardRequestItem {
+export function draftWelcomeCard(body = ''): ReadonlyCardRequestItem {
   return {
-    t: 'readonly_card', item_id: newItemId(), label: '', help_text: '', required: false, subject: 'primary', body: '',
+    t: 'readonly_card', item_id: `welcome_${newItemId()}`, label: 'Welcome', help_text: '', required: false, subject: 'primary', body,
   };
-}
-
-// This is a UI convention only; the wire contract has no separate section field.
-export function draftSectionHeader(): ReadonlyCardRequestItem {
-  return { ...draftReadonlyCard(), label: 'Section' };
 }
 
 export function moveItem(items: RequestItem[], index: number, direction: 'up' | 'down'): RequestItem[] {
