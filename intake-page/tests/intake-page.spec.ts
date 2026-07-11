@@ -12,6 +12,7 @@ import {
 } from '../../src/platform/intake/intakeCrypto';
 import { buildLinkFragment } from '../../src/platform/intake/intakeLink';
 import { openPageJson } from '../../src/platform/intake/pageSeal';
+import { sha256Hex } from '../../src/platform/intake/pdfTemplates/receipt';
 import type {
   BundleResponse,
   ChunkUpload,
@@ -19,8 +20,9 @@ import type {
   StateBlob,
   SubmitManifest,
 } from '../../src/platform/intake/intakeContract';
-import type { FormRequest } from '../../src/platform/intake/types';
+import type { FormRequest, PdfTemplateDescriptor } from '../../src/platform/intake/types';
 import type { WelcomeJourney } from '../../src/platform/intake/welcomeJourneyDefaults';
+import { syntheticAcroFormPdf } from './fixtures/pdfFixtures';
 
 const PAGE_BLOB_VERSION = 1;
 const PAGE_IV_BYTES = 12;
@@ -197,6 +199,30 @@ function genericUploadChecklist(maxBytes = 4): IntakeChecklist {
         accepted_mime_types: ['application/pdf'],
         max_files: 3,
         max_bytes: maxBytes,
+      },
+    ],
+  };
+}
+
+async function pdfFillChecklist(): Promise<IntakeChecklist> {
+  const source = await syntheticAcroFormPdf();
+  const template: PdfTemplateDescriptor = {
+    templateId: 'contact-information-update-01', version: 1, kind: 'acroform', sourceSha256: await sha256Hex(source),
+    sourceArtifactRef: 'sealed-artifact:contactinfoupdate0001', outputFileStem: 'contact-info', maxOutputBytes: 2 * 1024 * 1024,
+    fields: {
+      name: { kind: 'acroform', field_id: 'name', acroform_field: 'Client.Name', pdf_field_type: 'text', required: true },
+      date: { kind: 'acroform', field_id: 'date', acroform_field: 'Date', pdf_field_type: 'date', required: true },
+    },
+  };
+  const base = sampleChecklist();
+  return {
+    ...base,
+    items: [
+      base.items[0],
+      {
+        t: 'pdf_fill', item_id: 'ri_0123456789abcdef0123456789abcdef0123', label: 'Contact information update', help_text: 'Please confirm your details.',
+        required: true, subject: 'Sarah', template, prefill: [],
+        sealed_source_pdf_b64: bytesToB64(source),
       },
     ],
   };
@@ -748,6 +774,35 @@ test('keeps a warned file while a slot is still missing, then submits from the S
   expect(sealedFront.documentDetective).toEqual([
     expect.objectContaining({ warning_reason: 'wrong_doc', kept_anyway: true }),
   ]);
+});
+
+test('accepts realistic text in a pdf_fill text field instead of demanding a date shape', async ({ page }) => {
+  // Regression: dateError() previously validated every pdf_fill field as if
+  // it had to be a date, regardless of its declared pdf_field_type - a real
+  // client typing an address, phone number, or name into a text field saw
+  // "Enter a valid number." and could never enable Send. This checklist has
+  // one text field and one genuinely date-typed field (a native
+  // <input type="date">, which the browser itself already constrains to a
+  // valid date shape or empty - so this test's job is specifically the text
+  // field, the one dateError was wrongly blocking).
+  const relay = await setupRelay(page, { checklist: await pdfFillChecklist() });
+  await page.goto(relay.url);
+  await startChecklist(page);
+
+  await expect(page.getByRole('heading', { name: 'Contact information update' })).toBeVisible();
+  const sendButton = page.getByRole('button', { name: 'Send securely to your advisor' });
+  await expect(sendButton).toBeDisabled();
+
+  await page.getByLabel('Name (required)').fill('123 Main St, Springfield');
+  await expect(page.getByText('Enter a valid number.')).toHaveCount(0);
+  await expect(sendButton).toBeDisabled();
+
+  await page.getByLabel('Date (required)').fill('2020-01-01');
+  await expect(sendButton).toBeEnabled();
+
+  await sendButton.click();
+  await expect(page.getByRole('heading', { name: /You've sent the information we need/u })).toBeVisible();
+  await expectSubmitCount(relay, 'ri_0123456789abcdef0123456789abcdef0123', 1);
 });
 
 test('resumes at the next incomplete item after a full reload', async ({ page }) => {

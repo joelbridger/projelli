@@ -1,9 +1,26 @@
+import { ensureWorkerConfigured } from '@/lib/pdf-extract';
+
 import type { PdfCompletionReceipt, PdfTemplateDescriptor } from './types';
 import { verifyCompletedBytesAgainstReceipt } from './pdfTemplates/receipt';
 import {
   assertValidPdfCompletionReceipt,
   verifyReceiptAgainstDescriptor,
 } from './pdfTemplates/templateValidation';
+
+/**
+ * A completed form failed to check because OUR tooling broke (PDF.js itself
+ * could not be loaded or configured), not because the client's submitted
+ * data was unsafe or mismatched. Callers must never fold this into a
+ * data-integrity message - see routePdfFillSubmission in
+ * useIntakeInboxSync.ts, the one place this currently surfaces to the
+ * advisor.
+ */
+export class PdfToolingFailure extends Error {
+  constructor(message: string, cause: unknown) {
+    super(message, { cause });
+    this.name = 'PdfToolingFailure';
+  }
+}
 
 type PdfJsDocument = {
   numPages: number;
@@ -107,8 +124,25 @@ async function loadPdfJs(): Promise<PdfJsModule> {
     const DOMMatrixFallback = function DOMMatrixFallback() { return {}; } as unknown as typeof DOMMatrix;
     (globalThis as unknown as { DOMMatrix: typeof DOMMatrix }).DOMMatrix = DOMMatrixFallback;
   }
+  // PDF.js requires GlobalWorkerOptions.workerSrc to be set before
+  // getDocument() runs, even with disableWorker: true below (it still reads
+  // the value while setting up the in-process fake worker). This call site
+  // used to skip this entirely, so getDocument() always threw
+  // 'No "GlobalWorkerOptions.workerSrc" specified.' on every real desktop
+  // build - masked in tests only because tests/setup.ts pre-configures it
+  // globally for the whole suite before any test file runs.
+  await ensureWorkerConfigured();
   return await import('pdfjs-dist') as unknown as PdfJsModule;
 }
+
+// PDF.js's underlying "workerSrc not specified" error surfaces two ways
+// depending on which internal path handled it: raw and unwrapped from a
+// real browser's direct-worker path, or wrapped as
+// 'Setting up fake worker failed: "No "GlobalWorkerOptions.workerSrc" ...'
+// from the Node/fake-worker path (which is what every non-browser JS
+// runtime - including this test suite - always takes). Match on the core
+// phrase so both forms are recognized as the same tooling failure.
+const WORKER_SRC_TOOLING_ERROR = 'GlobalWorkerOptions.workerSrc';
 
 export async function assertSafeFlattenedPdf(completedBytes: Uint8Array): Promise<void> {
   if (!hasPdfHeader(completedBytes) || !hasPdfEndMarker(completedBytes)) {
@@ -163,6 +197,13 @@ export async function assertSafeFlattenedPdf(completedBytes: Uint8Array): Promis
     }
   } catch (error) {
     if (error instanceof Error && error.message.startsWith('Completed form')) throw error;
+    // A small set of known signatures mean OUR PDF tooling failed to even
+    // start, not that this specific form's content is unsafe or mismatched.
+    // Never describe those as a data problem - see PdfToolingFailure's
+    // doc comment for why callers must handle this differently.
+    if (error instanceof Error && error.message.includes(WORKER_SRC_TOOLING_ERROR)) {
+      throw new PdfToolingFailure('This completed form could not be checked because of an app problem, not something wrong with what your client sent.', error);
+    }
     throw new Error('Completed form could not be parsed safely as a PDF.');
   } finally {
     await document?.destroy();
