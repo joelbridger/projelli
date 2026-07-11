@@ -18,7 +18,7 @@ const MAX_BODY_BYTES = 64 * 1024; // 64 KB — generous for our small JSON bodie
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Seat-Token",
   "Access-Control-Max-Age": "600",
 };
 
