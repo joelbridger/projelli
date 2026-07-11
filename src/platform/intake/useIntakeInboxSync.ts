@@ -18,7 +18,7 @@ import {
 } from './IntakeSyncClient';
 import { loadIntakePrivateKey, loadPdfTemplateDescriptor } from './intakeKeychain';
 import { fileIntakeDocument } from './intakeFiling';
-import { pdfCompletionReceiptFromManifest, verifyPdfFillReceipt } from './pdfFillReceipt';
+import { PdfToolingFailure, pdfCompletionReceiptFromManifest, verifyPdfFillReceipt } from './pdfFillReceipt';
 import {
   intakeFactUpsert,
   type IntakeFactUpsertInput,
@@ -423,6 +423,14 @@ async function routePdfFillSubmission(
     });
     return { filePath };
   } catch (error) {
+    // PdfToolingFailure means our own PDF tooling broke, not that this
+    // client's submission is unsafe or mismatched - never file that under
+    // 'integrity_mismatch', which advisor-facing copy renders as "could not
+    // safely match... to this client request." That would blame the data
+    // for a problem the app caused.
+    if (error instanceof PdfToolingFailure) {
+      failNeedsFollowup(submission, options.intake, error.message, 'routing_failed');
+    }
     failNeedsFollowup(
       submission,
       options.intake,

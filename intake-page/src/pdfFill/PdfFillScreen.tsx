@@ -33,8 +33,8 @@ function fieldLabel(entry: PdfFieldMapEntry): string {
   return entry.field_id.replace(/[_-]+/gu, ' ').replace(/\b\w/gu, (letter) => letter.toUpperCase());
 }
 
-function dateError(value: string): boolean {
-  return Boolean(value) && !/^\d{4}-\d{2}-\d{2}$/u.test(value);
+function dateError(entry: PdfFieldMapEntry, value: string): boolean {
+  return entry.pdf_field_type === 'date' && Boolean(value) && !/^\d{4}-\d{2}-\d{2}$/u.test(value);
 }
 
 function numberError(entry: PdfFieldMapEntry, value: string): boolean {
@@ -52,7 +52,7 @@ export function PdfFillScreen({ item, firmName, sourceBytes, draft, busy, onDraf
   const pagesRef = useRef<HTMLDivElement>(null);
   const fields = useMemo(() => Object.values(item.template.fields), [item.template.fields]);
   const requiredMissing = fields.some((entry) => entry.required && !(values[entry.field_id] ?? '').trim());
-  const invalid = fields.some((entry) => dateError(values[entry.field_id] ?? '') || numberError(entry, values[entry.field_id] ?? ''));
+  const invalid = fields.some((entry) => dateError(entry, values[entry.field_id] ?? '') || numberError(entry, values[entry.field_id] ?? ''));
 
   useEffect(() => {
     let cancelled = false;
@@ -140,7 +140,7 @@ export function PdfFillScreen({ item, firmName, sourceBytes, draft, busy, onDraf
         {fields.map((entry) => {
           const id = `${item.item_id}-${entry.field_id}`;
           const value = values[entry.field_id] ?? '';
-          const error = dateError(value) || numberError(entry, value);
+          const error = dateError(entry, value) || numberError(entry, value);
           if (entry.pdf_field_type === 'checkbox') {
             return <label className="pdf-checkbox" key={entry.field_id} htmlFor={id}><input id={id} type="checkbox" checked={value === 'true'} onChange={(event) => update(entry.field_id, event.target.checked ? 'true' : 'false')} /> {fieldLabel(entry)}{entry.required ? ' (required)' : ''}</label>;
           }
