@@ -36,8 +36,16 @@ This is a sandbox where breaking things is acceptable.
   user-facing copy; no time estimates in docs.
 - **Rust builds:** this fork uses its own `./target` (global sccache shares compiled
   artifacts). Still only ONE cargo compile at a time server-wide.
-- **Codex is the default implementer** for build-wave lanes; Claude coordinates and
-  reviews (global policy). Design-phase lanes may be Claude where judgment dominates.
+- **🚨 MODEL ROUTING (Jameson's explicit rule for this program, 2026-07-11):** ALL work —
+  design lanes, build lanes, test lanes, investigations — is done by **Codex
+  (`codex-task`, gpt-5.6-terra, high reasoning effort)**. The ONLY Anthropic model in the
+  program is the coordinator itself (**Fable 5, high effort**) doing planning, lane
+  orchestration, spec unification, review gating, and merging. Do NOT spawn Claude
+  subagents for work in this program. (Exception already spent: the first five design
+  lanes of 2026-07-11 ran on Claude while Codex was quota-limited; their outputs stand but
+  every one of them gets Codex adversarial review before the spec freeze.) Standard Codex
+  hygiene binds: prompt as a real argument with stdin closed, liveness-watched, one
+  cargo-compiling job at a time, `--worktree` for parallel writers.
 
 ## Pre-made architecture decisions (locked unless the design phase proves them wrong)
 
