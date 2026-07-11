@@ -34,15 +34,17 @@ const tempDirs: string[] = [];
 const intakePageDist = path.join(repoRoot, 'intake-page', 'dist');
 beforeAll(() => {
   if (!existsSync(path.join(intakePageDist, 'index.html'))) {
-    // npm is a .cmd shim on Windows. child_process does not execute that shim
-    // without a shell, so call its Windows name explicitly and keep the test
-    // runnable on every supported host.
+    // npm is a .cmd shim on Windows. child_process must run that shim through
+    // the Windows command shell; otherwise spawnSync reports a failed launch
+    // before npm ever gets a chance to build the page.
     const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
     const result = spawnSync(npmCommand, ['--prefix', path.join(repoRoot, 'intake-page'), 'run', 'build'], {
       stdio: 'inherit',
+      shell: process.platform === 'win32',
     });
     if (result.status !== 0) {
-      throw new Error('Failed to build intake-page/dist for the hosting security tests.');
+      const detail = result.error?.message ?? `exit status ${String(result.status)}`;
+      throw new Error(`Failed to build intake-page/dist for the hosting security tests: ${detail}`);
     }
   }
 }, 180_000);

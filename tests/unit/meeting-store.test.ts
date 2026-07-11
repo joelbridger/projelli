@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import path from 'node:path';
 const invokeMock = vi.fn();
 vi.mock('@tauri-apps/api/core', () => ({ invoke: (...a: unknown[]) => invokeMock(...a) }));
 
 const writeFileMock = vi.fn(async (_path: string, _content: string) => {});
 const indexFileMock = vi.fn(async (_path: string, _matterId?: string) => {});
+
+const pathSegments = (filePath: string) =>
+  filePath.split(/[\\/]+/u).filter(Boolean);
 
 vi.mock('@/platform/matter/matterStore', () => ({
   useMatterStore: {
@@ -121,8 +123,7 @@ describe('meeting store', () => {
 
   it('indexes transcript.json and notes.docx under the meeting matter as soon as the post-stop pipeline writes them (QA-88)', async () => {
     const files = new Map<string, string>();
-    // The production code uses path.join(), so this in-memory test filesystem
-    // must accept the platform separator that join produces.
+    // This in-memory test filesystem accepts either platform separator.
     const normalized = (filePath: string) => filePath.replaceAll('\\', '/');
     files.set(
       '/ws/C/Meetings/x/meeting.json',
@@ -164,9 +165,19 @@ describe('meeting store', () => {
     await useMeetingStore.getState().stopRecording();
 
     const meetingDir = '/ws/C/Meetings/x';
-    expect(writeFileBinary).toHaveBeenCalledWith(path.join(meetingDir, 'notes.docx'), expect.any(Uint8Array));
-    expect(indexFileMock).toHaveBeenCalledWith(path.join(meetingDir, 'transcript.json'), 'm-1');
-    expect(indexFileMock).toHaveBeenCalledWith(path.join(meetingDir, 'notes.docx'), 'm-1');
+    const expectedNotesPath = `${meetingDir}/notes.docx`;
+    const expectedTranscriptPath = `${meetingDir}/transcript.json`;
+    const binaryWrite = writeFileBinary.mock.calls[0];
+    expect(binaryWrite).toBeDefined();
+    expect(pathSegments(binaryWrite?.[0] as string)).toEqual(pathSegments(expectedNotesPath));
+    expect(binaryWrite?.[1]).toBeInstanceOf(Uint8Array);
+
+    const indexedPaths = indexFileMock.mock.calls.map(([filePath, matterId]) => ({
+      path: pathSegments(filePath),
+      matterId,
+    }));
+    expect(indexedPaths).toContainEqual({ path: pathSegments(expectedTranscriptPath), matterId: 'm-1' });
+    expect(indexedPaths).toContainEqual({ path: pathSegments(expectedNotesPath), matterId: 'm-1' });
   });
 
   it('extends the Rust-authored meeting.json rather than reconstructing/overwriting matterId/startedAt/consent', async () => {
