@@ -10,13 +10,14 @@ const outDir = process.env.OFFLINE_GATE_OUT || 'C:/offline-mode-gate/evidence';
 const workspace = process.env.OFFLINE_GATE_WORKSPACE || 'C:/offline-mode-gate/workspace';
 const mode = process.env.OFFLINE_GATE_MODE || 'offline';
 const port = process.env.DESKTOP_CDP_PORT || '9223';
+const vitePort = process.env.OFFLINE_GATE_VITE_PORT || '5173';
 
 async function pageForBench() {
   const info = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json();
   const ws = info.webSocketDebuggerUrl.replace(/^ws:\/\/[^/]+\//, `ws://127.0.0.1:${port}/`);
   const browser = await chromium.connectOverCDP(ws);
   const page = browser.contexts().flatMap((context) => context.pages())
-    .find((candidate) => /(?:127\.0\.0\.1|localhost|\[::1\]):5173/.test(candidate.url()));
+    .find((candidate) => new RegExp(`(?:127\\.0\\.0\\.1|localhost|\\[::1\\]):${vitePort}`).test(candidate.url()));
   if (!page) throw new Error('Lantern WebView2 page was not found on the CDP port.');
   return { browser, page };
 }

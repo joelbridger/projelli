@@ -8,6 +8,8 @@ $root = 'C:\offline-mode-gate'
 $evidence = "$root\evidence"
 $state = "$root\pre-gate-state.json"
 $proxyPort = 18080
+$cdpPort = if ($env:OFFLINE_GATE_CDP_PORT) { $env:OFFLINE_GATE_CDP_PORT } else { '9223' }
+$vitePort = if ($env:OFFLINE_GATE_VITE_PORT) { $env:OFFLINE_GATE_VITE_PORT } else { '5173' }
 $appRoot = if ($env:OFFLINE_GATE_APP_ROOT) { $env:OFFLINE_GATE_APP_ROOT } else { 'C:\keepance' }
 $python = 'C:\Users\james\AppData\Local\Programs\Python\Python312\python.exe'
 $mitm = 'C:\Users\james\AppData\Roaming\Python\Python312\Scripts\mitmdump.exe'
@@ -57,6 +59,8 @@ if ($Action -eq 'setup') {
 @echo off
 set APPDATA=$root\appdata\Roaming
 set LOCALAPPDATA=$root\appdata\Local
+set LANTERN_DEV_PORT=$vitePort
+set WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=$cdpPort
 set LANTERN_OFFLINE_GATE_PROXY=http://127.0.0.1:$proxyPort
 set HTTP_PROXY=http://127.0.0.1:$proxyPort
 set HTTPS_PROXY=http://127.0.0.1:$proxyPort
