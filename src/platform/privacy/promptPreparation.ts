@@ -7,15 +7,47 @@ import type { AttachmentBytes, ProviderResponse, SendOptions, StreamOptions, Str
 import type { AuditEvent } from '@/platform/types/audit';
 import type { RunWithEgressAuditOptions } from './sendWithEgressAudit';
 import { runWithEgressAudit } from './sendWithEgressAudit';
-export {
-  assertCloudPreparation,
-  getPreparationEnforcementMode,
-  isPreparationStamp,
-  setPreparationEnforcementMode,
-  type PreparationEnforcementMode,
-  type PreparationStamp,
-} from './promptPreparationGuard';
-import { createPreparationStamp } from './promptPreparationGuard';
+declare const preparationBrand: unique symbol;
+export interface PreparationStamp { readonly [preparationBrand]: 'prepared-cloud-request'; }
+const validStamps = new WeakSet();
+
+/** This is deliberately module-private: only this preparation path can stamp a request. */
+function createPreparationStamp(): PreparationStamp {
+  const stamp = {} as PreparationStamp;
+  validStamps.add(stamp);
+  return stamp;
+}
+
+export function isPreparationStamp(value: unknown): value is PreparationStamp {
+  return typeof value === 'object' && value !== null && validStamps.has(value);
+}
+
+export type PreparationEnforcementMode = 'off' | 'warn' | 'enforce';
+let enforcementMode: PreparationEnforcementMode = 'enforce';
+
+function mayChangeEnforcementForTests(): boolean {
+  return import.meta.env.DEV ||
+    (typeof process !== 'undefined' && process.env['NODE_ENV'] === 'test');
+}
+
+export function setPreparationEnforcementMode(mode: PreparationEnforcementMode): void {
+  if (!mayChangeEnforcementForTests()) {
+    throw new Error('[prompt preparation] enforcement mode can only change in development or tests');
+  }
+  enforcementMode = mode;
+}
+
+export function getPreparationEnforcementMode(): PreparationEnforcementMode {
+  return enforcementMode;
+}
+
+/** Cloud adapters call this immediately before their first network request. */
+export function assertCloudPreparation(stamp: unknown, provider: string): void {
+  if (isPreparationStamp(stamp) || enforcementMode === 'off') return;
+  const message = `[prompt preparation] cloud ${provider} request was not prepared`;
+  if (enforcementMode === 'enforce') throw new Error(message);
+  console.warn(message);
+}
 
 export type PromptOrigin =
   | 'typed_question' | 'system_prompt' | 'chat_history' | 'retrieval' | 'open_file' | 'email'
@@ -105,7 +137,7 @@ function redactUrl(url: string): { value: string; kinds: SecretKind[] } {
   return {
     value: url.replace(/([a-z][a-z0-9+.-]*:\/\/[^\s<>"')\]]+)(#[^\s<>"')\]]+)/gi, (_all, base: string) => {
       kinds.push(/\/i\/[^/?#]+$/i.test(base) ? 'intake_link_secret' : 'url_fragment');
-      return `${base}#[private-link-hidden]`;
+      return `${base}#[link-fragment-hidden]`;
     }).replace(/([?&])((?:x-amz-[^=&]+|x-goog-[^=&]+|sig|token|access_token|id_token|refresh_token|code|api_key|key|secret|signature|password)=)([^&#\s"')\]]*)/gi,
       (_all, sep: string, key: string) => {
         kinds.push(/^(x-amz-|x-goog-|sig(?:=|$)|signature)/i.test(key) ? 'signed_url' : /^(code|access_token|id_token|refresh_token)/i.test(key) ? 'oauth_token' : 'api_key');
@@ -134,15 +166,23 @@ function redactText(source: string): Redaction {
   replace(/\b(sk-(?:ant-|proj-)?|AIza|gh[pousr]_|xox[baprs]-|rk_live_|pk_live_)[A-Za-z0-9_-]{8,}\b/g, 'api_key', '[private-value-hidden]');
   replace(/(-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----)[\s\S]*?-----END(?: [A-Z]+)? PRIVATE KEY-----/g, 'private_key', '$1[private-key-hidden]');
   replace(/\b(cookie\s*:\s*)[^\r\n]+/gi, 'cookie');
-  replace(/\b((?:password|passwd|pwd)\s*[:=]\s*)[^\s,;"'}]+/gi, 'password');
-  replace(/\b((?:access_token|refresh_token|id_token|client_secret|code_verifier)\s*[:=]\s*)[^\s,;"'}&]+/gi, 'oauth_token');
-  replace(/\b((?:oauth_code|code)\s*[:=]\s*)[^\s,;"'}&]+/gi, 'oauth_code');
-  replace(/\b((?:api[_-]?key|secret)\s*[:=]\s*)[^\s,;"'}&]+/gi, 'api_key');
+  // Accept both prose (`access_token=value`) and JSON (`"access_token":"value"`).
+  // Tool results are JSON, so quoted field names are just as sensitive as the
+  // command-line and URL forms above.
+  replace(/((?:\b(?:password|passwd|pwd)\b|["'](?:password|passwd|pwd)["'])\s*[:=]\s*)(?:["'])?[^\s,;"'}]+/gi, 'password');
+  replace(/((?:\b(?:access_token|refresh_token|id_token|client_secret|code_verifier)\b|["'](?:access_token|refresh_token|id_token|client_secret|code_verifier)["'])\s*[:=]\s*)(?:["'])?[^\s,;"'}&]+/gi, 'oauth_token');
+  replace(/((?:\b(?:oauth_code|code)\b|["'](?:oauth_code|code)["'])\s*[:=]\s*)(?:["'])?[^\s,;"'}&]+/gi, 'oauth_code');
+  replace(/((?:\b(?:api[_-]?key|secret)\b|["'](?:api[_-]?key|secret)["'])\s*[:=]\s*)(?:["'])?[^\s,;"'}&]+/gi, 'api_key');
   replace(/\b([a-z]+:\/\/[^\s:@/]+:)[^\s@/]+@/gi, 'connection_string');
-  // URL encoded, folded, or zero-width secrets may not have an exactly matching
-  // original token. Redact the containing named field rather than risk sending it.
-  if (/(?:authorization:\s*bearer|access_token\s*[:=]|api[_-]?key\s*[:=]|password\s*[:=]|-----BEGIN.*PRIVATE KEY-----)/i.test(normalized) && kinds.length === 0) {
-    text = '[private material hidden]'; kinds.push('api_key');
+  // Percent encoding, folded headers, and zero-width characters can expose a
+  // *second* secret only after normalization. A previous match in the source
+  // must not make that hidden value look safe (for example, a visible password
+  // followed by an encoded access token). The original positions cannot be
+  // mapped safely after decoding, so hide this enclosing value wholesale.
+  const normalizedSecret = /(?:authorization:\s*bearer|access_token\s*[:=]|refresh_token\s*[:=]|id_token\s*[:=]|api[_-]?key\s*[:=]|password\s*[:=]|-----BEGIN.*PRIVATE KEY-----)/i.test(normalized);
+  if (normalized !== source && normalizedSecret) {
+    text = '[private material hidden]';
+    if (!kinds.includes('api_key')) kinds.push('api_key');
   }
   return { text, kinds };
 }
@@ -396,5 +436,23 @@ export function prepareToolResultContinuation(value: string): string {
   const result = prepareCloudRequest({ prompt: value, parts: [{ id: 'tool-result', origin: 'tool_result', label: 'Tool result', text: value }] });
   if (result.status === 'ready') return result.request.prompt;
   pendingReview = { findings: result.status === 'needs_user_decision' ? result.findings : [], surface: 'tool_result' };
+  throw new Error('prompt_review_required');
+}
+
+/**
+ * Workspace rules are background material: there is no safe mid-request
+ * review dialog for them. Scan them before a cloud adapter appends them and
+ * stop the send if anything needs a redaction decision.
+ */
+export function prepareBackgroundSystemInstruction(value: string): string {
+  const result = prepareCloudRequest({
+    prompt: value,
+    parts: [{ id: 'prompt', origin: 'system_prompt', label: 'Workspace AI rules', text: value }],
+  });
+  if (result.status === 'ready') return result.request.prompt;
+  pendingReview = {
+    findings: result.status === 'needs_user_decision' ? result.findings : [],
+    surface: 'system_prompt',
+  };
   throw new Error('prompt_review_required');
 }

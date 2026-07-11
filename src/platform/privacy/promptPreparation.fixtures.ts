@@ -13,6 +13,13 @@ export const SECRET_SCRUB_FIXTURES = {
   markdown: '[client link](https://example.test/i/abc#private-link)',
   attachmentText: 'Attached statement includes api_key=attachment-secret-value.',
   attachmentFilename: 'access_token=filename-secret-value.pdf',
+  secretValues: [
+    'bearer-test-value-123456', 'signature-test-value',
+    'api03-test-value-1234567890', 'D-test-value-1234567890', 'testvalue1234567890', 'test-value123456',
+    'oauth-code-value', 'access-value', 'refresh-value', 'client-secret-value', 'verifier-value',
+    'secret-pass', 'other-pass', 'db-pass', 'session=abc123', 'private-key-material',
+    'intake-secret', 'aws-secret', 'google-secret', 'azure-secret', 'encoded-secret', 'zero-width-secret', 'private-link',
+  ],
   safe: [
     'https://example.test/help?topic=tax',
     'The word token is ordinary prose here.',

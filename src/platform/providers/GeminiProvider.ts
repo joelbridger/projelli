@@ -23,7 +23,7 @@ import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInf
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
-import { scanPromptPart } from '@/platform/privacy/promptPreparation';
+import { prepareBackgroundSystemInstruction, prepareToolResultContinuation, scanPromptPart } from '@/platform/privacy/promptPreparation';
 import { getMaxContextTokens } from './context-limits';
 import {
   abortAwareSleep,
@@ -236,8 +236,8 @@ export class GeminiProvider implements Provider {
       return [{ text: prompt }];
     }
     const parts: GeminiPart[] = [];
-    for (const { att, bytes } of attachmentBytes) {
-      const block = await this.formatAttachmentForRequest(att, bytes);
+    for (const { att, bytes, extractedText } of attachmentBytes) {
+      const block = await this.formatAttachmentForRequest(att, bytes, extractedText);
       if ('_text_extract' in block) {
         // PDF text-extract: inject extracted text as a text part.
         // Prompt-injection defense (Codex injection audit #3): attacker-
@@ -281,7 +281,8 @@ export class GeminiProvider implements Provider {
     // Build system instruction with AI Rules prepended if available
     let systemInstruction = options?.systemPrompt || '';
     if (this.aiRules) {
-      systemInstruction = this.aiRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemInstruction = preparedRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
     }
 
     if (systemInstruction) {
@@ -340,29 +341,24 @@ export class GeminiProvider implements Provider {
       for (const part of functionCallParts) {
         const call = part.functionCall;
         if (!call) continue;
+        let toolResult: Record<string, unknown>;
         try {
           const result = await this.toolExecutor(call.name, call.args);
-          responseParts.push({
-            functionResponse: {
-              name: call.name,
-              // Gemini requires the response to be a JSON object — wrap scalar
-              // results so the API accepts them.
-              response:
-                result && typeof result === 'object' && !Array.isArray(result)
-                  ? (result as Record<string, unknown>)
-                  : { result },
-            },
-          });
+          // Gemini requires the response to be a JSON object — wrap scalar
+          // results so the API accepts them.
+          toolResult = result && typeof result === 'object' && !Array.isArray(result)
+            ? result as Record<string, unknown>
+            : { result };
         } catch (error) {
-          responseParts.push({
-            functionResponse: {
-              name: call.name,
-              response: {
-                error: error instanceof Error ? error.message : String(error),
-              },
-            },
-          });
+          toolResult = { error: error instanceof Error ? error.message : String(error) };
         }
+        // Do not catch a preparation block as if it were a tool failure.
+        responseParts.push({
+          functionResponse: {
+            name: call.name,
+            response: JSON.parse(prepareToolResultContinuation(JSON.stringify(toolResult))) as Record<string, unknown>,
+          },
+        });
       }
 
       contents.push({
@@ -434,7 +430,8 @@ export class GeminiProvider implements Provider {
 
     let systemInstruction = sendOpts.systemPrompt || '';
     if (this.aiRules) {
-      systemInstruction = this.aiRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemInstruction = preparedRules + (systemInstruction ? `\n\n---\n\n${systemInstruction}` : '');
     }
     if (systemInstruction) {
       request.systemInstruction = { parts: [{ text: systemInstruction }] };
@@ -678,10 +675,11 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
    */
   async formatAttachmentForRequest(
     att: ChatAttachment,
-    bytes: Uint8Array
+    bytes: Uint8Array,
+    extractedText?: string,
   ): Promise<ProviderContentBlock> {
     if (att.type === 'image') {
-      requireScannableAttachment(att);
+      requireScannableAttachment(att, extractedText);
       return {
         inlineData: {
           mimeType: att.mimeType,
@@ -726,14 +724,15 @@ IMPORTANT: Respond ONLY with the JSON object. No markdown, no code blocks.`;
   }
 }
 
-function requireScannableAttachment(att: ChatAttachment): void {
+function requireScannableAttachment(att: ChatAttachment, extractedText?: string): void {
   const scan = scanPromptPart({
     id: 'attachment',
     origin: 'attachment_binary',
     label: att.fileName,
-    attachment: {},
+    attachment: { canRedact: false, ...(extractedText !== undefined ? { extractedText } : {}) },
   });
   if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
 }
 
 async function readScannablePdf(

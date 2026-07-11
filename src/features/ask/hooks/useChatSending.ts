@@ -18,6 +18,7 @@ import { loadAttachmentBytes } from './loadAttachmentBytes';
 import { withAskTimeout, ASK_RETRIEVAL_TIMEOUT_MS } from '@/features/ask/askTimeout';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { estimateImageTokens } from '@/features/ask/attachments/imageTokens';
+import { extractImageTextForCloudScan } from '@/features/ask/attachments/imageOcrForCloudScan';
 import { estimatePdfTokens } from '@/features/ask/attachments/pdfTokens';
 import type { PdfExtractionResult } from '@/lib/pdf-extract';
 import type { ChatAttachment, AIChatFile, ChatMessage, WorkspaceSource, TurnScope } from '@/platform/types/ai';
@@ -1646,10 +1647,23 @@ export function useChatSending(deps: UseChatSendingDeps) {
         // read is skipped gracefully (logged but not fatal).
         // Load bytes ONLY for sentAttachments — unconsented exports were already
         // excluded above, so their bytes are never read or handed to the provider.
-        const attachmentBytes = await loadAttachmentBytes(
+        let attachmentBytes = await loadAttachmentBytes(
           sentAttachments,
           workspaceServiceRef?.current?.getBackend() ?? null,
         );
+        // Vision uploads are only allowed after the existing local OCR seam has
+        // read their text. Clean images retain their original bytes; a secret or
+        // an OCR failure is blocked by prompt preparation below (we cannot safely
+        // redact image pixels yet).
+        const imageOcrText = new Map<string, string>();
+        for (const attachment of attachmentBytes ?? []) {
+          const text = await extractImageTextForCloudScan(attachment);
+          if (text !== undefined) imageOcrText.set(attachment.att.id, text);
+        }
+        attachmentBytes = attachmentBytes?.map((attachment) => {
+          const extractedText = imageOcrText.get(attachment.att.id);
+          return extractedText === undefined ? attachment : { ...attachment, extractedText };
+        });
 
         // F2.5 — the system prompt's "you have read/write file tools" block MUST
         // match what was ACTUALLY registered (same predicate). When file access
@@ -1787,6 +1801,7 @@ export function useChatSending(deps: UseChatSendingDeps) {
                 { id: 'facts', origin: 'chat_history', label: 'Saved chat facts', text: facts.map((fact) => fact.text).join('\n') },
                 ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => {
                   const extraction = pdfExtractions[attachment.att.id];
+                  const imageText = imageOcrText.get(attachment.att.id);
                   return {
                     id: `attachment-${attachment.att.id}`,
                     origin: 'attachment_text' as const,
@@ -1795,7 +1810,9 @@ export function useChatSending(deps: UseChatSendingDeps) {
                       attachmentId: attachment.att.id,
                       attachmentIndex,
                       canRedact: attachment.att.type === 'pdf',
-                      ...(extraction ? { extractedText: extraction.pages.join('\n') } : {}),
+                      ...(extraction
+                        ? { extractedText: extraction.pages.join('\n') }
+                        : imageText !== undefined ? { extractedText: imageText } : {}),
                     },
                   };
                 }),
@@ -1910,7 +1927,8 @@ export function useChatSending(deps: UseChatSendingDeps) {
               { id: 'open-files', origin: 'open_file', label: 'Open files', text: fileBlock },
               { id: 'facts', origin: 'chat_history', label: 'Saved chat facts', text: facts.map((fact) => fact.text).join('\n') },
               ...(attachmentBytes ?? []).map((attachment, attachmentIndex) => {
-                const extraction = pdfExtractions[attachment.att.id];
+                  const extraction = pdfExtractions[attachment.att.id];
+                  const imageText = imageOcrText.get(attachment.att.id);
                 return {
                   id: `attachment-${attachment.att.id}`,
                   origin: 'attachment_text' as const,
@@ -1918,8 +1936,10 @@ export function useChatSending(deps: UseChatSendingDeps) {
                   attachment: {
                     attachmentId: attachment.att.id,
                     attachmentIndex,
-                    canRedact: attachment.att.type === 'pdf',
-                    ...(extraction ? { extractedText: extraction.pages.join('\n') } : {}),
+                      canRedact: attachment.att.type === 'pdf',
+                      ...(extraction
+                        ? { extractedText: extraction.pages.join('\n') }
+                        : imageText !== undefined ? { extractedText: imageText } : {}),
                   },
                 };
               }),

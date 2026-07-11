@@ -24,7 +24,7 @@ import { bytesToBase64 } from './providerUtils';
 import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
 import { getMaxContextTokens } from './context-limits';
 import { extractPdfText } from '@/lib/pdf-extract';
-import { scanPromptPart } from '@/platform/privacy/promptPreparation';
+import { prepareBackgroundSystemInstruction, prepareToolResultContinuation, scanPromptPart } from '@/platform/privacy/promptPreparation';
 import {
   abortAwareSleep,
   composeRequestSignal,
@@ -222,10 +222,10 @@ export class ClaudeProvider implements Provider {
       return prompt;
     }
     const blocks: ClaudeContentBlock[] = [];
-    for (const { att, bytes } of attachmentBytes) {
+    for (const { att, bytes, extractedText } of attachmentBytes) {
       // formatAttachmentForRequest returns ClaudeImageBlock which is compatible
       // with ClaudeContentBlock (now includes 'image' type and source field).
-      const formatted = await this.formatAttachmentForRequest(att, bytes);
+      const formatted = await this.formatAttachmentForRequest(att, bytes, extractedText);
       blocks.push(formatted as unknown as ClaudeContentBlock);
     }
     // Prompt-injection defense (Codex injection audit, BUG-059 residual): Claude
@@ -269,7 +269,8 @@ export class ClaudeProvider implements Provider {
     // Build system prompt with AI Rules prepended if available
     let systemPrompt = options?.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemPrompt = preparedRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
 
     if (systemPrompt) {
@@ -334,22 +335,20 @@ export class ClaudeProvider implements Provider {
       for (const toolUse of toolUses) {
         if (!toolUse.name || !toolUse.id) continue;
 
+        let toolResult: string;
         try {
-          const result = await this.toolExecutor(toolUse.name, toolUse.input ?? {});
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: JSON.stringify(result),
-          });
+          toolResult = JSON.stringify(await this.toolExecutor(toolUse.name, toolUse.input ?? {}));
         } catch (error) {
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: JSON.stringify({
-              error: error instanceof Error ? error.message : String(error),
-            }),
+          toolResult = JSON.stringify({
+            error: error instanceof Error ? error.message : String(error),
           });
         }
+        // Do not catch this preparation block as if it were a tool failure.
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          content: prepareToolResultContinuation(toolResult),
+        });
       }
 
       // Add assistant response and tool results to conversation
@@ -418,7 +417,8 @@ export class ClaudeProvider implements Provider {
 
     let systemPrompt = sendOpts.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      const preparedRules = prepareBackgroundSystemInstruction(this.aiRules);
+      systemPrompt = preparedRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
     if (systemPrompt) {
       request.system = systemPrompt;
@@ -741,9 +741,9 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
    * For PDFs on non-native models (Haiku): throws so the caller (AIChatViewer)
    *   can route to the text-extract path instead.
    */
-  async formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): Promise<ProviderContentBlock> {
+  async formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array, extractedText?: string): Promise<ProviderContentBlock> {
     if (att.type === 'image') {
-      requireScannableAttachment(att);
+      requireScannableAttachment(att, extractedText);
       const data = bytesToBase64(bytes);
       const block: ClaudeImageBlock = {
         type: 'image',
@@ -805,14 +805,15 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
   }
 }
 
-function requireScannableAttachment(att: ChatAttachment): void {
+function requireScannableAttachment(att: ChatAttachment, extractedText?: string): void {
   const scan = scanPromptPart({
     id: 'attachment',
     origin: 'attachment_binary',
     label: att.fileName,
-    attachment: {},
+    attachment: { canRedact: false, ...(extractedText !== undefined ? { extractedText } : {}) },
   });
   if (scan.blocked) throw new Error('unscannable_attachment');
+  if (scan.findings.length) throw new Error('prompt_review_required');
 }
 
 async function requireScannablePdf(att: ChatAttachment, bytes: Uint8Array): Promise<void> {

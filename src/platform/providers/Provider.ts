@@ -93,6 +93,8 @@ export type ProviderContentBlock =
 export interface AttachmentBytes {
   att: ChatAttachment;
   bytes: Uint8Array;
+  /** Local-only OCR/PDF scan text used to prove a binary upload was inspected. */
+  extractedText?: string;
 }
 
 /**
@@ -285,7 +287,8 @@ export interface Provider {
    */
   formatAttachmentForRequest(
     att: ChatAttachment,
-    bytes: Uint8Array
+    bytes: Uint8Array,
+    extractedText?: string,
   ): ProviderContentBlock | Promise<ProviderContentBlock>;
 
   /**

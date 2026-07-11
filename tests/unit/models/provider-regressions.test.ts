@@ -183,6 +183,76 @@ describe('provider regressions — BUG-071 tool-call loop cap', () => {
   });
 });
 
+describe('provider regressions — prepared tool-result continuations', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('stops OpenAI before a secret-bearing tool result reaches the follow-up request', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({
+      model: 'gpt-4o',
+      choices: [{ message: { content: null, tool_calls: [{ id: 'call-1', type: 'function', function: { name: 'read', arguments: '{}' } }] }, finish_reason: 'tool_calls' }],
+      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = new OpenAIProvider({ apiKey: 'test-key', model: 'gpt-4o' });
+    provider.setTools([{ name: 'read', description: 'read', input_schema: { type: 'object', properties: {} } }], async () => ({ access_token: 'tool-secret' }));
+
+    await expect(provider.sendMessage('read')).rejects.toThrow('prompt_review_required');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops Claude before a secret-bearing tool result reaches the follow-up request', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({
+      id: 'msg_tool', type: 'message', role: 'assistant',
+      content: [{ type: 'tool_use', id: 'tool-1', name: 'read', input: {} }],
+      model: 'claude-3-5-sonnet-20241022', stop_reason: 'tool_use', usage: { input_tokens: 1, output_tokens: 1 },
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = new ClaudeProvider({ apiKey: 'test-key', model: 'claude-3-5-sonnet-20241022' });
+    provider.setTools([{ name: 'read', description: 'read', input_schema: { type: 'object', properties: {} } }], async () => ({ access_token: 'tool-secret' }));
+
+    await expect(provider.sendMessage('read')).rejects.toThrow('prompt_review_required');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops Gemini before a secret-bearing tool result reaches the follow-up request', async () => {
+    const fetchMock = vi.fn(() => Promise.resolve(jsonResponse({
+      candidates: [{ content: { parts: [{ functionCall: { name: 'read', args: {} } }] }, finishReason: 'STOP' }],
+      usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 1 },
+    })));
+    vi.stubGlobal('fetch', fetchMock);
+    const provider = new GeminiProvider({ apiKey: 'test-key', model: 'gemini-1.5-pro' });
+    provider.setTools([{ name: 'read', description: 'read', input_schema: { type: 'object', properties: {} } }], async () => ({ access_token: 'tool-secret' }));
+
+    await expect(provider.sendMessage('read')).rejects.toThrow('prompt_review_required');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('provider regressions — prepared workspace AI rules', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('blocks secret-bearing workspace rules in every cloud adapter before fetch', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const providers = [
+      new OpenAIProvider({ apiKey: 'test-key', model: 'gpt-4o', aiRules: 'access_token=rules-secret' }),
+      new ClaudeProvider({ apiKey: 'test-key', model: 'claude-3-5-sonnet-20241022', aiRules: 'access_token=rules-secret' }),
+      new GeminiProvider({ apiKey: 'test-key', model: 'gemini-1.5-pro', aiRules: 'access_token=rules-secret' }),
+    ];
+
+    for (const provider of providers) {
+      await expect(provider.sendMessage('ordinary prompt')).rejects.toThrow('prompt_review_required');
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('provider regressions — BUG-073 final SSE line without newline', () => {
   afterEach(() => {
     vi.unstubAllGlobals();

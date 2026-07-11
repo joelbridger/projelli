@@ -35,6 +35,18 @@ describe('ClaudeProvider.formatAttachmentForRequest (image)', () => {
       .rejects.toThrow('unscannable_attachment');
   });
 
+  it('allows the original image bytes after clean local OCR text is supplied', async () => {
+    const provider = makeProvider('claude-3-5-sonnet-20241022');
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'A clean chart title'))
+      .resolves.toMatchObject({ type: 'image' });
+  });
+
+  it('blocks an image whose local OCR finds a secret because pixels cannot be redacted yet', async () => {
+    const provider = makeProvider('claude-3-5-sonnet-20241022');
+    await expect(provider.formatAttachmentForRequest(imageAtt, PNG_BYTES, 'access_token=image-secret'))
+      .rejects.toThrow('prompt_review_required');
+  });
+
   it('blocks an unreadable PDF before native upload', async () => {
     const provider = makeProvider('claude-3-5-sonnet-20241022');
     await expect(provider.formatAttachmentForRequest(pdfAtt, new Uint8Array([0x25, 0x50])))

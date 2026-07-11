@@ -53,6 +53,14 @@ describe('prompt preparation red-team catalog', () => {
       expect(JSON.stringify(scan.findings)).not.toContain('intake-secret');
       expect(JSON.stringify(scan.findings)).not.toContain('aws-secret');
       expect(scan.redactedText).not.toContain('private-key-material');
+      const prepared = prepareCloudRequest({ prompt: text, systemPrompt: text });
+      expect(prepared.status).toBe('needs_user_decision');
+      if (prepared.status !== 'needs_user_decision') continue;
+      for (const value of SECRET_SCRUB_FIXTURES.secretValues) {
+        if (!text.includes(value)) continue;
+        expect(prepared.redactedRequest.prompt).not.toContain(value);
+        expect(prepared.redactedRequest.systemPrompt).not.toContain(value);
+      }
     }
   });
 
@@ -64,9 +72,20 @@ describe('prompt preparation red-team catalog', () => {
 
   it('keeps the safe link path while hiding fragments and signed query values', () => {
     const scan = scanPromptPart({ id: 'urls', origin: 'email', label: 'Email', text: SECRET_SCRUB_FIXTURES.urls });
-    expect(scan.redactedText).toContain('https://example.test/i/abc#[private-link-hidden]');
+    expect(scan.redactedText).toContain('https://example.test/i/abc#[link-fragment-hidden]');
     expect(scan.redactedText).toContain('https://s3.example.test/file?X-Amz-Signature=[private-value-hidden]');
     expect(scan.redactedText).not.toContain('intake-secret');
+  });
+
+  it('hides a normalized secret even when a visible secret was already redacted', () => {
+    const original = 'password=hide access%5Ftoken%3Dencoded-secret';
+    const prepared = prepareCloudRequest({ prompt: original, systemPrompt: original });
+    expect(prepared.status).toBe('needs_user_decision');
+    if (prepared.status !== 'needs_user_decision') return;
+    expect(prepared.redactedRequest.prompt).not.toContain('hide');
+    expect(prepared.redactedRequest.prompt).not.toContain('encoded-secret');
+    expect(prepared.redactedRequest.systemPrompt).not.toContain('hide');
+    expect(prepared.redactedRequest.systemPrompt).not.toContain('encoded-secret');
   });
 
   it('blocks an unscannable cloud attachment', () => {
@@ -157,6 +176,7 @@ describe('prompt preparation red-team catalog', () => {
 
   it('blocks a secret-bearing tool continuation before the follow-up request', () => {
     expect(() => prepareToolResultContinuation(SECRET_SCRUB_FIXTURES.urls)).toThrow('prompt_review_required');
+    expect(() => prepareToolResultContinuation('{"access_token":"tool-secret"}')).toThrow('prompt_review_required');
     expect(prepareToolResultContinuation('ordinary tool response')).toBe('ordinary tool response');
   });
 
