@@ -1,8 +1,7 @@
 /**
- * Temporary boundary for build-wave integration.
- * B1-PENDING: Replace these local screen input shapes with imports from
- * `@/platform/crm/types` once B1 lands. These are deliberately view-only;
- * this lane never owns persistence or connector writes.
+ * Temporary B1-compatible boundary for this screen lane. These names and fields
+ * intentionally mirror the frozen B1 CRM contracts, so the eventual engine
+ * import is a type move, not a data-shape migration. This lane owns no storage.
  */
 export type SyncState =
   | 'live'
@@ -10,13 +9,23 @@ export type SyncState =
   | 'last_synced'
   | 'offline'
   | 'needs_attention';
-export type NoteAudience = 'internal' | 'client_facing';
+export type NoteAudience = 'internal' | 'client-facing';
 export type ProposalKind =
   | 'workflow_launch'
   | 'task_create'
   | 'fact_add'
   | 'communication_draft';
-export type ProposalState = 'pending' | 'approved' | 'dismissed' | 'failed';
+export type ProposalState = 'pending' | 'approved' | 'rejected' | 'expired';
+
+export interface EntityRef {
+  kind: string;
+  id: string;
+  label?: string;
+}
+export interface ActorRef {
+  id: string;
+  label?: string;
+}
 
 export interface CrmSource {
   id: string;
@@ -61,15 +70,52 @@ export interface CrmNote {
   pinned?: boolean;
   mentions?: readonly string[];
 }
-export interface CrmProposal {
+/** Frozen 02 §1.15 / B1 durable approval record. Never replace this with card state. */
+export interface ProposalRecord {
   id: string;
-  kind: ProposalKind;
+  kind: 'proposalRecord';
+  householdRef: EntityRef | null;
+  proposalKind: ProposalKind;
+  proposedMutation:
+    | { kind: 'workflow_launch'; workflowTemplateId: string }
+    | {
+        kind: 'task_create';
+        task: {
+          householdRef: EntityRef | null;
+          title: string;
+          assigneeUserId: string | null;
+          due?: string;
+          priority?: 'high' | 'normal' | 'low';
+          contextRefs: readonly EntityRef[];
+        };
+      }
+    | { kind: 'fact_add'; fact: Record<string, unknown> }
+    | { kind: 'communication_draft'; draftRef: EntityRef };
+  proposedBy: ActorRef;
+  contextRefs: readonly EntityRef[];
   state: ProposalState;
   rationale: string;
-  context: string;
+  decidedAt?: string;
+  decidedBy?: ActorRef;
+  appliedEntityRef?: EntityRef;
+}
+
+/**
+ * Lossless render adapter around one durable ProposalRecord. The optional
+ * review material is derived at render time; it never substitutes for the
+ * proposed mutation or decision ledger held by `record`.
+ */
+export interface CrmProposal {
+  record: ProposalRecord;
+  contextLabel?: string;
   sources: readonly CrmSource[];
-  changedSinceReview?: boolean;
-  error?: string;
+  review?: {
+    changedSinceReview?: boolean;
+    before?: string;
+    after?: string;
+    selectionCleared?: boolean;
+  };
+  deliveryError?: string;
 }
 export interface CrmFieldValue {
   id: string;
@@ -96,6 +142,24 @@ export interface HouseholdRecord {
   tags?: readonly string[];
   schedulingLinkUrl?: string;
 }
+
+export interface HouseholdDirectoryEntry {
+  id: string;
+  name: string;
+  lifecycle: string;
+  primaryAdvisor: string;
+  serviceTier: string;
+  peopleCount: number;
+}
+
+export interface IntakeFactProposal {
+  id: string;
+  label: string;
+  value: string;
+  asOf: string;
+  sourceLabel: string;
+  state: 'pending' | 'approved' | 'rejected';
+}
 export interface IntakeSubmission {
   id: string;
   submittedAt: string;
@@ -107,22 +171,35 @@ export interface IntakeSubmission {
     confidence: 'high' | 'possible';
   }[];
   matchedHouseholdId?: string;
+  extractedFacts?: readonly IntakeFactProposal[];
 }
 
-/** UI-only integration points. Implementations belong to the CRM engine lanes. */
+export interface AddToHouseholdRequest {
+  kind:
+    | 'fact'
+    | 'note'
+    | 'task'
+    | 'account'
+    | 'person'
+    | 'opportunity'
+    | 'workflow';
+  householdRef: EntityRef;
+  contextRefs: readonly EntityRef[];
+}
+
+/** ENGINE-PENDING: typed handoff to the existing mail surface, not an email send. */
+export interface OpenMailSurfaceRequest {
+  kind: 'open_mail_surface';
+  householdRef: EntityRef;
+  contextRefs: readonly EntityRef[];
+  source: 'crm_household';
+}
+
+/** Integration points. Implementations belong to the CRM engine and mail lanes. */
 export interface CrmClientsActions {
-  onAdd?: (
-    kind:
-      | 'fact'
-      | 'note'
-      | 'task'
-      | 'account'
-      | 'person'
-      | 'opportunity'
-      | 'workflow'
-  ) => void;
+  onAdd?: (request: AddToHouseholdRequest) => void;
   onAskHousehold?: (householdId: string) => void;
-  onDraftEmail?: (householdId: string) => void;
+  onDraftEmail?: (request: OpenMailSurfaceRequest) => void;
   onOpenSchedulingLink?: (url: string) => void;
   onSaveNote?: (
     note: Pick<CrmNote, 'body' | 'audience' | 'pinned' | 'mentions'>,
@@ -133,9 +210,13 @@ export interface CrmClientsActions {
     tags: readonly string[]
   ) => void;
   onApproveProposal?: (proposalId: string) => void;
-  onDismissProposal?: (proposalId: string) => void;
+  onRejectProposal?: (proposalId: string) => void;
+  onRestoreProposal?: (proposalId: string) => void;
   onRetryProposal?: (proposalId: string) => void;
   onReviewRecipient?: (personId: string) => void;
   onMatchIntake?: (submissionId: string, householdId: string) => void;
   onCreateHouseholdForIntake?: (submissionId: string) => void;
+  onOpenHousehold?: (householdId: string) => void;
+  onApproveIntakeFact?: (submissionId: string, proposalId: string) => void;
+  onRejectIntakeFact?: (submissionId: string, proposalId: string) => void;
 }

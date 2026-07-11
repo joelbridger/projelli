@@ -29,10 +29,64 @@ export function IntakeSubmissionReview({
         <Badge variant="warning">Review required</Badge>
       </div>
       {matched ? (
-        <div style={{ padding: 10, background: '#eff6ff' }}>
-          <Check size={14} aria-hidden="true" /> Matched to {matched.name}.
-          Review the proposed dated facts before saving.
-        </div>
+        <>
+          <div style={{ padding: 10, background: '#eff6ff' }}>
+            <Check size={14} aria-hidden="true" /> Matched to {matched.name}.
+            Review each proposed dated fact before saving.
+            <Button
+              size="sm"
+              variant="secondary"
+              data-testid="crm-intake-open-matched-household"
+              onClick={() => actions?.onOpenHousehold?.(matched.householdId)}
+              style={{ marginLeft: 8 }}
+            >
+              Open household
+            </Button>
+          </div>
+          <section aria-label="Proposed dated facts" style={{ marginTop: 12 }}>
+            <h3>Proposed dated facts</h3>
+            {submission.extractedFacts?.length ? (
+              submission.extractedFacts.map((proposal) => (
+                <Card
+                  key={proposal.id}
+                  variant="raised"
+                  data-testid={`crm-intake-fact-${proposal.id}`}
+                  style={{ marginTop: 8 }}
+                >
+                  <strong>{proposal.label}: {proposal.value}</strong>
+                  <p style={{ margin: '4px 0' }}>
+                    As of {proposal.asOf} · Source: {proposal.sourceLabel}
+                  </p>
+                  {proposal.state === 'pending' ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <Button
+                        size="sm"
+                        data-testid={`crm-intake-approve-fact-${proposal.id}`}
+                        onClick={() => actions?.onApproveIntakeFact?.(submission.id, proposal.id)}
+                      >
+                        Approve fact
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        data-testid={`crm-intake-reject-fact-${proposal.id}`}
+                        onClick={() => actions?.onRejectIntakeFact?.(submission.id, proposal.id)}
+                      >
+                        Reject
+                      </Button>
+                    </div>
+                  ) : (
+                    <Badge variant={proposal.state === 'approved' ? 'success' : 'warning'}>
+                      {proposal.state === 'approved' ? 'Approved' : 'Rejected'}
+                    </Badge>
+                  )}
+                </Card>
+              ))
+            ) : (
+              <p>No dated facts were extracted from this response.</p>
+            )}
+          </section>
+        </>
       ) : (
         <>
           <p>This response is not written to a household yet.</p>

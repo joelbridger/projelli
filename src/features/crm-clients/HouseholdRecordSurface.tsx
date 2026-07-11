@@ -63,7 +63,7 @@ export function HouseholdRecordSurface({
   const [tab, setTab] = useState<HouseholdTab>('client_map');
   const [addOpen, setAddOpen] = useState(false);
   const [noteAudience, setNoteAudience] = useState<
-    'internal' | 'client_facing' | null
+    'internal' | 'client-facing' | null
   >(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const sourceProposals = proposals.filter((proposal) => tab !== 'client_map');
@@ -159,6 +159,7 @@ export function HouseholdRecordSurface({
       ) : (
         <ExistingSurface
           tab={tab}
+          household={household}
           proposals={sourceProposals}
           actions={actions}
         />
@@ -190,7 +191,22 @@ export function HouseholdRecordSurface({
                 if (kind === 'note') {
                   setNoteAudience('internal');
                   setAddOpen(false);
-                } else actions?.onAdd?.(kind);
+                } else
+                  actions?.onAdd?.({
+                    kind,
+                    householdRef: {
+                      kind: 'household',
+                      id: household.id,
+                      label: household.name,
+                    },
+                    contextRefs: [
+                      {
+                        kind: 'household',
+                        id: household.id,
+                        label: household.name,
+                      },
+                    ],
+                  });
               }}
             >
               {kind === 'note' ? 'Add internal note' : `Add ${kind}`}
@@ -201,7 +217,7 @@ export function HouseholdRecordSurface({
             variant="secondary"
             data-testid="crm-household-add-client-note"
             onClick={() => {
-              setNoteAudience('client_facing');
+              setNoteAudience('client-facing');
               setAddOpen(false);
             }}
           >
@@ -362,7 +378,7 @@ function ClientMap({ household }: { household: HouseholdRecord }) {
           <strong>Client-facing</strong>
           <p>Audience fixed at creation.</p>
           {household.notes
-            .filter((note) => note.audience === 'client_facing')
+            .filter((note) => note.audience === 'client-facing')
             .map((note) => (
               <p key={note.id}>{note.body}</p>
             ))}
@@ -374,10 +390,12 @@ function ClientMap({ household }: { household: HouseholdRecord }) {
 
 function ExistingSurface({
   tab,
+  household,
   proposals,
   actions,
 }: {
   tab: Exclude<HouseholdTab, 'client_map'>;
+  household: HouseholdRecord;
   proposals: readonly CrmProposal[];
   actions?: CrmClientsActions;
 }) {
@@ -398,7 +416,29 @@ function ExistingSurface({
             : `This preserves the existing ${label.toLowerCase()} layout and source content.`}
         </p>
         {tab === 'email' ? (
-          <Button size="sm" iconLeft={Mail} onClick={() => undefined}>
+          <Button
+            size="sm"
+            iconLeft={Mail}
+            data-testid="crm-open-mail-surface"
+            onClick={() =>
+              actions?.onDraftEmail?.({
+                kind: 'open_mail_surface',
+                householdRef: {
+                  kind: 'household',
+                  id: household.id,
+                  label: household.name,
+                },
+                contextRefs: [
+                  {
+                    kind: 'household',
+                    id: household.id,
+                    label: household.name,
+                  },
+                ],
+                source: 'crm_household',
+              })
+            }
+          >
             Open mail surface
           </Button>
         ) : (

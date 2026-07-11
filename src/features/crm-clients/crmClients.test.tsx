@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import '@testing-library/jest-dom/vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import {
   DirectorySurface,
   HouseholdRecordSurface,
@@ -62,7 +62,7 @@ const household: HouseholdRecord = {
   ],
   notes: [
     { id: 'n-1', body: 'Dana prefers a phone call.', audience: 'internal' },
-    { id: 'n-2', body: 'Review summary.', audience: 'client_facing' },
+    { id: 'n-2', body: 'Review summary.', audience: 'client-facing' },
   ],
   tags: ['priority'],
   customFields: [
@@ -70,13 +70,22 @@ const household: HouseholdRecord = {
   ],
 };
 const pendingProposal: CrmProposal = {
-  id: 'proposal-1',
-  kind: 'fact_add',
-  state: 'pending',
-  rationale: 'The tax return supports this.',
-  context: 'Income',
+  record: {
+    id: 'proposal-1',
+    kind: 'proposalRecord',
+    householdRef: { kind: 'household', id: 'h-1', label: 'Henderson household' },
+    proposalKind: 'fact_add',
+    proposedMutation: { kind: 'fact_add', fact: { label: 'Income', value: '$240,000' } },
+    proposedBy: { id: 'ai-1', label: 'Lantern AI' },
+    contextRefs: [{ kind: 'household', id: 'h-1', label: 'Henderson household' }],
+    state: 'pending',
+    rationale: 'The tax return supports this.',
+  },
+  contextLabel: 'Income',
   sources: [{ id: 's-1', label: 'Tax return' }],
 };
+
+afterEach(cleanup);
 
 describe('crm clients surfaces', () => {
   it('shows the household truth, both note lanes, safe account masking, and opens scheduling through its adapter', () => {
@@ -125,17 +134,39 @@ describe('crm clients surfaces', () => {
 
   it('keeps proposal approval and dismiss actions tied to the durable proposal id', () => {
     const onApproveProposal = vi.fn();
-    const onDismissProposal = vi.fn();
+    const onRejectProposal = vi.fn();
     render(
       <ProposalCard
         proposal={pendingProposal}
-        actions={{ onApproveProposal, onDismissProposal }}
+        actions={{ onApproveProposal, onRejectProposal }}
       />
     );
     fireEvent.click(screen.getByTestId('crm-proposal-approve-proposal-1'));
     fireEvent.click(screen.getByTestId('crm-proposal-dismiss-proposal-1'));
     expect(onApproveProposal).toHaveBeenCalledWith('proposal-1');
-    expect(onDismissProposal).toHaveBeenCalledWith('proposal-1');
+    expect(onRejectProposal).toHaveBeenCalledWith('proposal-1');
+  });
+
+  it('shows a tracked change, clears approval selection, and restores dismissed proposals', () => {
+    const onRestoreProposal = vi.fn();
+    const { rerender } = render(
+      <ProposalCard
+        proposal={{
+          ...pendingProposal,
+          review: { changedSinceReview: true, selectionCleared: true, before: '$240,000', after: '$245,000' },
+        }}
+      />
+    );
+    expect(screen.getByTestId('crm-proposal-diff-proposal-1')).toHaveTextContent('Your selection was cleared');
+    expect(screen.getByTestId('crm-proposal-approve-proposal-1')).toBeDisabled();
+    rerender(
+      <ProposalCard
+        proposal={{ ...pendingProposal, record: { ...pendingProposal.record, state: 'rejected' } }}
+        actions={{ onRestoreProposal }}
+      />
+    );
+    fireEvent.click(screen.getByTestId('crm-proposal-restore-proposal-1'));
+    expect(onRestoreProposal).toHaveBeenCalledWith('proposal-1');
   });
 
   it('keeps firm person roles separate from the household relationship and opens recipient review', () => {
@@ -143,9 +174,13 @@ describe('crm clients surfaces', () => {
     render(
       <DirectorySurface
         people={[...household.members, ...household.externalParties]}
+        households={[
+          { id: 'h-1', name: 'Henderson household', lifecycle: 'Active', primaryAdvisor: 'Maya', serviceTier: 'Platinum', peopleCount: 2 },
+        ]}
         actions={{ onReviewRecipient }}
       />
     );
+    fireEvent.click(screen.getByRole('button', { name: 'People' }));
     fireEvent.click(screen.getByTestId('crm-directory-person-p-1'));
     expect(
       screen.getByText('Household relationship:').parentElement
@@ -181,5 +216,69 @@ describe('crm clients surfaces', () => {
     fireEvent.click(screen.getByLabelText(/Henderson household/));
     fireEvent.click(screen.getByTestId('crm-intake-confirm-match'));
     expect(onMatchIntake).toHaveBeenCalledWith('i-1', 'h-1');
+  });
+
+  it('browses searchable households and opens the chosen household', () => {
+    const onOpenHousehold = vi.fn();
+    render(
+      <DirectorySurface
+        people={[]}
+        households={[
+          { id: 'h-1', name: 'Henderson household', lifecycle: 'Active', primaryAdvisor: 'Maya', serviceTier: 'Platinum', peopleCount: 2 },
+        ]}
+        actions={{ onOpenHousehold }}
+      />
+    );
+    fireEvent.change(screen.getByTestId('crm-directory-search'), { target: { value: 'Henderson' } });
+    fireEvent.click(screen.getByTestId('crm-directory-household-h-1'));
+    expect(onOpenHousehold).toHaveBeenCalledWith('h-1');
+  });
+
+  it('hands an email draft request to the existing mail surface with household context', () => {
+    const onDraftEmail = vi.fn();
+    render(<HouseholdRecordSurface household={household} actions={{ onDraftEmail }} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Email' }));
+    fireEvent.click(screen.getByTestId('crm-open-mail-surface'));
+    expect(onDraftEmail).toHaveBeenCalledWith({
+      kind: 'open_mail_surface',
+      householdRef: { kind: 'household', id: 'h-1', label: 'Henderson household' },
+      contextRefs: [{ kind: 'household', id: 'h-1', label: 'Henderson household' }],
+      source: 'crm_household',
+    });
+  });
+
+  it('keeps household and workflow context when adding a task', () => {
+    const onAdd = vi.fn();
+    render(<HouseholdRecordSurface household={household} actions={{ onAdd }} />);
+    fireEvent.click(screen.getByTestId('crm-household-add'));
+    fireEvent.click(screen.getByTestId('crm-household-add-task'));
+    expect(onAdd).toHaveBeenCalledWith({
+      kind: 'task',
+      householdRef: { kind: 'household', id: 'h-1', label: 'Henderson household' },
+      contextRefs: [{ kind: 'household', id: 'h-1', label: 'Henderson household' }],
+    });
+  });
+
+  it('lets a matched intake review routed dated facts before any household write', () => {
+    const onOpenHousehold = vi.fn();
+    const onApproveIntakeFact = vi.fn();
+    const onRejectIntakeFact = vi.fn();
+    render(
+      <IntakeSubmissionReview
+        submission={{
+          id: 'i-2', submittedAt: 'Jul 11', submitterLabel: 'Dana Henderson', fields: [],
+          candidates: [{ householdId: 'h-1', name: 'Henderson household', confidence: 'high' }],
+          matchedHouseholdId: 'h-1',
+          extractedFacts: [{ id: 'if-1', label: 'Review date', value: 'September', asOf: 'Jul 11', sourceLabel: 'Intake form', state: 'pending' }],
+        }}
+        actions={{ onOpenHousehold, onApproveIntakeFact, onRejectIntakeFact }}
+      />
+    );
+    fireEvent.click(screen.getByTestId('crm-intake-open-matched-household'));
+    fireEvent.click(screen.getByTestId('crm-intake-approve-fact-if-1'));
+    fireEvent.click(screen.getByTestId('crm-intake-reject-fact-if-1'));
+    expect(onOpenHousehold).toHaveBeenCalledWith('h-1');
+    expect(onApproveIntakeFact).toHaveBeenCalledWith('i-2', 'if-1');
+    expect(onRejectIntakeFact).toHaveBeenCalledWith('i-2', 'if-1');
   });
 });

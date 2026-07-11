@@ -9,17 +9,23 @@ import {
   SlidePanel,
   SurfaceToolbar,
 } from '@/ui/kp';
-import type { CrmClientsActions, CrmPerson } from './adapters';
+import type {
+  CrmClientsActions,
+  CrmPerson,
+  HouseholdDirectoryEntry,
+} from './adapters';
 
 type DirectoryTab = 'households' | 'people';
 export function DirectorySurface({
   people,
+  households = [],
   actions,
 }: {
   people: readonly CrmPerson[];
+  households?: readonly HouseholdDirectoryEntry[];
   actions?: CrmClientsActions;
 }) {
-  const [tab, setTab] = useState<DirectoryTab>('people');
+  const [tab, setTab] = useState<DirectoryTab>('households');
   const [query, setQuery] = useState('');
   const [externalOnly, setExternalOnly] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
@@ -33,6 +39,13 @@ export function DirectorySurface({
           person.name.toLowerCase().includes(query.toLowerCase())
       ),
     [people, query, externalOnly, needsVerification]
+  );
+  const filteredHouseholds = useMemo(
+    () =>
+      households.filter((household) =>
+        household.name.toLowerCase().includes(query.toLowerCase())
+      ),
+    [households, query]
   );
   return (
     <section data-testid="crm-directory-surface">
@@ -54,7 +67,7 @@ export function DirectorySurface({
         <SearchField
           value={query}
           onChange={setQuery}
-          placeholder="Find a person"
+          placeholder={tab === 'households' ? 'Find a household' : 'Find a person'}
           data-testid="crm-directory-search"
         />
         <Button
@@ -83,10 +96,33 @@ export function DirectorySurface({
         </Button>
       </SurfaceToolbar>
       {tab === 'households' ? (
-        <Card variant="raised">
-          Household records stay in Clients. Choose People to manage
-          relationships and recipient verification.
-        </Card>
+        <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
+          {filteredHouseholds.length ? (
+            filteredHouseholds.map((household) => (
+              <Card
+                key={household.id}
+                variant="interactive"
+                role="button"
+                tabIndex={0}
+                data-testid={`crm-directory-household-${household.id}`}
+                onClick={() => actions?.onOpenHousehold?.(household.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') actions?.onOpenHousehold?.(household.id);
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <strong>{household.name}</strong>
+                  <Badge variant="featured">{household.serviceTier}</Badge>
+                </div>
+                <div style={{ color: '#475569', marginTop: 4 }}>
+                  {household.lifecycle} · Owned by {household.primaryAdvisor} · {household.peopleCount} people
+                </div>
+              </Card>
+            ))
+          ) : (
+            <Card variant="raised">No households match this search.</Card>
+          )}
+        </div>
       ) : (
         <div style={{ display: 'grid', gap: 8, marginTop: 12 }}>
           {filtered.map((person) => (
