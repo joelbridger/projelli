@@ -117,7 +117,7 @@ export function renameWorkflowStepLocally(instance: LiveWorkflowInstance, stepId
 }
 
 export function publishTemplateUpdate(template: LiveWorkflowTemplate, title: string, addedTitle: string) {
-  const changed = template.steps[0];
+  const changed = template.steps[1] ?? template.steps[0];
   if (!changed) throw new Error('A workflow needs at least one step.');
   const added: WorkflowStepDraft = { id: unique(`${template.id}-step`), title: addedTitle.trim() || 'New follow-up', role: 'Client service', dueOffset: template.steps.length, required: true };
   const revisionId = unique(`${template.id}-update`);

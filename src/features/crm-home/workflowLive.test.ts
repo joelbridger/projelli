@@ -18,10 +18,11 @@ describe('saved CRM workflow wiring', () => {
     const update = publishTemplateUpdate(template, 'Confirm household goals', 'Send welcome summary');
     const offer = offerForInstance(update.template, completed, update.revisionId, update.label);
 
-    expect(offer.engineOffer.decisions.every((decision) => decision.stepId !== template.steps[0]!.id)).toBe(true);
+    expect(offer.engineOffer.decisions.some((decision) => decision.stepId === template.steps[1]!.id)).toBe(true);
     const applied = applyWorkflowOffer(update.template, completed, offer);
     expect(applied.instance.snapshot.steps[template.steps[0]!.id]!.status).toBe('done');
     expect(applied.instance.snapshot.steps[template.steps[0]!.id]!.titleSnapshot).toBe('Confirm household details');
+    expect(applied.instance.snapshot.steps[template.steps[1]!.id]!.titleSnapshot).toBe('Confirm household goals');
 
     const added = update.template.steps.at(-1)!;
     const locallyTailored = renameWorkflowStepLocally(applied.instance, added.id, 'Northcrest welcome summary');
