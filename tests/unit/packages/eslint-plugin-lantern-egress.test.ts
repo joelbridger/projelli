@@ -6,6 +6,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const rule = require('../../../packages/eslint-plugin-lantern-egress/src/rules/no-direct-provider-send.js');
+const noRawNetworkCall = require('../../../packages/eslint-plugin-lantern-egress/src/rules/no-raw-network-call.js');
 
 const ruleTester = new RuleTester({
   languageOptions: {
@@ -15,6 +16,54 @@ const ruleTester = new RuleTester({
       sourceType: 'module',
     },
   },
+});
+
+ruleTester.run('no-raw-network-call', noRawNetworkCall, {
+  valid: [
+    {
+      filename: '/repo/src/platform/privacy/networkClient.ts',
+      code: 'fetch("https://api.openai.com"); new WebSocket("wss://api.openai.com");',
+    },
+    {
+      filename: '/repo/src/platform/providers/AppLocalProvider.ts',
+      code: 'fetch("http://127.0.0.1:18089/v1/chat/completions");',
+    },
+    {
+      filename: '/repo/tests/unit/networkClient.test.ts',
+      code: 'new EventSource("https://example.com/events");',
+    },
+    {
+      filename: '/repo/src/web-demo/demoAIProvider.ts',
+      code: 'fetch("https://example.com");',
+    },
+  ],
+  invalid: [
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: 'fetch("https://api.openai.com");',
+      errors: [{ messageId: 'rawNetwork' }],
+    },
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: 'getCorsSafeFetch(); new WebSocket("wss://api.openai.com");',
+      errors: [{ messageId: 'rawNetwork' }, { messageId: 'rawNetwork' }],
+    },
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: 'new EventSource("https://api.openai.com/events");',
+      errors: [{ messageId: 'rawNetwork' }],
+    },
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: 'import { fetch as tauriFetch } from "@tauri-apps/plugin-http"; tauriFetch("https://api.openai.com");',
+      errors: [{ messageId: 'rawNetwork' }],
+    },
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: 'const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http"); tauriFetch("https://api.openai.com");',
+      errors: [{ messageId: 'rawNetwork' }],
+    },
+  ],
 });
 
 ruleTester.run('no-direct-provider-send', rule, {
