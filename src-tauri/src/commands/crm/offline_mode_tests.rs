@@ -158,7 +158,7 @@ async fn offline_mode_blocks_all_crm_and_advisor_connector_transports_before_req
         "key",
         "advisor",
         "password",
-        "https://api.redtailtechnology.com/crm/v1/rest",
+        "https://api2.redtailtechnology.com/crm/v1/rest",
         Some(&policy),
     )
     .await
@@ -166,7 +166,7 @@ async fn offline_mode_blocks_all_crm_and_advisor_connector_transports_before_req
     assert!(RedtailClient::new_with_base(
         "key".into(),
         "user-key".into(),
-        "https://api.redtailtechnology.com/crm/v1/rest".into(),
+        "https://api2.redtailtechnology.com/crm/v1/rest".into(),
     )
     .with_network_policy(policy)
     .validate_user_key()

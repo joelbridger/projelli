@@ -1751,13 +1751,12 @@ pub async fn crm_oauth_connect(
         || rollback_token(&previous_token),
     )?;
 
-    let info = SalesforceClient::new_with_token_endpoint(
+    let info = verify_salesforce_oauth_identity(
         stored,
         client_id,
         SALESFORCE_TOKEN_ENDPOINT.to_string(),
+        policy.inner(),
     )
-    .map_err(|e| e.to_string())?
-    .identity()
     .await
     .map_err(|e| e.to_string())?;
 
@@ -1823,6 +1822,23 @@ pub async fn crm_oauth_connect(
         plan: String::new(),
         email: info.email,
     })
+}
+
+/// The last live network call in `crm_oauth_connect`: after a token exchange,
+/// ask Salesforce which account it belongs to before reporting success.  Keep
+/// this small step separate so the command and its regression test share the
+/// exact production construction path.  A freshly-built client has no policy
+/// by default, so attaching it here is required before `identity()` can send.
+async fn verify_salesforce_oauth_identity(
+    stored_token: String,
+    client_id: String,
+    token_endpoint: String,
+    policy: &crate::network_policy::NetworkPolicy,
+) -> anyhow::Result<crate::commands::crm::salesforce::SalesforceAccountInfo> {
+    SalesforceClient::new_with_token_endpoint(stored_token, client_id, token_endpoint)?
+        .with_network_policy(policy.clone())
+        .identity()
+        .await
 }
 
 /// Abort a pending `crm_oauth_connect` interactive sign-in immediately (e.g.
@@ -2463,6 +2479,55 @@ pub async fn crm_list_households(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn oauth_connect_identity_check_attaches_network_policy() {
+        use std::time::{Duration, SystemTime, UNIX_EPOCH};
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/id"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "organization_name": "Acme Advisory",
+                "email": "advisor@example.com"
+            })))
+            .mount(&server)
+            .await;
+        let expires_at_unix = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + Duration::from_secs(3600).as_secs();
+        let stored_token =
+            serde_json::to_string(&crate::commands::crm::salesforce::SalesforceTokenSet {
+                access_token: "access".into(),
+                refresh_token: "refresh".into(),
+                instance_url: server.uri(),
+                expires_at_unix,
+                id_url: format!("{}/id", server.uri()),
+            })
+            .unwrap();
+        let policy = crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        );
+
+        // This calls the helper used by crm_oauth_connect immediately after
+        // its real token-exchange path. Without the attachment inside that
+        // helper, the production Salesforce client returns "requires a
+        // NetworkPolicy" before it can issue this request.
+        let info = verify_salesforce_oauth_identity(
+            stored_token,
+            "client".into(),
+            "https://login.salesforce.com/services/oauth2/token".into(),
+            &policy,
+        )
+        .await
+        .expect("OAuth command identity check should use its attached policy");
+        assert_eq!(info.name, "Acme Advisory");
+        assert_eq!(info.email, "advisor@example.com");
+    }
 
     fn test_pending_crm_proposal() -> PendingCrmProposal {
         let mut proposal = PendingCrmProposal {

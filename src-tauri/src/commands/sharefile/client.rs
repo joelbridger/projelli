@@ -11,6 +11,7 @@ use crate::commands::sharefile::model::{SharefileFeed, SharefileItem};
 
 const MAX_429_RETRIES: u32 = 6;
 const MAX_RETRY_AFTER_SECS: u64 = 120;
+const MAX_REDIRECTS: usize = 10;
 const SELECT_ITEM: &str = "Id,Name,FileName,FileSizeBytes,FileSizeInKB,CreationDate,ProgenyEditDate,ClientModifiedDate,FileCount,Path,SemanticPath";
 
 pub struct SharefileClient {
@@ -30,7 +31,9 @@ impl SharefileClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(90))
             .connect_timeout(Duration::from_secs(15))
-            .redirect(reqwest::redirect::Policy::limited(10))
+            // Authorize every hop ourselves.  A redirect target must never
+            // inherit the configured ShareFile origin's permission.
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .context("build reqwest client for SharefileClient")?;
         Ok(Self {
@@ -47,7 +50,7 @@ impl SharefileClient {
         let http = reqwest::Client::builder()
             .timeout(Duration::from_secs(90))
             .connect_timeout(Duration::from_secs(15))
-            .redirect(reqwest::redirect::Policy::limited(10))
+            .redirect(reqwest::redirect::Policy::none())
             .build()
             .context("build reqwest client for SharefileClient")?;
         Ok(Self {
@@ -82,15 +85,11 @@ impl SharefileClient {
             #[cfg(not(test))]
             anyhow::bail!("SharefileClient requires a NetworkPolicy before it can make a request");
         };
-        let configured_host = reqwest::Url::parse(&self.api_base)
-            .ok()
-            .and_then(|url| url.host_str().map(str::to_owned))
-            .ok_or_else(|| anyhow::anyhow!("ShareFile API base has no host"))?;
-        let authorized = crate::commands::connector_network::authorize_configured_host(
+        let authorized = crate::commands::connector_network::authorize_configured_origin(
             policy,
             operation,
             url,
-            &configured_host,
+            &self.api_base,
         )?;
         crate::commands::connector_network::await_authorized(policy, &authorized, async move {
             Ok(request.send().await?)
@@ -169,9 +168,8 @@ impl SharefileClient {
         self.ensure_same_origin(url)?;
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-            let req = self.http.get(url).bearer_auth(&self.access_token);
             let resp = self
-                .send(url, req)
+                .send_get_following_redirects(url)
                 .await
                 .context("ShareFile HTTP GET send")?;
 
@@ -200,9 +198,8 @@ impl SharefileClient {
         self.ensure_same_origin(&url)?;
         for attempt in 0..MAX_429_RETRIES {
             self.rate_gate().await;
-            let req = self.http.get(&url).bearer_auth(&self.access_token);
             let resp = self
-                .send(&url, req)
+                .send_get_following_redirects(&url)
                 .await
                 .context("ShareFile HTTP GET download send")?;
 
@@ -227,6 +224,36 @@ impl SharefileClient {
                 .to_vec());
         }
         anyhow::bail!("ShareFile download throttled past retry budget")
+    }
+
+    /// Follow redirects explicitly so every real destination is checked
+    /// against the saved ShareFile origin and the current network policy.
+    async fn send_get_following_redirects(&self, url: &str) -> anyhow::Result<reqwest::Response> {
+        let mut next_url = reqwest::Url::parse(url).context("parse ShareFile request URL")?;
+        for redirect_count in 0..=MAX_REDIRECTS {
+            let request = self
+                .http
+                .get(next_url.clone())
+                .bearer_auth(&self.access_token);
+            let response = self.send(next_url.as_str(), request).await?;
+            if !response.status().is_redirection() {
+                return Ok(response);
+            }
+            if redirect_count == MAX_REDIRECTS {
+                anyhow::bail!("ShareFile request exceeded redirect limit");
+            }
+            let location = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| {
+                    anyhow::anyhow!("ShareFile redirect had no usable Location header")
+                })?;
+            next_url = next_url
+                .join(location)
+                .context("ShareFile redirect had an invalid Location header")?;
+        }
+        unreachable!("redirect loop returns after its limit")
     }
 
     fn url(&self, path_or_url: &str) -> String {
@@ -300,6 +327,12 @@ fn enc_path_segment(s: &str) -> String {
 mod tests {
     use super::*;
 
+    fn policy() -> crate::network_policy::NetworkPolicy {
+        crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        )
+    }
+
     #[test]
     fn normalizes_sharefile_subdomain() {
         assert_eq!(
@@ -347,5 +380,84 @@ mod tests {
         assert!(client
             .ensure_same_origin("http://acme.sf-api.com/sf/v3/Items")
             .is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_an_unapproved_sharefile_redirect_destination() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let redirect = format!("http://localhost:{}/blocked", server.address().port());
+        Mock::given(method("GET"))
+            .and(path("/sf/v3/Items(abc)/Download"))
+            .respond_with(ResponseTemplate::new(302).insert_header("Location", redirect))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/blocked"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let client =
+            SharefileClient::new_with_base("token".into(), format!("{}/sf/v3", server.uri()))
+                .unwrap()
+                .with_network_policy(policy(), crate::network_policy::SHAREFILE_SYNC);
+        assert!(client.download_content("abc").await.is_err());
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn policy_flip_stops_sharefile_download_before_redirect_hop() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            sync::{mpsc, oneshot},
+        };
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (first_seen, mut first_seen_rx) = mpsc::channel(1);
+        let (allow_redirect, wait_for_redirect) = oneshot::channel();
+        let redirected_requests = Arc::new(AtomicUsize::new(0));
+        let redirected_requests_for_server = redirected_requests.clone();
+        let server = tokio::spawn(async move {
+            let (mut first, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            first.read(&mut request).await.unwrap();
+            first_seen.send(()).await.unwrap();
+            wait_for_redirect.await.unwrap();
+            first
+                .write_all(
+                    b"HTTP/1.1 302 Found\r\nLocation: /sf/v3/second\r\nContent-Length: 0\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            if let Ok(Ok((_second, _))) =
+                tokio::time::timeout(Duration::from_millis(150), listener.accept()).await
+            {
+                redirected_requests_for_server.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+        let policy = policy();
+        let client = SharefileClient::new_with_base(
+            "token".into(),
+            format!("http://127.0.0.1:{port}/sf/v3"),
+        )
+        .unwrap()
+        .with_network_policy(policy.clone(), crate::network_policy::SHAREFILE_SYNC);
+        let download = tokio::spawn(async move { client.download_content("abc").await });
+
+        first_seen_rx.recv().await.unwrap();
+        policy.set_offline_mode(true).unwrap();
+        allow_redirect.send(()).unwrap();
+        assert!(download.await.unwrap().is_err());
+        server.await.unwrap();
+        assert_eq!(redirected_requests.load(Ordering::SeqCst), 0);
     }
 }

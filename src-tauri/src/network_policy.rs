@@ -407,7 +407,7 @@ pub const SALESFORCE_SYNC: EgressOperation = EgressOperation {
 pub const REDTAIL_OAUTH: EgressOperation = EgressOperation {
     id: "redtail-oauth",
     category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.redtailtechnology.com"]),
+    destination_rule: DestinationRule::ExactHosts(&["api2.redtailtechnology.com"]),
     data_classes: EgressDataClasses {
         content: false,
         metadata: true,
@@ -418,7 +418,7 @@ pub const REDTAIL_OAUTH: EgressOperation = EgressOperation {
 pub const REDTAIL_SYNC: EgressOperation = EgressOperation {
     id: "redtail-sync",
     category: EgressCategory::Connector,
-    destination_rule: DestinationRule::ExactHosts(&["api.redtailtechnology.com"]),
+    destination_rule: DestinationRule::ExactHosts(&["api2.redtailtechnology.com"]),
     data_classes: EgressDataClasses {
         content: true,
         metadata: true,

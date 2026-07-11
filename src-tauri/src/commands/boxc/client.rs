@@ -4,13 +4,14 @@
 //! here; this connector imports documents only.
 
 use anyhow::{Context, Result};
-use reqwest::StatusCode;
+use reqwest::{redirect::Policy, StatusCode, Url};
 use serde::de::DeserializeOwned;
 
 use crate::commands::boxc::model::{BoxCollection, BoxFile, BoxFolder, BoxItem, BoxUser};
 
 const BOX_API_BASE: &str = "https://api.box.com/2.0";
 const LIST_FIELDS: &str = "id,type,name,etag,sha1,size,modified_at,web_url";
+const MAX_REDIRECTS: usize = 10;
 
 pub struct BoxClient {
     token: String,
@@ -31,6 +32,9 @@ impl BoxClient {
         let http = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(60))
             .connect_timeout(std::time::Duration::from_secs(15))
+            // Box content endpoints redirect to the Box CDN.  Follow each
+            // response ourselves so the policy approves the CDN hop too.
+            .redirect(Policy::none())
             .build()
             .expect("build reqwest client");
         Self {
@@ -131,9 +135,8 @@ impl BoxClient {
     async fn get_bytes(&self, url: &str) -> Result<Vec<u8>> {
         let mut delay = std::time::Duration::from_millis(500);
         for attempt in 0..5 {
-            let req = self.http.get(url).bearer_auth(&self.token);
             let resp = self
-                .send(url, req)
+                .send_get_following_redirects(url)
                 .await
                 .with_context(|| format!("Box GET failed for {url}"))?;
             let status = resp.status();
@@ -166,6 +169,39 @@ impl BoxClient {
         }
         anyhow::bail!("Box request failed after retries")
     }
+
+    /// Send a read request one hop at a time.  A Box API redirect normally
+    /// points at a pre-signed CDN URL, so credentials stay on the API origin;
+    /// every actual destination still passes through `send` and its policy
+    /// authorization before a socket is opened.
+    async fn send_get_following_redirects(&self, url: &str) -> Result<reqwest::Response> {
+        let start_url = Url::parse(url).context("parse Box request URL")?;
+        let mut next_url = start_url.clone();
+        for redirect_count in 0..=MAX_REDIRECTS {
+            let request = self.http.get(next_url.clone());
+            let request = if next_url.origin() == start_url.origin() {
+                request.bearer_auth(&self.token)
+            } else {
+                request
+            };
+            let response = self.send(next_url.as_str(), request).await?;
+            if !response.status().is_redirection() {
+                return Ok(response);
+            }
+            if redirect_count == MAX_REDIRECTS {
+                anyhow::bail!("Box request exceeded redirect limit");
+            }
+            let location = response
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .ok_or_else(|| anyhow::anyhow!("Box redirect had no usable Location header"))?;
+            next_url = next_url
+                .join(location)
+                .context("Box redirect had an invalid Location header")?;
+        }
+        unreachable!("redirect loop returns after its limit")
+    }
 }
 
 fn enc_query(s: &str) -> String {
@@ -186,6 +222,12 @@ fn enc_path_segment(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn policy() -> crate::network_policy::NetworkPolicy {
+        crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        )
+    }
 
     #[test]
     fn read_only_client_declares_no_write_calls() {
@@ -243,5 +285,79 @@ mod tests {
             "error must never contain the request URL/file id: {msg}"
         );
         assert!(msg.contains("404"), "error should retain the status: {msg}");
+    }
+
+    #[tokio::test]
+    async fn rejects_an_unapproved_box_redirect_destination() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        let redirect = format!("http://localhost:{}/blocked", server.address().port());
+        Mock::given(method("GET"))
+            .and(path("/files/abc/content"))
+            .respond_with(ResponseTemplate::new(302).insert_header("Location", redirect))
+            .mount(&server)
+            .await;
+        // If reqwest still followed redirects itself, this expectation would
+        // fail. `localhost` is not a literal-loopback policy destination.
+        Mock::given(method("GET"))
+            .and(path("/blocked"))
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+
+        let client = BoxClient::new_with_base("token".into(), server.uri())
+            .with_network_policy(policy(), crate::network_policy::LOCAL_LLAMA);
+        assert!(client.download_content("abc").await.is_err());
+        server.verify().await;
+    }
+
+    #[tokio::test]
+    async fn policy_flip_stops_box_download_before_redirect_hop() {
+        use std::sync::{
+            atomic::{AtomicUsize, Ordering},
+            Arc,
+        };
+        use std::time::Duration;
+        use tokio::{
+            io::{AsyncReadExt, AsyncWriteExt},
+            sync::{mpsc, oneshot},
+        };
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (first_seen, mut first_seen_rx) = mpsc::channel(1);
+        let (allow_redirect, wait_for_redirect) = oneshot::channel();
+        let redirected_requests = Arc::new(AtomicUsize::new(0));
+        let redirected_requests_for_server = redirected_requests.clone();
+        let server = tokio::spawn(async move {
+            let (mut first, _) = listener.accept().await.unwrap();
+            let mut request = [0_u8; 1024];
+            first.read(&mut request).await.unwrap();
+            first_seen.send(()).await.unwrap();
+            wait_for_redirect.await.unwrap();
+            first
+                .write_all(b"HTTP/1.1 302 Found\r\nLocation: /second\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+            if let Ok(Ok((_second, _))) =
+                tokio::time::timeout(Duration::from_millis(150), listener.accept()).await
+            {
+                redirected_requests_for_server.fetch_add(1, Ordering::SeqCst);
+            }
+        });
+        let policy = policy();
+        let client = BoxClient::new_with_base("token".into(), format!("http://127.0.0.1:{port}"))
+            .with_network_policy(policy.clone(), crate::network_policy::LOCAL_LLAMA);
+        let download = tokio::spawn(async move { client.download_content("abc").await });
+
+        first_seen_rx.recv().await.unwrap();
+        policy.set_offline_mode(true).unwrap();
+        allow_redirect.send(()).unwrap();
+        assert!(download.await.unwrap().is_err());
+        server.await.unwrap();
+        assert_eq!(redirected_requests.load(Ordering::SeqCst), 0);
     }
 }
