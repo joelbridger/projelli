@@ -64,20 +64,24 @@ function submission(): RoutedIntakeSubmission {
   };
 }
 
-function provider(): Provider {
+function defaultStructuredOutput(): ReturnType<typeof vi.fn> {
+  return vi.fn().mockResolvedValue({
+    facts: [{
+      fact_kind: 'income_annual',
+      amount: 120000,
+      currency: 'USD',
+      page: 1,
+      quote: 'Annual income: $120,000',
+      confidence: 'high',
+    }],
+  });
+}
+
+function provider(structuredOutput: ReturnType<typeof vi.fn>): Provider {
   return {
     getMetadata: () => ({ model: 'test-model' }),
     sendMessage: vi.fn(),
-    structuredOutput: vi.fn().mockResolvedValue({
-      facts: [{
-        fact_kind: 'income_annual',
-        amount: 120000,
-        currency: 'USD',
-        page: 1,
-        quote: 'Annual income: $120,000',
-        confidence: 'high',
-      }],
-    }),
+    structuredOutput: structuredOutput as unknown as Provider['structuredOutput'],
     formatAttachmentForRequest: vi.fn(),
     supportsAttachment: vi.fn(),
   };
@@ -95,15 +99,15 @@ describe('useDocumentExtractionIngestion', () => {
   });
 
   it('files a client-link document through routeIntakeSubmission, then persists its extraction proposal', async () => {
-    const model = provider();
+    const structuredOutput = defaultStructuredOutput();
+    const model = provider(structuredOutput);
     const saveProposal = vi.fn(documentExtractionProposalSave);
     const readDocument = vi.fn().mockResolvedValue({
       status: 'read' as const,
       pages: [{ page: 1, text: 'Annual income: $120,000', extraction: 'text' as const }],
     });
-    const workspaceService = {
-      writeFileBinary: vi.fn().mockResolvedValue(undefined),
-    } as unknown as WorkspaceService;
+    const writeFileBinary = vi.fn().mockResolvedValue(undefined);
+    const workspaceService = { writeFileBinary } as unknown as WorkspaceService;
     const record = intake();
     useIntakeStore.getState().upsertIntake(record);
     render(<IngestionHarness deps={{
@@ -123,13 +127,13 @@ describe('useDocumentExtractionIngestion', () => {
       workspaceService,
     })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/income-request/income.pdf' });
 
-    await waitFor(() => expect(saveProposal).toHaveBeenCalledTimes(1));
-    expect(workspaceService.writeFileBinary).toHaveBeenCalledTimes(1);
+    await waitFor(() => { expect(saveProposal).toHaveBeenCalledTimes(1); });
+    expect(writeFileBinary).toHaveBeenCalledTimes(1);
     expect(readDocument).toHaveBeenCalledWith(expect.objectContaining({
       path: '/workspace/Sarah/Requests/income-request/income.pdf',
       mimeType: 'application/pdf',
     }));
-    expect(model.structuredOutput).toHaveBeenCalledTimes(1);
+    expect(structuredOutput).toHaveBeenCalledTimes(1);
     expect(saveProposal).toHaveBeenCalledWith(expect.objectContaining({
       matterId: 'matter-1',
       requestId: 'intake-1',
@@ -149,9 +153,8 @@ describe('useDocumentExtractionIngestion', () => {
   });
 
   it('keeps the filed document when no provider is available', async () => {
-    const workspaceService = {
-      writeFileBinary: vi.fn().mockResolvedValue(undefined),
-    } as unknown as WorkspaceService;
+    const writeFileBinary = vi.fn().mockResolvedValue(undefined);
+    const workspaceService = { writeFileBinary } as unknown as WorkspaceService;
     const record = intake();
     render(<IngestionHarness deps={{
       readDocument: vi.fn().mockResolvedValue({
@@ -166,6 +169,6 @@ describe('useDocumentExtractionIngestion', () => {
       matterFolderPath: '/workspace/Sarah',
       workspaceService,
     })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/income-request/income.pdf' });
-    expect(workspaceService.writeFileBinary).toHaveBeenCalledTimes(1);
+    expect(writeFileBinary).toHaveBeenCalledTimes(1);
   });
 });
