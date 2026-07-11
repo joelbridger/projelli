@@ -309,6 +309,41 @@ Lanes R13 (02) and R14 (01/03/04/05/06) implement these rulings.*
   anchor → 02 §1.18 (XD2-11); 05 intro's "02 had not landed / conceptual names" wording
   removed (XD2-13); 02's `crm_outbox`/`crm_inbox` tables gain `org_id` scope (SA2-7).
 
+## Build-lane map (the one-shot build wave)
+
+*Authored 2026-07-11 by the coordinator per the charter's lane-table stub. Builders are
+Codex (gpt-5.6-terra, high), one isolated worktree per lane (`crm-b<N>-<name>`), branch
+`crm/b<N>-<name>`. Every lane builds against the FROZEN spec sections named as its
+contract — a lane needing a contract change STOPS and escalates to the coordinator; no
+lane edits another lane's files; shared TypeScript types land in B1 first. The coordinator
+reviews every diff and is the only merger. No design-build-test loops: lanes do not pause
+for user testing; the 06 campaign runs after the whole wave lands.*
+
+| Lane | Subsystem | Contract (frozen sections) | Stack | Waits for (merge, not start) |
+|---|---|---|---|---|
+| B1 `crm-store` | Local CRM store: SQLCipher schema, entities + projections, HLC persistence + clamp, decision ledger, completion/assignment operations, org-scoped outbox/inbox tables, FTS, shared TS types | 02 all (esp. §§1–3) | Rust + TS types | — |
+| B2 `relay` | Relay: org-scoped sealed-envelope tables + API (terminal-notice retention, acks, idempotency), checkpoint control metadata + archive-before-prune, multiplexed doc-subscription upgrades | 03 §§0 (relay side), 2, 6.1 | TS (`backend/`) | — |
+| B3 `sync-engine` | Client sync core: one multiplexed socket, durable cursors, D15 duplicate triage + gap repair, epoch reseal/quarantine, doc router + D19 load ceilings, `firm_home` provisioning | 03 §§0–1 | TS (`src/platform/firm/`) | B1, B2 |
+| B4 `notify` | Notification client: seal/unseal + padding/batching, transactional outbox/inbox, D18 client-side ordering, key hints, dead letters, approval-class retention | 03 §2 (client side) | TS | B1, B2 |
+| B5 `propagation` | Template-propagation engine: revision graph, per-instance offers, decision ledger, deterministic target closure, removal reconciliation, conditional undo | 02 §2.4 + 03 §4 | TS | B1, B3 |
+| B6 `ui-home` | Home spaces: Today, Tasks, Workflows + Propagation Review, Pipeline + settings, Reports, Firm (migration UI, fields/tags, intake links, firm setup shell) | 04 §§1–2, 5–13, 15 | React | B1 (types), B5 (offer shapes) |
+| B7 `ui-clients` | Clients spaces: directory, household record, people/external parties, note editor, custom-field/tag editors, Ask/ProposalCard surfaces, intake review | 04 §§3–4, 14 | React | B1 (types) |
+| B8 `importer` | Migration: new endpoint coverage, landing pipeline + raw capture + archive manifest, fidelity engine/report, guided fallbacks (2.5a/2.5b), parallel-run write-back, rollback/export jobs | 05 all + 04 §11 shapes | Rust + TS | B1 |
+| B9 `retention` | Client checkpoints: chunked signed checkpoints, replay validation + receipts, offline-device retirement/rebase | 03 §6 (client side) | TS | B2, B3 |
+| B10 `test-campaign` | 06 implementation: Layer-1 gate additions (P1–P10, merge properties, duplicate/TTL/replay tests), Layer-2 multi-user sim extension, fidelity gate wiring | 06 all | TS | all contracts (tests target the frozen spec) |
+
+**Merge order (coordinator executes):** (B1 ∥ B2) → (B3 ∥ B4) → (B5 ∥ B8) → (B6 ∥ B7) →
+B9 → B10 → full gate on the merged wave → THEN the 06 campaign executes (Layers 1–5,
+Northcrest drive-through on the Legion bench) and its bug list drives the fix phase.
+
+**Discipline:** ONE cargo compile server-wide — B1 and B8 are the Rust lanes; the
+coordinator sequences their gates (and posts compile windows to
+`~/lantern-coordination/BOARD.md`). All lanes may START immediately at freeze (contracts
+are frozen text); the "waits for" column gates MERGE, not start — lanes stub against
+frozen type contracts. Every lane ships tests for its own scope with the build (TDD per
+repo convention); what it may NOT do is pause the wave to user-test. Liveness: every lane
+is watched; a lane silent past the liveness bar is killed and relaunched smaller.
+
 ## Status
 - 2026-07-11: D1–D10 recorded; R1–R5 dispatching. Round-2 review + freeze pending.
 - 2026-07-11 (later): Round-2 reviews complete (15 blockers total); D12–D25 adjudicated
