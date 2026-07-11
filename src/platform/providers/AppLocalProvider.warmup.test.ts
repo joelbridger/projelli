@@ -5,6 +5,18 @@
 // so that transient miss becomes a short wait, not a failure.
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/platform/privacy/networkClient', () => ({
+  egressFetch: (
+    operationId: string,
+    input: string | URL,
+    init?: RequestInit
+  ) => {
+    void operationId;
+    return fetch(input, init);
+  },
+}));
+
 import { AppLocalProvider } from './AppLocalProvider';
 
 function jsonResponse(content: string): Response {
@@ -14,11 +26,12 @@ function jsonResponse(content: string): Response {
       choices: [{ message: { content }, finish_reason: 'stop' }],
       usage: { prompt_tokens: 3, completion_tokens: 4 },
     }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
+    { status: 200, headers: { 'Content-Type': 'application/json' } }
   );
 }
 
-const startSidecar = (): Promise<string> => Promise.resolve('http://127.0.0.1:18089');
+const startSidecar = (): Promise<string> =>
+  Promise.resolve('http://127.0.0.1:18089');
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -42,7 +55,9 @@ describe('AppLocalProvider warm-up retry', () => {
   });
 
   it('does not retry a non-warmup error status (fails fast)', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('bad request', { status: 400 }));
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('bad request', { status: 400 }));
     vi.stubGlobal('fetch', fetchMock);
 
     const provider = new AppLocalProvider({ startSidecar });
@@ -71,7 +86,7 @@ describe('AppLocalProvider warm-up retry', () => {
 
     const provider = new AppLocalProvider({ startSidecar });
     await expect(
-      provider.sendMessage('hello', { signal: controller.signal }),
+      provider.sendMessage('hello', { signal: controller.signal })
     ).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

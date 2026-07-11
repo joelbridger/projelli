@@ -15,9 +15,13 @@ import type {
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
-import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
-import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
+import { egressFetch } from '@/platform/privacy/networkClient';
+import {
+  applyAssuredRoute,
+  type AssuredRoute,
+} from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { supportsNativePdf as pdfNativeCheck } from './pdf-capability';
@@ -180,7 +184,10 @@ export class ClaudeProvider implements Provider {
   private readonly aiRules: string | undefined;
   private readonly assured: AssuredRoute | undefined;
   private tools: ClaudeTool[] = [];
-  private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
+  private toolExecutor?: (
+    toolName: string,
+    parameters: Record<string, unknown>
+  ) => Promise<unknown>;
 
   constructor(config: ClaudeProviderConfig) {
     this.apiKey = config.apiKey;
@@ -191,7 +198,8 @@ export class ClaudeProvider implements Provider {
     this.model = config.model ?? 'claude-haiku-4-5-20251001';
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getAnthropicBaseUrl(config.baseUrl);
-    this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
+    this.requestTimeoutMs =
+      config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
     this.aiRules = config.aiRules;
     // Note: dangerouslySkipPermissions in config is accepted but not used
     // as Claude API doesn't have a direct equivalent to Claude Code's permission system
@@ -200,7 +208,13 @@ export class ClaudeProvider implements Provider {
   /**
    * Set available tools for Claude to use
    */
-  setTools(tools: ClaudeTool[], executor: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>): void {
+  setTools(
+    tools: ClaudeTool[],
+    executor: (
+      toolName: string,
+      parameters: Record<string, unknown>
+    ) => Promise<unknown>
+  ): void {
     this.tools = tools;
     this.toolExecutor = executor;
   }
@@ -218,12 +232,14 @@ export class ClaudeProvider implements Provider {
     if (!attachmentBytes || attachmentBytes.length === 0) {
       return prompt;
     }
-    const blocks: ClaudeContentBlock[] = attachmentBytes.map(({ att, bytes }) => {
-      // formatAttachmentForRequest returns ClaudeImageBlock which is compatible
-      // with ClaudeContentBlock (now includes 'image' type and source field).
-      const formatted = this.formatAttachmentForRequest(att, bytes);
-      return formatted as unknown as ClaudeContentBlock;
-    });
+    const blocks: ClaudeContentBlock[] = attachmentBytes.map(
+      ({ att, bytes }) => {
+        // formatAttachmentForRequest returns ClaudeImageBlock which is compatible
+        // with ClaudeContentBlock (now includes 'image' type and source field).
+        const formatted = this.formatAttachmentForRequest(att, bytes);
+        return formatted as unknown as ClaudeContentBlock;
+      }
+    );
     // Prompt-injection defense (Codex injection audit, BUG-059 residual): Claude
     // reads PDFs NATIVELY as document blocks, so there's no extracted text to
     // sanitize — but a hostile PDF could still embed instructions. Prepend a
@@ -252,7 +268,10 @@ export class ClaudeProvider implements Provider {
     // CENTRAL CHOKE: never send to a cloud AI in private mode (fail-closed).
     assertCloudSendAllowed('anthropic');
     const messages: ClaudeMessage[] = [
-      { role: 'user', content: this.buildUserContent(prompt, options?.attachmentBytes) },
+      {
+        role: 'user',
+        content: this.buildUserContent(prompt, options?.attachmentBytes),
+      },
     ];
 
     const request: ClaudeRequest = {
@@ -264,7 +283,8 @@ export class ClaudeProvider implements Provider {
     // Build system prompt with AI Rules prepended if available
     let systemPrompt = options?.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      systemPrompt =
+        this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
 
     if (systemPrompt) {
@@ -288,7 +308,7 @@ export class ClaudeProvider implements Provider {
       model: request.model,
       hasTools: !!request.tools,
       toolCount: request.tools?.length ?? 0,
-      toolNames: request.tools?.map(t => t.name) ?? [],
+      toolNames: request.tools?.map((t) => t.name) ?? [],
       hasSystem: !!request.system,
       systemLength: request.system?.length ?? 0,
       messageCount: request.messages.length,
@@ -300,8 +320,8 @@ export class ClaudeProvider implements Provider {
 
     console.log('[ClaudeProvider DIAGNOSTIC] Initial response:', {
       stop_reason: response.stop_reason,
-      contentBlockTypes: response.content.map(c => c.type),
-      hasToolUse: response.content.some(c => c.type === 'tool_use'),
+      contentBlockTypes: response.content.map((c) => c.type),
+      hasToolUse: response.content.some((c) => c.type === 'tool_use'),
     });
     let totalInputTokens = response.usage.input_tokens;
     let totalOutputTokens = response.usage.output_tokens;
@@ -315,7 +335,7 @@ export class ClaudeProvider implements Provider {
           `Claude tool-call loop exceeded ${String(maxToolIterations)} iterations.`,
           'api_error',
           undefined,
-          false,
+          false
         );
       }
       toolIteration += 1;
@@ -330,7 +350,10 @@ export class ClaudeProvider implements Provider {
         if (!toolUse.name || !toolUse.id) continue;
 
         try {
-          const result = await this.toolExecutor(toolUse.name, toolUse.input ?? {});
+          const result = await this.toolExecutor(
+            toolUse.name,
+            toolUse.input ?? {}
+          );
           toolResults.push({
             type: 'tool_result',
             tool_use_id: toolUse.id,
@@ -400,7 +423,10 @@ export class ClaudeProvider implements Provider {
     const { onChunk, signal, ...sendOpts } = options;
 
     const messages: ClaudeMessage[] = [
-      { role: 'user', content: this.buildUserContent(prompt, sendOpts.attachmentBytes) },
+      {
+        role: 'user',
+        content: this.buildUserContent(prompt, sendOpts.attachmentBytes),
+      },
     ];
 
     const request: ClaudeRequest & { stream: boolean } = {
@@ -412,7 +438,8 @@ export class ClaudeProvider implements Provider {
 
     let systemPrompt = sendOpts.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      systemPrompt =
+        this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
     if (systemPrompt) {
       request.system = systemPrompt;
@@ -425,23 +452,34 @@ export class ClaudeProvider implements Provider {
     }
 
     const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
-    const safeFetch = await getCorsSafeFetch();
-    const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/messages`, {
-      'Content-Type': 'application/json',
-      'x-api-key': this.apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    });
-    const response = await safeFetch(routed.url, {
-      method: 'POST',
-      headers: routed.headers,
-      body: JSON.stringify(request),
-      signal: controlled.signal,
-    });
+    const routed = applyAssuredRoute(
+      this.assured,
+      `${this.baseUrl}/v1/messages`,
+      {
+        'Content-Type': 'application/json',
+        'x-api-key': this.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      }
+    );
+    const response = await egressFetch(
+      this.assured ? 'assured-ai' : 'cloud-ai',
+      routed.url,
+      {
+        method: 'POST',
+        headers: routed.headers,
+        body: JSON.stringify(request),
+        signal: controlled.signal,
+      }
+    );
 
     if (!response.ok) {
-      const errorBody = await safeJsonParse<{ error?: { message?: string } }>(response);
-      throw new Error(`Claude API error: ${errorBody.error?.message ?? `HTTP ${response.status}`}`);
+      const errorBody = await safeJsonParse<{ error?: { message?: string } }>(
+        response
+      );
+      throw new Error(
+        `Claude API error: ${errorBody.error?.message ?? `HTTP ${response.status}`}`
+      );
     }
 
     const reader = response.body?.getReader();
@@ -462,7 +500,10 @@ export class ClaudeProvider implements Provider {
       try {
         const event = JSON.parse(data);
 
-        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+        if (
+          event.type === 'content_block_delta' &&
+          event.delta?.type === 'text_delta'
+        ) {
           const text = event.delta.text ?? '';
           fullContent += text;
           onChunk(text);
@@ -611,29 +652,42 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
   /**
    * Make a request to the Claude API with retry logic
    */
-  private async makeRequest(request: ClaudeRequest, signal?: AbortSignal): Promise<ClaudeResponse> {
+  private async makeRequest(
+    request: ClaudeRequest,
+    signal?: AbortSignal
+  ): Promise<ClaudeResponse> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
       try {
-        const safeFetch = await getCorsSafeFetch();
-        const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/messages`, {
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        });
+        const routed = applyAssuredRoute(
+          this.assured,
+          `${this.baseUrl}/v1/messages`,
+          {
+            'Content-Type': 'application/json',
+            'x-api-key': this.apiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true',
+          }
+        );
         const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
         let response: Response;
         try {
-          response = await safeFetch(routed.url, {
-            method: 'POST',
-            headers: routed.headers,
-            body: JSON.stringify(request),
-            signal: controlled.signal,
-          });
+          response = await egressFetch(
+            this.assured ? 'assured-ai' : 'cloud-ai',
+            routed.url,
+            {
+              method: 'POST',
+              headers: routed.headers,
+              body: JSON.stringify(request),
+              signal: controlled.signal,
+            }
+          );
         } catch (error) {
-          if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+          if (
+            isAbortError(error, controlled.signal) ||
+            isTimeoutError(error, controlled.signal)
+          ) {
             throw controlled.signal.reason ?? error;
           }
           throw error;
@@ -650,7 +704,9 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
           // are exhausted the caller sees "HTTP 429" in the message and
           // parseApiError can surface a proper user-visible message.
           if (response.status === 429) {
-            lastError = new Error(`Claude API error: HTTP 429 — ${errorMessage}`);
+            lastError = new Error(
+              `Claude API error: HTTP 429 — ${errorMessage}`
+            );
             const retryAfter = response.headers.get('retry-after');
             const waitTime = retryAfter
               ? parseInt(retryAfter, 10) * 1000
@@ -659,7 +715,9 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
             continue;
           }
 
-          throw new Error(`Claude API error: HTTP ${response.status} — ${errorMessage}`);
+          throw new Error(
+            `Claude API error: HTTP ${response.status} — ${errorMessage}`
+          );
         }
 
         return await safeJsonParse<ClaudeResponse>(response);
@@ -671,24 +729,26 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
         }
 
         // Detect network/CORS errors and provide helpful guidance
-        if (lastError.message.includes('Failed to fetch') ||
-            lastError.message.includes('NetworkError') ||
-            lastError.name === 'TypeError') {
-
+        if (
+          lastError.message.includes('Failed to fetch') ||
+          lastError.message.includes('NetworkError') ||
+          lastError.name === 'TypeError'
+        ) {
           // In Tauri app, this is likely a network connectivity issue
           if (isTauriApp()) {
             throw new Error(
               'Network error: Unable to connect to Claude API. ' +
-              'Please check your internet connection and verify your API key is correct.'
+                'Please check your internet connection and verify your API key is correct.'
             );
           }
 
           // In browser dev mode, check if we're on the wrong port
-          const currentPort = typeof window !== 'undefined' ? window.location.port : '';
+          const currentPort =
+            typeof window !== 'undefined' ? window.location.port : '';
           if (import.meta.env.DEV && currentPort && currentPort !== '5173') {
             throw new Error(
               `CORS Error: You're accessing the app on port ${currentPort}. ` +
-              `For AI features to work, run "npm run dev" and access the app at http://localhost:5173.`
+                `For AI features to work, run "npm run dev" and access the app at http://localhost:5173.`
             );
           }
 
@@ -731,7 +791,10 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
    * For PDFs on non-native models (Haiku): throws so the caller (AIChatViewer)
    *   can route to the text-extract path instead.
    */
-  formatAttachmentForRequest(att: ChatAttachment, bytes: Uint8Array): ProviderContentBlock {
+  formatAttachmentForRequest(
+    att: ChatAttachment,
+    bytes: Uint8Array
+  ): ProviderContentBlock {
     if (att.type === 'image') {
       const data = bytesToBase64(bytes);
       const block: ClaudeImageBlock = {
@@ -774,9 +837,7 @@ IMPORTANT: Respond ONLY with the JSON object, no additional text or markdown cod
   supportsAttachment(att: ChatAttachment, model: string): true | string {
     if (att.type === 'image') {
       if (isVisionModel('claude', model)) return true;
-      return (
-        `${model} does not support images. Switch to Claude Sonnet, Opus, or Haiku (3.x series).`
-      );
+      return `${model} does not support images. Switch to Claude Sonnet, Opus, or Haiku (3.x series).`;
     }
     if (att.type === 'pdf') {
       // All Claude models support PDF: native path for Sonnet/Opus, text-extract for Haiku.

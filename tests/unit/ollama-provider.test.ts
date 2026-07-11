@@ -10,6 +10,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+vi.mock('@/platform/privacy/networkClient', () => ({
+  egressFetch: (operationId: string, input: string | URL, init?: RequestInit) => {
+    void operationId;
+    return fetch(input, init);
+  },
+}));
+
 import {
   OllamaProvider,
   detectOllama,

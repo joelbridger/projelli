@@ -29,6 +29,10 @@
 
 import { getProviderBaseUrl } from './fetchUtils';
 import { isLocalOnlyModeFailClosed } from '@/platform/privacy/cloudSendGuard';
+import {
+  egressFetch,
+  OfflineModeBlockedError,
+} from '@/platform/privacy/networkClient';
 
 /** Which provider this key is for. */
 export type ValidationProvider = 'anthropic' | 'openai' | 'google';
@@ -45,7 +49,12 @@ export type ValidationProvider = 'anthropic' | 'openai' | 'google';
  *                   succeed, so it is NOT treated as a full "ok" either.
  *   ok            - call succeeded
  */
-export type ValidationOutcome = 'ok' | 'malformed' | 'rejected' | 'network' | 'rate_limited';
+export type ValidationOutcome =
+  | 'ok'
+  | 'malformed'
+  | 'rejected'
+  | 'network'
+  | 'rate_limited';
 
 export interface ValidationResult {
   outcome: ValidationOutcome;
@@ -66,8 +75,8 @@ const FORMAT_RULES: Record<
   { prefix: string | null; minLength: number }
 > = {
   anthropic: { prefix: 'sk-ant-', minLength: 20 },
-  openai:    { prefix: 'sk-',     minLength: 20 },
-  google:    { prefix: null,      minLength: 20 },
+  openai: { prefix: 'sk-', minLength: 20 },
+  google: { prefix: null, minLength: 20 },
 };
 
 /**
@@ -162,10 +171,13 @@ export async function validateApiKeyLive(
         return await validateGoogleKey(key, signal);
     }
   } catch (err) {
+    if (err instanceof OfflineModeBlockedError) {
+      return { outcome: 'network', message: err.message };
+    }
     // Any uncaught error (including AbortError) is surfaced as a network error.
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('aborted') || msg.includes('AbortError')) {
-      return { outcome: 'network', message: "Test cancelled." };
+      return { outcome: 'network', message: 'Test cancelled.' };
     }
     return {
       outcome: 'network',
@@ -186,7 +198,7 @@ async function validateAnthropicKey(
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/v1/messages`, {
+    response = await egressFetch('cloud-ai', `${baseUrl}/v1/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -201,19 +213,29 @@ async function validateAnthropicKey(
       }),
       ...(signal ? { signal } : {}),
     });
-  } catch {
-    return { outcome: 'network', message: outcomeToMessage('anthropic', 'network') };
+  } catch (error) {
+    if (error instanceof OfflineModeBlockedError) throw error;
+    return {
+      outcome: 'network',
+      message: outcomeToMessage('anthropic', 'network'),
+    };
   }
 
   if (response.status === 401 || response.status === 403) {
-    return { outcome: 'rejected', message: outcomeToMessage('anthropic', 'rejected') };
+    return {
+      outcome: 'rejected',
+      message: outcomeToMessage('anthropic', 'rejected'),
+    };
   }
 
   // 429 means the key authenticated (it reached the account) but the account
   // is over its usage limit right now — distinct from a bad key AND from a
   // proven-working call.
   if (response.status === 429) {
-    return { outcome: 'rate_limited', message: outcomeToMessage('anthropic', 'rate_limited') };
+    return {
+      outcome: 'rate_limited',
+      message: outcomeToMessage('anthropic', 'rate_limited'),
+    };
   }
 
   if (response.ok) {
@@ -236,7 +258,7 @@ async function validateOpenAIKey(
 
   let response: Response;
   try {
-    response = await fetch(`${baseUrl}/v1/chat/completions`, {
+    response = await egressFetch('cloud-ai', `${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -249,16 +271,26 @@ async function validateOpenAIKey(
       }),
       ...(signal ? { signal } : {}),
     });
-  } catch {
-    return { outcome: 'network', message: outcomeToMessage('openai', 'network') };
+  } catch (error) {
+    if (error instanceof OfflineModeBlockedError) throw error;
+    return {
+      outcome: 'network',
+      message: outcomeToMessage('openai', 'network'),
+    };
   }
 
   if (response.status === 401 || response.status === 403) {
-    return { outcome: 'rejected', message: outcomeToMessage('openai', 'rejected') };
+    return {
+      outcome: 'rejected',
+      message: outcomeToMessage('openai', 'rejected'),
+    };
   }
 
   if (response.status === 429) {
-    return { outcome: 'rate_limited', message: outcomeToMessage('openai', 'rate_limited') };
+    return {
+      outcome: 'rate_limited',
+      message: outcomeToMessage('openai', 'rate_limited'),
+    };
   }
 
   if (response.ok) {
@@ -281,7 +313,7 @@ async function validateGoogleKey(
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await egressFetch('cloud-ai', url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -290,35 +322,57 @@ async function validateGoogleKey(
       }),
       ...(signal ? { signal } : {}),
     });
-  } catch {
-    return { outcome: 'network', message: outcomeToMessage('google', 'network') };
+  } catch (error) {
+    if (error instanceof OfflineModeBlockedError) throw error;
+    return {
+      outcome: 'network',
+      message: outcomeToMessage('google', 'network'),
+    };
   }
 
   // Gemini returns 400 for bad keys in some configurations and 403 in others.
-  if (response.status === 400 || response.status === 401 || response.status === 403) {
+  if (
+    response.status === 400 ||
+    response.status === 401 ||
+    response.status === 403
+  ) {
     // Peek at error body to distinguish a bad-key 400 from a payload-format 400.
     try {
-      const body = (await response.clone().json()) as { error?: { status?: string; message?: string } };
+      const body = (await response.clone().json()) as {
+        error?: { status?: string; message?: string };
+      };
       const status = body.error?.status ?? '';
       if (
         status === 'INVALID_ARGUMENT' &&
         (body.error?.message ?? '').toLowerCase().includes('api key')
       ) {
-        return { outcome: 'rejected', message: outcomeToMessage('google', 'rejected') };
+        return {
+          outcome: 'rejected',
+          message: outcomeToMessage('google', 'rejected'),
+        };
       }
       if (status === 'PERMISSION_DENIED' || status === 'UNAUTHENTICATED') {
-        return { outcome: 'rejected', message: outcomeToMessage('google', 'rejected') };
+        return {
+          outcome: 'rejected',
+          message: outcomeToMessage('google', 'rejected'),
+        };
       }
     } catch {
       // If we can't parse the body, still treat as rejected for 403.
       if (response.status === 403) {
-        return { outcome: 'rejected', message: outcomeToMessage('google', 'rejected') };
+        return {
+          outcome: 'rejected',
+          message: outcomeToMessage('google', 'rejected'),
+        };
       }
     }
   }
 
   if (response.status === 429) {
-    return { outcome: 'rate_limited', message: outcomeToMessage('google', 'rate_limited') };
+    return {
+      outcome: 'rate_limited',
+      message: outcomeToMessage('google', 'rate_limited'),
+    };
   }
 
   if (response.ok) {
@@ -337,16 +391,22 @@ async function validateGoogleKey(
 
 function providerDisplayName(provider: ValidationProvider): string {
   switch (provider) {
-    case 'anthropic': return 'Anthropic';
-    case 'openai':    return 'OpenAI';
-    case 'google':    return 'Google AI';
+    case 'anthropic':
+      return 'Anthropic';
+    case 'openai':
+      return 'OpenAI';
+    case 'google':
+      return 'Google AI';
   }
 }
 
 function providerConsoleLabel(provider: ValidationProvider): string {
   switch (provider) {
-    case 'anthropic': return 'console.anthropic.com';
-    case 'openai':    return 'platform.openai.com/api-keys';
-    case 'google':    return 'aistudio.google.com/app/apikey';
+    case 'anthropic':
+      return 'console.anthropic.com';
+    case 'openai':
+      return 'platform.openai.com/api-keys';
+    case 'google':
+      return 'aistudio.google.com/app/apikey';
   }
 }

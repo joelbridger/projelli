@@ -45,6 +45,18 @@ const initialOperations = [
     transfersCredential: true,
     receiptLabel: 'cloud AI',
   },
+  {
+    // Firm Assured requests carry provider-native content through Lantern's
+    // zero-retention inference proxy, rather than directly to a vendor host.
+    id: 'assured-ai',
+    category: 'cloud-ai',
+    allowedHostClass: 'cloud-ai',
+    allowedHosts: ['api.lanternplatform.app'],
+    transfersContent: true,
+    transfersMetadata: true,
+    transfersCredential: true,
+    receiptLabel: 'assured cloud AI',
+  },
 ] as const satisfies readonly EgressOperation[];
 
 /**

@@ -15,10 +15,14 @@ import type {
 } from './Provider';
 import { ProviderError } from './Provider';
 import type { ChatAttachment } from '@/platform/types/ai';
-import { getCorsSafeFetch, safeJsonParse } from './fetchUtils';
+import { safeJsonParse } from './fetchUtils';
 import { assertCloudSendAllowed } from '@/platform/privacy/cloudSendGuard';
+import { egressFetch } from '@/platform/privacy/networkClient';
 import { sanitizeForPrompt } from '@/platform/utils/prompt-security';
-import { applyAssuredRoute, type AssuredRoute } from '@/platform/firm/assuredInference';
+import {
+  applyAssuredRoute,
+  type AssuredRoute,
+} from '@/platform/firm/assuredInference';
 import { isVisionModel } from './vision-capability';
 import { bytesToBase64 } from './providerUtils';
 import { extractPdfText } from '@/lib/pdf-extract';
@@ -202,14 +206,18 @@ export class OpenAIProvider implements Provider {
   private readonly aiRules: string | undefined;
   private readonly assured: AssuredRoute | undefined;
   private tools: OpenAITool[] = [];
-  private toolExecutor?: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>;
+  private toolExecutor?: (
+    toolName: string,
+    parameters: Record<string, unknown>
+  ) => Promise<unknown>;
 
   constructor(config: OpenAIProviderConfig) {
     this.apiKey = config.apiKey;
     this.model = config.model ?? OPENAI_DEFAULT_MODEL;
     this.maxRetries = config.maxRetries ?? 3;
     this.baseUrl = getOpenAIBaseUrl(config.baseUrl);
-    this.requestTimeoutMs = config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
+    this.requestTimeoutMs =
+      config.timeout ?? DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS;
     this.organization = config.organization ?? undefined;
     this.aiRules = config.aiRules;
     this.assured = config.assured;
@@ -222,7 +230,10 @@ export class OpenAIProvider implements Provider {
    */
   setTools(
     tools: ClaudeStyleTool[],
-    executor: (toolName: string, parameters: Record<string, unknown>) => Promise<unknown>
+    executor: (
+      toolName: string,
+      parameters: Record<string, unknown>
+    ) => Promise<unknown>
   ): void {
     this.tools = tools.map((t) => ({
       type: 'function' as const,
@@ -286,14 +297,18 @@ export class OpenAIProvider implements Provider {
     // Build system prompt with AI Rules prepended if available
     let systemPrompt = options?.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      systemPrompt =
+        this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
 
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
 
-    messages.push({ role: 'user', content: await this.buildUserContent(prompt, options?.attachmentBytes) });
+    messages.push({
+      role: 'user',
+      content: await this.buildUserContent(prompt, options?.attachmentBytes),
+    });
 
     const request: OpenAIRequest = {
       model: this.model,
@@ -338,7 +353,7 @@ export class OpenAIProvider implements Provider {
           `OpenAI tool-call loop exceeded ${String(maxToolIterations)} iterations.`,
           'api_error',
           undefined,
-          false,
+          false
         );
       }
       toolIteration += 1;
@@ -358,7 +373,10 @@ export class OpenAIProvider implements Provider {
         let params: Record<string, unknown> = {};
         try {
           params = toolCall.function.arguments
-            ? (JSON.parse(toolCall.function.arguments) as Record<string, unknown>)
+            ? (JSON.parse(toolCall.function.arguments) as Record<
+                string,
+                unknown
+              >)
             : {};
         } catch (parseError) {
           messages.push({
@@ -366,7 +384,9 @@ export class OpenAIProvider implements Provider {
             tool_call_id: toolCall.id,
             content: JSON.stringify({
               error: `Failed to parse tool arguments JSON: ${
-                parseError instanceof Error ? parseError.message : String(parseError)
+                parseError instanceof Error
+                  ? parseError.message
+                  : String(parseError)
               }`,
             }),
           });
@@ -433,12 +453,16 @@ export class OpenAIProvider implements Provider {
 
     let systemPrompt = sendOpts.systemPrompt || '';
     if (this.aiRules) {
-      systemPrompt = this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
+      systemPrompt =
+        this.aiRules + (systemPrompt ? `\n\n---\n\n${systemPrompt}` : '');
     }
     if (systemPrompt) {
       messages.push({ role: 'system', content: systemPrompt });
     }
-    messages.push({ role: 'user', content: await this.buildUserContent(prompt, sendOpts.attachmentBytes) });
+    messages.push({
+      role: 'user',
+      content: await this.buildUserContent(prompt, sendOpts.attachmentBytes),
+    });
 
     const request: OpenAIRequest & { stream: boolean } = {
       model: this.model,
@@ -447,7 +471,8 @@ export class OpenAIProvider implements Provider {
     };
 
     if (sendOpts.maxTokens) request.max_tokens = sendOpts.maxTokens;
-    if (sendOpts.temperature !== undefined) request.temperature = sendOpts.temperature;
+    if (sendOpts.temperature !== undefined)
+      request.temperature = sendOpts.temperature;
     if (sendOpts.stopSequences) request.stop = sendOpts.stopSequences;
 
     const headers: Record<string, string> = {
@@ -456,7 +481,11 @@ export class OpenAIProvider implements Provider {
     };
     if (this.organization) headers['OpenAI-Organization'] = this.organization;
 
-    const { response, controlled } = await this.connectStreaming(request, headers, signal);
+    const { response, controlled } = await this.connectStreaming(
+      request,
+      headers,
+      signal
+    );
 
     const reader = response.body?.getReader();
     if (!reader) {
@@ -514,7 +543,11 @@ export class OpenAIProvider implements Provider {
 
     return {
       content: fullContent,
-      usage: { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens },
+      usage: {
+        inputTokens,
+        outputTokens,
+        totalTokens: inputTokens + outputTokens,
+      },
       cost,
       model: this.model,
       stopReason,
@@ -544,33 +577,48 @@ export class OpenAIProvider implements Provider {
   private async connectStreaming(
     request: OpenAIRequest & { stream: boolean },
     headers: Record<string, string>,
-    signal: AbortSignal | undefined,
-  ): Promise<{ response: Response; controlled: ReturnType<typeof composeRequestSignal> }> {
-    const safeFetch = await getCorsSafeFetch();
+    signal: AbortSignal | undefined
+  ): Promise<{
+    response: Response;
+    controlled: ReturnType<typeof composeRequestSignal>;
+  }> {
     for (let attempt = 0; ; attempt++) {
       const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
-      const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
-      const response = await safeFetch(routed.url, {
-        method: 'POST',
-        headers: routed.headers,
-        body: JSON.stringify(request),
-        signal: controlled.signal,
-      });
+      const routed = applyAssuredRoute(
+        this.assured,
+        `${this.baseUrl}/v1/chat/completions`,
+        headers
+      );
+      const response = await egressFetch(
+        this.assured ? 'assured-ai' : 'cloud-ai',
+        routed.url,
+        {
+          method: 'POST',
+          headers: routed.headers,
+          body: JSON.stringify(request),
+          signal: controlled.signal,
+        }
+      );
 
       if (response.ok) return { response, controlled };
 
       const retryable =
-        OpenAIProvider.STREAM_RETRY_STATUSES.has(response.status) && attempt < this.maxRetries;
+        OpenAIProvider.STREAM_RETRY_STATUSES.has(response.status) &&
+        attempt < this.maxRetries;
       if (!retryable) {
         const errorBody = await safeJsonParse<OpenAIError>(response);
         controlled.cleanup();
-        throw new Error(`OpenAI API error: ${errorBody.error?.message ?? `HTTP ${String(response.status)}`}`);
+        throw new Error(
+          `OpenAI API error: ${errorBody.error?.message ?? `HTTP ${String(response.status)}`}`
+        );
       }
 
       // eslint-disable-next-line lantern-async/no-silent-failure -- best-effort release of a body we're discarding anyway before retrying; nothing to surface.
       await response.body?.cancel().catch(() => undefined);
       const retryAfter = response.headers.get('retry-after');
-      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : Math.pow(2, attempt) * 1000;
+      const waitMs = retryAfter
+        ? parseInt(retryAfter, 10) * 1000
+        : Math.pow(2, attempt) * 1000;
       controlled.cleanup();
       await this.sleep(waitMs, signal);
     }
@@ -674,7 +722,10 @@ Respond ONLY with the JSON object.`;
   /**
    * Make a request to the OpenAI API with retry logic
    */
-  private async makeRequest(request: OpenAIRequest, signal?: AbortSignal): Promise<OpenAIResponse> {
+  private async makeRequest(
+    request: OpenAIRequest,
+    signal?: AbortSignal
+  ): Promise<OpenAIResponse> {
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < this.maxRetries; attempt++) {
@@ -688,19 +739,29 @@ Respond ONLY with the JSON object.`;
           headers['OpenAI-Organization'] = this.organization;
         }
 
-        const safeFetch = await getCorsSafeFetch();
-        const routed = applyAssuredRoute(this.assured, `${this.baseUrl}/v1/chat/completions`, headers);
+        const routed = applyAssuredRoute(
+          this.assured,
+          `${this.baseUrl}/v1/chat/completions`,
+          headers
+        );
         const controlled = composeRequestSignal(signal, this.requestTimeoutMs);
         let response: Response;
         try {
-          response = await safeFetch(routed.url, {
-            method: 'POST',
-            headers: routed.headers,
-            body: JSON.stringify(request),
-            signal: controlled.signal,
-          });
+          response = await egressFetch(
+            this.assured ? 'assured-ai' : 'cloud-ai',
+            routed.url,
+            {
+              method: 'POST',
+              headers: routed.headers,
+              body: JSON.stringify(request),
+              signal: controlled.signal,
+            }
+          );
         } catch (error) {
-          if (isAbortError(error, controlled.signal) || isTimeoutError(error, controlled.signal)) {
+          if (
+            isAbortError(error, controlled.signal) ||
+            isTimeoutError(error, controlled.signal)
+          ) {
             throw controlled.signal.reason ?? error;
           }
           throw error;
@@ -710,11 +771,14 @@ Respond ONLY with the JSON object.`;
 
         if (!response.ok) {
           const errorBody = await safeJsonParse<OpenAIError>(response);
-          const errorMessage = errorBody.error?.message ?? `HTTP ${response.status}`;
+          const errorMessage =
+            errorBody.error?.message ?? `HTTP ${response.status}`;
 
           // UX-38: rate limiting — preserve status code in lastError.
           if (response.status === 429) {
-            lastError = new Error(`OpenAI API error: HTTP 429 — ${errorMessage}`);
+            lastError = new Error(
+              `OpenAI API error: HTTP 429 — ${errorMessage}`
+            );
             const retryAfter = response.headers.get('retry-after');
             const waitTime = retryAfter
               ? parseInt(retryAfter, 10) * 1000
@@ -723,7 +787,9 @@ Respond ONLY with the JSON object.`;
             continue;
           }
 
-          throw new Error(`OpenAI API error: HTTP ${response.status} — ${errorMessage}`);
+          throw new Error(
+            `OpenAI API error: HTTP ${response.status} — ${errorMessage}`
+          );
         }
 
         return await safeJsonParse<OpenAIResponse>(response);

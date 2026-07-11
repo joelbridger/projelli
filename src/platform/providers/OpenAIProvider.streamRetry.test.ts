@@ -8,6 +8,22 @@
 // and duplicate partial output).
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('@/platform/privacy/networkClient', () => ({
+  egressFetch: (
+    operationId: string,
+    input: string | URL,
+    init?: RequestInit
+  ) => {
+    void operationId;
+    return fetch(input, init);
+  },
+}));
+
+vi.mock('@/platform/privacy/cloudSendGuard', () => ({
+  assertCloudSendAllowed: () => undefined,
+}));
+
 import { OpenAIProvider } from './OpenAIProvider';
 
 function sseStream(chunks: string[]): ReadableStream<Uint8Array> {
@@ -24,17 +40,24 @@ function sseStream(chunks: string[]): ReadableStream<Uint8Array> {
 
 function sseResponse(deltas: string[]): Response {
   const events = deltas.map(
-    (d) => `data: ${JSON.stringify({ choices: [{ delta: { content: d } }] })}\n\n`,
+    (d) =>
+      `data: ${JSON.stringify({ choices: [{ delta: { content: d } }] })}\n\n`
   );
   events.push('data: [DONE]\n\n');
   return new Response(sseStream(events), { status: 200 });
 }
 
-function errorResponse(status: number, headers: Record<string, string> = {}): Response {
-  return new Response(JSON.stringify({ error: { message: `boom ${String(status)}`, type: 'x' } }), {
-    status,
-    headers,
-  });
+function errorResponse(
+  status: number,
+  headers: Record<string, string> = {}
+): Response {
+  return new Response(
+    JSON.stringify({ error: { message: `boom ${String(status)}`, type: 'x' } }),
+    {
+      status,
+      headers,
+    }
+  );
 }
 
 function makeProvider(): OpenAIProvider {
@@ -58,7 +81,9 @@ describe('OpenAIProvider streaming pre-stream retry', () => {
 
     const provider = makeProvider();
     const chunks: string[] = [];
-    const promise = provider.sendMessageStreaming('hi', { onChunk: (c) => chunks.push(c) });
+    const promise = provider.sendMessageStreaming('hi', {
+      onChunk: (c) => chunks.push(c),
+    });
 
     await vi.advanceTimersByTimeAsync(1000);
     const resp = await promise;
@@ -79,7 +104,9 @@ describe('OpenAIProvider streaming pre-stream retry', () => {
 
     const provider = makeProvider();
     const chunks: string[] = [];
-    const promise = provider.sendMessageStreaming('hi', { onChunk: (c) => chunks.push(c) });
+    const promise = provider.sendMessageStreaming('hi', {
+      onChunk: (c) => chunks.push(c),
+    });
 
     await vi.advanceTimersByTimeAsync(1000); // backoff after attempt 0
     await vi.advanceTimersByTimeAsync(2000); // backoff after attempt 1
@@ -95,7 +122,7 @@ describe('OpenAIProvider streaming pre-stream retry', () => {
 
     const provider = makeProvider();
     await expect(
-      provider.sendMessageStreaming('hi', { onChunk: () => undefined }),
+      provider.sendMessageStreaming('hi', { onChunk: () => undefined })
     ).rejects.toThrow('boom 400');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -104,12 +131,14 @@ describe('OpenAIProvider streaming pre-stream retry', () => {
     vi.useFakeTimers();
     // mockImplementation (not mockResolvedValue) so every call gets a FRESH
     // Response — a real fetch() never returns the same, already-drained body.
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(errorResponse(503)));
+    const fetchMock = vi
+      .fn()
+      .mockImplementation(() => Promise.resolve(errorResponse(503)));
     vi.stubGlobal('fetch', fetchMock);
 
     const provider = new OpenAIProvider({ apiKey: 'sk-test', maxRetries: 2 });
     const assertion = expect(
-      provider.sendMessageStreaming('hi', { onChunk: () => undefined }),
+      provider.sendMessageStreaming('hi', { onChunk: () => undefined })
     ).rejects.toThrow('boom 503');
 
     await vi.advanceTimersByTimeAsync(10_000);
@@ -138,7 +167,7 @@ describe('OpenAIProvider streaming pre-stream retry', () => {
               return Promise.resolve({
                 done: false,
                 value: encoder.encode(
-                  `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' } }] })}\n\n`,
+                  `data: ${JSON.stringify({ choices: [{ delta: { content: 'partial' } }] })}\n\n`
                 ),
               });
             }
@@ -154,7 +183,7 @@ describe('OpenAIProvider streaming pre-stream retry', () => {
     const provider = makeProvider();
     const chunks: string[] = [];
     await expect(
-      provider.sendMessageStreaming('hi', { onChunk: (c) => chunks.push(c) }),
+      provider.sendMessageStreaming('hi', { onChunk: (c) => chunks.push(c) })
     ).rejects.toThrow();
 
     expect(chunks).toEqual(['partial']);
@@ -173,7 +202,10 @@ describe('OpenAIProvider streaming pre-stream retry', () => {
 
     const provider = makeProvider();
     await expect(
-      provider.sendMessageStreaming('hi', { onChunk: () => undefined, signal: controller.signal }),
+      provider.sendMessageStreaming('hi', {
+        onChunk: () => undefined,
+        signal: controller.signal,
+      })
     ).rejects.toThrow();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
