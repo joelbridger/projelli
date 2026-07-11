@@ -9,7 +9,7 @@ use crate::network_policy::{
     AuthorizedGeneration, Destination, EgressOperation, NetworkPolicy, NetworkPolicyError,
     PolicyCancellation,
 };
-use reqwest::{redirect::Policy, Response, Url};
+use reqwest::{header::HeaderMap, redirect::Policy, Method, Response, Url};
 
 const MAX_REDIRECTS: usize = 10;
 
@@ -49,13 +49,46 @@ impl EgressHttpClient {
         operation: &EgressOperation,
         url: Url,
     ) -> Result<Response, EgressHttpError> {
+        self.request(operation, Method::GET, url, HeaderMap::new())
+            .await
+    }
+
+    /// Sends a HEAD request with the same per-hop authorization as GET.
+    pub async fn head(
+        &self,
+        operation: &EgressOperation,
+        url: Url,
+    ) -> Result<Response, EgressHttpError> {
+        self.request(operation, Method::HEAD, url, HeaderMap::new())
+            .await
+    }
+
+    /// Sends a GET with explicit headers (currently used for resumable model
+    /// downloads). Redirects never inherit an unreviewed destination: every
+    /// Location is parsed and authorized before its socket can open.
+    pub async fn get_with_headers(
+        &self,
+        operation: &EgressOperation,
+        url: Url,
+        headers: HeaderMap,
+    ) -> Result<Response, EgressHttpError> {
+        self.request(operation, Method::GET, url, headers).await
+    }
+
+    async fn request(
+        &self,
+        operation: &EgressOperation,
+        method: Method,
+        url: Url,
+        headers: HeaderMap,
+    ) -> Result<Response, EgressHttpError> {
         let mut next_url = url;
         for redirect_count in 0..=MAX_REDIRECTS {
             let destination = Destination::parse(next_url.clone())?;
             let authorized = self.policy.authorize(operation, &destination)?;
             let mut cancellation = self.policy.register_cancellation();
             let response = self
-                .send_get(&next_url, &authorized, &mut cancellation)
+                .send(&method, &next_url, &headers, &authorized, &mut cancellation)
                 .await?;
 
             if !response.status().is_redirection() {
@@ -81,16 +114,18 @@ impl EgressHttpClient {
         unreachable!("redirect loop returns after the maximum")
     }
 
-    async fn send_get(
+    async fn send(
         &self,
+        method: &Method,
         url: &Url,
+        headers: &HeaderMap,
         authorized: &AuthorizedGeneration,
         cancellation: &mut PolicyCancellation,
     ) -> Result<Response, EgressHttpError> {
         self.policy.assert_authorized_generation(authorized)?;
         tokio::select! {
             _ = cancellation.cancelled() => Err(NetworkPolicyError::Uninitialized.into()),
-            response = self.client.get(url.clone()).send() => {
+            response = self.client.request(method.clone(), url.clone()).headers(headers.clone()).send() => {
                 let response = response?;
                 self.policy.assert_authorized_generation(authorized)?;
                 Ok(response)

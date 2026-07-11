@@ -8,19 +8,15 @@
 // connection continues where it stopped instead of starting over.
 
 use std::path::{Path, PathBuf};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use anyhow::{Context, Result};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, State};
 
-use crate::commands::connector_network::{authorize_url, await_authorized};
 use crate::network_policy::{NetworkPolicy, RAG_MODEL_DOWNLOAD};
 
-use super::embedder;
+use super::{embedder, huggingface_download};
 
 /// HF repo + file set fastembed needs for MultilingualE5Small. Kept honest
 /// by the `required_files_match_fastembed` test below.
@@ -115,88 +111,7 @@ fn emit(app: &AppHandle, p: ModelDownloadProgress) {
 /// — the latter is the body size hint, which is always 0 for a HEAD
 /// response (hyper decodes HEAD bodies as zero-length per RFC 9110).
 async fn head_total_size(policy: &NetworkPolicy) -> Option<u64> {
-    // Timeouts matter: on a DROP-style firewall each of the 5 sequential
-    // HEADs would otherwise hang for minutes while the UI sits on
-    // "Checking" and the single-flight guard blocks retry.
-    let client = match reqwest::Client::builder()
-        .connect_timeout(std::time::Duration::from_secs(10))
-        .timeout(std::time::Duration::from_secs(20))
-        .build()
-    {
-        Ok(c) => c,
-        // Builder failure is exotic; the prepass is best-effort anyway.
-        Err(_) => return None,
-    };
-    let mut sum: u64 = 0;
-    for file in REQUIRED_FILES {
-        let url = format!("https://huggingface.co/{MODEL_REPO}/resolve/main/{file}");
-        let grant = authorize_url(policy, &RAG_MODEL_DOWNLOAD, &url).ok()?;
-        let resp = await_authorized(policy, &grant, async {
-            Ok(client.head(&url).send().await?)
-        })
-        .await
-        .ok()?;
-        if !resp.status().is_success() {
-            return None;
-        }
-        let len = resp
-            .headers()
-            .get(reqwest::header::CONTENT_LENGTH)
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.parse::<u64>().ok())
-            .or_else(|| {
-                resp.headers()
-                    .get("x-linked-size")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse().ok())
-            })?;
-        sum += len;
-    }
-    Some(sum)
-}
-
-/// Async hf-hub progress bridge.  The sync hf-hub API runs inside
-/// `spawn_blocking`, which cannot be interrupted once it opens a socket.  This
-/// adapter keeps the actual transfer inside `await_authorized`, so dropping the
-/// future on an Offline Mode flip cancels the request and its body stream.
-#[derive(Clone)]
-struct AsyncSinkProgress {
-    sink: Arc<dyn Fn(ModelDownloadProgress) + Send + Sync>,
-    file: String,
-    done_before: u64,
-    file_done: u64,
-    grand_total: Option<u64>,
-    last_emit: u64,
-}
-
-impl hf_hub::api::tokio::Progress for AsyncSinkProgress {
-    async fn init(&mut self, _size: usize, _filename: &str) {
-        self.file_done = 0;
-        self.last_emit = 0;
-        self.emit_now();
-    }
-    async fn update(&mut self, size: usize) {
-        self.file_done += size as u64;
-        if self.file_done.saturating_sub(self.last_emit) >= 4 * 1024 * 1024 {
-            self.emit_now();
-        }
-    }
-    async fn finish(&mut self) {
-        self.emit_now();
-    }
-}
-
-impl AsyncSinkProgress {
-    fn emit_now(&mut self) {
-        self.last_emit = self.file_done;
-        (self.sink)(ModelDownloadProgress {
-            state: ModelDownloadState::Downloading,
-            file: Some(self.file.clone()),
-            bytes_done: self.done_before + self.file_done,
-            bytes_total: self.grand_total,
-            message: None,
-        });
-    }
+    huggingface_download::total_size(policy, &RAG_MODEL_DOWNLOAD, MODEL_REPO, &REQUIRED_FILES).await
 }
 
 async fn download_all_authorized(
@@ -205,41 +120,32 @@ async fn download_all_authorized(
     grand_total: Option<u64>,
     sink: impl Fn(ModelDownloadProgress) + Send + Sync + 'static,
 ) -> Result<()> {
-    let api =
-        hf_hub::api::tokio::ApiBuilder::from_cache(hf_hub::Cache::new(cache_dir.to_path_buf()))
-            .with_progress(false)
-            .build()
-            .context("hf-hub api init")?;
-    let repo = api.model(MODEL_REPO.to_string());
-    let sink: Arc<dyn Fn(ModelDownloadProgress) + Send + Sync> = Arc::new(sink);
-    let mut done_before = 0;
-    for file in REQUIRED_FILES {
-        if let Some(len) = cached_file_len(cache_dir, file) {
-            done_before += len;
-            continue;
-        }
-        let url = format!("https://huggingface.co/{MODEL_REPO}/resolve/main/{file}");
-        let grant = authorize_url(policy, &RAG_MODEL_DOWNLOAD, &url)?;
-        let progress = AsyncSinkProgress {
-            sink: sink.clone(),
-            file: file.into(),
-            done_before,
-            file_done: 0,
-            grand_total,
-            last_emit: 0,
-        };
-        await_authorized(policy, &grant, async {
-            Ok(repo.download_with_progress(file, progress).await?)
-        })
-            .await
-            .with_context(|| format!("download {file}"))?;
-        done_before += cached_file_len(cache_dir, file).unwrap_or(0);
-    }
-    Ok(())
+    let done_before = REQUIRED_FILES
+        .iter()
+        .filter_map(|file| cached_file_len(cache_dir, file))
+        .sum::<u64>();
+    huggingface_download::download_missing_files(
+        policy,
+        &RAG_MODEL_DOWNLOAD,
+        cache_dir,
+        MODEL_REPO,
+        &REQUIRED_FILES,
+        |file, file_done| {
+            sink(ModelDownloadProgress {
+                state: ModelDownloadState::Downloading,
+                file: Some(file.into()),
+                bytes_done: done_before + file_done,
+                bytes_total: grand_total,
+                message: None,
+            })
+        },
+    )
+    .await
 }
 
 /// hf-hub `Progress` adapter that forwards throttled aggregate progress to
 /// a sink (the Tauri event emitter in production, a println in tests).
+#[cfg(test)]
 struct SinkProgress {
     sink: Box<dyn Fn(ModelDownloadProgress) + Send>,
     file: String,
@@ -251,6 +157,7 @@ struct SinkProgress {
     last_emit: u64,
 }
 
+#[cfg(test)]
 impl hf_hub::api::Progress for SinkProgress {
     fn init(&mut self, _size: usize, _filename: &str) {
         // hf-hub may call init again on an internal retry, then re-seed the
@@ -270,6 +177,7 @@ impl hf_hub::api::Progress for SinkProgress {
     }
 }
 
+#[cfg(test)]
 impl SinkProgress {
     fn emit_now(&mut self) {
         self.last_emit = self.file_done;
@@ -295,6 +203,7 @@ fn cached_file_len(cache_dir: &Path, file: &str) -> Option<u64> {
 /// forwarding progress to `sink`. Sync — call from spawn_blocking.
 /// Files already complete are skipped (their size still counts toward
 /// `bytes_done` so a retry's bar starts where it left off).
+#[cfg(test)]
 fn download_all(
     cache_dir: &Path,
     grand_total: Option<u64>,

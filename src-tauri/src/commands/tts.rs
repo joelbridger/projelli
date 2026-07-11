@@ -31,6 +31,11 @@ use crate::commands::connector_network::{authorize_url, await_authorized};
 use crate::network_policy::{NetworkPolicy, VOICE_MODEL_DOWNLOAD};
 use crate::sidecars::{PiperSidecar, Sidecar};
 
+// Canonical product setting: BRAND.urls.voices in src/config/brand.ts.
+// This remains a Rust literal because the native binary cannot import the
+// generated TypeScript configuration at runtime.
+const VOICE_CDN_BASE_URL: &str = "https://advisorprephero.com/voices";
+
 /// Tauri state: a single resident PiperSidecar shared across all commands.
 /// Uses tokio::sync::Mutex so the guard can be held across `.await` points
 /// (e.g., the `speak()` async call inside `tts_speak`).
@@ -195,7 +200,7 @@ pub async fn tts_download_voice(
         .await
         .map_err(|e| e.to_string())?;
 
-    let cdn_url = format!("https://lantern.com/voices/{voice_id}.tar.gz");
+    let cdn_url = format!("{VOICE_CDN_BASE_URL}/{voice_id}.tar.gz");
     let grant = authorize_url(policy.inner(), &VOICE_MODEL_DOWNLOAD, &cdn_url)
         .map_err(|e| e.to_string())?;
     let response = await_authorized(policy.inner(), &grant, async {
@@ -247,6 +252,14 @@ pub async fn tts_download_voice(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn voice_download_url_matches_the_current_brand_voice_cdn() {
+        assert_eq!(
+            format!("{VOICE_CDN_BASE_URL}/amy.tar.gz"),
+            "https://advisorprephero.com/voices/amy.tar.gz"
+        );
+    }
 
     #[test]
     fn with_platform_ext_adds_exe_on_windows() {

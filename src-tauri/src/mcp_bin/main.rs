@@ -61,9 +61,14 @@ fn require_mcp_access(policy: &lantern_lib::network_policy::NetworkPolicy) -> Re
 }
 
 fn load_current_mcp_policy() -> Result<lantern_lib::network_policy::NetworkPolicy, String> {
-    let app_data = dirs::data_dir()
-        .ok_or_else(|| MCP_OFFLINE_MESSAGE.to_string())?
-        .join(lantern_lib::identity::OS_DATA_SUBDIR);
+    let app_data = lantern_lib::app_data::resolve_lantern_app_data_dir()
+        .ok_or_else(|| MCP_OFFLINE_MESSAGE.to_string())?;
+    load_mcp_policy_from_app_data_dir(&app_data)
+}
+
+fn load_mcp_policy_from_app_data_dir(
+    app_data: &Path,
+) -> Result<lantern_lib::network_policy::NetworkPolicy, String> {
     let policy = lantern_lib::network_policy::NetworkPolicy::load_from_app_data_dir(&app_data);
     require_mcp_access(&policy)?;
     Ok(policy)
@@ -279,6 +284,24 @@ mod offline_mode_tests {
             require_mcp_access(&policy).unwrap_err(),
             MCP_OFFLINE_MESSAGE
         );
+    }
+
+    #[test]
+    fn mcp_reads_the_same_offline_record_the_desktop_app_writes() {
+        let platform_data_root = tempfile::tempdir().unwrap();
+        // This is the desktop app's real identifier-based resolution, shared
+        // with the desktop startup path rather than an MCP-specific folder.
+        let desktop_app_data =
+            lantern_lib::app_data::resolve_lantern_app_data_dir_from(platform_data_root.path());
+        let desktop_policy =
+            lantern_lib::network_policy::NetworkPolicy::load_from_app_data_dir(&desktop_app_data);
+        desktop_policy.set_offline_mode(true).unwrap();
+
+        let mcp_policy = match load_mcp_policy_from_app_data_dir(&desktop_app_data) {
+            Ok(_) => panic!("MCP must see the desktop policy's Offline Mode state"),
+            Err(error) => error,
+        };
+        assert_eq!(mcp_policy, MCP_OFFLINE_MESSAGE);
     }
 }
 

@@ -271,14 +271,17 @@ pub const ICS_CALENDAR_SYNC: EgressOperation = EgressOperation {
     receipt_label: "ICS calendar sync",
 };
 
-// Model repositories intentionally name only the configured first-hop host.
-// Hugging Face selects its storage CDN with a short-lived redirect; the
-// download command cancels the entire request future on a policy flip, so the
-// redirect can never outlive the authorization that started it.
+// Hugging Face first resolves on huggingface.co, then redirects model bytes to
+// its Xet storage CDN.  The download client follows redirects manually and
+// authorizes every hop. `us.aws.cdn.hf.co` is the current file-storage host
+// observed for all three production downloads (2026-07-11); keep this list
+// synchronized with the downloader's redirect tests when Hugging Face changes
+// its delivery network.
+const HUGGING_FACE_MODEL_DOWNLOAD_HOSTS: &[&str] = &["huggingface.co", "us.aws.cdn.hf.co"];
 pub const RAG_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
     id: "rag-model-download",
     category: EgressCategory::ProductMaintenance,
-    destination_rule: DestinationRule::ExactHosts(&["huggingface.co"]),
+    destination_rule: DestinationRule::ExactHosts(HUGGING_FACE_MODEL_DOWNLOAD_HOSTS),
     data_classes: EgressDataClasses {
         content: false,
         metadata: true,
@@ -289,7 +292,7 @@ pub const RAG_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
 pub const RERANKER_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
     id: "reranker-model-download",
     category: EgressCategory::ProductMaintenance,
-    destination_rule: DestinationRule::ExactHosts(&["huggingface.co"]),
+    destination_rule: DestinationRule::ExactHosts(HUGGING_FACE_MODEL_DOWNLOAD_HOSTS),
     data_classes: EgressDataClasses {
         content: false,
         metadata: true,
@@ -300,7 +303,7 @@ pub const RERANKER_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
 pub const LOCAL_LLM_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
     id: "local-llm-model-download",
     category: EgressCategory::ProductMaintenance,
-    destination_rule: DestinationRule::ExactHosts(&["huggingface.co"]),
+    destination_rule: DestinationRule::ExactHosts(HUGGING_FACE_MODEL_DOWNLOAD_HOSTS),
     data_classes: EgressDataClasses {
         content: false,
         metadata: true,
@@ -311,7 +314,10 @@ pub const LOCAL_LLM_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
 pub const VOICE_MODEL_DOWNLOAD: EgressOperation = EgressOperation {
     id: "voice-model-download",
     category: EgressCategory::ProductMaintenance,
-    destination_rule: DestinationRule::ExactHosts(&["lantern.com"]),
+    // Canonical product setting: src/config/brand.ts → BRAND.urls.voices.
+    // Rust cannot import TypeScript at runtime, so keep this literal paired
+    // with the generated brand configuration and its URL below in tts.rs.
+    destination_rule: DestinationRule::ExactHosts(&["advisorprephero.com"]),
     data_classes: EgressDataClasses {
         content: false,
         metadata: true,
@@ -688,7 +694,13 @@ impl NetworkPolicy {
         let registered = registered_operation(operation.id)
             .ok_or_else(|| NetworkPolicyError::UnregisteredOperation(operation.id.to_string()))?;
         if state == STATE_OFFLINE {
-            if destination.is_literal_loopback() {
+            // Literal loopback is an Offline Mode exception only for the two
+            // local-AI operations that explicitly declare that destination
+            // rule. A meeting URL or external navigation may never turn an IP
+            // spelling into an Offline Mode bypass.
+            if registered.destination_rule == DestinationRule::LiteralLoopbackOnly
+                && destination.is_literal_loopback()
+            {
                 return Ok(AuthorizedGeneration(
                     self.inner.generation.load(Ordering::Acquire),
                 ));
@@ -906,6 +918,48 @@ mod tests {
                 .unwrap_err();
             assert!(matches!(error, NetworkPolicyError::OfflineModeBlocked(_)));
         }
+    }
+
+    #[test]
+    fn offline_blocks_loopback_meeting_auto_join_but_keeps_local_ai_available() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+        policy.set_offline_mode(true).unwrap();
+
+        let meeting = Destination::parse_for_configured_host(
+            Url::parse("https://127.0.0.1/meeting").unwrap(),
+            "127.0.0.1",
+        )
+        .unwrap();
+        assert!(matches!(
+            policy.authorize(&MEETING_AUTO_JOIN, &meeting),
+            Err(NetworkPolicyError::OfflineModeBlocked(_))
+        ));
+        assert!(policy
+            .authorize(&LOCAL_LLAMA, &destination("http://127.0.0.1:18089"))
+            .is_ok());
+        assert!(policy
+            .authorize(&OLLAMA, &destination("http://[::1]:11434"))
+            .is_ok());
+    }
+
+    #[test]
+    fn model_download_allows_only_the_traced_hugging_face_storage_cdn() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+        assert!(policy
+            .authorize(
+                &RAG_MODEL_DOWNLOAD,
+                &destination("https://us.aws.cdn.hf.co/xet-bridge-us/model")
+            )
+            .is_ok());
+        assert!(matches!(
+            policy.authorize(
+                &RAG_MODEL_DOWNLOAD,
+                &destination("https://unapproved-cdn.example/model")
+            ),
+            Err(NetworkPolicyError::DestinationNotAllowed(_))
+        ));
     }
 
     #[test]

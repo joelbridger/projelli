@@ -28,7 +28,7 @@
 use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::commands::connector_network::authorize_configured_host;
-use crate::network_policy::{NetworkPolicy, MEETING_AUTO_JOIN};
+use crate::network_policy::{AuthorizedGeneration, NetworkPolicy, MEETING_AUTO_JOIN};
 
 /// Only https meeting links may ever be opened in the companion window. Guards
 /// against a malformed or non-web scheme (`file:`, `javascript:`, etc.) ever
@@ -40,14 +40,15 @@ pub fn is_allowed_join_url(raw: &str) -> bool {
     }
 }
 
-fn authorize_join_url(policy: &NetworkPolicy, join_url: &str) -> Result<(), String> {
+fn authorize_join_url(
+    policy: &NetworkPolicy,
+    join_url: &str,
+) -> Result<AuthorizedGeneration, String> {
     let url = tauri::Url::parse(join_url).map_err(|e| format!("parse join url: {e}"))?;
     let host = url
         .host_str()
         .ok_or_else(|| "notice card join url must have a host".to_string())?;
-    authorize_configured_host(policy, &MEETING_AUTO_JOIN, join_url, host)
-        .map(|_| ())
-        .map_err(|e| e.to_string())
+    authorize_configured_host(policy, &MEETING_AUTO_JOIN, join_url, host).map_err(|e| e.to_string())
 }
 
 /// Open (or replace) the isolated companion window for one card and begin the
@@ -66,7 +67,7 @@ pub async fn notice_card_open(
     }
     // This is deliberately before window construction: while Offline Mode is
     // on Lantern must not even begin an app-opened meeting navigation.
-    authorize_join_url(policy.inner(), &join_url)?;
+    let authorized = authorize_join_url(policy.inner(), &join_url)?;
     let url = tauri::Url::parse(&join_url).map_err(|e| format!("parse join url: {e}"))?;
 
     // Replace any stale window with this label so a re-record rejoins cleanly.
@@ -98,6 +99,13 @@ pub async fn notice_card_open(
         // byte-for-byte identical without losing any behavior.
         builder.additional_browser_args(&crate::webview_env::webview_browser_args())
     };
+
+    // Hold the generation grant until the last moment before Tauri creates the
+    // external webview. If Offline Mode flipped while this command prepared the
+    // window, the now-stale grant stops the navigation before construction.
+    policy
+        .assert_authorized_generation(&authorized)
+        .map_err(|e| e.to_string())?;
 
     builder
         // CRITICAL for the status channel: the injected script reports the join
@@ -197,6 +205,14 @@ mod tests {
         policy.set_offline_mode(true).unwrap();
         let error = authorize_join_url(&policy, "https://teams.microsoft.com/l/meetup-join/abc")
             .unwrap_err();
+        assert_eq!(error, "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use meeting auto-join.");
+    }
+
+    #[test]
+    fn offline_mode_blocks_loopback_meeting_auto_join_too() {
+        let policy = NetworkPolicy::load_from_directory(&tempfile::tempdir().unwrap().keep());
+        policy.set_offline_mode(true).unwrap();
+        let error = authorize_join_url(&policy, "https://127.0.0.1/meeting").unwrap_err();
         assert_eq!(error, "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use meeting auto-join.");
     }
 }
