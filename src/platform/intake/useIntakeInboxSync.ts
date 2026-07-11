@@ -360,6 +360,14 @@ async function routeFileSubmission(
     requestSlug: options.intake.requestSlug,
     fileName,
     bytes,
+    documentExtraction: {
+      matterId: options.intake.matterId,
+      requestId: options.intake.intakeId,
+      intakeId: options.intake.intakeId,
+      itemId: contractItem.item_id,
+      subject: contractItem.subject,
+      mimeType: submission.manifest.content_type,
+    },
   });
   return { filePath };
 }

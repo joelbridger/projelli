@@ -1,5 +1,5 @@
 import type { FormRequest, PdfCompletionReceipt } from '@/platform/intake/types';
-import type { WelcomeJourney } from '@/features/intake/welcomeJourneyDefaults';
+import type { WelcomeJourney } from '@/platform/intake/welcomeJourneyDefaults';
 import type { DocumentDetectiveManifestEntry } from '@/platform/intake/documentDetectiveTypes';
 
 export interface IntakeFirm {

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ClipboardList, Plus } from 'lucide-react';
+import { ClipboardList, FileText, Plus } from 'lucide-react';
 
 import { EV_MATTER_LAUNCH, EV_OPEN_MATTER_MANAGER } from '@/config/identity';
 import { useMatterStore } from '@/platform/matter/matterStore';
@@ -18,6 +18,7 @@ import { Button } from '@/ui/kp';
 import { OnboardingBoardEmptyState } from './OnboardingBoardEmptyState';
 import { OnboardingKpiStrip } from './OnboardingKpiStrip';
 import { OnboardingBoardRow } from './OnboardingBoardRow';
+import { FormBuilderLibrary } from './formBuilder/FormBuilderLibrary';
 
 export type RequestsBoardFilter = 'onboarding' | 'all';
 
@@ -64,6 +65,7 @@ export function RequestsBoard({
   const setClientMapHubTab = useMatterStore((state) => state.setClientMapHubTab);
   const setClientMapHubRequestId = useMatterStore((state) => state.setClientMapHubRequestId);
   const [savedFilter, setSavedFilter] = useState<RequestsBoardFilter>('onboarding');
+  const [formLibraryOpen, setFormLibraryOpen] = useState(false);
   const activeFilter = filter ?? savedFilter;
   const handleNewClient = onNewClient ?? defaultNewClient;
 
@@ -133,9 +135,14 @@ export function RequestsBoard({
             {title ?? 'Requests'}
           </h2>
         </div>
-        <Button variant="primary" size="sm" iconLeft={Plus} onClick={handleNewClient} data-testid="onboarding-board-new-client">
-          {t('intake.board.new-client')}
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--kp-space-sm)' }}>
+          <Button variant="secondary" size="sm" iconLeft={FileText} onClick={() => { setFormLibraryOpen(true); }} data-testid="requests-board-manage-forms">
+            Manage forms
+          </Button>
+          <Button variant="primary" size="sm" iconLeft={Plus} onClick={handleNewClient} data-testid="onboarding-board-new-client">
+            {t('intake.board.new-client')}
+          </Button>
+        </div>
       </div>
 
       {!filter ? (
@@ -179,6 +186,7 @@ export function RequestsBoard({
           })}
         </div>
       )}
+      <FormBuilderLibrary open={formLibraryOpen} onOpenChange={setFormLibraryOpen} />
     </div>
   );
 }

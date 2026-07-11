@@ -318,6 +318,13 @@
           "body": "The app could not place one received item into the client checklist.",
           "action": "Review the intake inbox and route the item by hand."
         },
+        "extraction-failed": {
+          "badge": "Document needs review",
+          "title": "This document was saved, but could not be read automatically",
+          "body": "The document is safely filed. You can review it yourself or try reading it again.",
+          "action": "Try reading the document again when you are ready.",
+          "retry": "Retry extraction"
+        },
         "shared-intake-setup-required": {
           "badge": "Shared intake setup needed",
           "title": "This device needs shared intake setup",

@@ -15,7 +15,7 @@ function rowsForAccept(proposal: DocumentExtractionProposalRecord, ids: string[]
   return proposal.items.filter((row) => selected.has(row.id) && !completed.has(row.id) && isDocumentExtractionProposalItemSelectable(row));
 }
 function factInput(proposal: DocumentExtractionProposalRecord, row: DocumentExtractionProposalItem, advisorId: string, at: string, value: import('./types').FactValue): IntakeFactUpsertInput {
-  return { matter_id: proposal.matterId, subject: 'primary', kind: row.kind, value, sensitivity: 'confidential', provenance: { channel: 'doc_extraction', source_ref: docSourceRefToString(row.source), entered_by: advisorId, confirmed_by: advisorId, at }, verification: 'document_verified' };
+  return { matter_id: proposal.matterId, subject: row.subject, kind: row.kind, value, sensitivity: 'confidential', provenance: { channel: 'doc_extraction', source_ref: docSourceRefToString(row.source), entered_by: advisorId, confirmed_by: advisorId, at }, verification: 'document_verified' };
 }
 function validatedMoneyValue(row: DocumentExtractionProposalItem, value: import('./types').FactValue): Extract<import('./types').FactValue, { t: 'money' }> {
   const proposedValue = row.value;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
+import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
 import { assertSendableRequest, createAdvisorIntake, type CreateAdvisorIntakeOptions } from './createIntake';
 import { loadIntakeLinkSecret } from './intakeKeychain';
 import { useIntakeStore } from './intakeStore';

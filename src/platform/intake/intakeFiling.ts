@@ -1,5 +1,6 @@
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import { assertRequestSlug } from './requestIdentity';
+import { emitFiledIntakeDocument, type FiledIntakeDocumentContext } from './documentFilingEvents';
 
 const ONBOARDING_DIR = 'Requests/onboarding';
 
@@ -23,6 +24,8 @@ export interface FileIntakeDocumentOptions {
   folder?: 'request' | 'pdf_form';
   fileName: string;
   bytes: Uint8Array;
+  /** Present only for a document request that is eligible for extraction. */
+  documentExtraction?: FiledIntakeDocumentContext;
 }
 
 export function intakeOnboardingFolder(matterFolderPath: string): string {
@@ -53,5 +56,14 @@ export async function fileIntakeDocument(options: FileIntakeDocumentOptions): Pr
     options.bytes.byteOffset,
     options.bytes.byteOffset + options.bytes.byteLength,
   ));
+  if (options.documentExtraction) {
+    emitFiledIntakeDocument({
+      ...options.documentExtraction,
+      filePath: path,
+      fileName,
+      matterFolderPath: options.matterFolderPath,
+      workspaceService: options.workspaceService,
+    });
+  }
   return path;
 }

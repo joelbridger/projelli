@@ -82,4 +82,13 @@ describe('RequestsBoard', () => {
     fireEvent.click(screen.getByTestId('onboarding-row-nudge-onboarding-stalled'));
     expect(onOpenNudge).toHaveBeenCalledWith(expect.objectContaining({ requestId: 'onboarding-stalled', kind: 'onboarding' }));
   });
+
+  it('opens the saved forms library from the header button', () => {
+    render(<RequestsBoard now={now} />);
+
+    fireEvent.click(screen.getByTestId('requests-board-manage-forms'));
+
+    expect(screen.getByRole('button', { name: 'New form' })).toBeTruthy();
+    expect(screen.getByText('New household')).toBeTruthy();
+  });
 });

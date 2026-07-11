@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
+import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
 import { assertValidRequestBlueprint } from '@/platform/intake/blueprintValidation';
 import { assertSendableRequest, createAdvisorIntake } from '@/platform/intake/createIntake';
 import {

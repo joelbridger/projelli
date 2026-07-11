@@ -4202,6 +4202,13 @@
           "body": "Die App konnte ein erhaltenes Element nicht in der Kundencheckliste ablegen.",
           "action": "Prüfen Sie den Intake-Eingang und ordnen Sie das Element manuell zu."
         },
+        "extraction-failed": {
+          "badge": "Dokument prüfen",
+          "title": "Dieses Dokument wurde gespeichert, konnte aber nicht automatisch gelesen werden",
+          "body": "Das Dokument ist sicher abgelegt. Sie können es selbst prüfen oder erneut versuchen, es zu lesen.",
+          "action": "Versuchen Sie erneut, das Dokument zu lesen, wenn Sie bereit sind.",
+          "retry": "Extraktion wiederholen"
+        },
         "shared-intake-setup-required": {
           "badge": "Einrichtung der gemeinsamen Anfrage nötig",
           "title": "Dieses Gerät benötigt die gemeinsame Einrichtung",

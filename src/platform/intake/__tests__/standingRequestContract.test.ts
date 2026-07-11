@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DEFAULT_WELCOME_JOURNEY } from '@/features/intake/welcomeJourneyDefaults';
+import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
 import { instantiateRequestBlueprint } from '@/platform/intake/blueprintFactory';
 import type { RequestBlueprint } from '@/platform/intake/blueprintTypes';
 import {
