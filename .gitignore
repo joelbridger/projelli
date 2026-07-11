@@ -101,3 +101,7 @@ docs/user-research/**/*.m4a
 docs/user-research/**/*.wav
 docs/user-research/**/*.mp3
 docs/user-research/**/*-raw-transcript.txt
+
+# Private user research (audio + transcripts of real advisor sessions) — NEVER to GitHub
+/user-research/
+/demo-creds/
