@@ -55,10 +55,16 @@ jobs:
           Copy-Item $stub src-tauri/binaries/llama-server-x86_64-pc-windows-msvc.exe
 
       - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install and build intake page
+        # Use the intake app as the working folder instead of npm's --prefix
+        # shortcut. On Windows the shortcut can leave Vite's relative dist
+        # output outside intake-page, so the security suite cannot find it.
+        working-directory: intake-page
         run: |
           npm ci
-          npm --prefix intake-page ci
-          npm --prefix intake-page run build
+          npm run build
 
       - name: TypeScript check
         run: npx tsc --noEmit

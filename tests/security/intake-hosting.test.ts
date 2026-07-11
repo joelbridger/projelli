@@ -32,15 +32,19 @@ const tempDirs: string[] = [];
 // serially; this beforeAll is the standalone/pre-push fallback — one build,
 // before the tests run, only if dist is missing.
 const intakePageDist = path.join(repoRoot, 'intake-page', 'dist');
+const intakePageRoot = path.join(repoRoot, 'intake-page');
 beforeAll(() => {
   if (!existsSync(path.join(intakePageDist, 'index.html'))) {
-    // npm is a .cmd shim on Windows. child_process must run that shim through
-    // the Windows command shell; otherwise spawnSync reports a failed launch
-    // before npm ever gets a chance to build the page.
-    const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const result = spawnSync(npmCommand, ['--prefix', path.join(repoRoot, 'intake-page'), 'run', 'build'], {
+    // Launch npm's JavaScript entry point through Node, rather than its
+    // Windows-only .cmd wrapper. Calling the wrapper from Vitest made this
+    // fallback depend on shell quoting and PATH resolution.
+    const npmCli = process.env['npm_execpath'];
+    if (!npmCli) {
+      throw new Error('Cannot find npm CLI for the intake-page build fallback.');
+    }
+    const result = spawnSync(process.execPath, [npmCli, 'run', 'build'], {
+      cwd: intakePageRoot,
       stdio: 'inherit',
-      shell: process.platform === 'win32',
     });
     if (result.status !== 0) {
       const detail = result.error?.message ?? `exit status ${String(result.status)}`;

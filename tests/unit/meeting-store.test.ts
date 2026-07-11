@@ -125,8 +125,9 @@ describe('meeting store', () => {
     const files = new Map<string, string>();
     // This in-memory test filesystem accepts either platform separator.
     const normalized = (filePath: string) => filePath.replaceAll('\\', '/');
+    const meetingDir = '/ws/C/Meetings/qa88-paths';
     files.set(
-      '/ws/C/Meetings/x/meeting.json',
+      `${meetingDir}/meeting.json`,
       JSON.stringify({
         matterId: 'm-1',
         startedAt: 't0',
@@ -134,7 +135,7 @@ describe('meeting store', () => {
       }),
     );
     files.set(
-      '/ws/C/Meetings/x/transcript.json',
+      `${meetingDir}/transcript.json`,
       JSON.stringify({
         segments: [{ startMs: 0, endMs: 1000, channel: 'mic', speaker: 'You', text: 'hi' }],
       }),
@@ -156,15 +157,14 @@ describe('meeting store', () => {
     } as never);
     vi.mocked(meetingNoteFromTranscript.run).mockResolvedValueOnce('- did a thing [t:0]');
     invokeMock
-      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', startedAt: 't0' })
-      .mockResolvedValueOnce({ meetingDir: '/ws/C/Meetings/x', audioPath: 'a.wav', durationMs: 1000 })
-      .mockResolvedValueOnce({ transcriptPath: '/ws/C/Meetings/x/transcript.json', segmentCount: 1 });
+      .mockResolvedValueOnce({ meetingDir, startedAt: 't0' })
+      .mockResolvedValueOnce({ meetingDir, audioPath: 'a.wav', durationMs: 1000 })
+      .mockResolvedValueOnce({ transcriptPath: `${meetingDir}/transcript.json`, segmentCount: 1 });
 
     const s = useMeetingStore.getState();
     await s.startRecording('m-1', { consentMode: 'one-party' });
     await useMeetingStore.getState().stopRecording();
 
-    const meetingDir = '/ws/C/Meetings/x';
     const expectedNotesPath = `${meetingDir}/notes.docx`;
     const expectedTranscriptPath = `${meetingDir}/transcript.json`;
     const binaryWrite = writeFileBinary.mock.calls[0];
