@@ -1,5 +1,6 @@
 import type { DocumentKind } from './documentDetectiveTypes';
 import type { PdfTemplateDescriptor } from './pdfTemplates/templateContract';
+import type { ReviewedDocusignTabMap } from './docusignSignature/tabMap';
 
 export type {
   PdfCompletionReceipt,
@@ -9,6 +10,8 @@ export type {
   PdfTemplateDescriptor,
   PdfTemplateKind,
 } from './pdfTemplates/templateContract';
+
+export type { DocusignTabAnchor, ReviewedDocusignTabMap } from './docusignSignature/tabMap';
 
 export type FactKind =
   | 'dob'
@@ -143,11 +146,23 @@ export interface PdfFillRequestItem extends Omit<RequestItemBase, 't'> {
   sealed_source_pdf_b64?: string;
 }
 
-export interface SignatureRequestItem extends Omit<RequestItemBase, 't'> {
+export interface DocusignSignatureRequestItem extends Omit<RequestItemBase, 't'> {
   t: 'signature';
-  grade: 'docusign' | 'native_clicksign';
+  grade: 'docusign';
+  /** Must resolve to a pdf_fill item in the same sealed request. */
+  source_pdf_fill_item_id: string;
+  /** Reviewed structural geometry. This never contains a client-entered value. */
+  tab_map: ReviewedDocusignTabMap;
+}
+
+/** Reserved legacy shape. Validation rejects it until a future reviewed implementation exists. */
+export interface NativeClicksignPlaceholderItem extends Omit<RequestItemBase, 't'> {
+  t: 'signature';
+  grade: 'native_clicksign';
   document_ref?: string;
 }
+
+export type SignatureRequestItem = DocusignSignatureRequestItem | NativeClicksignPlaceholderItem;
 
 export type RequestItem =
   | TypedFieldRequestItem
