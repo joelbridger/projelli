@@ -134,5 +134,140 @@ navigation references).
 review round 2 (fresh Codex cross-doc + a second sync attack on the rewritten 03) →
 SPEC-FREEZE.md.
 
+## Round-2 adjudication (binding, 2026-07-11)
+
+*Round-2 reviews: `reviews/2026-07-11-codex-xdoc-round2.md` (XD2-1..14, 5 blockers),
+`reviews/2026-07-11-codex-sync-attack-round2.md` (SA2-1..10, 4 blockers + closure audit),
+`reviews/2026-07-11-codex-screens-round2.md` (SC-1..22, 6 blockers). Every finding is
+adjudicated below; the R8–R12 lanes implement these rulings. Where a ruling and a doc
+disagree, the ruling wins.*
+
+**D12 — 03's reconciled model is canonical for topology + propagation mechanics; 02
+converts.** (XD2-1, XD2-2, SA2-3, SA2-10, sync closure PARTIALs.) The firm matter is
+`firm_home` (no `__firm__` anywhere); confidential task text lives in per-household
+`crm:task-notes` docs. 02 replaces numeric `rev`/`displayedTemplateRev`/`derivedFieldRevs`
+with 03 §4's immutable revision IDs + revision-set state; completion (`completedAt/By`)
+becomes append-only completion operations with derived display, NOT LWW fields; the full
+HLC issuance + 5-minute clamp algorithm (incl. no-prior-observation + quarantine rules)
+moves INTO 02's Field Merge Contract, 03 referencing it; the untouched-step status is the
+named contract constant `UNTOUCHED = 'todo'` (03 stops writing `open`).
+
+**D13 — External-reference identity.** (XD2-3.) One canonical key:
+`(provider, sourceType, sourceId, scope)` — 02's `external_refs` table adopts it verbatim;
+05/06 idempotency language references 02.
+
+**D14 — Fidelity-matrix targets must be real 02 entities.** (XD2-4, SC-16.) 02 gains a
+read-only **LegacyProject** entity (per D9's "preserved as read-only legacy records", with
+storage/merge/import shape + a manual "start a workflow from this" action); matrix rows for
+Organization/Trust normalize to 02's `Person.personType` naming; imported events target
+`ActivityEvent` timeline records, as 02 already states.
+
+**D15 — Relay delivery is at-least-once; duplicates are normal.** (SA2-1.) 03 §0.1 adopts
+the exact triage: `cursor <= durable` → verify same immutable row identity, ignore;
+`== durable+1` → authenticate/apply+persist in one transaction; `> durable+1` → bounded gap
+repair. CRDT apply + cursor persistence are idempotent by relay cursor/blob id. No doc may
+assume exactly-once or gap-free ordering.
+
+**D16 — Approval-class envelopes are TTL-exempt.** (SA2-2.) They persist until the
+underlying approval reaches a terminal state AND every active recipient device has durably
+acked (device-retirement per D6 bounds "active"); informational envelopes keep the 7-day
+TTL + dead-letter. The "crash-survivable end to end" promise stands, now actually earned.
+
+**D17 — Checkpoint validation = independent reconstruction.** (SA2-4.) A validator loads
+the prior validated checkpoint, replays every contiguous retained raw row through frontier
+F, and compares state vector + canonical state hash to the manifest; only matching SIGNED
+validation receipts count toward the two-validator rule. The relay holds minimal plaintext
+checkpoint control metadata (stream, generation, frontier, retention eligibility, receipts).
+
+**D18 — Cross-outbox ordering.** (SA2-5.) An envelope referencing a document operation may
+not dispatch until the relay has durably accepted that operation (by immutable
+operation/blob id); recipients hold early envelopes in "waiting for referenced state".
+
+**D19 — Load-budget consistency.** (SA2-6, XD2-5.) One chunk ceiling: 768 KiB ciphertext.
+03 §1.3 gains a total bootstrap allocation across firm docs + client records + task-notes +
+checkpoints + tails that provably sums within the 64 MiB ceiling; `crm:task-notes` is
+counted in subscription/transfer budgets. 06's convergence assertions compare only the
+authorized + subscribed document set, with separate assertions that unsubscribed/walled
+content is ABSENT (never "all seats byte-identical").
+
+**D20 — Notification scoping.** (SA2-7.) Every notification sequence, cursor, inbox query,
+ack, idempotency key, and device-retirement decision is scoped by `org_id`.
+
+**D21 — Propagation decision ledger + deterministic targets.** (SA2-8, SA2-9.) Persist an
+immutable decision ledger keyed `(instanceId, revisionId, stepId, field)` with
+accepted/rejected + source operation + superseded/re-offered state; a rejection persists
+until a DESCENDANT revision changes the same field, which re-offers it. Apply targets are
+a deterministic closure: topological order over the revision graph with same-field
+collisions resolved by the D3 HLC/operation-id rule; unresolved concurrent heads surface as
+an explicit review state in the offer, never a silent pick.
+
+**D22 — ProposalRecord generalizes (AI-first, robustly).** (SC-2.) 02 §1.15 extends
+`ProposalRecord` with `kind ∈ {workflow_launch, task_create, fact_add,
+communication_draft}` — one durable contract, approval semantics per 03 §2.3, so Ask's
+ProposalCards are real records, not UI fictions. (Board stance: AI proposes → user
+approves is the product; it gets a first-class contract.)
+
+**D23 — Feature-home rulings.** (XD2-9, SC-14/15/17/19/20/21/22.)
+- Pipeline configuration gets a real settings surface in 04 (create/edit/order pipelines +
+  stages + `StageTriggerRule`); entities already exist in 02.
+- Template editor gains `WorkflowTemplate.schedule` + `StepDef.outcomes` editors in 04.
+- Scheduling links: `ServicePolicy.schedulingLinkUrl` (plain field in 02); Firm setup +
+  household scheduling actions expose it. The Calendly integration itself stays owned by
+  the existing connector (D9 pattern).
+- Responsive intake links: 04 designs the full flow (link creation, public responsive form,
+  submission → matching/review route) per charter pre-made decision 5.
+- Archive/rollback export: explicit user actions + readiness/status screens in 04 §11.
+- Custom-field VALUES get contextual editors on Household/Person/Account/Task records;
+  `FirmDoc` gets a minimal list + open-in-existing-editor surface.
+- Note editor in 04 exposes pin, @mentions (02 `Note.mentions`), and explicit notification
+  review.
+- **v1 exclusions (01 verdicts updated with reasons):** activity comments (deferred with
+  reactions per D9); "Contact Actions in Opportunity Workflows" bulk actions; file storage
+  on records (existing documents subsystem owns files, linked via `contextRefs` — no new
+  attachment entity).
+
+**D24 — Task surface truth.** (XD2-10, SC-3.) Single `assigneeUserId` everywhere ("assignee",
+singular, in UI); NO task comments in v1 (the D2 `body` Y.Text is the notes surface);
+workflow linkage renders from `contextRefs`. 02 fixes the `notes` index to
+`anchor_household_id` (XD2-12). 06 adds `importArchiveManifest` to the EntityKind catalog
+and conforms Fact-provenance assertions to 02's `0..n` sources (XD2-11).
+
+**D25 — Screens conform to sync/notification truth.** (SC-4/6/7/8/9/12/13/18, XD2-6/7/8,
+SC-5/10/11.) Client-facing notes are local records with an audience lane — outbound email
+goes through the existing mail surface + external approval (never "send" on a Note).
+Propagation review = ONE offer per instance with per-step/field toggles (all-on defaults,
+approve-all), revision-set labels (no `v7 → v8` integers), completed steps NEVER mutated by
+propagation (owner-role changes affect future routing; a separate new assignment may be
+offered), undo = the D4 conditional compensating operation (auto-restores untouched cells,
+REPORTS the protected rest — no compare/decide dialog for protected cells). Freshness
+states: Live / Syncing (visible lower-bound wording) / Last synced / Offline. Notification
+UI discloses the real relay metadata (recipient, timestamps, size band, delivery/ack
+timing, opaque ids) and ordinary read/unread is LOCAL device state. Firm setup is a shell
+over existing admin rails (`FirmDirectoryEntry` stays display-only). BCC-dropbox promises
+are REMOVED from 04 (D9 exclusion stands). Migration UI gains the two mandatory fallback
+surfaces (in-flight-workflow operator checklist + per-client attachment exported-or-gap
+accounting), the parallel-run "mirror" is limited to readable templates + activity traces,
+and 06's Day-1 corpus + envelope-revocation tests conform (XD2-6/7).
+
+**Hygiene (D10 continues):** 04 header states conformance to D1–D11 (not D11 alone); stale
+"not landed / still being written" cross-references in 05/06 removed; "Practice"-family UI
+labels replaced with firm/Home wording (SC-1, XD2-14); the stray `DONE-EXIT` sentinel at
+the end of 04 is deleted.
+
+## Round-2 reconciliation lanes (all Codex terra high; one doc per lane)
+
+| Lane | Doc | Work |
+|---|---|---|
+| R8 | 02-data-model | D12 conversion (topology names, revision graph, append-only completion, HLC clamp into Field Merge Contract), D13 key, D14 LegacyProject + naming, D22 ProposalRecord kinds, D23 ServicePolicy.schedulingLinkUrl, D24 index fix |
+| R9 | 03-sync-and-notifications | D15 duplicate triage, D16 approval TTL exemption, D17 checkpoint validation, D18 cross-outbox ordering, D19 budget table repair, D20 org scoping, D21 decision ledger + deterministic targets; reference (never restate) 02's merge contract |
+| R10 | 04-screens-end-to-end | D23 new surfaces, D24 task truth, D25 whole-cloth conformance (propagation UI, migration fallbacks, freshness, notifications, firm setup, BCC removal), hygiene |
+| R11 | 06-test-campaign | D19 scoped convergence tests, D24 EntityKind + provenance, XD2-6 envelope test, XD2-7 Day-1 corpus, revision-set language, Home naming |
+| R12 | 01-wealthbox-feature-matrix | D23 v1-exclusion verdicts + scheduling-link/intake homes recorded; XD2-7 BCC verdict cross-check |
+
+After R8–R12: round-3 closure review (one adversarial Codex pass verifying every XD2/SA2/SC
+finding closed + no new contradictions) → SPEC-FREEZE.md.
+
 ## Status
 - 2026-07-11: D1–D10 recorded; R1–R5 dispatching. Round-2 review + freeze pending.
+- 2026-07-11 (later): Round-2 reviews complete (15 blockers total); D12–D25 adjudicated
+  above; R8–R12 dispatching. Round-3 closure review + freeze pending.
