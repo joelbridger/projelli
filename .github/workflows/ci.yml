@@ -88,6 +88,11 @@ jobs:
         # test:contracts fails closed if the canonical real round trip is gone.
         run: npm run test:contracts
 
+      - name: Native Offline Mode static proof
+        run: |
+          node scripts/check-native-egress-boundary.mjs
+          node scripts/check-egress-registry.mjs
+
       - name: i18n key parity (report-only — KNOWN-I18N-01 deferred)
         # i18n is a deferred decision (KNOWN-I18N-01): the locale files carry
         # pre-existing key drift. Report it but DON'T block CI until i18n is
