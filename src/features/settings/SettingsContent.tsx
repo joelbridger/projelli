@@ -53,6 +53,7 @@ import {
 import { TemplateModelSettings } from '@/features/settings/TemplateModelSettings';
 import { PrivacySettings } from '@/features/settings/PrivacySettings';
 import { ConfidentialityModeSettings } from '@/features/settings/ConfidentialityModeSettings';
+import { OfflineModeSettings } from '@/features/settings/OfflineModeSettings';
 import { RecordingNoticeSettings } from '@/features/settings/RecordingNoticeSettings';
 import { SchedulingSettings } from '@/features/scheduling/SchedulingSettings';
 import { MemoryFactsSettings } from '@/features/settings/MemoryFactsSettings';
@@ -682,6 +683,7 @@ function AiSection(props: SectionProps) {
           testid="subheader-ai"
           containsMatch={aiMatch}
         >
+          <OfflineModeSettings />
           <ConfidentialityModeSettings
             onManageApiKeys={() => {
               props.onAction('open-ai-keys');

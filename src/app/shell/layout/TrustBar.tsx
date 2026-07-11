@@ -20,6 +20,7 @@ import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import { DeviceConnectionStatus } from '@/platform/privacy/ui/DeviceConnectionStatus';
 import { brandText } from '@/config/brandText';
 
 interface TrustBarProps {
@@ -89,6 +90,8 @@ export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
           ? { className: 'min-w-0 shrink overflow-hidden' }
           : {})}
       />
+
+      <DeviceConnectionStatus className="min-w-0 shrink overflow-hidden" />
 
       {/* Privacy Center shortcut — one click away from anywhere in the app. */}
       <IconButton
