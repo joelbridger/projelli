@@ -5,7 +5,7 @@ import { FirmApiClient } from './FirmApiClient';
 import { parseMatterHandle, parseStreamHandle, type LegacyMigrationManifestMatter } from './contract';
 import { decryptUpdateV2, generateMatterKey, importMatterKey } from './matterCrypto';
 import { readFirmMatterPrivateIndex } from './firmMatterPrivateIndex';
-import { runLegacyFirmManifestBridge } from './legacyFirmManifestBridge';
+import { type LegacyFirmManifestBridgeOptions, runLegacyFirmManifestBridge } from './legacyFirmManifestBridge';
 
 vi.mock('@/platform/providers/fetchUtils', () => ({ getCorsSafeFetch: async () => fetch }));
 
@@ -75,7 +75,12 @@ function bridgeOptions(
   initialMatters: Matter[],
   keyB64: string,
   placeholders: Matter[],
-) {
+): {
+  options: LegacyFirmManifestBridgeOptions;
+  matters: () => Matter[];
+  saveMatter: ReturnType<typeof vi.fn>;
+  createPlaceholder: ReturnType<typeof vi.fn>;
+} {
   let matters = initialMatters;
   const saveMatter = vi.fn((updated: Matter) => {
     matters = matters.map((matter) => matter.id === updated.id ? updated : matter);
@@ -103,7 +108,7 @@ function bridgeOptions(
       saveMatter,
       createPlaceholder,
       localDocumentIdForLegacyId: (_matter: Matter, legacyDocumentId: string) => legacyDocumentId === 'legacy-document-9' ? 'doc-advisory-plan.docx' : null,
-      loadLegacyMatterKey: async () => keyB64,
+      loadLegacyMatterKey: async (_legacyMatterId: string) => keyB64,
       storeOpaqueMatterKey: async () => undefined,
       clearLegacyMatterKey: async () => undefined,
     },
@@ -184,6 +189,62 @@ describe('one-time legacy firm manifest bridge', () => {
     const completeIndex = traffic.findIndex((request) => request.url.endsWith('/migration-complete'));
     expect(completeIndex).toBeGreaterThan(traffic.findIndex((request) => request.url.endsWith('/updates')));
     expect(traffic.slice(0, completeIndex).filter((request) => request.url.endsWith('/updates'))).toHaveLength(2);
+  });
+
+  it('seals available clients, acknowledges, and resumes a client that is waiting for its key', async () => {
+    const traffic: Traffic[] = [];
+    const second = {
+      ...legacyMatter(),
+      id: 'local-matter-88',
+      firmMatterId: 'matter-semantic-456',
+      name: 'Orion household',
+      client: 'ORION_SECRET',
+    };
+    const secondRow = row({
+      legacy_matter_id: 'matter-semantic-456',
+      matter_handle: extraMatterHandle,
+      root_stream_handle: extraRootStreamHandle,
+      streams: { _notes: extraRootStreamHandle },
+    });
+    const keyB64 = await generateMatterKey();
+    const fixture = bridgeOptions(clientFor([row(), secondRow], traffic), [legacyMatter(), second], keyB64, []);
+    let firstClientKey: string | null = null;
+    const loadLegacyMatterKey = vi.fn(async (legacyMatterId: string) =>
+      legacyMatterId === 'matter-semantic-123' ? firstClientKey : keyB64,
+    );
+    const clearLegacyMatterKey = vi.fn(async () => undefined);
+    fixture.options.loadLegacyMatterKey = loadLegacyMatterKey;
+    fixture.options.clearLegacyMatterKey = clearLegacyMatterKey;
+
+    await expect(runLegacyFirmManifestBridge(fixture.options)).resolves.toMatchObject({
+      status: 'completed',
+      migratedMatterIds: ['local-matter-88'],
+      notices: ['A shared client is waiting for its encryption key on this device.'],
+    });
+
+    expect(fixture.matters()[0]).toMatchObject({
+      firmMatterId: matterHandle,
+      legacyFirmMatterId: 'matter-semantic-123',
+      firmMigrationSealed: false,
+    });
+    expect(fixture.matters()[1]).toMatchObject({ firmMatterId: extraMatterHandle });
+    expect(fixture.matters()[1]).not.toHaveProperty('legacyFirmMatterId');
+    expect(clearLegacyMatterKey).toHaveBeenCalledWith('matter-semantic-456');
+    expect(clearLegacyMatterKey).not.toHaveBeenCalledWith('matter-semantic-123');
+    expect(traffic.filter((request) => request.url.endsWith('/updates'))).toHaveLength(1);
+    expect(traffic.filter((request) => request.url.endsWith('/migration-complete'))).toHaveLength(1);
+
+    firstClientKey = await generateMatterKey();
+    await expect(runLegacyFirmManifestBridge(fixture.options)).resolves.toMatchObject({
+      status: 'completed',
+      migratedMatterIds: ['local-matter-77'],
+      notices: [],
+    });
+
+    expect(fixture.matters()[0]).toMatchObject({ firmMatterId: matterHandle });
+    expect(fixture.matters()[0]).not.toHaveProperty('legacyFirmMatterId');
+    expect(traffic.filter((request) => request.url.endsWith('/updates'))).toHaveLength(2);
+    expect(traffic.filter((request) => request.url.endsWith('/migration-complete'))).toHaveLength(2);
   });
 
   it('creates a generic pending placeholder for an authorized manifest row with no local match', async () => {

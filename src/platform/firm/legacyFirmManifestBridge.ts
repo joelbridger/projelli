@@ -14,6 +14,7 @@ import { clearMatterKey, loadMatterKey, storeMatterKey } from './firmKeychain';
 
 const PLACEHOLDER_NAME = 'Shared client';
 const UNMATCHED_NOTICE = 'A shared client was not found on this device, so it remains local only.';
+const MISSING_KEY_NOTICE = 'A shared client is waiting for its encryption key on this device.';
 
 type BridgeClient = Pick<FirmApiClient, 'migrationManifest' | 'migrationComplete' | 'pushUpdate'>;
 
@@ -159,7 +160,12 @@ export async function runLegacyFirmManifestBridge(
     }
 
     const keyB64 = await loadLegacyMatterKey(legacyMatterId);
-    if (!keyB64) throw new Error('This shared client is waiting for a local encryption key before migration can finish.');
+    if (!keyB64) {
+      // Keep the opaque link checkpoint so this device can resume after it
+      // receives the key. Other matched clients must still be able to finish.
+      notices.push(MISSING_KEY_NOTICE);
+      continue;
+    }
     const matterHandle = parseMatterHandle(row.matter_handle);
     const rootStreamHandle = parseStreamHandle(row.root_stream_handle);
     await storeOpaqueMatterKey(matterHandle, keyB64);
@@ -195,8 +201,8 @@ export async function runLegacyFirmManifestBridge(
     placeholderCount++;
   }
 
-  // Every matched record is either sealed in this run or had its accepted
-  // checkpoint from an earlier crashed run. Only now may the manifest be acked.
+  // The acknowledgement only removes rows sealed by this device. Unsealed
+  // checkpoints remain local, waiting for their encryption key on a later run.
   await options.client.migrationComplete();
   for (const candidate of options.getMatters()) {
     const legacyMatterId = candidate.legacyFirmMatterId;
