@@ -2,6 +2,7 @@
 //! database handle and cannot split a propagation commit into separate writes.
 
 use serde::Deserialize;
+use serde_json::Value;
 use tauri::State;
 
 use super::{commands::CrmState, core_store::CrmCoreStore};
@@ -60,4 +61,37 @@ pub async fn crm_core_commit_propagation(state: State<'_, CrmState>, payload: Pr
             &payload.immutable_operations, &payload.activity_outbox.idempotency_key, &rows,
         )
     }).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
+}
+
+/// Save one durable CRM collection document.  The renderer supplies a typed
+/// record payload, but SQLCipher remains the only persistence boundary.
+#[tauri::command]
+pub async fn crm_live_upsert(state: State<'_, CrmState>, mut record: Value) -> Result<Value, String> {
+    let workspace = workspace(&state).await?;
+    let object = record.as_object_mut().ok_or("CRM live record must be an object")?;
+    let id = object.get("id").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).ok_or("CRM live record requires id")?;
+    let kind = object.get("kind").and_then(Value::as_str).filter(|value| !value.trim().is_empty()).ok_or("CRM live record requires kind")?;
+    if !kind.chars().all(|value| value.is_ascii_alphanumeric() || value == '_' || value == '-') {
+        return Err("CRM live record kind is invalid".to_string());
+    }
+    if !id.chars().all(|value| value.is_ascii_alphanumeric() || matches!(value, '-' | '_' | ':')) {
+        return Err("CRM live record id is invalid".to_string());
+    }
+    let now = chrono::Utc::now().to_rfc3339();
+    object.entry("matterId".to_string()).or_insert_with(|| Value::String("firm".to_string()));
+    object.entry("createdAt".to_string()).or_insert_with(|| Value::String(now.clone()));
+    object.insert("updatedAt".to_string(), Value::String(now));
+    let saved = record.clone();
+    tokio::task::spawn_blocking(move || CrmCoreStore::open(&workspace)?.upsert_live_record(&saved))
+        .await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())?;
+    Ok(record)
+}
+
+/// Return the encrypted collection documents required to render the CRM
+/// screens.  Browser/test mode deliberately has no hidden persistence path.
+#[tauri::command]
+pub async fn crm_live_list(state: State<'_, CrmState>) -> Result<Vec<Value>, String> {
+    let workspace = workspace(&state).await?;
+    tokio::task::spawn_blocking(move || CrmCoreStore::open(&workspace)?.list_live_records())
+        .await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())
 }

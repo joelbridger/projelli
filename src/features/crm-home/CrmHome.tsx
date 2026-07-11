@@ -23,6 +23,7 @@ import {
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button } from '@/ui/kp';
 import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
 import type {
   CrmFreshnessState,
   CrmHomeAdapter,
@@ -196,7 +197,7 @@ function TaskBoard({ tasks, onOpen, onMove }: { tasks: readonly CrmTask[]; onOpe
 
 function TaskDetail({ task, onClose, onSave }: { task: CrmTask; onClose: () => void; onSave: (task: CrmTask) => void }) {
   const [draft, setDraft] = useState(task);
-  return <aside data-testid="crm-task-detail" aria-label="Task detail" style={{ ...panelStyle, position: 'fixed', right: 20, top: 80, maxWidth: 420, boxShadow: 'var(--kp-shadow-2)', zIndex: 5 }}><h2 style={{ marginTop: 0 }}>Task detail</h2><label>Title<input data-testid="crm-task-title-input" value={draft.title} onChange={(event) => { setDraft({ ...draft, title: event.target.value }); }} /></label><label>Assignee<select data-testid="crm-task-assignee" value={draft.assigneeUserId} onChange={(event) => { setDraft({ ...draft, assigneeUserId: event.target.value, assigneeLabel: event.target.value === 'maya' ? 'Maya' : event.target.value }); }}><option value="maya">Maya</option><option value="priya">Priya</option><option value="andy">Andy</option></select></label><p style={mutedStyle}>One assignee. Notes live in the task body. Tasks have no comments.</p><div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-task-save" onClick={() => { onSave(draft); }}>Save local change</Button><Button variant="secondary" onClick={onClose}>Close</Button></div></aside>;
+  return <aside data-testid="crm-task-detail" aria-label="Task detail" style={{ ...panelStyle, position: 'fixed', right: 20, top: 80, maxWidth: 420, boxShadow: 'var(--kp-shadow-2)', zIndex: 5 }}><h2 style={{ marginTop: 0 }}>Task detail</h2><label>Title<input data-testid="crm-task-title-input" value={draft.title} onChange={(event) => { setDraft({ ...draft, title: event.target.value }); }} /></label><label>Assignee<select data-testid="crm-task-assignee" value={draft.assigneeUserId} onChange={(event) => { setDraft({ ...draft, assigneeUserId: event.target.value, assigneeLabel: event.target.value === 'maya' ? 'Maya' : event.target.value }); }}><option value="maya">Maya</option><option value="priya">Priya</option><option value="andy">Andy</option></select></label><label>Due date<input data-testid="crm-task-due" type="date" value={draft.dueAt ?? ''} onChange={(event) => { const due = event.target.value; setDraft({ ...draft, ...(due ? { dueAt: due, dueLabel: due } : {}) }); }} /></label><p style={mutedStyle}>One assignee. Notes live in the task body. Tasks have no comments.</p><div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-task-save" onClick={() => { onSave(draft); }}>Save local change</Button><Button variant="secondary" onClick={onClose}>Close</Button></div></aside>;
 }
 
 function Workflows({ freshness, onNavigate }: { freshness: CrmFreshnessState; onNavigate: (route: CrmHomeRoute) => void }) {
@@ -292,6 +293,7 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false }: 
   const [undoReport, setUndoReport] = useState<string | null>(null);
   const freshness = activeAdapter.freshness;
   const offers = activeAdapter.offers;
+  useEffect(() => { setTasks(activeAdapter.tasks); }, [activeAdapter.tasks]);
   const updateTask = (task: CrmTask) => { setTasks((current) => current.some((item) => item.id === task.id) ? current.map((item) => item.id === task.id ? task : item) : [...current, task]); activeAdapter.actions.updateTask?.(task); };
   const jump = (next: CrmHomeRoute) => { setRoute(next); };
   const reportUndo = useCallback(() => { const result = activeAdapter.actions.undoPropagation?.() ?? { restored: 0, protectedCells: [] }; setUndoReport(result.protectedCells.length ? `${String(result.restored)} untouched derived cells restored. Protected cells kept: ${result.protectedCells.join(', ')}.` : `${String(result.restored)} untouched derived cells restored. No protected cells needed to stay.`); }, [activeAdapter]);
@@ -304,8 +306,24 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false }: 
 
 export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps) {
   const [freshness, setFreshness] = useState<CrmFreshnessState>(getCrmEngineFreshness());
+  const live = useLiveCrmRecords();
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
-  const activeAdapter = adapter ?? (preview ? PREVIEW_ADAPTER : emptyEngineAdapter(freshness));
+  const liveTasks: readonly CrmTask[] = live.records.filter((record) => record.kind === 'task').map((record) => ({
+    id: record.id,
+    title: typeof record['title'] === 'string' ? record['title'] : 'Untitled task',
+    assigneeUserId: typeof record['assigneeUserId'] === 'string' ? record['assigneeUserId'] : 'maya',
+    assigneeLabel: typeof record['assigneeLabel'] === 'string' ? record['assigneeLabel'] : 'Maya',
+    status: record['status'] === 'in_progress' || record['status'] === 'blocked' || record['status'] === 'done' || record['status'] === 'cancelled' ? record['status'] : 'open',
+    priority: record['priority'] === 'high' || record['priority'] === 'low' ? record['priority'] : 'normal',
+    ...(typeof record['householdLabel'] === 'string' ? { householdLabel: record['householdLabel'] } : {}),
+    ...(typeof record['dueAt'] === 'string' ? { dueAt: record['dueAt'], dueLabel: record['dueAt'] } : {}),
+  }));
+  const liveAdapter: CrmHomeAdapter = {
+    ...emptyEngineAdapter(freshness),
+    tasks: liveTasks,
+    actions: { updateTask: (task) => { void live.save({ ...task, kind: 'task', matterId: 'firm' }); } },
+  };
+  const activeAdapter = adapter ?? (preview ? PREVIEW_ADAPTER : liveAdapter);
   return <ConnectedCrmHome adapter={activeAdapter} preview={preview} {...(initialRoute ? { initialRoute } : {})} />;
 }
 

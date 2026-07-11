@@ -116,6 +116,53 @@ impl CrmCoreStore {
         lock_unpoison(&self.conn).execute("INSERT INTO crm_docs(doc_key,matter_id,doc_id,yjs_state,state_vector,updated_at,deleted) VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(doc_key) DO UPDATE SET matter_id=excluded.matter_id,doc_id=excluded.doc_id,yjs_state=excluded.yjs_state,state_vector=excluded.state_vector,updated_at=excluded.updated_at,deleted=excluded.deleted", params![row.doc_key,row.matter_id,row.doc_id,row.yjs_state,row.state_vector,row.updated_at,row.deleted as i64])?;
         Ok(())
     }
+
+    /// Small, renderer-facing CRM records are stored as individual encrypted
+    /// collection documents.  Keeping their id in `doc_id` means this is not a
+    /// second browser cache: it uses the same SQLCipher database, key, backup,
+    /// and delete semantics as the CRM core.
+    pub fn upsert_live_record(&self, record: &serde_json::Value) -> Result<()> {
+        let object = record.as_object().context("CRM live record must be an object")?;
+        let id = object
+            .get("id")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .context("CRM live record requires id")?;
+        let matter_id = object
+            .get("matterId")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("firm");
+        let updated_at = object
+            .get("updatedAt")
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or("unknown");
+        self.upsert_doc(&CrmDocRow {
+            doc_key: format!("{matter_id}/live:{id}"),
+            matter_id: matter_id.to_string(),
+            doc_id: format!("live:{id}"),
+            yjs_state: serde_json::to_vec(record).context("encode CRM live record")?,
+            state_vector: Vec::new(),
+            updated_at: updated_at.to_string(),
+            deleted: false,
+        })
+    }
+
+    pub fn list_live_records(&self) -> Result<Vec<serde_json::Value>> {
+        let conn = lock_unpoison(&self.conn);
+        let mut statement = conn.prepare(
+            "SELECT yjs_state FROM crm_docs WHERE doc_id LIKE 'live:%' AND deleted=0 ORDER BY updated_at, doc_id",
+        )?;
+        let records = statement
+            .query_map([], |row| row.get::<_, Vec<u8>>(0))?
+            .map(|row| {
+                let bytes = row?;
+                serde_json::from_slice(&bytes).context("decode CRM live record")
+            })
+            .collect::<Result<Vec<_>>>()?;
+        Ok(records)
+    }
     /// Soft deletion is a projected tombstone, never a physical erase of the
     /// collection document.  The allow-list prevents identifiers becoming SQL.
     pub fn tombstone_projection(&self, table: &str, id: &str) -> Result<()> {
@@ -484,6 +531,19 @@ mod tests {
         assert_eq!(s.get_doc(&row.doc_key).unwrap(), Some(row));
         s.set_cursor("m/crm:records", 4, 2).unwrap();
         assert_eq!(s.cursor("m/crm:records").unwrap(), Some((4, 2)));
+    }
+    #[test]
+    fn live_records_round_trip_through_the_encrypted_document_store() {
+        let (_d, s) = store();
+        let record = serde_json::json!({
+            "id": "household-northcrest",
+            "kind": "household",
+            "matterId": "household-northcrest",
+            "name": "Northcrest household",
+            "updatedAt": "2026-07-11T00:00:00Z"
+        });
+        s.upsert_live_record(&record).unwrap();
+        assert_eq!(s.list_live_records().unwrap(), vec![record]);
     }
     #[test]
     fn observed_relay_time_caps_issued_stamp_and_quarantines_old_future_stamp() {

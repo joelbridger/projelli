@@ -228,6 +228,8 @@ pub fn run() {
             commands::crm::core_commands::crm_core_cursor,
             commands::crm::core_commands::crm_core_record_applied,
             commands::crm::core_commands::crm_core_commit_propagation,
+            commands::crm::core_commands::crm_live_upsert,
+            commands::crm::core_commands::crm_live_list,
             // OneDrive / SharePoint document connector (read-only Graph import).
             commands::onedrive::commands::onedrive_set_workspace,
             commands::onedrive::commands::onedrive_connect,

@@ -71,6 +71,67 @@ async function readStdinText() {
 }
 
 const [cmd, ...args] = process.argv.slice(2);
+// Linux Tauri uses the debug-only local bridge rather than Chromium CDP.  Keep
+// the same small CLI so desktop checks do not silently fall back to a browser
+// mock just because the host is not Windows.
+async function bridgeRequest(path, params = {}) {
+  const url = new URL(`http://127.0.0.1:${PORT}${path}`);
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
+  const response = await fetch(url);
+  const body = await response.json();
+  if (!response.ok || !body.ok) throw new Error(body.error || `Desktop bridge ${path} failed`);
+  return body.result;
+}
+
+async function runBridge() {
+  switch (cmd) {
+    case 'pages':
+      console.log(JSON.stringify([{ url: await bridgeRequest('/url'), title: 'Tauri desktop app' }], null, 2));
+      break;
+    case 'url':
+      console.log(await bridgeRequest('/url'));
+      break;
+    case 'snapshot': {
+      const data = await bridgeRequest('/eval', { js: `Array.from(document.querySelectorAll('[data-testid], button, a, [role="button"], input, textarea')).map((e) => ({ testid: e.getAttribute('data-testid') || undefined, tag: e.tagName.toLowerCase(), text: (e.textContent || e.getAttribute('aria-label') || e.getAttribute('placeholder') || '').trim().slice(0, 60) || undefined })).filter((x) => x.testid || x.text).slice(0, 250)` });
+      console.log(JSON.stringify(data, null, 2));
+      break;
+    }
+    case 'click':
+      await bridgeRequest('/click', { testid: args[0] });
+      console.log('clicked [data-testid="' + args[0] + '"]');
+      break;
+    case 'type':
+    case 'type-stdin': {
+      const value = cmd === 'type-stdin' ? await readStdinText() : (args[1] ?? '');
+      await bridgeRequest('/fill', { testid: args[0], text: value });
+      if (args.includes('--submit')) {
+        await bridgeRequest('/eval', { js: `document.querySelector('[data-testid="${args[0]}"]')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))` });
+      }
+      console.log('typed into [data-testid="' + args[0] + '"]');
+      break;
+    }
+    case 'eval':
+      console.log(JSON.stringify(await bridgeRequest('/eval', { js: args[0] }), null, 2));
+      break;
+    case 'waitfor': {
+      const deadline = Date.now() + (Number(args[1]) || 15) * 1000;
+      while (Date.now() < deadline) {
+        const text = await bridgeRequest('/eval', { js: 'document.body.innerText' });
+        if (String(text).includes(args[0])) { console.log('found: ' + args[0]); return; }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      throw new Error(`Timed out waiting for text: ${args[0]}`);
+    }
+    case 'screenshot':
+      throw new Error('The Linux desktop bridge cannot capture pixels itself. Use the X display screenshot helper for this debug run.');
+    default:
+      throw new Error(`unknown command: ${cmd}`);
+  }
+}
+
+if (PORT === '9250') {
+  await runBridge();
+} else {
 const browser = await getBrowser();
 try {
   if (cmd === 'pages') {
@@ -143,4 +204,5 @@ try {
 } finally {
   // Disconnect CDP WITHOUT closing the app (connectOverCDP.close() only detaches).
   await browser.close().catch(() => {});
+}
 }
