@@ -58,6 +58,13 @@ describe('verifyPdfFillReceipt', () => {
       .resolves.toBeUndefined();
   });
 
+  it('accepts an empty AcroForm shell left by a flattened pdf-lib document', async () => {
+    const bytes = validPdf('/AcroForm << /Fields [] >>');
+    const approved = descriptor();
+    await expect(verifyPdfFillReceipt({ completedBytes: bytes, receipt: await receipt(bytes, approved), descriptor: approved }))
+      .resolves.toBeUndefined();
+  });
+
   it('rejects a changed completed hash, oversize bytes, and another template version', async () => {
     const bytes = validPdf();
     const approved = descriptor();
@@ -73,7 +80,7 @@ describe('verifyPdfFillReceipt', () => {
   });
 
   it.each([
-    ['interactive fields', validPdf('/AcroForm << /Fields [] >>')],
+    ['interactive fields', validPdf('/AcroForm << /Fields [5 0 R] >>', ['<< /Type /Annot /Subtype /Widget /FT /Tx /Rect [0 0 0 0] >>'])],
     ['JavaScript', validPdf('/OpenAction << /S /JavaScript /JS (app.alert(1)) >>')],
     ['launch action', validPdf('/OpenAction << /S /Launch /F (unsafe.exe) >>')],
     ['attachment', validPdf('/Names << /EmbeddedFiles << >> >>')],
