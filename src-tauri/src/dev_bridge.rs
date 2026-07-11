@@ -9,8 +9,19 @@ use tauri::{AppHandle, Manager, State};
 use tokio::sync::oneshot;
 
 const HOST: &str = "127.0.0.1";
-const PORT: u16 = 9250;
+const DEFAULT_PORT: u16 = 9250;
 const DEFAULT_TIMEOUT_MS: u64 = 5_000;
+
+/// The bridge port. Overridable so several debug app instances can run side by
+/// side on one machine (each with its own workspace), which is what lets live
+/// verification of different surfaces happen in parallel instead of queueing on
+/// a single hardcoded port.
+fn bridge_port() -> u16 {
+    std::env::var("LANTERN_DEV_BRIDGE_PORT")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(DEFAULT_PORT)
+}
 const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 
 pub struct DevBridgeState {
@@ -39,15 +50,16 @@ pub fn manage_state(app: &tauri::App) {
 
 pub fn start(app: AppHandle) {
     std::thread::spawn(move || {
-        let listener = match TcpListener::bind((HOST, PORT)) {
+        let port = bridge_port();
+        let listener = match TcpListener::bind((HOST, port)) {
             Ok(listener) => listener,
             Err(error) => {
-                log::error!("[dev-bridge] failed to listen on {HOST}:{PORT}: {error}");
+                log::error!("[dev-bridge] failed to listen on {HOST}:{port}: {error}");
                 return;
             }
         };
 
-        log::info!("[dev-bridge] listening on 127.0.0.1:9250");
+        log::info!("[dev-bridge] listening on {HOST}:{port}");
 
         for stream in listener.incoming() {
             match stream {
@@ -133,7 +145,7 @@ fn route_request(
     query: &HashMap<String, String>,
 ) -> Result<Value, HttpError> {
     match path {
-        "/health" => Ok(json!({ "ok": true, "port": PORT })),
+        "/health" => Ok(json!({ "ok": true, "port": bridge_port() })),
         "/eval" => {
             let js = required_query(query, "js")?;
             let timeout_ms = timeout_ms(query);
@@ -433,7 +445,7 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, String> {
 
 fn parse_target(target: &str) -> (String, HashMap<String, String>) {
     let target = target
-        .strip_prefix(&format!("http://{HOST}:{PORT}"))
+        .strip_prefix(&format!("http://{HOST}:{}", bridge_port()))
         .unwrap_or(target);
     let (path, query) = match target.split_once('?') {
         Some((path, query)) => (path, query),

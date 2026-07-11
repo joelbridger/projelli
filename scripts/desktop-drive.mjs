@@ -25,6 +25,9 @@
 import { chromium } from 'playwright';
 
 const PORT = process.env.DESKTOP_CDP_PORT || '9223';
+// The Tauri debug bridge port. Overridable (matching the app's
+// LANTERN_DEV_BRIDGE_PORT) so several app instances can be driven side by side.
+const BRIDGE_PORT = process.env.LANTERN_DEV_BRIDGE_PORT || '9250';
 const CDP_HOSTS = (process.env.DESKTOP_CDP_HOSTS || process.env.DESKTOP_CDP_HOST || '127.0.0.1,localhost,[::1]')
   .split(',')
   .map((host) => host.trim())
@@ -129,7 +132,7 @@ async function runBridge() {
   }
 }
 
-if (PORT === '9250') {
+if (PORT === BRIDGE_PORT || process.env.LANTERN_DEV_BRIDGE_PORT) {
   await runBridge();
 } else {
 const browser = await getBrowser();
