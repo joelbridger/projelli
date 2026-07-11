@@ -2,7 +2,7 @@
 
 **Lane D · LANTERN-CRM program · DRAFT for freeze review**
 
-**Conforms to 00-master-spec D11 (amended 2026-07-11).**
+**Conforms to 00-master-spec decisions D1–D25.**
 
 This is the screen contract for the CRM build. It renders the entities defined in
 design/02-data-model.md. It does not create parallel client or workflow concepts.
@@ -23,8 +23,9 @@ All UI uses Lantern's existing light theme and existing components.
   Updating value makes a new Fact and preserves the old Fact in history.
 - Internal and client-facing Notes are separate immutable audience lanes. Moving content
   across the boundary means creating a new note in the other lane.
-- Offline work stays usable. Connector-backed content always shows Last update received
-  and Last full check when those times differ.
+- Offline work stays usable. Connector-backed content uses the shared freshness language in
+  §15: Live, Syncing, Last synced, or Offline. Where source checks matter, Last synced also
+  shows the last full check.
 
 | Action class | Meaning |
 |---|---|
@@ -46,6 +47,7 @@ Navy spine
 │  └─ Firm
 │     ├─ Firm setup                 directory, roles, service tiers, retention, teams
 │     ├─ Fields and tags            custom fields and tags
+│     ├─ Intake links               create, preview, and review submissions
 │     └─ Migration                  mirror, parallel run, cutover, fidelity
 ├─ Clients
 │  ├─ Directory                     Households | People
@@ -58,7 +60,7 @@ Navy spine
 │     └─ Activity                   detailed append-only activity
 ├─ Ask
 │  ├─ This household
-│  └─ Whole practice, summaries only
+│  └─ Whole firm, summaries only
 ~~~
 
 Home is the landing surface, not a fourth tab or an optional Client Map toggle. Today holds
@@ -83,18 +85,18 @@ FidelityReportCard, and EnvelopeNotificationList.
 **Strong action:** Review today's plan.
 
 ~~~
-┌ Home / Today                                     [Ask the practice...] ┐
-│ Good morning, Maya                    Synced 2 min ago · Connected     │
+┌ Home / Today                                         [Ask the firm...] ┐
+│ Good morning, Maya                                      Live · Connected │
 │ ┌ Today, realistically ───────────────────────────────────────────────┐ │
 │ │ 6 of 21 open items fit today. 4 are suggested for later. [Review]  │ │
 │ │ Henderson review Thursday: 3 open items                 [Open]      │ │
 │ │ Miller transfer needs Andy's approval                   [Review]    │ │
 │ └─────────────────────────────────────────────────────────────────────┘ │
 │ ┌ Waiting for you ────────────────┐ ┌ Sync state ─────────────────────┐ │
-│ │ 2 local changes need approval   │ │ Mirror current                  │ │
+│ │ 2 local changes need approval   │ │ Last synced 10:42               │ │
 │ │ 1 template update needs review  │ │ Full check: yesterday 11:04     │ │
 │ └─────────────────────────────────┘ └─────────────────────────────────┘ │
-│ Recent practice activity                                                    │
+│ Recent firm activity                                                        │
 └────────────────────────────────────────────────────────────────────────────┘
 ~~~
 
@@ -103,12 +105,12 @@ CountBadge, SyncStateBanner, TimelineEntry, CiteChip, Button.
 
 **Actions:** Review opens side panel with suggested keep, move, delegate choices. Saving
 directly edits local tasks and creates ActivityEvents. Rows route to household, task, or
-proposal. Sync state routes to Home > Firm > Migration. Marking activity read changes
-encrypted member read state only.
+proposal. Sync state routes to Home > Firm > Migration. Marking activity read changes only
+this device's local inbox state.
 
-**States:** Empty: Your practice is clear for today. Loading: shell and Ask bar appear
+**States:** Empty: Your firm is clear for today. Loading: shell and Ask bar appear
 immediately with card skeletons. Offline: You're working offline. Your local plan is ready.
-New changes will deliver when you reconnect. Stale: amber banner names both timestamps.
+New changes will deliver when you reconnect. Last synced: amber banner names both timestamps.
 Error: keep last plan and show Try again in failed card.
 
 **Efficiency:** g then h opens Home, j/k moves rows, Enter opens, r reviews selected work,
@@ -124,7 +126,7 @@ Opportunity, Workflow. Fact is first because information is not a task.
 
 ~~~
 ┌ ‹ Clients / Henderson household                    [Ask this household] ┐
-│ Active · Owned by Maya · Platinum · Next review Sep 18 · Synced just now │
+│ Active · Owned by Maya · Platinum · Next review Sep 18 · Live             │
 │ [Add to this household]                                                  │
 │ Client Map | Timeline | Documents | Email | Meetings | Activity          │
 ├──────────────────────────────────────────────────────────────────────────┤
@@ -135,7 +137,7 @@ Opportunity, Workflow. Fact is first because information is not a task.
 │ │ Lock. Inside context. Never included in client-facing drafts.        │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 │ ┌ CLIENT-FACING ──────────────────────────────────────────────────────┐ │
-│ │ Review summary · verified recipients: Dana, Lee                      │ │
+│ │ Review summary · local note · audience fixed at creation             │ │
 │ └──────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────┘
 ~~~
@@ -155,7 +157,8 @@ Accordion, Button, Dropdown, SlidePanel, ProposalCard, existing ClientMapPanel.
   Missing purpose says Needs a purpose.
 - People separate household members from external parties. External parties show role and
   verified-recipient state.
-- Service tier opens ServicePolicy with cadence, next review, and linked review workflow.
+- Service tier opens ServicePolicy with cadence, next review, linked review workflow, and
+  the firm scheduling link when one is set.
 - Both audience lanes remain visible even empty.
 
 | Action | Result | Class |
@@ -164,17 +167,33 @@ Accordion, Button, Dropdown, SlidePanel, ProposalCard, existing ClientMapPanel.
 | Accept suggested Fact | Tracked preview then selected Fact write. | Proposal |
 | Add Account | Requires custodian, type, purpose. No full account number field. | Direct local edit |
 | Add internal note | Immutable-audience Note in amber lane. | Direct local edit |
-| Draft client-facing note/email | Select verified recipients and create review item. | Proposal then external approval |
+| Add client-facing note | Creates a local Note in the immutable client-facing audience lane. | Direct local edit |
+| Draft email | Opens the existing mail surface; verified recipients and external approval happen there. | External approval |
 | Change service tier | Updates household policy reference. | Direct local edit |
 | Start workflow | Pick published template, household, start date, owners. | Direct local edit |
 
 **States:** Empty: Start the client map with Add a fact. Loading: header/tabs stay,
-section skeletons follow. Offline: local edits work and say Waiting to deliver; outside
-send is blocked until verification can be confirmed. Stale: imported Facts are amber and
-header names connector clocks. Error: retry failed section only, retain rest.
+section skeletons follow. Offline: local edits work and say Waiting to deliver; an outside
+email is blocked until verification can be confirmed in the mail surface. Last synced:
+imported Facts are amber and the header names connector clocks. Error: retry failed section
+only, retain rest.
 
 **Efficiency:** a opens Add, f Fact, t Task, n internal note, 1 through 6 changes
 sub-tab, ? opens shortcuts.
+
+### Note editor
+
+A Note is always a local CRM record. Creation chooses Internal or Client-facing once; the
+audience cannot later be changed. The editor exposes **Pin**, **@mentions**, and a clear
+notification-review strip listing who will be notified before the local note is saved.
+Mentions create the appropriate notification record; they do not turn a Note into email.
+The only email action is **Draft email**, which opens the existing mail surface and follows
+its separate recipient verification and external-approval flow. There is no send button,
+recipient picker, or activity-comment control on a Note.
+
+Household scheduling actions appear beside the service tier and upcoming review: **Schedule
+with this household** opens the configured `ServicePolicy.schedulingLinkUrl` in the existing
+calendar connector. A missing link says Ask a firm admin to add a scheduling link.
 
 ### Timeline
 
@@ -195,16 +214,16 @@ workflows, accounts, and activity.
 InternalLaneMarker, CiteChip, Badge, SlidePanel, Button, EmptyState.
 Filters are view state. Open routes to natural detail. Task completion is direct local
 edit. Suggestions route to proposal. Email/connector writes route to approval.
-Empty, loading, offline, stale, error respectively show no-history copy, dated skeletons,
-Waiting to deliver, source-specific stale chips, inline retry. Shortcuts: [/] date groups,
+Empty, loading, offline, Last synced, error respectively show no-history copy, dated skeletons,
+Waiting to deliver, source-specific Last synced chips, inline retry. Shortcuts: [/] date groups,
 o opens, i toggles permitted internal view, / searches.
 
 ### Documents, Email, Meetings, Activity
 
 These preserve existing layouts. Each gets a collapsible top ProposalCard when that source
 made CRM suggestions. It never hides source content. Documents can add sourced Fact/task/
-workflow or draft follow-up. Email remains threaded/searchable; BCC-dropbox message appears
-in Email and Timeline. Meetings retain notes-left/transcript-right and one checkbox review
+workflow or draft follow-up. Email remains threaded/searchable. Meetings retain
+notes-left/transcript-right and one checkbox review
 card for facts, tasks, workflows, notes, follow-ups. Activity is detailed ActivityEvent list
 and link to compliance audit log. Standard states are empty source copy, skeleton, offline
 pending delivery, source timestamp, and inline retry. Source links and shortcuts keep their
@@ -232,7 +251,7 @@ Badge, Chip, Card, SlidePanel, Button, EmptyState.
 Add/edit person, trust, organization, channel, external role, and household relationship
 directly. Review recipient opens channel/address, verification date/verifier, related
 households. Verification is recorded local action. Sending through it remains external
-approval. Empty/loading/offline/stale/error show next action, skeletons, last-known
+approval. Empty/loading/offline/Last synced/error show next action, skeletons, last-known
 verification, source timestamp, retry. Shortcuts: / search, p add, e external, v needs
 verification.
 
@@ -244,7 +263,7 @@ what fits today.
 **Strong action:** New task.
 
 ~~~
-┌ Home / Tasks                     [Ask the practice...]          [New task] ┐
+┌ Home / Tasks                         [Ask the firm...]          [New task] ┐
 │ My work | Team work | Money movement | Review due | + Save view             │
 │ [List] [Board] Assignee: me Due: this week Status: open [Filters]           │
 │ 6 of 21 fit today. You can review the suggested plan. [Review plan]         │
@@ -254,9 +273,9 @@ what fits today.
 └─────────────────────────────────────────────────────────────────────────────┘
 ~~~
 
-Board columns: To do, In progress, Blocked, Done. Detail SlidePanel has title,
-description, status, assignees, dates, priority, recurrence, household, context/source,
-workflow, comments, Activity history.
+Board columns: To do, In progress, Blocked, Done. Detail SlidePanel has title, body notes,
+status, singular assignee, dates, priority, recurrence, household, context/source, workflow
+links rendered from `contextRefs`, and Activity history. Tasks have no comments feature.
 
 **Components:** SurfaceHeader, AskBar, SurfaceToolbar, SegmentedToggle, FilterToggle,
 FilterPanel, SearchField, EntityTable, WorkflowBoard, Card, Badge, Chip, CountBadge,
@@ -269,7 +288,7 @@ Wealthbox task creation is external approval and cannot send without due date.
 
 Capacity ranks due date, urgency, meeting proximity, money movement, blocked state, service
 tier, assignee load. It never moves work itself and never scolds. Empty distinguishes no
-matches/no tasks. Loading: list/board skeleton. Offline: all local edits work. Stale:
+matches/no tasks. Loading: list/board skeleton. Offline: all local edits work. Last synced:
 source/time. Error: local index plus retry. Shortcuts: c complete, a assign, d due,
 p priority, w match workflow, v views, g then t opens Home > Tasks.
 
@@ -279,71 +298,74 @@ p priority, w match workflow, v views, g then t opens Home > Tasks.
 
 **Purpose:** maintain versioned, findable ways of working.
 
-**Strong action:** Publish version 8, only after a draft changes.
+**Strong action:** Publish update, only after a draft changes.
 
 ~~~
 ┌ Home / Workflows / Templates                  [Find a workflow] [New template] ┐
-│ Onboarding · published v7 · 12 open workflows                    [Edit draft] │
+│ Onboarding · published: Welcome sequence refresh · 12 open workflows [Edit draft] │
 │ 1 Confirm household details · Ops · +0 days · Required                        │
 │ 2 Open accounts · Advisor · +2 days · Required                                │
 │ 3 Send welcome packet · CSA · +3 days · Required                              │
-│ Draft v8: Added 1 · Changed 2 · Removed 0                    [Publish v8]     │
+│ Draft update: Added 1 · Changed 2 · Removed 0            [Publish update]     │
 └───────────────────────────────────────────────────────────────────────────────┘
 ~~~
 
 **Components:** SurfaceHeader, SearchField, RailShell, Card, Button, IconButton, Chip,
 Badge, Callout, Accordion, SlidePanel, ConfirmDialog, PropagationDiff.
 
-Create/edit/reorder/soft-remove steps, roles, assignees, due offsets, required, category,
-trigger hints, tags directly in draft. Publish shows exact diff/affected count, creates
-version and offers only, never changes open workflow. Archive blocks new instance but keeps
-history. Empty offers small starter library. Offline saves draft but blocks publish until
-current template/instances sync. Stale/error retain draft. Shortcuts: n, e, Shift+Enter,
-Alt+Up/Down, p, /.
+Create/edit/reorder/soft-remove steps, roles, default assignee, due offsets, required,
+category, trigger hints, and tags directly in draft. The template has a dedicated **schedule
+editor**, and every step has an **outcomes and branching editor**. Publish asks for a
+human-readable update label, shows the exact diff/affected
+count, creates an immutable revision set and offers only, and never changes an open workflow.
+Archive blocks new instance but keeps history. Empty offers small starter library. Offline
+saves draft but blocks publish until the required template/instance state is available.
+Last synced/error retain draft. Shortcuts: n, e, Shift+Enter, Alt+Up/Down, p, /.
 
 ### Instances
 
 **Purpose:** show live household work while preserving independently completed steps.
 
 ~~~
-┌ Home / Workflows / Henderson household / Onboarding · v7 · 5 of 7 complete [Open household] ┐
+┌ Home / Workflows / Henderson household / Onboarding · 5 of 7 complete [Open household] ┐
 │ □ Send welcome packet · Priya · due Jun 5 · required [Open task]                    │
 │ □ Confirm recurring transfer · Andy · due Jun 8 [Open task]                         │
 │ ✓ Open accounts · Maya · Jun 3                                                      │
-│ Template update available: v8 has 3 proposed changes. [Review]                     │
+│ Update pending: Welcome sequence refresh · full change-set not yet present [Review] │
 └─────────────────────────────────────────────────────────────────────────────────────┘
 ~~~
 
-Start, complete, skip, reopen, assign, comment directly. Client-facing output from step is
-external approval. Instance shows honored/newer version. Offline edits say Waiting to
-deliver; stale version is shown; error retains snapshots. x complete, s skip, o task,
-r review, g then w opens Home > Workflows.
+Start, complete, skip, reopen, assign, and add a per-step note directly. Client-facing output
+from a step is external approval. An instance shows a human-readable update label as Pending
+until its full composed change-set is present; unrelated pending offers do not hold it back.
+Offline edits say Waiting to deliver; Last synced state names the available revision set;
+error retains snapshots. x complete, s skip, o task, r review, g then w opens Home > Workflows.
 
 ## 7. Home > Workflows > Propagation Review
 
-**Purpose:** safely apply a template version to selected open workflows without wiping out
-real progress.
+**Purpose:** safely apply a named template update to selected open workflows without wiping
+out real progress.
 
-This is a full Home > Workflows route, never a modal. Publishing mints one PropagationOffer for
-each changed stable step ID on each open WorkflowInstance. Publishing changes nothing.
+This is a full Home > Workflows route, never a modal. Publishing mints **one
+PropagationOffer per open WorkflowInstance**. Each offer contains its changed steps and
+fields; publishing changes nothing. The revision-set mechanics and decision ledger are
+canonical in [03 §4](03-sync-and-notifications.md#4-workflow-template-propagation-d4).
 
 ~~~
-┌ Home / Workflows / Propagation review                                     ┐
-│ Onboarding v7 → v8 · 12 open workflows · 31 proposed changes              │
-│ [All] [Ready: 24] [Need a decision: 7] [Already decided]                  │
-│ + Confirm recurring transfer · new step · 12 workflows                     │
-│ ~ Send welcome packet owner · 11 workflows                                 │
-│ − Paper welcome kit · 8 workflows                                          │
-│ ┌ □ Henderson household · 3 changes · Ready ────────────────────────────┐ │
-│ │ + Confirm recurring transfer · due +4 · Ops                             │ │
-│ │ ~ Send welcome packet · Priya → CSA · Progress kept: Done               │ │
-│ │ − Paper welcome kit · Not started                [Show full diff]       │ │
-│ └────────────────────────────────────────────────────────────────────────┘ │
-│ ┌ □ Miller household · 2 changes · Needs a decision ─────────────────────┐ │
-│ │ Current owner changed locally.                         [Compare]         │ │
-│ └────────────────────────────────────────────────────────────────────────┘ │
-│ 18 changes selected across 7 workflows                     [Approve changes]│
-└────────────────────────────────────────────────────────────────────────────┘
+┌ Home / Workflows / Propagation review                                          ┐
+│ Onboarding · Welcome sequence refresh · 12 eligible instances                  │
+│ [All] [Ready: 8] [Need a decision: 4] [Already decided] [Approve all eligible]│
+│ ┌ Henderson household · one offer · update pending ──────────────────────────┐ │
+│ │ Confirm recurring transfer: [Accept] due +4 · Ops                           │ │
+│ │ Send welcome packet / owner: [Reject] current routing stays for this run    │ │
+│ │ Paper welcome kit: [Accept] untouched step will be removed                  │ │
+│ │ Full composed change-set pending until these decisions apply [Show diff]    │ │
+│ └────────────────────────────────────────────────────────────────────────────┘ │
+│ ┌ Miller household · one offer · unresolved concurrent update heads ─────────┐ │
+│ │ Review the two source updates before choosing fields.          [Review]     │ │
+│ └────────────────────────────────────────────────────────────────────────────┘ │
+│ 18 accepted fields across 7 instances                              [Apply]    │
+└───────────────────────────────────────────────────────────────────────────────┘
 ~~~
 
 **Components:** SurfaceHeader, FilterToggle, FilterPanel, SearchField, Card, Accordion,
@@ -353,57 +375,66 @@ existing UndoToast only for short discovery.
 **Diff rules:**
 
 - Compare stable step IDs, never position/title alone.
-- Add shows title, owner/role, due offset, required state, future task effect.
-- Modify shows before/after each changed template field. Progress is fixed separate field
-  labelled Progress kept; approval never alters todo/in progress/done/skipped.
-- Remove shows not-started/in-progress/done. Done keeps history. In-progress retains linked
-  task as No longer in template, never deletes work.
-- Household checkbox selects conflict-free pending offers. Expanded rows select individual
-  offers. Conflict rows start unselected. Footer always names selected changes/workflows.
+- Add shows title, owner/role, due offset, required state, and future task effect.
+- Modify shows before/after every changed template field with Accept/Reject controls. Every
+  per-step and per-field control defaults to **Accept**.
+- Progress is a fixed, separate field. Propagation never alters a completed step, its outcome,
+  completion, step notes, or assignment history. An owner-role change affects only future
+  routing; where useful the offer may separately offer a **new assignment**.
+- Remove shows untouched/in-progress/completed. A completed or progressed step keeps its
+  history; in-progress work remains as No longer in template and is never deleted.
+- The row is one instance offer, not an offer per step. **Approve all eligible instances**
+  accepts the default selections for every conflict-free instance. Expanded rows make the
+  individual decisions visible. Unresolved concurrent heads require explicit review.
 
-**Partial approval:** selected offers alone are accepted, timestamped, and apply their
-template-backed snapshot changes. Unselected offers remain Needs review. Keep this workflow
-as it is explicitly rejects offer, preserves version difference/history, allows internal
-reason. Completed/cancelled workflows remain in Already decided. Honored template version
-advances only when no pending offer remains across intervening versions.
+**Partial approval:** decisions are recorded per instance, step, and field. A rejected
+field remains rejected until a descendant update changes that same field and re-offers it.
+The instance continues to show the named target update as Pending until its complete composed
+change-set is present. A pending offer unrelated to that change-set never blocks advancement.
+Completed/cancelled workflows remain in Already decided.
 
 **Conflict:**
 
 ~~~
-┌ Home / Workflows / Miller household / Send welcome packet               ┐
-│ Template v7: Owner Priya                                                 │
-│ This workflow now: Owner Maya, changed Jul 10 by Maya                    │
-│ Template v8 proposes: Owner CSA                                          │
-│ Progress: Done. This will not change.                                    │
-│ [Use template owner: CSA]              [Keep workflow owner: Maya]       │
+┌ Home / Workflows / Miller household / Send welcome packet                    ┐
+│ Two concurrent updates changed the due offset. Review is required.           │
+│ Update A: +2 days · Update B: +4 days                                         │
+│ Current step is complete. It will not change.                                 │
+│ [Use resolved +4 days]                         [Keep current +1 day]         │
 └─────────────────────────────────────────────────────────────────────────┘
 ~~~
 
-Conflict means local template-backed change, another-device unresolved change, or incompatible
-offer. Choices are exactly Use template (accept) and Keep workflow (reject). No hidden
-merge editor. Custom value requires keeping workflow then normal visible instance edit.
-Merged other-person decision becomes Already reviewed by Priya at 10:14.
+Conflict means another-device unresolved change or incompatible derived-field history.
+Choices are Accept a resolved source value or Reject and keep the current derived value.
+There is no hidden merge editor. A custom value requires rejecting the field and making a
+normal, visible instance edit. A merged other-person decision becomes Already reviewed by
+Priya at 10:14.
 
-**Approval and undo:** Approval creates ActivityEvent per decision plus batch summary.
-Persistent result: 18 changes applied to 7 workflows. Progress was kept. Undo creates
-append-only reversal, restores only batch-altered template fields, never rewinds progress,
-completed tasks, comments, or later edits. Unsafe reversal opens compare/decide. History
-shows publisher, versions, household decisions, reasons, reversals.
+**Approval and undo:** Approval creates an ActivityEvent per decision plus a batch summary.
+Persistent result: 18 derived fields applied to 7 instances. Progress was kept. Undo is the
+D4 conditional compensating operation: it automatically restores only still-untouched derived
+cells from this apply. It lists protected cells with a plain reason, such as later template
+work or a local edit, and leaves them intact. There is no compare/decide dialog for protected
+cells. History shows publisher, named update, per-field decisions, reasons, and reversals.
 
 States: Empty says all workflows match. Loading waits for encrypted index. Offline:
-Reconnect to review firm workflow changes safely, read-only. Stale blocks bulk approval
-until current open-instance set syncs. Error retains diff/selection/retries idempotently.
+Reconnect to review firm workflow changes safely, read-only. Syncing says, “Showing at least
+the changes received through 10:42; newer changes may still arrive,” and blocks bulk approval.
+Last synced blocks bulk approval until the eligible instance set is complete. Error retains
+diff/selection/retries idempotently.
 Shortcuts: Space offer, Shift+Space household, Enter diff, u undo, f filters, a footer.
 
 ## 8. Home > Pipeline
 
 **Purpose:** track potential work without introducing another project container.
 
-Projects fold into workflows/tasks. Opportunities are the data model pipeline entity; stages
-are firm configuration.
+Opportunities are the data model pipeline entity; stages are firm configuration. Imported
+**Legacy Projects** remain a read-only historical view. They are never folded away or
+auto-converted; their explicit action is **Start a workflow from this**, which opens a
+prefilled, human-reviewed workflow start.
 
 ~~~
-┌ Home / Pipeline                               [Ask the practice...] [New opportunity] ┐
+┌ Home / Pipeline                                   [Ask the firm...] [New opportunity] ┐
 │ Retirement conversions · Open $1.8m · Weighted $940k                                  │
 │ Discovery: Patel $400k Sep 14 | Recommendation: Avery $250k Sep 20                    │
 │ Decision: Chen $180k today   | Won: Lewis $600k                                       │
@@ -414,10 +445,20 @@ are firm configuration.
 Badge, Chip, SlidePanel, Button, EmptyState, Callout.
 
 Edit value, probability, owner, close date, tags/custom fields locally. Stage drag is direct.
-Won/lost needs close reason for lost. Stage can propose linked workflow. Parallel-run imports
-say Read-only mirror until cutover; no edit implies write-back. Empty/loading/offline/stale/
-error give new opportunity, columns, last-known data, timestamp, retry. n, arrows, Enter,
-w, g then p opens Home > Pipeline.
+Won/lost needs close reason for lost. Stage can propose linked workflow. Imported Legacy
+Projects show Read-only historical record with **Start a workflow from this**; no edit implies
+write-back. Empty/loading/offline/Last synced/error give new opportunity, columns, last-known
+data, timestamp, retry. n, arrows, Enter, w, g then p opens Home > Pipeline.
+
+### Pipeline settings
+
+Home → Pipeline → **Settings** is the firm configuration route. Admins can create, edit,
+archive, and order pipelines; within each pipeline they create, edit, archive, and order
+stages. Each stage exposes its `StageTriggerRule` list: entry/exit event, optional workflow
+template, whether a proposal is required, and enabled state. The preview states exactly what
+will be proposed on stage entry; it never launches a workflow automatically. This surface
+edits `PipelineDef`, `StageDef`, and `StageTriggerRule` from
+[02 §1.14](02-data-model.md#114-opportunity-pipeline).
 
 ## 9. Home > Reports
 
@@ -427,9 +468,9 @@ pretending to be truth.
 **Strong action:** Run report.
 
 ~~~
-┌ Home / Reports                               [Ask the practice...] [New report] ┐
-│ [No contact in 6 months] [Attention vs fee] [Birthdays] [Age 65] [Review due]│
-│ Computed just now from 1,284 sources · Local index current · [Run report]    │
+┌ Home / Reports                                   [Ask the firm...] [New report] ┐
+│ [No contact in 6 months] [Attention vs fee] [Birthdays] [Age 65] [Review due]  │
+│ Computed just now from 1,284 sources · Local index Live · [Run report]          │
 │ Henderson household · Last meaningful contact Jan 8 · Platinum [Open]        │
 │ Ortiz household · Last meaningful contact Dec 17 · Gold [Open]               │
 │ [Save this view] [Export as Word]                                             │
@@ -448,33 +489,38 @@ calculation time, index freshness.
 Run is local computation. Open routes household. Save personal/firm view has explicit Share
 with firm. Export is local Word/PDF and logs Activity. Emailing export is external approval.
 Empty no matches; loading preserves prior result as Updating; offline says computed from
-local data while offline; stale banner; error prior result/retry. g then r opens Home >
+local data while offline; Last synced banner; error prior result/retry. g then r opens Home >
 Reports; 1-6, r, s, e, / work.
 
 ## 10. Activity feed and notifications
 
 **Purpose:** deliver meaningful team work without a noisy chat surface or relay content leak.
 
-Firm activity is on Home > Today. Household activity is in household Activity. A count beside
-existing account identity opens SlidePanel, never floating bell/fourth tab.
+Firm activity is on Home > Today. Household activity is in household Activity. Activity is a
+read-only timeline in v1: it has no comments or reactions. A count beside existing account
+identity opens SlidePanel, never floating bell/fourth tab.
 
 ~~~
-┌ Notifications (3)                                                     ┐
-│ New assignment · Confirm transfer · Miller household · 8 min ago [Open]│
-│ Template update needs review · Onboarding v8 · 32 min ago [Review]    │
-│ Mentioned you in an internal note · Henderson household [Open]         │
-│ [Mark all read]                                                        │
-└───────────────────────────────────────────────────────────────────────┘
+┌ Notifications (3)                                                            ┐
+│ New assignment · Confirm transfer · Miller household · recipient: Maya [Open]│
+│ Sent 10:34 · delivered 10:35 · acked 10:36 · ciphertext: 4–16 KiB             │
+│ Opaque id: env_7f…91 · Template update needs review                [Review]   │
+│ Mentioned you in an internal note · recipient: Maya · 8–32 KiB       [Open]   │
+│ [Mark all read on this device]                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
 ~~~
 
 **Components:** CountBadge, SlidePanel, EnvelopeNotificationList, TimelineEntry, Badge,
 CiteChip, Button, EmptyState, Callout.
 
-Encrypted envelopes decrypt only on recipient device. Relay learns only pending count/timing.
-Open routes entity. Read/unread is encrypted member state and never dismisses task. Mention
-offers recipient chip review. No silent notify-everybody. Empty/loading/offline/stale/error:
-caught-up copy, decrypt local envelopes, queued read updates, last check, retry. g then n,
-j/k, Enter, r, Shift+r work.
+Encrypted envelopes decrypt only on the recipient device. The notification detail plainly
+discloses the relay metadata it really has: recipient, sent/delivery/ack timestamps,
+ciphertext-size band, delivery/ack timing, and opaque envelope ID. It never invents a sender
+field. Open routes to the authoritative record. Ordinary read/unread is local device inbox
+state and never dismisses a task or claims a synced member read state; approval visibility
+comes from the synced approval record. Mention offers recipient chip review. No silent
+notify-everybody. Empty/loading/offline/Last synced/error: caught-up copy, decrypt local
+envelopes, local read state, last check, retry. g then n, j/k, Enter, r, Shift+r work.
 
 ## 11. Home > Firm > Migration wizard and fidelity report
 
@@ -484,17 +530,19 @@ Home → Firm → Migration is a first-class route with phase rail.
 
 ~~~
 ┌ Home / Firm / Migration / Wealthbox migration                         ┐
-│ Mirror ● Current    Parallel run ○ Next    Cutover ○ Locked           │
-│ Mirror current · Last update 10:42 · Last full check yesterday 02:15 │
+│ Mirror ● Last synced    Parallel run ○ Next    Cutover ○ Locked       │
+│ Last synced 10:42 · Last full check yesterday 02:15                   │
 │ 80 households · 262 people · 1,904 notes · 311 tasks                 │
-│ [Review fidelity report]                           [Start parallel run]│
+│ [Review fidelity report] [Archive export] [Rollback export] [Start parallel run]│
 └──────────────────────────────────────────────────────────────────────┘
 ┌ Home / Firm / Migration / Fidelity report / Jul 11 10:42 [Export report] ┐
 │ Result: Attention needed before cutover                              │
 │ Households 80 fetched / 80 imported / 0 skipped · Complete           │
 │ Notes 1,904 fetched / 1,892 imported / 12 skipped · Review [See 12]  │
 │ Last update 10:42 · Last full check yesterday 02:15                  │
-│ [Open frozen archive manifest]                                       │
+│ Open workflows: 4 checklists · 3 decided · 1 needs operator decision │
+│ Attachments: 78 exported · 2 explicit client gaps                    │
+│ [Open frozen archive manifest] [Archive export readiness]             │
 └──────────────────────────────────────────────────────────────────────┘
 ~~~
 
@@ -504,21 +552,54 @@ CrmWriteReviewCard.
 
 Mirror is read-only, resumable per record type, two clocks, drillable skipped rows. Primary
 action is Review fidelity report. Parallel run starts after admin confirms Wealthbox remains
-authoritative. It states exact boundary: notes/tasks/proven writable fields use external
-approval; opportunities/workflows/projects/unsupported fields say Read-only mirror until
-cutover; Lantern-only field says so before edit. Writes use CrmWriteReviewCard conventions:
-tracked diff, checkbox, edit-before-approve, provenance, multi-household picker, stale re-read,
+authoritative. Its workflow mirror is deliberately limited to **readable workflow templates
+and activity traces**. It never presents API-derived open-workflow state. Notes/tasks/proven
+writable fields use external approval; Legacy Projects and unsupported fields are read-only;
+Lantern-only fields say so before edit. Writes use CrmWriteReviewCard conventions: tracked
+diff, checkbox, edit-before-approve, provenance, multi-household picker, changed-since-review
+re-read,
 inline retry, never auto-send.
 
-Cutover is disabled until current report has zero unexplained skips for active-client
-households, contacts, notes, tasks, events, opportunities. Require full check, frozen raw
-archive/manifest, matching report export, rollback export, recorded Jump choice. Prepare
-cutover opens review, not destructive button, explaining Lantern replaces Jump meeting writes
-versus Keep Jump connected to Wealthbox temporarily. Actual connector account change belongs
-to build contract.
+### Required fallback routes, visible through cutover
+
+The fidelity report exposes two explicit routes: **In-flight workflow re-creation** and
+**Attachment accounting**. Their summary cards stay visible through cutover.
+
+**In-flight workflow re-creation** lists every affected client and requires a guided operator
+checklist: source template, linked client, available activity evidence, operator decision,
+resulting Lantern instance, and any unresolved trace gap. **Start Lantern workflow** opens a
+new instance at the operator-selected current step; it never claims to import open-workflow
+state from the API. The checklist remains visible until the decision and resulting instance or
+gap are recorded.
+
+**Attachment accounting** lists every client with one explicit status: Exported (with export
+source and operator) or Attachment gap (with reason and owner). It stays visible until every
+affected client is accounted for; absence is never silently treated as no attachments.
+
+### Archive and rollback exports
+
+**Archive export** opens a readiness screen for the sealed import archive: manifest present,
+raw-capture checksums verified, fidelity counts matched, storage destination selected, then
+**Create archive export**. Its status screen shows Preparing, Ready, Failed with retry, or
+Exported with date and manifest identifier.
+
+**Rollback export** opens a separate readiness screen: full check complete, current report
+saved, eligible Lantern changes counted, destination format checked, and known unsupported
+items listed. **Create rollback export** is an explicit action. Its status screen shows the
+same clear Preparing/Ready/Failed/Exported states and exposes the generated reconciliation
+report. These actions prepare exports; neither silently changes a connector account.
+
+Cutover is disabled until the current report has zero unexplained skips for active-client
+households, contacts, notes, tasks, events, and opportunities; a full check; frozen raw
+archive/manifest; matching report export; and rollback export readiness. It also requires a
+recorded operator decision for every in-flight-workflow checklist and explicit
+exported-or-gap accounting for every affected client's attachments. Prepare cutover opens
+review, not a destructive button, explaining Lantern replaces Jump meeting writes versus
+keeping Jump connected to Wealthbox temporarily. Actual connector account change belongs to
+the build contract.
 
 States: no connection Connect Wealthbox; loading per-type progress not modal; offline safely
-paused/resumable; stale two clocks; error checkpoint and Resume import; incomplete fidelity
+paused/resumable; Last synced shows two clocks; error checkpoint and Resume import; incomplete fidelity
 never green. g then m opens Home > Firm > Migration; arrows, Enter, f, e work.
 
 ## 12. Home > Firm > Fields and tags
@@ -544,57 +625,78 @@ Admins create/edit/archive CustomFieldDef requiring label, applies-to, type, cho
 required. Type change after values blocked: make replacement. Admins create/rename/merge/
 archive tags; merge preview counts affected records. Any person saves current list/board/
 pipeline/report personally; sharing explicit. Shared view edit gives visible revision/Activity.
-States: empty next action, loading skeleton, offline CRDT pending, stale possible admin update,
+States: empty next action, loading skeleton, offline CRDT pending, Last synced possible admin update,
 error retry. n, /, Enter, Shift+S work.
+
+The owning record surfaces contextual **Values and tags** editors: Household Client Map,
+Person detail, Account detail, and Task detail each show only fields that apply to that record,
+plus its tags. A value save records its source/date as required by the data contract; it does
+not send the person into Firm settings for ordinary data entry.
+
+**Firm documents** is a minimal companion list in this route: title, type, tags, last update,
+and **Open in document editor**. Creating, reading, and editing content stay in the existing
+document editor; this CRM screen does not make a second editor.
 
 ## 13. Home > Firm > Firm setup
 
 **Purpose:** manage few firm rules shaping real work.
 
-**Strong action:** Invite member.
+**Strong action:** Open firm administration.
 
 ~~~
-┌ Home / Firm / Firm setup                                    [Invite member] ┐
-│ Members | Roles | Service tiers | Retention | Teams                         │
-│ Maya Patel · Owner · Active [Edit]                                          │
-│ Priya Shah · Operations · Active [Edit]                                     │
-│ Platinum · quarterly · review workflow: Annual review                       │
+┌ Home / Firm / Firm setup                          [Open firm administration] ┐
+│ Members | Roles | Service tiers | Retention | Teams                            │
+│ Maya Patel · Owner · Active · display from firm administration                 │
+│ Priya Shah · Operations · Active · display from firm administration            │
+│ Platinum · quarterly · scheduling link: https://… · Annual review              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ~~~
 
 **Components:** SurfaceHeader, tabs, EntityTable, Card, Badge, Chip, Callout, SlidePanel,
 ConfirmDialog, Button, EmptyState.
 
-Roles Owner/Admin/Member. Owners/Admins manage firm config; existing ethical walls control
-visibility. Deactivation retains attribution. Tiers edit firm ServicePolicy: cadence, custom
-days, review rule/workflow, description. Household exception visibly shows override.
-Retention gives category, period, plain consequence, protected compliance/archive policy.
-Teams are routing/visibility groups, not workspaces. Invite email external approval; all
-else direct local firm-doc edit by role. Offline safety checks read-only; stale last firm
-sync; error isolated. g then f opens Home > Firm; m/r/t, i work.
+Firm setup is a CRM shell over the existing firm-admin rails. `FirmDirectoryEntry` is
+display-only: roles, teams, invitations, deactivation, access, and ethical-wall changes route
+to those existing admin surfaces and never edit a CRM document. Deactivation retains
+attribution. Service tiers edit ServicePolicy: cadence, custom days, review rule/workflow,
+description, and `schedulingLinkUrl`; household exception visibly shows override. Retention
+gives category, period, plain consequence, protected compliance/archive policy. Offline safety
+checks are read-only; Last synced names the available firm state; error is isolated. g then f
+opens Home > Firm; m/r/t, i work.
 
 ## 14. Existing surfaces write CRM data
 
-- **Ask:** cited answers propose Facts/tasks/workflows/communications in ProposalCard.
-  Local approval writes CRM. External rows continue to external approval.
+- **Ask:** cited answers render durable ProposalCards backed by the extended
+  `ProposalRecord` in [02 §1.15](02-data-model.md#115-proposalrecord-ai-approval-queue):
+  `workflow_launch`, `task_create`, `fact_add`, or `communication_draft`. Local approval
+  writes CRM; a communication draft routes to the existing mail surface for external
+  approval.
 - **Meetings:** preserve record pill, consent, notes-left/transcript-right, prep strip.
   One review card offers facts, notes, tasks, workflows, follow-ups. Chip opens exact moment.
 - **Documents:** selected text actions Add fact, Create task, Start workflow, Draft follow-up.
   Follow-up is external approval.
 - **Email:** remains household-scoped/threaded. Incoming mail may propose local CRM data.
-  Outbound checks verified recipients and needs external approval. BCC mail appears Email/Timeline.
-- **Intake:** matched response makes review strip; uncertain match makes Match this response
-  proposal. Extraction makes dated Fact with intake source. AI-suggested new record reviewed;
-  intentional person-created local record saves directly.
+  Outbound checks verified recipients and needs external approval.
+- **Intake links:** Home → Firm → Intake links lets a person create a named, scoped intake
+  link, choose the responsive fields and confirmation copy, preview it on phone and desktop,
+  then copy/share the link. The public form is responsive, plain, and accessible; it collects
+  only the selected fields and clearly says who will review it. Submission creates an intake
+  record, not a direct household write. Matched submissions route to a household review strip;
+  uncertain submissions route to **Match this response** with candidate households and a
+  deliberate match/create decision. Extraction proposes dated Facts with the intake source.
+  AI-suggested records are reviewed; intentional person-created local records save directly.
 
 ## 15. Cross-cutting patterns
 
 ### Approval cards
 
-ProposalCard extends CrmWriteReviewCard: collapsed count/Review, per-row checkbox, tracked
-green/red change, source chips, stale automatic unselection, one Approve changes, durable
-inline error/retry, recoverable dismiss history. Outside rows say Will be sent outside Lantern,
-need verification/current check, and never blend with local results.
+ProposalCard renders one durable `ProposalRecord`, never a generic UI-only suggestion. It
+shows its one supported kind, state, rationale, context, and approval outcome. It uses the
+record's durable review semantics from [02 §1.15](02-data-model.md#115-proposalrecord-ai-approval-queue)
+and [03 §2.3](03-sync-and-notifications.md#23-durable-outbox-and-approval-classes): tracked
+green/red change, source chips, changed-since-review automatic unselection, one Approve, durable inline
+error/retry, and recoverable dismiss history. `communication_draft` says it will open the
+existing mail approval flow; it never blends an outside send with a local record write.
 
 ### Internal-only marking
 
@@ -606,9 +708,10 @@ reader says Internal only content. Color is never sole signal.
 
 | State | Marker | Meaning |
 |---|---|---|
-| Current | green dot, Synced just now | Current known local index |
-| Offline | gray cloud, Working offline | Local edits work; delivery waits |
-| Stale mirror | amber banner | Last update and last full check |
+| Live | green dot, Live | Every contributing subscription has reached its watermark. |
+| Syncing | blue progress, Syncing | “Showing at least the changes received through 10:42; newer changes may still arrive.” |
+| Last synced | amber timestamp | Shows the last received update and last full check where available. |
+| Offline | gray cloud, Working offline | Local edits work; delivery waits. |
 | Needs attention | red inline Callout | Specific failure; readable local data remains |
 
 ### Capacity-honest copy
@@ -618,24 +721,27 @@ You can move this to next week, keep it today, or assign it to someone else.
 Never: You are behind. Overdue crisis. Failed SLA. Fix your workload. You must clear this
 backlog.
 
-## 16. Open questions for freeze review
+## 16. Freeze-ready implementation checks
 
-1. Lane C must lock convergent undo and when partial propagation makes instance reconciled.
-   This UI requires append-only history and never rollback of step progress.
-2. Encrypted envelopes expose pending-count/timing metadata. Freeze accepts that or polling.
-3. Live Wealthbox API must establish whether open workflow step state can be read faithfully.
-4. Every parallel-run writable field needs live connector proof. Until then it is read-only.
-5. Freeze must accept blocking external send when current recipient verification is unavailable.
-6. Compliance review must set retention/archive policy before live cutover.
-7. Freeze must decide whether attention-versus-fee begins with fee source or plainly says it
-   is missing. It must never silently estimate.
+1. Propagation uses the canonical revision-set, decision-ledger, conditional-undo rules in
+   [03 §4](03-sync-and-notifications.md#4-workflow-template-propagation-d4); this screen does
+   not create a second merge rule.
+2. Notification screens disclose the accepted relay metadata and preserve the distinction
+   between local inbox read state and synced approval state.
+3. Open-workflow migration state is never inferred from an API. The guided re-creation
+   checklist and attachment exported-or-gap accounting remain required through cutover.
+4. Parallel-run writes require live connector proof and external approval. Everything else is
+   visibly read-only.
+5. External email remains blocked when the existing mail surface cannot confirm a recipient.
+6. Retention/archive policy is shown in Firm setup and governs archive-export readiness.
+7. Attention-versus-fee begins with a named fee source or plainly says it is missing; it never
+   silently estimates.
 
 ## End-of-run summary
 
-1. CRM joins existing three-tab app without fourth main tab.
-2. Every requested surface has route, layout, action, states, keyboard behavior.
-3. Propagation review covers partial approval, conflict, history, safe undo.
-4. Approval, internal-only, provenance, sync, Ask, and triage rules are shared.
-5. Remaining risks are named plainly for freeze review.
-
-DONE-EXIT
+1. CRM joins the existing three-tab app without a fourth main tab.
+2. Every requested surface has route, layout, action, states, and keyboard behavior.
+3. Propagation review uses one offer per instance, named revision-set updates, safe partial
+   decisions, and conditional undo.
+4. Approval, internal-only, provenance, sync, Ask, migration fallbacks, and triage rules are
+   shared.
