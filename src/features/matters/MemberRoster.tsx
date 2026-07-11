@@ -8,12 +8,12 @@ import { Input } from '@/ui/input';
 import { Label } from '@/ui/label';
 import { useFirmStore } from '@/platform/firm/firmStore';
 import { publishMatterKeyToMembers } from '@/platform/firm/matterKeyService';
-import type { MatterMembersResponse } from '@/platform/firm/contract';
+import type { MatterHandle, MatterMembersResponse } from '@/platform/firm/contract';
 import { generateTempPassword, audit } from './matterManagerDialogHelpers';
 
 export interface MemberRosterProps {
   matterId: string;
-  firmMatterId: string;
+  firmMatterId: MatterHandle;
   canInvite: boolean; // owner or admin
 }
 

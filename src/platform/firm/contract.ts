@@ -124,24 +124,43 @@ export interface CreateUserRequest {
   role?: UserRole;
 }
 
-// --- Matters / ethical walls / E2EE sync relay -----------------------------
-export type MatterStatus = 'active' | 'archived';
+// --- V2 firm relay: opaque routing only ------------------------------------
+/** A server-issued, 256-bit opaque shared-client routing handle. */
+export type MatterHandle = string & { readonly __brand: 'MatterHandle' };
+/** A server-issued, 256-bit opaque encrypted-stream routing handle. */
+export type StreamHandle = string & { readonly __brand: 'StreamHandle' };
+
+const MATTER_HANDLE_RE = /^mh2_[A-Za-z0-9_-]{43}$/;
+const STREAM_HANDLE_RE = /^sh2_[A-Za-z0-9_-]{43}$/;
+
+/** Parse a v2 opaque routing handle. Never use this for a local Matter.id. */
+export function parseMatterHandle(value: string): MatterHandle {
+  if (!MATTER_HANDLE_RE.test(value)) throw new Error('Invalid v2 matter handle.');
+  return value as MatterHandle;
+}
+
+/** Parse a v2 opaque routing handle. Never use this for a local document id. */
+export function parseStreamHandle(value: string): StreamHandle {
+  if (!STREAM_HANDLE_RE.test(value)) throw new Error('Invalid v2 stream handle.');
+  return value as StreamHandle;
+}
+
+export type MatterStatus = 'provisioning' | 'active' | 'archived';
 export type MatterRole = 'owner' | 'editor' | 'viewer';
 
+/** The server-visible representation deliberately contains no client metadata. */
 export interface FirmMatter {
-  matter_id: string;
-  org_id: string;
-  client_name: string;
+  matter_handle: MatterHandle;
+  root_stream_handle: StreamHandle;
   status: MatterStatus;
-  /** Bumps on member-remove / wall-set; client rotates the matter key to match. */
   key_epoch: number;
-  created_at: string;
-}
-export interface CreateMatterRequest {
-  client_name: string;
+  role?: MatterRole;
 }
 export interface CreateMatterResponse {
-  matter: FirmMatter;
+  matter_handle: MatterHandle;
+  root_stream_handle: StreamHandle;
+  key_epoch: 1;
+  status: 'provisioning';
 }
 export interface ListMattersResponse {
   matters: FirmMatter[];
@@ -164,11 +183,9 @@ export interface RemoveMatterMemberResponse {
   key_epoch: number;
 }
 export interface MatterMembersResponse {
-  matter_id: string;
   key_epoch: number;
   /** Members with email included (joined from users table; same-org, admin-visible). */
   members: Array<{
-    matter_id: string;
     user_id: string;
     org_id: string;
     role: MatterRole;
@@ -177,10 +194,8 @@ export interface MatterMembersResponse {
     email?: string | null;
   }>;
   walls: Array<{
-    matter_id: string;
     user_id: string;
     org_id: string;
-    reason: string | null;
     created_by: string;
     created_at: string;
   }>;
@@ -198,7 +213,6 @@ export interface ListOrgUsersResponse {
 }
 export interface SetWallRequest {
   user_id: string;
-  reason?: string;
 }
 export interface SetWallResponse {
   ok: true;
@@ -218,9 +232,7 @@ export interface PushUpdateRequest {
   blob_id: string;
   ciphertext_b64: string;
   seat_token: string;
-  key_epoch?: number;
-  /** Document stream partition. Absent (or '_notes') = matter notes (backward-compatible). */
-  doc_id?: string;
+  key_epoch: number;
 }
 export interface PushUpdateResponse {
   ok: true;
@@ -232,17 +244,12 @@ export interface PushUpdateResponse {
 export interface PulledUpdate {
   cursor: number;
   blob_id: string;
-  /** Document stream this update belongs to. */
-  doc_id: string;
   key_epoch: number;
   author_seat: string;
   created_at: string;
   ciphertext_b64: string;
 }
 export interface PullUpdatesResponse {
-  matter_id: string;
-  /** The doc_id stream this response covers. '_notes' when absent from the query. */
-  doc_id: string;
   key_epoch: number;
   since: number;
   cursor: number;
@@ -251,13 +258,11 @@ export interface PullUpdatesResponse {
   updates: PulledUpdate[];
 }
 /**
- * Response of `POST /matter/:id/sync-ticket`: a short-lived, single-use ticket
+ * Response of the v2 stream sync-ticket endpoint: a short-lived, single-use ticket
  * for the WS upgrade. Authed like the HTTP relay (Bearer access + X-Seat-Token
  * header). The client puts ONLY this ticket on the WS URL — never a token.
  *
- * To subscribe to a specific document stream, add `&doc_id=<docId>` to the WS
- * URL (not the ticket endpoint). The doc_id is not a credential so it is safe
- * to carry on the upgrade URL. Absent doc_id → '_notes'.
+ * The ticket binds the opaque stream; the WebSocket URL carries no route ID.
  */
 export interface SyncTicketResponse {
   ticket: string;
@@ -265,19 +270,13 @@ export interface SyncTicketResponse {
 }
 export interface SyncReadyFrame {
   type: 'ready';
-  matter_id: string;
-  /** Document stream this socket is subscribed to. '_notes' for matter notes. */
-  doc_id: string;
   backlog: number;
   latest_cursor: number;
   /** Current subscriber count (including self) at the moment the socket joined. */
-  subscribers?: number;
+  subscribers: number;
 }
 export interface SyncUpdateFrame {
   type: 'update';
-  matter_id: string;
-  /** Document stream this update belongs to. */
-  doc_id: string;
   cursor: number;
   blob_id: string;
   key_epoch: number;
@@ -287,8 +286,6 @@ export interface SyncUpdateFrame {
 }
 export interface SyncPresenceFrame {
   type: 'presence';
-  matter_id: string;
-  doc_id: string;
   /** Total connected subscribers including the recipient. */
   count: number;
 }
@@ -387,11 +384,11 @@ export interface ListOrgAdminsResponse {
   admins: OrgAdminEntry[];
 }
 
-// --- /matter/mine ----------------------------------------------------------
+// --- v2 opaque discovery ---------------------------------------------------
 
 export interface MatterMineSummary {
-  matter_id: string;
-  client_name: string;
+  matter_handle: MatterHandle;
+  root_stream_handle: StreamHandle;
   status: MatterStatus;
   key_epoch: number;
   role: MatterRole;
@@ -399,6 +396,21 @@ export interface MatterMineSummary {
 
 export interface MatterMineResponse {
   matters: MatterMineSummary[];
+}
+
+// --- One-time legacy bridge -------------------------------------------------
+// These response fields are deliberately isolated to the short-lived bridge.
+// They are received over TLS and remain device-local; callers must never put
+// any of them into a URL, request body, header, or relay frame.
+export interface LegacyMigrationManifestMatter {
+  legacy_matter_id: string;
+  matter_handle: MatterHandle;
+  root_stream_handle: StreamHandle;
+  streams: Record<string, StreamHandle>;
+}
+
+export interface LegacyMigrationManifestResponse {
+  matters: LegacyMigrationManifestMatter[];
 }
 
 // --- /org/claim (Phase 1) --------------------------------------------------
@@ -451,12 +463,14 @@ export interface ApiError {
   detail?: string;
 }
 
-/** Endpoint paths (mirror of backend ENDPOINTS). `:id` = matter_id. */
+/** V2 opaque firm-relay paths. `:matter_handle`/`:stream_handle` are validated handles. */
 export const FIRM_ENDPOINTS = {
   deviceRegister: '/device/register',
   orgUserDevices: '/org/users/devices',
   orgAdmins: '/org/admins',
-  matterMine: '/matter/mine',
+  matterMine: '/v2/firm/matters/mine',
+  migrationManifest: '/v2/firm/migration-manifest',
+  migrationComplete: '/v2/firm/migration-complete',
   orgClaim: '/org/claim',
   lemonSqueezyWebhook: '/webhooks/lemonsqueezy',
   health: '/healthz',
@@ -473,20 +487,22 @@ export const FIRM_ENDPOINTS = {
   deprovisionUser: '/org/user/deprovision',
   createUser: '/org/users',
   listOrgUsers: '/org/users/list',
-  createMatter: '/org/matters',
-  listMatters: '/org/matters/list',
-  archiveMatter: '/matter/:id/archive',
-  addMatterMember: '/matter/:id/members/add',
-  removeMatterMember: '/matter/:id/members/remove',
-  listMatterMembers: '/matter/:id/members/list',
-  publishMatterKeys: '/matter/:id/keys/publish',
-  fetchMatterKeys: '/matter/:id/keys/fetch',
-  setWall: '/matter/:id/wall/set',
-  clearWall: '/matter/:id/wall/clear',
-  pushUpdate: '/matter/:id/updates',
-  pullUpdates: '/matter/:id/updates',
-  syncTicket: '/matter/:id/sync-ticket',
-  syncSocket: '/matter/:id/sync',
+  createMatter: '/v2/firm/matters',
+  listMatters: '/v2/firm/matters/list',
+  activateMatter: '/v2/firm/matters/:matter_handle/activate',
+  archiveMatter: '/v2/firm/matters/:matter_handle/archive',
+  addMatterMember: '/v2/firm/matters/:matter_handle/members/add',
+  removeMatterMember: '/v2/firm/matters/:matter_handle/members/remove',
+  listMatterMembers: '/v2/firm/matters/:matter_handle/members/list',
+  publishMatterKeys: '/v2/firm/matters/:matter_handle/keys/publish',
+  fetchMatterKeys: '/v2/firm/matters/:matter_handle/keys/fetch',
+  setWall: '/v2/firm/matters/:matter_handle/wall/set',
+  clearWall: '/v2/firm/matters/:matter_handle/wall/clear',
+  allocateStream: '/v2/firm/matters/:matter_handle/streams',
+  pushUpdate: '/v2/firm/streams/:stream_handle/updates',
+  pullUpdates: '/v2/firm/streams/:stream_handle/updates',
+  syncTicket: '/v2/firm/streams/:stream_handle/sync-ticket',
+  syncSocket: '/v2/firm/sync',
   assuredInfer: '/assured/infer',
   assuredKeySet: '/assured/keys/set',
   assuredKeyList: '/assured/keys/list',

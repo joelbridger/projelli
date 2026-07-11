@@ -20,6 +20,10 @@ import { clearMatterKey, storeMatterKey } from '@/platform/firm/firmKeychain';
 import { getOrCreateDeviceKeypair } from '@/platform/firm/deviceKeys';
 import { unwrapMatterKey } from '@/platform/firm/keyWrap';
 import { FirmApiError } from '@/platform/firm/FirmApiClient';
+import { parseMatterHandle, parseStreamHandle } from '@/platform/firm/contract';
+import type { MatterHandle } from '@/platform/firm/contract';
+import { readFirmMatterPrivateIndex } from '@/platform/firm/firmMatterPrivateIndex';
+import { useMatterStore } from '@/platform/matter/matterStore';
 import { useMatterSyncStore } from '@/platform/matter/matterSyncStore';
 import { useFirmStore } from '@/platform/firm/firmStore';
 
@@ -53,7 +57,7 @@ export function ensureMatterSync(
   keyEpoch?: number,
 ): Promise<MatterSyncClient | null> {
   // 1. Must be a shared matter with a firm backend ID.
-  if (!localMatter.shared || !localMatter.firmMatterId) return Promise.resolve(null);
+  if (!localMatter.shared || !localMatter.firmMatterId || !localMatter.rootStreamHandle) return Promise.resolve(null);
 
   // 2. Must have an active firm session (access token + seat token).
   const firmState = useFirmStore.getState();
@@ -94,7 +98,8 @@ async function _buildMatterSyncClient(
   firmState: ReturnType<typeof useFirmStore.getState>,
 ): Promise<MatterSyncClient | null> {
   const localMatterId = localMatter.id;
-  const firmMatterId = localMatter.firmMatterId!;
+  const firmMatterId = parseMatterHandle(localMatter.firmMatterId!);
+  const rootStreamHandle = parseStreamHandle(localMatter.rootStreamHandle!);
 
   // Obtain the matter key (local keychain → server fetch → null on wall/miss).
   const firmClient = firmState.client();
@@ -112,7 +117,7 @@ async function _buildMatterSyncClient(
   if (epoch === undefined) {
     try {
       const mine = await firmClient.matterMine(seatToken);
-      epoch = mine.matters.find((m) => m.matter_id === firmMatterId)?.key_epoch ?? 1;
+      epoch = mine.matters.find((m) => m.matter_handle === firmMatterId)?.key_epoch ?? 1;
     } catch {
       epoch = 1; // offline/unreachable: start at 1; the relay signals the real epoch
     }
@@ -120,7 +125,8 @@ async function _buildMatterSyncClient(
 
   // Construct the client with callbacks wired to the sync store.
   const client = new MatterSyncClient({
-    matterId: firmMatterId,
+    matterHandle: firmMatterId,
+    streamHandle: rootStreamHandle,
     keyB64,
     keyEpoch: epoch,
     seatToken,
@@ -139,6 +145,17 @@ async function _buildMatterSyncClient(
 
   // Start sync (catch-up + WebSocket).
   await client.start();
+
+  // A newly authorized device starts with a generic local placeholder. Once it
+  // has the wrapped key and decrypts this root stream, only then may it learn
+  // the local display/client names.
+  const privateIndex = readFirmMatterPrivateIndex(client.doc);
+  if (privateIndex) {
+    useMatterStore.getState().renameMatter(localMatterId, {
+      name: privateIndex.displayName,
+      client: privateIndex.clientName,
+    });
+  }
 
   // 8. Seed the doc meta map if it is empty (first writer sets it once).
   //    This gives the notes surface a stable {name, client_name} so new
@@ -165,7 +182,7 @@ async function _buildMatterSyncClient(
  */
 async function handleKeyEpochAdvanced(
   localMatterId: string,
-  firmMatterId: string,
+  firmMatterId: MatterHandle,
   firmClient: ReturnType<ReturnType<typeof useFirmStore.getState>['client']>,
   client: MatterSyncClient,
   newEpoch: number,

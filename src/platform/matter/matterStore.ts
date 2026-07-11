@@ -318,9 +318,14 @@ export interface CreateMatterInput {
   mcpAccessGranted?: boolean;
   /** Optionally link the matter to the firm backend at creation time. */
   firmMatterId?: string;
+  rootStreamHandle?: string;
   orgId?: string;
   role?: 'owner' | 'editor' | 'viewer';
   shared?: boolean;
+  /** Device-only one-time legacy-firm bridge state. */
+  legacyFirmMatterId?: string;
+  firmMigrationSealed?: boolean;
+  sharedDetailsPending?: boolean;
   /** Mark this as the built-in sample matter seeded during onboarding. */
   isSample?: boolean;
   /** Optionally supply a deterministic id (used for the sample matter). */
@@ -394,6 +399,7 @@ interface MatterState {
     id: string,
     linkage: {
       firmMatterId: string;
+      rootStreamHandle?: string;
       orgId: string;
       role: 'owner' | 'editor' | 'viewer';
     }
@@ -402,6 +408,8 @@ interface MatterState {
   unlinkFirmMatter: (id: string) => void;
   /** Update the user's role on a shared matter (e.g. after a members/list refresh). */
   setMatterRole: (id: string, role: 'owner' | 'editor' | 'viewer') => void;
+  /** Persist one bridge checkpoint without exposing it to relay code. */
+  replaceMatterFromLegacyFirmBridge: (matter: Matter) => void;
 
   // ── UI slice (persisted → lantern:matter-ui-snapshots) ───────────────────
   /** Per-matter memory of the last working surface + focused tab. */
@@ -1048,9 +1056,15 @@ export const useMatterStore = create<MatterState>()(
           ...(input.firmMatterId !== undefined
             ? { firmMatterId: input.firmMatterId }
             : {}),
+          ...(input.rootStreamHandle !== undefined
+            ? { rootStreamHandle: input.rootStreamHandle }
+            : {}),
           ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
           ...(input.role !== undefined ? { role: input.role } : {}),
           ...(input.shared !== undefined ? { shared: input.shared } : {}),
+          ...(input.legacyFirmMatterId !== undefined ? { legacyFirmMatterId: input.legacyFirmMatterId } : {}),
+          ...(input.firmMigrationSealed !== undefined ? { firmMigrationSealed: input.firmMigrationSealed } : {}),
+          ...(input.sharedDetailsPending !== undefined ? { sharedDetailsPending: input.sharedDetailsPending } : {}),
           ...(input.isSample ? { isSample: true } : {}),
         };
         set((state) => ({ matters: [...state.matters, matter] }));
@@ -1511,10 +1525,10 @@ export const useMatterStore = create<MatterState>()(
         });
       },
 
-      linkFirmMatter: (id, { firmMatterId, orgId, role }) => {
+      linkFirmMatter: (id, { firmMatterId, rootStreamHandle, orgId, role }) => {
         set((state) => ({
           matters: state.matters.map((m) =>
-            m.id === id ? { ...m, firmMatterId, orgId, role, shared: true } : m
+            m.id === id ? { ...m, firmMatterId, ...(rootStreamHandle ? { rootStreamHandle } : {}), orgId, role, shared: true } : m
           ),
         }));
       },
@@ -1524,7 +1538,7 @@ export const useMatterStore = create<MatterState>()(
           matters: state.matters.map((m): Matter => {
             if (m.id !== id) return m;
             // Use destructuring to drop the optional fields
-            const { firmMatterId: _a, orgId: _b, role: _c, ...rest } = m;
+            const { firmMatterId: _a, rootStreamHandle: _root, orgId: _b, role: _c, ...rest } = m;
             return { ...rest, shared: false };
           }),
         }));
@@ -1533,6 +1547,12 @@ export const useMatterStore = create<MatterState>()(
       setMatterRole: (id, role) => {
         set((state) => ({
           matters: state.matters.map((m) => (m.id === id ? { ...m, role } : m)),
+        }));
+      },
+
+      replaceMatterFromLegacyFirmBridge: (matter) => {
+        set((state) => ({
+          matters: state.matters.map((current) => current.id === matter.id ? matter : current),
         }));
       },
 

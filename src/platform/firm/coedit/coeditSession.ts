@@ -26,13 +26,16 @@ import {
 import type { DocumentJson } from '@/platform/types/docx';
 import type { FirmApiClient } from '@/platform/firm/FirmApiClient';
 import type { WebSocketFactory } from '@/platform/firm/MatterSyncClient';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
 export interface CoeditSessionOptions {
-  matterId: string;
+  matterHandle: MatterHandle;
+  streamHandle: StreamHandle;
+  /** Device-local ID; used only inside encrypted document metadata. */
   docId: string;
   fileName: string;
   /** Initial document JSON to seed from if the relay is empty. */
@@ -105,7 +108,7 @@ function cacheKey(matterId: string, docId: string): string {
  *   - If the doc body is empty and initialJson is provided: seed from initialJson.
  */
 export function openCoeditSession(opts: CoeditSessionOptions): Promise<CoeditSession> {
-  const key = cacheKey(opts.matterId, opts.docId);
+  const key = cacheKey(opts.matterHandle, opts.docId);
 
   // 1. Already resolved — return it.
   const existing = clientCache.get(key);
@@ -171,8 +174,8 @@ async function _buildSession(opts: CoeditSessionOptions): Promise<CoeditSession>
   };
 
   const syncOpts: import('@/platform/firm/coedit/MatterDocSyncClient').MatterDocSyncOptions = {
-    matterId:  opts.matterId,
-    docId:     opts.docId,
+    matterHandle: opts.matterHandle,
+    streamHandle: opts.streamHandle,
     doc,
     keyB64:    opts.keyB64,
     keyEpoch:  opts.keyEpoch,
@@ -201,7 +204,7 @@ async function _buildSession(opts: CoeditSessionOptions): Promise<CoeditSession>
     // (rather than creating a new doc via documentJsonToYDoc) so that the
     // existing sync listeners fire and the seed bytes flow to the relay.
     _seedDocFromJson(doc, opts.initialJson, {
-      matterId: opts.matterId,
+      matterId: opts.matterHandle,
       docId: opts.docId,
       fileName: opts.fileName,
     });
@@ -211,7 +214,7 @@ async function _buildSession(opts: CoeditSessionOptions): Promise<CoeditSession>
   const session = new CoeditSessionImpl(
     doc,
     syncClient,
-    opts.matterId,
+    opts.matterHandle,
     opts.docId,
     () => presenceCount,
     presenceListeners,

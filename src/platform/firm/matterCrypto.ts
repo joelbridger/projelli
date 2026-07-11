@@ -16,7 +16,8 @@
  * fails authentication by construction.
  */
 
-const VERSION = 1;
+const V1_VERSION = 1;
+const V2_VERSION = 2;
 const IV_BYTES = 12;
 const KEY_BITS = 256;
 
@@ -46,6 +47,19 @@ function b64ToBytes(b64: string): Uint8Array {
 
 function epochAad(keyEpoch: number): Uint8Array {
   return new TextEncoder().encode(`epoch:${String(keyEpoch)}`);
+}
+
+export interface MatterRouteContext {
+  matterHandle: string;
+  streamHandle: string;
+  keyEpoch: number;
+}
+
+/** V2 binds ciphertext to the exact opaque relay route, preventing replay. */
+function v2Aad(context: MatterRouteContext): Uint8Array {
+  return new TextEncoder().encode(
+    `v2|epoch:${String(context.keyEpoch)}|matter:${context.matterHandle}|stream:${context.streamHandle}`,
+  );
 }
 
 /**
@@ -97,7 +111,7 @@ export async function encryptUpdate(
     ),
   );
   const out = new Uint8Array(1 + IV_BYTES + ct.length);
-  out[0] = VERSION;
+  out[0] = V1_VERSION;
   out.set(iv, 1);
   out.set(ct, 1 + IV_BYTES);
   return bytesToB64(out);
@@ -126,7 +140,7 @@ export async function decryptUpdate(
     return { ok: false, reason: 'malformed' };
   }
   if (raw.length < 1 + IV_BYTES + 16) return { ok: false, reason: 'malformed' };
-  if (raw[0] !== VERSION) return { ok: false, reason: 'bad_version' };
+  if (raw[0] !== V1_VERSION) return { ok: false, reason: 'bad_version' };
   const iv = raw.subarray(1, 1 + IV_BYTES);
   const ct = raw.subarray(1 + IV_BYTES);
   try {
@@ -137,6 +151,58 @@ export async function decryptUpdate(
         buf(ct) as unknown as BufferSource,
       ),
     );
+    return { ok: true, update: pt };
+  } catch {
+    return { ok: false, reason: 'auth_failed' };
+  }
+}
+
+/** Seal a new v2 relay blob. New writes must use this, never the v1 helper. */
+export async function encryptUpdateV2(
+  key: CryptoKey,
+  update: Uint8Array,
+  context: MatterRouteContext,
+): Promise<string> {
+  const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
+  const ct = new Uint8Array(await getSubtle().encrypt(
+    { name: 'AES-GCM', iv, additionalData: buf(v2Aad(context)) as unknown as BufferSource },
+    key,
+    buf(update) as unknown as BufferSource,
+  ));
+  const out = new Uint8Array(1 + IV_BYTES + ct.length);
+  out[0] = V2_VERSION;
+  out.set(iv, 1);
+  out.set(ct, 1 + IV_BYTES);
+  return bytesToB64(out);
+}
+
+/**
+ * Open a v2 blob; v1 is accepted only as a bounded migration read path.
+ * The caller should remove `allowV1` after the configured migration deadline.
+ */
+export async function decryptUpdateV2(
+  key: CryptoKey,
+  ciphertextB64: string,
+  context: MatterRouteContext,
+  allowV1 = true,
+): Promise<DecryptResult> {
+  let raw: Uint8Array;
+  try { raw = b64ToBytes(ciphertextB64); } catch { return { ok: false, reason: 'malformed' }; }
+  if (raw.length < 1 + IV_BYTES + 16) return { ok: false, reason: 'malformed' };
+  if (raw[0] === V1_VERSION) {
+    return allowV1 ? decryptUpdate(key, ciphertextB64, context.keyEpoch) : { ok: false, reason: 'bad_version' };
+  }
+  if (raw[0] !== V2_VERSION) return { ok: false, reason: 'bad_version' };
+  try {
+    const pt = new Uint8Array(await getSubtle().decrypt(
+      {
+        name: 'AES-GCM',
+        iv: buf(raw.subarray(1, 1 + IV_BYTES)) as unknown as BufferSource,
+        additionalData: buf(v2Aad(context)) as unknown as BufferSource,
+      },
+      key,
+      buf(raw.subarray(1 + IV_BYTES)) as unknown as BufferSource,
+    ));
     return { ok: true, update: pt };
   } catch {
     return { ok: false, reason: 'auth_failed' };

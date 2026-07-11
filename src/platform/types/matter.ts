@@ -126,11 +126,10 @@ export interface Matter {
   // cleanly. A matter is "shared" when `shared === true && firmMatterId` is set.
   // Runtime sync status is NOT stored here; it lives in matterSyncStore.
 
-  /**
-   * The matter ID on the firm backend (UUID from POST /org/matters).
-   * Set when the matter has been shared with the firm. Undefined for local-only.
-   */
+  /** Temporary persisted name for the opaque v2 matter handle; never semantic. */
   firmMatterId?: string;
+  /** Opaque encrypted root stream handle, persisted only on this device. */
+  rootStreamHandle?: string;
   /**
    * The org ID the shared matter belongs to. Set alongside `firmMatterId`.
    */
@@ -145,6 +144,18 @@ export interface Matter {
    * means it is a local-only matter.
    */
   shared?: boolean;
+
+  /**
+   * Device-only checkpoint for the one-time legacy firm bridge. It is never a
+   * relay value: `firmMatterId` is already the opaque replacement handle.
+   * Retaining this until acknowledgement lets a restart resume safely after
+   * the local link was saved but before the encrypted root index was sealed.
+   */
+  legacyFirmMatterId?: string;
+  /** Device-only checkpoint: the encrypted root private index was accepted. */
+  firmMigrationSealed?: boolean;
+  /** Generic joining state; details appear only after decrypting the root index. */
+  sharedDetailsPending?: boolean;
 
   /**
    * Whether this is the built-in sample matter seeded during onboarding.
