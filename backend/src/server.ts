@@ -40,7 +40,7 @@ import {
   handleSyncTicket,
   authorizeSyncConnect,
 } from "./routes/matters.ts";
-import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
+import { fanout, FanoutHub, toUpdateFrame, resolveAccess, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
 import {
@@ -55,11 +55,16 @@ import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from 
 import { handleOrgClaim } from "./routes/claim.ts";
 import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
+import { handleNotifySend, handleNotifyInbox, handleNotifyAck, handleNotifySyncTicket, authorizeNotifySync, handleNotifyTerminal } from "./routes/notifications.ts";
+import { notificationHub } from "./lib/notifications.ts";
+import { handleCheckpointChunk, handleCheckpointManifest, handleCheckpointReceipt, handleCheckpointPrune } from "./routes/checkpoints.ts";
 import { randomUUID } from "node:crypto";
 import type { Store } from "./lib/db.ts";
+import type { UserRole } from "./lib/types.ts";
 
 /** Data attached to each sync WebSocket on upgrade (set by authorizeSyncConnect). */
-export interface SyncSocketData {
+interface DocumentSocketData {
+  kind: "document";
   subId: string;
   matterId: string;
   /** Document stream this socket is subscribed to. '_notes' for matter notes. */
@@ -69,7 +74,19 @@ export interface SyncSocketData {
   orgId: string;
   userId: string;
   seatId: string;
+  role: UserRole;
+  subscriptions: Set<string>;
 }
+
+interface NotifySocketData {
+  kind: "notify";
+  subId: string;
+  orgId: string;
+  userId: string;
+  seatId: string;
+}
+
+export type SyncSocketData = DocumentSocketData | NotifySocketData;
 
 /**
  * Extract a `/matter/:id/...` path. Returns the matter id and the trailing
@@ -80,6 +97,58 @@ function matchMatter(path: string): { id: string; rest: string } | null {
   const m = path.match(/^\/matter\/([^/]+)(?:\/(.*))?$/);
   if (!m) return null;
   return { id: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
+}
+
+function documentChannel(matterId: string, docId: string): string {
+  return `${matterId}\u0000${docId}`;
+}
+
+/** Add one logical document to a multiplexed authenticated socket. Subscribe before
+ * taking the watermark, so rows written during HTTP/socket handoff are buffered
+ * by the hub and delivered at least once rather than lost. */
+function subscribeDocument(
+  ws: Bun.ServerWebSocket<SyncSocketData>,
+  store: Store,
+  hub: FanoutHub,
+  matterId: string,
+  docId: string,
+  since: number,
+): void {
+  const d = ws.data;
+  if (d.kind !== "document") return;
+  const access = resolveAccess(store, { orgId: d.orgId, userId: d.userId, role: d.role }, matterId);
+  if (!access.allowed) {
+    ws.send(JSON.stringify({ type: "subscription_error", matter_id: matterId, doc_id: docId, error: "forbidden" }));
+    return;
+  }
+  const channel = documentChannel(matterId, docId);
+  const subId = `${d.subId}:${channel}`;
+  const sub: Subscriber = {
+    id: subId,
+    user_id: d.userId,
+    seat_id: d.seatId,
+    send: (frame) => { try { ws.send(JSON.stringify(frame)); } catch { /* close cleans up */ } },
+  };
+  hub.subscribe(matterId, sub, docId);
+  d.subscriptions.add(channel);
+  try {
+    const watermark = store.latestMatterCursor(matterId, docId);
+    const backlog = store.countMatterUpdatesThrough(matterId, since, watermark, docId);
+    ws.send(JSON.stringify({ type: "ready", matter_id: matterId, doc_id: docId, watermark, latest_cursor: watermark, backlog, subscribers: hub.subscriberCount(matterId, docId) }));
+    let cursor = since;
+    for (;;) {
+      const page = store.getMatterUpdatesThrough(matterId, cursor, watermark, 500, docId);
+      if (!page.length) break;
+      for (const update of page) ws.send(JSON.stringify(toUpdateFrame(update)));
+      cursor = page[page.length - 1]!.id;
+    }
+  } catch {
+    hub.unsubscribe(matterId, subId, docId);
+    d.subscriptions.delete(channel);
+    ws.close(1011, "sync_backfill_failed");
+    return;
+  }
+  hub.broadcastPresence(matterId, docId);
 }
 
 /**
@@ -102,9 +171,21 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
       const method = req.method;
       const ip = srv.requestIP(req)?.address ?? "unknown";
 
-      if (method === "OPTIONS") return preflight();
+        if (method === "OPTIONS") return preflight();
 
       try {
+        // --- Sender-blind sealed notification relay (03 §2) ---
+        if (path === "/notify/send" && method === "POST") return await handleNotifySend(req, store, ip, notificationHub);
+        if (path === "/notify/inbox" && method === "GET") return handleNotifyInbox(req, store);
+        if (path === "/notify/ack" && method === "POST") return await handleNotifyAck(req, store);
+        if (path === "/notify/sync-ticket" && method === "POST") return await handleNotifySyncTicket(req, store);
+        if (path === "/notify/terminal" && method === "POST") return await handleNotifyTerminal(req, store);
+        if (path === "/notify/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          const authz = authorizeNotifySync(req, store);
+          if (!authz.ok) return authz.resp;
+          if (srv.upgrade(req, { data: { kind: "notify", subId: randomUUID(), orgId: authz.orgId, userId: authz.userId, seatId: "" } })) return undefined;
+          return error("upgrade_failed", 400);
+        }
         // --- E2EE sync relay + matter ACL (chunk 2) ---
         // The WebSocket upgrade is handled before normal routing so the relay
         // live fan-out shares the same access gate as the HTTP endpoints.
@@ -123,13 +204,18 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
             const sinceRaw = url.searchParams.get("since") ?? "0";
             const syncSince = Number(sinceRaw);
             if (!Number.isInteger(syncSince) || syncSince < 0) return error("invalid_cursor", 400);
-            const data: SyncSocketData = { subId: randomUUID(), docId: syncDocId, since: syncSince, ...authz.data };
+            const data: DocumentSocketData = { kind: "document", subId: randomUUID(), docId: syncDocId, since: syncSince, subscriptions: new Set(), ...authz.data };
             if (srv.upgrade(req, { data })) return undefined; // upgraded; Bun owns the socket now
             return error("upgrade_failed", 400);
           }
           // Relay: append / catch-up. Push broadcasts via this server's hub.
           if (mm.rest === "updates" && method === "POST") return await handlePushUpdate(req, store, mm.id, ip, hub);
           if (mm.rest === "updates" && method === "GET") return handlePullUpdates(req, store, mm.id, ip);
+          // Checkpoint chunks are opaque; only control metadata reaches the relay.
+          if (mm.rest === "checkpoints/chunks" && method === "POST") return await handleCheckpointChunk(req, store, mm.id);
+          if (mm.rest === "checkpoints/manifest" && method === "POST") return await handleCheckpointManifest(req, store, mm.id);
+          if (mm.rest === "checkpoints/receipt" && method === "POST") return await handleCheckpointReceipt(req, store, mm.id);
+          if (mm.rest === "checkpoints/prune" && method === "POST") return await handleCheckpointPrune(req, store, mm.id);
           // Admin: membership + walls (scoped to :id).
           if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.id);
           if (mm.rest === "members/remove" && method === "POST") return await handleRemoveMatterMember(req, store, mm.id);
@@ -230,56 +316,42 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
     websocket: {
       open(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;
-        const sub: Subscriber = {
-          id: d.subId,
-          user_id: d.userId,
-          seat_id: d.seatId,
-          send: (frame) => {
-            try {
-              ws.send(JSON.stringify(frame));
-            } catch {
-              /* dead socket; close handler prunes */
-            }
-          },
-        };
-        // Subscribe first. From this point, post-watermark writes fan out live.
-        hub.subscribe(d.matterId, sub, d.docId);
-        // Capture a finite boundary AFTER subscription, then page only through
-        // it. Keeping the upper bound prevents a busy writer from making initial
-        // catch-up unbounded, while the subscription guarantees no later row is
-        // lost in the handoff to live delivery.
-        try {
-          const watermark = store.latestMatterCursor(d.matterId, d.docId);
-          const backlog = store.countMatterUpdatesThrough(d.matterId, d.since, watermark, d.docId);
-          const subscribers = hub.subscriberCount(d.matterId, d.docId);
-          ws.send(JSON.stringify({ type: "ready", matter_id: d.matterId, doc_id: d.docId, backlog, latest_cursor: watermark, subscribers }));
-
-          let cursor = d.since;
-          for (;;) {
-            const page = store.getMatterUpdatesThrough(d.matterId, cursor, watermark, 500, d.docId);
-            if (page.length === 0) break;
-            for (const u of page) ws.send(JSON.stringify(toUpdateFrame(u)));
-            cursor = page[page.length - 1]!.id;
-          }
-        } catch {
-          // Never leave a peer believing it has a complete catch-up when replay
-          // failed. Closing makes the client reconnect and repair via HTTP/WS.
-          ws.close(1011, "sync_backfill_failed");
+        if (d.kind === "notify") {
+          notificationHub.subscribe(d.orgId, d.userId, d.subId, (frame) => {
+            try { ws.send(JSON.stringify(frame)); } catch { /* close handler prunes */ }
+          });
           return;
         }
-        // Broadcast updated subscriber count to all connected peers (including self).
-        hub.broadcastPresence(d.matterId, d.docId);
+        subscribeDocument(ws, store, hub, d.matterId, d.docId, d.since);
       },
-      message() {
-        // Inbound socket frames are ignored on purpose. Awareness/presence would
-        // ride a separate ephemeral channel; document writes use the HTTP relay so
-        // they pass the access gate + audit. (DECISION.md §1.)
+      message(ws: Bun.ServerWebSocket<SyncSocketData>, message: string | Buffer) {
+        const d = ws.data;
+        if (d.kind !== "document") return;
+        let frame: { type?: unknown; matter_id?: unknown; doc_id?: unknown; since?: unknown };
+        try { frame = JSON.parse(typeof message === "string" ? message : message.toString("utf8")); } catch { return; }
+        if (frame.type === "subscribe" && typeof frame.matter_id === "string" && frame.matter_id.length && typeof frame.doc_id === "string" && frame.doc_id.length && Number.isInteger(frame.since) && (frame.since as number) >= 0) {
+          subscribeDocument(ws, store, hub, frame.matter_id, frame.doc_id, frame.since as number);
+        }
+        if (frame.type === "unsubscribe" && typeof frame.matter_id === "string" && typeof frame.doc_id === "string") {
+          const channel = documentChannel(frame.matter_id, frame.doc_id);
+          if (d.subscriptions.delete(channel)) {
+            hub.unsubscribe(frame.matter_id, `${d.subId}:${channel}`, frame.doc_id);
+            hub.broadcastPresence(frame.matter_id, frame.doc_id);
+          }
+        }
       },
       close(ws: Bun.ServerWebSocket<SyncSocketData>) {
         const d = ws.data;
-        hub.unsubscribe(d.matterId, d.subId, d.docId);
-        // Broadcast updated presence count to remaining subscribers (no-op if all left).
-        hub.broadcastPresence(d.matterId, d.docId);
+        if (d.kind === "notify") {
+          notificationHub.unsubscribe(d.orgId, d.userId, d.subId);
+          return;
+        }
+        for (const channel of d.subscriptions) {
+          const [matterId, docId] = channel.split("\u0000", 2);
+          if (!matterId || !docId) continue;
+          hub.unsubscribe(matterId, `${d.subId}:${channel}`, docId);
+          hub.broadcastPresence(matterId, docId);
+        }
       },
     },
   };

@@ -405,7 +405,7 @@ export function authorizeSyncConnect(
   matterId: string,
   tickets: SyncTicketStore = syncTickets,
 ):
-  | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string } }
+  | { ok: true; data: { matterId: string; orgId: string; userId: string; seatId: string; role: AccessTokenClaims["role"] } }
   | { ok: false; resp: Response } {
   const url = new URL(req.url);
   const ticket = url.searchParams.get("ticket");
@@ -424,7 +424,7 @@ export function authorizeSyncConnect(
   if (!access.allowed) {
     return { ok: false, resp: error("forbidden", 403, access.reason) };
   }
-  return { ok: true, data: { matterId, orgId: binding.orgId, userId: binding.userId, seatId: binding.seatId } };
+  return { ok: true, data: { matterId, orgId: binding.orgId, userId: binding.userId, seatId: binding.seatId, role: binding.role } };
 }
 
 // ---------------------------------------------------------------------------
