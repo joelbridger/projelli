@@ -4,7 +4,7 @@
  * This is the load-bearing ethical-wall enforcement. The server is the source of
  * truth for `MatterMember` and `EthicalWall`; the single predicate
  *
- *     allowed = (member ∨ org-admin) ∧ ¬walled        // deny-overrides-allow
+ *     allowed = active ∧ (member ∨ org-admin) ∧ ¬walled // deny-overrides-allow
  *
  * is computed in ONE place (`resolveAccess`) and fail-closed by construction —
  * anything that isn't a clear allow is a deny. Every access decision is funneled
@@ -41,9 +41,12 @@ export const MAX_UPDATE_BYTES = 1024 * 1024; // 1 MiB per encrypted update blob.
  *
  * Order matters and is intentional:
  *   1. Matter must exist AND be in the caller's org (no cross-org access).
- *   2. An ethical wall is checked FIRST and wins outright — deny-overrides-allow.
+ *   2. Archived matters are terminally closed to relay data flow. This denial is
+ *      intentionally opaque to clients, just like an unknown matter.
+ *   3. An ethical wall is checked FIRST among identity checks and wins outright —
+ *      deny-overrides-allow.
  *      A screened user is blocked even if mistakenly added as a member or admin.
- *   3. Otherwise allow iff the user is a matter member, OR an org admin (admins
+ *   4. Otherwise allow iff the user is a matter member, OR an org admin (admins
  *      get an access policy over their own org's matters; still subject to the
  *      wall above, so a screened admin is still blocked).
  *
@@ -57,6 +60,7 @@ export function resolveAccess(
   const matter = store.getMatter(matterHandle);
   if (!matter) return { allowed: false, matter: null, reason: "matter_not_found" };
   if (matter.org_id !== input.orgId) return { allowed: false, matter: null, reason: "cross_org" };
+  if (matter.status === "archived") return { allowed: false, matter, reason: "archived" };
 
   // Deny wins. Check the wall before any allow path.
   if (store.isWalled(matterHandle, input.userId)) {
@@ -78,7 +82,8 @@ export type GateResult =
  * The audited access gate every relay/membership endpoint calls. Resolves the
  * predicate and writes an append-only audit event for BOTH outcomes:
  *   - granted  -> matter.access.granted
- *   - denied   -> matter.access.denied (with the reason: walled / not_member / cross_org / matter_not_found)
+ *   - denied   -> matter.access.denied (with the reason: archived / walled /
+ *      not_member / cross_org / matter_not_found)
  *
  * `action` tags what the caller was trying to do (e.g. "push", "pull", "connect")
  * so the audit trail shows intent. Returns a typed allow/deny the route maps to HTTP.
@@ -115,8 +120,10 @@ export function gateMatterAccess(
   });
 
   // cross_org / matter_not_found both surface as 404 so we never confirm the
-  // existence of another org's matter to an outsider. walled / not_member are
-  // 403 (the caller's own org, matter exists, they're just not allowed).
+  // existence of another org's matter to an outsider. Archived follows that
+  // same opaque 404 path: clients never learn whether a relay matter was closed.
+  // walled / not_member are 403 (the caller's own org, matter exists, they're
+  // just not allowed).
   if (access.reason === "walled" || access.reason === "not_member") {
     return { ok: false, http: 403, error: "forbidden", reason: access.reason };
   }

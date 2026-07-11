@@ -225,7 +225,7 @@ export interface MatterUpdate {
 /** Result of the §4 access predicate for (user, matter). */
 export type MatterAccess =
   | { allowed: true; matter: Matter; reason: "member" | "admin" }
-  | { allowed: false; matter: Matter; reason: "walled" | "not_member" }
+  | { allowed: false; matter: Matter; reason: "archived" | "walled" | "not_member" }
   | { allowed: false; matter: null; reason: "matter_not_found" | "cross_org" };
 
 // ---------------------------------------------------------------------------

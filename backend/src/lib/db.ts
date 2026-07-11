@@ -1179,9 +1179,14 @@ export class Store {
     ciphertext: Uint8Array;
     author_seat: string;
     key_epoch: number;
-  }): { update: MatterUpdate; duplicate: boolean } | { streamLimitReached: true } | { streamMatterMismatch: true } {
+  }): { update: MatterUpdate; duplicate: boolean } | { matterArchived: true } | { streamLimitReached: true } | { streamMatterMismatch: true } {
     const now = this.nowIso();
     const txn = this.db.transaction(() => {
+      // This check deliberately lives inside the same IMMEDIATE transaction as
+      // first-write stream binding. A push that passed its earlier access gate
+      // cannot create a new stream after an archive has committed.
+      const matter = this.db.query(`SELECT status FROM matters WHERE matter_handle = ?`).get(input.matter_handle) as { status: MatterStatus } | null;
+      if (!matter || matter.status === "archived") return { matterArchived: true as const };
       const stream = this.db.query(`SELECT matter_handle FROM matter_streams WHERE stream_handle = ?`).get(input.stream_handle) as { matter_handle: string } | null;
       if (stream && stream.matter_handle !== input.matter_handle) return { streamMatterMismatch: true as const };
       const existing = this.db
@@ -1227,7 +1232,7 @@ export class Store {
       return { update: { ...row, ciphertext: new Uint8Array(row.ciphertext) }, duplicate: false };
     });
     // IMMEDIATE so concurrent pushes of the same (stream_handle, blob_id) can't both insert.
-    return txn.immediate() as { update: MatterUpdate; duplicate: boolean } | { streamLimitReached: true } | { streamMatterMismatch: true };
+    return txn.immediate() as { update: MatterUpdate; duplicate: boolean } | { matterArchived: true } | { streamLimitReached: true } | { streamMatterMismatch: true };
   }
 
   /**
