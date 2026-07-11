@@ -130,7 +130,7 @@ class FakeSocket implements WebSocketLike {
 /** A FirmApiClient stub exposing only what MatterSyncClient calls. */
 function fakeClient(relay: FakeDocRelay) {
   return {
-    pushUpdate: async (streamHandle: StreamHandle, blobId: string, ct: string, _seat: string, epoch?: number) =>
+    pushUpdate: async (_matter: string, streamHandle: StreamHandle, blobId: string, ct: string, _seat: string, epoch?: number) =>
       relay.push(blobId, ct, epoch ?? relay.keyEpoch, streamHandle),
     pullUpdates: async (streamHandle: StreamHandle, since: number) =>
       relay.pull(since, streamHandle),

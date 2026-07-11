@@ -149,17 +149,11 @@ export const config = {
   /** Limits the amount of parsed JSON we inspect before authentication. */
   v2PayloadNodeBudget: num("V2_PAYLOAD_NODE_BUDGET", 100_000, { min: 1 }),
 
-  /** Includes the root notes stream. Bounds empty-stream allocation abuse. */
+  /** Includes the root notes stream. A stream counts only after its first write. */
   firmMatterStreamCap: num("FIRM_MATTER_STREAM_CAP", 1024, { min: 1 }),
-  /** Allocation is intentionally much lower than update traffic and keyed by seat. */
-  firmMatterStreamAllocationRateLimitMax: num("FIRM_MATTER_STREAM_ALLOCATION_RATE_LIMIT_MAX", 30, { min: 1 }),
-  firmMatterStreamAllocationRateLimitWindowSeconds: num("FIRM_MATTER_STREAM_ALLOCATION_RATE_LIMIT_WINDOW_SECONDS", 60, { min: 1 }),
-  /** Unused stream leases expire; streams with accepted data are retained. */
-  firmMatterStreamLeaseIdleSeconds: num("FIRM_MATTER_STREAM_LEASE_IDLE_SECONDS", 900, { min: 1 }),
-  /** A client must publish its encrypted root mapping well before lease expiry. */
-  firmMatterStreamLeaseCommitDeadlineSeconds: num("FIRM_MATTER_STREAM_LEASE_COMMIT_DEADLINE_SECONDS", 480, { min: 1 }),
-  /** Keeps one editor from consuming a matter's entire durable stream budget. */
-  firmMatterSeatLiveStreamCap: num("FIRM_MATTER_SEAT_LIVE_STREAM_CAP", 128, { min: 1 }),
+  /** Every push is seat-rate-limited; unused client handles never reach the relay. */
+  firmMatterStreamWriteRateLimitMax: num("FIRM_MATTER_STREAM_WRITE_RATE_LIMIT_MAX", 30, { min: 1 }),
+  firmMatterStreamWriteRateLimitWindowSeconds: num("FIRM_MATTER_STREAM_WRITE_RATE_LIMIT_WINDOW_SECONDS", 60, { min: 1 }),
 
   // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
   // The cap bounds abuse; the timeout severs a hung provider connection so a
@@ -200,9 +194,5 @@ export const config = {
 
   isTest: IS_TEST,
 } as const;
-
-if (config.firmMatterStreamLeaseCommitDeadlineSeconds >= config.firmMatterStreamLeaseIdleSeconds) {
-  throw new Error("config: FIRM_MATTER_STREAM_LEASE_COMMIT_DEADLINE_SECONDS must be shorter than FIRM_MATTER_STREAM_LEASE_IDLE_SECONDS");
-}
 
 export type Config = typeof config;

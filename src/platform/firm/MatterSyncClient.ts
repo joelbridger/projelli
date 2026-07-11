@@ -106,34 +106,14 @@ function genBlobId(): string {
   return `blob_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-/**
- * Origin carried by the one root-index transaction that makes a document
- * stream visible.  It gives that logical write a stable relay idempotency key;
- * retrying the encrypted update must never mint a second blob id.
- */
-export interface RootIndexWriteOrigin {
-  readonly type: 'firm-root-index-write';
-  readonly blobId: string;
-}
-
-export function rootIndexWriteOrigin(blobId: string): RootIndexWriteOrigin {
-  return { type: 'firm-root-index-write', blobId };
-}
-
-function blobIdFromOrigin(origin: unknown): string | undefined {
-  if (!origin || typeof origin !== 'object') return undefined;
-  const candidate = origin as Partial<RootIndexWriteOrigin>;
-  return candidate.type === 'firm-root-index-write' && typeof candidate.blobId === 'string'
-    ? candidate.blobId
-    : undefined;
-}
-
 type PendingWrite = {
   sequence: number;
   update: Uint8Array;
   /** Set exactly once: retries send this exact id and encrypted bytes. */
   blobId: string;
   ciphertext?: string;
+  /** The ciphertext's AAD epoch. It must never follow a later key rotation. */
+  keyEpoch?: number;
 };
 
 type PushResult =
@@ -208,9 +188,7 @@ export class MatterSyncClient {
   /**
    * Wait for local root-index writes to receive their HTTP acceptance.
    *
-   * This is a durability boundary: callers use it before exposing a newly
-   * allocated document stream. A queued retry is not acceptance, so never
-   * report success while any update is still waiting to be accepted.
+   * This waits for a snapshot of local writes to receive HTTP acceptance.
    */
   async flush(options: { signal?: AbortSignal } = {}): Promise<void> {
     // This is deliberately a snapshot, not a global-drain operation. A busy
@@ -226,7 +204,7 @@ export class MatterSyncClient {
     try {
       let unknownAttempts = 0;
       for (;;) {
-        if (options.signal?.aborted) throw new Error('Could not publish the encrypted root update before the stream lease deadline.');
+        if (options.signal?.aborted) throw new Error('Could not publish the encrypted root update.');
         const inFlight = [...this.inFlightWrites.entries()]
           .filter(([sequence]) => sequence <= boundary)
           .map(([, write]) => write.promise);
@@ -236,7 +214,7 @@ export class MatterSyncClient {
           if (rejected?.kind === 'rejected') throw rejected.error;
           const unknown = results.find((result) => result.kind === 'unknown');
           if (unknown?.kind === 'unknown') {
-            if (options.signal?.aborted) throw new Error('Could not publish the encrypted root update before the stream lease deadline.');
+            if (options.signal?.aborted) throw new Error('Could not publish the encrypted root update.');
             if (unknownAttempts++ > 0) throw unknown.error;
           }
           continue;
@@ -292,7 +270,7 @@ export class MatterSyncClient {
       // If there's already a backlog, queue behind it rather than racing a
       // fresh push ahead of updates still waiting to be sent.
       const sequence = ++this.nextWriteSequence;
-      const write: PendingWrite = { sequence, update, blobId: blobIdFromOrigin(origin) ?? genBlobId() };
+      const write: PendingWrite = { sequence, update, blobId: genBlobId() };
       if (this.pendingUpdates.length > 0) {
         this.pendingUpdates.push(write);
         return;
@@ -384,17 +362,19 @@ export class MatterSyncClient {
     try {
       if (!write.ciphertext) {
         const key = await this.ensureKey();
+        write.keyEpoch = this.keyEpoch;
         write.ciphertext = await encryptUpdateV2(key, write.update, {
-          keyEpoch: this.keyEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
+          keyEpoch: write.keyEpoch, matterHandle: this.matterHandle, streamHandle: this.streamHandle,
         });
       }
       this.ownBlobIds.add(write.blobId);
       const res = await this.client.pushUpdate(
+        this.matterHandle,
         this.streamHandle,
         write.blobId,
         write.ciphertext,
         this.seatToken,
-        this.keyEpoch,
+        write.keyEpoch ?? this.keyEpoch,
         signal,
       );
       this.cursor = Math.max(this.cursor, res.cursor);
@@ -423,7 +403,7 @@ export class MatterSyncClient {
    */
   private async flushPendingUpdatesThrough(boundary: number, signal?: AbortSignal): Promise<PushResult> {
     for (;;) {
-      if (signal?.aborted) return { kind: 'unknown', error: new Error('Could not publish the encrypted root update before the stream lease deadline.') };
+      if (signal?.aborted) return { kind: 'unknown', error: new Error('Could not publish the encrypted root update.') };
       const nextIndex = this.pendingUpdates.findIndex(({ sequence }) => sequence <= boundary);
       if (nextIndex < 0) break;
       const next = this.pendingUpdates[nextIndex];

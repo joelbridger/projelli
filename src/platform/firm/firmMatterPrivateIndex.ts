@@ -5,10 +5,8 @@
  * document IDs and are never copied into a relay path, query, body, or frame.
  */
 import * as Y from 'yjs';
-import type { MatterHandle, StreamHandle } from './contract';
-import { parseStreamHandle } from './contract';
-import { FirmApiError, type FirmApiClient } from './FirmApiClient';
-import { rootIndexWriteOrigin } from './MatterSyncClient';
+import type { StreamHandle } from './contract';
+import { generateStreamHandle, parseStreamHandle } from './contract';
 
 export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
 /**
@@ -20,40 +18,12 @@ export const FIRM_PRIVATE_INDEX_MAP = 'firm-private-index';
 export const FIRM_PRIVATE_INDEX_STREAMS_V2_MAP = 'firm-private-index-streams-v2';
 const INDEX_VERSION = 1;
 
-/**
- * The relay reclaims an unused stream after 15 minutes. Leave a large buffer
- * for clocks, network queues, and cleanup scheduling: a new stream must have
- * its encrypted root-index mapping accepted within eight minutes.
- */
-export const DOCUMENT_STREAM_LEASE_COMMIT_DEADLINE_MS = 8 * 60 * 1_000;
-/** Never begin a root commit if the server says there is less than this left. */
-export const DOCUMENT_STREAM_MIN_REMAINING_BUDGET_MS = 5_000;
 
 export interface FirmMatterPrivateIndex {
   version: 1;
   clientName: string;
   displayName: string;
   streams: Record<string, { streamHandle: StreamHandle; kind: 'notes' | 'document' }>;
-}
-
-export interface RootIndexSync {
-  /** Publish the encrypted root update. The relay treats its ciphertext as opaque. */
-  flush(options?: { signal?: AbortSignal }): Promise<void>;
-}
-
-export interface DocumentStreamCommitOptions {
-  /** Test/host override. Production uses the eight-minute safe lease window. */
-  leaseCommitDeadlineMs?: number;
-  /** Absolute server-clock deadline returned by allocation. */
-  leaseCommitDeadlineAt?: string;
-  /** Test seam; production always uses the device clock only to budget the server deadline. */
-  now?: () => number;
-}
-
-function deadlineSignal(timeoutMs: number): { signal: AbortSignal; cancel: () => void } {
-  const controller = new AbortController();
-  const timer = setTimeout(() => { controller.abort(new DOMException('Document stream lease commit timed out.', 'TimeoutError')); }, timeoutMs);
-  return { signal: controller.signal, cancel: () => { clearTimeout(timer); } };
 }
 
 type PrivateStreamEntry = FirmMatterPrivateIndex['streams'][string];
@@ -70,22 +40,6 @@ function readStreamEntry(entry: unknown): PrivateStreamEntry {
   const kind = candidate['kind'];
   if (kind !== 'notes' && kind !== 'document') throw new Error('Malformed private index: stream kind.');
   return { streamHandle: parseStreamHandle(stringField(candidate['streamHandle'], 'stream handle')), kind };
-}
-
-async function documentStreamCreateBlobId(localDocumentId: string, streamHandle: StreamHandle): Promise<string> {
-  const input = new TextEncoder().encode(`firm-root-index-create-v1\u0000${localDocumentId}\u0000${streamHandle}`);
-  const digest = await crypto.subtle.digest('SHA-256', input);
-  return `root-index-create-v1-${Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')}`;
-}
-
-function isInstalledEntry(value: unknown, streamHandle: StreamHandle): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const candidate = value as { streamHandle?: unknown; kind?: unknown };
-  return candidate.streamHandle === streamHandle && candidate.kind === 'document';
-}
-
-function isDefinitelyRejected(error: unknown): error is FirmApiError {
-  return error instanceof FirmApiError && error.status >= 400 && error.status < 500;
 }
 
 function readPlainStreams(rawStreams: unknown): FirmMatterPrivateIndex['streams'] {
@@ -173,87 +127,40 @@ export function writeFirmMatterPrivateIndex(doc: Y.Doc, index: FirmMatterPrivate
 }
 
 /**
- * Record a new document stream in the encrypted root index and wait until its
- * root update is accepted before allowing the caller to start the stream.
+ * Record a client-generated document stream in the encrypted root index.
+ * Yjs carries this local change to peers when the root stream next syncs; an
+ * unused handle never reaches the relay and therefore needs no cleanup.
  */
-export async function addDocumentStreamToPrivateIndex(
+export function addDocumentStreamToPrivateIndex(
   doc: Y.Doc,
-  rootSync: RootIndexSync,
   localDocumentId: string,
   streamHandle: StreamHandle,
-  options: DocumentStreamCommitOptions = {},
-): Promise<void> {
+): void {
   const current = readFirmMatterPrivateIndex(doc);
   if (!current) throw new Error('Cannot add a document stream before the private index exists.');
   const existing = current.streams[localDocumentId];
   if (existing?.streamHandle === streamHandle) return;
   const streamsMap = getStreamsV2Map(doc);
-  const previous = streamsMap.get(localDocumentId);
-  const blobId = await documentStreamCreateBlobId(localDocumentId, streamHandle);
   doc.transact(() => {
     streamsMap.set(localDocumentId, { streamHandle, kind: 'document' });
-  }, rootIndexWriteOrigin(blobId));
-  // An absolute relay deadline includes time spent delivering the allocation
-  // response. Never restart that clock when it reaches this device.
-  const deadlineMs = options.leaseCommitDeadlineMs
-    ?? (options.leaseCommitDeadlineAt
-      ? Date.parse(options.leaseCommitDeadlineAt) - (options.now?.() ?? Date.now())
-      : DOCUMENT_STREAM_LEASE_COMMIT_DEADLINE_MS);
-  const deadline = deadlineSignal(Math.max(0, deadlineMs));
-  try {
-    await rootSync.flush({ signal: deadline.signal });
-  } catch (error) {
-    // Only a relay 4xx proves it did not accept this root update. A timeout,
-    // abort, or network error may have committed after the response was lost:
-    // keep its mapping and let the frozen idempotent blob settle later.
-    if (isDefinitelyRejected(error)) doc.transact(() => {
-      // Compare-and-swap: an older failed create may never undo a later one.
-      if (!isInstalledEntry(streamsMap.get(localDocumentId), streamHandle)) return;
-      if (previous === undefined) streamsMap.delete(localDocumentId);
-      else streamsMap.set(localDocumentId, previous);
-    });
-    throw error;
-  } finally {
-    deadline.cancel();
-  }
+  });
 }
 
 /**
- * Allocate a server-generated opaque stream, then durably publish its local
- * mapping in the encrypted root index before the caller opens that stream. The
- * server makes the lease durable only when the stream itself accepts data.
+ * Create an opaque stream handle locally and immediately record its encrypted
+ * root-index mapping. The first actual ciphertext write binds it at the relay.
  */
-export async function createDocumentStream(
-  client: FirmApiClient,
-  matterHandle: MatterHandle,
-  seatToken: string,
+export function createDocumentStream(
   doc: Y.Doc,
-  rootSync: RootIndexSync,
   localDocumentId: string,
-  options: DocumentStreamCommitOptions = {},
-): Promise<StreamHandle> {
-  const { stream_handle, lease_commit_deadline_at } = await client.allocateStream(matterHandle, seatToken);
-  const streamHandle = parseStreamHandle(stream_handle);
-  const now = options.now?.() ?? Date.now();
-  const serverDeadline = Date.parse(lease_commit_deadline_at);
-  if (!Number.isFinite(serverDeadline) || serverDeadline - now < DOCUMENT_STREAM_MIN_REMAINING_BUDGET_MS) {
-    throw new Error('The document stream lease arrived with too little server-authoritative time remaining.');
-  }
-  // If publishing the directory fails, the unused lease disappears shortly.
-  await addDocumentStreamToPrivateIndex(doc, rootSync, localDocumentId, streamHandle, {
-    leaseCommitDeadlineAt: lease_commit_deadline_at,
-    ...(options.leaseCommitDeadlineMs === undefined ? {} : { leaseCommitDeadlineMs: options.leaseCommitDeadlineMs }),
-    ...(options.now === undefined ? {} : { now: options.now }),
-  });
+): StreamHandle {
+  const streamHandle = generateStreamHandle();
+  addDocumentStreamToPrivateIndex(doc, localDocumentId, streamHandle);
   return streamHandle;
 }
 
 /** Tombstone a local document mapping without exposing the local ID to the relay. */
-export async function tombstoneDocumentStreamFromPrivateIndex(
-  doc: Y.Doc,
-  rootSync: RootIndexSync,
-  localDocumentId: string,
-): Promise<void> {
+export function tombstoneDocumentStreamFromPrivateIndex(doc: Y.Doc, localDocumentId: string): void {
   const current = readFirmMatterPrivateIndex(doc);
   if (!current || !current.streams[localDocumentId]) return;
   doc.transact(() => {
@@ -262,5 +169,4 @@ export async function tombstoneDocumentStreamFromPrivateIndex(
     if (Object.prototype.hasOwnProperty.call(legacyStreams, localDocumentId)) streamsMap.set(localDocumentId, { tombstone: true });
     else streamsMap.delete(localDocumentId);
   });
-  await rootSync.flush();
 }

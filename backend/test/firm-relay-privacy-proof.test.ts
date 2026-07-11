@@ -447,7 +447,6 @@ describe("firm relay privacy proof", () => {
         ],
       });
       await memberClient.fetchMatterKeys(created.matter_handle, "member-device", memberSeatToken);
-      await adminClient.allocateStream(created.matter_handle, adminSeatToken);
 
       const doc = new Y.Doc();
       const sync = new MatterSyncClient({

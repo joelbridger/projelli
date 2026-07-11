@@ -212,8 +212,7 @@ field name for drop-in compatibility with today's `/validate`.
 ### V2 E2EE sync relay (any firm member — access JWT + active seat + `member ∧ ¬walled`)
 | Method · Path | Auth | Body / Query | Returns |
 |---|---|---|---|
-| `POST /v2/firm/matters/:matter_handle/streams` | Bearer + `X-Seat-Token` | `{}` | allocate an opaque stream lease |
-| `POST /v2/firm/streams/:stream_handle/updates` | Bearer + `seat_token` (body) | `{ blob_id, ciphertext_b64, seat_token, key_epoch }` | `{ ok, cursor, blob_id, key_epoch, duplicate }` · 201 new / 200 dup · **403** walled/non-member · **404** cross-org · **413** over cap |
+| `POST /v2/firm/matters/:matter_handle/streams/:stream_handle/updates` | Bearer + `seat_token` (body) | `{ blob_id, ciphertext_b64, seat_token, key_epoch }` | First write binds a client-generated opaque stream to this matter. `{ ok, cursor, blob_id, key_epoch, duplicate }` · 201 new / 200 dup · **403** walled/non-member or cross-matter handle · **404** cross-org · **413** over cap |
 | `GET /v2/firm/streams/:stream_handle/updates` | Bearer + `X-Seat-Token` | `?since=<cursor>` | `{ updates:[{cursor, ciphertext_b64, ...}], cursor, latest_cursor, has_more }` |
 | `POST /v2/firm/streams/:stream_handle/sync-ticket` | Bearer + `X-Seat-Token` | `{}` | short-lived, single-use ticket |
 | `GET /v2/firm/sync` *(WS)* | `?ticket=` | — | live identifier-free `update` frames + an initial backlog |

@@ -75,7 +75,7 @@ describe('promoteMatterToShared', () => {
     expect(writeFirmMatterPrivateIndex).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
       streams: { _notes: { streamHandle: ROOT, kind: 'notes' } },
     }));
-    expect(client.pushUpdate).toHaveBeenCalledWith(ROOT, expect.any(String), 'encrypted-root-index', 'seat-token', 1);
+    expect(client.pushUpdate).toHaveBeenCalledWith(MATTER, ROOT, expect.any(String), 'encrypted-root-index', 'seat-token', 1);
     expect(client.activateMatter).toHaveBeenCalledWith(MATTER);
     expect(linkFirmMatter).toHaveBeenCalledWith('m1', { firmMatterId: MATTER, rootStreamHandle: ROOT, orgId: 'org_1', role: 'owner' });
     expect(registerDevice).toHaveBeenCalledWith(client);

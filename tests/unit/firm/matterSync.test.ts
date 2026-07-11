@@ -120,7 +120,7 @@ class FakeSocket implements WebSocketLike {
 function fakeClient(relay: FakeRelay) {
   return {
     pushUpdate: vi.fn(
-      async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number) =>
+      async (_matter: string, _stream: string, blobId: string, ct: string, _seat: string, epoch?: number) =>
         relay.push(blobId, ct, epoch ?? relay.keyEpoch),
     ),
     pullUpdates: vi.fn(async (_m: string, since: number) => relay.pull(since)),
@@ -261,7 +261,7 @@ class FakeDocRelay {
 function fakeDocClient(relay: FakeDocRelay, streamHandle: StreamHandle) {
   return {
     pushUpdate: vi.fn(
-      async (_stream: StreamHandle, blobId: string, ct: string, _seat: string, epoch?: number) =>
+      async (_matter: string, _stream: StreamHandle, blobId: string, ct: string, _seat: string, epoch?: number) =>
         relay.push(blobId, ct, epoch ?? relay.keyEpoch, streamHandle),
     ),
     pullUpdates: vi.fn(async (_stream: StreamHandle, since: number) => relay.pull(since, streamHandle)),
@@ -630,7 +630,7 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       let failPush = false;
       const client = {
         pushUpdate: vi.fn(
-          async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
+          async (_matter: string, _stream: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
             if (failPush) throw new Error('network down');
             return relay.push(blobId, ct, epoch ?? relay.keyEpoch);
           },
@@ -695,7 +695,7 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       let failPush = true;
       const client = {
         pushUpdate: vi.fn(
-          async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
+          async (_matter: string, _stream: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
             if (failPush) throw new Error('network down');
             return relay.push(blobId, ct, epoch ?? relay.keyEpoch);
           },
@@ -761,7 +761,7 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       let socketsCreated = 0;
       const client = {
         pushUpdate: vi.fn(
-          async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
+          async (_matter: string, _stream: string, blobId: string, ct: string, _seat: string, epoch?: number) => {
             if (failPush) throw new Error('network down');
             return relay.push(blobId, ct, epoch ?? relay.keyEpoch);
           },

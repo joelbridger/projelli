@@ -53,7 +53,7 @@ export async function promoteMatterToShared(
       matterHandle: handle,
       streamHandle: provision.root_stream_handle,
     });
-    await client.pushUpdate(provision.root_stream_handle, blobId(), ciphertext, seatToken, provision.key_epoch);
+    await client.pushUpdate(handle, provision.root_stream_handle, blobId(), ciphertext, seatToken, provision.key_epoch);
 
     await client.activateMatter(handle);
     await registerDevice(client);

@@ -33,8 +33,7 @@ describe('FirmApiClient v2 relay privacy', () => {
       });
       const body = url.endsWith('/matters') ? {
         matter_handle: matterHandle, root_stream_handle: streamHandle, key_epoch: 1, status: 'provisioning',
-      } : url.endsWith('/streams') ? { stream_handle: streamHandle, lease_commit_deadline_at: new Date(Date.now() + 60_000).toISOString() } :
-        url.includes('/updates') && (init?.method ?? 'GET') === 'GET' ?
+      } : url.includes('/updates') && (init?.method ?? 'GET') === 'GET' ?
           { key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] } :
           url.endsWith('/sync-ticket') ? { ticket: 'ticket-opaque', expires_in_ms: 60_000 } : { ok: true, cursor: 1, blob_id: 'blob', key_epoch: 1, duplicate: false };
       return Promise.resolve(new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } }));
@@ -55,8 +54,7 @@ describe('FirmApiClient v2 relay privacy', () => {
       await client.clearWall(matterHandle, 'user-opaque'),
       await client.publishMatterKeys(matterHandle, { epoch: 1, wrapped: [{ user_id: 'user-opaque', device_id: 'device-opaque', wrapped_key_b64: 'wrapped' }] }),
       await client.fetchMatterKeys(matterHandle, 'device-opaque', 'seat'),
-      await client.allocateStream(matterHandle, 'seat'),
-      await client.pushUpdate(streamHandle, 'blob-opaque', 'ciphertext-opaque', 'seat', 1),
+      await client.pushUpdate(matterHandle, streamHandle, 'blob-opaque', 'ciphertext-opaque', 'seat', 1),
       await client.pullUpdates(streamHandle, 0, 'seat'),
       await client.createSyncTicket(streamHandle, 'seat'),
     );
@@ -78,9 +76,9 @@ describe('FirmApiClient v2 relay privacy', () => {
     for (const secret of sentinels) expect(parsedRouting).not.toContain(secret);
     expect(parsedRouting).not.toMatch(/client_name|matter_id|doc_id/);
 
-    expect(traffic.map((r) => r.url).join('\n')).toContain('/v2/firm/streams/');
+    expect(traffic.map((r) => r.url).join('\n')).toContain(`/v2/firm/matters/${matterHandle}/streams/`);
     expect(traffic.find((r) => r.url.includes('/updates?'))?.url).toMatch(/\?since=0$/);
-    expect(traffic).toHaveLength(15);
+    expect(traffic).toHaveLength(14);
   });
 
   it('accepts only strict 256-bit base64url opaque handles', () => {

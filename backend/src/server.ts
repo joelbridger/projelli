@@ -37,7 +37,6 @@ import {
   handleSetWall,
   handleClearWall,
   handleActivateMatter,
-  handleAllocateStream,
   handlePushUpdate,
   handlePullUpdates,
   handleSyncTicket,
@@ -46,7 +45,6 @@ import {
 import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
-import { startStreamLeaseGc } from "./lib/streamLeaseGc.ts";
 import {
   handleAssuredInfer,
   handleSetProviderKey,
@@ -141,7 +139,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           const matterHandle = store.getMatterHandleForStream(stream);
           if (!matterHandle) return error("stream_not_found", 404);
           if (sm.operation === "sync-ticket" && method === "POST") return await handleSyncTicket(req, store, matterHandle, stream, ip);
-          if (sm.operation === "updates" && method === "POST") return await handlePushUpdate(req, store, matterHandle, stream, ip, hub);
+          if (sm.operation === "updates" && method === "POST") return error("stream_not_found", 404);
           if (sm.operation === "updates" && method === "GET") return await handlePullUpdates(req, store, matterHandle, stream, ip);
         }
         const mm = matchMatter(path);
@@ -150,7 +148,8 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           // the fixed /v2/firm/sync ticket route handled above.
           if (mm.rest === "" && method === "POST") return error("invalid_v2_payload", 400);
           if (mm.rest === "activate" && method === "POST") return await handleActivateMatter(req, store, mm.handle);
-          if (mm.rest === "streams" && method === "POST") return await handleAllocateStream(req, store, mm.handle);
+          const streamPush = mm.rest.match(/^streams\/([^/]+)\/updates$/);
+          if (streamPush && method === "POST") return await handlePushUpdate(req, store, mm.handle, decodeURIComponent(streamPush[1]!), ip, hub);
           // Relay: append / catch-up. Push broadcasts via this server's hub.
           // Admin: membership + walls (scoped to :id).
           if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.handle);
@@ -297,7 +296,6 @@ maybeBootstrap(store);
 startRateLimitGc();
 startSyncTicketGc();
 startSsoStateGc();
-startStreamLeaseGc(store);
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 

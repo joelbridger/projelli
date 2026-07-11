@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 import { MatterSyncClient, type WebSocketLike } from './MatterSyncClient';
-import { generateMatterKey } from './matterCrypto';
+import { decryptUpdateV2, generateMatterKey, importMatterKey } from './matterCrypto';
 import { parseMatterHandle, parseStreamHandle } from './contract';
 
 describe('MatterSyncClient v2 socket privacy', () => {
@@ -104,7 +104,7 @@ describe('MatterSyncClient v2 socket privacy', () => {
       client: {
         pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
         createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
-        pushUpdate: (_stream: string, _blob: string, _ciphertext: string, _seat: string, _epoch: number, signal?: AbortSignal) => new Promise((_resolve, reject) => { pushStarted = true; signal?.addEventListener('abort', () => { sawAbort = true; reject(new Error('aborted')); }, { once: true }); }),
+        pushUpdate: (_matter: string, _stream: string, _blob: string, _ciphertext: string, _seat: string, _epoch: number, signal?: AbortSignal) => new Promise((_resolve, reject) => { pushStarted = true; signal?.addEventListener('abort', () => { sawAbort = true; reject(new Error('aborted')); }, { once: true }); }),
       } as never,
       socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
     });
@@ -115,8 +115,48 @@ describe('MatterSyncClient v2 socket privacy', () => {
     const deadline = new AbortController();
     const flush = client.flush({ signal: deadline.signal });
     deadline.abort();
-    await expect(flush).rejects.toThrow('before the stream lease deadline');
+    await expect(flush).rejects.toThrow('Could not publish the encrypted root update');
     expect(sawAbort).toBe(true);
+    client.stop();
+  });
+
+  it('pins queued ciphertext to its original epoch across a key rotation', async () => {
+    const matterHandle = parseMatterHandle(`mh2_${'I'.repeat(43)}`);
+    const streamHandle = parseStreamHandle(`sh2_${'J'.repeat(43)}`);
+    const epochOneKey = await generateMatterKey();
+    const epochTwoKey = await generateMatterKey();
+    const sent: Array<{ ciphertext: string; epoch: number }> = [];
+    let attempts = 0;
+    const doc = new Y.Doc();
+    const client = new MatterSyncClient({
+      matterHandle, streamHandle, keyB64: epochOneKey, keyEpoch: 1, seatToken: 'seat', doc,
+      client: {
+        pullUpdates: () => Promise.resolve({ key_epoch: 1, since: 0, cursor: 0, latest_cursor: 0, has_more: false, updates: [] }),
+        createSyncTicket: () => Promise.resolve({ ticket: 'ticket-only', expires_in_ms: 1000 }),
+        pushUpdate: (_matter: string, _stream: string, _blob: string, ciphertext: string, _seat: string, epoch: number) => {
+          sent.push({ ciphertext, epoch });
+          attempts += 1;
+          if (attempts === 1) return Promise.reject(new Error('network lost after encryption'));
+          return Promise.resolve({ ok: true, cursor: 1, blob_id: 'queued', key_epoch: 2, duplicate: false });
+        },
+      } as never,
+      socketFactory: () => ({ send() {}, close() {}, onopen: null, onclose: null, onerror: null, onmessage: null }),
+    });
+    await client.start();
+    doc.getMap('root').set('queued-before-rotate', true);
+    for (let tries = 0; sent.length < 1 && tries < 20; tries += 1) await new Promise((resolve) => setTimeout(resolve, 1));
+    await client.rotateKey(epochTwoKey, 2);
+    await client.flush();
+
+    expect(sent).toHaveLength(2);
+    expect(sent[1]?.epoch).toBe(1);
+    expect(sent[1]?.ciphertext).toBe(sent[0]?.ciphertext);
+    const retried = sent[1];
+    if (!retried) throw new Error('Queued write was not retried.');
+    const opened = await decryptUpdateV2(await importMatterKey(epochOneKey), retried.ciphertext, { matterHandle, streamHandle, keyEpoch: 1 });
+    expect(opened.ok).toBe(true);
+    const rejected = await decryptUpdateV2(await importMatterKey(epochTwoKey), retried.ciphertext, { matterHandle, streamHandle, keyEpoch: 2 });
+    expect(rejected.ok).toBe(false);
     client.stop();
   });
 });

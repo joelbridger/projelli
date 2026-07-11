@@ -389,6 +389,7 @@ export class FirmApiClient {
 
   // --- E2EE relay ------------------------------------------------------------
   pushUpdate(
+    matterHandle: MatterHandle,
     streamHandle: StreamHandle,
     blobId: string,
     ciphertextB64: string,
@@ -397,7 +398,9 @@ export class FirmApiClient {
     signal?: AbortSignal,
   ): Promise<PushUpdateResponse> {
     return this.request<PushUpdateResponse>(
-      FIRM_ENDPOINTS.pushUpdate.replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
+      FIRM_ENDPOINTS.pushUpdate
+        .replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle)))
+        .replace(':stream_handle', encodeURIComponent(parseStreamHandle(streamHandle))),
       {
         method: 'POST',
         auth: true,
@@ -440,14 +443,6 @@ export class FirmApiClient {
         body: {},
         headers: { 'X-Seat-Token': seatToken },
       },
-    );
-  }
-
-  /** Allocate an opaque document stream. The request body is intentionally empty. */
-  allocateStream(matterHandle: MatterHandle, seatToken: string): Promise<{ stream_handle: StreamHandle; lease_commit_deadline_at: string }> {
-    return this.request<{ stream_handle: StreamHandle; lease_commit_deadline_at: string }>(
-      FIRM_ENDPOINTS.allocateStream.replace(':matter_handle', encodeURIComponent(parseMatterHandle(matterHandle))),
-      { method: 'POST', auth: true, body: {}, headers: { 'X-Seat-Token': seatToken } },
     );
   }
 

@@ -126,7 +126,7 @@ export interface CreateUserRequest {
 // --- V2 firm relay: opaque routing only ------------------------------------
 /** A server-issued, 256-bit opaque shared-client routing handle. */
 export type MatterHandle = string & { readonly __brand: 'MatterHandle' };
-/** A server-issued, 256-bit opaque encrypted-stream routing handle. */
+/** A client-generated, 256-bit opaque encrypted-stream routing handle. */
 export type StreamHandle = string & { readonly __brand: 'StreamHandle' };
 
 const MATTER_HANDLE_RE = /^mh2_[A-Za-z0-9_-]{43}$/;
@@ -142,6 +142,15 @@ export function parseMatterHandle(value: string): MatterHandle {
 export function parseStreamHandle(value: string): StreamHandle {
   if (!STREAM_HANDLE_RE.test(value)) throw new Error('Invalid v2 stream handle.');
   return value as StreamHandle;
+}
+
+/** Generate a cryptographically random opaque stream handle on this device. */
+export function generateStreamHandle(): StreamHandle {
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return parseStreamHandle(`sh2_${btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '')}`);
 }
 
 export type MatterStatus = 'provisioning' | 'active' | 'archived';
@@ -480,8 +489,7 @@ export const FIRM_ENDPOINTS = {
   fetchMatterKeys: '/v2/firm/matters/:matter_handle/keys/fetch',
   setWall: '/v2/firm/matters/:matter_handle/wall/set',
   clearWall: '/v2/firm/matters/:matter_handle/wall/clear',
-  allocateStream: '/v2/firm/matters/:matter_handle/streams',
-  pushUpdate: '/v2/firm/streams/:stream_handle/updates',
+  pushUpdate: '/v2/firm/matters/:matter_handle/streams/:stream_handle/updates',
   pullUpdates: '/v2/firm/streams/:stream_handle/updates',
   syncTicket: '/v2/firm/streams/:stream_handle/sync-ticket',
   syncSocket: '/v2/firm/sync',
