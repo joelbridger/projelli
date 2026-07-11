@@ -15,7 +15,7 @@
  *
  * Same matter key + epoch:
  * Co-editing blobs and notes blobs share the per-matter AES-256 key (same
- * `matterCrypto.encryptUpdate`/`decryptUpdate` path). Only the `doc_id` stream
+ * `matterCrypto.encryptUpdateV2`/`decryptUpdateV2` path). Only the `doc_id` stream
  * distinguishes them on the relay.
  *
  * Usage:

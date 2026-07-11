@@ -46,7 +46,7 @@ import {
 import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
-import { startLegacyManifestGc } from "./lib/migrationManifestGc.ts";
+import { startStreamLeaseGc } from "./lib/streamLeaseGc.ts";
 import {
   handleAssuredInfer,
   handleSetProviderKey,
@@ -55,7 +55,7 @@ import {
   handleInferenceBilling,
 } from "./routes/assured.ts";
 import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
-import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine, handleMigrationManifest, handleMigrationComplete } from "./routes/matterKeys.ts";
+import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine } from "./routes/matterKeys.ts";
 import { handleOrgClaim } from "./routes/claim.ts";
 import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
@@ -127,8 +127,6 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
         // The WebSocket upgrade is handled before normal routing so the relay
         // live fan-out shares the same access gate as the HTTP endpoints.
         if (path === "/v2/firm/matters/mine" && method === "POST") return await handleMatterMine(req, store);
-        if (path === "/v2/firm/migration-manifest" && method === "POST") return await handleMigrationManifest(req, store);
-        if (path === "/v2/firm/migration-complete" && method === "POST") return await handleMigrationComplete(req, store);
         if (path === "/v2/firm/matters/list" && method === "POST") return await handleListMatters(req, store);
         if (path === "/v2/firm/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           const authz = authorizeSyncConnect(req, store);
@@ -299,7 +297,7 @@ maybeBootstrap(store);
 startRateLimitGc();
 startSyncTicketGc();
 startSsoStateGc();
-startLegacyManifestGc(store);
+startStreamLeaseGc(store);
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 

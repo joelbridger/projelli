@@ -71,6 +71,41 @@ describe("firm relay privacy proof", () => {
     expect(hasForbiddenV2RelayKey({ blob_id: "opaque", ciphertext_b64: "AQID" })).toBe(false);
   });
 
+  test("the v2-only relay has no legacy-ID schema and rejects legacy routes and ciphertext", async () => {
+    const { store, adminToken, adminSeatToken } = fixture();
+    const server = Bun.serve<SyncSocketData>(buildServeOptions(store, new FanoutHub()));
+    const base = `http://${server.hostname}:${server.port}`;
+    try {
+      const tables = store.db.query("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'").all() as Array<{ name: string }>;
+      expect(tables.map((table) => table.name)).not.toContain("firm_relay_migration_manifest");
+      const columns = tables.flatMap(({ name }) =>
+        (store.db.query(`PRAGMA table_info(\"${name.replaceAll('"', '""')}\")`).all() as Array<{ name: string }>)
+          .map((column) => `${name}.${column.name}`),
+      );
+      expect(columns.join(" ")).not.toMatch(/legacy_matter_id|matter_id|doc_id|client_name/);
+
+      const auth = { authorization: `Bearer ${adminToken}`, "x-seat-token": adminSeatToken, "content-type": "application/json" };
+      for (const path of ["/v2/firm/migration-manifest", "/v2/firm/migration-complete"]) {
+        const response = await fetch(`${base}${path}`, { method: "POST", headers: auth, body: "{}" });
+        expect(response.status, path).toBe(404);
+      }
+      const oldRoute = await fetch(`${base}/matter/matter-semantic-123/updates`, { method: "POST", headers: auth, body: "{}" });
+      expect(oldRoute.status).toBe(426);
+
+      const crypto = await import(matterCryptoModule) as typeof import("../../src/platform/firm/matterCrypto.ts");
+      const key = await crypto.importMatterKey(await crypto.generateMatterKey());
+      const v1Ciphertext = btoa(String.fromCharCode(1, ...new Uint8Array(12 + 16)));
+      expect(await crypto.decryptUpdateV2(key, v1Ciphertext, {
+        keyEpoch: 1,
+        matterHandle: `mh2_${"A".repeat(43)}`,
+        streamHandle: `sh2_${"B".repeat(43)}`,
+      })).toEqual({ ok: false, reason: "bad_version" });
+    } finally {
+      server.stop(true);
+      store.close();
+    }
+  });
+
   test("the shared guard rejects deeply nested JSON without overflowing the call stack", () => {
     const depth = 10_000;
     const nestedJson = `${'{"nested":'.repeat(depth)}0${"}".repeat(depth)}`;
@@ -163,8 +198,6 @@ describe("firm relay privacy proof", () => {
         ["/v2/firm/matters", auth],
         ["/v2/firm/matters/list", auth],
         ["/v2/firm/matters/mine", auth],
-        ["/v2/firm/migration-manifest", auth],
-        ["/v2/firm/migration-complete", auth],
         [`/v2/firm/matters/${matterHandle}/activate`, auth],
         [`/v2/firm/matters/${matterHandle}/archive`, auth],
         [`/v2/firm/matters/${matterHandle}/members/add`, auth],
@@ -301,8 +334,6 @@ describe("firm relay privacy proof", () => {
         `/v2/firm/matters/${matterHandle}/streams`,
         `/v2/firm/streams/${rootStream}/updates`,
         `/v2/firm/streams/${rootStream}/sync-ticket`,
-        "/v2/firm/migration-manifest",
-        "/v2/firm/migration-complete",
       ];
       for (const path of routes) {
         const result = await request(path);

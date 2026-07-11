@@ -92,16 +92,6 @@ const seat = resolveSeatKeys();
 // per-boot secret when unset — calling it twice would diverge).
 const authSecretResolved = resolveAuthSecret();
 
-// The legacy-ID bridge is intentionally short lived.  This is a duration
-// rather than a calendar date so each deployment can publish its approved
-// migration window through configuration without baking a date into code.
-// The environment value is deliberately in seconds, while JavaScript clocks
-// use milliseconds. Convert once at the boundary so every caller works in the
-// same unit.
-const migrationManifestTtlSeconds = num("MIGRATION_MANIFEST_TTL_SECONDS", 7 * 24 * 60 * 60);
-const migrationManifestTtlMs = migrationManifestTtlSeconds * 1_000;
-const migrationManifestDeadline = new Date(Date.now() + migrationManifestTtlMs).toISOString();
-
 // ---- Managed-key master secret (assured proxy org provider keys, chunk 3) --
 // Master key under which org-level managed provider API keys are encrypted at
 // rest (HKDF-derived AES-256-GCM; see crypto.encryptSecret). A dedicated secret
@@ -168,12 +158,6 @@ export const config = {
   firmMatterStreamLeaseIdleSeconds: num("FIRM_MATTER_STREAM_LEASE_IDLE_SECONDS", 900, { min: 1 }),
   /** Keeps one editor from consuming a matter's entire durable stream budget. */
   firmMatterSeatLiveStreamCap: num("FIRM_MATTER_SEAT_LIVE_STREAM_CAP", 128, { min: 1 }),
-
-  /** Legacy bridge window, named with its units to prevent seconds/ms drift. */
-  migrationManifestTtlSeconds,
-  migrationManifestTtlMs,
-  /** Absolute expiry written with every legacy bridge row at migration time. */
-  migrationManifestDeadline,
 
   // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
   // The cap bounds abuse; the timeout severs a hung provider connection so a

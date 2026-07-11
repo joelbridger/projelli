@@ -663,7 +663,7 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       // Local edit made while the relay is unreachable.
       failPush = true;
       c.doc.getMap('m').set('x', 'queued-while-offline');
-      // pushLocalUpdate awaits ensureKey()/encryptUpdate() (real WebCrypto
+      // pushLocalUpdate awaits ensureKey()/encryptUpdateV2() (real WebCrypto
       // ops) before it ever reaches the network call, so give it a few
       // fake-timer ticks rather than asserting immediately.
       await waitForFake(() => c.getStatus() === 'offline', 1000, 1);
