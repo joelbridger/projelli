@@ -1,6 +1,8 @@
 // Business OS - Tauri Backend
 // Local-first workspace for solo founders
 
+use tauri::Manager;
+
 // `pub` so the `lantern-mcp` sidecar binary (see `src/bin/mcp.rs`) can
 // reuse the `commands::rag::{store, embedder, extractor}` helpers without
 // duplicating code. The binary only touches the pure, Tauri-agnostic
@@ -11,6 +13,10 @@ pub mod commands;
 // MCP identifiers, OS data paths). Single source of truth for all
 // Rust-side identity strings — call sites import from here, never hard-code.
 pub mod identity;
+// Native Offline Mode source of truth.  It is loaded before any startup work
+// and later lanes route every off-device sink through this policy.
+pub mod egress_http;
+pub mod network_policy;
 // Shared Sidecar trait + concrete impls (ParakeetSidecar, and later
 // PiperSidecar for Stream B TTS). The trait defines a lifecycle contract
 // (start/stop/is_running) that long-lived daemon sidecars and fire-and-forget
@@ -44,6 +50,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             #[cfg(debug_assertions)]
             dev_bridge::dev_bridge_result,
+            set_offline_mode,
+            network_policy_status,
             commands::fs::check_path,
             commands::fs::get_home_dir,
             // First-launch migration of the per-workspace data folder
@@ -364,6 +372,17 @@ pub fn run() {
             commands::retention::redact::redact_meeting_segments,
         ])
         .setup(|app| {
+            // Offline Mode must be the first managed state: until this small
+            // record is synchronously loaded, off-device requests are denied.
+            // A malformed/unreadable record remains fail-closed and is exposed
+            // through `network_policy_status` for the settings UI in Lane 1.
+            let policy_data_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|error| error.to_string())?;
+            app.manage(network_policy::NetworkPolicy::load_from_app_data_dir(
+                &policy_data_dir,
+            ));
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -471,4 +490,21 @@ pub fn run() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+fn set_offline_mode(
+    enabled: bool,
+    policy: tauri::State<'_, network_policy::NetworkPolicy>,
+) -> Result<(), String> {
+    policy
+        .set_offline_mode(enabled)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn network_policy_status(
+    policy: tauri::State<'_, network_policy::NetworkPolicy>,
+) -> network_policy::PolicyStatusDto {
+    policy.status()
 }
