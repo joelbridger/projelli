@@ -17,6 +17,8 @@ step "Tauri TS/Rust command contracts" node scripts/check-tauri-contracts.mjs
 # producer → route → consumer test must not wait for a final integration pass.
 step "Wire-contract suite" npm run test:contracts
 step "Provider front door" node scripts/check-provider-construction.mjs
+step "Native Offline Mode boundary" node scripts/check-native-egress-boundary.mjs
+step "Egress registry inventory" node scripts/check-egress-registry.mjs
 step "Consent-gate wiring" node scripts/check-consent-gate-wiring.mjs
 step "Case-only filename collisions" node scripts/check-case-collisions.mjs
 step "TypeScript"      npm run typecheck

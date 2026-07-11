@@ -18,6 +18,7 @@ import {
   OfflineModeBlockedError,
   UnregisteredEgressOperationError,
 } from '@/platform/privacy/networkClient';
+import { EGRESS_OPERATIONS } from '@/platform/privacy/egressRegistry';
 import { setNetworkEgressReceiptEmitter } from '@/platform/privacy/networkEgressReceipt';
 import type { AuditEntry } from '@/platform/types/audit';
 
@@ -93,6 +94,28 @@ describe('networkClient', () => {
       egressFetch('cloud-ai', 'https://api.openai.com/v1/models')
     ).rejects.toBeInstanceOf(OfflineModeBlockedError);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('blocks every registered off-device operation before transport', async () => {
+    nativeStatus(true, 48);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const receipts: Array<Omit<AuditEntry, 'id' | 'timestamp'>> = [];
+    setNetworkEgressReceiptEmitter((entry) => receipts.push(entry));
+
+    const remoteOperations = [...EGRESS_OPERATIONS.values()].filter(
+      (operation) => operation.allowedHostClass !== 'literal-loopback'
+    );
+    for (const operation of remoteOperations) {
+      await expect(
+        egressFetch(operation.id, `https://${operation.allowedHosts[0]!}/boundary-test`)
+      ).rejects.toBeInstanceOf(OfflineModeBlockedError);
+    }
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(receipts.map((entry) => entry.metadata?.['operationId']).sort()).toEqual(
+      remoteOperations.map((operation) => operation.id).sort()
+    );
   });
 
   it.each(['telemetry', 'diagnostics'] as const)(

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildNetworkEgressReceipt } from '@/platform/privacy/networkEgressReceipt';
-import { getEgressOperation } from '@/platform/privacy/egressRegistry';
+import { EGRESS_OPERATIONS, getEgressOperation } from '@/platform/privacy/egressRegistry';
 
 describe('network egress receipts', () => {
   it('records required safe fields for an allowed network action', () => {
@@ -44,5 +44,27 @@ describe('network egress receipts', () => {
       destination: 'forms.lanternplatform.app',
     });
     expect(JSON.stringify(receipt)).not.toContain('secret');
+  });
+
+  it('can make a safe receipt for every renderer registry operation', () => {
+    for (const operation of EGRESS_OPERATIONS.values()) {
+      const host = operation.allowedHosts[0]!;
+      const destination = new URL(
+        host === '::1' ? 'http://[::1]/not-in-receipt' : `https://${host}/not-in-receipt`
+      );
+      const receipt = buildNetworkEgressReceipt(
+        operation,
+        destination,
+        99,
+        false,
+        'completed'
+      );
+      expect(receipt).toMatchObject({
+        operationId: operation.id,
+        operationLabel: operation.receiptLabel,
+        destination: host,
+      });
+      expect(JSON.stringify(receipt)).not.toContain('not-in-receipt');
+    }
   });
 });

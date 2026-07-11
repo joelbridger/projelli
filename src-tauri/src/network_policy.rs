@@ -1388,6 +1388,49 @@ mod tests {
         }
     }
 
+    /// Registry additions are not just an allowlist change: native receipts
+    /// expose these fields to people, so every operation must carry a safe,
+    /// human-readable receipt shape.
+    #[test]
+    fn every_registered_operation_has_receipt_metadata() {
+        for operation in EGRESS_OPERATION_REGISTRY {
+            assert!(!operation.id.is_empty(), "operation id must be non-empty");
+            assert!(
+                !operation.receipt_label.is_empty(),
+                "{} needs a receipt label",
+                operation.id
+            );
+        }
+    }
+
+    /// Boundary coverage for the whole native registry. A future operation is
+    /// not allowed to quietly opt out of the Offline Mode stop-sign: only the
+    /// two literal-loopback local-AI operations can pass while Offline Mode is
+    /// on. The inventory gate names this test for every Rust registry row.
+    #[test]
+    fn offline_mode_blocks_every_registered_non_loopback_operation() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+        policy.set_offline_mode(true).unwrap();
+
+        for operation in EGRESS_OPERATION_REGISTRY {
+            let destination = match operation.destination_rule {
+                DestinationRule::LiteralLoopbackOnly => destination("http://127.0.0.1:18089"),
+                _ => destination("https://egress-boundary.example.test"),
+            };
+            let result = policy.authorize(operation, &destination);
+            if matches!(operation.destination_rule, DestinationRule::LiteralLoopbackOnly) {
+                assert!(result.is_ok(), "{} should remain available locally", operation.id);
+            } else {
+                assert!(
+                    matches!(result, Err(NetworkPolicyError::OfflineModeBlocked(_))),
+                    "{} must be blocked before transport while Offline Mode is on",
+                    operation.id
+                );
+            }
+        }
+    }
+
     #[test]
     fn offline_blocks_loopback_meeting_auto_join_but_keeps_local_ai_available() {
         let directory = tempfile::tempdir().unwrap();
