@@ -80,20 +80,20 @@ export function validateDocusignConnectPayload(rawBody: string, nowMs = Date.now
   }
   if (!exactObject(candidate, TOP_LEVEL_FIELDS)) return { ok: false, code: "unknown_or_sensitive_field", status: 400 };
   const body = candidate;
-  if (!exactObject(body.data, DATA_FIELDS) || !exactObject(body.data.envelopeSummary, SUMMARY_FIELDS)) {
+  if (!exactObject(body["data"], DATA_FIELDS) || !exactObject(body["data"]["envelopeSummary"], SUMMARY_FIELDS)) {
     return { ok: false, code: "unknown_or_sensitive_field", status: 400 };
   }
-  if (body.event !== "envelope-completed" || body.data.envelopeSummary.status !== "completed") {
+  if (body["event"] !== "envelope-completed" || body["data"]["envelopeSummary"]["status"] !== "completed") {
     return { ok: false, code: "unknown_event_type", status: 400 };
   }
-  const retryCount = body.retryCount;
-  const configurationId = body.configurationId;
-  if (typeof body.apiVersion !== "string" || typeof body.uri !== "string" || typeof retryCount !== "number" || !Number.isInteger(retryCount) || retryCount < 0 || typeof configurationId !== "number" || !Number.isInteger(configurationId) || configurationId < 0) {
+  const retryCount = body["retryCount"];
+  const configurationId = body["configurationId"];
+  if (typeof body["apiVersion"] !== "string" || typeof body["uri"] !== "string" || typeof retryCount !== "number" || !Number.isInteger(retryCount) || retryCount < 0 || typeof configurationId !== "number" || !Number.isInteger(configurationId) || configurationId < 0) {
     return { ok: false, code: "missing_event_fields", status: 400 };
   }
-  if (!nonEmptyOpaqueId(body.data.accountId) || !nonEmptyOpaqueId(body.data.envelopeId)) return { ok: false, code: "missing_event_fields", status: 400 };
-  if (!validTimestamp(body.generatedDateTime) || !validTimestamp(body.data.envelopeSummary.statusChangedDateTime)) return { ok: false, code: "invalid_timestamp", status: 400 };
-  const timestamp = Date.parse(body.generatedDateTime);
+  if (!nonEmptyOpaqueId(body["data"]["accountId"]) || !nonEmptyOpaqueId(body["data"]["envelopeId"])) return { ok: false, code: "missing_event_fields", status: 400 };
+  if (!validTimestamp(body["generatedDateTime"]) || !validTimestamp(body["data"]["envelopeSummary"]["statusChangedDateTime"])) return { ok: false, code: "invalid_timestamp", status: 400 };
+  const timestamp = Date.parse(body["generatedDateTime"] as string);
   if (Math.abs(nowMs - timestamp) > CONNECT_CLOCK_SKEW_MS) return { ok: false, code: "expired_event", status: 400 };
   return {
     ok: true,

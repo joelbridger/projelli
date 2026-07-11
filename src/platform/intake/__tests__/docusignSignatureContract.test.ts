@@ -159,8 +159,8 @@ describe('Wave 9 signature contract gate', () => {
   it('rejects document bytes, recipient details, and a matter id before a DocuSign call', () => {
     const result = validateDocusignConnectPayload(JSON.stringify({
       documentBytes: 'bytes', recipientEmail: 'client@example.invalid', matter_id: 'private',
-    }), 'demo', Date.parse('2026-07-11T12:00:00.000Z'));
-    expect(result).toEqual({ ok: false, code: 'document_or_sensitive_field_forbidden', status: 400 });
+    }), Date.parse('2026-07-11T12:00:00.000Z'));
+    expect(result).toEqual({ ok: false, code: 'unknown_or_sensitive_field', status: 400 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
