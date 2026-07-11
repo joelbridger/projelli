@@ -4,9 +4,18 @@ vi.mock('@tauri-apps/api/core', () => ({
 }));
 import { invoke } from '@tauri-apps/api/core';
 import { mailBeginLogin, mailIsConnected } from '@/platform/utils/mail-commands';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
+import {
+  isPendingMailRagRetagSource,
+  setPendingMailRagRetagSources,
+} from '@/platform/rag/pendingMailRagRetagHold';
 
 describe('mail-commands', () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useWorkspaceStore.setState({ rootPath: null });
+    setPendingMailRagRetagSources('/test-workspace', []);
+  });
   it('begins login and returns the device-code prompt', async () => {
     (invoke as any).mockResolvedValue({ userCode: 'WXYZ', verificationUri: 'https://microsoft.com/devicelogin', deviceCode: 'DC', intervalSecs: 5 });
     const p = await mailBeginLogin();
@@ -91,6 +100,23 @@ describe('mail-commands', () => {
     expect(invoke).toHaveBeenCalledWith('mail_retag_messages_matter', {
       messageIds: ['one', 'two'], matterId: 'matter_a',
     });
+  });
+
+  it('holds a live filing until it has read the durable repair markers', async () => {
+    useWorkspaceStore.setState({ rootPath: '/test-workspace' });
+    (invoke as any).mockImplementation((command: string) => {
+      if (command === 'mail_retag_messages_matter') return Promise.resolve(2);
+      if (command === 'mail_list_pending_rag_retags') {
+        return Promise.resolve([{ messageId: 'one', sourceId: 'mail:one', matterId: 'matter_a' }]);
+      }
+      return Promise.resolve(undefined);
+    });
+    const { mailRetagMessagesMatter } = await import('@/platform/utils/mail-commands');
+
+    await expect(mailRetagMessagesMatter(['one', 'two'], 'matter_a')).resolves.toBe(2);
+
+    expect(isPendingMailRagRetagSource('/test-workspace', 'mail:one')).toBe(true);
+    expect(isPendingMailRagRetagSource('/test-workspace', 'mail:two')).toBe(false);
   });
 
   it('mailConnectedAccounts lists connected accounts', async () => {

@@ -56,6 +56,12 @@ import {
   pendingFolderRetagHydrationSuspect,
 } from '@/platform/rag/pendingFolderRetagStore';
 import {
+  beginPendingMailRagRetagHold,
+  isPendingMailRagRetagLoading,
+  isPendingMailRagRetagSource,
+  setPendingMailRagRetagSources,
+} from '@/platform/rag/pendingMailRagRetagHold';
+import {
   pendingDeletedMatterHydrationSuspect,
   purgePendingDeletedMattersForWorkspace,
   usePendingDeletedMatterStore,
@@ -1181,16 +1187,6 @@ export function restoreFolderHolds(workspaceRoot: string | null | undefined): vo
 // read them for the current workspace, hold mail conservatively; afterwards we
 // hold just their exact source ids. This closes the short startup window where a
 // stale RAG row could otherwise be retrieved before repair starts.
-let pendingMailRagRetagWorkspace: string | null = null;
-let pendingMailRagRetagLoading = false;
-let pendingMailRagRetagSourceIds = new Set<string>();
-
-function beginPendingMailRagRetagHold(workspaceRoot: string): void {
-  pendingMailRagRetagWorkspace = workspaceRoot;
-  pendingMailRagRetagLoading = true;
-  pendingMailRagRetagSourceIds = new Set();
-}
-
 async function refreshPendingMailRagRetagHold(
   workspaceIdentity: WorkspaceIdentitySnapshot,
 ): Promise<boolean> {
@@ -1199,9 +1195,7 @@ async function refreshPendingMailRagRetagHold(
   try {
     const pending = await mailListPendingRagRetags();
     if (!isWorkspaceIdentityCurrent(workspaceIdentity)) return false;
-    pendingMailRagRetagWorkspace = workspaceRoot;
-    pendingMailRagRetagSourceIds = new Set(pending.map((entry) => entry.sourceId));
-    pendingMailRagRetagLoading = false;
+    setPendingMailRagRetagSources(workspaceRoot, pending.map((entry) => entry.sourceId));
     return true;
   } catch {
     // Keep the conservative all-mail hold: an unreadable durable marker store
@@ -1242,12 +1236,9 @@ export function shouldExcludeHitFromRetrieval(hit: RagHit): boolean {
     (hit.sourceId ?? '').startsWith('mail:') ||
     hit.path.startsWith('mail:');
   if (isMail) {
-    if (pendingMailRagRetagLoading) return true;
-    if (
-      pendingMailRagRetagWorkspace === liveRoot &&
-      ([hit.sourceId, hit.path].filter(Boolean) as string[])
-        .some((id) => pendingMailRagRetagSourceIds.has(id))
-    ) return true;
+    if (isPendingMailRagRetagLoading()) return true;
+    if (([hit.sourceId, hit.path].filter(Boolean) as string[])
+      .some((id) => isPendingMailRagRetagSource(liveRoot, id))) return true;
     // R8 (F2): a corrupt mail-retag store can't say WHICH matters lost their hold, so
     // fail closed on ALL mail until the boot mail retag reconverges every tag.
     if (isAllMailHeld()) return true;

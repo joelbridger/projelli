@@ -7,6 +7,12 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { MailMatterMapEntry } from '@/platform/rag/matterResolver';
+import {
+  beginPendingMailRagRetagHold,
+  holdPendingMailRagRetagSources,
+  setPendingMailRagRetagSources,
+} from '@/platform/rag/pendingMailRagRetagHold';
+import { useWorkspaceStore } from '@/platform/fs/workspaceStore';
 
 /**
  * True when a mail connect/sync error is the EXPECTED "this needs the desktop
@@ -429,7 +435,9 @@ export async function mailRetagMessageMatter(
   matterId: string,
 ): Promise<void> {
   if (!isTauri()) return;
-  await invoke('mail_retag_message_matter', { messageId, matterId });
+  await withLiveMailRetagHold([messageId], () =>
+    invoke<void>('mail_retag_message_matter', { messageId, matterId }),
+  );
 }
 
 /** File selected messages in one bounded desktop request. The backend performs
@@ -439,7 +447,9 @@ export async function mailRetagMessagesMatter(
   matterId: string,
 ): Promise<number> {
   if (!isTauri()) return messageIds.length;
-  return invoke<number>('mail_retag_messages_matter', { messageIds, matterId });
+  return withLiveMailRetagHold(messageIds, () =>
+    invoke<number>('mail_retag_messages_matter', { messageIds, matterId }),
+  );
 }
 
 export interface PendingMailRagRetag {
@@ -452,6 +462,34 @@ export interface PendingMailRagRetag {
 export async function mailListPendingRagRetags(): Promise<PendingMailRagRetag[]> {
   if (!isTauri()) return [];
   return invoke<PendingMailRagRetag[]>('mail_list_pending_rag_retags');
+}
+
+/**
+ * Protect mail from its old client scope for the full live filing window, then
+ * replace that temporary hold with the backend's durable repair markers. If the
+ * marker read itself fails, hold all mail rather than risking a stale result.
+ */
+async function withLiveMailRetagHold<T>(
+  messageIds: string[],
+  action: () => Promise<T>,
+): Promise<T> {
+  const workspaceRoot = useWorkspaceStore.getState().rootPath;
+  const sourceIds = messageIds
+    .map((id) => id.startsWith('mail:') ? id : `mail:${id}`);
+  if (workspaceRoot) holdPendingMailRagRetagSources(workspaceRoot, sourceIds);
+  try {
+    return await action();
+  } finally {
+    // Do not let a request from the old workspace alter the newly-opened one.
+    if (workspaceRoot && useWorkspaceStore.getState().rootPath === workspaceRoot) {
+      try {
+        const pending = await mailListPendingRagRetags();
+        setPendingMailRagRetagSources(workspaceRoot, pending.map((entry) => entry.sourceId));
+      } catch {
+        beginPendingMailRagRetagHold(workspaceRoot);
+      }
+    }
+  }
 }
 
 /** Retry only mail sources whose durable filing still has a pending RAG mirror. */

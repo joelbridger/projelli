@@ -81,7 +81,7 @@ export function BulkMatterPicker({ selectedIds, open, onOpenChange, onDone }: Bu
             key={m.id}
             type="button"
             data-testid={`bulk-matter-choice-${m.id}`}
-            disabled={filing === m.id}
+            disabled={filing !== null}
             onClick={(e) => {
               e.stopPropagation();
               const matterId = m.id;
