@@ -127,7 +127,9 @@ function redactText(source: string): Redaction {
   const replace = (pattern: RegExp, kind: SecretKind, replacement = '$1[private-value-hidden]') => {
     text = text.replace(pattern, (...args: string[]) => { kinds.push(kind); return replacement.replace('$1', args[1] ?? ''); });
   };
-  replace(/(authorization\s*:\s*bearer\s+)[^\s,;]+/gi, 'bearer_token');
+  // Keep folded header continuations inside the value. A line fold is a
+  // common way to hide a capability from a line-oriented scanner.
+  replace(/(authorization\s*:\s*bearer\s+)[^\s,;]+(?:\r?\n[ \t]+[^\s,;]+)*/gi, 'bearer_token');
   replace(/\b(eyJ[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,})\b/g, 'bearer_token', '[private-value-hidden]');
   replace(/\b(sk-(?:ant-|proj-)?|AIza|gh[pousr]_|xox[baprs]-|rk_live_|pk_live_)[A-Za-z0-9_-]{8,}\b/g, 'api_key', '[private-value-hidden]');
   replace(/(-----BEGIN(?: [A-Z]+)? PRIVATE KEY-----)[\s\S]*?-----END(?: [A-Z]+)? PRIVATE KEY-----/g, 'private_key', '$1[private-key-hidden]');

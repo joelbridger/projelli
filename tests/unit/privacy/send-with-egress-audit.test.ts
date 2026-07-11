@@ -62,8 +62,8 @@ describe('sendWithEgressAudit', () => {
 
     expect(response.content).toBe('Safe answer');
     expect(localOnlyMocks.assertLocalOnlyAllowsSend).toHaveBeenCalledWith('anthropic');
-    expect(auditLog).toEqual(['egress', 'model_call']);
-    expect(localOnlyMocks.order).toEqual(['privacy-check', 'egress', 'send', 'model_call']);
+    expect(auditLog).toEqual(['prompt_preparation', 'egress', 'model_call']);
+    expect(localOnlyMocks.order).toEqual(['prompt_preparation', 'privacy-check', 'egress', 'send', 'model_call']);
   });
 
   it('throws before audit or provider send when Local-only blocks the provider', async () => {
@@ -105,8 +105,8 @@ describe('sendWithEgressAudit', () => {
       },
     })).rejects.toThrow('Local-only blocked anthropic');
 
-    expect(auditLog).not.toHaveBeenCalled();
+    expect(auditLog).toHaveBeenCalledWith(expect.objectContaining({ action: 'prompt_preparation' }));
     expect(provider.sendMessage).not.toHaveBeenCalled();
-    expect(localOnlyMocks.order).toEqual(['privacy-check']);
+    expect(localOnlyMocks.order).toEqual(['prompt_preparation', 'privacy-check']);
   });
 });

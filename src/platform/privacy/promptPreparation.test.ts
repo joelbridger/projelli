@@ -31,7 +31,7 @@ function pdfAttachment(overrides: Partial<AttachmentBytes['att']> = {}, bytes = 
 }
 
 afterEach(() => {
-  setPreparationEnforcementMode('warn');
+  setPreparationEnforcementMode('enforce');
   resetPromptPreparationStateForTests();
   vi.unstubAllGlobals();
 });
@@ -164,13 +164,13 @@ describe('prompt preparation red-team catalog', () => {
     expect(getPendingPromptReview()).toBeUndefined();
   });
 
-  it('warn mode never throws while enforce mode stops before a fetch can start', () => {
+  it('enforces by default, while explicit warn mode remains available for diagnostics', () => {
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    expect(getPreparationEnforcementMode()).toBe('warn');
+    expect(getPreparationEnforcementMode()).toBe('enforce');
+    expect(() => { assertCloudPreparation(undefined, 'openai'); }).toThrow('not prepared');
+    setPreparationEnforcementMode('warn');
     expect(() => { assertCloudPreparation(undefined, 'openai'); }).not.toThrow();
     expect(warning).toHaveBeenCalled();
-    setPreparationEnforcementMode('enforce');
-    expect(() => { assertCloudPreparation(undefined, 'openai'); }).toThrow('not prepared');
     warning.mockRestore();
   });
 

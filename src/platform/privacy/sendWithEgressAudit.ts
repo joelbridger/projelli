@@ -104,27 +104,31 @@ export async function runWithEgressAudit<T>(
 export async function sendWithEgressAudit(
   opts: SendWithEgressAuditOptions,
 ): Promise<ProviderResponse> {
+  // Kept as a compatibility entry point while older callers are removed. It
+  // must still take the prepared path: this module is not an exception to the
+  // cloud-send rule.
+  const { sendPreparedMessageWithEgressAudit } = await import('./promptPreparation');
+  const { modelCall, ...context } = opts;
   const model = effectiveModel(opts);
-  const { prompt, options, modelCall, ...context } = opts;
-  const runOpts: RunWithEgressAuditOptions<ProviderResponse> = {
+  return sendPreparedMessageWithEgressAudit({
     ...context,
-    model,
-    operation: () => opts.provider.sendMessage(prompt, options),
-  };
-  if (modelCall) {
-    runOpts.modelCall = (response) => ({
-      action: 'model_call',
-      description: modelCall.description,
-      model,
-      inputs: modelCall.inputs ?? { promptLength: prompt.length },
-      outputs: modelCall.outputs?.(response) ?? { contentLength: response.content.length },
-      userDecision: modelCall.userDecision ?? 'auto',
-      metadata: modelCall.metadata ?? {},
-      tokensIn: (response as Partial<ProviderResponse>).usage?.inputTokens ?? 0,
-      tokensOut: (response as Partial<ProviderResponse>).usage?.outputTokens ?? 0,
-      costUsd: (response as Partial<ProviderResponse>).cost ?? 0,
-      provider: context.providerId,
-    });
-  }
-  return runWithEgressAudit<ProviderResponse>(runOpts);
+    surface: 'legacy_egress_send',
+    ...(modelCall
+      ? {
+        modelCall: (response: ProviderResponse) => ({
+          action: 'model_call' as const,
+          description: modelCall.description,
+          model,
+          inputs: modelCall.inputs ?? { promptLength: opts.prompt.length },
+          outputs: modelCall.outputs?.(response) ?? { contentLength: response.content.length },
+          userDecision: modelCall.userDecision ?? 'auto',
+          metadata: modelCall.metadata ?? {},
+          tokensIn: response.usage.inputTokens,
+          tokensOut: response.usage.outputTokens,
+          costUsd: response.cost,
+          provider: opts.providerId,
+        }),
+      }
+      : {}),
+  });
 }

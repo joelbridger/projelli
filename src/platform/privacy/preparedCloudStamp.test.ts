@@ -20,7 +20,7 @@ function successfulOpenAIResponse(): Response {
 }
 
 afterEach(() => {
-  setPreparationEnforcementMode('warn');
+  setPreparationEnforcementMode('enforce');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -44,18 +44,13 @@ describe('prepared cloud stamp', () => {
     expect(warning).not.toHaveBeenCalled();
   });
 
-  it('still warns without a stamp and blocks unstamped or foreign stamps in enforce mode', async () => {
+  it('blocks unstamped or foreign stamps by default before fetch', async () => {
     const fetchMock = vi.fn().mockResolvedValue(successfulOpenAIResponse());
-    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.stubGlobal('fetch', fetchMock);
     const provider = new OpenAIProvider({ apiKey: 'test-key', model: 'gpt-4o' });
 
-    await expect(provider.sendMessage('unstamped')).resolves.toMatchObject({ content: 'prepared answer' });
-    expect(warning).toHaveBeenCalledWith(expect.stringContaining('not prepared'));
-
-    setPreparationEnforcementMode('enforce');
     await expect(provider.sendMessage('unstamped')).rejects.toThrow('not prepared');
     await expect(provider.sendMessage('foreign stamp', { preparationStamp: {} as never })).rejects.toThrow('not prepared');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

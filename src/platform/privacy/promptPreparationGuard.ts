@@ -21,7 +21,10 @@ export function isPreparationStamp(value: unknown): value is PreparationStamp {
 }
 
 export type PreparationEnforcementMode = 'off' | 'warn' | 'enforce';
-let enforcementMode: PreparationEnforcementMode = 'warn';
+// Cloud requests are fail-closed by default. Observation-only mode was the
+// migration bridge; callers must now explicitly opt out in a narrowly scoped
+// test or diagnostic, never accidentally send an unprepared request.
+let enforcementMode: PreparationEnforcementMode = 'enforce';
 
 export function setPreparationEnforcementMode(mode: PreparationEnforcementMode): void {
   enforcementMode = mode;

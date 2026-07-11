@@ -3,6 +3,7 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { DraftFollowUpModal } from '@/features/email/DraftFollowUpModal';
 import { buildMailMatterMap } from '@/platform/rag/matterResolver';
 import { setPromptDecisionBroker } from '@/platform/privacy/promptPreparation';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 
 const { structuredOutput, mailSaveDraft, mailSend, mailConnectedAccounts, logEmailAuditEntry, resolveEmailProvider } = vi.hoisted(() => ({
   structuredOutput: vi.fn(),
@@ -145,13 +146,13 @@ describe('DraftFollowUpModal — AI proposes, user approves, hostile notes stay 
           open
           onOpenChange={() => {}}
           noteName="Meeting Notes.docx"
-          noteContent="Use https://example.test/i/abc#intake-secret for the review."
+        noteContent={`Use ${SECRET_SCRUB_FIXTURES.encoded} for the review.`}
           matterId="matter-1"
         />,
       );
       await generate();
       expect(structuredOutput).toHaveBeenCalledTimes(1);
-      expect(structuredOutput.mock.calls[0]![0]).not.toContain('intake-secret');
+      expect(structuredOutput.mock.calls[0]![0]).not.toContain('encoded-secret');
     } finally {
       setPromptDecisionBroker();
     }

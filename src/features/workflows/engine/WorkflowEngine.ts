@@ -16,7 +16,6 @@ import type {
   Provider,
   ProviderResponse,
   SendOptions,
-  StructuredOutputOptions,
   StreamOptions,
 } from '@/platform/providers/Provider';
 import type { RetrievalScope } from '@/platform/utils/tauri-commands';
@@ -443,7 +442,7 @@ export class WorkflowEngine {
     return response;
   }
 
-  private auditedProvider(step: WorkflowStep, callKind: 'analyze'): Provider {
+  private auditedProvider(step: WorkflowStep): Provider {
     const base = this.provider;
     const sendMessageStreaming = base.sendMessageStreaming?.bind(base);
     const toolCall = base.toolCall?.bind(base);
@@ -479,14 +478,10 @@ export class WorkflowEngine {
             toolCall<T>(tool, params, options),
         }
         : {}),
-      structuredOutput: async <T,>(prompt: string, options: StructuredOutputOptions) => {
-        // The reusable analysis service prepares this request before calling
-        // this wrapper, which retains the workflow-specific model-call receipt.
-        // eslint-disable-next-line lantern-egress/no-direct-provider-send
-        const response = await base.structuredOutput<T>(prompt, options);
-        this.emitModelCallAudit(step, callKind, prompt, response);
-        return response;
-      },
+      // `runContradictionAnalysis` owns this send through
+      // sendPreparedStructuredWithEgressAudit. Binding preserves the concrete
+      // adapter's receiver without creating a second, unprepared send route.
+      structuredOutput: base.structuredOutput.bind(base),
       formatAttachmentForRequest: (att, bytes) => base.formatAttachmentForRequest(att, bytes),
       supportsAttachment: (att, model) => base.supportsAttachment(att, model),
       ...(supportsNativePdf
@@ -717,7 +712,7 @@ export class WorkflowEngine {
     // Grounded, cited analysis. `analyzeKind` selects the pipeline; today the
     // litigation flagship is `'contradictions'`.
     const { result, chunks, retrievalQuery, retrievalUnavailable } = await runContradictionAnalysis({
-      provider: this.auditedProvider(step, 'analyze'),
+      provider: this.auditedProvider(step),
       config,
       inputs,
       scope,

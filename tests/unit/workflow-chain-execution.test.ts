@@ -18,6 +18,7 @@ import type {
   InterviewStepConfig,
   GenerateStepConfig,
 } from '@/platform/types/workflow';
+import { SECRET_SCRUB_FIXTURES } from '@/platform/privacy/promptPreparation.fixtures';
 
 function makeStep1(): WorkflowTemplate {
   const interview: InterviewStepConfig = {
@@ -186,7 +187,7 @@ describe('runChain — two-step pipeline', () => {
       provider,
       fileOps: { writeFile: async () => {}, readFile: async () => '' },
       onInterview: async () => ({}),
-      initialInputs: { privateLink: 'https://example.test/i/abc#intake-secret' },
+      initialInputs: { privateLink: SECRET_SCRUB_FIXTURES.zeroWidth },
       audit: {
         providerId: 'mock',
         model: 'mock-model',

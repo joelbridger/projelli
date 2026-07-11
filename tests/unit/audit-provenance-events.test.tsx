@@ -509,20 +509,26 @@ describe('Lantern 3.0 audit provenance events', () => {
 
   it('shows the review, sends only a redacted chat copy, and records the finding', async () => {
     const logged: LoggedEntry[] = [];
+    const evasions = `${SECRET_SCRUB_FIXTURES.folded}\n${SECRET_SCRUB_FIXTURES.markdown}`;
     render(<AIChatViewer chatData={chat} apiKeys={apiKey} onAuditLog={(entry) => logged.push(entry)} />);
 
-    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: SECRET_SCRUB_FIXTURES.urls } }));
+    act(() => fireEvent.change(screen.getByTestId('chat-input'), { target: { value: evasions } }));
     act(() => fireEvent.click(screen.getByTestId('chat-send-button')));
     await screen.findByText('Review private links');
     fireEvent.click(screen.getByRole('button', { name: 'Send redacted copy' }));
 
     await waitFor(() => expect(mocks.sendMessage).toHaveBeenCalledTimes(1));
-    expect(mocks.sendMessage.mock.calls[0]?.[0]).not.toContain('intake-secret');
+    expect(mocks.sendMessage.mock.calls[0]?.[0]).not.toContain('folded-');
+    expect(mocks.sendMessage.mock.calls[0]?.[0]).not.toContain('secret-value');
+    expect(mocks.sendMessage.mock.calls[0]?.[0]).not.toContain('#private-link');
     expect(logged).toContainEqual(expect.objectContaining({
       action: 'prompt_preparation',
       metadata: expect.objectContaining({
         decision: 'redacted_by_user',
-        categories: expect.arrayContaining([expect.objectContaining({ kind: 'intake_link_secret', count: 1 })]),
+        categories: expect.arrayContaining([
+          expect.objectContaining({ kind: 'bearer_token', count: 1 }),
+          expect.objectContaining({ kind: 'intake_link_secret', count: 1 }),
+        ]),
       }),
     }));
   });
