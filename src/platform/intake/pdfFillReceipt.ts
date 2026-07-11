@@ -83,7 +83,7 @@ function annotationIsActive(annotation: Record<string, unknown>): boolean {
     annotation['attachment'] !== undefined
   ) return true;
   const actions = annotation['actions'];
-  return typeof actions === 'object' && actions !== null && Object.keys(actions as object).length > 0;
+  return typeof actions === 'object' && actions !== null && Object.keys(actions).length > 0;
 }
 
 function openActionIsActive(openAction: Record<string, unknown> | null): boolean {
@@ -100,7 +100,8 @@ async function loadPdfJs(): Promise<PdfJsModule> {
   // The advisor desktop provides DOMMatrix. This tiny test-only fallback lets
   // PDF.js parse bytes under the Node test runner, where it does not render.
   if (typeof globalThis.DOMMatrix === 'undefined') {
-    (globalThis as unknown as { DOMMatrix: typeof DOMMatrix }).DOMMatrix = class DOMMatrix {} as typeof DOMMatrix;
+    const DOMMatrixFallback = function DOMMatrixFallback() { return {}; } as unknown as typeof DOMMatrix;
+    (globalThis as unknown as { DOMMatrix: typeof DOMMatrix }).DOMMatrix = DOMMatrixFallback;
   }
   return await import('pdfjs-dist') as unknown as PdfJsModule;
 }
@@ -113,8 +114,8 @@ export async function assertSafeFlattenedPdf(completedBytes: Uint8Array): Promis
     throw new Error('Completed form contains interactive or active PDF content.');
   }
 
-  const { getDocument } = await loadPdfJs();
-  const loadingTask = getDocument({
+  const pdfJs = await loadPdfJs();
+  const loadingTask = pdfJs.getDocument({
     data: new Uint8Array(completedBytes),
     disableWorker: true,
     disableAutoFetch: true,
@@ -152,7 +153,7 @@ export async function assertSafeFlattenedPdf(completedBytes: Uint8Array): Promis
       if (hasEntries(await page.getJSActions())) {
         throw new Error('Completed form contains PDF JavaScript.');
       }
-      if ((await page.getAnnotations({ intent: 'any' })).some(annotationIsActive)) {
+      if ((await page.getAnnotations({ intent: 'any' })).some((annotation) => annotationIsActive(annotation))) {
         throw new Error('Completed form contains an interactive or signature field.');
       }
     }

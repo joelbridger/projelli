@@ -10,8 +10,10 @@ function pdf(objects: string[]): Uint8Array {
   let value = '%PDF-1.4\n';
   const offsets: number[] = [];
   for (let index = 0; index < objects.length; index += 1) {
+    const object = objects[index];
+    if (object === undefined) throw new Error('Expected PDF object.');
     offsets.push(enc.encode(value).byteLength);
-    value += `${String(index + 1)} 0 obj\n${objects[index]}\nendobj\n`;
+    value += `${String(index + 1)} 0 obj\n${object}\nendobj\n`;
   }
   const xrefOffset = enc.encode(value).byteLength;
   value += `xref\n0 ${String(objects.length + 1)}\n0000000000 65535 f \n`;

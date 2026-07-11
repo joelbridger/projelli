@@ -40,6 +40,31 @@ interface SensitiveTemplateRecord {
   versions: Record<string, SensitiveTemplateVersion>;
 }
 
+function isSensitiveTemplateRecord(value: unknown): value is SensitiveTemplateRecord {
+  if (!value || typeof value !== 'object') return false;
+  const versions = (value as { versions?: unknown }).versions;
+  return Boolean(versions && typeof versions === 'object' && !Array.isArray(versions));
+}
+
+function isPdfTemplateLibraryRecord(value: unknown, templateId: string): value is PdfTemplateLibraryRecord {
+  if (!value || typeof value !== 'object') return false;
+  const record = value as {
+    templateId?: unknown;
+    label?: unknown;
+    versions?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+  };
+  if (record.templateId !== templateId || typeof record.label !== 'string' ||
+    !Array.isArray(record.versions) || typeof record.createdAt !== 'string' || typeof record.updatedAt !== 'string') return false;
+  return record.versions.every((version) => {
+    if (!version || typeof version !== 'object') return false;
+    const candidate = version as { version?: unknown; status?: unknown };
+    return Number.isInteger(candidate.version) &&
+      (candidate.status === 'draft' || candidate.status === 'approved');
+  });
+}
+
 interface PdfTemplateStoreState {
   templatesById: Record<string, PdfTemplateLibraryRecord>;
   importDraft: (input: { templateId: string; label: string; descriptor: PdfTemplateDescriptor; sourceBytes: Uint8Array }) => Promise<PdfTemplateDescriptor>;
@@ -78,8 +103,8 @@ async function readSensitiveRecord(templateId: string): Promise<SensitiveTemplat
   try {
     const raw = await readPdfTemplateArtifact(templateId);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as SensitiveTemplateRecord;
-    return parsed && typeof parsed === 'object' && parsed.versions ? parsed : null;
+    const parsed: unknown = JSON.parse(raw);
+    return isSensitiveTemplateRecord(parsed) ? parsed : null;
   } catch {
     return null;
   }
@@ -112,13 +137,12 @@ export function partializePdfTemplateLibraryState(state: Pick<PdfTemplateStoreSt
 }
 
 export function sanitizePersistedPdfTemplateLibraryState(value: unknown): PersistedPdfTemplateLibraryState {
-  const records = (value as { templatesById?: unknown } | null)?.templatesById;
-  if (!records || typeof records !== 'object') return { templatesById: {} };
-  const kept = Object.entries(records as Record<string, unknown>).flatMap(([templateId, record]) => {
-    const candidate = record as PdfTemplateLibraryRecord;
-    if (!candidate || candidate.templateId !== templateId || !Array.isArray(candidate.versions) ||
-      !candidate.versions.every((version) => Number.isInteger(version.version) && (version.status === 'draft' || version.status === 'approved'))) return [];
-    return [[templateId, structuredClone(candidate)] as const];
+  if (!value || typeof value !== 'object') return { templatesById: {} };
+  const records = (value as { templatesById?: unknown }).templatesById;
+  if (!records || typeof records !== 'object' || Array.isArray(records)) return { templatesById: {} };
+  const kept = Object.entries(records).flatMap(([templateId, record]) => {
+    if (!isPdfTemplateLibraryRecord(record, templateId)) return [];
+    return [[templateId, structuredClone(record)] as const];
   });
   return { templatesById: Object.fromEntries(kept) };
 }

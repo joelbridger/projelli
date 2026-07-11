@@ -97,7 +97,7 @@ export async function inspectPdfTemplate(bytes: Uint8Array): Promise<PdfInspecti
       // PDF.js's public getFieldObjects() shape uses `type`, not `fieldType`.
       // Push buttons intentionally return null below: they are actions, never
       // client-answer fields.
-      const widget = widgets?.[0] as { type?: unknown; items?: unknown[] } | undefined;
+      const widget = widgets[0] as { type?: unknown; items?: unknown[] } | undefined;
       const type = fieldType(widget?.type);
       if (!safe || !type) return [];
       const options = type === 'radio' || type === 'select'

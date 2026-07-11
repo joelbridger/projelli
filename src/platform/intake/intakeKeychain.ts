@@ -158,7 +158,7 @@ export async function loadPdfTemplateDescriptor(
   const raw = await getSecret(intakeService(intakeId), pdfTemplateDescriptorKey(itemId));
   if (!raw) return null;
   try {
-    const descriptor = JSON.parse(raw);
+    const descriptor: unknown = JSON.parse(raw);
     assertValidPdfTemplateDescriptor(descriptor);
     return descriptor;
   } catch {
