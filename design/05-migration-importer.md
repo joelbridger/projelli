@@ -2,6 +2,8 @@
 
 **Lane E · design phase · LANTERN-CRM program**
 Conforms to 00-master-spec decisions D1-D10 (reconciled 2026-07-11).
+**Probe amendment (2026-07-11):** this document incorporates the live fabricated-sandbox
+findings in [2026-07-11 Wealthbox API probe](evidence/2026-07-11-wealthbox-api-probe.md).
 **Written:** 2026-07-11. Code inventory verified against this fork at the commit checked
 out today (`~/lantern-crm`, forked from `~/lantern-plus` `0971d8f3`). Public API claims
 verified via web search/fetch against `dev.wealthbox.com` and related sources on
@@ -42,10 +44,10 @@ most of one's plumbing. Everything below is cited to `src-tauri/src/commands/crm
   (capped at `MAX_RETRY_AFTER_SECS = 120`) or falling back to capped exponential backoff
   (1s → 2s → 4s → … → 64s). This whole gate is a **single mutex shared by every call** —
   all requests for all object types serialize through it one at a time.
-- **Pagination:** `list_all()` loops `page = 1, 2, …` at `per_page = DEFAULT_PER_PAGE` (50,
-  `model.rs`) until a page returns fewer items than the page size. The maximum
-  `per_page` Wealthbox allows is **UNVERIFIED** (`TODO(probe)` comments throughout
-  `client.rs`/`model.rs` — the docs don't state it).
+- **Pagination:** `list_all()` currently loops `page = 1, 2, …` at
+  `per_page = DEFAULT_PER_PAGE` (50, `model.rs`) until a page returns fewer items than the
+  page size. The live probe established **100** as the effective page cap: a request for
+  250 returned 100 contacts and three pages. The importer changes its page size to 100.
 - **PII discipline:** non-2xx responses log only the HTTP status and endpoint path, never
   the response body (bodies can carry client PII). This is an important security property, not
   boilerplate — the importer must preserve it even while adding new endpoints.
@@ -60,9 +62,10 @@ most of one's plumbing. Everything below is cited to `src-tauri/src/commands/crm
   on every app restart, never persisted**. Fine for read-time label rendering; not usable
   as a durable Users/Teams import.
 - **Not fetched by anything in this client today:** opportunities, projects, workflows,
-  workflow templates, workflow steps, custom fields, tags (the dedicated `/tags` list —
-  distinct from the tag strings already embedded on a contact), activity stream, contact
-  roles (the dedicated list — a raw placeholder exists on the contact struct, see below).
+  workflow templates, workflow steps, custom fields, tags (the registry is
+  `/categories/tags`, distinct from the `{id,name}` tags already embedded on a contact),
+  activity stream, contact roles (the dedicated list — a raw placeholder exists on the
+  contact struct, see below).
 
 ### 1.2 Data model (`model.rs`)
 
@@ -165,8 +168,11 @@ A repo-wide search for `workflow|opportunity|custom_field|attachment|project` in
 `commands/crm/` turns up **zero fetchers, zero models, zero write paths** for any of
 those — "project" appears only as the *type string* the linked-object guard excludes
 (§1.3), never as a fetched object. This matches the deep-dive's own summary (§7): "Missing:
-workflows and open instances, custom fields, file attachments, and full historical
-activity." Section 2 below is the coverage plan for closing that gap.
+workflow coverage, custom fields, file attachments, and full historical activity." The
+live probe now makes the boundary precise: workflow templates/steps/collections are
+readable but the API cannot read a workflow instance at `/workflow_instances`, and every
+tested attachment/file/document read path is absent. Section 2 below covers what can be
+imported and the explicit cutover fallbacks for what cannot.
 
 ---
 
@@ -189,16 +195,15 @@ they never independently decide whether an import is safe to replay.
 | Notes | ✅ (key quirk handled) | `GET /v1/notes` (returns `status_updates`) | Keep. |
 | Tasks | ✅ | `GET /v1/tasks` | Keep. **UNVERIFIED**: docs describe nested subtasks — not modeled today; model a simulator case before implementation. |
 | Events | ✅ | `GET /v1/events` | Keep. |
-| Opportunities | ❌ not fetched | `GET /v1/opportunities` | **New.** Needed for pipeline/deal history — currently invisible to Lantern entirely. |
+| Opportunities | ❌ not fetched | `GET /v1/opportunities` | **New.** The collection is live-readable, though empty in the fabricated sandbox. Import stages from `GET /v1/categories/opportunity_stage`; `/pipelines`, `/opportunity_stages`, and `/pipeline_stages` are absent at the tested paths. |
 | Projects | ❌ not fetched (only excluded as a link type) | `GET /v1/projects` | **New.** |
 | Workflow templates | ❌ | `GET /v1/workflow_templates` (read-only, per docs) | **New**, read-only — this is the template Lantern's own workflow-propagation feature needs to understand what a firm's workflows *are*. |
-| Workflow instances | ❌ | `GET /v1/workflows` (filterable by resource/status) | **New — highest-risk item.** See below. |
-| Workflow step state | ❌ | `PUT /v1/workflow_steps` (complete/revert) documented; **no list/read endpoint found** | **UNVERIFIED, critical.** If no endpoint exposes a workflow instance's current step, import only the attached-workflow fact and mark step state as an allowed fidelity skip (§3). The synthetic simulator must carry both readable and unreadable-state cases. |
-| Custom fields | ❌ | `GET /v1/custom_fields` (registry) + nested arrays on records, shape `{id, name, value, document_type, field_type}` per docs | **New.** Add a `CrmCustomField` struct, merge onto `CrmContact` (confirmed nested there per docs) and **UNVERIFIED** on notes/tasks/opportunities; cover both shapes in fabricated fixtures. |
-| Tags (registry) | Partial — tag strings already parse per-contact (`CrmTag`) | `GET /v1/tags` | **New** — fetch the canonical registry so imported tags de-duplicate against one firm-wide tag list instead of becoming orphan strings per household. |
+| Workflow instances / current step | ❌ | `GET /v1/workflows` and `GET /v1/workflow_steps` return 200 but were empty; `GET /v1/workflow_instances` returned 404 | **Not an API migration path in v1.** Current-state fidelity is **UNVERIFIED** until a seeded open workflow can be read. At cutover, use the guided manual re-creation fallback in §2.5a: templates plus activity traces become an operator checklist; the operator starts a new Lantern instance at the correct step. |
+| Custom fields | ❌ | No registry endpoint: `/v1/custom_fields`, `/contact_custom_fields`, and `/custom_field_definitions` returned 404; record-level `custom_fields` arrays are exposed on contacts | **New, record-derived only.** Remove the registry-import path. Derive the field inventory from record-level `custom_fields` arrays, preserving each value's raw record reference; the populated value shape is **UNVERIFIED** because the first 100 contacts had empty arrays. |
+| Tags (registry) | Partial — tag strings already parse per-contact (`CrmTag`) | `GET /v1/categories/tags` | **New** — fetch the canonical registry so imported tags de-duplicate against one firm-wide tag list instead of becoming orphan strings per household. Contact records also supply `{id, name}` values inline. |
 | Contact roles | Placeholder only (`Vec<Value>`, unused) | `GET /v1/contact_roles` | **New** — type it properly; today's field is a parse-safety no-op, not a complete import. |
-| Activity stream | ❌ | `GET /v1/activity`, cursor-paginated, filterable by contact/type/updated_since | **New**, read-only, lower priority — this is "full historical activity" (logins, field changes, system events), imported as an inspectable timeline, not an editable record. Its native cursor param is a good match for the currently-unused `crm_cursors` scaffold (§2.3). |
-| Files / attachments | ❌ | **No documented endpoint found.** Wealthbox's own help docs point firms at third-party file storage integrations (Box, OneDrive/SharePoint) rather than native file hosting. | **UNVERIFIED / likely non-goal.** See §2.5 — do not design an attachment downloader without a documented response shape. |
+| Activity stream | ❌ | `GET /v1/activity`, cursor-paginated | **New**, read-only, lower priority — this is "full historical activity" (logins, field changes, system events), imported as an inspectable timeline, not an editable record. It uses an opaque `meta.cursor`; persist its one cursor string in `crm_cursors` and request the next page with `cursor=<opaque-cursor>&per_page=100` (§2.3). No `Link` headers were observed. |
+| Files / attachments | ❌ | Every tested global and per-contact `/attachments`, `/files`, and `/documents` read path returned 404 | **Out of v1 API migration scope.** Use the documented operator-export and per-client attachment-gap fallback in §2.5b; do not build an attachment downloader. |
 | Users | Cached, in-memory only | `GET /v1/users` | **New** — persist as a reference import (id → name/email), used to map `assigned_to` to a Lantern member or an "external (Wealthbox-only) user" placeholder. |
 | Teams | Cached, in-memory only | `GET /v1/teams` | **New**, same treatment as Users. |
 | Categories (stages, sources, etc.) | Partial — label cache only | `GET /v1/customizable_categories`, `/v1/categories/{type}` | Persist as a lookup table so imported records show human labels without a network call, and so the importer can validate a category id at import time. |
@@ -258,8 +263,8 @@ own `rawRecordRef` back to this manifest.
 Wire up the already-existing, already-tested `crm_cursors` scaffold, which today sits
 unused:
 
-- **Additive objects (contacts, notes, tasks, events, opportunities, projects, workflow
-  instances):** pass `updated_since` (already an accepted param on the objects that support
+- **Additive objects (contacts, notes, tasks, events, opportunities, projects, and readable
+  workflow templates):** pass `updated_since` (already an accepted param on the objects that support
   it; **UNVERIFIED** exact format — the code's own comments flag this) using the cursor
   stored from the previous sync's completion time. This gets prompt pickup of
   *changes* cheaply.
@@ -273,10 +278,10 @@ unused:
   "last full reconciliation" needs its own visible timestamp, distinct from "last sync,"
   because a deletion made in Wealthbox at 2pm won't show as gone in Lantern until the next
   full pass, not the next incremental one.
-- The activity stream's own cursor param (§2.1) is a better fit for the unused
-  `crm_cursors` shape than most objects — confirm it composes with the current
-  `object_type → single cursor string` schema, or whether it needs a richer cursor value
-  (page token vs timestamp) — **UNVERIFIED**.
+- **Activity is settled:** it returns an opaque `meta.cursor`; one stored cursor string in
+  the existing `object_type → cursor` table is sufficient for its incremental re-sync.
+  Request the next page as `GET /activity?cursor=<opaque-cursor>&per_page=100`. The live
+  probe saw no `Link` headers, so do not design around them.
 
 ### 2.4 Throughput / rate-limit handling
 
@@ -297,25 +302,44 @@ small-delta syncs are fine as-is):
    up where it left off instead of re-paying the entire rate-gated cost from page 1.
 2. **Per-object-type sequencing, not one giant blob.** Import contacts first (everything
    else links to them), then notes/tasks/events/opportunities/projects (link resolution
-   needs contacts already loaded), then workflows/custom-fields/activity last (informational,
-   nothing else depends on them). This lets the fidelity report show clear incremental
-   progress ("contacts: done, notes: 40% …") instead of an opaque all-or-nothing status.
+   needs contacts already loaded), then workflow templates, record-derived custom fields,
+   and activity last (informational; nothing else depends on them). In-flight workflow
+   instances follow the separate guided fallback in §2.5a, not this API sequence. This lets
+   the fidelity report show clear incremental progress ("contacts: done, notes: 40% …")
+   instead of an opaque all-or-nothing status.
 
-### 2.5 Attachment download strategy
+### 2.5 Explicit non-API fallbacks
 
-**Provisional, pending verification.** No documented Wealthbox endpoint for listing or
-downloading files/attachments was found (§2.1). Wealthbox's own help center describes file
-storage as something firms do through connected third-party integrations (Box, OneDrive/
-SharePoint), not through Wealthbox itself. If that holds up under documented API behavior, the
-importer's correct behavior is to **not** claim file migration as a Wealthbox-connector
-responsibility at all — a firm's files most likely already sit in a storage
-provider Lantern has its own, separate connector for (per the parent Keepance codebase's
-existing OneDrive/SharePoint and Box connectors). The migration-readiness checklist (§5)
-should include "confirm which file-storage integration this firm actually uses" as a
-discovery step, not assume it. **Do not build a Wealthbox-attachments fetcher against
-unconfirmed docs.** If a documented attachment response shape later appears, this section
-needs a full design pass (streamed download, size limits, virus scanning parity with the
-existing document pipeline).
+#### 2.5a Open workflow instances: guided re-creation at cutover
+
+Open workflow instances are **not API-readable in v1**. The live probe found
+`GET /workflow_instances` absent (404). `GET /workflows`, `GET /workflow_steps`, and
+`GET /workflow_templates` returned 200, but the fabricated sandbox held no records, so they
+do not prove an open instance's current step or state is readable. Workflow steps are not
+write-only; their populated current-state shape simply remains **UNVERIFIED**.
+
+The fallback is a guided, operator-owned cutover step, not a silent skip. The importer
+imports readable workflow templates and activity-stream traces, then produces an
+**in-flight workflow checklist** for each affected client: the source template, linked
+client, available activity evidence, and a required operator decision. At cutover, the
+operator starts a **new Lantern workflow instance** and selects its correct current step.
+The fidelity report records the operator, decision, resulting Lantern instance, and any
+unresolved trace as an explicit gap. This preserves visibility and makes the human judgment
+auditable without claiming the API supplied state it did not.
+
+#### 2.5b Files and attachments: operator export plus client-level gap flags
+
+Files and attachments are **out of v1 API migration scope**. The live probe tested global
+and per-contact `/attachments`, `/files`, and `/documents` paths; every one returned 404.
+Do not build a Wealthbox attachment-listing or downloader.
+
+The cutover fallback is a documented, operator-driven bulk export from the Wealthbox UI if
+that UI offers one, or from the firm's connected storage provider where the files actually
+live. For every client whose attachment status cannot be shown as imported from that
+operator export, the fidelity report creates a visible **attachment gap** flag. The flag
+names the client, records the export source and operator decision, and remains open until
+the files are accounted for. This makes an unavailable API path visible rather than letting
+documents silently disappear.
 
 ---
 
@@ -350,16 +374,16 @@ listed reason.
 | Note | One Note with `householdLinks[]` | Northcrest fabricated API corpus: single-link, multi-link, unresolved-link, collision cases | 100% when every household link resolves; one target note per source note | malformed source; no resolved household link; partial/missing household-link set; confidentiality intersection cannot be established |
 | Task | Canonical Task (D2) | Northcrest fabricated API corpus: assigned/unassigned/due/recurrence cases | 100% for records with a valid target scope | malformed source; unresolved required household link; unsupported subtask shape |
 | Event | Existing calendar event via `EntityRef` | Northcrest fabricated API corpus: household-linked and firm cases | 100% for records with a valid target scope | malformed source; unresolved required household link |
-| Opportunity | Opportunity linked to PipelineDef/StageDef | Northcrest fabricated API corpus: pipeline, stage, closed cases | 100% where source pipeline/stage references resolve | malformed source; missing required pipeline/stage reference; unresolved required household link |
+| Opportunity | Opportunity linked to PipelineDef/StageDef | Northcrest fabricated API corpus: opportunity and `/categories/opportunity_stage` cases | 100% where source stage-category references resolve | malformed source; missing required stage-category reference; unresolved required household link; stage value shape unverified pending seeded re-probe |
 | Project | Read-only legacy Project record | Northcrest fabricated API corpus: linked/unlinked cases | 100% of parseable records; no automatic workflow conversion | malformed source; unresolved required link |
 | Workflow template | WorkflowTemplate | Northcrest fabricated API corpus: templates and step definitions | 100% of parseable records | malformed source; unsupported source shape |
-| Workflow instance/step state | Read-only legacy workflow record | Northcrest fabricated API corpus: readable and unreadable step-state cases | 100% of readable instance facts; step state only when supplied | malformed source; endpoint does not supply step state; unresolved required link |
-| Custom field registry/value | Field definition plus typed target field/provenance | Northcrest fabricated API corpus: typed and null values | 100% of documented supported shapes | malformed source; unsupported field type; source shape not documented |
+| Open workflow instance/current step | New Lantern workflow instance created by operator at cutover | Northcrest fabricated API corpus: templates, activity traces, and guided-re-creation checklist | 100% of in-flight workflows have a checklist and recorded operator decision; no API state is claimed | malformed source; guided manual re-creation fallback required because `/workflow_instances` is absent and populated current state is unverified; unresolved required link |
+| Custom-field values / record-derived inventory | Field inventory plus typed target field/provenance | Northcrest fabricated API corpus: populated contact `custom_fields`, typed and null values | 100% of proven record-level supported shapes; no registry import | malformed source; unsupported field type; populated value shape unverified pending seeded re-probe; registry endpoint unavailable |
 | Tags/categories | Firm lookup/read model and entity labels | Northcrest fabricated API corpus: duplicate and missing-label cases | 100% of parseable registry entries | malformed source; unresolved registry reference |
 | Contact roles | `Person.roles[]` and `HouseholdMember.role` as applicable | Northcrest fabricated API corpus: person and household roles | 100% of typed role records | malformed source; role has no supported target scope |
 | Users/teams | `FirmDirectoryEntry` read model | Northcrest fabricated API corpus: matched and external users | 100% of parseable records | malformed source |
 | Activity stream | ActivityEvent timeline record | Northcrest fabricated API corpus: cursor, login, field-change cases | 100% of parseable records | malformed source; unsupported activity subtype |
-| Files/attachments | No migration target in v1 | Fabricated “no endpoint” fixture | 0%, explicitly disclosed | no documented source endpoint |
+| Files/attachments | No API migration target in v1; operator-export accounting plus per-client attachment-gap flag | Fabricated “no endpoint” fixture and operator-export/gap cases | 0% via API; 100% of affected clients have an explicit exported-or-gap status | API read paths absent; operator export unavailable; attachment gap remains open |
 
 ### 3.3 The 100%-on-what-matters bar
 
@@ -376,6 +400,10 @@ client data) both fail the product. The bar:
   instance closed years before the migration) may have a lower completeness bar, but they
   are still **counted and disclosed**, never silently dropped — the difference from
   "matters" records is *how loudly it's surfaced*, not whether it's tracked at all.
+- **Attachments are a separate v1 boundary:** they are not API-importable, so they cannot
+  satisfy the ordinary record-import bar. Every affected client must instead show either a
+  completed operator export or an open attachment-gap flag (§2.5b); an unflagged absence is
+  a migration failure.
 - **Why this bar, in the advisors' own words:** the user research (evidence ledger `E-094`)
   captures an advisor describing sending a client's tax document to the wrong accountant as
   "a nail biter" — a trust-breaking mistake, not a rounding error, precisely because it's
@@ -430,14 +458,13 @@ authorize a customer-data parallel run.
    did once for `background_information` (§1.5's read/write name-mismatch landmine, the
    422-without-due-date landmine) — budget per-field verification, not a bulk "just add
    these to `WRITABLE_FIELDS`."
-3. **Workflows/opportunities/projects should be READ-ONLY MIRROR during parallel-run,
-   explicitly, not attempted write-back.** These are the objects with zero write
-   scaffolding today, and per the charter's own pre-made decision #6, workflow-instance
-   correctness is already flagged as the single hardest problem in the whole program. Let
-   parallel-run advisors see their pipeline/workflow state from Wealthbox, but don't
-   let them edit it in Lantern until that subsystem gets its own dedicated design and
-   review pass — rushing write-back for the riskiest object type into parallel-run is the
-   wrong place to take that risk.
+3. **Opportunities/projects are read-only mirrors during parallel-run; workflows use the
+   explicit fallback, not a false mirror.** These objects have zero write scaffolding
+   today. Workflow templates and activity traces may be shown read-only, but Lantern must
+   not present an API-derived open-workflow state while current-state readability remains
+   unproven (§2.5a). At cutover, in-flight workflows use guided manual re-creation. Do not
+   let advisors edit any of these in Lantern until the subsystem gets its own dedicated
+   design and review pass.
 
 ### 4.3 Conflict policy
 
@@ -535,9 +562,10 @@ Two fabricated sources already exist and should be consolidated, not rebuilt fro
 
 **New fixture work needed:** every newly-added object type (§2.1) needs both clean and
 edge-case fixtures — nulls, missing keys, colliding numeric ids across object types (the
-existing Project/Contact-id-collision test is the template), and — critically — a
-representative **open workflow instance with step state**, with both readable and unreadable
-states modeled in the fabricated simulator.
+existing Project/Contact-id-collision test is the template), populated record-level custom
+fields, stage categories, and a representative **open workflow** with activity traces. The
+simulator must model the proven API boundary (`/workflow_instances` absent) and the guided
+manual re-creation fallback, rather than assuming a readable instance-state endpoint.
 
 ### 6.2 Synthetic Wealthbox API simulator
 
@@ -563,41 +591,65 @@ an exact-match assertion, not a manual read: fetched N must equal imported N for
 that matter" bar into something lane F can assert in CI on every change, not just check by
 hand before a release.
 
+### 6.4 Seeded re-probe before build commitments
+
+The live fabricated sandbox was near-empty: it had 229 contacts but no workflows,
+opportunities, projects, populated custom-field values, or populated opportunity stages.
+Several results are therefore absence-of-data, not proof of populated-record behavior.
+Before build commitments that depend on those shapes, seed the Wealthbox sandbox through its
+UI with **synthetic Northcrest-style, clearly fake data only** (D7): workflow templates,
+open workflows with steps in progress, opportunities with stage categories, projects, and
+contacts with populated custom fields. Re-run the read probe against those records, then
+update this document and the canonical fidelity matrix (§3.2) with the proven verdicts.
+
+This re-probe also checks whether the sandbox's empty collections reflect plan availability,
+but does not assume they do: the first probe saw no 402 or 403 response, so plan gating is
+still unproven. No customer data, production account, or non-fabricated workspace is allowed
+for this task.
+
 ---
 
 ## 7. Open questions / UNVERIFIED (dated 2026-07-11)
 
-All of the following remain simulator-modeling risks. They are resolved only with
-fabricated responses and sandbox tests; this program does not authorize obtaining answers
-from customer data, production accounts, or non-fabricated workspaces. None blocks freezing
-this design, but each is an accepted risk that must be named at spec-freeze review:
+The 2026-07-11 live probe settled these points and they are **not** open questions:
+`per_page=100` is the effective page cap; activity uses one opaque `meta.cursor` string
+with no observed `Link` headers; tags use `GET /categories/tags` and contacts expose inline
+`{id,name}` tags; workflow steps are readable as a collection (not write-only); the tested
+custom-field registry addresses are absent; `/pipelines` is absent while
+`/categories/opportunity_stage` is readable; `/workflow_instances` is absent; and every
+tested attachment/file/document read path is absent. See the
+[live probe evidence](evidence/2026-07-11-wealthbox-api-probe.md).
 
-1. **Highest risk:** does `/v1/workflows` (or any endpoint) expose enough state to
-   reconstruct an *open* workflow instance's current step/stage, or is `/v1/workflow_steps`
-   truly write-only (complete/revert) with no way to read current position short of
-   inference? This blocks faithful workflow-instance import and, downstream, the
-   workflow-propagation design the charter already calls the hardest problem in the program.
-2. Exact max `per_page` and exact `updated_since` timestamp format Wealthbox's API accepts
-   — existing `TODO(probe)` markers in `client.rs`/`model.rs`.
-3. Whether custom fields appear nested on notes/tasks/opportunities, or contacts only.
-4. Whether Wealthbox exposes **any** native file/attachment storage + API at all, versus
-   files living exclusively in a connected third-party integration (Box/OneDrive/
-   SharePoint) — no attachments endpoint found in public docs or search.
-5. Whether Wealthbox's contact CSV bulk-import format (needed for rollback, §5.2) covers
+The following remain simulator-modeling risks. They are resolved through the seeded
+re-probe in §6.4 and fabricated simulator tests only; this program does not authorize
+obtaining answers from customer data, production accounts, or non-fabricated workspaces.
+None blocks freezing this design, but each is an accepted risk that must be named at
+spec-freeze review:
+
+1. **Highest risk:** whether populated `GET /workflows` and `GET /workflow_steps` records
+   expose enough state to describe an open workflow's current step/stage. The empty sandbox
+   cannot answer this even though both collections returned 200; `/workflow_instances`
+   itself is absent. Until §6.4 proves otherwise, the guided manual re-creation fallback in
+   §2.5a is required.
+2. The populated value shape of contact `custom_fields`, and whether record-level arrays
+   also appear on notes, tasks, or opportunities. Registry import remains unavailable;
+   §6.4 seeds fake values to establish the record-derived import contract.
+3. The populated shape and references of opportunities, projects, and opportunity stages.
+   The collections/stage-category endpoint were readable but empty; §6.4 seeds fake cases.
+4. Whether Wealthbox's contact CSV bulk-import format (needed for rollback, §5.2) covers
    every field this connector syncs, or only a subset.
-6. Whether `/v1/activity`'s cursor shape is compatible with the existing (currently unused)
-   `crm_cursors` table's single-string-per-object-type schema, or needs a richer cursor
-   value (e.g. a page token).
-7. Whether notes/tasks/events/opportunities/projects/workflows expose *any* deleted-item
+5. Whether notes/tasks/events/opportunities/projects/workflows expose any deleted-item
    filter (contacts do, via `?deleted=true`) — today's diff-based tombstoning (§1.3, §2.3)
-   is the only mechanism for every other object type, and it only works on a full resync.
-8. Rate-limit behavior across many concurrent object-type endpoints during a full
-   historical pull for a firm-sized fabricated corpus — untested at
-   scale; today's single shared rate-gate mutex is the only mitigation in place.
-9. Whether OAuth 2.0 (which the public docs describe as the primary auth path) differs
-   from the raw `ACCESS_TOKEN` header this fork implements in available scopes or rate
-   limits for the new endpoints — this fork has only ever implemented the token-header
-   flow.
+   remains the only mechanism for every other object type and only works on a full resync.
+6. Rate-limit behavior across many object-type endpoints during a full historical pull for a
+   firm-sized fabricated corpus — untested at scale; today's single shared rate gate is the
+   mitigation in place.
+7. Whether OAuth 2.0 (which the public docs describe as the primary auth path) differs from
+   the raw `ACCESS_TOKEN` header this fork implements in available scopes or rate limits for
+   the new endpoints.
+8. Whether empty workflow, opportunity, project, team, custom-field, and stage collections
+   are affected by account tier. No request returned 402 or 403, so plan gating is
+   **UNVERIFIED**; §6.4 records it as a re-probe observation, not as an assumption.
 
 ---
 
@@ -605,6 +657,7 @@ this design, but each is an accepted risk that must be named at spec-freeze revi
 foundation (contacts/notes/tasks/events) with pagination, rate-limiting, and PII discipline
 already present in the code — but it covers roughly half of what a faithful Wealthbox
 migration needs, and the write side covers two object types plus one field. The
-highest-leverage unknown is whether open workflow instances are readable through the API;
-the fabricated simulator must represent both possible outcomes before the build wave commits
-deeply to workflow-propagation work in lanes C/D.
+highest-leverage unknown is the populated current-state shape of the readable workflow
+collections. Until the seeded re-probe proves it, in-flight work uses the auditable guided
+manual re-creation fallback, and files use the explicit attachment-gap fallback rather than
+an assumed API migration path.
