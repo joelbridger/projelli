@@ -10,14 +10,27 @@ const suffix = 'CRM loop household';
 async function request(path, params = {}) {
   const url = new URL(path, base);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
-  const response = await fetch(url);
-  const body = await response.json();
-  if (!response.ok || !body.ok) throw new Error(body.error || `${path} failed`);
-  return body.result;
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      const body = await response.json();
+      if (response.ok && body.ok) return body.result;
+      const error = new Error(body.error || `${path} failed`);
+      if (!error.message.includes('eval code@')) throw error;
+      lastError = error;
+    } catch (error) {
+      if (!(error instanceof Error) || (!error.message.includes('eval code@') && !error.message.includes('fetch failed'))) throw error;
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`${lastError?.message ?? `${path} failed`} while running ${path}${params.js ? `: ${params.js}` : params.testid ? ` on ${params.testid}` : ''}`);
 }
 
-const click = (testid) => request('/click', { testid });
-const fill = (testid, text) => request('/fill', { testid, text });
+const settle = () => new Promise((resolve) => setTimeout(resolve, 100));
+const click = async (testid) => { await request('/click', { testid }); await settle(); };
+const fill = async (testid, text) => { await settle(); await request('/fill', { testid, text }); };
 const evaluate = (js) => request('/eval', { js, timeout_ms: 20_000 });
 
 async function waitFor(testid, seconds = 15) {
@@ -27,7 +40,17 @@ async function waitFor(testid, seconds = 15) {
     if (exists) return;
     await new Promise((resolve) => setTimeout(resolve, 150));
   }
-  throw new Error(`Timed out waiting for ${testid}`);
+  throw new Error(`Timed out waiting for ${testid} (current screen: ${await evaluate('document.querySelector("[data-testid]")?.getAttribute("data-testid") || "none"')})`);
+}
+
+async function waitForGone(testid, seconds = 15) {
+  const end = Date.now() + seconds * 1000;
+  while (Date.now() < end) {
+    const exists = await evaluate(`Boolean(document.querySelector('[data-testid="${testid}"]))`);
+    if (!exists) return;
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw new Error(`Timed out waiting for ${testid} to close`);
 }
 
 async function findHousehold() {
@@ -56,6 +79,7 @@ async function createAndEdit() {
   await fill('crm-household-edit-tier', 'Platinum');
   await fill('crm-household-edit-advisor', 'Maya Patel');
   await click('crm-household-edit-save');
+  await waitForGone('crm-household-editor');
 
   await click('crm-household-add');
   await click('crm-household-add-person');
@@ -64,6 +88,7 @@ async function createAndEdit() {
   await fill('crm-person-roles', 'CPA, tax planner');
   await fill('crm-person-relationship', 'Spouse');
   await click('crm-person-save');
+  await waitForGone('crm-person-editor');
 
   await click('crm-household-add');
   await click('crm-household-add-account');
@@ -73,18 +98,21 @@ async function createAndEdit() {
   await fill('crm-account-purpose', 'Retirement income');
   await fill('crm-account-last-four', '4821');
   await click('crm-account-save');
+  await waitForGone('crm-account-editor');
 
   await click('crm-household-add');
   await click('crm-household-add-note');
   await waitFor('crm-note-editor');
   await fill('crm-note-body', 'Internal CRM loop note. Never include this in a client draft.');
   await click('crm-note-save');
+  await waitForGone('crm-note-editor');
 
   await click('crm-household-metadata');
   await waitFor('crm-record-metadata-editor');
   await fill('crm-tag-input', 'crm-loop');
   await evaluate(`Array.from(document.querySelectorAll('button')).find((node) => node.textContent?.trim() === 'Add tag')?.click()`);
   await click('crm-save-metadata');
+  await waitForGone('crm-record-metadata-editor');
 }
 
 async function assertSaved() {
