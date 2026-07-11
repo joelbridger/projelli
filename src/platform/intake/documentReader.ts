@@ -10,6 +10,7 @@ import {
   type OcrPageResult,
 } from '@/platform/rag/ocr/ocrEngine';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
+import { SecurityError } from '@/platform/fs/types';
 import type { DocumentReadResult } from './documentExtractionTypes';
 
 const PDF_MIME_TYPE = 'application/pdf';
@@ -121,6 +122,27 @@ function resolveRelativeLinkTarget(linkPath: string, target: string): string {
  * containment boundary. A backend that cannot resolve a link safely fails
  * closed, so no bytes are read on an uncertain boundary.
  */
+/**
+ * An ancestor segment above the workspace root (e.g. `C:/Users` on Windows,
+ * walked on the way down to the actual workspace folder) is rejected by
+ * PathValidator before it can even answer "is this a symlink" — it isn't
+ * part of the workspace's writable surface, so it can't host an in-workspace
+ * symlink escape. Treat that specific rejection as "not a symlink" and keep
+ * walking toward the workspace root; any other SecurityError (e.g. path
+ * traversal) still fails closed, unchanged.
+ */
+async function isSymlinkTolerantOfPathsAboveWorkspaceRoot(
+  path: string,
+  workspaceService: Pick<WorkspaceService, 'isSymlink'>,
+): Promise<boolean> {
+  try {
+    return await workspaceService.isSymlink(path);
+  } catch (error) {
+    if (error instanceof SecurityError && error.reason === 'ABSOLUTE_PATH_IN_RELATIVE_CONTEXT') return false;
+    throw error;
+  }
+}
+
 async function resolvePathForMatterBoundary(
   path: string,
   workspaceService: Pick<WorkspaceService, 'isSymlink' | 'resolveSymlink'>,
@@ -129,7 +151,7 @@ async function resolvePathForMatterBoundary(
   let current = root;
   for (const segment of segments) {
     current = appendPath(current, segment);
-    if (await workspaceService.isSymlink(current)) {
+    if (await isSymlinkTolerantOfPathsAboveWorkspaceRoot(current, workspaceService)) {
       const target = await workspaceService.resolveSymlink(current);
       const resolved = resolveRelativeLinkTarget(current, target);
       if (!resolved || normalizedPath(resolved) === normalizedPath(current)) {
