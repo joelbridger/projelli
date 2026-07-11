@@ -26,6 +26,7 @@ export function OfflineModeSettings() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line lantern-async/no-silent-failure -- hydrateOfflineMode stores its safe error state for this UI.
     void hydrateOfflineMode().catch(() => undefined);
   }, []);
 
@@ -68,6 +69,7 @@ export function OfflineModeSettings() {
           data-testid="offline-mode-switch"
           disabled={!hydrated || isHydrating || saving}
           onClick={() => {
+            // eslint-disable-next-line lantern-async/no-silent-failure -- setMode catches and displays its own error.
             if (offlineMode) void setMode(false).catch(() => undefined);
             else setConfirmOpen(true);
           }}
@@ -102,6 +104,7 @@ export function OfflineModeSettings() {
               disabled={saving}
               onClick={(event) => {
                 event.preventDefault();
+                // eslint-disable-next-line lantern-async/no-silent-failure -- setMode catches and displays its own error.
                 void setMode(true).catch(() => undefined);
               }}
             >

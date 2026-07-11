@@ -12,6 +12,7 @@ export function DeviceConnectionStatus({ className }: { className?: string }) {
   const { offlineMode, hydrated } = useOfflineModeStore();
 
   useEffect(() => {
+    // eslint-disable-next-line lantern-async/no-silent-failure -- hydrateOfflineMode stores a safe display error in the shared state.
     void hydrateOfflineMode().catch(() => undefined);
   }, []);
 
