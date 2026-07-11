@@ -1,3 +1,18 @@
+/**
+ * THE seam. This module is the only permitted TypeScript path to an
+ * off-device `fetch`, Tauri HTTP-plugin request, `WebSocket`, updater start,
+ * or browser/window external navigation. That is not a convention to
+ * remember — it is enforced by construction: the `no-raw-network-call`
+ * ESLint rule (`packages/eslint-plugin-lantern-egress/`) fails a raw network
+ * call anywhere outside this file, the explicitly-allowlisted loopback
+ * provider files, test fixtures, and the browser demo. A new caller cannot
+ * quietly bypass this seam; it has to either import `egressFetch` /
+ * `egressWebSocket` from here, or fail lint.
+ *
+ * A future network client (e.g. the intake relay, once that program merges
+ * — see the "PENDING HOOK" comment in `egressRegistry.ts`) gets covered by
+ * wiring it through this seam, not by writing a second policy check.
+ */
 import {
   getNetworkPolicyStatus,
   subscribeToOfflineModeChanges,

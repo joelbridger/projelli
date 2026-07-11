@@ -5,6 +5,26 @@
  * mode lanes add the full inventory here; this small initial set exists only
  * to prove the renderer boundary without claiming that old call sites have
  * already migrated.
+ *
+ * PENDING HOOK — intake relay (not yet mergeable, tracked here so wiring it
+ * up later is a 5-minute job, not a rediscovery):
+ *
+ * `src/platform/intake/` does not exist on this branch yet — the intake
+ * program (`lp/intake`, waves 1-7) merges into this branch's upstream
+ * (`lp/ux-simplify-v1`) separately, after its own Windows bench-verify. Once
+ * that lands, register these operations here and route the following files
+ * through `networkClient.ts` (`egressFetch` / `egressWebSocket`) exactly the
+ * way every other sink in this registry does — do not invent a second policy
+ * path for them:
+ *   - `src/platform/intake/IntakeRelayClient.ts` (create/extend/revoke/
+ *     regenerate/inbox fetch/blob fetch/acknowledge/list — HTTP)
+ *   - `src/platform/intake/IntakeSyncClient.ts` (if it opens a WebSocket,
+ *     use `egressWebSocket`; if HTTP-only, `egressFetch`)
+ *   - `src/platform/intake/useIntakeInboxSync.ts` (scheduled polling — must
+ *     stop, not just fail silently, when Offline Mode turns on; see
+ *     `NetworkPolicy`'s cancellation registry / `subscribeToOfflineModeChanges`)
+ * Offline Mode does not auto-revoke already-sent intake links — this hook is
+ * only about stopping THIS device from contacting the relay while offline.
  */
 
 export type EgressHostClass = 'literal-loopback' | 'cloud-ai';

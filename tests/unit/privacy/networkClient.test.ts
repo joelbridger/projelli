@@ -141,8 +141,8 @@ describe('networkClient', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(invokeMock).toHaveBeenCalledTimes(5);
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'manual' });
-    expect(fetchMock.mock.calls[1][0]).toEqual(
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({ redirect: 'manual' });
+    expect(fetchMock.mock.calls[1]?.[0]).toEqual(
       new URL('https://api.openai.com/v1/redirected')
     );
   });
