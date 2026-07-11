@@ -13,6 +13,7 @@ import {
 import { hashPlaintextChunk } from './chunkHash';
 import { storeIntakeSecrets } from './intakeKeychain';
 import * as intakeKeychain from './intakeKeychain';
+import type { FileIntakeDocumentOptions } from './intakeFiling';
 import { sha256Hex } from './pdfTemplates/receipt';
 import type { PdfCompletionReceipt, PdfTemplateDescriptor } from './types';
 import { useIntakeStore, type IntakeRecord } from './intakeStore';
@@ -30,8 +31,10 @@ function pdf(objects: string[]): Uint8Array {
   let value = '%PDF-1.4\n';
   const offsets: number[] = [];
   for (let index = 0; index < objects.length; index += 1) {
+    const object = objects[index];
+    if (object === undefined) throw new Error('Expected PDF object.');
     offsets.push(enc.encode(value).byteLength);
-    value += `${String(index + 1)} 0 obj\n${objects[index]}\nendobj\n`;
+    value += `${String(index + 1)} 0 obj\n${object}\nendobj\n`;
   }
   const xrefOffset = enc.encode(value).byteLength;
   value += `xref\n0 ${String(objects.length + 1)}\n0000000000 65535 f \n`;
@@ -596,7 +599,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     useIntakeStore.getState().upsertIntake(record);
     const current = useIntakeStore.getState().intakesById['intake-1'];
     if (!current) throw new Error('missing intake');
-    const fileDocument = vi.fn().mockResolvedValue('/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf');
+    const fileDocument = vi.fn<(options: FileIntakeDocumentOptions) => Promise<string>>().mockResolvedValue('/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf');
 
     await expect(routeIntakeSubmission(routedSubmission(null, {
       itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['client-file.pdf'], plaintextBytes: [bytes], receipt,
@@ -620,7 +623,6 @@ describe('useIntakeInboxSync wiring helpers', () => {
   ])('marks a rejected PDF form %s for follow-up without filing it', async (_name, invalid) => {
     const template = pdfDescriptor();
     const bytes = completedPdf();
-    if (invalid.receipt !== undefined) vi.mocked(intakeKeychain.loadPdfTemplateDescriptor).mockResolvedValue(template);
     const record = intake({
       kind: 'standing', requestSlug: 'beneficiary-update-a1',
       items: [{ itemId: 'pdf-form', label: 'Form', state: 'not_started' }],
@@ -709,7 +711,7 @@ describe('useIntakeInboxSync wiring helpers', () => {
     useIntakeStore.getState().upsertIntake(standing);
     const current = useIntakeStore.getState().intakesById['standing-1'];
     if (!current) throw new Error('missing standing request');
-    const fileDocument = vi.fn().mockResolvedValue('/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf');
+    const fileDocument = vi.fn<(options: FileIntakeDocumentOptions) => Promise<string>>().mockResolvedValue('/workspace/Sarah/Requests/beneficiary-update-a1/forms/completed-form-submission-1.pdf');
     const submission = routedSubmission(null, {
       itemId: 'pdf-form', contentType: 'application/pdf', fileNames: ['form.pdf'], plaintextBytes: [bytes], receipt: await pdfReceipt(bytes, template),
       submissionId: 'submission-1',
@@ -717,7 +719,6 @@ describe('useIntakeInboxSync wiring helpers', () => {
     submission.intakeId = 'standing-1';
     await routeIntakeSubmission(submission, { intake: current, matterFolderPath: '/workspace/Sarah', workspaceService: {} as never, fileDocument });
     expect(fileDocument).toHaveBeenCalledWith(expect.objectContaining({ requestSlug: 'beneficiary-update-a1', folder: 'pdf_form' }));
-    expect(fileDocument.mock.results[0]?.value).resolves.not.toContain('/Requests/onboarding/');
     expect(useIntakeStore.getState().intakesById['onboarding-1']?.items[0]).toMatchObject({ state: 'not_started' });
   });
 

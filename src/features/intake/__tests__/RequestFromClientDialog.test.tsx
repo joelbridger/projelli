@@ -9,7 +9,7 @@ import { copyRequestBlueprintForPersistence } from '@/platform/intake/blueprintV
 import { intakeFactMatchList } from '@/platform/intake/factsStore';
 import { sha256Hex } from '@/platform/intake/pdfTemplates/receipt';
 import type { RequestBlueprint } from '@/platform/intake/blueprintTypes';
-import type { PdfTemplateDescriptor } from '@/platform/intake/types';
+import type { FormRequest, PdfTemplateDescriptor } from '@/platform/intake/types';
 import { createPdfFillDraftItem } from '../pdfTemplates/requestComposerPdf';
 
 const pdfTemplateStoreMock = vi.hoisted(() => ({
@@ -33,7 +33,8 @@ vi.mock('@/platform/intake/pdfTemplateStore', () => {
     resetForTests: vi.fn(),
   };
   return {
-    usePdfTemplateStore: <T,>(selector: (store: typeof state) => T): T => selector(state),
+    usePdfTemplateStore: <T,>(selector: (store: typeof state) => T): T =>
+      selector(state),
   };
 });
 
@@ -44,15 +45,31 @@ afterEach(() => {
 });
 
 const annualReview: RequestBlueprint = {
-  blueprintId: 'annual-review', schemaVersion: 1, label: 'Annual review', source: 'firm_saved', defaultKind: 'standing',
+  blueprintId: 'annual-review',
+  schemaVersion: 1,
+  label: 'Annual review',
+  source: 'firm_saved',
+  defaultKind: 'standing',
   items: [
     {
-      t: 'guided_question', item_id: 'income', label: 'Annual income', help_text: '', required: true,
-      subject: 'household', prompt: 'What is annual income?', response_format: 'money', fact_kind: 'income_annual',
+      t: 'guided_question',
+      item_id: 'income',
+      label: 'Annual income',
+      help_text: '',
+      required: true,
+      subject: 'household',
+      prompt: 'What is annual income?',
+      response_format: 'money',
+      fact_kind: 'income_annual',
     },
     {
-      t: 'doc_upload', item_id: 'statement', label: 'Account statement', help_text: 'Upload a recent statement.', required: true,
-      subject: 'household', accepted_mime_types: ['application/pdf'],
+      t: 'doc_upload',
+      item_id: 'statement',
+      label: 'Account statement',
+      help_text: 'Upload a recent statement.',
+      required: true,
+      subject: 'household',
+      accepted_mime_types: ['application/pdf'],
     },
   ],
 };
@@ -65,12 +82,24 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function approvedTemplate(sourceBytes: Uint8Array): Promise<PdfTemplateDescriptor> {
+async function approvedTemplate(
+  sourceBytes: Uint8Array
+): Promise<PdfTemplateDescriptor> {
   return {
-    templateId: 'template_library_001', version: 1, kind: 'acroform', sourceSha256: await sha256Hex(sourceBytes),
-    sourceArtifactRef: 'sealed-artifact:librarysource0001', outputFileStem: 'library-form', maxOutputBytes: 1024 * 1024,
+    templateId: 'template_library_001',
+    version: 1,
+    kind: 'acroform',
+    sourceSha256: await sha256Hex(sourceBytes),
+    sourceArtifactRef: 'sealed-artifact:librarysource0001',
+    outputFileStem: 'library-form',
+    maxOutputBytes: 1024 * 1024,
     fields: {
-      household_name: { kind: 'acroform', field_id: 'household_name', acroform_field: 'Household.Name', pdf_field_type: 'text' },
+      household_name: {
+        kind: 'acroform',
+        field_id: 'household_name',
+        acroform_field: 'Household.Name',
+        pdf_field_type: 'text',
+      },
     },
   };
 }
@@ -91,27 +120,41 @@ describe('RequestFromClientDialog', () => {
         clientName="Avery Chen"
         blueprints={[annualReview]}
         issueRequest={issueRequest}
-      />,
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /annual review/i }));
     const labels = screen.getAllByLabelText('Label');
     const statementLabel = labels[1];
-    if (!statementLabel) throw new Error('Expected account statement label input.');
-    fireEvent.change(statementLabel, { target: { value: 'Most recent account statement' } });
+    if (!statementLabel)
+      throw new Error('Expected account statement label input.');
+    fireEvent.change(statementLabel, {
+      target: { value: 'Most recent account statement' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
 
-    expect(await screen.findByText(/Annual income: Already on file/i)).toBeTruthy();
+    expect(
+      await screen.findByText(/Annual income: Already on file/i)
+    ).toBeTruthy();
     expect(screen.getByText('Most recent account statement')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
 
     await waitFor(() => {
       expect(issueRequest).toHaveBeenCalledTimes(1);
     });
-    expect(issueRequest).toHaveBeenCalledWith(expect.objectContaining({
-      matter_id: 'matter-1', kind: 'standing', blueprint_ref: 'annual-review',
-      items: [expect.objectContaining({ item_id: 'statement', label: 'Most recent account statement' })],
-    }));
+    expect(issueRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        matter_id: 'matter-1',
+        kind: 'standing',
+        blueprint_ref: 'annual-review',
+        items: [
+          expect.objectContaining({
+            item_id: 'statement',
+            label: 'Most recent account statement',
+          }),
+        ],
+      })
+    );
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
@@ -121,26 +164,49 @@ describe('RequestFromClientDialog', () => {
     const sourceBytes = new TextEncoder().encode('fresh-approved-pdf');
     const template = await approvedTemplate(sourceBytes);
     const unsupportedBlueprint: RequestBlueprint = {
-      blueprintId: 'pdf-update', schemaVersion: 1, label: 'PDF update', source: 'firm_saved', defaultKind: 'standing',
-      items: [{ ...(await createPdfFillDraftItem(template, sourceBytes)), item_id: 'form', label: 'Custodian form', subject: 'primary' }],
+      blueprintId: 'pdf-update',
+      schemaVersion: 1,
+      label: 'PDF update',
+      source: 'firm_saved',
+      defaultKind: 'standing',
+      items: [
+        {
+          ...(await createPdfFillDraftItem(template, sourceBytes)),
+          item_id: 'form',
+          label: 'Custodian form',
+          subject: 'primary',
+        },
+      ],
     };
 
     render(
       <RequestFromClientDialog
-        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
-        blueprints={[unsupportedBlueprint]} issueRequest={issueRequest}
-      />,
+        open
+        onOpenChange={vi.fn()}
+        matterId="matter-1"
+        clientName="Avery Chen"
+        blueprints={[unsupportedBlueprint]}
+        issueRequest={issueRequest}
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /pdf update/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
 
     expect(await screen.findByText('Custodian form')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Send request' }).hasAttribute('disabled')).toBe(false);
+    expect(
+      screen
+        .getByRole('button', { name: 'Send request' })
+        .hasAttribute('disabled')
+    ).toBe(false);
     fireEvent.click(screen.getByRole('button', { name: 'Send request' }));
-    await waitFor(() => expect(issueRequest).toHaveBeenCalledWith(expect.objectContaining({
-      items: [expect.objectContaining({ t: 'pdf_fill', prefill: [] })],
-    })));
+    await waitFor(() => {
+      expect(issueRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: [expect.objectContaining({ t: 'pdf_fill', prefill: [] })],
+        })
+      );
+    });
   });
 
   it('blocks a saved blueprint PDF whose sealed source was correctly stripped for reuse', async () => {
@@ -149,23 +215,37 @@ describe('RequestFromClientDialog', () => {
     const sourceBytes = new TextEncoder().encode('saved-blueprint-pdf');
     const template = await approvedTemplate(sourceBytes);
     const fresh: RequestBlueprint = {
-      blueprintId: 'saved-pdf-update', schemaVersion: 1, label: 'Saved PDF update', source: 'firm_saved', defaultKind: 'standing',
+      blueprintId: 'saved-pdf-update',
+      schemaVersion: 1,
+      label: 'Saved PDF update',
+      source: 'firm_saved',
+      defaultKind: 'standing',
       items: [await createPdfFillDraftItem(template, sourceBytes)],
     };
     const persisted = copyRequestBlueprintForPersistence(fresh);
 
     render(
       <RequestFromClientDialog
-        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
-        blueprints={[persisted]} issueRequest={issueRequest}
-      />,
+        open
+        onOpenChange={vi.fn()}
+        matterId="matter-1"
+        clientName="Avery Chen"
+        blueprints={[persisted]}
+        issueRequest={issueRequest}
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /saved pdf update/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
 
-    expect(await screen.findByText(/This item type isn.t supported yet/i)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Send request' }).hasAttribute('disabled')).toBe(true);
+    expect(
+      await screen.findByText(/This item type isn.t supported yet/i)
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole('button', { name: 'Send request' })
+        .hasAttribute('disabled')
+    ).toBe(true);
     expect(issueRequest).not.toHaveBeenCalled();
   });
 
@@ -179,30 +259,51 @@ describe('RequestFromClientDialog', () => {
 
     render(
       <RequestFromClientDialog
-        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
-        blueprints={[annualReview]} issueRequest={issueRequest}
-      />,
+        open
+        onOpenChange={vi.fn()}
+        matterId="matter-1"
+        clientName="Avery Chen"
+        blueprints={[annualReview]}
+        issueRequest={issueRequest}
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /annual review/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add approved PDF form' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Add to request' }));
-    await waitFor(() => expect(pdfTemplateStoreMock.loadSourceBytes).toHaveBeenCalledWith(template.templateId, template.version));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Add approved PDF form' })
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add to request' })
+    );
+    await waitFor(() => {
+      expect(pdfTemplateStoreMock.loadSourceBytes).toHaveBeenCalledWith(
+        template.templateId,
+        template.version
+      );
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Send request' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Send request' })
+    );
 
-    await waitFor(() => expect(issueRequest).toHaveBeenCalledWith(expect.objectContaining({
-      items: expect.arrayContaining([
+    await waitFor(() => {
+      expect(issueRequest).toHaveBeenCalledWith(
         expect.objectContaining({
-          t: 'pdf_fill',
-          sealed_source_pdf_b64: btoa(String.fromCharCode(...sourceBytes)),
-        }),
-      ]),
-    })));
+          items: expect.arrayContaining([
+            expect.objectContaining({
+              t: 'pdf_fill',
+              sealed_source_pdf_b64: btoa(String.fromCharCode(...sourceBytes)),
+            }),
+          ]) as unknown as FormRequest['items'],
+        })
+      );
+    });
   });
 
   it('shows an error and does not add a library PDF when its source bytes are unavailable', async () => {
-    const template = await approvedTemplate(new TextEncoder().encode('dialog-source-pdf'));
+    const template = await approvedTemplate(
+      new TextEncoder().encode('dialog-source-pdf')
+    );
     pdfTemplateStoreMock.getApprovedDescriptors.mockResolvedValue([template]);
     pdfTemplateStoreMock.loadSourceBytes.mockResolvedValue(null);
     vi.mocked(intakeFactMatchList).mockResolvedValue([]);
@@ -210,35 +311,82 @@ describe('RequestFromClientDialog', () => {
 
     render(
       <RequestFromClientDialog
-        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
-        blueprints={[annualReview]} issueRequest={issueRequest}
-      />,
+        open
+        onOpenChange={vi.fn()}
+        matterId="matter-1"
+        clientName="Avery Chen"
+        blueprints={[annualReview]}
+        issueRequest={issueRequest}
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /annual review/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'Add approved PDF form' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Add to request' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('This approved PDF is unavailable on this device. It was not added to the request.');
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Add approved PDF form' })
+    );
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Add to request' })
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This approved PDF is unavailable on this device. It was not added to the request.'
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Send request' }));
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Send request' })
+    );
 
-    await waitFor(() => expect(issueRequest).toHaveBeenCalledWith(expect.objectContaining({
-      items: expect.not.arrayContaining([expect.objectContaining({ t: 'pdf_fill' })]),
-    })));
+    await waitFor(() => {
+      expect(issueRequest).toHaveBeenCalledWith(
+        expect.objectContaining({
+          items: expect.not.arrayContaining([
+            expect.objectContaining({ t: 'pdf_fill' }),
+          ]) as unknown as FormRequest['items'],
+        })
+      );
+    });
   });
 
   it('keeps signature items blocked in the review screen', async () => {
     vi.mocked(intakeFactMatchList).mockResolvedValue([]);
     const issueRequest = vi.fn();
     const signatureBlueprint: RequestBlueprint = {
-      blueprintId: 'signature-request', schemaVersion: 1, label: 'Signature request', source: 'firm_saved', defaultKind: 'standing',
-      items: [{ t: 'signature', item_id: 'signature', label: 'Sign form', help_text: '', required: true, subject: 'primary', grade: 'docusign' }],
+      blueprintId: 'signature-request',
+      schemaVersion: 1,
+      label: 'Signature request',
+      source: 'firm_saved',
+      defaultKind: 'standing',
+      items: [
+        {
+          t: 'signature',
+          item_id: 'signature',
+          label: 'Sign form',
+          help_text: '',
+          required: true,
+          subject: 'primary',
+          grade: 'docusign',
+        },
+      ],
     };
-    render(<RequestFromClientDialog open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen" blueprints={[signatureBlueprint]} issueRequest={issueRequest} />);
+    render(
+      <RequestFromClientDialog
+        open
+        onOpenChange={vi.fn()}
+        matterId="matter-1"
+        clientName="Avery Chen"
+        blueprints={[signatureBlueprint]}
+        issueRequest={issueRequest}
+      />
+    );
     fireEvent.click(screen.getByRole('button', { name: /signature request/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
-    expect(await screen.findByText(/This item type isn.t supported yet/i)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Send request' }).hasAttribute('disabled')).toBe(true);
+    expect(
+      await screen.findByText(/This item type isn.t supported yet/i)
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole('button', { name: 'Send request' })
+        .hasAttribute('disabled')
+    ).toBe(true);
     expect(issueRequest).not.toHaveBeenCalled();
   });
 
@@ -248,7 +396,10 @@ describe('RequestFromClientDialog', () => {
     ]);
     const issueRequest = vi.fn();
     const [firstItem] = annualReview.items;
-    if (!firstItem) throw new Error('Expected the annual review blueprint to have at least one item.');
+    if (!firstItem)
+      throw new Error(
+        'Expected the annual review blueprint to have at least one item.'
+      );
     const onlyKnownFact: RequestBlueprint = {
       ...annualReview,
       blueprintId: 'income-only',
@@ -258,15 +409,21 @@ describe('RequestFromClientDialog', () => {
 
     render(
       <RequestFromClientDialog
-        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
-        blueprints={[onlyKnownFact]} issueRequest={issueRequest}
-      />,
+        open
+        onOpenChange={vi.fn()}
+        matterId="matter-1"
+        clientName="Avery Chen"
+        blueprints={[onlyKnownFact]}
+        issueRequest={issueRequest}
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /income only/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
 
-    expect(await screen.findByText('Nothing needs to be requested right now.')).toBeTruthy();
+    expect(
+      await screen.findByText('Nothing needs to be requested right now.')
+    ).toBeTruthy();
     const sendButton = screen.getByRole('button', { name: 'Send request' });
     expect(sendButton.hasAttribute('disabled')).toBe(true);
     fireEvent.click(sendButton);
@@ -279,17 +436,26 @@ describe('RequestFromClientDialog', () => {
 
     render(
       <RequestFromClientDialog
-        open onOpenChange={vi.fn()} matterId="matter-1" clientName="Avery Chen"
-        blueprints={[annualReview]} issueRequest={vi.fn()}
-      />,
+        open
+        onOpenChange={vi.fn()}
+        matterId="matter-1"
+        clientName="Avery Chen"
+        blueprints={[annualReview]}
+        issueRequest={vi.fn()}
+      />
     );
 
     fireEvent.click(screen.getByRole('button', { name: /annual review/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Review request' }));
     const [firstLabel] = screen.getAllByLabelText('Label');
-    if (!firstLabel) throw new Error('Expected at least one editable item label.');
-    fireEvent.change(firstLabel, { target: { value: 'Updated annual income' } });
-    matches.resolve([{ subject: 'household', kind: 'income_annual', status: 'active' }]);
+    if (!firstLabel)
+      throw new Error('Expected at least one editable item label.');
+    fireEvent.change(firstLabel, {
+      target: { value: 'Updated annual income' },
+    });
+    matches.resolve([
+      { subject: 'household', kind: 'income_annual', status: 'active' },
+    ]);
     await matches.promise;
     await Promise.resolve();
 

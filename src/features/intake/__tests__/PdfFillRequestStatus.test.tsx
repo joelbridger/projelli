@@ -41,9 +41,13 @@ describe('PDF form request status', () => {
     expect(within(row).queryByText('Sensitive template title')).toBeNull();
     expect(within(row).queryByText(/raw-client-file/iu)).toBeNull();
 
-    act(() => { store.updateItem('form-request', { ...pdfRequest('received').items[0]!, state: 'received' }); });
+    const receivedItem = pdfRequest('received').items[0];
+    if (!receivedItem) throw new Error('Expected a received PDF request item.');
+    act(() => { store.updateItem('form-request', { ...receivedItem, state: 'received' }); });
     expect(within(row).getByText('Form returned')).toBeTruthy();
-    act(() => { store.updateItem('form-request', { ...pdfRequest('needs_followup').items[0]!, state: 'needs_followup' }); });
+    const followUpItem = pdfRequest('needs_followup').items[0];
+    if (!followUpItem) throw new Error('Expected a follow-up PDF request item.');
+    act(() => { store.updateItem('form-request', { ...followUpItem, state: 'needs_followup' }); });
     expect(within(row).getByText('Needs follow-up')).toBeTruthy();
   });
 });
