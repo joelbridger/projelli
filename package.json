@@ -26,6 +26,7 @@
     "tauri:dev": "tauri dev",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
+    "test:multiclient": "bun run tests/multiclient/run.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.test.json --noEmit",
