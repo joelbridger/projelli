@@ -13,7 +13,7 @@
 #   scripts/crm-loop/launch-app.sh 9252 /tmp/crm-seat-a
 #
 # Prereqs (start once, shared by every instance):
-#   npm run dev                 # vite on :5173
+#   npm run dev                 # vite on :5174 (matches tauri.conf.json)
 #   cargo build --manifest-path src-tauri/Cargo.toml   # produces the binary
 set -euo pipefail
 
@@ -21,13 +21,21 @@ PORT="${1:?usage: launch-app.sh <bridge-port> <workspace-dir>}"
 WORKSPACE="${2:?usage: launch-app.sh <bridge-port> <workspace-dir>}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 BIN="$ROOT/src-tauri/target/debug/lantern"
+# A git worktree has its own source tree but can safely use the already-built
+# debug binary from the primary checkout when it has not changed Rust code.
+# This keeps live UI verification from starting an unnecessary cargo build.
+if [ ! -x "$BIN" ]; then
+  COMMON_GIT_DIR="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+  PRIMARY_ROOT="${COMMON_GIT_DIR%/.git}"
+  [ -n "$PRIMARY_ROOT" ] && [ -x "$PRIMARY_ROOT/src-tauri/target/debug/lantern" ] && BIN="$PRIMARY_ROOT/src-tauri/target/debug/lantern"
+fi
 
 [ -x "$BIN" ] || {
   echo "No debug binary at $BIN — run: cargo build --manifest-path src-tauri/Cargo.toml" >&2
   exit 1
 }
-curl -sf "http://127.0.0.1:5173" >/dev/null || {
-  echo "Vite is not serving on :5173 — run 'npm run dev' first (one server serves every instance)." >&2
+curl -sf "http://127.0.0.1:5174" >/dev/null || {
+  echo "Vite is not serving on :5174 — run 'npm run dev' first (one server serves every instance)." >&2
   exit 1
 }
 

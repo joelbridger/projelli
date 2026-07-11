@@ -123,13 +123,14 @@ async function applyRemote(live: LiveRecordSession): Promise<void> {
 
 /** Put one local SQLCipher record into the encrypted shared-client stream. */
 export function publishLiveRecord(record: LiveCrmRecord): void {
-  if (!session || session.applyingRemote || record.matterId !== session.firmMatterId) return;
-  const baseline = session.lastRecords.get(record.id) ?? {};
-  session.doc.transact(() => {
-    let target = session.records.get(record.id);
+  const activeSession = session;
+  if (!activeSession || activeSession.applyingRemote || record.matterId !== activeSession.firmMatterId) return;
+  const baseline: Record<string, unknown> = activeSession.lastRecords.get(record.id) ?? {};
+  activeSession.doc.transact(() => {
+    let target = activeSession.records.get(record.id);
     if (!target) {
       target = new Y.Map<string>();
-      session.records.set(record.id, target);
+      activeSession.records.set(record.id, target);
     }
     // Each field is its own CRDT cell.  Two advisors changing title and due
     // date from the same stale task view therefore converge without either
@@ -139,7 +140,7 @@ export function publishLiveRecord(record: LiveCrmRecord): void {
       if (encoded !== JSON.stringify(baseline[field])) target.set(field, encoded);
     }
   });
-  session.lastRecords.set(record.id, record);
+  activeSession.lastRecords.set(record.id, record);
 }
 
 export function stopLiveRecordRelay(): void {

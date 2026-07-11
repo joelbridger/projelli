@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 // Real desktop smoke path for Home > Tasks and Home > Today.
 // Run only after `npm run tauri:dev` is open with the Linux bridge on :9250.
+import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 const port = process.env.LANTERN_DEV_BRIDGE_PORT || process.env.DESKTOP_CDP_PORT || '9250';
 const root = process.env.CRM_LOOP_WORKSPACE || '/tmp/lantern-crm-today-tasks-loop';
@@ -120,5 +122,9 @@ const approval = records.find((record) => record.id === 'proposal-${id}');
 const activity = records.filter((record) => record.kind === 'activityEvent');
 if (!task || task.householdRef?.id !== 'household-${id}' || task.recurrence?.freq !== 'weekly') fail('task was not durably stored with its household link and recurrence');
 if (!view || !approval || approval.state !== 'approved' || activity.length === 0) fail('view, approval history, or activity was not durably stored');
+
+const evidence = resolve(process.env.CRM_LOOP_SCREENSHOTS_DIR || 'docs/evidence/golden-loop');
+mkdirSync(evidence, { recursive: true });
+execFileSync('scrot', ['-o', resolve(evidence, '02-today-tasks.png')], { env: { ...process.env, DISPLAY: process.env.DISPLAY || ':111' }, stdio: 'ignore' });
 
 console.log('PASS: Tasks, saved view, Today triage, approval history, and activity are durable CRM records.');
