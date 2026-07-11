@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { Button } from '@/ui/button';
 import {
@@ -23,9 +23,13 @@ type LibraryView = 'list' | 'editor';
 
 export function FormBuilderLibrary(props: FormBuilderLibraryProps): React.JSX.Element {
   const listBlueprints = useBlueprintStore((state) => state.listBlueprints);
-  const firmBlueprintsById = useBlueprintStore((state) => state.firmBlueprintsById);
+  // Subscribing to firmBlueprintsById makes this component re-render on every
+  // store change; listBlueprints() itself is cheap enough to call directly on
+  // each render rather than memoize against a dependency that isn't actually
+  // read in the computation (that mismatch is what the removed useMemo had).
+  useBlueprintStore((state) => state.firmBlueprintsById);
   const archiveFirmBlueprint = useBlueprintStore((state) => state.archiveFirmBlueprint);
-  const blueprints = useMemo(() => listBlueprints(), [firmBlueprintsById, listBlueprints]);
+  const blueprints = listBlueprints();
   const [view, setView] = useState<LibraryView>('list');
   const [selectedBlueprint, setSelectedBlueprint] = useState<RequestBlueprint | null>(null);
   const [archiveConfirmationId, setArchiveConfirmationId] = useState<string | null>(null);
