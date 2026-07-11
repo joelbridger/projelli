@@ -154,7 +154,7 @@ function sampleChecklist(): IntakeChecklist {
         help_text: 'Please send the front and back.',
         required: true,
         subject: 'Sarah',
-        accepted_mime_types: ['image/jpeg', 'image/png', 'text/plain'],
+        accepted_mime_types: ['image/jpeg', 'image/png', 'application/pdf'],
         max_files: 2,
       },
       {
@@ -370,23 +370,31 @@ async function openLicenseScreen(page: Page): Promise<void> {
   await completeSsn(page);
 }
 
-const TAX_RETURN_FIXTURE = {
-  name: 'return.txt',
-  mimeType: 'text/plain',
-  buffer: Buffer.from('Form 1040 adjusted gross income'),
-};
+function pdfFixture(name: string, text: string): { name: string; mimeType: string; buffer: Buffer } {
+  const stream = `BT\n/F1 18 Tf\n72 720 Td\n(${text.replace(/[\\()]/gu, '\\$&')}) Tj\nET\n`;
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    `<< /Length ${String(Buffer.byteLength(stream, 'ascii'))} >>\nstream\n${stream}endstream`,
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (const [index, object] of objects.entries()) {
+    offsets.push(Buffer.byteLength(pdf, 'ascii'));
+    pdf += `${String(index + 1)} 0 obj\n${object}\nendobj\n`;
+  }
+  const xrefOffset = Buffer.byteLength(pdf, 'ascii');
+  pdf += `xref\n0 ${String(objects.length + 1)}\n0000000000 65535 f \n`;
+  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  pdf += `trailer\n<< /Size ${String(objects.length + 1)} /Root 1 0 R >>\nstartxref\n${String(xrefOffset)}\n%%EOF\n`;
+  return { name, mimeType: 'application/pdf', buffer: Buffer.from(pdf, 'ascii') };
+}
 
-const LICENSE_FRONT_FIXTURE = {
-  name: 'front.txt',
-  mimeType: 'text/plain',
-  buffer: Buffer.from('Driver license class restrictions'),
-};
-
-const LICENSE_BACK_FIXTURE = {
-  name: 'back.txt',
-  mimeType: 'text/plain',
-  buffer: Buffer.from('PDF417 AAMVA DAQ barcode'),
-};
+const TAX_RETURN_FIXTURE = pdfFixture('tax-return.pdf', 'Form 1040 adjusted gross income');
+const LICENSE_FRONT_FIXTURE = pdfFixture('license-front.pdf', 'Driver license class restrictions');
+const LICENSE_BACK_FIXTURE = pdfFixture('license-back.pdf', 'PDF417 AAMVA DAQ barcode');
 
 async function completeLicense(page: Page): Promise<void> {
   await page.getByLabel('License front photo').setInputFiles({
@@ -548,11 +556,23 @@ test('warns before a tax return is selected for a driver license', async ({ page
   await expectNoSeriousAxeViolations(page);
 });
 
+test('does not warn for a real license PDF in its matching slot', async ({ page }) => {
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(LICENSE_FRONT_FIXTURE);
+
+  await expect(page.getByText('front ready')).toBeVisible();
+  await expect(page.locator('.document-warning')).toHaveCount(0);
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
 test('holds submission only while a selected file is being checked, then shows the settled warning', async ({ page }) => {
   await page.addInitScript(() => {
-    const nativeText = Blob.prototype.text;
-    Blob.prototype.text = async function delayedText(): Promise<string> {
-      const value = await nativeText.call(this);
+    const nativeArrayBuffer = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = async function delayedPdfRead(): Promise<ArrayBuffer> {
+      const value = await nativeArrayBuffer.call(this);
       await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
       return value;
     };
@@ -580,10 +600,12 @@ test('holds submission only while a selected file is being checked, then shows t
 
 test('keeps the latest file classification when a client changes a file while checking', async ({ page }) => {
   await page.addInitScript(() => {
-    const nativeText = Blob.prototype.text;
-    Blob.prototype.text = async function delayedTaxReturn(): Promise<string> {
-      const value = await nativeText.call(this);
-      if (value.includes('Form 1040')) await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+    const nativeArrayBuffer = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = async function delayedTaxReturn(): Promise<ArrayBuffer> {
+      const value = await nativeArrayBuffer.call(this);
+      if (new TextDecoder().decode(value).includes('Form 1040')) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      }
       return value;
     };
   });
