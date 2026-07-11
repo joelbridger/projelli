@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { signatureStatusLabel } from './SendForSignatureDialog';
+import { signatureStatusLabel } from './signatureStatusLabel';
 
 describe('signature status copy', () => {
   it.each([

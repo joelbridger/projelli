@@ -147,6 +147,10 @@
       "phone-call-description": "Work through the same checklist together, one step at a time.",
       "start-phone-walkthrough": "Start phone walkthrough"
     },
+    "signature": {
+      "send-for-signature": "Send for signature",
+      "send-description": "This sends the completed form and the signer's name and email directly to DocuSign."
+    },
     "phone": {
       "title": "Phone walkthrough",
       "step-description": "Step {{step}} of {{total}}. Enter this with {{client}} on the call.",

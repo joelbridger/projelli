@@ -184,7 +184,7 @@ export function RequestsBoard({
                 {...(renderLinkSignals ? { renderLinkSignals } : {})}
                 {...(renderEmailReplySignals ? { renderEmailReplySignals } : {})}
               />
-              {onOpenSignature && intakesById[row.requestId]?.requestItems?.some((item) => item.t === 'signature' && item.grade === 'docusign') ? <div style={{ padding: '8px 18px 0' }}><Button size="sm" variant="secondary" onClick={() => { onOpenSignature(row); }}>Send for signature</Button></div> : null}
+              {onOpenSignature && intakesById[row.requestId]?.requestItems?.some((item) => item.t === 'signature' && item.grade === 'docusign') ? <div style={{ padding: '8px 18px 0' }}><Button size="sm" variant="secondary" onClick={() => { onOpenSignature(row); }}>{t('intake.signature.send-for-signature')}</Button></div> : null}
             </div>
             );
           })}

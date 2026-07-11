@@ -9,7 +9,8 @@ import {
 import { Button } from '@/ui/button';
 import type { IntakeRecord } from '@/platform/intake/intakeStore';
 import type { SignatureStatus } from '@/platform/intake/docusignSignature/signatureRecord';
-import { SendForSignatureDialog, signatureStatusLabel } from './docusignSigning/SendForSignatureDialog';
+import { SendForSignatureDialog } from './docusignSigning/SendForSignatureDialog';
+import { requestItemDisplayLabel, requestItemStatusLabel } from './requestItemLabels';
 import {
   intakeFactList,
   intakeFactPurge,
@@ -55,38 +56,6 @@ function formatDate(value: string): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-function statusLabel(state: string): string {
-  switch (state) {
-    case 'received':
-      return 'received';
-    case 'accepted':
-      return 'accepted';
-    case 'needs_followup':
-      return 'needs another look';
-    case 'not_needed':
-      return 'not needed';
-    case 'provided':
-      return 'provided';
-    default:
-      return 'not started';
-  }
-}
-
-export function requestItemStatusLabel(intake: IntakeRecord, itemId: string, state: string, signatureStatuses?: Record<string, SignatureStatus | undefined>): string {
-  const requestItem = intake.requestItems?.find((candidate) => candidate.item_id === itemId);
-  if (requestItem?.t === 'signature') return signatureStatusLabel(signatureStatuses?.[itemId]);
-  if (requestItem?.t !== 'pdf_fill') return statusLabel(state);
-  if (state === 'received') return 'Form returned';
-  if (state === 'needs_followup') return 'Needs follow-up';
-  return 'Form ready';
-}
-
-export function requestItemDisplayLabel(intake: IntakeRecord, itemId: string, fallback: string): string {
-  return intake.requestItems?.find((candidate) => candidate.item_id === itemId)?.t === 'pdf_fill'
-    ? 'Form'
-    : fallback;
 }
 
 function provenanceColor(channel: string): {
@@ -392,7 +361,7 @@ export function OnboardingTab({
                   if (signature?.t !== 'signature' || signature.grade !== 'docusign') return null;
                   const source = intake.items.find((candidate) => candidate.itemId === signature.source_pdf_fill_item_id);
                   const canSend = source?.state === 'received' && (signatureStatuses?.[signature.item_id] === undefined || ['not_ready', 'ready_to_send', 'needs_followup', 'declined', 'voided'].includes(signatureStatuses[signature.item_id] ?? 'not_ready'));
-                  return <Button type="button" variant="outline" size="sm" disabled={!canSend || !onSendForSignature} onClick={() => { setSignatureDialogItemId(signature.item_id); }}>Send for signature</Button>;
+                  return <Button type="button" variant="outline" size="sm" disabled={!canSend || !onSendForSignature} onClick={() => { setSignatureDialogItemId(signature.item_id); }}>{t('intake.signature.send-for-signature')}</Button>;
                 })()}
               </div>
             ))}
