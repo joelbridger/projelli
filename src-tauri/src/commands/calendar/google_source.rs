@@ -5,9 +5,8 @@ use super::graph_source::CalendarSource;
 use super::model::{CalendarAttendee, CalendarEvent, CalendarProvider};
 
 type TokenFn = std::sync::Arc<
-    dyn Fn() -> std::pin::Pin<
-            Box<dyn std::future::Future<Output = Result<String, String>> + Send>,
-        > + Send
+    dyn Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<String, String>> + Send>>
+        + Send
         + Sync,
 >;
 
@@ -15,17 +14,28 @@ pub struct GoogleCalendarSource {
     base_url: String,
     token: TokenFn,
     http: reqwest::Client,
+    policy: crate::network_policy::NetworkPolicy,
+    operation: crate::network_policy::EgressOperation,
 }
 
 impl GoogleCalendarSource {
-    pub fn new() -> Self {
+    pub fn new(policy: crate::network_policy::NetworkPolicy) -> Self {
+        let token_policy = policy.clone();
         Self::new_with_base(
             "https://www.googleapis.com/calendar/v3".to_string(),
-            || async { super::commands::fresh_google_access_token().await },
+            move || {
+                let policy = token_policy.clone();
+                async move { super::commands::fresh_google_access_token(&policy).await }
+            },
+            policy,
         )
     }
 
-    pub fn new_with_base<F, Fut>(base_url: String, token: F) -> Self
+    pub fn new_with_base<F, Fut>(
+        base_url: String,
+        token: F,
+        policy: crate::network_policy::NetworkPolicy,
+    ) -> Self
     where
         F: Fn() -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = Result<String, String>> + Send + 'static,
@@ -36,7 +46,22 @@ impl GoogleCalendarSource {
             .connect_timeout(std::time::Duration::from_secs(15))
             .build()
             .expect("build reqwest client");
-        Self { base_url, token, http }
+        Self {
+            base_url,
+            token,
+            http,
+            policy,
+            operation: {
+                #[cfg(test)]
+                {
+                    crate::network_policy::LOCAL_LLAMA
+                }
+                #[cfg(not(test))]
+                {
+                    crate::network_policy::GOOGLE_CALENDAR_SYNC
+                }
+            },
+        }
     }
 }
 
@@ -75,7 +100,17 @@ impl CalendarSource for GoogleCalendarSource {
                     crate::commands::mail::gmail::oauth::urlencoding_encode(t)
                 ));
             }
-            let resp = self.http.get(&url).bearer_auth(&access).send().await?;
+            let authorized = crate::commands::connector_network::authorize_url(
+                &self.policy,
+                &self.operation,
+                &url,
+            )?;
+            let resp = crate::commands::connector_network::await_authorized(
+                &self.policy,
+                &authorized,
+                async { Ok(self.http.get(&url).bearer_auth(&access).send().await?) },
+            )
+            .await?;
             if !resp.status().is_success() {
                 anyhow::bail!("google events.list http {}", resp.status().as_u16());
             }
@@ -157,23 +192,43 @@ fn map_google_event(item: &serde_json::Value) -> anyhow::Result<Option<CalendarE
     };
     let mut self_declined = false;
     let mut attendees = Vec::new();
-    for a in item.get("attendees").and_then(|x| x.as_array()).unwrap_or(&vec![]) {
-        let Some(email) = a.get("email").and_then(|e| e.as_str()) else { continue };
+    for a in item
+        .get("attendees")
+        .and_then(|x| x.as_array())
+        .unwrap_or(&vec![])
+    {
+        let Some(email) = a.get("email").and_then(|e| e.as_str()) else {
+            continue;
+        };
         let is_self = a.get("self").and_then(|s| s.as_bool()).unwrap_or(false);
-        let response = a.get("responseStatus").and_then(|r| r.as_str()).unwrap_or("");
+        let response = a
+            .get("responseStatus")
+            .and_then(|r| r.as_str())
+            .unwrap_or("");
         if is_self {
             if response == "declined" {
                 self_declined = true;
             }
             continue; // the advisor is not a "client attendee"
         }
-        let name = a.get("displayName").and_then(|n| n.as_str()).unwrap_or("").to_string();
-        attendees.push(CalendarAttendee { email: email.to_string(), name });
+        let name = a
+            .get("displayName")
+            .and_then(|n| n.as_str())
+            .unwrap_or("")
+            .to_string();
+        attendees.push(CalendarAttendee {
+            email: email.to_string(),
+            name,
+        });
     }
     Ok(Some(CalendarEvent {
         id: format!("google:{id}"),
         provider: CalendarProvider::Google,
-        title: item.get("summary").and_then(|x| x.as_str()).unwrap_or("").to_string(),
+        title: item
+            .get("summary")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
         description: item
             .get("description")
             .and_then(|x| x.as_str())
@@ -201,9 +256,16 @@ fn map_google_event(item: &serde_json::Value) -> anyhow::Result<Option<CalendarE
 fn extract_google_join_url(item: &serde_json::Value) -> Option<String> {
     let clean = |s: &str| {
         let t = s.trim();
-        if t.is_empty() { None } else { Some(t.to_string()) }
+        if t.is_empty() {
+            None
+        } else {
+            Some(t.to_string())
+        }
     };
-    if let Some(points) = item.pointer("/conferenceData/entryPoints").and_then(|x| x.as_array()) {
+    if let Some(points) = item
+        .pointer("/conferenceData/entryPoints")
+        .and_then(|x| x.as_array())
+    {
         if let Some(uri) = points
             .iter()
             .find(|p| p.get("entryPointType").and_then(|t| t.as_str()) == Some("video"))
@@ -214,7 +276,9 @@ fn extract_google_join_url(item: &serde_json::Value) -> Option<String> {
             return Some(uri);
         }
     }
-    item.get("hangoutLink").and_then(|x| x.as_str()).and_then(clean)
+    item.get("hangoutLink")
+        .and_then(|x| x.as_str())
+        .and_then(clean)
 }
 
 #[cfg(test)]
@@ -223,6 +287,12 @@ mod tests {
     use crate::commands::calendar::graph_source::CalendarSource;
     use wiremock::matchers::{method, path, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    fn test_policy() -> crate::network_policy::NetworkPolicy {
+        crate::network_policy::NetworkPolicy::load_from_directory(
+            &tempfile::tempdir().unwrap().keep(),
+        )
+    }
 
     #[test]
     fn extracts_video_entry_point_then_hangout_link_then_none() {
@@ -240,9 +310,15 @@ mod tests {
         );
         // Falls back to hangoutLink when there is no video entry point.
         let legacy = serde_json::json!({ "hangoutLink": "https://meet.google.com/xyz-1234" });
-        assert_eq!(extract_google_join_url(&legacy).as_deref(), Some("https://meet.google.com/xyz-1234"));
+        assert_eq!(
+            extract_google_join_url(&legacy).as_deref(),
+            Some("https://meet.google.com/xyz-1234")
+        );
         // No conferencing => None.
-        assert_eq!(extract_google_join_url(&serde_json::json!({ "summary": "in person" })), None);
+        assert_eq!(
+            extract_google_join_url(&serde_json::json!({ "summary": "in person" })),
+            None
+        );
     }
 
     /// VERIFY-LIVE: field names (`items[].id/summary/description`,
@@ -300,9 +376,11 @@ mod tests {
             .mount(&server)
             .await;
 
-        let source = GoogleCalendarSource::new_with_base(server.uri(), || async {
-            Ok("test-token".to_string())
-        });
+        let source = GoogleCalendarSource::new_with_base(
+            server.uri(),
+            || async { Ok("test-token".to_string()) },
+            test_policy(),
+        );
         let events = source
             .fetch_events("2026-07-01T00:00:00Z", "2026-07-10T00:00:00Z")
             .await
@@ -310,8 +388,15 @@ mod tests {
 
         assert_eq!(events.len(), 3);
         assert_eq!(events[0].id, "google:g1");
-        assert_eq!(events[0].start_utc, "2026-07-02T16:00:00Z", "offset -06:00 normalizes");
-        assert_eq!(events[0].attendees.len(), 1, "self attendee is filtered out");
+        assert_eq!(
+            events[0].start_utc, "2026-07-02T16:00:00Z",
+            "offset -06:00 normalizes"
+        );
+        assert_eq!(
+            events[0].attendees.len(),
+            1,
+            "self attendee is filtered out"
+        );
         assert!(events[1].is_cancelled, "status cancelled maps");
         assert!(events[2].self_declined, "self attendee declined maps");
     }
@@ -329,6 +414,9 @@ mod tests {
             "end": { "dateTime": "2026-07-02T11:00:00", "timeZone": "America/Denver" },
         });
         let event = map_google_event(&item).unwrap().unwrap();
-        assert_eq!(event.start_utc, "2026-07-02T16:00:00Z", "MDT is UTC-6 in July");
+        assert_eq!(
+            event.start_utc, "2026-07-02T16:00:00Z",
+            "MDT is UTC-6 in July"
+        );
     }
 }

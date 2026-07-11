@@ -55,7 +55,11 @@ fn provider_service(provider: &str) -> Result<String, String> {
 }
 
 fn secret_key_for(provider: &str) -> &'static str {
-    if provider == "ics" { KEYCHAIN_ICS_URL_KEY } else { KEYCHAIN_REFRESH_KEY }
+    if provider == "ics" {
+        KEYCHAIN_ICS_URL_KEY
+    } else {
+        KEYCHAIN_REFRESH_KEY
+    }
 }
 
 fn ms_client_id() -> String {
@@ -80,12 +84,15 @@ pub async fn calendar_set_workspace(
 /// `onedrive_connect` (onedrive/commands.rs:147-203) including the
 /// cancel-rollback semantics.
 #[tauri::command]
-pub async fn calendar_connect_outlook(state: State<'_, CalendarState>) -> Result<(), String> {
+pub async fn calendar_connect_outlook(
+    state: State<'_, CalendarState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<(), String> {
+    use super::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
     use crate::commands::mail::gmail::oauth::{
         await_redirect_code_or_cancel, bind_loopback_host, gen_pkce, gen_state, open_browser,
         store_or_rollback_on_cancel,
     };
-    use super::oauth::{build_ms_auth_url, ms_exchange_code, MS_TOKEN_ENDPOINT};
 
     state.oauth_cancel.store(false, Ordering::SeqCst);
     let cancel = state.oauth_cancel.clone();
@@ -98,6 +105,12 @@ pub async fn calendar_connect_outlook(state: State<'_, CalendarState>) -> Result
         .await
         .map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&ms_client_id(), &redirect_uri, &challenge, &state_token);
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::OUTLOOK_CALENDAR_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     open_browser(&url);
     let code = await_redirect_code_or_cancel(
         listener,
@@ -107,19 +120,40 @@ pub async fn calendar_connect_outlook(state: State<'_, CalendarState>) -> Result
     )
     .await
     .map_err(|e| e.to_string())?;
-    let tokens = ms_exchange_code(&ms_client_id(), &code, &verifier, &redirect_uri, MS_TOKEN_ENDPOINT)
-        .await
-        .map_err(|e| e.to_string())?;
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::OUTLOOK_CALENDAR_OAUTH,
+        MS_TOKEN_ENDPOINT,
+    )
+    .map_err(|e| e.to_string())?;
+    let tokens = ms_exchange_code(
+        &policy,
+        &ms_client_id(),
+        &code,
+        &verifier,
+        &redirect_uri,
+        MS_TOKEN_ENDPOINT,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     let entry = keyring::Entry::new(&provider_service("outlook")?, KEYCHAIN_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
     let previous = entry.get_password().ok();
     store_or_rollback_on_cancel(
         &cancel,
-        || entry.set_password(&tokens.refresh).map_err(|e| e.to_string()),
+        || {
+            entry
+                .set_password(&tokens.refresh)
+                .map_err(|e| e.to_string())
+        },
         || match &previous {
-            Some(prev) => { let _ = entry.set_password(prev); }
-            None => { let _ = entry.delete_credential(); }
+            Some(prev) => {
+                let _ = entry.set_password(prev);
+            }
+            None => {
+                let _ = entry.delete_credential();
+            }
         },
     )
 }
@@ -139,13 +173,16 @@ pub async fn calendar_connect_outlook_cancel(
 /// tab actually aborts the wait instead of leaving the card stuck until the
 /// 300s timeout (wave-1c review finding, P2).
 #[tauri::command]
-pub async fn calendar_connect_google(state: State<'_, CalendarState>) -> Result<(), String> {
+pub async fn calendar_connect_google(
+    state: State<'_, CalendarState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<(), String> {
+    use super::oauth::build_google_auth_url;
     use crate::commands::mail::gmail::oauth::{
         await_redirect_code_or_cancel, bind_loopback, gen_pkce, gen_state, open_browser,
         store_or_rollback_on_cancel, GoogleOAuth,
     };
     use crate::commands::mail::{gmail_client_id, gmail_client_secret};
-    use super::oauth::build_google_auth_url;
 
     state.oauth_cancel.store(false, Ordering::SeqCst);
     let cancel = state.oauth_cancel.clone();
@@ -154,6 +191,12 @@ pub async fn calendar_connect_google(state: State<'_, CalendarState>) -> Result<
     let state_token = gen_state();
     let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
     let url = build_google_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state_token);
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::GOOGLE_CALENDAR_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     open_browser(&url);
     let code = await_redirect_code_or_cancel(
         listener,
@@ -163,7 +206,10 @@ pub async fn calendar_connect_google(state: State<'_, CalendarState>) -> Result<
     )
     .await
     .map_err(|e| e.to_string())?;
-    let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
+    let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret()).with_network_policy(
+        policy.inner().clone(),
+        crate::network_policy::GOOGLE_CALENDAR_OAUTH,
+    );
     let tokens = oauth
         .exchange_code(&code, &verifier, &redirect_uri)
         .await
@@ -189,9 +235,7 @@ pub async fn calendar_connect_google(state: State<'_, CalendarState>) -> Result<
 }
 
 #[tauri::command]
-pub async fn calendar_connect_google_cancel(
-    state: State<'_, CalendarState>,
-) -> Result<(), String> {
+pub async fn calendar_connect_google_cancel(state: State<'_, CalendarState>) -> Result<(), String> {
     state.oauth_cancel.store(true, Ordering::SeqCst);
     Ok(())
 }
@@ -211,22 +255,41 @@ pub async fn calendar_connect_google_cancel(
 /// — see `connector::assert_same_origin`) and reading `host_str()` reflects
 /// what the HTTP client will really connect to.
 fn is_localhost_http(url: &str) -> bool {
-    let Ok(parsed) = reqwest::Url::parse(url) else { return false };
+    let Ok(parsed) = reqwest::Url::parse(url) else {
+        return false;
+    };
     if parsed.scheme() != "http" {
         return false;
     }
-    matches!(parsed.host_str(), Some("localhost") | Some("127.0.0.1") | Some("::1"))
+    matches!(
+        parsed.host_str(),
+        Some("localhost") | Some("127.0.0.1") | Some("::1")
+    )
 }
 
 /// ICS fallback: validate the URL shape, fetch it once to prove it parses,
 /// then store the URL in the keychain (secret ICS URLs embed a token).
 #[tauri::command]
-pub async fn calendar_connect_ics(url: String) -> Result<(), String> {
+pub async fn calendar_connect_ics(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+    url: String,
+) -> Result<(), String> {
     let trimmed = url.trim().to_string();
     if !trimmed.starts_with("https://") && !is_localhost_http(&trimmed) {
         return Err("Enter the calendar's ICS address (starts with https://).".into());
     }
-    let body = super::ics_source::fetch_ics_text(&trimmed)
+    let host = reqwest::Url::parse(&trimmed)
+        .ok()
+        .and_then(|url| url.host_str().map(str::to_string))
+        .ok_or("Invalid ICS URL")?;
+    crate::commands::connector_network::authorize_configured_host(
+        &policy,
+        &crate::network_policy::ICS_CALENDAR_SYNC,
+        &trimmed,
+        &host,
+    )
+    .map_err(|e| e.to_string())?;
+    let body = super::ics_source::fetch_ics_text(&policy, &trimmed, &trimmed)
         .await
         .map_err(|e| format!("Could not read that calendar address: {e}"))?;
     if !body.contains("BEGIN:VCALENDAR") {
@@ -336,8 +399,10 @@ pub async fn calendar_disconnect_inner(
             )
         })?;
         let prefix = format!("calendar:{provider}:");
-        let matching: Vec<&String> =
-            source_ids.iter().filter(|s| s.starts_with(&prefix)).collect();
+        let matching: Vec<&String> = source_ids
+            .iter()
+            .filter(|s| s.starts_with(&prefix))
+            .collect();
         if !matching.is_empty() {
             let key = crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| {
                 format!(
@@ -346,21 +411,19 @@ pub async fn calendar_disconnect_inner(
                 )
             })?;
             for sid in &matching {
-                crate::commands::connector::delete_external_source_with_key_internal(
-                    ws, sid, &key,
-                )
-                .await
-                .map_err(|e| {
-                    format!(
-                        "Could not remove this connection's content from the search index: \
+                crate::commands::connector::delete_external_source_with_key_internal(ws, sid, &key)
+                    .await
+                    .map_err(|e| {
+                        format!(
+                            "Could not remove this connection's content from the search index: \
                          {e}. Nothing else was changed; try disconnecting again."
-                    )
-                })?;
+                        )
+                    })?;
             }
         }
-        store.delete_provider_rows(provider).map_err(|e| {
-            format!("Could not remove this connection's stored events: {e}")
-        })?;
+        store
+            .delete_provider_rows(provider)
+            .map_err(|e| format!("Could not remove this connection's stored events: {e}"))?;
     }
     // 2. Forget the credential (only reached once step 1's required purge
     //    has succeeded). A real keychain error (locked, permission denied,
@@ -371,7 +434,8 @@ pub async fn calendar_disconnect_inner(
     //    provider's own credential never actually left the OS keychain.
     //    `NoEntry` alone is fine (already gone; e.g. a second disconnect
     //    call after the first partially succeeded).
-    let entry = keyring::Entry::new(service, secret_key_for(provider)).map_err(|e| e.to_string())?;
+    let entry =
+        keyring::Entry::new(service, secret_key_for(provider)).map_err(|e| e.to_string())?;
     match entry.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => {}
         Err(e) => return Err(format!("Could not remove the saved sign-in: {e}")),
@@ -412,16 +476,22 @@ pub async fn calendar_disconnect_inner(
 
 /// Fresh MS access token from the stored refresh token (rotation-aware;
 /// the onedrive/commands.rs shape).
-pub(crate) async fn fresh_ms_access_token() -> Result<String, String> {
+pub(crate) async fn fresh_ms_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     let entry = keyring::Entry::new(
         &crate::identity::calendar_keychain_service("ms"),
         KEYCHAIN_REFRESH_KEY,
     )
     .map_err(|e| e.to_string())?;
-    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
-    let auth = super::oauth::OAuth::new(ms_client_id());
+    let rt = entry
+        .get_password()
+        .map_err(|_| "not connected".to_string())?;
+    let auth = super::oauth::OAuth::new(ms_client_id(), policy.clone());
     match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
-        super::oauth::TokenOutcome::Tokens { access, refresh, .. } => {
+        super::oauth::TokenOutcome::Tokens {
+            access, refresh, ..
+        } => {
             if let Some(new_rt) = refresh {
                 if let Err(e) = entry.set_password(&new_rt) {
                     log::warn!("calendar MS refresh-token rotation not saved: {e}");
@@ -438,18 +508,23 @@ pub(crate) async fn fresh_ms_access_token() -> Result<String, String> {
 }
 
 /// Fresh Google access token (the mail gmail refresh shape).
-pub(crate) async fn fresh_google_access_token() -> Result<String, String> {
+pub(crate) async fn fresh_google_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     use crate::commands::mail::{gmail_client_id, gmail_client_secret};
     let entry = keyring::Entry::new(
         &crate::identity::calendar_keychain_service("google"),
         KEYCHAIN_REFRESH_KEY,
     )
     .map_err(|e| e.to_string())?;
-    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
+    let rt = entry
+        .get_password()
+        .map_err(|_| "not connected".to_string())?;
     let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(
         gmail_client_id(),
         gmail_client_secret(),
-    );
+    )
+    .with_network_policy(policy.clone(), crate::network_policy::GOOGLE_CALENDAR_OAUTH);
     match oauth.refresh(&rt).await {
         Ok(tokens) => Ok(tokens.access),
         Err(e) => {
@@ -544,8 +619,53 @@ fn emit_progress(app: &AppHandle, status: &str, events_indexed: u32, error: Opti
     use tauri::Emitter;
     let _ = app.emit(
         CALENDAR_SYNC_PROGRESS_EVENT,
-        CalendarProgressPayload { status: status.into(), events_indexed, error },
+        CalendarProgressPayload {
+            status: status.into(),
+            events_indexed,
+            error,
+        },
     );
+}
+
+async fn authorize_calendar_sync(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<(), String> {
+    use crate::commands::connector_network::{authorize_configured_host, authorize_url};
+    use crate::network_policy::*;
+    if calendar_is_connected("outlook".into()).await? {
+        authorize_url(
+            policy,
+            &OUTLOOK_CALENDAR_OAUTH,
+            "https://login.microsoftonline.com",
+        )
+        .map_err(|e| e.to_string())?;
+        authorize_url(
+            policy,
+            &OUTLOOK_CALENDAR_SYNC,
+            "https://graph.microsoft.com",
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    if calendar_is_connected("google".into()).await? {
+        authorize_url(
+            policy,
+            &GOOGLE_CALENDAR_OAUTH,
+            "https://oauth2.googleapis.com",
+        )
+        .map_err(|e| e.to_string())?;
+        authorize_url(policy, &GOOGLE_CALENDAR_SYNC, "https://www.googleapis.com")
+            .map_err(|e| e.to_string())?;
+    }
+    if calendar_is_connected("ics".into()).await? {
+        let url = ics_url()?;
+        let host = reqwest::Url::parse(&url)
+            .ok()
+            .and_then(|url| url.host_str().map(str::to_string))
+            .ok_or("Invalid stored ICS URL")?;
+        authorize_configured_host(policy, &ICS_CALENDAR_SYNC, &url, &host)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 /// Sync every CONNECTED provider over the rolling window (past 7 days,
@@ -554,8 +674,10 @@ fn emit_progress(app: &AppHandle, status: &str, events_indexed: u32, error: Opti
 pub async fn calendar_sync_all(
     app: AppHandle,
     state: State<'_, CalendarState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     matter_map: Vec<CalendarMatterMapEntry>,
 ) -> Result<CalendarSyncReportDto, String> {
+    authorize_calendar_sync(&policy).await?;
     if state
         .is_syncing
         .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -566,7 +688,14 @@ pub async fn calendar_sync_all(
     state.cancel.store(false, Ordering::SeqCst);
     state.progress_events.store(0, Ordering::SeqCst);
 
-    let result = calendar_sync_all_inner(&app, &state, &matter_map).await;
+    let mut cancellation = policy.register_cancellation();
+    let result = tokio::select! {
+        result = calendar_sync_all_inner(&app, &state, &matter_map, policy.inner().clone()) => result,
+        _ = cancellation.cancelled() => {
+            state.cancel.store(true, Ordering::SeqCst);
+            Err("Offline Mode cancelled the calendar sync.".to_string())
+        }
+    };
     state.is_syncing.store(false, Ordering::SeqCst);
     match &result {
         Ok(report) if report.cancelled => {
@@ -582,10 +711,11 @@ async fn calendar_sync_all_inner(
     app: &AppHandle,
     state: &State<'_, CalendarState>,
     matter_map: &[CalendarMatterMapEntry],
+    policy: crate::network_policy::NetworkPolicy,
 ) -> Result<CalendarSyncReportDto, String> {
     use super::engine::sync_source;
-    use super::graph_source::{CalendarSource, GraphCalendarSource};
     use super::google_source::GoogleCalendarSource;
+    use super::graph_source::{CalendarSource, GraphCalendarSource};
     use super::ics_source::IcsCalendarSource;
 
     let workspace = state
@@ -596,8 +726,8 @@ async fn calendar_sync_all_inner(
         .ok_or("No workspace set. Open a workspace first.")?;
     let map = build_matter_map(matter_map);
     let store = CalendarStore::open(&workspace).map_err(|e| e.to_string())?;
-    let rag_key = crate::commands::rag::crypto::get_or_create_master_key()
-        .map_err(|e| e.to_string())?;
+    let rag_key =
+        crate::commands::rag::crypto::get_or_create_master_key().map_err(|e| e.to_string())?;
     let (from_utc, to_utc) = super::model::sync_window_utc(chrono::Utc::now());
 
     // codex-review P2 (wave-1b review round 2): a real keychain error
@@ -608,13 +738,13 @@ async fn calendar_sync_all_inner(
     // calendar is connected" instead of the actual keychain problem.
     let mut sources: Vec<Box<dyn CalendarSource>> = Vec::new();
     if calendar_is_connected("outlook".into()).await? {
-        sources.push(Box::new(GraphCalendarSource::new()));
+        sources.push(Box::new(GraphCalendarSource::new(policy.clone())));
     }
     if calendar_is_connected("google".into()).await? {
-        sources.push(Box::new(GoogleCalendarSource::new()));
+        sources.push(Box::new(GoogleCalendarSource::new(policy.clone())));
     }
     if calendar_is_connected("ics".into()).await? {
-        sources.push(Box::new(IcsCalendarSource::new()));
+        sources.push(Box::new(IcsCalendarSource::new(policy)));
     }
     if sources.is_empty() {
         return Err("No calendar is connected.".into());
@@ -628,7 +758,12 @@ async fn calendar_sync_all_inner(
             report.cancelled = true;
             break;
         }
-        emit_progress(&app_for_progress, "syncing", progress_counter.load(Ordering::SeqCst), None);
+        emit_progress(
+            &app_for_progress,
+            "syncing",
+            progress_counter.load(Ordering::SeqCst),
+            None,
+        );
         let base = report.events_indexed;
         let this_provider_counter = progress_counter.clone();
         let counts = sync_source(
@@ -707,7 +842,10 @@ pub async fn calendar_list_events(
             attendees: e
                 .attendees
                 .into_iter()
-                .map(|a| CalendarAttendeeDto { email: a.email, name: a.name })
+                .map(|a| CalendarAttendeeDto {
+                    email: a.email,
+                    name: a.name,
+                })
                 .collect(),
             organizer_email: e.organizer_email,
             is_cancelled: e.is_cancelled,
@@ -725,11 +863,31 @@ mod tests {
     fn ics_url_scheme_only_accepts_https_or_loopback_http() {
         // (url, expected accepted, why)
         let table = [
-            ("https://calendar.example.com/feed.ics?token=secret", true, "https always ok"),
-            ("http://calendar.example.com/feed.ics?token=secret", false, "plaintext http leaks the token param"),
-            ("http://localhost:8080/feed.ics", true, "loopback dev exception"),
-            ("http://127.0.0.1:8080/feed.ics", true, "loopback dev exception (IPv4 literal)"),
-            ("ftp://calendar.example.com/feed.ics", false, "non-http(s) scheme rejected"),
+            (
+                "https://calendar.example.com/feed.ics?token=secret",
+                true,
+                "https always ok",
+            ),
+            (
+                "http://calendar.example.com/feed.ics?token=secret",
+                false,
+                "plaintext http leaks the token param",
+            ),
+            (
+                "http://localhost:8080/feed.ics",
+                true,
+                "loopback dev exception",
+            ),
+            (
+                "http://127.0.0.1:8080/feed.ics",
+                true,
+                "loopback dev exception (IPv4 literal)",
+            ),
+            (
+                "ftp://calendar.example.com/feed.ics",
+                false,
+                "non-http(s) scheme rejected",
+            ),
             ("not a url", false, "garbage rejected"),
         ];
         for (url, expected, why) in table {
@@ -767,14 +925,34 @@ mod tests {
     #[test]
     fn build_matter_map_normalizes_skips_blanks_first_writer_wins() {
         let entries = vec![
-            CalendarMatterMapEntry { key: "  Kim@Henderson.COM ".into(), matter_id: "m-1".into() },
-            CalendarMatterMapEntry { key: "R  Ortiz".into(), matter_id: "m-2".into() },
-            CalendarMatterMapEntry { key: "".into(), matter_id: "m-3".into() },
-            CalendarMatterMapEntry { key: "kim@henderson.com".into(), matter_id: "m-9".into() },
+            CalendarMatterMapEntry {
+                key: "  Kim@Henderson.COM ".into(),
+                matter_id: "m-1".into(),
+            },
+            CalendarMatterMapEntry {
+                key: "R  Ortiz".into(),
+                matter_id: "m-2".into(),
+            },
+            CalendarMatterMapEntry {
+                key: "".into(),
+                matter_id: "m-3".into(),
+            },
+            CalendarMatterMapEntry {
+                key: "kim@henderson.com".into(),
+                matter_id: "m-9".into(),
+            },
         ];
         let map = build_matter_map(&entries);
-        assert_eq!(map.get("kim@henderson.com"), Some(&"m-1".to_string()), "first wins");
-        assert_eq!(map.get("r ortiz"), Some(&"m-2".to_string()), "whitespace collapsed");
+        assert_eq!(
+            map.get("kim@henderson.com"),
+            Some(&"m-1".to_string()),
+            "first wins"
+        );
+        assert_eq!(
+            map.get("r ortiz"),
+            Some(&"m-2".to_string()),
+            "whitespace collapsed"
+        );
         assert_eq!(map.len(), 2, "blank keys skipped");
     }
 }

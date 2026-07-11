@@ -64,6 +64,12 @@ pub enum DestinationRule {
     /// not accepted because it is a hostname, not a verified local address.
     LiteralLoopbackOnly,
     ExactHosts(&'static [&'static str]),
+    /// The host was supplied by the person configuring this connector.  It is
+    /// never a blanket exception: callers must parse the destination with the
+    /// exact host stored for that connector, and `Destination` rejects a
+    /// mismatch before authorization.  This is needed for IMAP/SMTP and ICS,
+    /// whose legitimate server is not knowable at compile time.
+    UserConfiguredHost,
 }
 
 /// A checked registry record.  Future network sinks must use one of these
@@ -113,10 +119,176 @@ pub const LICENSE_VALIDATION: EgressOperation = EgressOperation {
     receipt_label: "license validation",
 };
 
+pub const OUTLOOK_MAIL_OAUTH: EgressOperation = EgressOperation {
+    id: "outlook-mail-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["login.microsoftonline.com"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Outlook mail sign-in",
+};
+pub const OUTLOOK_MAIL_SYNC: EgressOperation = EgressOperation {
+    id: "outlook-mail-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["graph.microsoft.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Outlook mail sync",
+};
+pub const GMAIL_OAUTH: EgressOperation = EgressOperation {
+    id: "gmail-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&[
+        "accounts.google.com",
+        "oauth2.googleapis.com",
+    ]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Gmail sign-in",
+};
+pub const GMAIL_SYNC: EgressOperation = EgressOperation {
+    id: "gmail-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["gmail.googleapis.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Gmail sync",
+};
+pub const IMAP_SYNC: EgressOperation = EgressOperation {
+    id: "imap-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "IMAP mail sync",
+};
+pub const SMTP_SEND: EgressOperation = EgressOperation {
+    id: "smtp-send",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "send mail",
+};
+pub const ONEDRIVE_OAUTH: EgressOperation = EgressOperation {
+    id: "onedrive-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["login.microsoftonline.com"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "OneDrive sign-in",
+};
+pub const ONEDRIVE_SYNC: EgressOperation = EgressOperation {
+    id: "onedrive-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["graph.microsoft.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "OneDrive sync",
+};
+pub const OUTLOOK_CALENDAR_OAUTH: EgressOperation = EgressOperation {
+    id: "outlook-calendar-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["login.microsoftonline.com"]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Outlook Calendar sign-in",
+};
+pub const OUTLOOK_CALENDAR_SYNC: EgressOperation = EgressOperation {
+    id: "outlook-calendar-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["graph.microsoft.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Outlook Calendar sync",
+};
+pub const GOOGLE_CALENDAR_OAUTH: EgressOperation = EgressOperation {
+    id: "google-calendar-oauth",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&[
+        "accounts.google.com",
+        "oauth2.googleapis.com",
+    ]),
+    data_classes: EgressDataClasses {
+        content: false,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Google Calendar sign-in",
+};
+pub const GOOGLE_CALENDAR_SYNC: EgressOperation = EgressOperation {
+    id: "google-calendar-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::ExactHosts(&["www.googleapis.com"]),
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "Google Calendar sync",
+};
+pub const ICS_CALENDAR_SYNC: EgressOperation = EgressOperation {
+    id: "ics-calendar-sync",
+    category: EgressCategory::Connector,
+    destination_rule: DestinationRule::UserConfiguredHost,
+    data_classes: EgressDataClasses {
+        content: true,
+        metadata: true,
+        credential: true,
+    },
+    receipt_label: "ICS calendar sync",
+};
+
 /// A small seed registry for Lane 0.  Later lanes extend this list as they
 /// migrate real sinks; authorization never trusts an unregistered operation.
-pub const EGRESS_OPERATION_REGISTRY: &[EgressOperation] =
-    &[LOCAL_LLAMA, OLLAMA, LICENSE_VALIDATION];
+pub const EGRESS_OPERATION_REGISTRY: &[EgressOperation] = &[
+    LOCAL_LLAMA,
+    OLLAMA,
+    LICENSE_VALIDATION,
+    OUTLOOK_MAIL_OAUTH,
+    OUTLOOK_MAIL_SYNC,
+    GMAIL_OAUTH,
+    GMAIL_SYNC,
+    IMAP_SYNC,
+    SMTP_SEND,
+    ONEDRIVE_OAUTH,
+    ONEDRIVE_SYNC,
+    OUTLOOK_CALENDAR_OAUTH,
+    OUTLOOK_CALENDAR_SYNC,
+    GOOGLE_CALENDAR_OAUTH,
+    GOOGLE_CALENDAR_SYNC,
+    ICS_CALENDAR_SYNC,
+];
 
 pub fn registered_operation(id: &str) -> Option<&'static EgressOperation> {
     EGRESS_OPERATION_REGISTRY
@@ -130,6 +302,7 @@ pub fn registered_operation(id: &str) -> Option<&'static EgressOperation> {
 pub struct Destination {
     url: Url,
     host: String,
+    configured_host: Option<String>,
 }
 
 impl Destination {
@@ -138,7 +311,32 @@ impl Destination {
             .host_str()
             .ok_or_else(|| NetworkPolicyError::InvalidDestination("URL has no host".to_string()))?
             .to_ascii_lowercase();
-        Ok(Self { url, host })
+        Ok(Self {
+            url,
+            host,
+            configured_host: None,
+        })
+    }
+
+    /// Parse a user-configured remote destination.  `configured_host` must be
+    /// read from the already-stored connector configuration, not accepted from
+    /// a command argument, so one connector cannot borrow another connector's
+    /// authority.
+    pub fn parse_for_configured_host(
+        url: Url,
+        configured_host: &str,
+    ) -> Result<Self, NetworkPolicyError> {
+        let mut destination = Self::parse(url)?;
+        let configured_host = configured_host
+            .trim()
+            .trim_matches('[')
+            .trim_matches(']')
+            .to_ascii_lowercase();
+        if configured_host.is_empty() || destination.host != configured_host {
+            return Err(NetworkPolicyError::DestinationNotAllowed(destination.host));
+        }
+        destination.configured_host = Some(configured_host);
+        Ok(destination)
     }
 
     pub fn url(&self) -> &Url {
@@ -373,8 +571,16 @@ impl NetworkPolicy {
     }
 
     pub fn register_cancellation(&self) -> PolicyCancellation {
+        self.register_cancellation_for(self.inner.generation.load(Ordering::Acquire))
+    }
+
+    /// Register cancellation against a capability generation that was already
+    /// authorized.  This is deliberately not equivalent to registering "now":
+    /// a policy flip between authorization and registration must be visible
+    /// immediately rather than becoming the receiver's new baseline.
+    pub fn register_cancellation_for(&self, generation: u64) -> PolicyCancellation {
         PolicyCancellation {
-            generation: self.inner.generation.load(Ordering::Acquire),
+            generation,
             changes: self.inner.changes.subscribe(),
         }
     }
@@ -414,6 +620,7 @@ impl NetworkPolicy {
             DestinationRule::ExactHosts(hosts) => hosts
                 .iter()
                 .any(|allowed_host| destination.host() == *allowed_host),
+            DestinationRule::UserConfiguredHost => destination.configured_host.is_some(),
         }
     }
 
@@ -658,5 +865,22 @@ mod tests {
             error.to_string(),
             "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use license validation."
         );
+    }
+
+    #[test]
+    fn user_configured_host_rule_requires_the_stored_connector_host() {
+        let directory = tempfile::tempdir().unwrap();
+        let policy = NetworkPolicy::load_from_directory(directory.path());
+        let configured = Destination::parse_for_configured_host(
+            Url::parse("imaps://mail.example.test:993").unwrap(),
+            "mail.example.test",
+        )
+        .unwrap();
+        assert!(policy.authorize(&IMAP_SYNC, &configured).is_ok());
+        assert!(Destination::parse_for_configured_host(
+            Url::parse("imaps://other.example.test:993").unwrap(),
+            "mail.example.test",
+        )
+        .is_err());
     }
 }

@@ -50,7 +50,10 @@ pub(crate) async fn await_redirect_code_or_cancel(
 /// NOTE for Azure portal: the app registration must have
 /// `http://localhost` listed as a Mobile and desktop redirect URI.
 #[tauri::command]
-pub async fn outlook_connect(state: State<'_, MailState>) -> Result<(), String> {
+pub async fn outlook_connect(
+    state: State<'_, MailState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<(), String> {
     use crate::commands::mail::gmail::oauth::{
         bind_loopback_host, gen_pkce, gen_state, open_browser, store_or_rollback_on_cancel,
     };
@@ -68,22 +71,48 @@ pub async fn outlook_connect(state: State<'_, MailState>) -> Result<(), String> 
     // listener is on whatever address the browser resolves "localhost" to — on
     // Windows that's ::1 (IPv6), and binding 127.0.0.1 there gave the user
     // "localhost refused to connect" and a timeout (BUG-010).
-    let (listener, redirect_uri) = bind_loopback_host("localhost").await.map_err(|e| e.to_string())?;
+    let (listener, redirect_uri) = bind_loopback_host("localhost")
+        .await
+        .map_err(|e| e.to_string())?;
     let url = build_ms_auth_url(&client_id(), &redirect_uri, &challenge, &state_token);
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::OUTLOOK_MAIL_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     open_browser(&url);
-    let code = await_redirect_code_or_cancel(listener, &state_token, std::time::Duration::from_secs(300), cancel.clone())
-        .await
-        .map_err(|e| e.to_string())?;
-    let tokens = ms_exchange_code(&client_id(), &code, &verifier, &redirect_uri, MS_TOKEN_ENDPOINT)
-        .await
-        .map_err(|e| e.to_string())?;
+    let code = await_redirect_code_or_cancel(
+        listener,
+        &state_token,
+        std::time::Duration::from_secs(300),
+        cancel.clone(),
+    )
+    .await
+    .map_err(|e| e.to_string())?;
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::OUTLOOK_MAIL_OAUTH,
+        MS_TOKEN_ENDPOINT,
+    )
+    .map_err(|e| e.to_string())?;
+    let tokens = ms_exchange_code(
+        &policy,
+        &client_id(),
+        &code,
+        &verifier,
+        &redirect_uri,
+        MS_TOKEN_ENDPOINT,
+    )
+    .await
+    .map_err(|e| e.to_string())?;
 
     // Cancel can arrive while the token exchange (a network round trip) was in
     // flight — check again before persisting so a canceled flow never leaves a
     // stored credential behind, even though the redirect wait itself already
     // resolved successfully. Mirrors onedrive_connect / gmail_connect.
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
     // Snapshot whatever was there before (if this is a reconnect over an
     // existing connection) so a cancel-after-store rolls back to THAT, rather
     // than always deleting — a canceled reconnect must not disconnect an
@@ -91,7 +120,11 @@ pub async fn outlook_connect(state: State<'_, MailState>) -> Result<(), String> 
     let previous_token = entry.get_password().ok();
     store_or_rollback_on_cancel(
         &cancel,
-        || entry.set_password(&tokens.refresh).map_err(|e| e.to_string()),
+        || {
+            entry
+                .set_password(&tokens.refresh)
+                .map_err(|e| e.to_string())
+        },
         || match &previous_token {
             Some(prev) => {
                 let _ = entry.set_password(prev);
@@ -115,9 +148,17 @@ pub async fn outlook_connect_cancel(state: State<'_, MailState>) -> Result<(), S
 }
 
 #[tauri::command]
-pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
-    let auth = OAuth::new(client_id());
-    let dc = auth.request_device_code().await.map_err(|e| e.to_string())?;
+pub async fn mail_begin_login(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<DeviceCodePrompt, String> {
+    let auth = OAuth::new(client_id()).with_network_policy(
+        policy.inner().clone(),
+        crate::network_policy::OUTLOOK_MAIL_OAUTH,
+    );
+    let dc = auth
+        .request_device_code()
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(DeviceCodePrompt {
         user_code: dc.user_code,
         verification_uri: dc.verification_uri,
@@ -133,10 +174,22 @@ pub async fn mail_begin_login() -> Result<DeviceCodePrompt, String> {
 /// - `"slow_down"` — poll less often; the caller must lengthen the interval
 ///   (RFC 8628 §3.5 requires +5s), otherwise Microsoft escalates throttling.
 #[tauri::command]
-pub async fn mail_poll_login(device_code: String) -> Result<String, String> {
-    let auth = OAuth::new(client_id());
-    match auth.poll_token(&device_code).await.map_err(|e| e.to_string())? {
-        TokenOutcome::Tokens { refresh: Some(rt), .. } => {
+pub async fn mail_poll_login(
+    device_code: String,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<String, String> {
+    let auth = OAuth::new(client_id()).with_network_policy(
+        policy.inner().clone(),
+        crate::network_policy::OUTLOOK_MAIL_OAUTH,
+    );
+    match auth
+        .poll_token(&device_code)
+        .await
+        .map_err(|e| e.to_string())?
+    {
+        TokenOutcome::Tokens {
+            refresh: Some(rt), ..
+        } => {
             let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
                 .map_err(|e| e.to_string())?;
             entry.set_password(&rt).map_err(|e| e.to_string())?;
@@ -151,8 +204,8 @@ pub async fn mail_poll_login(device_code: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn mail_is_connected() -> Result<bool, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
     // Distinguish "no token stored" (truly not connected → Ok(false)) from a real
     // keychain READ failure (→ Err). Collapsing both into `false` would let a sync
     // silently skip a connected-but-unreadable account with no error or audit row.
@@ -170,8 +223,8 @@ pub async fn mail_is_connected() -> Result<bool, String> {
 /// re-authenticated. Imported mail in the local DB is left intact.
 #[tauri::command]
 pub async fn mail_disconnect() -> Result<(), String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?;
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
     // Surface a genuine deletion failure instead of swallowing it — otherwise the
     // UI could claim "disconnected" while the token actually remains. Already-gone
     // (NoEntry) is success (idempotent).
@@ -181,13 +234,20 @@ pub async fn mail_disconnect() -> Result<(), String> {
     }
 }
 
-pub(crate) async fn fresh_access_token() -> Result<String, String> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY)
-        .map_err(|e| e.to_string())?;
-    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
-    let auth = OAuth::new(client_id());
+pub(crate) async fn fresh_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
+    let entry =
+        keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_REFRESH_KEY).map_err(|e| e.to_string())?;
+    let rt = entry
+        .get_password()
+        .map_err(|_| "not connected".to_string())?;
+    let auth = OAuth::new(client_id())
+        .with_network_policy(policy.clone(), crate::network_policy::OUTLOOK_MAIL_OAUTH);
     match auth.refresh(&rt).await.map_err(|e| e.to_string())? {
-        TokenOutcome::Tokens { access, refresh, .. } => {
+        TokenOutcome::Tokens {
+            access, refresh, ..
+        } => {
             if let Some(new_rt) = refresh {
                 // Refresh-token rotation. If persisting the new token fails, do NOT
                 // swallow it: log it and raise the process flag so the sync's
@@ -209,10 +269,13 @@ pub(crate) async fn fresh_access_token() -> Result<String, String> {
     }
 }
 
-pub(crate) fn graph_token_refresh() -> GraphTokenRefresh {
-    Arc::new(|| -> GraphTokenRefreshFuture {
-        Box::pin(async {
-            fresh_access_token()
+pub(crate) fn graph_token_refresh(
+    policy: crate::network_policy::NetworkPolicy,
+) -> GraphTokenRefresh {
+    Arc::new(move || -> GraphTokenRefreshFuture {
+        let policy = policy.clone();
+        Box::pin(async move {
+            fresh_access_token(&policy)
                 .await
                 .map_err(|e| anyhow::anyhow!("{e}"))
         })
@@ -229,11 +292,20 @@ pub async fn mail_cancel_sync(state: State<'_, MailState>) -> Result<(), String>
 /// account id = the username (email). Never logs the password.
 #[tauri::command]
 pub async fn mail_imap_connect(
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     host: String,
     port: u16,
     username: String,
     password: String,
 ) -> Result<(), String> {
+    let destination = format!("imaps://{host}:{port}");
+    crate::commands::connector_network::authorize_configured_host(
+        &policy,
+        &crate::network_policy::IMAP_SYNC,
+        &destination,
+        &host,
+    )
+    .map_err(|e| e.to_string())?;
     use crate::commands::mail::imap::ImapProvider;
     let provider = ImapProvider {
         host: host.clone(),
@@ -241,14 +313,25 @@ pub async fn mail_imap_connect(
         username: username.clone(),
         password: password.clone(),
         account: username.clone(),
+        policy: policy.inner().clone(),
     };
     // Validate the connection (also rejects bad host/credentials up front).
-    provider.list_folders().await.map_err(|e| format!("Could not connect: {e}"))?;
-    let cfg = ImapConfig { account: username.clone(), host, port, username };
+    provider
+        .list_folders()
+        .await
+        .map_err(|e| format!("Could not connect: {e}"))?;
+    let cfg = ImapConfig {
+        account: username.clone(),
+        host,
+        port,
+        username,
+    };
     let cfg_json = serde_json::to_string(&cfg).map_err(|e| e.to_string())?;
     let cfg_entry =
         keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_CONFIG_KEY).map_err(|e| e.to_string())?;
-    cfg_entry.set_password(&cfg_json).map_err(|e| e.to_string())?;
+    cfg_entry
+        .set_password(&cfg_json)
+        .map_err(|e| e.to_string())?;
     let pw_entry =
         keyring::Entry::new(IMAP_KEYCHAIN_SERVICE, IMAP_PASSWORD_KEY).map_err(|e| e.to_string())?;
     if let Err(e) = pw_entry.set_password(&password) {
@@ -329,7 +412,10 @@ pub async fn mail_imap_disconnect() -> Result<(), String> {
 /// note instead of letting the user hit Google's raw "Error 400:
 /// invalid_request — Missing required parameter: client_id".
 #[tauri::command]
-pub async fn gmail_connect(state: State<'_, MailState>) -> Result<(), String> {
+pub async fn gmail_connect(
+    state: State<'_, MailState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+) -> Result<(), String> {
     use crate::commands::mail::gmail::oauth::{
         await_redirect_code_or_cancel, bind_loopback, build_auth_url, gen_pkce, gen_state,
         open_browser, store_or_rollback_on_cancel, GoogleOAuth,
@@ -347,6 +433,12 @@ pub async fn gmail_connect(state: State<'_, MailState>) -> Result<(), String> {
     let state_token = gen_state();
     let (listener, redirect_uri) = bind_loopback().await.map_err(|e| e.to_string())?;
     let url = build_auth_url(&gmail_client_id(), &redirect_uri, &challenge, &state_token);
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::GMAIL_OAUTH,
+        &url,
+    )
+    .map_err(|e| e.to_string())?;
     open_browser(&url);
     let code = await_redirect_code_or_cancel(
         listener,
@@ -356,7 +448,14 @@ pub async fn gmail_connect(state: State<'_, MailState>) -> Result<(), String> {
     )
     .await
     .map_err(|e| e.to_string())?;
-    let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
+    crate::commands::connector_network::authorize_url(
+        &policy,
+        &crate::network_policy::GMAIL_OAUTH,
+        "https://accounts.google.com",
+    )
+    .map_err(|e| e.to_string())?;
+    let oauth = GoogleOAuth::new(gmail_client_id(), gmail_client_secret())
+        .with_network_policy(policy.inner().clone(), crate::network_policy::GMAIL_OAUTH);
     let tokens = oauth
         .exchange_code(&code, &verifier, &redirect_uri)
         .await
@@ -426,7 +525,9 @@ pub async fn gmail_is_connected() -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn gmail_disconnect() -> Result<(), String> {
-    if let Ok(e) = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY) { let _ = e.delete_credential(); }
+    if let Ok(e) = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY) {
+        let _ = e.delete_credential();
+    }
     Ok(())
 }
 
@@ -434,11 +535,19 @@ pub async fn gmail_disconnect() -> Result<(), String> {
 /// access token. Returns `Err("not connected")` if no refresh token is stored.
 /// Returns `Err("scope_upgrade_required")` when the stored token predates
 /// the gmail.send scope — the frontend should prompt re-auth.
-pub(crate) async fn fresh_gmail_access_token() -> Result<String, String> {
+pub(crate) async fn fresh_gmail_access_token(
+    policy: &crate::network_policy::NetworkPolicy,
+) -> Result<String, String> {
     let entry = keyring::Entry::new(GMAIL_KEYCHAIN_SERVICE, GMAIL_REFRESH_KEY)
         .map_err(|e| e.to_string())?;
-    let rt = entry.get_password().map_err(|_| "not connected".to_string())?;
-    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(gmail_client_id(), gmail_client_secret());
+    let rt = entry
+        .get_password()
+        .map_err(|_| "not connected".to_string())?;
+    let oauth = crate::commands::mail::gmail::oauth::GoogleOAuth::new(
+        gmail_client_id(),
+        gmail_client_secret(),
+    )
+    .with_network_policy(policy.clone(), crate::network_policy::GMAIL_OAUTH);
     match oauth.refresh(&rt).await {
         Ok(tokens) => Ok(tokens.access),
         Err(e) => {

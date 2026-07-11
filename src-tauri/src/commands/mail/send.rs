@@ -36,6 +36,7 @@ use tauri::State;
 #[tauri::command]
 pub async fn mail_send(
     state: State<'_, MailState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     provider: String,
     account: String,
     to: Vec<String>,
@@ -54,12 +55,57 @@ pub async fn mail_send(
         attachments.as_ref().map(|a| a.len()).unwrap_or(0),
     );
 
-    match provider.as_str() {
-        "m365" => send_m365(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
-        "gmail" => send_gmail(state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
-        "imap" => send_imap(state, account, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+    authorize_mail_delivery(&policy, &provider)?;
+    let mut cancellation = policy.register_cancellation();
+    tokio::select! {
+        result = async {
+            match provider.as_str() {
+        "m365" => send_m365(policy.inner().clone(), state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+        "gmail" => send_gmail(policy.inner().clone(), state, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
+        "imap" => send_imap(policy.inner().clone(), state, account, to, cc, bcc, subject, body, in_reply_to_id, attachments.unwrap_or_default()).await,
         other => Err(format!("unknown provider: {other}")),
+            }
+        } => result,
+        _ = cancellation.cancelled() => Err("Offline Mode cancelled sending mail.".to_string()),
     }
+}
+
+fn authorize_mail_delivery(
+    policy: &crate::network_policy::NetworkPolicy,
+    provider: &str,
+) -> Result<(), String> {
+    use crate::commands::connector_network::{authorize_configured_host, authorize_url};
+    use crate::network_policy::*;
+    match provider {
+        "m365" => {
+            authorize_url(
+                policy,
+                &OUTLOOK_MAIL_OAUTH,
+                "https://login.microsoftonline.com",
+            )
+            .map_err(|e| e.to_string())?;
+            authorize_url(policy, &OUTLOOK_MAIL_SYNC, "https://graph.microsoft.com")
+                .map_err(|e| e.to_string())?;
+        }
+        "gmail" => {
+            authorize_url(policy, &GMAIL_OAUTH, "https://oauth2.googleapis.com")
+                .map_err(|e| e.to_string())?;
+            authorize_url(policy, &GMAIL_SYNC, "https://gmail.googleapis.com")
+                .map_err(|e| e.to_string())?;
+        }
+        "imap" => {
+            let (config, _) = load_imap_config().ok_or("IMAP not connected")?;
+            authorize_configured_host(
+                policy,
+                &SMTP_SEND,
+                &format!("smtp://{}:587", config.host),
+                &config.host,
+            )
+            .map_err(|e| e.to_string())?;
+        }
+        _ => {}
+    }
+    Ok(())
 }
 
 /// Resolve the internet_message_id + references from a stored message record.
@@ -135,6 +181,7 @@ fn resolve_threading_headers(
 }
 
 async fn send_m365(
+    policy: crate::network_policy::NetworkPolicy,
     _state: State<'_, MailState>,
     to: Vec<String>,
     cc: Vec<String>,
@@ -144,30 +191,23 @@ async fn send_m365(
     _in_reply_to_id: Option<String>,
     attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
-    let token = fresh_access_token().await?; // returns "scope_upgrade_required" when needed
+    let token = fresh_access_token(&policy).await?; // returns "scope_upgrade_required" when needed
     let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
         token,
-        graph_token_refresh(),
-    );
+        graph_token_refresh(policy.clone()),
+    )
+    .with_network_policy(policy, crate::network_policy::OUTLOOK_MAIL_SYNC);
 
     // conversation_id is not stored in MailRecord; pass None for now.
     // Threading for M365 replies can be added when conversationId is stored.
     client
-        .send_message(
-            &to,
-            &cc,
-            &bcc,
-            &subject,
-            &body,
-            None,
-            true,
-            &attachments,
-        )
+        .send_message(&to, &cc, &bcc, &subject, &body, None, true, &attachments)
         .await
         .map_err(|e| e.to_string())
 }
 
 async fn send_gmail(
+    policy: crate::network_policy::NetworkPolicy,
     state: State<'_, MailState>,
     to: Vec<String>,
     cc: Vec<String>,
@@ -177,7 +217,7 @@ async fn send_gmail(
     in_reply_to_id: Option<String>,
     attachments: Vec<AttachmentInput>,
 ) -> Result<String, String> {
-    let token = fresh_gmail_access_token().await?; // returns "scope_upgrade_required" when needed
+    let token = fresh_gmail_access_token(&policy).await?; // returns "scope_upgrade_required" when needed
 
     // Resolve threading headers from the stored message.
     let (in_reply_to, references) = if let Some(ref orig_id) = in_reply_to_id {
@@ -189,11 +229,9 @@ async fn send_gmail(
             let ws2 = ws.clone();
             let key2 = key;
             let raw_id2 = raw_id.clone();
-            tokio::task::spawn_blocking(move || {
-                resolve_threading_headers(&ws2, &raw_id2, &key2)
-            })
-            .await
-            .unwrap_or((None, None))
+            tokio::task::spawn_blocking(move || resolve_threading_headers(&ws2, &raw_id2, &key2))
+                .await
+                .unwrap_or((None, None))
         } else {
             (None, None)
         }
@@ -202,7 +240,8 @@ async fn send_gmail(
     };
 
     // Fetch the sender address from the Gmail profile.
-    let gmail_client = crate::commands::mail::gmail::api::GmailClient::new(token.clone());
+    let gmail_client = crate::commands::mail::gmail::api::GmailClient::new(token.clone())
+        .with_network_policy(policy, crate::network_policy::GMAIL_SYNC);
     let from = gmail_client
         .get_sender_address()
         .await
@@ -225,6 +264,7 @@ async fn send_gmail(
 }
 
 async fn send_imap(
+    policy: crate::network_policy::NetworkPolicy,
     state: State<'_, MailState>,
     _account: String,
     to: Vec<String>,
@@ -244,11 +284,9 @@ async fn send_imap(
         if let Some(ws) = workspace {
             let key = crate::commands::mail::crypto::get_or_create_master_key()
                 .map_err(|e| e.to_string())?;
-            tokio::task::spawn_blocking(move || {
-                resolve_threading_headers(&ws, &raw_id, &key)
-            })
-            .await
-            .unwrap_or((None, None))
+            tokio::task::spawn_blocking(move || resolve_threading_headers(&ws, &raw_id, &key))
+                .await
+                .unwrap_or((None, None))
         } else {
             (None, None)
         }
@@ -261,6 +299,7 @@ async fn send_imap(
     let smtp_port: u16 = 587;
 
     crate::commands::mail::imap::send::smtp_send(
+        &policy,
         &host,
         smtp_port,
         &cfg.username,
@@ -325,6 +364,7 @@ fn parse_account_id(account_id: &str) -> Result<(String, String), String> {
 #[tauri::command]
 pub async fn mail_save_draft(
     state: State<'_, MailState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
     account_id: String,
     to: Vec<String>,
     subject: String,
@@ -337,26 +377,35 @@ pub async fn mail_save_draft(
         subject.len()
     );
     let (provider, _account) = parse_account_id(&account_id)?;
+    authorize_mail_delivery(&policy, &provider)?;
+    let mut cancellation = policy.register_cancellation();
+    tokio::select! {
+        result = async {
     match provider.as_str() {
-        "m365" => save_draft_m365(to, subject, body_html, in_reply_to).await,
-        "gmail" => save_draft_gmail(state, to, subject, body_html, in_reply_to).await,
+        "m365" => save_draft_m365(policy.inner().clone(), to, subject, body_html, in_reply_to).await,
+        "gmail" => save_draft_gmail(policy.inner().clone(), state, to, subject, body_html, in_reply_to).await,
         "imap" => Err("saving drafts is not supported for IMAP accounts".to_string()),
         other => Err(format!("unknown provider: {other}")),
+    }
+        } => result,
+        _ = cancellation.cancelled() => Err("Offline Mode cancelled saving the mail draft.".to_string()),
     }
 }
 
 async fn save_draft_m365(
+    policy: crate::network_policy::NetworkPolicy,
     to: Vec<String>,
     subject: String,
     body_html: String,
     in_reply_to: Option<String>,
 ) -> Result<String, String> {
     // Surfaces "scope_upgrade_required" for pre-upgrade tokens.
-    let token = fresh_access_token().await?;
+    let token = fresh_access_token(&policy).await?;
     let client = crate::commands::mail::graph::GraphClient::new_with_refresh(
         token,
-        graph_token_refresh(),
-    );
+        graph_token_refresh(policy.clone()),
+    )
+    .with_network_policy(policy, crate::network_policy::OUTLOOK_MAIL_SYNC);
     match in_reply_to {
         Some(orig) => {
             let raw = orig.strip_prefix("mail:").unwrap_or(&orig).to_string();
@@ -373,13 +422,14 @@ async fn save_draft_m365(
 }
 
 async fn save_draft_gmail(
+    policy: crate::network_policy::NetworkPolicy,
     state: State<'_, MailState>,
     to: Vec<String>,
     subject: String,
     body_html: String,
     in_reply_to: Option<String>,
 ) -> Result<String, String> {
-    let token = fresh_gmail_access_token().await?;
+    let token = fresh_gmail_access_token(&policy).await?;
 
     // Reply threading headers from the stored original (same path send_gmail
     // uses; non-fatal if unresolvable — the draft is saved unthreaded).
@@ -399,7 +449,8 @@ async fn save_draft_gmail(
         (None, None)
     };
 
-    let gmail_client = crate::commands::mail::gmail::api::GmailClient::new(token);
+    let gmail_client = crate::commands::mail::gmail::api::GmailClient::new(token)
+        .with_network_policy(policy, crate::network_policy::GMAIL_SYNC);
     let from = gmail_client
         .get_sender_address()
         .await

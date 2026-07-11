@@ -43,6 +43,15 @@ impl OneDriveClient {
         }
     }
 
+    pub fn with_network_policy(
+        mut self,
+        policy: crate::network_policy::NetworkPolicy,
+        operation: crate::network_policy::EgressOperation,
+    ) -> Self {
+        self.graph = self.graph.with_network_policy(policy, operation);
+        self
+    }
+
     pub fn base(&self) -> &str {
         self.graph.base()
     }
