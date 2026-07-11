@@ -91,6 +91,7 @@ const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   privilege_evaluated: Lock,
   scope_active: Target,
   egress: Send,
+  prompt_preparation: ShieldCheck,
   mcp_blocked: ShieldOff,
   mcp_list: FileText,
   mcp_read: FileText,
@@ -167,6 +168,7 @@ const ACTION_LABELS: Record<AuditActionType, string> = {
   workflow_complete: 'Workflow Completed',
   workflow_fail: 'Workflow Failed',
   model_call: 'Model Call',
+  prompt_preparation: 'Private Link Check',
   context_compressed: 'Context Compressed',
   user_action: 'User Action',
   // Lantern 3.0 provenance events.
@@ -247,6 +249,7 @@ const ACTION_COLORS: Record<AuditActionType, string> = {
   file_move: 'text-blue-600 dark:text-blue-400',
   file_rename: 'text-blue-600 dark:text-blue-400',
   file_export: 'text-sky-600 dark:text-sky-400',
+  prompt_preparation: 'text-amber-600 dark:text-amber-400',
   workflow_start: 'text-purple-600 dark:text-purple-400',
   workflow_complete: 'text-green-600 dark:text-green-400',
   workflow_fail: 'text-red-600 dark:text-red-400',
