@@ -84,7 +84,7 @@ describe('DocuSign signature blueprint validation', () => {
   });
 
   it.each([
-    ['missing tab', (() => { const item = signature() as ReturnType<typeof signature> & { tab_map: Partial<ReturnType<typeof signature>['tab_map']> }; delete item.tab_map.signerNameTab; return item; })()],
+    ['missing tab', (() => { const item = signature() as Omit<ReturnType<typeof signature>, 'tab_map'> & { tab_map: Partial<ReturnType<typeof signature>['tab_map']> }; delete item.tab_map.signerNameTab; return item; })()],
     ['bad coordinate', { ...signature(), tab_map: { ...signature().tab_map, signatureTab: { ...signature().tab_map.signatureTab, rect: { ...signature().tab_map.signatureTab.rect, x: 0 } } } }],
     ['bad page', { ...signature(), tab_map: { ...signature().tab_map, signatureTab: { ...signature().tab_map.signatureTab, page: 1.5 } } }],
   ])('rejects an incomplete tab map: %s', (_name, item) => {

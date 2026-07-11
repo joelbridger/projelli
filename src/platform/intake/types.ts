@@ -1,6 +1,6 @@
 import type { DocumentKind } from './documentDetectiveTypes';
 import type { PdfTemplateDescriptor } from './pdfTemplates/templateContract';
-import type { DocusignTabAnchor, ReviewedDocusignTabMap } from './docusignSignature/tabMap';
+import type { ReviewedDocusignTabMap } from './docusignSignature/tabMap';
 
 export type {
   PdfCompletionReceipt,

@@ -71,7 +71,12 @@ describe('FormBuilderEditor', () => {
       },
       {
         t: 'signature', item_id: 'sign-transfer', label: 'Sign transfer form', help_text: 'Sign after reviewing.', required: true, subject: 'primary',
-        grade: 'docusign', document_ref: 'forms/custodian-transfer.pdf',
+        grade: 'docusign', source_pdf_fill_item_id: 'custodian-form',
+        tab_map: {
+          signatureTab: { page: 1, rect: { x: 0.1, y: 0.1, width: 0.2, height: 0.1 } },
+          dateSignedTab: { page: 1, rect: { x: 0.1, y: 0.25, width: 0.2, height: 0.1 } },
+          signerNameTab: { page: 1, rect: { x: 0.1, y: 0.4, width: 0.2, height: 0.1 } },
+        },
       },
     ];
     const stored = useBlueprintStore.getState().createFirmBlueprint({ blueprintId: 'special-items', label: 'Transfer', items: specialItems });

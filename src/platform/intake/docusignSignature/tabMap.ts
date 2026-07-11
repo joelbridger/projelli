@@ -21,7 +21,17 @@ export class DocusignTabMapValidationError extends Error {
   }
 }
 
-type LooseRecord = Record<string, unknown>;
+type LooseRecord = Record<string, unknown> & {
+  page?: unknown;
+  rect?: unknown;
+  x?: unknown;
+  y?: unknown;
+  width?: unknown;
+  height?: unknown;
+  signatureTab?: unknown;
+  dateSignedTab?: unknown;
+  signerNameTab?: unknown;
+};
 
 function fail(message: string): never {
   throw new DocusignTabMapValidationError(message);

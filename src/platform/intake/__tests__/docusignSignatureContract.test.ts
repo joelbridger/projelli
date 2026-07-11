@@ -53,7 +53,7 @@ describe('Wave 9 signature contract gate', () => {
     expect(() => assertValidRequestBlueprint(blueprint([pdfItem(), signature('missing')]))).toThrow(/source_pdf_fill_item_id/iu);
     expect(() => assertValidRequestBlueprint(blueprint([{ t: 'readonly_card', item_id: 'card', label: 'Card', help_text: '', required: false, subject: 'primary', body: 'Read' }, signature('card')]))).toThrow(/pdf_fill/iu);
     expect(() => assertValidRequestBlueprint(blueprint([pdfItem(), signature(), { ...signature(), item_id: 'signature-item-2' }]))).toThrow(/only one/iu);
-    const missingTab = signature() as ReturnType<typeof signature> & { tab_map: Partial<ReturnType<typeof signature>['tab_map']> };
+    const missingTab = signature() as Omit<ReturnType<typeof signature>, 'tab_map'> & { tab_map: Partial<ReturnType<typeof signature>['tab_map']> };
     delete missingTab.tab_map.dateSignedTab;
     expect(() => assertValidRequestBlueprint(blueprint([pdfItem(), missingTab]))).toThrow(/tab map/iu);
     expect(() => assertValidRequestBlueprint(blueprint([{ t: 'signature', item_id: 'old', label: 'Old', help_text: '', required: true, subject: 'primary', grade: 'docusign' }]))).toThrow(/source_pdf_fill_item_id/iu);

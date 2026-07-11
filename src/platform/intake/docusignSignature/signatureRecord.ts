@@ -48,7 +48,22 @@ const EVENT_SOURCES = new Set<SignatureEvent['source']>([
   'browser_return', 'connect_webhook', 'poll', 'direct_retrieval',
 ]);
 
-type LooseRecord = Record<string, unknown>;
+type LooseRecord = Record<string, unknown> & {
+  requestId?: unknown;
+  signatureItemId?: unknown;
+  sourcePdfFillItemId?: unknown;
+  sourceTemplateVersion?: unknown;
+  sourceTemplateSha256?: unknown;
+  wave8CompletedSha256?: unknown;
+  envelopeId?: unknown;
+  status?: unknown;
+  finalSignedSha256?: unknown;
+  certificateSha256?: unknown;
+  events?: unknown;
+  eventId?: unknown;
+  source?: unknown;
+  at?: unknown;
+};
 
 function fail(message: string): never {
   throw new SignatureRecordValidationError(message);

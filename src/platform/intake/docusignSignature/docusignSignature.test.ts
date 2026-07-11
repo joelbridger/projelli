@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import type { FormRequest, PdfFillRequestItem } from '../types';
 import { assertValidDocusignTabMap } from './tabMap';
-import { assertSignatureEligible, SignatureEligibilityError } from './signatureEligibility';
+import {
+  assertSignatureEligible,
+  SignatureEligibilityError,
+  type SignatureEligibilityInput,
+} from './signatureEligibility';
 import { assertSignatureLaunchUsable, MAX_SIGNATURE_LAUNCH_TTL_MS } from './signatureLaunch';
 import { signatureOutputFileNames } from './signatureOutputNaming';
 import {
@@ -46,7 +50,9 @@ function request(): FormRequest {
   };
 }
 
-function completion(overrides: Partial<NonNullable<ReturnType<typeof eligibilityInput>['currentCompletion']>> = {}) {
+function completion(
+  overrides: Partial<NonNullable<SignatureEligibilityInput['currentCompletion']>> = {},
+): NonNullable<SignatureEligibilityInput['currentCompletion']> {
   return {
     sourceItemId: 'pdf-item', templateId: 'template_approved_09', templateVersion: 3,
     sourceSha256: HASH_A, completedSha256: HASH_B, ...overrides,
@@ -156,8 +162,9 @@ describe('local signature records', () => {
 
   it('deduplicates only the stable DocuSign-derived event id', () => {
     const existing: SignatureEvent[] = [{ eventId: 'docusign-event-1', status: 'completion_pending', source: 'connect_webhook', at: '2026-07-11T12:00:00.000Z' }];
-    expect(isDuplicateSignatureEvent(existing, { ...existing[0], source: 'poll' })).toBe(true);
-    expect(isDuplicateSignatureEvent(existing, { ...existing[0], eventId: 'docusign-event-2' })).toBe(false);
+    const first: SignatureEvent = existing[0]!;
+    expect(isDuplicateSignatureEvent(existing, { ...first, source: 'poll' })).toBe(true);
+    expect(isDuplicateSignatureEvent(existing, { ...first, eventId: 'docusign-event-2' })).toBe(false);
   });
 });
 
