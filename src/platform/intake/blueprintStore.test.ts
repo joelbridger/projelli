@@ -7,9 +7,9 @@ import {
 } from './blueprintStore';
 import { NEW_HOUSEHOLD_BLUEPRINT } from './defaultBlueprints';
 import { BlueprintValidationError } from './blueprintValidation';
-import { createPdfFillDraftItem } from '@/features/intake/pdfTemplates/requestComposerPdf';
+import { bytesToB64 } from './pageSeal';
 import { sha256Hex } from './pdfTemplates/receipt';
-import type { PdfTemplateDescriptor, RequestItem } from './types';
+import type { PdfFillRequestItem, PdfTemplateDescriptor, RequestItem } from './types';
 
 const annualReviewItems: RequestItem[] = [
   {
@@ -75,7 +75,17 @@ describe('blueprintStore', () => {
       sourceArtifactRef: 'sealed-artifact:persistedsource001', outputFileStem: 'persisted-form', maxOutputBytes: 1024 * 1024,
       fields: { name: { kind: 'acroform', field_id: 'name', acroform_field: 'Name', pdf_field_type: 'text' } },
     };
-    const issuedItem = await createPdfFillDraftItem(template, sourceBytes);
+    const issuedItem: PdfFillRequestItem = {
+      t: 'pdf_fill',
+      item_id: `pdf_${template.templateId}_${String(template.version)}`,
+      label: 'Form ready',
+      help_text: 'Complete the approved form securely.',
+      required: true,
+      subject: 'household',
+      template: structuredClone(template),
+      prefill: [],
+      sealed_source_pdf_b64: bytesToB64(sourceBytes),
+    };
     const stored = useBlueprintStore.getState().createFirmBlueprint({
       blueprintId: 'persisted-pdf', label: 'Persisted PDF', items: [issuedItem],
     });
