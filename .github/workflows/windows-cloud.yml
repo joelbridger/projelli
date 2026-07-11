@@ -60,9 +60,12 @@ jobs:
       - name: Prepare intake page for hosting security tests
         # Build this serially before Vitest. The hosting suite reuses this
         # output and only falls back to building it itself when it is absent.
+        working-directory: intake-page
+        # npm's --prefix is unreliable on Windows runners (installs can land in the
+        # wrong dir, leaving pdfjs-dist missing for the prebuild worker-copy) — cd instead.
         run: |
-          npm --prefix intake-page ci
-          npm --prefix intake-page run build
+          npm ci
+          npm run build
 
       - name: TypeScript check
         run: npx tsc --noEmit
