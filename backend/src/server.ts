@@ -46,6 +46,7 @@ import {
 import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
+import { startLegacyManifestGc } from "./lib/migrationManifestGc.ts";
 import {
   handleAssuredInfer,
   handleSetProviderKey,
@@ -307,6 +308,7 @@ maybeBootstrap(store);
 startRateLimitGc();
 startSyncTicketGc();
 startSsoStateGc();
+startLegacyManifestGc(store);
 
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, fanout));
 
