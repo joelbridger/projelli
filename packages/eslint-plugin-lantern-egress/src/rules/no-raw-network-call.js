@@ -31,13 +31,23 @@ function unwrapExpression(node) {
   return current;
 }
 
+function propertyName(property, computed) {
+  if (!computed) {
+    return property && property.type === 'Identifier'
+      ? property.name
+      : undefined;
+  }
+  return property &&
+    property.type === 'Literal' &&
+    typeof property.value === 'string'
+    ? property.value
+    : undefined;
+}
+
 function memberName(node) {
   const unwrapped = unwrapExpression(node);
-  if (!unwrapped || unwrapped.type !== 'MemberExpression' || unwrapped.computed)
-    return undefined;
-  return unwrapped.property && unwrapped.property.type === 'Identifier'
-    ? unwrapped.property.name
-    : undefined;
+  if (!unwrapped || unwrapped.type !== 'MemberExpression') return undefined;
+  return propertyName(unwrapped.property, unwrapped.computed);
 }
 
 function isRawFetch(callee) {
@@ -54,6 +64,32 @@ function isRawFetch(callee) {
     (object.name === 'globalThis' || object.name === 'window')
   );
 }
+
+function isGlobalObjectMember(node, names) {
+  const unwrapped = unwrapExpression(node);
+  if (!unwrapped || unwrapped.type !== 'MemberExpression') return false;
+  const object = unwrapExpression(unwrapped.object);
+  return (
+    object &&
+    object.type === 'Identifier' &&
+    (object.name === 'globalThis' || object.name === 'window') &&
+    names.has(memberName(unwrapped))
+  );
+}
+
+function isGlobalConstructor(node) {
+  const unwrapped = unwrapExpression(node);
+  return (
+    (unwrapped &&
+      unwrapped.type === 'Identifier' &&
+      (unwrapped.name === 'WebSocket' || unwrapped.name === 'EventSource')) ||
+    isGlobalObjectMember(unwrapped, new Set(['WebSocket', 'EventSource']))
+  );
+}
+
+// This is intentionally defense-in-depth, not the security boundary. The
+// boundary is networkClient.ts plus native NetworkPolicy; this rule catches
+// direct renderer mistakes and a few easy aliases, not all possible sinks.
 
 module.exports = {
   meta: {
@@ -72,6 +108,31 @@ module.exports = {
 
     const tauriHttpFetchBindings = new Set();
     const tauriHttpNamespaces = new Set();
+    const rawFetchAliases = new WeakSet();
+    const rawConstructorAliases = new WeakSet();
+
+    function variableFor(identifier) {
+      let scope = context.sourceCode.getScope(identifier);
+      while (scope) {
+        const variable = scope.variables.find(
+          (candidate) => candidate.name === identifier.name
+        );
+        if (variable) return variable;
+        scope = scope.upper;
+      }
+      return undefined;
+    }
+
+    function markAlias(identifier, aliases) {
+      const variable = variableFor(identifier);
+      if (variable) aliases.add(variable);
+    }
+
+    function isAlias(identifier, aliases) {
+      return (
+        identifier.type === 'Identifier' && aliases.has(variableFor(identifier))
+      );
+    }
 
     function isTauriHttpFetch(callee) {
       const unwrapped = unwrapExpression(callee);
@@ -90,9 +151,7 @@ module.exports = {
     function isRawConstructor(node) {
       const callee = unwrapExpression(node.callee);
       return (
-        callee &&
-        callee.type === 'Identifier' &&
-        (callee.name === 'WebSocket' || callee.name === 'EventSource')
+        isGlobalConstructor(callee) || isAlias(callee, rawConstructorAliases)
       );
     }
 
@@ -113,6 +172,14 @@ module.exports = {
       },
       VariableDeclarator(node) {
         const init = unwrapExpression(node.init);
+        if (node.id.type === 'Identifier') {
+          if (isGlobalObjectMember(init, new Set(['fetch']))) {
+            markAlias(node.id, rawFetchAliases);
+          } else if (isGlobalConstructor(init)) {
+            markAlias(node.id, rawConstructorAliases);
+          }
+        }
+
         const importExpression =
           init && init.type === 'AwaitExpression'
             ? unwrapExpression(init.argument)
@@ -135,9 +202,7 @@ module.exports = {
         for (const property of node.id.properties) {
           if (
             property.type === 'Property' &&
-            !property.computed &&
-            property.key.type === 'Identifier' &&
-            property.key.name === 'fetch' &&
+            propertyName(property.key, property.computed) === 'fetch' &&
             property.value.type === 'Identifier'
           ) {
             tauriHttpFetchBindings.add(property.value.name);
@@ -145,7 +210,11 @@ module.exports = {
         }
       },
       CallExpression(node) {
-        if (isRawFetch(node.callee) || isTauriHttpFetch(node.callee)) {
+        if (
+          isRawFetch(node.callee) ||
+          isAlias(unwrapExpression(node.callee), rawFetchAliases) ||
+          isTauriHttpFetch(node.callee)
+        ) {
           context.report({ node, messageId: 'rawNetwork' });
         }
       },

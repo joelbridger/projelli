@@ -18,6 +18,7 @@ const INITIAL_STATUS: NetworkPolicyStatus = {
   generation: 0,
 };
 
+/** Display mirror only—not a permission source; networkClient checks native policy. */
 export const useOfflineModeStore = create<OfflineModeState>()(() => ({
   ...INITIAL_STATUS,
   hydrated: false,

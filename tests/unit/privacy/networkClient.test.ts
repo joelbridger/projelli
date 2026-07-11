@@ -121,4 +121,99 @@ describe('networkClient', () => {
     await expect(request).rejects.toBeInstanceOf(OfflineModeBlockedError);
     expect(requestSignal?.aborted).toBe(true);
   });
+
+  it('re-authorizes an allowed redirect before fetching its next hop', async () => {
+    nativeStatus(false, 12);
+    const redirected = new Response('', {
+      status: 302,
+      headers: { location: 'https://api.openai.com/v1/redirected' },
+    });
+    const finalResponse = new Response('{"ok":true}', { status: 200 });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(redirected)
+      .mockResolvedValueOnce(finalResponse);
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      egressFetch('cloud-ai', 'https://api.openai.com/v1/models')
+    ).resolves.toBe(finalResponse);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(invokeMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({ redirect: 'manual' });
+    expect(fetchMock.mock.calls[1][0]).toEqual(
+      new URL('https://api.openai.com/v1/redirected')
+    );
+  });
+
+  it('blocks an external redirect while Offline Mode is on before the second hop', async () => {
+    let status = { offlineMode: false, generation: 20 };
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'network_policy_status') return status;
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    const fetchMock = vi.fn().mockImplementation(async () => {
+      status = { offlineMode: true, generation: 21 };
+      return new Response('', {
+        status: 302,
+        headers: { location: 'https://example.com/steal' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      egressFetch('cloud-ai', 'https://api.openai.com/v1/models')
+    ).rejects.toBeInstanceOf(OfflineModeBlockedError);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('stops redirect loops after five hops', async () => {
+    nativeStatus(false, 30);
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response('', {
+        status: 302,
+        headers: { location: 'https://api.openai.com/v1/again' },
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(
+      egressFetch('cloud-ai', 'https://api.openai.com/v1/models')
+    ).rejects.toThrow('Too many redirects');
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('polls native policy while a request is active and cancels after a policy flip', async () => {
+    let status = { offlineMode: false, generation: 40 };
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'network_policy_status') return status;
+      throw new Error(`Unexpected command: ${command}`);
+    });
+    let requestSignal: AbortSignal | undefined;
+    const fetchMock = vi.fn((_input: RequestInfo | URL, init?: RequestInit) => {
+      requestSignal = init?.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        requestSignal?.addEventListener(
+          'abort',
+          () => reject(requestSignal?.reason),
+          {
+            once: true,
+          }
+        );
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const request = egressFetch(
+      'cloud-ai',
+      'https://api.openai.com/v1/chat/completions'
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+    status = { offlineMode: true, generation: 41 };
+
+    await expect(request).rejects.toBeInstanceOf(OfflineModeBlockedError);
+    expect(requestSignal?.aborted).toBe(true);
+  });
 });

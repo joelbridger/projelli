@@ -63,6 +63,21 @@ ruleTester.run('no-raw-network-call', noRawNetworkCall, {
       code: 'const { fetch: tauriFetch } = await import("@tauri-apps/plugin-http"); tauriFetch("https://api.openai.com");',
       errors: [{ messageId: 'rawNetwork' }],
     },
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: "const send = globalThis['fetch']; send('https://example.com');",
+      errors: [{ messageId: 'rawNetwork' }],
+    },
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: "const Socket = globalThis.WebSocket; new Socket('wss://example.com');",
+      errors: [{ messageId: 'rawNetwork' }],
+    },
+    {
+      filename: '/repo/src/features/ask/send.ts',
+      code: "const { ['fetch']: httpFetch } = await import('@tauri-apps/plugin-http'); httpFetch('https://example.com');",
+      errors: [{ messageId: 'rawNetwork' }],
+    },
   ],
 });
 

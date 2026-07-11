@@ -48,6 +48,11 @@ interface ActiveEgress {
 }
 
 const activeEgress = new Set<ActiveEgress>();
+const ACTIVE_EGRESS_STATUS_POLL_MS = 300;
+const MAX_REDIRECT_HOPS = 5;
+
+let activeEgressStatusPoll: ReturnType<typeof setInterval> | undefined;
+let activeEgressStatusPollInFlight = false;
 
 function normalizedHost(url: URL): string {
   return url.hostname.toLowerCase().replace(/^\[|\]$/g, '');
@@ -107,11 +112,41 @@ function registerActiveEgress(generation: number): ActiveEgress {
     controller: new AbortController(),
   };
   activeEgress.add(active);
+  ensureActiveEgressStatusPoll();
   return active;
 }
 
 function releaseActiveEgress(active: ActiveEgress): void {
   activeEgress.delete(active);
+  if (activeEgress.size === 0 && activeEgressStatusPoll) {
+    clearInterval(activeEgressStatusPoll);
+    activeEgressStatusPoll = undefined;
+    // A slow status read from a prior request must not prevent the next active
+    // request from starting its own poll after the set becomes non-empty again.
+    activeEgressStatusPollInFlight = false;
+  }
+}
+
+function ensureActiveEgressStatusPoll(): void {
+  if (activeEgressStatusPoll) return;
+
+  // Lane 0 has no native policy-change event yet. While a request or socket is
+  // live, this 300ms poll updates the same mirror that drives cancellation. A
+  // future native push event can replace this or let us poll less often.
+  activeEgressStatusPoll = setInterval(() => {
+    if (activeEgressStatusPollInFlight || activeEgress.size === 0) return;
+    activeEgressStatusPollInFlight = true;
+    void getNetworkPolicyStatus()
+      // updateMirror() notifies the existing cancellation subscription below.
+      // eslint-disable-next-line lantern-async/no-silent-failure -- this best-effort poll repeats; authorization and boundary checks remain fail-closed.
+      .catch(() => {
+        // An already-authorized request keeps its existing native generation;
+        // its next boundary check still fails closed if policy cannot be read.
+      })
+      .finally(() => {
+        activeEgressStatusPollInFlight = false;
+      });
+  }, ACTIVE_EGRESS_STATUS_POLL_MS);
 }
 
 function combineSignals(
@@ -138,6 +173,7 @@ function combineSignals(
 subscribeToOfflineModeChanges((status) => {
   if (!status.offlineMode) return;
   for (const active of activeEgress) {
+    if (active.generation >= status.generation) continue;
     active.controller.abort(new OfflineModeBlockedError('this action'));
     active.closeSocket?.();
   }
@@ -196,6 +232,24 @@ async function egressFetchTransport(): Promise<typeof globalThis.fetch> {
   return plugin.fetch as typeof globalThis.fetch;
 }
 
+function isManualRedirect(response: Response): boolean {
+  return (
+    response.type === 'opaqueredirect' ||
+    (response.status >= 300 && response.status < 400)
+  );
+}
+
+async function authorizeRedirectDestination(
+  operation: EgressOperation,
+  destination: URL,
+  active: ActiveEgress
+): Promise<void> {
+  // This preserves authorize()'s ordering: Offline Mode's user-facing error
+  // wins over the developer-facing host allow-list error.
+  await recheck(operation, destination, active);
+  assertRegisteredDestination(operation, destination);
+}
+
 /** A fail-closed, near drop-in replacement for an off-device fetch. */
 export async function egressFetch(
   operationId: string,
@@ -208,13 +262,34 @@ export async function egressFetch(
   );
   try {
     const transport = await egressFetchTransport();
-    await recheck(operation, destination, active);
-    const response = await transport(destination, {
-      ...init,
-      signal: combineSignals(init?.signal, active.controller),
-    });
-    await recheck(operation, destination, active);
-    return response;
+    let redirectHops = 0;
+    let requestDestination = destination;
+
+    for (;;) {
+      await authorizeRedirectDestination(operation, requestDestination, active);
+      const response = await transport(requestDestination, {
+        ...init,
+        // Browser fetch exposes manual redirects. Tauri's HTTP plugin creates
+        // a browser Request but follows redirects in Rust unless this separate
+        // documented option is zero, so both are needed here.
+        redirect: 'manual',
+        maxRedirections: 0,
+        signal: combineSignals(init?.signal, active.controller),
+      } as RequestInit & { maxRedirections: number });
+      await recheck(operation, requestDestination, active);
+
+      if (!isManualRedirect(response)) return response;
+      const location = response.headers.get('location');
+      if (!location) return response;
+      if (redirectHops >= MAX_REDIRECT_HOPS) {
+        throw new Error(
+          `Too many redirects for network operation "${operation.id}" (maximum ${String(MAX_REDIRECT_HOPS)}).`
+        );
+      }
+
+      requestDestination = new URL(location, requestDestination);
+      redirectHops += 1;
+    }
   } finally {
     releaseActiveEgress(active);
   }
