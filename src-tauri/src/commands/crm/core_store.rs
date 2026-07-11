@@ -154,13 +154,14 @@ impl CrmCoreStore {
         let mut statement = conn.prepare(
             "SELECT yjs_state FROM crm_docs WHERE doc_id LIKE 'live:%' AND deleted=0 ORDER BY updated_at, doc_id",
         )?;
-        statement
+        let records = statement
             .query_map([], |row| row.get::<_, Vec<u8>>(0))?
             .map(|row| {
                 let bytes = row?;
                 serde_json::from_slice(&bytes).context("decode CRM live record")
             })
-            .collect()
+            .collect::<Result<Vec<_>>>()?;
+        Ok(records)
     }
     /// Soft deletion is a projected tombstone, never a physical erase of the
     /// collection document.  The allow-list prevents identifiers becoming SQL.

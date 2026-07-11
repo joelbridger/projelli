@@ -22,11 +22,11 @@ export function ClientsSurface({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const liveHouseholds = live.records.filter((record) => record.kind === 'household').map((record): HouseholdRecord => ({
     id: record.id,
-    name: typeof record.name === 'string' ? record.name : 'Untitled household',
-    lifecycle: typeof record.lifecycle === 'string' ? record.lifecycle : 'Active',
-    primaryAdvisor: typeof record.primaryAdvisor === 'string' ? record.primaryAdvisor : 'Maya',
-    ownership: record.ownership === 'shared' || record.ownership === 'other' ? record.ownership : 'mine',
-    serviceTier: typeof record.serviceTier === 'string' ? record.serviceTier : 'Standard',
+    name: typeof record['name'] === 'string' ? record['name'] : 'Untitled household',
+    lifecycle: typeof record['lifecycle'] === 'string' ? record['lifecycle'] : 'Active',
+    primaryAdvisor: typeof record['primaryAdvisor'] === 'string' ? record['primaryAdvisor'] : 'Maya',
+    ownership: record['ownership'] === 'shared' || record['ownership'] === 'other' ? record['ownership'] : 'mine',
+    serviceTier: typeof record['serviceTier'] === 'string' ? record['serviceTier'] : 'Standard',
     syncState: 'offline',
     facts: [], accounts: [], members: [], externalParties: [], notes: [],
   }));

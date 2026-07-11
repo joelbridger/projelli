@@ -197,7 +197,7 @@ function TaskBoard({ tasks, onOpen, onMove }: { tasks: readonly CrmTask[]; onOpe
 
 function TaskDetail({ task, onClose, onSave }: { task: CrmTask; onClose: () => void; onSave: (task: CrmTask) => void }) {
   const [draft, setDraft] = useState(task);
-  return <aside data-testid="crm-task-detail" aria-label="Task detail" style={{ ...panelStyle, position: 'fixed', right: 20, top: 80, maxWidth: 420, boxShadow: 'var(--kp-shadow-2)', zIndex: 5 }}><h2 style={{ marginTop: 0 }}>Task detail</h2><label>Title<input data-testid="crm-task-title-input" value={draft.title} onChange={(event) => { setDraft({ ...draft, title: event.target.value }); }} /></label><label>Assignee<select data-testid="crm-task-assignee" value={draft.assigneeUserId} onChange={(event) => { setDraft({ ...draft, assigneeUserId: event.target.value, assigneeLabel: event.target.value === 'maya' ? 'Maya' : event.target.value }); }}><option value="maya">Maya</option><option value="priya">Priya</option><option value="andy">Andy</option></select></label><label>Due date<input data-testid="crm-task-due" type="date" value={draft.dueAt ?? ''} onChange={(event) => { setDraft({ ...draft, dueAt: event.target.value || undefined, dueLabel: event.target.value || undefined }); }} /></label><p style={mutedStyle}>One assignee. Notes live in the task body. Tasks have no comments.</p><div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-task-save" onClick={() => { onSave(draft); }}>Save local change</Button><Button variant="secondary" onClick={onClose}>Close</Button></div></aside>;
+  return <aside data-testid="crm-task-detail" aria-label="Task detail" style={{ ...panelStyle, position: 'fixed', right: 20, top: 80, maxWidth: 420, boxShadow: 'var(--kp-shadow-2)', zIndex: 5 }}><h2 style={{ marginTop: 0 }}>Task detail</h2><label>Title<input data-testid="crm-task-title-input" value={draft.title} onChange={(event) => { setDraft({ ...draft, title: event.target.value }); }} /></label><label>Assignee<select data-testid="crm-task-assignee" value={draft.assigneeUserId} onChange={(event) => { setDraft({ ...draft, assigneeUserId: event.target.value, assigneeLabel: event.target.value === 'maya' ? 'Maya' : event.target.value }); }}><option value="maya">Maya</option><option value="priya">Priya</option><option value="andy">Andy</option></select></label><label>Due date<input data-testid="crm-task-due" type="date" value={draft.dueAt ?? ''} onChange={(event) => { const due = event.target.value; setDraft({ ...draft, ...(due ? { dueAt: due, dueLabel: due } : {}) }); }} /></label><p style={mutedStyle}>One assignee. Notes live in the task body. Tasks have no comments.</p><div style={{ display: 'flex', gap: 8 }}><Button data-testid="crm-task-save" onClick={() => { onSave(draft); }}>Save local change</Button><Button variant="secondary" onClick={onClose}>Close</Button></div></aside>;
 }
 
 function Workflows({ freshness, onNavigate }: { freshness: CrmFreshnessState; onNavigate: (route: CrmHomeRoute) => void }) {
@@ -310,14 +310,13 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
   useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
   const liveTasks: readonly CrmTask[] = live.records.filter((record) => record.kind === 'task').map((record) => ({
     id: record.id,
-    title: typeof record.title === 'string' ? record.title : 'Untitled task',
-    householdLabel: typeof record.householdLabel === 'string' ? record.householdLabel : undefined,
-    assigneeUserId: typeof record.assigneeUserId === 'string' ? record.assigneeUserId : 'maya',
-    assigneeLabel: typeof record.assigneeLabel === 'string' ? record.assigneeLabel : 'Maya',
-    status: record.status === 'in_progress' || record.status === 'blocked' || record.status === 'done' || record.status === 'cancelled' ? record.status : 'open',
-    priority: record.priority === 'high' || record.priority === 'low' ? record.priority : 'normal',
-    dueAt: typeof record.dueAt === 'string' ? record.dueAt : undefined,
-    dueLabel: typeof record.dueAt === 'string' ? record.dueAt : undefined,
+    title: typeof record['title'] === 'string' ? record['title'] : 'Untitled task',
+    assigneeUserId: typeof record['assigneeUserId'] === 'string' ? record['assigneeUserId'] : 'maya',
+    assigneeLabel: typeof record['assigneeLabel'] === 'string' ? record['assigneeLabel'] : 'Maya',
+    status: record['status'] === 'in_progress' || record['status'] === 'blocked' || record['status'] === 'done' || record['status'] === 'cancelled' ? record['status'] : 'open',
+    priority: record['priority'] === 'high' || record['priority'] === 'low' ? record['priority'] : 'normal',
+    ...(typeof record['householdLabel'] === 'string' ? { householdLabel: record['householdLabel'] } : {}),
+    ...(typeof record['dueAt'] === 'string' ? { dueAt: record['dueAt'], dueLabel: record['dueAt'] } : {}),
   }));
   const liveAdapter: CrmHomeAdapter = {
     ...emptyEngineAdapter(freshness),
