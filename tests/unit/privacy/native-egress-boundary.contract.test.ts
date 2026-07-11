@@ -173,4 +173,55 @@ describe('native egress boundary checker: block-comment bypasses', () => {
     `);
     expect(findNativeEgressBoundaryViolations(root)).toEqual([]);
   });
+
+  it('a comment faking a #[cfg(test)] mod boundary cannot truncate real production code', () => {
+    // productionSource() finds where the real test module starts so its fake
+    // clients/loopback servers don't create findings. If that search ran
+    // against the RAW source instead of a comment-blanked view, a block
+    // comment merely containing the text `#[cfg(test)]\nmod x {` would be
+    // mistaken for the real boundary, and everything physically below it in
+    // the file — including a real unguarded body-read — would never be
+    // scanned at all.
+    const root = fixtureRoot(`
+      use crate::network_policy::NetworkPolicy;
+      async fn send(policy: &NetworkPolicy, url: &str) -> anyhow::Result<reqwest::Response> {
+          let authorized = crate::commands::connector_network::authorize_url(policy, &OP, url)?;
+          crate::commands::connector_network::await_authorized(policy, &authorized, async {
+              Ok(reqwest::Client::new().get(url).send().await?)
+          }).await
+      }
+      /*
+       * unrelated note: this looks like a test module boundary but isn't one:
+       * #[cfg(test)]
+       * mod not_actually_a_test_module {
+       */
+      async fn read_body(resp: reqwest::Response) -> anyhow::Result<String> {
+          Ok(resp.text().await?)
+      }
+    `);
+    const violations = findNativeEgressBoundaryViolations(root);
+    expect(violations.some((v: { text: string }) => v.text.includes('.text()'))).toBe(true);
+  });
+
+  it('a comment between the dot and a method name, and .chunk(), are both matched', () => {
+    const root = fixtureRoot(`
+      use crate::network_policy::NetworkPolicy;
+      async fn send(policy: &NetworkPolicy, url: &str) -> anyhow::Result<reqwest::Response> {
+          let authorized = crate::commands::connector_network::authorize_url(policy, &OP, url)?;
+          crate::commands::connector_network::await_authorized(policy, &authorized, async {
+              Ok(reqwest::Client::new().get(url).send().await?)
+          }).await
+      }
+      async fn read_dotted_comment(resp: reqwest::Response) -> anyhow::Result<String> {
+          Ok(resp. /* comment */ text().await?)
+      }
+      async fn read_chunk(resp: &mut reqwest::Response) -> anyhow::Result<()> {
+          while let Some(_c) = resp.chunk().await? {}
+          Ok(())
+      }
+    `);
+    const violations = findNativeEgressBoundaryViolations(root);
+    expect(violations.some((v: { text: string }) => v.text.includes('text'))).toBe(true);
+    expect(violations.some((v: { text: string }) => v.text.includes('chunk'))).toBe(true);
+  });
 });

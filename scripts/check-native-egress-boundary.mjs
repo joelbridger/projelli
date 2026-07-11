@@ -71,9 +71,17 @@ function collectRustFiles(dir, out = []) {
 /**
  * Rust test modules conventionally live at the end of these files. Their fake
  * clients/loopback servers must not create a production-policy finding.
+ *
+ * Searches a comment/string-blanked view (not the raw source) so a comment
+ * that merely CONTAINS the text `#[cfg(test)]\nmod ...` cannot be mistaken
+ * for the real boundary and truncate everything after it — which would
+ * hide any genuinely unguarded production code physically below that point
+ * in the file. `blankCommentsAndStrings` is declared later in this module
+ * but, as a function declaration, is hoisted, so calling it here is safe.
  */
 function productionSource(source) {
-  const testModule = source.search(/^\s*#\[cfg\(test\)\]\s*\n\s*mod\s+/m);
+  const scanSource = blankCommentsAndStrings(source);
+  const testModule = scanSource.search(/^\s*#\[cfg\(test\)\]\s*\n\s*mod\s+/m);
   return testModule === -1 ? source : source.slice(0, testModule);
 }
 
@@ -104,14 +112,31 @@ function isPolicyGuardedClient(source) {
  * call in a guarded file, finds the balanced-bracket span of its argument
  * list (the closure passed to it lives inside that span), and then requires
  * every HTTP-completing call in the file — `.send().await`, `.text().await`,
- * `.json().await`/`.json::<T>().await`, `.bytes().await`, `.bytes_stream()`
- * — to fall inside at least one such span. A call outside every guard span
- * is a violation: the transport or the body it returned is not tied to the
- * live policy generation.
+ * `.json().await`/`.json::<T>().await`, `.bytes().await`, `.chunk().await`,
+ * `.bytes_stream()` — to fall inside at least one such span. A call outside
+ * every guard span is a violation: the transport or the body it returned is
+ * not tied to the live policy generation.
+ *
+ * Known limitations, deliberately not chased further (this is a fast
+ * source-level lint, not a Rust parser, and the traffic-recording release
+ * test is the real ground truth — see the module header):
+ *  - The method-name list above (send/text/bytes/chunk/json/bytes_stream)
+ *    covers every body-consuming reqwest method actually used in this
+ *    codebase today. A future call to some OTHER body-consuming method
+ *    (e.g. `.text_with_charset(...)`, whose non-empty argument this
+ *    lexical matcher does not attempt to parse) would need adding here.
+ *  - `.bytes_stream()` is flagged where it's CALLED, but a stream it
+ *    returns can be moved across a function boundary and consumed via
+ *    `.next().await` somewhere this lexical scan cannot see is still
+ *    inside the original guard's dynamic extent (see
+ *    local_llm/model_download.rs's DownloadTransport, which was
+ *    deliberately restructured so its guard's closure lexically contains
+ *    the stream it reads, specifically so this checker CAN verify it
+ *    rather than relying on that kind of call-graph reasoning).
  */
 const GUARD_CALL_NAMES = ['await_authorized', 'send_with_authorized_redirects'];
 const HTTP_COMPLETING_CALL =
-  /\.(?:send|text|bytes)\s*\(\s*\)\s*\.await|\.json\b|\.bytes_stream\s*\(\s*\)/g;
+  /\.\s*(?:send|text|bytes|chunk)\s*\(\s*\)\s*\.await|\.\s*json\b|\.\s*bytes_stream\s*\(\s*\)/g;
 
 /**
  * `.json()` and `.json::<T>()` both complete a body read, but `T` can be an
@@ -308,7 +333,7 @@ function findUnenclosedHttpCalls(source) {
   while ((match = HTTP_COMPLETING_CALL.exec(scanSource)) !== null) {
     const callStart = match.index;
     let matchEnd = HTTP_COMPLETING_CALL.lastIndex;
-    if (match[0] === '.json') {
+    if (match[0].trim().endsWith('json')) {
       const jsonCallEnd = matchJsonCall(scanSource, matchEnd);
       if (jsonCallEnd === null) continue; // `.json_body` or similar, not a completing call
       matchEnd = jsonCallEnd;
