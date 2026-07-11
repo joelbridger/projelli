@@ -4,6 +4,7 @@ import { parseMatterHandle, parseStreamHandle } from '@/platform/firm/contract';
 const mocks = vi.hoisted(() => ({
   linkFirmMatter: vi.fn(), createLocalMatterKey: vi.fn(), forgetMatterKey: vi.fn(),
   publishMatterKeyToMembers: vi.fn(), registerDevice: vi.fn(), append: vi.fn(),
+  firmState: { seatToken: 'seat' as string | null, session: { org: { org_id: 'org' } } },
 }));
 
 vi.mock('@/platform/matter/matterStore', () => ({ useMatterStore: { getState: () => ({ linkFirmMatter: mocks.linkFirmMatter }) } }));
@@ -11,7 +12,7 @@ vi.mock('@/platform/firm/matterKeyService', () => ({ createLocalMatterKey: mocks
 vi.mock('@/platform/firm/deviceKeys', () => ({ registerDevice: mocks.registerDevice }));
 vi.mock('@/features/matters/matterManagerDialogHelpers', () => ({ audit: { append: mocks.append } }));
 vi.mock('@/platform/firm/firmStore', () => ({
-  useFirmStore: { getState: () => ({ seatToken: 'seat', session: { org: { org_id: 'org' } } }) },
+  useFirmStore: { getState: () => mocks.firmState },
 }));
 
 import { promoteMatterToShared } from './promoteMatterToShared';
@@ -48,6 +49,7 @@ async function expectFailedThenRetryable(
 describe('promoteMatterToShared v2 ordering', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
+    mocks.firmState.seatToken = 'seat';
     mocks.createLocalMatterKey.mockResolvedValue(await generatedKey());
     mocks.forgetMatterKey.mockResolvedValue(undefined);
     mocks.publishMatterKeyToMembers.mockResolvedValue({ published: 1, skippedWalled: 0 });
@@ -73,11 +75,13 @@ describe('promoteMatterToShared v2 ordering', () => {
       createMatter: vi.fn(() => Promise.resolve({ matter_handle: matterHandle, root_stream_handle: rootStreamHandle, key_epoch: 1, status: 'provisioning' as const })),
       pushUpdate: vi.fn(() => Promise.reject(new Error('root write failed'))),
       activateMatter: vi.fn(),
+      archiveMatter: vi.fn(() => Promise.resolve({ ok: true })),
     };
     const result = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
     expect(result.status).toBe('failed');
     expect(client.activateMatter).not.toHaveBeenCalled();
     expect(mocks.linkFirmMatter).not.toHaveBeenCalled();
+    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.forgetMatterKey).toHaveBeenCalledWith(matterHandle);
   });
 
@@ -101,7 +105,7 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     expect(client.pushUpdate).toHaveBeenCalledTimes(1);
     expect(client.activateMatter).toHaveBeenCalledTimes(1);
-    expect(client.archiveMatter).not.toHaveBeenCalled();
+    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.forgetMatterKey).toHaveBeenCalledWith(matterHandle);
   });
 
@@ -112,7 +116,7 @@ describe('promoteMatterToShared v2 ordering', () => {
     await expectFailedThenRetryable(client, 'root write failed');
 
     expect(client.activateMatter).toHaveBeenCalledTimes(1);
-    expect(client.archiveMatter).not.toHaveBeenCalled();
+    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
   });
 
@@ -122,7 +126,7 @@ describe('promoteMatterToShared v2 ordering', () => {
 
     await expectFailedThenRetryable(client, 'activation failed');
 
-    expect(client.archiveMatter).not.toHaveBeenCalled();
+    expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
     expect(mocks.publishMatterKeyToMembers).toHaveBeenCalledTimes(1);
   });
 
@@ -135,5 +139,16 @@ describe('promoteMatterToShared v2 ordering', () => {
     expect(client.archiveMatter).toHaveBeenCalledTimes(1);
     expect(client.archiveMatter).toHaveBeenCalledWith(matterHandle);
     expect(client.activateMatter).toHaveBeenCalledTimes(2);
+  });
+
+  it('checks the seat before provisioning, so a retry cannot leave an extra shell', async () => {
+    mocks.firmState.seatToken = null;
+    const client = successfulClient();
+
+    const result = await promoteMatterToShared('local-matter-77', 'CLIENT_SECRET_NIMBUS', client as never);
+
+    expect(result).toMatchObject({ status: 'failed', error: 'A valid firm seat is required to share a client.' });
+    expect(client.createMatter).not.toHaveBeenCalled();
+    expect(client.archiveMatter).not.toHaveBeenCalled();
   });
 });

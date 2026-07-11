@@ -1038,18 +1038,26 @@ export class Store {
    * repeatable: a desktop may crash after receiving it but before sealing its
    * encrypted root index.
    */
-  listLegacyManifestForUser(userId: string, orgId: string): Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> {
+  listLegacyManifestForUser(userId: string, orgId: string, role: UserRole = this.getUser(userId)?.role ?? "member"): Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> {
     this.purgeExpiredLegacyManifest();
     const rows = this.db.query(`SELECT manifest.legacy_matter_id, manifest.matter_handle, manifest.root_stream_handle, manifest.streams_json
       FROM firm_relay_migration_manifest AS manifest
-      JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
       JOIN matters ON matters.matter_handle = manifest.matter_handle
-      WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?
+      WHERE matters.org_id = ?
+        AND (
+          ? = 'admin'
+          OR EXISTS (
+            SELECT 1 FROM matter_members AS members
+            WHERE members.matter_handle = manifest.matter_handle
+              AND members.user_id = ?
+              AND members.org_id = matters.org_id
+          )
+        )
         AND NOT EXISTS (
           SELECT 1 FROM ethical_walls AS walls
-          WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = members.user_id
+          WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = ?
         )
-      ORDER BY manifest.matter_handle`).all(userId, orgId, orgId) as Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams_json: string }>;
+      ORDER BY manifest.matter_handle`).all(orgId, role, userId, userId) as Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams_json: string }>;
     return rows.map((row) => ({
       legacy_matter_id: row.legacy_matter_id,
       matter_handle: row.matter_handle,
@@ -1063,21 +1071,29 @@ export class Store {
    * readable until its deadline so another member or a recovered device cannot
    * lose the mapping because someone else acknowledged first.
    */
-  acknowledgeLegacyManifestForUser(userId: string, orgId: string): number {
+  acknowledgeLegacyManifestForUser(userId: string, orgId: string, role: UserRole = this.getUser(userId)?.role ?? "member"): number {
     const txn = this.db.transaction(() => {
       this.purgeExpiredLegacyManifest();
       return this.db.query(`INSERT OR IGNORE INTO firm_relay_migration_manifest_acknowledgements
           (matter_handle, user_id, org_id, acknowledged_at)
         SELECT manifest.matter_handle, ?, ?, ?
         FROM firm_relay_migration_manifest AS manifest
-        JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
         JOIN matters ON matters.matter_handle = manifest.matter_handle
-        WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?
+        WHERE matters.org_id = ?
+          AND (
+            ? = 'admin'
+            OR EXISTS (
+              SELECT 1 FROM matter_members AS members
+              WHERE members.matter_handle = manifest.matter_handle
+                AND members.user_id = ?
+                AND members.org_id = matters.org_id
+            )
+          )
           AND NOT EXISTS (
             SELECT 1 FROM ethical_walls AS walls
-            WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = members.user_id
+            WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = ?
           )`)
-        .run(userId, orgId, this.nowIso(), userId, orgId, orgId).changes;
+        .run(userId, orgId, this.nowIso(), orgId, role, userId, userId).changes;
     });
     return txn.immediate() as number;
   }

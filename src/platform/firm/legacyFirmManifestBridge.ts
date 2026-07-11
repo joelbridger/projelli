@@ -126,7 +126,7 @@ export async function runLegacyFirmManifestBridge(
     return { status: 'noop', migratedMatterIds: [], placeholderCount: 0, notices: [] };
   }
 
-  const manifest = await options.client.migrationManifest();
+  const manifest = await options.client.migrationManifest(options.seatToken);
   const byLegacyId = new Map(manifest.matters.map((row) => [row.legacy_matter_id, row]));
   const matchedLegacyIds = new Set<string>();
   const migratedMatterIds: string[] = [];
@@ -203,7 +203,7 @@ export async function runLegacyFirmManifestBridge(
 
   // The acknowledgement only removes rows sealed by this device. Unsealed
   // checkpoints remain local, waiting for their encryption key on a later run.
-  await options.client.migrationComplete();
+  await options.client.migrationComplete(options.seatToken);
   for (const candidate of options.getMatters()) {
     const legacyMatterId = candidate.legacyFirmMatterId;
     if (!legacyMatterId || !sealedLegacyIds.includes(legacyMatterId)) continue;

@@ -286,20 +286,22 @@ export class FirmApiClient {
    * endpoint takes an empty body: a legacy matter ID must never travel back
    * to the service in a client request.
    */
-  migrationManifest(): Promise<LegacyMigrationManifestResponse> {
+  migrationManifest(seatToken: string): Promise<LegacyMigrationManifestResponse> {
     return this.request<LegacyMigrationManifestResponse>(FIRM_ENDPOINTS.migrationManifest, {
       method: 'POST',
       auth: true,
       body: {},
+      headers: { 'X-Seat-Token': seatToken },
     });
   }
 
   /** Confirm only after every locally matched legacy matter has been sealed. */
-  migrationComplete(): Promise<{ ok: true }> {
+  migrationComplete(seatToken: string): Promise<{ ok: true }> {
     return this.request<{ ok: true }>(FIRM_ENDPOINTS.migrationComplete, {
       method: 'POST',
       auth: true,
       body: {},
+      headers: { 'X-Seat-Token': seatToken },
     });
   }
 

@@ -30,9 +30,12 @@ export async function promoteMatterToShared(
   client: FirmApiClient,
 ): Promise<PromoteMatterResult> {
   const { linkFirmMatter } = useMatterStore.getState();
+  const seatToken = useFirmStore.getState().seatToken;
   let handle: MatterHandle | null = null;
-  let activated = false;
   try {
+    // Never create a visible relay shell unless this device can complete the
+    // first authenticated write that makes the shell usable.
+    if (!seatToken) throw new Error('A valid firm seat is required to share a client.');
     const provision = await client.createMatter();
     handle = provision.matter_handle;
     const keyB64 = await createLocalMatterKey(handle);
@@ -50,12 +53,9 @@ export async function promoteMatterToShared(
       matterHandle: handle,
       streamHandle: provision.root_stream_handle,
     });
-    const seatToken = useFirmStore.getState().seatToken;
-    if (!seatToken) throw new Error('A valid firm seat is required to share a client.');
     await client.pushUpdate(provision.root_stream_handle, blobId(), ciphertext, seatToken, provision.key_epoch);
 
     await client.activateMatter(handle);
-    activated = true;
     await registerDevice(client);
     await publishMatterKeyToMembers(client, handle, provision.key_epoch);
 
@@ -67,8 +67,8 @@ export async function promoteMatterToShared(
     });
     return { status: 'shared', matterId, firmMatterId: handle, orgId };
   } catch (err) {
-    // A post-activation failure must not leave a visible shared-client shell.
-    if (handle && activated) await client.archiveMatter(handle).catch(() => undefined);
+    // A post-provisioning failure must not leave a retry-multiplying shell.
+    if (handle) await client.archiveMatter(handle).catch(() => undefined);
     if (handle) await forgetMatterKey(handle).catch(() => undefined);
     return { status: 'failed', matterId, error: err instanceof Error ? err.message : String(err) };
   }

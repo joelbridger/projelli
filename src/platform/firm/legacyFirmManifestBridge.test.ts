@@ -306,5 +306,9 @@ describe('one-time legacy firm manifest bridge', () => {
     const completeRequest = traffic.find((request) => request.url.endsWith('/migration-complete'));
     expect(manifestRequest?.body).toBe('{}');
     expect(completeRequest?.body).toBe('{}');
+    expect(manifestRequest?.headers).toContain('X-Seat-Token');
+    expect(manifestRequest?.headers).toContain('seat-token');
+    expect(completeRequest?.headers).toContain('X-Seat-Token');
+    expect(completeRequest?.headers).toContain('seat-token');
   });
 });
