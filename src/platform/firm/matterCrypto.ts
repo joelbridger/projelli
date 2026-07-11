@@ -8,7 +8,7 @@
  * and applied. The relay stores OPAQUE ciphertext only and never holds the key.
  *
  * Wire format of one sealed blob (then base64 for `ciphertext_b64`):
- *   [ 1 byte version=1 ][ 12 byte IV ][ AES-GCM ciphertext+tag ]
+ *   [ 1 byte version=2 ][ 12 byte IV ][ AES-GCM ciphertext+tag ]
  *
  * `key_epoch` is woven in as AES-GCM Additional Authenticated Data (AAD), so a
  * blob sealed under one epoch cannot be silently reinterpreted under another:
@@ -16,25 +16,11 @@
  * fails authentication by construction.
  */
 
-const V1_VERSION = 1;
 const V2_VERSION = 2;
 const IV_BYTES = 12;
 const KEY_BITS = 256;
-/** Fixed, short bridge window. Deployments may move it earlier, never later. */
-const DEFAULT_V1_READ_DEADLINE = '2026-07-18T00:00:00.000Z';
-
-function v1ReadDeadline(): number {
-  const configured = (typeof process !== 'undefined' ? process.env['VITE_FIRM_V1_CRYPTO_READ_DEADLINE'] : undefined)
-    ?? import.meta.env['VITE_FIRM_V1_CRYPTO_READ_DEADLINE']
-    ?? DEFAULT_V1_READ_DEADLINE;
-  const parsed = Date.parse(configured);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-/** The legacy wire format is a migration-only reader, never a normal format. */
-export function isV1ReadWindowOpen(now = Date.now()): boolean {
-  return now < v1ReadDeadline();
-}
+/** Local alias keeps this browser module type-checkable from the Bun backend too. */
+type CryptoBufferSource = Parameters<SubtleCrypto['decrypt']>[2];
 
 function getSubtle(): SubtleCrypto {
   const subtle = (globalThis.crypto as Crypto | undefined)?.subtle;
@@ -58,10 +44,6 @@ function b64ToBytes(b64: string): Uint8Array {
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
   return out;
-}
-
-function epochAad(keyEpoch: number): Uint8Array {
-  return new TextEncoder().encode(`epoch:${String(keyEpoch)}`);
 }
 
 export interface MatterRouteContext {
@@ -102,80 +84,15 @@ export async function generateMatterKey(): Promise<string> {
 /** Import a base64 raw key for use. */
 export async function importMatterKey(keyB64: string): Promise<CryptoKey> {
   const raw = b64ToBytes(keyB64);
-  return getSubtle().importKey('raw', buf(raw) as unknown as BufferSource, { name: 'AES-GCM' }, false, [
+  return getSubtle().importKey('raw', buf(raw) as unknown as CryptoBufferSource, { name: 'AES-GCM' }, false, [
     'encrypt',
     'decrypt',
   ]);
 }
 
-/**
- * Seal a Yjs update (or any bytes) under the matter key + epoch. Returns the
- * base64 blob to send as `ciphertext_b64`. A fresh random IV is used each call.
- */
-export async function encryptUpdate(
-  key: CryptoKey,
-  update: Uint8Array,
-  keyEpoch: number,
-): Promise<string> {
-  const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
-  const ct = new Uint8Array(
-    await getSubtle().encrypt(
-      { name: 'AES-GCM', iv, additionalData: buf(epochAad(keyEpoch)) as unknown as BufferSource },
-      key,
-      buf(update) as unknown as BufferSource,
-    ),
-  );
-  const out = new Uint8Array(1 + IV_BYTES + ct.length);
-  out[0] = V1_VERSION;
-  out.set(iv, 1);
-  out.set(ct, 1 + IV_BYTES);
-  return bytesToB64(out);
-}
-
 export type DecryptResult =
   | { ok: true; update: Uint8Array }
   | { ok: false; reason: 'bad_version' | 'malformed' | 'auth_failed' };
-
-/**
- * Open a sealed blob (base64 `ciphertext_b64`) under the matter key + the epoch
- * it was sealed with. Returns the original Yjs update bytes. Authentication
- * failure (wrong key / wrong epoch / tampering) yields `auth_failed`, never a
- * throw, so the sync client can skip a blob it cannot read (e.g. one sealed
- * under a future epoch before the client has re-keyed).
- */
-export async function decryptUpdate(
-  key: CryptoKey,
-  ciphertextB64: string,
-  keyEpoch: number,
-): Promise<DecryptResult> {
-  let raw: Uint8Array;
-  try {
-    raw = b64ToBytes(ciphertextB64);
-  } catch {
-    return { ok: false, reason: 'malformed' };
-  }
-  if (raw.length < 1 + IV_BYTES + 16) return { ok: false, reason: 'malformed' };
-  if (raw[0] !== V1_VERSION) return { ok: false, reason: 'bad_version' };
-  const iv = raw.subarray(1, 1 + IV_BYTES);
-  const ct = raw.subarray(1 + IV_BYTES);
-  try {
-    const pt = new Uint8Array(
-      await getSubtle().decrypt(
-        { name: 'AES-GCM', iv: buf(iv) as unknown as BufferSource, additionalData: buf(epochAad(keyEpoch)) as unknown as BufferSource },
-        key,
-        buf(ct) as unknown as BufferSource,
-      ),
-    );
-    return { ok: true, update: pt };
-  } catch {
-    return { ok: false, reason: 'auth_failed' };
-  }
-}
-
-/** Cheap format check used by the bridge before it opens and rewrites a blob. */
-export function isLegacyV1Ciphertext(ciphertextB64: string): boolean {
-  try { return b64ToBytes(ciphertextB64)[0] === V1_VERSION; } catch { return false; }
-}
 
 /** Seal a new v2 relay blob. New writes must use this, never the v1 helper. */
 export async function encryptUpdateV2(
@@ -185,9 +102,9 @@ export async function encryptUpdateV2(
 ): Promise<string> {
   const iv = globalThis.crypto.getRandomValues(new Uint8Array(IV_BYTES));
   const ct = new Uint8Array(await getSubtle().encrypt(
-    { name: 'AES-GCM', iv, additionalData: buf(v2Aad(context)) as unknown as BufferSource },
+    { name: 'AES-GCM', iv, additionalData: buf(v2Aad(context)) as unknown as CryptoBufferSource },
     key,
-    buf(update) as unknown as BufferSource,
+    buf(update) as unknown as CryptoBufferSource,
   ));
   const out = new Uint8Array(1 + IV_BYTES + ct.length);
   out[0] = V2_VERSION;
@@ -197,10 +114,7 @@ export async function encryptUpdateV2(
 }
 
 /**
- * Open a relay blob. V1 is accepted only during the short migration window;
- * the bridge rewrites every readable V1 update into route-bound V2 before it
- * acknowledges completion. Once the window closes, accepting V1 would reopen
- * a permanent cross-stream replay path.
+ * Open a v2 relay blob. Older versions are rejected without a decode attempt.
  */
 export async function decryptUpdateV2(
   key: CryptoKey,
@@ -210,20 +124,16 @@ export async function decryptUpdateV2(
   let raw: Uint8Array;
   try { raw = b64ToBytes(ciphertextB64); } catch { return { ok: false, reason: 'malformed' }; }
   if (raw.length < 1 + IV_BYTES + 16) return { ok: false, reason: 'malformed' };
-  if (raw[0] === V1_VERSION) {
-    if (!isV1ReadWindowOpen()) return { ok: false, reason: 'bad_version' };
-    return decryptUpdate(key, ciphertextB64, context.keyEpoch);
-  }
   if (raw[0] !== V2_VERSION) return { ok: false, reason: 'bad_version' };
   try {
     const pt = new Uint8Array(await getSubtle().decrypt(
       {
         name: 'AES-GCM',
-        iv: buf(raw.subarray(1, 1 + IV_BYTES)) as unknown as BufferSource,
-        additionalData: buf(v2Aad(context)) as unknown as BufferSource,
+        iv: buf(raw.subarray(1, 1 + IV_BYTES)) as unknown as CryptoBufferSource,
+        additionalData: buf(v2Aad(context)) as unknown as CryptoBufferSource,
       },
       key,
-      buf(raw.subarray(1 + IV_BYTES)) as unknown as BufferSource,
+      buf(raw.subarray(1 + IV_BYTES)) as unknown as CryptoBufferSource,
     ));
     return { ok: true, update: pt };
   } catch {

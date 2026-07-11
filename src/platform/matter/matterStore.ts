@@ -322,10 +322,6 @@ export interface CreateMatterInput {
   orgId?: string;
   role?: 'owner' | 'editor' | 'viewer';
   shared?: boolean;
-  /** Device-only one-time legacy-firm bridge state. */
-  legacyFirmMatterId?: string;
-  firmMigrationSealed?: boolean;
-  sharedDetailsPending?: boolean;
   /** Mark this as the built-in sample matter seeded during onboarding. */
   isSample?: boolean;
   /** Optionally supply a deterministic id (used for the sample matter). */
@@ -1062,9 +1058,6 @@ export const useMatterStore = create<MatterState>()(
           ...(input.orgId !== undefined ? { orgId: input.orgId } : {}),
           ...(input.role !== undefined ? { role: input.role } : {}),
           ...(input.shared !== undefined ? { shared: input.shared } : {}),
-          ...(input.legacyFirmMatterId !== undefined ? { legacyFirmMatterId: input.legacyFirmMatterId } : {}),
-          ...(input.firmMigrationSealed !== undefined ? { firmMigrationSealed: input.firmMigrationSealed } : {}),
-          ...(input.sharedDetailsPending !== undefined ? { sharedDetailsPending: input.sharedDetailsPending } : {}),
           ...(input.isSample ? { isSample: true } : {}),
         };
         set((state) => ({ matters: [...state.matters, matter] }));

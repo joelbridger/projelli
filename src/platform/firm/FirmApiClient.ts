@@ -48,7 +48,6 @@ import {
   type FetchMatterKeysResponse,
   type ListOrgAdminsResponse,
   type MatterMineResponse,
-  type LegacyMigrationManifestResponse,
   type PublicUser,
   type ListOrgUsersResponse,
   type SsoConfigSetRequest,
@@ -274,30 +273,6 @@ export class FirmApiClient {
    */
   matterMine(seatToken: string): Promise<MatterMineResponse> {
     return this.request<MatterMineResponse>(FIRM_ENDPOINTS.matterMine, {
-      method: 'POST',
-      auth: true,
-      body: {},
-      headers: { 'X-Seat-Token': seatToken },
-    });
-  }
-
-  /**
-   * Read the authenticated user's short-lived legacy-to-opaque map. The
-   * endpoint takes an empty body: a legacy matter ID must never travel back
-   * to the service in a client request.
-   */
-  migrationManifest(seatToken: string): Promise<LegacyMigrationManifestResponse> {
-    return this.request<LegacyMigrationManifestResponse>(FIRM_ENDPOINTS.migrationManifest, {
-      method: 'POST',
-      auth: true,
-      body: {},
-      headers: { 'X-Seat-Token': seatToken },
-    });
-  }
-
-  /** Confirm only after every locally matched legacy matter has been sealed. */
-  migrationComplete(seatToken: string): Promise<{ ok: true }> {
-    return this.request<{ ok: true }>(FIRM_ENDPOINTS.migrationComplete, {
       method: 'POST',
       auth: true,
       body: {},

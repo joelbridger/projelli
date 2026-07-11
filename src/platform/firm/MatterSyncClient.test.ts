@@ -1,10 +1,7 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as Y from 'yjs';
+import { describe, expect, it } from 'vitest';
 import { MatterSyncClient, type WebSocketLike } from './MatterSyncClient';
-import { encryptUpdate, generateMatterKey, importMatterKey } from './matterCrypto';
+import { generateMatterKey } from './matterCrypto';
 import { parseMatterHandle, parseStreamHandle } from './contract';
-
-afterEach(() => vi.unstubAllEnvs());
 
 describe('MatterSyncClient v2 socket privacy', () => {
   it('opens the fixed ticket-only socket URL and accepts identifier-free frames', async () => {
@@ -35,18 +32,11 @@ describe('MatterSyncClient v2 socket privacy', () => {
     client.stop();
   });
 
-  it('hard-rejects legacy v1 history after the migration deadline', async () => {
-    vi.stubEnv('VITE_FIRM_V1_CRYPTO_READ_DEADLINE', '2000-01-01T00:00:00.000Z');
+  it('hard-rejects legacy v1 history', async () => {
     const matterHandle = parseMatterHandle(`mh2_${'C'.repeat(43)}`);
     const streamHandle = parseStreamHandle(`sh2_${'D'.repeat(43)}`);
     const keyB64 = await generateMatterKey();
-    const legacyDoc = new Y.Doc();
-    legacyDoc.getMap('history').set('migrated-note', 'still readable');
-    const ciphertext_b64 = await encryptUpdate(
-      await importMatterKey(keyB64),
-      Y.encodeStateAsUpdate(legacyDoc),
-      1,
-    );
+    const ciphertext_b64 = btoa(String.fromCharCode(1, ...new Uint8Array(12 + 16)));
     const fakeClient = {
       pullUpdates: () => Promise.resolve({
         key_epoch: 1, since: 0, cursor: 1, latest_cursor: 1, has_more: false,

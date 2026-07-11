@@ -146,18 +146,6 @@ export interface Matter {
   shared?: boolean;
 
   /**
-   * Device-only checkpoint for the one-time legacy firm bridge. It is never a
-   * relay value: `firmMatterId` is already the opaque replacement handle.
-   * Retaining this until acknowledgement lets a restart resume safely after
-   * the local link was saved but before the encrypted root index was sealed.
-   */
-  legacyFirmMatterId?: string;
-  /** Device-only checkpoint: the encrypted root private index was accepted. */
-  firmMigrationSealed?: boolean;
-  /** Generic joining state; details appear only after decrypting the root index. */
-  sharedDetailsPending?: boolean;
-
-  /**
    * Whether this is the built-in sample matter seeded during onboarding.
    * Sample matters are flagged so the UI can offer the first-run aha-moment
    * flow without confusing them with real client work. Optional so matters

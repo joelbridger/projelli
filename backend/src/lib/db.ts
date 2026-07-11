@@ -160,30 +160,6 @@ CREATE TABLE IF NOT EXISTS matter_streams (
 );
 CREATE INDEX IF NOT EXISTS idx_matter_streams_matter ON matter_streams(matter_handle);
 
--- Temporary migration-only bridge. This is the one bounded place legacy local
--- IDs may live: it is never joined into normal relay responses or audit rows,
--- and expiry deletes it. Acknowledgements are per-user and never remove the
--- shared mapping, so every device can safely finish migration.
-CREATE TABLE IF NOT EXISTS firm_relay_migration_manifest (
-  legacy_matter_id  TEXT NOT NULL UNIQUE,
-  matter_handle     TEXT NOT NULL UNIQUE REFERENCES matters(matter_handle),
-  root_stream_handle TEXT NOT NULL,
-  streams_json      TEXT NOT NULL,
-  expires_at        TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_firm_relay_migration_manifest_expiry
-  ON firm_relay_migration_manifest(expires_at);
-
-CREATE TABLE IF NOT EXISTS firm_relay_migration_manifest_acknowledgements (
-  matter_handle   TEXT NOT NULL REFERENCES firm_relay_migration_manifest(matter_handle) ON DELETE CASCADE,
-  user_id         TEXT NOT NULL REFERENCES users(user_id),
-  org_id          TEXT NOT NULL,
-  acknowledged_at TEXT NOT NULL,
-  PRIMARY KEY (matter_handle, user_id)
-);
-CREATE INDEX IF NOT EXISTS idx_firm_relay_migration_manifest_ack_user
-  ON firm_relay_migration_manifest_acknowledgements(user_id, org_id);
-
 CREATE TABLE IF NOT EXISTS matter_members (
   matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
   user_id    TEXT NOT NULL REFERENCES users(user_id),
@@ -453,6 +429,10 @@ export class Store {
     const existingMatterCols = this.db.query("PRAGMA table_info(matters)").all() as Array<{ name: string }>;
     if (existingMatterCols.some((c) => c.name === "matter_id")) this.migrateFirmRelayToV2();
     this.db.exec(SCHEMA);
+    // V2-only cleanup for relay databases opened by a bridge build. This must
+    // happen even when their matter schema is already v2: the manifest was the
+    // only relay table with a plaintext legacy identifier.
+    this.db.exec("DROP TABLE IF EXISTS firm_relay_migration_manifest_acknowledgements; DROP TABLE IF EXISTS firm_relay_migration_manifest;");
 
     // Upgrade existing v2 relays in place without touching opaque ciphertext.
     const streamCols = this.db.query("PRAGMA table_info(matter_streams)").all() as Array<{ name: string }>;
@@ -497,8 +477,6 @@ export class Store {
   private migrateFirmRelayToV2(): void {
     const cols = this.db.query("PRAGMA table_info(matters)").all() as Array<{ name: string }>;
     if (cols.some((c) => c.name === "matter_handle")) return;
-    const oldUpdateCols = this.db.query("PRAGMA table_info(matter_updates)").all() as Array<{ name: string }>;
-    const hasDocId = oldUpdateCols.some((c) => c.name === "doc_id");
     this.db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE;");
     try {
       this.db.exec(`
@@ -512,33 +490,12 @@ export class Store {
         CREATE TABLE wrapped_matter_keys_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), epoch INTEGER NOT NULL, user_id TEXT NOT NULL, device_id TEXT NOT NULL, wrapped_key_b64 TEXT NOT NULL, published_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,epoch,user_id,device_id));
         CREATE INDEX idx_wmk_matter_epoch_v2 ON wrapped_matter_keys_v2(matter_handle, epoch);
         CREATE INDEX idx_wmk_user_v2 ON wrapped_matter_keys_v2(user_id);
-        CREATE TABLE firm_relay_migration_manifest (legacy_matter_id TEXT NOT NULL UNIQUE, matter_handle TEXT NOT NULL UNIQUE REFERENCES matters_v2(matter_handle), root_stream_handle TEXT NOT NULL, streams_json TEXT NOT NULL, expires_at TEXT NOT NULL);
-        CREATE INDEX idx_firm_relay_migration_manifest_expiry ON firm_relay_migration_manifest(expires_at);
       `);
-      const matters = this.db.query("SELECT * FROM matters").all() as Array<{ matter_id: string; org_id: string; status: string; key_epoch: number; created_at: string }>;
-      const handles = new Map<string, { matter: string; root: string; streams: Map<string, string> }>();
-      for (const old of matters) {
-        const matter = this.newHandle("mh2_");
-        const root = this.newHandle("sh2_");
-        handles.set(old.matter_id, { matter, root, streams: new Map([["_notes", root]]) });
-        this.db.query("INSERT INTO matters_v2 VALUES (?, ?, ?, ?, ?, ?)").run(matter, old.org_id, root, old.status === "archived" ? "archived" : "active", old.key_epoch, old.created_at);
-        this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?, NULL, ?, ?)").run(root, matter, old.created_at, old.created_at, old.created_at);
-      }
-      const updateRows = this.db.query(`SELECT * FROM matter_updates ORDER BY id ASC`).all() as Array<{ id: number; matter_id: string; org_id: string; doc_id?: string; blob_id: string; ciphertext: Uint8Array; author_seat: string; key_epoch: number; created_at: string }>;
-      for (const u of updateRows) {
-        const mapped = handles.get(u.matter_id); if (!mapped) continue;
-        const legacyStream = hasDocId ? (u.doc_id ?? "_notes") : "_notes";
-        let stream = mapped.streams.get(legacyStream);
-        if (!stream) { stream = this.newHandle("sh2_"); mapped.streams.set(legacyStream, stream); this.db.query("INSERT INTO matter_streams_v2 VALUES (?, ?, ?, NULL, ?, ?)").run(stream, mapped.matter, u.created_at, u.created_at, u.created_at); }
-        this.db.query("INSERT INTO matter_updates_v2 (id,matter_handle,org_id,stream_handle,blob_id,ciphertext,author_seat,key_epoch,created_at) VALUES (?,?,?,?,?,?,?,?,?)").run(u.id, mapped.matter, u.org_id, stream, u.blob_id, u.ciphertext, u.author_seat, u.key_epoch, u.created_at);
-      }
-      for (const row of this.db.query("SELECT * FROM matter_members").all() as Array<{ matter_id:string; user_id:string; org_id:string; role:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO matter_members_v2 VALUES (?,?,?,?,?)").run(m.matter,row.user_id,row.org_id,row.role,row.created_at); }
-      for (const row of this.db.query("SELECT * FROM ethical_walls").all() as Array<{ matter_id:string; user_id:string; org_id:string; created_by:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO ethical_walls_v2 VALUES (?,?,?,?,?)").run(m.matter,row.user_id,row.org_id,row.created_by,row.created_at); }
-      for (const row of this.db.query("SELECT * FROM wrapped_matter_keys").all() as Array<{ matter_id:string; epoch:number; user_id:string; device_id:string; wrapped_key_b64:string; published_by:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO wrapped_matter_keys_v2 VALUES (?,?,?,?,?,?,?)").run(m.matter,row.epoch,row.user_id,row.device_id,row.wrapped_key_b64,row.published_by,row.created_at); }
-      for (const [legacy, map] of handles) {
-        this.db.query("INSERT INTO firm_relay_migration_manifest (legacy_matter_id,matter_handle,root_stream_handle,streams_json,expires_at) VALUES (?,?,?,?,?)").run(legacy, map.matter, map.root, JSON.stringify(Object.fromEntries(map.streams)), config.migrationManifestDeadline);
-        this.db.query("UPDATE audit_events SET target = ?, detail = NULL WHERE target = ?").run(map.matter, legacy);
-      }
+      // This release is v2-only. Old relay rows can contain plaintext local
+      // identifiers and v1 ciphertext that is intentionally undecodable now,
+      // so this schema rebuild creates an empty relay instead of copying either.
+      // Development/demo operators reset and re-seed the database before use.
+      this.db.exec("DELETE FROM audit_events");
       this.db.exec("DROP TABLE wrapped_matter_keys; DROP TABLE matter_updates; DROP TABLE ethical_walls; DROP TABLE matter_members; DROP TABLE IF EXISTS matter_streams; DROP TABLE matters; ALTER TABLE matters_v2 RENAME TO matters; ALTER TABLE matter_streams_v2 RENAME TO matter_streams; ALTER TABLE matter_members_v2 RENAME TO matter_members; ALTER TABLE ethical_walls_v2 RENAME TO ethical_walls; ALTER TABLE matter_updates_v2 RENAME TO matter_updates; ALTER TABLE wrapped_matter_keys_v2 RENAME TO wrapped_matter_keys; DROP INDEX idx_matter_updates_blob_v2; DROP INDEX idx_matter_updates_matter_v2; DROP INDEX idx_wmk_matter_epoch_v2; DROP INDEX idx_wmk_user_v2; CREATE INDEX idx_matters_org ON matters(org_id); CREATE INDEX idx_matter_streams_matter ON matter_streams(matter_handle); CREATE INDEX idx_matter_members_user ON matter_members(user_id); CREATE INDEX idx_matter_members_matter ON matter_members(matter_handle); CREATE INDEX idx_ethical_walls_user ON ethical_walls(user_id); CREATE UNIQUE INDEX idx_matter_updates_blob ON matter_updates(stream_handle, blob_id); CREATE INDEX idx_matter_updates_matter ON matter_updates(matter_handle, stream_handle, id); CREATE INDEX idx_wmk_matter_epoch ON wrapped_matter_keys(matter_handle, epoch); CREATE INDEX idx_wmk_user ON wrapped_matter_keys(user_id);");
       const fk = this.db.query("PRAGMA foreign_key_check").all(); if (fk.length) throw new Error("firm_relay_migration_foreign_key_failure");
       this.db.exec("COMMIT; PRAGMA foreign_keys = ON;");
@@ -1070,76 +1027,6 @@ export class Store {
   getMatterHandleForStream(streamHandle: string): string | null {
     const row = this.db.query("SELECT matter_handle FROM matter_streams WHERE stream_handle = ?").get(streamHandle) as { matter_handle: string } | null;
     return row?.matter_handle ?? null;
-  }
-
-  /** Remove every still-pending bridge row after the configured migration window. */
-  purgeExpiredLegacyManifest(now = this.nowIso()): number {
-    return this.db.query("DELETE FROM firm_relay_migration_manifest WHERE expires_at <= ?").run(now).changes;
-  }
-
-  /**
-   * Read the migration bridge for this caller only. Reads are deliberately
-   * repeatable: a desktop may crash after receiving it but before sealing its
-   * encrypted root index.
-   */
-  listLegacyManifestForUser(userId: string, orgId: string, role: UserRole = this.getUser(userId)?.role ?? "member"): Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> {
-    this.purgeExpiredLegacyManifest();
-    const rows = this.db.query(`SELECT manifest.legacy_matter_id, manifest.matter_handle, manifest.root_stream_handle, manifest.streams_json
-      FROM firm_relay_migration_manifest AS manifest
-      JOIN matters ON matters.matter_handle = manifest.matter_handle
-      WHERE matters.org_id = ?
-        AND (
-          ? = 'admin'
-          OR EXISTS (
-            SELECT 1 FROM matter_members AS members
-            WHERE members.matter_handle = manifest.matter_handle
-              AND members.user_id = ?
-              AND members.org_id = matters.org_id
-          )
-        )
-        AND NOT EXISTS (
-          SELECT 1 FROM ethical_walls AS walls
-          WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = ?
-        )
-      ORDER BY manifest.matter_handle`).all(orgId, role, userId, userId) as Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams_json: string }>;
-    return rows.map((row) => ({
-      legacy_matter_id: row.legacy_matter_id,
-      matter_handle: row.matter_handle,
-      root_stream_handle: row.root_stream_handle,
-      streams: JSON.parse(row.streams_json) as Record<string, string>,
-    }));
-  }
-
-  /**
-   * Record that this user completed migration. The shared bridge remains
-   * readable until its deadline so another member or a recovered device cannot
-   * lose the mapping because someone else acknowledged first.
-   */
-  acknowledgeLegacyManifestForUser(userId: string, orgId: string, role: UserRole = this.getUser(userId)?.role ?? "member"): number {
-    const txn = this.db.transaction(() => {
-      this.purgeExpiredLegacyManifest();
-      return this.db.query(`INSERT OR IGNORE INTO firm_relay_migration_manifest_acknowledgements
-          (matter_handle, user_id, org_id, acknowledged_at)
-        SELECT manifest.matter_handle, ?, ?, ?
-        FROM firm_relay_migration_manifest AS manifest
-        JOIN matters ON matters.matter_handle = manifest.matter_handle
-        WHERE matters.org_id = ?
-          AND (
-            ? = 'admin'
-            OR EXISTS (
-              SELECT 1 FROM matter_members AS members
-              WHERE members.matter_handle = manifest.matter_handle
-                AND members.user_id = ?
-                AND members.org_id = matters.org_id
-            )
-          )
-          AND NOT EXISTS (
-            SELECT 1 FROM ethical_walls AS walls
-            WHERE walls.matter_handle = manifest.matter_handle AND walls.user_id = ?
-          )`)
-        .run(userId, orgId, this.nowIso(), orgId, role, userId, userId).changes;
-    });
-    return txn.immediate() as number;
   }
 
   setMatterStatus(matterHandle: string, status: MatterStatus): void {
