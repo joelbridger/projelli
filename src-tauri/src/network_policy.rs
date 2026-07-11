@@ -508,7 +508,11 @@ pub const EXTERNAL_NAVIGATION: EgressOperation = EgressOperation {
 pub const MCP_EXTERNAL_CLIENT_EXPORT: EgressOperation = EgressOperation {
     id: "mcp-external-client-export",
     category: EgressCategory::ExternalClientExport,
-    destination_rule: DestinationRule::UserConfiguredHost,
+    // MCP approval crosses the desktop/external-client boundary over a local
+    // rendezvous file, not a remote URL.  This fixed logical host lets that
+    // boundary use the same policy + audit receipt mechanism without ever
+    // resolving or contacting a fictional network endpoint.
+    destination_rule: DestinationRule::ExactHosts(&["mcp-external-client.invalid"]),
     data_classes: EgressDataClasses {
         content: true,
         metadata: true,
@@ -516,6 +520,12 @@ pub const MCP_EXTERNAL_CLIENT_EXPORT: EgressOperation = EgressOperation {
     },
     receipt_label: "MCP access",
 };
+
+/// Logical-only MCP destination. This name is never resolved or contacted;
+/// the MCP sidecar exchanges data through a local rendezvous file. It exists
+/// so both MCP binaries can use one policy operation and one durable receipt
+/// path when they cross the desktop/external-client boundary.
+pub const MCP_EXTERNAL_CLIENT_LOGICAL_DESTINATION: &str = "https://mcp-external-client.invalid/";
 
 /// A small seed registry for Lane 0.  Later lanes extend this list as they
 /// migrate real sinks; authorization never trusts an unregistered operation.
@@ -929,7 +939,10 @@ impl NetworkPolicy {
         );
         let failure_code = Self::failure_code(error);
         let description = if result == "blocked-before-network" {
-            format!("Network action blocked before connection: {}", operation.receipt_label)
+            format!(
+                "Network action blocked before connection: {}",
+                operation.receipt_label
+            )
         } else {
             format!(
                 "Network action {result}: {} contacted {}",
@@ -1147,7 +1160,8 @@ impl NetworkPolicy {
                     destination: destination.clone(),
                 });
             }
-            let error = NetworkPolicyError::from(OfflineModeBlockedError::for_operation(registered));
+            let error =
+                NetworkPolicyError::from(OfflineModeBlockedError::for_operation(registered));
             self.record_native_egress_receipt(
                 registered,
                 destination,
@@ -1183,6 +1197,20 @@ impl NetworkPolicy {
             operation: *registered,
             destination: destination.clone(),
         })
+    }
+
+    /// Authorize the MCP external-client boundary. MCP has no remote URL to
+    /// parse because its sidecar speaks over stdio and local files, so it uses
+    /// a fixed non-resolvable logical destination solely for policy receipts.
+    pub fn authorize_mcp_external_client_access(
+        &self,
+    ) -> Result<AuthorizedGeneration, NetworkPolicyError> {
+        let destination = Destination::parse(
+            Url::parse(MCP_EXTERNAL_CLIENT_LOGICAL_DESTINATION)
+                .expect("the fixed MCP logical destination must be a valid URL"),
+        )
+        .expect("the fixed MCP logical destination must have a host");
+        self.authorize(&MCP_EXTERNAL_CLIENT_EXPORT, &destination)
     }
 
     fn destination_allowed(operation: &EgressOperation, destination: &Destination) -> bool {

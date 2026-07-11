@@ -52,6 +52,9 @@ async function run() {
     // This binds the real encrypted audit database to our isolated disposable
     // workspace before any native guard is called.
     const auditSetup = await invoke(page, 'audit_set_workspace', { path: workspace });
+    // Make the requested mode explicit in the already-running native process.
+    // This removes restart timing and policy-file escaping from the gate itself.
+    const modeSet = await invoke(page, 'set_offline_mode', { enabled: mode === 'offline' });
     const status = await invoke(page, 'network_policy_status');
     const actions = {};
 
@@ -74,7 +77,7 @@ async function run() {
     await page.screenshot({ path: path.join(outDir, `${mode}-app.jpeg`), type: 'jpeg', quality: 80 });
     const receipts = await invoke(page, 'audit_list', { limit: null, offset: null });
     const integrity = await invoke(page, 'audit_verify_integrity');
-    const result = { startedAt, finishedAt: new Date().toISOString(), mode, workspace, auditSetup, status, actions, receipts, integrity };
+    const result = { startedAt, finishedAt: new Date().toISOString(), mode, workspace, auditSetup, modeSet, status, actions, receipts, integrity };
     await fs.writeFile(path.join(outDir, `${mode}-driver-result.json`), JSON.stringify(result, null, 2));
     console.log(JSON.stringify(result, null, 2));
   } finally {

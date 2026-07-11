@@ -34,18 +34,17 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tauri::State;
 
-use crate::network_policy::NetworkPolicy;
+use crate::network_policy::{AuthorizedGeneration, NetworkPolicy};
 
 /// Base dir mirrored from `src/bin/mcp/approval.rs`. If these two ever
 /// diverge, approval rendezvous breaks — the binary's constants are the
 /// SSOT; this copy is the host's read-side view of the same contract.
 const APPROVAL_PREFIX: &str = crate::identity::MCP_APPROVAL_TEMP_PREFIX;
 
-fn require_mcp_access(policy: &NetworkPolicy) -> Result<(), String> {
-    if policy.status().offline_mode || !policy.status().hydrated {
-        return Err("Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use MCP access.".into());
-    }
-    Ok(())
+fn authorize_mcp_access(policy: &NetworkPolicy) -> Result<AuthorizedGeneration, String> {
+    policy
+        .authorize_mcp_external_client_access()
+        .map_err(|error| error.to_string())
 }
 
 fn approval_base_dir() -> PathBuf {
@@ -133,17 +132,28 @@ pub async fn mcp_approve_write(
     approved: bool,
     policy: State<'_, NetworkPolicy>,
 ) -> Result<(), String> {
-    require_mcp_access(policy.inner())?;
+    let authorized = authorize_mcp_access(policy.inner())?;
     if token.is_empty() {
+        policy
+            .inner()
+            .record_egress_result(&authorized, "failed", Some("INVALID_REQUEST"));
         return Err("token is empty".into());
     }
     // Basic safety: tokens must be hex-only. Prevents a frontend bug from
     // passing `../foo` and escaping the responses dir.
     if !token.chars().all(|c| c.is_ascii_hexdigit()) {
+        policy
+            .inner()
+            .record_egress_result(&authorized, "failed", Some("INVALID_REQUEST"));
         return Err("token must be hex".into());
     }
     let resp_dir = responses_dir();
-    std::fs::create_dir_all(&resp_dir).map_err(|e| format!("mkdir responses: {e}"))?;
+    if let Err(error) = std::fs::create_dir_all(&resp_dir) {
+        policy
+            .inner()
+            .record_egress_result(&authorized, "failed", Some("LOCAL_DELIVERY_FAILED"));
+        return Err(format!("mkdir responses: {error}"));
+    }
     let resp_path = resp_dir.join(format!("{token}.json"));
     let body = ApprovalResponseOut {
         approved,
@@ -153,9 +163,26 @@ pub async fn mcp_approve_write(
             "user denied".into()
         },
     };
-    let payload = serde_json::to_string(&body).map_err(|e| format!("serialize: {e}"))?;
-    std::fs::write(&resp_path, payload)
-        .map_err(|e| format!("write response {}: {e}", resp_path.display()))?;
+    let payload = match serde_json::to_string(&body) {
+        Ok(payload) => payload,
+        Err(error) => {
+            policy.inner().record_egress_result(
+                &authorized,
+                "failed",
+                Some("LOCAL_DELIVERY_FAILED"),
+            );
+            return Err(format!("serialize: {error}"));
+        }
+    };
+    if let Err(error) = std::fs::write(&resp_path, payload) {
+        policy
+            .inner()
+            .record_egress_result(&authorized, "failed", Some("LOCAL_DELIVERY_FAILED"));
+        return Err(format!("write response {}: {error}", resp_path.display()));
+    }
+    policy
+        .inner()
+        .record_egress_result(&authorized, "completed", None);
     Ok(())
 }
 
@@ -172,7 +199,13 @@ pub async fn mcp_bundle_path(
     app: tauri::AppHandle,
     policy: State<'_, NetworkPolicy>,
 ) -> Result<Option<String>, String> {
-    require_mcp_access(policy.inner())?;
+    // Resolving a local bundle path does not hand any workspace data to an
+    // external MCP client. The approval command above is the boundary that
+    // does, and is therefore the only host command that writes an egress
+    // receipt.
+    if policy.inner().status().offline_mode || !policy.inner().status().hydrated {
+        return Err("Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use MCP access.".into());
+    }
     use tauri::Manager;
     let target = current_target_triple();
     let candidate_name = format!("{}-{target}.mcpb", crate::identity::MCP_SERVER_NAME);
@@ -278,8 +311,21 @@ mod tests {
     fn offline_mode_blocks_mcp_grants_with_standard_message() {
         let policy = NetworkPolicy::load_from_directory(&tempfile::tempdir().unwrap().keep());
         policy.set_offline_mode(true).unwrap();
-        assert!(require_mcp_access(&policy)
+        assert!(authorize_mcp_access(&policy)
             .unwrap_err()
             .contains("Offline Mode is on"));
+    }
+
+    #[test]
+    fn offline_mcp_grant_uses_the_registered_receipt_operation() {
+        let policy = NetworkPolicy::load_from_directory(&tempfile::tempdir().unwrap().keep());
+        policy.set_offline_mode(true).unwrap();
+
+        let error = authorize_mcp_access(&policy).unwrap_err();
+
+        assert_eq!(
+            error,
+            "Offline Mode is on. Lantern cannot connect to the internet. Turn it off to use MCP access."
+        );
     }
 }

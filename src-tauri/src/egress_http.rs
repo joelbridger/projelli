@@ -13,6 +13,28 @@ use reqwest::{header::HeaderMap, redirect::Policy, Method, Response, Url};
 
 const MAX_REDIRECTS: usize = 10;
 
+/// Build a native HTTP client with the normal production defaults.  A debug
+/// bench may opt into a recording proxy with this one deliberately-named
+/// environment variable; release builds ignore it completely.  This is not a
+/// product proxy setting and must never become one: it exists solely so the
+/// Windows Offline Mode gate can prove that its recorder is actually watching
+/// the native client before interpreting a zero-traffic result.
+pub fn native_http_client_builder() -> reqwest::ClientBuilder {
+    let builder = reqwest::Client::builder();
+    #[cfg(debug_assertions)]
+    {
+        if let Ok(proxy_url) = std::env::var("LANTERN_OFFLINE_GATE_PROXY") {
+            if !proxy_url.trim().is_empty() {
+                if let Ok(proxy) = reqwest::Proxy::all(&proxy_url) {
+                    return builder.proxy(proxy);
+                }
+                log::warn!("ignoring invalid LANTERN_OFFLINE_GATE_PROXY value");
+            }
+        }
+    }
+    builder
+}
+
 #[derive(Clone)]
 pub struct EgressHttpClient {
     client: reqwest::Client,
@@ -34,7 +56,7 @@ pub enum EgressHttpError {
 impl EgressHttpClient {
     pub fn new(policy: NetworkPolicy) -> Result<Self, EgressHttpError> {
         Ok(Self {
-            client: reqwest::Client::builder()
+            client: native_http_client_builder()
                 .redirect(Policy::none())
                 .build()?,
             policy,

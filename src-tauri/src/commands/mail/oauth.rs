@@ -45,7 +45,7 @@ pub async fn ms_exchange_code(
     redirect_uri: &str,
     token_endpoint: &str,
 ) -> anyhow::Result<MsTokens> {
-    let http = reqwest::Client::builder()
+    let http = crate::egress_http::native_http_client_builder()
         .timeout(std::time::Duration::from_secs(30))
         .connect_timeout(std::time::Duration::from_secs(15))
         .build()
@@ -138,7 +138,7 @@ impl OAuth {
     pub fn new_with_base(client_id: String, base: String) -> Self {
         // Bound device-code polling / refresh requests so a hung connection
         // can't stall the sign-in loop indefinitely.
-        let http = reqwest::Client::builder()
+        let http = crate::egress_http::native_http_client_builder()
             .timeout(std::time::Duration::from_secs(30))
             .connect_timeout(std::time::Duration::from_secs(15))
             .build()

@@ -1,15 +1,17 @@
 # Temporary Windows-bench setup/cleanup for the Offline Mode traffic gate.
 # It never alters the normal launcher and writes every prior state to the
-# evidence folder before changing it. Run `setup` then `cleanup`.
-param([ValidateSet('setup','cleanup')][string]$Action)
+# evidence folder before changing it. Run `setup`, verify `smoke`, then
+# `launch`; always finish with `cleanup`.
+param([ValidateSet('setup','smoke','launch','cleanup')][string]$Action)
 $ErrorActionPreference = 'Stop'
 $root = 'C:\offline-mode-gate'
 $evidence = "$root\evidence"
 $state = "$root\pre-gate-state.json"
 $proxyPort = 18080
+$appRoot = if ($env:OFFLINE_GATE_APP_ROOT) { $env:OFFLINE_GATE_APP_ROOT } else { 'C:\keepance' }
 $python = 'C:\Users\james\AppData\Local\Programs\Python\Python312\python.exe'
 $mitm = 'C:\Users\james\AppData\Roaming\Python\Python312\Scripts\mitmdump.exe'
-$lantern = 'C:\keepance\src-tauri\target\debug\lantern.exe'
+$lantern = Join-Path $appRoot 'src-tauri\target\debug\lantern.exe'
 $webview = Get-ChildItem 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe' | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
 
 function Stop-GateProcesses {
@@ -30,8 +32,8 @@ if ($Action -eq 'setup') {
   Get-NetFirewallRule -DisplayName 'Lantern Offline Gate*' -ErrorAction SilentlyContinue | Export-Clixml "$evidence\firewall-before.xml"
 
   Stop-GateProcesses
-  Start-Process -FilePath $python -ArgumentList 'C:\keepance\scripts\offline-mode-dns-sink.py' -WindowStyle Hidden -RedirectStandardOutput "$evidence\dns-stdout.log" -RedirectStandardError "$evidence\dns-stderr.log"
-  Start-Process -FilePath $mitm -ArgumentList @('-q','--listen-host','127.0.0.1','-p',$proxyPort,'--set',"confdir=$root\mitm",'-s','C:\keepance\scripts\offline-mode-proxy-log.py','-w',"$evidence\proxy.flows") -WindowStyle Hidden -RedirectStandardOutput "$evidence\proxy-stdout.log" -RedirectStandardError "$evidence\proxy-stderr.log"
+  Start-Process -FilePath $python -ArgumentList (Join-Path $appRoot 'scripts\offline-mode-dns-sink.py') -WindowStyle Hidden -RedirectStandardOutput "$evidence\dns-stdout.log" -RedirectStandardError "$evidence\dns-stderr.log"
+  Start-Process -FilePath $mitm -ArgumentList @('-q','--listen-host','127.0.0.1','-p',$proxyPort,'--set',"confdir=$root\mitm",'-s',(Join-Path $appRoot 'scripts\offline-mode-proxy-log.py'),'-w',"$evidence\proxy.flows") -WindowStyle Hidden -RedirectStandardOutput "$evidence\proxy-stdout.log" -RedirectStandardError "$evidence\proxy-stderr.log"
   Start-Sleep -Seconds 3
   $cert = "$root\mitm\mitmproxy-ca-cert.cer"
   if (-not (Test-Path $cert)) { throw 'mitmproxy did not create its disposable certificate.' }
@@ -55,15 +57,42 @@ if ($Action -eq 'setup') {
 @echo off
 set APPDATA=$root\appdata\Roaming
 set LOCALAPPDATA=$root\appdata\Local
+set LANTERN_OFFLINE_GATE_PROXY=http://127.0.0.1:$proxyPort
 set HTTP_PROXY=http://127.0.0.1:$proxyPort
 set HTTPS_PROXY=http://127.0.0.1:$proxyPort
 set ALL_PROXY=http://127.0.0.1:$proxyPort
 set NO_PROXY=127.0.0.1,localhost,::1
-cd /d C:\keepance
+cd /d $appRoot
 npm run tauri:dev
 "@ | Set-Content -Encoding ASCII "$root\run-gate.cmd"
-  Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "$root\run-gate.cmd" -WorkingDirectory 'C:\keepance' -RedirectStandardOutput "$evidence\lantern-stdout.log" -RedirectStandardError "$evidence\lantern-stderr.log"
   "SETUP_COMPLETE" | Set-Content "$evidence\setup-status.txt"
+  exit 0
+}
+
+if ($Action -eq 'smoke') {
+  if (-not (Test-Path $state)) { throw 'Run setup before the recorder smoke test.' }
+  Clear-DnsClientCache
+  $smokeUrl = "https://www.cloudflare.com/cdn-cgi/trace?offline-gate=$([guid]::NewGuid().ToString('N'))"
+  & curl.exe --fail --silent --show-error --proxy "http://127.0.0.1:$proxyPort" $smokeUrl --output "$evidence\recorder-smoke-body.txt"
+  if ($LASTEXITCODE -ne 0) { throw "Recorder smoke request failed with curl exit code $LASTEXITCODE." }
+  Start-Sleep -Milliseconds 500
+  $proxyLines = (Get-Content "$evidence\proxy.jsonl" -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
+  $dnsLines = (Get-Content "$evidence\dns.jsonl" -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
+  [pscustomobject]@{
+    at = (Get-Date).ToUniversalTime().ToString('o')
+    url = $smokeUrl
+    proxyLines = $proxyLines
+    dnsLines = $dnsLines
+    passed = ($proxyLines -gt 0 -and $dnsLines -gt 0)
+  } | ConvertTo-Json | Set-Content "$evidence\recorder-smoke.json"
+  if ($proxyLines -le 0 -or $dnsLines -le 0) { throw 'Recorder smoke request was not visible in both proxy and DNS logs.' }
+  exit 0
+}
+
+if ($Action -eq 'launch') {
+  if (-not (Test-Path "$evidence\recorder-smoke.json")) { throw 'Run and pass the recorder smoke test before launching Lantern.' }
+  Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', "$root\run-gate.cmd" -WorkingDirectory $appRoot -RedirectStandardOutput "$evidence\lantern-stdout.log" -RedirectStandardError "$evidence\lantern-stderr.log"
+  'LAUNCH_COMPLETE' | Set-Content "$evidence\launch-status.txt"
   exit 0
 }
 
