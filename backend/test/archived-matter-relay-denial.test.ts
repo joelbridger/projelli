@@ -5,13 +5,15 @@ import { issueAuthTokens, mintSeatToken } from "../src/lib/services.ts";
 import {
   authorizeSyncConnect,
   handleAddMatterMember,
+  handleActivateMatter,
+  handleArchiveMatter,
   handleClearWall,
   handlePullUpdates,
   handlePushUpdate,
   handleSetWall,
   handleSyncTicket,
 } from "../src/routes/matters.ts";
-import { handleFetchMatterKey } from "../src/routes/matterKeys.ts";
+import { handleFetchMatterKey, handlePublishMatterKeys } from "../src/routes/matterKeys.ts";
 
 function stream(char: string) {
   return `sh2_${char.repeat(43)}`;
@@ -68,6 +70,40 @@ describe("archived matter relay denial", () => {
     f.store.close();
   });
 
+  test("a normal active matter still accepts wrapped-key publishing", async () => {
+    const f = fixture();
+    const response = await handlePublishMatterKeys(
+      request(f.adminToken, {
+        epoch: 1,
+        wrapped: [{ user_id: f.member.user_id, device_id: "active-publish-device", wrapped_key_b64: "active-wrapped-key" }],
+      }),
+      f.store,
+      f.matter.matter_handle,
+    );
+    expect(response.status).toBe(200);
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "active-publish-device")).toMatchObject({ wrapped_key_b64: "active-wrapped-key" });
+    f.store.close();
+  });
+
+  test("archive cannot be reversed, and relay access remains denied", async () => {
+    const f = fixture();
+    const tickets = new SyncTicketStore();
+    const minted = await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-ticket", tickets);
+    expect(minted.status).toBe(200);
+    const { ticket } = await minted.json() as { ticket: string };
+
+    expect((await handleArchiveMatter(request(f.adminToken, {}), f.store, f.matter.matter_handle)).status).toBe(200);
+    await expectOpaqueArchivedDenial(await handleActivateMatter(request(f.adminToken, {}), f.store, f.matter.matter_handle));
+    expect(f.store.getMatter(f.matter.matter_handle)?.status).toBe("archived");
+    await expectOpaqueArchivedDenial(await handlePushUpdate(pushRequest(f, "terminal-push"), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-push"));
+    await expectOpaqueArchivedDenial(await handlePullUpdates(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-pull"));
+    await expectOpaqueArchivedDenial(await handleSyncTicket(request(f.memberToken, {}, f.memberSeat), f.store, f.matter.matter_handle, f.matter.root_stream_handle, "terminal-ticket-after-archive", tickets));
+    await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
+    const connection = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${encodeURIComponent(ticket)}`), f.store, tickets);
+    expect(connection.ok).toBe(false);
+    f.store.close();
+  });
+
   test("push to an archived matter is denied and cannot bind a new stream", async () => {
     const f = fixture();
     const newStream = stream("A");
@@ -111,6 +147,37 @@ describe("archived matter relay denial", () => {
     const f = fixture();
     f.store.setMatterStatus(f.matter.matter_handle, "archived");
     await expectOpaqueArchivedDenial(await handleFetchMatterKey(request(f.memberToken, { device_id: "member-device" }, f.memberSeat), f.store, f.matter.matter_handle));
+    f.store.close();
+  });
+
+  test("wrapped-key publishing to an archived matter is denied without writing material", async () => {
+    const f = fixture();
+    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    const response = await handlePublishMatterKeys(
+      request(f.adminToken, {
+        epoch: 1,
+        wrapped: [{ user_id: f.member.user_id, device_id: "archived-publish-device", wrapped_key_b64: "archived-wrapped-key" }],
+      }),
+      f.store,
+      f.matter.matter_handle,
+    );
+    await expectOpaqueArchivedDenial(response);
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "archived-publish-device")).toBeNull();
+    f.store.close();
+  });
+
+  test("an archive that wins a wrapped-key publish race leaves no new key material", () => {
+    const f = fixture();
+    f.store.setMatterStatus(f.matter.matter_handle, "archived");
+    const result = f.store.publishWrappedMatterKeys({
+      matter_handle: f.matter.matter_handle,
+      org_id: f.org.org_id,
+      epoch: 1,
+      published_by: f.admin.user_id,
+      wrapped: [{ user_id: f.member.user_id, device_id: "racing-publish-device", wrapped_key_b64: "racing-wrapped-key" }],
+    });
+    expect(result).toEqual({ matterArchived: true });
+    expect(f.store.getWrappedMatterKey(f.matter.matter_handle, 1, f.member.user_id, "racing-publish-device")).toBeNull();
     f.store.close();
   });
 

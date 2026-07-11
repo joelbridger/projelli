@@ -2,9 +2,10 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Store } from "../src/lib/db.ts";
 import { FanoutHub, MAX_UPDATE_BYTES } from "../src/lib/matters.ts";
-import { buildServeOptions, type SyncSocketData } from "../src/server.ts";
+import { buildServeOptions, subscribeSyncSocket, type SyncSocketData } from "../src/server.ts";
 import { SyncTicketStore } from "../src/lib/syncTickets.ts";
 import { rateLimit } from "../src/lib/http.ts";
+import { authorizeSyncConnect, handleArchiveMatter } from "../src/routes/matters.ts";
 
 const store = new Store(":memory:"), hub = new FanoutHub();
 const server = Bun.serve<SyncSocketData>(buildServeOptions(store, hub));
@@ -73,4 +74,36 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
   test("v2 rejects a legacy client_name payload",async()=>expect((await post("/v2/firm/matters",{client_name:"x"},admin)).status).toBe(400));
   test("v2 rejects legacy matter_id and doc_id payload",async()=>expect((await post(`/v2/firm/matters/${handle}/streams/${root}/updates`,{matter_id:"x",doc_id:"y",blob_id:"legacy-fields",ciphertext_b64:"AQ==",seat_token:aliceSeat,key_epoch:1},alice)).status).toBe(400));
   test("the removed allocation route is not accepted",async()=>expect((await post(`/v2/firm/matters/${handle}/streams`,{},alice,{"x-seat-token":aliceSeat})).status).toBe(404));
+
+  test("an archive between ticket approval and subscription sends no websocket backlog", () => {
+    const matter = store.createMatter({ org_id: store.getMatter(handle)!.org_id });
+    store.setMatterStatus(matter.matter_handle, "active");
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: store.getMatter(handle)!.org_id, role: "editor" });
+    expect(store.appendMatterUpdate({ matter_handle: matter.matter_handle, org_id: store.getMatter(handle)!.org_id, stream_handle: matter.root_stream_handle, blob_id: "pre-subscribe-backlog", ciphertext: new Uint8Array([1]), author_seat: "seat", key_epoch: 1 })).toMatchObject({ duplicate: false });
+    const tickets = new SyncTicketStore();
+    const ticket = tickets.mint({ matterHandle: matter.matter_handle, streamHandle: matter.root_stream_handle, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: "seat", role: "member" });
+    const approved = authorizeSyncConnect(new Request(`http://relay.test/v2/firm/sync?ticket=${encodeURIComponent(ticket.ticket)}`), store, tickets);
+    expect(approved.ok).toBe(true);
+    if (!approved.ok) throw new Error("ticket should be approved before archive");
+    store.setMatterStatus(matter.matter_handle, "archived");
+    const frames: string[] = [], closed: Array<[number | undefined, string | undefined]> = [], isolatedHub = new FanoutHub();
+    subscribeSyncSocket(store, isolatedHub, { data: { subId: "between-ticket-and-subscribe", ...approved.data }, send: (frame: string) => { frames.push(frame); return 0; }, close: (code?: number, reason?: string) => { closed.push([code, reason]); } } as unknown as Bun.ServerWebSocket<SyncSocketData>);
+    expect(frames).toEqual([]);
+    expect(closed).toEqual([[1008, "access_denied"]]);
+    expect(isolatedHub.subscriberCount(matter.matter_handle, matter.root_stream_handle)).toBe(0);
+  });
+
+  test("archiving an open websocket evicts that matter only", async () => {
+    const matter = store.createMatter({ org_id: store.getMatter(handle)!.org_id });
+    store.setMatterStatus(matter.matter_handle, "active");
+    store.addMatterMember({ matter_handle: matter.matter_handle, user_id: aliceId, org_id: store.getMatter(handle)!.org_id, role: "editor" });
+    const isolatedHub = new FanoutHub(), frames: string[] = [], closed: Array<[number | undefined, string | undefined]> = [];
+    subscribeSyncSocket(store, isolatedHub, { data: { subId: "open-archive-socket", matterHandle: matter.matter_handle, streamHandle: matter.root_stream_handle, orgId: store.getMatter(handle)!.org_id, userId: aliceId, seatId: "seat", role: "member" }, send: (frame: string) => { frames.push(frame); return 0; }, close: (code?: number, reason?: string) => { closed.push([code, reason]); } } as unknown as Bun.ServerWebSocket<SyncSocketData>);
+    expect(frames.length).toBeGreaterThan(0);
+    expect(isolatedHub.subscriberCount(matter.matter_handle, matter.root_stream_handle)).toBe(1);
+    expect((await handleArchiveMatter(new Request("http://relay.test/v2/firm/route", { method: "POST", headers: { authorization: `Bearer ${admin}`, "content-type": "application/json" }, body: "{}" }), store, matter.matter_handle, isolatedHub)).status).toBe(200);
+    expect(closed).toEqual([[1008, "matter_archived"]]);
+    expect(isolatedHub.subscriberCount(matter.matter_handle, matter.root_stream_handle)).toBe(0);
+  });
+
 });

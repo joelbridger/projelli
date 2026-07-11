@@ -1453,6 +1453,45 @@ export class Store {
   // ===========================================================================
 
   /**
+   * Atomically publish a batch of wrapped keys for the current active epoch.
+   *
+   * The status and epoch checks intentionally share this IMMEDIATE transaction
+   * with every insert. That closes the time-of-check/time-of-use window where an
+   * archive could otherwise commit after a route checked the matter but before
+   * it wrote new encrypted key material.
+   */
+  publishWrappedMatterKeys(input: {
+    matter_handle: string;
+    org_id: string;
+    epoch: number;
+    published_by: string;
+    wrapped: Array<{ user_id: string; device_id: string; wrapped_key_b64: string }>;
+  }): { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true } {
+    const txn = this.db.transaction(() => {
+      const matter = this.db
+        .query(`SELECT org_id, status, key_epoch FROM matters WHERE matter_handle = ?`)
+        .get(input.matter_handle) as { org_id: string; status: MatterStatus; key_epoch: number } | null;
+      if (!matter || matter.org_id !== input.org_id) return { matterNotFound: true as const };
+      if (matter.status === "archived") return { matterArchived: true as const };
+      if (matter.key_epoch !== input.epoch) return { staleEpoch: true as const };
+
+      let stored = 0;
+      let skipped = 0;
+      for (const key of input.wrapped) {
+        const user = this.getUser(key.user_id);
+        if (!user || user.org_id !== input.org_id || this.isWalled(input.matter_handle, key.user_id)) {
+          skipped++;
+          continue;
+        }
+        this.upsertWrappedMatterKey({ ...key, matter_handle: input.matter_handle, epoch: input.epoch, published_by: input.published_by });
+        stored++;
+      }
+      return { stored, skipped };
+    });
+    return txn.immediate() as { stored: number; skipped: number } | { matterArchived: true } | { staleEpoch: true } | { matterNotFound: true };
+  }
+
+  /**
    * Store a wrapped matter key for one device. Idempotent on the PK tuple:
    * a re-publish of the same (matter, epoch, user, device) replaces the blob.
    */

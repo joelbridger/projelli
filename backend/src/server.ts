@@ -42,7 +42,7 @@ import {
   handleSyncTicket,
   authorizeSyncConnect,
 } from "./routes/matters.ts";
-import { fanout, FanoutHub, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
+import { fanout, FanoutHub, gateMatterAccess, toUpdateFrame, type Subscriber } from "./lib/matters.ts";
 import { startSyncTicketGc } from "./lib/syncTickets.ts";
 import { startSsoStateGc } from "./lib/ssoState.ts";
 import {
@@ -68,6 +68,7 @@ export interface SyncSocketData {
   orgId: string;
   userId: string;
   seatId: string;
+  role: "admin" | "member";
 }
 
 /**
@@ -97,6 +98,57 @@ function matchStream(path: string): { handle: string; operation: "updates" | "sy
  */
 export interface RelayTrafficRecorder {
   onWebSocketFrame?(frame: unknown): void;
+}
+
+/**
+ * Subscribe a freshly-upgraded socket only after a second access decision.
+ *
+ * Ticket redemption approves the upgrade, but archive can commit between that
+ * approval and Bun calling `open`. This final synchronous gate sits directly
+ * beside subscription and backlog delivery, closing that narrow window.
+ */
+export function subscribeSyncSocket(
+  store: Store,
+  hub: FanoutHub,
+  ws: Pick<Bun.ServerWebSocket<SyncSocketData>, "data" | "send" | "close">,
+  traffic?: RelayTrafficRecorder,
+): void {
+  const d = ws.data;
+  const access = gateMatterAccess(store, { org_id: d.orgId, user_id: d.userId, role: d.role }, d.matterHandle, "connect_subscribe");
+  if (!access.ok) {
+    ws.close(1008, "access_denied");
+    return;
+  }
+  const sendFrame = (frame: unknown) => {
+    traffic?.onWebSocketFrame?.(frame);
+    ws.send(JSON.stringify(frame));
+  };
+  const sub: Subscriber = {
+    id: d.subId,
+    user_id: d.userId,
+    seat_id: d.seatId,
+    send: (frame) => {
+      try {
+        sendFrame(frame);
+      } catch {
+        /* dead socket; close handler prunes */
+      }
+    },
+    close: () => ws.close(1008, "matter_archived"),
+  };
+  // Subscribe to the (matter, docId) channel so only that doc's frames arrive.
+  hub.subscribe(d.matterHandle, sub, d.streamHandle);
+  // Catch-up backlog (opaque bytes, base64; never logged).
+  try {
+    const backlog = store.getMatterUpdatesSince(d.matterHandle, d.streamHandle, 0, 500);
+    const subscribers = hub.subscriberCount(d.matterHandle, d.streamHandle);
+    sendFrame({ type: "ready", backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterHandle, d.streamHandle), subscribers });
+    for (const u of backlog) sendFrame(toUpdateFrame(u));
+  } catch {
+    /* best-effort backlog */
+  }
+  // Broadcast updated subscriber count to all connected peers (including self).
+  hub.broadcastPresence(d.matterHandle, d.streamHandle);
 }
 
 export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayTrafficRecorder) {
@@ -157,7 +209,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
           if (mm.rest === "members/list" && method === "POST") return await handleListMatterMembers(req, store, mm.handle);
           if (mm.rest === "wall/set" && method === "POST") return await handleSetWall(req, store, mm.handle);
           if (mm.rest === "wall/clear" && method === "POST") return await handleClearWall(req, store, mm.handle);
-          if (mm.rest === "archive" && method === "POST") return await handleArchiveMatter(req, store, mm.handle);
+          if (mm.rest === "archive" && method === "POST") return await handleArchiveMatter(req, store, mm.handle, hub);
           // Phase 1: wrapped matter-key distribution.
           if (mm.rest === "keys/publish" && method === "POST") return await handlePublishMatterKeys(req, store, mm.handle);
           if (mm.rest === "keys/fetch" && method === "POST") return await handleFetchMatterKey(req, store, mm.handle);
@@ -237,44 +289,12 @@ export function buildServeOptions(store: Store, hub: FanoutHub, traffic?: RelayT
       }
     },
 
-    // Live fan-out for the sync relay. The connection is already access-gated in
-    // `fetch` (authorizeSyncConnect) before upgrade, so a walled / non-member /
-    // cross-org socket never gets here. We register the socket as a Subscriber and
-    // ship a `since=0` backlog so a late joiner catches up, then receives new
-    // updates live. We never read inbound socket frames as document data: pushes
-    // go through the audited HTTP POST so every write is gated + recorded.
+    // Live fan-out for the sync relay. The upgrade is access-gated in `fetch`,
+    // then `open` gates once more immediately before subscribing and delivering
+    // backlog so a terminal archive cannot slip ciphertext through that window.
     websocket: {
       open(ws: Bun.ServerWebSocket<SyncSocketData>) {
-        const d = ws.data;
-        const sendFrame = (frame: unknown) => {
-          traffic?.onWebSocketFrame?.(frame);
-          ws.send(JSON.stringify(frame));
-        };
-        const sub: Subscriber = {
-          id: d.subId,
-          user_id: d.userId,
-          seat_id: d.seatId,
-          send: (frame) => {
-            try {
-              sendFrame(frame);
-            } catch {
-              /* dead socket; close handler prunes */
-            }
-          },
-        };
-        // Subscribe to the (matter, docId) channel so only that doc's frames arrive.
-        hub.subscribe(d.matterHandle, sub, d.streamHandle);
-        // Catch-up backlog (opaque bytes, base64; never logged).
-        try {
-          const backlog = store.getMatterUpdatesSince(d.matterHandle, d.streamHandle, 0, 500);
-          const subscribers = hub.subscriberCount(d.matterHandle, d.streamHandle);
-          sendFrame({ type: "ready", backlog: backlog.length, latest_cursor: store.latestMatterCursor(d.matterHandle, d.streamHandle), subscribers });
-          for (const u of backlog) sendFrame(toUpdateFrame(u));
-        } catch {
-          /* best-effort backlog */
-        }
-        // Broadcast updated subscriber count to all connected peers (including self).
-        hub.broadcastPresence(d.matterHandle, d.streamHandle);
+        subscribeSyncSocket(store, hub, ws, traffic);
       },
       message() {
         // Inbound socket frames are ignored on purpose. Awareness/presence would

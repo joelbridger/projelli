@@ -203,6 +203,8 @@ export interface Subscriber {
   seat_id: string;
   /** Deliver a frame. Implementations must never throw; they swallow send errors. */
   send: (frame: UpdateFrame | PresenceFrame) => void;
+  /** Archive-specific termination hook for a live WebSocket. */
+  close?: () => void;
 }
 
 /**
@@ -236,6 +238,27 @@ export class FanoutHub {
     if (!set) return;
     set.delete(subId);
     if (set.size === 0) this.byChannel.delete(key);
+  }
+
+  /**
+   * Close and remove every live subscription for one archived matter.
+   *
+   * This is deliberately archive-specific. Membership and ethical-wall socket
+   * eviction remain a separately-owned pre-existing workstream.
+   */
+  evictMatter(matterHandle: string): void {
+    const prefix = `${matterHandle}::`;
+    for (const [key, subscribers] of this.byChannel) {
+      if (!key.startsWith(prefix)) continue;
+      this.byChannel.delete(key);
+      for (const subscriber of subscribers.values()) {
+        try {
+          subscriber.close?.();
+        } catch {
+          // A dead socket is already removed from the hub above.
+        }
+      }
+    }
   }
 
   subscriberCount(matterHandle: string, streamHandle: string): number {
