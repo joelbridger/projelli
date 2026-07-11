@@ -52,18 +52,18 @@ export const MAX_UPDATE_BYTES = 1024 * 1024; // 1 MiB per encrypted update blob.
 export function resolveAccess(
   store: Store,
   input: { orgId: string; userId: string; role: AccessTokenClaims["role"] },
-  matterId: string,
+  matterHandle: string,
 ): MatterAccess {
-  const matter = store.getMatter(matterId);
+  const matter = store.getMatter(matterHandle);
   if (!matter) return { allowed: false, matter: null, reason: "matter_not_found" };
   if (matter.org_id !== input.orgId) return { allowed: false, matter: null, reason: "cross_org" };
 
   // Deny wins. Check the wall before any allow path.
-  if (store.isWalled(matterId, input.userId)) {
+  if (store.isWalled(matterHandle, input.userId)) {
     return { allowed: false, matter, reason: "walled" };
   }
 
-  const member = store.getMatterMember(matterId, input.userId);
+  const member = store.getMatterMember(matterHandle, input.userId);
   if (member) return { allowed: true, matter, reason: "member" };
   if (input.role === "admin") return { allowed: true, matter, reason: "admin" };
 
@@ -86,17 +86,17 @@ export type GateResult =
 export function gateMatterAccess(
   store: Store,
   caller: { org_id: string; user_id: string; role: AccessTokenClaims["role"] },
-  matterId: string,
+  matterHandle: string,
   action: string,
 ): GateResult {
-  const access = resolveAccess(store, { orgId: caller.org_id, userId: caller.user_id, role: caller.role }, matterId);
+  const access = resolveAccess(store, { orgId: caller.org_id, userId: caller.user_id, role: caller.role }, matterHandle);
 
   if (access.allowed) {
     store.audit({
       org_id: caller.org_id,
       actor_user_id: caller.user_id,
       action: "matter.access.granted",
-      target: matterId,
+      target: matterHandle,
       detail: { action, via: access.reason },
     });
     return { ok: true, matter: access.matter, reason: access.reason };
@@ -110,7 +110,7 @@ export function gateMatterAccess(
     org_id: auditOrg,
     actor_user_id: caller.user_id,
     action: "matter.access.denied",
-    target: matterId,
+    target: matterHandle,
     detail: { action, reason: access.reason },
   });
 
@@ -173,9 +173,6 @@ export function verifyActiveSeat(
 // ---------------------------------------------------------------------------
 export interface UpdateFrame {
   type: "update";
-  matter_id: string;
-  /** Document stream this update belongs to. '_notes' for matter notes. */
-  doc_id: string;
   cursor: number; // the assigned monotonic id; clients advance their `since` to this
   blob_id: string;
   key_epoch: number;
@@ -188,8 +185,6 @@ export interface UpdateFrame {
 /** Live subscriber count broadcasted to all connected editors on join/leave. */
 export interface PresenceFrame {
   type: "presence";
-  matter_id: string;
-  doc_id: string;
   /** Total number of connected subscribers, including the recipient. */
   count: number;
 }
@@ -214,12 +209,12 @@ export interface Subscriber {
 export class FanoutHub {
   private byChannel = new Map<string, Map<string, Subscriber>>();
 
-  private channelKey(matterId: string, docId: string): string {
-    return `${matterId}::${docId}`;
+  private channelKey(matterHandle: string, streamHandle: string): string {
+    return `${matterHandle}::${streamHandle}`;
   }
 
-  subscribe(matterId: string, sub: Subscriber, docId = "_notes"): void {
-    const key = this.channelKey(matterId, docId);
+  subscribe(matterHandle: string, sub: Subscriber, streamHandle: string): void {
+    const key = this.channelKey(matterHandle, streamHandle);
     let set = this.byChannel.get(key);
     if (!set) {
       set = new Map();
@@ -228,21 +223,21 @@ export class FanoutHub {
     set.set(sub.id, sub);
   }
 
-  unsubscribe(matterId: string, subId: string, docId = "_notes"): void {
-    const key = this.channelKey(matterId, docId);
+  unsubscribe(matterHandle: string, subId: string, streamHandle: string): void {
+    const key = this.channelKey(matterHandle, streamHandle);
     const set = this.byChannel.get(key);
     if (!set) return;
     set.delete(subId);
     if (set.size === 0) this.byChannel.delete(key);
   }
 
-  subscriberCount(matterId: string, docId = "_notes"): number {
-    return this.byChannel.get(this.channelKey(matterId, docId))?.size ?? 0;
+  subscriberCount(matterHandle: string, streamHandle: string): number {
+    return this.byChannel.get(this.channelKey(matterHandle, streamHandle))?.size ?? 0;
   }
 
   /** Broadcast a frame to every current subscriber of a (matter, doc_id) channel. */
-  broadcast(matterId: string, frame: UpdateFrame, docId = "_notes"): void {
-    const key = this.channelKey(matterId, docId);
+  broadcast(matterHandle: string, frame: UpdateFrame, streamHandle: string): void {
+    const key = this.channelKey(matterHandle, streamHandle);
     const set = this.byChannel.get(key);
     if (!set) return;
     for (const sub of set.values()) {
@@ -255,12 +250,12 @@ export class FanoutHub {
   }
 
   /** Broadcast a presence frame to every subscriber of a (matter, doc_id) channel. */
-  broadcastPresence(matterId: string, docId = "_notes"): void {
-    const key = this.channelKey(matterId, docId);
+  broadcastPresence(matterHandle: string, streamHandle: string): void {
+    const key = this.channelKey(matterHandle, streamHandle);
     const set = this.byChannel.get(key);
     if (!set) return;
     const count = set.size;
-    const frame: PresenceFrame = { type: "presence", matter_id: matterId, doc_id: docId, count };
+    const frame: PresenceFrame = { type: "presence", count };
     for (const sub of set.values()) {
       try {
         sub.send(frame);
@@ -275,8 +270,6 @@ export class FanoutHub {
 export function toUpdateFrame(u: MatterUpdate): UpdateFrame {
   return {
     type: "update",
-    matter_id: u.matter_id,
-    doc_id: u.doc_id,
     cursor: u.id,
     blob_id: u.blob_id,
     key_epoch: u.key_epoch,

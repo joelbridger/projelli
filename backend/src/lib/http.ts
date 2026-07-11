@@ -9,7 +9,11 @@ import { config } from "./config.ts";
 import { verifyAccessJwt } from "./crypto.ts";
 import type { AccessTokenClaims } from "./types.ts";
 
-const MAX_BODY_BYTES = 64 * 1024; // 64 KB — generous for our small JSON bodies.
+// Relay ciphertext is base64-encoded JSON and may be up to MAX_UPDATE_BYTES
+// (1 MiB) before encoding. Keep the parser ceiling above that wire size so the
+// relay can return its deliberate 413 payload-limit response instead of a
+// misleading malformed-JSON response.
+const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 // CORS: the desktop webview calls from `tauri://localhost`. Origin:* is safe
 // because real deployment puts this behind a loopback-only reverse proxy and

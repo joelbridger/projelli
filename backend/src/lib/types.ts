@@ -163,14 +163,16 @@ export interface AccessTokenClaims {
 // `allowed` seats; it never sees plaintext and never holds the per-matter key.
 // ---------------------------------------------------------------------------
 
-export type MatterStatus = "active" | "archived";
+export type MatterStatus = "provisioning" | "active" | "archived";
 /** Role a member holds inside a matter (UX/authoring hint; access is still member∧¬walled). */
 export type MatterRole = "owner" | "editor" | "viewer";
 
 export interface Matter {
-  matter_id: string;
+  /** Random, validated `mh2_` routing value. Never a local/client identifier. */
+  matter_handle: string;
   org_id: string;
-  client_name: string;
+  /** Random, validated `sh2_` bootstrap stream routing value. */
+  root_stream_handle: string;
   status: MatterStatus;
   /**
    * Monotonic key epoch (starts at 1). The per-matter content-encryption key is
@@ -184,7 +186,7 @@ export interface Matter {
 }
 
 export interface MatterMember {
-  matter_id: string;
+  matter_handle: string;
   user_id: string;
   org_id: string;
   role: MatterRole;
@@ -193,10 +195,9 @@ export interface MatterMember {
 
 /** An explicit DENY (a "screen"). Overrides any membership/admin role for (matter,user). */
 export interface EthicalWall {
-  matter_id: string;
+  matter_handle: string;
   user_id: string;
   org_id: string;
-  reason: string | null;
   created_by: string; // user_id of the admin who raised the screen
   created_at: string; // ISO
 }
@@ -209,11 +210,11 @@ export interface EthicalWall {
  */
 export interface MatterUpdate {
   id: number; // monotonic cursor (AUTOINCREMENT)
-  matter_id: string;
+  matter_handle: string;
   org_id: string;
-  /** Document stream partition. Notes use '_notes' (the default). */
-  doc_id: string;
-  blob_id: string; // client-supplied idempotency id (uuid); unique per (matter, doc_id)
+  /** Random, validated `sh2_` stream routing value. */
+  stream_handle: string;
+  blob_id: string; // random client idempotency value; unique per stream
   ciphertext: Uint8Array; // opaque — never logged, never parsed
   author_seat: string; // seat_id that pushed it
   key_epoch: number; // matter key epoch this blob was encrypted under
@@ -243,7 +244,7 @@ export interface Device {
 
 /** A per-device wrapped copy of a matter content key at a given epoch. */
 export interface WrappedMatterKey {
-  matter_id: string;
+  matter_handle: string;
   epoch: number;
   user_id: string;
   device_id: string;
