@@ -90,7 +90,7 @@ export function DirectorySurface({
           size="sm"
           iconLeft={Plus}
           data-testid="crm-directory-add"
-          onClick={() => actions?.onAdd?.('person')}
+          onClick={() => actions?.onAdd?.({ kind: 'person', householdRef: { kind: 'household', id: 'firm_home' }, contextRefs: [] })}
         >
           Add
         </Button>

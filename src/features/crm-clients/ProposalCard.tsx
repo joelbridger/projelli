@@ -27,7 +27,7 @@ export function ProposalCard({
   return (
     <Card
       variant="raised"
-      data-testid={`crm-proposal-${proposal.id}`}
+      data-testid={`crm-proposal-${record.id}`}
       style={{
         borderLeft: `4px solid ${record.state === 'rejected' || record.state === 'expired' ? '#b45309' : '#0f766e'}`,
       }}
@@ -65,7 +65,7 @@ export function ProposalCard({
           <Badge variant="warning">Changed since review</Badge>
         ) : null}
       </div>
-      <p style={{ margin: '10px 0 8px' }}>{proposal.rationale}</p>
+      <p style={{ margin: '10px 0 8px' }}>{record.rationale}</p>
       {changedSinceReview ? (
         <div
           data-testid={`crm-proposal-diff-${record.id}`}

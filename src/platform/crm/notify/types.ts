@@ -6,15 +6,8 @@
  * decrypted payload, its type, the operation it points at, or the sender.
  */
 
-// B1-PENDING: replace these structural CRM-store bridge types with the shared
-// definitions from src/platform/crm/types when B1 lands. They are deliberately
-// local to this lane so this lane does not create a competing CRM type system.
-export interface HlcStamp {
-  wallMillis: number;
-  logicalCounter: number;
-  actorId: string;
-  operationId: string;
-}
+import type { HlcStamp } from '@/platform/crm/types';
+export type { HlcStamp } from '@/platform/crm/types';
 
 export type NotificationClass = 'firm_operational' | 'client_confidential';
 export type NotificationRetention = 'informational' | 'approval';
@@ -137,8 +130,8 @@ export interface NotificationRelay {
 }
 
 /**
- * B1-PENDING: this mirrors the narrow SQLCipher transaction surface required
- * by this lane. Implementations must make every call inside one real database
+ * This is the narrow SQLCipher transaction surface required by this lane.
+ * Implementations make every call inside one real database
  * transaction. In particular, business mutation + immutable operation +
  * activity outbox + notification outbox share a transaction.
  */

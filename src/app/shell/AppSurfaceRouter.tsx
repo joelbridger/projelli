@@ -10,8 +10,8 @@
  * delegates rendering to the appropriate surface component.
  */
 
-import { MattersHome } from '@/features/matters/MattersHome';
 import { CrmHome } from '@/features/crm-home';
+import { ClientsSurface } from '@/features/crm-clients';
 import { Ask } from '@/features/ask/Ask';
 import { DocumentsHome } from '@/features/documents/DocumentsHome';
 import { AssociateHome } from '@/features/workflows/AssociateHome';
@@ -164,7 +164,6 @@ export function AppSurfaceRouter({
   documentsView,
   setDocumentsView,
   setSidebarActiveTab,
-  mattersSurfaceMode,
   setMattersSurfaceMode,
   pushNavigationSnapshot,
   currentExecution,
@@ -481,35 +480,7 @@ export function AppSurfaceRouter({
       {sidebarActiveTab === 'home' ? (
         <CrmHome />
       ) : sidebarActiveTab === 'matters' ? (
-        // B7-PENDING: replace this existing client surface with the exported
-        // `ClientsSurface` from `@/features/crm-clients` after lane B7 merges.
-        <MattersHome
-          onAuditLog={addAuditEntry}
-          renderClientDocuments={(hubMatter) =>
-            // Use the EXACT matter MatterHub is rendering (passed in), not the
-            // outer `activeMatter` closure, which can lag behind the hub's client
-            // on a switch. This guarantees `scopeFolderPaths`/`scopeMatterId`
-            // describe the client actually on screen (2026-07-01 re-fix).
-            buildDocumentsHome({
-              embedded: true,
-              scopeFolderPaths: hubMatter?.folderPaths ?? [],
-              ...(hubMatter ? { scopeMatterId: hubMatter.id } : {}),
-            })
-          }
-          renderClientEmail={() =>
-            buildEmailWorkspace({
-              embedded: true,
-              ...(activeMatter ? { scopeMatterId: activeMatter.id } : {}),
-            })
-          }
-          renderClientActivity={() =>
-            buildActivity(
-              activeMatter ? { scopeMatterId: activeMatter.id } : {}
-            )
-          }
-          workspaceService={workspaceServiceRef.current}
-          clientMapMode={mattersSurfaceMode}
-        />
+        <ClientsSurface />
       ) : sidebarActiveTab === 'search' ? (
         <Ask
           onSaveToDocument={async (content) => {

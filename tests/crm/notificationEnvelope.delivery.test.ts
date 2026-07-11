@@ -94,6 +94,6 @@ describe('Sealed notification envelope delivery', () => {
     expect(store.inbox.get(ENVELOPE)!.state).toBe('display_ready');
   });
 
-  // WIRE-PENDING: the merged client port cannot model relay eligibility, active devices, terminal approval retention, or wall/key rotation.
+  // EXAM-BLOCKED: the merged client port cannot model relay eligibility, active devices, terminal approval retention, or wall/key rotation.
   it.skip('enforces relay-side delivery and wall rules across offline devices');
 });

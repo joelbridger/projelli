@@ -2,7 +2,6 @@ import {
   UNTOUCHED,
   type AssignmentOperation,
   type DerivedBeforeImage,
-  type DerivedField,
   type DerivedFieldName,
   type HlcStamp,
   type OfferDecision,
@@ -409,7 +408,7 @@ export function undoApply(
   return { instance: reconciled, undoneCells, protectedCells };
 }
 
-/** B1-PENDING: B1's append-only assignment operation API is the production owner. */
+/** Assignment changes remain append-only operations owned by the CRM core. */
 export function appendAssignment(
   instance: WorkflowInstanceSnapshot,
   stepId: string,
@@ -421,6 +420,7 @@ export function appendAssignment(
   if (!step.assignmentOperations.some(item => item.assignmentId === assignment.assignmentId)) {
     step.assignmentOperations.push(clone(assignment));
   }
-  step.assigneeUserId = assignment.assignedUserId ?? undefined;
+  if (assignment.assignedUserId === null) delete step.assigneeUserId;
+  else step.assigneeUserId = assignment.assignedUserId;
   return reconcileTemplateRemovals(next);
 }

@@ -187,7 +187,7 @@ export interface AddToHouseholdRequest {
   contextRefs: readonly EntityRef[];
 }
 
-/** ENGINE-PENDING: typed handoff to the existing mail surface, not an email send. */
+/** Typed handoff to the existing mail surface, not an email send. */
 export interface OpenMailSurfaceRequest {
   kind: 'open_mail_surface';
   householdRef: EntityRef;

@@ -66,7 +66,7 @@ export function HouseholdRecordSurface({
     'internal' | 'client-facing' | null
   >(null);
   const [metadataOpen, setMetadataOpen] = useState(false);
-  const sourceProposals = proposals.filter((proposal) => tab !== 'client_map');
+  const sourceProposals = tab === 'client_map' ? [] : proposals;
   return (
     <section data-testid="crm-household-record">
       <header>
@@ -161,7 +161,7 @@ export function HouseholdRecordSurface({
           tab={tab}
           household={household}
           proposals={sourceProposals}
-          actions={actions}
+          {...(actions ? { actions } : {})}
         />
       )}
       <SlidePanel
@@ -241,7 +241,7 @@ export function HouseholdRecordSurface({
               id: member.id,
               label: member.name,
             }))}
-            actions={actions}
+            {...(actions ? { actions } : {})}
             onCancel={() => setNoteAudience(null)}
           />
         ) : null}
@@ -253,8 +253,8 @@ export function HouseholdRecordSurface({
       >
         <RecordMetadataEditor
           values={household.customFields ?? []}
-          tags={household.tags}
-          actions={actions}
+          {...(household.tags ? { tags: household.tags } : {})}
+          {...(actions ? { actions } : {})}
         />
       </SlidePanel>
     </section>
@@ -399,14 +399,14 @@ function ExistingSurface({
   proposals: readonly CrmProposal[];
   actions?: CrmClientsActions;
 }) {
-  const label = tab === 'email' ? 'Email' : tab[0].toUpperCase() + tab.slice(1);
+  const label = tab === 'email' ? 'Email' : tab.charAt(0).toUpperCase() + tab.slice(1);
   return (
     <div
       style={{ display: 'grid', gap: 12, marginTop: 14 }}
       data-testid={`crm-household-${tab}`}
     >
       {proposals.map((proposal) => (
-        <ProposalCard key={proposal.id} proposal={proposal} actions={actions} />
+        <ProposalCard key={proposal.record.id} proposal={proposal} {...(actions ? { actions } : {})} />
       ))}
       <Card variant="raised">
         <h2>{label}</h2>

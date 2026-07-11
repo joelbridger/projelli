@@ -148,7 +148,7 @@ export class SyncSubscription {
 export class SyncSubscriptionManager {
   private readonly subscriptions = new Map<string, SyncSubscription>();
 
-  constructor(private readonly relay: MultiplexedRelay) {
+  constructor(relay: MultiplexedRelay) {
     relay.onFrame = (frame) => {
       const subscription = this.subscriptions.get(`${frame.matterId}\u0000${frame.docId}`);
       subscription?.receive(frame);

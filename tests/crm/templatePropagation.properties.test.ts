@@ -146,7 +146,7 @@ describe('Workflow template propagation properties', () => {
     expect(undoApply(applied.instance, applied.event, 'undo-1', new RecordingTransaction()).protectedCells).toContain('step:title');
   });
 
-  // WIRE-PENDING: propagation's transaction port is synchronous and has no restartable SQLCipher outbox binding.
+  // EXAM-BLOCKED: propagation's transaction port is synchronous and has no restartable SQLCipher outbox binding.
   it.skip('SA transactional outbox crash');
 
   it('SA decision-ledger persistence and re-offer', () => {

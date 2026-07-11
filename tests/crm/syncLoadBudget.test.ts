@@ -43,8 +43,8 @@ describe('D1 lazy-subscription load budgets', () => {
     await expect(router.openClient('household-13')).rejects.toBeInstanceOf(ClientSubscriptionCapError);
   });
 
-  // WIRE-PENDING: no Northcrest fixture or timing/byte transfer harness is wired to the sync engine.
+  // EXAM-BLOCKED: no Northcrest fixture or timing/byte transfer harness is wired to the sync engine.
   it.skip('keeps restart and 30-day offline recovery within the D1 transfer and completion ceilings');
-  // WIRE-PENDING: no merged key-wall access harness exposes protected-content read checks.
+  // EXAM-BLOCKED: no merged key-wall access harness exposes protected-content read checks.
   it.skip('removes revoked client access before protected content can be read, then restores eligible docs');
 });

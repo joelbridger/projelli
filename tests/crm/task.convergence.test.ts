@@ -60,8 +60,8 @@ describe('Task CRDT convergence', () => {
     expect(await store.cursor(key)).toBe(3);
   });
 
-  // WIRE-PENDING: B1 has not exported a Task Yjs document shape or materializer; raw merge tests would only retest Yjs.
+  // EXAM-BLOCKED: B1 has not exported a Task Yjs document shape or materializer; raw merge tests would only retest Yjs.
   it.skip('preserves disjoint offline Task field edits after bidirectional sync');
-  // WIRE-PENDING: B1 has not exported a Task field-merge materializer.
+  // EXAM-BLOCKED: B1 has not exported a Task field-merge materializer.
   it.skip('resolves same-field offline edits deterministically regardless of sync order');
 });

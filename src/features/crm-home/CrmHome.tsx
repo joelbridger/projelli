@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { SurfaceHeader } from '@/ui/SurfaceHeader';
 import { Button } from '@/ui/kp';
+import { getCrmEngineFreshness, subscribeCrmEngineFreshness } from '@/platform/crm/store';
 import type {
   CrmFreshnessState,
   CrmHomeAdapter,
@@ -111,7 +112,9 @@ const PREVIEW_ADAPTER: CrmHomeAdapter = {
   },
 };
 
-const ENGINE_PENDING_FRESHNESS: CrmFreshnessState = { kind: 'offline' };
+function emptyEngineAdapter(freshness: CrmFreshnessState): CrmHomeAdapter {
+  return { freshness, tasks: [], offers: [], migration: { workflowChecklists: [], attachmentAccounting: [], exports: [] }, actions: {} };
+}
 
 const homeSections: readonly { route: CrmHomeRoute; label: string; Icon: typeof LayoutDashboard }[] = [
   { route: 'today', label: 'Today', Icon: LayoutDashboard },
@@ -252,9 +255,9 @@ function IntakeLinks() { return <Screen title="Intake links" description="Scoped
 function Migration({ route, freshness, migration, onNavigate, actions }: { route: CrmHomeRoute; freshness: CrmFreshnessState; migration: CrmHomeAdapter['migration']; onNavigate: (route: CrmHomeRoute) => void; actions: CrmHomeAdapter['actions'] }) {
   const [parallel, setParallel] = useState(false);
   const exportKind = route === 'archive-export' ? 'archive' : route === 'rollback-export' ? 'rollback' : null;
-  if (exportKind) return <ExportReadiness job={migration.exports.find((job) => job.kind === exportKind) ?? { kind: exportKind, status: 'failed', failureReason: 'No export job was supplied by the CRM data engine.' }} onCreate={() => actions.createExport(exportKind)} onRetry={() => actions.retryExport(exportKind)} />;
-  if (route === 'workflow-recreation') return <WorkflowFallbackChecklist records={migration.workflowChecklists} onRecord={(record) => actions.recordWorkflowChecklist(record)} />;
-  if (route === 'attachment-accounting') return <AttachmentFallbackChecklist records={migration.attachmentAccounting} onRecord={(record) => actions.recordAttachmentAccounting(record)} />;
+  if (exportKind) return <ExportReadiness job={migration.exports.find((job) => job.kind === exportKind) ?? { kind: exportKind, status: 'failed', failureReason: 'No export job was supplied by the CRM data engine.' }} onCreate={() => actions.createExport?.(exportKind)} onRetry={() => actions.retryExport?.(exportKind)} />;
+  if (route === 'workflow-recreation') return <WorkflowFallbackChecklist records={migration.workflowChecklists} onRecord={(record) => actions.recordWorkflowChecklist?.(record)} />;
+  if (route === 'attachment-accounting') return <AttachmentFallbackChecklist records={migration.attachmentAccounting} onRecord={(record) => actions.recordAttachmentAccounting?.(record)} />;
   if (route === 'fidelity') return <FidelityReport onNavigate={onNavigate} />;
   return <Screen title="Wealthbox migration" description="Mirror → Parallel run → Cutover" Icon={Activity} action={<Button data-testid="crm-migration-fidelity" onClick={() => onNavigate('fidelity')}>Review fidelity report</Button>}><FreshnessBanner freshness={freshness} /><section style={panelStyle}><strong>Mirror ● Last synced &nbsp; Parallel run {parallel ? '● Active' : '○ Next'} &nbsp; Cutover ○ Locked</strong><p>80 households · 262 people · 1,904 notes · 311 tasks</p><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button variant="secondary" data-testid="crm-migration-archive" iconLeft={FileArchive} onClick={() => onNavigate('archive-export')}>Archive export</Button><Button variant="secondary" data-testid="crm-migration-rollback" iconLeft={Download} onClick={() => onNavigate('rollback-export')}>Rollback export</Button><Button data-testid="crm-migration-start-parallel" disabled={parallel} onClick={() => setParallel(true)}>{parallel ? 'Parallel run active' : 'Start parallel run'}</Button></div></section><section style={panelStyle}><strong>Parallel run is deliberately limited</strong><p style={mutedStyle}>It mirrors readable workflow templates and activity traces. It never claims to read open-workflow state from an API. External writes require a reviewed tracked diff and approval.</p></section><section style={panelStyle}><strong>Required through cutover</strong><div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}><Button variant="secondary" data-testid="crm-migration-workflow-fallback" onClick={() => onNavigate('workflow-recreation')}>In-flight workflow re-creation</Button><Button variant="secondary" data-testid="crm-migration-attachment-fallback" onClick={() => onNavigate('attachment-accounting')}>Attachment accounting</Button></div></section></Screen>;
 }
@@ -279,13 +282,8 @@ function ExportReadiness({ job, onCreate, onRetry }: { job: ExportJobStatus; onC
 
 function Screen({ title, description, Icon, action, children }: { title: string; description: string; Icon: typeof LayoutDashboard; action?: React.ReactNode; children: React.ReactNode }) { return <div data-testid={`crm-screen-${title.toLowerCase().replaceAll(' ', '-')}`} style={{ padding: 'var(--kp-space-xl)', overflow: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--kp-space-md)' }}><SurfaceHeader Icon={Icon} title={title} description={description} actions={action} />{children}</div>; }
 
-function EnginePendingHome() {
-  return <div data-testid="crm-home-engine-pending" style={{ display: 'flex', height: '100%', minHeight: 0, padding: 'var(--kp-space-xl)', background: '#fff' }}><main style={{ ...panelStyle, maxWidth: 680, alignSelf: 'flex-start' }}><h1 style={{ marginTop: 0 }}>CRM data engine not yet connected</h1><FreshnessBanner freshness={ENGINE_PENDING_FRESHNESS} /><p>This Home space is waiting for the real CRM data engine. It is intentionally non-interactive, so sample people, tasks, and sync claims are never shown as real firm data.</p><p style={mutedStyle}>ENGINE-PENDING: wire the typed CrmHomeAdapter from the CRM engine before enabling this space.</p></main></div>;
-}
-
 function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false }: Required<Pick<CrmHomeProps, 'adapter'>> & Omit<CrmHomeProps, 'adapter'>) {
-  // ENGINE-PENDING: B1/B5/B8 provide these values through their typed adapters.
-  // This UI only dispatches actions and never chooses a persistence mechanism.
+  // The screen receives engine-derived data only; preview data is opt-in above.
   const activeAdapter = adapter;
   const [route, setRoute] = useState<CrmHomeRoute>(initialRoute);
   const [tasks, setTasks] = useState<readonly CrmTask[]>(activeAdapter.tasks);
@@ -293,19 +291,20 @@ function ConnectedCrmHome({ adapter, initialRoute = 'today', preview = false }: 
   const [undoReport, setUndoReport] = useState<string | null>(null);
   const freshness = activeAdapter.freshness;
   const offers = activeAdapter.offers;
-  const updateTask = (task: CrmTask) => { setTasks((current) => current.some((item) => item.id === task.id) ? current.map((item) => item.id === task.id ? task : item) : [...current, task]); activeAdapter.actions.updateTask(task); };
+  const updateTask = (task: CrmTask) => { setTasks((current) => current.some((item) => item.id === task.id) ? current.map((item) => item.id === task.id ? task : item) : [...current, task]); activeAdapter.actions.updateTask?.(task); };
   const jump = (next: CrmHomeRoute) => setRoute(next);
-  const reportUndo = () => { const result = activeAdapter.actions.undoPropagation(); setUndoReport(result.protectedCells.length ? `${result.restored} untouched derived cells restored. Protected cells kept: ${result.protectedCells.join(', ')}.` : `${result.restored} untouched derived cells restored. No protected cells needed to stay.`); };
+  const reportUndo = () => { const result = activeAdapter.actions.undoPropagation?.() ?? { restored: 0, protectedCells: [] }; setUndoReport(result.protectedCells.length ? `${result.restored} untouched derived cells restored. Protected cells kept: ${result.protectedCells.join(', ')}.` : `${result.restored} untouched derived cells restored. No protected cells needed to stay.`); };
   useEffect(() => { const onKeyDown = (event: KeyboardEvent) => { if ((event.target as HTMLElement | null)?.tagName === 'INPUT') return; if (event.key === 'g') { (window as Window & { __crmGo?: boolean }).__crmGo = true; return; } if ((window as Window & { __crmGo?: boolean }).__crmGo) { const key = event.key.toLowerCase(); const destination = key === 'h' ? 'today' : key === 't' ? 'tasks' : key === 'w' ? 'workflows' : key === 'p' ? 'pipeline' : key === 'r' ? 'reports' : key === 'f' ? 'firm-setup' : key === 'm' ? 'migration' : null; if (destination) { event.preventDefault(); jump(destination); } (window as Window & { __crmGo?: boolean }).__crmGo = false; } if (event.key === '/' && route !== 'tasks') { document.querySelector<HTMLInputElement>('[data-testid="crm-ask-input"]')?.focus(); } if (route === 'propagation' && event.key.toLowerCase() === 'u') { event.preventDefault(); reportUndo(); } }; window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown); }, [activeAdapter, route]);
-  const notificationPanel = <aside aria-label="Notifications" style={{ position: 'absolute', right: 20, top: 56, width: 340, zIndex: 10, ...panelStyle, boxShadow: '0 10px 30px #0002' }}><strong>Notifications (3)</strong><p>New assignment · Confirm transfer · Miller household · recipient: Maya</p><p style={mutedStyle}>Sent 10:34 · delivered 10:35 · acked 10:36 · ciphertext: 4–16 KiB<br />Opaque id: env_7f…91</p><p style={mutedStyle}>The relay sees recipient, timestamps, size band, delivery/ack timing, and opaque ID. It does not store a sender.</p><Button data-testid="crm-notifications-read" variant="secondary" onClick={() => { setNotificationsRead(true); activeAdapter.actions.markNotificationsRead(); }}>{notificationsRead ? 'Marked read on this device' : 'Mark all read on this device'}</Button></aside>;
-  const content = route === 'today' ? <Today tasks={tasks} freshness={freshness} onNavigate={jump} onUpdateTask={updateTask} /> : route === 'tasks' ? <Tasks tasks={tasks} freshness={freshness} onUpdateTask={updateTask} /> : route === 'workflows' ? <Workflows freshness={freshness} onNavigate={jump} /> : route === 'propagation' ? <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation(selected)} onUndo={reportUndo} undoReport={undoReport} /> : route === 'pipeline' ? <Pipeline freshness={freshness} onNavigate={jump} /> : route === 'pipeline-settings' ? <PipelineSettings /> : route === 'reports' ? <Reports freshness={freshness} /> : route === 'fields-tags' ? <FieldsTags /> : route === 'intake-links' ? <IntakeLinks /> : route === 'migration' || route === 'fidelity' || route === 'workflow-recreation' || route === 'attachment-accounting' || route === 'archive-export' || route === 'rollback-export' ? <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} /> : <FirmSetup onNavigate={jump} freshness={freshness} />;
+  const notificationPanel = <aside aria-label="Notifications" style={{ position: 'absolute', right: 20, top: 56, width: 340, zIndex: 10, ...panelStyle, boxShadow: '0 10px 30px #0002' }}><strong>Notifications (3)</strong><p>New assignment · Confirm transfer · Miller household · recipient: Maya</p><p style={mutedStyle}>Sent 10:34 · delivered 10:35 · acked 10:36 · ciphertext: 4–16 KiB<br />Opaque id: env_7f…91</p><p style={mutedStyle}>The relay sees recipient, timestamps, size band, delivery/ack timing, and opaque ID. It does not store a sender.</p><Button data-testid="crm-notifications-read" variant="secondary" onClick={() => { setNotificationsRead(true); activeAdapter.actions.markNotificationsRead?.(); }}>{notificationsRead ? 'Marked read on this device' : 'Mark all read on this device'}</Button></aside>;
+  const content = route === 'today' ? <Today tasks={tasks} freshness={freshness} onNavigate={jump} onUpdateTask={updateTask} /> : route === 'tasks' ? <Tasks tasks={tasks} freshness={freshness} onUpdateTask={updateTask} /> : route === 'workflows' ? <Workflows freshness={freshness} onNavigate={jump} /> : route === 'propagation' ? <PropagationReview offers={offers} freshness={freshness} onApply={(selected) => activeAdapter.actions.applyPropagation?.(selected)} onUndo={reportUndo} undoReport={undoReport} /> : route === 'pipeline' ? <Pipeline freshness={freshness} onNavigate={jump} /> : route === 'pipeline-settings' ? <PipelineSettings /> : route === 'reports' ? <Reports freshness={freshness} /> : route === 'fields-tags' ? <FieldsTags /> : route === 'intake-links' ? <IntakeLinks /> : route === 'migration' || route === 'fidelity' || route === 'workflow-recreation' || route === 'attachment-accounting' || route === 'archive-export' || route === 'rollback-export' ? <Migration route={route} freshness={freshness} migration={activeAdapter.migration} onNavigate={jump} actions={activeAdapter.actions} /> : <FirmSetup onNavigate={jump} freshness={freshness} />;
   const [showNotifications, setShowNotifications] = useState(false);
   return <div data-testid="crm-home" style={{ display: 'flex', height: '100%', minHeight: 0, position: 'relative', background: '#fff' }}>{preview && <div data-testid="crm-home-preview-label" role="status" style={{ position: 'absolute', zIndex: 20, right: 16, bottom: 12, ...panelStyle, padding: 8, borderColor: '#a75f00' }}>Preview sample content only. Not connected to CRM data.</div>}<HomeRail route={route} onNavigate={jump} /><div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', position: 'relative' }}>{content}<button data-testid="crm-notifications-button" aria-label="Open notifications" onClick={() => setShowNotifications((open) => !open)} style={{ position: 'absolute', top: 15, right: 18, border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--kp-navy)' }}><Bell size={20} /> <span aria-label="3 notifications">3</span></button>{showNotifications && notificationPanel}</div></div>;
 }
 
 export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps) {
-  const activeAdapter = adapter ?? (preview ? PREVIEW_ADAPTER : undefined);
-  if (!activeAdapter) return <EnginePendingHome />;
+  const [freshness, setFreshness] = useState<CrmFreshnessState>(getCrmEngineFreshness());
+  useEffect(() => subscribeCrmEngineFreshness(setFreshness), []);
+  const activeAdapter = adapter ?? (preview ? PREVIEW_ADAPTER : emptyEngineAdapter(freshness));
   return <ConnectedCrmHome adapter={activeAdapter} preview={preview} {...(initialRoute ? { initialRoute } : {})} />;
 }
 

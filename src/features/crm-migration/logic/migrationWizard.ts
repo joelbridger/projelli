@@ -1,12 +1,13 @@
 /**
  * Migration wizard state machine.
  *
- * B1-PENDING: import EntityRef and the migration-operation record shapes from
- * '@/platform/crm/types' after B1 lands. These tiny local structural types are
- * intentionally limited to the state machine boundary.
+ * The state machine uses canonical entity references while keeping its small
+ * UI-only transition state separate from persisted migration records.
  */
 
-export type EntityRef = string;
+import type { EntityRef as CrmEntityRef } from '@/platform/crm/types';
+/** UI state stores the canonical reference identifier; persistence restores its kind. */
+export type EntityRef = CrmEntityRef['id'];
 
 export type WizardStep =
   | 'connect'

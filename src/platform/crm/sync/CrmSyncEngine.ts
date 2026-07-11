@@ -1,6 +1,7 @@
 import { CrmDocumentRouter, FIRM_HOME_MATTER_ID } from './CrmDocumentRouter';
 import type { MultiplexedRelay } from './contracts';
 import { InMemorySyncMetrics } from './SyncMetrics';
+import { setCrmEngineFreshness } from '@/platform/crm/store';
 
 export interface FirmHomeProvisioner {
   registerOrRecoverDevice(): Promise<void>;
@@ -24,19 +25,27 @@ export class CrmSyncEngine {
 
   async bootstrap(currentQuarter: string, recentClientMatterIds: readonly string[] = []): Promise<void> {
     if (recentClientMatterIds.length > 12) throw new Error('bootstrap client list exceeds D1 cap of 12');
-    await this.options.provisioner.registerOrRecoverDevice();
-    await this.options.provisioner.provisionFirmHome(FIRM_HOME_MATTER_ID);
-    await this.options.provisioner.obtainEligibleMatterKeys();
-    this.options.metrics.beginBootstrap();
-    this.options.metrics.beginSocket();
-    await this.options.relay.start();
-    await this.options.router.startFirmHome(currentQuarter);
-    for (const matterId of recentClientMatterIds) await this.options.router.openClient(matterId, { taskNotes: true });
-    await this.options.openNotificationsAfterInboxReady?.();
+    setCrmEngineFreshness({ kind: 'syncing' });
+    try {
+      await this.options.provisioner.registerOrRecoverDevice();
+      await this.options.provisioner.provisionFirmHome(FIRM_HOME_MATTER_ID);
+      await this.options.provisioner.obtainEligibleMatterKeys();
+      this.options.metrics.beginBootstrap();
+      this.options.metrics.beginSocket();
+      await this.options.relay.start();
+      await this.options.router.startFirmHome(currentQuarter);
+      for (const matterId of recentClientMatterIds) await this.options.router.openClient(matterId, { taskNotes: true });
+      await this.options.openNotificationsAfterInboxReady?.();
+      setCrmEngineFreshness({ kind: 'live' });
+    } catch (error) {
+      setCrmEngineFreshness({ kind: 'error', error: error instanceof Error ? error.message : 'CRM sync could not start.' });
+      throw error;
+    }
   }
 
   async stop(): Promise<void> {
     await this.options.relay.stop();
     this.options.metrics.endSocket();
+    setCrmEngineFreshness({ kind: 'offline' });
   }
 }

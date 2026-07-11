@@ -37,10 +37,7 @@ export function NoteEditor({
       <div
         style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}
       >
-        <Badge
-          variant={isInternal ? 'warning' : 'success'}
-          icon={isInternal ? Lock : undefined}
-        >
+        <Badge variant={isInternal ? 'warning' : 'success'} {...(isInternal ? { icon: Lock } : {})}>
           {isInternal ? 'Internal only' : 'Client-facing'}
         </Badge>
         <span style={{ fontSize: 13 }}>Audience fixed at creation</span>

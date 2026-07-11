@@ -31,9 +31,9 @@ describe('WorkflowInstance CRDT convergence', () => {
     expect(state([...updates, ...updates])).toBe(state(updates));
   });
 
-  // WIRE-PENDING: workflow CRDT projections and their Field Merge Contract materializer are not exported by B1.
+  // EXAM-BLOCKED: workflow CRDT projections and their Field Merge Contract materializer are not exported by B1.
   it.skip('keeps disjoint offline progress and derived-field edits after sync');
-  // WIRE-PENDING: no exported workflow field conflict resolver exists yet.
+  // EXAM-BLOCKED: no exported workflow field conflict resolver exists yet.
   it.skip('uses the deterministic same-field conflict rule regardless of delivery order');
   it('performs watermark duplicate triage without a false gap repair', async () => {
     const key = { matterId: 'firm_home', docId: 'crm:workflows' };
