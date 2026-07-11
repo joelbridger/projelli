@@ -91,6 +91,9 @@ describe('pdf template library', () => {
   });
 
   it('round-trips a large source through the browser memory shelf and clears it during test reset', async () => {
+    // This test hashes/round-trips a 400KB source and has flaked on the
+    // default 5000ms timeout under a loaded full-suite run (passes in ~2s
+    // standalone). Generous per-test timeout only; no other tests changed.
     const largeSource = new Uint8Array(400 * 1024);
     largeSource.fill(0x61);
     largeSource.set(source.slice(0, 12));
@@ -123,7 +126,7 @@ describe('pdf template library', () => {
     expect(
       await usePdfTemplateStore.getState().loadSourceBytes(value.templateId, 1)
     ).toBeNull();
-  });
+  }, 20000);
 
   it('never accepts a website address as a local template source', async () => {
     const value = await descriptor();

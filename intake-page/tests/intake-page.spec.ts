@@ -714,6 +714,42 @@ test('keeps a warned file and submits it with one click once every slot is ready
   ]);
 });
 
+test('keeps a warned file while a slot is still missing, then submits from the Save and continue button', async ({ page }) => {
+  // Regression for a bug where "Save and continue" silently no-oped after a
+  // warning was kept anyway: the click passed a MouseEvent into a submit
+  // function whose acknowledged-warnings default only applies when called
+  // with no argument. This walks the two clicks separately (unlike the
+  // "one click" test above, which completes on the Keep-anyway click itself
+  // and never exercises the real Save-and-continue button while a warning
+  // is still active).
+  const relay = await setupRelay(page);
+  await page.goto(relay.url);
+  await openLicenseScreen(page);
+
+  await page.getByLabel('License front photo').setInputFiles(TAX_RETURN_FIXTURE);
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+
+  await page.getByRole('button', { name: 'Keep this file anyway' }).click();
+  await expect(page.getByText('You chose to keep this file.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeDisabled();
+
+  await page.getByLabel('License back photo').setInputFiles({
+    name: 'back.jpg',
+    mimeType: 'image/jpeg',
+    buffer: Buffer.from('back-image'),
+  });
+  await expect(page.getByRole('button', { name: 'Save and continue' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Income' })).toBeVisible();
+  await expectSubmitCount(relay, 'license', 2);
+  const sealedFront = await openSubmittedPayload(relay, 'license', 0);
+  expect(sealedFront.documentDetective).toEqual([
+    expect.objectContaining({ warning_reason: 'wrong_doc', kept_anyway: true }),
+  ]);
+});
+
 test('resumes at the next incomplete item after a full reload', async ({ page }) => {
   const relay = await setupRelay(page);
   await page.goto(relay.url);
