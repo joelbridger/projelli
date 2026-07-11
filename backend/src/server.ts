@@ -110,6 +110,14 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         if (path === "/v2/firm/matters/mine" && method === "POST") return await handleMatterMine(req, store);
         if (path === "/v2/firm/migration-manifest" && method === "POST") return await handleMigrationManifest(req, store);
         if (path === "/v2/firm/matters/list" && method === "POST") return handleListMatters(req, store);
+        if (path === "/v2/firm/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
+          if ([...url.searchParams.keys()].some((key) => key !== "ticket")) return error("invalid_v2_query", 400);
+          const authz = authorizeSyncConnect(req, store);
+          if (!authz.ok) return authz.resp;
+          const data: SyncSocketData = { subId: randomUUID(), ...authz.data };
+          if (srv.upgrade(req, { data })) return undefined;
+          return error("upgrade_failed", 400);
+        }
         const mm = matchMatter(path);
         if (mm) {
           // Mint a single-use WS connect ticket (authed; runs the relay gate).
@@ -123,14 +131,6 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           if (mm.rest === "streams" && method === "POST") return handleAllocateStream(req, store, mm.handle);
           if (streamMatch?.[2] === "updates" && method === "POST") return await handlePushUpdate(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip, hub);
           if (streamMatch?.[2] === "updates" && method === "GET") return handlePullUpdates(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip);
-          if (mm.rest === "sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
-            const authz = authorizeSyncConnect(req, store);
-            if (!authz.ok) return authz.resp;
-            if ([...url.searchParams.keys()].some((key) => key !== "ticket")) return error("invalid_v2_query", 400);
-            const data: SyncSocketData = { subId: randomUUID(), ...authz.data };
-            if (srv.upgrade(req, { data })) return undefined; // upgraded; Bun owns the socket now
-            return error("upgrade_failed", 400);
-          }
           // Relay: append / catch-up. Push broadcasts via this server's hub.
           // Admin: membership + walls (scoped to :id).
           if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.handle);
