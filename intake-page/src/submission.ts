@@ -10,6 +10,7 @@ import {
 } from '@/platform/intake/intakeCrypto';
 import { hashPlaintextChunk } from '@/platform/intake/chunkHash';
 import type { RequestItem } from '@/platform/intake/types';
+import type { PdfCompletionReceipt } from '@/platform/intake/types';
 import type { ChunkUpload, SubmitManifest } from '@/platform/intake/intakeContract';
 
 import { RelayClient } from './relayClient';
@@ -103,7 +104,9 @@ export async function submitAnswer(options: SubmitAnswerOptions): Promise<{ subm
   for (let index = 0; index < chunks.length; index += 1) {
     chunkSidBindings.push(submissionId);
     if (existingIndexes.has(index)) continue;
-    const ciphertext = await sealItemChunk(contentKey, chunks[index].bytes, {
+    const chunk = chunks[index];
+    if (!chunk) throw new Error(`Submission chunk ${String(index)} is missing.`);
+    const ciphertext = await sealItemChunk(contentKey, chunk.bytes, {
       intakeId: options.intakeId,
       itemId: options.item.item_id,
       submissionId,
@@ -119,7 +122,10 @@ export async function submitAnswer(options: SubmitAnswerOptions): Promise<{ subm
     await options.relay.uploadChunk(options.item.item_id, upload);
   }
 
-  const manifest: SealedManifest = {
+  // The relay only receives the encrypted result of sealManifest. The receipt is
+  // deliberately kept inside that envelope so hashes and template details never
+  // become relay-visible metadata.
+  const manifest: SealedManifest & { pdf_completion_receipt?: PdfCompletionReceipt } = {
     submission_id: submissionId,
     item_id: options.item.item_id,
     content_type: contentType,
@@ -129,6 +135,9 @@ export async function submitAnswer(options: SubmitAnswerOptions): Promise<{ subm
     session_id: options.sessionId,
     ...(options.payload.kind === 'files' && options.payload.document_detective?.length
       ? { document_detective: options.payload.document_detective }
+      : {}),
+    ...(options.payload.kind === 'files' && options.payload.pdf_completion_receipt
+      ? { pdf_completion_receipt: options.payload.pdf_completion_receipt }
       : {}),
   };
   const integrity = verifySubmissionIntegrity(submissionId, manifest, chunkSidBindings);

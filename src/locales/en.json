@@ -98,6 +98,19 @@
     "manual-path-placeholder": "e.g. C:\\Users\\you\\Documents\\contract.docx"
   },
   "intake": {
+    "pdf-template-library": {
+      "approved-forms": "Approved PDF forms",
+      "add-starter-forms": "Add starter forms",
+      "import-form": "Import PDF form",
+      "empty-state": "Import a local PDF, review it, then approve it before adding it to a request.",
+      "add-to-request": "Add to request",
+      "reviewing-local": "Reviewing {{fileName}} locally. No website address is saved or used.",
+      "fillable-fields": "Fillable PDF fields",
+      "wrap-field": "Wrap inside this field",
+      "contact-advisor": "Ask the client to contact the advisor",
+      "add-overlay-field": "Add overlay field",
+      "approve-version": "Approve this version"
+    },
     "journey": {
       "title": "Welcome journey",
       "description": "Shown on this client's one secure intake link.",

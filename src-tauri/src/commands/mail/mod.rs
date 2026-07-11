@@ -493,13 +493,19 @@ mod tests {
 
     #[test]
     fn backfill_marker_set_is_idempotent_and_clearable() {
+        use super::backfill::MARKED_THIS_SESSION_TEST_LOCK;
         use super::{mark_rag_backfill_needed, MARKED_THIS_SESSION, RAG_BACKFILL_NEEDED_KEY};
         use std::sync::atomic::Ordering;
+        // MARKED_THIS_SESSION is a process-global static; hold this lock for
+        // the whole test so it can never interleave with the sibling test
+        // below that also manipulates it.
+        let _latch_guard = MARKED_THIS_SESSION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let dir = tempfile::TempDir::new().unwrap();
         let key = [0x42u8; 32];
 
-        // This is the only test that touches the process-level latch; start
-        // from a known state so test order can't matter.
+        // Start from a known state so test order can't matter.
         MARKED_THIS_SESSION.store(false, Ordering::SeqCst);
 
         // Setting the marker creates the store (meta table included) + the row.
@@ -544,11 +550,17 @@ mod tests {
 
     #[test]
     fn vector_rebuild_marker_skips_missing_store_and_bypasses_stale_latch() {
+        use super::backfill::MARKED_THIS_SESSION_TEST_LOCK;
         use super::{
             mark_rag_backfill_needed_after_vector_rebuild, MARKED_THIS_SESSION,
             RAG_BACKFILL_NEEDED_KEY,
         };
         use std::sync::atomic::Ordering;
+        // See backfill_marker_set_is_idempotent_and_clearable: this must not
+        // interleave with that test's manipulation of the same latch.
+        let _latch_guard = MARKED_THIS_SESSION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let key = [0x24u8; 32];
 
         let no_mail = tempfile::TempDir::new().unwrap();

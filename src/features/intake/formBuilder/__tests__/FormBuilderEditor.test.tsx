@@ -60,8 +60,13 @@ describe('FormBuilderEditor', () => {
     const specialItems: RequestItem[] = [
       {
         t: 'pdf_fill', item_id: 'custodian-form', label: 'Custodian transfer form', help_text: 'Complete every required field.', required: true, subject: 'primary',
-        pdf_ref: 'forms/custodian-transfer.pdf',
-        field_map: { account_number: { field_id: 'account_number', fact_kind: 'ssn', pdf_field_type: 'text' } },
+        template: {
+          templateId: 'template_custodian_transfer_01', version: 1, kind: 'acroform', sourceSha256: 'a'.repeat(64),
+          sourceArtifactRef: 'sealed-artifact:custodiantransfer0001', outputFileStem: 'custodian-transfer', maxOutputBytes: 1024 * 1024,
+          fields: {
+            account_number: { kind: 'acroform', field_id: 'account_number', fact_kind: 'ssn', acroform_field: 'Account.Number', pdf_field_type: 'text' },
+          },
+        },
         prefill: [],
       },
       {
@@ -69,7 +74,6 @@ describe('FormBuilderEditor', () => {
         grade: 'docusign', document_ref: 'forms/custodian-transfer.pdf',
       },
     ];
-    const originalItems = JSON.stringify(specialItems);
     const stored = useBlueprintStore.getState().createFirmBlueprint({ blueprintId: 'special-items', label: 'Transfer', items: specialItems });
     const onSaved = vi.fn<(blueprint: RequestBlueprint) => void>();
 
@@ -85,8 +89,8 @@ describe('FormBuilderEditor', () => {
 
     const saved = onSaved.mock.calls[0]?.[0];
     expect(saved).toBeTruthy();
-    expect(JSON.stringify(saved?.items)).toBe(originalItems);
-    expect(JSON.stringify(useBlueprintStore.getState().getBlueprint('special-items')?.items)).toBe(originalItems);
+    expect(saved?.items).toEqual(specialItems);
+    expect(useBlueprintStore.getState().getBlueprint('special-items')?.items).toEqual(specialItems);
   });
 
   it('loads a first welcome card into the welcome-message field', () => {

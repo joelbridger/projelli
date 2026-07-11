@@ -311,6 +311,51 @@ button,
   text-align: center;
 }
 
+.pdf-pages {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem;
+  background: #eef2ec;
+}
+
+.pdf-page-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(23, 32, 25, 0.16);
+}
+
+.pdf-fields {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.pdf-checkbox,
+.pdf-choice label {
+  display: block;
+  margin: 0.75rem 0;
+  color: #233126;
+  font-weight: 700;
+}
+
+.pdf-choice {
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.pdf-choice legend {
+  padding: 0 0.35rem;
+  color: #233126;
+  font-weight: 800;
+}
+
 .provided-line {
   color: var(--accent-strong);
   font-weight: 800;

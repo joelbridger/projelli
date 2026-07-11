@@ -57,8 +57,8 @@ pub fn decrypt_with_key(blob: &[u8], key: &[u8; KEY_LEN]) -> Result<Vec<u8>> {
 
 /// Get the master key from the OS keychain, creating and storing it on first call.
 /// Returns the 32-byte key as a fixed-size array.
-pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
-    let entry = keyring::Entry::new(KEYCHAIN_SERVICE, KEYCHAIN_KEY)
+pub fn get_or_create_scoped_master_key(service: &str) -> Result<[u8; KEY_LEN]> {
+    let entry = keyring::Entry::new(service, KEYCHAIN_KEY)
         .context("keychain entry")?;
     match entry.get_password() {
         Ok(hex) => {
@@ -80,6 +80,12 @@ pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
         }
         Err(e) => Err(anyhow::anyhow!("keychain read: {e}")),
     }
+}
+
+/// Mail's own scoped encryption key. Other encrypted local artifact stores use
+/// the same proven AES-GCM/keychain pattern with their own service namespace.
+pub fn get_or_create_master_key() -> Result<[u8; KEY_LEN]> {
+    get_or_create_scoped_master_key(KEYCHAIN_SERVICE)
 }
 
 /// Encrypt `plaintext` using the master key from the OS keychain.

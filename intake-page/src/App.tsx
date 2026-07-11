@@ -18,6 +18,8 @@ import { RelayClient } from './relayClient';
 import { getOrCreateSessionMarker } from './sessionMarker';
 import { submitAnswer } from './submission';
 import type { AnswerPayload, IntakeChecklist, IntakeFirm, ResumeState } from './types';
+import { PdfFillScreen } from './pdfFill/PdfFillScreen';
+import { sealedPdfSourceBytes } from './pdfFill/sealedPdfSource';
 
 type LoadState =
   | { status: 'checking' | 'loading' }
@@ -64,7 +66,7 @@ const SAFE_NAMED_COLORS = new Set([
 ]);
 
 function isActionable(item: RequestItem): boolean {
-  return item.t === 'typed_field' || item.t === 'doc_upload' || item.t === 'guided_question';
+  return item.t === 'typed_field' || item.t === 'doc_upload' || item.t === 'guided_question' || item.t === 'pdf_fill';
 }
 
 function isFiniteNumberToken(token: string): boolean {
@@ -448,10 +450,15 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
         singlePayload: AnswerPayload,
         allowResume: boolean,
       ): Promise<void> => {
-        const resumeSubmissionId = itemToSubmit.t === 'doc_upload' && allowResume && !replacingItemId
+        const supportsResumableFileUpload = itemToSubmit.t === 'doc_upload' || itemToSubmit.t === 'pdf_fill';
+        const matchingPdfResume = itemToSubmit.t !== 'pdf_fill' || (
+          singlePayload.kind === 'files' &&
+          pending?.completed_sha256 === singlePayload.pdf_completion_receipt?.completedSha256
+        );
+        const resumeSubmissionId = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
           ? pending?.submission_id
           : undefined;
-        const resumeContentKeyB64 = itemToSubmit.t === 'doc_upload' && allowResume && !replacingItemId
+        const resumeContentKeyB64 = supportsResumableFileUpload && matchingPdfResume && allowResume && !replacingItemId
           ? pending?.content_key_b64
           : undefined;
         await submitAnswer({
@@ -464,12 +471,17 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           resumeSubmissionId,
           resumeContentKeyB64,
           onPendingUpload: async (pendingUpload) => {
-            if (itemToSubmit.t !== 'doc_upload') return;
+            if (itemToSubmit.t !== 'doc_upload' && itemToSubmit.t !== 'pdf_fill') return;
             try {
               await saveResume((current) => ({
                 pending_uploads: {
                   ...current.pending_uploads,
-                  [itemToSubmit.item_id]: pendingUpload,
+                  [itemToSubmit.item_id]: {
+                    ...pendingUpload,
+                    ...(itemToSubmit.t === 'pdf_fill' && singlePayload.kind === 'files' && singlePayload.pdf_completion_receipt
+                      ? { completed_sha256: singlePayload.pdf_completion_receipt.completedSha256 }
+                      : {}),
+                  },
                 },
               }));
             } catch {
@@ -514,11 +526,14 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
       await saveResume((current) => {
         const nextPending = { ...(current.pending_uploads ?? {}) };
         delete nextPending[itemToSubmit.item_id];
+        const nextDrafts = { ...(current.pdf_fill_drafts ?? {}) };
+        delete nextDrafts[itemToSubmit.item_id];
         return {
           current_item_id: nextId,
           completion_flags: { ...(current.completion_flags ?? {}), [itemToSubmit.item_id]: true },
           confirmations: { ...(current.confirmations ?? {}), [itemToSubmit.item_id]: 'Provided' },
           pending_uploads: nextPending,
+          pdf_fill_drafts: nextDrafts,
         };
       });
     } catch {
@@ -587,6 +602,13 @@ function ReadyApp(props: Extract<LoadState, { status: 'ready' }>): JSX.Element {
           item={item}
           firmName={firm.name}
           pendingUpload={resume.pending_uploads?.[item.item_id]}
+          pdfFillDraft={resume.pdf_fill_drafts?.[item.item_id]}
+          onPdfFillDraftChange={(values) => {
+            if (item.t !== 'pdf_fill') return;
+            void saveResume((current) => ({
+              pdf_fill_drafts: { ...(current.pdf_fill_drafts ?? {}), [item.item_id]: values },
+            })).catch(() => setNotice('Your form stays on this screen. We will try saving it securely again soon.'));
+          }}
           relay={relay}
           busy={busyItemId === item.item_id}
           onSubmit={(payload, confirmation) => void handleSubmit(item, payload, confirmation)}
@@ -781,6 +803,8 @@ function ItemInputScreen({
   item,
   firmName,
   pendingUpload,
+  pdfFillDraft,
+  onPdfFillDraftChange,
   relay,
   busy,
   onSubmit,
@@ -789,6 +813,8 @@ function ItemInputScreen({
   item: RequestItem;
   firmName: string;
   pendingUpload?: { submission_id: string; chunk_count: number };
+  pdfFillDraft?: Record<string, string>;
+  onPdfFillDraftChange: (values: Record<string, string>) => void;
   relay: RelayClient;
   busy: boolean;
   onSubmit: (payload: AnswerPayload, confirmation?: string) => void;
@@ -799,6 +825,18 @@ function ItemInputScreen({
     return <DocUploadScreen item={item} pendingUpload={pendingUpload} relay={relay} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
   }
   if (item.t === 'guided_question') return <GuidedQuestionScreen item={item} busy={busy} onSubmit={onSubmit} onSkip={onSkip} />;
+  if (item.t === 'pdf_fill') {
+    return <PdfFillScreen
+      item={item}
+      firmName={firmName}
+      sourceBytes={sealedPdfSourceBytes(item)}
+      draft={pdfFillDraft}
+      busy={busy}
+      onDraftChange={onPdfFillDraftChange}
+      onSubmit={onSubmit}
+      onSkip={onSkip}
+    />;
+  }
   return (
     <section className="panel">
       <h1 tabIndex={-1}>{item.label}</h1>

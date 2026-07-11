@@ -69,6 +69,20 @@ function statusLabel(state: string): string {
   }
 }
 
+function requestItemStatusLabel(intake: IntakeRecord, itemId: string, state: string): string {
+  const requestItem = intake.requestItems?.find((candidate) => candidate.item_id === itemId);
+  if (requestItem?.t !== 'pdf_fill') return statusLabel(state);
+  if (state === 'received') return 'Form returned';
+  if (state === 'needs_followup') return 'Needs follow-up';
+  return 'Form ready';
+}
+
+function requestItemDisplayLabel(intake: IntakeRecord, itemId: string, fallback: string): string {
+  return intake.requestItems?.find((candidate) => candidate.item_id === itemId)?.t === 'pdf_fill'
+    ? 'Form'
+    : fallback;
+}
+
 function provenanceColor(channel: string): {
   bg: string;
   color: string;
@@ -331,7 +345,7 @@ export function OnboardingTab({
                     }}
                   >
                     <strong style={{ color: 'var(--kp-navy)', fontSize: 14 }}>
-                      {item.label}
+                      {requestItemDisplayLabel(intake, item.itemId, item.label)}
                     </strong>
                     {item.provenance ? (
                       <ProvenanceChip
@@ -347,7 +361,7 @@ export function OnboardingTab({
                       fontSize: 12,
                     }}
                   >
-                    {statusLabel(item.state)}
+                    {requestItemStatusLabel(intake, item.itemId, item.state)}
                     {item.provenance?.at
                       ? ` · ${formatDate(item.provenance.at)}`
                       : ''}
