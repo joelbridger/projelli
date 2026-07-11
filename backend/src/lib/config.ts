@@ -82,6 +82,126 @@ function loadPem(inlineEnv: string, pathEnv: string): string | null {
   return null;
 }
 
+function enabled(name: string): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return false;
+  if (raw.trim().toLowerCase() === "true") return true;
+  if (raw.trim().toLowerCase() === "false") return false;
+  throw new Error(`config: ${name} must be either true or false`);
+}
+
+// ---- DocuSign signing broker (Wave 9) -------------------------------------
+// This is deliberately separate from the seat-token keys above. The broker's
+// RSA key is only for the DocuSign OAuth JWT grant and must never be reused for
+// Lantern authentication or sent to a client.
+type DocusignSigningEnvironment = "demo" | "production";
+
+function optionalTrimmed(name: string): string | null {
+  const value = process.env[name]?.trim();
+  return value || null;
+}
+
+function assertAbsoluteUrl(name: string, value: string, { requireHttps = false }: { requireHttps?: boolean } = {}): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`config: ${name} must be an absolute URL`);
+  }
+  if (!["http:", "https:"].includes(parsed.protocol) || (requireHttps && parsed.protocol !== "https:")) {
+    throw new Error(`config: ${name} must use ${requireHttps ? "https" : "http or https"}`);
+  }
+  if (parsed.username || parsed.password || parsed.hash) throw new Error(`config: ${name} must not contain credentials or a fragment`);
+  return parsed.toString();
+}
+
+function resolveDocusignSigningConfig() {
+  const releaseEnabled = enabled("DOCUSIGN_SIGNING_PRODUCTION_RELEASE");
+  const requested = optionalTrimmed("DOCUSIGN_SIGNING_ENVIRONMENT") ?? "demo";
+  if (requested !== "demo" && requested !== "production") {
+    throw new Error("config: DOCUSIGN_SIGNING_ENVIRONMENT must be demo or production");
+  }
+  if (releaseEnabled && requested !== "production") {
+    throw new Error("config: DOCUSIGN_SIGNING_PRODUCTION_RELEASE requires DOCUSIGN_SIGNING_ENVIRONMENT=production");
+  }
+
+  // The release flag is the sole switch to production. A stray production
+  // environment/base URI can never steer a non-released service off demo.
+  const environment: DocusignSigningEnvironment = releaseEnabled ? "production" : "demo";
+  const integrationKey = optionalTrimmed("DOCUSIGN_SIGNING_INTEGRATION_KEY");
+  const impersonatedUserId = optionalTrimmed("DOCUSIGN_SIGNING_IMPERSONATED_USER_ID");
+  const accountId = optionalTrimmed("DOCUSIGN_SIGNING_ACCOUNT_ID");
+  const allowedReturnUrlRaw = optionalTrimmed("DOCUSIGN_SIGNING_ALLOWED_RETURN_URL");
+  const connectKey = optionalTrimmed("DOCUSIGN_SIGNING_CONNECT_KEY");
+  const privatePem = loadPem("DOCUSIGN_SIGNING_PRIVATE_KEY_PEM", "DOCUSIGN_SIGNING_PRIVATE_KEY_PATH");
+
+  if (accountId && !/^[A-Za-z0-9-]{1,128}$/.test(accountId)) {
+    throw new Error("config: DOCUSIGN_SIGNING_ACCOUNT_ID has an invalid format");
+  }
+
+  let privateKey: KeyObject | null = null;
+  if (privatePem) {
+    try {
+      privateKey = createPrivateKey(privatePem);
+    } catch {
+      throw new Error("config: DOCUSIGN_SIGNING private key is invalid");
+    }
+  }
+
+  const apiBaseUriRaw = environment === "production"
+    ? optionalTrimmed("DOCUSIGN_SIGNING_PRODUCTION_API_BASE_URI")
+    : optionalTrimmed("DOCUSIGN_SIGNING_DEMO_API_BASE_URI");
+  const defaultApiBaseUri = "https://demo.docusign.net/restapi";
+  const apiBaseUri = apiBaseUriRaw
+    ? assertAbsoluteUrl("DOCUSIGN_SIGNING_API_BASE_URI", apiBaseUriRaw, { requireHttps: environment === "production" })
+    : environment === "demo" ? defaultApiBaseUri : null;
+
+  if (apiBaseUri) {
+    const host = new URL(apiBaseUri).hostname.toLowerCase();
+    if (!host.endsWith("docusign.net") || !new URL(apiBaseUri).pathname.startsWith("/restapi")) {
+      throw new Error("config: DOCUSIGN_SIGNING API base URI must be a DocuSign /restapi endpoint");
+    }
+    if (environment === "demo" && host !== "demo.docusign.net") {
+      throw new Error("config: a non-released signing broker must use the DocuSign demo API base URI");
+    }
+  }
+
+  const allowedReturnUrl = allowedReturnUrlRaw
+    ? assertAbsoluteUrl("DOCUSIGN_SIGNING_ALLOWED_RETURN_URL", allowedReturnUrlRaw, { requireHttps: environment === "production" })
+    : null;
+
+  if (releaseEnabled) {
+    const missing = [
+      !integrationKey && "DOCUSIGN_SIGNING_INTEGRATION_KEY",
+      !impersonatedUserId && "DOCUSIGN_SIGNING_IMPERSONATED_USER_ID",
+      !accountId && "DOCUSIGN_SIGNING_ACCOUNT_ID",
+      !apiBaseUri && "DOCUSIGN_SIGNING_PRODUCTION_API_BASE_URI",
+      !privateKey && "DOCUSIGN_SIGNING_PRIVATE_KEY_PEM or DOCUSIGN_SIGNING_PRIVATE_KEY_PATH",
+      !connectKey && "DOCUSIGN_SIGNING_CONNECT_KEY",
+      !allowedReturnUrl && "DOCUSIGN_SIGNING_ALLOWED_RETURN_URL",
+    ].filter(Boolean);
+    if (missing.length > 0) throw new Error(`config: production DocuSign signing release is missing ${missing.join(", ")}`);
+  }
+
+  return {
+    environment,
+    productionReleaseEnabled: releaseEnabled,
+    integrationKey,
+    impersonatedUserId,
+    accountId,
+    apiBaseUri,
+    privateKey,
+    connectKey,
+    allowedReturnUrl,
+    oauthTokenEndpoint: environment === "production"
+      ? "https://account.docusign.com/oauth/token"
+      : "https://account-d.docusign.com/oauth/token",
+    jwtAudience: environment === "production" ? "account.docusign.com" : "account-d.docusign.com",
+  } as const;
+}
+
+const docusignSigning = resolveDocusignSigningConfig();
+
 function resolveSeatKeys(): { privateKey: KeyObject; publicKey: KeyObject; publicKeyPem: string } {
   const privPem = loadPem("SEAT_PRIVATE_KEY_PEM", "SEAT_PRIVATE_KEY_PATH");
   const pubPem = loadPem("SEAT_PUBLIC_KEY_PEM", "SEAT_PUBLIC_KEY_PATH");
@@ -211,6 +331,9 @@ export const config = {
   lemonSqueezyWebhookSecret: str("LEMONSQUEEZY_WEBHOOK_SECRET", ""),
   /** Comma-separated LS variant IDs that map to the Firm plan. */
   firmVariantIds: str("FIRM_VARIANT_IDS", ""),
+
+  /** Blind DocuSign JWT broker. Its key material is distinct from seat keys. */
+  docusignSigning,
 
   bootstrap: {
     orgName: process.env.BOOTSTRAP_ORG_NAME?.trim() || null,
