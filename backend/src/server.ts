@@ -53,7 +53,7 @@ import {
   handleInferenceBilling,
 } from "./routes/assured.ts";
 import { handleDeviceRegister, handleListUsersDevices, handleListOrgAdmins } from "./routes/devices.ts";
-import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine, handleMigrationManifest } from "./routes/matterKeys.ts";
+import { handlePublishMatterKeys, handleFetchMatterKey, handleMatterMine, handleMigrationManifest, handleMigrationComplete } from "./routes/matterKeys.ts";
 import { handleOrgClaim } from "./routes/claim.ts";
 import { handleSsoConfigSet, handleSsoConfigGet, handleSsoConfigDelete, handleSsoStart, handleSsoCallback, handleSsoExchange } from "./routes/sso.ts";
 import { handleLemonSqueezyWebhook } from "./routes/webhooks.ts";
@@ -79,6 +79,13 @@ function matchMatter(path: string): { handle: string; rest: string } | null {
   const m = path.match(/^\/v2\/firm\/matters\/([^/]+)(?:\/(.*))?$/);
   if (!m) return null;
   return { handle: decodeURIComponent(m[1]!), rest: m[2] ?? "" };
+}
+
+/** Flat stream routes keep the parent matter handle out of URLs and access logs. */
+function matchStream(path: string): { handle: string; operation: "updates" | "sync-ticket" } | null {
+  const m = path.match(/^\/v2\/firm\/streams\/([^/]+)\/(updates|sync-ticket)$/);
+  if (!m) return null;
+  return { handle: decodeURIComponent(m[1]!), operation: m[2]! as "updates" | "sync-ticket" };
 }
 
 /**
@@ -109,6 +116,7 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
         // live fan-out shares the same access gate as the HTTP endpoints.
         if (path === "/v2/firm/matters/mine" && method === "POST") return await handleMatterMine(req, store);
         if (path === "/v2/firm/migration-manifest" && method === "POST") return await handleMigrationManifest(req, store);
+        if (path === "/v2/firm/migration-complete" && method === "POST") return await handleMigrationComplete(req, store);
         if (path === "/v2/firm/matters/list" && method === "POST") return handleListMatters(req, store);
         if (path === "/v2/firm/sync" && method === "GET" && req.headers.get("upgrade")?.toLowerCase() === "websocket") {
           if ([...url.searchParams.keys()].some((key) => key !== "ticket")) return error("invalid_v2_query", 400);
@@ -118,19 +126,22 @@ export function buildServeOptions(store: Store, hub: FanoutHub) {
           if (srv.upgrade(req, { data })) return undefined;
           return error("upgrade_failed", 400);
         }
+        const sm = matchStream(path);
+        if (sm) {
+          const stream = sm.handle;
+          const matterHandle = store.getMatterHandleForStream(stream);
+          if (!matterHandle) return error("stream_not_found", 404);
+          if (sm.operation === "sync-ticket" && method === "POST") return handleSyncTicket(req, store, matterHandle, stream, ip);
+          if (sm.operation === "updates" && method === "POST") return await handlePushUpdate(req, store, matterHandle, stream, ip, hub);
+          if (sm.operation === "updates" && method === "GET") return handlePullUpdates(req, store, matterHandle, stream, ip);
+        }
         const mm = matchMatter(path);
         if (mm) {
-          // Mint a single-use WS connect ticket (authed; runs the relay gate).
-          const streamMatch = mm.rest.match(/^streams\/([^/]+)\/(updates|sync-ticket)$/);
-          if (streamMatch?.[2] === "sync-ticket" && method === "POST") return handleSyncTicket(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip);
-          // Live sync socket: GET /matter/:id/sync?ticket=<t> (Upgrade: websocket).
-          // The upgrade carries ONLY a single-use ticket — never the access/seat
-          // token — so no credential can land in an access log or browser history.
+          // HTTP matter administration remains handle-scoped. Live sync uses
+          // the fixed /v2/firm/sync ticket route handled above.
           if (mm.rest === "" && method === "POST") return error("invalid_v2_payload", 400);
           if (mm.rest === "activate" && method === "POST") return handleActivateMatter(req, store, mm.handle);
           if (mm.rest === "streams" && method === "POST") return handleAllocateStream(req, store, mm.handle);
-          if (streamMatch?.[2] === "updates" && method === "POST") return await handlePushUpdate(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip, hub);
-          if (streamMatch?.[2] === "updates" && method === "GET") return handlePullUpdates(req, store, mm.handle, decodeURIComponent(streamMatch[1]!), ip);
           // Relay: append / catch-up. Push broadcasts via this server's hub.
           // Admin: membership + walls (scoped to :id).
           if (mm.rest === "members/add" && method === "POST") return await handleAddMatterMember(req, store, mm.handle);

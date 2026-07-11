@@ -156,6 +156,19 @@ CREATE TABLE IF NOT EXISTS matter_streams (
 );
 CREATE INDEX IF NOT EXISTS idx_matter_streams_matter ON matter_streams(matter_handle);
 
+-- Temporary migration-only bridge. This is the one bounded place legacy local
+-- IDs may live: it is never joined into normal relay responses or audit rows,
+-- and expiry/acknowledgement deletes it.
+CREATE TABLE IF NOT EXISTS firm_relay_migration_manifest (
+  legacy_matter_id  TEXT NOT NULL UNIQUE,
+  matter_handle     TEXT NOT NULL UNIQUE REFERENCES matters(matter_handle),
+  root_stream_handle TEXT NOT NULL,
+  streams_json      TEXT NOT NULL,
+  expires_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_firm_relay_migration_manifest_expiry
+  ON firm_relay_migration_manifest(expires_at);
+
 CREATE TABLE IF NOT EXISTS matter_members (
   matter_handle TEXT NOT NULL REFERENCES matters(matter_handle),
   user_id    TEXT NOT NULL REFERENCES users(user_id),
@@ -410,8 +423,6 @@ function toMatter(r: MatterRow): Matter {
 // ---------------------------------------------------------------------------
 export class Store {
   readonly db: Database;
-  /** Brief, process-local bridge for an upgraded desktop. Never written to the v2 DB. */
-  private readonly legacyManifest = new Map<string, { matter_handle: string; root_stream_handle: string; streams: Record<string, string> }>();
 
   constructor(path: string) {
     this.db = new Database(path, { create: true });
@@ -466,6 +477,8 @@ export class Store {
         CREATE TABLE wrapped_matter_keys_v2 (matter_handle TEXT NOT NULL REFERENCES matters_v2(matter_handle), epoch INTEGER NOT NULL, user_id TEXT NOT NULL, device_id TEXT NOT NULL, wrapped_key_b64 TEXT NOT NULL, published_by TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY(matter_handle,epoch,user_id,device_id));
         CREATE INDEX idx_wmk_matter_epoch_v2 ON wrapped_matter_keys_v2(matter_handle, epoch);
         CREATE INDEX idx_wmk_user_v2 ON wrapped_matter_keys_v2(user_id);
+        CREATE TABLE firm_relay_migration_manifest (legacy_matter_id TEXT NOT NULL UNIQUE, matter_handle TEXT NOT NULL UNIQUE REFERENCES matters_v2(matter_handle), root_stream_handle TEXT NOT NULL, streams_json TEXT NOT NULL, expires_at TEXT NOT NULL);
+        CREATE INDEX idx_firm_relay_migration_manifest_expiry ON firm_relay_migration_manifest(expires_at);
       `);
       const matters = this.db.query("SELECT * FROM matters").all() as Array<{ matter_id: string; org_id: string; status: string; key_epoch: number; created_at: string }>;
       const handles = new Map<string, { matter: string; root: string; streams: Map<string, string> }>();
@@ -488,7 +501,7 @@ export class Store {
       for (const row of this.db.query("SELECT * FROM ethical_walls").all() as Array<{ matter_id:string; user_id:string; org_id:string; created_by:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO ethical_walls_v2 VALUES (?,?,?,?,?)").run(m.matter,row.user_id,row.org_id,row.created_by,row.created_at); }
       for (const row of this.db.query("SELECT * FROM wrapped_matter_keys").all() as Array<{ matter_id:string; epoch:number; user_id:string; device_id:string; wrapped_key_b64:string; published_by:string; created_at:string }>) { const m=handles.get(row.matter_id); if (m) this.db.query("INSERT INTO wrapped_matter_keys_v2 VALUES (?,?,?,?,?,?,?)").run(m.matter,row.epoch,row.user_id,row.device_id,row.wrapped_key_b64,row.published_by,row.created_at); }
       for (const [legacy, map] of handles) {
-        this.legacyManifest.set(legacy, { matter_handle: map.matter, root_stream_handle: map.root, streams: Object.fromEntries(map.streams) });
+        this.db.query("INSERT INTO firm_relay_migration_manifest (legacy_matter_id,matter_handle,root_stream_handle,streams_json,expires_at) VALUES (?,?,?,?,?)").run(legacy, map.matter, map.root, JSON.stringify(Object.fromEntries(map.streams)), config.migrationManifestDeadline);
         this.db.query("UPDATE audit_events SET target = ?, detail = NULL WHERE target = ?").run(map.matter, legacy);
       }
       this.db.exec("DROP TABLE wrapped_matter_keys; DROP TABLE matter_updates; DROP TABLE ethical_walls; DROP TABLE matter_members; DROP TABLE IF EXISTS matter_streams; DROP TABLE matters; ALTER TABLE matters_v2 RENAME TO matters; ALTER TABLE matter_streams_v2 RENAME TO matter_streams; ALTER TABLE matter_members_v2 RENAME TO matter_members; ALTER TABLE ethical_walls_v2 RENAME TO ethical_walls; ALTER TABLE matter_updates_v2 RENAME TO matter_updates; ALTER TABLE wrapped_matter_keys_v2 RENAME TO wrapped_matter_keys; DROP INDEX idx_matter_updates_blob_v2; DROP INDEX idx_matter_updates_matter_v2; DROP INDEX idx_wmk_matter_epoch_v2; DROP INDEX idx_wmk_user_v2; CREATE INDEX idx_matters_org ON matters(org_id); CREATE INDEX idx_matter_streams_matter ON matter_streams(matter_handle); CREATE INDEX idx_matter_members_user ON matter_members(user_id); CREATE INDEX idx_matter_members_matter ON matter_members(matter_handle); CREATE INDEX idx_ethical_walls_user ON ethical_walls(user_id); CREATE UNIQUE INDEX idx_matter_updates_blob ON matter_updates(stream_handle, blob_id); CREATE INDEX idx_matter_updates_matter ON matter_updates(matter_handle, stream_handle, id); CREATE INDEX idx_wmk_matter_epoch ON wrapped_matter_keys(matter_handle, epoch); CREATE INDEX idx_wmk_user ON wrapped_matter_keys(user_id);");
@@ -998,13 +1011,59 @@ export class Store {
     return this.db.query("SELECT 1 FROM matter_streams WHERE stream_handle = ? AND matter_handle = ?").get(streamHandle, matterHandle) !== null;
   }
 
-  /** One-time, authenticated bridge; values were captured only while rebuilding old rows. */
-  consumeLegacyManifestForUser(userId: string, orgId: string): Array<{ matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> {
-    const allowed = this.db.query("SELECT matter_handle FROM matter_members WHERE user_id = ? AND org_id = ?").all(userId, orgId) as Array<{ matter_handle: string }>;
-    const result: Array<{ matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> = [];
-    for (const v of this.legacyManifest.values()) if (allowed.some((a) => a.matter_handle === v.matter_handle)) result.push(v);
-    this.legacyManifest.clear();
-    return result;
+  /** Resolve a flat stream route without exposing its parent in the URL. */
+  getMatterHandleForStream(streamHandle: string): string | null {
+    const row = this.db.query("SELECT matter_handle FROM matter_streams WHERE stream_handle = ?").get(streamHandle) as { matter_handle: string } | null;
+    return row?.matter_handle ?? null;
+  }
+
+  /** Remove every still-pending bridge row after the configured migration window. */
+  purgeExpiredLegacyManifest(now = this.nowIso()): number {
+    return this.db.query("DELETE FROM firm_relay_migration_manifest WHERE expires_at <= ?").run(now).changes;
+  }
+
+  /**
+   * Read the migration bridge for this caller only. Reads are deliberately
+   * repeatable: a desktop may crash after receiving it but before sealing its
+   * encrypted root index.
+   */
+  listLegacyManifestForUser(userId: string, orgId: string): Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams: Record<string, string> }> {
+    this.purgeExpiredLegacyManifest();
+    const rows = this.db.query(`SELECT manifest.legacy_matter_id, manifest.matter_handle, manifest.root_stream_handle, manifest.streams_json
+      FROM firm_relay_migration_manifest AS manifest
+      JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
+      JOIN matters ON matters.matter_handle = manifest.matter_handle
+      WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?
+      ORDER BY manifest.matter_handle`).all(userId, orgId, orgId) as Array<{ legacy_matter_id: string; matter_handle: string; root_stream_handle: string; streams_json: string }>;
+    return rows.map((row) => ({
+      legacy_matter_id: row.legacy_matter_id,
+      matter_handle: row.matter_handle,
+      root_stream_handle: row.root_stream_handle,
+      streams: JSON.parse(row.streams_json) as Record<string, string>,
+    }));
+  }
+
+  /**
+   * An acknowledgement is accepted only as cleanup. A row leaves the bridge
+   * once its root stream has stored at least one encrypted update, which is the
+   * server-visible proof that the private index was sealed.
+   */
+  acknowledgeLegacyManifestForUser(userId: string, orgId: string): number {
+    const txn = this.db.transaction(() => {
+      this.purgeExpiredLegacyManifest();
+      return this.db.query(`DELETE FROM firm_relay_migration_manifest
+        WHERE matter_handle IN (
+          SELECT manifest.matter_handle
+          FROM firm_relay_migration_manifest AS manifest
+          JOIN matter_members AS members ON members.matter_handle = manifest.matter_handle
+          JOIN matters ON matters.matter_handle = manifest.matter_handle
+          WHERE members.user_id = ? AND members.org_id = ? AND matters.org_id = ?
+            AND EXISTS (SELECT 1 FROM matter_updates AS updates
+              WHERE updates.matter_handle = manifest.matter_handle
+                AND updates.stream_handle = manifest.root_stream_handle)
+        )`).run(userId, orgId, orgId).changes;
+    });
+    return txn.immediate() as number;
   }
 
   setMatterStatus(matterHandle: string, status: MatterStatus): void {
@@ -1161,14 +1220,14 @@ export class Store {
   // The E2EE sync relay (DECISION.md §1 — dumb relay, opaque ciphertext only)
   // ===========================================================================
   /**
-   * Append an opaque encrypted CRDT update. Idempotent on (matter_id, doc_id, blob_id):
+   * Append an opaque encrypted CRDT update. Idempotent on (stream_handle, blob_id):
    * a retried push returns the already-stored row rather than duplicating. The
    * ciphertext is stored verbatim and NEVER inspected. Returns the stored row
    * (so callers can fan out the assigned cursor `id`).
    *
-   * `doc_id` partitions the relay into per-document streams. Notes use '_notes'
-   * (the default). The idempotency key is scoped to (matter, doc_id) so the same
-   * blob_id under different doc_ids are distinct rows.
+   * Each opaque `stream_handle` partitions a stream. The local document mapping
+   * remains encrypted in the root stream, so the same blob_id in two streams is
+   * distinct without revealing document identifiers to the relay.
    */
   appendMatterUpdate(input: {
     matter_handle: string;
@@ -1219,14 +1278,14 @@ export class Store {
       };
       return { update: { ...row, ciphertext: new Uint8Array(row.ciphertext) }, duplicate: false };
     });
-    // IMMEDIATE so concurrent pushes of the same (doc_id, blob_id) can't both insert.
+    // IMMEDIATE so concurrent pushes of the same (stream_handle, blob_id) can't both insert.
     return txn.immediate() as { update: MatterUpdate; duplicate: boolean };
   }
 
   /**
    * Fetch updates for a matter strictly AFTER `sinceCursor`, in cursor order, for
    * catch-up. `sinceCursor = 0` returns the whole history. Bounded by `limit`.
-   * `docId` filters to a specific document stream; defaults to '_notes'.
+   * `streamHandle` selects one opaque encrypted stream.
    */
   getMatterUpdatesSince(matterHandle: string, streamHandle: string, sinceCursor: number, limit = 500): MatterUpdate[] {
     const rows = this.db
@@ -1247,7 +1306,7 @@ export class Store {
     return rows.map((r) => ({ ...r, ciphertext: new Uint8Array(r.ciphertext) }));
   }
 
-  /** Highest cursor currently stored for a matter+doc stream (0 if none). */
+  /** Highest cursor currently stored for an opaque matter+stream pair (0 if none). */
   latestMatterCursor(matterHandle: string, streamHandle: string): number {
     const r = this.db
       .query(`SELECT MAX(id) AS m FROM matter_updates WHERE matter_handle = ? AND stream_handle = ?`)

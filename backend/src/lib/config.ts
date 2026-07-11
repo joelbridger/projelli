@@ -92,6 +92,13 @@ const seat = resolveSeatKeys();
 // per-boot secret when unset — calling it twice would diverge).
 const authSecretResolved = resolveAuthSecret();
 
+// The legacy-ID bridge is intentionally short lived.  This is a duration
+// rather than a calendar date so each deployment can publish its approved
+// migration window through configuration without baking a date into code.
+const migrationManifestDeadline = new Date(
+  Date.now() + num("MIGRATION_MANIFEST_TTL_SECONDS", 7 * 24 * 60 * 60),
+).toISOString();
+
 // ---- Managed-key master secret (assured proxy org provider keys, chunk 3) --
 // Master key under which org-level managed provider API keys are encrypted at
 // rest (HKDF-derived AES-256-GCM; see crypto.encryptSecret). A dedicated secret
@@ -143,6 +150,9 @@ export const config = {
   // so it gets its own, more generous per-IP+bucket window. Still bounds abuse.
   relayRateLimitMax: num("RELAY_RATE_LIMIT_MAX", 600),
   relayRateLimitWindowSeconds: num("RELAY_RATE_LIMIT_WINDOW_SECONDS", 60),
+
+  /** Absolute expiry written with every legacy bridge row at migration time. */
+  migrationManifestDeadline,
 
   // Assured inference proxy (chunk 3). Per-IP request cap + an upstream timeout.
   // The cap bounds abuse; the timeout severs a hung provider connection so a

@@ -15,9 +15,9 @@ const post = async (path:string, body:unknown = {}, token?:string, extra:Record<
   return {status:r.status,body:await r.json().catch(()=>({})) as Record<string,any>};
 };
 const get = async (path:string, token?:string, seat?:string) => { const r=await fetch(base()+path,{headers:{...token?{authorization:`Bearer ${token}`}:{},...seat?{"x-seat-token":seat}:{}}}); return {status:r.status,body:await r.json().catch(()=>({})) as Record<string,any>}; };
-const push = (mh:string,sh:string, token:string,seat:string, blob:string, bytes:Uint8Array, epoch=1) => post(`/v2/firm/matters/${mh}/streams/${sh}/updates`,{blob_id:blob,ciphertext_b64:Buffer.from(bytes).toString("base64"),seat_token:seat,key_epoch:epoch},token);
-const pull = (mh:string,sh:string,token:string,seat:string,since=0) => get(`/v2/firm/matters/${mh}/streams/${sh}/updates?since=${since}`,token,seat);
-const ticket = (mh:string,sh:string,token:string,seat:string) => post(`/v2/firm/matters/${mh}/streams/${sh}/sync-ticket`,{},token,{"x-seat-token":seat});
+const push = (_mh:string,sh:string, token:string,seat:string, blob:string, bytes:Uint8Array, epoch=1) => post(`/v2/firm/streams/${sh}/updates`,{blob_id:blob,ciphertext_b64:Buffer.from(bytes).toString("base64"),seat_token:seat,key_epoch:epoch},token);
+const pull = (_mh:string,sh:string,token:string,seat:string,since=0) => get(`/v2/firm/streams/${sh}/updates?since=${since}`,token,seat);
+const ticket = (_mh:string,sh:string,token:string,seat:string) => post(`/v2/firm/streams/${sh}/sync-ticket`,{},token,{"x-seat-token":seat});
 const wsUrl = (t:string) => `ws://${server.hostname}:${server.port}/v2/firm/sync?ticket=${encodeURIComponent(t)}`;
 const open = (url:string) => new Promise<WebSocket>((resolve,reject)=>{const ws=new WebSocket(url), timer=setTimeout(()=>reject(new Error("socket timeout")),3000);ws.onopen=()=>{clearTimeout(timer);resolve(ws)};ws.onerror=()=>{clearTimeout(timer);reject(new Error("socket error"))};});
 
@@ -41,18 +41,18 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
   test("wall overrides membership for WebSocket upgrade",async()=>{await post(`/v2/firm/matters/${handle}/wall/set`,{user_id:bobId},admin);const t=await ticket(handle,root,bob,bobSeat);expect(t.status).toBe(403);await post(`/v2/firm/matters/${handle}/wall/clear`,{user_id:bobId},admin);});
   test("walled member is rejected on push and pull",async()=>{await post(`/v2/firm/matters/${handle}/wall/set`,{user_id:aliceId},admin);expect((await push(handle,root,alice,aliceSeat,"wall",new Uint8Array([1]))).status).toBe(403);expect((await pull(handle,root,alice,aliceSeat)).status).toBe(403);await post(`/v2/firm/matters/${handle}/wall/clear`,{user_id:aliceId},admin);});
   test("cross-org relay access is a non-enumerating 404",async()=>{expect((await push(handle,root,carol,carolSeat,"cross",new Uint8Array([1]))).status).toBe(404);expect((await pull(handle,root,carol,carolSeat)).status).toBe(404);});
-  test("relay requires a valid seat token",async()=>{expect((await post(`/v2/firm/matters/${handle}/streams/${root}/updates`,{blob_id:"no-seat",ciphertext_b64:"AQ=="},alice)).status).toBe(401);});
+  test("relay requires a valid seat token",async()=>{expect((await post(`/v2/firm/streams/${root}/updates`,{blob_id:"no-seat",ciphertext_b64:"AQ=="},alice)).status).toBe(401);});
   test("relay rejects oversized ciphertext",async()=>{expect((await push(handle,root,alice,aliceSeat,"large",new Uint8Array(MAX_UPDATE_BYTES+1))).status).toBe(413);});
-  test("relay rejects malformed v2 payload",async()=>{expect((await post(`/v2/firm/matters/${handle}/streams/${root}/updates`,{blob_id:"bad",ciphertext_b64:42,seat_token:aliceSeat},alice)).status).toBe(400);});
-  test("relay requires authentication",async()=>{expect((await post(`/v2/firm/matters/${handle}/streams/${root}/updates`,{})).status).toBe(401);});
-  test("sync ticket requires access JWT",async()=>{expect((await post(`/v2/firm/matters/${handle}/streams/${root}/sync-ticket`,{})).status).toBe(401);});
-  test("sync ticket requires active seat",async()=>{expect((await post(`/v2/firm/matters/${handle}/streams/${root}/sync-ticket`,{},alice)).status).toBe(401);});
+  test("relay rejects malformed v2 payload",async()=>{expect((await post(`/v2/firm/streams/${root}/updates`,{blob_id:"bad",ciphertext_b64:42,seat_token:aliceSeat},alice)).status).toBe(400);});
+  test("relay requires authentication",async()=>{expect((await post(`/v2/firm/streams/${root}/updates`,{})).status).toBe(401);});
+  test("sync ticket requires access JWT",async()=>{expect((await post(`/v2/firm/streams/${root}/sync-ticket`,{})).status).toBe(401);});
+  test("sync ticket requires active seat",async()=>{expect((await post(`/v2/firm/streams/${root}/sync-ticket`,{},alice)).status).toBe(401);});
   test("sync ticket rejects non-member",async()=>{expect((await ticket(handle,root,carol,carolSeat)).status).toBe(404);});
   test("ticket redeems exactly once",async()=>{const t=await ticket(handle,root,bob,bobSeat);const ws=await open(wsUrl(t.body.ticket));ws.close();await new Promise(r=>setTimeout(r,10));await expect(open(wsUrl(t.body.ticket))).rejects.toThrow();});
   test("socket URL carries ticket only",async()=>{const t=await ticket(handle,root,bob,bobSeat);const u=wsUrl(t.body.ticket);expect(u).toMatch(/\/v2\/firm\/sync\?ticket=/);expect(u).not.toContain(handle);expect(u).not.toContain(root);expect(u).not.toContain(bobSeat);expect(u).not.toContain(bob);});
   test("expired ticket is rejected",()=>{const tickets=new SyncTicketStore(-1);const t=tickets.mint({matterHandle:handle,streamHandle:root,orgId:store.getMatter(handle)!.org_id,userId:bobId,seatId:"seat",role:"member"});expect(tickets.redeem(t.ticket)).toBeNull();});
   test("ticket binding carries the requested opaque stream",()=>{const tickets=new SyncTicketStore();const t=tickets.mint({matterHandle:handle,streamHandle:root,orgId:store.getMatter(handle)!.org_id,userId:bobId,seatId:"seat",role:"member"});expect(tickets.redeem(t.ticket)).toMatchObject({matterHandle:handle,streamHandle:root});});
-  test("pull requires X-Seat-Token header",async()=>{expect((await get(`/v2/firm/matters/${handle}/streams/${root}/updates?since=0`,alice)).status).toBe(401);});
+  test("pull requires X-Seat-Token header",async()=>{expect((await get(`/v2/firm/streams/${root}/updates?since=0`,alice)).status).toBe(401);});
   test("normal rate-limit bucket permits a request",()=>expect(rateLimit(`relay-${crypto.randomUUID()}`,"proof",{max:2,windowSeconds:10}).ok).toBe(true));
   test("rate-limit exhaustion has 429 semantics",()=>{const ip=`relay-${crypto.randomUUID()}`;rateLimit(ip,"proof",{max:1,windowSeconds:10});expect(rateLimit(ip,"proof",{max:1,windowSeconds:10}).ok).toBe(false);});
   test("new matter root stream is its opaque notes stream equivalent",()=>expect(root).toMatch(/^sh2_[A-Za-z0-9_-]{43}$/));
@@ -68,5 +68,6 @@ describe("v2 encrypted relay: preserved HTTP, authorization, cursor, and socket 
   test("presence is stream-isolated",async()=>{const s=(await post(`/v2/firm/matters/${handle}/streams`,{},alice,{"x-seat-token":aliceSeat})).body.stream_handle;const t=await ticket(handle,s,alice,aliceSeat);const ws=await open(wsUrl(t.body.ticket));try{const frames:any[]=[];ws.onmessage=e=>frames.push(JSON.parse(String(e.data)));await new Promise(r=>setTimeout(r,30));expect(frames.filter(f=>f.type==="presence").every(f=>f.count===1)).toBe(true);}finally{ws.close();}});
   test("v1 relay endpoints return deliberate upgrade response",async()=>expect((await post("/matter/matter-semantic-123/updates",{client_name:"x",doc_id:"d"},alice)).status).toBe(426));
   test("v2 rejects a legacy client_name payload",async()=>expect((await post("/v2/firm/matters",{client_name:"x"},admin)).status).toBe(400));
-  test("v2 rejects legacy matter_id and doc_id payload",async()=>expect((await post(`/v2/firm/matters/${handle}/streams/${root}/updates`,{matter_id:"x",doc_id:"y",blob_id:"legacy-fields",ciphertext_b64:"AQ==",seat_token:aliceSeat,key_epoch:1},alice)).status).toBe(400));
+  test("v2 rejects legacy matter_id and doc_id payload",async()=>expect((await post(`/v2/firm/streams/${root}/updates`,{matter_id:"x",doc_id:"y",blob_id:"legacy-fields",ciphertext_b64:"AQ==",seat_token:aliceSeat,key_epoch:1},alice)).status).toBe(400));
+  test("nested stream routes are no longer accepted",async()=>{expect((await post(`/v2/firm/matters/${handle}/streams/${root}/updates`,{},alice)).status).toBe(404);expect((await get(`/v2/firm/matters/${handle}/streams/${root}/updates?since=0`,alice,aliceSeat)).status).toBe(404);expect((await post(`/v2/firm/matters/${handle}/streams/${root}/sync-ticket`,{},alice,{"x-seat-token":aliceSeat})).status).toBe(404);});
 });

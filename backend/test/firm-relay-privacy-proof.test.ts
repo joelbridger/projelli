@@ -20,7 +20,7 @@ describe("firm relay privacy proof", () => {
     const hub = new FanoutHub(); const frames: unknown[]=[];
     hub.subscribe(matter.matter_handle,{id:"sub",user_id:user.user_id,seat_id:"seat",send:(f)=>frames.push(f)},matter.root_stream_handle);
     hub.broadcast(matter.matter_handle,toUpdateFrame(update),matter.root_stream_handle);
-    const traffic = JSON.stringify({ path:`/v2/firm/matters/${matter.matter_handle}/streams/${matter.root_stream_handle}/updates`, frame:frames, audit:store.listAudit(org.org_id) });
+    const traffic = JSON.stringify({ path:`/v2/firm/streams/${matter.root_stream_handle}/updates`, frame:frames, audit:store.listAudit(org.org_id) });
     for (const sentinel of sentinels) {
       expect(traffic).not.toContain(sentinel);
       for (const column of textColumns(store)) {
@@ -29,7 +29,7 @@ describe("firm relay privacy proof", () => {
         expect(rows).toHaveLength(0);
       }
     }
-    expect(textColumns(store).join(" ")).not.toMatch(/client_name|matter_id|doc_id/);
+    expect(textColumns(store).filter((column) => !column.startsWith("firm_relay_migration_manifest.")).join(" ")).not.toMatch(/client_name|matter_id|doc_id/);
     expect(JSON.stringify(frames)).not.toContain("matter_handle");
     expect(JSON.stringify(frames)).not.toContain("stream_handle");
   });
@@ -58,11 +58,11 @@ describe("firm relay privacy proof", () => {
       const stream=await post(`/v2/firm/matters/${mh}/streams`,{}, {authorization:bearer,"x-seat-token":seat.json.seat_token}); expect(stream.status).toBe(201);
       await post(`/v2/firm/matters/${mh}/keys/publish`,{epoch:1,wrapped:[{user_id:org.json.admin.user_id,device_id:"device",wrapped_key_b64:"opaque"}]},{authorization:bearer});
       await post(`/v2/firm/matters/${mh}/keys/fetch`,{device_id:"device"},{authorization:bearer,"x-seat-token":seat.json.seat_token});
-      await post(`/v2/firm/matters/${mh}/streams/${sh}/updates`,{blob_id:"opaque-blob",ciphertext_b64:"AQID",seat_token:seat.json.seat_token,key_epoch:1},{authorization:bearer});
-      await get(`/v2/firm/matters/${mh}/streams/${sh}/updates?since=0`,{authorization:bearer,"x-seat-token":seat.json.seat_token});
-      const ticket=await post(`/v2/firm/matters/${mh}/streams/${sh}/sync-ticket`,{}, {authorization:bearer,"x-seat-token":seat.json.seat_token});
+      await post(`/v2/firm/streams/${sh}/updates`,{blob_id:"opaque-blob",ciphertext_b64:"AQID",seat_token:seat.json.seat_token,key_epoch:1},{authorization:bearer});
+      await get(`/v2/firm/streams/${sh}/updates?since=0`,{authorization:bearer,"x-seat-token":seat.json.seat_token});
+      const ticket=await post(`/v2/firm/streams/${sh}/sync-ticket`,{}, {authorization:bearer,"x-seat-token":seat.json.seat_token});
       const wsUrl=`ws://${server.hostname}:${server.port}/v2/firm/sync?ticket=${encodeURIComponent(ticket.json.ticket)}`; http.push(wsUrl);
-      await new Promise<void>((resolve,reject)=>{const ws=new WebSocket(wsUrl);const t=setTimeout(()=>reject(new Error("socket timeout")),3000);ws.onmessage=(event)=>{frames.push(String(event.data));if(JSON.parse(String(event.data)).type==="ready")post(`/v2/firm/matters/${mh}/streams/${sh}/updates`,{blob_id:"live-opaque",ciphertext_b64:"BAUG",seat_token:seat.json.seat_token,key_epoch:1},{authorization:bearer});if(JSON.parse(String(event.data)).type==="update"&&String(event.data).includes("live-opaque")){clearTimeout(t);ws.close();resolve();}};ws.onerror=()=>{clearTimeout(t);reject(new Error("socket error"));};});
+      await new Promise<void>((resolve,reject)=>{const ws=new WebSocket(wsUrl);const t=setTimeout(()=>reject(new Error("socket timeout")),3000);ws.onmessage=(event)=>{frames.push(String(event.data));if(JSON.parse(String(event.data)).type==="ready")post(`/v2/firm/streams/${sh}/updates`,{blob_id:"live-opaque",ciphertext_b64:"BAUG",seat_token:seat.json.seat_token,key_epoch:1},{authorization:bearer});if(JSON.parse(String(event.data)).type==="update"&&String(event.data).includes("live-opaque")){clearTimeout(t);ws.close();resolve();}};ws.onerror=()=>{clearTimeout(t);reject(new Error("socket error"));};});
       const captured=`${http.join("\n")}\n${frames.join("\n")}`;
       for(const sentinel of sentinels)expect(captured).not.toContain(sentinel);
       expect(wsUrl).toMatch(/^ws:\/\/[^/]+\/v2\/firm\/sync\?ticket=/);
