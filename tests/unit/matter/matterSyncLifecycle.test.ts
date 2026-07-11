@@ -105,6 +105,13 @@ vi.mock('@/platform/firm/matterKeyService', () => ({
   obtainMatterKey: vi.fn(async () => 'b64-mock-key-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='),
 }));
 
+// The lifecycle tests use a deliberately tiny Yjs stand-in. It has no private
+// index, so keep that concern outside this suite while still proving the
+// opaque-handle lifecycle rules.
+vi.mock('@/platform/firm/firmMatterPrivateIndex', () => ({
+  readFirmMatterPrivateIndex: vi.fn(() => null),
+}));
+
 vi.mock('@/platform/matter/matterSyncStore', () => ({
   useMatterSyncStore: {
     getState: () => ({
@@ -133,6 +140,9 @@ import {
 import { clearMatterKey } from '@/platform/firm/firmKeychain';
 import type { Matter } from '@/platform/types/matter';
 
+const matterHandle = (label: string) => `mh2_${label.padEnd(43, 'x').slice(0, 43)}`;
+const streamHandle = (label: string) => `sh2_${label.padEnd(43, 'x').slice(0, 43)}`;
+
 // Widened locally (test-only) so a test can explicitly pass `firmMatterId:
 // undefined` to build an unlinked matter, without weakening the real `Matter`
 // type (which forbids explicit `undefined` under exactOptionalPropertyTypes).
@@ -144,7 +154,8 @@ function makeMatter(overrides?: MatterOverrides): Matter {
     name: 'Test Matter',
     client: 'Test Corp',
     shared: true,
-    firmMatterId: 'firm-1',
+    firmMatterId: matterHandle('firm-1'),
+    rootStreamHandle: streamHandle('root-1'),
     role: 'owner',
     folderPaths: [],
     privileged: false,
@@ -181,7 +192,7 @@ describe('matterNotesSync lifecycle', () => {
   });
 
   it('ensureMatterSync defaults keyEpoch to 1 when not provided', async () => {
-    const matter = makeMatter({ id: 'local-2', firmMatterId: 'firm-2' });
+    const matter = makeMatter({ id: 'local-2', firmMatterId: matterHandle('firm-2'), rootStreamHandle: streamHandle('root-2') });
     await ensureMatterSync(matter);
     const ctorArg = MockMatterSyncClient.mock.calls[0]![0] as Record<string, unknown>;
     expect(ctorArg['keyEpoch']).toBe(1);
@@ -204,7 +215,7 @@ describe('matterNotesSync lifecycle', () => {
   });
 
   it('stopMatterSync calls stop() on the cached client and removes it', async () => {
-    const matter = makeMatter({ id: 'local-3', firmMatterId: 'firm-3' });
+    const matter = makeMatter({ id: 'local-3', firmMatterId: matterHandle('firm-3'), rootStreamHandle: streamHandle('root-3') });
     await ensureMatterSync(matter, 2);
     expect(getMatterSyncClient('local-3')).not.toBeNull();
     stopMatterSync('local-3');
@@ -213,8 +224,8 @@ describe('matterNotesSync lifecycle', () => {
   });
 
   it('stopAll calls stop() on every cached client and clears the cache', async () => {
-    const m1 = makeMatter({ id: 'stop-all-1', firmMatterId: 'firm-stop-1' });
-    const m2 = makeMatter({ id: 'stop-all-2', firmMatterId: 'firm-stop-2' });
+    const m1 = makeMatter({ id: 'stop-all-1', firmMatterId: matterHandle('firm-stop-1'), rootStreamHandle: streamHandle('root-stop-1') });
+    const m2 = makeMatter({ id: 'stop-all-2', firmMatterId: matterHandle('firm-stop-2'), rootStreamHandle: streamHandle('root-stop-2') });
     await ensureMatterSync(m1, 1);
     await ensureMatterSync(m2, 1);
     expect(getMatterSyncClient('stop-all-1')).not.toBeNull();
@@ -227,7 +238,7 @@ describe('matterNotesSync lifecycle', () => {
   });
 
   it('ensureMatterSync is idempotent (returns cached client on second call)', async () => {
-    const matter = makeMatter({ id: 'idem-1', firmMatterId: 'firm-idem-1' });
+    const matter = makeMatter({ id: 'idem-1', firmMatterId: matterHandle('firm-idem-1'), rootStreamHandle: streamHandle('root-idem-1') });
     const first = await ensureMatterSync(matter, 3);
     const second = await ensureMatterSync(matter, 3);
     expect(first).toBe(second);
@@ -235,7 +246,7 @@ describe('matterNotesSync lifecycle', () => {
   });
 
   it('CONCURRENT: two simultaneous ensureMatterSync calls construct exactly one client', async () => {
-    const matter = makeMatter({ id: 'concurrent-1', firmMatterId: 'firm-concurrent-1' });
+    const matter = makeMatter({ id: 'concurrent-1', firmMatterId: matterHandle('firm-concurrent-1'), rootStreamHandle: streamHandle('root-concurrent-1') });
     // Fire both at the same time (no await between them).
     const [c1, c2] = await Promise.all([
       ensureMatterSync(matter, 5),
@@ -258,7 +269,8 @@ describe('matterNotesSync lifecycle', () => {
       .mockResolvedValueOnce('b64-mock-key-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=') // initial call
       .mockResolvedValueOnce(null); // retry after 403 clears the key
 
-    const matter = makeMatter({ id: 'epoch-403-1', firmMatterId: 'firm-epoch-403-1' });
+    const epochHandle = matterHandle('firm-epoch-403-1');
+    const matter = makeMatter({ id: 'epoch-403-1', firmMatterId: epochHandle, rootStreamHandle: streamHandle('root-epoch-403-1') });
     await ensureMatterSync(matter, 2);
     expect(getMatterSyncClient('epoch-403-1')).not.toBeNull();
 
@@ -270,7 +282,7 @@ describe('matterNotesSync lifecycle', () => {
     await callbacks!.onKeyEpochAdvanced(3);
 
     // clearMatterKey must have been called (drops the stale key from keychain).
-    expect(clearMatterKey).toHaveBeenCalledWith('firm-epoch-403-1');
+    expect(clearMatterKey).toHaveBeenCalledWith(epochHandle);
     // Client must have been stopped and evicted from cache.
     expect(getMatterSyncClient('epoch-403-1')).toBeNull();
     // A subsequent ensureMatterSync returns null because obtainMatterKey now returns null.

@@ -98,6 +98,11 @@ const mockPublishMatterKeyToMembers = vi.fn<
 >();
 const mockObtainMatterKey = vi.fn<(session: unknown, matterId: string) => Promise<string | null>>();
 const mockRegisterDevice = vi.fn<(session: unknown) => Promise<void>>();
+const mockPromoteMatterToShared = vi.fn();
+
+vi.mock('@/features/matters/logic/promoteMatterToShared', () => ({
+  promoteMatterToShared: (...args: unknown[]) => mockPromoteMatterToShared(...args),
+}));
 
 vi.mock('@/platform/firm/matterKeyService', () => ({
   getOrCreateMatterKey: (...args: [string]) => mockGetOrCreateMatterKey(...args),
@@ -113,6 +118,10 @@ vi.mock('@/platform/firm/deviceKeys', () => ({
 
 // ── Import the component after mocks are in place ─────────────────────────────
 import { MatterManagerDialog } from '@/features/matters/MatterManagerDialog';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
+
+const MATTER = `mh2_${'m'.repeat(43)}` as MatterHandle;
+const ROOT = `sh2_${'r'.repeat(43)}` as StreamHandle;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -140,6 +149,7 @@ function resetStores() {
   });
   useMatterSyncStore.setState({ statusByMatterId: {} });
   keychainStore.clear();
+  mockPromoteMatterToShared.mockReset();
   // Reset firm session mock to solo mode
   firmSessionMock = { isSignedIn: false, hasActiveSeat: false, role: null, org: null };
 }
@@ -262,43 +272,19 @@ describe('MatterManagerDialog — share flow', () => {
     signInAdmin();
   });
 
-  it('share: calls createMatter -> getOrCreateMatterKey -> registerDevice -> publishMatterKeyToMembers in sequence and links matter', async () => {
+  it('share: delegates the opaque provision → key → root-index → activate flow and reflects its linked result', async () => {
     // Set up a local matter
     useMatterStore.getState().createMatter({ name: 'Acme v. Beta', client: 'Acme Corp' });
     const [matter] = useMatterStore.getState().matters;
     expect(matter).toBeDefined();
 
-    const callOrder: string[] = [];
-
     // Mock /matter/mine (initial load, happens first in useEffect)
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { matters: [] }));
-
-    // Mock the FirmApiClient createMatter call (happens when user clicks Share)
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, {
-        matter: {
-          matter_id: 'firm-matter-1',
-          org_id: 'org-1',
-          client_name: 'Acme Corp',
-          status: 'active',
-          key_epoch: 1,
-          created_at: new Date().toISOString(),
-        },
-      }),
-    );
-
-    mockGetOrCreateMatterKey.mockImplementationOnce(async () => {
-      callOrder.push('getOrCreateMatterKey');
-      return 'base64-key';
-    });
-
-    mockRegisterDevice.mockImplementationOnce(async () => {
-      callOrder.push('registerDevice');
-    });
-
-    mockPublishMatterKeyToMembers.mockImplementationOnce(async () => {
-      callOrder.push('publishMatterKeyToMembers');
-      return { published: 1, skippedWalled: 0 };
+    mockPromoteMatterToShared.mockImplementationOnce(async (matterId: string) => {
+      useMatterStore.getState().linkFirmMatter(matterId, {
+        firmMatterId: MATTER, rootStreamHandle: ROOT, orgId: 'org-1', role: 'owner',
+      });
+      return { status: 'shared', matterId, firmMatterId: MATTER, orgId: 'org-1' };
     });
 
     render(
@@ -326,16 +312,12 @@ describe('MatterManagerDialog — share flow', () => {
       expect(m?.shared).toBe(true);
     });
 
-    // Sequence check
-    expect(callOrder).toEqual([
-      'getOrCreateMatterKey',
-      'registerDevice',
-      'publishMatterKeyToMembers',
-    ]);
+    expect(mockPromoteMatterToShared).toHaveBeenCalledWith(matter!.id, 'Acme Corp', expect.anything());
 
     // Matter is linked
     const linked = useMatterStore.getState().matters.find((m) => m.id === matter!.id);
-    expect(linked?.firmMatterId).toBe('firm-matter-1');
+    expect(linked?.firmMatterId).toBe(MATTER);
+    expect(linked?.rootStreamHandle).toBe(ROOT);
     expect(linked?.orgId).toBe('org-1');
     expect(linked?.role).toBe('owner');
     expect(linked?.shared).toBe(true);
@@ -358,8 +340,8 @@ describe('MatterManagerDialog — open-shared fail-closed', () => {
       jsonResponse(200, {
         matters: [
           {
-            matter_id: 'remote-matter-1',
-            client_name: 'Remote Client',
+            matter_handle: MATTER,
+            root_stream_handle: ROOT,
             status: 'active',
             key_epoch: 1,
             role: 'viewer',
@@ -381,10 +363,10 @@ describe('MatterManagerDialog — open-shared fail-closed', () => {
 
     // Wait for the remote matter to appear
     await waitFor(() => {
-      expect(screen.getByTestId('firm-remote-matter-remote-matter-1')).toBeInTheDocument();
+      expect(screen.getByTestId(`firm-remote-matter-${MATTER}`)).toBeInTheDocument();
     });
 
-    const openBtn = screen.getByTestId('firm-open-remote-remote-matter-1');
+    const openBtn = screen.getByTestId(`firm-open-remote-${MATTER}`);
     await act(async () => {
       fireEvent.click(openBtn);
     });
@@ -418,7 +400,8 @@ describe('MatterManagerDialog — invite flow', () => {
     useMatterStore.getState().createMatter({
       name: 'Shared Matter',
       client: 'Client Corp',
-      firmMatterId: 'firm-matter-1',
+      firmMatterId: MATTER,
+      rootStreamHandle: ROOT,
       orgId: 'org-1',
       role: 'owner',
       shared: true,
@@ -433,7 +416,6 @@ describe('MatterManagerDialog — invite flow', () => {
     // listMatterMembers for the roster
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {
-        matter_id: 'firm-matter-1',
         key_epoch: 1,
         members: [],
         walls: [],
@@ -491,10 +473,9 @@ describe('MatterManagerDialog — invite flow', () => {
     // Mock the member list reload
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {
-        matter_id: 'firm-matter-1',
         key_epoch: 1,
         members: [
-          { matter_id: 'firm-matter-1', user_id: 'user-new', email: 'newuser@law.com', org_id: 'org-1', role: 'editor', created_at: 'now' },
+          { user_id: 'user-new', email: 'newuser@law.com', org_id: 'org-1', role: 'editor', created_at: 'now' },
         ],
         walls: [],
       }),
@@ -520,7 +501,8 @@ describe('MatterManagerDialog — invite flow', () => {
     useMatterStore.getState().createMatter({
       name: 'Shared Matter',
       client: 'Client Corp',
-      firmMatterId: 'firm-matter-2',
+      firmMatterId: MATTER,
+      rootStreamHandle: ROOT,
       orgId: 'org-1',
       role: 'owner',
       shared: true,
@@ -531,7 +513,7 @@ describe('MatterManagerDialog — invite flow', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { matters: [] }));
     // listMatterMembers
     fetchMock.mockResolvedValueOnce(
-      jsonResponse(200, { matter_id: 'firm-matter-2', key_epoch: 1, members: [], walls: [] }),
+      jsonResponse(200, { key_epoch: 1, members: [], walls: [] }),
     );
 
     render(

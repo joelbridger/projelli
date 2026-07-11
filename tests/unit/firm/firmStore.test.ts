@@ -47,6 +47,10 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
 }));
 
 import { useFirmStore, selectFirmEntitlement } from '@/platform/firm/firmStore';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
+
+const MATTER = `mh2_${'m'.repeat(43)}` as MatterHandle;
+const ROOT_STREAM = `sh2_${'r'.repeat(43)}` as StreamHandle;
 
 // ── Mint a real EdDSA seat token (the wire format the client verifies offline).
 function b64url(buf: Buffer | Uint8Array): string {
@@ -267,27 +271,27 @@ describe('firmStore admin actions hit the right endpoints', () => {
     const calls: Array<{ url: string; method: string; body: unknown }> = [];
     fetchMock.mockImplementation(async (url: string, init?: { method?: string; body?: string }) => {
       calls.push({ url, method: init?.method ?? 'GET', body: init?.body ? JSON.parse(init.body) : undefined });
-      if (/\/org\/matters$/.test(url)) return jsonResponse(201, { matter: { matter_id: 'mat-1', org_id: 'org-1', client_name: 'Acme', status: 'active', key_epoch: 1, created_at: 'now' } });
-      if (/\/matter\/mat-1\/members\/add$/.test(url)) return jsonResponse(200, { ok: true, key_epoch: 1, key_release: 'release_to_member' });
-      if (/\/matter\/mat-1\/wall\/set$/.test(url)) return jsonResponse(200, { ok: true, walled: true, key_epoch: 2 });
+      if (/\/v2\/firm\/matters$/.test(url)) return jsonResponse(201, { matter_handle: MATTER, root_stream_handle: ROOT_STREAM, status: 'provisioning', key_epoch: 1 });
+      if (new RegExp(`/v2/firm/matters/${MATTER}/members/add$`).test(url)) return jsonResponse(200, { ok: true, key_epoch: 1, key_release: 'release_to_member' });
+      if (new RegExp(`/v2/firm/matters/${MATTER}/wall/set$`).test(url)) return jsonResponse(200, { ok: true, walled: true, key_epoch: 2 });
       if (/\/assured\/keys\/set$/.test(url)) return jsonResponse(200, { ok: true, provider: 'anthropic', key_last4: '1234' });
       throw new Error(`unmocked ${url}`);
     });
 
     const client = useFirmStore.getState().client();
-    await client.createMatter('Acme');
-    await client.addMatterMember('mat-1', 'user-2', 'editor');
-    await client.setWall('mat-1', 'user-3', 'conflict');
+    await client.createMatter();
+    await client.addMatterMember(MATTER, 'user-2', 'editor');
+    await client.setWall(MATTER, 'user-3');
     await client.setProviderKey('anthropic', 'sk-ant-MANAGED');
 
-    expect(calls.find((c) => /\/org\/matters$/.test(c.url))?.method).toBe('POST');
-    expect(calls.find((c) => /\/org\/matters$/.test(c.url))?.body).toEqual({ client_name: 'Acme' });
+    expect(calls.find((c) => /\/v2\/firm\/matters$/.test(c.url))?.method).toBe('POST');
+    expect(calls.find((c) => /\/v2\/firm\/matters$/.test(c.url))?.body).toEqual({});
 
     const addCall = calls.find((c) => /members\/add$/.test(c.url));
     expect(addCall?.body).toEqual({ user_id: 'user-2', role: 'editor' });
 
     const wallCall = calls.find((c) => /wall\/set$/.test(c.url));
-    expect(wallCall?.body).toEqual({ user_id: 'user-3', reason: 'conflict' });
+    expect(wallCall?.body).toEqual({ user_id: 'user-3' });
 
     const keyCall = calls.find((c) => /assured\/keys\/set$/.test(c.url));
     expect(keyCall?.body).toEqual({ provider: 'anthropic', api_key: 'sk-ant-MANAGED' });

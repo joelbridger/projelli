@@ -19,6 +19,7 @@ vi.mock('@/platform/providers/fetchUtils', () => ({
 }));
 
 import { FirmApiClient, type TokenSource } from '@/platform/firm/FirmApiClient';
+import type { StreamHandle } from '@/platform/firm/contract';
 
 function jsonResponse(status: number, body: unknown): Response {
   return {
@@ -30,6 +31,7 @@ function jsonResponse(status: number, body: unknown): Response {
 
 const ACCESS = 'ACCESS_JWT_SECRET';
 const SEAT = 'SEAT_TOKEN_SECRET';
+const STREAM = `sh2_${'s'.repeat(43)}` as StreamHandle;
 
 function tokenSource(): TokenSource {
   return {
@@ -55,7 +57,6 @@ describe('FirmApiClient — no seat token in any URL', () => {
   it('pullUpdates sends X-Seat-Token header and keeps the token OUT of the URL', async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(200, {
-        matter_id: 'm1',
         key_epoch: 1,
         since: 0,
         cursor: 0,
@@ -66,11 +67,11 @@ describe('FirmApiClient — no seat token in any URL', () => {
     );
 
     const client = new FirmApiClient(tokenSource());
-    await client.pullUpdates('m1', 7, SEAT);
+    await client.pullUpdates(STREAM, 7, SEAT);
 
     const { url, init } = lastCall();
     // since rides as a query param; the seat token does NOT.
-    expect(url).toContain('/matter/m1/updates');
+    expect(url).toContain(`/v2/firm/streams/${STREAM}/updates`);
     expect(url).toContain('since=7');
     expect(url).not.toContain('seat_token');
     expect(url).not.toContain(SEAT);
@@ -84,12 +85,12 @@ describe('FirmApiClient — no seat token in any URL', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, { ticket: 'TICKET_123', expires_in_ms: 30000 }));
 
     const client = new FirmApiClient(tokenSource());
-    const res = await client.createSyncTicket('m1', SEAT);
+    const res = await client.createSyncTicket(STREAM, SEAT);
     expect(res.ticket).toBe('TICKET_123');
 
     const { url, init } = lastCall();
     expect(init.method).toBe('POST');
-    expect(url).toContain('/matter/m1/sync-ticket');
+    expect(url).toContain(`/v2/firm/streams/${STREAM}/sync-ticket`);
     expect(url).not.toContain('seat_token');
     expect(url).not.toContain('access_token');
     expect(url).not.toContain(SEAT);

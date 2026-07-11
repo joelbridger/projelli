@@ -18,6 +18,11 @@ import * as Y from 'yjs';
 import { MatterSyncClient, type WebSocketLike } from '@/platform/firm/MatterSyncClient';
 import { generateMatterKey } from '@/platform/firm/matterCrypto';
 import type { PushUpdateResponse, PullUpdatesResponse } from '@/platform/firm/contract';
+import type { MatterHandle, StreamHandle } from '@/platform/firm/contract';
+
+const MATTER = `mh2_${'m'.repeat(43)}` as MatterHandle;
+const NOTES_STREAM = `sh2_${'n'.repeat(43)}` as StreamHandle;
+const DOC_STREAM = `sh2_${'d'.repeat(43)}` as StreamHandle;
 
 // firmConfig.getMatterSyncSocketUrl is called by the client but we inject a
 // socket factory, so the URL itself is unused by the fake. No network.
@@ -48,7 +53,6 @@ class FakeRelay {
     for (const s of this.sockets) {
       s.deliver({
         type: 'update',
-        matter_id: 'm1',
         cursor: stored.cursor,
         blob_id: stored.blob_id,
         key_epoch: stored.key_epoch,
@@ -66,7 +70,6 @@ class FakeRelay {
       .map((b) => ({
         cursor: b.cursor,
         blob_id: b.blob_id,
-        doc_id: '_notes',
         key_epoch: b.key_epoch,
         author_seat: 'seat-x',
         created_at: new Date().toISOString(),
@@ -74,8 +77,6 @@ class FakeRelay {
       }));
     const latest = this.blobs.length ? this.blobs[this.blobs.length - 1]!.cursor : 0;
     return {
-      matter_id: 'm1',
-      doc_id: '_notes',
       key_epoch: this.keyEpoch,
       since,
       cursor: updates.length ? updates[updates.length - 1]!.cursor : since,
@@ -90,7 +91,7 @@ class FakeRelay {
     // Emit ready asynchronously (like a real WS open).
     queueMicrotask(() => {
       socket.open();
-      socket.deliver({ type: 'ready', matter_id: 'm1', backlog: this.blobs.length, latest_cursor: this.seq });
+      socket.deliver({ type: 'ready', backlog: this.blobs.length, latest_cursor: this.seq, subscribers: 1 });
     });
   }
 }
@@ -177,24 +178,24 @@ async function advanceFake(steps: number, stepMs: number): Promise<void> {
 // Task 7: doc_id partitioning test (MUST fail before the implementation)
 // ---------------------------------------------------------------------------
 
-interface StoredBlobWithDoc extends StoredBlob {
-  doc_id: string;
+interface StoredBlobWithStream extends StoredBlob {
+  stream_handle: StreamHandle;
 }
 
 /**
- * A doc_id-aware relay: stores blobs keyed by (blob_id, doc_id), fans out ONLY
- * to sockets subscribed to the matching doc_id, and returns only matching blobs
+ * A stream-handle-aware relay: stores blobs keyed by (blob_id, stream_handle),
+ * fans out ONLY to sockets subscribed to the matching opaque stream handle.
  * on pull.
  */
 class FakeDocRelay {
-  blobs: StoredBlobWithDoc[] = [];
+  blobs: StoredBlobWithStream[] = [];
   private seq = 0;
-  /** doc_id -> list of sockets subscribed to that doc stream */
-  private sockets: Map<string, FakeSocket[]> = new Map();
+  /** stream_handle -> list of sockets subscribed to that encrypted stream */
+  private sockets: Map<StreamHandle, FakeSocket[]> = new Map();
   keyEpoch = 1;
 
-  push(blobId: string, ciphertextB64: string, keyEpoch: number, docId: string): PushUpdateResponse {
-    const existing = this.blobs.find((b) => b.blob_id === blobId && b.doc_id === docId);
+  push(blobId: string, ciphertextB64: string, keyEpoch: number, streamHandle: StreamHandle): PushUpdateResponse {
+    const existing = this.blobs.find((b) => b.blob_id === blobId && b.stream_handle === streamHandle);
     if (existing) {
       return { ok: true, cursor: existing.cursor, blob_id: blobId, key_epoch: this.keyEpoch, duplicate: true };
     }
@@ -204,16 +205,13 @@ class FakeDocRelay {
       blob_id: blobId,
       key_epoch: keyEpoch,
       ciphertext_b64: ciphertextB64,
-      doc_id: docId,
+      stream_handle: streamHandle,
     };
     this.blobs.push(stored);
-    // Fan out only to sockets subscribed to this doc_id.
-    const docSockets = this.sockets.get(docId) ?? [];
-    for (const s of docSockets) {
+    const streamSockets = this.sockets.get(streamHandle) ?? [];
+    for (const s of streamSockets) {
       s.deliver({
         type: 'update',
-        matter_id: 'm1',
-        doc_id: docId,
         cursor: stored.cursor,
         blob_id: stored.blob_id,
         key_epoch: stored.key_epoch,
@@ -225,23 +223,20 @@ class FakeDocRelay {
     return { ok: true, cursor: stored.cursor, blob_id: blobId, key_epoch: this.keyEpoch, duplicate: false };
   }
 
-  pull(since: number, docId: string): PullUpdatesResponse {
+  pull(since: number, streamHandle: StreamHandle): PullUpdatesResponse {
     const updates = this.blobs
-      .filter((b) => b.cursor > since && b.doc_id === docId)
+      .filter((b) => b.cursor > since && b.stream_handle === streamHandle)
       .map((b) => ({
         cursor: b.cursor,
         blob_id: b.blob_id,
-        doc_id: b.doc_id,
         key_epoch: b.key_epoch,
         author_seat: 'seat-x',
         created_at: new Date().toISOString(),
         ciphertext_b64: b.ciphertext_b64,
       }));
-    const allBlobs = this.blobs.filter((b) => b.doc_id === docId);
+    const allBlobs = this.blobs.filter((b) => b.stream_handle === streamHandle);
     const latest = allBlobs.length ? allBlobs[allBlobs.length - 1]!.cursor : 0;
     return {
-      matter_id: 'm1',
-      doc_id: docId,
       key_epoch: this.keyEpoch,
       since,
       cursor: updates.length ? updates[updates.length - 1]!.cursor : since,
@@ -251,27 +246,25 @@ class FakeDocRelay {
     };
   }
 
-  connect(socket: FakeSocket, docId: string): void {
-    if (!this.sockets.has(docId)) this.sockets.set(docId, []);
-    this.sockets.get(docId)!.push(socket);
-    const allBlobs = this.blobs.filter((b) => b.doc_id === docId);
+  connect(socket: FakeSocket, streamHandle: StreamHandle): void {
+    if (!this.sockets.has(streamHandle)) this.sockets.set(streamHandle, []);
+    this.sockets.get(streamHandle)!.push(socket);
+    const allBlobs = this.blobs.filter((b) => b.stream_handle === streamHandle);
     const latest = allBlobs.length ? allBlobs[allBlobs.length - 1]!.cursor : 0;
     queueMicrotask(() => {
       socket.open();
-      socket.deliver({ type: 'ready', matter_id: 'm1', doc_id: docId, backlog: allBlobs.length, latest_cursor: latest });
+      socket.deliver({ type: 'ready', backlog: allBlobs.length, latest_cursor: latest, subscribers: 1 });
     });
   }
 }
 
-function fakeDocClient(relay: FakeDocRelay, docId: string) {
+function fakeDocClient(relay: FakeDocRelay, streamHandle: StreamHandle) {
   return {
     pushUpdate: vi.fn(
-      async (_m: string, blobId: string, ct: string, _seat: string, epoch?: number, dId?: string) =>
-        relay.push(blobId, ct, epoch ?? relay.keyEpoch, dId ?? docId),
+      async (_stream: StreamHandle, blobId: string, ct: string, _seat: string, epoch?: number) =>
+        relay.push(blobId, ct, epoch ?? relay.keyEpoch, streamHandle),
     ),
-    pullUpdates: vi.fn(async (_m: string, since: number, _seat: string, dId?: string) =>
-      relay.pull(since, dId ?? docId),
-    ),
+    pullUpdates: vi.fn(async (_stream: StreamHandle, since: number) => relay.pull(since, streamHandle)),
     createSyncTicket: vi.fn(async (_m: string, _seat: string) => ({
       ticket: `tkt_${Math.random().toString(36).slice(2)}`,
       expires_in_ms: 30_000,
@@ -279,29 +272,29 @@ function fakeDocClient(relay: FakeDocRelay, docId: string) {
   } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 }
 
-describe('MatterSyncClient doc_id partitioning', () => {
-  it('two clients on the same matter but different docIds do NOT receive each other\'s updates', async () => {
+describe('MatterSyncClient opaque stream partitioning', () => {
+  it('two clients on the same matter but different stream handles do NOT receive each other\'s updates', async () => {
     const relay = new FakeDocRelay();
     const keyB64 = await generateMatterKey();
 
-    const mkDocClient = (docId: string) =>
+    const mkDocClient = (streamHandle: StreamHandle) =>
       new MatterSyncClient({
-        matterId: 'm1',
+        matterHandle: MATTER,
+        streamHandle,
         keyB64,
         keyEpoch: 1,
         seatToken: 'seat',
         accessToken: 'access',
-        docId,
-        client: fakeDocClient(relay, docId),
+        client: fakeDocClient(relay, streamHandle),
         socketFactory: () => {
           const s = new FakeSocket();
-          relay.connect(s, docId);
+          relay.connect(s, streamHandle);
           return s;
         },
       });
 
-    const notesClient = mkDocClient('_notes');
-    const docAClient = mkDocClient('doc-alpha');
+    const notesClient = mkDocClient(NOTES_STREAM);
+    const docAClient = mkDocClient(DOC_STREAM);
 
     await notesClient.start();
     await docAClient.start();
@@ -313,16 +306,15 @@ describe('MatterSyncClient doc_id partitioning', () => {
     docAClient.doc.getMap('data').set('doc_key', 'doc_value');
 
     // Wait for both writes to reach the relay (the push is async).
-    await until(() => relay.blobs.some((b) => b.doc_id === '_notes'));
-    await until(() => relay.blobs.some((b) => b.doc_id === 'doc-alpha'));
+    await until(() => relay.blobs.some((b) => b.stream_handle === NOTES_STREAM));
+    await until(() => relay.blobs.some((b) => b.stream_handle === DOC_STREAM));
 
     // Cross-contamination must NOT occur.
     expect(notesClient.doc.getMap('data').get('doc_key')).toBeUndefined();
     expect(docAClient.doc.getMap('data').get('notes_key')).toBeUndefined();
 
-    // Relay stored blobs in both streams — the doc_id partition holds.
-    const notesBlobs = relay.blobs.filter((b) => b.doc_id === '_notes');
-    const docABlobs = relay.blobs.filter((b) => b.doc_id === 'doc-alpha');
+    const notesBlobs = relay.blobs.filter((b) => b.stream_handle === NOTES_STREAM);
+    const docABlobs = relay.blobs.filter((b) => b.stream_handle === DOC_STREAM);
     expect(notesBlobs.length).toBeGreaterThan(0);
     expect(docABlobs.length).toBeGreaterThan(0);
 
@@ -330,34 +322,35 @@ describe('MatterSyncClient doc_id partitioning', () => {
     docAClient.stop();
   });
 
-  it('a MatterSyncClient without docId defaults to _notes and behaves as before', async () => {
+  it('clients on the same opaque stream converge and the relay carries no document ID', async () => {
     const relay = new FakeDocRelay();
     const keyB64 = await generateMatterKey();
 
-    // No docId in options — must default to '_notes'.
     const a = new MatterSyncClient({
-      matterId: 'm1',
+      matterHandle: MATTER,
+      streamHandle: NOTES_STREAM,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
       accessToken: 'access',
-      client: fakeDocClient(relay, '_notes'),
+      client: fakeDocClient(relay, NOTES_STREAM),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, '_notes');
+        relay.connect(s, NOTES_STREAM);
         return s;
       },
     });
     const b = new MatterSyncClient({
-      matterId: 'm1',
+      matterHandle: MATTER,
+      streamHandle: NOTES_STREAM,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
       accessToken: 'access',
-      client: fakeDocClient(relay, '_notes'),
+      client: fakeDocClient(relay, NOTES_STREAM),
       socketFactory: () => {
         const s = new FakeSocket();
-        relay.connect(s, '_notes');
+        relay.connect(s, NOTES_STREAM);
         return s;
       },
     });
@@ -369,8 +362,7 @@ describe('MatterSyncClient doc_id partitioning', () => {
     await until(() => b.doc.getMap('m').get('x') === 'hello');
     expect(b.doc.getMap('m').get('x')).toBe('hello');
 
-    // All blobs went into _notes stream.
-    expect(relay.blobs.every((blob) => blob.doc_id === '_notes')).toBe(true);
+    expect(relay.blobs.every((blob) => blob.stream_handle === NOTES_STREAM)).toBe(true);
 
     a.stop();
     b.stop();
@@ -385,7 +377,8 @@ describe('MatterSyncClient E2EE convergence', () => {
 
     const mkClient = () =>
       new MatterSyncClient({
-        matterId: 'm1',
+        matterHandle: MATTER,
+        streamHandle: NOTES_STREAM,
         keyB64,
         keyEpoch: 1,
         seatToken: 'seat',
@@ -439,7 +432,8 @@ describe('MatterSyncClient E2EE convergence', () => {
 
     let wsUrl = '';
     const c = new MatterSyncClient({
-      matterId: 'm1',
+      matterHandle: MATTER,
+      streamHandle: NOTES_STREAM,
       keyB64,
       keyEpoch: 1,
       seatToken: SEAT,
@@ -457,7 +451,7 @@ describe('MatterSyncClient E2EE convergence', () => {
 
     // A ticket was minted over the (authed) HTTP client before the socket opened.
     expect(client.createSyncTicket).toHaveBeenCalledTimes(1);
-    expect(client.createSyncTicket).toHaveBeenCalledWith('m1', SEAT);
+    expect(client.createSyncTicket).toHaveBeenCalledWith(NOTES_STREAM, SEAT);
 
     // The WS URL carries the ticket and NOTHING sensitive.
     expect(wsUrl).toContain('ticket=');
@@ -475,7 +469,8 @@ describe('MatterSyncClient E2EE convergence', () => {
 
     // Seed the matter with one client's edit.
     const seeder = new MatterSyncClient({
-      matterId: 'm1',
+      matterHandle: MATTER,
+      streamHandle: NOTES_STREAM,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
@@ -494,7 +489,8 @@ describe('MatterSyncClient E2EE convergence', () => {
 
     // A brand-new client starts AFTER the edit; catch-up must apply it.
     const late = new MatterSyncClient({
-      matterId: 'm1',
+      matterHandle: MATTER,
+      streamHandle: NOTES_STREAM,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
@@ -519,7 +515,8 @@ describe('MatterSyncClient E2EE convergence', () => {
     const onKeyEpochAdvanced = vi.fn();
 
     const c = new MatterSyncClient({
-      matterId: 'm1',
+      matterHandle: MATTER,
+      streamHandle: NOTES_STREAM,
       keyB64,
       keyEpoch: 1,
       seatToken: 'seat',
@@ -552,7 +549,8 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       let socketsCreated = 0;
 
       const c = new MatterSyncClient({
-        matterId: 'm1',
+        matterHandle: MATTER,
+        streamHandle: NOTES_STREAM,
         keyB64,
         keyEpoch: 1,
         seatToken: 'seat',
@@ -597,7 +595,8 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       let socketsCreated = 0;
 
       const c = new MatterSyncClient({
-        matterId: 'm1',
+        matterHandle: MATTER,
+        streamHandle: NOTES_STREAM,
         keyB64,
         keyEpoch: 1,
         seatToken: 'seat',
@@ -644,7 +643,8 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 
       const c = new MatterSyncClient({
-        matterId: 'm1',
+        matterHandle: MATTER,
+        streamHandle: NOTES_STREAM,
         keyB64,
         keyEpoch: 1,
         seatToken: 'seat',
@@ -708,7 +708,8 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 
       const c = new MatterSyncClient({
-        matterId: 'm1',
+        matterHandle: MATTER,
+        streamHandle: NOTES_STREAM,
         keyB64,
         keyEpoch: 1,
         seatToken: 'seat',
@@ -773,7 +774,8 @@ describe('MatterSyncClient reconnect + queued updates (QA-46)', () => {
       } as unknown as import('@/platform/firm/FirmApiClient').FirmApiClient;
 
       const c = new MatterSyncClient({
-        matterId: 'm1',
+        matterHandle: MATTER,
+        streamHandle: NOTES_STREAM,
         keyB64,
         keyEpoch: 1,
         seatToken: 'seat',

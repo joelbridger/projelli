@@ -55,6 +55,9 @@ import {
 import { storeMatterKey, loadMatterKey } from '@/platform/firm/firmKeychain';
 import { getOrCreateDeviceKeypair, _resetDeviceCache } from '@/platform/firm/deviceKeys';
 import { generateMatterKey } from '@/platform/firm/matterCrypto';
+import type { MatterHandle } from '@/platform/firm/contract';
+
+const handle = (label: string) => `mh2_${label.padEnd(43, 'x').slice(0, 43)}` as MatterHandle;
 
 // ── Helpers to generate ECDH P-256 key pairs for test "member devices"
 async function generateMemberKeyPair(): Promise<{ publicJwk: JsonWebKey; privateJwk: JsonWebKey }> {
@@ -86,7 +89,8 @@ describe('publishMatterKeyToMembers', () => {
   it('publishes to members and excludes walled users', async () => {
     // Pre-store a matter key on this device
     const matterKeyB64 = await generateMatterKey();
-    await storeMatterKey('matter-1', matterKeyB64);
+    const matterHandle = handle('matter-1');
+    await storeMatterKey(matterHandle, matterKeyB64);
 
     // Ensure this device has a keypair
     const { publicJwk: thisDevicePub, deviceId: thisDeviceId } = await getOrCreateDeviceKeypair();
@@ -99,14 +103,13 @@ describe('publishMatterKeyToMembers', () => {
 
     // Stub listMatterMembers: alice is a member, bob is both a member AND walled
     vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
-      matter_id: 'matter-1',
       key_epoch: 1,
       members: [
-        { matter_id: 'matter-1', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
-        { matter_id: 'matter-1', user_id: 'bob', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'bob', org_id: 'org-1', role: 'editor', created_at: '' },
       ],
       walls: [
-        { matter_id: 'matter-1', user_id: 'bob', org_id: 'org-1', reason: 'conflict', created_by: 'admin', created_at: '' },
+        { user_id: 'bob', org_id: 'org-1', created_by: 'admin', created_at: '' },
       ],
     });
 
@@ -127,7 +130,7 @@ describe('publishMatterKeyToMembers', () => {
       return { ok: true, stored: payload.wrapped.length };
     });
 
-    const result = await publishMatterKeyToMembers(client, 'matter-1', 1);
+    const result = await publishMatterKeyToMembers(client, matterHandle, 1);
 
     // alice's device got a wrapped key; bob's did NOT (walled)
     expect(publishPayload).not.toBeNull();
@@ -141,7 +144,8 @@ describe('publishMatterKeyToMembers', () => {
 
   it('includes org admin devices as escrow even if admin is not a matter member', async () => {
     const matterKeyB64 = await generateMatterKey();
-    await storeMatterKey('matter-escrow', matterKeyB64);
+    const matterHandle = handle('matter-escrow');
+    await storeMatterKey(matterHandle, matterKeyB64);
 
     const member = await generateMemberKeyPair();
     const admin = await generateMemberKeyPair();
@@ -149,10 +153,9 @@ describe('publishMatterKeyToMembers', () => {
     const client = mockClient();
 
     vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
-      matter_id: 'matter-escrow',
       key_epoch: 1,
       members: [
-        { matter_id: 'matter-escrow', user_id: 'member-user', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'member-user', org_id: 'org-1', role: 'editor', created_at: '' },
         // admin-user is NOT listed as a member — should still be included via escrow
       ],
       walls: [],
@@ -180,7 +183,7 @@ describe('publishMatterKeyToMembers', () => {
       return { ok: true, stored: payload.wrapped.length };
     });
 
-    await publishMatterKeyToMembers(client, 'matter-escrow', 1);
+    await publishMatterKeyToMembers(client, matterHandle, 1);
 
     const wrappedFor = publishPayload!.wrapped.map((w) => w.user_id);
     expect(wrappedFor).toContain('member-user');
@@ -192,7 +195,7 @@ describe('publishMatterKeyToMembers', () => {
     const client = mockClient();
     // No matter key stored for this matter — publishMatterKeyToMembers should
     // throw before making any network calls.
-    await expect(publishMatterKeyToMembers(client, 'matter-missing', 1)).rejects.toThrow(
+    await expect(publishMatterKeyToMembers(client, handle('matter-missing'), 1)).rejects.toThrow(
       /no local matter key/i,
     );
   });
@@ -208,12 +211,13 @@ describe('obtainMatterKey', () => {
 
   it('returns from local keychain if key already stored', async () => {
     const matterKeyB64 = await generateMatterKey();
-    await storeMatterKey('matter-local', matterKeyB64);
+    const matterHandle = handle('matter-local');
+    await storeMatterKey(matterHandle, matterKeyB64);
 
     const client = mockClient();
     const fetchKeysSpy = vi.spyOn(client, 'fetchMatterKeys');
 
-    const result = await obtainMatterKey(client, 'matter-local', 'seat-token');
+    const result = await obtainMatterKey(client, matterHandle, 'seat-token');
 
     expect(result).toBe(matterKeyB64);
     // Should NOT have made a network call
@@ -226,11 +230,12 @@ describe('obtainMatterKey', () => {
       new FirmApiError(403, 'walled', 'Access denied'),
     );
 
-    const result = await obtainMatterKey(client, 'matter-walled', 'seat-token');
+    const matterHandle = handle('matter-walled');
+    const result = await obtainMatterKey(client, matterHandle, 'seat-token');
 
     expect(result).toBeNull();
     // Keychain must still be empty for this matter
-    const stored = await loadMatterKey('matter-walled');
+    const stored = await loadMatterKey(matterHandle);
     expect(stored).toBeNull();
   });
 
@@ -240,7 +245,7 @@ describe('obtainMatterKey', () => {
       new FirmApiError(404, 'not_found', 'No key published for this device'),
     );
 
-    const result = await obtainMatterKey(client, 'matter-404', 'seat-token');
+    const result = await obtainMatterKey(client, handle('matter-404'), 'seat-token');
     expect(result).toBeNull();
   });
 
@@ -260,12 +265,13 @@ describe('obtainMatterKey', () => {
       wrapped_key_b64: wrappedKeyB64,
     });
 
-    const result = await obtainMatterKey(client, 'matter-success', 'seat-token');
+    const matterHandle = handle('matter-success');
+    const result = await obtainMatterKey(client, matterHandle, 'seat-token');
 
     expect(result).toBe(matterKeyB64);
 
     // Key must be stored in keychain now
-    const stored = await loadMatterKey('matter-success');
+    const stored = await loadMatterKey(matterHandle);
     expect(stored).toBe(matterKeyB64);
   });
 
@@ -275,10 +281,11 @@ describe('obtainMatterKey', () => {
       new FirmApiError(500, 'server_error', 'Internal server error'),
     );
 
-    await expect(obtainMatterKey(client, 'matter-500', 'seat-token')).rejects.toBeInstanceOf(FirmApiError);
+    const matterHandle = handle('matter-500');
+    await expect(obtainMatterKey(client, matterHandle, 'seat-token')).rejects.toBeInstanceOf(FirmApiError);
 
     // Nothing stored in keychain on unexpected error
-    const stored = await loadMatterKey('matter-500');
+    const stored = await loadMatterKey(matterHandle);
     expect(stored).toBeNull();
   });
 });
@@ -331,16 +338,16 @@ describe('autoRepublishHeldMatterKeys', () => {
   });
 
   it('republishes exactly once when a matter device set grew, and records the new fingerprint', async () => {
+    const matterHandle = handle('matter-grow');
     const matterKeyB64 = await generateMatterKey();
-    await storeMatterKey('matter-grow', matterKeyB64);
+    await storeMatterKey(matterHandle, matterKeyB64);
     const alice = await generateMemberKeyPair();
 
     const client = mockClient();
     vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
-      matter_id: 'matter-grow',
       key_epoch: 1,
       members: [
-        { matter_id: 'matter-grow', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
       ],
       walls: [],
     });
@@ -359,13 +366,13 @@ describe('autoRepublishHeldMatterKeys', () => {
     const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_id: 'matter-grow', key_epoch: 1 }],
-      { 'matter-grow': before },
+      [{ matter_handle: matterHandle, root_stream_handle: handle('root-grow').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 }],
+      { [matterHandle]: before },
     );
 
     expect(publishSpy).toHaveBeenCalledTimes(1);
-    expect(res.republishedMatterIds).toEqual(['matter-grow']);
-    expect(res.fingerprints['matter-grow']).toBe(
+    expect(res.republishedMatterIds).toEqual([matterHandle]);
+    expect(res.fingerprints[matterHandle]).toBe(
       deviceSetFingerprint(
         [
           { user_id: 'alice', device_id: 'alice-d1' },
@@ -377,16 +384,16 @@ describe('autoRepublishHeldMatterKeys', () => {
   });
 
   it('publishes nothing when the device set is unchanged', async () => {
+    const matterHandle = handle('matter-same');
     const matterKeyB64 = await generateMatterKey();
-    await storeMatterKey('matter-same', matterKeyB64);
+    await storeMatterKey(matterHandle, matterKeyB64);
     const alice = await generateMemberKeyPair();
 
     const client = mockClient();
     vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
-      matter_id: 'matter-same',
       key_epoch: 1,
       members: [
-        { matter_id: 'matter-same', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
       ],
       walls: [],
     });
@@ -401,16 +408,17 @@ describe('autoRepublishHeldMatterKeys', () => {
     const current = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_id: 'matter-same', key_epoch: 1 }],
-      { 'matter-same': current },
+      [{ matter_handle: matterHandle, root_stream_handle: handle('root-same').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 }],
+      { [matterHandle]: current },
     );
 
     expect(publishSpy).not.toHaveBeenCalled();
     expect(res.republishedMatterIds).toEqual([]);
-    expect(res.fingerprints['matter-same']).toBe(current);
+    expect(res.fingerprints[matterHandle]).toBe(current);
   });
 
   it('skips a matter with no local key without touching the network at all', async () => {
+    const matterHandle = handle('matter-not-held');
     const client = mockClient();
     const membersSpy = vi.spyOn(client, 'listMatterMembers');
     const adminsSpy = vi.spyOn(client, 'listOrgAdmins');
@@ -419,7 +427,7 @@ describe('autoRepublishHeldMatterKeys', () => {
 
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_id: 'matter-not-held', key_epoch: 3 }],
+      [{ matter_handle: matterHandle, root_stream_handle: handle('root-not-held').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 3 }],
       {},
     );
 
@@ -433,16 +441,17 @@ describe('autoRepublishHeldMatterKeys', () => {
   });
 
   it('one matter publish failure does not abort the others, and the failed fingerprint is not recorded', async () => {
-    await storeMatterKey('matter-bad', await generateMatterKey());
-    await storeMatterKey('matter-good', await generateMatterKey());
+    const badHandle = handle('matter-bad');
+    const goodHandle = handle('matter-good');
+    await storeMatterKey(badHandle, await generateMatterKey());
+    await storeMatterKey(goodHandle, await generateMatterKey());
     const alice = await generateMemberKeyPair();
 
     const client = mockClient();
-    vi.spyOn(client, 'listMatterMembers').mockImplementation(async (matterId: string) => ({
-      matter_id: matterId,
+    vi.spyOn(client, 'listMatterMembers').mockImplementation(async () => ({
       key_epoch: 1,
       members: [
-        { matter_id: matterId, user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
       ],
       walls: [],
     }));
@@ -455,15 +464,15 @@ describe('autoRepublishHeldMatterKeys', () => {
     const publishSpy = vi
       .spyOn(client, 'publishMatterKeys')
       .mockImplementation(async (matterId, payload) => {
-        if (matterId === 'matter-bad') throw new FirmApiError(500, 'server_error', 'boom');
+        if (matterId === badHandle) throw new FirmApiError(500, 'server_error', 'boom');
         return { ok: true, stored: payload.wrapped.length };
       });
 
     const res = await autoRepublishHeldMatterKeys(
       client,
       [
-        { matter_id: 'matter-bad', key_epoch: 1 },
-        { matter_id: 'matter-good', key_epoch: 1 },
+        { matter_handle: badHandle, root_stream_handle: handle('root-bad').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 },
+        { matter_handle: goodHandle, root_stream_handle: handle('root-good').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 },
       ],
       {},
     );
@@ -471,27 +480,27 @@ describe('autoRepublishHeldMatterKeys', () => {
     // Both matters were ATTEMPTED (the failure did not abort the loop) ...
     expect(publishSpy).toHaveBeenCalledTimes(2);
     // ... but only the successful one is reported and fingerprinted.
-    expect(res.republishedMatterIds).toEqual(['matter-good']);
-    expect(res.fingerprints['matter-good']).toBeDefined();
+    expect(res.republishedMatterIds).toEqual([goodHandle]);
+    expect(res.fingerprints[goodHandle]).toBeDefined();
     // No fingerprint for the failed matter → the next poll retries it.
-    expect(res.fingerprints['matter-bad']).toBeUndefined();
+    expect(res.fingerprints[badHandle]).toBeUndefined();
   });
 
   it('WALL: a walled member registering a new device causes no drift and no publish', async () => {
-    await storeMatterKey('matter-wall', await generateMatterKey());
+    const matterHandle = handle('matter-wall');
+    await storeMatterKey(matterHandle, await generateMatterKey());
     const alice = await generateMemberKeyPair();
     const mallory = await generateMemberKeyPair();
 
     const client = mockClient();
     vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
-      matter_id: 'matter-wall',
       key_epoch: 1,
       members: [
-        { matter_id: 'matter-wall', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
-        { matter_id: 'matter-wall', user_id: 'mallory', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'mallory', org_id: 'org-1', role: 'editor', created_at: '' },
       ],
       walls: [
-        { matter_id: 'matter-wall', user_id: 'mallory', org_id: 'org-1', reason: 'conflict', created_by: 'admin', created_at: '' },
+        { user_id: 'mallory', org_id: 'org-1', created_by: 'admin', created_at: '' },
       ],
     });
     vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
@@ -511,34 +520,34 @@ describe('autoRepublishHeldMatterKeys', () => {
     const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 1);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_id: 'matter-wall', key_epoch: 1 }],
-      { 'matter-wall': before },
+      [{ matter_handle: matterHandle, root_stream_handle: handle('root-wall').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 1 }],
+      { [matterHandle]: before },
     );
 
     // Walled devices are invisible to drift detection: no republish at all.
     expect(publishSpy).not.toHaveBeenCalled();
     expect(res.republishedMatterIds).toEqual([]);
-    expect(res.fingerprints['matter-wall']).toBe(before);
+    expect(res.fingerprints[matterHandle]).toBe(before);
     // And the device listing never asked the server for the walled user.
     expect(devicesSpy).toHaveBeenCalledWith(expect.not.arrayContaining(['mallory']));
   });
 
   it('WALL: a drift republish never wraps keys to a walled member device, even when the relay injects them', async () => {
+    const matterHandle = handle('matter-wall-grow');
     const matterKeyB64 = await generateMatterKey();
-    await storeMatterKey('matter-wall-grow', matterKeyB64);
+    await storeMatterKey(matterHandle, matterKeyB64);
     const alice = await generateMemberKeyPair();
     const mallory = await generateMemberKeyPair();
 
     const client = mockClient();
     vi.spyOn(client, 'listMatterMembers').mockResolvedValue({
-      matter_id: 'matter-wall-grow',
       key_epoch: 2,
       members: [
-        { matter_id: 'matter-wall-grow', user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
-        { matter_id: 'matter-wall-grow', user_id: 'mallory', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'alice', org_id: 'org-1', role: 'editor', created_at: '' },
+        { user_id: 'mallory', org_id: 'org-1', role: 'editor', created_at: '' },
       ],
       walls: [
-        { matter_id: 'matter-wall-grow', user_id: 'mallory', org_id: 'org-1', reason: 'conflict', created_by: 'admin', created_at: '' },
+        { user_id: 'mallory', org_id: 'org-1', created_by: 'admin', created_at: '' },
       ],
     });
     vi.spyOn(client, 'listOrgAdmins').mockResolvedValue({ admins: [] });
@@ -563,13 +572,13 @@ describe('autoRepublishHeldMatterKeys', () => {
     const before = deviceSetFingerprint([{ user_id: 'alice', device_id: 'alice-d1' }], 2);
     const res = await autoRepublishHeldMatterKeys(
       client,
-      [{ matter_id: 'matter-wall-grow', key_epoch: 2 }],
-      { 'matter-wall-grow': before },
+      [{ matter_handle: matterHandle, root_stream_handle: handle('root-wall-grow').replace('mh2_', 'sh2_') as never, status: 'active', key_epoch: 2 }],
+      { [matterHandle]: before },
     );
 
     // Drift from alice's new device → exactly one publish ...
     expect(publishSpy).toHaveBeenCalledTimes(1);
-    expect(res.republishedMatterIds).toEqual(['matter-wall-grow']);
+    expect(res.republishedMatterIds).toEqual([matterHandle]);
     // ... whose payload contains alice's devices ONLY. Walled mallory gets
     // NOTHING, not even for her pre-existing device.
     expect(publishPayload).not.toBeNull();
@@ -578,7 +587,7 @@ describe('autoRepublishHeldMatterKeys', () => {
     expect(publishPayload!.wrapped.map((w) => w.user_id)).not.toContain('mallory');
     // The recorded fingerprint covers ELIGIBLE devices only, so injected
     // walled devices cannot poison drift detection into republish churn.
-    expect(res.fingerprints['matter-wall-grow']).toBe(
+    expect(res.fingerprints[matterHandle]).toBe(
       deviceSetFingerprint(
         [
           { user_id: 'alice', device_id: 'alice-d1' },
