@@ -15,7 +15,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, AtomicU8, Ordering},
-        Arc,
+        Arc, Mutex,
     },
 };
 use tokio::sync::watch;
@@ -630,11 +630,15 @@ impl Destination {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AuthorizedGeneration(u64);
+pub struct AuthorizedGeneration {
+    generation: u64,
+    operation: EgressOperation,
+    destination: Destination,
+}
 
 impl AuthorizedGeneration {
     pub fn value(&self) -> u64 {
-        self.0
+        self.generation
     }
 }
 
@@ -715,6 +719,11 @@ struct NetworkPolicyInner {
     changes: watch::Sender<u64>,
     policy_path: PathBuf,
     load_error: Option<String>,
+    /// The active workspace is supplied by the existing audit command.  Keep
+    /// it here so every native egress caller shares the same encrypted,
+    /// append-only receipt writer instead of inventing connector-local logs.
+    audit_workspace: Mutex<Option<PathBuf>>,
+    receipt_sequence: AtomicU64,
 }
 
 /// Cloneable managed Tauri state.  Clones share the same atomics and broadcast
@@ -752,6 +761,8 @@ impl NetworkPolicy {
                 changes,
                 policy_path,
                 load_error,
+                audit_workspace: Mutex::new(None),
+                receipt_sequence: AtomicU64::new(0),
             }),
         }
     }
@@ -839,6 +850,232 @@ impl NetworkPolicy {
         }
     }
 
+    /// Points native egress receipts at the same encrypted audit database the
+    /// renderer uses.  It is intentionally set only as part of
+    /// `audit_set_workspace`, so a native receipt can never silently land in
+    /// another workspace.
+    pub fn set_audit_workspace(&self, workspace: PathBuf) {
+        *self
+            .inner
+            .audit_workspace
+            .lock()
+            .expect("network receipt workspace lock poisoned") = Some(workspace);
+    }
+
+    fn destination_class(operation: &EgressOperation) -> &'static str {
+        match operation.destination_rule {
+            DestinationRule::LiteralLoopbackOnly => "literal-loopback",
+            DestinationRule::ExactHosts(_) => "exact-host",
+            DestinationRule::UserConfiguredHost => "user-configured-host",
+        }
+    }
+
+    fn direction(operation: &EgressOperation) -> &'static str {
+        match operation.category {
+            EgressCategory::LocalAi | EgressCategory::CloudAi => "send",
+            EgressCategory::Licensing => "authentication",
+            EgressCategory::ProductMaintenance => "download",
+            EgressCategory::Navigation => "navigation",
+            EgressCategory::ExternalClientExport => "external-client-export",
+            EgressCategory::Connector => "sync",
+        }
+    }
+
+    fn failure_code(error: Option<&NetworkPolicyError>) -> Option<&'static str> {
+        match error {
+            Some(NetworkPolicyError::OfflineModeBlocked(_)) => Some("OFFLINE_MODE_BLOCKED"),
+            Some(NetworkPolicyError::DestinationNotAllowed(_)) => Some("DESTINATION_NOT_ALLOWED"),
+            Some(NetworkPolicyError::UnregisteredOperation(_)) => Some("UNREGISTERED_OPERATION"),
+            Some(NetworkPolicyError::Uninitialized) => Some("POLICY_CHANGED_OR_UNAVAILABLE"),
+            Some(NetworkPolicyError::InvalidDestination(_)) => Some("INVALID_DESTINATION"),
+            Some(NetworkPolicyError::Persistence(_)) | None => None,
+        }
+    }
+
+    /// Best-effort receipt writer for native egress.  The receipt is strictly
+    /// metadata-only: no URL path, query, headers, request body, or response
+    /// body is serialized.  Audit trouble must never reopen a blocked request
+    /// or make a permitted connector fail after its policy decision.
+    fn record_native_egress_receipt(
+        &self,
+        operation: &EgressOperation,
+        destination: &Destination,
+        generation: u64,
+        offline_mode: bool,
+        result: &'static str,
+        error: Option<&NetworkPolicyError>,
+    ) {
+        use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+
+        let workspace = self
+            .inner
+            .audit_workspace
+            .lock()
+            .ok()
+            .and_then(|workspace| workspace.clone());
+        let Some(workspace) = workspace else {
+            // Before a workspace opens there is no audit database to write to.
+            // The policy still fails closed; the first workspace-bound action
+            // gets a durable receipt as usual.
+            return;
+        };
+
+        let timestamp = Utc::now().to_rfc3339();
+        let sequence = self.inner.receipt_sequence.fetch_add(1, Ordering::Relaxed);
+        let id = format!(
+            "audit_native_network_egress_{}_{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default(),
+            sequence
+        );
+        let failure_code = Self::failure_code(error);
+        let description = if result == "blocked-before-network" {
+            format!("Network action blocked before connection: {}", operation.receipt_label)
+        } else {
+            format!(
+                "Network action {result}: {} contacted {}",
+                operation.receipt_label,
+                destination.host()
+            )
+        };
+        let payload_json = serde_json::json!({
+            "id": id,
+            "timestamp": timestamp,
+            "action": "network_egress",
+            "description": description,
+            "model": serde_json::Value::Null,
+            "inputs": {},
+            "outputs": {},
+            "userDecision": "auto",
+            "metadata": {
+                "version": 1,
+                "policyGeneration": generation,
+                "operationId": operation.id,
+                "operationLabel": operation.receipt_label,
+                "destinationClass": Self::destination_class(operation),
+                "destination": destination.host(),
+                "direction": Self::direction(operation),
+                "dataClasses": {
+                    "content": operation.data_classes.content,
+                    "metadata": operation.data_classes.metadata,
+                    "credential": operation.data_classes.credential,
+                    "binaryDownload": matches!(operation.category, EgressCategory::ProductMaintenance),
+                },
+                // Native connector traffic is independent of the selected AI
+                // provider.  Do not claim a renderer-only setting we cannot
+                // safely read here.
+                "aiMode": "not-applicable",
+                "offlineMode": offline_mode,
+                "result": result,
+                "failureCode": failure_code,
+                "scope": { "kind": "allMatters" },
+                "source": "native-network-policy",
+            },
+        })
+        .to_string();
+        let record = AuditEntryRecord {
+            id,
+            timestamp,
+            action: "network_egress".to_string(),
+            description,
+            payload_json,
+        };
+        if let Err(error) = EncryptedAuditStore::open(&workspace)
+            .and_then(|store| store.append(&record).map(|_| ()))
+        {
+            log::warn!("native network egress receipt was not saved: {error:#}");
+        }
+    }
+
+    /// Records the terminal outcome for a request that previously received an
+    /// `allowed` receipt.  Connector helpers call this around their transport
+    /// future, so all native clients share exactly one terminal receipt per
+    /// attempt without passing raw URLs through every command.
+    pub fn record_egress_result(
+        &self,
+        authorized: &AuthorizedGeneration,
+        result: &'static str,
+        failure_code: Option<&'static str>,
+    ) {
+        // The existing safe-error mapping only needs policy errors.  For a
+        // transport failure, construct the payload directly with the stable
+        // code supplied by the guarded caller.
+        if failure_code.is_none() {
+            self.record_native_egress_receipt(
+                &authorized.operation,
+                &authorized.destination,
+                authorized.generation,
+                self.inner.state.load(Ordering::Acquire) == STATE_OFFLINE,
+                result,
+                None,
+            );
+            return;
+        }
+
+        use crate::commands::audit::store::{AuditEntryRecord, EncryptedAuditStore};
+        let workspace = self
+            .inner
+            .audit_workspace
+            .lock()
+            .ok()
+            .and_then(|workspace| workspace.clone());
+        let Some(workspace) = workspace else {
+            return;
+        };
+        let timestamp = Utc::now().to_rfc3339();
+        let sequence = self.inner.receipt_sequence.fetch_add(1, Ordering::Relaxed);
+        let id = format!(
+            "audit_native_network_egress_{}_{}",
+            Utc::now().timestamp_nanos_opt().unwrap_or_default(),
+            sequence
+        );
+        let description = format!(
+            "Network action {result}: {} contacted {}",
+            authorized.operation.receipt_label,
+            authorized.destination.host()
+        );
+        let payload_json = serde_json::json!({
+            "id": id,
+            "timestamp": timestamp,
+            "action": "network_egress",
+            "description": description,
+            "model": serde_json::Value::Null,
+            "inputs": {}, "outputs": {}, "userDecision": "auto",
+            "metadata": {
+                "version": 1,
+                "policyGeneration": authorized.generation,
+                "operationId": authorized.operation.id,
+                "operationLabel": authorized.operation.receipt_label,
+                "destinationClass": Self::destination_class(&authorized.operation),
+                "destination": authorized.destination.host(),
+                "direction": Self::direction(&authorized.operation),
+                "dataClasses": {
+                    "content": authorized.operation.data_classes.content,
+                    "metadata": authorized.operation.data_classes.metadata,
+                    "credential": authorized.operation.data_classes.credential,
+                    "binaryDownload": matches!(authorized.operation.category, EgressCategory::ProductMaintenance),
+                },
+                "aiMode": "not-applicable",
+                "offlineMode": self.inner.state.load(Ordering::Acquire) == STATE_OFFLINE,
+                "result": result,
+                "failureCode": failure_code,
+                "scope": { "kind": "allMatters" },
+                "source": "native-network-policy",
+            },
+        }).to_string();
+        let record = AuditEntryRecord {
+            id,
+            timestamp,
+            action: "network_egress".to_string(),
+            description,
+            payload_json,
+        };
+        if let Err(error) = EncryptedAuditStore::open(&workspace)
+            .and_then(|store| store.append(&record).map(|_| ()))
+        {
+            log::warn!("native network egress receipt was not saved: {error:#}");
+        }
+    }
+
     pub fn register_cancellation(&self) -> PolicyCancellation {
         self.register_cancellation_for(self.inner.generation.load(Ordering::Acquire))
     }
@@ -860,11 +1097,34 @@ impl NetworkPolicy {
         destination: &Destination,
     ) -> Result<AuthorizedGeneration, NetworkPolicyError> {
         let state = self.inner.state.load(Ordering::Acquire);
+        let generation = self.inner.generation.load(Ordering::Acquire);
         if state == STATE_UNINITIALIZED {
-            return Err(NetworkPolicyError::Uninitialized);
+            let error = NetworkPolicyError::Uninitialized;
+            self.record_native_egress_receipt(
+                operation,
+                destination,
+                generation,
+                true,
+                "blocked-before-network",
+                Some(&error),
+            );
+            return Err(error);
         }
-        let registered = registered_operation(operation.id)
-            .ok_or_else(|| NetworkPolicyError::UnregisteredOperation(operation.id.to_string()))?;
+        let registered = match registered_operation(operation.id) {
+            Some(registered) => registered,
+            None => {
+                let error = NetworkPolicyError::UnregisteredOperation(operation.id.to_string());
+                self.record_native_egress_receipt(
+                    operation,
+                    destination,
+                    generation,
+                    state == STATE_OFFLINE,
+                    "blocked-before-network",
+                    Some(&error),
+                );
+                return Err(error);
+            }
+        };
         if state == STATE_OFFLINE {
             // Literal loopback is an Offline Mode exception only for the two
             // local-AI operations that explicitly declare that destination
@@ -873,20 +1133,56 @@ impl NetworkPolicy {
             if registered.destination_rule == DestinationRule::LiteralLoopbackOnly
                 && destination.is_literal_loopback()
             {
-                return Ok(AuthorizedGeneration(
-                    self.inner.generation.load(Ordering::Acquire),
-                ));
+                self.record_native_egress_receipt(
+                    registered,
+                    destination,
+                    generation,
+                    true,
+                    "allowed",
+                    None,
+                );
+                return Ok(AuthorizedGeneration {
+                    generation,
+                    operation: *registered,
+                    destination: destination.clone(),
+                });
             }
-            return Err(OfflineModeBlockedError::for_operation(registered).into());
+            let error = NetworkPolicyError::from(OfflineModeBlockedError::for_operation(registered));
+            self.record_native_egress_receipt(
+                registered,
+                destination,
+                generation,
+                true,
+                "blocked-before-network",
+                Some(&error),
+            );
+            return Err(error);
         }
         if !Self::destination_allowed(registered, destination) {
-            return Err(NetworkPolicyError::DestinationNotAllowed(
-                destination.host().to_string(),
-            ));
+            let error = NetworkPolicyError::DestinationNotAllowed(destination.host().to_string());
+            self.record_native_egress_receipt(
+                registered,
+                destination,
+                generation,
+                false,
+                "blocked-before-network",
+                Some(&error),
+            );
+            return Err(error);
         }
-        Ok(AuthorizedGeneration(
-            self.inner.generation.load(Ordering::Acquire),
-        ))
+        self.record_native_egress_receipt(
+            registered,
+            destination,
+            generation,
+            false,
+            "allowed",
+            None,
+        );
+        Ok(AuthorizedGeneration {
+            generation,
+            operation: *registered,
+            destination: destination.clone(),
+        })
     }
 
     fn destination_allowed(operation: &EgressOperation, destination: &Destination) -> bool {
@@ -904,7 +1200,7 @@ impl NetworkPolicy {
         &self,
         authorized: &AuthorizedGeneration,
     ) -> Result<(), NetworkPolicyError> {
-        if authorized.0 != self.inner.generation.load(Ordering::Acquire) {
+        if authorized.generation != self.inner.generation.load(Ordering::Acquire) {
             return Err(NetworkPolicyError::Uninitialized);
         }
         if self.inner.state.load(Ordering::Acquire) == STATE_UNINITIALIZED {

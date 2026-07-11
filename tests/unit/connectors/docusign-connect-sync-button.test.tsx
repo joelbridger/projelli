@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DocuSignConnect } from '@/platform/connectors/docusign/DocuSignConnect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { SK_SETTINGS } from '@/config/identity';
 import type { DocusignSyncReport } from '@/platform/utils/docusign-commands';
 
 const docusignCancelSync = vi.fn();
@@ -45,7 +44,9 @@ function report(overrides: Partial<DocusignSyncReport> = {}): DocusignSyncReport
   } as DocusignSyncReport;
 }
 
-describe('DocuSignConnect Local-only guard', () => {
+const OFFLINE_BLOCK = 'Offline Mode is on. Lantern cannot connect to the internet.';
+
+describe('DocuSignConnect Offline Mode guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -67,7 +68,7 @@ describe('DocuSignConnect Local-only guard', () => {
     await waitFor(() => {
       expect(docusignSync).toHaveBeenCalled();
     });
-    expect(screen.queryByText(/local-only mode is on/i)).toBeNull();
+    expect(screen.queryByText(/offline mode is on/i)).toBeNull();
   });
 
   it('allows the sync when the persisted mode is explicitly direct', async () => {
@@ -83,76 +84,59 @@ describe('DocuSignConnect Local-only guard', () => {
     });
   });
 
-  it('blocks the sync when the confidentiality mode is genuinely local-only', async () => {
+  it('shows the native Offline Mode refusal before a sync can begin', async () => {
+    docusignSync.mockRejectedValue(new Error(OFFLINE_BLOCK));
+
+    render(<DocuSignConnect />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync completed envelopes' }));
+
+    expect(
+      await screen.findByText(OFFLINE_BLOCK)
+    ).toBeTruthy();
+    expect(docusignSync).toHaveBeenCalledOnce();
+  });
+
+  it('leaves Local AI only free to start a connector sync', async () => {
     useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    docusignSync.mockResolvedValue(report());
 
     render(<DocuSignConnect />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sync completed envelopes' }));
 
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing docusign/i)
-    ).toBeTruthy();
-    expect(docusignSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(docusignSync).toHaveBeenCalled());
   });
 
-  it('blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
-
-    render(<DocuSignConnect />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync completed envelopes' }));
-
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing docusign/i)
-    ).toBeTruthy();
-    expect(docusignSync).not.toHaveBeenCalled();
-  });
-
-  it('blocks Connect DocuSign during the hydration window too', async () => {
+  it('shows the native Offline Mode refusal before connecting DocuSign', async () => {
     docusignIsConnected.mockResolvedValue(false);
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
+    docusignConnect.mockRejectedValue(new Error(OFFLINE_BLOCK));
 
     render(<DocuSignConnect />);
     fireEvent.click(await screen.findByRole('button', { name: 'Connect DocuSign' }));
 
     expect(
-      await screen.findByText(/local-only mode is on\. turn it off before connecting docusign/i)
+      await screen.findByText(OFFLINE_BLOCK)
     ).toBeTruthy();
-    expect(docusignConnect).not.toHaveBeenCalled();
+    expect(docusignConnect).toHaveBeenCalledOnce();
   });
 
-  it('regression: blocks a sync started long after connect, once the user later switches to local-only', async () => {
-    // Before this fix, syncNow() had NO Local-only check at all — a
-    // permanent gap, not just a hydration-window race. Once connected
-    // (which requires being out of Local-only at connect-time), a user
-    // could flip into Local-only mode at any later point and still fire a
-    // real network call by clicking "Sync completed envelopes". Simulate
-    // that later-in-time flip: the settings store is fully hydrated and
-    // genuinely reports local-only well after mount.
-    useSettingsStore.getState().setSetting('confidentialityMode', 'direct');
+  it('shows the native Offline Mode refusal when it is turned on after connection', async () => {
     render(<DocuSignConnect />);
     await screen.findByRole('button', { name: 'Sync completed envelopes' });
 
-    useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    docusignSync.mockRejectedValue(new Error(OFFLINE_BLOCK));
     fireEvent.click(screen.getByRole('button', { name: 'Sync completed envelopes' }));
 
     expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing docusign/i)
+      await screen.findByText(OFFLINE_BLOCK)
     ).toBeTruthy();
-    expect(docusignSync).not.toHaveBeenCalled();
+    expect(docusignSync).toHaveBeenCalledOnce();
   });
 
-  it('regression: skips the post-sync unassigned refresh if the user flips to local-only while docusignSync is still awaiting', async () => {
+  it('stops follow-up work when Offline Mode cancels an in-progress sync', async () => {
     docusignSync.mockImplementation(async () => {
-      useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
-      return report();
+      throw new Error(OFFLINE_BLOCK);
     });
 
     render(<DocuSignConnect />);
@@ -161,6 +145,7 @@ describe('DocuSignConnect Local-only guard', () => {
     await waitFor(() => {
       expect(docusignSync).toHaveBeenCalled();
     });
+    expect(await screen.findByText(OFFLINE_BLOCK)).toBeTruthy();
     expect(docusignListUnassigned).not.toHaveBeenCalled();
   });
 });

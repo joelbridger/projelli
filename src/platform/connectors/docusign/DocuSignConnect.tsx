@@ -71,7 +71,6 @@ export function DocuSignConnect() {
     try {
       const result = await docusignSync(buildEsignMatterMap(getMatters()));
       setReport(result);
-      // Re-check: docusignSync() itself just awaited a DocuSign call, so a
       setUnassigned(await docusignListUnassigned());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

@@ -69,23 +69,51 @@ async fn await_authorized_after_check<T>(
     after_initial_check: impl FnOnce(),
     request: impl Future<Output = anyhow::Result<T>>,
 ) -> anyhow::Result<T> {
-    policy.assert_authorized_generation(authorized)?;
+    if let Err(error) = policy.assert_authorized_generation(authorized) {
+        policy.record_egress_result(
+            authorized,
+            "cancelled",
+            Some("POLICY_CHANGED_OR_UNAVAILABLE"),
+        );
+        return Err(error.into());
+    }
     // Keep the capability's generation as the cancellation baseline.  If
     // Offline Mode changes in the tiny gap above, this receiver is already
     // cancelled when select! starts and the transport is never polled.
     after_initial_check();
     let mut cancellation = policy.register_cancellation_for(authorized.value());
     if cancellation.is_cancelled() {
+        policy.record_egress_result(
+            authorized,
+            "cancelled",
+            Some("POLICY_CHANGED_OR_UNAVAILABLE"),
+        );
         return Err(anyhow::Error::from(
             crate::network_policy::NetworkPolicyError::Uninitialized,
         ));
     }
     tokio::select! {
-        _ = cancellation.cancelled() => Err(anyhow::Error::from(crate::network_policy::NetworkPolicyError::Uninitialized)),
+        _ = cancellation.cancelled() => {
+            policy.record_egress_result(authorized, "cancelled", Some("POLICY_CHANGED_OR_UNAVAILABLE"));
+            Err(anyhow::Error::from(crate::network_policy::NetworkPolicyError::Uninitialized))
+        },
         result = request => {
-            let result = result?;
-            policy.assert_authorized_generation(authorized)?;
-            Ok(result)
+            match result {
+                Err(error) => {
+                    policy.record_egress_result(authorized, "failed", Some("NETWORK_REQUEST_FAILED"));
+                    Err(error)
+                }
+                Ok(result) => match policy.assert_authorized_generation(authorized) {
+                    Ok(()) => {
+                        policy.record_egress_result(authorized, "completed", None);
+                        Ok(result)
+                    }
+                    Err(error) => {
+                        policy.record_egress_result(authorized, "cancelled", Some("POLICY_CHANGED_OR_UNAVAILABLE"));
+                        Err(error.into())
+                    }
+                }
+            }
         }
     }
 }

@@ -33,6 +33,9 @@ export const OFFLINE_MODE_BLOCKED_CODE = 'OFFLINE_MODE_BLOCKED';
 
 export class OfflineModeBlockedError extends Error {
   readonly code = OFFLINE_MODE_BLOCKED_CODE;
+  /** Prevents an outer transport handler from duplicating the receipt that
+   * `throwIfOffline` already wrote for this exact refusal. */
+  receiptRecorded = false;
 
   constructor(action: string) {
     super(
@@ -60,28 +63,6 @@ export class EgressDestinationNotAllowedError extends Error {
     super(`Network operation "${operationId}" cannot connect to "${host}".`);
     this.name = 'EgressDestinationNotAllowedError';
   }
-}
-
-/**
- * Lightweight blocked-attempt receipt for background work that deliberately
- * stays quiet in the UI. The durable unified receipt model is added later;
- * this safe, content-free record makes the refusal observable in the meantime.
- */
-export function recordBlockedEgressAttempt(operationId: string): void {
-  const operation = getEgressOperation(operationId);
-  if (!operation) return;
-  const host = operation.allowedHosts[0] ?? 'approved-host';
-  const destination = new URL(`https://${host}`);
-  recordNetworkEgressReceipt(
-    buildNetworkEgressReceipt(
-      operation,
-      destination,
-      0,
-      true,
-      'blocked-before-network',
-      new OfflineModeBlockedError(operation.receiptLabel),
-    ),
-  );
 }
 
 interface ActiveEgress {
@@ -145,6 +126,7 @@ function throwIfOffline(
   destination: URL
 ): void {
   if (status.offlineMode && !isLiteralLoopback(destination)) {
+    const error = new OfflineModeBlockedError(operation.receiptLabel);
     recordNetworkEgressReceipt(
       buildNetworkEgressReceipt(
         operation,
@@ -152,10 +134,11 @@ function throwIfOffline(
         status.generation,
         true,
         'blocked-before-network',
-        new OfflineModeBlockedError(operation.receiptLabel),
+        error,
       ),
     );
-    throw new OfflineModeBlockedError(operation.receiptLabel);
+    error.receiptRecorded = true;
+    throw error;
   }
 }
 
@@ -470,18 +453,20 @@ async function egressFetchWithPolicy(
       redirectHops += 1;
     }
   } catch (error) {
-    recordReceipt(
-      operation,
-      destination,
-      active.generation,
-      error instanceof OfflineModeBlockedError,
-      error instanceof OfflineModeBlockedError
-        ? 'blocked-before-network'
-        : error instanceof DOMException && error.name === 'AbortError'
-          ? 'cancelled'
-          : 'failed',
-      error,
-    );
+    if (!(error instanceof OfflineModeBlockedError && error.receiptRecorded)) {
+      recordReceipt(
+        operation,
+        destination,
+        active.generation,
+        error instanceof OfflineModeBlockedError,
+        error instanceof OfflineModeBlockedError
+          ? 'blocked-before-network'
+          : error instanceof DOMException && error.name === 'AbortError'
+            ? 'cancelled'
+            : 'failed',
+        error,
+      );
+    }
     throw error;
   } finally {
     if (!bodyOwnsActive) releaseActiveEgress(active);

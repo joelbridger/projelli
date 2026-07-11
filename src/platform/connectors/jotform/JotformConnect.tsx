@@ -68,7 +68,6 @@ export function JotformConnect() {
       setInfo(connectedInfo);
       setConnected(true);
       setApiKey('');
-      // Re-check: jotformConnect() itself just awaited a Jotform call, so a
       setForms(await jotformListForms());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -83,8 +82,6 @@ export function JotformConnect() {
     try {
       const result = await jotformSync(buildJotformMatterMap(getMatters()));
       setReport(result);
-      // Re-check before EACH follow-up Jotform call: jotformSync() (and then
-      // jotformListForms()) just awaited a Jotform call, so a Local-only
       setForms(await jotformListForms());
       setUnassigned(await jotformListUnassigned());
     } catch (err) {

@@ -96,7 +96,6 @@ export function BoxConnect() {
       // otherwise every Box file would import into the unassigned bucket and
       // never surface in client-scoped search or citations.
       await autoLinkBoxFolders();
-      // Re-check: autoLinkBoxFolders() itself just awaited a Box call, so a
       const result = await boxSync(buildBoxMatterMap(getMatters()));
       setReport(result);
       void boxAudit

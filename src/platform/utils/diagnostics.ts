@@ -21,8 +21,6 @@ import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
 import { BRAND } from '@/config/brand';
 import {
   egressFetch,
-  OfflineModeBlockedError,
-  recordBlockedEgressAttempt,
 } from '@/platform/privacy/networkClient';
 
 const ENDPOINT = BRAND.urls.formsDiagnostics;
@@ -126,10 +124,8 @@ export async function sendDiagnosticEvent(
       body: JSON.stringify(payload),
       keepalive: true,
     });
-  } catch (error) {
-    if (error instanceof OfflineModeBlockedError) {
-      recordBlockedEgressAttempt('diagnostics');
-    }
+  } catch {
+    // networkClient owns the single durable receipt for a blocked attempt.
     // Swallow — diagnostics never block UI.
   }
 }

@@ -26,8 +26,6 @@ import { BRAND } from '@/config/brand';
 import { SK_TELEMETRY_SENT_EVENTS } from '@/config/identity';
 import {
   egressFetch,
-  OfflineModeBlockedError,
-  recordBlockedEgressAttempt,
 } from '@/platform/privacy/networkClient';
 
 const ENDPOINT = BRAND.urls.formsTelemetry;
@@ -84,10 +82,8 @@ export async function sendEvent(
       // Best-effort; don't block on slow networks.
       keepalive: true,
     });
-  } catch (error) {
-    if (error instanceof OfflineModeBlockedError) {
-      recordBlockedEgressAttempt('telemetry');
-    }
+  } catch {
+    // networkClient owns the single durable receipt for a blocked attempt.
     // Swallow.
   }
 }

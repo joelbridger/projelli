@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ZocksConnect } from '@/platform/connectors/zocks/ZocksConnect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { SK_SETTINGS } from '@/config/identity';
 import type { ZocksSyncReport } from '@/platform/utils/zocks-commands';
 
 const zocksCancel = vi.fn();
@@ -46,7 +45,9 @@ function report(overrides: Partial<ZocksSyncReport> = {}): ZocksSyncReport {
   } as ZocksSyncReport;
 }
 
-describe('ZocksConnect Local-only guard', () => {
+const OFFLINE_BLOCK = 'Offline Mode is on. Lantern cannot connect to the internet.';
+
+describe('ZocksConnect Offline Mode guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -68,7 +69,7 @@ describe('ZocksConnect Local-only guard', () => {
     await waitFor(() => {
       expect(zocksSync).toHaveBeenCalled();
     });
-    expect(screen.queryByText(/local-only mode is on/i)).toBeNull();
+    expect(screen.queryByText(/offline mode is on/i)).toBeNull();
   });
 
   it('allows the sync when the persisted mode is explicitly direct', async () => {
@@ -84,56 +85,47 @@ describe('ZocksConnect Local-only guard', () => {
     });
   });
 
-  it('blocks the sync when the confidentiality mode is genuinely local-only', async () => {
+  it('shows the native Offline Mode refusal before a sync can begin', async () => {
+    zocksSync.mockRejectedValue(new Error(OFFLINE_BLOCK));
+
+    render(<ZocksConnect />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync Zocks meetings' }));
+
+    expect(
+      await screen.findByText(OFFLINE_BLOCK)
+    ).toBeTruthy();
+    expect(zocksSync).toHaveBeenCalledOnce();
+  });
+
+  it('leaves Local AI only free to start a connector sync', async () => {
     useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    zocksSync.mockResolvedValue(report());
 
     render(<ZocksConnect />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sync Zocks meetings' }));
 
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing zocks/i)
-    ).toBeTruthy();
-    expect(zocksSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(zocksSync).toHaveBeenCalled());
   });
 
-  it('blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
-
-    render(<ZocksConnect />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync Zocks meetings' }));
-
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing zocks/i)
-    ).toBeTruthy();
-    expect(zocksSync).not.toHaveBeenCalled();
-  });
-
-  it('blocks Connect Zocks during the hydration window too', async () => {
+  it('shows the native Offline Mode refusal before connecting Zocks', async () => {
     zocksIsConnected.mockResolvedValue(false);
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
+    zocksConnect.mockRejectedValue(new Error(OFFLINE_BLOCK));
 
     render(<ZocksConnect />);
     fireEvent.change(await screen.findByPlaceholderText('Zocks API key'), { target: { value: 'k' } });
     fireEvent.click(screen.getByRole('button', { name: 'Connect Zocks' }));
 
     expect(
-      await screen.findByText(/local-only mode is on\. turn it off before connecting zocks/i)
+      await screen.findByText(OFFLINE_BLOCK)
     ).toBeTruthy();
-    expect(zocksConnect).not.toHaveBeenCalled();
+    expect(zocksConnect).toHaveBeenCalledOnce();
   });
 
-  it('regression: skips the post-sync unassigned refresh if the user flips to local-only while zocksSync is still awaiting', async () => {
+  it('stops follow-up work when Offline Mode cancels an in-progress sync', async () => {
     zocksSync.mockImplementation(async () => {
-      useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
-      return report();
+      throw new Error(OFFLINE_BLOCK);
     });
 
     render(<ZocksConnect />);
@@ -142,6 +134,7 @@ describe('ZocksConnect Local-only guard', () => {
     await waitFor(() => {
       expect(zocksSync).toHaveBeenCalled();
     });
+    expect(await screen.findByText(OFFLINE_BLOCK)).toBeTruthy();
     expect(zocksListUnassigned).not.toHaveBeenCalled();
   });
 });

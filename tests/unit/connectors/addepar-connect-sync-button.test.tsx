@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddeparConnect } from '@/platform/connectors/addepar/AddeparConnect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { SK_SETTINGS } from '@/config/identity';
 import type { AddeparSyncReport } from '@/platform/utils/addepar-commands';
 
 const addeparCancel = vi.fn();
@@ -57,7 +56,9 @@ async function connectFields() {
   fireEvent.change(screen.getByLabelText('Firm id'), { target: { value: '1' } });
 }
 
-describe('AddeparConnect Local-only guard', () => {
+const OFFLINE_BLOCK = 'Offline Mode is on. Lantern cannot connect to the internet.';
+
+describe('AddeparConnect Offline Mode guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -79,7 +80,7 @@ describe('AddeparConnect Local-only guard', () => {
     await waitFor(() => {
       expect(addeparSync).toHaveBeenCalled();
     });
-    expect(screen.queryByText(/local-only mode is on/i)).toBeNull();
+    expect(screen.queryByText(/offline mode is on/i)).toBeNull();
   });
 
   it('allows the sync when the persisted mode is explicitly direct', async () => {
@@ -95,43 +96,33 @@ describe('AddeparConnect Local-only guard', () => {
     });
   });
 
-  it('blocks the sync when the confidentiality mode is genuinely local-only', async () => {
+  it('shows the native Offline Mode refusal before a sync can begin', async () => {
+    addeparListEntities.mockRejectedValue(new Error(OFFLINE_BLOCK));
+
+    render(<AddeparConnect />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync households' }));
+
+    expect(
+      await screen.findByText(OFFLINE_BLOCK)
+    ).toBeTruthy();
+    expect(addeparSync).not.toHaveBeenCalled();
+  });
+
+  it('leaves Local AI only free to start a connector sync', async () => {
     useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    addeparSync.mockResolvedValue(report());
 
     render(<AddeparConnect />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sync households' }));
 
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing addepar/i)
-    ).toBeTruthy();
-    expect(addeparSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(addeparSync).toHaveBeenCalled());
   });
 
-  it('blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
-
-    render(<AddeparConnect />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync households' }));
-
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing addepar/i)
-    ).toBeTruthy();
-    expect(addeparSync).not.toHaveBeenCalled();
-  });
-
-  it('regression: blocks the bulk sync if the user flips to local-only while addeparListEntities is still awaiting Addepar', async () => {
-    // addeparListEntities() itself awaits an Addepar call before the bulk
-    // sync. A user who flips to Local-only during that window must still
-    // have the larger addeparSync() call blocked, not just the initial
-    // pre-check.
+  it('stops before bulk sync when Offline Mode turns on during household listing', async () => {
     addeparListEntities.mockImplementation(async () => {
-      useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
-      return [];
+      throw new Error(OFFLINE_BLOCK);
     });
     addeparSync.mockResolvedValue(report());
 
@@ -140,25 +131,22 @@ describe('AddeparConnect Local-only guard', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Sync households' }));
 
     expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing addepar/i)
+      await screen.findByText(OFFLINE_BLOCK)
     ).toBeTruthy();
     expect(addeparSync).not.toHaveBeenCalled();
   });
 
-  it('blocks Connect Addepar during the hydration window too', async () => {
+  it('shows the native Offline Mode refusal before connecting Addepar', async () => {
     addeparIsConnected.mockResolvedValue(false);
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
+    addeparConnect.mockRejectedValue(new Error(OFFLINE_BLOCK));
 
     render(<AddeparConnect />);
     await connectFields();
     fireEvent.click(screen.getByRole('button', { name: 'Connect Addepar' }));
 
     expect(
-      await screen.findByText(/local-only mode is on\. turn it off before connecting addepar/i)
+      await screen.findByText(OFFLINE_BLOCK)
     ).toBeTruthy();
-    expect(addeparConnect).not.toHaveBeenCalled();
+    expect(addeparConnect).toHaveBeenCalledOnce();
   });
 });
