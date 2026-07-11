@@ -439,26 +439,33 @@ export function CrmHome({ adapter, preview = false, initialRoute }: CrmHomeProps
     sourceTemplateLabel: typeof record['sourceTemplateLabel'] === 'string' ? record['sourceTemplateLabel'] : 'Imported workflow',
     activityEvidence: Array.isArray(record['activityEvidence']) ? record['activityEvidence'].filter((item): item is string => typeof item === 'string') : [],
     availableSteps: Array.isArray(record['availableSteps']) ? record['availableSteps'].filter((item): item is string => typeof item === 'string') : [],
-    selectedCurrentStep: typeof record['selectedCurrentStep'] === 'string' ? record['selectedCurrentStep'] : undefined,
+    ...(typeof record['selectedCurrentStep'] === 'string' ? { selectedCurrentStep: record['selectedCurrentStep'] } : {}),
     evidenceReviewed: record['evidenceReviewed'] === true,
     decision: record['decision'] === 'recreate' || record['decision'] === 'gap' ? record['decision'] : 'pending',
-    resultingInstanceLabel: typeof record['resultingInstanceLabel'] === 'string' ? record['resultingInstanceLabel'] : undefined,
-    gapReason: typeof record['gapReason'] === 'string' ? record['gapReason'] : undefined,
+    ...(typeof record['resultingInstanceLabel'] === 'string' ? { resultingInstanceLabel: record['resultingInstanceLabel'] } : {}),
+    ...(typeof record['gapReason'] === 'string' ? { gapReason: record['gapReason'] } : {}),
   }));
   const liveAttachmentAccounting: readonly AttachmentAccountingRecord[] = live.records.filter((record) => record.kind === 'migration_attachment_accounting').map((record) => ({
     id: record.id,
     clientLabel: typeof record['clientLabel'] === 'string' ? record['clientLabel'] : 'Imported client',
     status: record['status'] === 'exported' || record['status'] === 'gap' ? record['status'] : 'pending',
-    exportSource: typeof record['exportSource'] === 'string' ? record['exportSource'] : undefined,
-    exportedBy: typeof record['exportedBy'] === 'string' ? record['exportedBy'] : undefined,
-    gapReason: typeof record['gapReason'] === 'string' ? record['gapReason'] : undefined,
-    gapOwner: typeof record['gapOwner'] === 'string' ? record['gapOwner'] : undefined,
+    ...(typeof record['exportSource'] === 'string' ? { exportSource: record['exportSource'] } : {}),
+    ...(typeof record['exportedBy'] === 'string' ? { exportedBy: record['exportedBy'] } : {}),
+    ...(typeof record['gapReason'] === 'string' ? { gapReason: record['gapReason'] } : {}),
+    ...(typeof record['gapOwner'] === 'string' ? { gapOwner: record['gapOwner'] } : {}),
   }));
   const reportRecord = live.records.find((record) => record.kind === 'migration_report');
   const liveReport: MigrationFidelityReport | undefined = reportRecord && Array.isArray(reportRecord['matrix']) && typeof reportRecord['batchId'] === 'string' && typeof reportRecord['generatedAt'] === 'string' && typeof reportRecord['message'] === 'string' && reportRecord['attachments'] && typeof reportRecord['attachments'] === 'object' && reportRecord['workflows'] && typeof reportRecord['workflows'] === 'object' ? reportRecord as unknown as MigrationFidelityReport : undefined;
   const liveExports: readonly ExportJobStatus[] = (['archive', 'rollback'] as const).map((kind) => {
     const record = live.records.find((item) => item.kind === 'migration_export' && item['exportKind'] === kind);
-    return { kind, status: record?.['status'] === 'exported' || record?.['status'] === 'preparing' || record?.['status'] === 'failed' ? record['status'] : 'ready', exportedAt: typeof record?.['exportedAt'] === 'string' ? record['exportedAt'] : undefined, manifestId: typeof record?.['manifestId'] === 'string' ? record['manifestId'] : undefined, reconciliationReportId: typeof record?.['reconciliationReportId'] === 'string' ? record['reconciliationReportId'] : undefined, failureReason: typeof record?.['failureReason'] === 'string' ? record['failureReason'] : undefined };
+    return {
+      kind,
+      status: record?.['status'] === 'exported' || record?.['status'] === 'preparing' || record?.['status'] === 'failed' ? record['status'] : 'ready',
+      ...(typeof record?.['exportedAt'] === 'string' ? { exportedAt: record['exportedAt'] } : {}),
+      ...(typeof record?.['manifestId'] === 'string' ? { manifestId: record['manifestId'] } : {}),
+      ...(typeof record?.['reconciliationReportId'] === 'string' ? { reconciliationReportId: record['reconciliationReportId'] } : {}),
+      ...(typeof record?.['failureReason'] === 'string' ? { failureReason: record['failureReason'] } : {}),
+    };
   });
   const liveAdapter: CrmHomeAdapter = {
     ...emptyEngineAdapter(freshness),

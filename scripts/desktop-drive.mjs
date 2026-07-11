@@ -80,10 +80,26 @@ const [cmd, ...args] = process.argv.slice(2);
 async function bridgeRequest(path, params = {}) {
   const url = new URL(`http://127.0.0.1:${PORT}${path}`);
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
-  const response = await fetch(url);
-  const body = await response.json();
-  if (!response.ok || !body.ok) throw new Error(body.error || `Desktop bridge ${path} failed`);
-  return body.result;
+  // A Vite hot reload or a real desktop relaunch can land between the bridge
+  // accepting a request and the WebView becoming ready to evaluate it. Retry
+  // only that short, known transient instead of misreporting a healthy screen
+  // as unwired. All ordinary selector/action failures still surface directly.
+  let lastError;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      const body = await response.json();
+      if (response.ok && body.ok) return body.result;
+      const error = new Error(body.error || `Desktop bridge ${path} failed`);
+      if (!String(error.message).includes('eval code@')) throw error;
+      lastError = error;
+    } catch (error) {
+      if (!(error instanceof Error) || (!error.message.includes('eval code@') && !error.message.includes('fetch failed'))) throw error;
+      lastError = error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
+  throw lastError ?? new Error(`Desktop bridge ${path} failed`);
 }
 
 async function runBridge() {
