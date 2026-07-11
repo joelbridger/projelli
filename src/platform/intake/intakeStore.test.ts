@@ -152,7 +152,6 @@ describe('intakeStore persistence', () => {
     ]));
   });
 });
-
 describe('intakeStore actions', () => {
   const baseRecord = (): IntakeRecord => ({
     intakeId: 'intake-1',
@@ -236,5 +235,19 @@ describe('intakeStore actions', () => {
     expect(useIntakeStore.getState().getIntakesForMatter('matter-1').map((record) => record.intakeId))
       .toEqual(['intake-1', 'standing-1']);
     expect(useIntakeStore.getState().getIntakeForMatter('matter-1')?.intakeId).toBe('intake-1');
+  });
+});
+describe('intake PDF completion display cache', () => {
+  it('keeps optional receipt hashes additive while signing rechecks bytes independently', () => {
+    const record = {
+      intakeId: 'i', matterId: 'm', clientFirstName: 'C', firmName: 'F',
+      status: 'active' as const, expiresAt: '2026-08-01T00:00:00.000Z', checklistVersion: 1,
+      items: [{ itemId: 'pdf', label: 'Form', state: 'received' as const, pdfCompletion: {
+        templateId: 't', templateVersion: 1, sourceSha256: 'a'.repeat(64), completedSha256: 'b'.repeat(64),
+      } }],
+      receivedItems: [], flags: [], knownSessionIds: [], knownSubmissionIds: [], nudges: [],
+    } satisfies IntakeRecord;
+    const persisted = partializeIntakeStateForPersistence({ intakesById: { i: record } });
+    expect(persisted.intakesById.i?.items[0]?.pdfCompletion?.completedSha256).toBe('b'.repeat(64));
   });
 });
