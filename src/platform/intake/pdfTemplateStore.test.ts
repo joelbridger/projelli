@@ -2,9 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { assertSafePdfImportSource } from './pdfTemplates/pdfInspector';
 import { sha256Hex } from './pdfTemplates/receipt';
+import {
+  deletePdfTemplateArtifact,
+  readPdfTemplateArtifact,
+  writePdfTemplateArtifact,
+} from './pdfTemplateArtifacts';
 import { usePdfTemplateStore } from './pdfTemplateStore';
 import type { PdfTemplateDescriptor } from './pdfTemplates/templateContract';
-import { KC_FALLBACK_PREFIX } from '@/config/identity';
 
 const source = new TextEncoder().encode(
   '%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n%%EOF'
@@ -39,6 +43,34 @@ afterEach(async () => {
 });
 
 describe('pdf template library', () => {
+  it('keeps browser artifacts in memory without writing sensitive data to localStorage', async () => {
+    const templateId = 'template_artifact_0001';
+    const sensitiveArtifact = JSON.stringify({
+      templateId,
+      sourceBytes: '%PDF-1.4 sensitive source bytes',
+      fieldName: 'Full.Name',
+      sourceSha256: 'sensitive-source-hash',
+    });
+    const storageBeforeWrite = Object.keys(localStorage).map((key) => [
+      key,
+      localStorage.getItem(key),
+    ]);
+
+    await writePdfTemplateArtifact(templateId, sensitiveArtifact);
+
+    expect(await readPdfTemplateArtifact(templateId)).toBe(sensitiveArtifact);
+    expect(Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)])).toEqual(storageBeforeWrite);
+    const storedValues = Object.keys(localStorage)
+      .map((key) => localStorage.getItem(key))
+      .join('\n');
+    expect(storedValues).not.toContain(templateId);
+    expect(storedValues).not.toContain('%PDF-1.4 sensitive source bytes');
+    expect(storedValues).not.toContain('Full.Name');
+    expect(storedValues).not.toContain('sensitive-source-hash');
+    await deletePdfTemplateArtifact(templateId);
+    expect(await readPdfTemplateArtifact(templateId)).toBeNull();
+  });
+
   it('keeps sensitive bytes, hashes, maps, and values out of persisted library metadata', async () => {
     const value = await descriptor();
     await usePdfTemplateStore
@@ -58,7 +90,7 @@ describe('pdf template library', () => {
     expect(persisted).not.toContain('http');
   });
 
-  it('round-trips a large source through the encrypted artifact shelf', async () => {
+  it('round-trips a large source through the browser memory shelf and clears it during test reset', async () => {
     const largeSource = new Uint8Array(400 * 1024);
     largeSource.fill(0x61);
     largeSource.set(source.slice(0, 12));
@@ -75,20 +107,22 @@ describe('pdf template library', () => {
     expect(
       await usePdfTemplateStore.getState().loadSourceBytes(value.templateId, 1)
     ).toEqual(largeSource);
-    const stored = localStorage.getItem(
-      `${KC_FALLBACK_PREFIX}intake.pdf-template-artifact::template_store_0001`
-    );
-    expect(stored).toBeTruthy();
-    expect(stored).not.toContain(new TextDecoder().decode(largeSource));
-    expect(stored).not.toContain(value.templateId);
-    expect(stored).not.toContain('Full.Name');
-    expect(stored).not.toContain(value.sourceSha256);
-    // The old keychain-shaped shelf must never receive the full PDF.
     expect(
       Object.keys(localStorage).some((key) =>
-        key.startsWith('lantern:keychain::')
+        key.includes('intake.pdf-template-artifact')
       )
     ).toBe(false);
+    const persistedValues = Object.keys(localStorage)
+      .map((key) => localStorage.getItem(key))
+      .join('\n');
+    expect(persistedValues).not.toContain(new TextDecoder().decode(largeSource));
+    expect(persistedValues).not.toContain('Full.Name');
+    expect(persistedValues).not.toContain(value.sourceSha256);
+
+    await usePdfTemplateStore.getState().resetForTests();
+    expect(
+      await usePdfTemplateStore.getState().loadSourceBytes(value.templateId, 1)
+    ).toBeNull();
   });
 
   it('never accepts a website address as a local template source', async () => {
