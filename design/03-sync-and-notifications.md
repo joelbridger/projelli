@@ -220,7 +220,7 @@ a later wall retracts an already-addressed encrypted message.
 ```
 POST /notify/send
   { org_id, recipient_user_id, envelope_id, ciphertext_b64, transient_scope, key_hint,
-    idempotency_key, referenced_operation_id? }
+    idempotency_key }
 GET  /notify/inbox?org_id=<org_id>&since=<cursor>
 POST /notify/ack { org_id, device_id, up_to_cursor }
 POST /notify/sync-ticket { org_id }
@@ -237,7 +237,10 @@ On the sending device, one SQLCipher transaction writes the business mutation, i
 operation record, activity-outbox row, and notification outbox row. The outbox retries
 idempotently until `/notify/send` accepts it under its `org_id`-scoped idempotency key.
 When an envelope references a document operation, its outbox row dispatches only after
-the relay has durably accepted that immutable operation/blob ID. A recipient that receives
+the relay has durably accepted that immutable operation/blob ID — this D18 ordering is
+enforced entirely on the sending client; the operation reference lives only inside the
+encrypted envelope, and the relay is never told which operation (or matter) an envelope
+concerns. A recipient that receives
 an early envelope stores it durably as **waiting for referenced state**; it becomes
 display-ready only after the referenced operation is durably applied. On the recipient,
 one SQLCipher transaction stores/deduplicates the envelope, records its
