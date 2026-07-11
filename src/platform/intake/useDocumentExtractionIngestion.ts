@@ -34,6 +34,8 @@ export interface DocumentExtractionIngestionDeps {
 }
 
 const retries = new Map<string, () => Promise<void>>();
+/** Coalesces concurrent retry calls for the same flag into one in-flight run. */
+const inFlightRetries = new Map<string, Promise<void>>();
 
 function failureFlagId(document: FiledIntakeDocument): string {
   return `document-extraction:${stableDocumentExtractionProposalId({
@@ -82,15 +84,30 @@ function documentFromFailureFlag(
   };
 }
 
-/** Runs the saved document again when an advisor selects Retry extraction. */
+/**
+ * Runs the saved document again when an advisor selects Retry extraction.
+ * Concurrent calls for the same flag (e.g. a fast double click) share one
+ * in-flight run instead of starting a duplicate extraction.
+ */
 export async function retryFailedDocumentExtraction(flagId: string): Promise<void> {
+  const existing = inFlightRetries.get(flagId);
+  if (existing) return existing;
   const retry = retries.get(flagId);
   if (!retry) throw new Error('This document is no longer available to retry.');
-  await retry();
+  const run = retry().finally(() => {
+    inFlightRetries.delete(flagId);
+  });
+  inFlightRetries.set(flagId, run);
+  return run;
+}
+
+export function isDocumentExtractionRetryInFlight(flagId: string): boolean {
+  return inFlightRetries.has(flagId);
 }
 
 export function clearDocumentExtractionRetriesForTests(): void {
   retries.clear();
+  inFlightRetries.clear();
 }
 
 function displayValue(value: { t: 'money'; v: { amount: number; currency: string } }): string {

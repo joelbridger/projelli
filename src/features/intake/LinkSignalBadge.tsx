@@ -1,4 +1,4 @@
-import { Fragment } from 'react';
+import { Fragment, useState } from 'react';
 import { AlertTriangle, CheckCircle2, RefreshCcw, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -44,6 +44,38 @@ export function LinkSignalBadge({
   );
 }
 
+function RetryExtractionButton({
+  flagId,
+  onRetryExtraction,
+}: {
+  flagId: string;
+  onRetryExtraction: () => Promise<void> | void;
+}) {
+  const { t } = useTranslation();
+  const [pending, setPending] = useState(false);
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      disabled={pending}
+      data-testid={`retry-extraction-${flagId}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        if (pending) return;
+        setPending(true);
+        void Promise.resolve(onRetryExtraction())
+          .catch((error: unknown) => {
+            console.warn('[LinkSignalBadges] Could not retry document extraction:', error);
+          })
+          .finally(() => { setPending(false); });
+      }}
+    >
+      {t('intake.link.signal.extraction-failed.retry')}
+    </Button>
+  );
+}
+
 export function LinkSignalBadges({
   signals,
   onRetryExtraction,
@@ -51,7 +83,6 @@ export function LinkSignalBadges({
   signals: LinkSignal[];
   onRetryExtraction?: (signal: LinkSignal) => Promise<void> | void;
 }) {
-  const { t } = useTranslation();
   if (signals.length === 0) return null;
   return (
     <div
@@ -67,23 +98,13 @@ export function LinkSignalBadges({
       {signals.map((signal) => (
         <Fragment key={`${signal.kind}:${signal.at ?? 'none'}`}>
           <LinkSignalBadge signal={signal} />
-        {signal.kind === 'extraction_failed' && signal.flagId && onRetryExtraction ? (
-          <Button
-            key={`retry:${signal.flagId}`}
-            type="button"
-            variant="secondary"
-            size="sm"
-            data-testid={`retry-extraction-${signal.flagId}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              void Promise.resolve(onRetryExtraction(signal)).catch((error: unknown) => {
-                console.warn('[LinkSignalBadges] Could not retry document extraction:', error);
-              });
-            }}
-          >
-            {t('intake.link.signal.extraction-failed.retry')}
-          </Button>
-        ) : null}
+          {signal.kind === 'extraction_failed' && signal.flagId && onRetryExtraction ? (
+            <RetryExtractionButton
+              key={`retry:${signal.flagId}`}
+              flagId={signal.flagId}
+              onRetryExtraction={() => onRetryExtraction(signal)}
+            />
+          ) : null}
         </Fragment>
       ))}
     </div>

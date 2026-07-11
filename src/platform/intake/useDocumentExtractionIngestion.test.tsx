@@ -226,4 +226,104 @@ describe('useDocumentExtractionIngestion', () => {
     expect(readDocument).toHaveBeenCalledTimes(2);
     expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual([]);
   });
+
+  it('registers a retry for a persisted extraction_failed flag on mount without auto-reading the file', async () => {
+    const record = intake();
+    record.flags = [{
+      id: 'document-extraction:persisted-flag',
+      kind: 'extraction_failed',
+      itemId: 'income-support',
+      message: 'This document saved fine, but we could not read it automatically.',
+      at: '2026-07-11T00:00:00.000Z',
+      documentExtraction: {
+        matterId: 'matter-1',
+        requestId: 'intake-1',
+        intakeId: 'intake-1',
+        itemId: 'income-support',
+        subject: 'primary',
+        filePath: '/workspace/Sarah/Requests/income-request/income.pdf',
+        fileName: 'income.pdf',
+        matterFolderPath: '/workspace/Sarah',
+      },
+    }];
+    useIntakeStore.getState().upsertIntake(record);
+    const readDocument = vi.fn().mockResolvedValue({
+      status: 'read' as const,
+      pages: [{ page: 1, text: 'Annual income: $120,000', extraction: 'text' as const }],
+    });
+    const workspaceService = { writeFileBinary: vi.fn() } as unknown as WorkspaceService;
+
+    render(<IngestionHarness deps={{
+      readDocument,
+      classifyDocument: () => ({ kind: 'pay_stub', confidence: 'high', sourceRefs: [], evidence: [] }),
+      extractFacts: vi.fn().mockResolvedValue([]),
+      resolveDocumentExtractionProvider: () => Promise.resolve({
+        provider: provider(defaultStructuredOutput()),
+        providerId: 'test-provider',
+        assuredAvailable: false,
+      }),
+      workspaceService,
+    }} />);
+    await waitFor(() => {
+      expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toHaveLength(1);
+    });
+
+    expect(readDocument).not.toHaveBeenCalled();
+
+    await retryFailedDocumentExtraction('document-extraction:persisted-flag');
+    expect(readDocument).toHaveBeenCalledTimes(1);
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual([]);
+  });
+
+  it('coalesces two concurrent retry calls for the same flag into exactly one extraction run', async () => {
+    const writeFileBinary = vi.fn().mockResolvedValue(undefined);
+    const workspaceService = { writeFileBinary } as unknown as WorkspaceService;
+    const record = intake();
+    useIntakeStore.getState().upsertIntake(record);
+    let releaseFirstRead: (() => void) | undefined;
+    const readDocument = vi.fn()
+      .mockRejectedValueOnce(new Error('reader unavailable'))
+      .mockImplementationOnce(() => new Promise((resolve) => {
+        releaseFirstRead = () => {
+          resolve({
+            status: 'read' as const,
+            pages: [{ page: 1, text: 'Annual income: $120,000', extraction: 'text' as const }],
+          });
+        };
+      }));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    render(<IngestionHarness deps={{
+      readDocument,
+      classifyDocument: () => ({ kind: 'pay_stub', confidence: 'high', sourceRefs: [], evidence: [] }),
+      extractFacts: vi.fn().mockResolvedValue([]),
+      resolveDocumentExtractionProvider: () => Promise.resolve({
+        provider: provider(defaultStructuredOutput()),
+        providerId: 'test-provider',
+        assuredAvailable: false,
+      }),
+    }} />);
+
+    await expect(routeIntakeSubmission(submission(), {
+      intake: record,
+      matterFolderPath: '/workspace/Sarah',
+      workspaceService,
+    })).resolves.toEqual({ filePath: '/workspace/Sarah/Requests/income-request/income.pdf' });
+    await waitFor(() => {
+      expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toHaveLength(1);
+    });
+    warn.mockClear();
+
+    const flagId = useIntakeStore.getState().intakesById['intake-1']?.flags[0]?.id ?? 'missing';
+    const callsBeforeRetry = readDocument.mock.calls.length;
+    const firstRetry = retryFailedDocumentExtraction(flagId);
+    const secondRetry = retryFailedDocumentExtraction(flagId);
+    // Only one retry actually started reading the document; the second call
+    // shares that same in-flight run instead of starting a duplicate one.
+    expect(readDocument).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+    releaseFirstRead?.();
+    await Promise.all([firstRetry, secondRetry]);
+
+    expect(readDocument).toHaveBeenCalledTimes(callsBeforeRetry + 1);
+    expect(useIntakeStore.getState().intakesById['intake-1']?.flags).toEqual([]);
+  });
 });
