@@ -343,7 +343,7 @@ function HouseholdEditor({ household, onSave }: { household: HouseholdRecord; on
   const [advisor, setAdvisor] = useState(household.primaryAdvisor);
   const [tier, setTier] = useState(household.serviceTier);
   const [nextReview, setNextReview] = useState(household.nextReview ?? '');
-  return <form data-testid="crm-household-editor" onSubmit={(event) => { event.preventDefault(); const cleanName = name.trim(); if (!cleanName) return; void onSave({ ...household, name: cleanName, lifecycle: lifecycle.trim() || 'Active', primaryAdvisor: advisor.trim() || 'Unassigned', serviceTier: tier.trim() || 'Standard', ...(nextReview.trim() ? { nextReview: nextReview.trim() } : {}) }); }} style={{ display: 'grid', gap: 10 }}>
+  return <form data-testid="crm-household-editor" onSubmit={(event) => { event.preventDefault(); const cleanName = name.trim(); if (!cleanName) return; const next = { ...household, name: cleanName, lifecycle: lifecycle.trim() || 'Active', primaryAdvisor: advisor.trim() || 'Unassigned', serviceTier: tier.trim() || 'Standard' }; if (nextReview.trim()) next.nextReview = nextReview.trim(); else delete next.nextReview; void onSave(next); }} style={{ display: 'grid', gap: 10 }}>
     <label>Household name<input data-testid="crm-household-edit-name" value={name} onChange={(event) => { setName(event.target.value); }} /></label>
     <label>Lifecycle<input data-testid="crm-household-edit-lifecycle" value={lifecycle} onChange={(event) => { setLifecycle(event.target.value); }} /></label>
     <label>Primary advisor<input data-testid="crm-household-edit-advisor" value={advisor} onChange={(event) => { setAdvisor(event.target.value); }} /></label>
