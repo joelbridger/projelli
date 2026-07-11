@@ -376,9 +376,9 @@ function AppShell() {
     null
   );
 
-  // Sidebar state. The shell lands on the Client Map (matter-centric home).
+  // D11: Home is the landing surface; Clients and Ask are the other two tabs.
   const [sidebarActiveTab, setSidebarActiveTab] =
-    useState<AppSurface>('matters');
+    useState<AppSurface>('home');
   // Per-matter UI memory (matterUiStore): subscribe to the active matter so we
   // can save + restore each matter's last working surface and focused document.
   const activeMatterId = useMatterStore((s) => s.activeMatterId);
