@@ -11,6 +11,8 @@ export const SECRET_SCRUB_FIXTURES = {
   zeroWidth: 'api\u200b_key=zero-width-secret',
   folded: 'Authorization: Bearer folded-\n secret-value',
   markdown: '[client link](https://example.test/i/abc#private-link)',
+  attachmentText: 'Attached statement includes api_key=attachment-secret-value.',
+  attachmentFilename: 'access_token=filename-secret-value.pdf',
   safe: [
     'https://example.test/help?topic=tax',
     'The word token is ordinary prose here.',

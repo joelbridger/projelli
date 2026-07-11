@@ -18,9 +18,9 @@ export {
 import { createPreparationStamp } from './promptPreparationGuard';
 
 export type PromptOrigin =
-  | 'typed_question' | 'chat_history' | 'retrieval' | 'open_file' | 'email'
+  | 'typed_question' | 'system_prompt' | 'chat_history' | 'retrieval' | 'open_file' | 'email'
   | 'workflow_input' | 'workflow_file' | 'meeting' | 'client_map' | 'tool_result'
-  | 'attachment_text' | 'attachment_binary';
+  | 'attachment_text' | 'attachment_binary' | 'attachment_filename';
 
 export type SecretKind =
   | 'url_fragment' | 'signed_url' | 'bearer_token' | 'api_key' | 'password'
@@ -32,6 +32,15 @@ export interface PreparedAttachmentCandidate {
   extractedText?: string;
   /** Whether local redaction can produce a safe upload derivative. */
   canRedact?: boolean;
+  /**
+   * The actual upload this extracted text belongs to. Supplying it lets the
+   * preparation layer replace the bytes, rather than merely changing the
+   * surrounding prompt. `attachmentId` is the equivalent lightweight form.
+   */
+  attachment?: AttachmentBytes;
+  attachmentId?: string;
+  /** Required when the same file is attached more than once. */
+  attachmentIndex?: number;
 }
 
 export interface PromptPart {
@@ -48,6 +57,8 @@ export interface SecretFinding {
   count: number;
   /** Safe context only. It never contains a source value or a value length. */
   safePreview: string;
+  /** A deliberately broad receipt category for attachment metadata. */
+  receiptCategory?: 'attachment/filename';
 }
 
 
@@ -62,7 +73,7 @@ export interface PreparedCloudRequest {
 }
 export type PreparationResult =
   | { status: 'ready'; request: PreparedCloudRequest }
-  | { status: 'needs_user_decision'; findings: SecretFinding[] }
+  | { status: 'needs_user_decision'; findings: SecretFinding[]; redactedRequest: PreparedCloudRequest }
   | { status: 'blocked'; reason: 'unscannable_attachment' | 'policy' | 'prompt_review_required'; findings?: SecretFinding[] };
 
 export type PromptDecision = 'send_redacted_copy' | 'cancel';
@@ -128,6 +139,98 @@ function redactText(source: string): Redaction {
 function findingsFor(partId: string, kinds: SecretKind[]): SecretFinding[] {
   return [...new Set(kinds)].map((kind) => ({ partId, kind, count: kinds.filter((candidate) => candidate === kind).length, safePreview: '[private material hidden]' }));
 }
+
+function attachmentFilenameFindings(attachment: AttachmentBytes): SecretFinding[] {
+  const redacted = redactText(attachment.att.fileName);
+  return findingsFor(`attachment-name-${attachment.att.id}`, redacted.kinds).map((finding) => ({
+    ...finding,
+    receiptCategory: 'attachment/filename',
+  }));
+}
+
+function safeAttachmentName(attachment: AttachmentBytes): string {
+  return attachment.att.type === 'pdf' ? 'attachment.pdf' : 'attachment-image';
+}
+
+function replaceAttachmentName(attachment: AttachmentBytes, fileName: string): AttachmentBytes {
+  return { ...attachment, att: { ...attachment.att, fileName } };
+}
+
+/**
+ * A redacted attachment must be a new file, never the old byte array with a
+ * new name.  A tiny self-contained PDF is portable across all current cloud
+ * providers and guarantees the original source bytes cannot reach the wire.
+ */
+function buildRedactedPdfBytes(text: string): Uint8Array {
+  const printable = text
+    .replace(/[\\()]/g, '\\$&')
+    .replace(/[^\x20-\x7E\r\n\t]/g, '?');
+  const lines = printable.split(/\r?\n/).flatMap((line) =>
+    line.length === 0 ? [' '] : line.match(/.{1,88}/g) ?? [' '],
+  );
+  const content = ['BT', '/F1 10 Tf', '48 760 Td', '13 TL', ...lines.flatMap((line, index) => [
+    `(${line}) Tj`,
+    ...(index < lines.length - 1 ? ['T*'] : []),
+  ]), 'ET'].join('\n');
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',
+    `<< /Length ${String(content.length)} >>\nstream\n${content}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  for (let index = 0; index < objects.length; index += 1) {
+    offsets.push(pdf.length);
+    pdf += `${String(index + 1)} 0 obj\n${objects[index] ?? ''}\nendobj\n`;
+  }
+  const xref = pdf.length;
+  pdf += `xref\n0 ${String(objects.length + 1)}\n0000000000 65535 f \n`;
+  pdf += offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('');
+  pdf += `trailer\n<< /Size ${String(objects.length + 1)} /Root 1 0 R >>\nstartxref\n${String(xref)}\n%%EOF\n`;
+  return new TextEncoder().encode(pdf);
+}
+
+function findAttachment(candidate: PreparedAttachmentCandidate, attachments: AttachmentBytes[]): AttachmentBytes | undefined {
+  if (candidate.attachmentIndex !== undefined) return attachments[candidate.attachmentIndex];
+  if (candidate.attachment) return candidate.attachment;
+  if (candidate.attachmentId) return attachments.find(({ att }) => att.id === candidate.attachmentId);
+  // A single attachment has an unambiguous owner. Preserve compatibility with
+  // the original candidate shape while refusing to guess in a multi-file send.
+  return attachments.length === 1 ? attachments[0] : undefined;
+}
+
+function findAttachmentIndex(candidate: PreparedAttachmentCandidate, attachments: AttachmentBytes[], source: AttachmentBytes): number {
+  if (candidate.attachmentIndex !== undefined) return candidate.attachmentIndex;
+  if (candidate.attachment) {
+    const exact = attachments.indexOf(candidate.attachment);
+    if (exact >= 0) return exact;
+  }
+  const matches = attachments
+    .map(({ att }, index) => ({ index, matches: att.id === source.att.id }))
+    .filter(({ matches }) => matches);
+  return matches.length === 1 ? matches[0]?.index ?? -1 : -1;
+}
+
+function redactedAttachment(candidate: PreparedAttachmentCandidate, attachments: AttachmentBytes[]): AttachmentBytes | undefined {
+  const source = findAttachment(candidate, attachments);
+  if (!source || source.att.type !== 'pdf' || candidate.extractedText === undefined) return undefined;
+  const bytes = buildRedactedPdfBytes(redactText(candidate.extractedText).text);
+  return {
+    att: {
+      ...source.att,
+      id: `${source.att.id}-redacted`,
+      type: 'pdf',
+      mimeType: 'application/pdf',
+      fileName: 'redacted-attachment.pdf',
+      pathInWorkspace: '',
+      byteSize: bytes.byteLength,
+      metadata: { ...source.att.metadata, extractionMode: 'text-extract' },
+    },
+    bytes,
+  };
+}
 export function scanPromptPart(part: PromptPart): { redactedText?: string; findings: SecretFinding[]; blocked?: boolean } {
   if (part.attachment && !part.attachment.extractedText) return { findings: [], blocked: true };
   const source = part.text ?? part.attachment?.extractedText;
@@ -140,34 +243,64 @@ export function prepareCloudRequest(input: { prompt: string; systemPrompt?: stri
   const parts = input.parts ?? [{ id: 'prompt', origin: 'typed_question' as const, label: 'AI request', text: input.prompt }];
   const findings: SecretFinding[] = [];
   let prompt = input.prompt;
+  let systemPrompt = input.systemPrompt;
   let disposition: AttachmentDisposition = input.attachmentBytes?.length ? 'text_only' : 'none';
+  const attachments = input.attachmentBytes ?? [];
+  const preparedAttachments = input.attachmentBytes?.map((attachment) => replaceAttachmentName(attachment, attachment.att.fileName));
+  let containsAttachmentFinding = false;
+  for (const [index, attachment] of attachments.entries()) {
+    const filenameFindings = attachmentFilenameFindings(attachment);
+    findings.push(...filenameFindings);
+    if (filenameFindings.length) {
+      containsAttachmentFinding = true;
+      if (!preparedAttachments) return { status: 'blocked', reason: 'unscannable_attachment', findings };
+      preparedAttachments[index] = replaceAttachmentName(attachment, safeAttachmentName(attachment));
+      disposition = 'redacted_derivative';
+    }
+  }
   for (const part of parts) {
     const scan = scanPromptPart(part);
     if (scan.blocked) return { status: 'blocked', reason: 'unscannable_attachment' };
     findings.push(...scan.findings);
     if (part.id === 'prompt' && scan.redactedText !== undefined) prompt = scan.redactedText;
     if (part.attachment && scan.findings.length) {
+      containsAttachmentFinding = true;
       if (!part.attachment.canRedact) return { status: 'blocked', reason: 'unscannable_attachment', findings };
+      const derivative = redactedAttachment(part.attachment, attachments);
+      if (!derivative) return { status: 'blocked', reason: 'unscannable_attachment', findings };
+      const source = findAttachment(part.attachment, attachments);
+      const index = source ? findAttachmentIndex(part.attachment, attachments, source) : -1;
+      if (index < 0 || !preparedAttachments) return { status: 'blocked', reason: 'unscannable_attachment', findings };
+      preparedAttachments[index] = derivative;
       disposition = 'redacted_derivative';
     }
   }
   if (input.systemPrompt) {
     const system = redactText(input.systemPrompt);
     findings.push(...findingsFor('system', system.kinds));
-    input = { ...input, systemPrompt: system.text };
+    systemPrompt = system.text;
   }
-  if (findings.length) return { status: 'needs_user_decision', findings };
+  if (findings.length) {
+    return {
+      status: 'needs_user_decision',
+      findings,
+      redactedRequest: {
+        prompt,
+        systemPrompt,
+        attachmentBytes: preparedAttachments,
+        findings,
+        preparationId: createPreparationStamp(),
+        attachmentDisposition: containsAttachmentFinding ? 'redacted_derivative' : disposition,
+      },
+    };
+  }
   return { status: 'ready', request: { prompt, systemPrompt: input.systemPrompt, attachmentBytes: input.attachmentBytes, findings, preparationId: createPreparationStamp(), attachmentDisposition: disposition } };
 }
-
-function redactedRequest(input: { prompt: string; systemPrompt?: string | undefined; attachmentBytes?: AttachmentBytes[] | undefined }, findings: SecretFinding[]): PreparedCloudRequest {
-  return { prompt: redactText(input.prompt).text, systemPrompt: input.systemPrompt ? redactText(input.systemPrompt).text : undefined, attachmentBytes: input.attachmentBytes, findings, preparationId: createPreparationStamp(), attachmentDisposition: input.attachmentBytes?.length ? 'redacted_derivative' : 'none' };
-}
-async function decide(input: { prompt: string; systemPrompt?: string | undefined; attachmentBytes?: AttachmentBytes[] | undefined }, surface: string, background: boolean, result: PreparationResult): Promise<{ request?: PreparedCloudRequest; decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked' }> {
+async function decide(surface: string, background: boolean, result: PreparationResult): Promise<{ request?: PreparedCloudRequest; decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked' }> {
   if (result.status === 'ready') return { request: result.request, decision: 'clean' };
   if (result.status === 'blocked') return { decision: 'blocked' };
   if (background || !decisionBroker) { pendingReview = { findings: result.findings, surface }; return { decision: 'blocked' }; }
-  if (await decisionBroker({ findings: result.findings, surface }) === 'send_redacted_copy') return { request: redactedRequest(input, result.findings), decision: 'redacted_by_user' };
+  if (await decisionBroker({ findings: result.findings, surface }) === 'send_redacted_copy') return { request: result.redactedRequest, decision: 'redacted_by_user' };
   return { decision: 'cancelled' };
 }
 
@@ -185,11 +318,11 @@ export type PreparedSendContext<T = ProviderResponse> = Omit<RunWithEgressAuditO
 };
 type PromptPreparationReceipt = Extract<AuditEvent, { type: 'prompt_preparation' }>['payload'];
 
-function receipt(ctx: PreparedSendContext, decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked', request?: PreparedCloudRequest): void {
+function receipt<T>(ctx: PreparedSendContext<T>, decision: 'clean' | 'redacted_by_user' | 'cancelled' | 'blocked', request?: PreparedCloudRequest): void {
   const metadata = {
     surface: ctx.surface,
     destination: ctx.providerId,
-    categories: (request?.findings ?? []).map(({ kind, count }) => ({ kind, count })),
+    categories: (request?.findings ?? []).map(({ kind, count, receiptCategory }) => ({ kind: receiptCategory ?? kind, count })),
     decision,
     attachmentDisposition: request?.attachmentDisposition ?? 'blocked',
   } satisfies PromptPreparationReceipt;
@@ -206,22 +339,31 @@ function receipt(ctx: PreparedSendContext, decision: 'clean' | 'redacted_by_user
 }
 export async function sendPreparedMessageWithEgressAudit(ctx: PreparedSendContext): Promise<ProviderResponse> {
   const result = prepareCloudRequest({ prompt: ctx.prompt, systemPrompt: ctx.options?.systemPrompt, parts: ctx.parts, attachmentBytes: ctx.options?.attachmentBytes });
-  const chosen = await decide({ prompt: ctx.prompt, systemPrompt: ctx.options?.systemPrompt, attachmentBytes: ctx.options?.attachmentBytes }, ctx.surface, ctx.background ?? false, result);
+  const chosen = await decide(ctx.surface, ctx.background ?? false, result);
   receipt(ctx, chosen.decision, chosen.request);
-  if (!chosen.request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.sendMessage(chosen.request!.prompt, { ...ctx.options, ...(chosen.request!.systemPrompt ? { systemPrompt: chosen.request!.systemPrompt } : {}), ...(chosen.request!.attachmentBytes ? { attachmentBytes: chosen.request!.attachmentBytes } : {}) }) });
+  const request = chosen.request;
+  if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
+  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.sendMessage(request.prompt, { ...ctx.options, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) }) });
 }
 export async function sendPreparedStreamingWithEgressAudit(ctx: PreparedSendContext & { options: StreamOptions }): Promise<ProviderResponse> {
   const result = prepareCloudRequest({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt, parts: ctx.parts, attachmentBytes: ctx.options.attachmentBytes });
-  const chosen = await decide({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt, attachmentBytes: ctx.options.attachmentBytes }, ctx.surface, ctx.background ?? false, result);
-  receipt(ctx, chosen.decision, chosen.request); if (!chosen.request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.sendMessageStreaming!(chosen.request!.prompt, { ...ctx.options, ...(chosen.request!.systemPrompt ? { systemPrompt: chosen.request!.systemPrompt } : {}), ...(chosen.request!.attachmentBytes ? { attachmentBytes: chosen.request!.attachmentBytes } : {}) }) });
+  const chosen = await decide(ctx.surface, ctx.background ?? false, result);
+  receipt(ctx, chosen.decision, chosen.request);
+  const request = chosen.request;
+  if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
+  return runWithEgressAudit({ ...ctx, operation: () => {
+    const response = ctx.provider.sendMessageStreaming?.(request.prompt, { ...ctx.options, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}), ...(request.attachmentBytes ? { attachmentBytes: request.attachmentBytes } : {}) });
+    if (!response) throw new Error('provider_streaming_unavailable');
+    return response;
+  } });
 }
 export async function sendPreparedStructuredWithEgressAudit<T>(ctx: PreparedSendContext<T> & { options: StructuredOutputOptions }): Promise<T> {
   const result = prepareCloudRequest({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt, parts: ctx.parts });
-  const chosen = await decide({ prompt: ctx.prompt, systemPrompt: ctx.options.systemPrompt }, ctx.surface, ctx.background ?? false, result);
-  receipt(ctx, chosen.decision, chosen.request); if (!chosen.request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
-  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.structuredOutput<T>(chosen.request!.prompt, { ...ctx.options, ...(chosen.request!.systemPrompt ? { systemPrompt: chosen.request!.systemPrompt } : {}) }) });
+  const chosen = await decide(ctx.surface, ctx.background ?? false, result);
+  receipt(ctx, chosen.decision, chosen.request);
+  const request = chosen.request;
+  if (!request) throw new Error(chosen.decision === 'blocked' ? 'prompt_review_required' : 'prompt_send_cancelled');
+  return runWithEgressAudit({ ...ctx, operation: () => ctx.provider.structuredOutput<T>(request.prompt, { ...ctx.options, ...(request.systemPrompt ? { systemPrompt: request.systemPrompt } : {}) }) });
 }
 
 /** Used by cloud provider tool loops. Tool continuations never have a dialog. */

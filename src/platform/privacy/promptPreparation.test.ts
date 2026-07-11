@@ -15,6 +15,18 @@ import {
   setPreparationEnforcementMode,
 } from './promptPreparation';
 import type { Provider } from '@/platform/providers/Provider';
+import type { AttachmentBytes } from '@/platform/providers/Provider';
+import { extractPdfText } from '@/lib/pdf-extract';
+
+function pdfAttachment(overrides: Partial<AttachmentBytes['att']> = {}, bytes = new TextEncoder().encode('ordinary attachment')): AttachmentBytes {
+  return {
+    att: {
+      id: 'attachment-1', type: 'pdf', mimeType: 'application/pdf', fileName: 'clean.pdf',
+      pathInWorkspace: 'media/clean.pdf', byteSize: bytes.byteLength, metadata: {}, ...overrides,
+    },
+    bytes,
+  };
+}
 
 afterEach(() => { setPreparationEnforcementMode('warn'); setPromptDecisionBroker(); vi.unstubAllGlobals(); });
 
@@ -54,6 +66,87 @@ describe('prompt preparation red-team catalog', () => {
   it('blocks an unscannable cloud attachment', () => {
     expect(prepareCloudRequest({ prompt: 'summarize', parts: [{ id: 'photo', origin: 'attachment_binary', label: 'Photo', attachment: {} }] }))
       .toMatchObject({ status: 'blocked', reason: 'unscannable_attachment' });
+  });
+
+  it('never forwards original attachment bytes after redacting attachment-derived text', async () => {
+    const original = pdfAttachment({}, new TextEncoder().encode(`original bytes ${SECRET_SCRUB_FIXTURES.attachmentText}`));
+    const prepared = prepareCloudRequest({
+      prompt: 'summarize', attachmentBytes: [original],
+      parts: [{
+        id: 'attachment-text', origin: 'attachment_text', label: 'Attachment',
+        attachment: { attachmentId: original.att.id, extractedText: SECRET_SCRUB_FIXTURES.attachmentText, canRedact: true },
+      }],
+    });
+    expect(prepared.status).toBe('needs_user_decision');
+    if (prepared.status !== 'needs_user_decision') return;
+    const forwarded = prepared.redactedRequest.attachmentBytes?.[0];
+    expect(forwarded?.bytes).not.toBe(original.bytes);
+    expect(Array.from(forwarded?.bytes ?? [])).not.toEqual(Array.from(original.bytes));
+    expect(new TextDecoder().decode(forwarded?.bytes)).not.toContain('attachment-secret-value');
+    expect(forwarded?.att.fileName).toBe('redacted-attachment.pdf');
+    if (!forwarded) throw new Error('Expected a redacted attachment derivative');
+    const extractedDerivative = await extractPdfText(forwarded.bytes.slice());
+    expect(extractedDerivative.pages.join('')).not.toHaveLength(0);
+    expect(extractedDerivative.pages.join('\n')).not.toContain('attachment-secret-value');
+
+    let sent: AttachmentBytes[] | undefined;
+    const provider = {
+      getMetadata: () => ({ model: 'local-test' }),
+      sendMessage: (_prompt: string, options?: { attachmentBytes?: AttachmentBytes[] }) => {
+        sent = options?.attachmentBytes;
+        return Promise.resolve({ content: 'ok', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, cost: 0, model: 'local-test' });
+      },
+    } as unknown as Provider;
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+    await sendPreparedMessageWithEgressAudit({
+      provider, providerId: 'ollama', surface: 'test', prompt: 'summarize',
+      options: { attachmentBytes: [original] },
+      parts: [{ id: 'attachment-text', origin: 'attachment_text', label: 'Attachment', attachment: { attachmentId: original.att.id, extractedText: SECRET_SCRUB_FIXTURES.attachmentText, canRedact: true } }],
+    });
+    expect(sent?.[0]?.bytes).not.toBe(original.bytes);
+    expect(new TextDecoder().decode(sent?.[0]?.bytes)).not.toContain('attachment-secret-value');
+  });
+
+  it('redacts a secret-bearing filename and records only the attachment filename category', async () => {
+    const original = pdfAttachment({ fileName: SECRET_SCRUB_FIXTURES.attachmentFilename });
+    const prepared = prepareCloudRequest({ prompt: 'summarize', attachmentBytes: [original] });
+    expect(prepared.status).toBe('needs_user_decision');
+    if (prepared.status !== 'needs_user_decision') return;
+    expect(prepared.redactedRequest.attachmentBytes?.[0]?.att.fileName).toBe('attachment.pdf');
+    expect(JSON.stringify(prepared.findings)).not.toContain('filename-secret-value');
+
+    const receipts: unknown[] = [];
+    const provider = {
+      getMetadata: () => ({ model: 'local-test' }),
+      sendMessage: () => Promise.resolve({ content: 'ok', usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 }, cost: 0, model: 'local-test' }),
+    } as unknown as Provider;
+    setPromptDecisionBroker(() => Promise.resolve('send_redacted_copy'));
+    await sendPreparedMessageWithEgressAudit({
+      provider, providerId: 'ollama', surface: 'test', prompt: 'summarize', options: { attachmentBytes: [original] },
+      onAuditLog: (entry) => { receipts.push(entry); },
+    });
+    expect(JSON.stringify(receipts[0])).toContain('attachment/filename');
+    expect(JSON.stringify(receipts[0])).not.toContain('filename-secret-value');
+  });
+
+  it('blocks an attachment finding when it cannot rebuild a safe derivative', () => {
+    const original = pdfAttachment();
+    expect(prepareCloudRequest({
+      prompt: 'summarize', attachmentBytes: [original],
+      parts: [{ id: 'attachment-text', origin: 'attachment_text', label: 'Attachment', attachment: { attachmentId: original.att.id, extractedText: SECRET_SCRUB_FIXTURES.attachmentText, canRedact: false } }],
+    })).toMatchObject({ status: 'blocked', reason: 'unscannable_attachment' });
+  });
+
+  it('passes a clean attachment through byte-identically', () => {
+    const original = pdfAttachment();
+    const prepared = prepareCloudRequest({
+      prompt: 'summarize', attachmentBytes: [original],
+      parts: [{ id: 'attachment-text', origin: 'attachment_text', label: 'Attachment', attachment: { attachmentId: original.att.id, extractedText: 'A clean client statement.', canRedact: true } }],
+    });
+    expect(prepared.status).toBe('ready');
+    if (prepared.status !== 'ready') return;
+    expect(prepared.request.attachmentBytes?.[0]?.bytes).toBe(original.bytes);
+    expect(Array.from(prepared.request.attachmentBytes?.[0]?.bytes ?? [])).toEqual(Array.from(original.bytes));
   });
 
   it('blocks a secret-bearing tool continuation before the follow-up request', () => {
