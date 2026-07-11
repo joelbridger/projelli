@@ -76,6 +76,7 @@ export function buildNetworkEgressReceipt(
   result: NetworkEgressResult,
   error?: unknown,
 ): NetworkEgressReceipt {
+  const failureCode = safeFailureCode(error);
   return {
     version: 1,
     policyGeneration,
@@ -93,7 +94,7 @@ export function buildNetworkEgressReceipt(
     aiMode: getConfidentialityMode(),
     offlineMode,
     result,
-    ...(safeFailureCode(error) ? { failureCode: safeFailureCode(error) } : {}),
+    ...(failureCode ? { failureCode } : {}),
   };
 }
 
@@ -101,6 +102,7 @@ export function buildNetworkEgressReceipt(
 export function recordNetworkEgressReceipt(receipt: NetworkEgressReceipt): void {
   emitter?.({
     action: 'network_egress',
+    model: undefined,
     description:
       receipt.result === 'blocked-before-network'
         ? `Network action blocked before connection: ${receipt.operationLabel}`
@@ -108,6 +110,6 @@ export function recordNetworkEgressReceipt(receipt: NetworkEgressReceipt): void 
     inputs: {},
     outputs: {},
     userDecision: 'auto',
-    metadata: receipt,
+    metadata: receipt as unknown as Record<string, unknown>,
   });
 }
