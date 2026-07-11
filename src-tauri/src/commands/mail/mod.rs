@@ -34,8 +34,13 @@ mod tests {
     use crate::commands::mail::store::EncryptedMailStore;
     use crate::commands::rag::store::UNASSIGNED_MATTER;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use std::time::Duration;
+
+    // These two marker tests deliberately manipulate the same process-wide
+    // latch. Rust runs unit tests concurrently, so serialize just this tiny
+    // shared-state island rather than letting test order decide the result.
+    static BACKFILL_MARKER_LATCH_TEST_LOCK: Mutex<()> = Mutex::new(());
 
     // ── OAuth cancel — the "Reconnect hangs 5 minutes with no cancel" fix ────
 
@@ -428,6 +433,7 @@ mod tests {
     fn backfill_marker_set_is_idempotent_and_clearable() {
         use super::{mark_rag_backfill_needed, MARKED_THIS_SESSION, RAG_BACKFILL_NEEDED_KEY};
         use std::sync::atomic::Ordering;
+        let _latch_test_guard = BACKFILL_MARKER_LATCH_TEST_LOCK.lock().unwrap();
         let dir = tempfile::TempDir::new().unwrap();
         let key = [0x42u8; 32];
 
@@ -482,6 +488,7 @@ mod tests {
             RAG_BACKFILL_NEEDED_KEY,
         };
         use std::sync::atomic::Ordering;
+        let _latch_test_guard = BACKFILL_MARKER_LATCH_TEST_LOCK.lock().unwrap();
         let key = [0x24u8; 32];
 
         let no_mail = tempfile::TempDir::new().unwrap();
