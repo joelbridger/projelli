@@ -1,9 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { parseMatterHandle, parseStreamHandle } from '@/platform/firm/contract';
+import { parseMatterHandle } from '@/platform/firm/contract';
 
 const matterHandle = parseMatterHandle(`mh2_${'A'.repeat(43)}`);
-const rootStreamHandle = parseStreamHandle(`sh2_${'B'.repeat(43)}`);
 const testState = vi.hoisted(() => {
   const mocks = {
     publishMatterKeyToMembers: vi.fn(),
