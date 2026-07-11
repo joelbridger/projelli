@@ -102,7 +102,7 @@ describe('resolvePrivilegedMatterMode', () => {
       confidentialityMode: 'local-only',
     });
     expect(r.active).toBe(true);
-    expect(r.trigger).toBe('local-only');
+    expect(r.trigger).toBe('local-ai-only');
     expect(r.forced).toBe(true);
   });
 });
@@ -193,7 +193,7 @@ describe('Privileged Matter Mode activation (reactive hook + stores)', () => {
   it('turns on automatically in Local-only confidentiality mode', () => {
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
     render(<ModeProbe />);
-    expect(screen.getByTestId('probe').getAttribute('data-trigger')).toBe('local-only');
+    expect(screen.getByTestId('probe').getAttribute('data-trigger')).toBe('local-ai-only');
   });
 
   it('the non-reactive read agrees with the reactive resolver (privileged active matter)', () => {

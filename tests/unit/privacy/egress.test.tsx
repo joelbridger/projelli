@@ -62,8 +62,8 @@ describe('resolveEgress (the single source of truth)', () => {
     expect(info.destination).toBe('local');
     expect(info.severity).toBe('safe');
     expect(info.dataLeaves).toBe(false);
-    expect(info.label).toMatch(/on your machine/i);
-    expect(info.note).toMatch(/no AI prompt or file is sent to a cloud AI/i);
+    expect(info.label).toBe('AI runs on this computer. No cloud AI.');
+    expect(info.note).toBe('No AI prompt or file is sent to cloud AI.');
   });
 
   it('cloud provider in Direct mode => direct-to-provider, data leaves, honest note', () => {
@@ -108,14 +108,14 @@ describe('resolveEgress (the single source of truth)', () => {
   });
 
   // Embedded branded Local AI engine (llama.cpp) — local-model initiative.
-  it('branded Local AI => nothing leaves the machine, named correctly', () => {
+  it('branded Local AI => the trust badge makes the AI-specific cloud claim', () => {
     const info = resolveEgress({ provider: 'lantern-local', mode: 'direct' });
     expect(info.destination).toBe('local');
     expect(info.severity).toBe('safe');
     expect(info.dataLeaves).toBe(false);
     expect(info.provider).toBe('lantern-local');
-    // The honest note names the actual local engine, not Ollama.
-    expect(info.note).toContain(LOCAL_AI_NAME);
+    expect(info.label).toBe('AI runs on this computer. No cloud AI.');
+    expect(info.note).toBe('No AI prompt or file is sent to cloud AI.');
     expect(info.note).not.toMatch(/Ollama/);
   });
 
@@ -125,7 +125,7 @@ describe('resolveEgress (the single source of truth)', () => {
     // read as a private on-device model, never name the developer tool "Ollama"
     // (UX-05 — that jargon belongs only in the advanced bring-your-own-runtime panel).
     expect(info.note).not.toMatch(/Ollama/);
-    expect(info.note).toMatch(/private model on your own computer/i);
+    expect(info.note).toBe('No AI prompt or file is sent to cloud AI.');
     // The internal provider id is unchanged — only the rendered copy adapts.
     expect(info.provider).toBe('ollama');
   });
@@ -331,7 +331,7 @@ describe('DataMapDialog', () => {
 
     // Local-only path: no AI prompt or file is sent to a cloud AI.
     expect(screen.getByText(/use a local model/i)).toBeTruthy();
-    expect(screen.getByText(/no AI prompt or file is ever sent to a cloud AI/i)).toBeTruthy();
+    expect(screen.getByText(/no AI prompt or file is sent to cloud AI/i)).toBeTruthy();
 
     // Email encrypted locally.
     expect(screen.getByText(/encrypted on your machine/i)).toBeTruthy();

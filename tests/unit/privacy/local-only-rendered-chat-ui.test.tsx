@@ -137,7 +137,7 @@ describe('TEST-005 — Local-only rendered chat UI enforcement', () => {
       fireEvent.click(screen.getByTestId('chat-send-button'));
     });
 
-    await screen.findByText(/Local-only mode is on/i);
+    await screen.findByText(/Local AI only is on/i);
     await waitFor(() => expect(screen.getByText(/nothing can be sent to a cloud AI provider/i)).toBeTruthy());
 
     expect(mocks.claudeCtor).not.toHaveBeenCalledWith(

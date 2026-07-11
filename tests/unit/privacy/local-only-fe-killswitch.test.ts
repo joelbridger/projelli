@@ -57,7 +57,7 @@ describe('assertLocalOnlyAllowsExternal', () => {
   it('throws LocalOnlyExternalError when Local-only is on', () => {
     setMode('local-only');
     expect(() => assertLocalOnlyAllowsExternal('thing')).toThrow(LocalOnlyExternalError);
-    expect(() => assertLocalOnlyAllowsExternal('thing')).toThrow(/local-only/i);
+    expect(() => assertLocalOnlyAllowsExternal('thing')).toThrow(/Local AI only/i);
   });
 
   it('does NOT throw when not in Local-only', () => {
