@@ -5,7 +5,7 @@
  * glance (the adoption blocker is that lawyers can't *explain* where data goes;
  * seeing the range, with the active one marked, is the fix):
  *
- *   - Local-only  Documents and prompts are never sent to a cloud AI: only
+ *   - Local AI only  Documents and prompts are never sent to a cloud AI: only
  *                 on-device models are usable (the built-in Lantern Local AI
  *                 by default, or the user's own Ollama) and cloud AI providers
  *                 are disabled. (User-authorized connectors still sync.)

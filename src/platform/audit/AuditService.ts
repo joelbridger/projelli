@@ -67,6 +67,7 @@ export class AuditPersistenceError extends Error {
 
 const CRITICAL_ACTIONS = new Set<AuditActionType>([
   'egress',
+  'network_egress',
   'model_call',
   'file_export',
   'file_create',

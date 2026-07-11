@@ -43,6 +43,18 @@ export interface ConfidentialityReport {
   calls: ConfidentialityReportCall[];
   /** The honest attestation sentence selected by the mode mix. */
   attestation: string;
+  networkReceipts: NetworkReceiptRow[];
+}
+
+export interface NetworkReceiptRow {
+  at: string;
+  operationLabel: string;
+  destination: string;
+  result: string;
+  aiMode: ConfidentialityMode;
+  offlineMode: boolean;
+  direction: string;
+  failureCode?: string;
 }
 
 /**
@@ -190,6 +202,26 @@ export function buildConfidentialityReport(
   const allUnderOwnKeyOrLocal = calls.every(
     (c) => !c.dataLeaves || c.destination === 'provider-direct'
   );
+  const networkReceipts = entries
+    .filter((entry) => {
+      if (entry.action !== 'network_egress') return false;
+      const meta = entry.metadata;
+      const receiptMatterId = meta['matter_id'];
+      return matterId === null || receiptMatterId === matterId;
+    })
+    .map((entry): NetworkReceiptRow => {
+      const meta = entry.metadata;
+      return {
+        at: entry.timestamp,
+        operationLabel: typeof meta['operationLabel'] === 'string' ? meta['operationLabel'] : 'Unknown network action',
+        destination: typeof meta['destination'] === 'string' ? meta['destination'] : 'approved destination',
+        result: typeof meta['result'] === 'string' ? meta['result'] : 'unknown',
+        aiMode: (meta['aiMode'] as ConfidentialityMode | undefined) ?? 'direct',
+        offlineMode: meta['offlineMode'] === true,
+        direction: typeof meta['direction'] === 'string' ? meta['direction'] : 'unknown',
+        ...(typeof meta['failureCode'] === 'string' ? { failureCode: meta['failureCode'] } : {}),
+      };
+    });
 
   return {
     matterId,
@@ -201,5 +233,6 @@ export function buildConfidentialityReport(
     allUnderOwnKeyOrLocal,
     calls,
     attestation: pickAttestation(byMode),
+    networkReceipts,
   };
 }

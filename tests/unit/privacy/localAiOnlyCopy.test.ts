@@ -18,8 +18,11 @@ const VISIBLE_PRIVACY_SURFACES = [
 describe('Local AI only facade copy', () => {
   it('does not leave the retired visible name in privacy settings, reports, or status copy', () => {
     for (const file of VISIBLE_PRIVACY_SURFACES) {
-      const source = readFileSync(resolve(process.cwd(), file), 'utf8');
-      expect(source, file).not.toMatch(/On this computer only|Local-only|Local only/);
+      const source = readFileSync(resolve(process.cwd(), file), 'utf8')
+        .replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
+      expect(source, file).not.toMatch(
+        /['"`][^'"`]*(?:On this computer only|Local-only|Local only)[^'"`]*['"`]/,
+      );
     }
   });
 

@@ -127,7 +127,7 @@ describe('buildConfidentialityReport', () => {
     expect(report.anyDataLeftMachine).toBe(true);
     expect(report.byMode['local-only']).toBe(1);
     expect(report.byMode['direct']).toBe(1);
-    expect(report.attestation).toMatch(/local model/i);
+    expect(report.attestation).toMatch(/ran on this computer/i);
     expect(report.attestation).toMatch(/your own API key/i);
     expect(report.attestation).not.toMatch(/nothing left this machine/i);
   });

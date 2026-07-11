@@ -30,6 +30,7 @@ export type AuditActionType =
   | 'privilege_evaluated'
   | 'scope_active'
   | 'egress'
+  | 'network_egress'
   // Privileged Matter Mode: an MCP server write was blocked while the mode was
   // on. Stored under `action = 'mcp_blocked'` so the audit log can label/filter
   // it as a defensible "nothing exfiltrated" record.

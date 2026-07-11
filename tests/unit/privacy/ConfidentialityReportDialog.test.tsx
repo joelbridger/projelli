@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { BRAND } from '@/config/brand';
 import { ConfidentialityReportDialog } from '@/platform/privacy/ui/ConfidentialityReportDialog';
 import { buildConfidentialityReport } from '@/platform/privacy/confidentialityReport';
@@ -68,7 +68,7 @@ describe('ConfidentialityReportDialog', () => {
     expect(screen.getByTestId('confidentiality-attestation').textContent).toMatch(/no AI activity/i);
   });
 
-  it('shows the local-only attestation for all-local calls', () => {
+  it('shows the AI-specific local attestation for all-local calls', () => {
     const entries = [
       egressEntry({ mode: 'local-only', dataLeaves: false }),
       egressEntry({ mode: 'local-only', dataLeaves: false }),
@@ -81,7 +81,7 @@ describe('ConfidentialityReportDialog', () => {
         report={report}
       />
     );
-    expect(screen.getByTestId('confidentiality-attestation').textContent).toMatch(/nothing left this machine/i);
+    expect(screen.getByTestId('confidentiality-attestation').textContent).toMatch(/no AI prompt or file was sent to a cloud AI/i);
   });
 
   it('shows the direct (BYOK) attestation for direct calls', () => {
@@ -133,6 +133,29 @@ describe('ConfidentialityReportDialog', () => {
       />
     );
     expect(screen.getByTestId('confidentiality-report-print')).toBeTruthy();
+  });
+
+  it('links to a network receipt that separates AI, Offline Mode, and destination facts', () => {
+    const report = makeReport([
+      {
+        ...egressEntry({ mode: 'local-only', dataLeaves: false }),
+        action: 'network_egress',
+        metadata: {
+          version: 1,
+          operationLabel: 'cloud AI',
+          destination: 'api.openai.com',
+          result: 'completed',
+          aiMode: 'local-only',
+          offlineMode: false,
+          direction: 'send',
+          matter_id: MATTER_ID,
+        },
+      },
+    ]);
+    render(<ConfidentialityReportDialog open={true} onOpenChange={() => {}} report={report} />);
+    fireEvent.click(screen.getByTestId('network-receipt-tab'));
+    expect(screen.getByTestId('network-receipt-view')).toHaveTextContent('AI was local.');
+    expect(screen.getByTestId('network-receipt-view')).toHaveTextContent('This approved online action contacted api.openai.com.');
   });
 
   it('does not render when open=false', () => {

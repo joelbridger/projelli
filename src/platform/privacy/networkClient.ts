@@ -23,6 +23,11 @@ import {
   getEgressOperation,
   type EgressOperation,
 } from '@/platform/privacy/egressRegistry';
+import {
+  buildNetworkEgressReceipt,
+  recordNetworkEgressReceipt,
+  type NetworkEgressResult,
+} from '@/platform/privacy/networkEgressReceipt';
 
 export const OFFLINE_MODE_BLOCKED_CODE = 'OFFLINE_MODE_BLOCKED';
 
@@ -63,7 +68,20 @@ export class EgressDestinationNotAllowedError extends Error {
  * this safe, content-free record makes the refusal observable in the meantime.
  */
 export function recordBlockedEgressAttempt(operationId: string): void {
-  console.info('[network receipt] blocked-before-network', { operationId });
+  const operation = getEgressOperation(operationId);
+  if (!operation) return;
+  const host = operation.allowedHosts[0] ?? 'approved-host';
+  const destination = new URL(`https://${host}`);
+  recordNetworkEgressReceipt(
+    buildNetworkEgressReceipt(
+      operation,
+      destination,
+      0,
+      true,
+      'blocked-before-network',
+      new OfflineModeBlockedError(operation.receiptLabel),
+    ),
+  );
 }
 
 interface ActiveEgress {
@@ -127,8 +145,38 @@ function throwIfOffline(
   destination: URL
 ): void {
   if (status.offlineMode && !isLiteralLoopback(destination)) {
+    recordNetworkEgressReceipt(
+      buildNetworkEgressReceipt(
+        operation,
+        destination,
+        status.generation,
+        true,
+        'blocked-before-network',
+        new OfflineModeBlockedError(operation.receiptLabel),
+      ),
+    );
     throw new OfflineModeBlockedError(operation.receiptLabel);
   }
+}
+
+function recordReceipt(
+  operation: EgressOperation,
+  destination: URL,
+  generation: number,
+  offlineMode: boolean,
+  result: NetworkEgressResult,
+  error?: unknown,
+): void {
+  recordNetworkEgressReceipt(
+    buildNetworkEgressReceipt(
+      operation,
+      destination,
+      generation,
+      offlineMode,
+      result,
+      error,
+    ),
+  );
 }
 
 function registerActiveEgress(generation: number): ActiveEgress {
@@ -225,6 +273,7 @@ async function authorize(
     // action gets the promised message while the device is offline.
     throwIfOffline(status, operation, destination);
     assertRegisteredDestination(operation, destination);
+    recordReceipt(operation, destination, status.generation, status.offlineMode, 'allowed');
     return { operation, destination, active };
   } catch (error) {
     releaseActiveEgress(active);
@@ -302,7 +351,7 @@ function guardStreamingResponse(
   };
 
   const abortStream = () => {
-    const reason =
+    const reason: unknown =
       active.controller.signal.reason ??
       new DOMException('The network request was aborted.', 'AbortError');
     // eslint-disable-next-line lantern-async/no-silent-failure -- the wrapper errors the consumer immediately; this is only best-effort cleanup for the source body.
@@ -401,7 +450,10 @@ async function egressFetchWithPolicy(
       await recheck(operation, requestDestination, active);
 
       if (!isManualRedirect(response)) {
-        if (!keepActiveForBody) return response;
+        if (!keepActiveForBody) {
+          recordReceipt(operation, requestDestination, active.generation, false, 'completed');
+          return response;
+        }
         const guardedResponse = guardStreamingResponse(response, active);
         bodyOwnsActive = true;
         return guardedResponse;
@@ -417,6 +469,20 @@ async function egressFetchWithPolicy(
       requestDestination = new URL(location, requestDestination);
       redirectHops += 1;
     }
+  } catch (error) {
+    recordReceipt(
+      operation,
+      destination,
+      active.generation,
+      error instanceof OfflineModeBlockedError,
+      error instanceof OfflineModeBlockedError
+        ? 'blocked-before-network'
+        : error instanceof DOMException && error.name === 'AbortError'
+          ? 'cancelled'
+          : 'failed',
+      error,
+    );
+    throw error;
   } finally {
     if (!bodyOwnsActive) releaseActiveEgress(active);
   }
