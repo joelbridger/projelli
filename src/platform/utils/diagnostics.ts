@@ -19,6 +19,11 @@ import { getInstallId } from './installId';
 import { getDesignPartnerConsent } from '@/platform/hooks/useDesignPartnerConsent';
 import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
 import { BRAND } from '@/config/brand';
+import {
+  egressFetch,
+  OfflineModeBlockedError,
+  recordBlockedEgressAttempt,
+} from '@/platform/privacy/networkClient';
 
 const ENDPOINT = BRAND.urls.formsDiagnostics;
 
@@ -33,7 +38,10 @@ function getPlatform(): string {
 }
 
 function getAppVersion(): string {
-  return (import.meta as { env?: { VITE_APP_VERSION?: string } }).env?.VITE_APP_VERSION ?? 'unknown';
+  return (
+    (import.meta as { env?: { VITE_APP_VERSION?: string } }).env
+      ?.VITE_APP_VERSION ?? 'unknown'
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +97,9 @@ export type DiagnosticEvent =
  * anonymous install metadata. It never contains content, file names, matter
  * names, prompt text, email bodies, or search queries.
  */
-export async function sendDiagnosticEvent(event: DiagnosticEvent): Promise<void> {
+export async function sendDiagnosticEvent(
+  event: DiagnosticEvent
+): Promise<void> {
   if (getDesignPartnerConsent() !== 'enabled') return;
   // Private-mode kill-switch (fail-closed): never make an outbound diagnostics
   // call in private mode, or before the mode is confirmed non-local. Silent skip.
@@ -110,13 +120,16 @@ export async function sendDiagnosticEvent(event: DiagnosticEvent): Promise<void>
   }
 
   try {
-    await fetch(ENDPOINT, {
+    await egressFetch('diagnostics', ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       keepalive: true,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof OfflineModeBlockedError) {
+      recordBlockedEgressAttempt('diagnostics');
+    }
     // Swallow — diagnostics never block UI.
   }
 }

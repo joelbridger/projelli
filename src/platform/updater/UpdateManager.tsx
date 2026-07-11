@@ -20,6 +20,11 @@
 import { useEffect } from 'react';
 import { useUpdaterStore } from '@/platform/updater/updaterStore';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
+import {
+  getNetworkPolicyStatus,
+  subscribeToOfflineModeChanges,
+} from '@/platform/privacy/offlineMode';
+import { isTauri } from '@tauri-apps/api/core';
 import { UpdateBanner } from './UpdateBanner';
 
 const INITIAL_DELAY_MS = 30_000;
@@ -35,22 +40,47 @@ export function UpdateManager() {
     // Expose the store on window in test mode so e2e specs can simulate
     // an available update without calling the real plugin-updater APIs.
     if (typeof window !== 'undefined') {
-      const w = window as unknown as { __updaterStore?: typeof useUpdaterStore };
+      const w = window as unknown as {
+        __updaterStore?: typeof useUpdaterStore;
+      };
       w.__updaterStore = useUpdaterStore;
     }
   }, []);
 
   useEffect(() => {
     if (!autoUpdateCheck) return;
-    const initialTimer = setTimeout(() => {
-      void check();
-    }, INITIAL_DELAY_MS);
-    const intervalTimer = setInterval(() => {
-      void check();
-    }, RECHECK_INTERVAL_MS);
+    let initialTimer: ReturnType<typeof setTimeout> | null = null;
+    let intervalTimer: ReturnType<typeof setInterval> | null = null;
+    let disposed = false;
+    const clearTimers = () => {
+      if (initialTimer !== null) clearTimeout(initialTimer);
+      if (intervalTimer !== null) clearInterval(intervalTimer);
+      initialTimer = null;
+      intervalTimer = null;
+    };
+    const scheduleIfAllowed = async () => {
+      // The native policy starts deny-by-default. Do not schedule updater work
+      // until it explicitly permits it; browser/test mode remains a no-op.
+      if (isTauri()) {
+        try {
+          if ((await getNetworkPolicyStatus()).offlineMode || disposed) return;
+        } catch {
+          return;
+        }
+      }
+      if (disposed) return;
+      initialTimer = setTimeout(() => void check(), INITIAL_DELAY_MS);
+      intervalTimer = setInterval(() => void check(), RECHECK_INTERVAL_MS);
+    };
+    void scheduleIfAllowed();
+    const unsubscribe = subscribeToOfflineModeChanges((status) => {
+      if (status.offlineMode) clearTimers();
+      // Mode-off only permits an explicit manual retry. It never reschedules.
+    });
     return () => {
-      clearTimeout(initialTimer);
-      clearInterval(intervalTimer);
+      disposed = true;
+      clearTimers();
+      unsubscribe();
     };
   }, [check, autoUpdateCheck]);
 

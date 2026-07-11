@@ -244,6 +244,7 @@
       "all-packs": "All profession packs included",
       "seats": "Up to {{count}} seats",
       "valid-until": "Valid until: {{date}}",
+      "offline-mode-status": "Offline Mode is using your last confirmed license status.",
       "ownership-tagline": "Your files are always yours. If you ever cancel, you keep every document, email, and client you have made. A lapsed subscription turns off the AI features and updates, not your data.",
       "refresh": "Refresh",
       "deactivate": "Deactivate",

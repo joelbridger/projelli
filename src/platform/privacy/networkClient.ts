@@ -41,6 +41,15 @@ export class EgressDestinationNotAllowedError extends Error {
   }
 }
 
+/**
+ * Lightweight blocked-attempt receipt for background work that deliberately
+ * stays quiet in the UI. The durable unified receipt model is added later;
+ * this safe, content-free record makes the refusal observable in the meantime.
+ */
+export function recordBlockedEgressAttempt(operationId: string): void {
+  console.info('[network receipt] blocked-before-network', { operationId });
+}
+
 interface ActiveEgress {
   generation: number;
   controller: AbortController;

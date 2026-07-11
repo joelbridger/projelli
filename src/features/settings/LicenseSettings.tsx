@@ -28,7 +28,19 @@ import { ConfirmDialog } from '@/ui/ConfirmDialog';
 
 export function LicenseSettings() {
   const { t } = useTranslation();
-  const { tier, packs, seats, isLoading, isActivated, expiresAt, error, activate, deactivate, refresh } = useLicense();
+  const {
+    tier,
+    packs,
+    seats,
+    isLoading,
+    isActivated,
+    expiresAt,
+    error,
+    validationDeferredByOfflineMode,
+    activate,
+    deactivate,
+    refresh,
+  } = useLicense();
   const trial = useTrial();
   const entitlement = useEntitlement();
   const [licenseKeyInput, setLicenseKeyInput] = useState('');
@@ -41,9 +53,12 @@ export function LicenseSettings() {
   // Surfaced for grandfathered, lapsed/degraded, and offline-grace states so
   // the user always sees, in plain language, that their files stay theirs.
   const entMsg = entitlementMessage(entitlement);
-  const showDegradedNotice =
-    entitlement.state === 'subscription-lapsed' || entitlement.state === 'offline-grace';
+  const showDegradedNotice = entitlement.state === 'subscription-lapsed';
   const showGrandfatheredNotice = entitlement.isGrandfathered;
+  const showOfflineModeLicenseStatus =
+    isActivated &&
+    validationDeferredByOfflineMode &&
+    entitlement.state !== 'subscription-lapsed';
 
   const handleActivate = async () => {
     if (!licenseKeyInput.trim()) return;
@@ -51,27 +66,34 @@ export function LicenseSettings() {
     if (result.success) {
       setLicenseKeyInput('');
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
+      setTimeout(() => {
+        setShowSuccess(false);
+      }, 3000);
     }
   };
 
   const handleDeactivate = () => {
     void (async () => {
-      const confirmed = await confirm(t('settings.license.deactivate-confirm'), {
-        title: t('settings.license.deactivate'),
-        variant: 'destructive',
-      });
+      const confirmed = await confirm(
+        t('settings.license.deactivate-confirm'),
+        {
+          title: t('settings.license.deactivate'),
+          variant: 'destructive',
+        }
+      );
       if (confirmed) {
         deactivate();
       }
-    })();
+    })().catch(() => {});
   };
 
   return (
     <div className="space-y-6">
       <div>
         <div className="flex items-center gap-1.5">
-          <h2 className="text-2xl font-semibold tracking-tight">{t('settings.license.title')}</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">
+            {t('settings.license.title')}
+          </h2>
           <InfoHelp
             label={`About ${t('settings.license.title')}`}
             content={
@@ -102,8 +124,12 @@ export function LicenseSettings() {
           data-entitlement-state={entitlement.state}
           className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30"
         >
-          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">{entMsg.headline}</p>
-          <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">{entMsg.body}</p>
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+            {entMsg.headline}
+          </p>
+          <p className="mt-1 text-sm text-amber-900/90 dark:text-amber-200/90">
+            {entMsg.body}
+          </p>
           {entitlement.state === 'subscription-lapsed' && (
             <Button asChild size="sm" className="mt-3">
               <a
@@ -119,6 +145,15 @@ export function LicenseSettings() {
         </div>
       )}
 
+      {showOfflineModeLicenseStatus && (
+        <p
+          className="text-sm text-muted-foreground"
+          data-testid="license-offline-mode-status"
+        >
+          {t('settings.license.offline-mode-status')}
+        </p>
+      )}
+
       {/* Activated state */}
       {isActivated && (
         <div className="rounded-lg border border-border bg-card p-6 space-y-4">
@@ -128,7 +163,10 @@ export function LicenseSettings() {
                 <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                   {t('settings.license.badge.activated')}
                 </span>
-                <span className="text-lg font-medium" data-testid="license-tier-name">
+                <span
+                  className="text-lg font-medium"
+                  data-testid="license-tier-name"
+                >
                   {/* 3.0 display name; the wire/license code is unchanged. */}
                   {displayName(tier)}
                 </span>
@@ -148,7 +186,9 @@ export function LicenseSettings() {
                 packs.length > 0 && (
                   <p className="text-sm text-muted-foreground mt-1">
                     {t('settings.license.active-pack', {
-                      pack: packs.map((p) => t(`settings.license.packs.${p}`)).join(', '),
+                      pack: packs
+                        .map((p) => t(`settings.license.packs.${p}`))
+                        .join(', '),
                     })}
                   </p>
                 )
@@ -163,7 +203,9 @@ export function LicenseSettings() {
                   so we never show a misleading expiry date for it. */}
               {expiresAt && !entitlement.isGrandfathered && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  {t('settings.license.valid-until', { date: expiresAt.toLocaleDateString() })}
+                  {t('settings.license.valid-until', {
+                    date: expiresAt.toLocaleDateString(),
+                  })}
                 </p>
               )}
               {showGrandfatheredNotice && (
@@ -176,16 +218,30 @@ export function LicenseSettings() {
               )}
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={refresh} disabled={isLoading}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void refresh();
+                }}
+                disabled={isLoading}
+              >
                 {t('settings.license.refresh')}
               </Button>
-              <Button variant="outline" size="sm" onClick={handleDeactivate} disabled={isLoading}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDeactivate}
+                disabled={isLoading}
+              >
                 {t('settings.license.deactivate')}
               </Button>
             </div>
           </div>
           <div className="border-t pt-4 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground mb-2">{t('settings.license.unlocks-heading')}</p>
+            <p className="font-medium text-foreground mb-2">
+              {t('settings.license.unlocks-heading')}
+            </p>
             <ul className="space-y-1 text-xs">
               {/* All paid tiers get the full app. */}
               <li>{t('settings.license.unlocks.ai-chat')}</li>
@@ -196,8 +252,12 @@ export function LicenseSettings() {
               <li>{t('settings.license.unlocks.commercial')}</li>
               <li>{t('settings.license.unlocks.updates')}</li>
               {/* Pack / seat differentiators. */}
-              {tier === 'professional' && <li>{t('settings.license.unlocks.one-pack')}</li>}
-              {tier === 'practice' && <li>{t('settings.license.unlocks.all-packs')}</li>}
+              {tier === 'professional' && (
+                <li>{t('settings.license.unlocks.one-pack')}</li>
+              )}
+              {tier === 'practice' && (
+                <li>{t('settings.license.unlocks.all-packs')}</li>
+              )}
             </ul>
           </div>
         </div>
@@ -213,7 +273,9 @@ export function LicenseSettings() {
                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
                     {t('settings.license.badge.trial-ended')}
                   </span>
-                  <span className="text-base font-medium">{t('settings.license.activate-to-continue')}</span>
+                  <span className="text-base font-medium">
+                    {t('settings.license.activate-to-continue')}
+                  </span>
                   <InfoHelp
                     label={`About ${t('settings.license.activate-to-continue')}`}
                     content={
@@ -221,7 +283,10 @@ export function LicenseSettings() {
                         i18nKey="settings.license.trial-expired-detail"
                         values={{
                           days: trial.trialDays,
-                          endDate: new Date(trial.firstLaunchAt.getTime() + trial.trialDays * 86400000).toLocaleDateString(),
+                          endDate: new Date(
+                            trial.firstLaunchAt.getTime() +
+                              trial.trialDays * 86400000
+                          ).toLocaleDateString(),
                         }}
                         components={{ endDateBold: <strong /> }}
                       />
@@ -236,10 +301,14 @@ export function LicenseSettings() {
                     {t('settings.license.badge.trial')}
                   </span>
                   <span className="text-base font-medium">
-                    {t('settings.license.days-left', { count: trial.daysRemaining })}
+                    {t('settings.license.days-left', {
+                      count: trial.daysRemaining,
+                    })}
                   </span>
                   <InfoHelp
-                    content={t('settings.license.trial-active-detail', { days: trial.trialDays })}
+                    content={t('settings.license.trial-active-detail', {
+                      days: trial.trialDays,
+                    })}
                     label="About your trial"
                   />
                 </div>
@@ -285,18 +354,24 @@ export function LicenseSettings() {
                   type="text"
                   placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
                   value={licenseKeyInput}
-                  onChange={(e) => setLicenseKeyInput(e.target.value)}
+                  onChange={(e) => {
+                    setLicenseKeyInput(e.target.value);
+                  }}
                   disabled={isLoading}
                   className="font-mono"
                   data-testid="license-recovery-input"
                 />
                 <Button
                   variant="outline"
-                  onClick={handleActivate}
+                  onClick={() => {
+                    void handleActivate();
+                  }}
                   disabled={isLoading || !licenseKeyInput.trim()}
                   data-testid="license-recovery-submit"
                 >
-                  {isLoading ? t('settings.license.recovery-restoring') : t('settings.license.recovery-restore')}
+                  {isLoading
+                    ? t('settings.license.recovery-restoring')
+                    : t('settings.license.recovery-restore')}
                 </Button>
               </div>
             </div>
@@ -320,7 +395,9 @@ export function LicenseSettings() {
       {/* Success toast */}
       {showSuccess && (
         <div className="rounded-lg border border-green-500/50 bg-green-500/10 p-4">
-          <p className="text-sm text-green-700 dark:text-green-400">{t('settings.license.activate-success')}</p>
+          <p className="text-sm text-green-700 dark:text-green-400">
+            {t('settings.license.activate-success')}
+          </p>
         </div>
       )}
       <ConfirmDialog {...confirmDialogProps} />
