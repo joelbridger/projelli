@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from 'pdf-lib';
 
 /** Synthetic-only forms. They never resemble a custodian or client document. */
 export async function syntheticAcroFormPdf(): Promise<Uint8Array> {
@@ -27,5 +27,20 @@ export async function syntheticOverlayPdf(): Promise<Uint8Array> {
   page.drawText('Synthetic overlay form', { x: 72, y: 740, size: 18, font });
   page.drawRectangle({ x: 72, y: 650, width: 260, height: 30, borderColor: rgb(0, 0, 0), borderWidth: 1 });
   page.drawRectangle({ x: 72, y: 590, width: 260, height: 45, borderColor: rgb(0, 0, 0), borderWidth: 1 });
+  return new Uint8Array(await doc.save({ useObjectStreams: false }));
+}
+
+export async function syntheticPdfWithExternalUriAction(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([612, 792]);
+  const annotation = doc.context.obj({
+    Type: 'Annot',
+    Subtype: 'Link',
+    Rect: [72, 72, 144, 96],
+    Border: [0, 0, 0],
+    A: { S: 'URI', URI: PDFString.of('https://hostile.example.test') },
+  });
+  const annotationRef = doc.context.register(annotation);
+  page.node.set(PDFName.of('Annots'), doc.context.obj([annotationRef]));
   return new Uint8Array(await doc.save({ useObjectStreams: false }));
 }

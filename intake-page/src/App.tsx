@@ -4,7 +4,7 @@ import { deriveAuthToken, derivePageKey } from '@/platform/intake/intakeCrypto';
 import { parseLinkFragment } from '@/platform/intake/intakeLink';
 import { classifyTier1 } from '@/platform/intake/documentDetectiveRules';
 import type { DocumentKind, Tier1Classification } from '@/platform/intake/documentDetectiveTypes';
-import type { DocUploadRequestItem, GuidedQuestionRequestItem, PdfFillRequestItem, RequestItem, TypedFieldRequestItem } from '@/platform/intake/types';
+import type { DocUploadRequestItem, GuidedQuestionRequestItem, RequestItem, TypedFieldRequestItem } from '@/platform/intake/types';
 import {
   DEFAULT_WELCOME_JOURNEY,
   resolveWelcomeMergeFields,
@@ -18,6 +18,7 @@ import { getOrCreateSessionMarker } from './sessionMarker';
 import { submitAnswer } from './submission';
 import type { AnswerPayload, IntakeChecklist, IntakeFirm, ResumeState } from './types';
 import { PdfFillScreen } from './pdfFill/PdfFillScreen';
+import { sealedPdfSourceBytes } from './pdfFill/sealedPdfSource';
 
 type LoadState =
   | { status: 'checking' | 'loading' }
@@ -64,24 +65,6 @@ const SAFE_NAMED_COLORS = new Set([
 
 function isActionable(item: RequestItem): boolean {
   return item.t === 'typed_field' || item.t === 'doc_upload' || item.t === 'guided_question' || item.t === 'pdf_fill';
-}
-
-/**
- * The source PDF can only arrive inside the already sealed checklist. This
- * public page deliberately has no artifact URL or fallback fetch path.
- * Lane 2 places this opaque byte payload in the sealed request snapshot.
- */
-function sealedPdfSourceBytes(item: PdfFillRequestItem): Uint8Array | undefined {
-  const candidate = (item as PdfFillRequestItem & { sealed_source_pdf_b64?: unknown }).sealed_source_pdf_b64;
-  if (typeof candidate !== 'string' || candidate.length === 0) return undefined;
-  try {
-    const binary = atob(candidate);
-    const bytes = new Uint8Array(binary.length);
-    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
-    return bytes;
-  } catch {
-    return undefined;
-  }
 }
 
 function isFiniteNumberToken(token: string): boolean {

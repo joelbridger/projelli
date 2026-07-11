@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
+import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 
 import { sha256Hex } from '../../src/platform/intake/pdfTemplates/receipt';
 import {
@@ -15,8 +16,9 @@ import {
   PdfFillValidationError,
   preparePdfFillSubmission,
 } from '../src/pdfFill/preparePdfFillSubmission';
+import { sealedPdfSourceBytes } from '../src/pdfFill/sealedPdfSource';
 import { submitAnswer } from '../src/submission';
-import { syntheticAcroFormPdf, syntheticOverlayPdf } from './fixtures/pdfFixtures';
+import { syntheticAcroFormPdf, syntheticOverlayPdf, syntheticPdfWithExternalUriAction } from './fixtures/pdfFixtures';
 
 async function acroTemplate(source: Uint8Array): Promise<PdfTemplateDescriptor> {
   return {
@@ -40,6 +42,21 @@ async function overlayTemplate(source: Uint8Array, overflow: 'wrap' | 'stop' = '
     fields: {
       answer: { kind: 'overlay', field_id: 'answer', pdf_field_type: 'text', required: true, page: 1, rect: { x: 72 / 612, y: 112 / 792, width: 260 / 612, height: 30 / 792 }, font: { family: 'Helvetica', size: 12 }, alignment: 'left', overflow },
       notes: { kind: 'overlay', field_id: 'notes', pdf_field_type: 'text', page: 1, rect: { x: 72 / 612, y: 157 / 792, width: 260 / 612, height: 45 / 792 }, font: { family: 'Helvetica', size: 12 }, alignment: 'left', overflow: 'wrap' },
+    },
+  };
+}
+
+async function overlayChoiceTemplate(source: Uint8Array): Promise<PdfTemplateDescriptor> {
+  return {
+    templateId: 'synthetic-overlay-choice-001', version: 1, kind: 'overlay', sourceSha256: await sha256Hex(source),
+    sourceArtifactRef: 'sealed-artifact:syntheticoverlaychoice001', outputFileStem: 'ignored', maxOutputBytes: 2 * 1024 * 1024,
+    fields: {
+      delivery: {
+        kind: 'overlay', field_id: 'delivery', pdf_field_type: 'radio', required: true, page: 1,
+        rect: { x: 72 / 612, y: 112 / 792, width: 18 / 612, height: 18 / 792 },
+        font: { family: 'Helvetica', size: 12 }, alignment: 'left', overflow: 'stop',
+        options: [{ value: 'email', label: 'Email' }, { value: 'mail', label: 'Mail' }],
+      },
     },
   };
 }
@@ -70,6 +87,49 @@ test('writes a synthetic non-fillable overlay locally without introducing fields
   const flattened = await PDFDocument.load(prepared.pdfBytes);
   expect(flattened.getForm().getFields()).toEqual([]);
   expect(prepared.pdfBytes).not.toEqual(source);
+});
+
+test('draws an overlay radio mark for a reviewed option value that is not truthy text', async () => {
+  const source = await syntheticOverlayPdf();
+  const prepared = await preparePdfFillSubmission({
+    sourceBytes: source,
+    template: await overlayChoiceTemplate(source),
+    values: { delivery: 'email' },
+  });
+  const task = pdfjs.getDocument({ data: prepared.pdfBytes.slice() });
+  const document = await task.promise;
+  const textContent = await (await document.getPage(1)).getTextContent();
+  await document.destroy();
+  expect(textContent.items.map((item) => ('str' in item ? item.str : '')).join('')).toContain('X');
+});
+
+test('rejects a source PDF with an external URI action before it can be rendered or filled', async () => {
+  const source = await syntheticPdfWithExternalUriAction();
+  await expect(preparePdfFillSubmission({
+    sourceBytes: source,
+    template: await overlayTemplate(source),
+    values: { answer: 'Avery Chen', notes: '' },
+  })).rejects.toThrow('unsupported active feature');
+});
+
+test('rejects an oversized sealed PDF value before base64 decoding', () => {
+  const originalAtob = globalThis.atob;
+  let decodeCalls = 0;
+  Object.defineProperty(globalThis, 'atob', {
+    configurable: true,
+    value: () => { decodeCalls += 1; throw new Error('Base64 decoding should not run'); },
+  });
+  try {
+    const oversizedEncodedLength = Math.ceil((50 * 1024 * 1024) / 3) * 4 + 4;
+    const item = {
+      t: 'pdf_fill',
+      sealed_source_pdf_b64: 'A'.repeat(oversizedEncodedLength),
+    } as unknown as PdfFillRequestItem;
+    expect(sealedPdfSourceBytes(item)).toBeUndefined();
+    expect(decodeCalls).toBe(0);
+  } finally {
+    Object.defineProperty(globalThis, 'atob', { configurable: true, value: originalAtob });
+  }
 });
 
 test('blocks missing, invalid, and too-long values before any upload can begin', async () => {

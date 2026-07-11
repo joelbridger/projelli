@@ -23,6 +23,7 @@ const MAX_SOURCE_BYTES = 50 * 1024 * 1024;
 const PDF_HEADER = new TextEncoder().encode('%PDF-');
 const ACTIVE_PDF_TOKENS = [
   '/JavaScript', '/JS', '/Launch', '/EmbeddedFile', '/RichMedia', '/XFA', '/Sig',
+  '/URI', '/GoToR', '/SubmitForm',
 ] as const;
 
 export class PdfFillValidationError extends Error {
@@ -145,8 +146,13 @@ function drawOverlayValue(page: PDFPage, entry: PdfOverlayFieldMapEntry, value: 
   const box = overlayBox(entry, page);
   const size = entry.font.size;
   const color = parseHexColor(entry.font.color);
-  if (entry.pdf_field_type === 'checkbox' || entry.pdf_field_type === 'radio') {
+  if (entry.pdf_field_type === 'checkbox') {
     if (value !== 'true' && value !== 'yes' && value !== 'on') return;
+    page.drawText('X', { x: box.x, y: box.y + Math.max(0, (box.height - size) / 2), size, font, color });
+    return;
+  }
+  if (entry.pdf_field_type === 'radio') {
+    if (!entry.options.some((option) => option.value === value)) return;
     page.drawText('X', { x: box.x, y: box.y + Math.max(0, (box.height - size) / 2), size, font, color });
     return;
   }
