@@ -20,7 +20,7 @@ import type {
   SubmitManifest,
 } from '../../src/platform/intake/intakeContract';
 import type { FormRequest } from '../../src/platform/intake/types';
-import type { WelcomeJourney } from '../../src/features/intake/welcomeJourneyDefaults';
+import type { WelcomeJourney } from '../../src/platform/intake/welcomeJourneyDefaults';
 
 const PAGE_BLOB_VERSION = 1;
 const PAGE_IV_BYTES = 12;

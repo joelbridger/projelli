@@ -11,7 +11,7 @@ import {
   resolveWelcomeMergeFields,
   sanitizeWelcomeJourney,
   type WelcomeJourney,
-} from '@/features/intake/welcomeJourneyDefaults';
+} from '@/platform/intake/welcomeJourneyDefaults';
 
 import { openPageJson, sealPageJson } from './pageCrypto';
 import { RelayClient } from './relayClient';
