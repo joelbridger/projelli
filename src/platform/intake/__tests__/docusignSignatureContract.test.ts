@@ -3,13 +3,45 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_WELCOME_JOURNEY } from '@/platform/intake/welcomeJourneyDefaults';
 import { assertValidRequestBlueprint } from '@/platform/intake/blueprintValidation';
 import { createAdvisorIntake } from '@/platform/intake/createIntake';
+import { derivePageKey } from '@/platform/intake/intakeCrypto';
 import { IntakeRelayClient } from '@/platform/intake/IntakeRelayClient';
+import { fileIntakeDocument } from '@/platform/intake/intakeFiling';
+import { sealPageJson } from '@/platform/intake/pageSeal';
 import { getCorsSafeFetch } from '@/platform/providers/fetchUtils';
+import { DirectDocusignAdapter } from '@/platform/docusignSigning/docusignAdapter';
+import { DocusignLaunchRelayClient } from '@/platform/docusignSigning/launchRelayClient';
+import { retrieveAndFileDocusignCompletion } from '@/platform/docusignSigning/signatureWorkflow';
+import { saveLocalSignatureRecord } from '@/platform/docusignSigning/signatureRecordStore';
+import type { SignatureLaunchRecord } from '@/platform/intake/docusignSignature/signatureLaunch';
+import { SigningLaunchRelayClient } from '../../../../intake-page/src/docusignSigning/launchRelayClient';
+import { validateDocusignConnectPayload } from '../../../../backend/src/lib/docusignSigning/connect';
+import { isDuplicateSignatureWakeup, type SignatureWakeupRecord } from '../../../../backend/src/lib/docusignSigning/store';
 import type { FormRequest, PdfFillRequestItem, RequestItem } from '../types';
 
 vi.mock('@/platform/providers/fetchUtils', () => ({ getCorsSafeFetch: vi.fn() }));
 
 const fetchMock = vi.fn();
+
+function response(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+}
+
+function requestBody(init?: RequestInit): string {
+  if (typeof init?.body !== 'string') throw new Error('Expected a JSON request body.');
+  return init.body;
+}
+
+function recordingWorkspace() {
+  const files = new Map<string, Uint8Array>();
+  return {
+    files,
+    workspaceService: {
+      writeFileBinary: async (path: string, bytes: ArrayBuffer) => {
+        files.set(path, new Uint8Array(bytes));
+      },
+    } as never,
+  };
+}
 
 function pdfItem(itemId = 'pdf-fill-item'): PdfFillRequestItem {
   return {
@@ -71,47 +103,109 @@ describe('Wave 9 signature contract gate', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  // TODO Lane 2: import createDocusignEnvelope from src/platform/docusignSigning/envelopeAdapter.
-  it.skip('captures exact flattened bytes and reviewed tabs in the DocuSign envelope adapter', async () => {
-    const adapter = undefined as unknown as { createDocusignEnvelope: (input: { pdfBytes: Uint8Array; tabMap: ReturnType<typeof signature>['tab_map'] }) => Promise<{ envelopeId: string }> };
+  it('captures exact flattened bytes and reviewed tabs in the DocuSign envelope adapter', async () => {
+    fetchMock.mockResolvedValueOnce(response({ envelopeId: 'envelope-1' }, 201))
+      .mockResolvedValueOnce(response({ url: 'https://demo.docusign.net/Signing/view' }, 201));
+    const adapter = new DirectDocusignAdapter(async () => ({
+      accessToken: 'short-lived-token', accountId: 'account-1', baseUri: 'https://demo.docusign.net',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    }));
     const source = new Uint8Array([1, 2, 3]);
-    const result = await adapter.createDocusignEnvelope({ pdfBytes: source, tabMap: signature().tab_map });
-    expect(result.envelopeId).toBeTruthy();
+    await expect(adapter.createEnvelopeAndRecipientView({
+      pdfBytes: source, signerName: 'Synthetic Signer', signerEmail: 'synthetic@example.test',
+      requestId: 'signature-contract-request', signatureItemId: 'signature-item', clientUserId: 'lantern-client',
+      tabMap: signature().tab_map, returnUrl: 'https://lantern.test/return',
+    })).resolves.toEqual({ envelopeId: 'envelope-1', recipientViewUrl: 'https://demo.docusign.net/Signing/view' });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe('https://demo.docusign.net/restapi/v2.1/accounts/account-1/envelopes');
+    const body = JSON.parse(requestBody(init)) as {
+      documents: Array<{ documentBase64: string }>;
+      recipients: { signers: Array<{ tabs: { signHereTabs: unknown[]; dateSignedTabs: unknown[]; fullNameTabs: unknown[] } }> };
+    };
+    const signer = body.recipients.signers[0];
+    expect(Uint8Array.from(atob(body.documents[0]?.documentBase64 ?? ''), (byte) => byte.charCodeAt(0))).toEqual(source);
+    expect(signer?.tabs).toEqual({
+      signHereTabs: [{ pageNumber: '1', xPosition: '10', yPosition: '10', width: '20', height: '10' }],
+      dateSignedTabs: [{ pageNumber: '1', xPosition: '10', yPosition: '25', width: '20', height: '10' }],
+      fullNameTabs: [{ pageNumber: '1', xPosition: '10', yPosition: '40', width: '20', height: '10' }],
+    });
   });
 
-  // TODO Lane 3/4: import sealSignatureLaunchRecord and relaySignatureLaunchRecord from their sealed launch-record module.
-  it.skip('round-trips a sealed launch record as ciphertext-only relay data', async () => {
-    const launchRelay = undefined as unknown as { sealSignatureLaunchRecord: (value: unknown) => Promise<string>; relaySignatureLaunchRecord: (ciphertext: string) => Promise<string> };
-    const ciphertext = await launchRelay.sealSignatureLaunchRecord({ recipientViewUrl: 'https://demo.docusign.invalid/view' });
-    const wire = await launchRelay.relaySignatureLaunchRecord(ciphertext);
-    expect(wire).not.toContain('recipientViewUrl');
+  it('round-trips a sealed launch record as ciphertext-only relay data', async () => {
+    const launch: SignatureLaunchRecord = {
+      requestId: 'private-request-id', signatureItemId: 'private-signature-item',
+      recipientViewUrl: 'https://demo.docusign.invalid/ceremony/private-envelope-id',
+      issuedAt: '2026-07-11T12:00:00.000Z', expiresAt: '2026-07-11T12:29:00.000Z', consumed: false,
+    };
+    const ciphertext = await sealPageJson(await derivePageKey(new Uint8Array(32).fill(7)), launch);
+    fetchMock.mockResolvedValueOnce(response({ ok: true }));
+    await new DocusignLaunchRelayClient({ baseUrl: 'https://relay.test', seatToken: 'synthetic-seat' }).putLaunch('intake-1', ciphertext);
+    const [, putInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const wire = requestBody(putInit);
+    expect(JSON.parse(wire)).toEqual({ launch_ciphertext_b64: ciphertext });
+    for (const forbidden of [
+      'recipientViewUrl', launch.recipientViewUrl, 'signatureItemId', launch.signatureItemId,
+      'requestId', launch.requestId, 'matter_id', 'private-matter-id', 'private-envelope-id',
+      'Avery', 'avery@example.invalid', 'document-bytes-123',
+    ]) expect(wire).not.toContain(forbidden);
+
+    const publicFetch = vi.fn().mockResolvedValue(response({ launch_ciphertext_b64: ciphertext }));
+    vi.stubGlobal('fetch', publicFetch);
+    await expect(new SigningLaunchRelayClient('intake-1', 'client-token').fetchLaunch()).resolves.toBe(ciphertext);
+    expect(publicFetch).toHaveBeenCalledWith('/docusign-signing/intake-1/launch', { headers: { Authorization: 'Bearer client-token' } });
   });
 
-  // TODO Lane 4: import assertValidDocusignBrokerRequest from backend/src/lib/docusignSigning/requestSchema.
-  it.skip('rejects document bytes, recipient details, and a matter id before a DocuSign call', () => {
-    const broker = undefined as unknown as { assertValidDocusignBrokerRequest: (value: unknown) => void };
-    expect(() => { broker.assertValidDocusignBrokerRequest({ documentBytes: 'bytes', recipientEmail: 'client@example.invalid', matter_id: 'private' }); }).toThrow();
+  it('rejects document bytes, recipient details, and a matter id before a DocuSign call', () => {
+    const result = validateDocusignConnectPayload(JSON.stringify({
+      documentBytes: 'bytes', recipientEmail: 'client@example.invalid', matter_id: 'private',
+    }), 'demo', Date.parse('2026-07-11T12:00:00.000Z'));
+    expect(result).toEqual({ ok: false, code: 'document_or_sensitive_field_forbidden', status: 400 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  // TODO Lane 2: import fileRetrievedDocusignArtifacts from src/platform/intake/intakeFiling.
-  it.skip('files signed artifacts together without changing the original Wave 8 form', async () => {
-    const filing = undefined as unknown as { fileRetrievedDocusignArtifacts: (value: unknown) => Promise<{ signedPath: string; certificatePath: string }> };
-    const filed = await filing.fileRetrievedDocusignArtifacts({ requestId: 'request', signedPdf: new Uint8Array(), certificate: new Uint8Array() });
-    expect(filed.signedPath).toContain('/signatures/');
-    expect(filed.certificatePath).toContain('/signatures/');
+  it('files signed artifacts together without changing the original Wave 8 form', async () => {
+    const { files, workspaceService } = recordingWorkspace();
+    const matterFolderPath = '/workspace/Client';
+    const requestSlug = 'signature-contract-request';
+    const originalForm = await fileIntakeDocument({ workspaceService, matterFolderPath, requestSlug, folder: 'pdf_form', fileName: 'wave-8-completed.pdf', bytes: new Uint8Array([8]) });
+    const signedPath = await fileIntakeDocument({ workspaceService, matterFolderPath, requestSlug, folder: 'signature', fileName: 'signed.pdf', bytes: new Uint8Array([9]) });
+    const certificatePath = await fileIntakeDocument({ workspaceService, matterFolderPath, requestSlug, folder: 'signature', fileName: 'certificate.pdf', bytes: new Uint8Array([10]) });
+    expect(signedPath).toBe('/workspace/Client/Requests/signature-contract-request/signatures/signed.pdf');
+    expect(certificatePath).toBe('/workspace/Client/Requests/signature-contract-request/signatures/certificate.pdf');
+    expect(files.get(originalForm)).toEqual(new Uint8Array([8]));
+    expect(files.get(signedPath)).toEqual(new Uint8Array([9]));
+    expect(files.get(certificatePath)).toEqual(new Uint8Array([10]));
   });
 
-  // TODO Lane 2 and Lane 4: import applyVerifiedSignatureRetrieval and handleDocusignConnectEvent.
-  it.skip('does not mark browser-return-only or webhook-only records signed', async () => {
-    const flow = undefined as unknown as { applyVerifiedSignatureRetrieval: (value: unknown) => Promise<{ status: string }>; handleDocusignConnectEvent: (value: unknown) => Promise<{ status: string }> };
-    expect((await flow.handleDocusignConnectEvent({ eventId: 'event-1' })).status).not.toBe('signed');
-    expect((await flow.applyVerifiedSignatureRetrieval({ browserReturnOnly: true })).status).not.toBe('signed');
+  it('does not mark browser-return-only or webhook-only records signed', async () => {
+    const intakeId = 'completion-pending-intake';
+    await saveLocalSignatureRecord(intakeId, {
+      record: {
+        requestId: 'signature-contract-request', signatureItemId: 'signature-item', sourcePdfFillItemId: 'pdf-fill-item',
+        sourceTemplateVersion: 1, sourceTemplateSha256: 'a'.repeat(64), wave8CompletedSha256: 'b'.repeat(64),
+        envelopeId: 'envelope-1', status: 'signing_opened', events: [],
+      },
+      egressReceipts: [],
+    });
+    const adapter = {
+      pollEnvelopeStatus: vi.fn().mockResolvedValue('sent'),
+      retrieveCompletion: vi.fn(),
+    };
+    const record = await retrieveAndFileDocusignCompletion({
+      intakeId, requestId: 'signature-contract-request', signatureItemId: 'signature-item',
+      matterFolderPath: '/workspace/Client', requestSlug: 'signature-contract-request', sourceFilePath: '/workspace/Client/form.pdf',
+      receipt: { issuedItemId: 'pdf-fill-item', templateId: 'template_approved_91', templateVersion: 1, sourceSha256: 'a'.repeat(64), completedSha256: 'b'.repeat(64), completedAt: '2026-07-11T12:00:00.000Z', pageVersion: 'w8' },
+      workspaceService: { readFileBinary: vi.fn(), writeFileBinary: vi.fn() }, adapter: adapter as never,
+    });
+    expect(record.status).toBe('completion_pending');
+    expect(adapter.retrieveCompletion).not.toHaveBeenCalled();
   });
 
-  // TODO Lane 4: import handleDocusignConnectEvent from backend/src/routes/docusignSigning.
-  it.skip('deduplicates repeated DocuSign Connect completion events before filing', async () => {
-    const handler = undefined as unknown as { handleDocusignConnectEvent: (value: { eventId: string }) => Promise<{ filed: boolean }> };
-    await handler.handleDocusignConnectEvent({ eventId: 'docusign-event-1' });
-    expect((await handler.handleDocusignConnectEvent({ eventId: 'docusign-event-1' })).filed).toBe(false);
+  it('deduplicates repeated DocuSign Connect completion events before filing', () => {
+    const records: SignatureWakeupRecord[] = [{
+      event_id: 'docusign-event-1', envelope_id: 'envelope-1', event_type: 'completed', at: '2026-07-11T12:00:00.000Z',
+    }];
+    expect(isDuplicateSignatureWakeup(records, { event_id: 'docusign-event-1' })).toBe(true);
+    expect(isDuplicateSignatureWakeup(records, { event_id: 'docusign-event-2' })).toBe(false);
   });
 });
