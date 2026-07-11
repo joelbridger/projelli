@@ -570,9 +570,9 @@ test('does not warn for a real license PDF in its matching slot', async ({ page 
 
 test('holds submission only while a selected file is being checked, then shows the settled warning', async ({ page }) => {
   await page.addInitScript(() => {
-    const nativeText = Blob.prototype.text;
-    Blob.prototype.text = async function delayedText(): Promise<string> {
-      const value = await nativeText.call(this);
+    const nativeArrayBuffer = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = async function delayedPdfRead(): Promise<ArrayBuffer> {
+      const value = await nativeArrayBuffer.call(this);
       await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
       return value;
     };
@@ -600,10 +600,12 @@ test('holds submission only while a selected file is being checked, then shows t
 
 test('keeps the latest file classification when a client changes a file while checking', async ({ page }) => {
   await page.addInitScript(() => {
-    const nativeText = Blob.prototype.text;
-    Blob.prototype.text = async function delayedTaxReturn(): Promise<string> {
-      const value = await nativeText.call(this);
-      if (value.includes('Form 1040')) await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+    const nativeArrayBuffer = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = async function delayedTaxReturn(): Promise<ArrayBuffer> {
+      const value = await nativeArrayBuffer.call(this);
+      if (new TextDecoder().decode(value).includes('Form 1040')) {
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 250));
+      }
       return value;
     };
   });
