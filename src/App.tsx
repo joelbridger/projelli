@@ -188,6 +188,12 @@ const IS_DEMO_MODE =
   ((typeof __LANTERN_DEMO__ !== 'undefined' && __LANTERN_DEMO__) ||
     (window as unknown as { __lanternDemo?: boolean }).__lanternDemo === true);
 
+// The onboarding picker is another entrance to the same workspace-opening
+// flow as the regular selector. Keep its non-interactive work bounded too, so
+// its button can show a useful error instead of staying at "Opening…" forever.
+const ONBOARDING_WORKSPACE_OPEN_TIMEOUT_MS = 30_000;
+const ONBOARDING_WORKSPACE_OPEN_LABEL = 'Opening the workspace';
+
 /**
  * QA-15: the browser build has no per-workspace localStorage namespacing —
  * two tabs on the same origin silently clobber each other's saved state
@@ -1226,7 +1232,6 @@ function AppShell() {
               );
             }
             if (!selected) return { ok: false, cancelled: true };
-            backend = await createFSBackend(selected);
             chosen = selected;
           } else {
             const webBackend = createWebFSBackend();
@@ -1234,10 +1239,31 @@ function AppShell() {
             backend = webBackend;
             chosen = '/' + handle.name;
           }
-          const svc = createWorkspaceService();
-          await svc.initialize(backend, chosen, {
-            createDefaultStructure: true,
-          });
+          // Keep this path in lockstep with WorkspaceSelector's new-workspace
+          // flow. The old onboarding-only version opened strictly, skipped the
+          // readability check, and had no timeout around native setup. An
+          // empty chosen folder could therefore leave this scene's busy state
+          // waiting on a never-settling native call instead of surfacing an
+          // honest retryable error.
+          const svc = await withTimeout(
+            (async () => {
+              const selectedBackend = isTauriEnvironment()
+                ? await createFSBackend(chosen, { createIfMissing: true })
+                : backend;
+              if (!selectedBackend) {
+                throw new Error('Could not prepare the selected workspace folder.');
+              }
+              const candidate = createWorkspaceService();
+              await candidate.initialize(selectedBackend, chosen, {
+                createIfMissing: true,
+                createDefaultStructure: true,
+              });
+              await candidate.getFileTree();
+              return candidate;
+            })(),
+            ONBOARDING_WORKSPACE_OPEN_TIMEOUT_MS,
+            ONBOARDING_WORKSPACE_OPEN_LABEL,
+          );
           // Wire the workspace into the app (sets rootPath, audit, file tree...).
           // The handler can abort (unsaved-changes guard on an already-open
           // workspace); treat that as the user cancelling this onboarding step.

@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { useLiveCrmRecords, type LiveCrmRecord } from '@/platform/crm/useLiveCrmRecords';
+import { useLiveCrmRecords } from '@/platform/crm/useLiveCrmRecords';
+import type { LiveCrmRecord } from '@/platform/crm/liveRecords';
 import { DirectorySurface } from './DirectorySurface';
 import { HouseholdRecordSurface } from './HouseholdRecordSurface';
 import type {
-  CrmAccount,
   CrmClientsActions,
   CrmFieldValue,
   CrmNote,
@@ -32,22 +32,22 @@ function syncState(kind: ReturnType<typeof useLiveCrmRecords>['freshness']['kind
 function householdFromRecord(record: LiveCrmRecord, currentSyncState: SyncState, lastSyncedAt?: string): HouseholdRecord {
   return {
     id: record.id,
-    name: stringValue(record.name, 'Untitled household'),
-    lifecycle: stringValue(record.lifecycle, 'Active'),
-    primaryAdvisor: stringValue(record.primaryAdvisor, 'Unassigned'),
-    ownership: record.ownership === 'shared' || record.ownership === 'other' ? record.ownership : 'mine',
-    serviceTier: stringValue(record.serviceTier, 'Standard'),
-    ...(typeof record.nextReview === 'string' ? { nextReview: record.nextReview } : {}),
+    name: stringValue(record['name'], 'Untitled household'),
+    lifecycle: stringValue(record['lifecycle'], 'Active'),
+    primaryAdvisor: stringValue(record['primaryAdvisor'], 'Unassigned'),
+    ownership: record['ownership'] === 'shared' || record['ownership'] === 'other' ? record['ownership'] : 'mine',
+    serviceTier: stringValue(record['serviceTier'], 'Standard'),
+    ...(typeof record['nextReview'] === 'string' ? { nextReview: record['nextReview'] } : {}),
     ...(lastSyncedAt ? { lastSyncedAt } : {}),
     syncState: currentSyncState,
-    facts: list(record.facts),
-    accounts: list(record.accounts),
-    members: list(record.members),
-    externalParties: list(record.externalParties),
-    notes: list(record.notes),
-    customFields: list(record.customFields),
-    tags: list(record.tags).filter((tag): tag is string => typeof tag === 'string'),
-    ...(typeof record.schedulingLinkUrl === 'string' ? { schedulingLinkUrl: record.schedulingLinkUrl } : {}),
+    facts: list(record['facts']),
+    accounts: list(record['accounts']),
+    members: list(record['members']),
+    externalParties: list(record['externalParties']),
+    notes: list(record['notes']),
+    customFields: list(record['customFields']),
+    tags: list(record['tags']).filter((tag): tag is string => typeof tag === 'string'),
+    ...(typeof record['schedulingLinkUrl'] === 'string' ? { schedulingLinkUrl: record['schedulingLinkUrl'] } : {}),
   };
 }
 
@@ -110,8 +110,8 @@ export function ClientsSurface({
       kind: 'household',
       matterId: previous?.matterId ?? household.id,
     };
-    delete (persisted as Partial<StoredHousehold>).syncState;
-    delete (persisted as Partial<StoredHousehold>).lastSyncedAt;
+    delete (persisted as Partial<StoredHousehold>)['syncState'];
+    delete (persisted as Partial<StoredHousehold>)['lastSyncedAt'];
     await live.save(persisted);
   };
 
