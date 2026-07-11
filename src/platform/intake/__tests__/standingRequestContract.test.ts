@@ -83,6 +83,11 @@ const fixtureUpload = new Uint8Array(
 );
 const enc = new TextEncoder();
 const fetchMock = vi.fn();
+
+function requireSlug(record: IntakeRecord): string {
+  if (!record.requestSlug) throw new Error('Expected the standing request to have a generated slug.');
+  return record.requestSlug;
+}
 const FIRM = {
   name: 'Synthetic Harbor Advisory',
   accent: '#123456',
@@ -463,9 +468,9 @@ describe('standing request receiver-owned contract', () => {
       expect.arrayContaining([expect.stringMatching(/^ri_[a-f0-9]{36}$/u)])
     );
     expect(createBodies).toHaveLength(2);
-    expect(Object.keys(JSON.parse(createBodies[0] ?? '{}')).sort()).toEqual(
-      Object.keys(JSON.parse(createBodies[1] ?? '{}')).sort()
-    );
+    const firstBody = JSON.parse(createBodies[0] ?? '{}') as Record<string, unknown>;
+    const secondBody = JSON.parse(createBodies[1] ?? '{}') as Record<string, unknown>;
+    expect(Object.keys(firstBody).sort()).toEqual(Object.keys(secondBody).sort());
     const relayVisible = createBodies[0] ?? '';
     for (const forbidden of [
       fixture.client_fact_seed.matter_id,
@@ -603,7 +608,7 @@ describe('standing request receiver-owned contract', () => {
     });
     expect(acked).toHaveLength(2);
     expect(paths).toEqual([
-      `/workspace/Demo Client/Requests/${standing.record.requestSlug}/${fixture.upload.file_name}`,
+      `/workspace/Demo Client/Requests/${requireSlug(standing.record)}/${fixture.upload.file_name}`,
     ]);
     expect(paths.join('\n')).not.toContain('/Requests/onboarding/');
     expect(facts).toEqual([
@@ -614,7 +619,7 @@ describe('standing request receiver-owned contract', () => {
         provenance: expect.objectContaining({
           channel: fixture.expected_routed_outcome.provenance_channel,
           entered_by: 'client',
-        }),
+        }) as IntakeFactUpsertInput['provenance'],
         verification: fixture.expected_routed_outcome.verification,
       }),
     ]);
@@ -722,7 +727,7 @@ describe('standing request receiver-owned contract', () => {
     ).toBe(false);
     expect(
       writtenPaths.some((path) =>
-        path.includes(`/Requests/${standing.record.requestSlug}/`)
+        path.includes(`/Requests/${requireSlug(standing.record)}/`)
       )
     ).toBe(true);
   });
@@ -975,8 +980,7 @@ describe('standing request receiver-owned contract', () => {
         expect(handle).not.toContain(
           item.label.toLowerCase().replaceAll(' ', '-')
         );
-        if ('fact_kind' in item && item.fact_kind)
-          expect(handle).not.toContain(item.fact_kind);
+        if ('fact_kind' in item) expect(handle).not.toContain(item.fact_kind);
       }
     }
   });
