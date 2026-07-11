@@ -1,6 +1,6 @@
 # 06 — The test campaign: the exit exam
 
-**Conforms to 00-master-spec decisions D1-D10 (reconciled 2026-07-11).**
+**Conforms to 00-master-spec decisions D1–D25 (reconciled 2026-07-11).**
 
 **Lane F deliverable.** This is the complete test plan for Path 4 (Lantern as a small
 RIA's system of record). Per the charter (`LANTERN-CRM.md`), the whole CRM is designed
@@ -11,8 +11,8 @@ by agents with no further design decisions.
 **How to read this doc:** each Layer states WHAT must be true, points at the EXISTING
 rail it extends (cited with a real path), and gives the CONCRETE spec (file to write,
 fixture to use, pass/fail numbers) an agent can execute without asking a design question.
-Where a fact depends on lane C or lane E's still-being-written output, that dependency is
-named explicitly (§Execution plan handles ordering).
+Where a fact depends on another design contract, this plan links to that contract directly;
+§6 handles execution ordering.
 
 ---
 
@@ -120,7 +120,8 @@ core is new; existing `tests/unit/crm/` only covers Wealthbox connector wiring t
 For every `EntityKind` in `design/02-data-model.md` §1 — `household`, `person`,
 `account`, `fact`, `note`, `task`, `workflowTemplate`, `workflowInstance`,
 `servicePolicy`, `activityEvent`, `firmDoc`, `tag`, `customFieldDef`, `opportunity`,
-`savedView`, `pipelineDef`, `stageDef`, `proposalRecord`, and `firmDirectoryEntry` — run
+`savedView`, `pipelineDef`, `stageDef`, `proposalRecord`, `firmDirectoryEntry`, and
+`importArchiveManifest` — run
 the shared base-record invariants below. The test fixture catalog is exhaustive: adding an
 EntityKind in 02 without adding it here fails this test file's catalog check.
 
@@ -137,13 +138,21 @@ EntityKind in 02 without adding it here fails this test file's catalog check.
   round-trip through the CRDT encoding. Property test: generate a random valid entity +
   a random sequence of valid mutations (via `fast-check` model-based testing —
   `fc.commands`), assert `id` is invariant across the whole run.
-- **Provenance and dating invariant (Fact):** a `Fact` can never exist without a non-empty
-  shared `source`, valid `asOf`, and valid `observedAt`; the type system plus a runtime
-  schema guard (mirroring the existing
+- **Provenance and dating invariant (Fact):** a `Fact` can never exist without a
+  provenance `source` object, valid `asOf`, and valid `observedAt`; `source.sources` may
+  legitimately be an empty citations array (`0..n`), exactly as [02 §1](02-data-model.md#1-entities)
+  defines it. The type system plus a runtime schema guard (mirroring the existing
   `DocSummary`/`SourceCard`/`RunRecord` Zod-or-equivalent pattern in
   `src/platform/types/`) rejects construction otherwise. Test: `fc.assert` over random
-  partial objects, assert every one missing a required provenance or dating field throws
+  partial objects, assert every one missing the provenance object or a required dating field throws
   or is rejected by the schema guard — zero silent acceptance.
+- **Import archive manifest contract:** validate every `importArchiveManifest` against
+  [02 §1.17](02-data-model.md#117-importarchivemanifest): immutable `kind`, firm-home
+  `matterId`, `importBatchId`, `provider`, `capturedAt`, and synthetic-only
+  `sourceWorkspaceLabel`; its `records` contain `rawRecordId`, `requestPath`,
+  `capturedAt`, `responseSha256`, and `byteLength`; and finalization permits only the
+  documented immutable `finalizedAt` and `manifestSha256`. Reject a manifest whose raw
+  archive entries or finalization fields do not match that contract.
 - **Matter-facade invariant:** every entity that attaches to a household resolves to a
   `matter_id` internally and the field is never renamed on the wire — a machine-checked
   regression test mirroring the existing renaming guard pattern (see `ARCHITECTURE.md`'s
@@ -170,7 +179,8 @@ of `DocumentJson`.
 
 For **every** mergeable document type lane B defines as CRDT-friendly (Task,
 WorkflowInstance minimum; ActivityFeed if lane B makes it CRDT rather than pure
-append-log):
+append-log), compare only a document that every test replica is authorized and subscribed
+to; these are document-level assertions, never a full-device state comparison:
 - **Commutativity:** applying a set of concurrent updates in any of N fixed permutations
   (no `Math.random`, matching the existing chaos-test convention) converges to a
   byte-identical materialized state.
@@ -182,6 +192,11 @@ append-log):
   field (or lane C's chosen conflict rule) resolves deterministically and identically on
   both replicas — assert both replicas' materialized view is byte-identical after sync,
   regardless of which replica synced first.
+- **Subscribe-to-watermark duplicate:** deliver a relay row whose cursor and immutable
+  blob ID were already durably applied while the client is draining its
+  subscribe-to-watermark window. The client verifies the matching immutable identity,
+  ignores the duplicate idempotently, does not start gap repair, and reaches `Live`.
+  A mismatched identity at an old cursor is a corruption failure, not a duplicate.
 
 ### 1.3 Envelope delivery semantics (owns: lane C's notification design)
 
@@ -198,12 +213,19 @@ same ticket-auth WS pattern).
   on their next poll/reconnect (no notification silently dropped). Test: create envelope,
   simulate offline client (no WS connection), reconnect, assert envelope is retrievable.
 - **Delivery dedup and durability:** simulate an at-least-once relay retry and a client
-  crash between mutation and send. The same `envelope_id` is shown once, the durable
-  transactional outbox/inbox survives restart, and an approval-class notice is eventually
-  delivered or receives its TTL/dead-letter marker — never silently lost or held forever.
-- **Client-confidential wall class:** a client-confidential envelope can be addressed only
-  to seats holding that client's key. Revoke a pending recipient's key grant before poll;
-  assert the relay and client do not deliver or reveal the envelope.
+  crash between mutation and send. The same `envelope_id` is shown once and the durable
+  transactional outbox/inbox survives restart. For an approval-class notice, leave the
+  only active recipient device offline for eight days, reconnect it, and assert it
+  receives and durably acknowledges the notice. That notice remains available until its
+  underlying approval is terminal **and** every active recipient device has durably
+  acknowledged it. In the paired informational-notice case, assert the seven-day TTL and
+  durable dead-letter marker. Neither class is silently lost.
+- **Client-confidential wall class:** assert D5's actual forward-looking wall rule, never
+  retrospective withdrawal. A send to a currently ineligible recipient is rejected; after
+  a wall change, future client keys rotate and new ineligible sends are rejected. A
+  previously addressed, old-key pending envelope is allowed to reach its seven-day expiry
+  and then becomes a dead-letter marker; the test does not claim a later wall can retract
+  it from a recipient who already retained the old key.
 - **Firm-operational wall class:** a firm-operational notice (for example, a firm task or
   "notify everybody") reaches every firm seat, including a seat walled from the related
   client content, while revealing no client-confidential title, body, link, or key. This is
@@ -231,45 +253,46 @@ Location: `tests/unit/crm/wealthboxImporter.idMapping.test.ts`, using only the f
 ### 1.5 Propagation properties (owns: lane C's `design/03-sync-and-notifications.md` §4)
 
 This is the marquee correctness problem (per the charter's pre-made decision #6). The
-binding property contract is P1–P10 in `design/03-sync-and-notifications.md` §4, under
-D4's per-instance offer with per-step decisions. The review starts all steps selected,
-allows accept/reject per step, and only advances the displayed template version once its
-required change-set is wholly present.
+binding property contract is P1–P10 in [03 §4.4](03-sync-and-notifications.md#44-propagation-properties-p1-p10),
+under D4's per-instance offer with per-step decisions. The review starts all steps
+selected, allows accept/reject per step, and advances the displayed revision set only
+once its required composed change-set is wholly present.
 
 Location: `tests/unit/workflows/templatePropagation.properties.test.ts`.
 
 The following ten **named, one-for-one** tests are mandatory. They do not collapse into
 broader tests and no additional concern is substituted for a P-property:
 
-1. **P1 completed outcome immutable** — an apply or conditional undo never changes an
-   established `completed_by`, `completed_rev`, or outcome.
-2. **P2 no destructive removal** — removal of a progressed step preserves it and sets or
-   re-evaluates `detachedFromTemplate`, rather than deleting progress.
-3. **P3 idempotent per version** — replaying the same offer/change-set has exactly the
+1. **P1 completed outcome immutable** — apply and undo never alter a valid completion
+   operation, `completed_by`, or outcome.
+2. **P2 no destructive removal** — a removal with any merged progress remains visible and
+   detached; it is never deleted.
+3. **P3 idempotent revision application** — replaying the same accepted revision/offer has exactly the
    same result as applying it once.
-4. **P4 concurrent-apply convergence** — independent clients applying the same accepted
-   per-instance, per-step offer converge byte-for-byte.
-5. **P5 version pinning** — an unapproved instance remains on its old displayed version;
-   an approved instance advances only after the complete required change-set is present.
-6. **P6 progress invariance** — propagation never changes a step's status, assignee, or
-   notes/progress state.
-7. **P7 conditional undo scope** — undo restores only template-derived fields untouched
-   since apply, reports fields it must not overwrite, and changes nothing else.
-8. **P8 added-step uniqueness** — an added stable step ID appears exactly once regardless
-   of replay, observation order, or number of clients.
-9. **P9 monotonic version** — propagation cannot lower an instance's displayed template
-   version; only the explicit conditional undo transition may do so.
-10. **P10 reassign-after-complete** — a post-completion reassignment opens the new
-    assignment while preserving the original completed outcome.
+4. **P4 concurrent-apply convergence** — equivalent offers applied on different devices
+   converge to the same instance state and accepted revision set.
+5. **P5 complete revision-set pinning** — an instance displays a target revision set only
+   after every required composed change is present; rejected fields retain their prior,
+   explicitly recorded source revisions.
+6. **P6 progress invariance** — propagation never modifies status, assignee, notes,
+   completion operations, or outcome.
+7. **P7 conditional undo scope** — undo restores only still-untouched derived cells from
+   its own operation and reports every later-changed cell it leaves alone.
+8. **P8 added-step uniqueness** — a template step ID appears once regardless of duplicate
+   apply, reconnect, or concurrent review.
+9. **P9 monotonic accepted knowledge** — `acceptedRevisionIds` only grows through apply;
+   undo adds a compensating event and never erases revision history.
+10. **P10 reassign-after-complete** — a completed step’s outcome stays intact; later
+    reassignment creates a new open assignment rather than changing the completion.
 
 The following named sync-attack regression scenarios are required in the same file, in
 addition to P1–P10:
 
 - **SA revision-path field race:** independently change two template-derived fields across
-  versions; each field's source revision is tracked and neither change is skipped by a
+  revisions; each field's source revision is tracked and neither change is skipped by a
   single coarse template revision.
 - **SA incomplete change-set visibility:** interrupt an approved multi-step apply; the
-  instance continues to display its old template version until every required change is
+  instance continues to display its old revision set until every required change is
   present after recovery.
 - **SA offline progress versus removal:** make step progress offline while another device
   removes that step; on merge, re-run the removal decision and preserve/detach progressed
@@ -280,6 +303,15 @@ addition to P1–P10:
 - **SA transactional outbox crash:** crash at each mutation/outbox boundary of an approved
   apply; after restart, the mutation and its approval envelope are both durable and deduped,
   or neither is committed.
+- **SA decision-ledger persistence and re-offer:** reject a field in revision R1, accept a
+  different field in descendant R2, and assert the immutable ledger entry keyed by
+  `(instanceId, revisionId, stepId, field)` preserves R1's rejection. The rejected field
+  is re-offered only when a descendant revision changes that same field, with its source
+  operation and superseded/re-offered state recorded.
+- **SA deterministic target selection:** create concurrent revision heads. An offer with
+  an unresolved same-field collision is an explicit review state, never a silent pick;
+  once resolved, every client applies the same topological target closure and the D3
+  HLC/operation-id winner rule.
 
 Pass criteria for all of §1: every property spec passes at ≥1,000 generated cases (the
 `fast-check` default is 100 runs; raise `numRuns` to 1000 for the propagation and CRDT
@@ -289,15 +321,19 @@ shrink-to-counterexample failures.
 ### 1.6 D1 lazy-subscription load budgets (80 fabricated households)
 
 Location: `tests/integration/crm/syncLoadBudget.test.ts`. This test consumes the numeric
-ceilings in `design/03-sync-and-notifications.md`'s D1 load-budget table; that table is
-the single source of truth for permitted subscriptions, bootstrap bytes, catch-up work,
-and completion time. The test fails if a ceiling is missing or non-numeric, as well as
-when the implementation exceeds one. It runs against all 80 fabricated Northcrest
-households, not a reduced sample.
+ceilings and total-bootstrap allocation in [03 §1.3](03-sync-and-notifications.md#13-hard-load-ceilings);
+that section is the single source of truth for permitted subscriptions, bytes, catch-up
+work, and completion time. The test fails if a ceiling or allocation is missing or
+non-numeric, if the allocation does not sum within the 64 MiB bootstrap ceiling, or when
+the implementation exceeds one. It runs against all 80 fabricated Northcrest households,
+not a reduced sample.
 
 - **Bootstrap budget:** start a fresh device. It receives the firm-wide collection docs
   and only its configured pinned/recent client-record docs, never all 80 client records.
-  Assert every measured metric is within the D1 bootstrap ceiling.
+  For each subscribed client record, measure its paired `crm:task-notes` transfer; assert
+  no task-notes doc is fetched for an unsubscribed client. Independently measure the
+  documented allocations for firm docs, client records, task-notes, checkpoints, and
+  tails; their total stays within 64 MiB and every ciphertext chunk is at most 768 KiB.
 - **Restart budget:** restart after a clean persisted session. Assert restored
   subscriptions and catch-up work stay within the D1 restart ceiling and do not expand
   into an all-household re-subscription.
@@ -306,10 +342,22 @@ households, not a reduced sample.
   subscriptions meet the D1 offline-return ceiling while preserving convergence.
 - **Wall-change budget:** revoke then restore one client's eligibility for a seat. Assert
   its client-record subscription and key are removed before protected content can be read,
-  then restored only as allowed; all wall-change work meets the D1 numeric ceiling.
+  its paired `crm:task-notes` subscription is removed too, then both are restored only as
+  allowed; all wall-change work meets the D1 numeric ceiling.
 
 The test records measured values beside the four D1 ceilings so a failure identifies
 bootstrap, restart, offline return, or wall change rather than producing one opaque result.
+
+### 1.7 Checkpoint reconstruction validation (owns: lane C's retention protocol)
+
+Location: `tests/integration/crm/checkpointValidation.test.ts`.
+
+Starting from a prior validated checkpoint, have an independent validator replay every
+contiguous retained raw row through declared frontier `F`, then compare its state vector
+and canonical state hash with the signed checkpoint manifest. Only a matching signed
+receipt counts toward the two-validator rule. The adversarial case deliberately builds a
+self-consistent checkpoint that omits one retained row but labels itself frontier `F`:
+both validators must reject it, it receives no qualifying receipt, and pruning is blocked.
 
 ---
 
@@ -352,10 +400,11 @@ ordered list of `{clientIndex, action, expectedInvariant}` steps, run against a 
 6 simulated seats (the charter's target ≤10-seat boundary; 6 matches the Northcrest
 Layer-3 firm size for continuity).
 
-1. **Concurrent task edits.** All 6 clients open the same task simultaneously; each edits
+1. **Concurrent task edits.** All 6 clients open the same authorized, subscribed task simultaneously; each edits
    a different field (assignee, due date, priority, note, checklist item, status) within
    a 2-second window; all sync. Assert: final state has all 6 edits present, no field
-   reverted, byte-identical across all 6 clients' materialized views.
+   reverted, and is byte-identical across those six clients' shared authorized +
+   subscribed document set.
 2. **Offline/rejoin.** 2 of 6 clients go offline (sync socket closed); the online 4 make
    10 more edits across various tasks; the offline 2 rejoin after the online clients have
    fully converged. Assert: the rejoining clients converge to the same state within one
@@ -372,22 +421,28 @@ Layer-3 firm size for continuity).
    different clients at edit time. Propagation offers are reviewed per instance with
    per-step accept/reject choices and all-on defaults. Assert: P1–P10 and the named
    sync-attack scenarios from §1.5 hold at the *system* level, including byte-identical
-   views after quiesce and retained in-progress work.
+   authorized + subscribed workflow documents after quiesce and retained in-progress work.
 5. **Notification delivery/dedup at scale.** Combine the day's total event count (from
    steps 1-4) against actual envelopes delivered per seat; assert zero lost
    notifications, zero duplicate notifications, and — since the relay is content-blind by
    design — assert the relay's own storage/logs contain no plaintext of any task/note/
    assignment content at any point during the day (re-checked adversarially in §5).
 6. **Device bootstrap.** ✱ A 7th seat is added mid-day (new device, fresh keychain, joins
-   the firm). Assert: the new device receives the full current materialized state (not
-   just future updates) within one sync cycle, and its view matches the other 6 clients'
-   view byte-for-byte once caught up.
+   the firm). Assert: the new device receives the current authorized + subscribed document
+   set (not just future updates) within one sync cycle, and that set matches the equivalent
+   set on the other clients once caught up. Assert separately that client records and
+   `crm:task-notes` outside its subscriptions, and every walled document, are absent from
+   its device.
 
 ### 2.3 Pass criteria (numeric, checked automatically by the harness after each script)
 
-- **Convergence:** after quiesce (no client has pending local or remote updates), 100% of
-  clients' materialized views are byte-identical (a deep-equal / hash comparison of the
-  serialized view, not a UI screenshot diff).
+- **Convergence:** after quiesce (no client has pending local or remote updates), each
+  seat's authorized + subscribed document set is byte-identical to the equivalent set on
+  every comparable seat (a deep-equal / hash comparison of serialized document state, not
+  a UI screenshot diff). This is never a full-device or all-seat-state comparison.
+- **Access absence:** for every seat, assert independently that unsubscribed records and
+  task-notes, plus every ethically walled record and task-notes, are absent from local
+  storage, search, projections, and rendered views.
 - **Zero lost updates:** the count of distinct user-initiated edits issued during the
   script equals the count of distinct edits reflected in the final converged state (an
   edit that get silently overwritten by a "last write wins" collapse on the SAME field is
@@ -407,9 +462,8 @@ Layer-3 firm size for continuity).
 ### 3.1 Setup
 
 Uses the fabricated Northcrest 80-household corpus (§0), with 6 simulated seats matching a small RIA
-team (an advisor lead, 2 associate advisors, an ops/compliance person, 2 support staff —
-finalize the exact 6 roles against lane D's screens doc when it lands, since role-specific
-screens determine who does what each day). Corpus is synced to the Legion via the
+team (an advisor lead, 2 associate advisors, an ops/compliance person, and 2 support
+staff). Corpus is synced to the Legion via the
 existing `scripts/legion-sync-launch.sh` pattern (frontend-only fast sync where possible;
 full sync + rebuild when Rust changed). App is driven via `scripts/legion-drive.sh` /
 `desktop-drive.mjs` (CDP, data-testid based) with `legion_agent.py` for any native-dialog
@@ -423,15 +477,18 @@ per-spec logs) — no new evidence tooling needed.
 
 ### 3.2 Day-by-day script
 
-**Day 1 — Onboarding the book.** The importer (lane E) ingests all 80 households from the
-fabricated Northcrest Wealthbox-API simulator plus its fabricated file/email/meeting
-corpus. Checklist: all 80 households are present in the directory and Client Map; the
-fidelity report (§4) is complete; every seat sees permitted firm-wide collections; client
+**Day 1 — Onboarding the book.** The importer ingests all 80 households from the
+fabricated Northcrest Wealthbox-API simulator and its fabricated structured email/meeting
+records. It does **not** ingest attachments through an API. Checklist: all 80 households
+are present in the directory and Clients; the fidelity report (§4) is complete; every
+in-flight workflow has the [05 §2.5a](05-migration-importer.md#25a-open-workflow-instances-guided-re-creation-at-cutover)
+operator checklist with its recorded decision; every affected client has the [05 §2.5b](05-migration-importer.md#25b-files-and-attachments-operator-export-plus-client-level-gap-flags)
+attachment exported-or-gap status; every seat sees permitted firm-wide collections; client
 records remain lazily subscribed according to §1.6; import progress is visible and honest
 throughout (no false-success class of bug — the QA-74 precedent in §0).
 
-**Day 2 — Morning triage, x2 (two advisors).** Two seats independently open Practice
-Home. Checklist: the day's triage view is computed live (not stale), matches the actual
+**Day 2 — Morning triage, x2 (two advisors).** Two seats independently open Home.
+Checklist: the day's triage view is computed live (not stale), matches the actual
 state of tasks/meetings due that day, capacity-aware surfacing shows a realistic subset
 (not all 21 possible tasks framed as due), and internal-lane items never bleed into any
 client-facing surface opened later the same day.
@@ -453,7 +510,8 @@ are live, at least one with uncommitted local progress on a different seat's cli
 Propagation is proposed; the appropriate seat(s) review and approve per lane C's model.
 Checklist: this is the Layer-3 system-level re-run of §1.5 and §2.2 step 4's properties,
 now on real hardware with real SQLCipher/keychain/CRDT persistence — no clobbered
-progress, all 8 instances converge identically across all 6 seats after propagation.
+progress, all 8 instances converge identically across the seats authorized and
+subscribed to those workflow documents after propagation.
 
 **Day 5 — Reports + exam export.** Each report type lane A/D define (e.g. "no contact in
 6 months," birthdays, service-tier due-for-review) is run and checked against the known
@@ -470,8 +528,9 @@ present in the live system appears in the export with matching content (hash com
 
 Every day's checklist is pass/fail per item, auto-collected on failure (existing pattern).
 A day is GREEN only if every item passes; the week is GREEN only if all 5 days are green
-AND the cumulative convergence check (all 6 seats' full materialized state, hashed, equal
-to each other) holds at the end of Day 5.
+AND the cumulative convergence check for each shared authorized + subscribed document set
+holds at the end of Day 5, with separate proof that unsubscribed and walled documents are
+absent from each seat.
 
 ---
 
@@ -526,7 +585,7 @@ existing `tests/security/` convention for adversarial specs).
 2. **Cross-client leak.** Adversarial: seat A and seat B are both simulated firm members but A
    is walled from a specific household (per the existing ethical-wall mechanism in
    `sync-relay.test.ts`). Attempt every read path in the CRM against that household from
-   A's client (Practice Home surfacing, search, reports, notification content) — assert
+   A's client (Home surfacing, search, reports, notification content) — assert
    zero paths surface any content from the walled household, not just the obvious
    client-record page. This generalizes the existing walled-403 test (which only checks
    the sync socket) to every CRM read surface.
@@ -539,7 +598,7 @@ existing `tests/security/` convention for adversarial specs).
    unmistakable") as a machine-checked test, not just a visual convention.
 4. **Stale view presented as current.** Adversarial: force a client's local materialized
    view to be stale (disconnect before syncing a remote update from another seat), then
-   assert the UI for every "live" surface (Practice Home, reports, the household record)
+   assert the UI for every "live" surface (Home, reports, the household record)
    either (a) shows a visible staleness indicator or (b) blocks rendering until sync
    completes — never silently presents outdated data as current. Ties directly to design
    principle #2 ("staleness is visible, never silent") and the deep-dive's explicit "never
@@ -623,8 +682,9 @@ The test campaign — and by extension the one-shot build wave it exits — is D
 2. **Zero trust-breaker-class bugs open** — not "zero known trust-breaker bugs of high
    severity," zero, full stop, matching the precedent's own bar (§0).
 3. **The numeric convergence bar holds at every layer that defines one:** byte-identical
-   materialized views after quiesce (Layers 1.2, 2.3, 3.3), 100% fidelity (Layer 4), zero
-   lost updates and zero notification duplicates/drops (Layer 2.3).
+   authorized + subscribed document sets after quiesce, with unsubscribed and walled
+   documents absent (Layers 1.2, 2.3, 3.3), 100% fidelity (Layer 4), zero lost updates,
+   and zero notification duplicates/drops (Layer 2.3).
 
 Anything short of this is not "ready for the next stage" — per the charter, the program's
 next real gate (§10 of the deep-dive: consolidation-appetite evidence from strangers) is
