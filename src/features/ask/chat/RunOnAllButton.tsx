@@ -209,7 +209,7 @@ export function RunOnAllButton({
         disabled={!canRun || isRunning}
         title={
           localOnly
-            ? 'Off while "On this computer only" is selected — this compares cloud providers over the network.'
+            ? 'Off while Local AI only is selected. This compares cloud providers over the network.'
             : !hasComparison
               ? 'Run on all 3 providers (paid license)'
               : distinctProviderIds.size < 2

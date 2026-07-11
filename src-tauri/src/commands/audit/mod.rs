@@ -39,8 +39,14 @@ pub fn manage_state(app: &tauri::App) {
 }
 
 #[tauri::command]
-pub async fn audit_set_workspace(state: State<'_, AuditState>, path: String) -> Result<(), String> {
-    *state.workspace.lock().await = Some(std::path::PathBuf::from(path));
+pub async fn audit_set_workspace(
+    state: State<'_, AuditState>,
+    policy: State<'_, crate::network_policy::NetworkPolicy>,
+    path: String,
+) -> Result<(), String> {
+    let workspace = std::path::PathBuf::from(path);
+    policy.set_audit_workspace(workspace.clone());
+    *state.workspace.lock().await = Some(workspace);
     Ok(())
 }
 

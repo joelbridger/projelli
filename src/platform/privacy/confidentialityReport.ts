@@ -6,8 +6,8 @@
  * that a lawyer can print and keep in the client file.
  *
  * HONESTY CONTRACT (the entire point of this feature):
- *   - Only say "nothing left this machine" when ALL AI sends for the matter
- *     were local-only (dataLeaves === false).
+ *   - Local AI entries make an AI-specific claim only. They do not describe
+ *     unrelated device connections.
  *   - If any send was BYOK-direct ('direct' mode), say plainly: prompts for
  *     those calls went to the user's own AI provider under their own key.
  *     No Lantern content server was in the path. No training by Lantern.
@@ -43,15 +43,26 @@ export interface ConfidentialityReport {
   calls: ConfidentialityReportCall[];
   /** The honest attestation sentence selected by the mode mix. */
   attestation: string;
+  networkReceipts: NetworkReceiptRow[];
+}
+
+export interface NetworkReceiptRow {
+  at: string;
+  operationLabel: string;
+  destination: string;
+  result: string;
+  aiMode: ConfidentialityMode;
+  offlineMode: boolean;
+  direction: string;
+  failureCode?: string;
 }
 
 /**
  * Pick the honest attestation text based on the mode mix.
  *
  * HONESTY RULES (the critical constraint):
- *  - all local-only: "Every AI call for this matter ran on a local model on
- *    your machine. Nothing left this machine. No third party saw this matter's
- *    data."
+ *  - all local-only: "Every recorded AI call for this client ran on this
+ *    computer. No AI prompt or file was sent to a cloud AI."
  *  - any direct (BYOK): "The AI calls for this matter went directly from your
  *    machine to your AI provider under your own API key. Lantern was not in
  *    the path and has no copy of these prompts. Your provider received the
@@ -87,8 +98,8 @@ export function pickAttestation(byMode: Record<string, number>): string {
 
   if (hasLocal && !hasDirect && !hasAssured) {
     return (
-      'Every AI call for this client ran on a local model on your machine. ' +
-      'Nothing left this machine. No third party saw this client\'s data.'
+      'Every recorded AI call for this client ran on this computer. ' +
+      'No AI prompt or file was sent to a cloud AI.'
     );
   }
 
@@ -96,7 +107,7 @@ export function pickAttestation(byMode: Record<string, number>): string {
     const parts: string[] = [];
     if (hasLocal) {
       parts.push(
-        `${calls(localCount)} ran on a local model on your machine (nothing left the device).`
+        `${calls(localCount)} ran on this computer. No AI prompt or file was sent to a cloud AI.`
       );
     }
     parts.push(
@@ -112,7 +123,7 @@ export function pickAttestation(byMode: Record<string, number>): string {
     const parts: string[] = [];
     if (hasLocal) {
       parts.push(
-        `${calls(localCount)} ran on a local model on your machine (nothing left the device).`
+        `${calls(localCount)} ran on this computer. No AI prompt or file was sent to a cloud AI.`
       );
     }
     parts.push(
@@ -127,7 +138,7 @@ export function pickAttestation(byMode: Record<string, number>): string {
   const parts: string[] = [];
   if (hasLocal) {
     parts.push(
-      `${calls(localCount)} ran on a local model (nothing left the device).`
+      `${calls(localCount)} ran on this computer. No AI prompt or file was sent to a cloud AI.`
     );
   }
   if (hasDirect) {
@@ -191,6 +202,26 @@ export function buildConfidentialityReport(
   const allUnderOwnKeyOrLocal = calls.every(
     (c) => !c.dataLeaves || c.destination === 'provider-direct'
   );
+  const networkReceipts = entries
+    .filter((entry) => {
+      if (entry.action !== 'network_egress') return false;
+      const meta = entry.metadata;
+      const receiptMatterId = meta['matter_id'];
+      return matterId === null || receiptMatterId === matterId;
+    })
+    .map((entry): NetworkReceiptRow => {
+      const meta = entry.metadata;
+      return {
+        at: entry.timestamp,
+        operationLabel: typeof meta['operationLabel'] === 'string' ? meta['operationLabel'] : 'Unknown network action',
+        destination: typeof meta['destination'] === 'string' ? meta['destination'] : 'approved destination',
+        result: typeof meta['result'] === 'string' ? meta['result'] : 'unknown',
+        aiMode: (meta['aiMode'] as ConfidentialityMode | undefined) ?? 'direct',
+        offlineMode: meta['offlineMode'] === true,
+        direction: typeof meta['direction'] === 'string' ? meta['direction'] : 'unknown',
+        ...(typeof meta['failureCode'] === 'string' ? { failureCode: meta['failureCode'] } : {}),
+      };
+    });
 
   return {
     matterId,
@@ -202,5 +233,6 @@ export function buildConfidentialityReport(
     allUnderOwnKeyOrLocal,
     calls,
     attestation: pickAttestation(byMode),
+    networkReceipts,
   };
 }

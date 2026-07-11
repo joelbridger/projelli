@@ -92,7 +92,7 @@ describe('FirmSecurityPack — per-mode egress facts', () => {
 
   it('labels the three modes clearly', () => {
     const text = renderAndGetText();
-    expect(text).toContain('Local-only');
+    expect(text).toContain('Local AI only');
     expect(text).toContain('Direct');
     expect(text).toContain('Assured');
   });

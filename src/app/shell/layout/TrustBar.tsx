@@ -20,6 +20,7 @@ import { useEntityLabelEnglish } from '@/platform/hooks/useEntityLabel';
 import { IconButton } from '@/ui/kp';
 import { EV_OPEN_PRIVACY_CENTER } from '@/config/identity';
 import { EgressIndicator } from '@/platform/privacy/ui/EgressIndicator';
+import { DeviceConnectionStatus } from '@/platform/privacy/ui/DeviceConnectionStatus';
 import { brandText } from '@/config/brandText';
 
 interface TrustBarProps {
@@ -51,7 +52,7 @@ export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
 
   const egressTooltip =
     confidentialityMode === 'local-only'
-      ? 'On this computer only: AI runs on your machine. No AI prompt or file is sent to a cloud AI.'
+      ? 'Local AI only: AI runs on this computer. No AI prompt or file is sent to cloud AI.'
       : confidentialityMode === 'assured'
         ? brandText('Assured: requests route through your firm\'s zero-retention proxy. Lantern never sees content.')
         : brandText('Sent to your AI provider account. Sent straight from your machine to your provider with your own API key. Lantern is not in between. Your provider receives the prompt and may keep it briefly for abuse monitoring; control training opt-out in your provider account.');
@@ -89,6 +90,8 @@ export function TrustBar({ inline = false, onOpenAiSettings }: TrustBarProps) {
           ? { className: 'min-w-0 shrink overflow-hidden' }
           : {})}
       />
+
+      <DeviceConnectionStatus className="min-w-0 shrink overflow-hidden" />
 
       {/* Privacy Center shortcut — one click away from anywhere in the app. */}
       <IconButton

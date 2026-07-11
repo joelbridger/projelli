@@ -166,7 +166,7 @@ export function ChatModelPicker({
             className="px-2 py-3 text-xs text-muted-foreground"
           >
             {localOnly
-              ? 'No local model available. Set a local model to use chat on this computer only.'
+              ? 'No local model available. Set up Local AI only to use chat with a local model.'
               : 'No AI provider configured. Add a valid API key in Account to start.'}
           </div>
         ) : (

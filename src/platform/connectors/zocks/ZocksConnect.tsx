@@ -18,7 +18,6 @@ import {
 } from '@/platform/utils/zocks-commands';
 import { getMatters } from '@/platform/matter/matterStore';
 import { buildZocksMatterMap } from '@/platform/rag/matterResolver';
-import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
 import { InfoHelp } from '@/ui/InfoHelp';
 
@@ -59,10 +58,6 @@ export function ZocksConnect() {
       setError('Paste a Zocks API key first.');
       return;
     }
-    if (isPersistedLocalOnly()) {
-      setError('Local-only mode is on. Turn it off before connecting Zocks, because sign-in contacts Zocks.');
-      return;
-    }
     setBusy(true);
     try {
       const connectedInfo = await zocksConnect(trimmed);
@@ -78,20 +73,11 @@ export function ZocksConnect() {
 
   async function syncNow() {
     setError(null);
-    if (isPersistedLocalOnly()) {
-      setError('Local-only mode is on. Turn it off before syncing Zocks, because it contacts Zocks.');
-      return;
-    }
     setSyncing(true);
     try {
       const result = await zocksSync(buildZocksMatterMap(getMatters()));
       setReport(result);
-      // Re-check: zocksSync() itself just awaited a Zocks call, so a
-      // Local-only switch mid-flight could otherwise slip past the guard
-      // above and still fire this follow-up Zocks call.
-      if (!isPersistedLocalOnly()) {
-        setUnassigned(await zocksListUnassigned());
-      }
+      setUnassigned(await zocksListUnassigned());
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

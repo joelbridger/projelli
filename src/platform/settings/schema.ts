@@ -319,11 +319,11 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Confidentiality mode',
     description:
-      "Controls where AI requests are allowed to go. Local-only never sends your prompts or files to a cloud AI (local models only). Direct (the default) sends prompts straight from your machine to your chosen provider with your own key. Assured routes through your firm's zero-retention proxy once your firm admin sets a managed key.",
+      "Controls where AI requests are allowed to go. Local AI only never sends your prompts or files to cloud AI. Direct (the default) sends prompts straight from your machine to your chosen provider with your own key. Assured routes through your firm's zero-retention proxy once your firm admin sets a managed key.",
     type: 'select',
     defaultValue: 'direct',
     options: [
-      { value: 'local-only', label: 'Local-only (no cloud AI)' },
+      { value: 'local-only', label: 'Local AI only (no cloud AI)' },
       { value: 'direct', label: 'Direct (your key, your provider)' },
       { value: 'assured', label: 'Assured (firm managed key)' },
     ],
@@ -333,7 +333,7 @@ export const SETTINGS_SCHEMA: SettingDefinition[] = [
     category: 'ai-privacy',
     label: 'Network Lockdown',
     description:
-      'When on, network-capable extensions are disabled: plugins cannot make network requests and MCP servers are turned off, so confidential work cannot be sent out through an extension. Turns on automatically while a sensitive client is active or while Local-only is selected. A custom control for this lives in the confidentiality section.',
+      'When on, network-capable extensions are disabled: plugins cannot make network requests and MCP servers are turned off, so confidential work cannot be sent out through an extension. Turns on automatically while a sensitive client is active or while Local AI only is selected. A custom control for this lives in the confidentiality section.',
     type: 'toggle',
     defaultValue: false,
   },

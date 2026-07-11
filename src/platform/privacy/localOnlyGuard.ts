@@ -84,8 +84,8 @@ export function assertLocalOnlyAllowsSend(provider: string): void {
 export class LocalOnlyExternalError extends Error {
   constructor(op: string) {
     super(
-      `Local-only mode is on, so "${op}" can't run — it would contact a service ` +
-        `off your device. Turn off Local-only mode in the Privacy Center to use it.`,
+      `Local AI only is on, so "${op}" cannot use cloud AI. ` +
+        `Choose a local AI model or turn off Local AI only in the Privacy Center.`,
     );
     this.name = 'LocalOnlyExternalError';
   }

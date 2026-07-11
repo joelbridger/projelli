@@ -122,13 +122,48 @@ impl EgressHttpClient {
         authorized: &AuthorizedGeneration,
         cancellation: &mut PolicyCancellation,
     ) -> Result<Response, EgressHttpError> {
-        self.policy.assert_authorized_generation(authorized)?;
+        if let Err(error) = self.policy.assert_authorized_generation(authorized) {
+            self.policy.record_egress_result(
+                authorized,
+                "cancelled",
+                Some("POLICY_CHANGED_OR_UNAVAILABLE"),
+            );
+            return Err(error.into());
+        }
         tokio::select! {
-            _ = cancellation.cancelled() => Err(NetworkPolicyError::Uninitialized.into()),
+            _ = cancellation.cancelled() => {
+                self.policy.record_egress_result(
+                    authorized,
+                    "cancelled",
+                    Some("POLICY_CHANGED_OR_UNAVAILABLE"),
+                );
+                Err(NetworkPolicyError::Uninitialized.into())
+            },
             response = self.client.request(method.clone(), url.clone()).headers(headers.clone()).send() => {
-                let response = response?;
-                self.policy.assert_authorized_generation(authorized)?;
-                Ok(response)
+                match response {
+                    Err(error) => {
+                        self.policy.record_egress_result(
+                            authorized,
+                            "failed",
+                            Some("NETWORK_REQUEST_FAILED"),
+                        );
+                        Err(error.into())
+                    }
+                    Ok(response) => match self.policy.assert_authorized_generation(authorized) {
+                        Ok(()) => {
+                            self.policy.record_egress_result(authorized, "completed", None);
+                            Ok(response)
+                        }
+                        Err(error) => {
+                            self.policy.record_egress_result(
+                                authorized,
+                                "cancelled",
+                                Some("POLICY_CHANGED_OR_UNAVAILABLE"),
+                            );
+                            Err(error.into())
+                        }
+                    }
+                }
             }
         }
     }

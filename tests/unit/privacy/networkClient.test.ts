@@ -18,6 +18,8 @@ import {
   OfflineModeBlockedError,
   UnregisteredEgressOperationError,
 } from '@/platform/privacy/networkClient';
+import { setNetworkEgressReceiptEmitter } from '@/platform/privacy/networkEgressReceipt';
+import type { AuditEntry } from '@/platform/types/audit';
 
 function nativeStatus(offlineMode: boolean, generation: number): void {
   invokeMock.mockImplementation(async (command: string) => {
@@ -37,6 +39,7 @@ describe('networkClient', () => {
       isHydrating: false,
       hydrationError: null,
     });
+    setNetworkEgressReceiptEmitter(null);
   });
 
   it('fails loudly when a caller has no registered operation', async () => {
@@ -91,6 +94,27 @@ describe('networkClient', () => {
     ).rejects.toBeInstanceOf(OfflineModeBlockedError);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it.each(['telemetry', 'diagnostics'] as const)(
+    'writes exactly one real-generation receipt when Offline Mode blocks %s',
+    async (operationId) => {
+      nativeStatus(true, 47);
+      const rows: Array<Omit<AuditEntry, 'id' | 'timestamp'>> = [];
+      setNetworkEgressReceiptEmitter((entry) => rows.push(entry));
+
+      await expect(
+        egressFetch(operationId, 'https://forms.lanternplatform.app/api/forms/event')
+      ).rejects.toBeInstanceOf(OfflineModeBlockedError);
+
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.metadata).toMatchObject({
+        operationId,
+        policyGeneration: 47,
+        result: 'blocked-before-network',
+        failureCode: 'OFFLINE_MODE_BLOCKED',
+      });
+    }
+  );
 
   it('keeps literal loopback local AI available while Offline Mode is on', async () => {
     nativeStatus(true, 5);

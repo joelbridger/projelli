@@ -67,6 +67,7 @@ export class AuditPersistenceError extends Error {
 
 const CRITICAL_ACTIONS = new Set<AuditActionType>([
   'egress',
+  'network_egress',
   'model_call',
   'file_export',
   'file_create',
@@ -692,7 +693,7 @@ function describeAuditEvent(event: AuditEvent): string {
       // (Ask, redline, matter-at-a-glance, email) shares this description.
       const where =
         event.payload.destination === 'local'
-          ? 'on your machine (nothing left)'
+          ? 'with Local AI'
           : event.payload.destination === 'demo-proxy'
             ? 'the browser demo relay'
             : event.payload.destination === 'assured-proxy'

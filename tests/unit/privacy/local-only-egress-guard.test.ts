@@ -160,7 +160,7 @@ describe('localOnlyGuard (A1)', () => {
   it('blocks a cloud send in local-only mode', () => {
     h.mode = 'local-only';
     expect(() => assertLocalOnlyAllowsSend('openai')).toThrow(LocalOnlyEgressError);
-    expect(() => assertLocalOnlyAllowsSend('anthropic')).toThrow(/Local-only/i);
+    expect(() => assertLocalOnlyAllowsSend('anthropic')).toThrow(/Local AI only/i);
     expect(() => assertLocalOnlyAllowsSend('google')).toThrow(LocalOnlyEgressError);
   });
 

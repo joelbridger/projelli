@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { JotformConnect } from '@/platform/connectors/jotform/JotformConnect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { SK_SETTINGS } from '@/config/identity';
 import type { JotformSyncReport } from '@/platform/utils/jotform-commands';
 
 const jotformCancel = vi.fn();
@@ -48,7 +47,9 @@ function report(overrides: Partial<JotformSyncReport> = {}): JotformSyncReport {
   } as JotformSyncReport;
 }
 
-describe('JotformConnect Local-only guard', () => {
+const OFFLINE_BLOCK = 'Offline Mode is on. Lantern cannot connect to the internet.';
+
+describe('JotformConnect Offline Mode guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -71,7 +72,7 @@ describe('JotformConnect Local-only guard', () => {
     await waitFor(() => {
       expect(jotformSync).toHaveBeenCalled();
     });
-    expect(screen.queryByText(/local-only mode is on/i)).toBeNull();
+    expect(screen.queryByText(/offline mode is on/i)).toBeNull();
   });
 
   it('allows the sync when the persisted mode is explicitly direct', async () => {
@@ -87,57 +88,48 @@ describe('JotformConnect Local-only guard', () => {
     });
   });
 
-  it('blocks the sync when the confidentiality mode is genuinely local-only', async () => {
+  it('shows the native Offline Mode refusal before a sync can begin', async () => {
+    jotformSync.mockRejectedValue(new Error(OFFLINE_BLOCK));
+
+    render(<JotformConnect />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync submissions' }));
+
+    expect(
+      await screen.findByText(OFFLINE_BLOCK)
+    ).toBeTruthy();
+    expect(jotformSync).toHaveBeenCalledOnce();
+  });
+
+  it('leaves Local AI only free to start a connector sync', async () => {
     useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    jotformSync.mockResolvedValue(report());
 
     render(<JotformConnect />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sync submissions' }));
 
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing jotform/i)
-    ).toBeTruthy();
-    expect(jotformSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(jotformSync).toHaveBeenCalled());
   });
 
-  it('blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
-
-    render(<JotformConnect />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync submissions' }));
-
-    expect(
-      await screen.findByText(/local-only mode is on\. turn it off before syncing jotform/i)
-    ).toBeTruthy();
-    expect(jotformSync).not.toHaveBeenCalled();
-  });
-
-  it('blocks Connect Jotform during the hydration window too', async () => {
+  it('shows the native Offline Mode refusal before connecting Jotform', async () => {
     jotformIsConnected.mockResolvedValue(false);
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
+    jotformConnect.mockRejectedValue(new Error(OFFLINE_BLOCK));
 
     render(<JotformConnect />);
     fireEvent.change(await screen.findByPlaceholderText('Jotform API key'), { target: { value: 'k' } });
     fireEvent.click(screen.getByRole('button', { name: 'Connect Jotform' }));
 
     expect(
-      await screen.findByText(/local-only mode is on\. turn it off before connecting jotform/i)
+      await screen.findByText(OFFLINE_BLOCK)
     ).toBeTruthy();
-    expect(jotformConnect).not.toHaveBeenCalled();
+    expect(jotformConnect).toHaveBeenCalledOnce();
   });
 
-  it('regression: skips the post-connect forms refresh if the user flips to local-only while jotformConnect is still awaiting', async () => {
+  it('stops follow-up work when Offline Mode cancels an in-progress connect', async () => {
     jotformIsConnected.mockResolvedValue(false);
     jotformConnect.mockImplementation(async () => {
-      useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
-      return { name: 'Acme', email: '', username: '' };
+      throw new Error(OFFLINE_BLOCK);
     });
 
     render(<JotformConnect />);
@@ -147,13 +139,13 @@ describe('JotformConnect Local-only guard', () => {
     await waitFor(() => {
       expect(jotformConnect).toHaveBeenCalled();
     });
+    expect(await screen.findByText(OFFLINE_BLOCK)).toBeTruthy();
     expect(jotformListForms).not.toHaveBeenCalled();
   });
 
-  it('regression: skips the post-sync forms/unassigned refresh if the user flips to local-only while jotformSync is still awaiting', async () => {
+  it('stops post-sync refreshes when Offline Mode cancels the sync', async () => {
     jotformSync.mockImplementation(async () => {
-      useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
-      return report();
+      throw new Error(OFFLINE_BLOCK);
     });
 
     render(<JotformConnect />);
@@ -162,23 +154,15 @@ describe('JotformConnect Local-only guard', () => {
     await waitFor(() => {
       expect(jotformSync).toHaveBeenCalled();
     });
+    expect(await screen.findByText(OFFLINE_BLOCK)).toBeTruthy();
     expect(jotformListForms).not.toHaveBeenCalled();
     expect(jotformListUnassigned).not.toHaveBeenCalled();
   });
 
-  it('regression: skips the post-sync unassigned refresh if the user flips to local-only while jotformListForms (the FIRST follow-up call) is still awaiting', async () => {
-    // Distinct from the jotformSync-flip test above: this flips one step
-    // later, during the first follow-up call, to prove the second follow-up
-    // call (jotformListUnassigned) has its own independent re-check rather
-    // than relying on the guard that already passed for jotformListForms.
-    // Re-establish a clean jotformSync resolution — vi.clearAllMocks() in
-    // beforeEach clears call history but not a prior test's
-    // mockImplementation, and the previous test left one on jotformSync that
-    // flips to local-only, which would mask what this test is checking.
+  it('stops the second follow-up when Offline Mode cancels the first refresh', async () => {
     jotformSync.mockResolvedValue(report());
     jotformListForms.mockImplementation(async () => {
-      useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
-      return [];
+      throw new Error(OFFLINE_BLOCK);
     });
 
     render(<JotformConnect />);
@@ -187,6 +171,7 @@ describe('JotformConnect Local-only guard', () => {
     await waitFor(() => {
       expect(jotformListForms).toHaveBeenCalled();
     });
+    expect(await screen.findByText(OFFLINE_BLOCK)).toBeTruthy();
     expect(jotformListUnassigned).not.toHaveBeenCalled();
   });
 });

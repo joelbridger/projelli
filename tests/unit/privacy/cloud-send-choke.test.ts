@@ -52,7 +52,7 @@ describe('a cloud provider cannot send in Local-only (covers all call paths)', (
   it('ClaudeProvider.sendMessage throws and never fetches in Local-only', async () => {
     setMode('local-only');
     const provider = new ClaudeProvider({ apiKey: 'sk-ant-test', model: 'claude-test' });
-    await expect(provider.sendMessage('hello')).rejects.toThrow(/local-only/i);
+    await expect(provider.sendMessage('hello')).rejects.toThrow(/Local AI only/i);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
@@ -61,7 +61,7 @@ describe('a cloud provider cannot send in Local-only (covers all call paths)', (
     const provider = new ClaudeProvider({ apiKey: 'sk-ant-test', model: 'claude-test' });
     await expect(
       provider.structuredOutput('hello', { schema: { type: 'object' } } as never),
-    ).rejects.toThrow(/local-only/i);
+    ).rejects.toThrow(/Local AI only/i);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

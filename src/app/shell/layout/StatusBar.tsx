@@ -364,7 +364,7 @@ export function StatusBar({ onOpenSettings, showFileContext = true }: StatusBarP
             title={
               privilegedMode.trigger === 'privileged-matter'
                 ? t('privacy.privileged-matter.title-privileged-matter')
-                : privilegedMode.trigger === 'local-only'
+                : privilegedMode.trigger === 'local-ai-only'
                   ? t('privacy.privileged-matter.title-local-only')
                   : t('privacy.privileged-matter.title-manual')
             }

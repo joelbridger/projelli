@@ -8,7 +8,7 @@
  * Uses the exact same hidden-iframe print pattern as DataMapDialog.
  */
 /* eslint-disable lantern-i18n/no-hardcoded-string */
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { Printer, X, ShieldCheck } from 'lucide-react';
 import type { ConfidentialityReport } from '@/platform/privacy/confidentialityReport';
 import {
@@ -41,12 +41,13 @@ function modeBadgeStyle(mode: string): React.CSSProperties {
 }
 
 function modeLabel(mode: string): string {
-  if (mode === 'local-only') return 'Local only';
+  if (mode === 'local-only') return 'Local AI only';
   if (mode === 'assured') return 'Assured';
   return 'Direct (BYOK)';
 }
 
 export function ConfidentialityReportDialog({ open, onOpenChange, report }: ConfidentialityReportDialogProps) {
+  const [view, setView] = useState<'ai' | 'network'>('ai');
   // Fixed-English escape hatch: the sentences using entityLabel below are
   // still hardcoded English (see the cleanup2 handoff), so the noun stays
   // English too rather than mixing languages.
@@ -76,7 +77,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
       return;
     }
 
-    doc.title = brandText(`Confidentiality Report: ${report.matterName} (Lantern)`);
+    doc.title = brandText(`AI confidentiality report: ${report.matterName} (Lantern)`);
 
     const style = doc.createElement('style');
     style.textContent = [
@@ -127,7 +128,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
         className="max-w-2xl w-[92vw] h-[85vh] max-h-[840px] p-0 flex flex-col overflow-hidden [&>button]:hidden"
       >
         <DialogTitle className="sr-only">
-          Confidentiality Report for {report.matterName}
+          AI confidentiality report for {report.matterName}
         </DialogTitle>
         <DialogDescription className="sr-only">
           A printable record of AI activity for this {entityLabel.one} and where the data went.
@@ -139,7 +140,7 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
             <ShieldCheck className="h-5 w-5 text-emerald-600 shrink-0" />
             <div>
               <h2 className="text-base font-semibold truncate">
-                Confidentiality Report
+                AI confidentiality report
               </h2>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {report.matterName} &bull; {generatedDate}
@@ -171,9 +172,18 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="mb-4 flex gap-2 border-b border-border pb-3">
+            <Button variant={view === 'ai' ? 'default' : 'outline'} size="sm" onClick={() => { setView('ai'); }}>
+              AI confidentiality report
+            </Button>
+            <Button data-testid="network-receipt-tab" variant={view === 'network' ? 'default' : 'outline'} size="sm" onClick={() => { setView('network'); }}>
+              Network receipt
+            </Button>
+          </div>
+          {view === 'ai' ? (
           <div id={PRINTABLE_ID}>
             <h1 className="text-lg font-semibold mb-1">
-              Confidentiality Report
+              AI confidentiality report
             </h1>
             <p className="sub text-sm text-muted-foreground mb-1">
               {entityLabel.One}: <strong>{report.matterName}</strong>
@@ -257,6 +267,44 @@ export function ConfidentialityReportDialog({ open, onOpenChange, report }: Conf
               {brandText("This report reflects the architecture-level data flow recorded by Lantern. It is based on audit log entries from your local machine. Lantern holds no copies of your prompts. For questions about your AI provider's data handling, refer to their published data processing policies. This report is not professional or compliance advice and does not certify compliance with any specific regulation.")}
             </div>
           </div>
+          ) : (
+            <div data-testid="network-receipt-view">
+              <h1 className="text-lg font-semibold">Network receipt</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This is a separate record of approved online actions and blocked attempts. It does not contain request content.
+              </p>
+              {report.networkReceipts.length === 0 ? (
+                <p className="mt-5 text-sm text-muted-foreground">No network receipts have been recorded for this {entityLabel.one} yet.</p>
+              ) : (
+                <div className="mt-5 overflow-x-auto">
+                  <table className="w-full text-xs border-collapse" data-testid="network-receipt-table">
+                    <thead><tr className="border-b border-border/60 bg-muted/30">
+                      <th className="text-left py-2 px-3 font-semibold text-muted-foreground">When</th>
+                      <th className="text-left py-2 px-3 font-semibold text-muted-foreground">Action</th>
+                      <th className="text-left py-2 px-3 font-semibold text-muted-foreground">Connection facts</th>
+                      <th className="text-left py-2 px-3 font-semibold text-muted-foreground">Result</th>
+                    </tr></thead>
+                    <tbody>{report.networkReceipts.map((receipt, index) => (
+                      <tr key={`${receipt.at}-${String(index)}`} className="border-b border-border/40 last:border-b-0">
+                        <td className="py-2 px-3 text-muted-foreground whitespace-nowrap">{(() => { try { return new Date(receipt.at).toLocaleString(); } catch { return receipt.at; } })()}</td>
+                        <td className="py-2 px-3">{receipt.operationLabel}</td>
+                        <td className="py-2 px-3 text-muted-foreground">
+                          {receipt.aiMode === 'local-only' ? 'AI was local. ' : ''}
+                          {receipt.offlineMode ? 'Offline Mode was on. ' : ''}
+                          {receipt.result === 'completed' || receipt.result === 'allowed'
+                            ? `This approved online action contacted ${receipt.destination}.`
+                            : receipt.result === 'blocked-before-network'
+                              ? 'Blocked before Lantern contacted a destination.'
+                              : `Destination: ${receipt.destination}.`}
+                        </td>
+                        <td className="py-2 px-3">{receipt.result}{receipt.failureCode ? ` (${receipt.failureCode})` : ''}</td>
+                      </tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

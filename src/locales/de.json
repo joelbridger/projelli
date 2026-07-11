@@ -2900,7 +2900,7 @@
       "edit-item-prompt__sourceHash": "d48ae607270716a09ef34bd01d19f95f0be3bb9b32f2e0b9d77c9e26a69ac23e",
       "edit-item-title": "Eintrag bearbeiten",
       "edit-item-title__sourceHash": "9f84eeebf87f5b9b0b2daaab2a9b989fa5894da5d6a21d8571e532648307a076",
-      "local-only-notice": "Läuft ausschließlich auf diesem Gerät. Die Erstellung nutzt Ihr lokales Modell.",
+      "local-only-notice": "Nur lokale KI. Die Erstellung nutzt Ihr lokales Modell.",
       "local-only-notice__sourceHash": "4d1f2a50b1e4a694d508cc0aabfb7a6839dd4c3cf04555330f19a5f1ea73ca98",
       "building": "Client Map wird erstellt",
       "building__sourceHash": "2d9d2bc78ae27e605307f5f65717b9d7578dbfca861455c0760234301f2155ba",
@@ -3160,7 +3160,7 @@
   "privacy": {
     "egress": {
       "local": {
-        "label": "On your machine. No cloud AI",
+        "label": "KI läuft auf diesem Computer. Keine Cloud-KI.",
         "note": "This runs on a local model ({{provider}}). No AI prompt or file is sent to a cloud AI."
       },
       "direct": {
@@ -3196,7 +3196,7 @@
       "badge": "Privilegierter Mandant: externe Verbindungen sind gesperrt, damit nichts diesen Mandanten verlassen kann",
       "title-manual": "Netzwerk-Plugins und MCP-Server sind deaktiviert.",
       "title-privileged-matter": "Aktiviert, weil der aktive Mandant privilegiert ist. Netzwerk-Plugins und MCP-Server sind deaktiviert.",
-      "title-local-only": "Aktiviert, weil Nur lokal ausgewählt ist. Netzwerk-Plugins und MCP-Server sind deaktiviert."
+      "title-local-only": "Aktiviert, weil Nur lokale KI ausgewählt ist. Netzwerk-Plugins und MCP-Server sind deaktiviert."
     },
     "retention": {
       "title": "Besprechungsaufnahmen",
@@ -3540,7 +3540,7 @@
       "recording-incomplete": "Diese Aufnahme wurde nicht vollständig gespeichert, daher gibt es kein Audio zum Transkribieren oder für Notizen. Das kann passieren, wenn während der Aufnahme der Speicherplatz auf dem Computer ausgegangen ist.",
       "notes-failed-timeout": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat nicht rechtzeitig geantwortet. Ihre Aufnahme und das Transkript sind sicher.",
       "notes-failed-error": "Die Notizen konnten nicht erstellt werden. Der KI-Anbieter hat einen Fehler zurückgegeben. Ihre Aufnahme und das Transkript sind sicher.",
-      "notes-failed-blocked": "Für die Notizen wird Ihr KI-Anbieter benötigt, aber der Nur-lokal-Modus blockiert ihn. Verbinden Sie ein lokales Modell, um die Notizen zu diesem Gespräch zu erstellen, oder deaktivieren Sie stattdessen den Nur-lokal-Modus unter Einstellungen → Datenschutz.",
+      "notes-failed-blocked": "Für Notizen wird Ihr KI-Anbieter benötigt, aber Nur lokale KI blockiert ihn. Verbinden Sie ein lokales Modell oder schalten Sie Nur lokale KI in Einstellungen → Datenschutz aus.",
       "docx-editor-label": "Besprechungsnotizen",
       "retrying-notes": "Wird erneut versucht…",
       "transcript-pending": "Die Transkription ist in der Warteschlange. Sie erscheint hier, sobald sie fertig ist.",
@@ -3611,7 +3611,7 @@
         "no-account": "E-Mail in den Einstellungen verbinden",
         "needs-review": "Markieren Sie die Besprechung als geprüft, bevor etwas gesendet wird.",
         "no-items": "Wählen Sie mindestens einen Empfänger für einen verfügbaren Besprechungsinhalt.",
-        "local-only-blocked": "Der Nur-lokal-Modus ist aktiviert, daher ist das Senden per E-Mail ausgeschaltet.",
+        "local-only-blocked": "Der Offline-Modus ist aktiviert, daher ist das Senden per E-Mail ausgeschaltet.",
         "ready-count_one": "{{count}} Element ist bereit zur Prüfung",
         "ready-count_other": "{{count}} Elemente sind bereit zur Prüfung",
         "to-line": "An: {{recipients}}",

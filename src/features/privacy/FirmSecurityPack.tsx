@@ -101,10 +101,10 @@ const SECTIONS: Section[] = [
     body: (
       <div>
         <div style={{ marginBottom: '0.75rem' }}>
-          <strong>Local-only:</strong>{' '}
+          <strong>Local AI only:</strong>{' '}
           {LOCAL_ONLY_EGRESS.note}{' '}
           <span style={{ color: '#555' }}>
-            ({LOCAL_ONLY_EGRESS.dataLeaves ? 'data may leave device' : 'nothing leaves the device'})
+            (no AI prompt or file is sent to cloud AI)
           </span>
         </div>
         <div style={{ marginBottom: '0.75rem' }}>

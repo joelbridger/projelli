@@ -21,16 +21,16 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('validateApiKeyLive — Local-only kill-switch', () => {
-  it('does NOT contact the provider in Local-only (paused, key not sent)', async () => {
+describe('validateApiKeyLive — Local AI only', () => {
+  it('does NOT contact the provider in Local AI only (paused, key not sent)', async () => {
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'local-only');
     const result = await validateApiKeyLive('anthropic', 'sk-ant-anything');
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result.outcome).not.toBe('ok');
-    expect(result.message).toMatch(/private mode/i);
+    expect(result.message).toMatch(/Local AI only/i);
   });
 
-  it('contacts the provider when NOT in Local-only', async () => {
+  it('contacts the provider when NOT in Local AI only', async () => {
     useSettingsStore.getState().setSetting(CONFIDENTIALITY_MODE_SETTING_KEY, 'direct');
     await validateApiKeyLive('anthropic', 'sk-ant-api03-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
     expect(fetchSpy).toHaveBeenCalled();

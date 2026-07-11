@@ -103,6 +103,7 @@ import type { TrashedItem } from '@/platform/history/TrashService';
 import type { AuditEntry } from '@/platform/types/audit';
 import { AuditService } from '@/platform/audit/AuditService';
 import { setEmailAuditEmitter } from '@/features/email/EmailViewer';
+import { setNetworkEgressReceiptEmitter } from '@/platform/privacy/networkEgressReceipt';
 import type { AuditIntegrityVerdict } from '@/platform/utils/tauri-commands';
 import {
   getOrCreateSampleMatter,
@@ -1595,6 +1596,13 @@ function AppShell() {
     setEmailAuditEmitter(emitAuditEntry);
     return () => {
       setEmailAuditEmitter(null);
+    };
+  }, [emitAuditEntry]);
+
+  useEffect(() => {
+    setNetworkEgressReceiptEmitter(emitAuditEntry);
+    return () => {
+      setNetworkEgressReceiptEmitter(null);
     };
   }, [emitAuditEntry]);
 

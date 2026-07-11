@@ -333,7 +333,7 @@
       "download-cta": "Download .mcpb for Claude Desktop",
       "whats-mcp": "What's MCP?",
       "disabled-title": "MCP is off: network lockdown is on",
-      "disabled-body": "While a client with network lockdown is active (or On this computer only is selected), MCP servers are disabled so confidential work cannot leave your machine through an outside AI client. Any write an MCP client attempts is blocked and recorded in your audit log. Turn off network lockdown to use MCP again.",
+      "disabled-body": "While a client with network lockdown is active (or Local AI only is selected), MCP servers are disabled so confidential work cannot leave your machine through an outside AI client. Any write an MCP client attempts is blocked and recorded in your audit log. Turn off network lockdown to use MCP again.",
       "install": {
         "heading": "How to install:",
         "step-download": "Click <b>Download .mcpb</b> above to copy the bundle path to your clipboard.",
@@ -2058,7 +2058,7 @@
       "save-action": "Save",
       "edit-item-prompt": "Edit item:",
       "edit-item-title": "Edit item",
-      "local-only-notice": "Running on-device only. Generation uses your local model.",
+      "local-only-notice": "Local AI only. Generation uses your local model.",
       "building": "Building map",
       "empty-notice": "Add documents or email to build this map.",
       "error-notice": "Could not build client map. Check your AI connection and try again."
@@ -2226,7 +2226,7 @@
   "privacy": {
     "egress": {
       "local": {
-        "label": "On your machine. No cloud AI",
+        "label": "AI runs on this computer. No cloud AI.",
         "note": "This runs on a local model ({{provider}}). No AI prompt or file is sent to a cloud AI."
       },
       "direct": {
@@ -2255,7 +2255,7 @@
       "badge": "Isolated client: outside connections are blocked so nothing can leave this client.",
       "title-manual": "Network lockdown: network plugins and MCP servers are disabled.",
       "title-privileged-matter": "On because the active client has network lockdown. Network plugins and MCP servers are disabled.",
-      "title-local-only": "On because On this computer only is selected. Network plugins and MCP servers are disabled."
+      "title-local-only": "On because Local AI only is selected. Network plugins and MCP servers are disabled."
     },
     "retention": {
       "title": "Deleted files",
@@ -2587,7 +2587,7 @@
       "recording-incomplete": "This recording didn't finish saving, so there's no audio to transcribe or write notes from. This can happen if the computer ran out of disk space while recording.",
       "notes-failed-timeout": "Notes couldn't be written. The AI provider didn't respond in time. Your recording and transcript are safe.",
       "notes-failed-error": "Notes couldn't be written. The AI provider returned an error. Your recording and transcript are safe.",
-      "notes-failed-blocked": "Notes need your AI provider, but Local-only mode is blocking it. Connect a local model to write this meeting's notes, or, if you'd rather, turn off Local-only mode in Settings → Privacy.",
+      "notes-failed-blocked": "Notes need your AI provider, but Local AI only is blocking it. Connect a local model to write this meeting's notes, or turn off Local AI only in Settings → Privacy.",
       "docx-editor-label": "Meeting notes",
       "retrying-notes": "Retrying",
       "transcript-pending": "Transcribing now.",
@@ -2658,7 +2658,7 @@
         "no-account": "Connect email in Settings",
         "needs-review": "Mark the meeting reviewed before sending anything.",
         "no-items": "Choose at least one recipient for an available meeting item.",
-        "local-only-blocked": "Local-only mode is on, so email sending is off.",
+        "local-only-blocked": "Offline Mode is on, so email sending is off.",
         "ready-count_one": "{{count}} item ready to review",
         "ready-count_other": "{{count}} items ready to review",
         "to-line": "To: {{recipients}}",

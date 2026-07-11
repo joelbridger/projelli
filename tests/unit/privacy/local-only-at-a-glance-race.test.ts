@@ -76,7 +76,7 @@ describe('generateMatterAtAGlance — Local-only race guard', () => {
       return p === 'anthropic' ? 'sk-ant-test' : null;
     });
 
-    await expect(generateMatterAtAGlance('m1')).rejects.toThrow(/local-only/i);
+    await expect(generateMatterAtAGlance('m1')).rejects.toThrow(/Local AI only/i);
     // The load-bearing privacy assertion: the cloud provider was never sent to.
     expect(claudeSend).not.toHaveBeenCalled();
     expect(ollamaSend).not.toHaveBeenCalled();

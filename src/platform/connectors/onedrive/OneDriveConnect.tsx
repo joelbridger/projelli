@@ -30,8 +30,6 @@ import {
   ONEDRIVE_SYNC_TIMEOUT_MS,
   withOneDriveTimeout,
 } from '@/platform/connectors/onedrive/onedriveTimeout';
-import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
-import { useConfidentialityMode } from '@/platform/hooks/useConfidentialityMode';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
 import {
   isMicrosoftSignInExpiredError,
@@ -45,23 +43,6 @@ import { brandText } from '@/config/brandText';
 // (including one that imported zero files or failed) always leaves a record —
 // the same honesty guarantee the Wealthbox path gives.
 const oneDriveAudit = new AuditService('connectors');
-
-// OneDrive sync is a user-authorized CONNECTOR (it pulls the user's own files
-// in; it never sends anything to a cloud AI), so per the documented scope of
-// `assertLocalOnlyAllowsExternal` it must NOT use that fail-closed AI-send
-// guard — that guard blocks until an explicit confidentiality *choice* has
-// been recorded, which is a cloud-AI-generation concept unrelated to reading
-// your own OneDrive files, and used to spuriously kill this sync on any
-// workspace that never made that AI choice (fresh installs, seeded/test
-// workspaces). Gate on `isPersistedLocalOnly()` instead: it reads the
-// persisted mode directly (not the in-memory settings store, which still
-// reports the schema default during the hydration window right at app
-// start), so a sync triggered in that window can't slip past a user who
-// GENUINELY chose Local-only — while "no choice recorded yet" still allows
-// the sync, matching every other connector (Box, Addepar, DocuSign, Jotform,
-// Zocks).
-const LOCAL_ONLY_BLOCKED_MESSAGE =
-  'Local-only mode is on, so OneDrive sync is paused. Turn off Local-only mode in the Privacy Center to import documents from Microsoft.';
 
 function linkOneDriveClientFoldersToMatters(
   folders: OneDriveFolder[],
@@ -110,7 +91,6 @@ function ensureOneDriveDestFolders(
 export function OneDriveConnect() {
   useOneDriveSync();
   const progress = useOneDriveStore((s) => s.progress);
-  const localOnly = useConfidentialityMode() === 'local-only';
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,10 +138,6 @@ export function OneDriveConnect() {
   async function connect() {
     setError(null);
     setLastReport(null);
-    if (isPersistedLocalOnly()) {
-      setError(LOCAL_ONLY_BLOCKED_MESSAGE);
-      return;
-    }
     setConnecting(true);
     // Mark an interactive OAuth sign-in pending so onboarding disables Continue
     // until this multi-minute browser flow settles.
@@ -219,10 +195,6 @@ export function OneDriveConnect() {
    * failure. Never a silent no-op that looks like success.
    */
   async function runSync(): Promise<void> {
-    if (isPersistedLocalOnly()) {
-      setError(LOCAL_ONLY_BLOCKED_MESSAGE);
-      return;
-    }
     // Covers the folder-discovery walk below too, not just the oneDriveSync
     // call — see the localSyncing declaration for why that phase needs its
     // own signal instead of relying solely on the Rust `progress` event.
@@ -436,13 +408,6 @@ export function OneDriveConnect() {
         <InfoHelp content={brandText("Imports documents from any OneDrive or SharePoint folder named after one of your clients. Lantern downloads those files into the client's folder on this device, so they appear in the client's Documents and become searchable. Read-only in the cloud: Lantern only asks Microsoft for files. It never edits, uploads, moves, or deletes anything in OneDrive or SharePoint.")} />
       </h3>
       <IntegrationHonestyCard connectorId="onedrive-sharepoint" />
-      {localOnly && (
-        <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Local-only mode is on, so OneDrive sync is paused. Switch out of
-          Local-only mode in Privacy settings to import documents from
-          Microsoft.
-        </p>
-      )}
 
       {/* Disconnect didn't fully finish — keep a visible retry regardless of
           connection state. F4: the copy depends on WHICH step is unfinished:
@@ -493,7 +458,7 @@ export function OneDriveConnect() {
             <button
               type="button"
               data-testid="connect-onedrive-button"
-              disabled={connecting || localOnly}
+              disabled={connecting}
               onClick={() => {
                 void connect();
               }}
@@ -570,7 +535,7 @@ export function OneDriveConnect() {
             <button
               type="button"
               data-testid="onedrive-sync-now"
-              disabled={localOnly || syncing || disconnecting}
+              disabled={syncing || disconnecting}
               onClick={() => {
                 void syncNow();
               }}

@@ -93,6 +93,7 @@ export const ACTION_ICONS: Record<AuditActionType, React.ElementType> = {
   privilege_evaluated: Lock,
   scope_active: Target,
   egress: Send,
+  network_egress: Send,
   mcp_blocked: ShieldOff,
   mcp_list: FileText,
   mcp_read: FileText,
@@ -175,6 +176,7 @@ export const ACTION_LABELS: Record<AuditActionType, string> = {
   privilege_evaluated: 'Privilege Checked',
   scope_active: 'Active Client',
   egress: 'AI Request Sent',
+  network_egress: 'Network Receipt',
   mcp_blocked: 'External AI Write Blocked',
   mcp_list: 'External AI Listed Files',
   mcp_read: 'External AI Read File',
@@ -260,6 +262,7 @@ export const ACTION_CATEGORY: Record<AuditActionType, ActionCategory> = {
   privilege_evaluated: 'privilege',
   scope_active: 'privilege',
   egress: 'ai',
+  network_egress: 'system',
   mcp_blocked: 'privilege',
   mcp_list: 'privilege',
   mcp_read: 'privilege',
@@ -402,7 +405,7 @@ export function getScopeLabel(entry: AuditEntry): string | null {
   const meta = asRecord(entry.metadata);
   if (entry.action === 'egress') {
     const mode = meta['mode'];
-    if (mode === 'local-only') return 'Local';
+    if (mode === 'local-only') return 'Local AI only';
     if (mode === 'direct') return 'Direct';
     if (mode === 'assured') return 'Assured';
   }

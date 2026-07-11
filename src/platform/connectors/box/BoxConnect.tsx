@@ -21,7 +21,6 @@ import {
   isTopLevelBoxClientFolder,
   resolveMatterForBoxFolder,
 } from '@/platform/rag/matterResolver';
-import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { Button } from '@/ui/kp';
 import { InfoHelp } from '@/ui/InfoHelp';
 import { AuditService } from '@/platform/audit/AuditService';
@@ -73,10 +72,6 @@ export function BoxConnect() {
   async function connect() {
     const trimmed = accessToken.trim();
     setError(null);
-    if (isPersistedLocalOnly()) {
-      setError('Local-only mode is on. Turn it off before connecting Box, because sign-in contacts Box.');
-      return;
-    }
     if (!trimmed) {
       setError('Paste your Box Developer Token first.');
       return;
@@ -95,23 +90,12 @@ export function BoxConnect() {
 
   async function syncNow() {
     setError(null);
-    if (isPersistedLocalOnly()) {
-      setError('Local-only mode is on. Turn it off before syncing Box, because it contacts Box.');
-      return;
-    }
     setSyncing(true);
     try {
       // Link Box client folders to matters FIRST so the matter map isn't empty;
       // otherwise every Box file would import into the unassigned bucket and
       // never surface in client-scoped search or citations.
       await autoLinkBoxFolders();
-      // Re-check: autoLinkBoxFolders() itself just awaited a Box call, so a
-      // Local-only switch mid-flight could otherwise slip past the guard
-      // above and still fire this larger sync call.
-      if (isPersistedLocalOnly()) {
-        setError('Local-only mode is on. Turn it off before syncing Box, because it contacts Box.');
-        return;
-      }
       const result = await boxSync(buildBoxMatterMap(getMatters()));
       setReport(result);
       void boxAudit

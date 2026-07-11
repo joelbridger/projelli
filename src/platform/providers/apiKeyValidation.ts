@@ -144,14 +144,16 @@ export async function validateApiKeyLive(
   key: string,
   signal?: AbortSignal
 ): Promise<ValidationResult> {
-  // Private mode: verifying a key sends it to the provider over the network, so
-  // skip the live check entirely (same reason the model-list refresh is skipped).
-  // The key is still saved; the user can verify it after leaving private mode.
+  // Local AI only: verifying a key sends it to the provider over the network,
+  // so skip the live check entirely (same reason the model-list refresh is
+  // skipped). The key is still saved; the user can verify it after turning
+  // Local AI only off. This is independent of, and in addition to, the
+  // Offline Mode block below.
   if (isLocalOnlyModeFailClosed()) {
     return {
       outcome: 'network',
       message:
-        'Key checking is paused in private mode — verifying a key would send it to the provider over the network. Your key is still saved; turn off "On this computer only" to verify it.',
+        'Key checking is paused while Local AI only is on — verifying a key would send it to the provider over the network. Your key is still saved; turn off Local AI only to verify it.',
     };
   }
 

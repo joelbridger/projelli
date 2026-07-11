@@ -25,9 +25,9 @@ import { SK_SETTINGS } from '@/config/identity';
 export class LocalOnlyEgressError extends Error {
   constructor(provider: string) {
     super(
-      `Local-only mode is on, so nothing can be sent to a cloud AI provider. ` +
+      `Local AI only is on, so nothing can be sent to a cloud AI provider. ` +
         `This chat is set to "${provider}". Switch it to a local model, or turn off ` +
-        `Local-only mode in the Privacy Center, to send.`,
+        `Local AI only in the Privacy Center, to send.`,
     );
     this.name = 'LocalOnlyEgressError';
   }

@@ -2,7 +2,6 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { BoxConnect } from '@/platform/connectors/box/BoxConnect';
 import { useSettingsStore } from '@/platform/settings/settingsStore';
-import { SK_SETTINGS } from '@/config/identity';
 import type { BoxSyncReport } from '@/platform/utils/box-commands';
 
 const boxCancel = vi.fn();
@@ -55,7 +54,9 @@ function report(overrides: Partial<BoxSyncReport> = {}): BoxSyncReport {
   } as BoxSyncReport;
 }
 
-describe('BoxConnect Local-only guard', () => {
+const OFFLINE_BLOCK = 'Offline Mode is on. Lantern cannot connect to the internet.';
+
+describe('BoxConnect Offline Mode guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
@@ -79,7 +80,7 @@ describe('BoxConnect Local-only guard', () => {
     await waitFor(() => {
       expect(boxSync).toHaveBeenCalled();
     });
-    expect(screen.queryByText(/local-only mode is on/i)).toBeNull();
+    expect(screen.queryByText(/offline mode is on/i)).toBeNull();
   });
 
   it('allows the sync when the persisted mode is explicitly direct', async () => {
@@ -95,44 +96,31 @@ describe('BoxConnect Local-only guard', () => {
     });
   });
 
-  it('blocks the sync when the confidentiality mode is genuinely local-only', async () => {
+  it('shows the native Offline Mode refusal before a sync can begin', async () => {
+    boxListFolders.mockRejectedValue(new Error(OFFLINE_BLOCK));
+
+    render(<BoxConnect />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync Box files' }));
+
+    expect(await screen.findByText(OFFLINE_BLOCK)).toBeTruthy();
+    expect(boxSync).not.toHaveBeenCalled();
+  });
+
+  it('leaves Local AI only free to start a connector sync', async () => {
     useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
+    boxSync.mockResolvedValue(report());
 
     render(<BoxConnect />);
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sync Box files' }));
 
-    expect(await screen.findByText(/local-only mode is on\. turn it off before syncing box/i)).toBeTruthy();
-    expect(boxSync).not.toHaveBeenCalled();
+    await waitFor(() => expect(boxSync).toHaveBeenCalled());
   });
 
-  it('blocks a genuinely-persisted local-only mode during the settings-store hydration window', async () => {
-    // The in-memory Zustand settings store reports the schema default
-    // ('direct') until it rehydrates from storage. Writing straight to the
-    // persisted key (bypassing the store) reproduces exactly that race: a
-    // real Local-only user's click, right at app start, before hydration
-    // completes.
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
-
-    render(<BoxConnect />);
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Sync Box files' }));
-
-    expect(await screen.findByText(/local-only mode is on\. turn it off before syncing box/i)).toBeTruthy();
-    expect(boxSync).not.toHaveBeenCalled();
-  });
-
-  it('regression: blocks the bulk sync if the user flips to local-only while autoLinkBoxFolders is still awaiting Box', async () => {
-    // autoLinkBoxFolders() itself awaits a Box call (boxListFolders) before
-    // the bulk sync. A user who flips to Local-only during that window must
-    // still have the larger boxSync() call blocked, not just the initial
-    // pre-check.
+  it('stops before bulk sync when Offline Mode turns on during folder listing', async () => {
     boxListFolders.mockImplementation(async () => {
-      useSettingsStore.getState().setSetting('confidentialityMode', 'local-only');
-      return [];
+      throw new Error(OFFLINE_BLOCK);
     });
     boxSync.mockResolvedValue(report());
 
@@ -140,16 +128,13 @@ describe('BoxConnect Local-only guard', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Sync Box files' }));
 
-    expect(await screen.findByText(/local-only mode is on\. turn it off before syncing box/i)).toBeTruthy();
+    expect(await screen.findByText(OFFLINE_BLOCK)).toBeTruthy();
     expect(boxSync).not.toHaveBeenCalled();
   });
 
-  it('blocks Connect Box during the hydration window too', async () => {
+  it('shows the native Offline Mode refusal before connecting Box', async () => {
     boxIsConnected.mockResolvedValue(false);
-    localStorage.setItem(
-      SK_SETTINGS,
-      JSON.stringify({ state: { values: { confidentialityMode: 'local-only' } }, version: 1 })
-    );
+    boxConnect.mockRejectedValue(new Error(OFFLINE_BLOCK));
 
     render(<BoxConnect />);
 
@@ -159,8 +144,8 @@ describe('BoxConnect Local-only guard', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Connect Box' }));
 
     expect(
-      await screen.findByText(/local-only mode is on\. turn it off before connecting box/i)
+      await screen.findByText(OFFLINE_BLOCK)
     ).toBeTruthy();
-    expect(boxConnect).not.toHaveBeenCalled();
+    expect(boxConnect).toHaveBeenCalledOnce();
   });
 });

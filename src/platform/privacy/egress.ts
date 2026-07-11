@@ -54,7 +54,7 @@ export type EgressProvider = string;
 export const NO_AI_PROVIDER = 'none';
 
 /**
- * Sentinel for "Local-only mode is on, but no on-device engine is usable YET"
+ * Sentinel for "Local AI only is on, but no on-device engine is usable YET"
  * (the embedded model is still downloading AND no reachable Ollama). The send
  * path throws an honest "still setting up" error in this state, so the badge must
  * NOT claim "Using local AI" — it renders a neutral "Local AI setting up" badge
@@ -93,7 +93,7 @@ export const CONFIDENTIALITY_MODE_SETTING_KEY = 'confidentialityMode';
 
 /**
  * Severity drives the indicator colour, never just decoration:
- *   - 'safe'   nothing leaves the machine (local model).
+ *   - 'safe'   the next AI call stays on this computer (local model).
  *   - 'direct' leaves to the chosen provider, with the user's key (expected,
  *              honest — not an error, but the user must understand it).
  *   - 'assured' leaves via the Lantern zero-retention proxy to the provider
@@ -198,11 +198,11 @@ export function resolveEgress(input: ResolveEgressInput): EgressInfo {
     return {
       destination: 'local',
       severity: 'safe',
-      label: 'On your machine. No cloud AI',
+      label: 'AI runs on this computer. No cloud AI.',
       // Always-visible trust badge: name the engine in plain language
       // ("Lantern Local AI"), never the developer tool ("Ollama") — the brand
       // name only belongs in the advanced bring-your-own-runtime panel.
-      note: `${LOCAL_AI_NAME} is a private model on your own computer. No AI prompt or file is sent to a cloud AI.`,
+      note: 'No AI prompt or file is sent to cloud AI.',
       dataLeaves: false,
       provider: localProvider,
     };

@@ -25,7 +25,6 @@ import {
 } from '@/platform/utils/calendar-commands';
 import { buildCalendarMatterMap } from '@/platform/rag/matterResolver';
 import { beginOAuth, endOAuth } from '@/platform/connectors/oauthPending';
-import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
 import { getMatters } from '@/platform/matter/matterStore';
 import { AuditService } from '@/platform/audit/AuditService';
 import { sanitizeSyncError } from '@/platform/connectors/syncAuditError';
@@ -98,11 +97,6 @@ export function CalendarConnect() {
     setError(null);
     beginOAuth();
     try {
-      if (isPersistedLocalOnly()) {
-        throw new Error(
-          'Local-only mode is on. Turn it off before connecting a calendar, because sign-in contacts the provider.'
-        );
-      }
       if (provider === 'outlook') await calendarConnectOutlook();
       else await calendarConnectGoogle();
       await refreshConnected();
@@ -132,14 +126,6 @@ export function CalendarConnect() {
       setError('Paste the calendar’s ICS address first.');
       return;
     }
-    // The backend fetches this URL immediately to validate it, so this is a
-    // network call — the same local-only guard connectOAuth uses.
-    if (isPersistedLocalOnly()) {
-      setError(
-        'Local-only mode is on. Turn it off before connecting a calendar, because sign-in contacts the provider.'
-      );
-      return;
-    }
     setBusy('ics');
     setError(null);
     try {
@@ -156,12 +142,6 @@ export function CalendarConnect() {
 
   async function runSync() {
     setError(null);
-    if (isPersistedLocalOnly()) {
-      setError(
-        'Local-only mode is on. Turn it off before syncing your calendar, because it contacts the provider.'
-      );
-      return;
-    }
     setSyncing(true);
     try {
       const report = await calendarSyncAll(

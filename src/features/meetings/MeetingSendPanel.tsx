@@ -25,7 +25,7 @@ import type { TFunction } from 'i18next';
 import type { WorkspaceService } from '@/platform/fs/WorkspaceService';
 import type { Matter } from '@/platform/types/matter';
 import { mailConnectedAccounts, type ConnectedAccount } from '@/platform/utils/mail-commands';
-import { isPersistedLocalOnly } from '@/platform/privacy/localOnlyGuard';
+import { useOfflineModeStore } from '@/platform/privacy/offlineMode';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/ui/dialog';
 import { Button as DialogButton } from '@/ui/button';
 import { AuditService } from '@/platform/audit/AuditService';
@@ -397,8 +397,8 @@ export function MeetingSendPanel({
     [sendLog],
   );
   const selectedAccount = accounts.find((account) => accountKey(account) === selectedAccountKey) ?? accounts[0] ?? null;
-  const localOnly = isPersistedLocalOnly();
-  const canReview = Boolean(workspaceService && selectedAccount && preview.items.length > 0 && meta.reviewedAt && !localOnly);
+  const offlineMode = useOfflineModeStore((state) => state.offlineMode);
+  const canReview = Boolean(workspaceService && selectedAccount && preview.items.length > 0 && meta.reviewedAt && !offlineMode);
 
   const handleReview = useCallback(() => {
     void (async () => {
@@ -754,8 +754,8 @@ export function MeetingSendPanel({
         <div style={{ fontSize: 'var(--kp-font-xs)', color: 'var(--color-muted-foreground)', lineHeight: 1.5 }}>
           {!meta.reviewedAt && t('meetings.entry.send.needs-review')}
           {meta.reviewedAt && preview.items.length === 0 && t('meetings.entry.send.no-items')}
-          {localOnly && t('meetings.entry.send.local-only-blocked')}
-          {preview.items.length > 0 && !localOnly && (
+          {offlineMode && t('meetings.entry.send.local-only-blocked')}
+          {preview.items.length > 0 && !offlineMode && (
             <span data-testid="meeting-send-ready-count">{t('meetings.entry.send.ready-count', { count: preview.items.length })}</span>
           )}
         </div>
