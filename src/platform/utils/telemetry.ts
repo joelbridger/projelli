@@ -24,6 +24,11 @@ import { getTelemetryConsent } from '@/platform/hooks/useTelemetryConsent';
 import { isLocalOnlyModeFailClosed } from '@/platform/privacy/localOnlyGuard';
 import { BRAND } from '@/config/brand';
 import { SK_TELEMETRY_SENT_EVENTS } from '@/config/identity';
+import {
+  egressFetch,
+  OfflineModeBlockedError,
+  recordBlockedEgressAttempt,
+} from '@/platform/privacy/networkClient';
 
 const ENDPOINT = BRAND.urls.formsTelemetry;
 
@@ -47,10 +52,16 @@ function getPlatform(): string {
 function getAppVersion(): string {
   // Vite injects this from package.json via define in vite.config (or as
   // an env var); fall back to a constant so we always send something.
-  return (import.meta as { env?: { VITE_APP_VERSION?: string } }).env?.VITE_APP_VERSION ?? 'unknown';
+  return (
+    (import.meta as { env?: { VITE_APP_VERSION?: string } }).env
+      ?.VITE_APP_VERSION ?? 'unknown'
+  );
 }
 
-export async function sendEvent(event: string, fields: EventFields = {}): Promise<void> {
+export async function sendEvent(
+  event: string,
+  fields: EventFields = {}
+): Promise<void> {
   if (getTelemetryConsent() !== 'enabled') return;
   // Private-mode kill-switch (fail-closed): never make an outbound telemetry call
   // in private mode, or before the mode is confirmed non-local. Silent skip.
@@ -66,14 +77,17 @@ export async function sendEvent(event: string, fields: EventFields = {}): Promis
     body['days_since_install'] = String(fields.days_since_install);
   }
   try {
-    await fetch(ENDPOINT, {
+    await egressFetch('telemetry', ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       // Best-effort; don't block on slow networks.
       keepalive: true,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof OfflineModeBlockedError) {
+      recordBlockedEgressAttempt('telemetry');
+    }
     // Swallow.
   }
 }
@@ -83,7 +97,10 @@ export async function sendEvent(event: string, fields: EventFields = {}): Promis
  * the first time" milestones like trial_start or trial_end so a
  * relaunch doesn't double-count.
  */
-export async function sendEventOnce(event: string, fields: EventFields = {}): Promise<void> {
+export async function sendEventOnce(
+  event: string,
+  fields: EventFields = {}
+): Promise<void> {
   const sent = readSent();
   if (sent.has(event)) return;
   sent.add(event);
@@ -95,8 +112,11 @@ function readSent(): Set<string> {
   try {
     const raw = localStorage.getItem(SK_TELEMETRY_SENT_EVENTS);
     if (!raw) return new Set();
-    const arr = JSON.parse(raw);
-    return new Set(Array.isArray(arr) ? arr : []);
+    const parsed: unknown = JSON.parse(raw) as unknown;
+    const events = Array.isArray(parsed)
+      ? parsed.filter((event): event is string => typeof event === 'string')
+      : [];
+    return new Set(events);
   } catch {
     return new Set();
   }

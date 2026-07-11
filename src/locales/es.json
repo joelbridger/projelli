@@ -398,6 +398,8 @@
       "seats": "Hasta {{count}} licencias",
       "valid-until": "Válida hasta: {{date}}",
       "valid-until__sourceHash": "372882d81d7a610854bb9f16fb7b3107228616db853ef184e951479a52727321",
+      "offline-mode-status": "El modo sin conexión está usando el último estado de licencia confirmado.",
+      "offline-mode-status__sourceHash": "6d86ae8a7dafb422b76ad46058f73120140c61bf7f950107d03ae85b6c453cbc",
       "ownership-tagline": "Tus archivos siempre son tuyos. Si cancelas, conservas cada documento, correo y cliente que hayas creado. Una suscripción vencida desactiva las funciones de IA y las actualizaciones, no tus datos.",
       "refresh": "Actualizar",
       "refresh__sourceHash": "0e91610117029a62a478b7fa7df0b8598bebe3ab1e192d4b1882e310719c9671",

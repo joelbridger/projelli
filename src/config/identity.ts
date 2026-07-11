@@ -104,6 +104,8 @@ export const SK_FIRM_KEY_PUBLISH_FP        = `${APP_NS}_firm_key_publish_fp`;
 export const SK_MACHINE_ID                 = `${APP_NS}_machine_id`;
 export const SK_LICENSE_TOKEN              = `${APP_NS}_license_token`;
 export const SK_LICENSE_LAST_GOOD_AT       = `${APP_NS}_license_last_good_at`;
+/** Durable server revocation verdict for the currently stored license token. */
+export const SK_LICENSE_REVOCATION          = `${APP_NS}_license_revocation`;
 export const SK_INSTALL_ID                 = `${APP_NS}_install_id`;
 export const SK_DESIGN_PARTNER_CONSENT     = `${APP_NS}_design_partner_consent`;
 export const SK_TELEMETRY_CONSENT          = `${APP_NS}_telemetry_consent`;

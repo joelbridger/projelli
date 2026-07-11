@@ -17,6 +17,11 @@
 
 import { invoke } from '@tauri-apps/api/core';
 import type { FSBackend } from '@/platform/fs/types';
+import {
+  egressFetch,
+  OfflineModeBlockedError,
+} from '@/platform/privacy/networkClient';
+import { subscribeToOfflineModeChanges } from '@/platform/privacy/offlineMode';
 
 export interface DownloadProgress {
   /** Bytes downloaded so far. */
@@ -42,22 +47,47 @@ export async function downloadTarball(
   url: string,
   destPath: string,
   fs: FSBackend,
-  opts: DownloadTarballOptions = {},
+  opts: DownloadTarballOptions = {}
 ): Promise<void> {
   const { signal, onProgress } = opts;
   const tempPath = `${destPath}.partial`;
+  const offlineController = new AbortController();
+  const unsubscribe = subscribeToOfflineModeChanges((status) => {
+    if (status.offlineMode) {
+      offlineController.abort(
+        new OfflineModeBlockedError('a marketplace download')
+      );
+    }
+  });
+  if (signal) {
+    if (signal.aborted) offlineController.abort(signal.reason);
+    else {
+      signal.addEventListener(
+        'abort',
+        () => {
+          offlineController.abort(signal.reason);
+        },
+        { once: true }
+      );
+    }
+  }
 
   let response: Response;
   try {
-    response = await fetch(url, signal ? { signal } : {});
+    response = await egressFetch('marketplace-package', url, {
+      signal: offlineController.signal,
+    });
   } catch (err) {
+    unsubscribe();
     throw new Error(`download failed: ${(err as Error).message}`);
   }
 
   if (!response.ok) {
-    throw new Error(`download failed: HTTP ${response.status}`);
+    unsubscribe();
+    throw new Error(`download failed: HTTP ${String(response.status)}`);
   }
   if (!response.body) {
+    unsubscribe();
     throw new Error('download failed: response has no body');
   }
 
@@ -68,29 +98,31 @@ export async function downloadTarball(
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
   let loaded = 0;
+  let done = false;
 
   try {
     // Stream chunks. We accumulate in memory then write once at the end via
     // FSBackend.writeBinary, because FSBackend has no append primitive.
     // Tarballs in the catalog are bounded (a few MB at most), so the
     // memory cost is acceptable.
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
-      if (signal?.aborted) {
-        throw new DOMException('Aborted', 'AbortError');
+    while (!done) {
+      if (offlineController.signal.aborted) {
+        throw offlineController.signal.reason;
       }
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (value) {
-        chunks.push(value);
-        loaded += value.byteLength;
-        if (onProgress) {
-          onProgress({
-            loaded,
-            total: knownTotal,
-            fraction: knownTotal !== null ? loaded / knownTotal : null,
-          });
-        }
+      const { done: chunkDone, value } = await reader.read();
+      done = chunkDone;
+      if (done) continue;
+      if (!value) {
+        throw new Error('download failed: stream ended without a chunk');
+      }
+      chunks.push(value);
+      loaded += value.byteLength;
+      if (onProgress) {
+        onProgress({
+          loaded,
+          total: knownTotal,
+          fraction: knownTotal !== null ? loaded / knownTotal : null,
+        });
       }
     }
   } catch (err) {
@@ -100,7 +132,11 @@ export async function downloadTarball(
       // already released, ignore
     }
     await safeDelete(fs, tempPath);
-    if ((err as Error).name === 'AbortError') {
+    unsubscribe();
+    if (
+      err instanceof OfflineModeBlockedError ||
+      (err as Error).name === 'AbortError'
+    ) {
       throw err;
     }
     throw new Error(`download failed: ${(err as Error).message}`);
@@ -114,8 +150,10 @@ export async function downloadTarball(
     await fs.move(tempPath, destPath);
   } catch (err) {
     await safeDelete(fs, tempPath);
+    unsubscribe();
     throw new Error(`download failed: ${(err as Error).message}`);
   }
+  unsubscribe();
 }
 
 function concatChunks(chunks: Uint8Array[], total: number): ArrayBuffer {
@@ -144,7 +182,7 @@ async function safeDelete(fs: FSBackend, path: string): Promise<void> {
  */
 export async function verifyChecksum(
   filePath: string,
-  expectedSha256: string,
+  expectedSha256: string
 ): Promise<boolean> {
   const actual = await invoke<string>('sha256_file', { path: filePath });
   return actual.trim().toLowerCase() === expectedSha256.trim().toLowerCase();
@@ -157,7 +195,7 @@ export async function verifyChecksum(
  */
 export async function extractTarball(
   tarballPath: string,
-  destPath: string,
+  destPath: string
 ): Promise<string[]> {
   return invoke<string[]>('extract_tarball', { tarballPath, destPath });
 }
@@ -169,7 +207,7 @@ export async function extractTarball(
  */
 export async function cleanupOnError(
   fs: FSBackend,
-  tempPaths: string[],
+  tempPaths: string[]
 ): Promise<void> {
   for (const path of tempPaths) {
     await safeDelete(fs, path);

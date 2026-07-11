@@ -1,5 +1,10 @@
 import type { FSBackend } from '@/platform/fs/types';
-import type { CatalogEntry, InstalledEntry, UpdateInfo, TemplateProvenance } from '@/features/workflows/types/marketplace';
+import type {
+  CatalogEntry,
+  InstalledEntry,
+  UpdateInfo,
+  TemplateProvenance,
+} from '@/features/workflows/types/marketplace';
 import type { TemplateManifest } from '@/features/workflows/types/templateManifest';
 import { AuditService } from '@/platform/audit/AuditService';
 import {
@@ -10,6 +15,7 @@ import {
   type DownloadProgress,
 } from './install';
 import { validateTemplateManifest, compareSemver } from './manifestValidator';
+import { egressFetch } from '@/platform/privacy/networkClient';
 
 /**
  * Minimum manifest shape the install pipeline cares about post-validation.
@@ -25,9 +31,9 @@ export type ManifestValidatorResult<M extends ValidatedMarketplaceManifest> =
   | { ok: true; manifest: M }
   | { ok: false; errors: string[] };
 
-export type ManifestValidator<M extends ValidatedMarketplaceManifest = ValidatedMarketplaceManifest> = (
-  raw: unknown,
-) => ManifestValidatorResult<M>;
+export type ManifestValidator<
+  M extends ValidatedMarketplaceManifest = ValidatedMarketplaceManifest,
+> = (raw: unknown) => ManifestValidatorResult<M>;
 
 /**
  * Lifecycle hooks for emitting audit events. The default emits template_*
@@ -35,7 +41,10 @@ export type ManifestValidator<M extends ValidatedMarketplaceManifest = Validated
  */
 export interface MarketplaceAuditEmitter {
   installSucceeded: (audit: AuditService, payload: InstallAuditPayload) => void;
-  installFailed: (audit: AuditService, payload: InstallFailedAuditPayload) => void;
+  installFailed: (
+    audit: AuditService,
+    payload: InstallFailedAuditPayload
+  ) => void;
   uninstalled: (audit: AuditService, payload: UninstallAuditPayload) => void;
   updated: (audit: AuditService, payload: UpdateAuditPayload) => void;
 }
@@ -86,7 +95,12 @@ export interface MarketplaceServiceOptions {
   auditEmitter?: MarketplaceAuditEmitter;
 }
 
-export type InstallPhase = 'download' | 'checksum' | 'extract' | 'validate' | 'audit';
+export type InstallPhase =
+  | 'download'
+  | 'checksum'
+  | 'extract'
+  | 'validate'
+  | 'audit';
 
 export interface InstallOptions {
   onProgress?: (phase: InstallPhase, pct: number) => void;
@@ -161,7 +175,10 @@ const DEFAULT_TEMPLATE_AUDIT_EMITTER: MarketplaceAuditEmitter = {
 const DEFAULT_VALIDATOR: ManifestValidator = (raw) => {
   const result = validateTemplateManifest(raw);
   if (!result.ok) return { ok: false, errors: result.errors };
-  return { ok: true, manifest: result.manifest as unknown as ValidatedMarketplaceManifest };
+  return {
+    ok: true,
+    manifest: result.manifest as unknown as ValidatedMarketplaceManifest,
+  };
 };
 
 export class MarketplaceService {
@@ -196,9 +213,9 @@ export class MarketplaceService {
   async refresh(opts?: { silent?: boolean }): Promise<void> {
     const url = `${this.opts.repoUrl}/${this.opts.catalogPath}`;
     try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const entries = (await res.json()) as CatalogEntry[];
+      const res = await egressFetch('marketplace-manifest', url);
+      if (!res.ok) throw new Error(`HTTP ${String(res.status)}`);
+      const entries = (await res.json()) as unknown as CatalogEntry[];
       this.cache = entries;
       const fetchedAt = new Date().toISOString();
       this.lastFetchedAt = fetchedAt;
@@ -267,7 +284,10 @@ export class MarketplaceService {
    * On any failure, runs cleanupOnError against the temp tarball + install
    * dir, audits `template_install_failed`, and re-throws.
    */
-  async install(id: string, opts: InstallOptions = {}): Promise<InstalledEntry> {
+  async install(
+    id: string,
+    opts: InstallOptions = {}
+  ): Promise<InstalledEntry> {
     const existing = this.inFlight.get(id);
     if (existing) return existing;
     const promise = this.doInstall(id, opts).finally(() => {
@@ -277,7 +297,10 @@ export class MarketplaceService {
     return promise;
   }
 
-  private async doInstall(id: string, opts: InstallOptions): Promise<InstalledEntry> {
+  private async doInstall(
+    id: string,
+    opts: InstallOptions
+  ): Promise<InstalledEntry> {
     const { onProgress } = opts;
     const tmpPath = `${this.opts.installRoot}/.tmp/${id}.tar.gz`;
     const installDir = `${this.opts.installRoot}/${id}`;
@@ -291,10 +314,16 @@ export class MarketplaceService {
 
       // 1. Download
       onProgress?.('download', 0);
-      const downloadOpts: { onProgress: (p: DownloadProgress) => void; signal?: AbortSignal } = {
+      const downloadOpts: {
+        onProgress: (p: DownloadProgress) => void;
+        signal?: AbortSignal;
+      } = {
         onProgress: (p: DownloadProgress) => {
           if (p.fraction !== null) {
-            onProgress?.('download', Math.min(99, Math.round(p.fraction * 100)));
+            onProgress?.(
+              'download',
+              Math.min(99, Math.round(p.fraction * 100))
+            );
           } else if (p.total === null) {
             // Unknown total: emit a coarse heartbeat at 50% so the UI doesn't
             // appear stuck during long downloads.
@@ -303,7 +332,12 @@ export class MarketplaceService {
         },
       };
       if (opts.signal) downloadOpts.signal = opts.signal;
-      await downloadTarball(entry.installUrl, tmpPath, this.opts.fs, downloadOpts);
+      await downloadTarball(
+        entry.installUrl,
+        tmpPath,
+        this.opts.fs,
+        downloadOpts
+      );
       onProgress?.('download', 100);
 
       // 2. Verify checksum (warn on missing, throw on mismatch).
@@ -312,13 +346,13 @@ export class MarketplaceService {
         const ok = await verifyChecksum(tmpPath, entry.checksum);
         if (!ok) {
           throw new Error(
-            `Checksum mismatch for ${id}: tarball does not match expected SHA-256`,
+            `Checksum mismatch for ${id}: tarball does not match expected SHA-256`
           );
         }
       } else {
         // eslint-disable-next-line no-console
         console.warn(
-          `[marketplace] No checksum on catalog entry for ${id}; install proceeding without verification.`,
+          `[marketplace] No checksum on catalog entry for ${id}; install proceeding without verification.`
         );
       }
       onProgress?.('checksum', 100);
@@ -332,7 +366,7 @@ export class MarketplaceService {
       onProgress?.('validate', 0);
       const manifestPath = `${installDir}/manifest.json`;
       const rawManifest = await this.opts.fs.read(manifestPath);
-      const parsed = JSON.parse(rawManifest);
+      const parsed: unknown = JSON.parse(rawManifest) as unknown;
       const result = this.validator(parsed);
       if (!result.ok) {
         throw new Error(`Manifest invalid: ${result.errors.join('; ')}`);
@@ -397,7 +431,10 @@ export class MarketplaceService {
     await cleanupOnError(this.opts.fs, [target.installedPath]);
     const next = index.filter((e) => e.id !== id);
     await this.writeInstalledIndex(next);
-    this.auditEmitter.uninstalled(this.auditService, { id, version: target.version });
+    this.auditEmitter.uninstalled(this.auditService, {
+      id,
+      version: target.version,
+    });
   }
 
   async listInstalled(): Promise<InstalledEntry[]> {
@@ -416,8 +453,10 @@ export class MarketplaceService {
     const entry = index.find((e) => e.id === id);
     if (!entry) return null;
     try {
-      const raw = await this.opts.fs.read(`${entry.installedPath}/manifest.json`);
-      const parsed = JSON.parse(raw);
+      const raw = await this.opts.fs.read(
+        `${entry.installedPath}/manifest.json`
+      );
+      const parsed: unknown = JSON.parse(raw) as unknown;
       const result = validateTemplateManifest(parsed);
       if (!result.ok) return null;
       return result.manifest;
@@ -474,7 +513,7 @@ export class MarketplaceService {
     try {
       const raw = await this.opts.fs.read(this.installedIndexPath());
       const parsed = JSON.parse(raw) as InstalledIndex;
-      this.installedCache = parsed.entries ?? [];
+      this.installedCache = parsed.entries;
     } catch {
       this.installedCache = [];
     }
@@ -484,6 +523,9 @@ export class MarketplaceService {
   private async writeInstalledIndex(entries: InstalledEntry[]): Promise<void> {
     this.installedCache = entries;
     const payload: InstalledIndex = { entries };
-    await this.opts.fs.write(this.installedIndexPath(), JSON.stringify(payload, null, 2));
+    await this.opts.fs.write(
+      this.installedIndexPath(),
+      JSON.stringify(payload, null, 2)
+    );
   }
 }

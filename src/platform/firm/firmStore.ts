@@ -21,7 +21,12 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { FirmApiClient, FirmApiError, type TokenSource } from '@/platform/firm/FirmApiClient';
+import { isTauri } from '@tauri-apps/api/core';
+import {
+  FirmApiClient,
+  FirmApiError,
+  type TokenSource,
+} from '@/platform/firm/FirmApiClient';
 import { getFirmApiBase } from '@/platform/firm/firmConfig';
 import { verifySeatToken } from '@/platform/firm/seatToken';
 import {
@@ -45,6 +50,11 @@ import type {
   OrgClaimResponse,
 } from '@/platform/firm/contract';
 import { SK_FIRM_SESSION, SK_MACHINE_ID } from '@/config/identity';
+import { OfflineModeBlockedError } from '@/platform/privacy/networkClient';
+import {
+  getNetworkPolicyStatus,
+  subscribeToOfflineModeChanges,
+} from '@/platform/privacy/offlineMode';
 
 /** Stable per-machine id, shared with the licensing hook's convention. */
 function getMachineId(): string {
@@ -79,6 +89,10 @@ interface PersistedFirmSession {
   lastValidatedAt: string | null;
   /** Whether a seat has been activated on this machine. */
   activated: boolean;
+  /** Public key needed to verify a cached seat while deliberately offline. */
+  seatPublicKeyPem?: string | null;
+  /** A known revocation must remain known after relaunching offline. */
+  lastServerVerdict?: 'valid' | 'revoked' | 'unknown';
 }
 
 interface FirmState {
@@ -91,13 +105,18 @@ interface FirmState {
   serverVerdict: 'valid' | 'revoked' | 'unknown';
   offlineSeatValid: boolean;
   isOffline: boolean;
+  /** An intentional Offline Mode skip, never an outage or server verdict. */
+  validationDeferredByOfflineMode: boolean;
   isLoading: boolean;
   error: string | null;
   /** Providers for which the firm has a managed (assured) key configured. */
   assuredProviders: AssuredProvider[];
 
   // actions
-  signIn: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ ok: boolean; error?: string }>;
   /**
    * Sign in through the firm's configured OIDC identity provider (e.g. Microsoft
    * Entra ID, Google Workspace). The Tauri command `firm_sso_authenticate` drives
@@ -123,12 +142,16 @@ interface FirmState {
     licenseKey: string,
     email: string,
     password: string,
-    orgName?: string,
+    orgName?: string
   ) => Promise<{ ok: boolean; error?: string; claimedLicenseKey?: string }>;
   activateSeat: (
     licenseKey: string,
-    machineLabel?: string,
-  ) => Promise<{ ok: boolean; error?: string; seatLimit?: SeatLimitExceededResponse }>;
+    machineLabel?: string
+  ) => Promise<{
+    ok: boolean;
+    error?: string;
+    seatLimit?: SeatLimitExceededResponse;
+  }>;
   signOut: () => Promise<void>;
   /** Re-hydrate secrets from the keychain for a previously signed-in user. */
   hydrate: () => Promise<void>;
@@ -152,9 +175,33 @@ let ssoCancelRequested = false;
 
 function emptyVerdict(): Pick<
   FirmState,
-  'serverVerdict' | 'offlineSeatValid' | 'isOffline'
+  | 'serverVerdict'
+  | 'offlineSeatValid'
+  | 'isOffline'
+  | 'validationDeferredByOfflineMode'
 > {
-  return { serverVerdict: 'unknown', offlineSeatValid: false, isOffline: false };
+  return {
+    serverVerdict: 'unknown',
+    offlineSeatValid: false,
+    isOffline: false,
+    validationDeferredByOfflineMode: false,
+  };
+}
+
+/** The native policy is authoritative. An unavailable policy fails closed. */
+async function offlineModeBlocksFirmNetwork(): Promise<boolean> {
+  if (!isTauri()) return false;
+  try {
+    return (await getNetworkPolicyStatus()).offlineMode;
+  } catch {
+    return true;
+  }
+}
+
+async function assertFirmNetworkAllowed(action: string): Promise<void> {
+  if (await offlineModeBlocksFirmNetwork()) {
+    throw new OfflineModeBlockedError(action);
+  }
 }
 
 /**
@@ -165,8 +212,10 @@ function emptyVerdict(): Pick<
  */
 async function establishSessionFromLogin(
   res: LoginResponse,
-  set: (partial: Partial<FirmState> | ((s: FirmState) => Partial<FirmState>)) => void,
-  get: () => FirmState,
+  set: (
+    partial: Partial<FirmState> | ((s: FirmState) => Partial<FirmState>)
+  ) => void,
+  get: () => FirmState
 ): Promise<void> {
   const user: PublicUser = res.user;
   await storeAuthTokens(user.user_id, res.access_token, res.refresh_token);
@@ -190,7 +239,8 @@ async function establishSessionFromLogin(
   // Carry forward a prior seat for the SAME user (re-sign-in); otherwise
   // start fresh.
   const prevSession = get().session;
-  const prev = prevSession && prevSession.userId === user.user_id ? prevSession : null;
+  const prev =
+    prevSession && prevSession.userId === user.user_id ? prevSession : null;
   set({
     session: {
       userId: user.user_id,
@@ -203,6 +253,8 @@ async function establishSessionFromLogin(
       seats: prev ? prev.seats : 1,
       lastValidatedAt: prev ? prev.lastValidatedAt : null,
       activated: prev ? prev.activated : false,
+      seatPublicKeyPem,
+      lastServerVerdict: prev?.lastServerVerdict ?? 'unknown',
     },
     seatPublicKeyPem,
     isLoading: false,
@@ -234,13 +286,21 @@ export const useFirmStore = create<FirmState>()(
           const tokens = await loadFirmTokens(session.userId);
           if (!tokens) return null;
           try {
+            await assertFirmNetworkAllowed('firm sign-in refresh');
             // Bare client (no token source) to avoid refresh recursion.
             const bare = new FirmApiClient();
             const res = await bare.refresh(tokens.refreshToken);
-            await storeAuthTokens(session.userId, res.access_token, res.refresh_token);
+            await storeAuthTokens(
+              session.userId,
+              res.access_token,
+              res.refresh_token
+            );
             set({ accessToken: res.access_token, isOffline: false });
             return res.access_token;
-          } catch {
+          } catch (error) {
+            if (error instanceof OfflineModeBlockedError) {
+              set({ isOffline: true, validationDeferredByOfflineMode: true });
+            }
             return null;
           }
         },
@@ -262,7 +322,11 @@ export const useFirmStore = create<FirmState>()(
               : err instanceof Error
                 ? err.message
                 : 'Sign-in failed';
-          set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
+          set({
+            isLoading: false,
+            error: message,
+            isOffline: !(err instanceof FirmApiError),
+          });
           return { ok: false, error: message };
         }
       },
@@ -273,7 +337,10 @@ export const useFirmStore = create<FirmState>()(
         try {
           const { invoke } = await import('@tauri-apps/api/core');
           const backendBase = getFirmApiBase();
-          const raw = await invoke<string>('firm_sso_authenticate', { backendBase, email });
+          const raw = await invoke<string>('firm_sso_authenticate', {
+            backendBase,
+            email,
+          });
 
           // `firm_sso_authenticate` already resolved (the loopback redirect
           // and code exchange both completed) — but the user may have
@@ -298,7 +365,13 @@ export const useFirmStore = create<FirmState>()(
           // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- ssoCancelRequested flips via signInSsoCancel() during establishSessionFromLogin above (ESLint can't see it; same async pattern baselined in useAsk.ts).
           if (ssoCancelRequested) {
             await clearUserSecrets(res.user.user_id).catch(() => {});
-            set({ session: null, accessToken: null, isLoading: false, error: null, isOffline: false });
+            set({
+              session: null,
+              accessToken: null,
+              isLoading: false,
+              error: null,
+              isOffline: false,
+            });
             throw new Error('cancelled');
           }
         } catch (err) {
@@ -319,7 +392,11 @@ export const useFirmStore = create<FirmState>()(
           // don't surface it as a store-level error (and no session was ever
           // established).
           const cancelled = message === 'cancelled';
-          set({ isLoading: false, error: cancelled ? null : message, isOffline: cancelled ? false : !(err instanceof FirmApiError) });
+          set({
+            isLoading: false,
+            error: cancelled ? null : message,
+            isOffline: cancelled ? false : !(err instanceof FirmApiError),
+          });
           throw err instanceof Error ? err : new Error(message);
         }
       },
@@ -338,15 +415,26 @@ export const useFirmStore = create<FirmState>()(
         set({ isLoading: true, error: null });
         try {
           const bare = new FirmApiClient();
-          const res: OrgClaimResponse = await bare.orgClaim(licenseKey, email, password, orgName);
+          const res: OrgClaimResponse = await bare.orgClaim(
+            licenseKey,
+            email,
+            password,
+            orgName
+          );
           const user: PublicUser = res.user;
-          await storeAuthTokens(user.user_id, res.access_token, res.refresh_token);
+          await storeAuthTokens(
+            user.user_id,
+            res.access_token,
+            res.refresh_token
+          );
 
           // Fetch the seat public key for offline verification (non-fatal).
           let seatPublicKeyPem: string | null = get().seatPublicKeyPem;
           try {
             seatPublicKeyPem = await new FirmApiClient().getSeatPublicKey();
-          } catch { /* non-fatal */ }
+          } catch {
+            /* non-fatal */
+          }
 
           set({
             accessToken: res.access_token,
@@ -361,6 +449,8 @@ export const useFirmStore = create<FirmState>()(
               seats: 1,
               lastValidatedAt: null,
               activated: false,
+              seatPublicKeyPem,
+              lastServerVerdict: 'unknown',
             },
             seatPublicKeyPem,
             isLoading: false,
@@ -375,7 +465,11 @@ export const useFirmStore = create<FirmState>()(
               : err instanceof Error
                 ? err.message
                 : 'Claim failed';
-          set({ isLoading: false, error: message, isOffline: !(err instanceof FirmApiError) });
+          set({
+            isLoading: false,
+            error: message,
+            isOffline: !(err instanceof FirmApiError),
+          });
           return { ok: false, error: message };
         }
       },
@@ -385,8 +479,13 @@ export const useFirmStore = create<FirmState>()(
         if (!session) return { ok: false, error: 'Sign in first.' };
         set({ isLoading: true, error: null });
         try {
+          await assertFirmNetworkAllowed('firm seat activation');
           const client = get().client();
-          const res = await client.activate(licenseKey.trim(), getMachineId(), machineLabel);
+          const res = await client.activate(
+            licenseKey.trim(),
+            getMachineId(),
+            machineLabel
+          );
           await storeSeatToken(session.userId, res.seat_token);
 
           // Verify the freshly minted seat token offline against the public key.
@@ -404,6 +503,7 @@ export const useFirmStore = create<FirmState>()(
             serverVerdict: 'valid',
             offlineSeatValid,
             isOffline: false,
+            validationDeferredByOfflineMode: false,
             isLoading: false,
             error: null,
             session: {
@@ -414,6 +514,8 @@ export const useFirmStore = create<FirmState>()(
               seats: res.seats,
               lastValidatedAt: now,
               activated: true,
+              seatPublicKeyPem: pem,
+              lastServerVerdict: 'valid',
             },
           });
           return { ok: true };
@@ -422,7 +524,8 @@ export const useFirmStore = create<FirmState>()(
             set({ isLoading: false, error: err.message });
             return { ok: false, error: err.message, seatLimit: err.seatLimit };
           }
-          const message = err instanceof Error ? err.message : 'Activation failed';
+          const message =
+            err instanceof Error ? err.message : 'Activation failed';
           set({ isLoading: false, error: message });
           return { ok: false, error: message };
         }
@@ -463,20 +566,39 @@ export const useFirmStore = create<FirmState>()(
           set({ accessToken: null, seatToken: null, ...emptyVerdict() });
           return;
         }
-        set({ accessToken: tokens.accessToken, seatToken: tokens.seatToken ?? null });
+        const offlineModeOn = await offlineModeBlocksFirmNetwork();
+        const cachedPem =
+          get().seatPublicKeyPem ?? session.seatPublicKeyPem ?? null;
+        set({
+          accessToken: tokens.accessToken,
+          seatToken: tokens.seatToken ?? null,
+          seatPublicKeyPem: cachedPem,
+        });
 
         // Offline-verify the stored seat token immediately (works on a plane).
         let offlineSeatValid = false;
-        let pem = get().seatPublicKeyPem;
-        if (!pem) pem = await safeGetPubKey(get);
+        let pem = cachedPem;
+        // Offline Mode may use the cached public key but must never refresh it.
+        if (!pem && !offlineModeOn) pem = await safeGetPubKey(get);
         if (pem && tokens.seatToken) {
           const v = await verifySeatToken(tokens.seatToken, pem);
           offlineSeatValid = v.valid;
         }
-        set({ seatPublicKeyPem: pem, offlineSeatValid });
+        const knownVerdict = session.lastServerVerdict ?? 'unknown';
+        set({
+          seatPublicKeyPem: pem,
+          offlineSeatValid,
+          // A previous server revocation is never turned into grace access.
+          serverVerdict:
+            offlineModeOn && knownVerdict !== 'revoked'
+              ? 'unknown'
+              : knownVerdict,
+          isOffline: offlineModeOn,
+          validationDeferredByOfflineMode: offlineModeOn,
+        });
 
         // Then try an online validate to catch revocations.
-        if (session.activated) void get().validateSeat();
+        if (session.activated && !offlineModeOn) void get().validateSeat();
       },
 
       validateSeat: async () => {
@@ -484,12 +606,14 @@ export const useFirmStore = create<FirmState>()(
         const seatToken = get().seatToken;
         if (!session || !seatToken) return;
         try {
+          await assertFirmNetworkAllowed('firm seat validation');
           const res = await new FirmApiClient().seatHeartbeat(seatToken);
           if (res.valid) {
             const now = new Date().toISOString();
             set((s) => ({
               serverVerdict: 'valid',
               isOffline: false,
+              validationDeferredByOfflineMode: false,
               session: s.session
                 ? {
                     ...s.session,
@@ -498,17 +622,31 @@ export const useFirmStore = create<FirmState>()(
                     seats: res.seats,
                     seatId: res.seat_id,
                     lastValidatedAt: now,
+                    lastServerVerdict: 'valid',
                   }
                 : s.session,
             }));
           } else {
             // Server rejected the seat (revoked / deprovisioned / suspended).
             // Degrade features, keep data — never lock out.
-            set({ serverVerdict: 'revoked', isOffline: false });
+            set((s) => ({
+              serverVerdict: 'revoked',
+              isOffline: false,
+              validationDeferredByOfflineMode: false,
+              session: s.session
+                ? { ...s.session, lastServerVerdict: 'revoked' }
+                : s.session,
+            }));
           }
-        } catch {
+        } catch (error) {
           // Network failure — rely on the offline-verified token within grace.
-          set({ isOffline: true });
+          set((s) => ({
+            serverVerdict:
+              s.serverVerdict === 'revoked' ? 'revoked' : 'unknown',
+            isOffline: true,
+            validationDeferredByOfflineMode:
+              error instanceof OfflineModeBlockedError,
+          }));
         }
       },
 
@@ -519,6 +657,11 @@ export const useFirmStore = create<FirmState>()(
           return;
         }
         try {
+          if (await offlineModeBlocksFirmNetwork()) {
+            // Keep the cached list. An intentional stop is not a failed refresh.
+            set({ isOffline: true, validationDeferredByOfflineMode: true });
+            return;
+          }
           const res = await get().client().listProviderKeys();
           set({ assuredProviders: res.keys.map((k) => k.provider) });
         } catch {
@@ -528,21 +671,33 @@ export const useFirmStore = create<FirmState>()(
     }),
     {
       name: SK_FIRM_SESSION,
-      version: 1,
+      version: 2,
       // Persist ONLY non-secret session metadata. Secrets stay in the keychain.
       partialize: (state) => ({ session: state.session }),
-    },
-  ),
+    }
+  )
 );
 
 /** Fetch + cache the seat public key, tolerating failure (offline). */
 async function safeGetPubKey(get: () => FirmState): Promise<string | null> {
+  if (await offlineModeBlocksFirmNetwork()) return get().seatPublicKeyPem;
   try {
     return await new FirmApiClient().getSeatPublicKey();
   } catch {
     return get().seatPublicKeyPem;
   }
 }
+
+// Turning Offline Mode on changes the local entitlement input immediately.
+// Turning it off deliberately does not restart validation or provider refresh.
+subscribeToOfflineModeChanges((status) => {
+  if (!status.offlineMode) return;
+  useFirmStore.setState((current) => ({
+    serverVerdict: current.serverVerdict === 'revoked' ? 'revoked' : 'unknown',
+    isOffline: true,
+    validationDeferredByOfflineMode: true,
+  }));
+});
 
 // ─────────────────────────────────────────────────────────────────────
 // Derived selectors
@@ -563,7 +718,10 @@ export function selectFirmSeatState(s: FirmState): FirmSeatState {
 }
 
 /** The firm entitlement (pure decision over the current seat state). */
-export function selectFirmEntitlement(s: FirmState, now: Date = new Date()): Entitlement {
+export function selectFirmEntitlement(
+  s: FirmState,
+  now: Date = new Date()
+): Entitlement {
   return decideFirmEntitlement(selectFirmSeatState(s), now);
 }
 

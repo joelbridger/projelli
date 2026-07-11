@@ -21,10 +21,26 @@ import { useLicense } from './useLicense';
 import { useTrial } from './useTrial';
 import {
   decideEntitlement,
+  normalizeStatus,
   toLicenseRecord,
   type Entitlement,
   type TrialContext,
 } from '@/platform/licensing';
+
+/**
+ * Build the entitlement layer's offline input without ever letting an explicit
+ * server revocation masquerade as a temporary lack of network access.
+ */
+export function licenseOfflineGraceState(
+  isOffline: boolean,
+  lastKnownGoodAt: Date | null,
+  status?: string
+) {
+  return {
+    isOffline: isOffline && normalizeStatus(status) !== 'revoked',
+    lastKnownGoodAt,
+  };
+}
 
 /**
  * Reactive entitlement for the current user. Recomputed whenever the license
@@ -63,8 +79,12 @@ export function useEntitlement(): Entitlement {
     return decideEntitlement(
       record,
       new Date(),
-      { isOffline: license.isOffline, lastKnownGoodAt: license.lastKnownGoodAt },
-      trialContext,
+      licenseOfflineGraceState(
+        license.isOffline,
+        license.lastKnownGoodAt,
+        license.status
+      ),
+      trialContext
     );
   }, [
     license.tier,

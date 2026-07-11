@@ -2,8 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock Tauri invoke BEFORE importing install.ts so the module-level import
 // binds to the mock.
+const { invokeMock, isTauriMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  isTauriMock: vi.fn(),
+}));
+
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(),
+  invoke: invokeMock,
+  isTauri: isTauriMock,
 }));
 
 import * as tauriCore from '@tauri-apps/api/core';
@@ -16,6 +22,16 @@ import {
 import type { FSBackend } from '@/platform/fs/types';
 
 const mockInvoke = vi.mocked(tauriCore.invoke);
+
+function setAllowedNativePolicy(): void {
+  isTauriMock.mockReturnValue(true);
+  mockInvoke.mockImplementation(async (command: string) => {
+    if (command === 'network_policy_status') {
+      return { offlineMode: false, generation: 1 };
+    }
+    throw new Error(`Unexpected invoke: ${command}`);
+  });
+}
 
 interface FakeFs {
   fs: FSBackend;
@@ -95,6 +111,7 @@ function fakeStreamingResponse(
 describe('downloadTarball', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setAllowedNativePolicy();
   });
 
   it('downloads the response body to destPath via a temp file rename', async () => {
@@ -102,7 +119,7 @@ describe('downloadTarball', () => {
     const chunks = [new Uint8Array([1, 2, 3]), new Uint8Array([4, 5])];
     vi.stubGlobal('fetch', vi.fn(async () => fakeStreamingResponse(chunks, { total: 5 })));
 
-    await downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs);
+    await downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs);
 
     expect(writeBinarySpy).toHaveBeenCalledTimes(1);
     expect(writeBinarySpy.mock.calls[0]![0]).toBe('/tmp/x.tar.gz.partial');
@@ -118,7 +135,7 @@ describe('downloadTarball', () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeStreamingResponse(chunks, { total: 10 })));
     const onProgress = vi.fn();
 
-    await downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs, { onProgress });
+    await downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs, { onProgress });
 
     expect(onProgress).toHaveBeenCalledTimes(2);
     expect(onProgress.mock.calls[0]![0]).toEqual({ loaded: 4, total: 10, fraction: 0.4 });
@@ -131,7 +148,7 @@ describe('downloadTarball', () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeStreamingResponse(chunks, {})));
     const onProgress = vi.fn();
 
-    await downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs, { onProgress });
+    await downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs, { onProgress });
 
     expect(onProgress).toHaveBeenCalledWith({ loaded: 3, total: null, fraction: null });
   });
@@ -141,7 +158,7 @@ describe('downloadTarball', () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeStreamingResponse([], { ok: false, status: 404 })));
 
     await expect(
-      downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs),
+      downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs),
     ).rejects.toThrow(/HTTP 404/);
     expect(writes.has('/tmp/x.tar.gz')).toBe(false);
     // The non-ok branch never wrote a temp file, so delete is not required.
@@ -153,7 +170,7 @@ describe('downloadTarball', () => {
     vi.stubGlobal('fetch', vi.fn(async () => fakeStreamingResponse([], { bodyless: true })));
 
     await expect(
-      downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs),
+      downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs),
     ).rejects.toThrow(/no body/);
   });
 
@@ -183,7 +200,7 @@ describe('downloadTarball', () => {
     } as unknown as Response)));
 
     await expect(
-      downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs, { signal: controller.signal }),
+      downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs, { signal: controller.signal }),
     ).rejects.toThrow();
     // safeDelete must have been called against the temp path during rollback.
     expect(deleteSpy).toHaveBeenCalledWith('/tmp/x.tar.gz.partial');
@@ -196,7 +213,7 @@ describe('downloadTarball', () => {
       fakeStreamingResponse([new Uint8Array([1])], { total: 1 })));
 
     await expect(
-      downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs),
+      downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs),
     ).rejects.toThrow(/disk full/);
     expect(deleteSpy).toHaveBeenCalledWith('/tmp/x.tar.gz.partial');
   });
@@ -207,7 +224,7 @@ describe('downloadTarball', () => {
       fakeStreamingResponse([new Uint8Array([1])], { total: 1 })));
 
     await expect(
-      downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs),
+      downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs),
     ).rejects.toThrow(/rename failed/);
     expect(deleteSpy).toHaveBeenCalledWith('/tmp/x.tar.gz.partial');
   });
@@ -219,7 +236,7 @@ describe('downloadTarball', () => {
     }));
 
     await expect(
-      downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs),
+      downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs),
     ).rejects.toThrow(/connection refused/);
   });
 });
@@ -308,6 +325,7 @@ describe('cleanupOnError', () => {
 describe('install pipeline composition', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setAllowedNativePolicy();
   });
 
   it('clean download → verifyChecksum (match) → extractTarball returns file list', async () => {
@@ -315,7 +333,7 @@ describe('install pipeline composition', () => {
     vi.stubGlobal('fetch', vi.fn(async () =>
       fakeStreamingResponse([new Uint8Array([1, 2, 3])], { total: 3 })));
 
-    await downloadTarball('http://e/x.tar.gz', '/tmp/x.tar.gz', fs);
+    await downloadTarball('https://raw.githubusercontent.com/test/community-templates/main/x.tar.gz', '/tmp/x.tar.gz', fs);
 
     mockInvoke.mockResolvedValueOnce('deadbeef'); // sha256_file
     expect(await verifyChecksum('/tmp/x.tar.gz', 'deadbeef')).toBe(true);

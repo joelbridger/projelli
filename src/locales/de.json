@@ -398,6 +398,8 @@
       "seats": "Bis zu {{count}} Lizenzplätze",
       "valid-until": "Gültig bis: {{date}}",
       "valid-until__sourceHash": "372882d81d7a610854bb9f16fb7b3107228616db853ef184e951479a52727321",
+      "offline-mode-status": "Der Offline-Modus verwendet Ihren zuletzt bestätigten Lizenzstatus.",
+      "offline-mode-status__sourceHash": "6d86ae8a7dafb422b76ad46058f73120140c61bf7f950107d03ae85b6c453cbc",
       "ownership-tagline": "Ihre Dateien gehören immer Ihnen. Wenn Sie kündigen, behalten Sie jedes Dokument, jede E-Mail und jeden Vorgang, den Sie erstellt haben. Ein abgelaufenes Abonnement schaltet die KI-Funktionen und Updates ab, nicht Ihre Daten.",
       "refresh": "Aktualisieren",
       "refresh__sourceHash": "0e91610117029a62a478b7fa7df0b8598bebe3ab1e192d4b1882e310719c9671",

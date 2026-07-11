@@ -16,6 +16,16 @@
 
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { renderHook, act, render, screen, fireEvent } from '@testing-library/react';
+
+const { invokeMock, isTauriMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  isTauriMock: vi.fn(),
+}));
+
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: invokeMock,
+  isTauri: isTauriMock,
+}));
 import '@/i18n';
 import {
   getTelemetryConsent,
@@ -118,6 +128,14 @@ describe('sendEvent', () => {
   let store: Record<string, string>;
 
   beforeEach(() => {
+    isTauriMock.mockReturnValue(true);
+    invokeMock.mockReset();
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'network_policy_status') {
+        return { offlineMode: false, generation: 1 };
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
     store = mockLocalStorage();
     // Non-private mode so the fail-closed kill-switch doesn't skip the send.
     store['lantern:settings'] = JSON.stringify({ state: { values: { confidentialityMode: 'direct' } }, version: 1 });
@@ -198,6 +216,14 @@ describe('sendEventOnce', () => {
   let store: Record<string, string>;
 
   beforeEach(() => {
+    isTauriMock.mockReturnValue(true);
+    invokeMock.mockReset();
+    invokeMock.mockImplementation(async (command: string) => {
+      if (command === 'network_policy_status') {
+        return { offlineMode: false, generation: 1 };
+      }
+      throw new Error(`Unexpected command: ${command}`);
+    });
     store = mockLocalStorage();
     fetchCallCount = 0;
     store['lantern_telemetry_consent'] = 'enabled';

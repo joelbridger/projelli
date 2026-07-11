@@ -27,7 +27,7 @@
  * only about stopping THIS device from contacting the relay while offline.
  */
 
-export type EgressHostClass = 'literal-loopback' | 'cloud-ai';
+export type EgressHostClass = 'literal-loopback' | 'cloud-ai' | 'service';
 
 export interface EgressOperation {
   id: string;
@@ -64,6 +64,79 @@ const initialOperations = [
     transfersMetadata: true,
     transfersCredential: true,
     receiptLabel: 'cloud AI',
+  },
+  {
+    id: 'license-api',
+    category: 'licensing',
+    allowedHostClass: 'service',
+    allowedHosts: ['licenses.lanternplatform.app'],
+    transfersContent: false,
+    transfersMetadata: true,
+    transfersCredential: true,
+    receiptLabel: 'license activation or validation',
+  },
+  {
+    id: 'firm-seat-validation',
+    category: 'licensing',
+    allowedHostClass: 'service',
+    allowedHosts: ['api.lanternplatform.app'],
+    transfersContent: false,
+    transfersMetadata: true,
+    transfersCredential: true,
+    receiptLabel: 'firm seat validation',
+  },
+  {
+    id: 'updater-github-releases',
+    category: 'product-maintenance',
+    allowedHostClass: 'service',
+    // GitHub release downloads redirect to this asset host.
+    allowedHosts: ['github.com', 'release-assets.githubusercontent.com'],
+    transfersContent: false,
+    transfersMetadata: true,
+    transfersCredential: false,
+    receiptLabel: 'app updates',
+  },
+  {
+    id: 'marketplace-manifest',
+    category: 'product-maintenance',
+    allowedHostClass: 'service',
+    allowedHosts: ['raw.githubusercontent.com'],
+    transfersContent: false,
+    transfersMetadata: true,
+    transfersCredential: false,
+    // The configured catalog source currently appears unreachable/misconfigured
+    // upstream; keep this host aligned with the configured URL for follow-up.
+    receiptLabel: 'the marketplace catalog',
+  },
+  {
+    id: 'marketplace-package',
+    category: 'product-maintenance',
+    allowedHostClass: 'service',
+    allowedHosts: ['raw.githubusercontent.com'],
+    transfersContent: true,
+    transfersMetadata: true,
+    transfersCredential: false,
+    receiptLabel: 'a marketplace download',
+  },
+  {
+    id: 'telemetry',
+    category: 'telemetry',
+    allowedHostClass: 'service',
+    allowedHosts: ['forms.lanternplatform.app'],
+    transfersContent: false,
+    transfersMetadata: true,
+    transfersCredential: false,
+    receiptLabel: 'optional telemetry',
+  },
+  {
+    id: 'diagnostics',
+    category: 'diagnostics',
+    allowedHostClass: 'service',
+    allowedHosts: ['forms.lanternplatform.app'],
+    transfersContent: false,
+    transfersMetadata: true,
+    transfersCredential: false,
+    receiptLabel: 'optional diagnostics',
   },
 ] as const satisfies readonly EgressOperation[];
 
